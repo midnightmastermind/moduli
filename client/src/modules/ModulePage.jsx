@@ -241,9 +241,14 @@ function Page({
         return true;
       });
 
-    // Sub-folder pages: find child folders, then find their folder-page occurrences
+    // Sub-folder pages: find child folders, then find their folder-page occurrences.
+    // Category folders (folderType:"category" — FieldsTab/OperationsTab grouping)
+    // are NOT tree nodes and never render as cards; they used to be seeded with
+    // parentId = rootFolderId, which made "Trackers"/"Projects" show double
+    // anywhere a folder list forgot this filter (fixed at the data level
+    // 2026-07-12 — parentId is null now — this filter is defensive).
     const childFolders = Object.values(s.foldersById || {})
-      .filter(f => f.parentId === folderId);
+      .filter(f => f.parentId === folderId && f.folderType !== "category");
     const seenIds = new Set(directChildren.map(c => c.id));
     const subFolderPageOccs = [];
     for (const sf of childFolders) {
@@ -259,6 +264,15 @@ function Page({
 
     return [...directChildren, ...subFolderPageOccs]
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  });
+
+  // Display pages (artifact viewers, 2026-07-12): the page's first child (or
+  // meta.artifactPage) is the ARTIFACT occurrence to show full screen.
+  // Subscribing selector so artifact edits re-render the viewer.
+  const displayArtifactOcc = useGridActionsSelector(s => {
+    if (kind !== "display") return null;
+    const id = occurrence?.meta?.artifactPage || occurrence?.occurrences?.[0] || null;
+    return id ? (s.occurrencesById?.[id] || null) : null;
   });
 
   const containersList = useMemo(() => {
@@ -446,7 +460,19 @@ function Page({
     // just hosted directly by the page (mirrors canvas/doc delegation).
     content = <ContainerTable occurrence={occurrence} dispatch={dispatch} socket={socket} />;
   } else if (kind === "display") {
-    content = <PageDisplay occurrence={occurrence} pageView={pageView} dispatch={dispatch} socket={socket} />;
+    // When the page fronts an artifact occurrence (ensureArtifactPageOcc),
+    // render THAT occurrence and derive the view routing from its module kind;
+    // legacy display pages (the page occurrence IS the artifact) fall through.
+    const artMod = displayArtifactOcc ? modulesById[displayArtifactOcc.moduleId] : null;
+    const mediaKinds = ["image", "video", "audio", "pdf"];
+    const synthView = displayArtifactOcc
+      ? {
+          ...(pageView || {}),
+          viewType: mediaKinds.includes(artMod?.kind) ? "display" : (artMod?.kind === "code" ? "code" : "markdown"),
+          artifactType: mediaKinds.includes(artMod?.kind) ? artMod.kind : null,
+        }
+      : pageView;
+    content = <PageDisplay occurrence={displayArtifactOcc || occurrence} pageView={synthView} dispatch={dispatch} socket={socket} />;
   } else if (kind === "folder") {
     content = (
       <PageFolder

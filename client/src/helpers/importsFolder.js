@@ -108,6 +108,43 @@ export function ensureFolderPageOcc({ folderId, label, gridId, occurrencesById, 
   return occId;
 }
 
+// Find-or-create the ARTIFACT PAGE for an artifact occurrence — a
+// `role:"page" kind:"display"` page that shows the artifact full screen.
+// Opened when the user clicks an artifact in the manifest tree or a folder
+// page (per user 2026-07-12: "it should open an artifact page where we
+// display the artifact occurrence"). Idempotent via `meta.artifactPage =
+// <artifactOccId>`; parentId stays null so the viewer shell never shows as a
+// tree row of its own. Returns the page occurrence id (null when the artifact
+// can't resolve).
+export function ensureArtifactPageOcc({ artifactOccId, occurrencesById, modulesById, gridId, userId, dispatch, socket }) {
+  if (!artifactOccId) return null;
+  const existing = Object.values(occurrencesById || {}).find(
+    (o) => o && o.meta?.artifactPage === artifactOccId
+  );
+  if (existing) return existing.id;
+  const artOcc = occurrencesById?.[artifactOccId];
+  const artMod = artOcc ? modulesById?.[artOcc.moduleId] : null;
+  if (!artOcc || !artMod) return null;
+  const modId = crypto.randomUUID();
+  const occId = crypto.randomUUID();
+  CommitHelpers.createModule({
+    dispatch, socket,
+    module: {
+      id: modId, userId, gridId, role: "page", kind: "display",
+      label: artMod.label || artMod.meta?.originalName || "Artifact",
+    }, emit: true,
+  });
+  CommitHelpers.createOccurrence({
+    dispatch, socket,
+    occurrence: {
+      id: occId, userId, gridId, moduleId: modId, targetId: modId, targetType: "module",
+      parentId: null, occurrences: [artifactOccId],
+      iteration: { mode: "persistent" }, fields: {}, meta: { artifactPage: artifactOccId },
+    }, emit: true,
+  });
+  return occId;
+}
+
 // Wrap an already-created root occurrence in a DOC page that embeds it, parent
 // the page under the Imports folder, and pin it to `panelOccurrenceId`. Returns
 // the new page occurrence id. A doc page reads top-to-bottom like a document

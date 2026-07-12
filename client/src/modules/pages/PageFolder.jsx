@@ -11,6 +11,7 @@ import PreviewNode from "../PreviewNode.jsx";
 import useDrilldown, { getCardAnimStyle } from "../../hooks/useDrilldown.js";
 import { GridActionsContext, useGridActions } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
+import { ensureArtifactPageOcc } from "../../helpers/importsFolder";
 
 export default function PageFolder({
   childOccs,
@@ -168,12 +169,25 @@ export default function PageFolder({
   });
 
   // Wrap startDrillDown to prime the folder into the stack when entering from a clean state.
+  // Artifact cards (2026-07-12) drill into a full-screen ARTIFACT PAGE —
+  // navigating the panel view straight to a bare artifact occurrence resolves
+  // to no page and the panel snapped back to page 0.
   const handleDrillDown = useCallback((occId, cardEl) => {
+    let targetId = occId;
+    const occ = occurrencesById?.[occId];
+    const mod = occ ? modulesById?.[occ.moduleId] : null;
+    if (mod?.role === "artifact") {
+      const pageOccId = ensureArtifactPageOcc({
+        artifactOccId: occId, occurrencesById, modulesById,
+        gridId: occ.gridId || mod.gridId, userId: occ.userId || mod.userId, dispatch, socket,
+      });
+      if (pageOccId) targetId = pageOccId;
+    }
     if (drilldownStack.length === 0 && folderPageOccId) {
       resetStack([folderPageOccId]);
     }
-    startDrillDown(occId, cardEl);
-  }, [drilldownStack.length, folderPageOccId, resetStack, startDrillDown]);
+    startDrillDown(targetId, cardEl);
+  }, [drilldownStack.length, folderPageOccId, resetStack, startDrillDown, occurrencesById, modulesById, dispatch, socket]);
 
   // Auto-drilldown when navigating from tree (folder-first flow)
   useEffect(() => {

@@ -1142,3 +1142,28 @@ The new system links views to occurrences (`occurrence.viewId → View`) instead
   intentionally lost its + in the 2026-07-03 redesign). Picking an existing page pins it via
   `pinPageToPanel` + activates; create tiles mint a page via `createPage` (ManifestTree shapes).
   All four surfaces (container/page/panel/doc) E2E-verified headless.
+
+## Recent Changes (2026-07-12 — artifact pages + category-folder de-dup + doc-open timing)
+- **Artifact full-screen pages (user directive):** clicking an artifact in the MANIFEST TREE
+  (`ManifestTree.handleSelect`) or a FOLDER PAGE card (`PageFolder.handleDrillDown`) now opens a
+  `role:"page" kind:"display"` ARTIFACT PAGE via the new idempotent
+  `helpers/importsFolder.ensureArtifactPageOcc` (meta.artifactPage = artifactOccId; parentId null
+  so the viewer shell never shows as a tree row). Previously the click set the page panel's
+  `activeOccurrenceId` to a bare artifact occurrence, which resolved to NO page and the panel
+  snapped back to page 0 ("can't open image artifacts from the manifest/folder"). Artifact-tree
+  panels (hasTree views) keep the inline viewer. `ModulePage` display branch resolves the page's
+  artifact child (meta.artifactPage / occurrences[0]) reactively and derives viewType/artifactType
+  from the artifact module kind; legacy display pages fall through unchanged. E2E-verified
+  headless (tree click → display page with video player active in the panel). 3 tests in
+  importsFolder.test.js.
+- **Double folders fixed at the data level:** the seed parented all `folderType:"category"`
+  folders (field/op groupings — Trackers, Projects, Library…) under the MANIFEST ROOT, so any
+  folder listing without an explicit category filter showed them beside the real tree folders of
+  the same name. Category folders are NOT tree nodes: seed now writes `parentId: null` (matches
+  what FieldsTab/OperationsTab's "+ Category" creates), live DB patched (31 de-parented), and
+  `ModulePage.folderChildOccs` gained a defensive `folderType !== "category"` filter.
+- **`NodePill.jsx`** — root div stamps `data-node-occ-id` (probe/test targeting).
+- **Doc-open timing measured** (user: "slow to open"): seeded docs open in ~290ms even @4x CPU
+  throttle headless. The known heavy path is the eager-TipTap mount storm on BIG imported docs —
+  that's the standing "editor static-until-focus" docket (client/src/CLAUDE.md), still deferred
+  to its own session.

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { ensureImportsFolder, ensureImportsFolderAndPage, createImportsDocPage, shouldWrapImportOutput } from "../helpers/importsFolder";
+import { ensureImportsFolder, ensureImportsFolderAndPage, createImportsDocPage, shouldWrapImportOutput, ensureArtifactPageOcc } from "../helpers/importsFolder";
 
 vi.mock("../helpers/CommitHelpers", () => ({
   createFolder: vi.fn(),
@@ -102,5 +102,48 @@ describe("createImportsDocPage", () => {
       type: "moduleEmbed", attrs: { occurrenceId: "root-occ" },
     });
     expect(panelOccurrenceId).toBe("panel-1");          // pinned to the panel
+  });
+});
+
+describe("ensureArtifactPageOcc (2026-07-12 — artifact full-screen page)", () => {
+  const artifactWorld = () => ({
+    occurrencesById: {
+      "art-1": { id: "art-1", moduleId: "mod-art" },
+    },
+    modulesById: {
+      "mod-art": { id: "mod-art", role: "artifact", kind: "image", label: "Sunset.jpg" },
+    },
+    gridId: "grid-1", userId: "u1", dispatch: vi.fn(), socket: {},
+  });
+
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("mints a role:page kind:display page fronting the artifact", () => {
+    const args = artifactWorld();
+    const pageOccId = ensureArtifactPageOcc({ artifactOccId: "art-1", ...args });
+    expect(pageOccId).toBeTruthy();
+    const mod = CommitHelpers.createModule.mock.calls[0][0].module;
+    expect(mod.role).toBe("page");
+    expect(mod.kind).toBe("display");
+    expect(mod.label).toBe("Sunset.jpg");
+    const occ = CommitHelpers.createOccurrence.mock.calls[0][0].occurrence;
+    expect(occ.meta.artifactPage).toBe("art-1");
+    expect(occ.occurrences).toEqual(["art-1"]);
+    expect(occ.parentId).toBeNull(); // never a tree row of its own
+  });
+
+  it("is idempotent — an existing artifact page is reused", () => {
+    const args = artifactWorld();
+    args.occurrencesById["page-x"] = { id: "page-x", meta: { artifactPage: "art-1" } };
+    const pageOccId = ensureArtifactPageOcc({ artifactOccId: "art-1", ...args });
+    expect(pageOccId).toBe("page-x");
+    expect(CommitHelpers.createModule).not.toHaveBeenCalled();
+    expect(CommitHelpers.createOccurrence).not.toHaveBeenCalled();
+  });
+
+  it("returns null when the artifact can't resolve", () => {
+    const args = artifactWorld();
+    expect(ensureArtifactPageOcc({ artifactOccId: "missing", ...args })).toBeNull();
+    expect(CommitHelpers.createModule).not.toHaveBeenCalled();
   });
 });

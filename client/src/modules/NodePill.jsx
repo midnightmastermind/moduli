@@ -71,6 +71,7 @@ export default function NodePill({
       ref={ref}
       onClick={onClick}
       title={title}
+      data-node-occ-id={occurrence?.id || undefined}
       style={{
         display: "flex",
         flexDirection: reverseIndent ? "row-reverse" : "row",

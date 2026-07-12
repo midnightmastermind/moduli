@@ -31,6 +31,7 @@ const PILL_ACTIVE = (color = "rgba(100,180,255,0.5)") => ({
 // helpers/moduleIcons.js helper so add/edit happens in one place.
 import { KIND_ICONS as PAGE_KIND_ICON } from "../helpers/moduleIcons";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
+import { ensureArtifactPageOcc } from "../helpers/importsFolder";
 import { resolveFileRef, isExternalFileRef } from "../helpers/fileRef.js";
 import RadialMenu from "../ui/RadialMenu.jsx";
 import NodePill from "./NodePill.jsx";
@@ -1030,12 +1031,27 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
   // Priority: activePageView (tree-view page) > panel view > onOpenPage fallback
   const handleSelect = useCallback((occId) => {
     const targetView = activePageView || view;
+    // Artifact rows in a PAGE panel open a full-screen ARTIFACT PAGE
+    // (2026-07-12): a page panel's board view tracks the ACTIVE PAGE — setting
+    // its activeOccurrenceId to a bare artifact occurrence resolved to nothing
+    // and the panel snapped back to page 0 ("can't open image artifacts from
+    // the manifest"). Artifact-tree panels (hasTree views) keep the inline
+    // viewer behavior.
+    const occ = occurrencesById?.[occId];
+    const mod = occ ? modulesById?.[occ.moduleId] : null;
+    if (mod?.role === "artifact" && onOpenPage && !targetView?.hasTree) {
+      const pageOccId = ensureArtifactPageOcc({
+        artifactOccId: occId, occurrencesById, modulesById,
+        gridId: state?.grid?._id, userId: state?.userId, dispatch, socket,
+      });
+      if (pageOccId) { onOpenPage(pageOccId); return; }
+    }
     if (targetView?.id) {
       CommitHelpers.updateView({ dispatch, socket, view: { ...targetView, activeOccurrenceId: occId, scrollAnchor: null }, emit: true });
     } else if (onOpenPage) {
       onOpenPage(occId);
     }
-  }, [activePageView, view, onOpenPage, dispatch, socket]);
+  }, [activePageView, view, onOpenPage, dispatch, socket, occurrencesById, modulesById, state?.grid?._id, state?.userId]);
 
   // Wrap onOpenPage — keep tree open when navigating
   const handleOpenPage = useCallback((...args) => {
