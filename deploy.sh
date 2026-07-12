@@ -46,8 +46,13 @@ echo "🚀 Deploying to $REMOTE_HOST:$REMOTE_DIR ..."
 ssh "$REMOTE_HOST" "
   set -e
   cd $REMOTE_DIR
-  echo '  → Pulling latest...'
-  git pull
+  echo '  → Syncing to origin/master (hard reset — prod tree is disposable)...'
+  # fetch+reset instead of pull: local churn (e.g. seed exports from an old
+  # reseed) can abort a pull, and a piped/observed pull failure once shipped
+  # a stale build while looking successful (2026-07-11). Untracked files
+  # (.env, uploads/) are unaffected by reset --hard.
+  git fetch origin master
+  git reset --hard origin/master
   echo '  → Installing server deps...'
   npm install --prefix server 2>&1 | tail -3
   echo '  → Building client...'

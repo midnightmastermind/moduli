@@ -19,7 +19,11 @@ as_deploy() { if [[ "$(id -un)" == "$DEPLOY_USER" ]]; then "$@"; else sudo -u "$
 if on_server; then
   echo "==> Re-seeding live data on the server ($(hostname)) — DESTRUCTIVE"
   cd "$SERVER_PATH"
-  as_deploy node --env-file=server/.env server/scripts/createLiveData.js
+  # --no-export: seed JSON exports are the DEV-side fixture (tests/reloads).
+  # On prod they only dirty the git worktree, which then blocks/aborts the
+  # next `git pull` deploy (2026-07-11: a masked pull failure shipped stale
+  # code AND reseeded with the stale seed script).
+  as_deploy node --env-file=server/.env server/scripts/createLiveData.js --no-export
   as_deploy pm2 restart "$PM2_APP"
   echo "✅ Re-seeded."
 else
