@@ -6,6 +6,38 @@
 
 ---
 
+## Handoff — 2026-07-12 NIGHT (simplify-audit APPLIED + spinner fix; the queued full audit is DONE)
+
+Continuation session (account2): picked up account3's session-limited audit + account2's
+spend-limited perf thread via the jsonl logs. The queued "/simplify full audit over the past
+couple days" had its 4 review agents FINISHED but unapplied (results recovered from
+/tmp task outputs); this session applied them all. Shipped (3 commits + docs, deployed):
+- **Spinner fix committed** (`4911c9f8`) — account3's uncommitted `viafluere_mark.png` re-crop
+  (mark's visual center = rotation pivot; re-verified bbox center within 0.5px) — the infinity
+  logo now spins like a top, not a train on a track. Queue item CLOSED.
+- **Server dedupe** (`10d99928`) — `makeAlarmOp` (seeded alarms derive from one builder; the
+  hand-typed 6:30 AM literal had ALREADY drifted), shared `completionGateOrRule`, one
+  `ensureManifestOfType` core behind templates/user manifests.
+- **Client audit fixes** (`9ed82dd9`, 19 files) — reuse: openPanelOnRootFolderPage /
+  createPagePinnedToPanel / spliceChildIntoParent / isTextmappedModule / arrayIncludes /
+  DeltaBadge + one FLOW_TINTS source; altitude: artifact pages mint a REAL View (ModulePage's
+  synthesized-view branch deleted), ensureArtifactPageOcc owns the role gate, **QuickAddMenu
+  contract fixed at the root** (positive openTrigger opens at MOUNT; onOpenChange on transitions
+  only → the 50ms deferrals + gapMenuWasOpenRef workarounds are deleted, ModulePanel's hidden
+  menu mounts lazily), createPayload normalizes occurrenceId; perf: dragover uses e.target (no
+  per-frame elementFromPoint), detectSideHost depth<1 identity fast-path, ONE shared dragend
+  registry, WrapGroupNode single fused prose walk, _boundFieldIds per-template WeakMap cache.
+- **Verified**: 1262/1262 client + 237/237 server + build; headless E2E — panel "Add page…"
+  (lazy menu opens), doc "Add occurrence here…" (pinned gap palette, no deferral), tree artifact
+  click → display page renders via the real View, wrap 6/6 drops re-verified.
+- **Deferred (filed, not done)**: OperationsTab/FieldsTab field-vs-op category classification is
+  still contents-inference — the altitude fix (stamp `categoryKind` on the Folder record at
+  creation + one-time migration) needs schema + seed + both tabs in one session. Also still
+  open from the last session: the user's "2 seconds to open a doc page" (measured 287ms
+  unthrottled headless; needs the user's device context — likely the eager-TipTap docket).
+
+---
+
 ## Handoff — 2026-07-12 LATE (2-col gating + depth fallback + doc-DnD audit; deployed `63fc5dd1`)
 
 All deployed + prod reseeded, HEAD/tree verified. On top of the morning batch:

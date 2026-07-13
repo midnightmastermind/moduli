@@ -1,6 +1,18 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-07-11. Check this file before re-reading source._
+_Updated: 2026-07-12. Check this file before re-reading source._
+
+## Recent Changes (2026-07-12 LATE — simplify-audit: alarm builder + shared gate rule + one manifest core)
+- **`utils/liveSystemBuilders.js` (`makeAlarmOp`, NEW)** — server twin of the client's
+  `buildAlarmOperation`: derives a seeded alarm op's name/schedule/NOTIFY pipeline from
+  `{type,label,time}`. `createLiveData`'s two hand-typed alarm Operation literals (which had
+  ALREADY drifted — the 6:30 AM NOTIFY message lacked the formatted time) are now one-liners.
+- **`utils/completionGate.js` (`completionGateOrRule`, NEW export)** — THE single source of the
+  2026-07-11 `(completed IS true) OR (_boundFieldIds ARRAY_NOT_INCLUDES completed)` policy rule;
+  consumed by `gateScheduleTrackers` AND `liveSystemBuilders.makeTrackerOp`'s policy branch.
+- **`utils/manifestEnsure.js` (NEW)** — `ensureManifestOfType({prefix,name,manifestType,folderType,
+  preferId})` is the one find-or-mint core; `templatesManifest.js` + `userManifest.js` are thin
+  wrappers now (they were structural clones; import sites unchanged). 237/237 tests.
 
 ## Recent Changes (2026-07-11 EVE — Operation.alarm + seeded 5 PM alarm + Cash account)
 - **`models/Operation.js`** — new `alarm: Mixed default null`: `{ type:"alarm"|"reminder", label,

@@ -1,6 +1,16 @@
 # client/src/docs — Docs CLAUDE.md
 
-_Updated: 2026-07-12. Check this file before re-reading source._
+_Updated: 2026-07-12 LATE. Check this file before re-reading source._
+
+## Recent Changes (2026-07-12 LATE — simplify-audit: fused prose walk + shared textmapped predicate)
+- **`wrapAnchor.js`** — new exported `isTextmappedModule(mod)` (role textblock OR kind:doc
+  container): THE "can this host morph" predicate, consumed by Editor.isTextmappedHost AND
+  ModuleEmbedNode's wrap-toggle gate (was copy-pasted in both).
+- **`WrapGroupNode.jsx`** — `proseTextArea` replaced by `measureProseText(prose, bandTop,
+  bandBottom)`: ONE TreeWalker pass returns both the line-box area (sliver prediction) and the
+  blank-band reach (rendered guard) — measure() previously walked every text node TWICE per
+  ResizeObserver tick. The measure callback reuses the component's `columnsMode` (the local
+  `isColumns` re-derivation is gone).
 
 ## Recent Changes (2026-07-12 — wrap attr RESTORED: wrap ↔ COLUMNS + seam swap button)
 Per user ("we want to be able to set it as a wrap or not; we had all of this and it got removed"):

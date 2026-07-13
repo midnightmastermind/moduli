@@ -1,6 +1,13 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-07-06. Check this file before re-reading source._
+_Updated: 2026-07-12. Check this file before re-reading source._
+
+## Recent Changes (2026-07-12 LATE — simplify-audit: root-folder panel wiring shared)
+- **`App.jsx` (`addNewPanel`) + `Grid.jsx` (`handleEmptyCellClick`)** — both now call the shared
+  `importsFolder.openPanelOnRootFolderPage` (ensure root folder page → mint board View → wire the
+  panel occurrence) instead of hand-rolling the identical 3-step follow-up after
+  ensureRootFolderPageOcc. Behavior note: the empty-cell tap now mints the panel FIRST and opens
+  it on the root page after (matches the Toolbar + button's order).
 
 ## Recent Changes (2026-07-10 — InsertGap: constant-height hit zone (kills the hover sputter))
 - **`index.css` `.insert-gap`** — the between-instances insert affordance grew from `height:4px`

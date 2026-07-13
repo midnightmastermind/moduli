@@ -1,6 +1,25 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-07-11. Check this file before re-reading source._
+_Updated: 2026-07-12. Check this file before re-reading source._
+
+## Recent Changes (2026-07-12 LATE — simplify-audit fixes across helpers)
+- **`importsFolder.js`** — new `openPanelOnRootFolderPage` (ensure root folder page + mint board
+  View + wire panel occurrence — App.addNewPanel and Grid.handleEmptyCellClick both call it now);
+  `ensureArtifactPageOcc` owns the artifact ROLE GATE (non-artifacts return null so call sites
+  fall through) and mints a REAL View via new `viewFieldsForArtifactKind(kind)` (ModulePage no
+  longer synthesizes one).
+- **`CommitHelpers.js`** — new `spliceChildIntoParent` (replaces 5 copies of the
+  splice-into-occurrences[] block) + `createPagePinnedToPanel` (shared by ManifestTree +
+  ModulePanel create-page flows; `activate` flag covers the panel path's view flip).
+- **`operationActions.js`** — array CONTAINS/NOT_CONTAINS + ARRAY_INCLUDES/HAS_ANCESTOR share one
+  `arrayIncludes` helper (same exact-member semantic, one impl).
+- **`operationExecutor.js`** — `_boundFieldIds` arrays cached per TEMPLATE object
+  (`boundFieldIdsFor`, WeakMap — template writes swap object identity so entries self-invalidate);
+  was ~2500 fresh arrays per op fire in the $allItems enrichment.
+- **`dragSystem.js`** — `createPayload` normalizes the dragged occurrence id to a top-level
+  `payload.occurrenceId` (serializePayload carries it); DragProvider's shape-probing chain remains
+  only as fallback for payloads built outside createPayload (a few NodeView getInitialData sites).
+- **`alarmOps.js`** — dead `ALARM_TYPES` export deleted.
 
 ## Recent Changes (2026-07-11 — Alarms: alarmOps.js + alarmSound.js + NOTIFY sound/duration)
 - **`alarmOps.js` (NEW)** — pure builders for alarm/reminder Operations (the Alarms tab's data

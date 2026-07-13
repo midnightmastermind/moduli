@@ -1,6 +1,27 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-07-12. Check this file before re-reading source._
+_Updated: 2026-07-12 LATE. Check this file before re-reading source._
+
+## Recent Changes (2026-07-12 LATE — simplify-audit: QuickAddMenu contract + Editor hot paths)
+- **`QuickAddMenu.jsx` CONTRACT CHANGE** — (1) any POSITIVE `openTrigger` opens the menu,
+  INCLUDING the value present at MOUNT (hosts can render it lazily / bump-and-reveal in one
+  commit; 0 = the untriggered header instances); (2) `onOpenChange` fires on real open/close
+  TRANSITIONS only, never on mount. Deleted downstream workarounds: ModulePage + Editor's 50ms
+  setTimeout deferrals, Editor's `gapMenuWasOpenRef`; ModulePanel's hidden page-adder now mounts
+  lazily on first trigger (`panelQuickAddTrigger > 0 &&`). E2E-verified headless (panel
+  "Add page…" opens the lazy menu; doc "Add occurrence here…" opens the pinned gap palette).
+- **`Editor.jsx` (dragover hot path)** — the rAF indicator math uses the dragover event's OWN
+  `target` (threaded to `detectSideHost` as `input.target`) instead of a forced
+  `document.elementFromPoint` per frame per editor; detectSideHost's depth<1 fallback resolves
+  the hovered element by DOM IDENTITY first (no layout reads) and keeps the O(blocks) rect scan
+  only for the pointer-in-the-gutter-beside-a-partial-width-block geometry. ONE shared
+  document-level dragend/drop registry (`registerDragEndClear`) clears all editors' indicators
+  (was a listener pair per mounted editor). The wrapGroup branch's duplicated groupDom/holder
+  lookup is hoisted above the 2-col gate; the 4 inline pinned-gap guards funnel through
+  `clearDocGapUnlessPinned`/`setDocGapUnlessPinned`. Wrap 6/6 drop regression re-verified.
+- **`Field.jsx`** — `DeltaBadge` component replaces the duplicated absolute +N/−N badge (compact
+  pill + non-compact box); FlowToggle's standalone-button colors derive from `FLOW_TINTS`
+  (inline styles) so the flow palette has exactly one source (the Tailwind class table is gone).
 
 ## Recent Changes (2026-07-12 EVE — menu separator hygiene + flow-delta badge out of flow)
 - **`ContextMenu.jsx` (`normalizeMenuItems`, exported)** — menus are built as

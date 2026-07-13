@@ -1,6 +1,20 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-07-04. This folder implements occurrence-based view routing._
+_Updated: 2026-07-12. This folder implements occurrence-based view routing._
+
+## Recent Changes (2026-07-12 LATE — simplify-audit: artifact pages carry a real View; shared create-page)
+- **`ModulePage.jsx`** — the `kind:"display"` branch no longer synthesizes a fake view from an
+  inline mediaKinds map: `ensureArtifactPageOcc` now mints a REAL View (importsFolder
+  `viewFieldsForArtifactKind`) and sets `viewId` on the page occurrence, so `pageView` resolves
+  normally. The "Add occurrence…" context row bumps the trigger in the SAME commit as the header
+  reveal (QuickAddMenu now honors a positive openTrigger at mount — no 50ms deferral).
+- **`ModulePanel.jsx`** — `handlePanelCreatePage` delegates to the shared
+  `CommitHelpers.createPagePinnedToPanel` (ManifestTree's handleCreatePage uses the same helper);
+  the hidden "Add page…" QuickAddMenu mounts LAZILY on first trigger (was permanently mounted in
+  every panel).
+- **`ManifestTree.jsx` / `pages/PageFolder.jsx`** — artifact-click call sites collapsed:
+  `ensureArtifactPageOcc` owns the role gate, so both just call it and fall through on null.
+  E2E-verified headless (tree click → Earthrise display page with the image-viewer chrome).
 
 ## Recent Changes (2026-07-10 — FIX: dragging a page from one panel to another never pinned)
 - **`ModulePage.jsx`** — the page-shell drag (`useDragDrop` at ~167) built its payload via
