@@ -6,6 +6,25 @@
 
 ---
 
+## Handoff — 2026-07-13 EVE (audit follow-through: categoryKind SHIPPED; caret diag now opt-in)
+
+Continuation of the PM audit ("keep going"). Finished the remaining audit surfaces (image
+routes, ContainerTable child-rows sort, PageCanvas fallback, ModuleInstance under-body fields,
+OpDisplayPill — all clean), then shipped the deferred altitude fix (`f64a9c9a`, deployed +
+reseeded + verified headless):
+- **`Folder.categoryKind` ("field" | "op")** — the field-vs-op category axis is now DATA stamped
+  at creation (seed: 9 field + 7 op categories; both tabs' "+ Category" stamp their kind).
+  FieldsTab/OperationsTab column filters read it first; the contents inference survives ONLY as
+  the fallback for legacy null folders. Fixes both symptoms: op categories no longer render as
+  empty FieldsTab columns, and deleting a category's last op can't flip its axis.
+- **[caret] diagnostics flipped to OPT-IN** (`window.__caretDiag = true` re-enables) — the
+  Firefox caret fix is deployed + verified, so per-click console logging no longer ships on.
+- Verification-probe lesson (recorded so the next session doesn't chase ghosts): innerText
+  substring checks against the Command Center match TAB LABELS and OP NAMES ("Alarms" the tab,
+  "Breakfast Nutrition" the op) — assert against the folder stamps / DOM structure instead.
+
+---
+
 ## Handoff — 2026-07-13 PM (correctness audit of the whole since-Monday range; alarm-at-load bug FIXED)
 
 Per user: audit everything shipped since Mon 2026-07-06 (103 commits, `b8fb96bd^..HEAD`) for
