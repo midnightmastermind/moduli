@@ -6,6 +6,37 @@
 
 ---
 
+## Handoff — 2026-07-13 PM (correctness audit of the whole since-Monday range; alarm-at-load bug FIXED)
+
+Per user: audit everything shipped since Mon 2026-07-06 (103 commits, `b8fb96bd^..HEAD`) for
+correctness + optimization. Subagents were unavailable (account spend limit) → ran the review
+INLINE: line-by-line over the fresh runtime surfaces (feedSync engine, useScheduler adaptive
+tick, server models/handlers incl. update_grid no-upsert + ensureUserManifest, Field.jsx value
+paths, dragSystem payload round-trip, NOTIFY), cross-checked removed behaviors (QuickAddMenu
+trigger matrix across all 5 hosts, artifact-page legacy views, manifest core semantics), plus
+live probes. Two findings, both FIXED + deployed (`1e2a042f`, prod `2d11b72f`):
+- **Alarms rang/toasted on EVERY page load (real bug, user-visible):**
+  `computeTriggerMatch` treated `triggerTypes: []` as "no config → fire on load", but explicit
+  `[]` is the seed's schedule-only declaration (atTimes alarms, interval slot painters). The
+  onLoad sweep executed both alarms' NOTIFY inline (60s ⏰ toast + ringAlarm — the paired
+  AudioContext warnings in the user's 2026-07-13 console log; 0fx because NOTIFY pushes no
+  effect). Explicit [] now never event-fires; legacy no-config ops keep the load back-compat;
+  ops that want a load fire declare "onLoad" (Project: Create already does). Verified live:
+  onLoad sweep 59→55 ops, no toast/ring; scheduler firing untouched. Old test locking the buggy
+  semantics corrected + 2 new cases; 1264/1264.
+- **parseExternalDrop dropped the normalized payload `occurrenceId`** on cross-window drops
+  (serializePayload carries it; the parse branch rebuilt the payload without it) — round-trips now.
+- Clean on inspection: feedSync (scan-diff + accumulated parent ref), cadenceMs (Infinity for
+  atTimes → clamps to the 5s tick, no NaN interval), server model additions (declared-key fixes
+  for fieldBindings.role/display strict-mode stripping), update_grid zombie guard, image-picker
+  write path. `.gitignore` probe pattern UNANCHORED (`_*.mjs`) — deploy.sh's add -A swept
+  client/-rooted probe scripts into deploy commits twice.
+- Still-open (unchanged, deliberate): Folder `categoryKind` stamp (own session), the user's
+  doc-open perf repro, "copies when it should move" repro, [caret] diagnostics removal once the
+  user confirms.
+
+---
+
 ## Handoff — 2026-07-13 (caret round 2 FIXED: Firefox draggable-ancestor suppression; deployed `837e4542`)
 
 The user's [caret] logs closed the case in one round-trip: caretAtPoint resolved the mid-chip
