@@ -10,6 +10,21 @@
 import React, { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
+// Callers build item arrays with conditional entries, so a filtered-out item
+// can leave a separator with nothing above/below it (renders as a blank row).
+// Drop leading/trailing separators and collapse consecutive ones.
+export function normalizeMenuItems(items = []) {
+  const out = [];
+  for (const item of items) {
+    if (item.separator) {
+      if (out.length === 0 || out[out.length - 1].separator) continue;
+    }
+    out.push(item);
+  }
+  while (out.length && out[out.length - 1].separator) out.pop();
+  return out;
+}
+
 /**
  * @param {{ x, y, items: Array<{ label, icon?, onClick, danger?, separator? }> }} ctx
  * @param {() => void} onClose
@@ -38,11 +53,13 @@ export default function ContextMenu({ ctx, onClose }) {
 
   if (!ctx) return null;
 
+  const items = normalizeMenuItems(ctx.items);
+
   // Keep menu inside viewport. Width is content-sized within [168, 240];
   // height caps at 70vh with internal scroll (bulk multi-select menus were
   // overflowing small screens).
   const MAX_W = 240;
-  const approxH = Math.min(ctx.items.length * 30 + 8, window.innerHeight * 0.7);
+  const approxH = Math.min(items.length * 30 + 8, window.innerHeight * 0.7);
   const x = Math.min(ctx.x, window.innerWidth - MAX_W - 6);
   const y = Math.min(ctx.y, window.innerHeight - approxH - 6);
 
@@ -69,7 +86,7 @@ export default function ContextMenu({ ctx, onClose }) {
       }}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {ctx.items.map((item, i) => {
+      {items.map((item, i) => {
         if (item.separator) {
           return (
             <div

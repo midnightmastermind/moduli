@@ -1,6 +1,27 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-07-11. Check this file before re-reading source._
+_Updated: 2026-07-12. Check this file before re-reading source._
+
+## Recent Changes (2026-07-12 EVE — menu separator hygiene + flow-delta badge out of flow)
+- **`ContextMenu.jsx` (`normalizeMenuItems`, exported)** — menus are built as
+  `[cond && {...}].filter(Boolean)`, so a filtered-out item can strand a separator at the
+  top/bottom or double one up; a stranded separator rendered as a blank row (user: "empty space
+  before Insert fields" — on the stale prod build the doc menu was literally `[separator,
+  Insert field]` when nothing was selected). ContextMenu now drops leading/trailing separators
+  and collapses consecutive ones before rendering. Fixes EVERY menu, incl. future conditional
+  items. Tests: `__tests__/contextMenuSeparators.test.js` (5).
+- **`Field.jsx` (flow-delta badge)** — the transient (1.5s) `+N/−N` `useFlowDelta` badge was
+  IN-FLOW in both the compact display pill and the non-compact read-only box, so every goal
+  update widened the pill and wrapped tightly-packed goal rows to the next line for 1.5s
+  (user: "the plus/minus indicator pushes the stuff to the right"). Both sites now render the
+  badge `position:absolute; left:100%` inside a `position:relative` pill/box — zero layout
+  impact; it overlays whatever sits right of the pill for the 1.5s hold.
+  Tests: `__tests__/Field.deltaBadge.test.jsx` (2, asserts the absolute positioning contract).
+- **Context**: the user's "Add occurrence still missing" report was primarily a STALE PROD
+  build (prod HEAD was 756b6d9c; e5e8596c/fed6d068 never deployed) — verified via
+  `ssh … git log`. Menu + gap QuickAddMenu verified headless on the new build
+  (`_menuprobe5.mjs`: fresh doc page → right-click → [Add occurrence here…, sep, Insert
+  field (@)], no stranded separators, palette opens).
 
 ## Recent Changes (2026-07-11 EVE — Alarms tab (Android-style, operation-backed))
 - **`commandCenter/AlarmsTab.jsx` (NEW)** — Alarms & Reminders list in the Command Center

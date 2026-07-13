@@ -1794,14 +1794,22 @@ function Field({
     }
 
     return (
-      <div className="field-display field-display-compact" style={{ ...pillBase }}>
+      <div className="field-display field-display-compact" style={{ ...pillBase, position: "relative" }}>
         {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}
         {RuleIcon && <RuleIcon size={10} style={{ flexShrink: 0, opacity: 0.85 }} />}
         <span>{ruleDisplay ?? valueDisplay}</span>
         {ruleSuffix && <span style={{ opacity: 0.7, marginLeft: 2 }}>{ruleSuffix}</span>}
         {showUnit && <span style={{ opacity: 0.5 }}>{unit}</span>}
         {valueDelta != null && (
-          <span style={{ marginLeft: 2, color: deltaColorVal, fontWeight: 600 }}>
+          // Transient (1.5s) change badge — absolutely positioned past the pill's
+          // right edge so its appearance never widens the pill (an in-flow badge
+          // made tightly-packed goal rows wrap to the next line on every update).
+          <span style={{
+            position: "absolute", left: "100%", top: "50%",
+            transform: "translateY(-50%)", marginLeft: 3,
+            whiteSpace: "nowrap", pointerEvents: "none",
+            color: deltaColorVal, fontWeight: 600,
+          }}>
             {valueDelta > 0 ? `+${valueDelta}` : valueDelta}
           </span>
         )}
@@ -1932,16 +1940,23 @@ function Field({
       {showLabel && <span style={labelStyle}>{name}</span>}
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         {RuleIconNC && <RuleIconNC size={12} style={{ flexShrink: 0, color: valueColor }} />}
-        <div style={{ ...roBox, flex: type === "text" || type === "date" ? 1 : undefined }}>
+        <div style={{ ...roBox, position: "relative", flex: type === "text" || type === "date" ? 1 : undefined }}>
           {ruleDisplayNC ?? valueDisplay}
           {ruleSuffixNC && <span style={{ marginLeft: 4, opacity: 0.7 }}>{ruleSuffixNC}</span>}
+          {valueDelta != null && (
+            // Transient (1.5s) change badge — absolutely positioned past the box's
+            // right edge so its appearance never reflows the row.
+            <span style={{
+              position: "absolute", left: "100%", top: "50%",
+              transform: "translateY(-50%)", marginLeft: 4,
+              whiteSpace: "nowrap", pointerEvents: "none",
+              fontSize: 11, color: deltaColorVal, fontWeight: 600, fontFamily: "var(--font-mono)",
+            }}>
+              {valueDelta > 0 ? `+${valueDelta}` : valueDelta}
+            </span>
+          )}
         </div>
         {showUnit && <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{unit}</span>}
-        {valueDelta != null && (
-          <span style={{ fontSize: 11, color: deltaColorVal, fontWeight: 600, fontFamily: "var(--font-mono)" }}>
-            {valueDelta > 0 ? `+${valueDelta}` : valueDelta}
-          </span>
-        )}
       </div>
       {targetProgress && (
         <div style={{ marginTop: 3 }}>

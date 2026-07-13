@@ -2357,3 +2357,24 @@ for that flow (tree/folder full-screen open); inline artifact cards elsewhere st
 
 LAST in this session's queue: the loading spinner — the infinity-symbol logo must rotate around
 its OWN center (spinning top), not translate around a circular track (train on a track).
+
+## 2026-07-12 EVE — stale prod caught again + two visual bugs (account3)
+
+> "please take a look at what the other claude account was working on. it was an audit with
+> simplify. check the chat logs for its tasks. also that add occurance menu is still not showing
+> in the right click menu. it seems like there is an empty space before insert fields selection.
+> also when a goal updates, for some reason it jumps to the next line cause the little indicator
+> of being plus or minus is pushing the stuff to the right. it should be more absolute positioned."
+
+Three parts: (1) pick up the other account's queue — the FULL AUDIT with the simplify skill over
+the past couple days' work (+ the loading-spinner fix) is still pending; its focused
+folders/panels/manifest pass shipped as `fed6d068`. (2) "Add occurrence" missing + empty space
+before "Insert field" — ROOT CAUSE: prod was STALE at `756b6d9c` (`e5e8596c` Add-occurrence +
+`fed6d068` were never deployed — the deploy-then-verify-HEAD lesson again); the "empty space" was
+a stranded leading separator in the old doc menu (`[separator, Insert field]` with no selection).
+Fixed structurally: ContextMenu now normalizes separators (drop leading/trailing, collapse
+doubles). (3) Goal rows jumped to the next line on update — the transient 1.5s `+N/−N` flow-delta
+badge was in-flow and widened the pill; now absolutely positioned (`left:100%`) off both the
+compact pill and the non-compact box, per the user's "should be more absolute positioned."
+Verified headless (menu structure + gap palette on a fresh doc page), 1259→1266/1266 client tests,
+deployed + prod HEAD verified + live grid reseeded (probe writes swept).
