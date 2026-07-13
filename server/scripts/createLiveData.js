@@ -54,6 +54,7 @@ import {
   makeStampDateTimeSlotOp,
   makeClearDateOnMoveOutOp,
   makeTrackerOp,
+  makeAlarmOp,
 } from "../utils/liveSystemBuilders.js";
 import { gateScheduleTrackers, GATE_TRACKER_NAMES } from "../utils/completionGate.js";
 import { applyPeriodAllPolicy } from "../utils/periodAllPolicy.js";
@@ -8204,49 +8205,10 @@ export async function createLiveData(userId, options = {}) {
     enabled: false,
   }).save();
 
-  // ── 5 PM alarm (Alarms tab, 2026-07-11) ─────────────────────────────────────
-  // Managed by the Alarms tab: op.alarm marks it, schedule atTimes fires it
-  // daily via useScheduler, and the NOTIFY rings (sound:true) + notifies. The
-  // op shape mirrors client helpers/alarmOps.js buildAlarmOperation — keep the
-  // two in sync if the derived pieces (name/schedule/pipeline) change.
-  await new Operation({
-    id: uid(), userId, gridId, priority: 5,
-    name: "Alarm: 5 PM",
-    description: "Managed by the Alarms tab — edit it there.",
-    alarm: { type: "alarm", label: "5 PM", time: "17:00" },
-    triggerTypes: [],
-    triggerObjects: [],
-    triggerType: "manual",
-    schedule: { kind: "atTimes", times: ["17:00"], suppressNotifications: false, lastFiredAt: null },
-    pipeline: {
-      sources: [],
-      steps: [
-        { id: uid(), type: "action", config: { type: "NOTIFY", message: "⏰ 5 PM — 5:00 PM", sound: true, duration: 60000 } },
-      ],
-    },
-    folderId: opCategoryIds.alarms,
-    enabled: true,
-  }).save();
-
-  // ── 6:30 AM alarm (2026-07-12, per user) ────────────────────────────────────
-  await new Operation({
-    id: uid(), userId, gridId, priority: 5,
-    name: "Alarm: 6:30 AM",
-    description: "Managed by the Alarms tab — edit it there.",
-    alarm: { type: "alarm", label: "6:30 AM", time: "06:30" },
-    triggerTypes: [],
-    triggerObjects: [],
-    triggerType: "manual",
-    schedule: { kind: "atTimes", times: ["06:30"], suppressNotifications: false, lastFiredAt: null },
-    pipeline: {
-      sources: [],
-      steps: [
-        { id: uid(), type: "action", config: { type: "NOTIFY", message: "⏰ 6:30 AM", sound: true, duration: 60000 } },
-      ],
-    },
-    folderId: opCategoryIds.alarms,
-    enabled: true,
-  }).save();
+  // ── Seeded alarms (Alarms tab) — op shape derived by makeAlarmOp, the server
+  // twin of client helpers/alarmOps.js buildAlarmOperation (can't drift).
+  await new Operation(makeAlarmOp({ userId, gridId, folderId: opCategoryIds.alarms, label: "5 PM", time: "17:00" })).save();
+  await new Operation(makeAlarmOp({ userId, gridId, folderId: opCategoryIds.alarms, label: "6:30 AM", time: "06:30" })).save();
 
   // ── POMODORO: Start ─────────────────────────────────────────────────────────
   // Fired by PomodoroTimer.jsx on each new WORK phase. Trigger payload:

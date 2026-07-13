@@ -17,6 +17,16 @@
 
 const uid = () => Math.random().toString(36).slice(2, 14);
 
+// THE policy rule of the 2026-07-11 gating change, in one place:
+// `(Completed IS true) OR (loopVar never BINDS Completed)`. Consumed here and
+// by liveSystemBuilders.makeTrackerOp so the two sites can't drift.
+export function completionGateOrRule(loopVar, completedFieldId) {
+  return { id: uid(), operator: "OR", rules: [
+    { id: uid(), left: `${loopVar}.fields.${completedFieldId}.value`, comparator: "IS", right: true },
+    { id: uid(), left: `${loopVar}._boundFieldIds`, comparator: "ARRAY_NOT_INCLUDES", right: completedFieldId },
+  ] };
+}
+
 // Curated schedule trackers still missing the gate. Excluded on purpose:
 // Completion Rate ($tot is the denominator = ALL tasks), Day Page build
 // (control-flow loop), financial/bills trackers (not schedule-scoped / no Completed).
@@ -46,10 +56,7 @@ export function gateScheduleTrackers(ops, { completedFieldId, scheduleOccId }) {
           // Mirror the scope rule's loop var ($inst / $watchInst / …) so the gate
           // reads the item being scoped.
           const loopVar = String(anc.left).split("._ancestors")[0] || "$item";
-          rules.push({ id: uid(), operator: "OR", rules: [
-            { id: uid(), left: `${loopVar}.fields.${completedFieldId}.value`, comparator: "IS", right: true },
-            { id: uid(), left: `${loopVar}._boundFieldIds`, comparator: "ARRAY_NOT_INCLUDES", right: completedFieldId },
-          ] });
+          rules.push(completionGateOrRule(loopVar, completedFieldId));
           s.condition.rules = rules;
           added++;
         }

@@ -5,6 +5,7 @@
 // injected Mongoose constructors + mkOcc and perform DB writes via those injections.
 
 import { uid } from "./operationBuilders.js";
+import { completionGateOrRule } from "./completionGate.js";
 
 // Mirrors createTestGrid STEP 1. Returns a plain object the caller passes to `new Grid(obj)`.
 export function buildGridDoc({ userId, gridName, manifestId, dateFieldId }) {
@@ -2003,10 +2004,7 @@ export function makeTrackerOp({
     //   "strict" — completed IS true only (completion IS the measured fact:
     //              countTrue / completionRate's done-count).
     if (completionGate === "policy" && completedFieldId) {
-      rules.push({ id: uid(), operator: "OR", rules: [
-        { id: uid(), left: `$item.fields.${completedFieldId}.value`, comparator: "IS", right: true },
-        { id: uid(), left: "$item._boundFieldIds", comparator: "ARRAY_NOT_INCLUDES", right: completedFieldId },
-      ] });
+      rules.push(completionGateOrRule("$item", completedFieldId));
     } else if (completionGate === "strict" && completedFieldId) {
       rules.push({ id: uid(), left: `$item.fields.${completedFieldId}.value`, comparator: "IS", right: true });
     }
@@ -2484,5 +2482,47 @@ export function makeClearDateOnMoveOutOp({ userId, gridId, dateFieldId, timeslot
         },
       ],
     },
+  };
+}
+
+// ── Alarm/reminder operation (server twin of client helpers/alarmOps.js) ─────
+// An alarm IS an operation: `op.alarm` marks it Alarms-tab-managed, the
+// atTimes schedule fires it daily via useScheduler, and the pipeline is one
+// NOTIFY (sound for alarms, silent for reminders). Name/schedule/pipeline are
+// DERIVED from the alarm config — same derivation the client applies on every
+// Alarms-tab edit (applyAlarmToOperation), so seeded alarms can't drift.
+function formatAlarmTime(hhmm) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ""));
+  if (!m) return String(hhmm || "");
+  let h = Number(m[1]);
+  const suffix = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${m[2]} ${suffix}`;
+}
+
+export function makeAlarmOp({ userId, gridId, folderId, type = "alarm", label = "", time = "08:00", enabled = true }) {
+  const ring = type === "alarm";
+  return {
+    id: uid(), userId, gridId, priority: 5,
+    name: `${ring ? "Alarm" : "Reminder"}: ${label || formatAlarmTime(time)}`,
+    description: "Managed by the Alarms tab — edit it there.",
+    alarm: { type, label, time },
+    triggerTypes: [],
+    triggerObjects: [],
+    triggerType: "manual",
+    schedule: { kind: "atTimes", times: [time], suppressNotifications: false, lastFiredAt: null },
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: {
+            type: "NOTIFY",
+            message: `${ring ? "⏰" : "🔔"} ${label || (ring ? "Alarm" : "Reminder")} — ${formatAlarmTime(time)}`,
+            sound: ring,
+            duration: ring ? 60000 : 15000,
+        }},
+      ],
+    },
+    folderId,
+    enabled,
   };
 }
