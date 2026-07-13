@@ -273,9 +273,14 @@ function FieldRenderer({
             </button>
           )}
           {delta && (
+            // THE one transient +N/−N badge (Field.jsx's duplicate DeltaBadge
+            // was removed 2026-07-13 — the plus showed twice). Absolute
+            // superscript at the value's top right; color marks the GOOD
+            // direction per the field's flow (flow:"out" countdowns show a
+            // −1 as green progress, not red).
             <span
               key={delta.key}
-              className={`delta-popup ${delta.positive ? "positive" : "negative"}`}
+              className={`delta-popup ${((field?.meta?.flow || "in") === "out" ? delta.diff < 0 : delta.diff > 0) ? "positive" : "negative"}`}
               style={{ right: 0, top: -2 }}
             >
               {delta.positive ? "+" : ""}{delta.diff % 1 === 0 ? delta.diff : delta.diff.toFixed(1)}

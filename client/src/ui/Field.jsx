@@ -288,28 +288,6 @@ function useLiveFieldValue(field) {
   return null;
 }
 
-// ─── Flow-aware delta indicator ────────────────────────────────
-// Tracks the last numeric value and surfaces a transient +N / -N badge
-// whenever it changes. Color uses the field's `meta.flow` to mark the
-// "good direction" — flow:"in" treats positive deltas as green, flow:"out"
-// treats negative deltas as green (so a countdown -1 is positive feedback).
-function useFlowDelta(value, holdMs = 1500) {
-  const prevRef = useRef(null);
-  const [delta, setDelta] = useState(null);
-  const timerRef = useRef(null);
-  useEffect(() => {
-    const prev = prevRef.current;
-    const numNow = typeof value === "number" ? value : Number(value);
-    if (Number.isFinite(numNow) && Number.isFinite(prev) && numNow !== prev) {
-      setDelta(numNow - prev);
-      clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setDelta(null), holdMs);
-    }
-    if (Number.isFinite(numNow)) prevRef.current = numNow;
-    return () => clearTimeout(timerRef.current);
-  }, [value, holdMs]);
-  return delta;
-}
 // valueSignColor — picks a color from the field's stored value, used
 // when the field has NO target (trackers / unbound numeric fields).
 //   red   → negative numeric
@@ -357,29 +335,11 @@ function valueSignPillTint(value) {
   return { bg: "rgba(34,197,94,0.2)", border: "rgba(34,197,94,0.35)" };
 }
 
-// Transient (1.5s) +N/−N change badge — absolutely positioned past the host's
-// right edge so its appearance never widens/reflows the host (an in-flow badge
-// made tightly-packed goal rows wrap to the next line on every update). Host
-// must be position:relative. Shared by the compact pill + non-compact box.
-function DeltaBadge({ delta, color, style }) {
-  if (delta == null) return null;
-  return (
-    <span style={{
-      position: "absolute", left: "100%", top: "50%",
-      transform: "translateY(-50%)", whiteSpace: "nowrap",
-      pointerEvents: "none", fontWeight: 600, color,
-      ...style,
-    }}>
-      {delta > 0 ? `+${delta}` : delta}
-    </span>
-  );
-}
-
-function flowDeltaColor(delta, flow) {
-  if (delta == null) return null;
-  const goodDirection = (flow === "out" && delta < 0) || (flow !== "out" && delta > 0);
-  return goodDirection ? "var(--accent-green-text)" : "var(--danger-text)";
-}
+// NOTE (2026-07-13): the transient +N/−N change badge lives in ONE place —
+// FieldRenderer's `.delta-popup` (absolute, superscript at the value's top
+// right). Field.jsx used to render a SECOND badge at the pill's right edge
+// (useFlowDelta/DeltaBadge), so every goal update showed the plus twice
+// (user: "remove the old little + … keep the higher one").
 
 // ─── Star renderer ─────────────────────────────────────────────
 function Stars({ rating, max = 5, size = "w-4 h-4" }) {
@@ -641,15 +601,6 @@ function Field({
   // numeric quantity). +N / -N badge auto-clears after 1.5s; color
   // depends on whether the change matches the field's "good direction"
   // per meta.flow (in = up is good; out = down is good).
-  const rawNumericValue = useMemo(() => {
-    if (liveDisplayValue != null) return null;
-    const v = value && typeof value === "object" && "value" in value ? value.value : value;
-    return typeof v === "number" ? v : (typeof v === "string" && v !== "" ? Number(v) : null);
-  }, [value, liveDisplayValue]);
-  const fieldFlow = field?.meta?.flow || "in";
-  const valueDelta = useFlowDelta(rawNumericValue);
-  const deltaColorVal = flowDeltaColor(valueDelta, fieldFlow);
-
   // ─── Value resolution (display) ─────────────────────────────
   const rawDisplayValue = useMemo(() => {
     if (liveDisplayValue != null) return liveDisplayValue;
@@ -1822,7 +1773,6 @@ function Field({
         <span>{ruleDisplay ?? valueDisplay}</span>
         {ruleSuffix && <span style={{ opacity: 0.7, marginLeft: 2 }}>{ruleSuffix}</span>}
         {showUnit && <span style={{ opacity: 0.5 }}>{unit}</span>}
-        <DeltaBadge delta={valueDelta} color={deltaColorVal} style={{ marginLeft: 3 }} />
       </div>
     );
   }
@@ -1953,8 +1903,6 @@ function Field({
         <div style={{ ...roBox, position: "relative", flex: type === "text" || type === "date" ? 1 : undefined }}>
           {ruleDisplayNC ?? valueDisplay}
           {ruleSuffixNC && <span style={{ marginLeft: 4, opacity: 0.7 }}>{ruleSuffixNC}</span>}
-          <DeltaBadge delta={valueDelta} color={deltaColorVal}
-            style={{ marginLeft: 4, fontSize: 11, fontFamily: "var(--font-mono)" }} />
         </div>
         {showUnit && <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{unit}</span>}
       </div>
