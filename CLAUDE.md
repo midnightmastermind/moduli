@@ -6,7 +6,32 @@
 
 ---
 
-## Handoff — 2026-07-12 NIGHT-2 (caret round 2: [caret] diagnostics DEPLOYED, awaiting user repro)
+## Handoff — 2026-07-13 (caret round 2 FIXED: Firefox draggable-ancestor suppression; deployed `837e4542`)
+
+The user's [caret] logs closed the case in one round-trip: caretAtPoint resolved the mid-chip
+click at offset 8, the selection SETTLED at 0, and there were ZERO INTERFERE lines — no JS moved
+it; the BROWSER refused placement. The user is on FIREFOX (AudioContext wording + `user-drag=-`
+in the drag-source chain), and a discrimination probe (headless FF) proved the mechanism:
+**Firefox suppresses native caret placement in an editable that has ANY `draggable="true"`
+ANCESTOR** — stripping every draggable attr made the identical click land at offset 10; a bare
+nested-editable island works fine. Round 1 (f2e89136) only fixed Chromium's CSS vector.
+Fix (`837e4542`, deployed + prod HEAD verified + reseeded):
+- **Chip** (InstanceTextblockInlineNode): wrapper's draggable ATTRIBUTE disarmed at rest (armed
+  with the CSS hint only while the ⠿ handle is pressed) + the content span places its own caret
+  from the click point on click (ancestors can't be disarmed — they're real drag sources).
+  Range selections are left alone.
+- **Editor.jsx**: the mousedown posAtCoords fix-up (the thing that rescues BLOCK textblocks from
+  the same suppression) is gated to the editor that OWNS the click — it used to fire in every
+  ancestor editor per click (4 competing setTextSelection writes; now 1).
+- Verified headless FF + Chromium: chip mid-click → caret mid-text + typing inserts there; FF
+  block textblock → offset 64; handle drags arm; wrap 6/6 on a fresh seed; 1262/1262 tests.
+- **[caret] diagnostics are still in** (helpers/caretDiag.js, ON by default, once per click) —
+  remove or default-off once the user confirms on-device. Probe lesson re-confirmed: a failing
+  wrap probe on a dirty grid (`on=false` 6/6) went green after a reseed.
+
+---
+
+## Handoff — 2026-07-12 NIGHT-2 (caret round 2: [caret] diagnostics deployed → FIXED above)
 
 User: "clicking on mini textblocks in the middle is still not putting the writing cursor there —
 it puts it at the start; put in logs." Round 1 (f2e89136) fixed the inline chips' user-drag
