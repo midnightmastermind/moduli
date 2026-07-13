@@ -84,7 +84,7 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
-    return draggable({
+    const cleanup = draggable({
       element: el,
       dragHandle: handleRef.current || undefined,
       getInitialData: () => {
@@ -102,6 +102,17 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
         };
       },
     });
+    // Pragmatic's mount stamps draggable="true" on the WRAPPER — and FIREFOX
+    // refuses to place a caret on mousedown anywhere inside an element carrying
+    // the draggable ATTRIBUTE (the Gecko twin of round 1's Chromium
+    // -webkit-user-drag suppression, f2e89136: the browser treats the whole
+    // chip as maybe-a-drag, so click-to-edit in the middle landed at offset 0;
+    // caretDiag repro 2026-07-13 — caretAtPoint resolved offset 8, SETTLED 0,
+    // zero INTERFERE lines = pure browser suppression). Disarm it at rest; the
+    // handle's onPointerDown re-arms it (attribute + user-drag) just in time
+    // for a real handle drag, so dragging still works in both engines.
+    el.draggable = false;
+    return cleanup;
   }, []);
 
   // Keep the editable surface in sync with external updates (but not while the
@@ -123,6 +134,42 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
       emit: true,
     });
   }, [draft, storedText, occurrenceId, dispatch, socket]);
+
+  // FIREFOX refuses native caret placement in an editable that has ANY
+  // draggable="true" ANCESTOR (instance-wrap / container-shell / page-shell —
+  // every embed row is one). Proven 2026-07-13 via caretDiag + an experiment:
+  // the same mid-chip click lands at offset 0 with the ancestors draggable and
+  // at offset 10 with all of them stripped; a bare nested-editable island
+  // without draggable ancestors works fine. We can't disarm ancestors the chip
+  // doesn't own (they're real drag sources), so mirror the rescue the real
+  // sub-editors already have (Editor.jsx's posAtCoords fix-up): place the
+  // caret ourselves from the click point. Skipped when the user made a RANGE
+  // selection so drag-select / double-click word-select survive. No-op on
+  // Chromium (native placement already landed there; re-placing is identical).
+  const placeCaretFromPoint = useCallback((e) => {
+    const el = contentRef.current;
+    if (!el || !editable) return;
+    const sel = window.getSelection();
+    if (!sel || (sel.rangeCount && !sel.isCollapsed)) return;
+    let node = null, offset = 0;
+    try {
+      if (document.caretPositionFromPoint) {
+        const p = document.caretPositionFromPoint(e.clientX, e.clientY);
+        if (p && el.contains(p.offsetNode)) { node = p.offsetNode; offset = p.offset; }
+      } else if (document.caretRangeFromPoint) {
+        const r = document.caretRangeFromPoint(e.clientX, e.clientY);
+        if (r && el.contains(r.startContainer)) { node = r.startContainer; offset = r.startOffset; }
+      }
+    } catch (_) {}
+    if (!node) return;
+    try {
+      const range = document.createRange();
+      range.setStart(node, offset);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch (_) {}
+  }, [editable]);
 
   const onKeyDown = useCallback((e) => {
     if (e.key === "Enter") { e.preventDefault(); contentRef.current?.blur(); }
@@ -186,8 +233,13 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
         onPointerDown={() => {
           const w = wrapperRef.current;
           if (!w) return;
+          // Chromium needs the CSS hint; Firefox keys off the ATTRIBUTE (which
+          // is disarmed at rest — see the draggable() mount effect). Arm both
+          // for the duration of the press so a real handle drag starts natively.
+          w.draggable = true;
           w.style.setProperty("-webkit-user-drag", "element");
           const disarm = () => {
+            w.draggable = false;
             w.style.removeProperty("-webkit-user-drag");
             window.removeEventListener("pointerup", disarm);
             window.removeEventListener("dragend", disarm);
@@ -227,6 +279,7 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
             wrapperUserDrag: wrapperRef.current?.style?.getPropertyValue("-webkit-user-drag") || "(unset)",
           });
         }}
+        onClick={placeCaretFromPoint}
         onInput={(e) => setDraft(e.currentTarget.textContent || "")}
         onBlur={commit}
         onKeyDown={onKeyDown}

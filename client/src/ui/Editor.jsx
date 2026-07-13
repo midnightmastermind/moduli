@@ -2274,9 +2274,16 @@ const Editor = forwardRef(function Editor({
 
           // Fix cursor placement for editors nested inside contenteditable="false"
           // (e.g. textblock sub-editors). The browser can't resolve click position
-          // across contenteditable boundaries, so it defaults to offset 0 (beginning).
-          // We compute the correct position from click coords and set it explicitly.
-          if (editor && editor.isEditable && e.target !== e.currentTarget) {
+          // across contenteditable boundaries — and in FIREFOX any draggable=true
+          // ANCESTOR (every embed row) suppresses native caret placement outright —
+          // so we compute the position from click coords and set it explicitly.
+          // ONLY the editor that OWNS the click runs the fix-up: mousedown BUBBLES
+          // through every ancestor editor's wrapper, and each used to resolve
+          // posAtCoords against ITS OWN doc (the ancestors resolve the nested
+          // editor's atom boundary = pos 0/1) and schedule a competing
+          // setTextSelection rAF — caretDiag showed 4 selection writes per click.
+          const ownsClick = e.target?.closest?.(".doc-editor-wrapper") === e.currentTarget;
+          if (editor && editor.isEditable && ownsClick && e.target !== e.currentTarget) {
             const coords = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
             logCaretInterference("editor.posAtCoords-fixup", {
               occId: (occurrence?.id || "").slice(0, 8),

@@ -1,6 +1,19 @@
 # client/src/docs — Docs CLAUDE.md
 
-_Updated: 2026-07-12 LATE. Check this file before re-reading source._
+_Updated: 2026-07-13. Check this file before re-reading source._
+
+## Recent Changes (2026-07-13 — inline chip caret: Firefox fix (round 2 of f2e89136))
+- **`pills/InstanceTextblockInlineNode.jsx`** — two changes:
+  (1) the Pragmatic mount stamps `draggable="true"` on the chip wrapper; it's now DISARMED at
+  rest (`el.draggable = false` right after registration) and the ⠿ handle's onPointerDown arms
+  BOTH the attribute (Firefox drags key off it) and `-webkit-user-drag: element` (Chromium)
+  for the duration of the press.
+  (2) new `placeCaretFromPoint` on the content span's onClick: Firefox suppresses native caret
+  placement under ANY draggable ancestor (instance-wrap/container-shell — which the chip can't
+  disarm), so the chip places its own caret via caretPositionFromPoint. Skipped when the user
+  made a RANGE selection (drag-select / double-click word-select survive); no-op on Chromium.
+  Verified headless FF: mid-chip click → offset 10, typing inserts mid-text ("Ran ✅ for X25…");
+  Chromium regression clean (offset 13).
 
 ## Recent Changes (2026-07-12 LATE — simplify-audit: fused prose walk + shared textmapped predicate)
 - **`wrapAnchor.js`** — new exported `isTextmappedModule(mod)` (role textblock OR kind:doc

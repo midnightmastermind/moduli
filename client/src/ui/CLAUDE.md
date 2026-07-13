@@ -1,6 +1,27 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-07-12 LATE. Check this file before re-reading source._
+_Updated: 2026-07-13. Check this file before re-reading source._
+
+## Recent Changes (2026-07-13 — caret round 2 FIXED: Firefox draggable-ancestor suppression)
+- **Root cause (from the user's [caret] logs + a strip-all-draggables experiment):** FIREFOX
+  refuses native caret placement in an editable that has ANY `draggable="true"` ANCESTOR — and
+  every doc embed row (`.instance-wrap`, `.container-shell`, page shells) is one. caretAtPoint
+  resolved the click mid-text (offset 8) but SETTLED at 0 with ZERO INTERFERE lines = pure
+  browser suppression; stripping every draggable attr made the identical click land at offset 10.
+  Chromium was already fine (round 1's CSS fix covers it — it keys off `-webkit-user-drag`,
+  which Firefox doesn't implement).
+- **`Editor.jsx` (mousedown posAtCoords fix-up)** — now gated to the editor that OWNS the click
+  (`e.target.closest(".doc-editor-wrapper") === e.currentTarget`): mousedown bubbles through
+  every ancestor editor's wrapper, and each used to resolve posAtCoords against ITS OWN doc
+  (ancestors resolve the nested atom boundary = pos 0/1) and schedule a competing
+  setTextSelection rAF — caretDiag showed 4 selection writes per click; now exactly 1. This
+  fix-up is ALSO what rescues block textblocks from the Firefox suppression (verified: FF click
+  mid-paragraph → offset 64).
+- **Chip fix is in docs/pills/InstanceTextblockInlineNode.jsx** (see docs/CLAUDE.md) — the raw
+  contentEditable chip has no PM fix-up, so it places its own caret from the click point.
+- Verified headless FF + Chromium: chip middle click lands mid-text and typing inserts there,
+  handle-press still arms dragging, wrap 6/6 drops on a fresh seed, 1262/1262 tests. The [caret]
+  diagnostics STAY IN until the user confirms on-device (mute: `window.__caretDiag = false`).
 
 ## Recent Changes (2026-07-12 LATE — simplify-audit: QuickAddMenu contract + Editor hot paths)
 - **`QuickAddMenu.jsx` CONTRACT CHANGE** — (1) any POSITIVE `openTrigger` opens the menu,
