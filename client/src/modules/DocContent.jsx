@@ -6,6 +6,7 @@ import React, { useRef, useState, useEffect, useCallback } from "react";
 import Editor from "../ui/Editor";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { Lock, Unlock } from "lucide-react";
+import { logCaretInterference } from "../helpers/caretDiag";
 
 export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false, scrollAnchor, onExitBlock, onDeleteBlock, onAutoCreateTextblock }) {
   const [showLockBtn, setShowLockBtn] = useState(false);
@@ -155,6 +156,9 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
         if (!editor || !editor.isEditable) return;
         // Use 'end' so TipTap doesn't default to editor.state.selection (pos 1
         // for an unfocused editor), which always places cursor at the beginning.
+        logCaretInterference("docContent.padding-click focus('end')", {
+          occId: (occurrence?.id || "").slice(0, 8),
+        });
         editor.commands.focus('end');
       }}
     >

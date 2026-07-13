@@ -17,6 +17,7 @@ import { useGridActions } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { jumpToOccurrence } from "../../helpers/jumpToOccurrence";
 import RadialMenu from "../../ui/RadialMenu.jsx";
+import { logCaretPointerDown } from "../../helpers/caretDiag";
 
 // Walk a TipTap doc and join its text nodes with a single space — preserves
 // readability without inserting paragraph breaks (this node is inline).
@@ -216,6 +217,16 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
         suppressContentEditableWarning
         spellCheck={false}
         onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => {
+          // [caret] diag — chip middle: where the browser WOULD put the caret vs
+          // where it lands (see helpers/caretDiag.js; window.__caretDiag=false to mute).
+          logCaretPointerDown("chip.itbi-content", e, {
+            occId: (occurrenceId || "").slice(0, 8),
+            editable,
+            textLen: (contentRef.current?.textContent || "").length,
+            wrapperUserDrag: wrapperRef.current?.style?.getPropertyValue("-webkit-user-drag") || "(unset)",
+          });
+        }}
         onInput={(e) => setDraft(e.currentTarget.textContent || "")}
         onBlur={commit}
         onKeyDown={onKeyDown}

@@ -34,6 +34,7 @@ import { NATIVE_DND_MIME, registerDocTouchDrop, getDocTouchDropZone } from "../h
 import { embedDeleteRegistry } from "../helpers/embedRegistry";
 import { findGroupMember, unwrapGroupAt, isNeighborMember } from "../helpers/wrapGroupOps";
 import { sideFromFrac, anchorOffsetForDrop, isTextmappedModule } from "../docs/wrapAnchor";
+import { logCaretPointerDown, logCaretInterference } from "../helpers/caretDiag";
 
 // px — a drop this far BELOW a wrap host's rendered text bottom is treated as an
 // insert-after (not a wrap-beside), so dropping under a short host beside a tall
@@ -1199,6 +1200,13 @@ const Editor = forwardRef(function Editor({
       const current = editor.getJSON();
       if (JSON.stringify(current) !== JSON.stringify(content)) {
         const { from, to } = editor.state.selection;
+        // [caret] diag — a content sync inside the click window is the classic
+        // caret-reset suspect (setContent collapses selection to doc start).
+        logCaretInterference("editor.setContent(sync)", {
+          occId: (occurrence?.id || "").slice(0, 8),
+          selBefore: { from, to },
+          willRestore: userHasFocusedRef.current && (from > 1 || to > 1),
+        });
         editor.commands.setContent(content, { emitUpdate: false });
         // Only restore cursor if user has actively positioned it (not the initial pos 1).
         // Without this guard, initial content load restores pos 1 = beginning,
@@ -2253,15 +2261,41 @@ const Editor = forwardRef(function Editor({
           recentMousedownRef.current = true;
           setTimeout(() => { recentMousedownRef.current = false; }, 300);
 
+          // [caret] diag — which editor owns the click, and what posAtCoords says
+          // (see helpers/caretDiag.js; window.__caretDiag=false to mute).
+          logCaretPointerDown("editor.wrapper", e, {
+            occId: (occurrence?.id || "").slice(0, 8),
+            host: e.target?.closest?.(".instance-textblock-block") ? "block-mini-textblock"
+              : e.target?.closest?.(".textblock-card") ? "textblock-card"
+              : e.target?.closest?.(".instance-textblock-inline") ? "inline-chip"
+              : e.target?.closest?.(".table-td") ? "table-cell" : "doc",
+            isCell, editable: !!editor?.isEditable,
+          });
+
           // Fix cursor placement for editors nested inside contenteditable="false"
           // (e.g. textblock sub-editors). The browser can't resolve click position
           // across contenteditable boundaries, so it defaults to offset 0 (beginning).
           // We compute the correct position from click coords and set it explicitly.
           if (editor && editor.isEditable && e.target !== e.currentTarget) {
             const coords = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
+            logCaretInterference("editor.posAtCoords-fixup", {
+              occId: (occurrence?.id || "").slice(0, 8),
+              pos: coords?.pos ?? null, inside: coords?.inside ?? null,
+              docSize: editor.state.doc.content.size,
+            });
             if (coords) {
               requestAnimationFrame(() => {
-                try { editor.commands.setTextSelection(coords.pos); } catch (_) {}
+                try {
+                  editor.commands.setTextSelection(coords.pos);
+                  logCaretInterference("editor.setTextSelection(rAF)", {
+                    occId: (occurrence?.id || "").slice(0, 8),
+                    setTo: coords.pos, nowAt: editor.state.selection.from,
+                  });
+                } catch (err) {
+                  logCaretInterference("editor.setTextSelection THREW", {
+                    occId: (occurrence?.id || "").slice(0, 8), pos: coords.pos, err: String(err).slice(0, 80),
+                  });
+                }
               });
             }
           }
@@ -2275,6 +2309,7 @@ const Editor = forwardRef(function Editor({
           // Guard: when the doc ends in an ATOM (embed/textblock), 'end' is a
           // doc-level position with no inline content → ProseMirror throws
           // "TextSelection endpoint not pointing into a node with inline content".
+          logCaretInterference("editor.padding-click focus('end')", { occId: (occurrence?.id || "").slice(0, 8) });
           try { editor.commands.focus('end'); } catch (_) { try { editor.commands.focus(); } catch (_) {} }
         }}
       >
