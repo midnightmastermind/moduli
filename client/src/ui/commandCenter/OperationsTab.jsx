@@ -893,17 +893,22 @@ export function OperationsTab() {
   // folderId onto the same folderType:"category" records). Rendering every
   // category as an ops column buried the op categories behind a wall of empty
   // field-category columns (Nutrition/Wellness/…) — the user's "categories
-  // aren't organizing the ops" (2026-07-12). Data-driven split, no naming
-  // hacks: a category that holds FIELDS but no OPS is a field category → not
-  // an ops column. Empty-of-both categories stay visible (a freshly-created
-  // "New Category" must render so ops can be dragged into it).
+  // aren't organizing the ops" (2026-07-12). The AXIS is data the folder
+  // carries: `categoryKind` ("field" | "op"), stamped at creation by the tab
+  // that minted it + by the seed (2026-07-13 — identity as data, per the
+  // no-hardcoding rule). LEGACY folders (categoryKind null, pre-stamp) fall
+  // back to the old contents inference: holds fields but no ops → field
+  // category → not an ops column. Empty-of-both legacy categories stay
+  // visible so ops can be dragged into them.
   const allOps = useMemo(() => Object.values(operationsById || {}), [operationsById]);
   const categoryFolders = useMemo(() => {
     const fieldFolderIds = new Set(Object.values(fieldsById || {}).map((f) => f?.folderId).filter(Boolean));
     const opFolderIds = new Set(allOps.map((o) => o?.folderId).filter(Boolean));
     return Object.values(foldersById || {})
       .filter((f) => f.gridId === gridId && f.folderType === "category")
-      .filter((f) => opFolderIds.has(f.id) || !fieldFolderIds.has(f.id))
+      .filter((f) => f.categoryKind
+        ? f.categoryKind === "op"
+        : (opFolderIds.has(f.id) || !fieldFolderIds.has(f.id)))
       .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   }, [foldersById, gridId, fieldsById, allOps]);
 
@@ -988,7 +993,7 @@ export function OperationsTab() {
   };
 
   const handleCreateCategory = () => {
-    const folder = { id: uid(), gridId, name: "New Category", folderType: "category", sortOrder: categoryFolders.length, isExpanded: true };
+    const folder = { id: uid(), gridId, name: "New Category", folderType: "category", categoryKind: "op", sortOrder: categoryFolders.length, isExpanded: true };
     CommitHelpers.createFolder({ dispatch, socket, folder });
   };
 

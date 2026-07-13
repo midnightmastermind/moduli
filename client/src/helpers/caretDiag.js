@@ -9,9 +9,10 @@
 //   settled      — where the selection ACTUALLY ended up (~100ms later).
 //   interference — setContent / focus('end') / setTextSelection firing inside
 //                  the click window.
-// ON by default: these fire once per click, not per frame. Silence with
-// `window.__caretDiag = false` in the console.
-const on = () => typeof window !== "undefined" && window.__caretDiag !== false;
+// OPT-IN since 2026-07-13 (the Firefox draggable-ancestor fix shipped and was
+// verified headless in both engines): run `window.__caretDiag = true` in the
+// console to re-enable if a caret ever lands at the start again.
+const on = () => typeof window !== "undefined" && window.__caretDiag === true;
 
 // Stamped by logCaretPointerDown; interference sites log only inside this window.
 let _lastClickAt = 0;

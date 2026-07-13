@@ -4790,25 +4790,25 @@ export async function createLiveData(userId, options = {}) {
   // IDs were pre-generated at the top so field/op definitions can carry
   // their folderId inline.
   await Promise.all([
-    new Folder({ id: fieldCategoryIds.scheduling,   userId, gridId, name: "Scheduling",    parentId: null, folderType: "category", sortOrder: 100, isExpanded: false }).save(),
-    new Folder({ id: fieldCategoryIds.workouts,     userId, gridId, name: "Workouts",      parentId: null, folderType: "category", sortOrder: 101, isExpanded: false }).save(),
-    new Folder({ id: fieldCategoryIds.nutrition,    userId, gridId, name: "Nutrition",     parentId: null, folderType: "category", sortOrder: 102, isExpanded: false }).save(),
-    new Folder({ id: fieldCategoryIds.finance,      userId, gridId, name: "Finance",       parentId: null, folderType: "category", sortOrder: 103, isExpanded: false }).save(),
-    new Folder({ id: fieldCategoryIds.wellness,     userId, gridId, name: "Wellness",      parentId: null, folderType: "category", sortOrder: 104, isExpanded: false }).save(),
-    new Folder({ id: fieldCategoryIds.intellectual, userId, gridId, name: "Intellectual",  parentId: null, folderType: "category", sortOrder: 105, isExpanded: false }).save(),
-    new Folder({ id: fieldCategoryIds.bills,        userId, gridId, name: "Bills",         parentId: null, folderType: "category", sortOrder: 106, isExpanded: false }).save(),
-    new Folder({ id: fieldCategoryIds.display,      userId, gridId, name: "Display",       parentId: null, folderType: "category", sortOrder: 107, isExpanded: false }).save(),
-    new Folder({ id: fieldCategoryIds.refs,         userId, gridId, name: "References",    parentId: null, folderType: "category", sortOrder: 109, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.scheduling,   userId, gridId, name: "Scheduling",    parentId: null, folderType: "category", categoryKind: "field", sortOrder: 100, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.workouts,     userId, gridId, name: "Workouts",      parentId: null, folderType: "category", categoryKind: "field", sortOrder: 101, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.nutrition,    userId, gridId, name: "Nutrition",     parentId: null, folderType: "category", categoryKind: "field", sortOrder: 102, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.finance,      userId, gridId, name: "Finance",       parentId: null, folderType: "category", categoryKind: "field", sortOrder: 103, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.wellness,     userId, gridId, name: "Wellness",      parentId: null, folderType: "category", categoryKind: "field", sortOrder: 104, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.intellectual, userId, gridId, name: "Intellectual",  parentId: null, folderType: "category", categoryKind: "field", sortOrder: 105, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.bills,        userId, gridId, name: "Bills",         parentId: null, folderType: "category", categoryKind: "field", sortOrder: 106, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.display,      userId, gridId, name: "Display",       parentId: null, folderType: "category", categoryKind: "field", sortOrder: 107, isExpanded: false }).save(),
+    new Folder({ id: fieldCategoryIds.refs,         userId, gridId, name: "References",    parentId: null, folderType: "category", categoryKind: "field", sortOrder: 109, isExpanded: false }).save(),
   ]);
 
   await Promise.all([
-    new Folder({ id: opCategoryIds.trackers, userId, gridId, name: "Trackers",       parentId: null, folderType: "category", sortOrder: 200, isExpanded: false }).save(),
-    new Folder({ id: opCategoryIds.schedule, userId, gridId, name: "Schedule Ops",   parentId: null, folderType: "category", sortOrder: 201, isExpanded: false }).save(),
-    new Folder({ id: opCategoryIds.daypage,  userId, gridId, name: "Day Page Ops",   parentId: null, folderType: "category", sortOrder: 202, isExpanded: false }).save(),
-    new Folder({ id: opCategoryIds.bills,    userId, gridId, name: "Bill Ops",       parentId: null, folderType: "category", sortOrder: 203, isExpanded: false }).save(),
-    new Folder({ id: opCategoryIds.library,  userId, gridId, name: "Library Ops",    parentId: null, folderType: "category", sortOrder: 204, isExpanded: false }).save(),
-    new Folder({ id: opCategoryIds.alarms,   userId, gridId, name: "Alarms",         parentId: null, folderType: "category", sortOrder: 205, isExpanded: false }).save(),
-    new Folder({ id: opCategoryIds.projects, userId, gridId, name: "Projects",       parentId: null, folderType: "category", sortOrder: 206, isExpanded: false }).save(),
+    new Folder({ id: opCategoryIds.trackers, userId, gridId, name: "Trackers",       parentId: null, folderType: "category", categoryKind: "op", sortOrder: 200, isExpanded: false }).save(),
+    new Folder({ id: opCategoryIds.schedule, userId, gridId, name: "Schedule Ops",   parentId: null, folderType: "category", categoryKind: "op", sortOrder: 201, isExpanded: false }).save(),
+    new Folder({ id: opCategoryIds.daypage,  userId, gridId, name: "Day Page Ops",   parentId: null, folderType: "category", categoryKind: "op", sortOrder: 202, isExpanded: false }).save(),
+    new Folder({ id: opCategoryIds.bills,    userId, gridId, name: "Bill Ops",       parentId: null, folderType: "category", categoryKind: "op", sortOrder: 203, isExpanded: false }).save(),
+    new Folder({ id: opCategoryIds.library,  userId, gridId, name: "Library Ops",    parentId: null, folderType: "category", categoryKind: "op", sortOrder: 204, isExpanded: false }).save(),
+    new Folder({ id: opCategoryIds.alarms,   userId, gridId, name: "Alarms",         parentId: null, folderType: "category", categoryKind: "op", sortOrder: 205, isExpanded: false }).save(),
+    new Folder({ id: opCategoryIds.projects, userId, gridId, name: "Projects",       parentId: null, folderType: "category", categoryKind: "op", sortOrder: 206, isExpanded: false }).save(),
   ]);
 
   // ── STEP 7b: Templates manifest + Daily Routine + Day Page templates ────────

@@ -513,13 +513,22 @@ export function FieldsTab() {
     [state?.fields, gridId]
   );
 
-  // Folders with folderType "category" for this grid
-  const categoryFolders = useMemo(
-    () => Object.values(foldersById || {})
+  // Category folders for the FIELD axis. `categoryKind` is stamped at
+  // creation (2026-07-13 — identity as data; OperationsTab mirrors this for
+  // "op"); LEGACY folders (null, pre-stamp) fall back to the contents
+  // inference: a folder holding ops but no fields is an op category → not a
+  // field column (before this, every op category — Trackers, Alarms, … —
+  // rendered here as an empty column).
+  const categoryFolders = useMemo(() => {
+    const fieldFolderIds = new Set(Object.values(fieldsById || {}).map((f) => f?.folderId).filter(Boolean));
+    const opFolderIds = new Set(Object.values(ctx?.operationsById || {}).map((o) => o?.folderId).filter(Boolean));
+    return Object.values(foldersById || {})
       .filter((f) => f.gridId === gridId && f.folderType === "category")
-      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0)),
-    [foldersById, gridId]
-  );
+      .filter((f) => f.categoryKind
+        ? f.categoryKind === "field"
+        : (fieldFolderIds.has(f.id) || !opFolderIds.has(f.id)))
+      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  }, [foldersById, gridId, fieldsById, ctx?.operationsById]);
 
   // Group fields by folderId
   const fieldsByFolder = useMemo(() => {
@@ -554,7 +563,7 @@ export function FieldsTab() {
   };
 
   const handleCreateCategory = () => {
-    const folder = { id: uid(), gridId, name: "New Category", folderType: "category", sortOrder: categoryFolders.length, isExpanded: true };
+    const folder = { id: uid(), gridId, name: "New Category", folderType: "category", categoryKind: "field", sortOrder: categoryFolders.length, isExpanded: true };
     CommitHelpers.createFolder({ dispatch, socket, folder });
   };
 

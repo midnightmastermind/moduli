@@ -37,6 +37,16 @@ const FolderSchema = new mongoose.Schema(
       default: "normal",
     },
 
+    // Which AXIS a folderType:"category" folder groups (2026-07-13): "field"
+    // (FieldsTab columns) or "op" (OperationsTab columns). Stamped at creation
+    // by whichever tab minted it + by the seed. IDENTITY AS DATA — before
+    // this, both tabs GUESSED the axis from the folder's current contents, so
+    // classification flipped as a side effect of unrelated deletes (an op
+    // category whose last op is deleted read as a field category, and every
+    // op category rendered as an empty column in FieldsTab). null = legacy
+    // folder → tabs fall back to the contents inference.
+    categoryKind: { type: String, default: null },
+
     // Links panel folder to its panel module (only for folderType: "panel")
     panelId: { type: String, default: null, index: true },
 
