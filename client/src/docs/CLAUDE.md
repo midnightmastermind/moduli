@@ -5,7 +5,7 @@ _Updated: 2026-07-13. Check this file before re-reading source._
 ## Recent Changes (2026-07-13 — inline chip caret: Firefox fix (round 2 of f2e89136))
 - **`pills/InstanceTextblockInlineNode.jsx`** — two changes:
   (1) the Pragmatic mount stamps `draggable="true"` on the chip wrapper; it's now DISARMED at
-  rest (`el.draggable = false` right after registration) and the ⠿ handle's onPointerDown arms
+  rest (`el.draggable = false` right after registration) and the radial drag handle's onPointerDown arms
   BOTH the attribute (Firefox drags key off it) and `-webkit-user-drag: element` (Chromium)
   for the duration of the press.
   (2) new `placeCaretFromPoint` on the content span's onClick: Firefox suppresses native caret
@@ -261,7 +261,7 @@ by-reference float of the neighbor.
 
 ## Recent Changes (2026-06-15 — inline mini-textblock = 3-zone chip; wrapGroup seam un-gated from `wrap`)
 - **`pills/InstanceTextblockInlineNode.jsx` — rewritten to a 3-zone chip** per user spec:
-  `[⠿ handle][ editable content (text cursor) ][ ↗ open ]`.
+  `[radial drag handle][ editable content (text cursor) ][ ↗ open ]`.
   - **Drag ONLY from the handle** — Pragmatic DnD `draggable({ element: wrapper, dragHandle:
     handleRef })`. The handle span is always in the DOM (stable dragHandle ref) but the
     `RadialMenu` inside it LAZY-MOUNTS only while hovered (`hovered` state) — a doc full of

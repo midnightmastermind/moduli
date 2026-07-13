@@ -100,8 +100,7 @@ const SHORTCUT_GROUPS = [
   {
     group: "Doc page · Blocks & textblocks",
     items: [
-      { keys: ["⠿ Drag"],     action: "Reorder block via gutter handle" },
-      { keys: ["⋮"],          action: "Open block menu (change type / duplicate / delete)" },
+      { keys: ["Radial handle drag"], action: "Reorder / move a block (its radial-menu drag handle)" },
       { keys: ["Enter"],      action: "Inside textblock — exit to next outer paragraph" },
       { keys: ["Shift+Enter"], action: "Inside textblock — soft break, or delete if empty" },
       { keys: ["ArrowUp/Down"], action: "Inside textblock — leaves the sub-editor at first/last line" },

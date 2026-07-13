@@ -17,7 +17,7 @@ ANCESTOR** — stripping every draggable attr made the identical click land at o
 nested-editable island works fine. Round 1 (f2e89136) only fixed Chromium's CSS vector.
 Fix (`837e4542`, deployed + prod HEAD verified + reseeded):
 - **Chip** (InstanceTextblockInlineNode): wrapper's draggable ATTRIBUTE disarmed at rest (armed
-  with the CSS hint only while the ⠿ handle is pressed) + the content span places its own caret
+  with the CSS hint only while the radial drag handle is pressed) + the content span places its own caret
   from the click point on click (ancestors can't be disarmed — they're real drag sources).
   Range selections are left alone.
 - **Editor.jsx**: the mousedown posAtCoords fix-up (the thing that rescues BLOCK textblocks from
@@ -111,8 +111,8 @@ All deployed + prod reseeded, HEAD/tree verified. On top of the morning batch:
   (`.itbi-content` — e.g. "Read ✅ 30 pages" in the viafluere doc), not the big textblock cards.
   Root cause: the chip sat in the `user-drag: element` CSS rule → the whole chip was a native
   drag source → Chromium suppresses caret placement in drag sources → click-to-edit landed at
-  offset 0. Chip removed from the rule; the wrapper arms `user-drag:element` ONLY while the ⠿
-  handle is pressed (InstanceTextblockInlineNode onPointerDown). Verified live: click at 60% of
+  offset 0. Chip removed from the rule; the wrapper arms `user-drag:element` ONLY while the radial
+  drag handle is pressed (InstanceTextblockInlineNode onPointerDown). Verified live: click at 60% of
   the chip → caret offset 10, typing inserts mid-text; handle drag-out still works.
 - **Queued**: #13 — doc right-click menu needs an "Add occurrence" item opening the QuickAddMenu.
 

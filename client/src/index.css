@@ -1077,7 +1077,7 @@ body[data-drag-kind="panel"] .container-shell {
    on the whole chip made Chromium treat every mousedown as potential drag and
    SUPPRESS caret placement in the editable middle — click-to-edit always landed
    at offset 0. The chip arms user-drag:element on its wrapper ONLY while the
-   ⠿ handle is pressed (InstanceTextblockInlineNode), so handle drags still work
+   radial drag handle is pressed (InstanceTextblockInlineNode), so handle drags still work
    and the middle is a normal editable again. */
 
 /* Anchor highlight animation (double-flash when scrolling to anchor) */
@@ -3338,7 +3338,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   display: inline;
   /* Symmetric left/right breathing gap (6px each) so the chip text isn't crammed
      against the left border — matches the right side. On hover the zoned variant
-     drops padding-left to 0 to make room for the ⠿ drag handle (see --zoned:hover). */
+     drops padding-left to 0 to make room for the radial drag handle (see --zoned:hover). */
   padding: 0 6px 1px 6px;
   /* Negative side margin pulls the chip OVER the literal space characters next to it in
      the prose, so those spaces stop "showing up" beside the chip and the chip's own 6px
@@ -3397,7 +3397,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   min-width: 8px;
 }
 
-/* Three-zone inline mini-textblock: [⠿ handle][editable content][↗ open].
+/* Three-zone inline mini-textblock: [radial drag handle][editable content][↗ open].
    The wrapper keeps the base chip chrome (inline-block pill, 4px radius, bg/
    border) so a long chip stays ONE pill (wraps internally / moves to the next
    line as a unit — no mid-word split across the column edge). `--url`/`--occ`

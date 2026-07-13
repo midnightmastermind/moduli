@@ -4,7 +4,7 @@
 // occurrence's textmap. Distinct from `InstanceTextblockNode` (block).
 //
 // Three-zone chip (user-spec'd interaction model):
-//   [ ⠿ handle ] [ editable content (text cursor) ] [ ↗ open ]
+//   [ radial drag handle ] [ editable content (text cursor) ] [ ↗ open ]
 //   - LEFT handle  — hover-revealed RadialMenu; the ONLY drag origin.
 //   - MIDDLE       — contenteditable text (commits on blur / Enter).
 //   - RIGHT arrow  — link chips only: single-click opens the target (new tab
