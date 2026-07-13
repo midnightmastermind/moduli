@@ -11,5 +11,8 @@ notes_codex_annotated/
 client/dist/
 
 # local headless probe scripts + user screenshots (kept local, never deployed)
-/_*.mjs
+# UNANCHORED on purpose: a probe heredoc'd while the shell sits in client/
+# lands at client/_*.mjs, and deploy.sh's `git add -A` swept two of those
+# into deploy commits (2026-07-12 + 2026-07-13) before this was widened.
+_*.mjs
 screenshots/
