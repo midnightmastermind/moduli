@@ -252,6 +252,22 @@ function makeLogger() {
 // main "why didn't it match" tool) are unaffected.
 const LOOP_LOG_ITER_CAP = 50;
 
+// One bound-fieldIds array per TEMPLATE object. The $allItems enrichment runs
+// per item per op fire (incl. the onLoad sweep), and items overwhelmingly share
+// templates — a fresh `.map().filter()` per item allocated ~2500 duplicate
+// arrays per fire. WeakMap keyed on the template object: a template WRITE
+// swaps the object identity, so its cache entry invalidates for free.
+const _boundFieldIdsCache = new WeakMap();
+function boundFieldIdsFor(tpl) {
+  if (!tpl || typeof tpl !== "object") return [];
+  let ids = _boundFieldIdsCache.get(tpl);
+  if (!ids) {
+    ids = (tpl.fieldBindings || []).map(b => b?.fieldId).filter(Boolean);
+    _boundFieldIdsCache.set(tpl, ids);
+  }
+  return ids;
+}
+
 // Snapshot user-facing $vars (skip _internal keys + huge built-ins).
 // Returned object is a shallow clone — values may still be live references.
 const _SNAPSHOT_SKIP = new Set([
@@ -1264,7 +1280,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       // item even HAVE field X" (vs. "the value is empty"). The completion-gate
       // policy reads it: an item that never bound Completed counts on scope
       // membership alone, while a bound-but-unchecked one is excluded.
-      _boundFieldIds: (tpl?.fieldBindings || []).map(b => b?.fieldId).filter(Boolean),
+      _boundFieldIds: boundFieldIdsFor(tpl),
       _effectiveFilter: effFilter,
     };
   });

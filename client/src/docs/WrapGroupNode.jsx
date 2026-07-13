@@ -42,9 +42,20 @@ const BOTTOM_GAP = 14;    // px — gap below the neighbor before the full-width
 // client rect is a tight glyph run, so the total is the same whether the prose is wrapping beside
 // the float or laid out full-width when stacked — which is what lets the fill prediction work in
 // BOTH layouts (no measure-vs-display chicken-and-egg).
-function proseTextArea(prose) {
-  if (!prose) return 0;
+// ONE TreeWalker pass over the host prose's text line boxes, feeding BOTH
+// measure() consumers (the walk's getClientRects reads are the expensive part —
+// measure fires per ResizeObserver tick + a 5-timer schedule, so a second
+// identical walk doubled the layout reads on every keystroke/panel-resize):
+//   area           — summed line-box area (layout-invariant; decideWrapStack's
+//                    beside-prose-height prediction needs the FULL sum, so no
+//                    early exit).
+//   bandBottomReach — how far down the [bandTop..bandBottom] band the text's
+//                    line boxes actually reach (the rendered blank-band guard;
+//                    bandTop when no band is supplied or no text lands in it).
+function measureProseText(prose, bandTop = 0, bandBottom = 0) {
+  if (!prose) return { area: 0, bandBottomReach: bandTop };
   let area = 0;
+  let bandBottomReach = bandTop;
   const range = document.createRange();
   const walk = document.createTreeWalker(prose, NodeFilter.SHOW_TEXT);
   let node;
@@ -52,9 +63,14 @@ function proseTextArea(prose) {
     if (!node.nodeValue || !node.nodeValue.trim()) continue;
     range.selectNodeContents(node);
     const rects = range.getClientRects();
-    for (let i = 0; i < rects.length; i++) area += rects[i].width * rects[i].height;
+    for (let i = 0; i < rects.length; i++) {
+      area += rects[i].width * rects[i].height;
+      if (rects[i].top < bandBottom && rects[i].bottom > bandBottomReach) {
+        bandBottomReach = Math.min(rects[i].bottom, bandBottom);
+      }
+    }
   }
-  return area;
+  return { area, bandBottomReach };
 }
 
 // @tiptap/react nests the child embeds inside a [data-node-view-content-react]
@@ -138,7 +154,9 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     const neighborW = right - left;
     const neighborH = bottom - top;
     const hostProse = els[els.length - 1].querySelector(".ProseMirror");
-    const textArea = proseTextArea(hostProse);
+    // One fused walk: line-box area (sliver prediction) + how far down the
+    // neighbor band [top..bottom] the rendered text reaches (blank-band guard).
+    const { area: textArea, bandBottomReach } = measureProseText(hostProse, top, bottom);
     const besideW = wrapEl.clientWidth - neighborW - FLOAT_GAP;
     const prevUnwrap = autoUnwrapRef.current;
     const shortNeighbor = neighborH <= WRAP_SHORT_NEIGHBOR_H;
@@ -147,33 +165,18 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     // non-prose host) but STILL stacks at low width (2026-07-12, per user):
     // when the host's column drops under the readable minimum, fall to stacked.
     // Small +20px re-enter margin so the boundary doesn't flicker.
-    const isColumns = node.attrs.wrap === false;
-    let nextUnwrap = isColumns
+    let nextUnwrap = columnsMode
       ? besideW < (prevUnwrap ? WRAP_MIN_PROSE_W + 20 : WRAP_MIN_PROSE_W)
       : decideWrapStack({ textArea, besideW, neighborH, prevStacked: prevUnwrap });
     // Rendered blank-band guard (only while already WRAPPED): the prediction can pass while the
     // RENDERED beside band is blank or a sliver — e.g. the beside column is too narrow for the
     // prose's long words, so every line drops BELOW the float and an empty column renders beside
-    // the neighbor (the 2026-07-09 screenshots). Measure the TEXT actually inside the band
-    // [top..bottom]: how far down the band the host's line boxes reach. NOT the prose box bottom —
+    // the neighbor (the 2026-07-09 screenshots). Reads the TEXT actually inside the band
+    // [top..bottom] (bandBottomReach above). NOT the prose box bottom —
     // when wrapped, the prose element always extends past the neighbor, which is why the old
     // prose-box check missed the blank column. Skipped while stacked (stacked→wrap stays
     // prediction-driven, no flicker) and for short neighbors.
-    if (!isColumns && !nextUnwrap && !prevUnwrap && !shortNeighbor && hostProse) {
-      let bandBottomReach = top; // furthest text bottom inside the band
-      const range = document.createRange();
-      const walk = document.createTreeWalker(hostProse, NodeFilter.SHOW_TEXT);
-      let tn;
-      while ((tn = walk.nextNode())) {
-        if (!tn.nodeValue || !tn.nodeValue.trim()) continue;
-        range.selectNodeContents(tn);
-        const rects = range.getClientRects();
-        for (let i = 0; i < rects.length; i++) {
-          if (rects[i].top < bottom && rects[i].bottom > bandBottomReach) {
-            bandBottomReach = Math.min(rects[i].bottom, bottom);
-          }
-        }
-      }
+    if (!columnsMode && !nextUnwrap && !prevUnwrap && !shortNeighbor && hostProse) {
       const filledBandH = Math.max(0, bandBottomReach - top);
       if (filledBandH < Math.max(WRAP_MIN_BESIDE_H, neighborH * WRAP_SLIVER_KEEP)) nextUnwrap = true;
     }

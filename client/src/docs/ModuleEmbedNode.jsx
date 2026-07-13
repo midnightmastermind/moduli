@@ -16,6 +16,7 @@ import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Box, Combine, Ungroup
 import { embedDeleteRegistry } from "../helpers/embedRegistry.js";
 import { operationsBridge } from "../state/bindSocketToStore.js";
 import { findGroupMember, unwrapGroupAt, detachGroupMember } from "../helpers/wrapGroupOps.js";
+import { isTextmappedModule } from "./wrapAnchor.js";
 
 const ALIGN_CYCLE = ["full", "left", "center", "right"];
 const ALIGN_ICONS = { full: AlignJustify, left: AlignLeft, center: AlignCenter, right: AlignRight };
@@ -165,11 +166,10 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
       // getLocalOcc (non-subscribing) because this runs inside the items memo —
       // subscribing to the whole occurrencesById map would re-render every embed
       // on every occurrence write (the per-slice selector design).
-      const hostOccId2 = wrapGroupNode.lastChild?.attrs?.occurrenceId || null;
-      const hostOcc2 = hostOccId2 ? operationsBridge.getLocalOcc?.(hostOccId2) : null;
-      const hostMod2 = hostOcc2?.moduleId ? modulesById?.[hostOcc2.moduleId] : null;
-      const hostTextmapped = !!hostMod2 && (hostMod2.role === "textblock" || (hostMod2.role === "container" && hostMod2.kind === "doc"));
-      if (hostTextmapped) items.push({
+      const hostOccId = wrapGroupNode.lastChild?.attrs?.occurrenceId || null;
+      const hostOcc = hostOccId ? operationsBridge.getLocalOcc?.(hostOccId) : null;
+      const hostMod = hostOcc?.moduleId ? modulesById?.[hostOcc.moduleId] : null;
+      if (isTextmappedModule(hostMod)) items.push({
         label: wrapOn ? "Wrap: on → off" : "Wrap: off → on",
         icon: WrapText,
         onClick: () => {

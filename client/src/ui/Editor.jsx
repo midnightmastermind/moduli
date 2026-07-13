@@ -33,12 +33,31 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import { NATIVE_DND_MIME, registerDocTouchDrop, getDocTouchDropZone } from "../helpers/dragSystem";
 import { embedDeleteRegistry } from "../helpers/embedRegistry";
 import { findGroupMember, unwrapGroupAt, isNeighborMember } from "../helpers/wrapGroupOps";
-import { sideFromFrac, anchorOffsetForDrop } from "../docs/wrapAnchor";
+import { sideFromFrac, anchorOffsetForDrop, isTextmappedModule } from "../docs/wrapAnchor";
 
 // px — a drop this far BELOW a wrap host's rendered text bottom is treated as an
 // insert-after (not a wrap-beside), so dropping under a short host beside a tall
 // neighbor no longer adds the block as a top-anchored neighbor. See detectSideHost.
 const BELOW_HOST_TOL = 8;
+
+// ONE document-level dragend/drop listener pair shared by every mounted doc
+// editor (page editors + delegate-only nested section editors). Each editor
+// registers a clear-indicators callback instead of attaching its own pair —
+// a big page mounts several editors, and every drop/dragend anywhere in the
+// app used to fan out through all of them (same registry pattern as
+// dragSystem's _docTouchDropZones).
+const _dragEndClearFns = new Set();
+let _dragEndListenersOn = false;
+function registerDragEndClear(fn) {
+  _dragEndClearFns.add(fn);
+  if (!_dragEndListenersOn && typeof document !== "undefined") {
+    _dragEndListenersOn = true;
+    const runAll = () => { for (const f of _dragEndClearFns) f(); };
+    document.addEventListener("dragend", runAll);
+    document.addEventListener("drop", runAll, true);
+  }
+  return () => { _dragEndClearFns.delete(fn); };
+}
 
 import { Table, TableRow, TableCell, TableHeader } from "@tiptap/extension-table";
 import { FieldPill } from "../docs/FieldPillExtension";
@@ -253,12 +272,18 @@ const Editor = forwardRef(function Editor({
   // Insert-here doc gap: { top (wrapper-relative px), pos (PM insert position) }
   // or null. Driven by mousemove over the editor wrapper when enableInsertGaps.
   const [docGap, setDocGap] = useState(null);
+  // A menu-opened ("pinned") gap must survive the hover machinery — every
+  // gap clear/move site funnels through these two so the pinned rule can't be
+  // forgotten at a new call site (2026-07-12 doc "Add occurrence here…").
+  const clearDocGapUnlessPinned = useCallback(() => {
+    setDocGap((prev) => (prev?.pinned ? prev : null));
+  }, []);
+  const setDocGapUnlessPinned = useCallback((b) => {
+    setDocGap((prev) => (prev?.pinned ? prev : (b && prev && prev.pos === b.pos ? prev : b)));
+  }, []);
   // Bumped by the context menu's "Add occurrence here…" row to imperatively
   // open the doc gap's QuickAddMenu at the right-clicked block boundary (#13).
   const [gapAddTrigger, setGapAddTrigger] = useState(0);
-  // QuickAddMenu reports onOpenChange(false) on MOUNT (its effect syncs the
-  // initial closed state) — only clear the gap on a real open→close.
-  const gapMenuWasOpenRef = useRef(false);
   // Live drop indicator while DRAGGING a block over this (page) editor — shows
   // exactly where it will land so reordering isn't a finicky guess. { top, pos }.
   const [dragGap, setDragGap] = useState(null);
@@ -977,9 +1002,9 @@ const Editor = forwardRef(function Editor({
           // clearing a menu-driven gap — the pointer is over content when the
           // context menu closes, and the very next mousemove would wipe it.
           setDocGap({ ...b, pinned: true });
-          // Next-tick bump so a freshly-mounted gap menu sees the trigger
-          // CHANGE (its first-render value is swallowed by design).
-          setTimeout(() => setGapAddTrigger((n) => n + 1), 50);
+          // QuickAddMenu honors a positive openTrigger at MOUNT, so the gap +
+          // bump can land in the same commit — no deferral race.
+          setGapAddTrigger((n) => n + 1);
         },
       },
       !isCell && dispatch && socket && occurrence?.userId && { separator: true },
@@ -1318,8 +1343,7 @@ const Editor = forwardRef(function Editor({
   const isTextmappedHost = useCallback((occId) => {
     const occ = occId ? occurrencesByIdRef.current?.[occId] : null;
     const mod = occ?.moduleId ? modulesByIdRef.current?.[occ.moduleId] : null;
-    if (!mod) return false;
-    return mod.role === "textblock" || (mod.role === "container" && mod.kind === "doc");
+    return isTextmappedModule(mod);
   }, []);
   // The host's top-level block index at clientY → the EXACT line the notch
   // morphs at (L at line 0, C/J mid-flow). Kept for back-compat (anchorIndex).
@@ -1368,17 +1392,39 @@ const Editor = forwardRef(function Editor({
       // posAtCoords resolves to the DOC-level gap at a block's left/right edge —
       // reliably so over an atom that is the ONLY child of a nested section
       // editor ("can't drag to the right of anything" in single-block sections).
-      // Fall back to the top-level block whose vertical band contains the
-      // pointer; a genuine between-blocks hover has no such block and still
-      // bails to the boundary gap line.
+      // Fast path: the hovered element (dragover target, threaded through
+      // `input.target`) maps straight to a top-level block via DOM identity —
+      // no layout reads. The rect scan below only runs when the pointer is in
+      // the gutter BESIDE a partial-width block (hovered element = the PM root),
+      // the exact geometry the fallback was built for; per-frame it's rare.
       let found = null;
-      editor.state.doc.forEach((n, offset) => {
-        if (found) return;
-        let dom = null;
-        try { dom = editor.view.nodeDOM(offset); } catch (_) { /* not rendered */ }
-        const r = dom?.getBoundingClientRect?.();
-        if (r && r.height > 0 && input.clientY >= r.top && input.clientY <= r.bottom) found = { pos: offset, node: n };
-      });
+      const pmEl = editor.view.dom;
+      const hoverEl = input.target instanceof Element ? input.target
+        : (typeof document !== "undefined" ? document.elementFromPoint?.(input.clientX, input.clientY) : null);
+      if (hoverEl && hoverEl !== pmEl && pmEl.contains(hoverEl)) {
+        let child = hoverEl;
+        while (child.parentElement && child.parentElement !== pmEl) child = child.parentElement;
+        if (child.parentElement === pmEl) {
+          editor.state.doc.forEach((n, offset) => {
+            if (found) return;
+            let dom = null;
+            try { dom = editor.view.nodeDOM(offset); } catch (_) { /* not rendered */ }
+            if (dom === child) found = { pos: offset, node: n };
+          });
+        }
+      }
+      if (!found) {
+        // Slow path — the top-level block whose vertical band contains the
+        // pointer; a genuine between-blocks hover has no such block and still
+        // bails to the boundary gap line.
+        editor.state.doc.forEach((n, offset) => {
+          if (found) return;
+          let dom = null;
+          try { dom = editor.view.nodeDOM(offset); } catch (_) { /* not rendered */ }
+          const r = dom?.getBoundingClientRect?.();
+          if (r && r.height > 0 && input.clientY >= r.top && input.clientY <= r.bottom) found = { pos: offset, node: n };
+        });
+      }
       if (!found) return bail("depth<1, no block under Y", { pos: res.pos });
       topPos = found.pos;
       topNode = found.node;
@@ -1404,16 +1450,16 @@ const Editor = forwardRef(function Editor({
         || (typeof document !== "undefined" && document.body?.dataset?.dragOccId) || null;
       let draggedIsMember = false;
       topNode.forEach((c) => { if (draggedOccId && c.attrs?.occurrenceId === draggedOccId) draggedIsMember = true; });
+      let groupDom = null;
+      try { groupDom = editor.view.nodeDOM(topPos); } catch (_) { return bail("nodeDOM threw (group)"); }
+      const holder = groupDom?.querySelector?.(".wrap-group-content > [data-node-view-content-react]")
+        || groupDom?.querySelector?.(".wrap-group-content");
       // Outside drags: NO side points on a 2-col group (no 3-col support) —
       // EXCEPT directly over the NEIGHBOR COLUMN, which stacks the drop into
       // that column (columns hold multiple occurrences). Members always pass
       // (dragging one re-morphs its side/anchor).
       if (!draggedIsMember) {
-        let groupDomEarly = null;
-        try { groupDomEarly = editor.view.nodeDOM(topPos); } catch (_) { return bail("nodeDOM threw (group gate)"); }
-        const holderEarly = groupDomEarly?.querySelector?.(".wrap-group-content > [data-node-view-content-react]")
-          || groupDomEarly?.querySelector?.(".wrap-group-content");
-        const kids = holderEarly ? Array.from(holderEarly.children) : [];
+        const kids = holder ? Array.from(holder.children) : [];
         const neighborsOnly = kids.slice(0, -1);
         const overNeighborCol = neighborsOnly.some((el) => {
           const r = el.getBoundingClientRect();
@@ -1422,10 +1468,6 @@ const Editor = forwardRef(function Editor({
         if (!overNeighborCol) return bail("group already 2-col — outside side drops disabled", { draggedOccId });
       }
       const groupTextmapped = isTextmappedHost(hostOccId);
-      let groupDom = null;
-      try { groupDom = editor.view.nodeDOM(topPos); } catch (_) { return null; }
-      const holder = groupDom?.querySelector?.(".wrap-group-content > [data-node-view-content-react]")
-        || groupDom?.querySelector?.(".wrap-group-content");
       const hostEl = holder?.lastElementChild || groupDom;
       const rect = groupDom?.getBoundingClientRect?.();
       if (!rect || rect.width <= 0) return null;
@@ -1509,6 +1551,11 @@ const Editor = forwardRef(function Editor({
       lastNativeEvent = e;
       if (!editor?.view) return;
       const x = e.clientX, y = e.clientY;
+      // dragover's target is already the deepest element under the pointer —
+      // carry it into the rAF so the zone check + detectSideHost's depth<1
+      // fallback never need a forced elementFromPoint hit-test per frame
+      // (dragover bubbles, so nested + page editors both run this every frame).
+      const tgt = e.target instanceof Element ? e.target : null;
       const dx = x - lastGapX, dy = y - lastGapY;
       if (dragOverRaf || dx * dx + dy * dy < 16) return;
       dragOverRaf = requestAnimationFrame(() => {
@@ -1519,12 +1566,12 @@ const Editor = forwardRef(function Editor({
         // zone, THAT editor paints its own gap/wrap lines (it also listens to
         // dragover now); this editor must not draw a second, misleading line
         // at its own top-level boundary (the drop won't land there).
-        const innerEl = document.elementFromPoint(x, y)?.closest?.(".doc-editor");
+        const innerEl = tgt?.closest?.(".doc-editor");
         if (innerEl && innerEl !== el && el.contains(innerEl)) {
           const zone = getDocTouchDropZone(innerEl);
           if (zone && zone.el !== el) { setDragGap(null); setWrapDrop(null); return; }
         }
-        const sh = detectSideHost({ clientX: x, clientY: y });
+        const sh = detectSideHost({ clientX: x, clientY: y, target: tgt });
         if (sh && sh.anchorOffset != null) {
           const wr = el.getBoundingClientRect();
           const pm = el.querySelector(".ProseMirror");
@@ -1566,10 +1613,9 @@ const Editor = forwardRef(function Editor({
     el.addEventListener("dragleave", onDragLeaveNative);
     // A drop clears indicators via handleDocDrop on the OWNING editor; the
     // delegate-only editor's own lines are cleared by its zone fn running the
-    // same handler, plus the document-level dragend below (covers cancelled drags).
-    const onDragEndDoc = () => { setDragGap(null); setWrapDrop(null); };
-    document.addEventListener("dragend", onDragEndDoc);
-    document.addEventListener("drop", onDragEndDoc, true);
+    // same handler, plus the shared document-level dragend/drop registry
+    // (covers cancelled drags without a listener pair per mounted editor).
+    const unregisterDragEndClear = registerDragEndClear(() => { setDragGap(null); setWrapDrop(null); });
 
     // Named so BOTH the Pragmatic registration (desktop) and the touch drop
     // zone (registerDocTouchDrop below) share the exact same drop logic.
@@ -1933,8 +1979,7 @@ const Editor = forwardRef(function Editor({
       if (dragOverRaf) cancelAnimationFrame(dragOverRaf);
       el.removeEventListener("dragover", onDragOver);
       el.removeEventListener("dragleave", onDragLeaveNative);
-      document.removeEventListener("dragend", onDragEndDoc);
-      document.removeEventListener("drop", onDragEndDoc, true);
+      unregisterDragEndClear();
       cleanup?.();
       touchDropCleanup();
     };
@@ -2126,14 +2171,13 @@ const Editor = forwardRef(function Editor({
     // hidden — otherwise a click-to-edit pops a stray insert line under the
     // block that the keyboard can't dismiss (it's an overlay).
     if (isOverTopBlock(view, editor.state.doc, e.clientY)) {
-      setDocGap((prev) => (prev && !prev.pinned ? null : prev));
+      clearDocGapUnlessPinned();
       return;
     }
     // Nearest block boundary (works in the empty margin between blocks too, so
     // the "+" doesn't vanish exactly where the user hovers to insert).
-    const b = nearestDocBoundary(view, editor.state.doc, wrapEl, e.clientY);
-    setDocGap((prev) => (prev?.pinned ? prev : (b && prev && prev.pos === b.pos ? prev : b)));
-  }, [gapsOn, editor]);
+    setDocGapUnlessPinned(nearestDocBoundary(view, editor.state.doc, wrapEl, e.clientY));
+  }, [gapsOn, editor, clearDocGapUnlessPinned, setDocGapUnlessPinned]);
 
   // Mint a standalone occurrence (NOT into any occurrences[] — doc embeds are
   // standalone) and insert a moduleEmbed for it at `pos`. existingModuleId →
@@ -2202,7 +2246,7 @@ const Editor = forwardRef(function Editor({
         style={{ paddingTop: 5, paddingBottom: 5 }}
         draggable={false}
         onMouseMove={gapsOn ? handleGapMove : undefined}
-        onMouseLeave={gapsOn ? (e) => { if (!e.relatedTarget?.closest?.(".doc-insert-gap")) setDocGap((prev) => (prev?.pinned ? prev : null)); } : undefined}
+        onMouseLeave={gapsOn ? (e) => { if (!e.relatedTarget?.closest?.(".doc-insert-gap")) clearDocGapUnlessPinned(); } : undefined}
         onMouseDown={(e) => {
           // Block content sync briefly so ProseMirror's cursor placement on mousedown
           // isn't overwritten by a server echo arriving before the focus event fires.
@@ -2247,7 +2291,7 @@ const Editor = forwardRef(function Editor({
         <div
           className="doc-insert-gap"
           style={{ top: docGap.top }}
-          onMouseLeave={(e) => { if (!e.relatedTarget?.closest?.(".doc-editor-wrapper")) setDocGap((prev) => (prev?.pinned ? prev : null)); }}
+          onMouseLeave={(e) => { if (!e.relatedTarget?.closest?.(".doc-editor-wrapper")) clearDocGapUnlessPinned(); }}
         >
           <div className="insert-gap-line" />
           <div className="insert-gap-btn">
@@ -2257,10 +2301,9 @@ const Editor = forwardRef(function Editor({
               onSelect={(m) => insertDocItemAt(docGap.pos, { existingModuleId: m?.id ?? m })}
               onCreateNew={({ fieldIds } = {}) => insertDocItemAt(docGap.pos, { fieldIds })}
               openTrigger={gapAddTrigger}
-              onOpenChange={(open) => {
-                if (open) { gapMenuWasOpenRef.current = true; return; }
-                if (gapMenuWasOpenRef.current) { gapMenuWasOpenRef.current = false; setDocGap(null); }
-              }}
+              // onOpenChange fires on real transitions only (never on mount),
+              // so a close always means "the user is done with this gap".
+              onOpenChange={(open) => { if (!open) setDocGap(null); }}
             />
           </div>
         </div>

@@ -2,6 +2,15 @@
 // Pure geometry helpers for the line-level wrap anchor. No DOM/React -- so they're
 // unit-testable; the Editor/WrapGroupNode call them with measured numbers.
 
+// The "can this module morph around a neighbor" rule: only a TEXTMAPPED module
+// (role:"textblock" OR a kind:"doc" container) hosts a wrap — never a
+// board/list/table. THE single source for Editor's drop gate and the
+// wrapGroup radial toggle.
+export function isTextmappedModule(mod) {
+  if (!mod) return false;
+  return mod.role === "textblock" || (mod.role === "container" && mod.kind === "doc");
+}
+
 // Which side the neighbor floats to, from the horizontal fraction across the host.
 // No dead "middle third" -- every drop picks a side (split at the midline) so a drop
 // anywhere over the host forms/keeps a wrap (fixes "drop in the middle = no wrap").

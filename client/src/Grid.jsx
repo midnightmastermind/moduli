@@ -28,7 +28,7 @@ import { useDragContext, useDragStateContext, useDragHotContext, useDroppable, D
 import * as CommitHelpers from "./helpers/CommitHelpers";
 import { getGridPanels } from "./state/selectors";
 import { applyLocalSort, createPanelInGrid } from "./helpers/LayoutHelpers";
-import { ensureRootFolderPageOcc } from "./helpers/importsFolder";
+import { openPanelOnRootFolderPage } from "./helpers/importsFolder";
 import { snapPanelInDirection } from "./helpers/gridSnap";
 import MobileGridNav from "./mobile/MobileGridNav";
 import { Layers } from "lucide-react";
@@ -704,16 +704,6 @@ function GridInner() {
   // empty cell is one tap away from useful content (2026-07-03, per user).
   const handleEmptyCellClick = useCallback((r, c) => {
     if (!grid || !state?.userId) return;
-    const folderPageOccId = ensureRootFolderPageOcc({
-      grid, manifestsById, occurrencesById, modulesById, dispatch, socket, userId: state.userId,
-    });
-    if (!folderPageOccId) return;
-    const viewId = crypto.randomUUID();
-    CommitHelpers.createView({
-      dispatch, socket,
-      view: { id: viewId, userId: state.userId, gridId, viewType: "board", activeOccurrenceId: folderPageOccId },
-      emit: true,
-    });
     const result = createPanelInGrid({
       dispatch, socket, grid,
       panel: {
@@ -725,10 +715,9 @@ function GridInner() {
       userId: state.userId,
     });
     if (result?.occurrence?.id) {
-      CommitHelpers.updateOccurrence({
-        dispatch, socket,
-        occurrence: { id: result.occurrence.id, viewId, occurrences: [folderPageOccId] },
-        emit: true,
+      openPanelOnRootFolderPage({
+        panelOccId: result.occurrence.id, grid, gridId,
+        manifestsById, occurrencesById, modulesById, dispatch, socket, userId: state.userId,
       });
     }
   }, [grid, gridId, state?.userId, manifestsById, occurrencesById, modulesById, dispatch, socket]);

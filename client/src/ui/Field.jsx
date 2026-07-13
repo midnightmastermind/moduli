@@ -60,10 +60,12 @@ export const FLOW_TINTS = {
 // the parent owns border/background/overflow-hidden.
 function FlowToggle({ flow = "in", onChange, compact = false, disabled = false, segment = false }) {
   const [open, setOpen] = useState(false);
+  // Icon/label per flow; ALL flow coloring (segment + standalone) derives from
+  // FLOW_TINTS so the palette has exactly one source.
   const configs = {
-    in:      { icon: ArrowUp,   color: "text-green-400 bg-green-500/20 border-green-500/30", label: "In (+)", desc: "Positive" },
-    out:     { icon: ArrowDown, color: "text-red-400 bg-red-500/20 border-red-500/30",       label: "Out (−)", desc: "Negative" },
-    replace: { icon: Equal,     color: "text-blue-400 bg-blue-500/20 border-blue-500/30",    label: "Replace", desc: "Overwrites" },
+    in:      { icon: ArrowUp,   label: "In (+)", desc: "Positive" },
+    out:     { icon: ArrowDown, label: "Out (−)", desc: "Negative" },
+    replace: { icon: Equal,     label: "Replace", desc: "Overwrites" },
   };
   const options = ["in", "out", "replace"];
   const config = configs[flow] || configs.in;
@@ -81,8 +83,10 @@ function FlowToggle({ flow = "in", onChange, compact = false, disabled = false, 
                ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-white/10"}`
             : `inline-flex items-center justify-center rounded border transition-colors flex-shrink-0
                ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-125"}
-               ${config.color} ${compact ? "w-5 h-5" : "w-6 h-6"}`}
-          style={segment ? { borderRight: `1px solid ${tint.border}`, color: tint.text } : undefined}
+               ${compact ? "w-5 h-5" : "w-6 h-6"}`}
+          style={segment
+            ? { borderRight: `1px solid ${tint.border}`, color: tint.text }
+            : { background: tint.bg, borderColor: tint.border, color: tint.text }}
         >
           <Icon className={compact ? "w-3 h-3" : "w-3.5 h-3.5"} />
         </button>
@@ -351,6 +355,24 @@ function valueSignPillTint(value) {
       : { bg: "rgba(96,165,250,0.18)", border: "rgba(96,165,250,0.35)" };
   }
   return { bg: "rgba(34,197,94,0.2)", border: "rgba(34,197,94,0.35)" };
+}
+
+// Transient (1.5s) +N/−N change badge — absolutely positioned past the host's
+// right edge so its appearance never widens/reflows the host (an in-flow badge
+// made tightly-packed goal rows wrap to the next line on every update). Host
+// must be position:relative. Shared by the compact pill + non-compact box.
+function DeltaBadge({ delta, color, style }) {
+  if (delta == null) return null;
+  return (
+    <span style={{
+      position: "absolute", left: "100%", top: "50%",
+      transform: "translateY(-50%)", whiteSpace: "nowrap",
+      pointerEvents: "none", fontWeight: 600, color,
+      ...style,
+    }}>
+      {delta > 0 ? `+${delta}` : delta}
+    </span>
+  );
 }
 
 function flowDeltaColor(delta, flow) {
@@ -1800,19 +1822,7 @@ function Field({
         <span>{ruleDisplay ?? valueDisplay}</span>
         {ruleSuffix && <span style={{ opacity: 0.7, marginLeft: 2 }}>{ruleSuffix}</span>}
         {showUnit && <span style={{ opacity: 0.5 }}>{unit}</span>}
-        {valueDelta != null && (
-          // Transient (1.5s) change badge — absolutely positioned past the pill's
-          // right edge so its appearance never widens the pill (an in-flow badge
-          // made tightly-packed goal rows wrap to the next line on every update).
-          <span style={{
-            position: "absolute", left: "100%", top: "50%",
-            transform: "translateY(-50%)", marginLeft: 3,
-            whiteSpace: "nowrap", pointerEvents: "none",
-            color: deltaColorVal, fontWeight: 600,
-          }}>
-            {valueDelta > 0 ? `+${valueDelta}` : valueDelta}
-          </span>
-        )}
+        <DeltaBadge delta={valueDelta} color={deltaColorVal} style={{ marginLeft: 3 }} />
       </div>
     );
   }
@@ -1943,18 +1953,8 @@ function Field({
         <div style={{ ...roBox, position: "relative", flex: type === "text" || type === "date" ? 1 : undefined }}>
           {ruleDisplayNC ?? valueDisplay}
           {ruleSuffixNC && <span style={{ marginLeft: 4, opacity: 0.7 }}>{ruleSuffixNC}</span>}
-          {valueDelta != null && (
-            // Transient (1.5s) change badge — absolutely positioned past the box's
-            // right edge so its appearance never reflows the row.
-            <span style={{
-              position: "absolute", left: "100%", top: "50%",
-              transform: "translateY(-50%)", marginLeft: 4,
-              whiteSpace: "nowrap", pointerEvents: "none",
-              fontSize: 11, color: deltaColorVal, fontWeight: 600, fontFamily: "var(--font-mono)",
-            }}>
-              {valueDelta > 0 ? `+${valueDelta}` : valueDelta}
-            </span>
-          )}
+          <DeltaBadge delta={valueDelta} color={deltaColorVal}
+            style={{ marginLeft: 4, fontSize: 11, fontFamily: "var(--font-mono)" }} />
         </div>
         {showUnit && <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{unit}</span>}
       </div>

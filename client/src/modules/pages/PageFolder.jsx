@@ -173,16 +173,13 @@ export default function PageFolder({
   // navigating the panel view straight to a bare artifact occurrence resolves
   // to no page and the panel snapped back to page 0.
   const handleDrillDown = useCallback((occId, cardEl) => {
-    let targetId = occId;
     const occ = occurrencesById?.[occId];
-    const mod = occ ? modulesById?.[occ.moduleId] : null;
-    if (mod?.role === "artifact") {
-      const pageOccId = ensureArtifactPageOcc({
-        artifactOccId: occId, occurrencesById, modulesById,
-        gridId: occ.gridId || mod.gridId, userId: occ.userId || mod.userId, dispatch, socket,
-      });
-      if (pageOccId) targetId = pageOccId;
-    }
+    // Non-artifact cards return null and drill into the occurrence itself.
+    const pageOccId = ensureArtifactPageOcc({
+      artifactOccId: occId, occurrencesById, modulesById,
+      gridId: occ?.gridId, userId: occ?.userId, dispatch, socket,
+    });
+    const targetId = pageOccId || occId;
     if (drilldownStack.length === 0 && folderPageOccId) {
       resetStack([folderPageOccId]);
     }

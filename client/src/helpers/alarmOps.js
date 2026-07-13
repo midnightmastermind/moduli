@@ -8,8 +8,6 @@
 // renders alarm-managed ops READ-ONLY — the only editor is the Alarms tab.
 import { uid } from "../uid";
 
-export const ALARM_TYPES = ["alarm", "reminder"];
-
 // "17:00" → "5:00 PM" (Android-style display).
 export function formatAlarmTime(hhmm) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ""));

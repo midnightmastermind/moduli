@@ -265,6 +265,10 @@ export function deepResolveExpr(value, $vars) {
 /**
  * Evaluate a single condition rule.
  */
+// Exact-member array membership — the one semantic shared by ARRAY_INCLUDES /
+// HAS_ANCESTOR and the array-aware CONTAINS branches.
+const arrayIncludes = (arr, val) => arr.some(a => String(a) === String(val));
+
 export function evalRule(rule, $vars) {
   const { left, comparator, right } = rule;
   const leftVal = resolveExpr(left, $vars);
@@ -302,11 +306,11 @@ export function evalRule(rule, $vars) {
     // ("art" would match ["smart"]). Strings keep substring semantics.
     case "CONTAINS":
       return Array.isArray(leftVal)
-        ? leftVal.some(a => String(a) === String(rightVal))
+        ? arrayIncludes(leftVal, rightVal)
         : String(leftVal).includes(String(rightVal));
     case "NOT_CONTAINS":
       return Array.isArray(leftVal)
-        ? !leftVal.some(a => String(a) === String(rightVal))
+        ? !arrayIncludes(leftVal, rightVal)
         : !String(leftVal).includes(String(rightVal));
     // Time-of-day comparators — generic, domain-agnostic. Parse BOTH 12h
     // ("9:00am", "9am", "12:30 PM") and 24h ("14:30", "09:00") forms, plus the
@@ -365,15 +369,11 @@ export function evalRule(rule, $vars) {
     }
     // Array comparators — left resolves to an array (e.g. $item._ancestors)
     case "HAS_ANCESTOR":
-    case "ARRAY_INCLUDES": {
-      const arr = Array.isArray(leftVal) ? leftVal : [];
-      return arr.some(a => String(a) === String(rightVal));
-    }
+    case "ARRAY_INCLUDES":
+      return arrayIncludes(Array.isArray(leftVal) ? leftVal : [], rightVal);
     case "NOT_HAS_ANCESTOR":
-    case "ARRAY_NOT_INCLUDES": {
-      const arr = Array.isArray(leftVal) ? leftVal : [];
-      return !arr.some(a => String(a) === String(rightVal));
-    }
+    case "ARRAY_NOT_INCLUDES":
+      return !arrayIncludes(Array.isArray(leftVal) ? leftVal : [], rightVal);
     // Date comparators — leftVal is a date field value (ISO string or Date)
     case "DATE_EQUALS":
     case "SAME_DAY": {

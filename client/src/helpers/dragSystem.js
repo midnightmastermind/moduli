@@ -221,6 +221,13 @@ export function createPayload(type, id, data, context = {}) {
     id,
     data,
     context,
+    // Normalized dragged-OCCURRENCE id — sources scatter it across shapes
+    // (context.occurrenceId / data.occurrenceId / data.occurrence.id), so
+    // hoist it to ONE top-level slot here. Consumers (DragProvider's
+    // body-dataset stamp, Editor's drop guards) read this first; their
+    // shape-probing fallbacks remain only for payloads built outside
+    // createPayload (a few NodeView getInitialData sites).
+    occurrenceId: context?.occurrenceId || data?.occurrenceId || data?.occurrence?.id || null,
     sourceWindowId: getWindowId(),
   };
 }
@@ -232,6 +239,7 @@ export function serializePayload(payload) {
     id: payload.id,
     context: payload.context,
     data: payload.data, // Include full data object for complete copying
+    occurrenceId: payload.occurrenceId ?? null,
     meta: { label: payload.data?.label || payload.data?.name || "" },
     sourceWindowId: payload.sourceWindowId,
   });

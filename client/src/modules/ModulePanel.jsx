@@ -432,25 +432,13 @@ function Panel({
   }, [panelOccurrence?.id, occurrencesById, currentView, dispatch, socket]);
   const handlePanelCreatePage = useCallback(({ kind } = {}) => {
     if (!panelOccurrence?.id || !state?.userId || !state?.grid?._id) return;
-    const uId = state.userId;
-    const gId = state.grid._id;
     const manifest = manifestsById?.[state?.grid?.manifestId] || null;
-    const modId = crypto.randomUUID();
-    const occId = crypto.randomUUID();
-    const k = kind || "board";
-    CommitHelpers.createPage({
-      dispatch, socket,
-      module: { id: modId, userId: uId, gridId: gId, role: "page", kind: k, label: `${k.charAt(0).toUpperCase() + k.slice(1)} Page` },
-      occurrence: { id: occId, userId: uId, gridId: gId, moduleId: modId, targetId: modId, parentId: manifest?.rootFolderId ?? null, iteration: { mode: "persistent" }, fields: {} },
-      panelOccurrenceId: panelOccurrence.id,
-      ...(!currentView?.id && {
-        panelViewData: { id: crypto.randomUUID(), userId: uId, gridId: gId, viewType: "board", activeOccurrenceId: occId },
-      }),
-      emit: true,
+    CommitHelpers.createPagePinnedToPanel({
+      dispatch, socket, gridId: state.grid._id, userId: state.userId,
+      kind: kind || "board", panelOccurrenceId: panelOccurrence.id,
+      panelView: currentView, rootFolderId: manifest?.rootFolderId ?? null,
+      activate: true,
     });
-    if (currentView?.id) {
-      CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: occId }, emit: true });
-    }
   }, [panelOccurrence?.id, state, manifestsById, currentView, dispatch, socket]);
 
   const setLayout = useCallback((nextLayout) => {
@@ -773,17 +761,23 @@ function Panel({
 
       {/* Hidden imperative page-adder — opened only by the "Add page…"
           context-menu row (the header intentionally carries no + button).
-          The zero-size wrapper anchors the popup at the panel's top-left. */}
-      <span style={{ position: "absolute", top: 28, left: 10, width: 0, height: 0, overflow: "hidden" }}>
-        <QuickAddMenu
-          targetRole="page"
-          onSelect={handlePanelPickPage}
-          onCreateNew={handlePanelCreatePage}
-          createLabel="New page"
-          hostOccurrence={panelOccurrence}
-          openTrigger={panelQuickAddTrigger}
-        />
-      </span>
+          The zero-size wrapper anchors the popup at the panel's top-left.
+          Mounted LAZILY on the first trigger (a permanent mount cost every
+          panel its subscriptions for a menu most panels never open) — and
+          kept mounted afterwards so the open-on-mount trigger pattern holds
+          for repeat opens. */}
+      {panelQuickAddTrigger > 0 && (
+        <span style={{ position: "absolute", top: 28, left: 10, width: 0, height: 0, overflow: "hidden" }}>
+          <QuickAddMenu
+            targetRole="page"
+            onSelect={handlePanelPickPage}
+            onCreateNew={handlePanelCreatePage}
+            createLabel="New page"
+            hostOccurrence={panelOccurrence}
+            openTrigger={panelQuickAddTrigger}
+          />
+        </span>
+      )}
 
       {/* CONTENT */}
       {(() => {

@@ -637,6 +637,34 @@ export function createPage({ dispatch, socket, module, view, occurrence, panelOc
   }
 }
 
+// Mint a fresh page (module + occurrence) pinned to a panel — the shared body
+// of ManifestTree's + ModulePanel's "create page" flows. Mints the panel's
+// board View when it has none; `activate` flips an existing panel view to the
+// new page (the right-click "Add page…" path wants that, the tree's + menu
+// doesn't). Returns the new page occurrence id.
+export function createPagePinnedToPanel({ dispatch, socket, gridId, userId, kind = "board", panelOccurrenceId, panelView = null, rootFolderId = null, activate = false }) {
+  if (!panelOccurrenceId || !gridId || !userId) return null;
+  const modId = crypto.randomUUID();
+  const occId = crypto.randomUUID();
+  const label = `${kind.charAt(0).toUpperCase() + kind.slice(1)} Page`;
+  createPage({
+    dispatch, socket,
+    module: { id: modId, userId, gridId, role: "page", kind, label },
+    // Carry both moduleId (schema canonical, read by pagesList) and targetId
+    // (legacy alias still used by server's createOccurrenceData).
+    occurrence: { id: occId, userId, gridId, moduleId: modId, targetId: modId, parentId: rootFolderId ?? null, iteration: { mode: "persistent" }, fields: {} },
+    panelOccurrenceId,
+    ...(!panelView?.id && {
+      panelViewData: { id: crypto.randomUUID(), userId, gridId, viewType: "board", activeOccurrenceId: occId },
+    }),
+    emit: true,
+  });
+  if (activate && panelView?.id) {
+    updateView({ dispatch, socket, view: { ...panelView, activeOccurrenceId: occId }, emit: true });
+  }
+  return occId;
+}
+
 export function deletePage({ dispatch, socket, pageOccurrenceId, panelOccurrenceId, emit = true }) {
   if (!pageOccurrenceId) return;
   dispatch?.(deleteOccurrenceAction(pageOccurrenceId));
@@ -780,6 +808,22 @@ export function createOccurrenceInContainer({ socket, instanceId, containerId, f
 // Optimistic local dispatch + socket emits. Returns the created IDs.
 // `kind` accepts "doc" (default — full block textblock) or "inline" (LT1 —
 // compact inline variant that renders inside doc text flow when embedded).
+// Splice `occurrenceId` into a parent's occurrences[] at `index` (append when
+// null/out-of-range) and commit the new child list. The one insert-child
+// primitive every create-in-container helper below shares. Returns the
+// position the child landed at.
+export function spliceChildIntoParent({ dispatch, socket, parentOccurrence, occurrenceId, index = null }) {
+  const existing = Array.isArray(parentOccurrence.occurrences) ? [...parentOccurrence.occurrences] : [];
+  const at = (index == null || index < 0 || index > existing.length) ? existing.length : index;
+  existing.splice(at, 0, occurrenceId);
+  updateOccurrence({
+    dispatch, socket,
+    occurrence: { id: parentOccurrence.id, occurrences: existing },
+    emit: true,
+  });
+  return at;
+}
+
 export function createTextblockInContainer({
   dispatch, socket, gridId, userId, containerOccurrence, label = "", kind = "doc", index = null,
 }) {
@@ -809,15 +853,7 @@ export function createTextblockInContainer({
   safeEmit(socket, "create_module", { module });
   safeEmit(socket, "create_occurrence", { occurrence });
 
-  // Splice into container occurrences[] at `index` (append when null/out of range).
-  const existing = Array.isArray(containerOccurrence.occurrences) ? [...containerOccurrence.occurrences] : [];
-  const at = (index == null || index < 0 || index > existing.length) ? existing.length : index;
-  existing.splice(at, 0, occurrenceId);
-  updateOccurrence({
-    dispatch, socket,
-    occurrence: { id: containerOccurrence.id, occurrences: existing },
-    emit: true,
-  });
+  spliceChildIntoParent({ dispatch, socket, parentOccurrence: containerOccurrence, occurrenceId, index });
 
   return { moduleId, occurrenceId };
 }
@@ -848,14 +884,7 @@ export function createContainerInContainer({
   safeEmit(socket, "create_module", { module });
   safeEmit(socket, "create_occurrence", { occurrence });
 
-  const existing = Array.isArray(containerOccurrence.occurrences) ? [...containerOccurrence.occurrences] : [];
-  const at = (index == null || index < 0 || index > existing.length) ? existing.length : index;
-  existing.splice(at, 0, occurrenceId);
-  updateOccurrence({
-    dispatch, socket,
-    occurrence: { id: containerOccurrence.id, occurrences: existing },
-    emit: true,
-  });
+  spliceChildIntoParent({ dispatch, socket, parentOccurrence: containerOccurrence, occurrenceId, index });
 
   // Make the parent render nested containers (once).
   const parentMeta = containerModule?.meta || {};
@@ -881,14 +910,7 @@ export async function addArtifactToContainer({
 
   // Optimistically splice the (not-yet-uploaded) occurrence into the container so
   // the slot shows immediately; the server fills in the module/occurrence content.
-  const existing = Array.isArray(containerOccurrence.occurrences) ? [...containerOccurrence.occurrences] : [];
-  const at = (index == null || index < 0 || index > existing.length) ? existing.length : index;
-  existing.splice(at, 0, occurrenceId);
-  updateOccurrence({
-    dispatch, socket,
-    occurrence: { id: containerOccurrence.id, occurrences: existing },
-    emit: true,
-  });
+  const at = spliceChildIntoParent({ dispatch, socket, parentOccurrence: containerOccurrence, occurrenceId, index });
 
   const formData = new FormData();
   formData.append("file", file);
@@ -944,14 +966,7 @@ export function addImageArtifactFromUrl({
   safeEmit(socket, "create_module", { module });
   safeEmit(socket, "create_occurrence", { occurrence });
 
-  const existing = Array.isArray(containerOccurrence.occurrences) ? [...containerOccurrence.occurrences] : [];
-  const at = (index == null || index < 0 || index > existing.length) ? existing.length : index;
-  existing.splice(at, 0, occurrenceId);
-  updateOccurrence({
-    dispatch, socket,
-    occurrence: { id: containerOccurrence.id, occurrences: existing },
-    emit: true,
-  });
+  spliceChildIntoParent({ dispatch, socket, parentOccurrence: containerOccurrence, occurrenceId, index });
 
   return { moduleId, occurrenceId };
 }
@@ -1064,15 +1079,7 @@ export function createLeafInstanceAtIndex({
   dispatch?.(createOccurrenceAction(occurrence));
   safeEmit(socket, "create_occurrence", { occurrence });
 
-  // Splice into the parent's occurrences[] at `index` (append when null/out of range).
-  const existing = Array.isArray(parentOccurrence.occurrences) ? [...parentOccurrence.occurrences] : [];
-  const at = (index == null || index < 0 || index > existing.length) ? existing.length : index;
-  existing.splice(at, 0, occurrenceId);
-  updateOccurrence({
-    dispatch, socket,
-    occurrence: { id: parentOccurrence.id, occurrences: existing },
-    emit: true,
-  });
+  spliceChildIntoParent({ dispatch, socket, parentOccurrence, occurrenceId, index });
 
   return { moduleId, occurrenceId };
 }

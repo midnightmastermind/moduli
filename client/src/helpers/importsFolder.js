@@ -82,6 +82,30 @@ export function ensureRootFolderPageOcc({ grid, manifestsById, occurrencesById, 
   });
 }
 
+// Open a freshly-minted panel on the ROOT folder page: ensure the page occ,
+// mint a board View activated on it, and wire both onto the panel occurrence.
+// The one "new panel is never a dead 'No content' shell" step, shared by the
+// Toolbar + button (App.addNewPanel) and the empty-cell tap (Grid). Returns the
+// folder-page occ id (null when the manifest hasn't loaded yet).
+export function openPanelOnRootFolderPage({ panelOccId, grid, gridId, manifestsById, occurrencesById, modulesById, dispatch, socket, userId }) {
+  const folderPageOccId = ensureRootFolderPageOcc({
+    grid, manifestsById, occurrencesById, modulesById, dispatch, socket, userId,
+  });
+  if (!panelOccId || !folderPageOccId) return folderPageOccId;
+  const viewId = crypto.randomUUID();
+  CommitHelpers.createView({
+    dispatch, socket,
+    view: { id: viewId, userId, gridId, viewType: "board", activeOccurrenceId: folderPageOccId },
+    emit: true,
+  });
+  CommitHelpers.updateOccurrence({
+    dispatch, socket,
+    occurrence: { id: panelOccId, viewId, occurrences: [folderPageOccId] },
+    emit: true,
+  });
+  return folderPageOccId;
+}
+
 // Find-or-create the folder-page occurrence (`role:"page" kind:"folder"`) for a
 // folder so it renders as a card in the parent folder page. Idempotent via a
 // `meta.folderPage` self-identifying tag (the only occurrence we mint with it).
@@ -108,25 +132,38 @@ export function ensureFolderPageOcc({ folderId, label, gridId, occurrencesById, 
   return occId;
 }
 
+// Artifact-module kind → View routing fields. The client twin of the server's
+// upload-path derivation (server.js viewFieldsForKind); the ONE place that
+// knows how an artifact kind renders full screen.
+export function viewFieldsForArtifactKind(kind) {
+  if (["image", "video", "audio", "pdf"].includes(kind)) return { viewType: "display", artifactType: kind };
+  if (kind === "code") return { viewType: "code", artifactType: null };
+  return { viewType: "markdown", artifactType: null };
+}
+
 // Find-or-create the ARTIFACT PAGE for an artifact occurrence — a
 // `role:"page" kind:"display"` page that shows the artifact full screen.
 // Opened when the user clicks an artifact in the manifest tree or a folder
 // page (per user 2026-07-12: "it should open an artifact page where we
-// display the artifact occurrence"). Idempotent via `meta.artifactPage =
-// <artifactOccId>`; parentId stays null so the viewer shell never shows as a
-// tree row of its own. Returns the page occurrence id (null when the artifact
-// can't resolve).
+// display the artifact occurrence"). Owns the whole "what counts as an
+// artifact click" rule: non-artifact occurrences return null so call sites
+// can fall through to their normal open path. Idempotent via
+// `meta.artifactPage = <artifactOccId>`; parentId stays null so the viewer
+// shell never shows as a tree row of its own. The page carries a REAL View
+// (viewType/artifactType from the module kind) so renderers never have to
+// synthesize one. Returns the page occurrence id.
 export function ensureArtifactPageOcc({ artifactOccId, occurrencesById, modulesById, gridId, userId, dispatch, socket }) {
   if (!artifactOccId) return null;
+  const artOcc = occurrencesById?.[artifactOccId];
+  const artMod = artOcc ? modulesById?.[artOcc.moduleId] : null;
+  if (!artOcc || artMod?.role !== "artifact") return null;
   const existing = Object.values(occurrencesById || {}).find(
     (o) => o && o.meta?.artifactPage === artifactOccId
   );
   if (existing) return existing.id;
-  const artOcc = occurrencesById?.[artifactOccId];
-  const artMod = artOcc ? modulesById?.[artOcc.moduleId] : null;
-  if (!artOcc || !artMod) return null;
   const modId = crypto.randomUUID();
   const occId = crypto.randomUUID();
+  const viewId = crypto.randomUUID();
   CommitHelpers.createModule({
     dispatch, socket,
     module: {
@@ -134,11 +171,16 @@ export function ensureArtifactPageOcc({ artifactOccId, occurrencesById, modulesB
       label: artMod.label || artMod.meta?.originalName || "Artifact",
     }, emit: true,
   });
+  CommitHelpers.createView({
+    dispatch, socket,
+    view: { id: viewId, userId, gridId, ...viewFieldsForArtifactKind(artMod.kind), activeOccurrenceId: artifactOccId },
+    emit: true,
+  });
   CommitHelpers.createOccurrence({
     dispatch, socket,
     occurrence: {
       id: occId, userId, gridId, moduleId: modId, targetId: modId, targetType: "module",
-      parentId: null, occurrences: [artifactOccId],
+      parentId: null, viewId, occurrences: [artifactOccId],
       iteration: { mode: "persistent" }, fields: {}, meta: { artifactPage: artifactOccId },
     }, emit: true,
   });

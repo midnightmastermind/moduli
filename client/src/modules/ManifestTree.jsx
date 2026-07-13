@@ -1035,11 +1035,9 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
     // (2026-07-12): a page panel's board view tracks the ACTIVE PAGE — setting
     // its activeOccurrenceId to a bare artifact occurrence resolved to nothing
     // and the panel snapped back to page 0 ("can't open image artifacts from
-    // the manifest"). Artifact-tree panels (hasTree views) keep the inline
-    // viewer behavior.
-    const occ = occurrencesById?.[occId];
-    const mod = occ ? modulesById?.[occ.moduleId] : null;
-    if (mod?.role === "artifact" && onOpenPage && !targetView?.hasTree) {
+    // the manifest"). Non-artifact clicks return null and fall through;
+    // artifact-tree panels (hasTree views) keep the inline viewer behavior.
+    if (onOpenPage && !targetView?.hasTree) {
       const pageOccId = ensureArtifactPageOcc({
         artifactOccId: occId, occurrencesById, modulesById,
         gridId: state?.grid?._id, userId: state?.userId, dispatch, socket,
@@ -1098,21 +1096,10 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
   // Create a new page and pin it to the panel
   const handleCreatePage = useCallback((kind) => {
     if (!panelOccurrence?.id || !state?.userId || !state?.grid?._id) return;
-    const userId = state.userId;
-    const gridId = state.grid._id;
-    const modId = crypto.randomUUID();
-    const occId = crypto.randomUUID();
-    const label = `${kind.charAt(0).toUpperCase() + kind.slice(1)} Page`;
-    CommitHelpers.createPage({
-      dispatch, socket,
-      module: { id: modId, userId, gridId, role: "page", kind, label },
-      // Carry both moduleId (schema canonical, read by pagesList) and targetId (legacy alias still used by server's createOccurrenceData).
-      occurrence: { id: occId, userId, gridId, moduleId: modId, targetId: modId, parentId: manifest?.rootFolderId ?? null, iteration: { mode: "persistent" }, fields: {} },
-      panelOccurrenceId: panelOccurrence.id,
-      ...(!view?.id && {
-        panelViewData: { id: crypto.randomUUID(), userId, gridId, viewType: "board", activeOccurrenceId: occId },
-      }),
-      emit: true,
+    CommitHelpers.createPagePinnedToPanel({
+      dispatch, socket, gridId: state.grid._id, userId: state.userId,
+      kind, panelOccurrenceId: panelOccurrence.id,
+      panelView: view, rootFolderId: manifest?.rootFolderId ?? null,
     });
   }, [panelOccurrence, state, dispatch, socket, manifest, view]);
 

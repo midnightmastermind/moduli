@@ -384,12 +384,11 @@ function Page({
           label: "Add occurrence…",
           icon: Plus,
           onClick: () => {
-            // The QuickAddMenu lives in the page header — reveal it first when
-            // hidden, then bump the imperative-open trigger on the next tick so
-            // the freshly-mounted menu sees the change (its first-render value
-            // is swallowed by design).
+            // The QuickAddMenu lives in the page header — reveal it when hidden
+            // and bump the trigger in the same commit; QuickAddMenu honors a
+            // positive openTrigger at mount, so no deferral is needed.
             setShowHeader(true);
-            setTimeout(() => setPageQuickAddTrigger((n) => n + 1), 50);
+            setPageQuickAddTrigger((n) => n + 1);
           },
         },
         { label: showHeader ? "Hide header" : "Show header", onClick: () => setShowHeader(v => !v) },
@@ -461,18 +460,10 @@ function Page({
     content = <ContainerTable occurrence={occurrence} dispatch={dispatch} socket={socket} />;
   } else if (kind === "display") {
     // When the page fronts an artifact occurrence (ensureArtifactPageOcc),
-    // render THAT occurrence and derive the view routing from its module kind;
-    // legacy display pages (the page occurrence IS the artifact) fall through.
-    const artMod = displayArtifactOcc ? modulesById[displayArtifactOcc.moduleId] : null;
-    const mediaKinds = ["image", "video", "audio", "pdf"];
-    const synthView = displayArtifactOcc
-      ? {
-          ...(pageView || {}),
-          viewType: mediaKinds.includes(artMod?.kind) ? "display" : (artMod?.kind === "code" ? "code" : "markdown"),
-          artifactType: mediaKinds.includes(artMod?.kind) ? artMod.kind : null,
-        }
-      : pageView;
-    content = <PageDisplay occurrence={displayArtifactOcc || occurrence} pageView={synthView} dispatch={dispatch} socket={socket} />;
+    // render THAT occurrence; the page's own View (minted alongside the page)
+    // already carries the artifact's viewType/artifactType routing. Legacy
+    // display pages (the page occurrence IS the artifact) fall through.
+    content = <PageDisplay occurrence={displayArtifactOcc || occurrence} pageView={pageView} dispatch={dispatch} socket={socket} />;
   } else if (kind === "folder") {
     content = (
       <PageFolder

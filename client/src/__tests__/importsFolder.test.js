@@ -7,6 +7,8 @@ vi.mock("../helpers/CommitHelpers", () => ({
   createPage: vi.fn(),
   createModule: vi.fn(),
   createOccurrence: vi.fn(),
+  createView: vi.fn(),
+  updateOccurrence: vi.fn(),
 }));
 
 const grid = { _id: "grid-1", manifestId: "mfst-1" };
@@ -130,6 +132,13 @@ describe("ensureArtifactPageOcc (2026-07-12 — artifact full-screen page)", () 
     expect(occ.meta.artifactPage).toBe("art-1");
     expect(occ.occurrences).toEqual(["art-1"]);
     expect(occ.parentId).toBeNull(); // never a tree row of its own
+    // The page carries a REAL View routing the artifact kind (no renderer-side
+    // synthesized view) — image → display/image, activated on the artifact.
+    const view = CommitHelpers.createView.mock.calls[0][0].view;
+    expect(view.viewType).toBe("display");
+    expect(view.artifactType).toBe("image");
+    expect(view.activeOccurrenceId).toBe("art-1");
+    expect(occ.viewId).toBe(view.id);
   });
 
   it("is idempotent — an existing artifact page is reused", () => {
@@ -144,6 +153,14 @@ describe("ensureArtifactPageOcc (2026-07-12 — artifact full-screen page)", () 
   it("returns null when the artifact can't resolve", () => {
     const args = artifactWorld();
     expect(ensureArtifactPageOcc({ artifactOccId: "missing", ...args })).toBeNull();
+    expect(CommitHelpers.createModule).not.toHaveBeenCalled();
+  });
+
+  it("owns the role gate — a NON-artifact occurrence returns null (call sites fall through)", () => {
+    const args = artifactWorld();
+    args.occurrencesById["doc-1"] = { id: "doc-1", moduleId: "mod-doc" };
+    args.modulesById["mod-doc"] = { id: "mod-doc", role: "page", kind: "doc" };
+    expect(ensureArtifactPageOcc({ artifactOccId: "doc-1", ...args })).toBeNull();
     expect(CommitHelpers.createModule).not.toHaveBeenCalled();
   });
 });

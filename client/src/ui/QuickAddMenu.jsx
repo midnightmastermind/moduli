@@ -109,10 +109,13 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   }, [open, reposition]);
 
   // Imperative open: a host bumps `openTrigger` (e.g. an "Add item…" context-menu
-  // row on touch) to open this menu without clicking its own + button.
-  const firstTriggerRef = useRef(true);
+  // row) to open this menu without clicking its own + button. Any POSITIVE value
+  // opens — INCLUDING the value present at mount, so a host may render the menu
+  // lazily (`trigger > 0 && <QuickAddMenu/>`) or bump-then-reveal in one commit;
+  // mount-and-open is one honest operation (no 50ms deferral races). 0 = the
+  // untriggered initial value on the always-mounted header instances.
   useEffect(() => {
-    if (firstTriggerRef.current) { firstTriggerRef.current = false; return; }
+    if (!openTrigger) return;
     if (!open) { reposition(); setOpen(true); }
   }, [openTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -217,7 +220,14 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     };
   }, [open, reposition]);
 
-  useEffect(() => { onOpenChange?.(open); }, [open, onOpenChange]);
+  // Notify on real open/close TRANSITIONS only — a fresh mount stays silent, so
+  // hosts don't need a was-open ref to ignore the initial `false`.
+  const prevOpenRef = useRef(open);
+  useEffect(() => {
+    if (prevOpenRef.current === open) return;
+    prevOpenRef.current = open;
+    onOpenChange?.(open);
+  }, [open, onOpenChange]);
 
   // All role-matching modules (existing-matches pool). Skip kinds that aren't
   // placeable in this role's context.
