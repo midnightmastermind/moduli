@@ -505,13 +505,24 @@ function Container({
       userId: module.userId,
       gridId: module.gridId,
       moduleId: instanceModule.id,
+      // Parent link BEFORE the trigger fires — the Stamp op resolves the
+      // destination's effective-filter date via the new occ's ancestor chain.
+      parentId: containerOccurrence.id,
       iteration: { mode: "persistent" },
       fields: {},
     };
-    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
+    // panelId + containerLabel give the OccurrenceCreateOp the same context a
+    // DRAG into this container carries — without them the "Schedule: Stamp
+    // Date & Time Slot" op (panel-scoped trigger, timeslot from
+    // $trigger.containerLabel) never matched a + menu add, so the item had no
+    // Date and failed every tracker's date gate forever (2026-07-13 repro).
+    CommitHelpers.createOccurrence({
+      dispatch, socket, occurrence: occ, emit: true,
+      panelId, containerLabel: module?.label || "",
+    });
     const updatedOccs = [...(containerOccurrence.occurrences || []), occId];
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: containerOccurrence.id, occurrences: updatedOccs }, emit: true });
-  }, [containerOccurrence, module, dispatch, socket]);
+  }, [containerOccurrence, module, panelId, dispatch, socket]);
 
   // Header "+" create router: a plain Item keeps the existing focus-the-new-item
   // path (onAdd); Textblock / Board / Doc / Table / Canvas / Artifact route through
@@ -526,8 +537,9 @@ function Container({
       containerOccurrence,
       containerModule: module,
       kind, fieldIds, file, url, index: null,
+      panelId, containerLabel: module?.label || "",
     });
-  }, [onAdd, dispatch, socket, ctxGridId, ctxUserId, containerOccurrence, module]);
+  }, [onAdd, dispatch, socket, ctxGridId, ctxUserId, containerOccurrence, module, panelId]);
 
   const handleConvertListToInstances = useCallback(async (texts) => {
     if (!texts?.length) return;
@@ -1537,7 +1549,7 @@ function Container({
               return (
                 <React.Fragment key={occurrence.id}>
                   {containerOccurrence && (
-                    <InsertGap parentOccurrence={containerOccurrence} index={idx} hostOccurrence={containerOccurrence} />
+                    <InsertGap parentOccurrence={containerOccurrence} index={idx} hostOccurrence={containerOccurrence} panelId={panelId} containerLabel={module?.label || ""} />
                   )}
                   {node}
                 </React.Fragment>
@@ -1545,13 +1557,13 @@ function Container({
             })}
             {/* Trailing gap — append-at-end insert point. */}
             {containerOccurrence && items.length > 0 && (
-              <InsertGap parentOccurrence={containerOccurrence} index={itemsWithOccurrences.length} hostOccurrence={containerOccurrence} />
+              <InsertGap parentOccurrence={containerOccurrence} index={itemsWithOccurrences.length} hostOccurrence={containerOccurrence} panelId={panelId} containerLabel={module?.label || ""} />
             )}
             {/* Empty container still gets the insert-here / quick-add bar so you
                can add the first item without dropping (gated on the occurrence
                resolving, same as the between-item gaps). */}
             {containerOccurrence && items.length === 0 && (
-              <InsertGap parentOccurrence={containerOccurrence} index={0} hostOccurrence={containerOccurrence} />
+              <InsertGap parentOccurrence={containerOccurrence} index={0} hostOccurrence={containerOccurrence} panelId={panelId} containerLabel={module?.label || ""} />
             )}
             {items.length === 0 && (
               <div className="text-xs text-muted-foreground p-2 text-center empty-placeholder-inline">

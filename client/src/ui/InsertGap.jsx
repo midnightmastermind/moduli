@@ -21,6 +21,11 @@ export default function InsertGap({
   index,
   targetRole = "instance",
   hostOccurrence = null,
+  // Panel context for the OccurrenceCreateOp — the Stamp op's trigger is
+  // panel-scoped and reads the timeslot from $trigger.containerLabel, so a
+  // gap-insert must carry the same context a drag into the container does.
+  panelId = null,
+  containerLabel = "",
 }) {
   const { dispatch, socket, gridId, userId, state, modulesById } = useGridActions() || {};
   const resolvedGridId = gridId || state?.grid?._id || state?.gridId;
@@ -41,6 +46,7 @@ export default function InsertGap({
       kind: kind || (targetRole === "instance" ? "instance" : targetRole),
       fieldIds: Array.isArray(fieldIds) ? fieldIds : [],
       file, url, index,
+      panelId, containerLabel,
     });
     // Open the new item's label editor focused (see helpers/pendingLabelEdit) —
     // sync creates only (artifact resolves to a Promise).
@@ -54,6 +60,7 @@ export default function InsertGap({
       dispatch, socket, gridId: resolvedGridId, userId: resolvedUserId,
       parentOccurrence, index,
       existingModuleId: moduleId,
+      panelId, containerLabel,
     });
   };
 

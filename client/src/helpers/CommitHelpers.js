@@ -977,6 +977,7 @@ export function addImageArtifactFromUrl({
 export function createChildInContainer({
   dispatch, socket, gridId, userId, containerOccurrence, containerModule = null,
   kind = "instance", role = null, fieldIds = [], index = null, file = null, url = null,
+  panelId = null, containerLabel = "",
 }) {
   const args = { dispatch, socket, gridId, userId, containerOccurrence, index };
   if (kind === "textblock" || role === "textblock") {
@@ -994,6 +995,7 @@ export function createChildInContainer({
   return createLeafInstanceAtIndex({
     ...args, role: "instance", kind: "board", fieldIds,
     parentOccurrence: containerOccurrence,
+    panelId, containerLabel,
   });
 }
 
@@ -1003,6 +1005,7 @@ export function createChildInContainer({
 // Returns { moduleId, occurrenceId } synchronously (IDs are pre-minted).
 export function createLeafInstanceInParent({
   dispatch, socket, gridId, userId, parentOccurrence, label = "", initialFields = {},
+  panelId = null, containerLabel = "",
 }) {
   if (!gridId || !userId || !parentOccurrence) return null;
   const moduleId = crypto?.randomUUID?.() || `li-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -1021,9 +1024,13 @@ export function createLeafInstanceInParent({
   };
 
   dispatch?.(createModuleAction(module));
-  dispatch?.(createOccurrenceAction(occurrence));
   safeEmit(socket, "create_module", { module });
-  safeEmit(socket, "create_occurrence", { occurrence });
+  // Through createOccurrence — NOT a raw dispatch+emit — so OccurrenceCreateOp
+  // FIRES with the panel/container context. Without the trigger, the
+  // "Schedule: Stamp Date & Time Slot" op never stamps + adds created via the
+  // + menus, and an unstamped item fails every tracker's date gate FOREVER
+  // ("history/courses don't update at all", 2026-07-13 repro).
+  createOccurrence({ dispatch, socket, occurrence, emit: true, panelId, containerLabel });
 
   // Append to parent's occurrences[].
   updateOccurrence({
@@ -1048,7 +1055,7 @@ export function createLeafInstanceInParent({
 export function createLeafInstanceAtIndex({
   dispatch, socket, gridId, userId, parentOccurrence, index = null,
   existingModuleId = null, role = "instance", kind = "list", label = "", initialFields = {},
-  fieldIds = [],
+  fieldIds = [], panelId = null, containerLabel = "",
 }) {
   if (!gridId || !userId || !parentOccurrence) return null;
   const occurrenceId = crypto?.randomUUID?.() || `lo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -1076,8 +1083,11 @@ export function createLeafInstanceAtIndex({
     parentId: parentOccurrence.id,
     fields: initialFields,
   };
-  dispatch?.(createOccurrenceAction(occurrence));
-  safeEmit(socket, "create_occurrence", { occurrence });
+  // Through createOccurrence so OccurrenceCreateOp FIRES with panel/container
+  // context — the raw dispatch+emit here never fired the create trigger, so
+  // the Stamp op skipped every InsertGap / + menu placement: no Date/Time Slot
+  // → the item failed every tracker's date gate forever (2026-07-13 repro).
+  createOccurrence({ dispatch, socket, occurrence, emit: true, panelId, containerLabel });
 
   spliceChildIntoParent({ dispatch, socket, parentOccurrence, occurrenceId, index });
 

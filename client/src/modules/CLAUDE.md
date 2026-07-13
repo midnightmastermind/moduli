@@ -1,6 +1,23 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-07-12. This folder implements occurrence-based view routing._
+_Updated: 2026-07-13. This folder implements occurrence-based view routing._
+
+## Recent Changes (2026-07-13 — + menu / gap inserts fire OccurrenceCreateOp with panel context)
+- **`ModuleContainer.jsx`** — the header "+" QuickAdd (`handleQuickAdd`) and the router
+  (`handleQuickCreate → createChildInContainer`) now pass `panelId` + `containerLabel` and go
+  THROUGH `CommitHelpers.createOccurrence` (not a raw dispatch+emit). The new occ also carries
+  `parentId` BEFORE the trigger fires. WHY: items added via the + menus / InsertGap never fired
+  `OccurrenceCreateOp`, so the "Schedule: Stamp Date & Time Slot" op (panel-scoped trigger,
+  timeslot from `$trigger.containerLabel`) never ran — the item had no Date and failed every
+  tracker's date gate FOREVER ("history/courses don't update", 2026-07-13 repro). The between-item
+  + trailing `<InsertGap>` calls also thread `panelId`/`containerLabel`. Paired with
+  `CommitHelpers.createLeafInstanceInParent`/`createLeafInstanceAtIndex` (helpers/CLAUDE.md) and
+  `InsertGap.jsx`.
+- **`ModuleInstance.jsx` + `ui/FieldRenderer.jsx`** — the transient +N/−N goal-delta badge is now
+  rendered in ONE place (FieldRenderer's `.delta-popup`, absolute superscript at the value's top
+  right, colored by the field's flow direction). Field.jsx's duplicate `DeltaBadge`/`useFlowDelta`
+  (a SECOND badge at the pill's right edge) is deleted, and `ui/FieldValueIndicator.jsx` + its test
+  removed — the plus was showing twice (user: "remove the old little + … keep the higher one").
 
 ## Recent Changes (2026-07-12 LATE — simplify-audit: artifact pages carry a real View; shared create-page)
 - **`ModulePage.jsx`** — the `kind:"display"` branch no longer synthesizes a fake view from an

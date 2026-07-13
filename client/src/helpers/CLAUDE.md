@@ -1,6 +1,16 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-07-12. Check this file before re-reading source._
+_Updated: 2026-07-13. Check this file before re-reading source._
+
+## Recent Changes (2026-07-13 — createLeafInstance* fire OccurrenceCreateOp with panel context)
+- **`CommitHelpers.js`** — `createLeafInstanceInParent` + `createLeafInstanceAtIndex` (and
+  `createChildInContainer` which routes to them) now mint via `createOccurrence({ …, panelId,
+  containerLabel })` instead of a raw `dispatch(createOccurrenceAction)` + `create_occurrence`
+  emit. The raw path skipped the OccurrenceCreateOp trigger entirely, so items created from the +
+  menus / InsertGap never matched the panel-scoped "Schedule: Stamp Date & Time Slot" op — no
+  Date/Time Slot stamped → the item failed every tracker's date gate forever (2026-07-13 repro).
+  `panelId`/`containerLabel` params added to all three signatures; `InsertGap.jsx` +
+  `ModuleContainer.jsx` thread them from the panel/module context (see modules/CLAUDE.md).
 
 ## Recent Changes (2026-07-12 LATE — simplify-audit fixes across helpers)
 - **`importsFolder.js`** — new `openPanelOnRootFolderPage` (ensure root folder page + mint board
