@@ -115,6 +115,25 @@ describe("shouldTrigger", () => {
     const op = makeOp({ triggerType: "onLoad", enabled: false });
     expect(shouldTrigger(op, null)).toBe(false);
   });
+
+  test("EXPLICITLY EMPTY triggerTypes = schedule-only — never fires on events OR the onLoad sweep", () => {
+    // The seeded alarms (atTimes) + interval slot painters declare
+    // `triggerTypes: []` to fire ONLY via useScheduler. The onLoad sweep
+    // (transactionType null) used to match them — every page load rang the
+    // alarms' NOTIFY (2026-07-13 user console repro).
+    const op = makeOp({ triggerType: "manual", triggerTypes: [], schedule: { kind: "atTimes", times: ["17:00"] } });
+    expect(shouldTrigger(op, null)).toBe(false);
+    expect(shouldTrigger(op, "MeasureOp")).toBe(false);
+    expect(shouldTrigger(op, "OccurrenceListOp")).toBe(false);
+  });
+
+  test("legacy op with NO trigger config at all still auto-fires on load (back-compat)", () => {
+    const op = makeOp({});
+    delete op.triggerType;
+    delete op.triggerTypes;
+    expect(shouldTrigger(op, null)).toBe(true);
+    expect(shouldTrigger(op, "MeasureOp")).toBe(false);
+  });
 });
 
 // ─── executeOperation — reporter path ─────────────────────────────────────────
@@ -705,13 +724,15 @@ describe("shouldTrigger — triggerTypes[] array", () => {
     expect(shouldTrigger(op, "MeasureOp")).toBe(false);
   });
 
-  test("triggerTypes empty array falls back to single triggerType", () => {
+  test("triggerTypes EXPLICIT empty array = no event triggers at all (schedule-only)", () => {
     const op = makeOp({
       triggerType: "onChange",
-      triggerTypes: [], // empty → falls back
+      triggerTypes: [], // explicit [] = "fires only via useScheduler"
     });
-    // Empty array = no types defined → behaves like "no trigger" (fires on load null)
-    expect(shouldTrigger(op, null)).toBe(true);
+    // 2026-07-13: the old semantics ("empty array fires on load null") made
+    // every schedule-managed op — the seeded atTimes alarms included — run its
+    // pipeline in the onLoad sweep: each page load rang the alarms' NOTIFY.
+    expect(shouldTrigger(op, null)).toBe(false);
     expect(shouldTrigger(op, "MeasureOp")).toBe(false);
   });
 

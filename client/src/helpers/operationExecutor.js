@@ -465,10 +465,21 @@ export function shouldTrigger(operation, transactionType, transaction) {
 export function computeTriggerMatch(operation, transactionType, transaction) {
   if (!operation?.enabled) return false;
 
+  // An EXPLICITLY EMPTY triggerTypes array means "no event triggers at all" —
+  // the seed's schedule-/alarm-managed ops (atTimes alarms, interval slot
+  // painters) declare `triggerTypes: []` to fire ONLY via useScheduler.
+  // Without this guard the onLoad sweep (transactionType null) matched them,
+  // so every page load ran the seeded alarms' NOTIFY inline: a 60s "⏰" toast
+  // + ringAlarm() per alarm (audible once the tab has autoplay permission;
+  // the user's console showed the pair of AudioContext warnings at load).
+  if (Array.isArray(operation.triggerTypes) && operation.triggerTypes.length === 0) return false;
+
   const types = Array.isArray(operation.triggerTypes)
     ? operation.triggerTypes
     : [operation.triggerType].filter(Boolean);
 
+  // Legacy back-compat: an op with NO trigger config at all (triggerTypes
+  // undefined AND no truthy triggerType) still auto-fires on load.
   if (types.length === 0) {
     return transactionType == null ? { matched: true, triggerObject: null } : false;
   }

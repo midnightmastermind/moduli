@@ -268,6 +268,11 @@ export function parseExternalDrop(source) {
         id: parsed.id,
         data: parsed.data, // Extract the actual data object, not the entire wrapper
         context: parsed.context || {},
+        // Round-trip the normalized dragged-occurrence id (createPayload
+        // stamps it, serializePayload carries it) so cross-window payloads
+        // keep the same top-level contract as same-window ones.
+        occurrenceId: parsed.occurrenceId
+          ?? (parsed.context?.occurrenceId || parsed.data?.occurrenceId || parsed.data?.occurrence?.id || null),
         isCrossWindow: parsed.sourceWindowId !== getWindowId(),
         meta: parsed.meta, // Also pass through meta
       };
