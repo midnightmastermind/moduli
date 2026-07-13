@@ -6,6 +6,30 @@
 
 ---
 
+## Handoff — 2026-07-12 NIGHT-2 (caret round 2: [caret] diagnostics DEPLOYED, awaiting user repro)
+
+User: "clicking on mini textblocks in the middle is still not putting the writing cursor there —
+it puts it at the start; put in logs." Round 1 (f2e89136) fixed the inline chips' user-drag
+suppression; desktop headless still places mid-text (chip SETTLED offset 13), so round 2 ships
+INSTRUMENTATION instead of a guess (`09d0f7b7`, deployed, prod HEAD verified):
+- **`helpers/caretDiag.js` (NEW)** — `[caret]` console lines, ON by default (once per click;
+  `window.__caretDiag = false` mutes): DOWN (target, coords, pointerType, caretFromPoint = what
+  the browser WOULD place, drag-source ancestor chain = the round-1 signature), SETTLED at
+  100/400ms (where the selection actually ended up), INTERFERE (selection writers inside the 2s
+  click window: Editor's posAtCoords fix-up + rAF setTextSelection, setContent sync,
+  the two padding-click focus('end') sites). Wired into Editor.jsx / DocContent.jsx /
+  InstanceTextblockInlineNode.jsx.
+- **Early signal from the baseline run:** mousedown BUBBLES through nested editors, so EVERY
+  ancestor editor runs the wrapper's posAtCoords caret fix-up against ITS OWN doc and schedules
+  its own rAF setTextSelection — the outer editor resolves the click to the atom boundary
+  (pos 0/1 = the START). Two competing selection writes per click; likely the winner differs on
+  the user's device/geometry. **Next session: get the user's [caret] console lines** (which host:
+  block-mini-textblock vs chip vs card; which INTERFERE line lands last before a SETTLED-at-0)
+  and fix the losing layer — probably gate the fix-up to the INNERMOST editor only
+  (e.g. skip when `e.target.closest('.doc-editor') !== el`).
+
+---
+
 ## Handoff — 2026-07-12 NIGHT (simplify-audit APPLIED + spinner fix; the queued full audit is DONE)
 
 Continuation session (account2): picked up account3's session-limited audit + account2's
