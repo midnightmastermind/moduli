@@ -1509,7 +1509,7 @@ export function handleFileDrop(dropContext, ctx) {
   const { dispatch, socket, state, occurrencesById, baseContainers, clearSession, getCellFromPoint } = ctx;
   const { payload, target, pointer } = dropContext;
   const { x, y } = pointer || { x: 0, y: 0 };
-  const { containerId, panelId } = dropView(dropContext, ctx);
+  const { containerId, containerOccurrenceId, panelId, dropTarget } = dropView(dropContext, ctx);
 
   const files = Array.from(payload?.data?.files || []);
   if (files.length === 0) { clearSession(); return; }
@@ -1525,9 +1525,36 @@ export function handleFileDrop(dropContext, ctx) {
   const capturedPanelView = capturedPanelOcc?.viewId ? state?.viewsById?.[capturedPanelOcc.viewId] : null;
   const isExistingArtifactPanel = capturedPanelView?.viewType === "display" || capturedPanelView?.hasTree;
 
-  const capturedContainerOcc = containerId
-    ? Object.values(occurrencesById).find(o => o.moduleId === containerId)
-    : null;
+  // ── Resolve the drop DESTINATION so an uploaded file lands where you drop
+  //    it — exactly like a normal instance (handleModuleDrop's leaf path),
+  //    never as a standalone "side view" panel. Priority:
+  //      1. the container under the pointer (list/board column)
+  //      2. a board/page → its first droppable container (page-gap drop)
+  //      3. an existing display/artifact panel → swap its active view
+  //      4. an empty grid cell → a standalone artifact panel (legit)
+  const pageOccId = dropTarget?.context?.pageOccurrenceId || null;
+  const pageOcc = pageOccId ? occurrencesById[pageOccId] : null;
+
+  // The precise container occurrence under the pointer (dropView resolves the
+  // exact occ; fall back to first-by-module for a bare containerId). Doc
+  // containers own their embed insertion via the editor — never wire here.
+  let destContainerOcc =
+    (containerOccurrenceId && occurrencesById[containerOccurrenceId]) ||
+    (containerId ? Object.values(occurrencesById).find(o => o.moduleId === containerId) : null);
+  if (destContainerOcc && state?.modulesById?.[destContainerOcc.moduleId]?.kind === "doc") {
+    destContainerOcc = null;
+  }
+  // Page-gap fallback: dropped inside a page but not over a column → the page's
+  // first droppable (non-doc) container (parity with handleModuleDrop's panel
+  // fallback). A canvas page has no container children, so this finds nothing
+  // and the drop falls through to the grid-cell branch below.
+  if (!destContainerOcc && pageOcc) {
+    for (const occId of pageOcc.occurrences || []) {
+      const occ = occurrencesById[occId];
+      const mod = occ ? state?.modulesById?.[occ.moduleId] : null;
+      if (mod?.role === "container" && mod?.kind !== "doc") { destContainerOcc = occ; break; }
+    }
+  }
 
   // ── Mint placeholders for every file up-front so the optimistic UI
   //    shows them all at once, then kick off uploads in parallel.
@@ -1551,7 +1578,9 @@ export function handleFileDrop(dropContext, ctx) {
       },
       occurrence: {
         id: occurrenceId, userId: fileUserId, gridId: fileGridId,
-        moduleId, fields: {}, meta: {},
+        moduleId,
+        ...(destContainerOcc ? { parentId: destContainerOcc.id } : {}),
+        fields: {}, meta: {},
       },
     };
   });
@@ -1563,12 +1592,13 @@ export function handleFileDrop(dropContext, ctx) {
   }
 
   // ── Wire placeholders into the destination ────────────────────────
-  if (capturedContainerOcc) {
-    // Single batched update appending every new occurrence to the container's children.
+  if (destContainerOcc) {
+    // Append every new artifact occurrence to the container under the pointer
+    // (or the page's first column) — same as a normal instance dropped there.
     const allOccIds = placeholders.map(p => p.occurrenceId);
     CommitHelpers.updateOccurrence({
       dispatch, socket,
-      occurrence: { id: capturedContainerOcc.id, occurrences: [...(capturedContainerOcc.occurrences || []), ...allOccIds] },
+      occurrence: { id: destContainerOcc.id, occurrences: [...(destContainerOcc.occurrences || []), ...allOccIds] },
       emit: true,
     });
   } else if (isExistingArtifactPanel && capturedPanelView) {
@@ -1578,9 +1608,10 @@ export function handleFileDrop(dropContext, ctx) {
     const lastOccId = placeholders[placeholders.length - 1].occurrenceId;
     CommitHelpers.updateView({ dispatch, socket, view: { ...capturedPanelView, activeOccurrenceId: lastOccId } });
   } else {
-    // Grid-cell destination: one new artifact panel per file, all stacked into
-    // the same cell. Users cycle through them via the existing panel-stack UI.
-    // First panel uses the targeted cell; the rest stack alongside.
+    // No in-grid home (a drop on a truly EMPTY grid cell): one new artifact
+    // panel per file, all stacked into the same cell. Users cycle through them
+    // via the existing panel-stack UI. First panel uses the targeted cell; the
+    // rest stack alongside.
     const targetCell = cell || { row: 0, col: 0 };
     for (const p of placeholders) {
       const newPanelModule = { id: makeUUID(), label: p.file.name || "Uploaded File", role: "panel", kind: "board" };
@@ -1624,7 +1655,7 @@ export function handleFileDrop(dropContext, ctx) {
     registerUpload(p.occurrenceId, {
       abort: () => controller.abort(),
       moduleId: p.moduleId, occurrenceId: p.occurrenceId,
-      containerOccurrenceId: capturedContainerOcc?.id || null,
+      containerOccurrenceId: destContainerOcc?.id || null,
     });
 
     return uploadFileWithProgress({

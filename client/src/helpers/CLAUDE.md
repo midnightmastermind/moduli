@@ -2,6 +2,24 @@
 
 _Updated: 2026-07-14. Check this file before re-reading source._
 
+## Recent Changes (2026-07-14 (5) — file drops land WHERE dropped, like a normal instance)
+- **`dropHandlers.js` (`handleFileDrop`)** — a file (e.g. a video) dropped INTO a board/page used
+  to skip straight to the `else` branch and mint a NEW artifact PANEL with a display view = the
+  "side view of the file" the user reported (no instance occurrence created). Root cause: unlike
+  `handleModuleDrop`/`handleExternalDrop`, `handleFileDrop` never resolved an in-grid destination —
+  it only checked a directly-hovered container, then fell to a standalone panel. Now it resolves
+  the drop DESTINATION the same way a normal instance drop does (from `dropView` it pulls
+  `containerOccurrenceId` + `dropTarget`):
+    1. container under the pointer (precise occ via `containerOccurrenceId`; doc containers skipped
+       — the editor owns their embeds),
+    2. else the drop's page (`dropTarget.context.pageOccurrenceId`) → its first droppable non-doc
+       container (page-gap drop; a canvas page has no container child so this finds nothing),
+    3. else an existing display/artifact panel → swap active view (unchanged),
+    4. else a truly EMPTY grid cell → a standalone artifact panel (the legit last-resort, unchanged).
+  Placeholders now carry `parentId: destContainerOcc.id`. Regression test in
+  `__tests__/handleFileDrop.multi.test.js` ("dropped on a board page-gap lands in the page's first
+  column, not a new panel"). 1293/1293 client tests, build clean.
+
 ## Recent Changes (2026-07-14 — labelTokens.js NEW: [Field] / {Field} label tokens + colon write-back)
 - **`labelTokens.js` (NEW)** — live field tokens in occurrence labels:
   - `[Water]` → the bare value ("16"); `{Water}` → name + value + unit ("Water 16oz") — the

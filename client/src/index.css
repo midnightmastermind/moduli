@@ -2285,16 +2285,17 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   border: 1px solid var(--border-subtle);
 }
 .artifact-thumb {
-  /* Fill the card (clean, full-bleed media) rather than a small auto-width
-     thumbnail floating in padding — an artifact should read as a filled,
-     draggable media block, not "an instance with a picture". */
+  /* Center the media inside the card (contain, not crop) so the whole image /
+     video frame reads — the card is flex-centered, so `contain` letterboxes and
+     centers rather than cropping to fill. */
   width: 100%;
   max-width: 100%;
   height: auto;
   max-height: 240px;
-  object-fit: cover;
+  object-fit: contain;
   border-radius: 5px;
   display: block;
+  margin: 0 auto;
 }
 /* Image card WITH an info column — fills the empty space beside the thumbnail
    (drag-handle-to-image gap) with the image's name/dimensions/size. The info grows

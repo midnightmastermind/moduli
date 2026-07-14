@@ -2,6 +2,15 @@
 
 _Updated: 2026-07-14. Check this file before re-reading source._
 
+## Recent Changes (2026-07-14 (5) — artifact media centered in the card; file drops land in place)
+- **`index.css` `.artifact-thumb`** — `object-fit: cover` → `contain` (+ `margin: 0 auto`): image
+  and video thumbnails now CENTER inside the flex-centered card and show the whole frame instead of
+  cropping to fill (user: "make sure all artifacts are centered" → "media inside the card"). The
+  card chrome / max-height 240 are unchanged.
+- **`helpers/dropHandlers.js` (`handleFileDrop`)** — file drops now create the artifact occurrence
+  WHERE dropped (like a normal instance) instead of minting a standalone "side view" panel. See
+  helpers/CLAUDE.md for the destination-resolution details.
+
 ## Recent Changes (2026-07-14 — mosaic mobile nav uses the REAL rows×cols placements (the "just a line" fix))
 - **`Grid.jsx` (`MosaicMobileNav`)** — the 2026-07-04 version modeled a mosaic grid's mobile
   cell space as a synthetic 1×N strip (each panel = one column) — the user saw "just a line"

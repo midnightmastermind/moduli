@@ -96,6 +96,49 @@ describe("handleFileDrop — multi-file orchestration", () => {
     expect(uploadSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("dropped on a board page-gap lands in the page's first column, not a new panel", () => {
+    // No container hovered — only a pageOccurrenceId in the drop target's raw
+    // context (the native drop resolved a board page but no column). The file
+    // must land in the page's first container, NOT mint a standalone artifact
+    // panel ("side view of the file").
+    const modules = {
+      pageMod: { id: "pageMod", role: "page", kind: "board" },
+      colMod: { id: "colMod", role: "container", kind: "board" },
+    };
+    const occs = {
+      pageOcc: { id: "pageOcc", moduleId: "pageMod", occurrences: ["colOcc"] },
+      colOcc: { id: "colOcc", moduleId: "colMod", occurrences: ["existingChild"] },
+    };
+    const dropContext = {
+      payload: { data: { files: [makeFile("vid.mp4", "video/mp4")] } },
+      target: { occurrenceId: null, moduleId: null, raw: { pageOccurrenceId: "pageOcc" } },
+      pointer: { x: 0, y: 0 },
+      position: { edge: null, insertIndex: null },
+    };
+    const createViewSpy = vi.spyOn(CommitHelpers, "createView").mockImplementation(() => {});
+    const ctx = {
+      dispatch: vi.fn(),
+      socket: { emit: vi.fn() },
+      state: { gridId: "g1", userId: "u1", grid: { _id: "g1" }, modulesById: modules, viewsById: {} },
+      occurrencesById: occs,
+      baseContainers: [modules.colMod],
+      clearSession: vi.fn(),
+      getCellFromPoint: () => ({ row: 0, col: 0 }),
+    };
+
+    handleFileDrop(dropContext, ctx);
+
+    // The artifact occurrence is appended to the page's column — one update, to
+    // colOcc, with the new id after the existing child.
+    expect(updateOccSpy).toHaveBeenCalledTimes(1);
+    const call = updateOccSpy.mock.calls[0][0];
+    expect(call.occurrence.id).toBe("colOcc");
+    expect(call.occurrence.occurrences.length).toBe(2);
+    expect(call.occurrence.occurrences[0]).toBe("existingChild");
+    // No standalone artifact panel/view was minted (the old "side view" bug).
+    expect(createViewSpy).not.toHaveBeenCalled();
+  });
+
   it("empty file list short-circuits without dispatch or upload", () => {
     const { dropContext, ctx } = makeCtx({ files: [] });
     handleFileDrop(dropContext, ctx);
