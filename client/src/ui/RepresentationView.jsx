@@ -25,9 +25,9 @@
 // HOVER POPUP shows on the embedded ModuleInstance — set per-occurrence
 // from the user via Layout cascade UI (task #36).
 
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { useGridActions } from "../GridActionsContext";
 import { getModuleTypeIcon, getModuleTypeColor } from "../helpers/moduleIcons";
 import { resolveLabelTokens } from "../helpers/labelTokens";
 import { resolveFileRef } from "../helpers/fileRef";

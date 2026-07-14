@@ -1,10 +1,10 @@
 // ui/commandCenter/ConnectionsTab.jsx
 // ConnectionsTab
 
-import React, { useState, useMemo, useContext, useEffect, useRef, useCallback } from "react";
+import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { ChevronDown, ChevronRight, FolderOpen, RefreshCw, Upload, Download } from "lucide-react";
 
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { useGridActions } from "../../GridActionsContext";
 
 const labelStyle = {
   fontSize: 10,

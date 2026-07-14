@@ -18,10 +18,9 @@
 // ============================================================
 
 import {
-  useCallback, useContext, useEffect, useMemo, useRef, useState,
+  useCallback, useEffect, useMemo, useRef, useState,
   forwardRef, useImperativeHandle,
 } from "react";
-import { createPortal } from "react-dom";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";

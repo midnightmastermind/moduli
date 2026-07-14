@@ -1,10 +1,10 @@
 // docs/pills/InstanceTextblockNode.jsx
 // NodeView for the instanceTextblock TipTap node.
 // Renders a DocContent sub-editor with a RadialMenu handle in the top-left.
-import React, { useContext, useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { useGridActions } from "../../GridActionsContext";
 import DocContent from "../../modules/DocContent.jsx";
 import BoundBody from "../../modules/BoundBody.jsx";
 import RadialMenu from "../../ui/RadialMenu.jsx";

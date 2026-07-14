@@ -1,11 +1,11 @@
 // ui/commandCenter/FilesTab.jsx
 // FilesTab + ArtifactPill + fileIcon + formatBytes
 
-import React, { useState, useMemo, useContext, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { GripVertical, Upload } from "lucide-react";
 
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { useGridActions } from "../../GridActionsContext";
 import { createModuleAction, createOccurrenceAction } from "../../state/actions";
 
 const MIME_EXT_ICONS = { md: "📝", txt: "📄", pdf: "📕", png: "🖼️", jpg: "🖼️",

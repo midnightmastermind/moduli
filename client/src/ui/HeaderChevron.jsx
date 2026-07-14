@@ -1,7 +1,7 @@
 // client/src/ui/HeaderChevron.jsx
-import React, { useContext, useMemo } from "react";
+import React, { useMemo } from "react";
 import { Filter } from "lucide-react";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { useGridActions } from "../GridActionsContext";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
 import { summarizeSelection } from "./filterSummary";
 

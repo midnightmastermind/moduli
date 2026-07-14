@@ -12,8 +12,8 @@
 // "folderPage" if mounted inside a folder-page surface to suppress
 // the Actual option.
 
-import React, { useCallback, useContext, useMemo } from "react";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import React, { useCallback, useMemo } from "react";
+import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import ViewModeSwitcher from "./ViewModeSwitcher";
 import { resolveEffectiveLayout } from "../helpers/layoutCascade";

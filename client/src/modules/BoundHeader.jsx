@@ -10,9 +10,9 @@
 //
 // Falls back to the module label when the host doesn't yet have a value for
 // the selfField AND the field has no resolvable options.
-import React, { useContext, useMemo, useCallback } from "react";
+import React, { useMemo, useCallback } from "react";
 import { Dices, Link2, Unlink2 } from "lucide-react";
-import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
+import { useGridActions } from "../GridActionsContext.js";
 import { resolveOptions } from "../helpers/optionsResolver.js";
 import { propagateBoundFieldWrite } from "../helpers/boundFieldSync.js";
 import { findLinkedSiblings } from "../state/editorBindings.js";

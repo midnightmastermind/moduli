@@ -3,8 +3,8 @@
 // absolutely-positioned <ModuleInstance>/<Container> elements (the same
 // components used in board/doc), with a thin wrapper for meta.x/y. No
 // canvas-specific card component — modules are unified across views.
-import React, { useMemo, useCallback, useContext } from "react";
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import React, { useMemo, useCallback } from "react";
+import { useGridActions } from "../../GridActionsContext";
 import { CanvasDrawSection } from "../CanvasContent.jsx";
 import ModuleInstance from "../ModuleInstance.jsx";
 import Container from "../ModuleContainer.jsx";

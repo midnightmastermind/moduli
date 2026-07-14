@@ -14,8 +14,8 @@
 
 import { BlockType } from "./blockTypes";
 import { evaluateBlock } from "./blockEvaluator";
-import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
-import { resolveExpr, evalRule, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleAgainstRecord } from "./operationActions";
+import { applyAggregation } from "./CalculationHelpers";
+import { resolveExpr, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleAgainstRecord } from "./operationActions";
 import { buildParentMap } from "./dragHitTesting";
 import { isEventCompatible } from "./triggerTypes";
 import { getEffectiveFilterForOccurrence, makeEffectiveFilterResolver } from "../state/selectors";

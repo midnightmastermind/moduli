@@ -7,7 +7,7 @@
 
 import { ActionTypes } from "./actions";
 import { runMatchingOperations, executeOperation, executePipeline, setOpApplyingEffects } from "../helpers/operationExecutor";
-import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, updateOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
+import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
 import { toast, pushTxNotification } from "./notificationStore";
 import { makeOpNotificationCallbacks } from "../helpers/opResultSummary";
 import { syncAllFeeds } from "../helpers/feedSync";

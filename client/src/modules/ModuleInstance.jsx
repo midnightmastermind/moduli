@@ -23,10 +23,9 @@ import { resolveLabelTokens, materializeLabelTokens, commitLabelTokens } from ".
 import {
   Popover,
   PopoverContent,
-  PopoverTrigger,
   PopoverAnchor,
 } from "@/components/ui/popover";
-import { Link2, Unlink, Settings, Copy, Move, Play, Zap, ArrowBigDown, Eye, EyeOff, ChevronRight, ChevronDown, X, Trash2, Focus, ClipboardCopy, ClipboardPaste, MoveRight } from "lucide-react";
+import { Link2, Unlink, Settings, Copy, Move, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight } from "lucide-react";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   useDragDrop,

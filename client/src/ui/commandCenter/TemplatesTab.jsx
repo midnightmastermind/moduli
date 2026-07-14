@@ -1,6 +1,6 @@
 // commandCenter/TemplatesTab.jsx
-import React, { useContext, useMemo, useState } from "react";
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import React, { useMemo, useState } from "react";
+import { useGridActions } from "../../GridActionsContext";
 import { rootFolderForTemplates, templateKindOf } from "../../helpers/templateHelpers";
 import { commitApplyTemplate } from "../../helpers/CommitHelpers";
 

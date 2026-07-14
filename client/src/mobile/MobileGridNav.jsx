@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useMemo } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
 
 function RailButton({ direction, onClick, disabled }) {

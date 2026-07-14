@@ -3,14 +3,14 @@
 // Each step is described in plain English; raw JSON is an expandable tree.
 // Resolved variable values are shown next to the original expressions.
 
-import React, { useState, useEffect, useContext, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Play, ChevronRight, ChevronDown,
   Search, Plus, Pencil, Trash2,
   GitBranch, Repeat, Variable, Zap, AlertCircle, CheckCircle2,
   Eye, ArrowRight,
 } from "lucide-react";
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { useGridActions } from "../../GridActionsContext";
 import {
   executePipeline,
   getOpRunHistory,

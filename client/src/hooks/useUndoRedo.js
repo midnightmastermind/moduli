@@ -4,7 +4,7 @@
 // Tracks undo/redo state and provides functions to undo/redo
 // ============================================================
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { getUndoState, undoTransaction, redoTransaction } from "../helpers/TransactionHelpers";
 import { pushTxNotification } from "../state/notificationStore";
 

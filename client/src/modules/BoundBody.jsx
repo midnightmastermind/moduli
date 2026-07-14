@@ -11,12 +11,12 @@
 //     non-text cases via dropdown).
 //
 // Falls back to `children` when no field is resolvable.
-import React, { useContext, useMemo, useRef, useEffect } from "react";
+import React, { useMemo, useRef, useEffect } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Link2, Unlink2 } from "lucide-react";
-import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
+import { useGridActions } from "../GridActionsContext.js";
 import { propagateBoundFieldWrite } from "../helpers/boundFieldSync.js";
 import { findLinkedSiblings } from "../state/editorBindings.js";
 import * as CommitHelpers from "../helpers/CommitHelpers";

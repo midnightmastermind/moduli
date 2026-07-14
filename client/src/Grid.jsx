@@ -20,11 +20,11 @@ import FullscreenOverlay from "./ui/FullscreenOverlay";
 import { allPanelOccIds } from "./helpers/bspTree";
 
 import { GridDataContext } from "./GridDataContext";
-import { GridActionsContext, useGridActions } from "./GridActionsContext";
+import { useGridActions } from "./GridActionsContext";
 import { GridLiveContext } from "./GridLiveContext";
 
 import { DragProvider } from "./helpers/DragProvider";
-import { useDragContext, useDragStateContext, useDragHotContext, useDroppable, DragType, DropAccepts } from "./helpers/dragSystem";
+import { useDragContext, useDragStateContext, useDragHotContext, useDroppable, DropAccepts } from "./helpers/dragSystem";
 import * as CommitHelpers from "./helpers/CommitHelpers";
 import { getGridPanels } from "./state/selectors";
 import { applyLocalSort, createPanelInGrid } from "./helpers/LayoutHelpers";

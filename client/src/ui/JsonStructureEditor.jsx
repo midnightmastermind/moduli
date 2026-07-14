@@ -21,10 +21,10 @@
 // stored on the pipeline cfg as `json:<stringified>` so the existing
 // `json:` prefix handler in `resolveExpr` parses it back at runtime.
 
-import React, { useState, useCallback, useContext, useMemo } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { Plus, Trash2, ChevronRight, ChevronDown, ArrowUp, ArrowDown, Link2 } from "lucide-react";
 import DrilldownPicker from "./DrilldownPicker";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { useGridActions } from "../GridActionsContext";
 
 // ─── Type plumbing ─────────────────────────────────────────────────
 

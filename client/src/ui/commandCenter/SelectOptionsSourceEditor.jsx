@@ -1,8 +1,8 @@
-import React, { useState, useContext, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import DrilldownPicker from "../DrilldownPicker";
 import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig } from "../categoryRegistry";
 import ConditionGroup from "../../blocks/ConditionGroup";
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { useGridActions } from "../../GridActionsContext";
 import { resolveOptions } from "../../helpers/optionsResolver";
 
 const MODES = [

@@ -9,9 +9,9 @@
 // LayoutHelpers.applyLocalSort inside getContainerItemsWithOccurrences,
 // and at the ModulePage containersList call site for board pages.
 
-import React, { useContext, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { ArrowUp, ArrowDown, X, ChevronDown } from "lucide-react";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
 // SortSection reads `entity.meta.localSort` and persists either via the

@@ -13,8 +13,8 @@
 // real LLM. Otherwise → deterministic dispatcher that handles a
 // handful of patterns. Either way the chatbox works.
 
-import React, { useEffect, useRef, useState, useContext, useMemo, useCallback } from "react";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { useGridActions } from "../GridActionsContext";
 import { getCurrentLocation, subscribeCurrentLocation } from "../helpers/currentLocation";
 import MiniGridMap from "../mobile/MiniGridMap";
 import * as CommitHelpers from "../helpers/CommitHelpers";

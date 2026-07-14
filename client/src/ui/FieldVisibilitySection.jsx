@@ -16,8 +16,8 @@
 // it came from a Local override or an inherited Ancestor — the same
 // cascade isOccurrenceVisible / ModuleInstance read at render time.
 
-import React, { useContext, useMemo } from "react";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import React, { useMemo } from "react";
+import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   getParentOccurrence,

@@ -1,12 +1,12 @@
 // ui/commandCenter/FieldsTab.jsx
 // FieldsTab + FieldPill + FieldDetail
 
-import React, { useState, useMemo, useContext, useEffect, useRef } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { Plus, FolderPlus, ChevronLeft, GripVertical, Trash2 } from "lucide-react";
 
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { useGridActions } from "../../GridActionsContext";
 import { uid } from "../../uid";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import SelectOptionsSourceEditor from "./SelectOptionsSourceEditor";

@@ -3,7 +3,7 @@
 //   - thumbnail mode (default): compact preview (image / video frame / 🎵 / 📕)
 //   - expanded mode: fills the parent instance row, with <video controls autoPlay>,
 //     a scaled <img>, an <audio controls>, or an <iframe> for pdf. X button collapses.
-import React, { useContext, useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { X, Maximize2, AlertCircle } from "lucide-react";
 import { Spinner } from "../components/ui/spinner.jsx";
 import { resolveFileRef } from "../helpers/fileRef";

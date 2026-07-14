@@ -2,10 +2,10 @@
 // Small popover on the Toolbar for per-filter "show nav here" toggles.
 // Persists toggle state to grid.toolbarNavFilters: [filterId, ...].
 
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Filter } from "lucide-react";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
 function Switch({ checked, onChange, title }) {

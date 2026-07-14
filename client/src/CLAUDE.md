@@ -34,9 +34,17 @@ setActiveSize/softTick/setModules — the reducer handles those types via other 
 `modules/ModuleInstance.MemoInstanceInner`, `socket.reconnectWithAuth`, `ui/daySelectionCycle.isSelected`,
 `components/ui/spinner.SpinnerOverlay`, `components/ui/control-base.CONTROL_COMPACT_H`.
 Detectors: `import`/`@/`/dynamic-aware orphan-file scan + a named-export-usage scan (both throwaway).
-**Still not done**: unused IMPORTS / local vars (a few pre-existing, e.g. operationExecutor
-`extractFieldValues`/`evalRule`, ModuleInstance `PopoverTrigger` et al.) — needs eslint no-unused-vars,
-not the ad-hoc scans used here.
+**Third pass — unused IMPORTS removed via ESLint** (159 specifiers across 77 files; build clean +
+1290/1290). Added a minimal flat config `eslint.config.mjs` + `npm run lint` / `lint:fix` (devDeps:
+eslint 9, eslint-plugin-unused-imports, eslint-plugin-react, globals). **HARD-LEARNED GOTCHA baked
+into the config:** `react/jsx-uses-vars` MUST be enabled — without it eslint doesn't count `<Foo/>`
+as using the `Foo` import, and `--fix` strips every JSX-only component import and GUTS the bundle
+(caught it via a chunk-size sanity check: CommandCenter 208kB→2.7kB, tiptap/highlight chunks
+vanished — reverted, never deployed). With jsx-uses-vars on, the fix touches only genuine dead
+imports (verify by re-running `npm run build` and confirming tiptap ~435 / highlight ~969 /
+CommandCenter ~208 / PagePreviewApp ~882 chunks survive). **Still open**: 136 unused-VAR warnings
+(report-only — not auto-removed, arbitrary-local deletion is risky) + 33 pre-existing
+react-hooks/exhaustive-deps errors (unrelated to dead code).
 
 ## Recent Changes (2026-07-14 (6) — file-drop → artifact instance UNIFIED on every page type)
 - New `helpers/artifactUpload.js` is the single upload lifecycle; `helpers/dropHandlers.handleFileDrop`

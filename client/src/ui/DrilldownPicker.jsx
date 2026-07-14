@@ -28,7 +28,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { ChevronRight } from "lucide-react";
-import { CATEGORIES, resolveCategoryItems } from "./categoryRegistry";
+import { CATEGORIES } from "./categoryRegistry";
 
 // Shape descriptors used when drilling past level 2 in path mode.
 // Each entry is the set of keys exposed on that shape and what a follow-on

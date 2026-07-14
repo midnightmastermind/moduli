@@ -7,9 +7,9 @@
 // Ancestor rows get a Lock/Unlock indicator showing whether nav follows parent.
 // Local rows get a cog for single-filter edit.
 
-import React, { useState, useContext, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { Plus, Lock, Unlock, Settings, X } from "lucide-react";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import FilterNavWidget from "./FilterNavWidgets";
 import FilterEditor from "./FilterEditor";

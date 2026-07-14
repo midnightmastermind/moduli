@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { findFilterOverrideAncestor } from "../helpers/dropHandlers.js";
 
 // MD1 — drag-between-day-cols re-stamps date. The helper walks

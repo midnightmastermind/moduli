@@ -1,11 +1,11 @@
 // forms/ContainerForm.jsx
-import React, { useContext, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Separator } from "@/components/ui/separator";
 import FormInput from "./FormInput";
 import { Button } from "@/components/ui/button";
 import StyleEditor from "./StyleEditor";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { useGridActions } from "../GridActionsContext";
 import { getOtherOccurrences } from "../state/selectors";
 import EditorBindingSection from "./EditorBindingSection.jsx";
 import { buildStyleCascadeContext, resolveStyleCascade } from "../helpers/StyleHelpers";

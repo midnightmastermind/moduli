@@ -17,7 +17,6 @@ import {
   TooltipProvider,
   TooltipHelp,
 } from "@/components/ui/tooltip";
-import { Info } from "lucide-react";
 
 /**
  * schema:

@@ -9,7 +9,7 @@
 // Pure tree math lives in helpers/bspTree.js (unit-tested). This component owns
 // only the React/DOM/persistence/DnD glue.
 
-import React, { useContext, useMemo, useRef, useState, useEffect, useCallback } from "react";
+import React, { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 

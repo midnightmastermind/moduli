@@ -17,10 +17,10 @@
 // 11 cards on screen. The legacy `/?previewOcc=X` iframe entry point in
 // main.jsx still works for any outstanding iframe consumers.
 
-import React, { useRef, useEffect, useContext, useState, useCallback, useMemo } from "react";
+import React, { useRef, useEffect, useState, useCallback } from "react";
 import { File, Image as ImageIcon, X } from "lucide-react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
+import { useGridActions } from "../GridActionsContext.js";
 import { getModuleTypeIcon, getModuleTypeColor } from "../helpers/moduleIcons";
 import { getEffectiveViewMode } from "../helpers/viewMode";
 import { resolveFileRef } from "../helpers/fileRef";

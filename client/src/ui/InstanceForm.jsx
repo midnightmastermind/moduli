@@ -1,5 +1,5 @@
 // forms/InstanceForm.jsx
-import React, { useState, useCallback, useContext, useMemo } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -11,17 +11,12 @@ import DrilldownPicker from "./DrilldownPicker";
 import EditorBindingSection from "./EditorBindingSection.jsx";
 import StyleEditor from "./StyleEditor";
 import LayoutCascadeSection from "./LayoutCascadeSection";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { useGridActions } from "../GridActionsContext";
 import { getOtherOccurrences } from "../state/selectors";
 import { buildStyleCascadeContext, resolveStyleCascade } from "../helpers/StyleHelpers";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
+
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 const DRAG_MODE_OPTIONS = [

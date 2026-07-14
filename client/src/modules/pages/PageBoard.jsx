@@ -14,7 +14,7 @@
 //   hideChildIds  array of occurrence IDs to skip rendering at this
 //                 level (children may still appear elsewhere via
 //                 multi-parenting)
-import React, { useContext, useMemo } from "react";
+import React, { useMemo } from "react";
 import Container from "../ModuleContainer.jsx";
 import { Spinner } from "../../components/ui/spinner";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../../GridActionsContext";

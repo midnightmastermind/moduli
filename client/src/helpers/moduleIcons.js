@@ -22,7 +22,7 @@ import {
   // artifact kinds
   Image as ImageIcon, Music, Video, FileCode,
   // other entity types
-  Folder, Zap, Stamp,
+  Folder, Stamp,
   // field types
   Hash, ToggleLeft, ChevronDown, Link2, Calendar, Star, Clock,
   // catch-all

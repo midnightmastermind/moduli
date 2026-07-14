@@ -3,7 +3,7 @@
 // (FIND, CREATE, UPDATE, DELETE) plus the still-relevant primitives
 // (resolveExpr, evalRule, evalGroup, SET_FILTER).
 import { describe, it, expect } from "vitest";
-import { resolveExpr, evalRule, evalGroup, executeActionItem } from "../helpers/operationActions";
+import { resolveExpr, evalRule, executeActionItem } from "../helpers/operationActions";
 
 const makeContext = (extra = {}) => ({
   state: {},

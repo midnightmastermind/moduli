@@ -29,7 +29,7 @@
 // │ Instance        │ INSTANCE (for sorting)                 │
 // └─────────────────┴────────────────────────────────────────┘
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, createContext, useContext } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, createContext, useContext } from "react";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { dropTargetForExternal } from "@atlaskit/pragmatic-drag-and-drop/external/adapter";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";

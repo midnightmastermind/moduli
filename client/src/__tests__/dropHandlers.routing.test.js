@@ -3,7 +3,7 @@
 // the right LayoutHelpers commit fires. Catches the "nothing moves" class
 // of regressions that the per-helper isolated tests don't surface.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { buildDropContext, buildRawDropEvent, DROP_TARGET_KIND } from "../helpers/dragHitTesting";
+import { buildDropContext, buildRawDropEvent } from "../helpers/dragHitTesting";
 import { routeDrop } from "../helpers/dropHandlers";
 import * as LayoutHelpers from "../helpers/LayoutHelpers";
 

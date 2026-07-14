@@ -9,8 +9,6 @@ import { BlockDragProvider } from "./useBlockDnD";
 import BlockPalette, { MiniPalette } from "./BlockPalette";
 import OperationsCanvas, { CompactCanvas } from "./OperationsCanvas";
 import { evaluateBlockTree, describeBlock, serializeBlockTree, deserializeBlockTree } from "../helpers/blockEvaluator";
-import { createFieldBlocks } from "../helpers/blockTypes";
-import { formatValue } from "../helpers/CalculationHelpers";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { GripVertical } from "lucide-react";

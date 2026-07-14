@@ -6,9 +6,9 @@
 //   dispatch, socket — for CommitHelpers
 //   onClose — close callback
 
-import React, { useState, useContext, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import { X, Plus, Trash2 } from "lucide-react";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
 const TIME_UNITS = ["day", "week", "month", "year"];

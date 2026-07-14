@@ -11,7 +11,7 @@
 // - compact=false → full input controls (was FieldInput)
 // ============================================================
 
-import React, { useState, useCallback, useEffect, useMemo, useRef, useContext } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";

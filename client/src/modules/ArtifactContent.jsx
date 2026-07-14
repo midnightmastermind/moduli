@@ -4,12 +4,11 @@
 // viewType: "artifact" + artifactType: "image"|"pdf"|"audio"|"video" → file renderer
 // viewType: "code" → syntax-highlighted code block (fetches raw file content)
 // view: passed from Panel — used to trigger scrollAnchor scroll in the editor
-import { useContext, useRef, useEffect, useState, useCallback, useMemo } from "react";
-import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
+import { useRef, useEffect, useState, useCallback, useMemo } from "react";
+import { useGridActions } from "../GridActionsContext.js";
 import Editor from "../ui/Editor.jsx";
 import { hexToRgba } from "../helpers/colorHelpers.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
-import RadialMenu from "../ui/RadialMenu.jsx";
 import { resolveFileRef } from "../helpers/fileRef.js";
 import "highlight.js/styles/atom-one-dark.css";
 import { Settings, Download, ScanText, Loader2, ImagePlus } from "lucide-react";

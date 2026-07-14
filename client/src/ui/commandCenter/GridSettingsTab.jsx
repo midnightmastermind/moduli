@@ -1,11 +1,11 @@
 // ui/commandCenter/GridSettingsTab.jsx
 // Grid settings extracted from Toolbar floating popover → CC tab
 
-import React, { useContext, useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2, Check, ChevronDown, ChevronRight, Navigation } from "lucide-react";
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { useGridActions } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { uid } from "../../uid";
 import { COMPARATOR_OPTIONS } from "../../helpers/comparators";
@@ -14,7 +14,6 @@ import { LAYOUT_MODES } from "../../helpers/layoutRules";
 import SortSection from "../SortSection";
 import StyleEditor from "../StyleEditor";
 import LayoutCascadeEditor from "../LayoutCascadeEditor";
-import { resolveStyleCascade } from "../../helpers/StyleHelpers";
 
 const TIME_UNIT_OPTIONS = [
   { value: "day",   label: "Day" },

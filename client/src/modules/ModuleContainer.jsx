@@ -11,7 +11,7 @@ import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
 import ContainerForm from "../ui/ContainerForm";
 import TransactionHistory from "../ui/TransactionHistory";
-import { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
 
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
@@ -99,7 +99,6 @@ import TemplatesSection from "../ui/TemplatesSection";
 
 import {
   ChevronRight,
-  ChevronDown,
   Copy,
   Link2,
   Unlink,

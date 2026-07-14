@@ -9,7 +9,7 @@
 //   - runMatchingOperations batch execution
 // ============================================================
 
-import { describe, test, expect, vi } from "vitest";
+import { describe, test, expect } from "vitest";
 import {
   shouldTrigger,
   computeTriggerMatch,

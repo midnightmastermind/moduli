@@ -4,9 +4,9 @@
 // Shows available documents and day pages to link to
 // ============================================================
 
-import { useState, useEffect, useRef, useMemo, useContext, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { FileText, Calendar, Search } from "lucide-react";
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { useGridActions } from "../../GridActionsContext";
 
 /**
  * DocLinkSuggestion - Popup for [[ document link suggestions

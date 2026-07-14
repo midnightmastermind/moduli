@@ -16,9 +16,9 @@
 //   - { kind: "occurrence", occId }   → scrolls to + flashes that occurrence
 // The markdown importer emits these for every [text](url) link; a user can also
 // set one via the textblock's settings (meta.link on the occurrence).
-import React, { useContext } from "react";
+import React from "react";
 import Editor from "../ui/Editor.jsx";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { useGridActions } from "../GridActionsContext";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 
 // Per-placement link (occurrence.meta) wins over the template default (module.meta).

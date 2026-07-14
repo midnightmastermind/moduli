@@ -5,7 +5,7 @@
 // Undone transactions shown with strikethrough and red line
 // ============================================================
 
-import React, { useState, useEffect, useCallback, useMemo, useContext } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -28,17 +28,15 @@ import {
   ArrowDown,
   Equal,
   Clock,
-  User,
   Package,
   Layers,
   Filter,
   RefreshCw,
   Undo2,
   Redo2,
-  Check,
   X,
 } from "lucide-react";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { useGridActions } from "../GridActionsContext";
 import { getTransactions, undoTransaction, redoTransaction } from "../helpers/TransactionHelpers";
 import { pushTxNotification } from "../state/notificationStore";
 import { formatDistanceToNow } from "date-fns";

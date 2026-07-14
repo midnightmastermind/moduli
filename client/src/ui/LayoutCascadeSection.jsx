@@ -6,8 +6,8 @@
 // OR to `meta.layoutCascadeOverride` (for leaf occurrences — final-say
 // per-placement). The resolver in helpers/layoutCascade.js reads both.
 
-import React, { useCallback, useContext, useMemo } from "react";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import React, { useCallback, useMemo } from "react";
+import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import LayoutCascadeEditor from "./LayoutCascadeEditor";
 import {

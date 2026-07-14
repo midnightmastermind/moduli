@@ -1,12 +1,12 @@
 // LayoutForm.jsx
-import React, { useContext, useMemo } from "react";
+import React, { useMemo } from "react";
 import { Separator } from "@/components/ui/separator";
 import FormInput from "./FormInput";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import StyleEditor from "./StyleEditor";
 import LayoutCascadeSection from "./LayoutCascadeSection";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { useGridActions } from "../GridActionsContext";
 import { resolveStyleCascade } from "../helpers/StyleHelpers";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 

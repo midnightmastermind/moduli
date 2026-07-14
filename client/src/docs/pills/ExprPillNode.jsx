@@ -7,7 +7,7 @@
 
 import { useMemo, useState, useCallback, useRef } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { useGridActions } from "../../GridActionsContext";
 import { useComputedValuesMap } from "../../state/computedValuesStore";
 import { Trash2, Settings } from "lucide-react";
 import RadialMenu from "../../ui/RadialMenu";
@@ -44,7 +44,7 @@ function evalExpr(expr, valueMap) {
   if (!/^[\d\s+\-*/().]+$/.test(resolved)) return null;
 
   try {
-    // eslint-disable-next-line no-new-func
+     
     const result = new Function(`"use strict"; return (${resolved});`)();
     if (!isFinite(result)) return null;
     // Round to 2 decimal places

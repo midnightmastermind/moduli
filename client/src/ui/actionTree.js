@@ -30,11 +30,6 @@ import {
   GitBranch,
   Eye,
   Wrench,
-  Sigma,
-  Plus,
-  Minus,
-  X,
-  Divide,
 } from "lucide-react";
 
 export const ACTION_TREE = [

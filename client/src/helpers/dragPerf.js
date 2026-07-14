@@ -70,7 +70,7 @@ export const dragPerf = {
     const dur = performance.now() - s.t0;
     if (dur < 40) return; // ignore taps / micro-drags
     const avg = (tot, n) => (n ? +(tot / n).toFixed(2) : 0);
-    // eslint-disable-next-line no-console
+     
     console.log(
       `%c[dragPerf] ${dur.toFixed(0)}ms drag`,
       "color:#4af;font-weight:bold",

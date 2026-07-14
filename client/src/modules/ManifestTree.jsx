@@ -3,9 +3,9 @@
 // Selecting a doc row calls updateView({ activeOccurrenceId }) so the content pane updates.
 // Selecting an anchor chip calls updateView({ activeOccurrenceId: parentOccId, scrollAnchor: heading })
 // so the parent doc stays open and scrolls to that heading.
-import { useContext, useState, useMemo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { GridActionsContext, useGridActions } from "../GridActionsContext.js";
+import { useGridActions } from "../GridActionsContext.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
 import { ChevronRight, Plus, Layout, FileText, Paintbrush, FolderPlus, Folder, Table, Pencil, Trash2, X, Image as ImageIcon } from "lucide-react";
 import ContextMenu from "../ui/ContextMenu.jsx";

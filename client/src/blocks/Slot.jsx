@@ -5,7 +5,6 @@
 
 import React from "react";
 import { useDroppableSlot } from "./useBlockDnD";
-import { BlockShape } from "../helpers/blockTypes";
 
 /**
  * Slot - A connection point within a block where other blocks can snap

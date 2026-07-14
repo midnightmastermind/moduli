@@ -1,7 +1,7 @@
 // ui/commandCenter/AppearanceTab.jsx
 // Global appearance settings: theme picker + CSS token customization
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import { Separator } from "@/components/ui/separator";
 import { useTheme, SYSTEM_THEMES } from "../../helpers/useTheme";
 import { Button } from "@/components/ui/button";

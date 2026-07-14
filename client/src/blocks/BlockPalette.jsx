@@ -4,7 +4,7 @@
 // ============================================================
 
 import React, { useState, useMemo } from "react";
-import { BLOCK_PALETTE, getPaletteCategories, createFieldBlocks, BlockType } from "../helpers/blockTypes";
+import { getPaletteCategories, createFieldBlocks } from "../helpers/blockTypes";
 import { PaletteBlock } from "./Block";
 import { ChevronDown, ChevronRight } from "lucide-react";
 

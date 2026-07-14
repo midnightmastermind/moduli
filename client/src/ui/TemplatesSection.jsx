@@ -4,8 +4,8 @@
 //   - Save the current subtree as a new template
 //   - Save the current subtree over the template it was applied from (if any)
 
-import React, { useContext, useMemo, useState } from "react";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import React, { useMemo, useState } from "react";
+import { useGridActions } from "../GridActionsContext";
 import { templatesByKind, rootFolderForTemplates } from "../helpers/templateHelpers";
 import {
   commitApplyTemplate,

@@ -4,7 +4,7 @@
 // and debounced persistence into occurrence.meta.table.cells[key].
 // Task 12: TanStack sort + per-column filter (view-only, never rewrites cells).
 // Task 13: Row + column virtualization via @tanstack/react-virtual.
-import React, { useMemo, useCallback, useState, useRef, useEffect, useContext } from "react";
+import React, { useMemo, useCallback, useState, useRef, useEffect } from "react";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import {
   useReactTable,
@@ -18,7 +18,7 @@ import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { cellKey, emptyCellDoc, makeEmbedCellDoc, getCellSortValue, deleteColumn, insertColumn, fillRange, firstEmbedOccId } from "../../helpers/tableCells";
 import { assignLinkedGroup } from "../../helpers/LayoutHelpers";
 import { COMPARATOR_OPTIONS, UNARY_COMPARATORS } from "../../helpers/comparators";
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { useGridActions } from "../../GridActionsContext";
 import { getEffectiveFieldVisibilityForOccurrence, compareFieldValues } from "../../state/selectors";
 import {
   autoAppendFieldsToAncestorsShowMode,
@@ -406,7 +406,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
   useEffect(() => {
     if (typeof window !== "undefined" && window.__moduliTableDiag === false) return;
     const cellCount = cells && typeof cells === "object" ? Object.keys(cells).length : 0;
-    // eslint-disable-next-line no-console
+     
     console.log("[table]", {
       occId: occurrence?.id,
       label: modulesById?.[occurrence?.moduleId]?.label,

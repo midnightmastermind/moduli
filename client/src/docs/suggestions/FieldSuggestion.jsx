@@ -4,9 +4,9 @@
 // Shows fields, instances, and containers.
 // ============================================================
 
-import React, { useState, useEffect, useRef, useCallback, useContext, useMemo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Search, Copy, Link2 } from "lucide-react";
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { useGridActions } from "../../GridActionsContext";
 
 const PILL_COLORS = {
   field_input: "bg-blue-500",

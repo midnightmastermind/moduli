@@ -13,8 +13,8 @@
  * actually fire despite shouldTrigger returning true).
  */
 
-import { describe, it, expect, vi } from "vitest";
-import { runMatchingOperations, shouldTrigger } from "../helpers/operationExecutor";
+import { describe, it, expect } from "vitest";
+import { shouldTrigger } from "../helpers/operationExecutor";
 
 const baseOp = {
   id: "op_water_today",

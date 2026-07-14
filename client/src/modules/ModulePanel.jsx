@@ -9,7 +9,7 @@ import RadialMenu from "../ui/RadialMenu";
 import ContainerKindSelector from "../ui/ContainerKindSelector";
 import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
-import { buildStyleCascadeContext, resolveStyleCascade, styleToCSS } from "../helpers/StyleHelpers";
+import { resolveStyleCascade, styleToCSS } from "../helpers/StyleHelpers";
 import { bumpRender } from "../helpers/renderProbe";
 
 import Artifact from "./ArtifactContent";
@@ -59,7 +59,6 @@ import {
 } from "lucide-react";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 
-import Container from "./ModuleContainer.jsx";
 import Page from "./ModulePage.jsx";
 import { CanvasDrawSection } from "./CanvasContent.jsx";
 import HeaderDropdown from "../ui/HeaderDropdown";

@@ -6,10 +6,10 @@
 // NOT for block textblocks — those use InstanceTextblockNode.jsx.
 // ============================================================
 
-import React, { useContext, useMemo, useState, useCallback, useRef, useEffect } from "react";
+import React, { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { useGridActions } from "../../GridActionsContext";
 import { Copy, Link, Trash2, Settings, Move, Check, Box, Maximize2 } from "lucide-react";
 import RadialMenu from "../../ui/RadialMenu";
 import * as CommitHelpers from "../../helpers/CommitHelpers";

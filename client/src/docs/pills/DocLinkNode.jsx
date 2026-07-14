@@ -4,10 +4,10 @@
 // Displays [[bracketed]] links to other documents
 // ============================================================
 
-import { useContext, useMemo, useCallback } from "react";
+import { useMemo, useCallback } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { FileText, Calendar, FolderOpen } from "lucide-react";
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { useGridActions } from "../../GridActionsContext";
 
 /**
  * DocLinkNode - Renders a document link as [[bracketed text]]

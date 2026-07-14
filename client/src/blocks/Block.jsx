@@ -5,9 +5,9 @@
 // ============================================================
 
 import React, { useCallback } from "react";
-import { useDraggableBlock, useSortableBlock } from "./useBlockDnD";
-import { BlockType, BlockShape, BLOCK_COLORS, cloneBlock } from "../helpers/blockTypes";
-import Slot, { InlineSlot, LabeledSlot, CBlockInner } from "./Slot";
+import { useDraggableBlock } from "./useBlockDnD";
+import { BlockType, BlockShape, BLOCK_COLORS } from "../helpers/blockTypes";
+import { InlineSlot, CBlockInner } from "./Slot";
 import { X } from "lucide-react";
 
 /**

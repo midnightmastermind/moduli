@@ -3,13 +3,13 @@
 // Header mimics Windows 7 date picker: clicking scope label drills out,
 // prev/next arrows navigate peer pages at the same depth.
 
-import React, { useRef, useMemo, useState, useCallback, useContext, useEffect } from "react";
+import React, { useRef, useMemo, useState, useCallback, useEffect } from "react";
 import { ChevronLeft, ChevronRight, LayoutGrid, List, Search } from "lucide-react";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import PreviewNode from "../PreviewNode.jsx";
 import useDrilldown, { getCardAnimStyle } from "../../hooks/useDrilldown.js";
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { useGridActions } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { ensureArtifactPageOcc } from "../../helpers/importsFolder";
 

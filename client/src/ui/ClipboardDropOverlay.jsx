@@ -19,7 +19,7 @@
 
 import { useContext, useEffect, useRef } from "react";
 import { SelectionContext } from "../state/SelectionContext";
-import { GridActionsContext, useGridActions } from "../GridActionsContext";
+import { useGridActions } from "../GridActionsContext";
 import { runPasteClipboard } from "../helpers/pasteClipboard";
 
 // Look at the topmost element under the cursor and walk up to find the

@@ -1,8 +1,8 @@
 // ui/commandCenter/UserSettingsTab.jsx
 
-import React, { useState, useContext } from "react";
+import React, { useState } from "react";
 import { Save } from "lucide-react";
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { useGridActions } from "../../GridActionsContext";
 
 export function UserSettingsTab() {
   const { state } = useGridActions();

@@ -3,14 +3,14 @@
 // Outside shell: drag handle + radial menu + page name (like a doc).
 // Inside: routes to content based on page kind (board, canvas, doc, display).
 
-import React, { useRef, useMemo, useState, useCallback, useContext, useEffect } from "react";
+import React, { useRef, useMemo, useState, useCallback, useContext } from "react";
 import { toast } from "../state/notificationStore";
 import RadialMenu from "../ui/RadialMenu";
 import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
-import { Trash2, Copy, FileText, ArrowLeft, ChevronLeft, ChevronRight, ClipboardPaste, Rss, Plus } from "lucide-react";
+import { Trash2, FileText, ClipboardPaste, Rss, Plus } from "lucide-react";
 import HeaderChevron from "../ui/HeaderChevron";
 import { bumpRender } from "../helpers/renderProbe";
 import HeaderDropdown from "../ui/HeaderDropdown";
@@ -23,13 +23,8 @@ import LayoutCascadeSection from "../ui/LayoutCascadeSection";
 import TemplatesSection from "../ui/TemplatesSection";
 import StyleEditor from "../ui/StyleEditor";
 import { buildStyleCascadeContext, resolveStyleCascade, styleToCSS } from "../helpers/StyleHelpers";
-import NodePill from "./NodePill.jsx";
-import PreviewNode from "./PreviewNode.jsx";
 
 import ArtifactContent from "./ArtifactContent.jsx";
-import { Spinner } from "../components/ui/spinner";
-import { DocEditorShell } from "./DocContent.jsx";
-import useDrilldown, { getCardAnimStyle } from "../hooks/useDrilldown.js";
 import PageBoard from "./pages/PageBoard.jsx";
 import PageDoc from "./pages/PageDoc.jsx";
 import PageCanvas from "./pages/PageCanvas.jsx";

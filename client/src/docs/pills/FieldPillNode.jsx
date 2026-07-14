@@ -4,10 +4,10 @@
 // Displays field name + live calculated value as a colored pill
 // ============================================================
 
-import { useContext, useMemo, useState, useCallback, useRef, useEffect } from "react";
+import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { GridActionsContext, useGridActions } from "../../GridActionsContext";
+import { useGridActions } from "../../GridActionsContext";
 import { useFieldValue } from "../hooks/useDocFieldValues";
 import { Copy, Link, Trash2, Settings } from "lucide-react";
 import RadialMenu from "../../ui/RadialMenu";

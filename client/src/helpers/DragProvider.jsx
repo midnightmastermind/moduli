@@ -20,14 +20,10 @@ import {
   DragHotContext,
   DragType,
   NATIVE_DND_MIME,
-  parseExternalDrop,
-  getWindowId,
   getDocTouchDrop,
   setupAutoScroll,
 } from "./dragSystem";
-import * as CommitHelpers from "./CommitHelpers";
 import * as LayoutHelpers from "./LayoutHelpers";
-import { runMatchingOperations } from "./operationExecutor";
 import { batchUpdateModulesAction } from "../state/actions";
 import { routeDrop } from "./dropHandlers";
 import { operationsBridge } from "../state/bindSocketToStore";
