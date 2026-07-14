@@ -29,6 +29,7 @@ import React, { useContext, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { GridActionsContext, useGridActions } from "../GridActionsContext";
 import { getModuleTypeIcon, getModuleTypeColor } from "../helpers/moduleIcons";
+import { resolveLabelTokens } from "../helpers/labelTokens";
 import { resolveFileRef } from "../helpers/fileRef";
 import { resolveEffectiveLayout } from "../helpers/layoutCascade";
 // Static import — ModuleInstance is statically imported elsewhere
@@ -66,7 +67,10 @@ export default function RepresentationView({
   const module = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
   const Icon = getModuleTypeIcon(module);
   const color = getModuleTypeColor(module);
-  const label = module?.label || occurrence?.label || "Untitled";
+  // "[Field Name]" tokens in the label render the occurrence's live value
+  // (helpers/labelTokens.js) — chips mirror the interpolated instance label.
+  const label = resolveLabelTokens(
+    module?.label || occurrence?.label || "Untitled", occurrence, fieldsById);
 
   // Resolve which fields render inline next to the label. Precedence:
   //   1) explicit `inlineFieldIds` prop

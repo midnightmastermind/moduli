@@ -518,6 +518,30 @@ describe("feed copies never double-count (2026-07-09 audit — 'Total Reps 90' b
     addFeedCopyOf(id, "Schedule Table");
     expect(trackerValue("Breakfast Nutrition")).toBe(before + 24);
   });
+
+  it("per-meal Nutrition carries ALL FOUR macros, not just protein (2026-07-14)", () => {
+    // Read the op's OWN write targets — "Calories"/"Protein"/"Carbs"/"Fats"
+    // each name BOTH an input field and a display field, so fieldIdByName is
+    // ambiguous here. The op writes [protein, calories, carbs, fats] in order.
+    const op = operations.find(o => o.name === "Breakfast Nutrition");
+    const targets = [...JSON.stringify(op.pipeline)
+      .matchAll(/\$goalItem\.fields\.([A-Za-z0-9_-]+)\.value/g)].map(m => m[1]);
+    expect(targets.length).toBe(4);
+    const [pFid, calFid, carbFid, fatFid] = targets;
+    const goalId = JSON.stringify(op.pipeline).match(/\$allItemsById\.([A-Za-z0-9_-]+)/)?.[1];
+    const before = occurrencesById[goalId]?.fields || {};
+    const b = (fid) => before[fid]?.value || 0;
+    const [pB, calB, carbB, fatB] = [b(pFid), b(calFid), b(carbFid), b(fatFid)];
+    addToSlot("Oatmeal + Berries", "4:30am", {
+      "Meal Type": "Breakfast", Completed: true,
+      "Calories": 320, "Protein": 11, "Carbs": 58, "Fats": 6,
+    });
+    const after = occurrencesById[goalId].fields;
+    expect(after[pFid]?.value).toBe(pB + 11);
+    expect(after[calFid]?.value).toBe(calB + 320);
+    expect(after[carbFid]?.value).toBe(carbB + 58);
+    expect(after[fatFid]?.value).toBe(fatB + 6);
+  });
 });
 
 describe("Workout History fills for exercise instances (2026-07-14 muscleGroup gate)", () => {
@@ -538,6 +562,7 @@ describe("Workout History fills for exercise instances (2026-07-14 muscleGroup g
     expect(full, "row with s1/s2/s3 = 12/10/8").toBeTruthy();
     for (const r of rows) {
       expect("s1" in r && "s2" in r && "s3" in r).toBe(true);
+      expect("w1" in r && "w2" in r && "w3" in r).toBe(true); // per-set weights (2026-07-14)
       expect("reps" in r).toBe(false); // old single-count key is gone
     }
   });

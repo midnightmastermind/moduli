@@ -6,6 +6,26 @@
 
 ---
 
+## Handoff — 2026-07-14 (3) (label [Field] tokens; 4-macro meal tiles; per-set weights; full headers)
+
+Third batch (CLAUDE_CHAT 2026-07-14 (3)). Deployed + reseeded:
+- **`[Field Name]` label tokens (NEW `helpers/labelTokens.js`)** — an instance label containing
+  `[Water]` / `[Completed]` / any field name renders the occurrence's LIVE value at display time
+  (ModuleInstance labels + RepresentationView chips). Raw label stays stored/editable (inline
+  rename shows the brackets). Carried-value wins over duplicate field names; unknown brackets stay
+  literal. This fills the INSTANCE gap in the editor↔field binding system — BoundHeader/BoundBody
+  (meta.headerLink/bodyLink, containers + textblocks, write-back + linked-sibling sync) still
+  exist and are the read-WRITE path; tokens are read-only display. 7 tests.
+- **Per-meal Nutrition tiles carry all four macros** — new "Calories" display field; the 4
+  per-meal trackers accumulate calories/protein/carbs/fats in one loop and write 4 goal fields
+  (protein FIRST — trackerValue() reads the first write); tiles bind all four. Behavioral test.
+- **Workouts: per-set weights** — Weight 1/2/3 fields bound PAIRED with their sets on all 30
+  exercises; Workout History rows carry s1/w1/s2/w2/s3/w3; headers are the FULL names
+  (Set 1/Weight 1/… — per user, no abbreviations; the table marquee owns the width).
+- **Verified**: 1280/1280 client + 237/237 server, reseeded (73+ ops? — see export), deployed.
+
+---
+
 ## Handoff — 2026-07-14 (2) (pomodoro = elapsed time; multiples per slot; bare "None"; 3 set counts; table marquee)
 
 Second batch of the session, per user directive (CLAUDE_CHAT 2026-07-14 (2)). All deployed +

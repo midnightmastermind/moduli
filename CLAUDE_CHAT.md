@@ -2417,3 +2417,31 @@ matched an array → broken create; now picker-direct ($allItemsById.<template o
 option is bare "None" (routing is the op's business). Workout History rows now carry s1/s2/s3
 (3 columns) instead of one "Reps"; both array tables (compact + full) wrap in AutoMarquee — the
 whole table box marquees when columns overflow, static when they fit.
+
+## 2026-07-14 (3) — full headers; 4-macro meal tiles; label↔field question; 3 weights
+
+> "why is it s1, s2, s3 and not set 1, set 2, set 3" — my abbreviation, reverted: headers are
+> Set 1/2/3 + Weight (marquee handles the width).
+
+> "also set the breakfast nutrition and the others to have more than protein" — the 4 per-meal
+> Nutrition trackers now sum ALL FOUR macros (calories/protein/carbs/fats; new Calories display
+> field) and the per-meal goal tiles bind all four.
+
+> "did you also look into the whole thing with making the occurance label or body link up with a
+> field. we were doing that at some point. really look into it cause i want to do this with my
+> instances. or an easier way, let me add in the field to the label text or body in brackets or
+> something so it just grabs that value and adds it to the content. do we have the original way
+> tho or did we remove it"
+
+The ORIGINAL system exists and works: BoundHeader (container header ↔ field via meta.headerLink,
+configured in Container settings, cross-occurrence sync) + BoundBody (textblock body ↔ text field
+via meta.bodyLink) + field pills (@ in any doc body). It never covered INSTANCE labels — that gap
+is now filled the "easier way": **[Field Name] tokens in a label interpolate the occurrence's
+live field value at display time** (helpers/labelTokens.js; wired into ModuleInstance labels +
+RepresentationView chips). The raw label (with brackets) is what's stored and what inline rename
+shows, so tokens keep tracking values. Duplicate field names resolve to a field the occurrence
+actually carries; unknown bracketed text stays literal. Read-only (display); for write-back +
+sibling sync the BoundHeader/BoundBody path remains the tool.
+
+> "add 3 weights too for workouts please" — Weight 1/2/3 fields (per-set), bound paired with
+> their sets (Set 1, Weight 1, Set 2, …) on every exercise; history rows + columns carry w1-w3.

@@ -19,6 +19,7 @@ import RadialMenu from "../ui/RadialMenu";
 import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
+import { resolveLabelTokens } from "../helpers/labelTokens";
 import {
   Popover,
   PopoverContent,
@@ -682,9 +683,12 @@ function InstanceInner({
                     faint, double-clickable "Untitled" placeholder so a blank
                     occurrence can be named — but NOT for textblock / artifact
                     bodies (renderBody), whose content IS the body and which have
-                    no meaningful label. */}
+                    no meaningful label.
+                    Display goes through resolveLabelTokens: "[Field Name]" in
+                    the label renders the occurrence's live field value; the
+                    RAW label (with tokens) is what inline editing shows. */}
                 {hasLabel
-                  ? <AutoMarquee>{label}</AutoMarquee>
+                  ? <AutoMarquee>{resolveLabelTokens(label, occurrence, fieldsById)}</AutoMarquee>
                   : (renderBody ? null : <span style={{ opacity: 0.4, fontStyle: "italic" }}>Untitled</span>)}
               </div>
             )

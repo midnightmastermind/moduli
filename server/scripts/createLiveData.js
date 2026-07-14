@@ -1472,7 +1472,7 @@ export async function createLiveData(userId, options = {}) {
       displayConfig: {
         columns: [
           { path: "name",     header: "Person",   width: 140 },
-          { path: "timeslot", header: "Slot",     width: 90 },
+          { path: "timeslot", header: "Time",     width: 90 },
           { path: "date",     header: "Date",     width: 90 },
         ],
       },
@@ -1786,9 +1786,11 @@ export async function createLiveData(userId, options = {}) {
         columns: [
           { path: "label",    header: "Exercise" },
           { path: "s1",       header: "Set 1" },
+          { path: "w1",       header: "Weight 1" },
           { path: "s2",       header: "Set 2" },
+          { path: "w2",       header: "Weight 2" },
           { path: "s3",       header: "Set 3" },
-          { path: "weight",   header: "Weight" },
+          { path: "w3",       header: "Weight 3" },
           { path: "timeslot", header: "Time" },
           { path: "date",     header: "Date" },
         ],
@@ -1812,8 +1814,8 @@ export async function createLiveData(userId, options = {}) {
       displayConfig: {
         columns: [
           { path: "label",    header: "Meal" },
-          { path: "kcal",     header: "Cal" },
-          { path: "protein",  header: "P" },
+          { path: "kcal",     header: "Calories" },
+          { path: "protein",  header: "Protein" },
           { path: "timeslot", header: "Time" },
           { path: "date",     header: "Date" },
         ],
@@ -1837,7 +1839,7 @@ export async function createLiveData(userId, options = {}) {
       displayConfig: {
         columns: [
           { path: "label",    header: "Item" },
-          { path: "amount",   header: "$" },
+          { path: "amount",   header: "Amount" },
           { path: "timeslot", header: "Time" },
           { path: "date",     header: "Date" },
         ],
@@ -1934,7 +1936,7 @@ export async function createLiveData(userId, options = {}) {
       displayConfig: {
         columns: [
           { path: "when",    header: "When" },
-          { path: "minutes", header: "Min" },
+          { path: "minutes", header: "Minutes" },
           { path: "label",   header: "Note" },
         ],
       },
@@ -2060,8 +2062,18 @@ export async function createLiveData(userId, options = {}) {
       id: uid(), name: "Set 3", type: "number", inputEnabled: true, displayEnabled: false,
       meta: { postfix: " reps", increment: 1, flow: "in" },
     },
+    // Per-set weights (2026-07-14: "add 3 weights too for workouts") — one
+    // weight per set, paired with set1/2/3 reps.
     workoutWeight: {
-      id: uid(), name: "Weight", type: "number", inputEnabled: true, displayEnabled: false,
+      id: uid(), name: "Weight 1", type: "number", inputEnabled: true, displayEnabled: false,
+      meta: { postfix: " lbs", increment: 5, flow: "in" },
+    },
+    workoutWeight2: {
+      id: uid(), name: "Weight 2", type: "number", inputEnabled: true, displayEnabled: false,
+      meta: { postfix: " lbs", increment: 5, flow: "in" },
+    },
+    workoutWeight3: {
+      id: uid(), name: "Weight 3", type: "number", inputEnabled: true, displayEnabled: false,
       meta: { postfix: " lbs", increment: 5, flow: "in" },
     },
     muscleGroup: {
@@ -2114,6 +2126,10 @@ export async function createLiveData(userId, options = {}) {
     totalProtein: {
       id: uid(), name: "Protein", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: "g" }, displayConfig: {},
+    },
+    totalCalories: {
+      id: uid(), name: "Calories", type: "number", inputEnabled: false, displayEnabled: true,
+      meta: { postfix: " kcal" }, displayConfig: {},
     },
     totalCarbs: {
       id: uid(), name: "Carbs", type: "number", inputEnabled: false, displayEnabled: true,
@@ -2905,11 +2921,14 @@ export async function createLiveData(userId, options = {}) {
       defaultDragMode: "copy",
       fieldBindings: [
         { fieldId: fields.completed.id, role: "input", order: 0 },
+        // Paired set + weight per slot (2026-07-14).
         { fieldId: fields.set1Reps.id, role: "input", order: 1 },
-        { fieldId: fields.set2Reps.id, role: "input", order: 2 },
-        { fieldId: fields.set3Reps.id, role: "input", order: 3 },
-        { fieldId: fields.workoutWeight.id, role: "input", order: 4 },
-        { fieldId: fields.muscleGroup.id, role: "input", order: 5 },
+        { fieldId: fields.workoutWeight.id, role: "input", order: 2 },
+        { fieldId: fields.set2Reps.id, role: "input", order: 3 },
+        { fieldId: fields.workoutWeight2.id, role: "input", order: 4 },
+        { fieldId: fields.set3Reps.id, role: "input", order: 5 },
+        { fieldId: fields.workoutWeight3.id, role: "input", order: 6 },
+        { fieldId: fields.muscleGroup.id, role: "input", order: 7 },
       ],
       meta: { defaultMuscleGroup: group.toLowerCase() },
     };
@@ -3411,18 +3430,39 @@ export async function createLiveData(userId, options = {}) {
       fieldBindings: [{ fieldId: fields.totalRepsToday.id, role: "display", order: 0 }] },
     cardioVolumeGoal:   { id: uid(), label: "Cardio Volume",   kind: "board", defaultDragMode: "move",
       fieldBindings: [{ fieldId: fields.totalRepsToday.id, role: "display", order: 0 }] },
-    // Per-meal nutrition goals (B7 Deep). Each tracks the daily sum of
-    // protein across nutrition instances whose `mealCategory` matches.
-    // Shares the `totalProtein` display field — per-goal value lives on
-    // the occurrence.
+    // Per-meal nutrition goals (B7 Deep). Each tracks the daily sums of ALL
+    // FOUR macros (calories/protein/carbs/fats — was protein-only until
+    // 2026-07-14: "set the breakfast nutrition and the others to have more
+    // than protein") across nutrition instances whose `mealCategory` matches.
+    // Shares the macro display fields — per-goal values live on the occurrence.
     breakfastNutritionGoal: { id: uid(), label: "Breakfast Nutrition", kind: "board", defaultDragMode: "move",
-      fieldBindings: [{ fieldId: fields.totalProtein.id, role: "display", order: 0 }] },
+      fieldBindings: [
+        { fieldId: fields.totalCalories.id, role: "display", order: 0 },
+        { fieldId: fields.totalProtein.id,  role: "display", order: 1 },
+        { fieldId: fields.totalCarbs.id,    role: "display", order: 2 },
+        { fieldId: fields.totalFats.id,     role: "display", order: 3 },
+      ] },
     lunchNutritionGoal:     { id: uid(), label: "Lunch Nutrition",     kind: "board", defaultDragMode: "move",
-      fieldBindings: [{ fieldId: fields.totalProtein.id, role: "display", order: 0 }] },
+      fieldBindings: [
+        { fieldId: fields.totalCalories.id, role: "display", order: 0 },
+        { fieldId: fields.totalProtein.id,  role: "display", order: 1 },
+        { fieldId: fields.totalCarbs.id,    role: "display", order: 2 },
+        { fieldId: fields.totalFats.id,     role: "display", order: 3 },
+      ] },
     dinnerNutritionGoal:    { id: uid(), label: "Dinner Nutrition",    kind: "board", defaultDragMode: "move",
-      fieldBindings: [{ fieldId: fields.totalProtein.id, role: "display", order: 0 }] },
+      fieldBindings: [
+        { fieldId: fields.totalCalories.id, role: "display", order: 0 },
+        { fieldId: fields.totalProtein.id,  role: "display", order: 1 },
+        { fieldId: fields.totalCarbs.id,    role: "display", order: 2 },
+        { fieldId: fields.totalFats.id,     role: "display", order: 3 },
+      ] },
     snackNutritionGoal:     { id: uid(), label: "Snack Nutrition",     kind: "board", defaultDragMode: "move",
-      fieldBindings: [{ fieldId: fields.totalProtein.id, role: "display", order: 0 }] },
+      fieldBindings: [
+        { fieldId: fields.totalCalories.id, role: "display", order: 0 },
+        { fieldId: fields.totalProtein.id,  role: "display", order: 1 },
+        { fieldId: fields.totalCarbs.id,    role: "display", order: 2 },
+        { fieldId: fields.totalFats.id,     role: "display", order: 3 },
+      ] },
     // ── Nutrition per-metric splits (Stage 3) ────────────────────────────────
     // Was one "Nutrition" umbrella bundling protein/carbs/fats + last/history.
     // Each macro has its own daily tracker (Protein/Carbs/Fats) and the meal
@@ -3983,7 +4023,9 @@ export async function createLiveData(userId, options = {}) {
         defaultFields[fields.set1Reps.id]     = fv(12, "replace");
         defaultFields[fields.set2Reps.id]     = fv(10, "replace");
         defaultFields[fields.set3Reps.id]     = fv(8,  "replace");
-        defaultFields[fields.workoutWeight.id] = fv(workoutStartWeights[instKey] ?? 20, "replace");
+        defaultFields[fields.workoutWeight.id]  = fv(workoutStartWeights[instKey] ?? 20, "replace");
+        defaultFields[fields.workoutWeight2.id] = fv(workoutStartWeights[instKey] ?? 20, "replace");
+        defaultFields[fields.workoutWeight3.id] = fv(workoutStartWeights[instKey] ?? 20, "replace");
       }
       if (inst.meta?.defaultMealType)    defaultFields[fields.mealCategory.id] = fv(inst.meta.defaultMealType, "replace");
       if (inst.meta?.defaultCal)         defaultFields[fields.calories.id]     = fv(inst.meta.defaultCal, "replace");
@@ -6670,9 +6712,10 @@ export async function createLiveData(userId, options = {}) {
   }
 
   // ── PER-MEAL NUTRITION (B7 Deep) ────────────────────────────────────────────
-  // One tracker per meal category. Sums `protein` across nutrition instances
-  // whose `mealCategory` matches, scoped to today. Writes the sum into the
-  // per-meal goal's totalProtein display.
+  // One tracker per meal category. Sums ALL FOUR macros (calories / protein /
+  // carbs / fats — was protein-only until 2026-07-14) across nutrition
+  // instances whose `mealCategory` matches, scoped to today. Writes the sums
+  // into the per-meal goal's macro displays.
   const MEAL_CATEGORIES = [
     { key: "Breakfast", goalLabel: "Breakfast Nutrition", occId: goalOccIds.breakfastNutritionGoal },
     { key: "Lunch",     goalLabel: "Lunch Nutrition",     occId: goalOccIds.lunchNutritionGoal },
@@ -6683,10 +6726,13 @@ export async function createLiveData(userId, options = {}) {
     await new Operation({
       id: uid(), userId, gridId, priority: 3,
       name: goalLabel,
-      description: `Sum protein across nutrition instances with mealCategory="${key}" on the active day; write to the "${goalLabel}" goal's totalProtein.`,
+      description: `Sum calories/protein/carbs/fats across nutrition instances with mealCategory="${key}" on the active day; write to the "${goalLabel}" goal's macro displays.`,
       triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
       triggerObjects: [
         { eventType: "onChange",       subjectType: "field", targetId: fields.protein.id,       priority: 3 },
+        { eventType: "onChange",       subjectType: "field", targetId: fields.calories.id,      priority: 3 },
+        { eventType: "onChange",       subjectType: "field", targetId: fields.carbs.id,         priority: 3 },
+        { eventType: "onChange",       subjectType: "field", targetId: fields.fats.id,          priority: 3 },
         { eventType: "onChange",       subjectType: "field", targetId: fields.mealCategory.id,  priority: 3 },
         { eventType: "onAdd",          subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
         { eventType: "onDelete",       subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
@@ -6707,7 +6753,10 @@ export async function createLiveData(userId, options = {}) {
                 expr: `$goalItem._effectiveFilter.${dateFieldId}`,
                 fallback: "$trigger.date", fallback2: "$today",
               } },
-              { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$acc", value: 0 } },
+              { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$acc",   value: 0 } },
+              { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$cal",  value: 0 } },
+              { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$carb", value: 0 } },
+              { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$fat",  value: 0 } },
               { id: uid(), type: "loop", overExpr: "$allInstances", as: "$item",
                 body: [
                   { id: uid(), type: "if",
@@ -6722,13 +6771,21 @@ export async function createLiveData(userId, options = {}) {
                       { id: uid(), left: `$item.fields.${fields.completed.id}.value`, comparator: "IS", right: true },
                     ] },
                     then: [
-                      { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.protein.id}.value` } },
+                      { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc",  expr: `$item.fields.${fields.protein.id}.value` } },
+                      { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$cal",  expr: `$item.fields.${fields.calories.id}.value` } },
+                      { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$carb", expr: `$item.fields.${fields.carbs.id}.value` } },
+                      { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$fat",  expr: `$item.fields.${fields.fats.id}.value` } },
                     ],
                     else: [],
                   },
                 ],
               },
-              { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.totalProtein.id}.value`, value: "$acc" } },
+              // totalProtein FIRST — the behavioral harness's trackerValue()
+              // reads the op's first goal-field write as its canonical value.
+              { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.totalProtein.id}.value`,  value: "$acc" } },
+              { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.totalCalories.id}.value`, value: "$cal" } },
+              { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.totalCarbs.id}.value`,    value: "$carb" } },
+              { id: uid(), type: "action", config: { type: "UPDATE", path: `$goalItem.fields.${fields.totalFats.id}.value`,     value: "$fat" } },
             ],
             else: [],
           },
@@ -8638,7 +8695,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
     name: "Workout History",
-    description: "Build a [{label, s1, s2, s3, weight, timeslot, date}] row list for every workout instance under Schedule in the active period; write to Workout goal's workoutHistory + lastWorkout.",
+    description: "Build a [{label, s1, w1, s2, w2, s3, w3, timeslot, date}] row list for every workout instance under Schedule in the active period; write to Workout goal's workoutHistory + lastWorkout.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onChange",       subjectType: "field",     targetId: fields.set1Reps.id, priority: 3 },
@@ -8681,12 +8738,15 @@ export async function createLiveData(userId, options = {}) {
                   type: "PUSH_TO_ARRAY", name: "$rows",
                   value: {
                     label:    "$inst.label",
-                    // All three set counts, one column each (2026-07-14:
-                    // "workouts is only showing 1 of the rep counts").
+                    // All three set counts + their per-set weights, one column
+                    // each (2026-07-14: "only showing 1 of the rep counts" +
+                    // "add 3 weights too").
                     s1:       `$inst.fields.${fields.set1Reps.id}.value`,
+                    w1:       `$inst.fields.${fields.workoutWeight.id}.value`,
                     s2:       `$inst.fields.${fields.set2Reps.id}.value`,
+                    w2:       `$inst.fields.${fields.workoutWeight2.id}.value`,
                     s3:       `$inst.fields.${fields.set3Reps.id}.value`,
-                    weight:   `$inst.fields.${fields.workoutWeight.id}.value`,
+                    w3:       `$inst.fields.${fields.workoutWeight3.id}.value`,
                     timeslot: `$inst.fields.${timeslotFieldId}.value`,
                     date:     `$inst.fields.${dateFieldId}.value`,
                   },

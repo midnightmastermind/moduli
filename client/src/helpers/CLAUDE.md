@@ -1,6 +1,16 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-07-13. Check this file before re-reading source._
+_Updated: 2026-07-14. Check this file before re-reading source._
+
+## Recent Changes (2026-07-14 — labelTokens.js NEW: [Field Name] label interpolation)
+- **`labelTokens.js` (NEW)** — `resolveLabelTokens(label, occurrence, fieldsById)` +
+  `hasLabelTokens(label)`: `[Field Name]` in an occurrence/module label renders the occurrence's
+  LIVE field value at display time (case-insensitive name match; a field the occurrence CARRIES
+  wins over duplicate names; unknown brackets stay literal; wrapper `{value,flow}` unwrapped;
+  arrays join, booleans yes/no, empty → "—"). Consumed by `modules/ModuleInstance.jsx` (label
+  AutoMarquee — the RAW label stays in the inline-rename draft) and `ui/RepresentationView.jsx`
+  (chips). The read-only sibling of BoundHeader/BoundBody (which write back + sync siblings).
+  7 tests in `__tests__/labelTokens.test.js`.
 
 ## Recent Changes (2026-07-13 — createLeafInstance* fire OccurrenceCreateOp with panel context)
 - **`CommitHelpers.js`** — `createLeafInstanceInParent` + `createLeafInstanceAtIndex` (and
