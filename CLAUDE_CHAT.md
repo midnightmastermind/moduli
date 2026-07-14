@@ -2445,3 +2445,17 @@ sibling sync the BoundHeader/BoundBody path remains the tool.
 
 > "add 3 weights too for workouts please" — Weight 1/2/3 fields (per-set), bound paired with
 > their sets (Set 1, Weight 1, Set 2, …) on every exercise; history rows + columns carry w1-w3.
+
+## 2026-07-14 (4) — {Field} name-showing form + colon write-back in the label editor
+
+> "give the option to display the field name too. so i would have Drink Water 16oz. also make the
+> brackset idea use : to set the field value too. so lets say i go to edit the label i would see
+> like Drink {Water:16oz} and i can just type in there, 14oz and the field value syncs up with it"
+> (a star-marker variant was floated then withdrawn: "nvm i like your idea more, forget the star
+> thing")
+
+Shipped: `[Water]` renders the bare value ("16"); `{Water}` renders name + value + unit
+("Water 16oz"). Double-clicking the label materializes the current value into every token
+(`Drink {Water:16oz}`); typing a new value there ("14") writes the FIELD on commit (fires the
+normal MeasureOp burst → trackers update) and the label re-stores without the value so it never
+goes stale. Unknown bracketed text stays literal. helpers/labelTokens.js, 16 tests.

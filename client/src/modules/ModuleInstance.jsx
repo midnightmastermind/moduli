@@ -19,7 +19,7 @@ import RadialMenu from "../ui/RadialMenu";
 import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
-import { resolveLabelTokens } from "../helpers/labelTokens";
+import { resolveLabelTokens, materializeLabelTokens, commitLabelTokens } from "../helpers/labelTokens";
 import {
   Popover,
   PopoverContent,
@@ -193,10 +193,20 @@ function InstanceInner({
     setDraft({ label: label ?? "" });
   }, [label, id]);
 
+  // Open the inline label editor with field tokens MATERIALIZED — "[Water]" /
+  // "{Water}" become "[Water:16]" / "{Water:16oz}" so the value is editable
+  // in place (typing "14" over it writes the FIELD on commit; the label
+  // re-stores without the value). helpers/labelTokens.js owns the grammar.
+  const startLabelEdit = useCallback(() => {
+    setLabelDraft(materializeLabelTokens(label ?? "", occurrence, fieldsById));
+    setIsEditingLabel(true);
+  }, [label, occurrence, fieldsById]);
+
   // Just-created via quick-add / insert-gap → open the label editor focused so
   // the user can type the name immediately (see helpers/pendingLabelEdit).
   useEffect(() => {
-    if (consumeLabelEdit(id)) setIsEditingLabel(true);
+    if (consumeLabelEdit(id)) startLabelEdit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const commitLabel = useCallback(() => {
@@ -216,11 +226,30 @@ function InstanceInner({
   useEffect(() => { setLabelDraft(label ?? ""); }, [label, id]);
   const commitInlineLabel = useCallback(() => {
     const next = (labelDraft ?? "").trim();
-    if (next && next !== (label ?? "")) {
-      CommitHelpers.updateModule({ dispatch, socket, module: { id, label: next }, emit: true });
+    // Token write-back: "{Water:14}" → write 14 to the Water field, store the
+    // label as "{Water}". Non-token labels pass through untouched.
+    const { label: cleaned, writes } = commitLabelTokens(next, occurrence || {}, fieldsById || {});
+    if (cleaned && cleaned !== (label ?? "")) {
+      CommitHelpers.updateModule({ dispatch, socket, module: { id, label: cleaned }, emit: true });
+    }
+    if (writes.length && occurrence?.id) {
+      // Mirror FieldRenderer.handleCommit: full updated occurrence + a
+      // triggerField per write so trackers/ops fire like any field edit.
+      let fields = { ...(occurrence.fields || {}) };
+      for (const w of writes) {
+        const prev = fields[w.fieldId];
+        const flow = (prev && typeof prev === "object" && prev.flow) || "in";
+        fields = { ...fields, [w.fieldId]: { value: w.value, flow } };
+        CommitHelpers.updateOccurrence({
+          dispatch, socket,
+          occurrence: { ...occurrence, fields },
+          emit: true,
+          triggerField: { fieldId: w.fieldId, value: w.value, instanceId: occurrence.moduleId },
+        });
+      }
     }
     setIsEditingLabel(false);
-  }, [labelDraft, label, id, dispatch, socket]);
+  }, [labelDraft, label, id, occurrence, fieldsById, dispatch, socket]);
 
   const deleteMe = useCallback(() => {
     if (!occurrence?.id) return;
@@ -665,7 +694,7 @@ function InstanceInner({
               />
             ) : (
               <div
-                onDoubleClick={(e) => { e.stopPropagation(); setIsEditingLabel(true); }}
+                onDoubleClick={(e) => { e.stopPropagation(); startLabelEdit(); }}
                 style={{
                   flex: "0 1 auto",
                   minWidth: 0,

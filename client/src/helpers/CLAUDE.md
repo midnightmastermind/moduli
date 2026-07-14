@@ -2,15 +2,22 @@
 
 _Updated: 2026-07-14. Check this file before re-reading source._
 
-## Recent Changes (2026-07-14 — labelTokens.js NEW: [Field Name] label interpolation)
-- **`labelTokens.js` (NEW)** — `resolveLabelTokens(label, occurrence, fieldsById)` +
-  `hasLabelTokens(label)`: `[Field Name]` in an occurrence/module label renders the occurrence's
-  LIVE field value at display time (case-insensitive name match; a field the occurrence CARRIES
-  wins over duplicate names; unknown brackets stay literal; wrapper `{value,flow}` unwrapped;
-  arrays join, booleans yes/no, empty → "—"). Consumed by `modules/ModuleInstance.jsx` (label
-  AutoMarquee — the RAW label stays in the inline-rename draft) and `ui/RepresentationView.jsx`
-  (chips). The read-only sibling of BoundHeader/BoundBody (which write back + sync siblings).
-  7 tests in `__tests__/labelTokens.test.js`.
+## Recent Changes (2026-07-14 — labelTokens.js NEW: [Field] / {Field} label tokens + colon write-back)
+- **`labelTokens.js` (NEW)** — live field tokens in occurrence labels:
+  - `[Water]` → the bare value ("16"); `{Water}` → name + value + unit ("Water 16oz") — the
+    user's "display the field name too" form. Case-insensitive name match; a field the
+    occurrence CARRIES wins over duplicate names; unknown brackets/braces stay literal (so
+    template tokens like `{ProjectName}` and prose like `[sic]` survive).
+  - **Edit write-back**: `materializeLabelTokens` puts the CURRENT value into each token for
+    the inline editor (`Drink {Water:16oz}`); `commitLabelTokens` parses the edited value back
+    ("14oz" → 14 for number fields, yes/no for booleans, empty → null), returns changed-only
+    `writes` + the label with values STRIPPED (stored labels never go stale).
+- **`modules/ModuleInstance.jsx`** — display goes through `resolveLabelTokens` (label
+  AutoMarquee + RepresentationView chips); `startLabelEdit` materializes tokens into the draft;
+  `commitInlineLabel` applies token writes via `CommitHelpers.updateOccurrence` with a
+  `triggerField` per write (ops/trackers fire like any field edit) and stores the cleaned label.
+  The read-only display sibling of BoundHeader/BoundBody (which bind whole header/body slots
+  with linked-sibling sync). 16 tests in `__tests__/labelTokens.test.js`.
 
 ## Recent Changes (2026-07-13 — createLeafInstance* fire OccurrenceCreateOp with panel context)
 - **`CommitHelpers.js`** — `createLeafInstanceInParent` + `createLeafInstanceAtIndex` (and

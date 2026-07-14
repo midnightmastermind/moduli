@@ -1,7 +1,11 @@
-// helpers/labelTokens — "[Field Name]" in a label renders the occurrence's
-// live field value (2026-07-14 directive). Raw label stays stored/editable.
+// helpers/labelTokens — "[Field Name]" / "{Field Name}" in a label render the
+// occurrence's live field value (2026-07-14 directive; extended same day with
+// the name-showing curly form + colon write-back). Raw label stays stored.
 import { describe, it, expect } from "vitest";
-import { resolveLabelTokens, hasLabelTokens } from "../helpers/labelTokens";
+import {
+  resolveLabelTokens, hasLabelTokens,
+  materializeLabelTokens, commitLabelTokens,
+} from "../helpers/labelTokens";
 
 const fieldsById = {
   f1: { id: "f1", name: "Water" },
@@ -49,5 +53,66 @@ describe("resolveLabelTokens", () => {
   it("null occurrence / fieldsById degrade to the raw label", () => {
     expect(resolveLabelTokens("[Water]", null, fieldsById)).toBe("[Water]");
     expect(resolveLabelTokens("[Water]", occ({}), null)).toBe("[Water]");
+  });
+});
+
+// The {Name} form + colon write-back (user: "Drink {Water:16oz} and i can
+// just type in there, 14oz and the field value syncs up with it").
+const fieldsWithUnit = {
+  ...fieldsById,
+  f1: { id: "f1", name: "Water", type: "number", meta: { postfix: "oz" } },
+  f2: { id: "f2", name: "Completed", type: "boolean" },
+};
+
+describe("{Field} name-showing form", () => {
+  it("renders name + value + unit", () => {
+    const o = occ({ f1: { value: 16, flow: "in" } });
+    expect(resolveLabelTokens("Drink {Water}", o, fieldsWithUnit)).toBe("Drink Water 16oz");
+  });
+  it("a stale embedded value in the STORED label is ignored — current value wins", () => {
+    const o = occ({ f1: { value: 16 } });
+    expect(resolveLabelTokens("Drink {Water:99oz}", o, fieldsWithUnit)).toBe("Drink Water 16oz");
+  });
+  it("unknown curly tokens stay literal (template tokens like {ProjectName})", () => {
+    expect(resolveLabelTokens("Project: {ProjectName}", occ({}), fieldsWithUnit))
+      .toBe("Project: {ProjectName}");
+  });
+});
+
+describe("materializeLabelTokens (edit view)", () => {
+  it("curly tokens gain :value+unit; square tokens gain the bare :value", () => {
+    const o = occ({ f1: { value: 16 } });
+    expect(materializeLabelTokens("Drink {Water}", o, fieldsWithUnit)).toBe("Drink {Water:16oz}");
+    expect(materializeLabelTokens("Drink [Water] oz", o, fieldsWithUnit)).toBe("Drink [Water:16] oz");
+  });
+  it("empty field materializes an empty value slot", () => {
+    expect(materializeLabelTokens("{Water}", occ({}), fieldsWithUnit)).toBe("{Water:}");
+  });
+});
+
+describe("commitLabelTokens (write-back)", () => {
+  it("typing a new value writes the field and strips the value from the label", () => {
+    const o = occ({ f1: { value: 16 } });
+    const { label, writes } = commitLabelTokens("Drink {Water:14oz}", o, fieldsWithUnit);
+    expect(label).toBe("Drink {Water}");
+    expect(writes).toEqual([{ fieldId: "f1", value: 14 }]);
+  });
+  it("an UNCHANGED materialized value produces no write", () => {
+    const o = occ({ f1: { value: 16 } });
+    const { label, writes } = commitLabelTokens("Drink {Water:16oz}", o, fieldsWithUnit);
+    expect(label).toBe("Drink {Water}");
+    expect(writes).toEqual([]);
+  });
+  it("booleans parse yes/no; clearing the slot writes null", () => {
+    const o = occ({ f2: { value: false }, f1: { value: 16 } });
+    expect(commitLabelTokens("[Completed:yes]", o, fieldsWithUnit).writes)
+      .toEqual([{ fieldId: "f2", value: true }]);
+    expect(commitLabelTokens("{Water:}", o, fieldsWithUnit).writes)
+      .toEqual([{ fieldId: "f1", value: null }]);
+  });
+  it("labels without tokens pass through with zero writes", () => {
+    const { label, writes } = commitLabelTokens("Plain rename", occ({}), fieldsWithUnit);
+    expect(label).toBe("Plain rename");
+    expect(writes).toEqual([]);
   });
 });
