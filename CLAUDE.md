@@ -9,13 +9,16 @@
 ## Handoff — 2026-07-14 (3) (label [Field] tokens; 4-macro meal tiles; per-set weights; full headers)
 
 Third batch (CLAUDE_CHAT 2026-07-14 (3)). Deployed + reseeded:
-- **`[Field Name]` label tokens (NEW `helpers/labelTokens.js`)** — an instance label containing
-  `[Water]` / `[Completed]` / any field name renders the occurrence's LIVE value at display time
-  (ModuleInstance labels + RepresentationView chips). Raw label stays stored/editable (inline
-  rename shows the brackets). Carried-value wins over duplicate field names; unknown brackets stay
-  literal. This fills the INSTANCE gap in the editor↔field binding system — BoundHeader/BoundBody
-  (meta.headerLink/bodyLink, containers + textblocks, write-back + linked-sibling sync) still
-  exist and are the read-WRITE path; tokens are read-only display. 7 tests.
+- **`[Field]` / `{Field}` label tokens (NEW `helpers/labelTokens.js`)** — an instance label
+  containing `[Water]` renders the bare LIVE value ("16"); `{Water}` renders name + value + unit
+  ("Water 16oz" — the user's "display the field name too" form). Display sites: ModuleInstance
+  labels + RepresentationView chips. **Colon write-back (same-day extension)**: double-click
+  rename materializes the current value into every token (`Drink {Water:16oz}`); typing a new
+  value writes the FIELD on commit (triggerField per write → trackers fire) and the label
+  re-stores value-STRIPPED, so stored labels never go stale. Carried-value wins over duplicate
+  field names; unknown brackets/braces stay literal ({ProjectName} template tokens safe). Fills
+  the INSTANCE gap in the editor↔field binding system — BoundHeader/BoundBody remain the
+  whole-slot binding path with linked-sibling sync. 16 tests.
 - **Per-meal Nutrition tiles carry all four macros** — new "Calories" display field; the 4
   per-meal trackers accumulate calories/protein/carbs/fats in one loop and write 4 goal fields
   (protein FIRST — trackerValue() reads the first write); tiles bind all four. Behavioral test.
