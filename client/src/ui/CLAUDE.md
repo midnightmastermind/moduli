@@ -2,6 +2,24 @@
 
 _Updated: 2026-07-14. Check this file before re-reading source._
 
+## Recent Changes (2026-07-14 (2) — pomodoro elapsed time; bare "None"; array tables marquee on overflow)
+- **`PomodoroTimer.jsx`** — a session's time is its RUNNING time now: Start fires with
+  `minutes: 0` and ONLY on a fresh phase (`remaining === phase.duration` — pause→resume no longer
+  mints a second session); each running minute of a work phase and every pause fires the new
+  **`PomoTickOp`** with the elapsed minutes (the "Pomodoro: Update Time" op writes them onto the
+  open session). Natural timeout still fires PomoCompleteOp with the full phase minutes (the
+  Complete op now writes minutes too). Completing the occurrence EARLY (its checkbox) keeps the
+  ticked shorter time. Destination dropdown's empty option is a bare **"None"** — what "none"
+  routes to is the operation's business, the UI mustn't pretend to know (per user).
+- **`helpers/triggerTypes.js`** — new `onPomoTick` → `PomoTickOp` entry.
+- **`Field.jsx` (both array-column tables)** — wrapped in `AutoMarquee`: grids take
+  `width: max-content` (columns `auto`, explicit px widths still honored) so overflow is real,
+  and the WHOLE table box ping-pong-marquees when the columns exceed the tile; static when they
+  fit (per user: "if there are overflow on the columns, marquee the entire table box").
+- Behavioral tests: session starts at 0 → tick 7 → timeout 25+completed; second session ticked
+  to 12 completed early keeps 12 (multiple pomodoros per slot). See server/CLAUDE.md for the
+  Start op's picker-direct source fix that multiples exposed.
+
 ## Recent Changes (2026-07-14 — Field.jsx: array-history display fields rendered "—" forever)
 - **User (live, after the muscleGroup data fix landed): "last workout works but not Workouts."**
   Prod DB + client state BOTH held the rows — the failure was pure display, previously masked

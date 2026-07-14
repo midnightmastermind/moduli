@@ -2396,3 +2396,24 @@ the PREVIOUS day's "12:00am" slot copy (prod DB showed the orphaned session, par
 the new-day rebuild at 12:01am). FIND now resolves TODAY's day-col first and only accepts a slot
 inside it; no day-col for today → documented no-op. (3) Timeslot language removed from the
 PomodoroTimer UI ("None (use current timeslot)" → "Automatic (today's schedule)").
+
+## 2026-07-14 (2) — pomodoro elapsed time + multiple per slot + bare "None" + all 3 set counts + table marquee
+
+> "awesome. set pomodoros time to the running time of it instead of just 25 minutes. and when it
+> hits 25 min, mark it as complete. ill have to options to complete it then. complete it early for
+> a shorter pomodoro and than if time runs out, completes it. so when i hit pause, or every minute,
+> update the pomodoro time. each timeslot can have multiple pomodoros in it. dont put any wording
+> either for the none option in the pomodoro menu. that is set by the operation so the system
+> doesnt know what it is. its just none. also workouts is only showing 1 of the rep counts when it
+> should be all 3. if there are overflow on the columns, marquee the entire table box"
+
+Shipped: sessions start at 0 minutes and track RUNNING time (new PomoTickOp each running minute +
+on pause → new "Pomodoro: Update Time" op writes elapsed minutes onto the open session); natural
+timeout (Pomodoro: Complete) settles at the full phase length; completing the occurrence early
+(checkbox) keeps the ticked shorter time. Pause→resume no longer mints a second session (Start
+fires only on a fresh phase). Multiple pomodoros per slot exposed a REAL bug: Start's COPY_LINK
+source was FIND-by-label "Pomodoro" — session copies inherit the module label, so the 2nd start
+matched an array → broken create; now picker-direct ($allItemsById.<template occ>). Dropdown
+option is bare "None" (routing is the op's business). Workout History rows now carry s1/s2/s3
+(3 columns) instead of one "Reps"; both array tables (compact + full) wrap in AutoMarquee — the
+whole table box marquees when columns overflow, static when they fit.

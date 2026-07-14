@@ -2,6 +2,22 @@
 
 _Updated: 2026-07-14. Check this file before re-reading source._
 
+## Recent Changes (2026-07-14 (2) — pomodoro elapsed-time ops + picker-direct source; workout rows carry all 3 sets)
+- **`scripts/createLiveData.js` — NEW "Pomodoro: Update Time" op** (`onPomoTick` → `PomoTickOp`,
+  fired by the timer each running minute + on pause with elapsed minutes): same open-session FIND
+  as Complete (pomodoroNumber presence + under Schedule + SAME_DAY today + not completed) →
+  UPDATE pomodoroMinutes. Sessions START at 0 minutes (timer sends 0) and tick up — completing
+  early counts a shorter pomodoro; **"Pomodoro: Complete"** now also writes `$trigger.minutes`
+  (the full phase length) alongside Completed on natural timeout. 72 ops.
+- **"Pomodoro: Start" COPY_LINK source is picker-direct now** (`$allItemsById.<pomodoroTemplateOccId>`,
+  captured in the toolkit wiring loop). The old `label IS "Pomodoro"` FIND broke the SECOND
+  pomodoro of a day: session copies inherit the module label, so the FIND matched template +
+  open session → array `$pomoSrcId` → broken create. Caught by the new multiple-pomodoros-per-slot
+  behavioral test.
+- **"Workout History" rows carry `s1/s2/s3`** (all three set counts, one column each — user:
+  "only showing 1 of the rep counts") instead of the single `reps` (Set 1 only); the Workouts
+  field's displayConfig columns are now Exercise|S1|S2|S3|Wt|Time|Date. **Reseed applied.**
+
 ## Recent Changes (2026-07-14 — Pomodoro: Start day-scoped slot FIND + Workout History muscleGroup gate)
 - **`scripts/createLiveData.js` ("Pomodoro: Start" step 3b)** — the slot FIND was label-only
   (`scheduleFormat IS "slot"` + `timeslot IS $trigger.slotLabel` under Schedule) with NO day

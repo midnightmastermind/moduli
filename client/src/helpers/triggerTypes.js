@@ -43,6 +43,7 @@ export const EVENT_TYPES = [
   { value: "onSchedule",     label: "On Schedule",      desc: "Fires at a specific time (cron)",                                     transactionType: "ScheduleOp" },
   { value: "manual",         label: "Manual",           desc: "Only runs when manually triggered from UI",                           transactionType: "__manual__" },
   { value: "onPomoStart",    label: "On Pomo Start",    desc: "Fires when the user starts a Pomodoro work phase",                    transactionType: "PomoStartOp" },
+  { value: "onPomoTick",     label: "On Pomo Tick",     desc: "Fires each running minute and on pause with the Pomodoro's elapsed minutes", transactionType: "PomoTickOp" },
   { value: "onPomoComplete", label: "On Pomo Complete", desc: "Fires when a Pomodoro work phase reaches 00:00 naturally",            transactionType: "PomoCompleteOp" },
   { value: "onPomoStop",     label: "On Pomo Stop",     desc: "Fires when the user resets or skips a Pomodoro mid-phase",            transactionType: "PomoStopOp" },
 ];

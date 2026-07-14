@@ -42,6 +42,7 @@ import { createLeafInstanceInParent, setOccurrenceFieldValue, updateModule, upda
 import { openImagePicker } from "./ImagePickerMenu";
 import { resolveFileRef } from "../helpers/fileRef";
 import RepresentationView from "./RepresentationView";
+import AutoMarquee from "./AutoMarquee";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { useGridActionsSelector } from "../GridActionsContext";
 import { runMatchingOperations } from "../helpers/operationExecutor";
@@ -1796,11 +1797,15 @@ function Field({
       return (
         <div className="field-display field-display-compact" style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
           {!hideName && name && <span style={{ fontSize: 10, opacity: 0.6, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{name}:</span>}
+          {/* When the columns overflow the tile, the WHOLE table box marquees
+              (AutoMarquee is static when it fits) — width:max-content lets the
+              grid take its natural width so the overflow is measurable. */}
+          <AutoMarquee>
           <div style={{
             display: "grid", gridTemplateColumns, columnGap: 6,
             fontSize: 10, fontFamily: "var(--font-mono)",
             background: "var(--input-bg)", border: "1px solid var(--border-subtle)",
-            borderRadius: 4, padding: "3px 6px", minWidth: 0, maxWidth: "100%", overflowX: "auto",
+            borderRadius: 4, padding: "3px 6px", width: "max-content",
           }}>
             {compactColumns.map((c, i) => (
               <div key={`h${i}`} style={{ fontWeight: 600, opacity: 0.55, fontSize: 9, color: "var(--text-muted)", paddingBottom: 1 }}>
@@ -1824,6 +1829,7 @@ function Field({
               })
             )}
           </div>
+          </AutoMarquee>
         </div>
       );
     }
@@ -1915,10 +1921,14 @@ function Field({
   const displayColumns = field?.displayConfig?.columns;
   if (Array.isArray(rawDisplayValue) && Array.isArray(displayColumns) && displayColumns.length > 0) {
     const cols = displayColumns;
-    const gridTemplateColumns = cols.map(c => c.width ? `${c.width}px` : "1fr").join(" ");
+    // auto tracks (not 1fr) + width:max-content: the grid takes its natural
+    // width so AutoMarquee can measure overflow and scroll the WHOLE table
+    // box; when it fits, it renders statically.
+    const gridTemplateColumns = cols.map(c => c.width ? `${c.width}px` : "auto").join(" ");
     return (
-      <div className="field-display" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <div className="field-display" style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
         {showLabel && <span style={labelStyle}>{name}</span>}
+        <AutoMarquee>
         <div style={{
           display: "grid",
           gridTemplateColumns,
@@ -1929,6 +1939,7 @@ function Field({
           border: "1px solid var(--border-subtle)",
           borderRadius: 4,
           padding: "4px 8px",
+          width: "max-content",
         }}>
           {cols.map((c, i) => (
             <div key={`h${i}`} style={{ fontWeight: 600, opacity: 0.55, fontSize: 10, color: "var(--text-muted)", paddingBottom: 2 }}>
@@ -1952,6 +1963,7 @@ function Field({
             })
           )}
         </div>
+        </AutoMarquee>
       </div>
     );
   }

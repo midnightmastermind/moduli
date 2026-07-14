@@ -124,7 +124,8 @@ export default function PomodoroTimer() {
           setRunning(false);
           const nextIdx = (phaseIndex + 1) % PHASES.length;
           const nextPhase = PHASES[nextIdx];
-          // Natural completion of a work phase → fire Pomodoro: Complete.
+          // Natural completion of a work phase → fire Pomodoro: Complete
+          // (time ran out → the session completes at the full phase length).
           // Break phases naturally completing is a no-op (nothing to mark
           // done in the schedule).
           if (phase.label === "Work") {
@@ -138,6 +139,19 @@ export default function PomodoroTimer() {
           setRemaining(nextPhase.duration);
           return 0;
         }
+        // Each running minute of a work phase, sync the open session's
+        // elapsed minutes — the session's time is its RUNNING time, not a
+        // baked 25. Completing early (checkbox) then counts a shorter
+        // pomodoro; the timeout path above completes at the full length.
+        if (phase.label === "Work") {
+          const elapsed = phase.duration - (r - 1);
+          if (elapsed > 0 && elapsed % 60 === 0) {
+            operationsBridge.fireOperations?.("PomoTickOp", {
+              type: "PomoTickOp",
+              minutes: Math.floor(elapsed / 60),
+            });
+          }
+        }
         return r - 1;
       });
     }, 1000);
@@ -147,14 +161,17 @@ export default function PomodoroTimer() {
   const toggleRun = useCallback(() => {
     setRunning(prev => {
       const next = !prev;
-      // Transition paused → running on a work phase → fire Pomodoro: Start.
-      // Break phases are local-only (no Schedule occurrence).
-      if (next && phase.label === "Work") {
+      // FIRST start of a work phase (untouched countdown) → fire Pomodoro:
+      // Start. A pause→resume must NOT mint a second session — the phase's
+      // session already exists; only a fresh phase creates one. The session
+      // starts at 0 minutes: its time is the RUNNING time, kept current by
+      // the minute ticks below. Break phases are local-only.
+      if (next && phase.label === "Work" && remaining === phase.duration) {
         const pomoNumber = (phaseIndex / 2 | 0) + 1; // 1..4 within the cycle
         operationsBridge.fireOperations?.("PomoStartOp", {
           type: "PomoStartOp",
           slotLabel: currentSlotLabel(),
-          minutes: Math.round(phase.duration / 60),
+          minutes: 0,
           pomoNumber,
           phase: "work",
           // When the user has picked a target container, pass its id through
@@ -162,9 +179,20 @@ export default function PomodoroTimer() {
           targetContainerId: targetContainerId || null,
         });
       }
+      // Pausing a running work phase → sync the elapsed minutes onto the
+      // open session so its stored time is current at the moment of pause.
+      if (!next && phase.label === "Work") {
+        const elapsedMin = Math.floor((phase.duration - remaining) / 60);
+        if (elapsedMin > 0) {
+          operationsBridge.fireOperations?.("PomoTickOp", {
+            type: "PomoTickOp",
+            minutes: elapsedMin,
+          });
+        }
+      }
       return next;
     });
-  }, [phase.label, phase.duration, phaseIndex]);
+  }, [phase.label, phase.duration, phaseIndex, remaining, targetContainerId]);
   const reset = useCallback(() => {
     // Abandoning a running work phase → delete the open Schedule session.
     if (running && phase.label === "Work") {
@@ -347,7 +375,9 @@ export default function PomodoroTimer() {
               fontSize: 10, fontFamily: "var(--font-mono)",
             }}
           >
-            <option value="">Automatic (today&apos;s schedule)</option>
+            {/* No wording — where "none" routes is the operation's business,
+                not something the UI pretends to know. */}
+            <option value="">None</option>
             {containerOptions.map(o => (
               <option key={o.id} value={o.id}>{o.label}</option>
             ))}

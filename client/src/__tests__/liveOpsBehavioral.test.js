@@ -531,6 +531,16 @@ describe("Workout History fills for exercise instances (2026-07-14 muscleGroup g
     expect(Array.isArray(rows)).toBe(true);
     expect(rows.length).toBeGreaterThan(0);
   });
+  it("rows carry ALL THREE set counts (2026-07-14: 'only showing 1 of the rep counts')", () => {
+    const rows = trackerValue("Workout History");
+    // The feed-copy describe logged a Bench Press with Set 1/2/3 = 12/10/8.
+    const full = rows.find(r => r.s1 === 12 && r.s2 === 10 && r.s3 === 8);
+    expect(full, "row with s1/s2/s3 = 12/10/8").toBeTruthy();
+    for (const r of rows) {
+      expect("s1" in r && "s2" in r && "s3" in r).toBe(true);
+      expect("reps" in r).toBe(false); // old single-count key is gone
+    }
+  });
 });
 
 describe("Pomodoro: Start targets TODAY's slot only (2026-07-14 stale-slot orphan)", () => {
@@ -550,22 +560,59 @@ describe("Pomodoro: Start targets TODAY's slot only (2026-07-14 stale-slot orpha
       ancestorChain(o.id).labels.includes("Schedule"));
   }
 
+  let sessionId;
   it("fires like the timer and creates the session under TODAY's day-col", () => {
     const dayCol = todaysDayCol();
     expect(dayCol, "today's day-col").toBeTruthy();
     const before = new Set(Object.keys(occurrencesById));
+    // The timer sends minutes: 0 at start — the session's time is its
+    // RUNNING time (2026-07-14), kept current by PomoTickOp below.
     fire("PomoStartOp", {
-      type: "PomoStartOp", slotLabel: "6:00am", minutes: 25,
+      type: "PomoStartOp", slotLabel: "6:00am", minutes: 0,
       pomoNumber: 1, phase: "work", targetContainerId: null,
     });
     const pomoNumFid = fieldIdByName["Pomodoro #"];
     const session = Object.keys(occurrencesById).filter(id => !before.has(id))
       .map(id => occurrencesById[id]).find(o => o.fields?.[pomoNumFid]);
     expect(session, "pomodoro session").toBeTruthy();
+    sessionId = session.id;
     // The parent slot must sit inside TODAY's day-col — not just anywhere
     // under Schedule.
     expect(ancestorChain(session.id).ids).toContain(dayCol.id);
     expect(occurrencesById[session.parentId], "parent slot exists").toBeTruthy();
+    const minFid = fieldIdByName["Pomodoro Minutes"];
+    expect(occurrencesById[sessionId].fields?.[minFid]?.value).toBe(0);
+  });
+
+  it("PomoTickOp (each running minute / pause) writes elapsed minutes onto the open session", () => {
+    fire("PomoTickOp", { type: "PomoTickOp", minutes: 7 });
+    const minFid = fieldIdByName["Pomodoro Minutes"];
+    expect(occurrencesById[sessionId].fields?.[minFid]?.value).toBe(7);
+  });
+
+  it("natural timeout (PomoCompleteOp) settles minutes at the full phase length + completes", () => {
+    fire("PomoCompleteOp", { type: "PomoCompleteOp", minutes: 25 });
+    const minFid = fieldIdByName["Pomodoro Minutes"];
+    const doneFid = fieldIdByName["Completed"];
+    expect(occurrencesById[sessionId].fields?.[minFid]?.value).toBe(25);
+    expect(occurrencesById[sessionId].fields?.[doneFid]?.value).toBe(true);
+  });
+
+  it("completing EARLY keeps the ticked (shorter) time — a second session, ticked to 12, completed by checkbox", () => {
+    fire("PomoStartOp", {
+      type: "PomoStartOp", slotLabel: "6:00am", minutes: 0,
+      pomoNumber: 2, phase: "work", targetContainerId: null,
+    });
+    const pomoNumFid = fieldIdByName["Pomodoro #"];
+    const minFid = fieldIdByName["Pomodoro Minutes"];
+    const open = Object.values(occurrencesById).find(o =>
+      o.fields?.[pomoNumFid]?.value === 2 && o.fields?.[fieldIdByName["Completed"]]?.value !== true);
+    expect(open, "second session (multiple pomodoros share the slot)").toBeTruthy();
+    fire("PomoTickOp", { type: "PomoTickOp", minutes: 12 });
+    expect(occurrencesById[open.id].fields?.[minFid]?.value).toBe(12);
+    // Early completion = the user checks Completed on the occurrence.
+    inputField(open.id, "Completed", true);
+    expect(occurrencesById[open.id].fields?.[minFid]?.value).toBe(12); // shorter pomodoro kept
   });
 
   it("a slot that only exists under a STALE day-col never matches (op no-ops)", () => {

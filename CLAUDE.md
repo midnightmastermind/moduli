@@ -6,6 +6,29 @@
 
 ---
 
+## Handoff — 2026-07-14 (2) (pomodoro = elapsed time; multiples per slot; bare "None"; 3 set counts; table marquee)
+
+Second batch of the session, per user directive (CLAUDE_CHAT 2026-07-14 (2)). All deployed +
+reseeded (72 ops now):
+- **Pomodoro sessions track RUNNING time**: start at 0 minutes; new `PomoTickOp` (timer fires it
+  each running minute + on pause) → new **"Pomodoro: Update Time"** op writes elapsed minutes
+  onto the open session. Timeout → Pomodoro: Complete writes the full phase minutes + Completed;
+  completing the occurrence EARLY (checkbox) keeps the shorter ticked time. Pause→resume no
+  longer mints a second session (Start fires only on a fresh phase).
+- **Multiple pomodoros per slot exposed a real bug, fixed**: Start's COPY_LINK source was
+  FIND-by-label "Pomodoro" — session copies inherit the module label, so the 2nd start of a day
+  matched template + session #1 → array → broken create. Source is picker-direct now
+  (`$allItemsById.<template occ id>` captured at seed wiring).
+- **Dropdown "None" is bare** — no explanatory wording; where "none" routes is the operation's
+  business (user: "the system doesnt know what it is. its just none").
+- **Workout History rows carry all 3 set counts** (s1/s2/s3 columns replacing the single "Reps"
+  = Set 1 only) and **both array-column tables (compact + full) marquee the WHOLE table box** via
+  AutoMarquee when the columns overflow (static when they fit).
+- **Verified**: 1272/1272 client (4 new/updated behavioral + display) + 237/237 server, build
+  clean, deployed, prod HEAD verified, reseeded (dev=prod Atlas).
+
+---
+
 ## Handoff — 2026-07-14 (workout history + pomodoro stale-slot orphan FIXED; timeslot language dropped)
 
 Continuation of account3's interrupted session (its systematic-debugging pass on the user's

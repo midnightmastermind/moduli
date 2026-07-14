@@ -1785,7 +1785,9 @@ export async function createLiveData(userId, options = {}) {
       displayConfig: {
         columns: [
           { path: "label",    header: "Exercise" },
-          { path: "reps",     header: "Reps" },
+          { path: "s1",       header: "S1" },
+          { path: "s2",       header: "S2" },
+          { path: "s3",       header: "S3" },
           { path: "weight",   header: "Wt" },
           { path: "timeslot", header: "Time" },
           { path: "date",     header: "Date" },
@@ -3959,6 +3961,12 @@ export async function createLiveData(userId, options = {}) {
 
   // ── Create toolkit instance occurrences + container occurrences ────────────
   const toolkitContOccIds = {}; // contModKey → containerOccId (exposed for later tasks)
+  // The Pomodoro template instance's OCCURRENCE id — Pomodoro: Start binds it
+  // picker-direct as its COPY_LINK source. A FIND-by-label can't work here:
+  // session copies inherit the module label ("Pomodoro"), so the SECOND
+  // start of a day matched template + session #1 → array → broken create
+  // ("each timeslot can have multiple pomodoros", 2026-07-14).
+  let pomodoroTemplateOccId = null;
 
   for (const [key, { contOccId, contModKey, instKeys }] of Object.entries(toolkitMappings)) {
     const childOccIds = [];
@@ -4002,6 +4010,7 @@ export async function createLiveData(userId, options = {}) {
         defaultFields[fields.amount.id] = fv(null, "replace");
       }
       const childId = await mkOcc({ moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: defaultFields });
+      if (instKey === "pomodoro") pomodoroTemplateOccId = childId;
       childOccIds.push(childId);
     }
     await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds, filterOverride: {} });
@@ -8233,13 +8242,12 @@ export async function createLiveData(userId, options = {}) {
         // Picker-direct binding (was FIND-by-label "Schedule" — replaced 2026-05-22).
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedPageOccId}` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
-        // 2. Find Pomodoro template instance (the COPY_LINK source).
-        { id: uid(), type: "action", config: {
-          type: "FIND",
-          over: "$allInstances",
-          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Pomodoro" }] },
-          itemVar: "$pomoSrc", itemIdVar: "$pomoSrcId",
-        } },
+        // 2. The Pomodoro template instance (the COPY_LINK source) —
+        //    picker-direct. FIND-by-label broke the SECOND start of a day:
+        //    session copies inherit the module label "Pomodoro", so the FIND
+        //    matched template + open sessions → array → broken create.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$pomoSrc",   expr: `$allItemsById.${pomodoroTemplateOccId}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$pomoSrcId", expr: "$pomoSrc.id" } },
         // 3a. When the user has picked a specific destination in the
         //     PomodoroTimer dropdown, route there directly.
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$slotId", expr: "$trigger.targetContainerId" } },
@@ -8346,7 +8354,56 @@ export async function createLiveData(userId, options = {}) {
         { id: uid(), type: "if",
           condition: { operator: "AND", rules: [{ id: uid(), left: "$openPomoId", comparator: "IS_NOT_EMPTY", right: "" }] },
           then: [
+            // Time ran out → the session's minutes settle at the full phase
+            // length ($trigger.minutes; the running ticks tracked partial
+            // elapsed time until now).
+            { id: uid(), type: "action", config: { type: "UPDATE", path: `$openPomo.fields.${fields.pomodoroMinutes.id}.value`, value: "$trigger.minutes" } },
             { id: uid(), type: "action", config: { type: "UPDATE", path: `$openPomo.fields.${completedFieldId}.value`, value: true } },
+          ],
+          else: [],
+        },
+      ],
+    },
+    folderId: opCategoryIds.trackers,
+    enabled: true,
+  }).save();
+
+  // ── POMODORO: Update Time ───────────────────────────────────────────────────
+  // Fired by PomodoroTimer.jsx each RUNNING minute of a work phase and on
+  // pause, carrying the elapsed minutes. The session's time is its running
+  // time (starts at 0, ticks up) — so completing it EARLY (its Completed
+  // checkbox) counts a shorter pomodoro, while the natural timeout path
+  // (Pomodoro: Complete above) settles at the full phase length.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 4,
+    name: "Pomodoro: Update Time",
+    description: "Each running minute (and on pause) write the elapsed minutes onto the open Pomodoro session under Schedule for today.",
+    triggerTypes: ["onPomoTick"],
+    triggerObjects: [
+      { eventType: "onPomoTick", subjectType: "grid", targetId: "", priority: 4 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedPageOccId}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
+        // Same open-session FIND as Pomodoro: Complete (presence
+        // discriminator + today + not completed).
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allInstances",
+          predicate: { operator: "AND", rules: [
+            { id: uid(), left: `fields.${fields.pomodoroNumber.id}.value`,       comparator: "IS_NOT_EMPTY", right: "" },
+            { id: uid(), left: "_ancestors",                                     comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+            { id: uid(), left: `fields.${dateFieldId}.value`,                    comparator: "SAME_DAY",     right: "$today" },
+            { id: uid(), left: `fields.${completedFieldId}.value`,               comparator: "IS_NOT",       right: true },
+          ] },
+          itemVar: "$openPomo", itemIdVar: "$openPomoId",
+        } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$openPomoId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [
+            { id: uid(), type: "action", config: { type: "UPDATE", path: `$openPomo.fields.${fields.pomodoroMinutes.id}.value`, value: "$trigger.minutes" } },
           ],
           else: [],
         },
@@ -8581,7 +8638,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation({
     id: uid(), userId, gridId, priority: 3,
     name: "Workout History",
-    description: "Build a [{label, reps, weight, timeslot, date}] row list for every workout instance under Schedule in the active period; write to Workout goal's workoutHistory + lastWorkout.",
+    description: "Build a [{label, s1, s2, s3, weight, timeslot, date}] row list for every workout instance under Schedule in the active period; write to Workout goal's workoutHistory + lastWorkout.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
       { eventType: "onChange",       subjectType: "field",     targetId: fields.set1Reps.id, priority: 3 },
@@ -8624,7 +8681,11 @@ export async function createLiveData(userId, options = {}) {
                   type: "PUSH_TO_ARRAY", name: "$rows",
                   value: {
                     label:    "$inst.label",
-                    reps:     `$inst.fields.${fields.set1Reps.id}.value`,
+                    // All three set counts, one column each (2026-07-14:
+                    // "workouts is only showing 1 of the rep counts").
+                    s1:       `$inst.fields.${fields.set1Reps.id}.value`,
+                    s2:       `$inst.fields.${fields.set2Reps.id}.value`,
+                    s3:       `$inst.fields.${fields.set3Reps.id}.value`,
                     weight:   `$inst.fields.${fields.workoutWeight.id}.value`,
                     timeslot: `$inst.fields.${timeslotFieldId}.value`,
                     date:     `$inst.fields.${dateFieldId}.value`,
