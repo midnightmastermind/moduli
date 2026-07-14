@@ -2,6 +2,21 @@
 
 _Updated: 2026-07-14. Check this file before re-reading source._
 
+## Recent Changes (2026-07-14 — Editor file-drop: upload → artifact INSTANCE embedded at the cursor)
+- **`Editor.jsx` (`handleFileDrop`)** — the doc / embedded-doc-container / TABLE-CELL arm of the
+  site-wide "drop an upload → it becomes an instance of it" behavior. Was BROKEN: it called
+  `CommitHelpers.uploadFile({ gridId:null, userId:null })` and inserted a bare inline image or a
+  DEAD `instancePill` (nothing rendered for video/pdf/etc.). Now: resolves gridId/userId from the
+  owning `occurrence` (falls back to the new `ctxGrid`/`ctxUserId` GridActions selectors for
+  cells/embedded containers that have no occurrence), mints placeholders via
+  `helpers/artifactUpload.createArtifactPlaceholders`, inserts one `moduleEmbed` per file at the
+  drop position (`resolveInsertPos(e, true)` → `insertContentAt`), and uploads via
+  `uploadArtifactPlaceholders` (persist parentId = the doc occurrence). Every artifact kind now
+  renders via ArtifactCard inside the embed — a real, movable instance. Shares the exact upload
+  core with the board/canvas arm (helpers/dropHandlers). deps array updated (occurrence, ctxGrid,
+  ctxUserId, resolveInsertPos). NOTE: the text/URL drop branch still mints an `instancePill` —
+  flagged for the pending dead-code audit (instancePill vs instanceTextblock).
+
 ## Recent Changes (2026-07-14 — FieldsTab enforces unique field names)
 - **`commandCenter/FieldsTab.jsx`** — `FieldDetail` Save routes through a `handleSave` guard:
   a name colliding with ANOTHER non-trashed field (case-insensitive, trimmed) is rejected with

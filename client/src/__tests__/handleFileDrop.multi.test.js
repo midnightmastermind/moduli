@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { handleFileDrop } from "../helpers/dropHandlers";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import * as LayoutHelpers from "../helpers/LayoutHelpers";
 import * as UploadHelpers from "../helpers/uploadWithProgress";
 
 function makeFile(name, type = "image/png", size = 1024) {
@@ -136,6 +137,67 @@ describe("handleFileDrop — multi-file orchestration", () => {
     expect(call.occurrence.occurrences.length).toBe(2);
     expect(call.occurrence.occurrences[0]).toBe("existingChild");
     // No standalone artifact panel/view was minted (the old "side view" bug).
+    expect(createViewSpy).not.toHaveBeenCalled();
+  });
+
+  it("dropped on a canvas page becomes a free-positioned child (no side-view panel)", () => {
+    const modules = { canvasMod: { id: "canvasMod", role: "page", kind: "canvas" } };
+    const occs = { canvasOcc: { id: "canvasOcc", moduleId: "canvasMod", occurrences: [] } };
+    const dropContext = {
+      payload: { data: { files: [makeFile("pic.png")] } },
+      target: { occurrenceId: null, moduleId: null, raw: { pageOccurrenceId: "canvasOcc" } },
+      pointer: { x: 40, y: 40 },
+      position: { edge: null, insertIndex: null },
+    };
+    const createViewSpy = vi.spyOn(CommitHelpers, "createView").mockImplementation(() => {});
+    const ctx = {
+      dispatch: vi.fn(), socket: { emit: vi.fn() },
+      state: { gridId: "g1", userId: "u1", grid: { _id: "g1" }, modulesById: modules, viewsById: {} },
+      occurrencesById: occs, baseContainers: [], clearSession: vi.fn(),
+      getCellFromPoint: () => ({ row: 0, col: 0 }),
+    };
+
+    handleFileDrop(dropContext, ctx);
+
+    // The artifact occurrence is appended to the CANVAS PAGE (a free child).
+    expect(updateOccSpy).toHaveBeenCalled();
+    const call = updateOccSpy.mock.calls[0][0];
+    expect(call.occurrence.id).toBe("canvasOcc");
+    expect(call.occurrence.occurrences.length).toBe(1);
+    // No display-viewer "side view" panel/view minted.
+    expect(createViewSpy).not.toHaveBeenCalled();
+  });
+
+  it("dropped on an EMPTY grid cell drills down to a board panel+container (never a display panel)", () => {
+    const panelOcc = { id: "newPanelOcc", occurrences: [] };
+    const contOcc = { id: "newContOcc", occurrences: [] };
+    const panelSpy = vi.spyOn(LayoutHelpers, "createPanelInGrid").mockReturnValue({ occurrence: panelOcc });
+    const contSpy = vi.spyOn(LayoutHelpers, "createContainerInPanel").mockReturnValue({ occurrence: contOcc });
+    const createViewSpy = vi.spyOn(CommitHelpers, "createView").mockImplementation(() => {});
+
+    const dropContext = {
+      payload: { data: { files: [makeFile("clip.mp4", "video/mp4")] } },
+      target: { occurrenceId: null, moduleId: null, raw: {} }, // no container, no page
+      pointer: { x: 5, y: 5 },
+      position: { edge: null, insertIndex: null },
+    };
+    const ctx = {
+      dispatch: vi.fn(), socket: { emit: vi.fn() },
+      state: { gridId: "g1", userId: "u1", grid: { _id: "g1" }, modulesById: {}, viewsById: {} },
+      occurrencesById: {}, baseContainers: [], clearSession: vi.fn(),
+      getCellFromPoint: () => ({ row: 1, col: 2 }),
+    };
+
+    handleFileDrop(dropContext, ctx);
+
+    // Drill-down: a board panel + container were minted at the cell...
+    expect(panelSpy).toHaveBeenCalled();
+    expect(contSpy).toHaveBeenCalled();
+    // ...and the artifact was appended to the NEW container.
+    const appendCall = updateOccSpy.mock.calls.find(c => c[0].occurrence.id === "newContOcc");
+    expect(appendCall).toBeTruthy();
+    expect(appendCall[0].occurrence.occurrences.length).toBe(1);
+    // The old "open a side view of the file" panel/view is gone for good.
     expect(createViewSpy).not.toHaveBeenCalled();
   });
 

@@ -91,8 +91,7 @@ import { pushTxNotification } from "../state/notificationStore";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { embedDeleteRegistry } from "./embedRegistry";
 import { buildReverseMap, findGridPanelOcc } from "./occurrenceHelpers";
-import { createModuleAction, createOccurrenceAction } from "../state/actions";
-import { mimeToKind } from "./fileKind";
+import { createArtifactPlaceholders, uploadArtifactPlaceholders } from "./artifactUpload";
 import { snapPanelToEdge } from "./gridSnap";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
 import { toast } from "../state/notificationStore";
@@ -101,7 +100,6 @@ import { createImportsDocPage } from "./importsFolder";
 import { DROP_TARGET_KIND } from "./dragHitTesting";
 import { autoAppendFieldsToAncestorsShowMode } from "./fieldVisibilityAutoAppend";
 import { resolveDropInViewMode, isMoveBlockedByCascadeLock } from "./layoutCascade";
-import { uploadFileWithProgress, registerUpload, clearUpload } from "./uploadWithProgress";
 
 // Normalize a date-typed filter value to a local-tz YYYY-MM-DD string. Handles
 // the three input shapes the filter pipeline produces in the wild:
@@ -1521,22 +1519,27 @@ export function handleFileDrop(dropContext, ctx) {
 
   if (!fileGridId || !fileUserId || !fileGrid) { clearSession(); return; }
 
+  // ── Resolve the drop DESTINATION so an uploaded file becomes an INSTANCE of
+  //    the file right where you drop it — the SAME behavior on every page type,
+  //    never a standalone "side view" panel. Priority:
+  //      1. the container under the pointer (list / board / table column)
+  //      2. a board/table page → its first droppable container (page-gap drop)
+  //      3. a canvas page → a free-positioned artifact child at the drop point
+  //      4. an existing display/artifact tree panel → swap its active view
+  //      5. an empty grid cell → drill down: new board panel + container + art
+  //  (Doc pages / doc containers / table CELLS never reach here — the doc
+  //   editor's own onDrop owns those and inserts a moduleEmbed; see Editor.jsx.)
+  const pageOccId = dropTarget?.context?.pageOccurrenceId || null;
+  const pageOcc = pageOccId ? occurrencesById[pageOccId] : null;
+  const pageMod = pageOcc ? state?.modulesById?.[pageOcc.moduleId] : null;
+  const isCanvasPage = pageMod?.kind === "canvas";
+
   const capturedPanelOcc = panelId ? Object.values(occurrencesById).find(o => o.moduleId === panelId) : null;
   const capturedPanelView = capturedPanelOcc?.viewId ? state?.viewsById?.[capturedPanelOcc.viewId] : null;
   const isExistingArtifactPanel = capturedPanelView?.viewType === "display" || capturedPanelView?.hasTree;
 
-  // ── Resolve the drop DESTINATION so an uploaded file lands where you drop
-  //    it — exactly like a normal instance (handleModuleDrop's leaf path),
-  //    never as a standalone "side view" panel. Priority:
-  //      1. the container under the pointer (list/board column)
-  //      2. a board/page → its first droppable container (page-gap drop)
-  //      3. an existing display/artifact panel → swap its active view
-  //      4. an empty grid cell → a standalone artifact panel (legit)
-  const pageOccId = dropTarget?.context?.pageOccurrenceId || null;
-  const pageOcc = pageOccId ? occurrencesById[pageOccId] : null;
-
-  // The precise container occurrence under the pointer (dropView resolves the
-  // exact occ; fall back to first-by-module for a bare containerId). Doc
+  // (1) The precise container occurrence under the pointer (dropView resolves
+  // the exact occ; fall back to first-by-module for a bare containerId). Doc
   // containers own their embed insertion via the editor — never wire here.
   let destContainerOcc =
     (containerOccurrenceId && occurrencesById[containerOccurrenceId]) ||
@@ -1544,11 +1547,9 @@ export function handleFileDrop(dropContext, ctx) {
   if (destContainerOcc && state?.modulesById?.[destContainerOcc.moduleId]?.kind === "doc") {
     destContainerOcc = null;
   }
-  // Page-gap fallback: dropped inside a page but not over a column → the page's
-  // first droppable (non-doc) container (parity with handleModuleDrop's panel
-  // fallback). A canvas page has no container children, so this finds nothing
-  // and the drop falls through to the grid-cell branch below.
-  if (!destContainerOcc && pageOcc) {
+  // (2) Page-gap fallback: inside a (non-canvas) page but not over a column →
+  // the page's first droppable non-doc container.
+  if (!destContainerOcc && pageOcc && !isCanvasPage) {
     for (const occId of pageOcc.occurrences || []) {
       const occ = occurrencesById[occId];
       const mod = occ ? state?.modulesById?.[occ.moduleId] : null;
@@ -1556,181 +1557,84 @@ export function handleFileDrop(dropContext, ctx) {
     }
   }
 
-  // ── Mint placeholders for every file up-front so the optimistic UI
-  //    shows them all at once, then kick off uploads in parallel.
-  //    Docket §8 gap #6 — was `files[0]` only.
-  const placeholders = files.map((file) => {
-    const moduleId = makeUUID();
-    const occurrenceId = makeUUID();
-    const kind = mimeToKind(file.type, file.name);
-    return {
-      file, moduleId, occurrenceId, kind,
-      module: {
-        id: moduleId, userId: fileUserId, gridId: fileGridId,
-        role: "artifact", kind, label: file.name, fileRef: null,
-        defaultDragMode: "copy",
-        meta: {
-          uploadStatus: "pending",
-          originalName: file.name,
-          mimeType: file.type,
-          uploadSize: file.size,
-        },
-      },
-      occurrence: {
-        id: occurrenceId, userId: fileUserId, gridId: fileGridId,
-        moduleId,
-        ...(destContainerOcc ? { parentId: destContainerOcc.id } : {}),
-        fields: {}, meta: {},
-      },
+  // (3) Canvas drop point in world coords (mirror handleModuleDrop's canvas
+  // branch) — each artifact lands as a free-positioned child.
+  let canvasPos = null;
+  if (!destContainerOcc && isCanvasPage && pageOccId) {
+    const surfaceEl = document.querySelector(`[data-page-occ-id="${pageOccId}"] .canvas-surface`);
+    const rect = surfaceEl?.getBoundingClientRect?.()
+      || document.querySelector(`[data-page-occ-id="${pageOccId}"]`)?.getBoundingClientRect?.();
+    canvasPos = {
+      x: rect ? Math.max(0, Math.round(x - rect.left + (surfaceEl?.scrollLeft ?? 0))) : 20,
+      y: rect ? Math.max(0, Math.round(y - rect.top + (surfaceEl?.scrollTop ?? 0))) : 20,
     };
-  });
-
-  // Optimistic local dispatch — every placeholder renders its spinner immediately.
-  for (const p of placeholders) {
-    dispatch(createModuleAction(p.module));
-    dispatch(createOccurrenceAction(p.occurrence));
   }
 
-  // ── Wire placeholders into the destination ────────────────────────
-  if (destContainerOcc) {
-    // Append every new artifact occurrence to the container under the pointer
-    // (or the page's first column) — same as a normal instance dropped there.
-    const allOccIds = placeholders.map(p => p.occurrenceId);
-    CommitHelpers.updateOccurrence({
-      dispatch, socket,
-      occurrence: { id: destContainerOcc.id, occurrences: [...(destContainerOcc.occurrences || []), ...allOccIds] },
-      emit: true,
+  // (5) Empty grid cell → drill down like a normal instance: mint a board
+  // panel + container here, then drop the artifacts into that container (NOT a
+  // display-viewer "side view" panel — that was the reported bug).
+  let drillContainerOcc = null;
+  if (!destContainerOcc && !canvasPos && !isExistingArtifactPanel && cell) {
+    const newPanel = { id: makeUUID(), label: files[0]?.name || "Files", role: "panel", kind: "board" };
+    const panelResult = LayoutHelpers.createPanelInGrid({
+      dispatch, socket, grid: fileGrid, panel: newPanel,
+      placement: { row: cell.row, col: cell.col, width: 1, height: 1 }, userId: fileUserId, emit: true,
     });
-  } else if (isExistingArtifactPanel && capturedPanelView) {
-    // Each artifact lives independently; only the LAST one becomes the active
-    // view (subsequent occurrences are reachable via the manifest tree if the
-    // panel has one, or via the Files tab in the command center otherwise).
-    const lastOccId = placeholders[placeholders.length - 1].occurrenceId;
-    CommitHelpers.updateView({ dispatch, socket, view: { ...capturedPanelView, activeOccurrenceId: lastOccId } });
-  } else {
-    // No in-grid home (a drop on a truly EMPTY grid cell): one new artifact
-    // panel per file, all stacked into the same cell. Users cycle through them
-    // via the existing panel-stack UI. First panel uses the targeted cell; the
-    // rest stack alongside.
-    const targetCell = cell || { row: 0, col: 0 };
-    for (const p of placeholders) {
-      const newPanelModule = { id: makeUUID(), label: p.file.name || "Uploaded File", role: "panel", kind: "board" };
-      const panelResult = LayoutHelpers.createPanelInGrid({
-        dispatch, socket, grid: fileGrid, panel: newPanelModule,
-        placement: { row: targetCell.row, col: targetCell.col, width: 1, height: 1 },
-        userId: fileUserId, emit: true,
+    if (panelResult?.occurrence) {
+      const newContainer = { id: makeUUID(), label: newPanel.label, role: "container", kind: "board" };
+      const cRes = LayoutHelpers.createContainerInPanel({
+        dispatch, socket, gridId: fileGridId, panel: { ...newPanel, _occurrence: panelResult.occurrence },
+        container: newContainer, userId: fileUserId, emit: true,
       });
-      if (panelResult?.occurrence) {
-        const viewId = makeUUID();
-        const { viewType, artifactType } = viewFieldsForKindClient(p.kind);
-        CommitHelpers.createView({
-          dispatch, socket,
-          view: { id: viewId, userId: fileUserId, gridId: fileGridId, viewType, artifactType, hasTree: false, manifestId: null, activeOccurrenceId: p.occurrenceId },
-          emit: true,
-        });
-        CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...panelResult.occurrence, viewId }, emit: true });
-      }
+      drillContainerOcc = cRes?.occurrence || null;
     }
   }
 
-  // ── Per-file upload with batched progress toast ───────────────────
-  const total = placeholders.length;
-  const toastId = total > 1 ? toast.loading(`Uploading ${total} files…`) : null;
-  let uploaded = 0, failed = 0;
+  const finalContainerOcc = destContainerOcc || drillContainerOcc;
 
-  let cancelled = 0;
+  // Placement stamp folded onto each placeholder occurrence up-front so the
+  // optimistic render lands in the right spot (container child, or canvas x/y).
+  const occExtra = (i) => finalContainerOcc
+    ? { parentId: finalContainerOcc.id }
+    : canvasPos
+      ? { parentId: pageOccId, meta: { x: canvasPos.x + i * 24, y: canvasPos.y + i * 24 } }
+      : {};
 
-  const uploadOne = (p) => {
-    const formData = new FormData();
-    formData.append("file", p.file);
-    formData.append("userId", fileUserId);
-    formData.append("gridId", fileGridId);
-    formData.append("moduleId", p.moduleId);
-    formData.append("occurrenceId", p.occurrenceId);
+  const placeholders = createArtifactPlaceholders(files, {
+    gridId: fileGridId, userId: fileUserId, dispatch, occExtra,
+  });
+  const allOccIds = placeholders.map(p => p.occurrenceId);
 
-    // Per-upload AbortController; registered against the placeholder so the
-    // ArtifactCard's cancel button can find + invoke it (audit gap #8).
-    const controller = new AbortController();
-    let lastProgress = 0;
-    registerUpload(p.occurrenceId, {
-      abort: () => controller.abort(),
-      moduleId: p.moduleId, occurrenceId: p.occurrenceId,
-      containerOccurrenceId: destContainerOcc?.id || null,
+  // ── Wire placeholders into the destination ────────────────────────
+  if (finalContainerOcc) {
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: finalContainerOcc.id, occurrences: [...(finalContainerOcc.occurrences || []), ...allOccIds] },
+      emit: true,
     });
+  } else if (canvasPos && pageOcc) {
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: pageOcc.id, occurrences: [...(pageOcc.occurrences || []), ...allOccIds] },
+      emit: true,
+    });
+  } else if (isExistingArtifactPanel && capturedPanelView) {
+    // A file dropped ON an artifact/tree panel just swaps its active view to
+    // the (last) upload — no new panel.
+    const lastOccId = allOccIds[allOccIds.length - 1];
+    CommitHelpers.updateView({ dispatch, socket, view: { ...capturedPanelView, activeOccurrenceId: lastOccId } });
+  }
 
-    return uploadFileWithProgress({
-      url: "/api/artifacts/upload",
-      formData,
-      signal: controller.signal,
-      onProgress: (frac) => {
-        // Coalesce to once per 5% — module updates fan out to every React
-        // consumer and we don't need byte-accurate dispatches.
-        const stepped = Math.min(1, Math.floor(frac * 20) / 20);
-        if (stepped === lastProgress) return;
-        lastProgress = stepped;
-        CommitHelpers.updateModule({
-          dispatch, socket,
-          module: { id: p.moduleId, meta: { ...p.module.meta, uploadProgress: stepped } },
-          emit: false,
-        });
-      },
-    })
-      .then(({ module: uploadedModule }) => {
-        if (uploadedModule?.id) {
-          CommitHelpers.updateModule({ dispatch, socket, module: uploadedModule, emit: false });
-        }
-        uploaded++;
-      })
-      .catch(err => {
-        if (err?.name === "AbortError") {
-          cancelled++;
-          // ArtifactCard's cancel handler is responsible for actually
-          // tearing down the placeholder occurrence — here we just leave
-          // the local module flipped to "cancelled" in case the handler
-          // already ran (idempotent).
-          return;
-        }
-        console.error("[FILE DROP] Upload error:", err);
-        CommitHelpers.updateModule({
-          dispatch, socket,
-          module: { id: p.moduleId, meta: { ...p.module.meta, uploadStatus: "error" } },
-          emit: false,
-        });
-        failed++;
-      })
-      .finally(() => {
-        clearUpload(p.occurrenceId);
-        if (toastId == null) return;
-        const done = uploaded + failed + cancelled;
-        if (done < total) {
-          toast.loading(`Uploaded ${uploaded} of ${total}…`, { id: toastId });
-        } else if (failed === 0 && cancelled === 0) {
-          toast.success(`Uploaded ${total} files`, { id: toastId });
-        } else if (uploaded === 0 && failed === 0) {
-          toast.message(`Cancelled ${cancelled} upload${cancelled === 1 ? "" : "s"}`, { id: toastId });
-        } else if (uploaded === 0) {
-          toast.error(`All ${total} uploads failed`, { id: toastId });
-        } else {
-          const parts = [];
-          if (uploaded > 0)  parts.push(`${uploaded} uploaded`);
-          if (failed > 0)    parts.push(`${failed} failed`);
-          if (cancelled > 0) parts.push(`${cancelled} cancelled`);
-          toast.warning(parts.join(" · "), { id: toastId });
-        }
-      });
-  };
-
-  // Kick all uploads off in parallel; the server is idempotent on (moduleId).
-  Promise.all(placeholders.map(uploadOne));
+  // ── Upload (progress + toast + placement re-persist) ──────────────
+  uploadArtifactPlaceholders(placeholders, {
+    gridId: fileGridId, userId: fileUserId, dispatch, socket,
+    containerOccurrenceId: finalContainerOcc?.id || null,
+    persist: (p) => finalContainerOcc
+      ? { parentId: finalContainerOcc.id }
+      : (canvasPos ? { parentId: pageOccId, meta: p.occurrence.meta } : null),
+  });
 
   clearSession();
-}
-
-// Local mirror of server.js viewFieldsForKind (only used when creating an artifact panel).
-function viewFieldsForKindClient(kind) {
-  if (["image", "video", "audio", "pdf"].includes(kind)) return { viewType: "display", artifactType: kind };
-  if (kind === "code") return { viewType: "code", artifactType: null };
-  return { viewType: "markdown", artifactType: null };
 }
 
 // ============================================================

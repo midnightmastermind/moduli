@@ -2,6 +2,15 @@
 
 _Updated: 2026-07-14. Check this file before re-reading source._
 
+## Recent Changes (2026-07-14 (6) — file-drop → artifact instance UNIFIED on every page type)
+- New `helpers/artifactUpload.js` is the single upload lifecycle; `helpers/dropHandlers.handleFileDrop`
+  (board/list/table/canvas/empty-cell) + `ui/Editor.jsx handleFileDrop` (doc/embedded-doc/table-cell)
+  both use it, so "drop an upload → it becomes an instance of the file" behaves identically
+  everywhere and NEVER opens a display-viewer side panel. Details in helpers/ + ui/ CLAUDE.md.
+- OPEN follow-up (user ask): whole-site DEAD-CODE audit — starting with `instancePill` (the doc
+  text/URL-drop branch + a few extensions still mint it; instances migrated to `instanceTextblock`
+  long ago). Not started; needs its own pass.
+
 ## Recent Changes (2026-07-14 (5) — artifact media centered in the card; file drops land in place)
 - **`index.css` `.artifact-thumb`** — `object-fit: cover` → `contain` (+ `margin: 0 auto`): image
   and video thumbnails now CENTER inside the flex-centered card and show the whole frame instead of

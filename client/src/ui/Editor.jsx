@@ -80,6 +80,7 @@ import DocToolbar from "../docs/DocToolbar";
 import ContextMenu from "./ContextMenu";
 import { useGridActionsSelector } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { createArtifactPlaceholders, uploadArtifactPlaceholders } from "../helpers/artifactUpload";
 import QuickAddMenu from "./QuickAddMenu.jsx";
 import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type, Plus } from "lucide-react";
 
@@ -246,6 +247,10 @@ const Editor = forwardRef(function Editor({
   const instancesById = useGridActionsSelector(s => s.instancesById);
   const modulesById = useGridActionsSelector(s => s.modulesById);
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
+  // Grid/user id for artifact uploads dropped into a doc / table cell (an
+  // embedded doc container or a cell has no owning `occurrence` to read them off).
+  const ctxGrid = useGridActionsSelector(s => s.grid);
+  const ctxUserId = useGridActionsSelector(s => s.userId);
 
   // Suggestion / palette state
   const [showSuggestion, setShowSuggestion] = useState(false);
@@ -2002,23 +2007,33 @@ const Editor = forwardRef(function Editor({
     // Without this guard, the text/plain label from the drag payload creates a duplicate instance.
     if (dt.types && Array.from(dt.types).includes(NATIVE_DND_MIME)) return;
 
-    // File drops
+    // File drops → create an ARTIFACT INSTANCE embedded at the drop point.
+    // This is the doc / table-cell arm of the site-wide "drop an upload → it
+    // becomes an instance of the file" behavior (helpers/artifactUpload.js) —
+    // the board/canvas arm lives in helpers/dropHandlers.handleFileDrop. Every
+    // artifact kind (image / video / audio / pdf / …) renders via ArtifactCard
+    // inside the moduleEmbed, so the doc gets a real, movable instance instead
+    // of a dead pill or a bare inline image.
     const files = dt.files;
     if (files?.length) {
       e.preventDefault(); e.stopPropagation();
-      for (const file of files) {
-        const module = await CommitHelpers.uploadFile({ dispatch, file, gridId: null, userId: null });
-        if (!module) continue;
-        if (file.type.startsWith("image/") && module.fileRef) {
-          editor.chain().focus().setImage({ src: `/uploads/${module.fileRef}`, alt: module.label || file.name }).run();
-          editor.chain().insertContent({ type: "paragraph" }).run();
-        } else {
-          editor.chain().focus().insertContent({
-            type: "instancePill",
-            attrs: { instanceId: module.id, instanceLabel: module.label || file.name },
-          }).insertContent(" ").run();
-        }
-      }
+      const gridId = occurrence?.gridId || ctxGrid?._id || ctxGrid?.id || ctxGrid?.gridId || null;
+      const userId = occurrence?.userId || ctxUserId || null;
+      if (!gridId || !userId) return;
+      const pos = resolveInsertPos(e, true);
+      const placeholders = createArtifactPlaceholders(Array.from(files), {
+        gridId, userId, dispatch,
+        occExtra: () => (occurrence?.id ? { parentId: occurrence.id } : {}),
+      });
+      // Insert one moduleEmbed per uploaded file at the drop position.
+      editor.chain().focus().insertContentAt(
+        pos,
+        placeholders.map(p => ({ type: "moduleEmbed", attrs: { occurrenceId: p.occurrenceId } })),
+      ).run();
+      uploadArtifactPlaceholders(placeholders, {
+        gridId, userId, dispatch, socket,
+        persist: () => (occurrence?.id ? { parentId: occurrence.id } : null),
+      });
       return;
     }
 
@@ -2039,7 +2054,7 @@ const Editor = forwardRef(function Editor({
       type: "instancePill",
       attrs: { instanceId: newId, instanceLabel: label, showIcon: true },
     }).insertContent(" ").run();
-  }, [editor, dispatch, socket]);
+  }, [editor, dispatch, socket, occurrence, ctxGrid, ctxUserId, resolveInsertPos]);
 
   // ── insert helpers exposed via ref ───────────────────────────
   const deleteAtTrigger = useCallback(() => {

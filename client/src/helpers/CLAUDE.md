@@ -2,6 +2,26 @@
 
 _Updated: 2026-07-14. Check this file before re-reading source._
 
+## Recent Changes (2026-07-14 (6) — file-drop UNIFIED across every page/artifact type)
+- **`artifactUpload.js` (NEW)** — the ONE upload lifecycle for "drop an upload → it becomes an
+  instance of the file". `createArtifactPlaceholders(files, {gridId,userId,dispatch,occExtra})`
+  mints + locally dispatches a `role:"artifact"` module+occurrence per file (occExtra(i) stamps
+  parentId / canvas meta up-front); `uploadArtifactPlaceholders(placeholders, {…,persist})` POSTs
+  each to `/api/artifacts/upload` with progress + the batched toast, and — because the optimistic
+  occurrence is never emitted and the server mints a BARE occurrence — re-persists placement
+  (`persist(p) → {parentId?, meta?}`) once the row exists server-side (canvas x/y + parent).
+- **`dropHandlers.js` (`handleFileDrop`)** — now uses the shared core and resolves the destination
+  the SAME way on every surface it owns (board/list/table containers, canvas pages, empty cells):
+  (1) container under the pointer, (2) a board/table page's first non-doc container (page-gap),
+  (3) a canvas page → free-positioned child at the drop point (meta.x/y), (4) an existing
+  display/tree artifact panel → swap active view, (5) an EMPTY grid cell → DRILL DOWN (new board
+  panel + container + artifact) — the old "open a display-viewer side panel per file" branch is
+  DELETED (that was the user's "side view of the file" bug). `viewFieldsForKindClient` + the inline
+  upload machinery removed; dead imports (mimeToKind / uploadWithProgress / createModule|Occurrence
+  Action) dropped. Doc pages / doc containers / TABLE CELLS never reach here — the doc editor's own
+  onDrop owns them (see ui/CLAUDE.md Editor.jsx). Tests: 3 new in `handleFileDrop.multi.test.js`
+  (page-gap, canvas, empty-cell drill-down — all assert NO side-view view is minted).
+
 ## Recent Changes (2026-07-14 (5) — file drops land WHERE dropped, like a normal instance)
 - **`dropHandlers.js` (`handleFileDrop`)** — a file (e.g. a video) dropped INTO a board/page used
   to skip straight to the `else` branch and mint a NEW artifact PANEL with a display view = the
