@@ -1,6 +1,19 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-07-12. Check this file before re-reading source._
+_Updated: 2026-07-14. Check this file before re-reading source._
+
+## Recent Changes (2026-07-14 — mosaic mobile nav uses the REAL rows×cols placements (the "just a line" fix))
+- **`Grid.jsx` (`MosaicMobileNav`)** — the 2026-07-04 version modeled a mosaic grid's mobile
+  cell space as a synthetic 1×N strip (each panel = one column) — the user saw "just a line"
+  instead of the 3×2 map with 4-direction nav. The mosaic `layoutTree` is only the DESKTOP
+  arrangement; `visiblePanels` already carry the real `occurrence.placement` (row/col/width/
+  height — never mutated by the mosaic conversion). The nav now derives rows/cols from those
+  placements and renders a CSS grid (panels at their cells, spans honored), restoring the 2D
+  map, 4-direction rail buttons, and the zoom-out overlay shape. Panels WITHOUT distinct
+  placements fall back to the old 1×N strip. activeCell clamps into the real space.
+- **`Toolbar.jsx`** — the MiniGridMap mosaic special-case (1×N mirror) deleted; the mini map
+  reads grid.rows/cols for every grid shape. Verified headless at 390×844 on prod: A(0,0),
+  B(1,0), hub spanning col-1 both rows, D/E in col-2; rail buttons present, zero errors.
 
 ## Recent Changes (2026-07-12 LATE — simplify-audit: root-folder panel wiring shared)
 - **`App.jsx` (`addNewPanel`) + `Grid.jsx` (`handleEmptyCellClick`)** — both now call the shared
