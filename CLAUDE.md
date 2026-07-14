@@ -13,8 +13,8 @@ display twins renamed — Total Protein/Calories/Carbs/Fats, Total Workouts, Tot
 Movie/Book/Podcast/Course History, Person Notes. INPUT fields keep the natural names (what users
 and `[Field]` label tokens reference). Zero duplicate names verified post-reseed; 1289/1289.
 Recorded as memory `feedback-unique-field-names` (with `feedback-no-abbreviations` from the same
-session). NOTE: FieldsTab still doesn't ENFORCE uniqueness on user-created fields — labelTokens'
-carried-field tiebreak stays as the defensive net; a create-time guard is a candidate follow-up.
+session). FieldsTab now ENFORCES it (`42c56c21`): Save rejects colliding names (case-insensitive, inline
+error), "+ Field" mints unique defaults; labelTokens' carried-field tiebreak stays as a last net.
 
 ---
 

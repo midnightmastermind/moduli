@@ -2,6 +2,14 @@
 
 _Updated: 2026-07-14. Check this file before re-reading source._
 
+## Recent Changes (2026-07-14 — FieldsTab enforces unique field names)
+- **`commandCenter/FieldsTab.jsx`** — `FieldDetail` Save routes through a `handleSave` guard:
+  a name colliding with ANOTHER non-trashed field (case-insensitive, trimmed) is rejected with
+  an inline error under the Name input (cleared on typing); empty names rejected. `handleCreate`
+  mints unique defaults ("New Field", "New Field 2", …) so double-clicking "+ Field" can't
+  create twins. Enforces the 2026-07-14 unique-field-names rule (see memory + the seed sweep in
+  server/CLAUDE.md). 3 tests in `__tests__/fieldsTabUniqueName.test.jsx`.
+
 ## Recent Changes (2026-07-14 (2) — pomodoro elapsed time; bare "None"; array tables marquee on overflow)
 - **`PomodoroTimer.jsx`** — a session's time is its RUNNING time now: Start fires with
   `minutes: 0` and ONLY on a fresh phase (`remaining === phase.duration` — pause→resume no longer
