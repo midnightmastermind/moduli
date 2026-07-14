@@ -20,8 +20,3 @@ export function emit(event, payload) {
   socket.emit(event, payload);
 }
 
-export function reconnectWithAuth() {
-  socket.auth = { token: localStorage.getItem("moduli-token") || null };
-  if (socket.connected) socket.disconnect();
-  socket.connect();
-}

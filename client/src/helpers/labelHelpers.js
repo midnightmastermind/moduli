@@ -36,8 +36,3 @@ export function labelForId(id, { fieldsById, modulesById, occurrencesById } = {}
  * Format a labelForId result as "Water · …a8f3b2" (or just "…a8f3b2" when unknown).
  * Keeps the ID visible for disambiguation when multiple entities share a name.
  */
-export function formatLabel(result) {
-  if (!result) return "";
-  if (!result.label) return `…${result.shortId}`;
-  return `${result.label} · …${result.shortId}`;
-}

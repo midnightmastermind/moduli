@@ -28,9 +28,6 @@ export function publishComputedValues(map) {
   for (const l of _listeners) l();
 }
 
-export function getComputedValuesMap() {
-  return _map;
-}
 
 function subscribe(fn) {
   _listeners.add(fn);

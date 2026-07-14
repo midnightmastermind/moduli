@@ -235,18 +235,6 @@ export function getGridPanels(state) {
  * If the active named filter is locked, downstream overrides are ignored entirely —
  * parent values cascade unchanged.
  */
-export function resolveEffectiveFilters(occurrence, parentFilterValues, activeFilterLocked = false) {
-  if (!occurrence) return parentFilterValues || {};
-  if (activeFilterLocked) return parentFilterValues || {};
-  const override = occurrence.filterOverride;
-  if (override == null) return parentFilterValues || {};
-  // Merge parent + override (override wins, null values remove that filter key)
-  const merged = { ...(parentFilterValues || {}), ...override };
-  for (const [k, v] of Object.entries(merged)) {
-    if (v === null) delete merged[k];
-  }
-  return merged;
-}
 
 /**
  * Determine if an instance occurrence is visible given the effective filter values.

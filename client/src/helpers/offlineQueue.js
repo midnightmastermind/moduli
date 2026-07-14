@@ -79,6 +79,3 @@ export function flushOfflineQueue(socket) {
 /**
  * Returns the current queue length (for UI indicators if needed).
  */
-export function getQueueLength() {
-  return queue.length;
-}

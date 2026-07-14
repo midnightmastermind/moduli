@@ -14,10 +14,6 @@ export function rootFolderForTemplates(lookups, gridId) {
   return m ? lookups?.foldersById?.[m.rootFolderId] : null;
 }
 
-export function templateOccurrencesInFolder(lookups, folderId) {
-  return Object.values(lookups?.occurrencesById || {})
-    .filter(o => o.parentId === folderId && o.meta?.templateName);
-}
 
 export function templateKindOf(lookups, templateOccurrence) {
   if (!templateOccurrence) return null;

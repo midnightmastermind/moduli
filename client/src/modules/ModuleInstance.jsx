@@ -1083,6 +1083,5 @@ function ModuleInstance({
 
 // Named export so Instance.jsx (stub) can re-export the inner row directly.
 // Memoized version used by ModuleContainer's canvas card rendering.
-export const MemoInstanceInner = React.memo(InstanceInner);
 
 export default React.memo(ModuleInstance);

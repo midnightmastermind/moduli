@@ -102,9 +102,6 @@ export function cycleDay(state, day) {
   return normalize({ keys: [...nextKeys], kind });
 }
 
-export function isSelected(state, key) {
-  return state?.kind?.[key] !== undefined;
-}
 
 // For rendering a connected bar: where this day sits within its range run.
 // Returns null for unselected/distinct days.

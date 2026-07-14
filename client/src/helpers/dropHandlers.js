@@ -1796,29 +1796,6 @@ export function handleExternalDrop(dropContext, ctx) {
 // ============================================================
 // CROSS-WINDOW INSTANCE DROP
 // ============================================================
-export function handleCrossWindowDrop(dropContext, ctx) {
-  const { dispatch, socket, state, occurrencesById, baseContainers, clearSession } = ctx;
-  const { target, position, pointer, dataTransfer } = dropContext;
-  const { y } = pointer || { x: 0, y: 0 };
-  const { containerId, dropTarget } = dropView(dropContext, ctx);
-
-  const parsed = parseExternalDrop(dropTarget.dataTransfer);
-  if (!parsed.isCrossWindow || parsed.type !== DragType.INSTANCE) return;
-
-  const container = baseContainers.find(c => c.id === containerId);
-  if (!container) { clearSession(); return; }
-
-  const xwContainerOcc = Object.values(occurrencesById).find(o => o.moduleId === container.id);
-  let toIndex = dropTarget.context?.insertAt ?? null;
-  if (toIndex === null) toIndex = resolveNearestIndex(xwContainerOcc, occurrencesById, y);
-
-  const gridId = state?.gridId || state?.grid?._id;
-  const label = parsed.meta?.label || parsed.data?.label || "Untitled";
-  LayoutHelpers.createInstanceInContainer({
-    dispatch, socket, gridId, container, containerOccurrence: xwContainerOcc || null,
-    instance: { id: makeUUID(), label }, userId: state?.userId, index: toIndex, emit: true,
-  });
-}
 
 // ============================================================
 // MODULE FROM CC/POOL/DOC/TREE → CONTAINER/PANEL/GRID

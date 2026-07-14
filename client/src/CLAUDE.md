@@ -20,8 +20,23 @@ build clean + 1290/1290). **`instancePill` is NOT dead** — it's the live inlin
 - **components/**: `ModuliLogo.jsx` (cruder blob mark — never wired), `ui/list-wrapper.jsx`,
   `ui/textarea.jsx`; **helpers/**: `FormHelpers.js`.
 Stale "Key Files" table rows below (ModuleRouter, GridRadialMenu, FilterNav, …) refer to some of
-these — they're gone; the tables weren't scrubbed row-by-row. Follow-up not done: intra-file dead
-EXPORTS/functions (the sweep was file-level only).
+these — they're gone; the tables weren't scrubbed row-by-row.
+
+**Second pass — 26 unused named EXPORTS removed** (0 external refs + not used internally, via a
+brace-balancing remover; build clean + 1290/1290): `state/actions.js` × 11 dead action creators
+(fullState/setUserId/setGridId/setGrid/setAvailableGrids/setOccurrences/setFields/setActiveId/
+setActiveSize/softTick/setModules — the reducer handles those types via other dispatch paths),
+`state/selectors.js resolveEffectiveFilters`, `state/computedValuesStore.js getComputedValuesMap`,
+`state/notificationStore.js bringTxNotificationToFront`, `helpers/dropHandlers.handleCrossWindowDrop`,
+`helpers/operationExecutor.getLastOpLog` (back-compat), `helpers/moduleIcons.getOperation{Icon,Color}`,
+`helpers/labelHelpers.formatLabel`, `helpers/templateHelpers.templateOccurrencesInFolder`,
+`helpers/triggerTypes.getEventDef`, `helpers/offlineQueue.getQueueLength`,
+`modules/ModuleInstance.MemoInstanceInner`, `socket.reconnectWithAuth`, `ui/daySelectionCycle.isSelected`,
+`components/ui/spinner.SpinnerOverlay`, `components/ui/control-base.CONTROL_COMPACT_H`.
+Detectors: `import`/`@/`/dynamic-aware orphan-file scan + a named-export-usage scan (both throwaway).
+**Still not done**: unused IMPORTS / local vars (a few pre-existing, e.g. operationExecutor
+`extractFieldValues`/`evalRule`, ModuleInstance `PopoverTrigger` et al.) — needs eslint no-unused-vars,
+not the ad-hoc scans used here.
 
 ## Recent Changes (2026-07-14 (6) — file-drop → artifact instance UNIFIED on every page type)
 - New `helpers/artifactUpload.js` is the single upload lifecycle; `helpers/dropHandlers.handleFileDrop`

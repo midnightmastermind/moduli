@@ -153,5 +153,3 @@ export function getModuleTypeBadge(module, field = null) {
  * Operation icon — operations don't have role/kind in the same shape but
  * deserve a consistent badge. Returns just the Zap icon.
  */
-export function getOperationIcon() { return Zap; }
-export function getOperationColor() { return "rgba(251,191,36,0.9)"; }

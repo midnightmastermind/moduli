@@ -70,34 +70,14 @@ export const ActionTypes = {
 };
 
 // ---- hydration ----
-export const fullStateAction = (payload) => ({
-  type: ActionTypes.FULL_STATE,
-  payload,
-});
 
 // ---- auth/user ----
-export const setUserIdAction = (userId) => ({
-  type: ActionTypes.SET_USER_ID,
-  payload: { userId },
-});
 
-export const setGridIdAction = (gridId) => ({
-  type: ActionTypes.SET_GRID_ID,
-  payload: { gridId },
-});
 
 export const logoutAction = () => ({ type: ActionTypes.LOGOUT });
 
 // ---- grids ----
-export const setGridAction = (grid) => ({
-  type: ActionTypes.SET_GRID,
-  payload: { grid },
-});
 
-export const setAvailableGridsAction = (availableGrids) => ({
-  type: ActionTypes.SET_AVAILABLE_GRIDS,
-  payload: { availableGrids },
-});
 
 export const createGridAction = (grid) => ({
   type: ActionTypes.CREATE_GRID,
@@ -121,10 +101,6 @@ export const createInstanceInContainerAction = ({ containerId, instance }) => ({
 });
 
 // ---- occurrences ----
-export const setOccurrencesAction = (occurrences) => ({
-  type: ActionTypes.SET_OCCURRENCES,
-  payload: { occurrences },
-});
 
 export const createOccurrenceAction = (occurrence) => ({
   type: ActionTypes.CREATE_OCCURRENCE,
@@ -142,10 +118,6 @@ export const deleteOccurrenceAction = (occurrenceId) => ({
 });
 
 // ---- fields ----
-export const setFieldsAction = (fields) => ({
-  type: ActionTypes.SET_FIELDS,
-  payload: { fields },
-});
 
 export const createFieldAction = (field) => ({
   type: ActionTypes.CREATE_FIELD,
@@ -163,19 +135,8 @@ export const deleteFieldAction = (fieldId) => ({
 });
 
 // ---- dnd/ui ----
-export const setActiveIdAction = (activeId) => ({
-  type: ActionTypes.SET_ACTIVE_ID,
-  payload: { activeId },
-});
 
-export const setActiveSizeAction = (activeSize) => ({
-  type: ActionTypes.SET_ACTIVE_SIZE,
-  payload: { activeSize },
-});
 
-export const softTickAction = () => ({
-  type: ActionTypes.SOFT_TICK,
-});
 
 // ---- manifests ----
 export const createManifestAction = (manifest) => ({
@@ -234,10 +195,6 @@ export const deleteOperationAction = (operationId) => ({
 });
 
 // ---- modules ----
-export const setModulesAction = (modules) => ({
-  type: ActionTypes.SET_MODULES,
-  payload: { modules },
-});
 export const createModuleAction = (module) => ({
   type: ActionTypes.CREATE_MODULE,
   payload: { module },

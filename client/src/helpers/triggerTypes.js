@@ -55,9 +55,6 @@ const _byValue = new Map(EVENT_TYPES.map((e) => [e.value, e]));
 // surfaced to avoid confusing the user with redundant choices.
 export const VISIBLE_EVENT_TYPES = EVENT_TYPES.filter((e) => !e.hidden);
 
-export function getEventDef(eventType) {
-  return _byValue.get(eventType) || null;
-}
 
 // isEventCompatible — gate an event name against the current transaction
 // type and payload semantics. Pure type/shape check — no subject/target

@@ -207,10 +207,6 @@ function _shapeOpDump(opId, opName, allRuns, runs) {
 }
 
 // Back-compat: returns the most recent run (or null)
-export function getLastOpLog(opId) {
-  const list = runHistory.get(opId);
-  return list && list.length ? list[0] : null;
-}
 
 export function subscribeToOpLog(opId, fn) {
   if (!logSubscribers.has(opId)) logSubscribers.set(opId, new Set());

@@ -3,7 +3,7 @@
 // Keeps every interactive element visually consistent.
 
 export const CONTROL_H = "h-7";          // standard row height
-export const CONTROL_COMPACT_H = "h-6";  // compact row height
+  // compact row height
 
 export const CONTROL_BASE =
   "rounded border border-borderScale-0 bg-inputScale-2 text-xs font-mono text-foreground " +

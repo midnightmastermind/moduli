@@ -78,13 +78,6 @@ export function dismissTxNotification(id) {
   if (changed) _emit();
 }
 
-export function bringTxNotificationToFront(id) {
-  const idx = _items.findIndex(n => n.id === id);
-  if (idx <= 0) return;
-  const picked = _items[idx];
-  _items = [picked, ..._items.slice(0, idx), ..._items.slice(idx + 1)];
-  _emit();
-}
 
 export function subscribeTxNotifications(fn) {
   _subs.add(fn);
