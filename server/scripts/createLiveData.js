@@ -1094,7 +1094,7 @@ export async function createLiveData(userId, options = {}) {
     },
     moviesWatchedDisplay: {
       id: moviesWatchedDisplayFieldId,
-      name: "Movies Watched",
+      name: "Movie History",
       type: "text",
       inputEnabled: false,
       displayEnabled: true,
@@ -1167,7 +1167,7 @@ export async function createLiveData(userId, options = {}) {
     },
     booksReadDisplay: {
       id: booksReadDisplayFieldId,
-      name: "Books Read",
+      name: "Book History",
       type: "text",
       inputEnabled: false,
       displayEnabled: true,
@@ -1237,7 +1237,7 @@ export async function createLiveData(userId, options = {}) {
     },
     podcastsListenedDisplay: {
       id: podcastsListenedDisplayFieldId,
-      name: "Podcasts Listened",
+      name: "Podcast History",
       type: "text",
       inputEnabled: false,
       displayEnabled: true,
@@ -1280,7 +1280,7 @@ export async function createLiveData(userId, options = {}) {
     },
     coursesTakenDisplay: {
       id: coursesTakenDisplayFieldId,
-      name: "Courses Taken",
+      name: "Course History",
       type: "text",
       inputEnabled: false,
       displayEnabled: true,
@@ -1327,7 +1327,7 @@ export async function createLiveData(userId, options = {}) {
     },
     personNotes: {
       id: personNotesFieldId,
-      name: "Notes",
+      name: "Person Notes",
       type: "text",
       inputEnabled: true, displayEnabled: true,
       meta: { multiline: true }, displayConfig: {},
@@ -1481,7 +1481,7 @@ export async function createLiveData(userId, options = {}) {
     // the "Call 2 people" progress bar.
     totalPhoneCalls: {
       id: totalPhoneCallsFieldId,
-      name: "Phone Calls",
+      name: "Total Phone Calls",
       type: "number",
       inputEnabled: false, displayEnabled: true,
       meta: {},
@@ -1994,7 +1994,7 @@ export async function createLiveData(userId, options = {}) {
     },
     totalWorkouts: {
       id: uid(),
-      name: "Workouts",
+      name: "Total Workouts",
       type: "number",
       inputEnabled: false,
       displayEnabled: true,
@@ -2124,19 +2124,19 @@ export async function createLiveData(userId, options = {}) {
       },
     },
     totalProtein: {
-      id: uid(), name: "Protein", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Total Protein", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: "g" }, displayConfig: {},
     },
     totalCalories: {
-      id: uid(), name: "Calories", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Total Calories", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: " kcal" }, displayConfig: {},
     },
     totalCarbs: {
-      id: uid(), name: "Carbs", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Total Carbs", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: "g" }, displayConfig: {},
     },
     totalFats: {
-      id: uid(), name: "Fats", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Total Fats", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: "g" }, displayConfig: {},
     },
 

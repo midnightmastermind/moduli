@@ -2459,3 +2459,13 @@ Shipped: `[Water]` renders the bare value ("16"); `{Water}` renders name + value
 (`Drink {Water:16oz}`); typing a new value there ("14") writes the FIELD on commit (fires the
 normal MeasureOp burst → trackers update) and the label re-stores without the value so it never
 goes stale. Unknown bracketed text stays literal. helpers/labelTokens.js, 16 tests.
+
+## 2026-07-14 (5) — "there shouldnt be duplicate field names"
+
+Standing data rule: every field name is UNIQUE. Swept all 11 seed duplicates — display twins
+renamed following the Daily/Total convention: Total Protein/Calories/Carbs/Fats (macro sinks),
+Total Workouts (count vs the Workouts history), Total Phone Calls, Movie/Book/Podcast/Course
+History (media row-lists vs their occurrence-picker inputs), Person Notes (profile vs task
+Notes). Input fields kept their natural names — they're what label tokens and users reference.
+labelTokens' carried-field tiebreak stays as a defensive net for user-created duplicates (the
+FieldsTab doesn't enforce uniqueness yet).
