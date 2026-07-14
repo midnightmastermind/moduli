@@ -75,22 +75,6 @@ const OVERFLOW_PILL_WIDTH = 36;
 const LABEL_TRACK_GAP = 28;
 const MARQUEE_PX_PER_SEC = 36;
 
-// Relative time helper. Reformatted every 30s by the shared `now`
-// tick in the parent. Sub-minute resolution near the bottom, day
-// granularity above 24h.
-function formatRelative(createdAt, now) {
-  const diffMs = Math.max(0, now - createdAt);
-  const s = Math.floor(diffMs / 1000);
-  if (s < 5) return "now";
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  const d = Math.floor(h / 24);
-  return `${d}d`;
-}
-
 function formatClockTime(ts) {
   const d = new Date(ts);
   const hh = d.getHours();

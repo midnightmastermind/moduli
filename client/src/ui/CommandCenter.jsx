@@ -46,17 +46,6 @@ const TABS = [
 ];
 
 // ============================================================
-// STUB TAB
-// ============================================================
-function StubTab({ label }) {
-  return (
-    <div className="px-4 py-7 text-center text-text-faint text-xs font-mono">
-      {label} — coming soon
-    </div>
-  );
-}
-
-// ============================================================
 // MAIN COMPONENT
 // ============================================================
 export default function CommandCenter({ open, onOpenChange, isMobileLayout }) {

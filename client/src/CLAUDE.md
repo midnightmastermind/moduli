@@ -42,9 +42,21 @@ as using the `Foo` import, and `--fix` strips every JSX-only component import an
 (caught it via a chunk-size sanity check: CommandCenter 208kB→2.7kB, tiptap/highlight chunks
 vanished — reverted, never deployed). With jsx-uses-vars on, the fix touches only genuine dead
 imports (verify by re-running `npm run build` and confirming tiptap ~435 / highlight ~969 /
-CommandCenter ~208 / PagePreviewApp ~882 chunks survive). **Still open**: 136 unused-VAR warnings
-(report-only — not auto-removed, arbitrary-local deletion is risky) + 33 pre-existing
-react-hooks/exhaustive-deps errors (unrelated to dead code).
+CommandCenter ~208 / PagePreviewApp ~882 chunks survive).
+
+**Fourth pass — 17 dead module-level DECLARATIONS hand-removed** (build clean + 1290/1290; 156
+deletions, pure-removal diff): CalculationHelpers `buildLookupFromArray`/`getDayOfYear`/
+`seededRandom`/`dateSeed`, DragProvider `panelDisplay`/`makeUUID`, AutoMarquee `MOVING_FRACTION`,
+OperationsBuilder `VAR_ACTION_TYPES`/`SYSTEM_ACTION_TYPES` (superseded by ActionPicker/actionTree),
+ManifestTree `PILL_STYLE`/`PILL_ACTIVE`/`PAGE_KIND_GLYPH`, CommandCenter `StubTab`, FilterNavWidgets
+`UNIT_LABELS`/`stepByUnit`, NavPickerPopover `UNIT_LABELS`, TransactionNotificationStack
+`formatRelative`. Done as careful hand-edits (declaration + its comment together) after an
+automated remover left stray `;` / orphaned comments (that attempt was reverted). **Deliberately
+KEPT**: `docs/WrapGroupNode.jsx PROSE_PAD` — flagged unused but documents a layout constant
+(FLOAT_GAP − CHANNEL) referenced by the file's design comments. **Still open (won't do)**: ~100
+unused-VAR warnings that are `_` throwaways, unused destructured ctx/props (document the shape), or
+in-function locals — all low-value + risky/churny to touch; + 33 pre-existing react-hooks
+exhaustive-deps errors (unrelated to dead code). Run `npm run lint` to see them.
 
 ## Recent Changes (2026-07-14 (6) — file-drop → artifact instance UNIFIED on every page type)
 - New `helpers/artifactUpload.js` is the single upload lifecycle; `helpers/dropHandlers.handleFileDrop`

@@ -19,50 +19,6 @@ export {
 import { AGGREGATIONS, COMPARISONS, INPUT_FLOWS, DERIVED_FLOWS, PERSISTENCE_MODES, SCOPES, TIME_FILTERS, TIME_FILTER_MULTIPLIERS } from "./calculationConstants.js";
 
 /**
- * Build a lookup map from an array of items with .id property
- * Used to normalize state arrays into byId maps for efficient lookups
- */
-function buildLookupFromArray(items = []) {
-  const map = {};
-  for (const item of items) {
-    if (item?.id) map[item.id] = item;
-  }
-  return map;
-}
-
-/**
- * Get the day-of-year for a given date (1-366)
- */
-function getDayOfYear(date) {
-  const d = new Date(date);
-  const start = new Date(d.getFullYear(), 0, 0);
-  const diff = d - start;
-  const oneDay = 1000 * 60 * 60 * 24;
-  return Math.floor(diff / oneDay);
-}
-
-/**
- * Simple seeded random number generator (mulberry32)
- * Returns a function that produces deterministic values 0-1 for a given seed
- */
-function seededRandom(seed) {
-  let t = seed | 0;
-  t = Math.imul(t ^ (t >>> 15), t | 1);
-  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-}
-
-/**
- * Build a numeric seed from a date string (YYYY-MM-DD)
- * Same date always produces the same seed
- */
-function dateSeed(date) {
-  const d = new Date(date);
-  // Combine year, month, day into a single integer
-  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
-}
-
-/**
  * Scale a target value from its base time filter to the current viewing time filter
  *
  * @param {number} targetValue - The base target value

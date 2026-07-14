@@ -29,7 +29,6 @@ import "./filterCalendar.css";
 import { summarizeSelection } from "./filterSummary";
 import { seedSelection, cycleDay, barPosition } from "./daySelectionCycle";
 
-const UNIT_LABELS = { day: "D", week: "W", month: "M", year: "Y" };
 const UNIT_ORDER = ["day", "week", "month", "year"];
 
 function toISO(d) {

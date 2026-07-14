@@ -11,22 +11,6 @@ import { ChevronRight, Plus, Layout, FileText, Paintbrush, FolderPlus, Folder, T
 import ContextMenu from "../ui/ContextMenu.jsx";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 
-// Compact row style — tight padding, small text, minimal visual weight
-const PILL_STYLE = {
-  display: "flex", alignItems: "center", gap: 3,
-  padding: "1px 5px 1px 4px",
-  borderRadius: 4,
-  border: "1px solid transparent",
-  background: "transparent",
-  cursor: "pointer",
-  userSelect: "none",
-  marginBottom: 0,
-};
-const PILL_ACTIVE = (color = "rgba(100,180,255,0.5)") => ({
-  border: `1px solid ${color}`,
-  background: `${color.replace(/[\d.]+\)$/, "0.08)")}`,
-});
-
 // Kind → lucide icon for pages — delegates to the shared
 // helpers/moduleIcons.js helper so add/edit happens in one place.
 import { KIND_ICONS as PAGE_KIND_ICON } from "../helpers/moduleIcons";
@@ -739,9 +723,6 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
     </div>
   );
 }
-
-// Kind glyphs for page type indicators
-const PAGE_KIND_GLYPH = { canvas: "∿", doc: "≋", display: "□", board: "≡" };
 
 // ─── PageTreeNode — pill style page entry + container anchor chips (draggable) ──
 function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurrencesById, modulesById, childrenByParentId, onSelect, onScrollTo, activeOccurrenceId, folderPageOccId, reverseIndent = false, depth = 0, siblingOccs = null }) {

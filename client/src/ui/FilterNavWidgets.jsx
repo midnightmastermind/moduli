@@ -8,7 +8,6 @@ import { summarizeSelection } from "./filterSummary";
 
 // Period units exposed in the D/W/M/Y toggle. Stepping uses Date#setDate /
 // setMonth / setFullYear (NOT fixed ms deltas — month/year vary in length).
-const UNIT_LABELS = { day: "D", week: "W", month: "M", year: "Y" };
 const UNIT_ORDER = ["day", "week", "month", "year"];
 
 // Filter value shape: { value, unit, span?, kind?, dates? }
@@ -32,15 +31,6 @@ function readValueShape(v) {
     };
   }
   return { value: v ?? null, unit: "day", span: 1, kind: "single", dates: null };
-}
-
-function stepByUnit(date, unit, direction) {
-  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  if (unit === "week")       d.setDate(d.getDate() + direction * 7);
-  else if (unit === "month") d.setMonth(d.getMonth() + direction);
-  else if (unit === "year")  d.setFullYear(d.getFullYear() + direction);
-  else                       d.setDate(d.getDate() + direction);
-  return d;
 }
 
 function formatPeriodLabel(date, unit) {

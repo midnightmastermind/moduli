@@ -12,7 +12,6 @@ import { useRef, useState, useLayoutEffect } from "react";
 
 const SPEED_PX_PER_SEC = 35; // scroll speed; lower = slower
 const MIN_DURATION_S = 4;     // ensures the end-of-travel pauses read clearly
-const MOVING_FRACTION = 0.64; // share of the cycle spent moving (rest = holds)
 const THRESHOLD_PX = 3; // ignore sub-pixel / rounding overflow
 
 export default function AutoMarquee({ children, className = "" }) {

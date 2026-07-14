@@ -53,14 +53,6 @@ function cellKeyFromPanel(p) {
   return `cell-${p.row}-${p.col}`;
 }
 
-function panelDisplay(p) {
-  return p?.layout?.style?.display ?? "block";
-}
-
-function makeUUID() {
-  return crypto?.randomUUID?.() || `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
 // ============================================================
 // DIRECT-DOM DROP INDICATORS (zero re-render)
 // ============================================================

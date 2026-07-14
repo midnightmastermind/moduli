@@ -280,52 +280,6 @@ function collectLocalVars(steps) {
   return Array.from(found);
 }
 
-// Variable actions — individual math/assignment operations on local variables
-const VAR_ACTION_TYPES = [
-  { value: "INIT_VAR", label: "=  assign", hint: "$x = value or expr" },
-  { value: "SET_VAR", label: "=  set", hint: "$x = any expression" },
-  { value: "ADD_TO_VAR", label: "+= add", hint: "$x += expr" },
-  { value: "SUBTRACT_FROM_VAR", label: "-= subtract", hint: "$x -= expr" },
-  { value: "MULTIPLY_VAR", label: "*= multiply", hint: "$x *= expr" },
-  { value: "DIV_VAR", label: "/= divide", hint: "$x /= expr" },
-  { value: "INCREMENT_VAR", label: "++ increment", hint: "$x += N (default 1)" },
-  { value: "DECREMENT_VAR", label: "-- decrement", hint: "$x -= N (default 1)" },
-  { value: "PUSH_TO_VAR", label: "[] push", hint: "push value onto array $x" },
-];
-
-// System actions — modify system state
-const SYSTEM_ACTION_TYPES = [
-  // ---- Unified verbs (the new core CRUD set; everything below is sugar) ----
-  { value: "FIND", label: "Find", hint: "Locate an item by predicate. Sets itemIdVar / itemVar." },
-  { value: "CREATE", label: "Create", hint: "Mint a template-instance pair. name, role, kind, parent, fields, date, itemVar." },
-  { value: "UPDATE", label: "Update", hint: "Write a value at a path. path: $item.fields.X.value, value: expr." },
-  { value: "DELETE", label: "Delete", hint: "Remove an item by id. itemIdExpr: $item.id." },
-  { value: "SHOW_VALUE", label: "Display → field", hint: "Send computed value to a display field" },
-  { value: "SET_FIELD_VALUE", label: "Set occurrence field", hint: "Write a value to occurrence.fields[id]" },
-  { value: "INCREMENT_FIELD", label: "Increment field", hint: "Add/subtract from an occurrence field" },
-  { value: "MARK_COMPLETE", label: "Mark complete", hint: "Set a boolean field to true/false" },
-  { value: "MOVE_OCCURRENCE", label: "Move occurrence", hint: "Move occurrence to a container" },
-  { value: "REMOVE_OCCURRENCE", label: "Remove occurrence", hint: "Delete an occurrence" },
-  { value: "CREATE_OCCURRENCE", label: "Create occurrence", hint: "Create new occurrence in container" },
-  { value: "UPDATE_MODULE", label: "Update module", hint: "Patch any module property (JSON)" },
-  { value: "UPDATE_STYLE", label: "Set module style", hint: "Set ownStyle.background/color/etc." },
-  { value: "DELETE_MODULE", label: "Delete module", hint: "Delete a module by ID" },
-  { value: "APPEND_TO_DOC", label: "Append text to doc", hint: "Add paragraph to occurrence textmap" },
-  { value: "NOTIFY", label: "Notification", hint: "Show toast message" },
-  { value: "RUN_OPERATION", label: "Run operation", hint: "Call another operation by ID" },
-  { value: "CREATE_OCCURRENCE_WITH_ITERATION", label: "Create page (by date)", hint: "Find/create occurrence for a date. Sets $lastCreatedOccurrenceId" },
-  { value: "NAVIGATE_DAY_PAGE", label: "Navigate day page", hint: "Find/create day page + update panel view. cfg: moduleId, viewId" },
-  { value: "UPDATE_VIEW", label: "Update view", hint: "Set activeOccurrenceId or other view fields. cfg: viewId, activeOccurrenceId" },
-  { value: "APPLY_TEMPLATE", label: "Apply template", hint: "Fill container from template. cfg: containerId, templateId" },
-  { value: "COPY_OCCURRENCE", label: "Copy occurrence", hint: "Deep-clone an occurrence subtree under a target. cfg: sourceOccurrenceVar, targetOccurrenceVar, includeChildren, resultVar" },
-  { value: "CREATE_FOLDER", label: "Create folder", hint: "Find/create folder by name. Sets $lastCreatedFolderId" },
-  { value: "RESET_RECURRING_TASK", label: "Reset recurring task", hint: "Reset completion + advance dueDate by recurrenceDays" },
-  { value: "DISPLAY_LOCAL_FIELDS", label: "Display on node", hint: "Show computed values on the operation node card. cfg: fields: [{label, expr}]" },
-  { value: "CYCLE_FIELD_VALUE", label: "Cycle field options", hint: "Rotate through a select field's options by day-of-year. cfg: sourceFieldId, targetFieldId" },
-  { value: "ADD_TO_POOL", label: "Add to pool", hint: "Create instance in pool container. cfg: poolId, label / labelExpr" },
-  { value: "REMOVE_FROM_POOL", label: "Remove from pool", hint: "Delete pool occurrence by module ID. cfg: poolId, moduleIdExpr (default: $trigger.instanceId)" },
-];
-
 const AGGREGATION_TYPES = [
   "sum", "count", "countTrue", "avg", "min", "max", "last", "first", "median", "mode", "unique", "concat", "range", "stdDev", "product",
 ];
