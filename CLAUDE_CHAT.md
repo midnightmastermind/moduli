@@ -2476,3 +2476,16 @@ FieldsTab now ENFORCES the unique-names rule: FieldDetail's Save rejects a name 
 with another (non-trashed) field, case-insensitive + trimmed, with an inline error under the
 Name input; empty names rejected too. "+ Field" mints unique defaults (New Field, New Field 2…).
 3 tests in fieldsTabUniqueName.test.jsx.
+
+## 2026-07-14 (7) — "what happened to the mobile layout… its just a line now"
+
+> "also what happened to the mobile layout, its no longer 3 by 2 with the 4 buttons around each
+> side for navigating. its just a line now"
+
+Root cause: NOT today's work — the 2026-07-04 MosaicMobileNav modeled a mosaic grid's mobile
+cell space as a synthetic 1×N strip (each panel = one column), so the map/nav read as "a line".
+The mosaic tree is only the DESKTOP arrangement; every panel occurrence still carries its real
+rows×cols `placement` (A 0,0 · B 1,0 · hub col-1 full-height · D/E col-2). MosaicMobileNav now
+derives the cell space from those placements — the 3×2 map, 4-direction rail buttons, zoom-out
+overlay, and toolbar MiniGridMap shape are all back (placement-less grids keep the 1×N
+fallback). Verified headless at 390×844: 5 panels at their 2D cells, hub spanning both rows.
