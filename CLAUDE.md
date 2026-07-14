@@ -6,6 +6,18 @@
 
 ---
 
+## Handoff — 2026-07-14 (4) (unique field names — standing rule; all 11 seed duplicates renamed)
+
+Per user: "there shouldnt be duplicate field names." Swept the seed (`7c46256a`, reseeded):
+display twins renamed — Total Protein/Calories/Carbs/Fats, Total Workouts, Total Phone Calls,
+Movie/Book/Podcast/Course History, Person Notes. INPUT fields keep the natural names (what users
+and `[Field]` label tokens reference). Zero duplicate names verified post-reseed; 1289/1289.
+Recorded as memory `feedback-unique-field-names` (with `feedback-no-abbreviations` from the same
+session). NOTE: FieldsTab still doesn't ENFORCE uniqueness on user-created fields — labelTokens'
+carried-field tiebreak stays as the defensive net; a create-time guard is a candidate follow-up.
+
+---
+
 ## Handoff — 2026-07-14 (3) (label [Field] tokens; 4-macro meal tiles; per-set weights; full headers)
 
 Third batch (CLAUDE_CHAT 2026-07-14 (3)). Deployed + reseeded:
