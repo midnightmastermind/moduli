@@ -1785,10 +1785,10 @@ export async function createLiveData(userId, options = {}) {
       displayConfig: {
         columns: [
           { path: "label",    header: "Exercise" },
-          { path: "s1",       header: "S1" },
-          { path: "s2",       header: "S2" },
-          { path: "s3",       header: "S3" },
-          { path: "weight",   header: "Wt" },
+          { path: "s1",       header: "Set 1" },
+          { path: "s2",       header: "Set 2" },
+          { path: "s3",       header: "Set 3" },
+          { path: "weight",   header: "Weight" },
           { path: "timeslot", header: "Time" },
           { path: "date",     header: "Date" },
         ],
