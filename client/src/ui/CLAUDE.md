@@ -1,6 +1,12 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-07-13. Check this file before re-reading source._
+_Updated: 2026-07-14. Check this file before re-reading source._
+
+## Recent Changes (2026-07-14 — PomodoroTimer: timeslot language removed (per user))
+- **`PomodoroTimer.jsx`** — the destination dropdown's empty option "None (use current timeslot)"
+  → "Automatic (today's schedule)"; the destination-picker comment reworded. Behavior unchanged —
+  the automatic path still routes to the current hour's slot, now day-scoped by the fixed
+  Pomodoro: Start op (see server/CLAUDE.md 2026-07-14).
 
 ## Recent Changes (2026-07-13 — caret round 2 FIXED: Firefox draggable-ancestor suppression)
 - **Root cause (from the user's [caret] logs + a strip-all-draggables experiment):** FIREFOX

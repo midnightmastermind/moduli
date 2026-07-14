@@ -6,6 +6,39 @@
 
 ---
 
+## Handoff — 2026-07-14 (workout history + pomodoro stale-slot orphan FIXED; timeslot language dropped)
+
+Continuation of account3's interrupted session (its systematic-debugging pass on the user's
+2026-07-14 report — see CLAUDE_CHAT 2026-07-14). All three parts shipped, deployed + live grid
+reseeded (same Atlas DB as prod, so the local reseed IS the live reseed; deploy restarts pm2):
+- **Workout History (Workouts display) fixed** — account3's root cause confirmed + shipped: the
+  tracker's loop gated on `workoutType` (bound only by the generic "Morning Workout" task), but
+  exercise instances (Bench Press…) carry `muscleGroup` → every exercise was excluded and the
+  Exercise/Reps/Wt history stayed `[]` forever. Gate is `muscleGroup IS_NOT_EMPTY` now
+  (createLiveData.js ~8597). Behavioral test asserts history rows land.
+- **Pomodoro "nothing created in the timeslot" — REAL bug, prod-verified:** the session WAS
+  created (05:02:32Z, fields all correct) but parented to a slot that no longer exists. The
+  Pomodoro: Start slot FIND matched by LABEL ONLY (any `scheduleFormat:"slot"` under Schedule);
+  started at 12:02am it grabbed the PREVIOUS day's "12:00am" per-day slot copy — invisible under
+  that day-col's date cascade, then orphaned when the 12:01am new-day rebuild swept the old
+  day-col (day-col + 48 fresh slot copies mint per day; prod timeline: rebuild 05:01:19Z, session
+  05:02:32Z). FIX: the FIND now resolves TODAY's day-col first (`scheduleFormat IS "day-col"` +
+  `date SAME_DAY $today`) and only accepts a slot `HAS_ANCESTOR $dayColId`; empty $dayColId
+  fails closed (HAS_ANCESTOR vs empty right matches nothing) → op no-ops instead of wrong-day
+  writes. 2 behavioral tests: session lands under today's day-col; a stale-day-col slot whose
+  label exists nowhere else NEVER matches (no-op).
+- **Timeslot language removed from the Pomodoro UI** (PomodoroTimer.jsx): dropdown option now
+  "Automatic (today's schedule)"; comment reworded. Slot-matching behavior itself stays (user:
+  "the issue is not decoupled — the schedule is up when i did this").
+- **Verified**: 1265/1265 client (3 new behavioral) + 237/237 server, build clean, prod HEAD
+  checked post-deploy, live headless probe fired PomoStartOp → session in today's slot.
+- **Probe lesson (recorded)**: the behavioral harness proved the op pipeline GREEN on a fresh
+  seed — the live failure only surfaced from prod DB ground truth (orphan session row). When a
+  harness repro passes but the user sees failure, diff LIVE STATE against the harness world
+  before touching the pipeline.
+
+---
+
 ## Handoff — 2026-07-13 EVE (audit follow-through: categoryKind SHIPPED; caret diag now opt-in)
 
 Continuation of the PM audit ("keep going"). Finished the remaining audit surfaces (image

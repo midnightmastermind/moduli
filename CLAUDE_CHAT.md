@@ -2378,3 +2378,21 @@ badge was in-flow and widened the pill; now absolutely positioned (`left:100%`) 
 compact pill and the non-compact box, per the user's "should be more absolute positioned."
 Verified headless (menu structure + gap palette on a fresh doc page), 1259→1266/1266 client tests,
 deployed + prod HEAD verified + live grid reseeded (probe writes swept).
+
+## 2026-07-14 — workouts display empty + pomodoro creates nothing + drop timeslot language (account3 → account2)
+
+> "workouts display field is still not updating and logging of pomodoros arent working either.
+> nothing is being created in the timeslot. also remove an timeslot language from the pomodoro."
+
+(When asked where pomodoro sessions should log if decoupled from timeslots:)
+> "the issue is not decoupled. the schedule is up when i did this"
+
+Three parts: (1) the Workout Log goal's Exercise/Reps/Wt history never fills — ROOT CAUSE: the
+"Workout History" tracker gated its loop on `workoutType`, a field only the generic "Morning
+Workout" task binds; exercise instances carry `muscleGroup` → gate flipped to `muscleGroup`
+(account3's fix, verified + shipped by account2). (2) Pomodoro: Start created the session into a
+STALE slot — the label-only slot FIND has no day discrimination; started at 12:02am it matched
+the PREVIOUS day's "12:00am" slot copy (prod DB showed the orphaned session, parent deleted by
+the new-day rebuild at 12:01am). FIND now resolves TODAY's day-col first and only accepts a slot
+inside it; no day-col for today → documented no-op. (3) Timeslot language removed from the
+PomodoroTimer UI ("None (use current timeslot)" → "Automatic (today's schedule)").

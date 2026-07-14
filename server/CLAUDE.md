@@ -1,6 +1,22 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-07-12. Check this file before re-reading source._
+_Updated: 2026-07-14. Check this file before re-reading source._
+
+## Recent Changes (2026-07-14 — Pomodoro: Start day-scoped slot FIND + Workout History muscleGroup gate)
+- **`scripts/createLiveData.js` ("Pomodoro: Start" step 3b)** — the slot FIND was label-only
+  (`scheduleFormat IS "slot"` + `timeslot IS $trigger.slotLabel` under Schedule) with NO day
+  discrimination. Day-col slots are PER-DAY copies, so a session started at 12:02am matched the
+  PREVIOUS day's "12:00am" slot — created invisible (wrong day-col's date cascade) and orphaned
+  when the new-day rebuild swept that slot (prod repro 2026-07-14: orphan session in Atlas,
+  parent deleted 71s earlier by the 12:01am rebuild). Now: FIND today's day-col first
+  (`scheduleFormat IS "day-col"` + `fields.<date> SAME_DAY $today`, → `$dayColId`), then the slot
+  gated `_ancestors HAS_ANCESTOR $dayColId`. Empty `$dayColId` fails closed (HAS_ANCESTOR against
+  an empty right matches nothing) → the op no-ops per its documented contract instead of writing
+  into a stale day. Regression: 2 cases in `client/src/__tests__/liveOpsBehavioral.test.js`.
+- **`scripts/createLiveData.js` ("Workout History" tracker)** — loop gate `workoutType IS_NOT_EMPTY`
+  → `muscleGroup IS_NOT_EMPTY`: exercise instances (Bench Press…) never bind workoutType (only the
+  generic "Morning Workout" task does), so the Exercise/Reps/Wt history never filled. Behavioral
+  test asserts rows land. **Reseed applied** (dev + prod share the Atlas DB — one reseed covers both).
 
 ## Recent Changes (2026-07-12 LATE — simplify-audit: alarm builder + shared gate rule + one manifest core)
 - **`utils/liveSystemBuilders.js` (`makeAlarmOp`, NEW)** — server twin of the client's

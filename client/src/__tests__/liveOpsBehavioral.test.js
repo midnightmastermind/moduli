@@ -519,3 +519,90 @@ describe("feed copies never double-count (2026-07-09 audit — 'Total Reps 90' b
     expect(trackerValue("Breakfast Nutrition")).toBe(before + 24);
   });
 });
+
+describe("Workout History fills for exercise instances (2026-07-14 muscleGroup gate)", () => {
+  it("a completed exercise with a Muscle Group lands as a history row", () => {
+    // The tracker used to gate its loop on workoutType — a field exercise
+    // instances never carry (only the generic "Morning Workout" task binds
+    // it) — so the Exercise/Reps/Wt history stayed empty forever. The gate
+    // is muscleGroup now. Completed Bench Press rows exist from the earlier
+    // describes; the history must reflect them.
+    const rows = trackerValue("Workout History");
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.length).toBeGreaterThan(0);
+  });
+});
+
+describe("Pomodoro: Start targets TODAY's slot only (2026-07-14 stale-slot orphan)", () => {
+  // Prod repro: started at 12:02am, the label-only slot FIND matched the
+  // PREVIOUS day's "12:00am" slot copy — the session was created invisible
+  // (wrong day-col's date cascade) and orphaned when the new-day rebuild
+  // swept that slot. The FIND is now scoped to the day-col whose date is
+  // $today; a slot that only exists under another day must never match.
+  const fmtName = "Schedule Format";
+
+  function todaysDayCol() {
+    const fmtFid = fieldIdByName[fmtName];
+    const dateFid = fieldIdByName["Date"];
+    return Object.values(occurrencesById).find(o =>
+      o.fields?.[fmtFid]?.value === "day-col" &&
+      o.fields?.[dateFid]?.value === todayIso() &&
+      ancestorChain(o.id).labels.includes("Schedule"));
+  }
+
+  it("fires like the timer and creates the session under TODAY's day-col", () => {
+    const dayCol = todaysDayCol();
+    expect(dayCol, "today's day-col").toBeTruthy();
+    const before = new Set(Object.keys(occurrencesById));
+    fire("PomoStartOp", {
+      type: "PomoStartOp", slotLabel: "6:00am", minutes: 25,
+      pomoNumber: 1, phase: "work", targetContainerId: null,
+    });
+    const pomoNumFid = fieldIdByName["Pomodoro #"];
+    const session = Object.keys(occurrencesById).filter(id => !before.has(id))
+      .map(id => occurrencesById[id]).find(o => o.fields?.[pomoNumFid]);
+    expect(session, "pomodoro session").toBeTruthy();
+    // The parent slot must sit inside TODAY's day-col — not just anywhere
+    // under Schedule.
+    expect(ancestorChain(session.id).ids).toContain(dayCol.id);
+    expect(occurrencesById[session.parentId], "parent slot exists").toBeTruthy();
+  });
+
+  it("a slot that only exists under a STALE day-col never matches (op no-ops)", () => {
+    // A leftover yesterday day-col with a slot whose label today's day-col
+    // does NOT have. The old label-only FIND would have created the session
+    // there; the day-scoped FIND must no-op instead.
+    const fmtFid = fieldIdByName[fmtName];
+    const dateFid = fieldIdByName["Date"];
+    const tsFid = fieldIdByName["Time Slot"];
+    const schedPage = Object.values(occurrencesById).find(o =>
+      (modulesById[o.moduleId]?.role === "page") &&
+      (o.label || modulesById[o.moduleId]?.label) === "Schedule");
+    expect(schedPage).toBeTruthy();
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    const yIso = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+    const staleColId = uid(), staleSlotId = uid();
+    occurrencesById[staleColId] = {
+      id: staleColId, moduleId: null, parentId: schedPage.id, role: "container",
+      fields: { [fmtFid]: { value: "day-col" }, [dateFid]: { value: yIso } },
+      occurrences: [staleSlotId], label: `day-col-${yIso}`,
+    };
+    occurrencesById[staleSlotId] = {
+      id: staleSlotId, moduleId: null, parentId: staleColId, role: "container",
+      fields: { [fmtFid]: { value: "slot" }, [tsFid]: { value: "13:37zz" } },
+      occurrences: [], label: "13:37zz",
+    };
+    occurrencesById[schedPage.id] = {
+      ...schedPage, occurrences: [...(schedPage.occurrences || []), staleColId],
+    };
+    const before = new Set(Object.keys(occurrencesById));
+    fire("PomoStartOp", {
+      type: "PomoStartOp", slotLabel: "13:37zz", minutes: 25,
+      pomoNumber: 2, phase: "work", targetContainerId: null,
+    });
+    const pomoNumFid = fieldIdByName["Pomodoro #"];
+    const created = Object.keys(occurrencesById).filter(id => !before.has(id))
+      .map(id => occurrencesById[id]).filter(o => o.fields?.[pomoNumFid]);
+    expect(created).toEqual([]); // never into the stale day's slot
+  });
+});

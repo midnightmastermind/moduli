@@ -8243,8 +8243,15 @@ export async function createLiveData(userId, options = {}) {
         // 3a. When the user has picked a specific destination in the
         //     PomodoroTimer dropdown, route there directly.
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$slotId", expr: "$trigger.targetContainerId" } },
-        // 3b. Otherwise fall back to the slot-label FIND under Schedule:
-        //     timeslot field matches the timer-supplied label (e.g. "9:00am").
+        // 3b. Otherwise fall back to the slot FIND — scoped to TODAY's day-col.
+        //     A bare label match ("12:00am" under Schedule) has no day
+        //     discrimination: started at 12:02am on 2026-07-14 it matched the
+        //     PREVIOUS day's slot copy (day-col slots are per-day copies), so
+        //     the session landed in a slot the new-day rebuild was about to
+        //     sweep — created, invisible, then orphaned (prod repro 2026-07-14).
+        //     Day-cols carry the date; resolve today's day-col first and only
+        //     accept a slot inside it. No day-col for today → no-op (the
+        //     documented contract), never a wrong-day write.
         { id: uid(), type: "if",
           condition: { operator: "AND", rules: [{ id: uid(), left: "$slotId", comparator: "IS_EMPTY", right: "" }] },
           then: [
@@ -8253,6 +8260,16 @@ export async function createLiveData(userId, options = {}) {
               over: "$allContainers",
               predicate: { operator: "AND", rules: [
                 { id: uid(), left: "_ancestors",                                   comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                { id: uid(), left: `fields.${scheduleFormatFieldId}.value`,        comparator: "IS",           right: "day-col" },
+                { id: uid(), left: `fields.${dateFieldId}.value`,                  comparator: "SAME_DAY",     right: "$today" },
+              ] },
+              itemIdVar: "$dayColId",
+            } },
+            { id: uid(), type: "action", config: {
+              type: "FIND",
+              over: "$allContainers",
+              predicate: { operator: "AND", rules: [
+                { id: uid(), left: "_ancestors",                                   comparator: "HAS_ANCESTOR", right: "$dayColId" },
                 { id: uid(), left: `fields.${scheduleFormatFieldId}.value`,        comparator: "IS",           right: "slot" },
                 { id: uid(), left: `fields.${timeslotFieldId}.value`,              comparator: "IS",           right: "$trigger.slotLabel" },
               ] },
@@ -8594,7 +8611,12 @@ export async function createLiveData(userId, options = {}) {
               condition: { operator: "AND", rules: [
                 { id: uid(), left: "$inst._ancestors",                         comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                 { id: uid(), left: "$inst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                { id: uid(), left: `$inst.fields.${fields.workoutType.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
+                // Presence discriminator = muscleGroup, the field the workout
+                // EXERCISE instances (Bench Press, Squat, …) actually carry —
+                // NOT workoutType, which only the generic "Morning Workout" task
+                // binds. The old workoutType gate excluded every exercise, so the
+                // Exercise/Reps/Wt history never filled (2026-07-14 repro).
+                { id: uid(), left: `$inst.fields.${fields.muscleGroup.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
                 { id: uid(), left: `$inst.fields.${dateFieldId}.value`,        comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
               ] },
               then: [

@@ -330,9 +330,9 @@ export default function PomodoroTimer() {
         </div>
 
         {/* Destination picker — `none` lets the Pomodoro: Start op decide
-            (current behavior: falls back to the slot-label FIND). When a
-            specific page › container is picked, the op routes pomodoros
-            there instead of into the matching timeslot. */}
+            (current behavior: falls back to the current hour on today's
+            schedule). When a specific page › container is picked, the op
+            routes pomodoros there instead. */}
         <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid var(--border-subtle)" }}>
           <label style={{ display: "block", fontSize: 9, color: "var(--text-faint)", marginBottom: 3 }}>
             Send pomodoros to
@@ -347,7 +347,7 @@ export default function PomodoroTimer() {
               fontSize: 10, fontFamily: "var(--font-mono)",
             }}
           >
-            <option value="">None (use current timeslot)</option>
+            <option value="">Automatic (today&apos;s schedule)</option>
             {containerOptions.map(o => (
               <option key={o.id} value={o.id}>{o.label}</option>
             ))}
