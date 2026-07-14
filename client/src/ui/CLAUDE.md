@@ -1453,18 +1453,17 @@ Each tab extracted into its own file. CommandCenter.jsx is now a thin shell (~13
 |------|---------|
 | `FieldsTab.jsx` | `FieldsTab`, `FieldPill`, `FieldDetail` |
 | `OperationsTab.jsx` | `OperationsTab`, `OperationPill`, `OperationEditor`, `TriggerDataHint`, `OpItem`, `getTriggerVars` |
-| `ComponentsTab.jsx` | `ComponentsTab`, `ModulePill`, `TemplatePill` |
 | `ConnectionsTab.jsx` | `ConnectionsTab`, `fileIcon`, `formatBytes` |
 | `FilesTab.jsx` | `FilesTab`, `ArtifactPill`, `fileIcon`, `formatBytes` |
 | `ListsTab.jsx` | `ListsTab` |
 | `ShortcutsTab.jsx` | `ShortcutsTab` |
 | `UserSettingsTab.jsx` | `UserSettingsTab` — userId + displayName only. ThemePicker moved to AppearanceTab. |
-| `GridSettingsTab.jsx` | `GridSettingsTab` — **NEW** grid name/rows/cols/template/delete. Self-contained via GridActionsContext. No props needed. |
-| `AppearanceTab.jsx` | `AppearanceTab` — **NEW** theme picker (moved from UserSettingsTab) + CSS token stub section. |
-| `EntityTreeTab.jsx` | `EntityTreeTab`, `DraggableInstanceRow`, `DraggableEntityRow` |
-| `FiltersTab.jsx` | `FiltersTab` — named filter presets CRUD. FilterRow (name/timeScale/active circle/expand/delete), ConditionRow (field + remove). Reads grid.namedFilters, saves via CommitHelpers.updateGrid, activates via update_grid_filter socket. |
+| `GridSettingsTab.jsx` | `GridSettingsTab` — grid name/rows/cols/template/delete + named filters. Self-contained via GridActionsContext. |
+| `AppearanceTab.jsx` | `AppearanceTab` — theme picker + CSS token editor. |
 
-Note: `EntityTreeTab.jsx` imports `TemplatePill` from `ComponentsTab.jsx`.
+Note (2026-07-14): `ComponentsTab.jsx`, `EntityTreeTab.jsx`, `FiltersTab.jsx`, `TrashTab.jsx`, and
+`commandCenter/ui.jsx` were DELETED in the dead-code audit (orphans — CommandCenter no longer
+registered them). See client/src/CLAUDE.md.
 
 ## Patterns
 - Dialog z-index = 1100 (above fullscreen panels at z=1000)

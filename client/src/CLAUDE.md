@@ -2,6 +2,27 @@
 
 _Updated: 2026-07-14. Check this file before re-reading source._
 
+## Recent Changes (2026-07-14 (7) — dead-code audit: 25 orphan files deleted)
+Whole-site orphan sweep (never-imported source files, alias + dynamic-import aware; verified each
+had ZERO import sites + no real test import, then removed until the detector reported 0 orphans;
+build clean + 1290/1290). **`instancePill` is NOT dead** — it's the live inline @-mention pill
+(Editor registers `InstancePill` → `InstancePillNode`); only the BLOCK form migrated to
+`instanceTextblock`. Deleted (all superseded by the current components):
+- **modules/**: `ModuleRouter.jsx`, `containerHelpers.jsx`, `containers/ContainerList.jsx`,
+  `GlobalTree.jsx`, `PreviewContent.jsx` (rendering goes through ModulePanel/Container/Instance/
+  Page + pages/* + containers/ContainerPool|Table directly now).
+- **ui/**: `FilterNav.jsx`, `FilterNavControl.jsx`, `LocalFilterNav.jsx` (filter UI is
+  FilterNavWidgets + HeaderChevron/FiltersSection now), `GridLayoutForm.jsx`, `GridRadialMenu.jsx`,
+  `SelectDrilldown.jsx` (→ CategoryPathPicker), `Multiselect.jsx`, `Select.jsx`,
+  `MultiSelectPills.jsx`, `PanelKindSelector.jsx`, `ButtonPopover.jsx`.
+- **ui/commandCenter/**: `ComponentsTab.jsx`, `FiltersTab.jsx`, `EntityTreeTab.jsx`, `TrashTab.jsx`,
+  `ui.jsx` (+ the orphan `componentsTabSearch.test.js`).
+- **components/**: `ModuliLogo.jsx` (cruder blob mark — never wired), `ui/list-wrapper.jsx`,
+  `ui/textarea.jsx`; **helpers/**: `FormHelpers.js`.
+Stale "Key Files" table rows below (ModuleRouter, GridRadialMenu, FilterNav, …) refer to some of
+these — they're gone; the tables weren't scrubbed row-by-row. Follow-up not done: intra-file dead
+EXPORTS/functions (the sweep was file-level only).
+
 ## Recent Changes (2026-07-14 (6) — file-drop → artifact instance UNIFIED on every page type)
 - New `helpers/artifactUpload.js` is the single upload lifecycle; `helpers/dropHandlers.handleFileDrop`
   (board/list/table/canvas/empty-cell) + `ui/Editor.jsx handleFileDrop` (doc/embedded-doc/table-cell)
