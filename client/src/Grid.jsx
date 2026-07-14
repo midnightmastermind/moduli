@@ -357,30 +357,47 @@ function MosaicMobileNav({ gridRef, layoutTree, visiblePanels, activeCell, setAc
     () => allPanelOccIds(layoutTree).filter((id) => panelByOccId[id]),
     [layoutTree, panelByOccId]
   );
-  const n = Math.max(1, order.length);
-  // Clamp the persisted activeCell (which may carry a rows×cols shape from a
-  // previous layout) into the 1×N space at RENDER time — no off-screen flash —
-  // then write the clamp back so localStorage/state converge. Skip persisting
-  // while order is still EMPTY (panels hydrating): clamping against n=1 then
-  // would clobber the user's saved panel index on every load.
-  const col = Math.min(Math.max(activeCell?.col ?? 0, 0), n - 1);
-  const cellRow = activeCell?.row ?? 0;
+  // The mosaic tree is the DESKTOP arrangement. On mobile, navigate the
+  // UNDERLYING rows×cols cell map — visiblePanels already carry the real
+  // `occurrence.placement` (row/col/width/height), which the mosaic
+  // conversion never mutates. This restores the 2D map + 4-direction rail
+  // buttons (2026-07-14: "no longer 3 by 2 with the 4 buttons around each
+  // side… its just a line now" — the old synthetic 1×N strip). Panels
+  // without distinct placements (all stacked at one cell) fall back to the
+  // 1×N strip so a placement-less grid still navigates.
+  const { rows, cols, navPanels } = useMemo(() => {
+    const panels = order.map((occId) => panelByOccId[occId]);
+    const distinctCells = new Set(panels.map((p) => `${p.row ?? 0}:${p.col ?? 0}`));
+    if (panels.length > 1 && distinctCells.size <= 1) {
+      return {
+        rows: 1,
+        cols: Math.max(1, panels.length),
+        navPanels: panels.map((p, i) => ({ ...p, row: 0, col: i, width: 1, height: 1 })),
+      };
+    }
+    return {
+      rows: Math.max(1, ...panels.map((p) => (p.row ?? 0) + (p.height || 1)), 1),
+      cols: Math.max(1, ...panels.map((p) => (p.col ?? 0) + (p.width || 1)), 1),
+      navPanels: panels,
+    };
+  }, [order, panelByOccId]);
+  // Clamp the persisted activeCell (which may carry a shape from a previous
+  // layout) into the current cell space at RENDER time — no off-screen
+  // flash — then write the clamp back so localStorage/state converge. Skip
+  // persisting while order is still EMPTY (panels hydrating): clamping
+  // against a 1×1 space then would clobber the user's saved cell on load.
+  const row = Math.min(Math.max(activeCell?.row ?? 0, 0), rows - 1);
+  const col = Math.min(Math.max(activeCell?.col ?? 0, 0), cols - 1);
   const hydrated = order.length > 0;
   useEffect(() => {
     if (!hydrated) return;
-    if (cellRow !== 0 || (activeCell?.col ?? 0) !== col) setActiveCell({ row: 0, col });
-  }, [hydrated, cellRow, col, activeCell?.col, setActiveCell]);
-  // Synthetic 1×N placements so MobileGridNav's rail/boundary/overscroll
-  // logic works unchanged (each panel = a single-cell pane at row 0, col i).
-  const navPanels = useMemo(
-    () => order.map((occId, i) => ({ ...panelByOccId[occId], row: 0, col: i, width: 1, height: 1 })),
-    [order, panelByOccId]
-  );
+    if ((activeCell?.row ?? 0) !== row || (activeCell?.col ?? 0) !== col) setActiveCell({ row, col });
+  }, [hydrated, row, col, activeCell?.row, activeCell?.col, setActiveCell]);
   return (
     <MobileGridNav
-      rows={1}
-      cols={n}
-      activeCell={{ row: 0, col }}
+      rows={rows}
+      cols={cols}
+      activeCell={{ row, col }}
       setActiveCell={setActiveCell}
       isMobileLayout
       isTouch={isTouch}
@@ -388,12 +405,30 @@ function MosaicMobileNav({ gridRef, layoutTree, visiblePanels, activeCell, setAc
       setZoomedOut={setZoomedOut}
       visiblePanels={navPanels}
     >
-      <div ref={gridRef} className="bg-background2" style={{ display: "flex", width: "100%", height: "100%" }}>
-        {order.map((occId) => (
-          <div key={occId} style={{ width: `${100 / n}%`, height: "100%", flex: "0 0 auto", display: "flex", boxSizing: "border-box", padding: 4 }}>
-            <ErrorBoundary label={panelByOccId[occId].label || "Panel"}>
+      <div
+        ref={gridRef}
+        className="bg-background2"
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${cols}, 1fr)`,
+          gridTemplateRows: `repeat(${rows}, 1fr)`,
+          width: "100%",
+          height: "100%",
+        }}
+      >
+        {navPanels.map((p) => (
+          <div
+            key={p._occurrenceId}
+            style={{
+              gridColumn: `${(p.col ?? 0) + 1} / span ${p.width || 1}`,
+              gridRow: `${(p.row ?? 0) + 1} / span ${p.height || 1}`,
+              display: "flex", boxSizing: "border-box", padding: 4,
+              minWidth: 0, minHeight: 0,
+            }}
+          >
+            <ErrorBoundary label={p.label || "Panel"}>
               <Panel
-                module={panelByOccId[occId]}
+                module={p}
                 mosaic
                 dispatch={dispatch}
                 socket={socket}
