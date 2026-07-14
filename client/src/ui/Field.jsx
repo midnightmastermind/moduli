@@ -604,7 +604,13 @@ function Field({
   // ─── Value resolution (display) ─────────────────────────────
   const rawDisplayValue = useMemo(() => {
     if (liveDisplayValue != null) return liveDisplayValue;
-    if (value && typeof value === "object") {
+    // ARRAYS pass through as-is (same contract as extractValue below):
+    // FieldRenderer unwraps the stored {value, flow} wrapper and hands the
+    // bare array to display fields — treating it as "object without a value
+    // key" returned undefined, so every array-history field (Workouts /
+    // Meals / Moods rows) rendered "—" unless a computed slot masked it
+    // (found 2026-07-14: "last workout works but not Workouts").
+    if (value && typeof value === "object" && !Array.isArray(value)) {
       if ("value" in value) return value.value;
       return undefined;
     }
@@ -1621,6 +1627,18 @@ function Field({
         return `${h}h ${m}m`;
       }
       case "rating": return rawDisplayValue;
+      case "text": {
+        // Array-history values without a columns renderer in reach: empty →
+        // "—", primitive rows join, object rows summarize (the columnar
+        // branches render the real table when displayConfig.columns is set).
+        if (Array.isArray(rawDisplayValue)) {
+          if (!rawDisplayValue.length) return "—";
+          return rawDisplayValue.every(r => r == null || typeof r !== "object")
+            ? rawDisplayValue.join(", ")
+            : `${rawDisplayValue.length} row${rawDisplayValue.length === 1 ? "" : "s"}`;
+        }
+        return String(rawDisplayValue);
+      }
       case "occurrence": {
         const options = meta?._resolvedOptions || [];
         if (Array.isArray(rawDisplayValue)) {
@@ -1762,6 +1780,50 @@ function Field({
         <div className="field-display field-display-compact" style={{ ...pillBase, maxWidth: 180 }}>
           {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}
           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stripped || "—"}</span>
+        </div>
+      );
+    }
+
+    // Array-with-columns history fields (Workouts / Meals / Moods rows…)
+    // render the real columnar table even on compact tiles — the generic
+    // pill below can only show a scalar, so these read as "—" forever
+    // (2026-07-14: "last workout works but not Workouts"). Empty arrays
+    // fall through to the pill.
+    const compactColumns = field?.displayConfig?.columns;
+    if (Array.isArray(rawDisplayValue) && rawDisplayValue.length > 0 &&
+        Array.isArray(compactColumns) && compactColumns.length > 0) {
+      const gridTemplateColumns = compactColumns.map(c => c.width ? `${c.width}px` : "auto").join(" ");
+      return (
+        <div className="field-display field-display-compact" style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+          {!hideName && name && <span style={{ fontSize: 10, opacity: 0.6, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{name}:</span>}
+          <div style={{
+            display: "grid", gridTemplateColumns, columnGap: 6,
+            fontSize: 10, fontFamily: "var(--font-mono)",
+            background: "var(--input-bg)", border: "1px solid var(--border-subtle)",
+            borderRadius: 4, padding: "3px 6px", minWidth: 0, maxWidth: "100%", overflowX: "auto",
+          }}>
+            {compactColumns.map((c, i) => (
+              <div key={`h${i}`} style={{ fontWeight: 600, opacity: 0.55, fontSize: 9, color: "var(--text-muted)", paddingBottom: 1 }}>
+                {c.header || c.path}
+              </div>
+            ))}
+            {rawDisplayValue.map((row, ri) =>
+              compactColumns.map((c, ci) => {
+                const cell = row?.[c.path];
+                const rich = cell && typeof cell === "object" && !Array.isArray(cell) && cell.kind;
+                return (
+                  <div
+                    key={`${ri}-${ci}`}
+                    style={rich
+                      ? { minWidth: 0, color: "var(--text-primary)", display: "flex", alignItems: "center" }
+                      : { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-primary)" }}
+                  >
+                    <ArrayCell value={cell} maps={occMaps} />
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       );
     }

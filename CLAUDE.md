@@ -30,8 +30,16 @@ reseeded (same Atlas DB as prod, so the local reseed IS the live reseed; deploy 
 - **Timeslot language removed from the Pomodoro UI** (PomodoroTimer.jsx): dropdown option now
   "Automatic (today's schedule)"; comment reworded. Slot-matching behavior itself stays (user:
   "the issue is not decoupled — the schedule is up when i did this").
-- **Verified**: 1265/1265 client (3 new behavioral) + 237/237 server, build clean, prod HEAD
-  checked post-deploy, live headless probe fired PomoStartOp → session in today's slot.
+- **FOLLOW-UP (same session, user live-tested): "last workout works but not Workouts"** — the
+  muscleGroup fix put the rows in the DB (verified: prod goal occ carries the Bench Press row),
+  but the tile still showed "—": a DISPLAY bug previously masked by the always-empty data.
+  `Field.jsx` (a) `rawDisplayValue` nuked bare arrays to undefined (the display-path twin of the
+  2026-07-12 extractValue fix) and (b) the compact pill branch returned before the columnar-table
+  branch, so compact tiles could never render `displayConfig.columns` rows. Both fixed — ALL
+  array-history tiles (Workouts/Meals/Moods/Purchases) now render their tables on goal tiles.
+  3 tests in Field.arrayValue.test.jsx.
+- **Verified**: 1268/1268 client (6 new) + 237/237 server, build clean, prod HEAD checked
+  post-deploy, live headless probes: Workout Log tile renders its Exercise/Reps/Wt rows.
 - **Probe lesson (recorded)**: the behavioral harness proved the op pipeline GREEN on a fresh
   seed — the live failure only surfaced from prod DB ground truth (orphan session row). When a
   harness repro passes but the user sees failure, diff LIVE STATE against the harness world

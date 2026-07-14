@@ -2,6 +2,22 @@
 
 _Updated: 2026-07-14. Check this file before re-reading source._
 
+## Recent Changes (2026-07-14 — Field.jsx: array-history display fields rendered "—" forever)
+- **User (live, after the muscleGroup data fix landed): "last workout works but not Workouts."**
+  Prod DB + client state BOTH held the rows — the failure was pure display, previously masked
+  because the arrays had never had data. Two compounding bugs in `Field.jsx`:
+  1. **`rawDisplayValue`** treated the bare array FieldRenderer hands over as "object without a
+     `value` key" → `undefined` → "—". Same class as the 2026-07-12 `extractValue` fix (input
+     path); the display memo was missed. Arrays now pass through.
+  2. **The compact pill branch returned before the columnar-table branch**, so a compact goal
+     tile could NEVER render `displayConfig.columns` rows. The compact branch now renders the
+     same grid table (10px scale) when the value is a non-empty array + columns are configured;
+     empty arrays keep the "—" pill. Also: `formattedValue` gained a `text` case so array values
+     without a columns renderer summarize ("N rows" / joined primitives) instead of `String()`.
+  Affected every array-history tile (Workouts, Meals, Moods rows, Purchases…).
+  Tests: `__tests__/Field.arrayValue.test.jsx` +3. Verified live post-deploy (headless probe:
+  the Workout Log tile renders Exercise/Reps/Wt rows).
+
 ## Recent Changes (2026-07-14 — PomodoroTimer: timeslot language removed (per user))
 - **`PomodoroTimer.jsx`** — the destination dropdown's empty option "None (use current timeslot)"
   → "Automatic (today's schedule)"; the destination-picker comment reworded. Behavior unchanged —
