@@ -219,11 +219,30 @@ export function FieldPill({ field, selected, onClick, compact = false }) {
 // FIELD DETAIL (native inputs for dark-panel aesthetic)
 // ============================================================
 export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
-  const { modulesById, roleByModuleId } = useGridActions();
+  const { modulesById, roleByModuleId, fieldsById } = useGridActions();
   const [local, setLocal] = useState(field);
-  useMemo(() => setLocal(field), [field.id]);
+  const [nameError, setNameError] = useState(null);
+  useMemo(() => { setLocal(field); setNameError(null); }, [field.id]);
 
   const setMeta = (key, val) => setLocal(p => ({ ...p, meta: { ...(p.meta || {}), [key]: val } }));
+
+  // Field names are UNIQUE (user rule 2026-07-14: "there shouldnt be duplicate
+  // field names") — duplicates break every name-based lookup (label tokens,
+  // pickers, tests). Reject a save whose name collides with ANOTHER field.
+  const handleSave = () => {
+    const wanted = (local.name || "").trim();
+    if (!wanted) { setNameError("Name can't be empty."); return; }
+    const clash = Object.values(fieldsById || {}).find(
+      f => f && f.id !== local.id && !f.trashed &&
+        (f.name || "").trim().toLowerCase() === wanted.toLowerCase()
+    );
+    if (clash) {
+      setNameError(`A field named "${clash.name}" already exists — field names must be unique.`);
+      return;
+    }
+    setNameError(null);
+    onSave({ ...local, name: wanted });
+  };
 
   // Find all instances that bind this field
   const usedInModules = useMemo(
@@ -241,9 +260,14 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
           <span style={labelStyle}>Name</span>
           <input
             value={local.name || ""}
-            onChange={(e) => setLocal((p) => ({ ...p, name: e.target.value }))}
-            style={inputStyle}
+            onChange={(e) => { setNameError(null); setLocal((p) => ({ ...p, name: e.target.value })); }}
+            style={{ ...inputStyle, ...(nameError ? { borderColor: "var(--danger-border)" } : {}) }}
           />
+          {nameError && (
+            <div style={{ marginTop: 3, fontSize: 10, color: "var(--danger-text)", fontFamily: "monospace" }}>
+              {nameError}
+            </div>
+          )}
         </div>
         <div>
           <span style={labelStyle}>Type</span>
@@ -475,7 +499,7 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
       {/* Actions */}
       <div style={{ display: "flex", gap: 8 }}>
         <button
-          onClick={() => onSave(local)}
+          onClick={handleSave}
           style={{
             padding: "4px 14px", borderRadius: 5, fontSize: 11, fontFamily: "monospace",
             background: "var(--accent-blue-bg)", border: "1px solid var(--accent-blue-border)",
@@ -557,7 +581,13 @@ export function FieldsTab() {
   }, []);
 
   const handleCreate = (folderId = null) => {
-    const newField = { id: uid(), gridId, name: "New Field", type: "number", inputEnabled: true, displayEnabled: false, folderId, meta: {} };
+    // Unique default name — two quick "+ Field" clicks must not mint two
+    // "New Field"s (field names are unique, 2026-07-14 rule).
+    const taken = new Set(Object.values(fieldsById || {})
+      .map((f) => (f?.name || "").trim().toLowerCase()));
+    let name = "New Field";
+    for (let n = 2; taken.has(name.toLowerCase()); n++) name = `New Field ${n}`;
+    const newField = { id: uid(), gridId, name, type: "number", inputEnabled: true, displayEnabled: false, folderId, meta: {} };
     CommitHelpers.createField({ dispatch, socket, field: newField });
     setSelectedFieldId(newField.id);
   };

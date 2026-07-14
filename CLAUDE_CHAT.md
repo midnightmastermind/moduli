@@ -2469,3 +2469,10 @@ History (media row-lists vs their occurrence-picker inputs), Person Notes (profi
 Notes). Input fields kept their natural names — they're what label tokens and users reference.
 labelTokens' carried-field tiebreak stays as a defensive net for user-created duplicates (the
 FieldsTab doesn't enforce uniqueness yet).
+
+## 2026-07-14 (6) — "yeah reject duplicate names"
+
+FieldsTab now ENFORCES the unique-names rule: FieldDetail's Save rejects a name that collides
+with another (non-trashed) field, case-insensitive + trimmed, with an inline error under the
+Name input; empty names rejected too. "+ Field" mints unique defaults (New Field, New Field 2…).
+3 tests in fieldsTabUniqueName.test.jsx.
