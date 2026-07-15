@@ -58,6 +58,7 @@ import {
 } from "../utils/liveSystemBuilders.js";
 import { gateScheduleTrackers, GATE_TRACKER_NAMES } from "../utils/completionGate.js";
 import { applyPeriodAllPolicy } from "../utils/periodAllPolicy.js";
+import { ensureGridFilterTrigger } from "../utils/gridFilterTrigger.js";
 import fs from "fs";
 import { parseSectionsWithInstances } from "../utils/mdParsers.js";
 import { makeDocContent, buildMergedDocTextmap, inlineToTipTap } from "../utils/docBuilders.js";
@@ -9657,6 +9658,17 @@ export async function createLiveData(userId, options = {}) {
     const changed = applyPeriodAllPolicy(trackers);
     for (const op of changed) await Operation.updateOne({ _id: op._id }, { $set: { pipeline: op.pipeline } });
     if (changed.length) console.log(`   Period-all policy: ${changed.length} trackers`);
+  }
+
+  // Global-filter policy: every filter-driven op (Schedule builders + all
+  // goal/account/tracker aggregations) must ALSO fire on the GLOBAL (toolbar)
+  // filter change, not just its on-page nav — so changing the grid date updates
+  // the Schedule, Goals AND Accounts. Idempotent. See utils/gridFilterTrigger.js.
+  {
+    const allOps = await Operation.find({ userId, gridId }).lean();
+    const changed = ensureGridFilterTrigger(allOps);
+    for (const op of changed) await Operation.updateOne({ _id: op._id }, { $set: { triggerObjects: op.triggerObjects, triggerTypes: op.triggerTypes } });
+    if (changed.length) console.log(`   Global-filter triggers: ${changed.length} ops now respond to the grid filter`);
   }
 
   return {

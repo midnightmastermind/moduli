@@ -2352,6 +2352,10 @@ export function makeTrackerOp({
       // when I drop something onto the schedule").
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
+      // On-PAGE (Goals local nav) filter change. The GLOBAL (toolbar) filter change
+      // is added uniformly to every filter-driven op by ensureGridFilterTrigger
+      // (utils/gridFilterTrigger.js), so "the grid filter updates everything" —
+      // Schedule, Goals, Accounts — is one rule, not a per-builder detail.
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
