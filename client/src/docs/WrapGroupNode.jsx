@@ -151,14 +151,24 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     // Sliver-based auto-unwrap (see policy comment at the constants above): the PURE
     // decideWrapStack judges the prediction textArea / besideW — layout-invariant, so
     // widening the panel keeps wrapping (no self-lock, no wide-stacks-more paradox).
-    const neighborW = right - left;
-    const neighborH = bottom - top;
+    const prevUnwrap = autoUnwrapRef.current;
+    // Measured neighbor box. When STACKED the neighbor renders FULL-WIDTH (per user —
+    // a stacked image should be full width), but the re-wrap PREDICTION must reason
+    // about the WRAP layout, where the neighbor floats at --wrap-nw. If we used the
+    // full-width measurement, besideW = clientWidth - (~clientWidth) - gap collapses to
+    // ~0, decideWrapStack's `besideW < WRAP_MIN_PROSE_W` always fires, and the group
+    // stays stacked forever after widening (2026-07-15 regression). Reproject the box
+    // to the wrap width while stacked — for an image the height scales with the width.
+    const measuredW = right - left;
+    const measuredH = bottom - top;
+    const scale = (prevUnwrap && measuredW > 0) ? (neighborWidth / measuredW) : 1;
+    const neighborW = prevUnwrap ? neighborWidth : measuredW;
+    const neighborH = prevUnwrap ? measuredH * scale : measuredH;
     const hostProse = els[els.length - 1].querySelector(".ProseMirror");
     // One fused walk: line-box area (sliver prediction) + how far down the
     // neighbor band [top..bottom] the rendered text reaches (blank-band guard).
     const { area: textArea, bandBottomReach } = measureProseText(hostProse, top, bottom);
     const besideW = wrapEl.clientWidth - neighborW - FLOAT_GAP;
-    const prevUnwrap = autoUnwrapRef.current;
     const shortNeighbor = neighborH <= WRAP_SHORT_NEIGHBOR_H;
     // COLUMNS mode (attrs.wrap === false) skips the prose-fill sliver policy
     // (meaningless for a plain two-column layout — it would instantly stack any
