@@ -201,6 +201,33 @@ describe("handleFileDrop — multi-file orchestration", () => {
     expect(createViewSpy).not.toHaveBeenCalled();
   });
 
+  it("on a MOSAIC grid, a gap-drop mints NO panel (never corrupts the layoutTree)", () => {
+    // Mosaic grids have no empty cells — minting a panel splits an existing pane.
+    // A drop that resolves to no container/page must bail (no panel, no placeholders).
+    const panelSpy = vi.spyOn(LayoutHelpers, "createPanelInGrid").mockReturnValue({ occurrence: { id: "x" } });
+    const dropContext = {
+      payload: { data: { files: [makeFile("vid.mp4", "video/mp4")] } },
+      target: { occurrenceId: null, moduleId: null, raw: {} }, // no container, no page
+      pointer: { x: 5, y: 5 },
+      position: { edge: null, insertIndex: null },
+    };
+    const ctx = {
+      dispatch: vi.fn(), socket: { emit: vi.fn() },
+      // grid carries a layoutTree → mosaic
+      state: { gridId: "g1", userId: "u1", grid: { _id: "g1", meta: { layoutTree: { id: "root" } } }, modulesById: {}, viewsById: {} },
+      occurrencesById: {}, baseContainers: [], clearSession: vi.fn(),
+      getCellFromPoint: () => ({ row: 1, col: 0 }), // getCellFromPoint still returns a cell
+    };
+
+    handleFileDrop(dropContext, ctx);
+
+    // No panel minted, no placeholder occurrences dispatched, no uploads — clean bail.
+    expect(panelSpy).not.toHaveBeenCalled();
+    expect(ctx.dispatch).not.toHaveBeenCalled();
+    expect(uploadSpy).not.toHaveBeenCalled();
+    expect(ctx.clearSession).toHaveBeenCalled();
+  });
+
   it("empty file list short-circuits without dispatch or upload", () => {
     const { dropContext, ctx } = makeCtx({ files: [] });
     handleFileDrop(dropContext, ctx);

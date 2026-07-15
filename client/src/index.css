@@ -3235,13 +3235,15 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .wrap-group--off .wrap-group-content > * > :not(:last-child) { flex: 0 0 auto; width: var(--wrap-nw, 280px); }
 
 /* WRAP AUTO-STACKED — the beside column is too narrow to hold prose at this width
-   (WrapGroupNode.measure), so drop the float and STACK: neighbor(s) keep their
-   column width, the host prose takes full width below (no tall empty band next to
-   the neighbor). Re-wraps automatically once the panel is wide enough again. */
+   (WrapGroupNode.measure), so drop the float and STACK the occurrences vertically.
+   When stacked there's no side column to fit into, so the neighbor(s) AND the host
+   prose each take the FULL width (per user: a stacked image artifact should be full
+   width, not pinned to the narrow --wrap-nw column). Re-wraps to the beside column
+   automatically once the panel is wide enough again. */
 .wrap-group--auto-stacked .wrap-group-content > * { display: block; }
 .wrap-group--auto-stacked .wrap-group-content > * > :not(:last-child) {
   float: none !important;
-  width: var(--wrap-nw, 280px);
+  width: 100%;
   max-width: 100%;
   margin: 0 0 12px 0 !important;
 }

@@ -1519,6 +1519,12 @@ export function handleFileDrop(dropContext, ctx) {
 
   if (!fileGridId || !fileUserId || !fileGrid) { clearSession(); return; }
 
+  // A mosaic grid (BSP layoutTree) has NO empty cells — every pane is a panel in
+  // the tree. Minting a new panel there makes GridMosaic split an existing pane
+  // (it corrupted the full-height Viafluere hub into a sliver, 2026-07-15), so the
+  // empty-cell drill-down + standalone-panel fallbacks are gated off for mosaic.
+  const isMosaic = !!fileGrid?.meta?.layoutTree;
+
   // ── Resolve the drop DESTINATION so an uploaded file becomes an INSTANCE of
   //    the file right where you drop it — the SAME behavior on every page type,
   //    never a standalone "side view" panel. Priority:
@@ -1574,7 +1580,7 @@ export function handleFileDrop(dropContext, ctx) {
   // panel + container here, then drop the artifacts into that container (NOT a
   // display-viewer "side view" panel — that was the reported bug).
   let drillContainerOcc = null;
-  if (!destContainerOcc && !canvasPos && !isExistingArtifactPanel && cell) {
+  if (!destContainerOcc && !canvasPos && !isExistingArtifactPanel && cell && !isMosaic) {
     const newPanel = { id: makeUUID(), label: files[0]?.name || "Files", role: "panel", kind: "board" };
     const panelResult = LayoutHelpers.createPanelInGrid({
       dispatch, socket, grid: fileGrid, panel: newPanel,
@@ -1591,6 +1597,14 @@ export function handleFileDrop(dropContext, ctx) {
   }
 
   const finalContainerOcc = destContainerOcc || drillContainerOcc;
+
+  // No valid home (e.g. a drop on a mosaic-grid gap / panel chrome, nothing under
+  // the pointer) — bail WITHOUT minting placeholders so we never leave orphan
+  // artifact occurrences (or a stray panel). The user re-drops onto a real target.
+  if (!finalContainerOcc && !canvasPos && !(isExistingArtifactPanel && capturedPanelView)) {
+    clearSession();
+    return;
+  }
 
   // Placement stamp folded onto each placeholder occurrence up-front so the
   // optimistic render lands in the right spot (container child, or canvas x/y).

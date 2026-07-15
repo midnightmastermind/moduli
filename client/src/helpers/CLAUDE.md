@@ -2,6 +2,18 @@
 
 _Updated: 2026-07-14. Check this file before re-reading source._
 
+## Recent Changes (2026-07-15 — file-drop: mosaic-grid guard (don't mint panels → no layoutTree corruption))
+- **`dropHandlers.js` (`handleFileDrop`)** — `getCellFromPoint` returns a cell even on a MOSAIC
+  grid (BSP `meta.layoutTree`), which has no real empty cells, so a gap-drop hit the empty-cell
+  drill-down and minted a new panel — GridMosaic's reconcile then split an existing pane to place
+  it, corrupting the seeded full-height Viafluere hub into a sliver (prod repro 2026-07-15: a
+  dropped `WIN_….mp4` became a 6th panel). Now `isMosaic = !!fileGrid.meta.layoutTree` gates OFF
+  the drill-down, and a new bail (`!finalContainerOcc && !canvasPos && !artifactPanel → clearSession
+  + return` BEFORE minting placeholders) means a drop with no real home (mosaic gap, panel chrome)
+  creates NOTHING — no stray panel, no orphan artifact occurrences. Test in
+  `handleFileDrop.multi.test.js` ("on a MOSAIC grid, a gap-drop mints NO panel"). Live Grid
+  layoutTree was repaired + the whole DB swept of orphans the same session (server/CLAUDE.md).
+
 ## Recent Changes (2026-07-14 (6) — file-drop UNIFIED across every page/artifact type)
 - **`artifactUpload.js` (NEW)** — the ONE upload lifecycle for "drop an upload → it becomes an
   instance of the file". `createArtifactPlaceholders(files, {gridId,userId,dispatch,occExtra})`

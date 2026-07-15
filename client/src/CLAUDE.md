@@ -2,6 +2,20 @@
 
 _Updated: 2026-07-14. Check this file before re-reading source._
 
+## Recent Changes (2026-07-15 — stacked wrap = full width; mosaic file-drop guard; Live Grid repair + orphan sweep)
+- **`index.css` `.wrap-group--auto-stacked`** — a wrapGroup that AUTO-STACKS (panel too narrow to
+  wrap beside) kept the neighbor at `--wrap-nw` (~280px) column width, so a stacked image artifact
+  read narrow, not full-width (user: "not full width like i asked"). Stacked neighbors now take
+  `width: 100%` (host prose already did) — full-width image when stacked.
+- **`helpers/dropHandlers.handleFileDrop`** — mosaic-grid guard + bail-on-no-home so a file drop
+  can't mint a stray panel that corrupts the layoutTree (details in helpers/CLAUDE.md).
+- **Live data (Atlas, dev=prod):** the Live Grid's mosaic `meta.layoutTree` had the seeded
+  full-height Viafluere middle column split into a big leaf + a sliver (a `WIN_….mp4` file-drop had
+  added a 6th panel) — repaired to the single full-height leaf, grid back to 5 panels (reads fresh
+  per full_state, no restart). Then a grid-rooted orphan sweep removed 1,769 homeless occurrences +
+  1,620 dead modules (a dead Eminem dry-run import + 3 deleted grids' leftovers + module-less occs
+  + the mp4 panel); 0 orphans / 0 module-less remain. See server/CLAUDE.md.
+
 ## Recent Changes (2026-07-14 (7) — dead-code audit: 25 orphan files deleted)
 Whole-site orphan sweep (never-imported source files, alias + dynamic-import aware; verified each
 had ZERO import sites + no real test import, then removed until the detector reported 0 orphans;
