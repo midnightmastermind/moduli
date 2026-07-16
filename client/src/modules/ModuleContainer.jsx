@@ -17,6 +17,7 @@ import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
 import { SelectionContext } from "../state/SelectionContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { convertContainerKind, CONVERTIBLE_CONTAINER_KINDS } from "../helpers/convertOccurrence";
 import {
   getContainerItems,
   getContainerItemsWithOccurrences,
@@ -108,7 +109,7 @@ import {
   ClipboardPaste,
   Plus,
   FileText,
-  Type, Rss } from "lucide-react";
+  Type, Rss, Shuffle } from "lucide-react";
 
 import { CanvasDrawSection } from "./CanvasContent.jsx";
 import { DocEditorShell } from "./DocContent.jsx";
@@ -878,6 +879,16 @@ function Container({
           icon: Unlink,
           onClick: () => CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...containerOccurrence, linkedGroupId: null }, emit: true }),
         },
+        // Convert this container to another kind (doc ↔ board ↔ list ↔ table),
+        // keeping its children. See helpers/convertOccurrence.js.
+        (module?.kind && CONVERTIBLE_CONTAINER_KINDS.includes(module.kind)) && { separator: true },
+        ...((module?.kind && CONVERTIBLE_CONTAINER_KINDS.includes(module.kind))
+          ? CONVERTIBLE_CONTAINER_KINDS.filter(k => k !== module.kind).map(k => ({
+              label: `Convert to ${k[0].toUpperCase()}${k.slice(1)}`,
+              icon: Shuffle,
+              onClick: () => convertContainerKind({ dispatch, socket, occurrence: containerOccurrence, module, targetKind: k }),
+            }))
+          : []),
         { separator: true },
         { label: "Remove from grid", icon: Trash2, danger: true, onClick: removeMe },
       ].filter(Boolean),
