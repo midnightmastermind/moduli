@@ -1670,7 +1670,7 @@ export function makeProjectStatusRouterOp({ userId, gridId, statusFieldId }) {
 }
 
 export function makeDayPageBuildTasksCompletedOp({
-  userId, gridId, dateFieldId, completedFieldId,
+  userId, gridId, dateFieldId, completedFieldId, schedulePageOccId,
 }) {
   return {
     id: uid(), userId, gridId, name: "Day Page: Build Tasks Completed",
@@ -1698,16 +1698,11 @@ export function makeDayPageBuildTasksCompletedOp({
     enabled: true,
     pipeline: {
       steps: [
-        // Resolve $dayDate exactly like Day Page: Build.
-        { id: uid(), type: "action", config: {
-            type: "FIND",
-            over: "$allPages",
-            predicate: { operator: "AND", rules: [
-              { id: uid(), left: "label", comparator: "IS", right: "Schedule" },
-            ]},
-            itemIdVar: "$schedPageId",
-            itemVar: "$schedPage",
-        }},
+        // Resolve $dayDate exactly like Day Page: Build. Picker-direct Schedule
+        // page — the object (for _effectiveFilter) + its id (for HAS_ANCESTOR),
+        // no label check.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedulePageOccId}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", value: schedulePageOccId } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$trigger.date" } },
         { id: uid(), type: "if",
           condition: { operator: "AND", rules: [{ id: uid(), left: "$dayDate", comparator: "IS_EMPTY", right: "" }] },
@@ -1929,6 +1924,14 @@ export function makeTrackerOp({
   goalOccurrenceId,
   sourceFieldId, sourceFieldIds, incomeFieldId, spentFieldId,
   agg, flow = "any", timeFilter = "daily", scopeLabel = "Schedule",
+  // Picker-direct scope page — the occurrence id of the page the data lives
+  // under (the Schedule page). When provided, $scopePageId is bound from this
+  // literal id instead of a FIND-by-label over $allPages. Preferred: the seed
+  // has the id at wiring time, so there's no label-collision risk and no
+  // "the system knows what a 'Schedule' is" coupling. scopeLabel stays the
+  // back-compat fallback for the test grid (which mints ops before it has
+  // the page occ id handy).
+  scopePageOccId,
   // When both are set, the loop predicate ALSO filters by
   // `$item.fields.<accountRefFieldId>.value IS <accountOccurrenceId>`
   // on top of the page-scope HAS_ANCESTOR rule. Used by per-account
@@ -2373,15 +2376,19 @@ export function makeTrackerOp({
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: accVar, value: 0 } },
 
         // The scope page is where the data lives — used for the HAS_ANCESTOR
-        // scope so we only aggregate entries written into it.
-        { id: uid(), type: "action", config: {
-            type: "FIND",
-            over: "$allPages",
-            predicate: { operator: "AND", rules: [
-              { id: uid(), left: "label", comparator: "IS", right: scopeLabel },
-            ]},
-            itemIdVar: "$scopePageId",
-        }},
+        // scope so we only aggregate entries written into it. Picker-direct
+        // (bind the id literal) when the caller passed the page occ id;
+        // otherwise fall back to FIND-by-label (test grid).
+        scopePageOccId
+          ? { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$scopePageId", value: scopePageOccId } }
+          : { id: uid(), type: "action", config: {
+              type: "FIND",
+              over: "$allPages",
+              predicate: { operator: "AND", rules: [
+                { id: uid(), left: "label", comparator: "IS", right: scopeLabel },
+              ]},
+              itemIdVar: "$scopePageId",
+          }},
 
         // Locate the goal display item — the UPDATE target. $goalDate is
         // driven off its OWN _effectiveFilter (instance → goal container →
@@ -2430,7 +2437,7 @@ export function makeTrackerOp({
   };
 }
 
-export function makeClearDateOnMoveOutOp({ userId, gridId, dateFieldId, timeslotFieldId }) {
+export function makeClearDateOnMoveOutOp({ userId, gridId, dateFieldId, timeslotFieldId, schedulePageOccId }) {
   return {
     id: uid(), userId, gridId, name: "Schedule: Clear Date on Move-Out",
     description:
@@ -2445,14 +2452,8 @@ export function makeClearDateOnMoveOutOp({ userId, gridId, dateFieldId, timeslot
     enabled: true,
     pipeline: {
       steps: [
-        { id: uid(), type: "action", config: {
-            type: "FIND",
-            over: "$allPages",
-            predicate: { operator: "AND", rules: [
-              { id: uid(), left: "label", comparator: "IS", right: "Schedule" },
-            ]},
-            itemIdVar: "$schedPageId",
-        }},
+        // Picker-direct Schedule page (id literal) — no label check.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", value: schedulePageOccId } },
         // Bind the moved occurrence directly via its trigger id (no need to walk
         // every item) — record carries the enriched `_ancestors` chain.
         { id: uid(), type: "action", config: {

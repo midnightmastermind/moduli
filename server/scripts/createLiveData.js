@@ -6096,7 +6096,10 @@ export async function createLiveData(userId, options = {}) {
   //   which the task rules forbid. Their display fields are not surfaced
   //   anywhere in the live grid, so no UI value is lost.
 
-  const trackerArgs = { userId, gridId, dateFieldId, completedFieldId, folderId: opCategoryIds.trackers };
+  // scopePageOccId: picker-direct Schedule-page reference for every tracker's
+  // HAS_ANCESTOR scope — replaces the FIND-by-label `label IS "Schedule"` inside
+  // makeTrackerOp (no label check; the seed has the id here at wiring time).
+  const trackerArgs = { userId, gridId, dateFieldId, completedFieldId, folderId: opCategoryIds.trackers, scopePageOccId: schedPageOccId };
 
   // ── DAILY TASK / WELLNESS ──
   await new Operation(makeTrackerOp({
@@ -6378,7 +6381,7 @@ export async function createLiveData(userId, options = {}) {
                 conjunction: "AND",
                 rules: [
                   // Call task — label match scopes to "Call a Friend" copies.
-                  { left: "$call.label",                              comparator: "IS",             right: "Call a Friend" },
+                  { left: "$call.templateId",                         comparator: "IS",             right: toolkitInstances.callFriend.id },
                   { left: `$call.fields.${dateFieldId}.value`,        comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                   { left: "$call._ancestors",                         comparator: "HAS_ANCESTOR",   right: "$schedPageId" },
                   { left: "$call.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
@@ -7020,7 +7023,7 @@ export async function createLiveData(userId, options = {}) {
                       { left: `$watchInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       { left: "$watchInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                       { left: "$watchInst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                      { left: "$watchInst.label", comparator: "IS", right: "Watch Movie" },
+                      { left: "$watchInst.templateId", comparator: "IS", right: toolkitInstances.watchMovie.id },
                     ],
                   },
                   then: [
@@ -7158,7 +7161,7 @@ export async function createLiveData(userId, options = {}) {
                       { left: `$readInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       { left: "$readInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                       { left: "$readInst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                      { left: "$readInst.label", comparator: "IS", right: "Reading" },
+                      { left: "$readInst.templateId", comparator: "IS", right: toolkitInstances.reading.id },
                     ],
                   },
                   then: [
@@ -7300,7 +7303,7 @@ export async function createLiveData(userId, options = {}) {
                       { left: `$podcastInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       { left: "$podcastInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                       { left: "$podcastInst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                      { left: "$podcastInst.label", comparator: "IS", right: "Listen to Podcast" },
+                      { left: "$podcastInst.templateId", comparator: "IS", right: toolkitInstances.podcast.id },
                     ],
                   },
                   then: [
@@ -7438,7 +7441,7 @@ export async function createLiveData(userId, options = {}) {
                       { left: `$courseInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       { left: "$courseInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                       { left: "$courseInst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                      { left: "$courseInst.label", comparator: "IS", right: "Online Course" },
+                      { left: "$courseInst.templateId", comparator: "IS", right: toolkitInstances.onlineCourse.id },
                     ],
                   },
                   then: [
@@ -7564,7 +7567,7 @@ export async function createLiveData(userId, options = {}) {
             predicate: {
               conjunction: "AND",
               rules: [
-                { left: "label", comparator: "IS", right: "Daily Journal" },
+                { left: "templateId", comparator: "IS", right: toolkitInstances.journaling.id },
               ],
             },
             itemVar: "$journalingInst", itemIdVar: "$journalingInstId",
@@ -7735,7 +7738,7 @@ export async function createLiveData(userId, options = {}) {
                   condition: { operator: "AND", rules: [
                     { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: accountsPageOccId },
                     { id: uid(), left: "$item.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                    { id: uid(), left: "$item.label", comparator: "IS", right: "Checking Account" },
+                    { id: uid(), left: "$item.templateId", comparator: "IS", right: accountInstances.bankAccount.id },
                     { id: uid(), left: `$item.fields.${fields.checkingBalance.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
                   ] },
                   then: [{ id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.checkingBalance.id}.value` } }],
@@ -7750,7 +7753,7 @@ export async function createLiveData(userId, options = {}) {
                   condition: { operator: "AND", rules: [
                     { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: accountsPageOccId },
                     { id: uid(), left: "$item.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                    { id: uid(), left: "$item.label", comparator: "IS", right: "Savings Account" },
+                    { id: uid(), left: "$item.templateId", comparator: "IS", right: accountInstances.savingsAccount.id },
                     { id: uid(), left: `$item.fields.${fields.savingsBalance.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
                   ] },
                   then: [{ id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.savingsBalance.id}.value` } }],
@@ -7765,7 +7768,7 @@ export async function createLiveData(userId, options = {}) {
                   condition: { operator: "AND", rules: [
                     { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: accountsPageOccId },
                     { id: uid(), left: "$item.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                    { id: uid(), left: "$item.label", comparator: "IS", right: "Mom's Account" },
+                    { id: uid(), left: "$item.templateId", comparator: "IS", right: accountInstances.momsAccount.id },
                     { id: uid(), left: `$item.fields.${fields.momsAccountBalance.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
                   ] },
                   then: [{ id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.momsAccountBalance.id}.value` } }],
@@ -7814,7 +7817,7 @@ export async function createLiveData(userId, options = {}) {
         { id: uid(), type: "action", config: {
           type: "FIND",
           over: "$allInstances",
-          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Total Subscriptions" }] },
+          predicate: { operator: "AND", rules: [{ id: uid(), left: "templateId", comparator: "IS", right: accountInstances.totalSubscriptions.id }] },
           itemVar: "$goalItem", itemIdVar: "$goalItemId",
         } },
         { id: uid(), type: "if",
@@ -7877,7 +7880,7 @@ export async function createLiveData(userId, options = {}) {
         { id: uid(), type: "action", config: {
           type: "FIND",
           over: "$allInstances",
-          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Monthly Bills" }] },
+          predicate: { operator: "AND", rules: [{ id: uid(), left: "templateId", comparator: "IS", right: accountInstances.monthlyBills.id }] },
           itemVar: "$goalItem", itemIdVar: "$goalItemId",
         } },
         { id: uid(), type: "if",
@@ -8098,7 +8101,7 @@ export async function createLiveData(userId, options = {}) {
         { id: uid(), type: "action", config: {
           type: "FIND",
           over: "$allInstances",
-          predicate: { operator: "AND", rules: [{ id: uid(), left: "label", comparator: "IS", right: "Pay Bill" }] },
+          predicate: { operator: "AND", rules: [{ id: uid(), left: "templateId", comparator: "IS", right: todoInstances.payBills.id }] },
           itemVar: "$payBillSrc", itemIdVar: "$payBillSrcId",
         } },
         // 4. Find the Due container for $schedDate under the Schedule page.
@@ -8897,7 +8900,7 @@ export async function createLiveData(userId, options = {}) {
   // Body-seeds the Tasks Completed container minted by buildDayPageTemplate.
   // Runs at priority 4 — after Build Day, Stamp, and trackers — so the
   // completion state and date stamps it reads are settled.
-  await new Operation(makeDayPageBuildTasksCompletedOp({ userId, gridId, dateFieldId, completedFieldId })).save();
+  await new Operation(makeDayPageBuildTasksCompletedOp({ userId, gridId, dateFieldId, completedFieldId, schedulePageOccId: schedPageOccId })).save();
   // Project: Create — APPLY_TEMPLATEs the Project Page template into
   // the Projects folder with {ProjectName} + {ProjectScope} replacements.
   // triggerType:"manual" so it only fires when the user explicitly runs
@@ -9040,7 +9043,7 @@ export async function createLiveData(userId, options = {}) {
     },
   }).save();
   await new Operation(makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, dateFieldId, lastSeenFieldId, hubPanelModuleId: panelModuleIds.notebook })).save();
-  await new Operation(makeClearDateOnMoveOutOp({ userId, gridId, dateFieldId, timeslotFieldId })).save();
+  await new Operation(makeClearDateOnMoveOutOp({ userId, gridId, dateFieldId, timeslotFieldId, schedulePageOccId: schedPageOccId })).save();
 
   // ── Import from Wikipedia (manual; demonstrates GET_USER_INPUT chain) ─────
   // Pipeline:
