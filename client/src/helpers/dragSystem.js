@@ -1016,8 +1016,40 @@ export function useDragDrop({
       },
     });
 
+    // ── Text-selection fix (2026-07-16) ─────────────────────────────────────
+    // Pragmatic's draggable() stamped draggable="true" on `el`. Firefox
+    // suppresses text selection / caret placement inside a draggable subtree
+    // (Chromium keys off -webkit-user-drag, which we don't set at rest) — so
+    // text hosted by a drag source (a textblock card in a doc, mini-textblocks,
+    // labels) couldn't be highlighted at all (user: "doc stuff isn't text
+    // highlighting"). Drag START is already gated to the HANDLE, so `el` never
+    // needs to advertise draggable AT REST — disarm it; the handle's pointerdown
+    // re-arms it (attribute + -webkit-user-drag) just in time, pointerup/dragend
+    // disarm again. Runs on every (re-)registration so Pragmatic re-asserting
+    // draggable=true can't leave it stuck on. ONLY when a drag handle is used —
+    // handle-less draggables (canvas cards, pool pills) must stay draggable
+    // everywhere. Mirrors the 2026-07-13 inline-chip fix.
+    let armCleanup = () => {};
+    if (handleEl) {
+      const disarm = () => { el.draggable = false; el.style.removeProperty('-webkit-user-drag'); };
+      disarm();
+      const arm = () => {
+        el.draggable = true;
+        el.style.setProperty('-webkit-user-drag', 'element');
+        const off = () => {
+          disarm();
+          window.removeEventListener('pointerup', off);
+          window.removeEventListener('dragend', off);
+        };
+        window.addEventListener('pointerup', off);
+        window.addEventListener('dragend', off);
+      };
+      handleEl.addEventListener('pointerdown', arm);
+      armCleanup = () => handleEl.removeEventListener('pointerdown', arm);
+    }
+
     const cleanup = combine(
-      () => { dragCleanup(); },
+      () => { dragCleanup(); armCleanup(); },
       dropTargetForElements({
         element: el,
         canDrop: ({ source }) => canAccept(source),
