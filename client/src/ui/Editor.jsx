@@ -81,7 +81,8 @@ import { useGridActionsSelector } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { createArtifactPlaceholders, uploadArtifactPlaceholders } from "../helpers/artifactUpload";
 import QuickAddMenu from "./QuickAddMenu.jsx";
-import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type, Plus } from "lucide-react";
+import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type, Plus, Shuffle } from "lucide-react";
+import { convertLeafRole } from "../helpers/convertOccurrence";
 
 // Atomic same-doc move for a TipTap embed node (instanceTextblock,
 // moduleEmbed). Scans the editor's doc for a node whose attrs match
@@ -982,7 +983,29 @@ const Editor = forwardRef(function Editor({
       if (listNode) listNode.forEach(item => { const t = item.textContent.trim(); if (t) texts.push(t); });
       return { texts, listPos, listNode };
     };
+    // Bulk convert: every TEXTBLOCK embed inside the selection → an instance
+    // (the headline "type a board in a doc, highlight the list, convert" flow).
+    // Reuses the tested planLeafRoleConversion per occurrence.
+    const selectedTextblockOccs = [];
+    if (hasSelection) {
+      editor.state.doc.nodesBetween(capturedFrom, capturedTo, (node) => {
+        if (node.type?.name === "moduleEmbed" && node.attrs?.occurrenceId) {
+          const occ = occurrencesByIdRef.current?.[node.attrs.occurrenceId];
+          const mod = occ?.moduleId ? modulesByIdRef.current?.[occ.moduleId] : null;
+          if (mod?.role === "textblock" && !selectedTextblockOccs.some(x => x.occ.id === occ.id)) {
+            selectedTextblockOccs.push({ occ, mod });
+          }
+        }
+      });
+    }
     const items = [
+      selectedTextblockOccs.length > 0 && dispatch && socket && {
+        label: `Convert ${selectedTextblockOccs.length} textblock${selectedTextblockOccs.length === 1 ? "" : "s"} to instance${selectedTextblockOccs.length === 1 ? "" : "s"}`,
+        icon: Shuffle,
+        onClick: () => selectedTextblockOccs.forEach(({ occ, mod }) =>
+          convertLeafRole({ dispatch, socket, occurrence: occ, module: mod, targetRole: "instance" })),
+      },
+      selectedTextblockOccs.length > 0 && { separator: true },
       hasSelection && { label: "Bold", icon: Bold, onClick: () => editor.chain().focus().toggleBold().run() },
       hasSelection && { label: "Italic", icon: Italic, onClick: () => editor.chain().focus().toggleItalic().run() },
       hasSelection && { label: "Strikethrough", icon: Strikethrough, onClick: () => editor.chain().focus().toggleStrike().run() },
