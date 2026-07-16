@@ -25,7 +25,8 @@ import {
   PopoverContent,
   PopoverAnchor,
 } from "@/components/ui/popover";
-import { Link2, Unlink, Settings, Copy, Move, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight } from "lucide-react";
+import { Link2, Unlink, Settings, Copy, Move, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle } from "lucide-react";
+import { convertLeafRole, CONVERTIBLE_LEAF_ROLES } from "../helpers/convertOccurrence";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   useDragDrop,
@@ -984,6 +985,15 @@ function ModuleInstance({
           CommitHelpers.createInstanceInContainer({ dispatch, socket, containerId, instance: newInstance, emit: true });
         },
       },
+      // Convert this leaf between a typed textblock and a data instance
+      // (see helpers/convertOccurrence.js). Textblock ↔ instance only.
+      ...(CONVERTIBLE_LEAF_ROLES.includes(module?.role)
+        ? CONVERTIBLE_LEAF_ROLES.filter(r => r !== module.role).map(r => ({
+            label: `Convert to ${r === "instance" ? "Instance" : "Textblock"}`,
+            icon: Shuffle,
+            onClick: () => convertLeafRole({ dispatch, socket, occurrence, module, targetRole: r }),
+          }))
+        : []),
       {
         label: "Remove from container", icon: Trash2, danger: true,
         onClick: () => {

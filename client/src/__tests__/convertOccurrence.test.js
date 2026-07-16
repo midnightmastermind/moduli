@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planContainerKindConversion } from "../helpers/convertOccurrence";
+import { planContainerKindConversion, planLeafRoleConversion, textmapToPlainText } from "../helpers/convertOccurrence";
 
 const mod = (kind) => ({ id: "m1", role: "container", kind, label: "Notes" });
 const occ = (children) => ({ id: "o1", moduleId: "m1", occurrences: children });
@@ -44,5 +44,46 @@ describe("planContainerKindConversion", () => {
     const plan = planContainerKindConversion({ occurrence: occ(["a"]), module: mod("board"), targetKind: "list" });
     expect(plan.modulePatch.kind).toBe("list");
     expect(plan.occurrencePatch).toBeNull();
+  });
+});
+
+describe("textmapToPlainText", () => {
+  it("flattens paragraphs/marks to plain text", () => {
+    const tm = { type: "doc", content: [
+      { type: "paragraph", content: [{ type: "text", text: "Buy milk", marks: [{ type: "bold" }] }] },
+      { type: "paragraph", content: [{ type: "text", text: "and eggs" }] },
+    ]};
+    expect(textmapToPlainText(tm)).toBe("Buy milk and eggs");
+  });
+  it("empty / non-object → ''", () => {
+    expect(textmapToPlainText(null)).toBe("");
+    expect(textmapToPlainText({ type: "doc", content: [{ type: "paragraph" }] })).toBe("");
+  });
+});
+
+describe("planLeafRoleConversion", () => {
+  const tbMod = () => ({ id: "m1", role: "textblock", kind: "doc", label: "" });
+  const instMod = () => ({ id: "m1", role: "instance", kind: "list", label: "Buy milk" });
+
+  it("no-ops for same role / non-convertible roles", () => {
+    expect(planLeafRoleConversion({ occurrence: {}, module: tbMod(), targetRole: "textblock" })).toBeNull();
+    expect(planLeafRoleConversion({ occurrence: {}, module: { role: "container" }, targetRole: "instance" })).toBeNull();
+    expect(planLeafRoleConversion({ occurrence: {}, module: tbMod(), targetRole: "container" })).toBeNull();
+  });
+
+  it("textblock → instance flattens the prose to the label, clears the textmap", () => {
+    const occurrence = { id: "o1", textmap: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Call mom" }] }] } };
+    const plan = planLeafRoleConversion({ occurrence, module: tbMod(), targetRole: "instance" });
+    expect(plan.modulePatch.role).toBe("instance");
+    expect(plan.modulePatch.kind).toBe("list");
+    expect(plan.occurrencePatch.textmap).toBeNull();
+    expect(plan.occurrencePatch.label).toBe("Call mom");
+  });
+
+  it("instance → textblock seeds an editable prose textmap from the label", () => {
+    const plan = planLeafRoleConversion({ occurrence: { id: "o1" }, module: instMod(), targetRole: "textblock" });
+    expect(plan.modulePatch.role).toBe("textblock");
+    expect(plan.modulePatch.kind).toBe("doc");
+    expect(plan.occurrencePatch.textmap).toEqual({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Buy milk" }] }] });
   });
 });
