@@ -228,10 +228,6 @@ export function DragProvider({
   const rafRef = useRef(0);
   // Mobile drag-to-edge cell navigation timer
   const dragEdgeTimerRef = useRef(null);
-  // One panel-switch per edge dwell: disarmed after a switch, re-armed only once
-  // the pointer LEAVES the edge zone — stops the drag-to-edge nav from
-  // overshooting past the target panel to the next one (user 2026-07-16).
-  const dragEdgeArmedRef = useRef(true);
   const dragEdgeIndicatorRef = useRef(null);
   // Continuous-autoscroll loop. Per-frame scroll while the finger sits in
   // the scroll edge zone — without this, mobile autoscroll only happens
@@ -556,7 +552,6 @@ export function DragProvider({
       clearTimeout(dragEdgeTimerRef.current);
       dragEdgeTimerRef.current = null;
     }
-    dragEdgeArmedRef.current = true;
     if (dragEdgeIndicatorRef.current) {
       dragEdgeIndicatorRef.current.remove();
       dragEdgeIndicatorRef.current = null;
@@ -758,7 +753,12 @@ export function DragProvider({
       const dc = dragConfigRef.current;
       if (dc.isMobileLayout && dc.activeCell && dc.setActiveCell) {
         const edgeZone = 60;
-        const EDGE_DWELL_MS = 1000;
+        // Time-based continuous nav: while the pointer is held at the edge it
+        // advances one panel every EDGE_DWELL_MS. Kept LONG so you can move
+        // through several panels but still have time to pull off the edge before
+        // it overshoots the one you wanted (user 2026-07-17: "wait longer, not a
+        // one-time thing per panel").
+        const EDGE_DWELL_MS = 1500;
         const vw = window.innerWidth;
         const vh = window.innerHeight;
         let dir = null;
@@ -767,21 +767,7 @@ export function DragProvider({
         else if (clientY < edgeZone + 30 && dc.activeCell.row > 0) dir = { dCol: 0, dRow: -1, edge: "up" };
         else if (clientY > vh - edgeZone && dc.activeCell.row < dc.rows - 1) dir = { dCol: 0, dRow: 1, edge: "down" };
 
-        // Re-arm the edge-nav ONLY when the pointer returns to the DEEP CENTER of
-        // the viewport — not merely once it leaves the 60px edge zone (that's
-        // still right at the edge, so finger jitter across the boundary or a firm
-        // edge-hold kept re-triggering and OVERSHOOTING past the target panel;
-        // user 2026-07-17: "if i dont drag it back to the middle quick enough, it
-        // overshoots"). One switch per edge trip — you must go back to the middle
-        // to switch again.
-        {
-          const m = Math.min(vw, vh) * 0.28;
-          if (clientX > m && clientX < vw - m && clientY > m && clientY < vh - m) {
-            dragEdgeArmedRef.current = true;
-          }
-        }
-
-        if (dir && !dragEdgeTimerRef.current && dragEdgeArmedRef.current) {
+        if (dir && !dragEdgeTimerRef.current) {
           // Show edge glow indicator
           if (!dragEdgeIndicatorRef.current) {
             const el = document.createElement("div");
@@ -795,7 +781,6 @@ export function DragProvider({
               col: clamp(prev.col + dir.dCol, 0, dc.cols - 1),
             }));
             dragEdgeTimerRef.current = null;
-            dragEdgeArmedRef.current = false; // one switch per edge entry
             if (dragEdgeIndicatorRef.current) {
               dragEdgeIndicatorRef.current.remove();
               dragEdgeIndicatorRef.current = null;
