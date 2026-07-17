@@ -95,6 +95,7 @@ export default function MobileGridNav({
   zoomedOut,
   setZoomedOut,
   visiblePanels = [],
+  panelLabelResolver = null,
 }) {
   const sliderRef = useRef(null);
   const viewportRef = useRef(null);
@@ -341,7 +342,11 @@ export default function MobileGridNav({
 
   // Name of the panel each rail leads to — written down the side button (user
   // 2026-07-17). Resolves the panel at the adjacent cell in that direction.
-  const labelFor = (r, c) => findPanelForCell(visiblePanels, r, c)?.label || null;
+  const labelFor = (r, c) => {
+    const p = findPanelForCell(visiblePanels, r, c);
+    if (!p) return null;
+    return (panelLabelResolver ? panelLabelResolver(p) : null) || p.label || null;
+  };
   const leftLabel = hasLeft ? labelFor(row, col - 1) : null;
   const rightLabel = hasRight ? labelFor(row, col + 1) : null;
   const upLabel = hasUp ? labelFor(row - 1, col) : null;

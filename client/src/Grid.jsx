@@ -346,7 +346,7 @@ function GridRender({
 // had no way to switch cells (user: "the edge buttons to switch cells are no
 // longer there").
 // ============================================================
-function MosaicMobileNav({ gridRef, layoutTree, visiblePanels, activeCell, setActiveCell, zoomedOut, setZoomedOut, isTouch, dispatch, socket, addContainerToPanel, addInstanceToContainer, sizesRef, fullscreenPanelId, setFullscreenPanelId }) {
+function MosaicMobileNav({ gridRef, layoutTree, visiblePanels, activeCell, setActiveCell, zoomedOut, setZoomedOut, isTouch, dispatch, socket, addContainerToPanel, addInstanceToContainer, sizesRef, fullscreenPanelId, setFullscreenPanelId, panelLabelResolver }) {
   const panelByOccId = useMemo(() => {
     const m = Object.create(null);
     for (const p of visiblePanels || []) if (p?._occurrenceId) m[p._occurrenceId] = p;
@@ -404,6 +404,7 @@ function MosaicMobileNav({ gridRef, layoutTree, visiblePanels, activeCell, setAc
       zoomedOut={zoomedOut}
       setZoomedOut={setZoomedOut}
       visiblePanels={navPanels}
+      panelLabelResolver={panelLabelResolver}
     >
       <div
         ref={gridRef}
@@ -466,7 +467,21 @@ function GridInner() {
     occurrencesById,
     modulesById,
     manifestsById,
+    viewsById,
   } = useGridActions();
+
+  // Resolve a panel's ACTIVE PAGE label (what the panel is showing) for the
+  // mobile nav rails — falls back to the raw panel label (user 2026-07-17:
+  // "active page would be better" than "Panel A/B/C").
+  const resolvePanelLabel = useCallback((panel) => {
+    if (!panel) return null;
+    const occ = panel._occurrenceId ? occurrencesById?.[panel._occurrenceId] : null;
+    const viewId = occ?.viewId || (occ?.moduleId ? modulesById?.[occ.moduleId]?.viewId : null);
+    const view = viewId ? viewsById?.[viewId] : null;
+    const activeOcc = view?.activeOccurrenceId ? occurrencesById?.[view.activeOccurrenceId] : null;
+    const pageMod = activeOcc?.moduleId ? modulesById?.[activeOcc.moduleId] : null;
+    return pageMod?.label || panel.label || null;
+  }, [occurrencesById, modulesById, viewsById]);
 
   const {
     canUndo,
@@ -865,6 +880,7 @@ function GridInner() {
           sizesRef={sizesRef}
           fullscreenPanelId={fullscreenPanelId}
           setFullscreenPanelId={setFullscreenPanelId}
+          panelLabelResolver={resolvePanelLabel}
         />
       ) : isMobileLayout ? (
         <MobileGridNav
@@ -877,6 +893,7 @@ function GridInner() {
           zoomedOut={zoomedOut}
           setZoomedOut={setZoomedOut}
           visiblePanels={visiblePanels}
+          panelLabelResolver={resolvePanelLabel}
         >
           <GridRender
             gridRef={gridRef}
