@@ -1,20 +1,25 @@
 import React, { useCallback, useEffect, useRef } from "react";
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight } from "lucide-react";
 
-const RAIL_CHEVRON = { left: ChevronLeft, right: ChevronRight, up: ChevronUp, down: ChevronDown };
+const RAIL_ICON = {
+  left: ChevronLeft, right: ChevronRight, up: ChevronUp, down: ChevronDown,
+  'up-left': ArrowUpLeft, 'up-right': ArrowUpRight, 'down-left': ArrowDownLeft, 'down-right': ArrowDownRight,
+};
 
 function RailButton({ direction, onClick, disabled, label }) {
   if (disabled) return null;
-  const Chevron = RAIL_CHEVRON[direction];
+  const Icon = RAIL_ICON[direction];
   const isSide = direction === 'left' || direction === 'right';
+  const isDiag = direction.includes('-');
   return (
     <button
       className={`mobile-rail-btn mobile-rail-${direction}`}
       onClick={onClick}
       aria-label={`Navigate ${direction}${label ? ` to ${label}` : ''}`}
+      title={isDiag ? (label || undefined) : undefined}
     >
-      <Chevron size={16} />
-      {label ? (
+      <Icon size={16} />
+      {label && !isDiag ? (
         <span className={`mobile-rail-label${isSide ? ' mobile-rail-label--v' : ''}`}>{label}</span>
       ) : null}
     </button>
@@ -352,6 +357,17 @@ export default function MobileGridNav({
   const upLabel = hasUp ? labelFor(row - 1, col) : null;
   const downLabel = hasDown ? labelFor(row + 1, col) : null;
 
+  // Diagonal nav: the corner where two rails overlap becomes a diagonal button,
+  // shown only when a DIFFERENT panel actually sits in that diagonal cell (user
+  // 2026-07-17). navigate(dRow, dCol) already handles both axes at once.
+  const diagPanel = (dr, dc) => {
+    const r = row + dr, c = col + dc;
+    if (r < 0 || r >= rows || c < 0 || c >= cols) return null;
+    const p = findPanelForCell(visiblePanels, r, c);
+    return p && p !== currentPanel ? p : null;
+  };
+  const ulP = diagPanel(-1, -1), urP = diagPanel(-1, 1), dlP = diagPanel(1, -1), drP = diagPanel(1, 1);
+
   // Zoomed-in: translate to show active cell
   // Zoomed-out: scale entire grid to fit viewport
   const transform = zoomedOut
@@ -378,6 +394,10 @@ export default function MobileGridNav({
       {!zoomedOut && <RailButton direction="right" onClick={() => navigate(0, 1)} disabled={!hasRight} label={rightLabel} />}
       {!zoomedOut && <RailButton direction="up" onClick={() => navigate(-1, 0)} disabled={!hasUp} label={upLabel} />}
       {!zoomedOut && <RailButton direction="down" onClick={() => navigate(1, 0)} disabled={!hasDown} label={downLabel} />}
+      {!zoomedOut && ulP && <RailButton direction="up-left" onClick={() => navigate(-1, -1)} label={labelFor(row - 1, col - 1)} />}
+      {!zoomedOut && urP && <RailButton direction="up-right" onClick={() => navigate(-1, 1)} label={labelFor(row - 1, col + 1)} />}
+      {!zoomedOut && dlP && <RailButton direction="down-left" onClick={() => navigate(1, -1)} label={labelFor(row + 1, col - 1)} />}
+      {!zoomedOut && drP && <RailButton direction="down-right" onClick={() => navigate(1, 1)} label={labelFor(row + 1, col + 1)} />}
 
       {/* Boundary hints — gradient showing more content in adjacent cell */}
       {!zoomedOut && hasMoreDown && <div className="boundary-hint boundary-hint-down" />}
