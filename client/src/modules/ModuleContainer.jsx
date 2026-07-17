@@ -109,7 +109,7 @@ import {
   ClipboardPaste,
   Plus,
   FileText,
-  Type, Rss, Shuffle } from "lucide-react";
+  Type, Rss, Shuffle, LayoutGrid, List, Table } from "lucide-react";
 
 import { CanvasDrawSection } from "./CanvasContent.jsx";
 import { DocEditorShell } from "./DocContent.jsx";
@@ -895,6 +895,19 @@ function Container({
     });
   };
   const containerLongPress = useLongPress(openContainerMenu);
+  // Convert-kind buttons for the RADIAL menu (touch-accessible; the right-click
+  // menu is desktop-only now). One button per OTHER container kind, each with
+  // the target kind's own icon so they're distinguishable (user 2026-07-17).
+  const convertRadialItems = useMemo(() => {
+    if (!module?.kind || !CONVERTIBLE_CONTAINER_KINDS.includes(module.kind)) return [];
+    const ICONS = { doc: FileText, board: LayoutGrid, list: List, table: Table };
+    return CONVERTIBLE_CONTAINER_KINDS.filter(k => k !== module.kind).map(k => ({
+      icon: ICONS[k] || Shuffle,
+      label: `Convert to ${k[0].toUpperCase()}${k.slice(1)}`,
+      onClick: () => convertContainerKind({ dispatch, socket, occurrence: containerOccurrence, module, targetKind: k }),
+      color: "bg-teal-700 hover:bg-teal-600",
+    }));
+  }, [module, containerOccurrence, dispatch, socket]);
 
   return (
     <div
@@ -958,7 +971,7 @@ function Container({
                 onHistory={() => setHistoryOpen(true)}
                 onTemplate={openTemplates}
                 onDelete={embedOnDelete ?? removeMe}
-                extraItems={embedRadialItems}
+                extraItems={[...(embedRadialItems || []), ...convertRadialItems]}
               />
             </div>
           </PopoverAnchor>
@@ -1019,7 +1032,7 @@ function Container({
                       onHistory={() => setHistoryOpen(true)}
                       onTemplate={openTemplates}
                       onDelete={embedOnDelete ?? removeMe}
-                      extraItems={embedRadialItems}
+                      extraItems={[...(embedRadialItems || []), ...convertRadialItems]}
                     />
                   </div>
                 </PopoverAnchor>
@@ -1128,7 +1141,7 @@ function Container({
                     onHistory={() => setHistoryOpen(true)}
                     onTemplate={openTemplates}
                     onDelete={embedOnDelete ?? removeMe}
-                    extraItems={embedRadialItems}
+                    extraItems={[...(embedRadialItems || []), ...convertRadialItems]}
                   />
                 </div>
               </PopoverAnchor>

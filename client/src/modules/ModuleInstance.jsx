@@ -25,7 +25,7 @@ import {
   PopoverContent,
   PopoverAnchor,
 } from "@/components/ui/popover";
-import { Link2, Unlink, Settings, Copy, Move, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle } from "lucide-react";
+import { Link2, Unlink, Settings, Copy, Move, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type } from "lucide-react";
 import { convertLeafRole, CONVERTIBLE_LEAF_ROLES } from "../helpers/convertOccurrence";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
@@ -520,6 +520,19 @@ function InstanceInner({
   );
 
   // Build radial menu items - include Break Link when occurrence is linked
+  // Convert-role button(s) for the RADIAL menu (touch-accessible; right-click is
+  // desktop-only now). textblock ↔ instance, each with the target's own icon.
+  const convertLeafItems = useMemo(() => {
+    if (!CONVERTIBLE_LEAF_ROLES.includes(instance?.role)) return [];
+    const ICONS = { instance: Box, textblock: Type };
+    return CONVERTIBLE_LEAF_ROLES.filter(r => r !== instance.role).map(r => ({
+      icon: ICONS[r] || Shuffle,
+      label: `Convert to ${r === "instance" ? "Instance" : "Textblock"}`,
+      onClick: () => convertLeafRole({ dispatch, socket, occurrence, module: instance, targetRole: r }),
+      color: "bg-teal-700 hover:bg-teal-600",
+    }));
+  }, [instance, occurrence, dispatch, socket]);
+
   const radialItems = useMemo(() => {
     const toggleLabelItem = {
       icon: showLabel ? EyeOff : Eye,
@@ -651,7 +664,7 @@ function InstanceInner({
                     if (!occurrence?.id) return;
                     CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, occurrence, parentOccurrence: containerOccurrence || null, emit: true });
                   })}
-                  extraItems={embedRadialItems}
+                  extraItems={[...(embedRadialItems || []), ...convertLeafItems]}
                 />
               </div>
             </PopoverAnchor>
