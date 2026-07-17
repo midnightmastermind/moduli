@@ -754,18 +754,30 @@ export function DragProvider({
       if (dc.isMobileLayout && dc.activeCell && dc.setActiveCell) {
         const edgeZone = 60;
         // Time-based continuous nav: while the pointer is held at the edge it
-        // advances one panel every EDGE_DWELL_MS. Kept LONG so you can move
-        // through several panels but still have time to pull off the edge before
-        // it overshoots the one you wanted (user 2026-07-17: "wait longer, not a
-        // one-time thing per panel").
-        const EDGE_DWELL_MS = 1500;
+        // advances one panel every EDGE_DWELL_MS. Long enough to move through
+        // several panels without overshooting the one you wanted, but sped up a
+        // touch per user (2026-07-17: "just a little bit" faster than the prior
+        // 1500ms).
+        const EDGE_DWELL_MS = 1150;
         const vw = window.innerWidth;
         const vh = window.innerHeight;
+        // Independent X and Y edge tests (not an else-if chain) so a CORNER drag
+        // navigates DIAGONALLY — the drag-hover equivalent of the diagonal rail
+        // buttons at the rail-overlap corners. The old chain let X always win, so
+        // a corner only ever moved cardinally and the diagonal buttons had no
+        // drag-hover path (user 2026-07-17).
+        let dCol = 0, dRow = 0;
+        if (clientX < edgeZone && dc.activeCell.col > 0) dCol = -1;
+        else if (clientX > vw - edgeZone && dc.activeCell.col < dc.cols - 1) dCol = 1;
+        if (clientY < edgeZone + 30 && dc.activeCell.row > 0) dRow = -1;
+        else if (clientY > vh - edgeZone && dc.activeCell.row < dc.rows - 1) dRow = 1;
         let dir = null;
-        if (clientX < edgeZone && dc.activeCell.col > 0) dir = { dCol: -1, dRow: 0, edge: "left" };
-        else if (clientX > vw - edgeZone && dc.activeCell.col < dc.cols - 1) dir = { dCol: 1, dRow: 0, edge: "right" };
-        else if (clientY < edgeZone + 30 && dc.activeCell.row > 0) dir = { dCol: 0, dRow: -1, edge: "up" };
-        else if (clientY > vh - edgeZone && dc.activeCell.row < dc.rows - 1) dir = { dCol: 0, dRow: 1, edge: "down" };
+        if (dCol || dRow) {
+          const parts = [];
+          if (dRow < 0) parts.push("up"); else if (dRow > 0) parts.push("down");
+          if (dCol < 0) parts.push("left"); else if (dCol > 0) parts.push("right");
+          dir = { dCol, dRow, edge: parts.join("-") };
+        }
 
         if (dir && !dragEdgeTimerRef.current) {
           // Show edge glow indicator

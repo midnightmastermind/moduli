@@ -2,6 +2,14 @@
 
 _Updated: 2026-07-17. Check this file before re-reading source._
 
+## Recent Changes (2026-07-17 — mobile drag-to-edge nav: diagonal corners + faster dwell)
+- **`DragProvider.jsx` (`handleDragMove` edge-nav)** — the X and Y edge tests are now INDEPENDENT
+  (were an else-if chain where X always won): a CORNER drag sets both `dCol` and `dRow` → navigates
+  DIAGONALLY, the drag-hover equivalent of the diagonal rail buttons (which previously responded to
+  press/onClick only, never to a drag hover). `dir.edge` is built from the parts ("up-left" …) so
+  the glow indicator lands at the corner (new `.mobile-edge-{up,down}-{left,right}` corner-glow
+  rules in `index.css`). `EDGE_DWELL_MS` 1500 → 1150 ("just a little bit" faster per user).
+
 ## Recent Changes (2026-07-17 — copy-into-container rubber-band FIXED: server create-push honors the drop index)
 - **`CommitHelpers.createOccurrence`** — new `insertAtIndex = null` param, forwarded ON THE EMIT
   ONLY (`{ occurrence: { ...occurrence, insertAtIndex } }`), never on the dispatched/cached
