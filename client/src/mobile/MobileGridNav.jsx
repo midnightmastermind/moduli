@@ -1,18 +1,22 @@
 import React, { useCallback, useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
 
-function RailButton({ direction, onClick, disabled }) {
+const RAIL_CHEVRON = { left: ChevronLeft, right: ChevronRight, up: ChevronUp, down: ChevronDown };
+
+function RailButton({ direction, onClick, disabled, label }) {
   if (disabled) return null;
+  const Chevron = RAIL_CHEVRON[direction];
+  const isSide = direction === 'left' || direction === 'right';
   return (
     <button
       className={`mobile-rail-btn mobile-rail-${direction}`}
       onClick={onClick}
-      aria-label={`Navigate ${direction}`}
+      aria-label={`Navigate ${direction}${label ? ` to ${label}` : ''}`}
     >
-      {direction === 'left' && <ChevronLeft size={18} />}
-      {direction === 'right' && <ChevronRight size={18} />}
-      {direction === 'up' && <ChevronUp size={18} />}
-      {direction === 'down' && <ChevronDown size={18} />}
+      <Chevron size={16} />
+      {label ? (
+        <span className={`mobile-rail-label${isSide ? ' mobile-rail-label--v' : ''}`}>{label}</span>
+      ) : null}
     </button>
   );
 }
@@ -335,6 +339,14 @@ export default function MobileGridNav({
   const hasMoreRight = currentPanel && (currentPanel.col + panelWidth > col + 1);
   const hasMoreLeft = currentPanel && (currentPanel.col < col);
 
+  // Name of the panel each rail leads to — written down the side button (user
+  // 2026-07-17). Resolves the panel at the adjacent cell in that direction.
+  const labelFor = (r, c) => findPanelForCell(visiblePanels, r, c)?.label || null;
+  const leftLabel = hasLeft ? labelFor(row, col - 1) : null;
+  const rightLabel = hasRight ? labelFor(row, col + 1) : null;
+  const upLabel = hasUp ? labelFor(row - 1, col) : null;
+  const downLabel = hasDown ? labelFor(row + 1, col) : null;
+
   // Zoomed-in: translate to show active cell
   // Zoomed-out: scale entire grid to fit viewport
   const transform = zoomedOut
@@ -357,10 +369,10 @@ export default function MobileGridNav({
       </div>
 
       {/* Rail buttons — full-length edge overlays, inset from OS gesture zones */}
-      {!zoomedOut && <RailButton direction="left" onClick={() => navigate(0, -1)} disabled={!hasLeft} />}
-      {!zoomedOut && <RailButton direction="right" onClick={() => navigate(0, 1)} disabled={!hasRight} />}
-      {!zoomedOut && <RailButton direction="up" onClick={() => navigate(-1, 0)} disabled={!hasUp} />}
-      {!zoomedOut && <RailButton direction="down" onClick={() => navigate(1, 0)} disabled={!hasDown} />}
+      {!zoomedOut && <RailButton direction="left" onClick={() => navigate(0, -1)} disabled={!hasLeft} label={leftLabel} />}
+      {!zoomedOut && <RailButton direction="right" onClick={() => navigate(0, 1)} disabled={!hasRight} label={rightLabel} />}
+      {!zoomedOut && <RailButton direction="up" onClick={() => navigate(-1, 0)} disabled={!hasUp} label={upLabel} />}
+      {!zoomedOut && <RailButton direction="down" onClick={() => navigate(1, 0)} disabled={!hasDown} label={downLabel} />}
 
       {/* Boundary hints — gradient showing more content in adjacent cell */}
       {!zoomedOut && hasMoreDown && <div className="boundary-hint boundary-hint-down" />}

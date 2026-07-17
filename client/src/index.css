@@ -1883,6 +1883,22 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 }
 .mobile-rail-btn:disabled { opacity: 0.28; }
 
+/* Panel-name label written DOWN the side rails (user 2026-07-17). Left/right =
+   vertical text stacked under the chevron; up/down = horizontal beside it. */
+.mobile-rail-left, .mobile-rail-right { flex-direction: column; gap: 4px; padding: 6px 0; }
+.mobile-rail-up, .mobile-rail-down { gap: 6px; }
+.mobile-rail-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
+  color: rgb(205,228,255); overflow: hidden; line-height: 1.05;
+}
+.mobile-rail-up .mobile-rail-label, .mobile-rail-down .mobile-rail-label {
+  max-width: calc(100% - 34px); white-space: nowrap; text-overflow: ellipsis;
+}
+.mobile-rail-label--v {
+  writing-mode: vertical-rl; text-orientation: mixed;
+  max-height: calc(100% - 26px); white-space: nowrap; text-overflow: ellipsis;
+}
+
 /* Left/Right: full viewport height, narrow width, inset from edge.
    Width matches the viewport's `padding` minus inset+gap so the rail sits
    in the gutter and never overlaps the panel. */
