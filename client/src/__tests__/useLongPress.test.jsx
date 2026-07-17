@@ -6,33 +6,25 @@ function touch(x, y) {
   return { touches: [{ clientX: x, clientY: y }], changedTouches: [{ clientX: x, clientY: y }] };
 }
 
-describe("useLongPress", () => {
+// Touch long-press → context menu is DISABLED (user 2026-07-17: "hide right
+// click menu on touch"). The hook returns NO touch handlers and never fires.
+describe("useLongPress (disabled on touch)", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("fires after the hold delay with the touch position", () => {
+  it("returns no touch handlers (menu never opens on touch)", () => {
     const cb = vi.fn();
     const { result } = renderHook(() => useLongPress(cb, { delayMs: 450 }));
-    act(() => result.current.onTouchStart(touch(100, 200)));
-    act(() => vi.advanceTimersByTime(450));
-    expect(cb).toHaveBeenCalledWith({ x: 100, y: 200 });
+    expect(result.current.onTouchStart).toBeUndefined();
+    expect(result.current).toEqual({});
   });
 
-  it("cancels when the finger moves beyond tolerance", () => {
-    const cb = vi.fn();
-    const { result } = renderHook(() => useLongPress(cb, { delayMs: 450, moveTolerance: 10 }));
-    act(() => result.current.onTouchStart(touch(100, 200)));
-    act(() => result.current.onTouchMove(touch(100, 230))); // moved 30px
-    act(() => vi.advanceTimersByTime(450));
-    expect(cb).not.toHaveBeenCalled();
-  });
-
-  it("cancels when the finger lifts before the delay", () => {
+  it("never fires the callback even after a long hold", () => {
     const cb = vi.fn();
     const { result } = renderHook(() => useLongPress(cb, { delayMs: 450 }));
-    act(() => result.current.onTouchStart(touch(0, 0)));
-    act(() => result.current.onTouchEnd(touch(0, 0)));
-    act(() => vi.advanceTimersByTime(450));
+    // No onTouchStart to call; even advancing time can't trigger it.
+    act(() => result.current.onTouchStart?.(touch(100, 200)));
+    act(() => vi.advanceTimersByTime(1000));
     expect(cb).not.toHaveBeenCalled();
   });
 });

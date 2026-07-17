@@ -174,6 +174,11 @@ export default function MobileGridNav({
 
     const onTouchMove = (e) => {
       if (cooldownRef.current) return;
+      // Skip overscroll-to-navigate while an occurrence DRAG is in progress —
+      // DragProvider's drag-to-edge nav owns cell switching then, and this
+      // handler was reading a drag toward the middle as an OPPOSITE overscroll
+      // and snapping the view back to the previous panel (user 2026-07-17).
+      if (typeof document !== "undefined" && document.body?.dataset?.dragKind) return;
       const t = touchRef.current;
 
       const touch = e.touches[0];

@@ -5,6 +5,11 @@ import { useRef, useCallback } from "react";
 // right-click opens on desktop (native long-press → contextmenu is unreliable
 // across tablets, so we detect it ourselves).
 export function useLongPress(onLongPress, { delayMs = 450, moveTolerance = 10 } = {}) {
+  // Touch context menu DISABLED (user 2026-07-17: "hide right click menu on
+  // touch"). Right-click still opens it on desktop via onContextMenu; long-press
+  // no longer does on touch. Re-enable by removing this early return.
+  const DISABLED = true;
+
   const timer = useRef(null);
   const start = useRef({ x: 0, y: 0 });
 
@@ -34,5 +39,6 @@ export function useLongPress(onLongPress, { delayMs = 450, moveTolerance = 10 } 
     if (dx * dx + dy * dy > moveTolerance * moveTolerance) clear();
   }, [moveTolerance, clear]);
 
+  if (DISABLED) return {};
   return { onTouchStart, onTouchMove, onTouchEnd: clear, onTouchCancel: clear };
 }
