@@ -1869,37 +1869,39 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.04);
-  color: var(--text-faint);
+  /* Blue side navigators (user 2026-07-16). */
+  background: rgba(50,150,255,0.22);
+  border: 1px solid rgba(80,170,255,0.5);
+  color: rgb(190,220,255);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   backdrop-filter: blur(1px);
 }
 .mobile-rail-btn:active {
-  background: rgba(50,150,255,0.25);
-  color: var(--text-primary);
+  background: rgba(50,150,255,0.45);
+  color: #fff;
 }
+.mobile-rail-btn:disabled { opacity: 0.28; }
 
 /* Left/Right: full viewport height, narrow width, inset from edge.
    Width matches the viewport's `padding` minus inset+gap so the rail sits
    in the gutter and never overlaps the panel. */
 .mobile-rail-left {
-  left: 4px; top: 0; bottom: 0; width: 10px;
-  border-radius: 0 3px 3px 0; border-left: none;
+  left: 4px; top: 0; bottom: 0; width: 22px;
+  border-radius: 0 5px 5px 0; border-left: none;
 }
 .mobile-rail-right {
-  right: 4px; top: 0; bottom: 0; width: 10px;
-  border-radius: 3px 0 0 3px; border-right: none;
+  right: 4px; top: 0; bottom: 0; width: 22px;
+  border-radius: 5px 0 0 5px; border-right: none;
 }
 
 /* Up/Down: full viewport width, narrow height */
 .mobile-rail-up {
-  top: 0; left: 0; right: 0; height: 10px;
-  border-radius: 0 0 3px 3px; border-top: none;
+  top: 0; left: 0; right: 0; height: 22px;
+  border-radius: 0 0 5px 5px; border-top: none;
 }
 .mobile-rail-down {
-  bottom: 0; left: 0; right: 0; height: 10px;
+  bottom: 0; left: 0; right: 0; height: 22px;
   border-radius: 3px 3px 0 0; border-bottom: none;
 }
 
@@ -2090,8 +2092,11 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   /* Prevent pull-to-refresh and overscroll system gestures */
   html, body { overscroll-behavior: none !important; }
 
-  /* Rail buttons: below panel content so clickable elements in modules take precedence */
-  .mobile-rail-btn { position: fixed !important; z-index: 5 !important; }
+  /* Rail buttons: the 22px edge gutter must be tappable (user 2026-07-16: the
+     LEFT navigator did nothing — panel content at the edge sat OVER the z-index:5
+     rail and swallowed the tap). Raised above content; the rail is only a thin
+     edge strip, so module clickables elsewhere are unaffected. */
+  .mobile-rail-btn { position: fixed !important; z-index: 60 !important; }
   .mobile-rail-left { left: 4px !important; top: 40px !important; bottom: 0 !important; }
   .mobile-rail-right { right: 4px !important; top: 40px !important; bottom: 0 !important; }
   .mobile-rail-up { top: 30px !important; left: 0 !important; right: 0 !important; }

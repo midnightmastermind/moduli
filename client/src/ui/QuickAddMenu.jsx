@@ -318,7 +318,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
               <div style={{ position: "relative" }}>
                 <Search size={10} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "var(--text-faint)" }} />
                 <input
-                  autoFocus value={fieldSearch}
+                  value={fieldSearch}
                   onChange={(e) => setFieldSearch(e.target.value)}
                   placeholder="Search fields…"
                   style={{ background: "var(--input-bg)", border: "none", borderBottom: "1px solid var(--border-subtle)", padding: "6px 8px 6px 22px", fontSize: 11, color: "var(--text-primary)", outline: "none", fontFamily: "var(--font-mono)", width: "100%", boxSizing: "border-box" }}
@@ -358,7 +358,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
               <div style={{ position: "relative", flexShrink: 0 }}>
                 <Search size={11} style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "var(--text-faint)" }} />
                 <input
-                  autoFocus value={search}
+                  value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={`Search ${targetRole}s…`}
                   style={{ background: "var(--input-bg)", border: "none", borderBottom: "1px solid var(--border-subtle)", padding: "7px 8px 7px 26px", fontSize: 11, color: "var(--text-primary)", outline: "none", fontFamily: "var(--font-mono)", width: "100%", boxSizing: "border-box" }}

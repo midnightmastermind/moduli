@@ -228,6 +228,10 @@ export function DragProvider({
   const rafRef = useRef(0);
   // Mobile drag-to-edge cell navigation timer
   const dragEdgeTimerRef = useRef(null);
+  // One panel-switch per edge dwell: disarmed after a switch, re-armed only once
+  // the pointer LEAVES the edge zone — stops the drag-to-edge nav from
+  // overshooting past the target panel to the next one (user 2026-07-16).
+  const dragEdgeArmedRef = useRef(true);
   const dragEdgeIndicatorRef = useRef(null);
   // Continuous-autoscroll loop. Per-frame scroll while the finger sits in
   // the scroll edge zone — without this, mobile autoscroll only happens
@@ -552,6 +556,7 @@ export function DragProvider({
       clearTimeout(dragEdgeTimerRef.current);
       dragEdgeTimerRef.current = null;
     }
+    dragEdgeArmedRef.current = true;
     if (dragEdgeIndicatorRef.current) {
       dragEdgeIndicatorRef.current.remove();
       dragEdgeIndicatorRef.current = null;
@@ -617,7 +622,9 @@ export function DragProvider({
       // Internal drag preview pill — positioned off Pragmatic's onDrag (this
       // rAF), so it shows regardless of whether the native drag ghost renders.
       // Reads out the action + WHAT's being dragged + the hovered destination.
-      {
+      // TOUCH already shows the custom drag PILL — skip here to avoid a DOUBLE
+      // preview on touch (user 2026-07-16).
+      if (!dragConfigRef.current.isTouch) {
         const p = s.payload;
         const dragLabel = p?.data?.occurrence?.label || p?.data?.label || p?.data?.name || p?.id || "item";
         const dragAction = s.mode === "copy" ? "Copy" : s.mode === "copylink" ? "Copy-link" : "Move";
@@ -751,7 +758,7 @@ export function DragProvider({
       const dc = dragConfigRef.current;
       if (dc.isMobileLayout && dc.activeCell && dc.setActiveCell) {
         const edgeZone = 60;
-        const EDGE_DWELL_MS = 900;
+        const EDGE_DWELL_MS = 1000;
         const vw = window.innerWidth;
         const vh = window.innerHeight;
         let dir = null;
@@ -760,7 +767,7 @@ export function DragProvider({
         else if (clientY < edgeZone + 30 && dc.activeCell.row > 0) dir = { dCol: 0, dRow: -1, edge: "up" };
         else if (clientY > vh - edgeZone && dc.activeCell.row < dc.rows - 1) dir = { dCol: 0, dRow: 1, edge: "down" };
 
-        if (dir && !dragEdgeTimerRef.current) {
+        if (dir && !dragEdgeTimerRef.current && dragEdgeArmedRef.current) {
           // Show edge glow indicator
           if (!dragEdgeIndicatorRef.current) {
             const el = document.createElement("div");
@@ -774,12 +781,14 @@ export function DragProvider({
               col: clamp(prev.col + dir.dCol, 0, dc.cols - 1),
             }));
             dragEdgeTimerRef.current = null;
+            dragEdgeArmedRef.current = false; // one switch per edge entry
             if (dragEdgeIndicatorRef.current) {
               dragEdgeIndicatorRef.current.remove();
               dragEdgeIndicatorRef.current = null;
             }
           }, EDGE_DWELL_MS);
         } else if (!dir) {
+          dragEdgeArmedRef.current = true; // pointer left the edge — re-arm
           if (dragEdgeTimerRef.current) {
             clearTimeout(dragEdgeTimerRef.current);
             dragEdgeTimerRef.current = null;

@@ -9,10 +9,10 @@ function RailButton({ direction, onClick, disabled }) {
       onClick={onClick}
       aria-label={`Navigate ${direction}`}
     >
-      {direction === 'left' && <ChevronLeft size={14} />}
-      {direction === 'right' && <ChevronRight size={14} />}
-      {direction === 'up' && <ChevronUp size={14} />}
-      {direction === 'down' && <ChevronDown size={14} />}
+      {direction === 'left' && <ChevronLeft size={18} />}
+      {direction === 'right' && <ChevronRight size={18} />}
+      {direction === 'up' && <ChevronUp size={18} />}
+      {direction === 'down' && <ChevronDown size={18} />}
     </button>
   );
 }
