@@ -16,7 +16,10 @@
 
 import { updateModule, updateOccurrence } from "./CommitHelpers";
 
-export const CONVERTIBLE_CONTAINER_KINDS = ["doc", "board", "list", "table"];
+// Container kinds a container can convert between. "list" is NOT here — for
+// CONTAINERS list == board (the list/board split only exists for PAGES); the
+// four real container kinds are doc / board / canvas / table.
+export const CONVERTIBLE_CONTAINER_KINDS = ["doc", "board", "canvas", "table"];
 // Leaf roles that convert into each other (a typed textblock ↔ a data instance).
 export const CONVERTIBLE_LEAF_ROLES = ["instance", "textblock"];
 

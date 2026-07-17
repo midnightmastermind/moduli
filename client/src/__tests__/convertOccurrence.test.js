@@ -28,7 +28,7 @@ describe("planContainerKindConversion", () => {
   });
 
   it("→ doc with no children emits a non-empty paragraph (TipTap invariant)", () => {
-    const plan = planContainerKindConversion({ occurrence: occ([]), module: mod("list"), targetKind: "doc" });
+    const plan = planContainerKindConversion({ occurrence: occ([]), module: mod("board"), targetKind: "doc" });
     expect(plan.occurrencePatch.textmap.content).toEqual([{ type: "paragraph" }]);
   });
 
@@ -40,9 +40,9 @@ describe("planContainerKindConversion", () => {
     expect(plan.occurrencePatch.occurrences).toEqual(["a", "b"]);
   });
 
-  it("board → list is a pure kind flip (no occurrence patch, both render occurrences[])", () => {
-    const plan = planContainerKindConversion({ occurrence: occ(["a"]), module: mod("board"), targetKind: "list" });
-    expect(plan.modulePatch.kind).toBe("list");
+  it("board → canvas is a pure kind flip (no occurrence patch, both render occurrences[])", () => {
+    const plan = planContainerKindConversion({ occurrence: occ(["a"]), module: mod("board"), targetKind: "canvas" });
+    expect(plan.modulePatch.kind).toBe("canvas");
     expect(plan.occurrencePatch).toBeNull();
   });
 });

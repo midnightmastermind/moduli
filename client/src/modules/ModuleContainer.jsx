@@ -109,7 +109,7 @@ import {
   ClipboardPaste,
   Plus,
   FileText,
-  Type, Rss, Shuffle, LayoutGrid, List, Table } from "lucide-react";
+  Type, Rss, Shuffle, LayoutGrid, PenTool, Table } from "lucide-react";
 
 import { CanvasDrawSection } from "./CanvasContent.jsx";
 import { DocEditorShell } from "./DocContent.jsx";
@@ -900,7 +900,7 @@ function Container({
   // the target kind's own icon so they're distinguishable (user 2026-07-17).
   const convertRadialItems = useMemo(() => {
     if (!module?.kind || !CONVERTIBLE_CONTAINER_KINDS.includes(module.kind)) return [];
-    const ICONS = { doc: FileText, board: LayoutGrid, list: List, table: Table };
+    const ICONS = { doc: FileText, board: LayoutGrid, canvas: PenTool, table: Table };
     return CONVERTIBLE_CONTAINER_KINDS.filter(k => k !== module.kind).map(k => ({
       icon: ICONS[k] || Shuffle,
       label: `Convert to ${k[0].toUpperCase()}${k.slice(1)}`,
