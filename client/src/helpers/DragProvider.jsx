@@ -767,6 +767,20 @@ export function DragProvider({
         else if (clientY < edgeZone + 30 && dc.activeCell.row > 0) dir = { dCol: 0, dRow: -1, edge: "up" };
         else if (clientY > vh - edgeZone && dc.activeCell.row < dc.rows - 1) dir = { dCol: 0, dRow: 1, edge: "down" };
 
+        // Re-arm the edge-nav ONLY when the pointer returns to the DEEP CENTER of
+        // the viewport — not merely once it leaves the 60px edge zone (that's
+        // still right at the edge, so finger jitter across the boundary or a firm
+        // edge-hold kept re-triggering and OVERSHOOTING past the target panel;
+        // user 2026-07-17: "if i dont drag it back to the middle quick enough, it
+        // overshoots"). One switch per edge trip — you must go back to the middle
+        // to switch again.
+        {
+          const m = Math.min(vw, vh) * 0.28;
+          if (clientX > m && clientX < vw - m && clientY > m && clientY < vh - m) {
+            dragEdgeArmedRef.current = true;
+          }
+        }
+
         if (dir && !dragEdgeTimerRef.current && dragEdgeArmedRef.current) {
           // Show edge glow indicator
           if (!dragEdgeIndicatorRef.current) {
@@ -788,7 +802,6 @@ export function DragProvider({
             }
           }, EDGE_DWELL_MS);
         } else if (!dir) {
-          dragEdgeArmedRef.current = true; // pointer left the edge — re-arm
           if (dragEdgeTimerRef.current) {
             clearTimeout(dragEdgeTimerRef.current);
             dragEdgeTimerRef.current = null;
