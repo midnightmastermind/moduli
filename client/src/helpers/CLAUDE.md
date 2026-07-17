@@ -1,6 +1,24 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-07-14. Check this file before re-reading source._
+_Updated: 2026-07-17. Check this file before re-reading source._
+
+## Recent Changes (2026-07-17 — copy-into-container rubber-band FIXED: server create-push honors the drop index)
+- **`CommitHelpers.createOccurrence`** — new `insertAtIndex = null` param, forwarded ON THE EMIT
+  ONLY (`{ occurrence: { ...occurrence, insertAtIndex } }`), never on the dispatched/cached
+  occurrence (it's not a persisted field — server `occurrenceData` builds by explicit picks, and
+  the parent-`$push` reads `occurrence.insertAtIndex` off the raw payload at crud.js:986 →
+  `$position`).
+- **`LayoutHelpers.copyInstanceToContainer` + `copylinkInstanceToContainer`** — pass
+  `insertAtIndex: toIndex` to `createOccurrence`. ROOT CAUSE of "copying an instance to a spot in a
+  container with other instances shows it in the right spot then rubber-bands it to the last spot
+  the first time": the client optimistically inserts the copy at the drop index
+  (`addInstanceToContainer`), but the server's create handler `$push`ed the child WITHOUT a
+  position → APPENDED at the end; that end-order surfaced back to the originator (the concurrent
+  indexed `update_occurrence` races the create-push's `updatedAt` bump → the update loses / is
+  rejected stale, so the appended order wins). Sending `insertAtIndex` makes the server `$position`
+  the child at the SAME index the client used, so every ordering path converges on the drop index.
+  Tests: 2 in `__tests__/CommitHelpers.test.js` (insertAtIndex on emit-only + clean dispatch; null →
+  plain append).
 
 ## Recent Changes (2026-07-15 — file-drop: mosaic-grid guard (don't mint panels → no layoutTree corruption))
 - **`dropHandlers.js` (`handleFileDrop`)** — `getCellFromPoint` returns a cell even on a MOSAIC

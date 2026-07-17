@@ -755,6 +755,7 @@ export function copyInstanceToContainer({
     panelId: toPanelId,
     containerLabel: toContainer.label || "",
     panelLabel: toPanelLabel,
+    insertAtIndex: toIndex,
   });
 
   // Add occurrence to container occurrence (ordering lives on the container occurrence)
@@ -850,7 +851,7 @@ export function copylinkInstanceToContainer({
     ...(dragMode ? { dragMode } : {}),
   };
 
-  CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit, fireTrigger });
+  CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit, fireTrigger, insertAtIndex: toIndex });
 
   // Add occurrence to container occurrence (ordering lives on the container occurrence)
   const toContainerOcc = toContainer._occurrence || null;

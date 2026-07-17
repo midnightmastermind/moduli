@@ -145,6 +145,33 @@ describe("Occurrence commit helpers", () => {
     expect(socket.emit).toHaveBeenCalledWith("create_occurrence", { occurrence });
   });
 
+  // Regression: a copy-drop into a spot in a multi-instance container must land
+  // at that spot, not rubber-band to the end. The server's create handler
+  // $positions the child into parent.occurrences[] at `insertAtIndex` (else it
+  // appends); copyInstanceToContainer passes the drop index, so createOccurrence
+  // must forward it ON THE EMIT (but NOT on the dispatched/cached occurrence — it
+  // isn't a persisted field).
+  test("createOccurrence forwards insertAtIndex on the emit only, not the dispatch", () => {
+    const { dispatch, socket } = makeMocks();
+    const occurrence = { id: "occ1", parentId: "cont1", targetType: "module" };
+    createOccurrence({ dispatch, socket, occurrence, insertAtIndex: 0 });
+    expect(socket.emit).toHaveBeenCalledWith("create_occurrence", {
+      occurrence: { ...occurrence, insertAtIndex: 0 },
+    });
+    // dispatched occurrence stays clean (no insertAtIndex leaks into local state)
+    const dispatched = dispatch.mock.calls
+      .map((c) => c[0])
+      .find((a) => a?.payload?.occurrence?.id === "occ1");
+    expect(dispatched.payload.occurrence.insertAtIndex).toBeUndefined();
+  });
+
+  test("createOccurrence omits insertAtIndex when null (plain append)", () => {
+    const { dispatch, socket } = makeMocks();
+    const occurrence = { id: "occ2", parentId: "cont1" };
+    createOccurrence({ dispatch, socket, occurrence });
+    expect(socket.emit).toHaveBeenCalledWith("create_occurrence", { occurrence });
+  });
+
   test("updateOccurrence dispatches and emits update_occurrence", () => {
     const { dispatch, socket } = makeMocks();
     const occurrence = { id: "occ1", fields: {} };

@@ -147,11 +147,19 @@ export function ensureModuleBindingsForOccurrenceFields({ dispatch, socket, occu
   });
 }
 
-export function createOccurrence({ dispatch, socket, occurrence, emit = true, panelId = null, containerLabel = "", panelLabel = "", fireTrigger = true }) {
+export function createOccurrence({ dispatch, socket, occurrence, emit = true, panelId = null, containerLabel = "", panelLabel = "", fireTrigger = true, insertAtIndex = null }) {
   if (!occurrence?.id) return;
   operationsBridge.updateLocalOcc?.(occurrence);
   dispatch?.(createOccurrenceAction(occurrence));
-  if (shouldEmit(emit)) safeEmit(socket, "create_occurrence", { occurrence });
+  // `insertAtIndex` rides ONLY on the emit (not the dispatched/cached occurrence — it's
+  // not a persisted field). The server's create handler uses it to $position the child
+  // into parent.occurrences[] at the drop index instead of appending at the end; without
+  // it a copy-drop lands at the drop spot optimistically then rubber-bands to the last
+  // slot when the server's append-order surfaces back to the originator.
+  if (shouldEmit(emit)) {
+    const payload = insertAtIndex != null ? { ...occurrence, insertAtIndex } : occurrence;
+    safeEmit(socket, "create_occurrence", { occurrence: payload });
+  }
   // Module-level binding contract: if the new occurrence carries values for
   // fields the module doesn't bind, add the bindings now so the pill renders.
   ensureModuleBindingsForOccurrenceFields({ dispatch, socket, occurrence });
