@@ -1,6 +1,27 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-07-14. Check this file before re-reading source._
+_Updated: 2026-07-18. Check this file before re-reading source._
+
+## Recent Changes (2026-07-18 — assistant audit: copy_occurrence + move_occurrence tools)
+- **Audit finding:** the Jonah assistant already has broad grid CRUD (46 tools: modules/
+  occurrences/fields/folders/manifests/views/grid + operations authoring create/update/delete +
+  imports). Two concrete gaps against the user's "copy them / move occurrences" asks:
+  (1) NO copy/duplicate tool; (2) "move" via `update_occurrence(parentId)` only re-parents — it
+  does NOT fix either parent's `occurrences[]`, so a moved item stayed rendered in its old spot
+  and never appeared in the new one.
+- **`services/assistantTools.js`** — two new tools (pure compositions over existing REST
+  endpoints, no server-route change):
+  - `move_occurrence({id, toParentId, index?})` — re-parents AND unlinks from the old parent's
+    `occurrences[]` + splices into the destination's at `index` (or end).
+  - `copy_occurrence({id, toParentId?, mode?, deep?})` — mints a NEW occurrence of the same
+    template with the source's fields (+ textmap) copied; `mode:"copylink"` shares a
+    `linkedGroupId` (minted on the source if absent) so the copy stays in sync; `deep:true`
+    recurses children (each child pair gets its own group).
+- **`services/assistantAgent.js`** — SYSTEM_PROMPT tool inventory updated: adds the move/copy
+  verbs (prefer over update_occurrence for relocating/duplicating), list_folders/create_folder/
+  update_folder/delete_folder, and a "batching" line (find the parent id once, then one create
+  call per item — the user's "add pages A,B,C to the Interfaces folder" example). Server restart
+  applies. 32/32 assistantAgent tests green; tool pack imports clean (43 grid tools).
 
 ## Recent Changes (2026-07-14 (2) — pomodoro elapsed-time ops + picker-direct source; workout rows carry all 3 sets)
 - **`scripts/createLiveData.js` — NEW "Pomodoro: Update Time" op** (`onPomoTick` → `PomoTickOp`,

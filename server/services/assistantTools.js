@@ -373,6 +373,81 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
       run: async ({ id, patch }) => (await call("PATCH", `/occurrences/${id}`, patch || {})).body,
     },
     {
+      name: "move_occurrence",
+      description: "MOVE an occurrence into another container/page. Use this (not update_occurrence) to relocate an item — it re-parents AND fixes both parents' occurrences[] arrays, so the item leaves its old spot and renders in the new one. Reorder within the same parent by passing that parent as toParentId with an index.",
+      input_schema: { type: "object", properties: { id: { type: "string", description: "Occurrence to move" }, toParentId: { type: "string", description: "Destination container/page occurrence id" }, index: { type: "integer", description: "Optional position in the destination (default: end)" } }, required: ["id", "toParentId"] },
+      destructive: true,
+      requires_confirm: true,
+      run: async ({ id, toParentId, index }) => {
+        const sr = await call("GET", `/occurrences/${id}`);
+        const occ = sr.body?.occurrence;
+        if (!occ?.id) return { error: `occurrence ${id} not found` };
+        const oldParentId = occ.parentId || null;
+        // Unlink from the old parent's occurrences[]
+        if (oldParentId && oldParentId !== toParentId) {
+          const op = (await call("GET", `/occurrences/${oldParentId}`)).body?.occurrence;
+          if (op) {
+            const list = (op.occurrences || []).filter(x => x !== id);
+            await call("PATCH", `/occurrences/${oldParentId}`, { occurrences: list });
+          }
+        }
+        // Re-parent + link into the destination's occurrences[] at index (or end)
+        await call("PATCH", `/occurrences/${id}`, { parentId: toParentId });
+        const dp = (await call("GET", `/occurrences/${toParentId}`)).body?.occurrence;
+        if (!dp) return { error: `destination ${toParentId} not found` };
+        const list = (dp.occurrences || []).filter(x => x !== id);
+        const at = typeof index === "number" && index >= 0 && index <= list.length ? index : list.length;
+        list.splice(at, 0, id);
+        await call("PATCH", `/occurrences/${toParentId}`, { occurrences: list });
+        return { moved: id, from: oldParentId, to: toParentId, index: at };
+      },
+    },
+    {
+      name: "copy_occurrence",
+      description: "COPY (duplicate) an occurrence into a container/page — mints a NEW occurrence of the same template WITH the source's field values copied. mode 'copylink' instead keeps the copy in sync with the source (editing a field on one updates the other, via a shared linkedGroupId). Set deep:true to also copy the source's children.",
+      input_schema: { type: "object", properties: { id: { type: "string", description: "Source occurrence to copy" }, toParentId: { type: "string", description: "Destination container/page (default: same parent as the source)" }, mode: { type: "string", enum: ["copy", "copylink"], description: "copy = independent duplicate; copylink = stays in sync with the source" }, deep: { type: "boolean", description: "Also copy the source's children" } }, required: ["id"] },
+      destructive: false,
+      requires_confirm: true,
+      run: async ({ id, toParentId, mode = "copy", deep = false }) => {
+        const copyOne = async (srcId, destParentId, groupOverride) => {
+          const src = (await call("GET", `/occurrences/${srcId}`)).body?.occurrence;
+          if (!src?.id) return { error: `occurrence ${srcId} not found` };
+          const destId = destParentId || src.parentId || null;
+          let linkedGroupId = groupOverride;
+          if (mode === "copylink" && !linkedGroupId) {
+            // Share a group with the source (mint one on the source if absent).
+            linkedGroupId = src.linkedGroupId || `lg-${src.id}`;
+            if (!src.linkedGroupId) await call("PATCH", `/occurrences/${src.id}`, { linkedGroupId });
+          }
+          const cr = await call("POST", `/occurrences`, {
+            gridId, moduleId: src.moduleId, parentId: destId,
+            fields: JSON.parse(JSON.stringify(src.fields || {})),
+            ...(src.textmap ? { textmap: src.textmap } : {}),
+            ...(linkedGroupId ? { linkedGroupId } : {}),
+          });
+          const copy = cr.body?.occurrence;
+          if (!copy?.id) return cr.body;
+          // Link into the destination's occurrences[]
+          if (destId) {
+            const dp = (await call("GET", `/occurrences/${destId}`)).body?.occurrence;
+            if (dp) {
+              const list = Array.isArray(dp.occurrences) ? dp.occurrences : [];
+              if (!list.includes(copy.id)) await call("PATCH", `/occurrences/${destId}`, { occurrences: [...list, copy.id] });
+            }
+          }
+          // Deep copy children into the new occurrence (copylink group is per-pair,
+          // so each child mints its OWN group — pass no override).
+          if (deep && Array.isArray(src.occurrences) && src.occurrences.length) {
+            for (const childId of src.occurrences) await copyOne(childId, copy.id, undefined);
+          }
+          return copy;
+        };
+        const copy = await copyOne(id, toParentId, undefined);
+        if (copy?.error) return copy;
+        return { copy, mode, deep, placedIn: toParentId || "(same parent as source)" };
+      },
+    },
+    {
       name: "set_occurrence_field",
       description: "Write a single field VALUE on an occurrence (the common 'log a measurement / set a value' action). flow is in/out/replace.",
       input_schema: { type: "object", properties: { id: { type: "string" }, fieldId: { type: "string" }, value: {}, flow: { type: "string" } }, required: ["id", "fieldId", "value"] },
