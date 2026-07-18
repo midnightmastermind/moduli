@@ -69,6 +69,13 @@ function cellKeyFromPanel(p) {
 // The per-element pragmatic closestEdge indicators only fired directly over a
 // card (never in the gaps where users aim) and churned re-renders — this
 // replaces them for leaf drags.
+// Touch drag: run handleDragMove's heavy hit-test/indicator work at most this
+// often. On a tablet's big DOM, elementsFromPoint + per-card rect reads every
+// animation frame (~60/s) is the drag jank. The drag pill still follows the
+// finger at 60fps (its own transform); only the drop indicator repositions less
+// often. Desktop (mouse) is untouched — 60fps there is cheap.
+const TOUCH_DRAG_MOVE_MS = 40;
+
 const _LINE_CSS =
   "position:fixed;z-index:9998;pointer-events:none;display:none;" +
   "background:rgb(50,150,255);border-radius:2px;" +
@@ -226,6 +233,7 @@ export function DragProvider({
   // Mobile drag-to-edge cell navigation timer
   const dragEdgeTimerRef = useRef(null);
   const dragEdgeIndicatorRef = useRef(null);
+  const lastHeavyMoveRef = useRef(0); // throttles handleDragMove heavy work on touch
   // Continuous-autoscroll loop. Per-frame scroll while the finger sits in
   // the scroll edge zone — without this, mobile autoscroll only happens
   // while the finger is actively moving (no touchmove → no autoscroll).
@@ -605,6 +613,16 @@ export function DragProvider({
     if (rafRef.current) return;
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = 0;
+      // Touch: throttle the heavy hit-test/indicator work below (elementsFromPoint
+      // + per-card rect reads) — the tablet drag jank. pointerRef is already
+      // updated above, and autoscroll runs from its own rAF loop off
+      // autoscrollStateRef, so skipping frames here only slows how often the drop
+      // indicator repositions — the pill still tracks the finger at 60fps.
+      if (dragConfigRef.current.isTouch) {
+        const _nowMove = performance.now();
+        if (_nowMove - lastHeavyMoveRef.current < TOUCH_DRAG_MOVE_MS) return;
+        lastHeavyMoveRef.current = _nowMove;
+      }
       const _frameT0 = performance.now();
 
       const { panelId, containerId: rawContainerId, containerOccId: rawContainerOccId, containerEl: rawContainerEl, instanceId, instanceOccId } = getHoveredIds(clientX, clientY);
