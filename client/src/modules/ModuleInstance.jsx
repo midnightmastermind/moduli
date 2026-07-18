@@ -707,6 +707,7 @@ function InstanceInner({
               />
             ) : (
               <div
+                className="instance-label"
                 onDoubleClick={(e) => { e.stopPropagation(); startLabelEdit(); }}
                 style={{
                   flex: "0 1 auto",

@@ -1,6 +1,18 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-07-13. This folder implements occurrence-based view routing._
+_Updated: 2026-07-18. This folder implements occurrence-based view routing._
+
+## Recent Changes (2026-07-18 — manifest tree: root indent matches local; no folder-page dupe row; tablet labels)
+- **`ManifestTree.jsx` (`FolderNode`)** — root-tree folder rows indented at `depth * 14`; every
+  other tree row (pages, the local/panel tree) uses `depth * 8`, so the root (FILES) tree stepped
+  in noticeably deeper than the panels (LOCAL) tree. Changed to `depth * 8` → both trees match.
+- **`ManifestTree.jsx` (`localTreeData`)** — the local page filter matched `mod.role === "page"`
+  but NOT the folder-page NAV occurrences (`kind:"folder"` role:"page"). A pinned folder-page (e.g.
+  the Interfaces folder's own nav occ) got grouped under its own folder and rendered as an empty
+  duplicate row ("Interfaces inside Interfaces", 2026-07-18 screenshot). Now excludes
+  `kind === "folder"` — same rule `FolderNode.pageOccs` already applies.
+- **`ModuleInstance.jsx`** — instance label div gained `className="instance-label"` (was an unclassed
+  inline-`fontSize:12` div) so tablet CSS can shrink it (see index.css tablet-label block).
 
 ## Recent Changes (2026-07-13 — + menu / gap inserts fire OccurrenceCreateOp with panel context)
 - **`ModuleContainer.jsx`** — the header "+" QuickAdd (`handleQuickAdd`) and the router

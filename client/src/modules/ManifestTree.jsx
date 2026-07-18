@@ -623,7 +623,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
   }, [isRenaming, onOpenPage, onSelect, allChildOccs, modulesById, dispatch, socket, state, folder.id, folder.name]);
 
   return (
-    <div ref={folderRef} style={{ paddingRight: 2, marginLeft: depth * 14, position: "relative" }}>
+    <div ref={folderRef} style={{ paddingRight: 2, marginLeft: depth * 8, position: "relative" }}>
       {folderDropEdge === "top"    && <div style={{ position: "absolute", top: 0,    left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1, zIndex: 2 }} />}
       {folderDropEdge === "bottom" && <div style={{ position: "absolute", bottom: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1, zIndex: 2 }} />}
       {/* Folder pill — depth indent applied on this outer wrapper (not
@@ -1098,7 +1098,12 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
       .map(id => occurrencesById?.[id])
       .filter(occ => {
         const mod = occ ? modulesById?.[occ.moduleId] : null;
-        return occ && mod?.role === "page";
+        // Exclude folder-page NAV occurrences (kind:"folder" role:"page") — they
+        // are the "open this folder as a page" artifact, not a content page. Left
+        // in, a pinned folder-page (e.g. Interfaces) grouped under its own folder
+        // rendered as an empty duplicate row ("Interfaces inside Interfaces",
+        // 2026-07-18). FolderNode.pageOccs already applies the same exclusion.
+        return occ && mod?.role === "page" && mod?.kind !== "folder";
       });
     const folderMap = new Map();
     const rootPages = [];

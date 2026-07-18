@@ -4012,20 +4012,25 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    ============================================================================= */
 @media (pointer: coarse) {
   .module-drag-handle .radial-handle {
-    /* Big tap target, but the GLYPH hugs the module's top-left corner with
-       minimal padding (it floated centered in the box = read as a tiny icon
-       swimming in padding) — and render it bigger than the desktop 12px. */
-    width: 36px !important;
-    height: 36px !important;
-    max-width: 36px !important;
+    /* Touch-friendly but COMPACT. The old 36px box rendered ~40px tall/wide
+       because `.radial-menu button { min-height/width: 40px }` (below) leaked
+       onto the handle — that inflated container header rows on tablets (user
+       2026-07-18: "drag handles too big, expanding the height of the container
+       headers"). Explicit min-height/width here stop the leak; 26px is still a
+       comfortable tap target. Glyph hugs the top-left corner. */
+    width: 26px !important;
+    height: 26px !important;
+    max-width: 26px !important;
+    min-width: 26px !important;
+    min-height: 26px !important;
     display: flex !important;
     align-items: flex-start !important;
     justify-content: flex-start !important;
     padding: 1px 0 0 1px !important;
   }
   .module-drag-handle .radial-handle svg {
-    width: 19px !important;
-    height: 19px !important;
+    width: 16px !important;
+    height: 16px !important;
   }
   .module-drag-handle {
     margin-top: 0 !important;
@@ -4067,4 +4072,19 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle {
 body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   width: 14px !important;
   height: 14px !important;
+}
+
+/* TABLET labels — the desktop-sized instance / container labels read oversized
+   on a tablet. Phones already shrink these under the max-width:600px block; this
+   covers tablets in BOTH orientations (coarse pointer + wider than a phone) —
+   user 2026-07-18: "instances and containers labels on tablet are way too big". */
+@media (pointer: coarse) and (min-width: 601px) {
+  /* standard (board/list) container header label — inline 0.8rem/0.75rem span */
+  .container-header { font-size: 13px; }
+  .container-header span { font-size: 0.72rem !important; }
+  /* embedded doc-section header (inline headingLevel size, default 20px) */
+  .embedded-container-header span,
+  .embedded-container-header .embedded-hash { font-size: 14px !important; }
+  /* instance label — inline fontSize:12 on .instance-label */
+  .instance-label { font-size: 11px !important; }
 }
