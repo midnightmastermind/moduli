@@ -197,17 +197,14 @@ export function DragProvider({
   // "Convert HTML → modules" chip near the cursor so the user knows the
   // import pipeline will run when they release.
   const [externalImportPreview, setExternalImportPreview] = useState(null);
-  // Internal-drag preview pill (same look as the external one). The native
-  // drag IMAGE is unreliable across browsers (user 2026-07-16: only the
-  // external preview shows) — so we render our own cursor-following pill for
-  // internal drags too, saying WHAT is being dragged + the action.
-  const [internalDragPreview, setInternalDragPreview] = useState(null);
 
-  // NOTE: internal Pragmatic DnD drags no longer render a JS-followed
-  // cursor pill. The action verb (Move / Copy / Copy-link) + the source
-  // label now live INSIDE the native drag image (see dragSystem.js
-  // `attachDragPreview`), which the OS moves with zero lag. The live
-  // destination is conveyed by the container drop-highlight ring.
+  // Internal Pragmatic DnD drags render EXACTLY ONE preview: the native drag
+  // image (see dragSystem.js `attachDragPreview`), which carries the action verb
+  // (Move / Copy / Copy-link) + the source label and is moved by the OS at zero
+  // lag. The live destination is conveyed by the container drop-highlight ring.
+  // (A second JS-followed cursor pill used to render here too — that was the
+  // "two previews" on desktop AND a per-frame setState re-rendering the whole
+  // provider; removed 2026-07-18.)
 
   const activeType = activePayload?.type || null;
   const activeId = activePayload?.id || null;
@@ -536,7 +533,6 @@ export function DragProvider({
     delete document.body.dataset.dragOccId;
 
     setActivePayload(null);
-    setInternalDragPreview(null);
     setPanelOverCellId(null);
     lastHotRef.current = { panelId: null, containerId: null, instanceId: null };
     setDropHighlight(null);
@@ -617,32 +613,6 @@ export function DragProvider({
       // Internal drag preview pill — positioned off Pragmatic's onDrag (this
       // rAF), so it shows regardless of whether the native drag ghost renders.
       // Reads out the action + WHAT's being dragged + the hovered destination.
-      // TOUCH already shows the custom drag PILL — skip here to avoid a DOUBLE
-      // preview on touch (user 2026-07-16).
-      if (!dragConfigRef.current.isTouch) {
-        const p = s.payload;
-        const dragLabel = p?.data?.occurrence?.label || p?.data?.label || p?.data?.name || p?.id || "item";
-        const dragAction = s.mode === "copy" ? "Copy" : s.mode === "copylink" ? "Copy-link" : "Move";
-        let dragDest = null;
-        if (rawContainerId) {
-          const c = baseContainers.find(bc => bc.id === rawContainerId);
-          if (c) dragDest = { kind: "container", label: c.label || "container" };
-        }
-        if (!dragDest) {
-          const pageOccId = document.elementFromPoint?.(clientX, clientY)?.closest?.("[data-page-occ-id]")?.getAttribute?.("data-page-occ-id");
-          if (pageOccId && occurrencesById[pageOccId]) {
-            const pm = state?.modulesById?.[occurrencesById[pageOccId].moduleId];
-            dragDest = { kind: "page", label: pm?.label || "page" };
-          }
-        }
-        if (!dragDest && cell) dragDest = { kind: "cell", label: "new panel" };
-        setInternalDragPreview(prev => (
-          prev && prev.x === clientX && prev.y === clientY
-            && prev.label === dragLabel && prev.action === dragAction
-            && prev.destination?.label === dragDest?.label && prev.destination?.kind === dragDest?.kind
-        ) ? prev : { x: clientX, y: clientY, label: dragLabel, action: dragAction, destination: dragDest });
-      }
-
       // Sticky container highlight — when cursor passes over gaps/margins within
       // the same panel, keep the previous containerId to prevent flicker
       const last = lastHotRef.current;
@@ -1371,15 +1341,6 @@ export function DragProvider({
             destination={externalImportPreview.destination}
           />
         )}
-        {internalDragPreview && (
-          <InternalDragPreview
-            x={internalDragPreview.x}
-            y={internalDragPreview.y}
-            label={internalDragPreview.label}
-            action={internalDragPreview.action}
-            destination={internalDragPreview.destination}
-          />
-        )}
       </DragHotContext.Provider>
       </DragStateContext.Provider>
     </DragContext.Provider>
@@ -1391,31 +1352,6 @@ export function DragProvider({
 // the drop will route through the import pipeline rather than minting a
 // single instance. position:fixed + pointer-events:none so it never
 // intercepts the drop event itself.
-// Internal-drag cursor pill — same look as ExternalImportPreview, but reads
-// out the action + WHAT's being dragged (the label) + the hovered destination.
-function InternalDragPreview({ x, y, label, action, destination }) {
-  const dest = destination
-    ? (destination.kind === "cell" ? "→ new panel in this cell" : `→ into ${destination.label}`)
-    : null;
-  return (
-    <div
-      style={{
-        position: "fixed", left: x + 14, top: y + 14, zIndex: 9999,
-        pointerEvents: "none", padding: "4px 10px", borderRadius: 999,
-        fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 500,
-        background: "rgba(15, 25, 40, 0.92)", color: "rgb(180, 225, 245)",
-        border: "1px solid rgba(120, 170, 220, 0.45)",
-        boxShadow: "0 4px 14px rgba(0,0,0,0.45)", whiteSpace: "nowrap",
-        display: "flex", alignItems: "center", gap: 6, maxWidth: 320,
-      }}
-    >
-      <span>{action}</span>
-      <span style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
-      {dest && <span style={{ opacity: 0.7, fontWeight: 400 }}>{dest}</span>}
-    </div>
-  );
-}
-
 function ExternalImportPreview({ x, y, format, destination }) {
   const action = format === "file" ? "Upload file"
     : format === "html" ? "Convert HTML → modules"
