@@ -32,7 +32,12 @@ export function normalizeMenuItems(items = []) {
 export default function ContextMenu({ ctx, onClose }) {
   const ref = useRef(null);
 
-  // Dismiss on outside click or Escape
+  // Dismiss on any outside press (tap/click off) or Escape. Capture-phase
+  // `pointerdown` covers mouse + touch + pen uniformly and can't be swallowed by
+  // an ancestor that stops propagation in the bubble phase — the old
+  // mousedown+touchstart pair missed taps on touch devices, so the menu wouldn't
+  // go away when you tapped off (user 2026-07-19). A press ON a menu item is
+  // inside `ref` → the item's own onClick handles it; a press anywhere else closes.
   useEffect(() => {
     if (!ctx) return;
     const onPointer = (e) => {
@@ -41,12 +46,10 @@ export default function ContextMenu({ ctx, onClose }) {
     const onKey = (e) => {
       if (e.key === "Escape") onClose();
     };
-    document.addEventListener("mousedown", onPointer);
-    document.addEventListener("touchstart", onPointer);
+    document.addEventListener("pointerdown", onPointer, true);
     document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", onPointer);
-      document.removeEventListener("touchstart", onPointer);
+      document.removeEventListener("pointerdown", onPointer, true);
       document.removeEventListener("keydown", onKey);
     };
   }, [ctx, onClose]);

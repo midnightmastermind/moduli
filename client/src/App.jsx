@@ -292,6 +292,39 @@ export default function App() {
   // keyboard. Idempotent + safely no-ops on desktop / unsupported
   // browsers (the helper guards on visualViewport availability).
   useEffect(() => { installMobileInputAutoScroll(); }, []);
+
+  // Suppress the native `contextmenu` (right-click menu) when it isn't a real
+  // desktop right-click: a TOUCH/PEN long-press fires contextmenu ~0.5s in — but
+  // long-press IS the drag gesture here, so the menu popped up mid-drag (user
+  // 2026-07-19: "the right click shouldn't happen if I'm trying to drag").
+  // useLongPress is disabled, so touch has no intended context menu at all.
+  // Capture-phase + preventDefault stops it before any onContextMenu handler runs.
+  // Desktop MOUSE right-click still opens the menu.
+  useEffect(() => {
+    let touchActive = false;
+    let lastTouchAt = 0;
+    const onDown = (e) => {
+      if (e.pointerType === "touch" || e.pointerType === "pen") { touchActive = true; lastTouchAt = performance.now(); }
+      else touchActive = false;
+    };
+    const onUp = () => { touchActive = false; };
+    const onCtx = (e) => {
+      const dragging = !!document.body.dataset.dragKind;
+      const recentDrag = window.__moduliDragEndAt && performance.now() - window.__moduliDragEndAt < 700;
+      const touchOriginated = touchActive || performance.now() - lastTouchAt < 1200;
+      if (dragging || recentDrag || touchOriginated) { e.preventDefault(); e.stopPropagation(); }
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("pointerup", onUp, true);
+    document.addEventListener("pointercancel", onUp, true);
+    document.addEventListener("contextmenu", onCtx, true);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("pointerup", onUp, true);
+      document.removeEventListener("pointercancel", onUp, true);
+      document.removeEventListener("contextmenu", onCtx, true);
+    };
+  }, []);
   const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
   const [zoomedOut, setZoomedOut] = useState(false);
   const [gridSwitchRetrying, setGridSwitchRetrying] = useState(false);
