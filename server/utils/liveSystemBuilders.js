@@ -1117,7 +1117,23 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                     {
                       id: uid(), type: "if",
                       condition: { operator: "AND", rules: [{ id: uid(), left: "$activePeriodCount", comparator: "LESS_OR_EQUAL", right: 7 }] },
-                      then: [{
+                      then: [
+                      // Convert a previously-SUMMARIZED day (flat instances parented
+                      // directly under the day-col) back to full: delete those flat
+                      // instances first, else they'd sit beside the rebuilt slots as
+                      // duplicates (user 2026-07-19: formats must convert both ways).
+                      { id: uid(), type: "action", config: { type: "SET_VAR", name: "$dcOcc", expr: "$allItemsById.${$dayColId}" }},
+                      { id: uid(), type: "loop", overExpr: "$dcOcc.occurrences", as: "$dcKidId",
+                        body: [
+                          { id: uid(), type: "action", config: { type: "SET_VAR", name: "$dcKid", expr: "$allItemsById.${$dcKidId}" }},
+                          { id: uid(), type: "if",
+                            condition: { operator: "AND", rules: [{ id: uid(), left: "$dcKid.role", comparator: "IS", right: "instance" }] },
+                            then: [{ id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$dcKidId" } }],
+                            else: [],
+                          },
+                        ],
+                      },
+                      {
                       id: uid(), type: "loop", overExpr: "$dayCont.occurrences", as: "$tplChildId",
                       body: [
                         { id: uid(), type: "action", config: {
@@ -1173,6 +1189,21 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                       ],
                     }],
                       else: [
+                        // Convert a previously-FULL day (Due + 48 slot CONTAINERS)
+                        // to summarized: delete the container children first (cascade
+                        // removes their nested instances), then build flat below —
+                        // else an already-full day would stay full (user 2026-07-19).
+                        { id: uid(), type: "action", config: { type: "SET_VAR", name: "$dcOcc", expr: "$allItemsById.${$dayColId}" }},
+                        { id: uid(), type: "loop", overExpr: "$dcOcc.occurrences", as: "$dcKidId",
+                          body: [
+                            { id: uid(), type: "action", config: { type: "SET_VAR", name: "$dcKid", expr: "$allItemsById.${$dcKidId}" }},
+                            { id: uid(), type: "if",
+                              condition: { operator: "AND", rules: [{ id: uid(), left: "$dcKid.role", comparator: "IS", right: "container" }] },
+                              then: [{ id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$dcKidId" } }],
+                              else: [],
+                            },
+                          ],
+                        },
                         // SUMMARIZED (>7 days): the day's tasks FLAT under the
                         // day-col — NO 48 slot containers. Idempotent: build only
                         // when the day-col has no instances yet (fresh this run).
