@@ -467,8 +467,19 @@ export function evalRule(rule, $vars) {
         const diffDays = Math.round((leftMs - startMs) / dayMs);
         return diffDays >= 0 && diffDays < span;
       }
-      const da = new Date(leftVal); const db = new Date(anchor);
-      if (isNaN(da.getTime()) || isNaN(db.getTime())) return false;
+      // Parse as LOCAL calendar dates (via dayKey), NOT UTC. `new Date("2026-06-01")`
+      // is UTC midnight, which in a west-of-UTC tz rolls the first-of-month anchor
+      // back to the previous month (May 31) — so a month filter matched only its
+      // anchor day and a full month rendered just the first day (user 2026-07-19).
+      // expandPeriod already enumerates locally; this keeps visibility consistent.
+      const localDate = (v) => {
+        const k = dayKey(v);
+        if (!k) return null;
+        const [yy, mm, dd] = k.split("-").map(Number);
+        return new Date(yy, mm - 1, dd);
+      };
+      const da = localDate(leftVal); const db = localDate(anchor);
+      if (!da || !db) return false;
       if (unit === "week") {
         const weekStart = (d) => {
           const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());

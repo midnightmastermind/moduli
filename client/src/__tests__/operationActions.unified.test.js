@@ -218,6 +218,17 @@ describe("evalRule — DATE_IN_PERIOD", () => {
       right: { value: "2026-05-29", unit: "month" },
     }, {})).toBe(true);
   });
+  it("matches the WHOLE month when the anchor is the 1st (tz regression)", () => {
+    // 2026-06-01 parsed as UTC midnight rolls back to May 31 in a west-of-UTC tz,
+    // which made a month filter match only its anchor day → a full month rendered
+    // just the first day. Every June day must match a June-anchored month period.
+    const june = { value: "2026-06-01", unit: "month" };
+    expect(evalRule({ left: "2026-06-01", comparator: "DATE_IN_PERIOD", right: june }, {})).toBe(true);
+    expect(evalRule({ left: "2026-06-15", comparator: "DATE_IN_PERIOD", right: june }, {})).toBe(true);
+    expect(evalRule({ left: "2026-06-30", comparator: "DATE_IN_PERIOD", right: june }, {})).toBe(true);
+    expect(evalRule({ left: "2026-07-01", comparator: "DATE_IN_PERIOD", right: june }, {})).toBe(false);
+    expect(evalRule({ left: "2026-05-31", comparator: "DATE_IN_PERIOD", right: june }, {})).toBe(false);
+  });
   it("matches different months in the same year (year unit)", () => {
     expect(evalRule({
       left: "2026-01-15", comparator: "DATE_IN_PERIOD",
