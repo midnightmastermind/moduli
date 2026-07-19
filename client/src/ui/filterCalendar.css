@@ -18,6 +18,22 @@
   font-size: 12px;
 }
 
+/* The popover box must size to the calendar + its right-side selected-dates
+   panel and never collapse below that / clip (user 2026-07-19: "the whole box
+   renders too thin and cuts stuff off"). Without an explicit width the absolute
+   popover shrank to less than the calendar's natural width. */
+.filter-daypicker-popover {
+  width: max-content;
+  max-width: 96vw;
+}
+.filter-daypicker-popover .rmdp-calendar-container.moduli-calendar,
+.filter-daypicker-popover .rmdp-wrapper,
+.filter-daypicker-popover .rmdp-calendar,
+.filter-daypicker-popover .rmdp-day-picker {
+  width: auto !important;
+  min-width: max-content;
+}
+
 .moduli-calendar .rmdp-header,
 .moduli-calendar .rmdp-header-values {
   color: var(--text-primary, #e5e7eb);
