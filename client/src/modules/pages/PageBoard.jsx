@@ -37,13 +37,13 @@ function childSortKey(occurrence, fieldId) {
 // the row (user 2026-07-19). Applied only in the multi-day layouts where the
 // children carry a date (sortChildrenByField), so plain boards are untouched.
 const WEEKDAY_RAINBOW = [
-  { bar: "rgb(239,68,68)",  tint: "rgba(239,68,68,0.07)" },  // Mon red
-  { bar: "rgb(249,115,22)", tint: "rgba(249,115,22,0.07)" }, // Tue orange
-  { bar: "rgb(234,179,8)",  tint: "rgba(234,179,8,0.07)" },  // Wed yellow
-  { bar: "rgb(34,197,94)",  tint: "rgba(34,197,94,0.07)" },  // Thu green
-  { bar: "rgb(56,189,248)", tint: "rgba(56,189,248,0.07)" }, // Fri sky
-  { bar: "rgb(99,102,241)", tint: "rgba(99,102,241,0.07)" }, // Sat indigo
-  { bar: "rgb(168,85,247)", tint: "rgba(168,85,247,0.07)" }, // Sun violet
+  { tint: "rgba(239,68,68,0.16)" },  // Mon red
+  { tint: "rgba(249,115,22,0.16)" }, // Tue orange
+  { tint: "rgba(234,179,8,0.16)" },  // Wed yellow
+  { tint: "rgba(34,197,94,0.16)" },  // Thu green
+  { tint: "rgba(56,189,248,0.16)" }, // Fri sky
+  { tint: "rgba(99,102,241,0.16)" }, // Sat indigo
+  { tint: "rgba(168,85,247,0.16)" }, // Sun violet
 ];
 function weekdayColor(occurrence, fieldId) {
   const v = occurrence?.fields?.[fieldId]?.value;
@@ -177,7 +177,7 @@ export default function PageBoard({
           );
           const dayColor = childWrapperStyle && sortField ? weekdayColor(containerOcc, sortField) : null;
           const wrapStyle = dayColor
-            ? { ...childWrapperStyle, borderTop: `3px solid ${dayColor.bar}`, background: dayColor.tint, borderRadius: 6 }
+            ? { ...childWrapperStyle, background: dayColor.tint, borderRadius: 6 }
             : childWrapperStyle;
           return wrapStyle
             ? <div key={containerOcc?.id || container.id} style={wrapStyle}>{card}</div>

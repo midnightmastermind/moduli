@@ -1037,6 +1037,18 @@ body[data-drag-kind="panel"] .container-shell {
   -webkit-user-select: text;
   user-select: text;
 }
+/* Read-only stand-in shown before the live editor mounts (perf: lazy textblock
+   editors). Mirrors the ProseMirror prose metrics so swapping to the editor
+   barely shifts height. */
+.textblock-card-placeholder {
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--text-primary, #e5e7eb);
+  padding: 5px 9px 7px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.textblock-card-placeholder > div { text-indent: 1.5em; }
 .textblock-card .doc-editor-wrapper,
 .textblock-card .doc-editor-content,
 .textblock-card .ProseMirror {
