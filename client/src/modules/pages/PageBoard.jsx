@@ -33,6 +33,28 @@ function childSortKey(occurrence, fieldId) {
   return Number.isFinite(n) ? n : null;
 }
 
+// Rainbow by weekday (Mon→Sun) — schedule day-columns read as a color band down
+// the row (user 2026-07-19). Applied only in the multi-day layouts where the
+// children carry a date (sortChildrenByField), so plain boards are untouched.
+const WEEKDAY_RAINBOW = [
+  { bar: "rgb(239,68,68)",  tint: "rgba(239,68,68,0.07)" },  // Mon red
+  { bar: "rgb(249,115,22)", tint: "rgba(249,115,22,0.07)" }, // Tue orange
+  { bar: "rgb(234,179,8)",  tint: "rgba(234,179,8,0.07)" },  // Wed yellow
+  { bar: "rgb(34,197,94)",  tint: "rgba(34,197,94,0.07)" },  // Thu green
+  { bar: "rgb(56,189,248)", tint: "rgba(56,189,248,0.07)" }, // Fri sky
+  { bar: "rgb(99,102,241)", tint: "rgba(99,102,241,0.07)" }, // Sat indigo
+  { bar: "rgb(168,85,247)", tint: "rgba(168,85,247,0.07)" }, // Sun violet
+];
+function weekdayColor(occurrence, fieldId) {
+  const v = occurrence?.fields?.[fieldId]?.value;
+  if (!v || typeof v !== "string") return null;
+  const [y, mo, dd] = v.slice(0, 10).split("-").map(Number);
+  if (!y || !mo || !dd) return null;
+  const d = new Date(y, mo - 1, dd); // LOCAL — no tz weekday drift
+  if (isNaN(d.getTime())) return null;
+  return WEEKDAY_RAINBOW[(d.getDay() + 6) % 7]; // Mon=0 … Sun=6
+}
+
 export default function PageBoard({
   occurrence,
   containersList,
@@ -153,8 +175,12 @@ export default function PageBoard({
               gapPx={childGap}
             />
           );
-          return childWrapperStyle
-            ? <div key={containerOcc?.id || container.id} style={childWrapperStyle}>{card}</div>
+          const dayColor = childWrapperStyle && sortField ? weekdayColor(containerOcc, sortField) : null;
+          const wrapStyle = dayColor
+            ? { ...childWrapperStyle, borderTop: `3px solid ${dayColor.bar}`, background: dayColor.tint, borderRadius: 6 }
+            : childWrapperStyle;
+          return wrapStyle
+            ? <div key={containerOcc?.id || container.id} style={wrapStyle}>{card}</div>
             : card;
         })}
         {visibleList.length === 0 && !fullStateLoaded && (occurrence.occurrences?.length > 0) && (

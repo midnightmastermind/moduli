@@ -19,6 +19,7 @@
 // Emits via `onCommit({ kind, value, span, dates, unit })`. The parent (ArrowsWidget)
 // folds that into the persisted filter value shape.
 import React, { useEffect, useRef, useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { Calendar, DateObject } from "react-multi-date-picker";
 import DatePanel from "react-multi-date-picker/plugins/date_panel";
@@ -143,6 +144,7 @@ function formatSummary(shape) {
 export default function NavPickerPopover({ value, onCommit, constraints, triggerLabel = null }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
+  const popoverRef = useRef(null);
 
   // Read shape
   const shape = useMemo(() => {
@@ -173,7 +175,12 @@ export default function NavPickerPopover({ value, onCommit, constraints, trigger
   useEffect(() => {
     if (!open) return;
     const onDown = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+      // The popover is PORTALED to <body> (to escape the filter dropdown's
+      // overflow clip), so it's outside wrapRef in the DOM — check it explicitly
+      // or clicking a date would close the picker.
+      const inTrigger = wrapRef.current && wrapRef.current.contains(e.target);
+      const inPopover = popoverRef.current && popoverRef.current.contains(e.target);
+      if (!inTrigger && !inPopover) setOpen(false);
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
@@ -317,13 +324,17 @@ export default function NavPickerPopover({ value, onCommit, constraints, trigger
         <CalendarIcon size={11} />
         <span>{triggerLabel || summary}</span>
       </button>
-      {open && (
+      {open && createPortal(
         <div
+          ref={popoverRef}
           className="filter-daypicker-popover"
-          style={{
-            position: "absolute", top: "100%", left: 0, marginTop: 4,
-            zIndex: 50,
-          }}
+          style={(() => {
+            const r = wrapRef.current?.getBoundingClientRect();
+            const EST_W = 400; // calendar + selected-dates panel
+            const top = r ? r.bottom + 4 : 8;
+            const left = r ? Math.max(6, Math.min(r.left, window.innerWidth - EST_W - 8)) : 8;
+            return { position: "fixed", top, left, zIndex: 9999 };
+          })()}
         >
           <Calendar
             multiple
@@ -342,7 +353,8 @@ export default function NavPickerPopover({ value, onCommit, constraints, trigger
               Up to {maxDays} day{maxDays === 1 ? "" : "s"}
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </span>
   );

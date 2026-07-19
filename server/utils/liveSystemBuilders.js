@@ -1194,12 +1194,21 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                         // removes their nested instances), then build flat below —
                         // else an already-full day would stay full (user 2026-07-19).
                         { id: uid(), type: "action", config: { type: "SET_VAR", name: "$dcOcc", expr: "$allItemsById.${$dayColId}" }},
+                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$hadFullContent", value: 0 }},
                         { id: uid(), type: "loop", overExpr: "$dcOcc.occurrences", as: "$dcKidId",
                           body: [
                             { id: uid(), type: "action", config: { type: "SET_VAR", name: "$dcKid", expr: "$allItemsById.${$dcKidId}" }},
                             { id: uid(), type: "if",
                               condition: { operator: "AND", rules: [{ id: uid(), left: "$dcKid.role", comparator: "IS", right: "container" }] },
-                              then: [{ id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$dcKidId" } }],
+                              then: [
+                                // Flag the conversion: the executor's in-run overlay
+                                // can't reflect these DELETEs, so the $flatChildId FIND
+                                // below still sees the deleted instances. Without this
+                                // flag the flat build is skipped and the day (the one
+                                // that WAS full) renders EMPTY (user 2026-07-19).
+                                { id: uid(), type: "action", config: { type: "SET_VAR", name: "$hadFullContent", expr: "literal:1" }},
+                                { id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$dcKidId" } },
+                              ],
                               else: [],
                             },
                           ],
@@ -1215,7 +1224,10 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                             itemIdVar: "$flatChildId",
                         }},
                         { id: uid(), type: "if",
-                          condition: { operator: "AND", rules: [{ id: uid(), left: "$flatChildId", comparator: "IS_EMPTY", right: "" }] },
+                          condition: { operator: "OR", rules: [
+                            { id: uid(), left: "$flatChildId", comparator: "IS_EMPTY", right: "" },
+                            { id: uid(), left: "$hadFullContent", comparator: "GREATER", right: 0 },
+                          ]},
                           then: [
                             { id: uid(), type: "loop", overExpr: "$dayCont.occurrences", as: "$sTplChildId",
                               body: [
