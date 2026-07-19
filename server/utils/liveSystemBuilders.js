@@ -1110,7 +1110,14 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                     //    is already populated. If missing, COPY_LINK +
                     //    APPLY_TEMPLATE the instances. Reloads now
                     //    self-heal a partial build with O(missing) work.
+                    // TIMESLOT view (≤7 days) = full 48-slot day-col below;
+                    // SUMMARIZED view (>7 days) = flat day-col (the day's tasks
+                    // directly, no 48 slots) in the else. 30×48 = 1440 slot
+                    // containers per month froze the app (user 2026-07-19).
                     {
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [{ id: uid(), left: "$activePeriodCount", comparator: "LESS_OR_EQUAL", right: 7 }] },
+                      then: [{
                       id: uid(), type: "loop", overExpr: "$dayCont.occurrences", as: "$tplChildId",
                       body: [
                         { id: uid(), type: "action", config: {
@@ -1159,6 +1166,38 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                                   rootParent: "$slotCopyId",
                                   defaultFields: { [dateFieldId]: "$day" },
                               }}],
+                            },
+                          ],
+                          else: [],
+                        },
+                      ],
+                    }],
+                      else: [
+                        // SUMMARIZED (>7 days): the day's tasks FLAT under the
+                        // day-col — NO 48 slot containers. Idempotent: build only
+                        // when the day-col has no instances yet (fresh this run).
+                        { id: uid(), type: "action", config: {
+                            type: "FIND", over: "$allInstances",
+                            predicate: { operator: "AND", rules: [
+                              { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$dayColId" },
+                            ]},
+                            itemIdVar: "$flatChildId",
+                        }},
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [{ id: uid(), left: "$flatChildId", comparator: "IS_EMPTY", right: "" }] },
+                          then: [
+                            { id: uid(), type: "loop", overExpr: "$dayCont.occurrences", as: "$sTplChildId",
+                              body: [
+                                { id: uid(), type: "action", config: { type: "SET_VAR", name: "$sTplChild", expr: "$allItemsById.${$sTplChildId}" }},
+                                { id: uid(), type: "loop", overExpr: "$sTplChild.occurrences", as: "$sTplInstId",
+                                  body: [{ id: uid(), type: "action", config: {
+                                      type: "APPLY_TEMPLATE",
+                                      templateRef: "$sTplInstId",
+                                      rootParent: "$dayColId",
+                                      defaultFields: { [dateFieldId]: "$day" },
+                                  }}],
+                                },
+                              ],
                             },
                           ],
                           else: [],
