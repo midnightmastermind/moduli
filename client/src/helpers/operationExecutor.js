@@ -988,7 +988,10 @@ export function runMatchingOperations(operations, transactionType, transaction, 
       } else {
         results = executeOperation(op, transactionType, transaction, liveCtx);
       }
-      applyEffectsToLiveOccs(liveOccs, results);
+      // Invalidate the shared $allItems read-model cache ONLY when the op actually
+      // changed the occurrence overlay — so idempotent no-op re-fires and
+      // display-only trackers (the bulk of the onLoad sweep) reuse it.
+      if (applyEffectsToLiveOccs(liveOccs, results)) liveCtx._allItemsCache = null;
       // Tag each effect with its source op so the fire layer can mark the op
       // "applying" while the effect is applied (self-trigger guard above).
       for (const r of results) {
@@ -1089,10 +1092,23 @@ function trimRunForWire(payload) {
 // can see them. Mirrors the effect handlers in bindSocketToStore but only
 // touches the speculative overlay — actual dispatch still happens once
 // runMatchingOperations returns.
+// Effect types that CHANGE the occurrence overlay (vs. display-only effects like
+// SHOW_VALUE / SET_COMPUTED_VALUES, which don't). Drives the $allItems cache
+// invalidation in runMatchingOperations — the sweep only rebuilds the read model
+// after an op that actually mutated occurrences.
+const _LIVEOCCS_MUTATING = new Set([
+  "CREATE_ITEM", "DELETE_ITEM", "REMOVE_OCCURRENCE", "LINK_OCCURRENCE_TO_PARENT",
+  "UPDATE_ITEM_FIELD", "UPDATE_ITEM_META", "UPDATE_ITEM_PARENT", "UPDATE_ITEM_TEXTMAP",
+]);
+
+// Returns true if any effect mutated `liveOccs` (so callers can invalidate caches
+// derived from it).
 export function applyEffectsToLiveOccs(liveOccs, effects) {
-  if (!Array.isArray(effects) || effects.length === 0) return;
+  if (!Array.isArray(effects) || effects.length === 0) return false;
+  let mutated = false;
   for (const eff of effects) {
     if (!eff?._effect) continue;
+    if (_LIVEOCCS_MUTATING.has(eff._effect)) mutated = true;
     switch (eff._effect) {
       case "CREATE_ITEM": {
         const inst = eff.instance;
@@ -1176,6 +1192,7 @@ export function applyEffectsToLiveOccs(liveOccs, effects) {
         break;
     }
   }
+  return mutated;
 }
 
 // ============================================================
@@ -1238,8 +1255,19 @@ export function executePipeline(operation, context, transaction, extraVars, exte
   // occurrence's full ancestor chain (O(N × depth) per pipeline run, ×20 ops
   // per drop sweep in the CPU profile). Same semantics, ancestor contexts
   // computed once.
+  // PERF: cache the enriched $allItems read model on the sweep context and reuse
+  // it across ops, rebuilding only when an op MUTATES the occurrence overlay (see
+  // the invalidation in runMatchingOperations' loop). This map is
+  // O(occurrences × depth) — the ~56-op onLoad sweep rebuilt it 56× (~556ms
+  // synchronous). Idempotent re-fires + display-only trackers don't mutate the
+  // overlay, so it now rebuilds ~once per sweep. Safe to share by reference:
+  // pipelines REASSIGN $vars.$allItems to fresh arrays on CREATE/UPDATE
+  // (operationActions.js), never mutating this array or its items in place.
+  const _canCache = context && typeof context === "object";
+  let allItems = _canCache ? context._allItemsCache : null;
+  if (!allItems) {
   const effFilterFor = makeEffectiveFilterResolver({ grid: state?.grid, occurrencesById, parentByChildId });
-  const allItems = Object.values(occurrencesById).map(occ => {
+  allItems = Object.values(occurrencesById).map(occ => {
     const tpl = occ.moduleId ? templateById[occ.moduleId] : null;
     const effFilter = effFilterFor(occ);
     // Task #60 — autoStampFromFilter: when a field's meta opts in and the
@@ -1291,6 +1319,8 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       _effectiveFilter: effFilter,
     };
   });
+    if (_canCache) context._allItemsCache = allItems;
+  }
 
   // ---- Build $vars ----
   const _nowDate = new Date();
