@@ -1,6 +1,27 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-07-18. Check this file before re-reading source._
+_Updated: 2026-07-20. Check this file before re-reading source._
+
+## Recent Changes (2026-07-20 — alarm → schedule op (Option A): fired alarms drop an instance onto today's Schedule)
+- **`utils/liveSystemBuilders.js` (`makeAlarmOp`)** — new optional `sched`
+  ({ dateFieldId, timeslotFieldId, scheduleFormatFieldId }). When present, the op's
+  pipeline appends `alarmScheduleSteps` after the NOTIFY: FIND the "Schedule" page →
+  today's day-col (`scheduleFormat IS "day-col"` + `date SAME_DAY $today`) → the slot
+  whose TIMESLOT field matches the alarm's time (`alarmTimeslotLabel`: "17:00"→"5:00pm";
+  off-half-hour minutes like :15 stamp "5:15pm" but skip the slot FIND → land in the
+  day-col) → de-dupe on the timeslot FIELD (one alarm instance per timeslot per day) →
+  CREATE a `role:instance` alarm instance stamping date + timeslot (both hidden). Mirrors
+  Pomodoro: Start's day-scoped resolution; MUST stay in sync with the client twin
+  `helpers/alarmOps.js alarmScheduleSteps`. `sched` is stored on `op.alarm.sched` so the
+  client's applyAlarmToOperation preserves it across edits.
+- **`scripts/createLiveData.js`** — stamps `grid.meta.scheduleFieldIds =
+  { dateFieldId, timeslotFieldId, scheduleFormatFieldId }` (the AlarmDropdown reads it to
+  bake `sched` into alarms it mints) and passes `sched` to the two seeded alarms (5 PM /
+  6:30 AM). **Reseed REQUIRED** — without `scheduleFieldIds` on the grid the dropdown can't
+  resolve the field ids, so newly-minted alarms are plain NOTIFY too.
+- Tests: 3 in `__tests__/liveSystemBuilders.test.js` (sched steps / off-slot minute /
+  bare NOTIFY) + 3 behavioral in `client/src/__tests__/liveOpsBehavioral.test.js` (instance
+  lands in today's 5:00pm slot with timeslot stamped / idempotent / no-sched = no write).
 
 ## Recent Changes (2026-07-18 — assistant audit: copy_occurrence + move_occurrence tools)
 - **Audit finding:** the Jonah assistant already has broad grid CRUD (46 tools: modules/

@@ -2676,13 +2676,91 @@ function formatAlarmTime(hhmm) {
   return `${h}:${m[2]} ${suffix}`;
 }
 
-export function makeAlarmOp({ userId, gridId, folderId, type = "alarm", label = "", time = "08:00", enabled = true }) {
+// The alarm's time as a slot-style timeslot label ("17:00" → "5:00pm",
+// "17:15" → "5:15pm"). `exactSlot` = only when the minute lands on a real
+// half-hour slot (0/30), else null — used to MATCH an existing slot container.
+function alarmTimeslotLabel(hhmm) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ""));
+  if (!m) return { label: null, exactSlot: null };
+  const hour = Number(m[1]);
+  const min = Number(m[2]);
+  const h = hour % 12 || 12;
+  const ampm = hour < 12 ? "am" : "pm";
+  const label = `${h}:${String(min).padStart(2, "0")}${ampm}`;
+  return { label, exactSlot: (min === 0 || min === 30) ? label : null };
+}
+
+// When a `sched` context ({ dateFieldId, timeslotFieldId, scheduleFormatFieldId })
+// is provided, an alarm firing also drops an instance into TODAY's Schedule (like
+// Pomodoro: Start): resolve today's day-col, target the slot matching the alarm's
+// timeslot (else the day-col itself), and create the alarm instance once per day —
+// matching and de-duping on the TIMESLOT field (not the label), and stamping it on
+// the created instance. MUST mirror the client's alarmScheduleSteps in helpers/alarmOps.js.
+function alarmScheduleSteps({ sched, instanceLabel, time }) {
+  if (!sched || !sched.dateFieldId || !sched.scheduleFormatFieldId || !sched.timeslotFieldId) return [];
+  const df = sched.dateFieldId;
+  const sf = sched.scheduleFormatFieldId;
+  const tf = sched.timeslotFieldId;
+  const { label: tsLabel, exactSlot } = alarmTimeslotLabel(time);
+  if (!tsLabel) return [];
+  return [
+    { id: uid(), type: "action", config: { type: "FIND", over: "$allPages",
+      predicate: { operator: "AND", rules: [
+        { id: uid(), left: "label", comparator: "IS", right: "Schedule" },
+      ] }, itemIdVar: "$alSchedPage" } },
+    { id: uid(), type: "if",
+      condition: { operator: "AND", rules: [{ id: uid(), left: "$alSchedPage", comparator: "IS_NOT_EMPTY", right: "" }] },
+      then: [
+        { id: uid(), type: "action", config: { type: "FIND", over: "$allContainers",
+          predicate: { operator: "AND", rules: [
+            { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$alSchedPage" },
+            { id: uid(), left: `fields.${sf}.value`, comparator: "IS", right: "day-col" },
+            { id: uid(), left: `fields.${df}.value`, comparator: "SAME_DAY", right: "$today" },
+          ] }, itemIdVar: "$alDayCol" } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$alDayCol", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [
+            { id: uid(), type: "action", config: { type: "SET_VAR", name: "$alTarget", expr: "$alDayCol" } },
+            ...(exactSlot ? [
+              { id: uid(), type: "action", config: { type: "FIND", over: "$allContainers",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$alDayCol" },
+                  { id: uid(), left: `fields.${tf}.value`, comparator: "IS", right: exactSlot },
+                ] }, itemIdVar: "$alSlot" } },
+              { id: uid(), type: "if",
+                condition: { operator: "AND", rules: [{ id: uid(), left: "$alSlot", comparator: "IS_NOT_EMPTY", right: "" }] },
+                then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$alTarget", expr: "$alSlot" } }],
+                else: [] },
+            ] : []),
+            // De-dupe on the timeslot FIELD (one alarm instance per timeslot per day).
+            { id: uid(), type: "action", config: { type: "FIND", over: "$allInstances",
+              predicate: { operator: "AND", rules: [
+                { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$alDayCol" },
+                { id: uid(), left: `fields.${tf}.value`, comparator: "IS", right: tsLabel },
+                { id: uid(), left: "label", comparator: "IS", right: instanceLabel },
+              ] }, itemIdVar: "$alExisting" } },
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$alExisting", comparator: "IS_EMPTY", right: "" }] },
+              then: [
+                { id: uid(), type: "action", config: {
+                  type: "CREATE", role: "instance", kind: "list", name: instanceLabel,
+                  parent: "$alTarget", fields: { [df]: "$today", [tf]: tsLabel },
+                  fieldHidden: { [df]: true, [tf]: true },
+                } },
+              ], else: [] },
+          ], else: [] },
+      ], else: [] },
+  ];
+}
+
+export function makeAlarmOp({ userId, gridId, folderId, type = "alarm", label = "", time = "08:00", enabled = true, sched = null }) {
   const ring = type === "alarm";
+  const instanceLabel = `${ring ? "⏰" : "🔔"} ${label || (ring ? "Alarm" : "Reminder")}`;
   return {
     id: uid(), userId, gridId, priority: 5,
     name: `${ring ? "Alarm" : "Reminder"}: ${label || formatAlarmTime(time)}`,
     description: "Managed by the Alarms tab — edit it there.",
-    alarm: { type, label, time },
+    alarm: { type, label, time, ...(sched ? { sched } : {}) },
     triggerTypes: [],
     triggerObjects: [],
     triggerType: "manual",
@@ -2696,6 +2774,7 @@ export function makeAlarmOp({ userId, gridId, folderId, type = "alarm", label = 
             sound: ring,
             duration: ring ? 60000 : 15000,
         }},
+        ...alarmScheduleSteps({ sched, instanceLabel, time }),
       ],
     },
     folderId,

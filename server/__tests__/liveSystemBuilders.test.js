@@ -526,3 +526,39 @@ describe("trackers fire on instance drops + carry no task-concept rules (2026-07
     expect(JSON.stringify(occs)).not.toContain("ITF");
   });
 });
+
+describe("makeAlarmOp schedule-insert steps", () => {
+  it("with sched, appends the Schedule day-col + slot resolution + de-dup CREATE (timeslot field)", async () => {
+    const { makeAlarmOp } = await import("../utils/liveSystemBuilders.js");
+    const sched = { dateFieldId: "DF", timeslotFieldId: "TF", scheduleFormatFieldId: "SF" };
+    const op = makeAlarmOp({ userId: "u", gridId: "g", label: "5 PM", time: "17:00", sched });
+    expect(op.alarm.sched).toEqual(sched);
+    const raw = JSON.stringify(op.pipeline);
+    // NOTIFY + schedule insert.
+    expect(op.pipeline.steps.length).toBeGreaterThan(1);
+    // Day-col resolved by scheduleFormat + today; slot + de-dup match on the TIMESLOT field.
+    expect(raw).toContain('"fields.SF.value"');
+    expect(raw).toContain('"fields.TF.value"');
+    expect(raw).toContain('"5:00pm"');
+    // CREATE stamps date + timeslot on the alarm instance.
+    expect(raw).toContain('"CREATE"');
+    expect(raw).toContain('"⏰ 5 PM"');
+  });
+
+  it("off-slot minutes (e.g. :15) still stamp the exact timeslot label and skip the slot FIND", async () => {
+    const { makeAlarmOp } = await import("../utils/liveSystemBuilders.js");
+    const op = makeAlarmOp({ userId: "u", gridId: "g", label: "X", time: "17:15",
+      sched: { dateFieldId: "DF", timeslotFieldId: "TF", scheduleFormatFieldId: "SF" } });
+    const raw = JSON.stringify(op.pipeline);
+    expect(raw).toContain('"5:15pm"');
+    // No exact half-hour slot to match → only the day-col + de-dup FINDs (one $allContainers FIND).
+    expect((raw.match(/"\$allContainers"/g) || []).length).toBe(1);
+  });
+
+  it("without sched, the pipeline is a bare NOTIFY", async () => {
+    const { makeAlarmOp } = await import("../utils/liveSystemBuilders.js");
+    const op = makeAlarmOp({ userId: "u", gridId: "g", label: "5 PM", time: "17:00" });
+    expect(op.pipeline.steps).toHaveLength(1);
+    expect(op.alarm.sched).toBeUndefined();
+  });
+});

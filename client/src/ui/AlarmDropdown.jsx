@@ -78,11 +78,16 @@ export default function AlarmDropdown() {
     return () => { document.removeEventListener("pointerdown", onDown, true); document.removeEventListener("keydown", onKey); };
   }, [open]);
 
+  // Schedule field ids the seed stamps on the grid — lets a fired alarm drop an
+  // instance onto today's Schedule (like Pomodoro: Start). Absent on grids with
+  // no seeded Schedule → the alarm is a plain NOTIFY (alarmScheduleSteps no-ops).
+  const sched = state?.grid?.meta?.scheduleFieldIds || null;
+
   const add = (type) => {
     const now = new Date();
     const hh = String(now.getHours()).padStart(2, "0");
     const mm = String(now.getMinutes()).padStart(2, "0");
-    const op = buildAlarmOperation({ gridId, userId, type, time: `${hh}:${mm}`, sortOrder: alarms.length });
+    const op = buildAlarmOperation({ gridId, userId, type, time: `${hh}:${mm}`, sortOrder: alarms.length, sched });
     CommitHelpers.createOperation({ dispatch, socket, operation: op });
     if (!open) setOpen(true);
   };

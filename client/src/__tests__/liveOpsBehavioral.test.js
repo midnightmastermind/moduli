@@ -17,7 +17,8 @@ vi.setConfig({ testTimeout: 20000 });
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { runMatchingOperations, applyEffectsToLiveOccs } from "../helpers/operationExecutor";
+import { runMatchingOperations, applyEffectsToLiveOccs, executePipeline } from "../helpers/operationExecutor";
+import { buildAlarmOperation } from "../helpers/alarmOps";
 
 const seedDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../server/seed");
 const loadSeed = (name) => JSON.parse(readFileSync(path.join(seedDir, name), "utf8"));
@@ -676,5 +677,56 @@ describe("Pomodoro: Start targets TODAY's slot only (2026-07-14 stale-slot orpha
     const created = Object.keys(occurrencesById).filter(id => !before.has(id))
       .map(id => occurrencesById[id]).filter(o => o.fields?.[pomoNumFid]);
     expect(created).toEqual([]); // never into the stale day's slot
+  });
+});
+
+describe("Alarm op drops an instance onto today's Schedule (2026-07-20 alarm→schedule)", () => {
+  // A fired alarm/reminder resolves today's day-col, targets the slot matching
+  // its timeslot (else the day-col), and creates ONE instance/day — matching +
+  // de-duping on the TIME SLOT field, stamped on the created instance. Fires
+  // via executePipeline (the useScheduler path), not a transaction trigger.
+  const sched = () => ({
+    dateFieldId: fieldIdByName["Date"],
+    timeslotFieldId: fieldIdByName["Time Slot"],
+    scheduleFormatFieldId: fieldIdByName["Schedule Format"],
+  });
+  const runAlarm = (op) => {
+    const updates = executePipeline(op, buildCtx(), {
+      type: "ScheduleTick", scheduleId: op.id, at: new Date().toISOString(),
+    });
+    applyEffectsToLiveOccs(occurrencesById, updates);
+    return updates;
+  };
+
+  it("creates the alarm instance in TODAY's 5:00pm slot, timeslot field stamped", () => {
+    const op = buildAlarmOperation({ gridId: grid?._id, type: "alarm", label: "5 PM", time: "17:00", sched: sched() });
+    const slot = scheduleSlotOcc("5:00pm");
+    expect(slot, "today's 5:00pm slot").toBeTruthy();
+    const before = new Set(Object.keys(occurrencesById));
+    runAlarm(op);
+    const created = [...Object.keys(occurrencesById)].filter((id) => !before.has(id))
+      .map((id) => occurrencesById[id]);
+    const inst = created.find((o) => o.label === "⏰ 5 PM");
+    expect(inst, "alarm instance").toBeTruthy();
+    // Landed inside the 5:00pm slot, timeslot field carries the slot label.
+    expect(inst.parentId).toBe(slot.id);
+    expect(inst.fields?.[fieldIdByName["Time Slot"]]?.value).toBe("5:00pm");
+    expect(inst.fields?.[fieldIdByName["Date"]]?.value).toBe(todayIso());
+  });
+
+  it("is idempotent — firing again the same day creates nothing (dedup on timeslot)", () => {
+    const op = buildAlarmOperation({ gridId: grid?._id, type: "alarm", label: "5 PM", time: "17:00", sched: sched() });
+    const before = new Set(Object.keys(occurrencesById));
+    runAlarm(op);
+    const created = [...Object.keys(occurrencesById)].filter((id) => !before.has(id));
+    expect(created).toEqual([]);
+  });
+
+  it("without sched, the pipeline is a plain NOTIFY (no schedule write)", () => {
+    const op = buildAlarmOperation({ gridId: grid?._id, type: "reminder", label: "Bare", time: "17:00" });
+    expect(op.pipeline.steps).toHaveLength(1);
+    const before = new Set(Object.keys(occurrencesById));
+    runAlarm(op);
+    expect([...Object.keys(occurrencesById)].filter((id) => !before.has(id))).toEqual([]);
   });
 });

@@ -6,6 +6,27 @@
 
 ---
 
+## Handoff — 2026-07-20 (alarm → schedule op: fired alarms drop an instance onto today's Schedule)
+
+Per user (chose Option A — per-alarm op step, "like the pomodoro"). A fired alarm/reminder now
+also drops an instance onto TODAY's Schedule:
+- **`makeAlarmOp` (server) + `buildAlarmOperation` (client) gained `sched`** ({ date, timeslot,
+  scheduleFormat field ids }). When set, the pipeline appends `alarmScheduleSteps` after the
+  NOTIFY: FIND Schedule page → today's day-col (`scheduleFormat="day-col"` + date SAME_DAY today)
+  → the slot matching the alarm's TIMESLOT (`alarmTimeslotLabel`: 17:00→"5:00pm"; :15 stamps
+  "5:15pm" but skips the slot FIND → lands in the day-col) → de-dupe on the timeslot FIELD (one
+  instance per timeslot per day) → CREATE the alarm instance stamping date + timeslot (hidden).
+  The two builders are twins — **keep in sync**. Fires via useScheduler (executePipeline).
+- **Per user mid-build**: match/de-dupe on the timeslot FIELD not the label; slot containers +
+  the created instance carry that field (any occurrence can). Pomodoro: Start already matched +
+  stamped the timeslot field — unchanged, now consistent.
+- **`grid.meta.scheduleFieldIds` seed-stamped** — AlarmDropdown reads it to bake `sched` into
+  alarms it mints; the seeded 5 PM / 6:30 AM alarms pass it too. **RESEED REQUIRED** (the live
+  grid has no scheduleFieldIds yet, so alarms stay plain NOTIFY until reseeded).
+- Verified: 245/245 server + 1306/1306 client (6 new tests) + build clean. Deploy + reseed next.
+
+---
+
 ## Handoff — 2026-07-14 (4) (unique field names — standing rule; all 11 seed duplicates renamed)
 
 Per user: "there shouldnt be duplicate field names." Swept the seed (`7c46256a`, reseeded):

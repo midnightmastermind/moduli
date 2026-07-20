@@ -1,6 +1,12 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-07-14. Check this file before re-reading source._
+_Updated: 2026-07-20. Check this file before re-reading source._
+
+## Recent Changes (2026-07-20 — AlarmDropdown: alarms it mints reach the Schedule)
+- **`AlarmDropdown.jsx`** — `add()` now passes `sched = state.grid.meta.scheduleFieldIds`
+  (seed-stamped { dateFieldId, timeslotFieldId, scheduleFormatFieldId }) into
+  `buildAlarmOperation`, so a fired alarm also drops an instance onto today's Schedule
+  (see helpers/CLAUDE.md alarmOps). Null on grids without a seeded Schedule → plain NOTIFY.
 
 ## Recent Changes (2026-07-14 — Editor file-drop: upload → artifact INSTANCE embedded at the cursor)
 - **`Editor.jsx` (`handleFileDrop`)** — the doc / embedded-doc-container / TABLE-CELL arm of the

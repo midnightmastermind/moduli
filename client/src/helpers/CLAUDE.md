@@ -1,6 +1,19 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-07-17. Check this file before re-reading source._
+_Updated: 2026-07-20. Check this file before re-reading source._
+
+## Recent Changes (2026-07-20 — alarmOps: fired alarms drop an instance onto today's Schedule)
+- **`alarmOps.js`** — `buildAlarmOperation` gained an optional `sched`
+  ({ dateFieldId, timeslotFieldId, scheduleFormatFieldId }), stored on `op.alarm.sched`
+  (applyAlarmToOperation preserves it — it spreads `op.alarm` and rebuilds the pipeline).
+  New `alarmScheduleSteps` appends, after the NOTIFY, a Schedule-insert like Pomodoro:
+  Start: FIND Schedule page → today's day-col → the slot matching the alarm's TIMESLOT
+  (`alarmTimeslotLabel`: "17:00"→"5:00pm"; :15 stamps "5:15pm" but skips the slot FIND) →
+  de-dupe on the timeslot FIELD → CREATE the alarm instance (date + timeslot stamped,
+  both hidden). MUST mirror the server twin `utils/liveSystemBuilders.js makeAlarmOp`.
+  `AlarmDropdown` resolves `sched` from `state.grid.meta.scheduleFieldIds` (seed-stamped)
+  and passes it into every alarm it mints. The op fires via useScheduler (executePipeline),
+  not a transaction trigger; atTimes cadence is Infinite so its CREATE effects apply.
 
 ## Recent Changes (2026-07-17 — mobile drag-to-edge nav: diagonal corners + faster dwell)
 - **`DragProvider.jsx` (`handleDragMove` edge-nav)** — the X and Y edge tests are now INDEPENDENT
