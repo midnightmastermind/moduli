@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import PomodoroTimer from "./ui/PomodoroTimer";
+import AlarmDropdown from "./ui/AlarmDropdown";
 import MiniGridMap from "./mobile/MiniGridMap";
 
 import { Button } from "@/components/ui/button";
@@ -256,6 +257,7 @@ const gridOptions = useMemo(
             <>
               <div className="w-px h-4 bg-border-default mx-0.5" />
               <PomodoroTimer />
+              <AlarmDropdown />
               <div className="w-px h-4 bg-border-default mx-0.5" />
 
               {/* History */}
@@ -412,6 +414,7 @@ const gridOptions = useMemo(
 
             {/* Pomodoro */}
             <PomodoroTimer />
+            <AlarmDropdown />
 
             <div style={{ height: 1, background: "var(--border-default)" }} />
 

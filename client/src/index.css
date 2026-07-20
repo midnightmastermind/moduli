@@ -1955,6 +1955,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .mobile-edge-down-left  { bottom:0; left:0; width:64px; height:64px; background:radial-gradient(circle at bottom left, rgba(50,150,255,0.6), transparent 70%); }
 .mobile-edge-down-right { bottom:0; right:0; width:64px; height:64px; background:radial-gradient(circle at bottom right, rgba(50,150,255,0.6), transparent 70%); }
 @keyframes edge-pulse { 0%,100% { opacity:0.5 } 50% { opacity:1 } }
+@keyframes alarm-shake { 0%,100% { transform: rotate(-9deg) } 50% { transform: rotate(9deg) } }
 @keyframes slide-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
 
 /* Zoomed-out mode — content non-interactive */

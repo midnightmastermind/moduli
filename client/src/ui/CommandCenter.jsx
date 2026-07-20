@@ -15,7 +15,6 @@ import {
   LayoutGrid,
   Palette,
   Layers,
-  AlarmClock,
 } from "lucide-react";
 
 import { FieldsTab } from "./commandCenter/FieldsTab";
@@ -27,7 +26,6 @@ import { UserSettingsTab } from "./commandCenter/UserSettingsTab";
 import { GridSettingsTab } from "./commandCenter/GridSettingsTab";
 import { AppearanceTab } from "./commandCenter/AppearanceTab";
 import TemplatesTab from "./commandCenter/TemplatesTab";
-import AlarmsTab from "./commandCenter/AlarmsTab";
 
 // ============================================================
 // TAB DEFINITIONS
@@ -36,7 +34,6 @@ const TABS = [
   { id: "grid", label: "Grid", icon: LayoutGrid },
   { id: "fields", label: "Fields", icon: Settings2 },
   { id: "operations", label: "Operations", icon: Workflow },
-  { id: "alarms", label: "Alarms", icon: AlarmClock },
   { id: "templates", label: "Templates", icon: Layers },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "files", label: "Files", icon: File },
@@ -124,7 +121,6 @@ export default function CommandCenter({ open, onOpenChange, isMobileLayout }) {
         <div style={{ overflow: "auto", flex: 1, minHeight: 0 }}>
           {activeTab === "fields"      && <FieldsTab />}
           {activeTab === "operations"  && <OperationsTab />}
-          {activeTab === "alarms"      && <AlarmsTab />}
           {activeTab === "templates"  && <TemplatesTab />}
           {activeTab === "grid"        && <GridSettingsTab />}
           {activeTab === "appearance"  && <AppearanceTab />}
