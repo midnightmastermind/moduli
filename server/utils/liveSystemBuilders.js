@@ -295,6 +295,27 @@ export async function buildScheduleTemplatePage({
     identitySignature: "slot:Due",
   });
 
+  // "No timeslot" container — like Due, but the bucket for tasks dropped in the
+  // SUMMARIZED (>7-day) view, which has no timeslot grid. Hidden in summary;
+  // shown as a slot in the full view so summary drops "pop up" here when you open
+  // the full day (user 2026-07-19).
+  const tplNoSlotModId = uid();
+  const tplNoSlotOccId = uid();
+  await new Module({
+    id: tplNoSlotModId, userId, gridId,
+    role: "container", kind: "board", label: "No timeslot",
+    fieldBindings: [{ fieldId: timeslotFieldId, role: "input", hidden: true, order: 0 }],
+  }).save();
+  await mkOcc({
+    id: tplNoSlotOccId,
+    moduleId: tplNoSlotModId,
+    targetId: tplNoSlotModId, targetType: "module",
+    parentId: dayContainerOccId,
+    fields: { [timeslotFieldId]: { value: "No timeslot", flow: "in" } },
+    occurrences: [],
+    identitySignature: "slot:No timeslot",
+  });
+
   // 48 slot containers + per-slot routine instances.
   const tplSlotOccIds = [];
   for (const slot of timeSlots) {
@@ -364,7 +385,7 @@ export async function buildScheduleTemplatePage({
     moduleId: dayContainerModId,
     targetId: dayContainerModId, targetType: "module",
     parentId: schedTplPageOccId,
-    occurrences: [tplDueOccId, ...tplSlotOccIds],
+    occurrences: [tplDueOccId, tplNoSlotOccId, ...tplSlotOccIds],
     identitySignature: "day-container",
   });
 
@@ -1118,16 +1139,21 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                       id: uid(), type: "if",
                       condition: { operator: "AND", rules: [{ id: uid(), left: "$activePeriodCount", comparator: "LESS_OR_EQUAL", right: 7 }] },
                       then: [
-                      // Convert a previously-SUMMARIZED day (flat instances parented
-                      // directly under the day-col) back to full: delete those flat
-                      // instances first, else they'd sit beside the rebuilt slots as
-                      // duplicates (user 2026-07-19: formats must convert both ways).
+                      // Convert a previously-SUMMARIZED day back to full. Delete only
+                      // the ROUTINE flat clones (marked scheduleFormat="flat" by the
+                      // summary build) — they get re-cloned into their timeslot slots
+                      // below. USER DROPS (unmarked flat instances) are PRESERVED and
+                      // re-homed into the "No timeslot" slot after the slots exist
+                      // (user 2026-07-19: dropping in summary must persist to full).
                       { id: uid(), type: "action", config: { type: "SET_VAR", name: "$dcOcc", expr: "$allItemsById.${$dayColId}" }},
                       { id: uid(), type: "loop", overExpr: "$dcOcc.occurrences", as: "$dcKidId",
                         body: [
                           { id: uid(), type: "action", config: { type: "SET_VAR", name: "$dcKid", expr: "$allItemsById.${$dcKidId}" }},
                           { id: uid(), type: "if",
-                            condition: { operator: "AND", rules: [{ id: uid(), left: "$dcKid.role", comparator: "IS", right: "instance" }] },
+                            condition: { operator: "AND", rules: [
+                              { id: uid(), left: "$dcKid.role", comparator: "IS", right: "instance" },
+                              { id: uid(), left: `$dcKid.fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "flat" },
+                            ]},
                             then: [{ id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$dcKidId" } }],
                             else: [],
                           },
@@ -1187,8 +1213,68 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                           else: [],
                         },
                       ],
+                    },
+                    // Re-home surviving USER DROPS (unmarked flat instances still
+                    // directly under the day-col) into the "No timeslot" slot now
+                    // that the slots exist — a task dropped in summary view shows up
+                    // under "No timeslot" when you open the full day (user 2026-07-19).
+                    { id: uid(), type: "action", config: {
+                        type: "FIND", over: "$allContainers",
+                        predicate: { operator: "AND", rules: [
+                          { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$dayColId" },
+                          { id: uid(), left: `fields.${timeslotFieldId}.value`, comparator: "IS", right: "No timeslot" },
+                        ]},
+                        itemIdVar: "$noSlotId",
+                    }},
+                    { id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [{ id: uid(), left: "$noSlotId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                      then: [
+                        { id: uid(), type: "action", config: { type: "SET_VAR", name: "$dcOcc2", expr: "$allItemsById.${$dayColId}" }},
+                        { id: uid(), type: "loop", overExpr: "$dcOcc2.occurrences", as: "$dropId",
+                          body: [
+                            { id: uid(), type: "action", config: { type: "SET_VAR", name: "$dropKid", expr: "$allItemsById.${$dropId}" }},
+                            { id: uid(), type: "if",
+                              condition: { operator: "AND", rules: [
+                                { id: uid(), left: "$dropKid.role", comparator: "IS", right: "instance" },
+                                { id: uid(), left: `$dropKid.fields.${scheduleFormatFieldId}.value`, comparator: "IS_EMPTY", right: "" },
+                              ]},
+                              then: [{ id: uid(), type: "action", config: { type: "MOVE_OCCURRENCE", occurrenceIdExpr: "$dropId", toContainerIdExpr: "$noSlotId" } }],
+                              else: [],
+                            },
+                          ],
+                        },
+                      ],
+                      else: [],
                     }],
                       else: [
+                        // PRESERVE user drops on the way DOWN to summary: flatten the
+                        // "No timeslot" slot's tasks to directly under the day-col
+                        // BEFORE the container teardown cascade-deletes that slot.
+                        { id: uid(), type: "action", config: {
+                            type: "FIND", over: "$allContainers",
+                            predicate: { operator: "AND", rules: [
+                              { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$dayColId" },
+                              { id: uid(), left: `fields.${timeslotFieldId}.value`, comparator: "IS", right: "No timeslot" },
+                            ]},
+                            itemIdVar: "$noSlotId",
+                        }},
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [{ id: uid(), left: "$noSlotId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                          then: [
+                            { id: uid(), type: "action", config: { type: "SET_VAR", name: "$noSlotOcc", expr: "$allItemsById.${$noSlotId}" }},
+                            { id: uid(), type: "loop", overExpr: "$noSlotOcc.occurrences", as: "$ndId",
+                              body: [
+                                { id: uid(), type: "action", config: { type: "SET_VAR", name: "$ndKid", expr: "$allItemsById.${$ndId}" }},
+                                { id: uid(), type: "if",
+                                  condition: { operator: "AND", rules: [{ id: uid(), left: "$ndKid.role", comparator: "IS", right: "instance" }] },
+                                  then: [{ id: uid(), type: "action", config: { type: "MOVE_OCCURRENCE", occurrenceIdExpr: "$ndId", toContainerIdExpr: "$dayColId" } }],
+                                  else: [],
+                                },
+                              ],
+                            },
+                          ],
+                          else: [],
+                        },
                         // Convert a previously-FULL day (Due + 48 slot CONTAINERS)
                         // to summarized: delete the container children first (cascade
                         // removes their nested instances), then build flat below —
@@ -1237,7 +1323,10 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                                       type: "APPLY_TEMPLATE",
                                       templateRef: "$sTplInstId",
                                       rootParent: "$dayColId",
-                                      defaultFields: { [dateFieldId]: "$day" },
+                                      // Mark as a routine flat clone so the full-view
+                                      // teardown deletes it (re-cloned into slots)
+                                      // while leaving user drops (unmarked) intact.
+                                      defaultFields: { [dateFieldId]: "$day", [scheduleFormatFieldId]: "flat" },
                                   }}],
                                 },
                               ],

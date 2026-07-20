@@ -115,11 +115,12 @@ describe("buildScheduleTemplatePage", () => {
     const day = occs.find(o => o.id === dayContainerOccId);
     expect(day.identitySignature).toBe("day-container");
     expect(day.parentId).toBe(schedTplPageOccId);
-    // Day's occurrences[] = [Due, slot1, slot2]
-    expect(day.occurrences).toHaveLength(3);
+    // Day's occurrences[] = [Due, No timeslot, slot1, slot2]
+    expect(day.occurrences).toHaveLength(4);
     const slotOccs = occs.filter(o => o.identitySignature?.startsWith("slot:"));
-    expect(slotOccs).toHaveLength(3);
+    expect(slotOccs).toHaveLength(4);
     expect(slotOccs.some(o => o.identitySignature === "slot:Due")).toBe(true);
+    expect(slotOccs.some(o => o.identitySignature === "slot:No timeslot")).toBe(true);
     expect(slotOccs.every(o => o.parentId === dayContainerOccId)).toBe(true);
   });
 });
