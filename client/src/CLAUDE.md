@@ -1,6 +1,35 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-07-14. Check this file before re-reading source._
+_Updated: 2026-07-24. Check this file before re-reading source._
+
+## Recent Changes (2026-07-24 — multicell panels scroll NATIVELY on mobile + drag autoscroll feel + smaller insert gap)
+- **`mobile/MobileGridNav.jsx` — multicell panel native scroll.** A panel spanning 2+ rows/cols
+  no longer cell-snaps inside itself (user: "autoswitch to the next cell but its jumpy"). While
+  the active cell is inside one, the `.mobile-grid-viewport` becomes a real `overflow: auto`
+  scroller (inline style) CLAMPED to the panel's row/col range — continuous native
+  momentum scroll through the whole panel; the slider transform anchors to the panel's ORIGIN
+  cell so within-panel movement never touches the transform. Pieces: exported pure helpers
+  `panelScrollMax` / `nearestSubCell` / `isViewportAtPanelEnd`
+  (`__tests__/mobilePanelScroll.test.js`, 14); a panel-keyed effect that positions scrollTop on
+  panel ENTRY (rail nav lands on the near edge, zoom-select on the picked sub-cell), clamps on
+  scroll, stamps `data-scroll-max-top/left` (read by DragProvider's autoscroll so drags scroll
+  the viewport without fighting the clamp), and SILENTLY syncs activeCell to the nearest
+  sub-cell (no navigate(), no animation — rails/persistence/drag-edge-nav stay honest);
+  overscroll-to-navigate now only fires when the target cell is OUTSIDE the panel AND the
+  viewport sits at its clamp end (`isViewportAtPanelEnd` gate); rails inside a multicell panel
+  show only at its EDGE sub-cells, where they cross to the neighboring panel. Single-cell
+  panels keep the old behavior byte-identically. Verified headless 390×844 (hub panel, 2 rows):
+  overflow flips to auto with maxTop = one viewport height, scrollTop force-set to 99999 clamps
+  at the panel edge, transform stable through the whole scroll, rails flip to the bottom-row
+  neighbors after scrolling down.
+- **`helpers/autoscrollMath.js` (NEW) + DragProvider** — drag-over autoscroll zone/ramp/grace
+  overhaul; see helpers/CLAUDE.md.
+- **`index.css` `.insert-gap`** — hit zone 14px→8px (margins −5px→−2px keep the net 4px flow
+  spacing; the band now overlaps neighbor rows by 2px, was 5px) and the blue line + click
+  target are a CENTERED 50% strip instead of edge-to-edge (user: "keep accidentally clicking on
+  the plus button… make that blue highlight line shorter and the clickable area"). Hover
+  anywhere on the thin gap still reveals it; only the centered strip is clickable, keeping the
+  drag handles at the row edges safe.
 
 ## Recent Changes (2026-07-15 — stacked wrap = full width; mosaic file-drop guard; Live Grid repair + orphan sweep)
 - **`index.css` `.wrap-group--auto-stacked`** — a wrapGroup that AUTO-STACKS (panel too narrow to

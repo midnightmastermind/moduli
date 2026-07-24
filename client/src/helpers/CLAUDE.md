@@ -1,6 +1,28 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-07-20. Check this file before re-reading source._
+_Updated: 2026-07-24. Check this file before re-reading source._
+
+## Recent Changes (2026-07-24 — drag autoscroll: zone/ramp/grace via new autoscrollMath.js)
+- **`autoscrollMath.js` (NEW)** — pure math behind DragProvider's continuous drag-over
+  autoscroll (user: "slow and finicky", esp. mobile). `autoscrollZone(h)` = quarter-height
+  clamped [56, 150] (was a fixed 80px band); `computeAutoscroll(rect, y)` → `{dir, intensity}`
+  where intensity runs 0→1 across the zone AND stays 1 past the rect edge; `autoscrollSpeed`
+  ramps 6→32 px/frame (was flat 10); `pointerNearRect` (70px grace band);
+  `maxScrollTopFor(el)` honors an element-declared `data-scroll-max-top` cap (the mobile grid
+  viewport's panel clamp) so the loop never fights a clamped scroller; `canScrollFurther`.
+  Tests: `__tests__/autoscrollMath.test.js` (19).
+- **`DragProvider.jsx` (`handleDragMove` autoscroll block + `tickAutoscroll`)** — state now
+  carries `speed` (re-tuned in place per frame — el/dir changes still own the rAF start/stop).
+  The 150ms scan (a) prefers the innermost scrollable that can still MOVE in the pressed
+  direction, so an inner list at its end hands the scroll to the scrollable behind it (e.g. the
+  mobile viewport over a multicell panel), and (b) on a scan miss keeps the PREVIOUS scrollable
+  when the pointer is within the grace band of its rect — the old behavior dead-stopped the
+  scroll the moment the finger drifted 1px past the container edge (the "finicky"). New
+  `[dragDiag] autoscroll` line on state change under `window.__dragDiag`. Verified headless
+  (real drag session, `body.dataset.dragKind` asserted): zone-entry crawl 423px/s, edge sweeps
+  the full scroll room, pointer 30px PAST the edge keeps scrolling. NOTE for future probes: a
+  Playwright drag whose handle is outside the viewport never starts a session — Chromium's
+  text-SELECTION autoscroll then mimics drag autoscroll and poisons the measurement.
 
 ## Recent Changes (2026-07-20 — alarmOps: fired alarms drop an instance onto today's Schedule)
 - **`alarmOps.js`** — `buildAlarmOperation` gained an optional `sched`

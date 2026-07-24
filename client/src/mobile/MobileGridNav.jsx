@@ -90,6 +90,47 @@ function isAtScrollBoundary(el, direction) {
 const OVERSCROLL_THRESHOLD = 60;
 const NAVIGATE_COOLDOWN = 400;
 
+// --- Multicell panel native scroll (2026-07-24) ---
+// A panel spanning 2+ rows/cols is ONE panel whose content is several screens
+// worth. Instead of cell-snapping inside it, the viewport becomes a real
+// native scroller clamped to the panel's row/col range — continuous scroll
+// with momentum through the whole panel. Cell-snap nav survives only for
+// crossing to a DIFFERENT panel. The slider transform anchors to the panel's
+// ORIGIN cell while inside it; scrollTop/scrollLeft carry the within-panel
+// position, and activeCell silently tracks the nearest sub-cell (rails,
+// persistence, drag-edge nav all keep working off it).
+
+export function panelScrollMax(panel, viewportW, viewportH) {
+  const h = panel?.height || 1;
+  const w = panel?.width || 1;
+  return {
+    maxTop: Math.max(0, (h - 1) * viewportH),
+    maxLeft: Math.max(0, (w - 1) * viewportW),
+  };
+}
+
+// The sub-cell (absolute row/col) the viewport scroll is closest to.
+export function nearestSubCell(panel, scrollTop, scrollLeft, viewportW, viewportH) {
+  const h = panel?.height || 1;
+  const w = panel?.width || 1;
+  const r = Math.max(0, Math.min(h - 1, Math.round(scrollTop / Math.max(1, viewportH))));
+  const c = Math.max(0, Math.min(w - 1, Math.round(scrollLeft / Math.max(1, viewportW))));
+  return { row: (panel?.row || 0) + r, col: (panel?.col || 0) + c };
+}
+
+// Has the viewport's clamped native scroll reached the panel's true edge in
+// this direction? (Gate for overscroll-to-navigate OUT of a multicell panel.)
+export function isViewportAtPanelEnd(viewport, panel, direction) {
+  if (!viewport) return true;
+  const { maxTop, maxLeft } = panelScrollMax(panel, viewport.clientWidth, viewport.clientHeight);
+  const threshold = 5;
+  if (direction === 'down') return viewport.scrollTop >= maxTop - threshold;
+  if (direction === 'up') return viewport.scrollTop <= threshold;
+  if (direction === 'right') return viewport.scrollLeft >= maxLeft - threshold;
+  if (direction === 'left') return viewport.scrollLeft <= threshold;
+  return true;
+}
+
 export default function MobileGridNav({
   children,
   rows,
@@ -157,6 +198,79 @@ export default function MobileGridNav({
   const visiblePanelsRef = useRef(visiblePanels);
   visiblePanelsRef.current = visiblePanels;
 
+  // Panel the active cell sits in (hoisted above the effects — the native
+  // panel-scroll wiring keys off it). height/width ≥ 2 → continuous scroll.
+  const currentPanel = findPanelForCell(visiblePanels, activeCell.row, activeCell.col);
+  const panelHeightSpan = currentPanel ? (currentPanel.height || 1) : 1;
+  const panelWidthSpan = currentPanel ? (currentPanel.width || 1) : 1;
+  const panelScrollV = panelHeightSpan >= 2;
+  const panelScrollH = panelWidthSpan >= 2;
+  // Identity of the ACTIVE PANEL (not the sub-cell) — the scroll effect must
+  // re-run when you enter a different panel, not when scroll-sync nudges
+  // activeCell between sub-cells of the same panel.
+  const panelKey = currentPanel
+    ? `${currentPanel.row}:${currentPanel.col}:${panelHeightSpan}:${panelWidthSpan}`
+    : null;
+
+  // --- Native panel scroll: overflow entry positioning, clamp, silent sync ---
+  const scrollSyncRafRef = useRef(0);
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || !isMobileLayout) return;
+    const active = !zoomedOut && (panelScrollV || panelScrollH);
+    if (!active) {
+      viewport.scrollTop = 0;
+      viewport.scrollLeft = 0;
+      delete viewport.dataset.scrollMaxTop;
+      delete viewport.dataset.scrollMaxLeft;
+      return;
+    }
+    const cell = activeCellRef.current;
+    const panel = findPanelForCell(visiblePanelsRef.current, cell.row, cell.col);
+    if (!panel) return;
+    // Land on the active sub-cell when ENTERING the panel (rail nav lands you
+    // on the near edge; zoom-out select lands you on the picked sub-cell).
+    viewport.scrollTop = panelScrollV ? (cell.row - panel.row) * viewport.clientHeight : 0;
+    viewport.scrollLeft = panelScrollH ? (cell.col - panel.col) * viewport.clientWidth : 0;
+    // Publish the clamp caps — DragProvider's drag autoscroll reads
+    // data-scroll-max-top so it doesn't fight the clamp at the panel edge.
+    const stampCaps = () => {
+      const { maxTop, maxLeft } = panelScrollMax(panel, viewport.clientWidth, viewport.clientHeight);
+      viewport.dataset.scrollMaxTop = String(maxTop);
+      viewport.dataset.scrollMaxLeft = String(maxLeft);
+      return { maxTop, maxLeft };
+    };
+    stampCaps();
+    const onScroll = () => {
+      // Clamp the native scroll to the panel's own row/col range — the slider
+      // continues below/right of the panel (other panels' cells), which must
+      // stay reachable only via cell-snap nav, never by this scroll.
+      const { maxTop, maxLeft } = stampCaps();
+      if (viewport.scrollTop > maxTop) viewport.scrollTop = maxTop;
+      if (viewport.scrollLeft > maxLeft) viewport.scrollLeft = maxLeft;
+      if (scrollSyncRafRef.current) return;
+      scrollSyncRafRef.current = requestAnimationFrame(() => {
+        scrollSyncRafRef.current = 0;
+        const cur = activeCellRef.current;
+        const p = findPanelForCell(visiblePanelsRef.current, cur.row, cur.col);
+        if (!p) return;
+        const next = nearestSubCell(p, viewport.scrollTop, viewport.scrollLeft, viewport.clientWidth, viewport.clientHeight);
+        // Silent sync — no navigate(), no animation class: the transform is
+        // anchored to the panel ORIGIN while inside it, so this never moves
+        // anything visually; it just keeps rails/persistence/drag-nav honest.
+        if (next.row !== cur.row || next.col !== cur.col) setActiveCell(next);
+      });
+    };
+    viewport.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      viewport.removeEventListener('scroll', onScroll);
+      if (scrollSyncRafRef.current) {
+        cancelAnimationFrame(scrollSyncRafRef.current);
+        scrollSyncRafRef.current = 0;
+      }
+    };
+  }, [isMobileLayout, zoomedOut, panelKey, panelScrollV, panelScrollH, setActiveCell]);
+
   useEffect(() => {
     if (!isMobileLayout || zoomedOut) return;
     const viewport = viewportRef.current;
@@ -217,15 +331,16 @@ export default function MobileGridNav({
         const panelHeight = panel ? (panel.height || 1) : 1;
         const targetRow = direction === 'down' ? cell.row + 1 : cell.row - 1;
 
-        // Allow nav if: (1) target cell is within the same panel bounds, OR (2) panel is single-row
-        const targetWithinPanel = panel &&
-          targetRow >= panel.row &&
-          targetRow < panel.row + panelHeight &&
-          targetRow >= 0 && targetRow < rows;
-        const panelIsSingleRow = panelHeight === 1;
-        const canNav = targetWithinPanel || panelIsSingleRow;
+        // Multicell panels scroll NATIVELY within their own rows (the
+        // panel-scroll effect owns that) — overscroll-nav only CROSSES the
+        // panel edge. Single-row panels keep the plain cell-snap nav.
+        const targetOutsidePanel = !panel ||
+          targetRow < panel.row || targetRow >= panel.row + panelHeight;
+        const targetValid = targetRow >= 0 && targetRow < rows;
+        const canNav = targetValid && (panelHeight === 1 || targetOutsidePanel);
 
-        const atBound = isAtScrollBoundary(scrollEl, direction);
+        const atBound = isAtScrollBoundary(scrollEl, direction) &&
+          (panelHeight === 1 || isViewportAtPanelEnd(viewport, panel, direction));
 
         if (canNav && atBound) {
           // Mark where we first hit the boundary
@@ -260,15 +375,15 @@ export default function MobileGridNav({
         const panelWidth = panel ? (panel.width || 1) : 1;
         const targetCol = direction === 'right' ? cell.col + 1 : cell.col - 1;
 
-        // Allow nav if: (1) target cell is within the same panel bounds, OR (2) panel is single-col
-        const targetWithinPanel = panel &&
-          targetCol >= panel.col &&
-          targetCol < panel.col + panelWidth &&
-          targetCol >= 0 && targetCol < cols;
-        const panelIsSingleCol = panelWidth === 1;
-        const canNav = targetWithinPanel || panelIsSingleCol;
+        // Same crossing-only rule as the vertical branch: native viewport
+        // scroll owns within-panel movement for 2+-col panels.
+        const targetOutsidePanel = !panel ||
+          targetCol < panel.col || targetCol >= panel.col + panelWidth;
+        const targetValid = targetCol >= 0 && targetCol < cols;
+        const canNav = targetValid && (panelWidth === 1 || targetOutsidePanel);
 
-        const atBound = isAtScrollBoundary(scrollEl, direction);
+        const atBound = isAtScrollBoundary(scrollEl, direction) &&
+          (panelWidth === 1 || isViewportAtPanelEnd(viewport, panel, direction));
 
         if (canNav && atBound) {
           if (!t.atBoundary) {
@@ -329,16 +444,17 @@ export default function MobileGridNav({
 
   const { row, col } = activeCell;
 
-  // Boundary hints for multi-cell panels
-  const currentPanel = findPanelForCell(visiblePanels, row, col);
-  const panelHeight = currentPanel ? (currentPanel.height || 1) : 1;
-  const panelWidth = currentPanel ? (currentPanel.width || 1) : 1;
+  // Boundary hints for multi-cell panels (panel itself hoisted above the effects)
+  const panelHeight = panelHeightSpan;
+  const panelWidth = panelWidthSpan;
 
-  const hasLeft = col > 0;
-  const hasRight = col < cols - 1;
-  // Hide up/down buttons when panel spans 2+ rows (only scroll, don't nav)
-  const hasUp = row > 0 && panelHeight < 2;
-  const hasDown = row < rows - 1 && panelHeight < 2;
+  // Rails inside a multicell panel: within-panel movement is the native
+  // scroll now, so the arrows only show at the panel's EDGE sub-cells, where
+  // they cross into the neighboring panel.
+  const hasLeft = col > 0 && (panelWidth < 2 || col === currentPanel.col);
+  const hasRight = col < cols - 1 && (panelWidth < 2 || col === currentPanel.col + panelWidth - 1);
+  const hasUp = row > 0 && (panelHeight < 2 || row === currentPanel.row);
+  const hasDown = row < rows - 1 && (panelHeight < 2 || row === currentPanel.row + panelHeight - 1);
 
   const hasMoreDown = currentPanel && (currentPanel.row + panelHeight > row + 1);
   const hasMoreUp = currentPanel && (currentPanel.row < row);
@@ -368,14 +484,27 @@ export default function MobileGridNav({
   };
   const ulP = diagPanel(-1, -1), urP = diagPanel(-1, 1), dlP = diagPanel(1, -1), drP = diagPanel(1, 1);
 
-  // Zoomed-in: translate to show active cell
+  // Zoomed-in: translate to show active cell. Inside a multicell panel the
+  // translate anchors to the panel's ORIGIN cell — the within-panel position
+  // is the viewport's own native scroll, so sub-cell activeCell changes never
+  // move the transform (no snap).
   // Zoomed-out: scale entire grid to fit viewport
+  const anchorRow = panelScrollV ? currentPanel.row : row;
+  const anchorCol = panelScrollH ? currentPanel.col : col;
   const transform = zoomedOut
     ? `scale(${1 / cols}, ${1 / rows})`
-    : `translate(${-(col * (100 / cols))}%, ${-(row * (100 / rows))}%)`;
+    : `translate(${-(anchorCol * (100 / cols))}%, ${-(anchorRow * (100 / rows))}%)`;
 
   return (
-    <div className="mobile-grid-viewport" ref={viewportRef}>
+    <div
+      className="mobile-grid-viewport"
+      ref={viewportRef}
+      style={{
+        overflowY: !zoomedOut && panelScrollV ? "auto" : "hidden",
+        overflowX: !zoomedOut && panelScrollH ? "auto" : "hidden",
+        overscrollBehavior: "contain",
+      }}
+    >
       <div
         ref={sliderRef}
         className={`mobile-grid-slider${zoomedOut ? " zoomed-out" : ""}`}

@@ -1428,26 +1428,29 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    can insert a new item at that exact spot (mirrors a drop-spot highlight). */
 .insert-gap {
   position: relative;
-  /* CONSTANT-height hit zone (2026-07-10): a 14px hover/click target whose negative
+  /* CONSTANT-height hit zone (2026-07-10): hover/click target whose negative
      margins pull it back to a net 4px of flow spacing between items — so the visual
      gap is unchanged but hovering NEVER changes layout height. The old
      `:hover { height: 18px }` grew the element, reflowing every sibling below → the
      items shifted out from under the pointer, toggling the hover and making adjacent
-     gaps sputter between each other (user: "glitch based on pointer position"). */
-  height: 14px;
-  margin: -5px 0;
+     gaps sputter between each other (user: "glitch based on pointer position").
+     2026-07-24: 14px → 8px (overlaps neighbor rows by 2px each side, was 5px) —
+     the fat band kept stealing clicks/drag-starts meant for the rows around it. */
+  height: 8px;
+  margin: -2px 0;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 3;
-  cursor: pointer; /* pointer across the whole blue line, not just the + button */
 }
-/* Visually IDENTICAL to the drag-and-drop drop indicator that appears between
-   items (.drop-indicator.drop-indicator-inst-*): solid rgb(50,150,255), full
-   opacity, 3px, 1px radius, edge-to-edge. The only difference is the "+" button. */
+/* Same visual language as the drag-and-drop drop indicator between items
+   (.drop-indicator.drop-indicator-inst-*): solid rgb(50,150,255), 3px, 1px
+   radius — but SHORTER: a centered bar (2026-07-24, was edge-to-edge) so the
+   insert affordance reads distinct from a drop line and the click zone stays
+   clear of the drag handles at the row edges. */
 .insert-gap-line {
   position: absolute;
-  left: -1px; right: -1px;
+  left: 25%; right: 25%;
   height: 3px;
   border-radius: 1px;
   background-color: rgb(50, 150, 255);
@@ -1455,11 +1458,12 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   transition: opacity 0.12s ease;
   pointer-events: none;
 }
-/* The button wrapper spans the WHOLE gap so the entire highlight strip — not just
-   the centered "+" — is the click target (pointer cursor everywhere on it). */
+/* The button wrapper matches the centered bar — only the middle strip is
+   clickable; hovering anywhere on the (thin) gap still reveals it. */
 .insert-gap-btn {
   position: relative; z-index: 1; opacity: 0; transition: opacity 0.12s ease;
-  width: 100%; display: flex; align-items: center; justify-content: center;
+  width: 50%; display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
 }
 /* Reveal is opacity-only — NO height change, so hovering never reflows siblings. */
 .insert-gap:hover .insert-gap-line, .insert-gap--open .insert-gap-line { opacity: 1; }

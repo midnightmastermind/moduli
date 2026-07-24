@@ -6,6 +6,27 @@
 
 ---
 
+## Handoff — 2026-07-24 (drag autoscroll feel + multicell panels scroll natively on mobile + smaller insert gap)
+
+Per user (CLAUDE_CHAT 2026-07-24), three UX asks, all shipped + headless-verified:
+- **Drag-over autoscroll** (any scrollable, mobile priority): new pure `helpers/autoscrollMath.js`
+  — zone = quarter-height clamped [56,150] (was fixed 80px), speed RAMPS 6→32 px/frame toward the
+  edge (was flat 10), 70px GRACE band keeps the last scrollable scrolling when the finger
+  overshoots its rect (the old dead-stop = the "finicky"), and the scan hands off from an inner
+  scrollable at its end to the one behind it. Verified with a REAL drag session (probe lesson:
+  a Playwright drag from an off-viewport handle never starts — selection-autoscroll mimics it).
+- **Multicell panels (h or w ≥ 2) on mobile scroll CONTINUOUSLY** (user picked native viewport
+  scroll): the mobile viewport becomes an overflow:auto scroller clamped to the panel's row/col
+  range; transform anchors to the panel ORIGIN; activeCell silently tracks the nearest sub-cell;
+  cell-snap (overscroll + rails, edge sub-cells only) survives ONLY for crossing to a different
+  panel. Publishes `data-scroll-max-top/left` so drag autoscroll respects the clamp.
+  MobileGridNav pure helpers exported + tested.
+- **InsertGap declawed**: 8px hit zone (was 14) + centered 50% line/click strip (was
+  edge-to-edge) — stops eating clicks/drag-starts meant for the rows around it.
+- 1336/1336 client tests (33 new), build clean. No reseed needed (client-only).
+
+---
+
 ## Handoff — 2026-07-20 (alarm → schedule op: fired alarms drop an instance onto today's Schedule)
 
 Per user (chose Option A — per-alarm op step, "like the pomodoro"). A fired alarm/reminder now

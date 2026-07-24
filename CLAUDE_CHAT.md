@@ -2489,3 +2489,27 @@ rows×cols `placement` (A 0,0 · B 1,0 · hub col-1 full-height · D/E col-2). M
 derives the cell space from those placements — the 3×2 map, 4-direction rail buttons, zoom-out
 overlay, and toolbar MiniGridMap shape are all back (placement-less grids keep the 1×N
 fallback). Verified headless at 390×844: 5 panels at their 2D cells, hub spanning both rows.
+
+## 2026-07-24 — drag autoscroll sensitivity + multicell continuous scroll + smaller insert gap
+
+> "could you look increase the sensitivity of dragging occurances to anything scrollable on the
+> sides, especially on mobile, i drag something to the schedule and hold it at the bottom of it
+> to autoscroll to a later timeslot. and its just slow and finicky. also look into the whole
+> scrolling thing on mobile for multicelled panels with height 2 or more (or width i guess),
+> right now we have an autoswitch to the next cell but its jumpy. can we explkore the option we
+> had where the mobile just knows its 2 panels high and does the scroll based on that, instead
+> of rejumping to the next cell on scroll"
+
+> "also its getting hard to drag things when i keep accidentally clicking on the plus button in
+> between occurances, is there any way to make that blue highlight line shorter and the
+> clickable area for it"
+
+Direction (confirmed back to the user, "yes thats correct"):
+1. Drag-over autoscroll on ANY scrollable: bigger edge zone, speed ramps toward the edge,
+   grace band so a finger slightly past the container edge keeps scrolling (mobile priority).
+2. Multicell panels (height/width ≥ 2) on mobile: NATIVE viewport scroll clamped to the
+   panel's row/col range — continuous scroll through the whole panel, no cell snapping inside
+   it; snap-nav survives only for crossing to a DIFFERENT panel. (User picked "native viewport
+   scroll" over panel-as-one-cell and transform-driven options.)
+3. InsertGap between occurrences: shrink the clickable hit zone + the blue line so it stops
+   stealing clicks/drag-starts.

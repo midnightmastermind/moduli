@@ -30,6 +30,7 @@ import { operationsBridge } from "../state/bindSocketToStore";
 import { buildDropContext, buildRawDropEvent, DROP_TARGET_KIND, collectMemberCards } from "./dragHitTesting";
 import { snapshotRenders, diffRenders, snapshotAttrs, diffAttrs } from "./renderProbe";
 import { dragPerf } from "./dragPerf";
+import { computeAutoscroll, autoscrollSpeed, pointerNearRect, canScrollFurther, maxScrollTopFor } from "./autoscrollMath";
 
 // ============================================================
 // UTILITIES
@@ -250,11 +251,11 @@ export function DragProvider({
     autoscrollStateRef.current = { el: null, dir: 0 };
   }, []);
   const tickAutoscroll = useCallback(() => {
-    const { el, dir } = autoscrollStateRef.current;
+    const { el, dir, speed } = autoscrollStateRef.current;
     if (!el || !dir) { autoscrollRafRef.current = 0; return; }
-    const speed = 10;
-    if (dir < 0) el.scrollTop = Math.max(0, el.scrollTop - speed);
-    else el.scrollTop = Math.min(el.scrollHeight - el.clientHeight, el.scrollTop + speed);
+    const px = speed || 10;
+    if (dir < 0) el.scrollTop = Math.max(0, el.scrollTop - px);
+    else el.scrollTop = Math.min(maxScrollTopFor(el), el.scrollTop + px);
     autoscrollRafRef.current = requestAnimationFrame(tickAutoscroll);
   }, []);
   // Track last hot target to skip redundant DOM updates on every mouse-move
@@ -690,7 +691,7 @@ export function DragProvider({
       // so the scroll keeps progressing even if the finger stops moving —
       // mobile drag has no equivalent of mousemove-while-still.
       const isDraggingPanel = s.payload?.type === DragType.PANEL;
-      let nextScrollEl = null, nextScrollDir = 0;
+      let nextScrollEl = null, nextScrollDir = 0, nextScrollSpeed = 0;
       if (!isDraggingPanel) {
         // The scrollable ancestor under the finger almost never changes during a
         // drag, but elementsFromPoint + getComputedStyle-per-element forces a
@@ -700,16 +701,29 @@ export function DragProvider({
         const nowTs = performance.now();
         const scan = autoscrollScanRef.current;
         if (nowTs - scan.at > AUTOSCROLL_SCAN_MS || !scan.el || !scan.el.isConnected) {
-          let found = null;
+          let found = null, firstScrollable = null;
           const stack = document.elementsFromPoint(clientX, clientY);
           for (const el of stack) {
             if (!el || el === document.body || el === document.documentElement) continue;
             const cs = getComputedStyle(el);
             const oy = cs.overflowY;
             if ((oy === "auto" || oy === "scroll") && el.scrollHeight > el.clientHeight) {
-              found = el;
-              break;
+              if (!firstScrollable) firstScrollable = el;
+              // Prefer the innermost scrollable that can still MOVE in the
+              // direction the pointer is pressing — an inner list already at
+              // its end hands the scroll to the next scrollable behind it
+              // (e.g. the mobile grid viewport under a multicell panel).
+              const probe = computeAutoscroll(el.getBoundingClientRect(), clientY);
+              if (probe.dir !== 0 && canScrollFurther(el, probe.dir)) { found = el; break; }
             }
+          }
+          if (!found) found = firstScrollable;
+          // GRACE: a finger that overshoots slightly past the container edge
+          // (constant when pushing into the bottom edge on touch) keeps the
+          // previous scrollable instead of dead-stopping the autoscroll.
+          if (!found && scan.el && scan.el.isConnected &&
+              pointerNearRect(scan.el.getBoundingClientRect(), clientX, clientY)) {
+            found = scan.el;
           }
           autoscrollScanRef.current = { el: found, at: nowTs };
           nextScrollEl = found;
@@ -718,20 +732,29 @@ export function DragProvider({
         }
         if (nextScrollEl) {
           const rect = nextScrollEl.getBoundingClientRect();
-          const scrollZone = 80;
-          if (clientY < rect.top + scrollZone) nextScrollDir = -1;
-          else if (clientY > rect.bottom - scrollZone) nextScrollDir = 1;
+          const { dir, intensity } = computeAutoscroll(rect, clientY);
+          nextScrollDir = dir;
+          nextScrollSpeed = autoscrollSpeed(intensity);
         }
       }
       const cur = autoscrollStateRef.current;
       if (cur.el !== nextScrollEl || cur.dir !== nextScrollDir) {
-        autoscrollStateRef.current = { el: nextScrollEl, dir: nextScrollDir };
+        if (window.__dragDiag === true) {
+          console.log("[dragDiag] autoscroll", {
+            el: nextScrollEl ? `${nextScrollEl.tagName}.${String(nextScrollEl.className).slice(0, 30)}` : null,
+            dir: nextScrollDir, speed: Math.round(nextScrollSpeed), y: Math.round(clientY),
+          });
+        }
+        autoscrollStateRef.current = { el: nextScrollEl, dir: nextScrollDir, speed: nextScrollSpeed };
         if (nextScrollDir === 0 || !nextScrollEl) {
           if (autoscrollRafRef.current) cancelAnimationFrame(autoscrollRafRef.current);
           autoscrollRafRef.current = 0;
         } else if (!autoscrollRafRef.current) {
           autoscrollRafRef.current = requestAnimationFrame(tickAutoscroll);
         }
+      } else if (cur.el) {
+        // Same element+direction — just re-tune the ramped speed in place.
+        cur.speed = nextScrollSpeed;
       }
 
       // Mobile drag-to-edge cell navigation (B3: reads from dragConfigRef).
