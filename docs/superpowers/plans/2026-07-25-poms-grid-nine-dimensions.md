@@ -32,25 +32,29 @@
 
 | Dimension | Actions |
 |---|---|
-| Physical | Eat, Drink, Sleep, Nap, Exercise, Stretch, Walk, Run, Lift, Recover, Hygiene, Groom |
+| Physical | Eat, Cook, Drink, Sleep, Nap, Exercise, Stretch, Walk, Run, Lift, Recover, Hygiene, Groom |
 | Emotional | Journal, Reflect, Meditate, Check In, Express, Vent, Celebrate, Forgive, Relax, Decompress |
 | Intellectual | Read, Study, Watch, Listen, Practice, Memorize, Research, Explore, Analyze, Teach |
 | Social | Text, Call, Chat, Meet, Date, Visit, Host, Collaborate, Mentor, Volunteer |
 | Spiritual | Pray, Meditate, Reflect, Worship, Read Scripture, Read Philosophy, Gratitude, Mindfulness, Nature, Serve |
 | Occupational | Plan, Prioritize, Focus, Build, Code, Design, Write, Review, Email, Network |
-| Financial | Budget, Save, Earn, Invest, Spend, Pay, Track, Reconcile, Donate, Review |
+| Financial | Budget, Save, Earn, Invest, Spend, Buy, Pay, Track, Reconcile, Donate, Review |
 | Environmental | Clean, Declutter, Organize, Laundry, Dishes, Vacuum, Recycle, Repair, Maintain, Garden |
 | Creative | Draw, Paint, Sketch, Write, Journal Creatively, Compose, Sing, Dance, Craft, Photograph, Film, Edit, Brainstorm, Prototype, Invent |
 
 Duplicate instance labels across dimensions (Meditate, Reflect, Write, Review) are fine — they are separate modules; only FIELD names must be unique, and all op wiring is picker-direct.
+
+Two actions added beyond the user's verbatim list, per follow-up direction ("cooking and buy should use the ingredients list too"): **Cook** (Physical) and **Buy** (Financial).
+
+**Track is the money occurrence** (per user): pick an Account, enter an Amount, and the flow toggle (in / out / **replace**) decides whether it adds, subtracts, or SETS the balance — replace rides the existing `supportsReplace` balance-base logic, making Track the universal successor to the old Set Account Balance task.
 
 ### Option boards (new "Boards" folder; each = one `kind:"board"` page with one container of option instances)
 
 | Board page | Tag value | Seed options | Dropdown field (type `occurrence`) | Used by |
 |---|---|---|---|---|
 | Meals | `meal` | Scrambled Eggs, Greek Salad with Chicken, Oatmeal with Berries, Protein Shake, Chicken and Rice, Salmon and Vegetables | **Meal** | Eat |
-| Ingredients | `ingredient` | Chicken Breast, Eggs, Rice, Spinach, Greek Yogurt, Oats, Salmon, Olive Oil, Sweet Potatoes, Black Beans | **Ingredient** (multiSelect) | Eat (recipe components) |
-| Grocery List | `grocery` | Milk, Bananas, Coffee Beans, Paper Towels, Chicken Thighs, Frozen Berries | **Grocery Item** (multiSelect) | Spend, Track |
+| Ingredients | `ingredient` | Chicken Breast, Eggs, Rice, Spinach, Greek Yogurt, Oats, Salmon, Olive Oil, Sweet Potatoes, Black Beans | **Ingredient** (multiSelect, queries Ingredients + Grocery List) | Eat, Cook |
+| Grocery List | `grocery` | Milk, Bananas, Coffee Beans, Paper Towels, Chicken Thighs, Frozen Berries | **Purchase Item** (multiSelect, queries Grocery + Wish List + Ingredients + Supplements + Equipment + Plants) | Buy, Spend |
 | Beverages | `beverage` | Water, Coffee, Green Tea, Electrolyte Drink, Smoothie | **Beverage** | Drink |
 | Supplements | `supplement` | Creatine, Vitamin D, Fish Oil, Magnesium, Protein Powder, Multivitamin | **Supplement** (multiSelect) | Recover |
 | Movements | `movement` | the 30 existing exercises (Bench Press … Burpees) + Hamstring Stretch, Hip Flexor Stretch, Shoulder Stretch | **Movement** | Exercise, Stretch, Lift |
@@ -83,11 +87,35 @@ Reused existing occurrence fields (do NOT mint new ones): **People** (`peopleAss
 
 Scoping mechanism: one new hidden select field **Board Category** (`boardCategoryFieldId`), stamped on every option instance. Each dropdown field's `meta.optionsSource` is find-mode over `$allInstances` with predicate `fields.<boardCategoryFieldId>.value IS "<tag>"`, plus `addNew: { parentOccurrenceId: <that board's container occ id> }` — byte-for-byte the Library `library:"person"` pattern (see `createLiveData.js:1121` area for the `peopleAssigned` reference shape).
 
+**Multi-board dropdowns:** a dropdown can query SEVERAL boards at once with an OR-group predicate — same find-mode, just:
+
+```js
+predicate: { logic: "OR", rules: [
+  { left: `fields.${boardCategoryFieldId}.value`, comparator: "IS", right: "literal:grocery" },
+  { left: `fields.${boardCategoryFieldId}.value`, comparator: "IS", right: "literal:wishlist" },
+  { left: `fields.${boardCategoryFieldId}.value`, comparator: "IS", right: "literal:ingredient" },
+  // …one rule per tag
+]},
+```
+
+Multi-board fields in this seed:
+
+| Field | Boards queried | Why |
+|---|---|---|
+| **Purchase Item** (NEW, multiSelect) | Grocery List + Wish List + Ingredients + Supplements + Equipment + Plants | Buy/Spend can log ANY buyable thing — a grocery run, a wish-list splurge, recipe ingredients, a new plant. `addNew` parents into Grocery List (the everyday case). |
+| **Ingredient** (multiSelect) | Ingredients + Grocery List | Cook/Eat can pull from the pantry list OR something just bought off the grocery list. `addNew` → Ingredients. |
+| **Media** | Media + Songs | Listen can pick a podcast/show or a single song. |
+| **Skill** | Skills + Songs | Practice covers "practice guitar" AND "practice Blackbird". |
+| **Reading** | Readings (Library books + scripture/philosophy entries share the tag) | already effectively multi-source via the Library reuse |
+
+Outside-the-box seed touches enabled by this: each **Meal** option instance on the Meals board binds the Ingredient field itself (a meal IS a recipe — pick a meal on Cook and its ingredient list is one click away); the Grocery List board is the natural `addNew` sink so anything typed into a Buy/Spend dropdown lands on the grocery list automatically.
+
 ### Per-action input field bindings (all actions also bind hidden Date; `completed` bound everywhere unless noted)
 
 | Action(s) | Extra input fields |
 |---|---|
 | Eat | Meal, Ingredient (multi), Calories, Protein, Carbs, Fats (existing macro input fields) |
+| Cook | Meal, Ingredient (multi), Duration |
 | Drink | Beverage, Water (oz) |
 | Sleep, Nap, Focus | Duration |
 | Recover | Supplement (multi), Duration |
@@ -111,10 +139,10 @@ Scoping mechanism: one new hidden select field **Board Category** (`boardCategor
 | Mentor | People, Skill, Duration |
 | Volunteer | People, Place, Charity, Duration |
 | Plan, Prioritize, Build, Code, Design, Write (Occ.), Review (Occ.) | Project, Duration |
-| Budget | Account, Wish List Item, Amount (with flow) |
-| Save, Spend | Account, Wish List Item, Amount (with flow) |
+| Budget, Save | Account, Wish List Item, Amount (with flow) |
+| Spend, Buy | Account, Purchase Item (multi), Amount (with flow) |
 | Earn, Invest, Pay, Reconcile, Review (Fin.) | Account, Amount (with flow) |
-| Track | Account, Grocery Item (multi), Amount (with flow) |
+| Track | Account, Amount (with flow — `field.meta.flowToggle` visible so in/out/replace is one tap; replace SETS the account balance via `supportsReplace`) |
 | Donate | Account, Charity, Amount (with flow) |
 | Clean, Declutter, Organize, Vacuum | Area, Duration |
 | Repair, Maintain | Equipment, Duration |
@@ -147,7 +175,7 @@ Scoping mechanism: one new hidden select field **Board Category** (`boardCategor
 | Phone Calls | `Call` completions (People rows) — picker-direct on the Call template occ |
 | Nutrition totals (Calories/Protein/Carbs/Fats) | `Eat` macro fields (replaces 4 per-meal trackers with one `Eat`-scoped tracker writing the same 4 goal fields) |
 | Total Workouts / Workout History | `Exercise`+`Lift` (presence discriminator switches from `muscleGroup` to the Movement field: `movementFieldId IS_NOT_EMPTY`) |
-| Financial (Spent/Earned/balances) | unchanged (generic on Amount+flow, `supportsReplace` intact) |
+| Financial (Spent/Earned/balances) | unchanged mechanics (generic on Amount+flow); `supportsReplace` balance trackers now anchor on **Track** replace entries (Track = the universal Set-Account-Balance, per user) |
 
 `presenceFieldId` per tracker follows the existing `makeTrackerOp` param — no marker fields, no label matching.
 
@@ -333,7 +361,7 @@ git commit -m "feat(theme): Light Vintage + Dark Vintage '70s themes; Dark Vinta
 - Modify: `server/scripts/createLiveData.js` STEP 2 (fields, ~line 619+), STEP 3/6 (option instance modules + occurrences), STEP 7/8 (Boards folder + board pages)
 
 **Interfaces:**
-- Produces (used by Tasks 4–6): `boardCategoryFieldId`; dropdown field ids `mealFieldId, ingredientFieldId, groceryItemFieldId, beverageFieldId, supplementFieldId, movementFieldId, routeFieldId, readingFieldId, mediaFieldId, practiceFieldId, promptFieldId, leisureFieldId, skillFieldId, topicFieldId, wishListItemFieldId, charityFieldId, placeFieldId, areaFieldId, equipmentFieldId, plantFieldId, mediumFieldId, songFieldId` (+ resolved Project field per the note); `boardContainerOccIds = { meal, ingredient, grocery, beverage, supplement, movement, route, reading, media, practice, prompt, leisure, project, skill, topic, wishlist, charity, place, area, equipment, plant, medium, song, person }` — 24 boards total.
+- Produces (used by Tasks 4–6): `boardCategoryFieldId`; dropdown field ids `mealFieldId, ingredientFieldId, purchaseItemFieldId, beverageFieldId, supplementFieldId, movementFieldId, routeFieldId, readingFieldId, mediaFieldId, practiceFieldId, promptFieldId, leisureFieldId, skillFieldId, topicFieldId, wishListItemFieldId, charityFieldId, placeFieldId, areaFieldId, equipmentFieldId, plantFieldId, mediumFieldId, songFieldId` (+ resolved Project field per the note); multi-board fields (Purchase Item, Ingredient, Media, Skill) use the OR-group predicate from the Design Reference; `boardContainerOccIds = { meal, ingredient, grocery, beverage, supplement, movement, route, reading, media, practice, prompt, leisure, project, skill, topic, wishlist, charity, place, area, equipment, plant, medium, song, person }` — 24 boards total.
 
 - [ ] **Step 1: Add the tag field + 9 dropdown fields to STEP 2**
 
@@ -407,7 +435,7 @@ git commit -m "feat(seed): option Boards (24 pages incl. People) + Board Categor
 
 - [ ] **Step 1: Replace the toolkit instance catalog with the action catalog**
 
-Delete the old toolkit instance definitions (drinkWater, morningWorkout, meal instances, todo items, etc. — everything the 11 wellness pages held EXCEPT: the Pomodoro Session template, Pay Bills/Cancel Subscription (billRef/subscriptionRef mechanics), and Set Account Balance (`flow:"replace"`), which are re-homed as Financial/Intellectual actions' peers). Add one `role:"instance"` module per action from the Design Reference table, with input `fieldBindings` exactly per the per-action bindings table + hidden Date on every action (the DAILY-ROUTINE CONVENTION at line 2241). Example (complete, for Drink):
+Delete the old toolkit instance definitions (drinkWater, morningWorkout, meal instances, todo items, etc. — everything the 11 wellness pages held EXCEPT: the Pomodoro Session template and Pay Bills/Cancel Subscription (billRef/subscriptionRef mechanics), which are re-homed as Intellectual/Financial actions' peers). Set Account Balance is NOT carried over — **Track** (Amount with visible flow toggle, replace = set balance) supersedes it; point the `supportsReplace` tracker wiring at Track instead. Add one `role:"instance"` module per action from the Design Reference table, with input `fieldBindings` exactly per the per-action bindings table + hidden Date on every action (the DAILY-ROUTINE CONVENTION at line 2241). Example (complete, for Drink):
 
 ```js
 drink: {
