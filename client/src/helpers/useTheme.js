@@ -28,9 +28,23 @@ export const SYSTEM_THEMES = [
     description: "Pure black with violet accents",
     swatches: ["#09070f", "#130f1e", "#7c3aed"],
   },
+  {
+    id: "vintage-light",
+    label: "Light Vintage",
+    dark: false,
+    description: "'70s cream with rainbow-stripe accents",
+    swatches: ["#ece3d0", "#b34f24", "#3e8e7e"],
+  },
+  {
+    id: "vintage-dark",
+    label: "Dark Vintage",
+    dark: true,
+    description: "'70s dark brown with mustard and teal accents",
+    swatches: ["#241a18", "#e0a63f", "#3e8e7e"],
+  },
 ];
 
-const DEFAULT_THEME = "moduli-dark";
+const DEFAULT_THEME = "vintage-dark";
 
 function applyTheme(id) {
   const theme = SYSTEM_THEMES.find(t => t.id === id) ?? SYSTEM_THEMES[0];

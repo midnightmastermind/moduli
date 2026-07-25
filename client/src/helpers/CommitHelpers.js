@@ -1013,7 +1013,7 @@ export function createChildInContainer({
 // Returns { moduleId, occurrenceId } synchronously (IDs are pre-minted).
 export function createLeafInstanceInParent({
   dispatch, socket, gridId, userId, parentOccurrence, label = "", initialFields = {},
-  panelId = null, containerLabel = "",
+  panelId = null, containerLabel = "", fieldBindings = null,
 }) {
   if (!gridId || !userId || !parentOccurrence) return null;
   const moduleId = crypto?.randomUUID?.() || `li-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -1023,6 +1023,9 @@ export function createLeafInstanceInParent({
     id: moduleId, userId, gridId,
     role: "instance", kind: "board",
     label: label || "",
+    // Optional bindings (the addNew option flow binds stamp fields hidden +
+    // entry fields visible so a fresh option renders its inputs).
+    ...(Array.isArray(fieldBindings) && fieldBindings.length ? { fieldBindings } : {}),
   };
   const occurrence = {
     id: occurrenceId, userId, gridId,

@@ -125,6 +125,18 @@ function trackerValue(opName) {
   return v && typeof v === "object" && "value" in v ? v.value : v;
 }
 
+// Resolve a board OPTION occurrence by its module label (e.g. the "Bench
+// Press" movement on the Movements board). Board options are the pick targets
+// for the occurrence-dropdown fields the actions bind (2026-07-25 rebuild).
+function boardOptionId(label) {
+  const mod = moduleByLabel(label, "instance");
+  expect(mod, `board option module "${label}"`).toBeTruthy();
+  const occ = Object.values(occurrencesById).find(o =>
+    o.moduleId === mod.id && !ancestorChain(o.id).labels.includes("Schedule"));
+  expect(occ, `board option occurrence "${label}"`).toBeTruthy();
+  return occ.id;
+}
+
 // Find one of TODAY's schedule slot containers (built by the onLoad sweep).
 function scheduleSlotOcc(slotLabel) {
   return Object.values(occurrencesById).find(o => {
@@ -247,7 +259,7 @@ describe("drops (onAdd/onDelete) re-aggregate trackers — 2026-07-07 trigger fi
   it("dropping an ALREADY-COMPLETED item into a slot bumps Tasks Completed on the DROP", () => {
     const before = goalValue("Completed", "Tasks Completed");
     const leftBefore = goalValue("Completed", "Tasks Left");
-    addedId = addToSlot("Stretching", "1:00am", { Completed: true });
+    addedId = addToSlot("Stretch", "1:00am", { Completed: true });
     expect(goalValue("Completed", "Tasks Completed")).toBe(before + 1);
     expect(goalValue("Completed", "Tasks Left")).toBe(leftBefore - 1);
   });
@@ -255,8 +267,8 @@ describe("drops (onAdd/onDelete) re-aggregate trackers — 2026-07-07 trigger fi
     expect(goalValue("Streak", "Current Streak")).toBeGreaterThanOrEqual(1);
   });
   it("a completed NON-workout item does NOT count as a workout (presenceFieldId gate)", () => {
-    // Stretching carries no Muscle Group value → the Total Workouts tracker
-    // (countTrue gated on muscleGroup presence) must ignore it.
+    // Stretch carries no Movement pick → the Total Workouts tracker
+    // (countTrue gated on Movement presence) must ignore it.
     expect(trackerValue("Total Workouts") || 0).toBe(0);
   });
   it("deleting the dropped item re-aggregates back down", () => {
@@ -268,7 +280,7 @@ describe("drops (onAdd/onDelete) re-aggregate trackers — 2026-07-07 trigger fi
 
 describe("boolean input (Completed toggle)", () => {
   it("completing an incomplete slot item bumps Tasks Completed / drops Tasks Left", () => {
-    const id = addToSlot("Stretching", "1:30am"); // incomplete
+    const id = addToSlot("Stretch", "1:30am"); // incomplete
     const done = goalValue("Completed", "Tasks Completed");
     const left = goalValue("Completed", "Tasks Left");
     inputField(id, "Completed", true);
@@ -281,23 +293,23 @@ describe("number inputs", () => {
   // Trackers deliberately gate on Completed IS true (an incomplete task's
   // numbers are intent, not fact) — every input test completes its item.
   it("Steps on a COMPLETED schedule item lands in Daily Steps (incomplete = ignored)", () => {
-    const id = addToSlot("Evening Run", "2:00am");
+    const id = addToSlot("Run", "2:00am");
     inputField(id, "Steps", 4200);
     expect(goalValue("Steps", "Daily Steps") || 0).toBe(0); // not completed yet
     inputField(id, "Completed", true);
     expect(goalValue("Steps", "Daily Steps")).toBe(4200);
   });
   it("Water on completed schedule items sums into Daily Water", () => {
-    const a = addToSlot("Drink Water", "2:30am", { Completed: true });
+    const a = addToSlot("Drink", "2:30am", { Completed: true });
     inputField(a, "Water", 16);
     const afterFirst = goalValue("Water", "Daily Water");
     expect(afterFirst).toBeGreaterThanOrEqual(16);
-    const b = addToSlot("Drink Water", "3:00am", { Completed: true });
+    const b = addToSlot("Drink", "3:00am", { Completed: true });
     inputField(b, "Water", 8);
     expect(goalValue("Water", "Daily Water")).toBe(afterFirst + 8);
   });
   it("Pages on a completed schedule item lands in the reading Pages tracker", () => {
-    const id = addToSlot("Spiritual Reading", "3:30am", { Completed: true });
+    const id = addToSlot("Read Scripture", "3:30am", { Completed: true });
     inputField(id, "Pages", 12);
     expect(goalValue("Pages Read", "Pages Read")).toBe(12);
   });
@@ -305,7 +317,7 @@ describe("number inputs", () => {
 
 describe("duration input", () => {
   it("Duration on a completed schedule item lands in the Time Spent tracker", () => {
-    const id = addToSlot("Stretching", "4:00am", { Completed: true });
+    const id = addToSlot("Stretch", "4:00am", { Completed: true });
     inputField(id, "Duration", 25);
     const landed = anyFieldValues("Time Spent").filter(v => typeof v === "number" && v >= 25);
     expect(landed.length).toBeGreaterThanOrEqual(1);
@@ -314,7 +326,7 @@ describe("duration input", () => {
 
 describe("select input (Mood)", () => {
   it("Mood select updates Last Mood + pushes into Moods history", () => {
-    const id = addToSlot("Mood Check-in", "4:30am");
+    const id = addToSlot("Check In", "4:30am", { Completed: true });
     inputField(id, "Mood", "focused");
     expect(goalValue("Mood", "Last Mood")).toContain("focused");
     const hist = goalValue("Mood", "Moods");
@@ -327,13 +339,13 @@ describe("amount + flow input (money)", () => {
   it("Amount with flow=out on a completed, account-tagged Purchase lands in Spent", () => {
     const checking = goalOcc("Checking Account", "Checking Balance");
     expect(checking).toBeTruthy();
-    const id = addToSlot("Purchase", "5:00am", { Completed: true, Account: checking.id });
+    const id = addToSlot("Buy", "5:00am", { Completed: true, Account: checking.id });
     inputField(id, "Amount", 45, "out");
     expect(trackerValue("Spent")).toBe(45);
   });
   it("Income on a completed, account-tagged item lands in Earned", () => {
     const checking = goalOcc("Checking Account", "Checking Balance");
-    const id = addToSlot("Check Investments", "5:30am", { Completed: true, Account: checking.id });
+    const id = addToSlot("Earn", "5:30am", { Completed: true, Account: checking.id });
     inputField(id, "Income", 120);
     expect(trackerValue("Earned")).toBe(120);
   });
@@ -344,7 +356,7 @@ describe("amount + flow input (money)", () => {
     // earlier is same-day, so post-reset balance = base + prior net.
     const checking = goalOcc("Checking Account", "Checking Balance");
     const before = trackerValue("Checking Balance") || 0;
-    const id = addToSlot("Set Account Balance", "6:00am", { Completed: true, Account: checking.id });
+    const id = addToSlot("Track", "6:00am", { Completed: true, Account: checking.id });
     inputField(id, "Amount", 500, "replace");
     expect(trackerValue("Checking Balance")).toBe(500 + before);
     // The replace entry itself never lands in the flow=out Spent tracker.
@@ -352,31 +364,33 @@ describe("amount + flow input (money)", () => {
   });
 });
 
-describe("workout inputs (reps + muscle group + presence-gated Workouts)", () => {
-  it("Set reps on a COMPLETED chest workout land in Chest Volume + Total Reps", () => {
+describe("workout inputs (reps + Movement pick + presence-gated Workouts)", () => {
+  // 2026-07-25: a workout is an EXERCISE action carrying a Movement pick; the
+  // muscle group lives on the picked movement OPTION, so the volume trackers
+  // resolve the pick and read ITS Muscle Group.
+  let exerciseId;
+  it("Set reps on a COMPLETED Exercise with a chest Movement land in Chest Volume + Total Reps", () => {
     // Volume/Reps gate on Completed (2026-07-10) — an uncompleted set is intent,
-    // not fact. Completed items count under BOTH the current and gated ops, so
-    // this stays green across a reseed (delta-based for the shared store).
+    // not fact (delta-based for the shared store).
     const beforeReps = goalValue("Reps", "Total Reps") || 0;
     const beforeVol = goalValue("Chest Volume", "Total Reps") || 0;
-    const id = addToSlot("Bench Press", "6:30am", { "Muscle Group": "chest", Completed: true });
-    inputField(id, "Set 1", 10);
-    inputField(id, "Set 2", 8);
+    exerciseId = addToSlot("Exercise", "6:30am", {
+      Movement: [boardOptionId("Bench Press")], Completed: true,
+    });
+    inputField(exerciseId, "Set 1", 10);
+    inputField(exerciseId, "Set 2", 8);
     expect(goalValue("Reps", "Total Reps")).toBe(beforeReps + 18);
     expect(goalValue("Chest Volume", "Total Reps")).toBe(beforeVol + 18);
   });
-  it("completing the workout (muscleGroup present) NOW counts in Total Workouts", () => {
-    const workoutOcc = Object.values(occurrencesById).find(o =>
-      o.label === "Bench Press" && ancestorChain(o.id).labels.includes("Schedule"));
-    expect(workoutOcc).toBeTruthy();
-    inputField(workoutOcc.id, "Completed", true);
+  it("completing the Exercise (Movement present) NOW counts in Total Workouts", () => {
+    inputField(exerciseId, "Completed", true);
     expect(trackerValue("Total Workouts")).toBe(1);
   });
 });
 
 describe("nutrition inputs", () => {
   it("Protein on a completed meal lands in the Protein tracker", () => {
-    const id = addToSlot("Protein Bar", "7:30am", { Completed: true, "Meal Type": "Snack" });
+    const id = addToSlot("Eat", "7:30am", { Completed: true });
     inputField(id, "Protein", 21);
     expect(trackerValue("Protein")).toBe(21);
   });
@@ -386,7 +400,7 @@ describe("feed copies vs trackers (2026-07-08)", () => {
   it("a feed COPY sitting in a mirror page never counts (its source is already counted)", () => {
     // Simulate what feedSync mints: a copy-linked mirror of a completed task,
     // parented OUTSIDE Schedule (the mirror page), marked meta.feedSourceId.
-    const src = addToSlot("Stretching", "8:30am", { Completed: true });
+    const src = addToSlot("Stretch", "8:30am", { Completed: true });
     const after = goalValue("Completed", "Tasks Completed");
     const copyId = uid();
     const srcOcc = occurrencesById[src];
@@ -394,7 +408,7 @@ describe("feed copies vs trackers (2026-07-08)", () => {
       id: copyId, moduleId: srcOcc.moduleId, parentId: null,
       fields: JSON.parse(JSON.stringify(srcOcc.fields)),
       meta: { feedSourceId: src }, occurrences: [],
-      role: "instance", label: "Stretching",
+      role: "instance", label: "Stretch",
     };
     const anc = ancestorChain(copyId);
     fire("MeasureOp", {
@@ -411,7 +425,7 @@ describe("feed copies vs trackers (2026-07-08)", () => {
     // any toolkit drop (user question 2026-07-08: "if I drag from there to a
     // schedule, will it still count" — yes).
     const before = goalValue("Completed", "Tasks Completed");
-    const id = addToSlot("Take Vitamins", "9:00am", { Completed: true });
+    const id = addToSlot("Recover", "9:00am", { Completed: true });
     expect(occurrencesById[id].meta?.feedSourceId).toBeUndefined();
     expect(goalValue("Completed", "Tasks Completed")).toBe(before + 1);
   });
@@ -498,8 +512,9 @@ describe("feed copies never double-count (2026-07-09 audit — 'Total Reps 90' b
   it("a scheduled chest workout counts ONCE in Chest Volume; its feed copies add nothing", () => {
     const before = trackerValue("Chest Volume") || 0;
     const totalBefore = trackerValue("Total Reps") || 0;
-    const id = addToSlot("Bench Press", "5:00am", {
-      "Set 1": 12, "Set 2": 10, "Set 3": 8, "Muscle Group": "chest", Completed: true,
+    const id = addToSlot("Exercise", "5:00am", {
+      "Set 1": 12, "Set 2": 10, "Set 3": 8,
+      Movement: [boardOptionId("Bench Press")], Completed: true,
     });
     expect(trackerValue("Chest Volume")).toBe(before + 30);
     expect(trackerValue("Total Reps")).toBe(totalBefore + 30);
@@ -511,20 +526,20 @@ describe("feed copies never double-count (2026-07-09 audit — 'Total Reps 90' b
   });
 
   it("a scheduled meal counts ONCE in its per-meal Nutrition tracker", () => {
-    const before = trackerValue("Breakfast Nutrition") || 0;
-    const id = addToSlot("Scrambled Eggs + Veg", "5:30am", {
-      "Protein": 24, "Meal Type": "Breakfast", Completed: true,
+    const before = trackerValue("Meal Nutrition") || 0;
+    const id = addToSlot("Eat", "5:30am", {
+      "Protein": 24, Completed: true,
     });
-    expect(trackerValue("Breakfast Nutrition")).toBe(before + 24);
+    expect(trackerValue("Meal Nutrition")).toBe(before + 24);
     addFeedCopyOf(id, "Schedule Table");
-    expect(trackerValue("Breakfast Nutrition")).toBe(before + 24);
+    expect(trackerValue("Meal Nutrition")).toBe(before + 24);
   });
 
   it("per-meal Nutrition carries ALL FOUR macros, not just protein (2026-07-14)", () => {
     // Read the op's OWN write targets — "Calories"/"Protein"/"Carbs"/"Fats"
     // each name BOTH an input field and a display field, so fieldIdByName is
     // ambiguous here. The op writes [protein, calories, carbs, fats] in order.
-    const op = operations.find(o => o.name === "Breakfast Nutrition");
+    const op = operations.find(o => o.name === "Meal Nutrition");
     const targets = [...JSON.stringify(op.pipeline)
       .matchAll(/\$goalItem\.fields\.([A-Za-z0-9_-]+)\.value/g)].map(m => m[1]);
     expect(targets.length).toBe(4);
@@ -533,8 +548,8 @@ describe("feed copies never double-count (2026-07-09 audit — 'Total Reps 90' b
     const before = occurrencesById[goalId]?.fields || {};
     const b = (fid) => before[fid]?.value || 0;
     const [pB, calB, carbB, fatB] = [b(pFid), b(calFid), b(carbFid), b(fatFid)];
-    addToSlot("Oatmeal + Berries", "4:30am", {
-      "Meal Type": "Breakfast", Completed: true,
+    addToSlot("Eat", "4:30am", {
+      Completed: true,
       "Calories": 320, "Protein": 11, "Carbs": 58, "Fats": 6,
     });
     const after = occurrencesById[goalId].fields;
@@ -728,5 +743,87 @@ describe("Alarm op drops an instance onto today's Schedule (2026-07-20 alarm→s
     const before = new Set(Object.keys(occurrencesById));
     runAlarm(op);
     expect([...Object.keys(occurrencesById)].filter((id) => !before.has(id))).toEqual([]);
+  });
+});
+
+// ── Option boards (2026-07-25 nine-dimensions rebuild) ─────────────────────
+// The boards are the pick-source for every action dropdown: options carry a
+// Board Category tag, and each dropdown's find predicate matches on that tag
+// (excluding feed copies, which carry the same tag as their source).
+describe("board dropdowns resolve their options from the tagged boards", () => {
+  // Mirrors helpers/optionsResolver's find-mode evaluation over $allInstances.
+  function resolveBoardOptions(fieldName) {
+    const field = Object.values(fieldsById).find(f => f.name === fieldName);
+    expect(field, `field "${fieldName}"`).toBeTruthy();
+    const cfg = field.meta?.optionsSource?.find || field.meta?.optionsSource;
+    expect(cfg?.mode === "find" || cfg?.over, `"${fieldName}" is a find-mode source`).toBeTruthy();
+    const tagFid = Object.values(fieldsById).find(f => f.name === "Board Category")?.id;
+    const tags = new Set(
+      JSON.stringify(cfg.predicate).match(/"right":"([a-zA-Z]+)"/g)?.map(s => s.slice(9, -1)) || []);
+    return Object.values(occurrencesById).filter(o => {
+      if (o.meta?.feedSourceId) return false;            // feed copies never list
+      const v = o.fields?.[tagFid];
+      const val = v && typeof v === "object" && "value" in v ? v.value : v;
+      return val && tags.has(val);
+    });
+  }
+
+  it("Beverage lists the Beverages board's options (and nothing else)", () => {
+    const opts = resolveBoardOptions("Beverage");
+    const labels = opts.map(o => o.label || modulesById[o.moduleId]?.label);
+    expect(labels).toContain("Water");
+    expect(labels).toContain("Green Tea");
+    expect(labels).not.toContain("Bench Press"); // a movement, different tag
+  });
+
+  it("a MULTI-board dropdown (Purchase Item) unions every board it queries", () => {
+    const labels = resolveBoardOptions("Purchase Item")
+      .map(o => o.label || modulesById[o.moduleId]?.label);
+    expect(labels).toContain("Milk");            // Grocery List
+    expect(labels).toContain("Standing Desk");   // Wish List
+    expect(labels).toContain("Chicken Breast");  // Ingredients
+  });
+
+  it("every board dropdown can mint new options (addNew is wired on all of them)", () => {
+    const tagFid = Object.values(fieldsById).find(f => f.name === "Board Category")?.id;
+    expect(tagFid).toBeTruthy();
+    const boardFields = Object.values(fieldsById).filter(f =>
+      f.type === "occurrence" && JSON.stringify(f.meta?.optionsSource || {}).includes(tagFid));
+    expect(boardFields.length).toBeGreaterThan(20);
+    for (const f of boardFields) {
+      const addNew = f.meta?.optionsSource?.addNew;
+      const targets = addNew?.targets?.length ? addNew.targets
+        : (addNew?.parentOccurrenceId ? [addNew.parentOccurrenceId] : []);
+      expect(targets.length, `addNew targets for "${f.name}"`).toBeGreaterThan(0);
+      // Every target resolves to a real container occurrence carrying its own
+      // tag — what the add flow stamps onto the new option at run time.
+      for (const t of targets) {
+        const occ = occurrencesById[t];
+        expect(occ, `addNew target ${t} of "${f.name}"`).toBeTruthy();
+        expect(occ.fields?.[tagFid]?.value, `tag on "${f.name}" target`).toBeTruthy();
+      }
+    }
+  });
+});
+
+describe("an action's board pick lands in its tracker rows", () => {
+  it("Call with a People pick fills a Phone Calls row carrying the person's name", () => {
+    const person = Object.values(occurrencesById).find(o =>
+      modulesById[o.moduleId]?.label === "Ava Martinez");
+    expect(person, "Ava Martinez person occurrence").toBeTruthy();
+    const id = addToSlot("Call", "7:00am", { Completed: true, People: [person.id] });
+    expect(occurrencesById[id]).toBeTruthy();
+    const rows = trackerValue("Phone Calls");
+    expect(Array.isArray(rows)).toBe(true);
+    expect(JSON.stringify(rows)).toContain("Ava Martinez");
+  });
+
+  it("Exercise with a Movement pick names the MOVEMENT in the Workout History row", () => {
+    // The row label resolves the picked movement occurrence — not the action's
+    // own label ("Exercise"), which would read identically for every workout.
+    const rows = trackerValue("Workout History");
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.some(r => r.label === "Bench Press")).toBe(true);
+    expect(rows.some(r => r.label === "Exercise")).toBe(false);
   });
 });

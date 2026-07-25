@@ -2513,3 +2513,43 @@ Direction (confirmed back to the user, "yes thats correct"):
    scroll" over panel-as-one-cell and transform-driven options.)
 3. InsertGap between occurrences: shrink the clickable hit zone + the blue line so it stops
    stealing clicks/drag-starts.
+
+## 2026-07-25 — Poms grid: nine dimensions of wellness (rebuild on a NEW grid)
+
+> "without touching the live grid except the name, change it to test grid and create a new live
+> grid. i need the schedule, task system we have (with slightly diff data) and the goals
+> occurances, and daypage. pretty much everything the same except this data. change the routine
+> occurances pages to one page. and use these occurances instead. i need dropdown fields as well
+> for them that can choose from the appropriate board occurances which you need to create. i want
+> the same goals but have them use these routines instead. its a page for routines with the 9
+> dimensions of wellness being each container. and a tasks one that just have all the containers
+> empty. put all the goals and trackers under one page as well and call it trackers. heres the
+> data: [the nine-dimension action lists — Physical / Emotional / Intellectual / Social /
+> Spiritual / Occupational / Financial / Environmental / Creative] … i need the appropriate
+> fields in there too (from Live Grid but change them to match this more granular approach and
+> create new fields if needed"
+
+> "add more boars in for the dropdown fields. like ingrediants and grocery list and wish list of
+> purchases, be creative, thats not enough boards"
+
+> "cooking and buy should use the ingredients list too. think outside the box with it. the
+> dropdown fields can query multiple boards remember"
+
+> "like think outside the box with more options and boards"
+
+> "all of the boards should have new options (its in the muli select for dropdowns)"
+
+> "wait so how does a multiselect add new know what board to put them in"
+
+> "we need to change the field picker to allow entering data in the fields too" / "we have a
+> picker for that"
+
+Resolution on addNew (user): don't make it board-specific — **"select an occurrence"**. A field's
+`addNew.targets` is a plain list of candidate PARENT OCCURRENCE ids rendered by their live
+labels; the chosen parent's own `boardCategory` value is stamped on the new option at run time
+(no per-board ops, no tag strings baked into picker config). The add flow also offers field-value
+entry using the EXISTING user-input picker.
+
+> "if it looks good, implement. give it a once over on logic"
+
+Delivered as `docs/superpowers/plans/2026-07-25-poms-grid-nine-dimensions.md` (Tasks 1-8).

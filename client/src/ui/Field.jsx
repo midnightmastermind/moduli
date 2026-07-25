@@ -38,7 +38,8 @@ import {
   getScaledTargetValue,
   calculateProgress,
 } from "../helpers/CalculationHelpers";
-import { createLeafInstanceInParent, setOccurrenceFieldValue, updateModule, updateField } from "../helpers/CommitHelpers";
+import { setOccurrenceFieldValue, updateModule, updateField } from "../helpers/CommitHelpers";
+import { normalizeAddNewTargets, targetOptionsForAddNew, createOptionUnderParent, promptEntryFields } from "../helpers/addNewOption";
 import { openImagePicker } from "./ImagePickerMenu";
 import { resolveFileRef } from "../helpers/fileRef";
 import RepresentationView from "./RepresentationView";
@@ -132,18 +133,27 @@ function RandomizeSegment({ onClick, disabled, compact }) {
 }
 
 // ─── MultiSelectWithAdd ─────────────────────────────────────────
-function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, disabled, compact, showLabel, randomize, renderOption, fieldName }) {
+function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, disabled, compact, showLabel, randomize, renderOption, fieldName, addNewTargets = null }) {
   const [isOpen, setIsOpen] = useState(false);
   const [newValue, setNewValue] = useState("");
+  // Multi-target addNew: when the field's addNew declares SEVERAL candidate
+  // parent occurrences, "+" first asks WHICH occurrence to create under
+  // (labels resolved live — see helpers/addNewOption.js).
+  const [choosingDest, setChoosingDest] = useState(false);
   const selectedOptions = useMemo(() => options.filter(o => selected.includes(o.value)), [options, selected]);
   const toggle = useCallback((v) => onChange(selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v]), [selected, onChange]);
-  const handleAddNew = useCallback(() => {
-    if (!newValue.trim()) return;
+  const doAdd = useCallback((parentOccurrenceId = null) => {
     const value = newValue.toLowerCase().replace(/\s+/g, "_");
-    onAddOption?.({ value, label: newValue.trim() });
+    onAddOption?.({ value, label: newValue.trim(), parentOccurrenceId });
     onChange([...selected, value]);
     setNewValue("");
+    setChoosingDest(false);
   }, [newValue, selected, onChange, onAddOption]);
+  const handleAddNew = useCallback(() => {
+    if (!newValue.trim()) return;
+    if ((addNewTargets?.length || 0) > 1) { setChoosingDest(true); return; }
+    doAdd(addNewTargets?.[0]?.id ?? null);
+  }, [newValue, addNewTargets, doAdd]);
   return (
     <div className="field-input field-input-select-multi">
       {showLabel && <Label className="text-xs text-muted-foreground mb-1">{name}</Label>}
@@ -176,13 +186,26 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
           </PopoverTrigger>
           <PopoverContent className="w-56 p-0" align="start">
             {onAddOption && (
-              <div className="flex items-center gap-1 p-2 border-b border-border">
-                <Input type="text" value={newValue} onChange={e => setNewValue(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleAddNew()}
-                  className="h-6 text-xs flex-1" placeholder="Add new..." />
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleAddNew} disabled={!newValue.trim()}>
-                  <Plus className="h-3 w-3" />
-                </Button>
+              <div className="p-2 border-b border-border">
+                <div className="flex items-center gap-1">
+                  <Input type="text" value={newValue} onChange={e => setNewValue(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handleAddNew()}
+                    className="h-6 text-xs flex-1" placeholder="Add new..." />
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleAddNew} disabled={!newValue.trim()}>
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
+                {choosingDest && (
+                  <div className="mt-1">
+                    <div className="text-[10px] text-muted-foreground px-1 py-0.5">Add “{newValue.trim()}” to:</div>
+                    {(addNewTargets || []).map(t => (
+                      <button key={t.id} type="button" onClick={() => doAdd(t.id)}
+                        className="w-full px-2 py-1 rounded-sm text-left text-xs hover:bg-muted">
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             <div className="max-h-48 overflow-y-auto p-1">
@@ -207,6 +230,49 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
             onClick={() => { const p = options[Math.floor(Math.random() * options.length)]; if (p) onChange([p.value]); }} />
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── AddNewOccurrenceRow ────────────────────────────────────────
+// "+ Add new" row for SINGLE-select occurrence dropdowns (2026-07-25 — the
+// multi-select popover has its own row inside MultiSelectWithAdd). When the
+// field's addNew declares several candidate parents, the row asks WHICH
+// occurrence to create under (select-an-occurrence, labels resolved live).
+function AddNewOccurrenceRow({ targets, onAdd }) {
+  const [text, setText] = useState("");
+  const [choosing, setChoosing] = useState(false);
+  const go = (parentOccurrenceId) => {
+    onAdd({ label: text.trim(), parentOccurrenceId });
+    setText("");
+    setChoosing(false);
+  };
+  const plus = () => {
+    if (!text.trim()) return;
+    if ((targets?.length || 0) > 1) { setChoosing(true); return; }
+    go(targets?.[0]?.id ?? null);
+  };
+  return (
+    <div className="p-1 border-b border-border" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center gap-1">
+        <Input type="text" value={text} onChange={e => setText(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && plus()}
+          className="h-6 text-xs flex-1" placeholder="Add new..." />
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={plus} disabled={!text.trim()}>
+          <Plus className="h-3 w-3" />
+        </Button>
+      </div>
+      {choosing && (
+        <div className="mt-1">
+          <div className="text-[10px] text-muted-foreground px-1 py-0.5">Add “{text.trim()}” to:</div>
+          {(targets || []).map(t => (
+            <button key={t.id} type="button" onClick={() => go(t.id)}
+              className="w-full px-2 py-1 rounded-sm text-left text-xs hover:bg-muted">
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -642,8 +708,11 @@ function Field({
   // state) are read at callback time via the non-subscribing getters.
   const dispatch = useGridActionsSelector(s => s.dispatch);
   const socket = useGridActionsSelector(s => s.socket);
-  const gridId = useGridActionsSelector(s => s.gridId);
-  const userId = useGridActionsSelector(s => s.userId);
+  // The provider value carries these inside `state`, not top-level (the bare
+  // s.gridId read was silently undefined → createLeafInstanceInParent bailed
+  // and "+ Add new" never minted anything; caught by the 2026-07-25 probe).
+  const gridId = useGridActionsSelector(s => s.gridId ?? s.state?.gridId);
+  const userId = useGridActionsSelector(s => s.userId ?? s.state?.userId);
   const modulesById = useGridActionsSelector(s => s.modulesById);
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
   const operationsById = useGridActionsSelector(s => s.operationsById);
@@ -660,7 +729,9 @@ function Field({
 
   // occurrenceAddNewCfg is derived from field meta — stable reference, safe to compute here.
   // Read via field?.meta because the `meta` destructure happens later in the function.
-  const occurrenceAddNewCfg = field?.type === "occurrence" && field?.meta?.multiSelect ? field?.meta?.optionsSource?.addNew : null;
+  // SINGLE-select occurrence dropdowns take "+ Add" too (2026-07-25 — every
+  // board dropdown mints new options, not just multi-selects).
+  const occurrenceAddNewCfg = field?.type === "occurrence" ? field?.meta?.optionsSource?.addNew : null;
 
   // Rich occurrence-picker row renderer (poster + label + field values).
   // chipDisplay = the field's `meta.optionsSource.chipDisplay` config (or null).
@@ -764,31 +835,50 @@ function Field({
   // calls onChange([...selected, slug]) with the slug. We capture localValue BEFORE
   // the onChange fires, then call handleChange again with the real occurrence ID to
   // overwrite the intermediate slug state.
-  const handleOccurrenceAddNew = useCallback(({ label: newLabel } = {}) => {
+  const handleOccurrenceAddNew = useCallback(({ label: newLabel, parentOccurrenceId = null } = {}) => {
     if (!occurrenceAddNewCfg || !newLabel?.trim()) return;
-    const { parentOccurrenceId, stampFields = {} } = occurrenceAddNewCfg;
-    const parentOcc = getOcc(parentOccurrenceId);
+    // Multi-target addNew (2026-07-25): the caller passes the CHOSEN parent
+    // occurrence id; a single-target config falls back to its only entry.
+    const targets = normalizeAddNewTargets(occurrenceAddNewCfg);
+    const parentOcc = getOcc(parentOccurrenceId || targets[0]);
     if (!parentOcc) return;
 
     // Capture current selections BEFORE the slug write that MultiSelectWithAdd fires after us.
     const currentVal = Array.isArray(localValue) ? localValue : localValue ? [localValue] : [];
 
-    const result = createLeafInstanceInParent({
+    // Stamps = legacy config stampFields + the chosen parent's OWN values for
+    // the dropdown's predicate fields (the run-time tag mechanism — a board
+    // container carries its own boardCategory value).
+    const result = createOptionUnderParent({
+      field, parentOcc, label: newLabel,
       dispatch, socket, gridId, userId,
-      parentOccurrence: parentOcc,
-      label: newLabel.trim(),
-      initialFields: stampFields,
     });
     if (!result) return;
 
+    const isMulti = field?.meta?.multiSelect === true;
+    const newSelected = isMulti ? [...currentVal, result.occurrenceId] : result.occurrenceId;
     // Overwrite the slug with the real occurrence ID via a microtask so it fires after
     // MultiSelectWithAdd's own onChange([...selected, slug]) in the same event flush.
-    const newSelected = [...currentVal, result.occurrenceId];
     Promise.resolve().then(() => {
       handleChange(newSelected);
       onCommit?.(newSelected);
     });
-  }, [occurrenceAddNewCfg, getOcc, localValue, dispatch, socket, gridId, userId, handleChange, onCommit]);
+
+    // Entry fields (addNew.fieldIds): chained questions through the EXISTING
+    // GET_USER_INPUT modal; answers land as normal field writes.
+    if (result.entryFieldIds?.length) {
+      promptEntryFields({
+        entryFieldIds: result.entryFieldIds,
+        occurrenceId: result.occurrenceId,
+        fieldsById,
+        ctx: occMaps,
+        dispatch, socket,
+      });
+    }
+  }, [occurrenceAddNewCfg, field, getOcc, localValue, dispatch, socket, gridId, userId, handleChange, onCommit, fieldsById, occMaps]);
+
+  // Candidate destinations for the add flow, labeled by LIVE occurrence data.
+  const addNewTargetOptions = occurrenceAddNewCfg ? targetOptionsForAddNew(occurrenceAddNewCfg, occMaps) : null;
 
   // Quick-add for SELECT fields (tags pattern): a select with
   // `meta.allowNewOptions` lets the user type a new option straight into the
@@ -1149,13 +1239,14 @@ function Field({
       const isMulti = meta?.multiSelect === true;
       if (isMulti) {
         const selectedValues = Array.isArray(localValue) ? localValue : localValue ? [localValue] : [];
-        // When addNew is configured, wire handleOccurrenceAddNew (accepts { value, label } from MultiSelectWithAdd).
+        // When addNew is configured, wire handleOccurrenceAddNew (accepts { value, label, parentOccurrenceId } from MultiSelectWithAdd).
         const occAddNew = occurrenceAddNewCfg ? handleOccurrenceAddNew : null;
         return (
           <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}
             onChange={vals => { handleChange(vals); onCommit?.(vals); }}
             onAddOption={occAddNew} disabled={disabled} compact={compact}
-            showLabel={showLabel} randomize={randomize} renderOption={renderOccurrenceOption} fieldName={name} />
+            showLabel={showLabel} randomize={randomize} renderOption={renderOccurrenceOption} fieldName={name}
+            addNewTargets={addNewTargetOptions} />
         );
       }
       const currentLabel = options.find(o => o.value === localValue)?.label || localValue || "—";
@@ -1178,6 +1269,9 @@ function Field({
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-48 p-1" align="start" side="bottom">
+            {occurrenceAddNewCfg && (
+              <AddNewOccurrenceRow targets={addNewTargetOptions} onAdd={handleOccurrenceAddNew} />
+            )}
             <div style={{ maxHeight: 200, overflowY: "auto" }}>
               {options.length === 0
                 ? <div style={{ padding: "16px 0", textAlign: "center", fontSize: 11, color: "var(--text-faint)" }}>No occurrences available</div>
@@ -1515,7 +1609,8 @@ function Field({
           <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}
             onChange={vals => { handleChange(vals); onCommit?.(vals); }}
             onAddOption={occAddNew} disabled={disabled} compact={compact}
-            showLabel={showLabel} randomize={randomize} renderOption={renderOccurrenceOption} fieldName={name} />
+            showLabel={showLabel} randomize={randomize} renderOption={renderOccurrenceOption} fieldName={name}
+            addNewTargets={addNewTargetOptions} />
         );
       }
       return (
@@ -1541,6 +1636,9 @@ function Field({
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-72 p-1" align="start" side="bottom">
+              {occurrenceAddNewCfg && (
+                <AddNewOccurrenceRow targets={addNewTargetOptions} onAdd={handleOccurrenceAddNew} />
+              )}
               <div style={{ maxHeight: 280, overflowY: "auto" }}>
                 {options.length === 0
                   ? <div style={{ padding: "16px 0", textAlign: "center", fontSize: 11, color: "var(--text-faint)" }}>No occurrences available</div>

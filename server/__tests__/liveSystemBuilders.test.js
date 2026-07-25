@@ -56,8 +56,8 @@ describe("makeDayPageBuildTasksCompletedOp — inclusive scope guard (cascade fi
 
 describe("buildGridDoc", () => {
   it("creates a Daily namedFilter on dateFieldId with empty activeFilterValues", () => {
-    const g = buildGridDoc({ userId: "u1", gridName: "Live Grid", manifestId: "m1", dateFieldId: "DF" });
-    expect(g.name).toBe("Live Grid");
+    const g = buildGridDoc({ userId: "u1", gridName: "Poms", manifestId: "m1", dateFieldId: "DF" });
+    expect(g.name).toBe("Poms");
     expect(g.activeFilterId).toBe("filter_daily");
     expect(g.namedFilters[0].conditions[0]).toMatchObject({ fieldId: "DF", comparator: "SAME_DAY", isNav: true });
     expect(g.activeFilterValues).toEqual({});

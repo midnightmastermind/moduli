@@ -23,7 +23,7 @@ export function registerStateHandlers(socket, {
       // socketTimeoutMS in server.js is the broader safety net.
       // Fallback prefers the grid the seed stamped as default (createLiveData
       // sets grid.meta.defaultGrid — 2026-07-03, per user: the site should load
-      // the seeded Live Grid, not the oldest grid, when the client's stored
+      // the seeded grid ("Poms"), not the oldest grid, when the client's stored
       // gridId is missing/stale after a reseed).
       const fallbackGrid = async () =>
         (await Grid.findOne({ userId, "meta.defaultGrid": true }).maxTimeMS(8000).lean()) ||

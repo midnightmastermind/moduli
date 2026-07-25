@@ -312,12 +312,195 @@
   --danger-text: rgb(252,165,165);
 }
 
+/* =============================================================================
+   THEME: Light Vintage
+   '70s cream workspace — warm paper base, rust primary, rainbow-stripe accents.
+   Palette from the retro reference art (screenshots 2026-07-25).
+   ============================================================================= */
+[data-theme="vintage-light"] {
+  /* Backgrounds */
+  --background-0: 40 43% 88%;
+  --background-1: 40 43% 90%;
+  --background-2: 40 40% 85%;
+
+  /* Surfaces */
+  --surface-0: 40 36% 85%;
+  --surface-1: 42 45% 92%;
+  --surface-2: 40 32% 81%;
+
+  /* Popovers */
+  --popover-0: 42 50% 94%;
+  --popover-1: 42 50% 94%;
+  --popover-2: 40 43% 90%;
+  --popover-foreground: 17 19% 14%;
+
+  /* Inputs */
+  --input-0: 40 30% 84%;
+  --input-1: 40 30% 87%;
+  --input-2: 40 30% 82%;
+
+  /* Overlays */
+  --overlay-0: 38 20% 65%;
+  --overlay-1: 38 20% 70%;
+  --overlay-2: 38 20% 75%;
+
+  /* Borders */
+  --border-0: 38 22% 62%;
+  --border-1: 38 19% 70%;
+  --border-2: 38 20% 56%;
+
+  /* Text */
+  --foreground-0: 17 19% 20%;
+  --foreground-1: 17 19% 13%;
+  --foreground-2: 20 12% 40%;
+
+  /* Tailwind aliases */
+  --background: var(--background-1);
+  --foreground: var(--foreground-1);
+  --border: var(--border-1);
+  --popover: var(--popover-1);
+  --primary: 18 67% 42%;
+  --primary-foreground: 42 50% 95%;
+  --accent: var(--surface-2);
+  --accent-foreground: var(--foreground-1);
+
+  /* Named aliases */
+  --background2: var(--surface-0);
+  --input2: var(--input-1);
+  --overlay: var(--overlay-0);
+
+  /* Body colors */
+  --body-bg: hsl(var(--background-0));
+  --body-color: hsl(var(--foreground-1));
+
+  /* Grid cell border */
+  --grid-cell-border: hsl(var(--border-1));
+
+  /* Semantic tokens */
+  --text-primary: hsl(var(--foreground-1));
+  --text-muted: rgba(43,33,29,0.62);
+  --text-faint: rgba(43,33,29,0.40);
+  --border-default: rgba(60,45,30,0.16);
+  --border-subtle: rgba(60,45,30,0.09);
+  --surface-card: hsl(var(--surface-1));
+  --surface-overlay: rgba(236,227,208,0.92);
+  --input-bg: rgba(60,45,30,0.06);
+  --input-border: rgba(60,45,30,0.16);
+  --accent-blue: #b34f24;            /* rust = the primary action color */
+  --accent-blue-hover: #9c421c;
+  --accent-blue-text: #8a3a16;
+  --accent-blue-bg: rgba(179,79,36,0.14);
+  --accent-blue-border: rgba(179,79,36,0.45);
+  --accent-green-text: #3e6e46;      /* vintage green */
+  --accent-green-bg: rgba(74,140,92,0.14);
+  --accent-green-border: rgba(74,140,92,0.40);
+  --accent-purple-text: #4a3b52;     /* plum */
+  --accent-purple-bg: rgba(74,59,82,0.12);
+  --accent-purple-border: rgba(74,59,82,0.35);
+  --danger: #c0392b;
+  --danger-bg: rgba(192,57,43,0.10);
+  --danger-border: rgba(192,57,43,0.35);
+  --danger-text: #b02a1c;
+}
+
+/* =============================================================================
+   THEME: Dark Vintage
+   '70s dark-brown workspace — cream ink, mustard primary, teal/maroon accents.
+   Palette from the retro reference art (screenshots 2026-07-25).
+   ============================================================================= */
+[data-theme="vintage-dark"] {
+  /* Backgrounds */
+  --background-0: 10 20% 10%;
+  --background-1: 10 20% 11%;
+  --background-2: 10 18% 13%;
+
+  /* Surfaces */
+  --surface-0: 12 18% 14%;
+  --surface-1: 12 18% 15%;
+  --surface-2: 12 16% 18%;
+
+  /* Popovers */
+  --popover-0: 10 20% 10%;
+  --popover-1: 10 20% 11%;
+  --popover-2: 10 18% 13%;
+  --popover-foreground: 40 43% 90%;
+
+  /* Inputs */
+  --input-0: 12 16% 15%;
+  --input-1: 12 16% 16%;
+  --input-2: 12 16% 18%;
+
+  /* Overlays */
+  --overlay-0: 10 25% 4%;
+  --overlay-1: 10 25% 5%;
+  --overlay-2: 10 25% 7%;
+
+  /* Borders */
+  --border-0: 14 18% 30%;
+  --border-1: 14 15% 24%;
+  --border-2: 14 16% 32%;
+
+  /* Text */
+  --foreground-0: 40 35% 88%;
+  --foreground-1: 40 43% 92%;
+  --foreground-2: 25 12% 62%;
+
+  /* Tailwind aliases */
+  --background: var(--background-1);
+  --foreground: var(--foreground-1);
+  --border: var(--border-1);
+  --popover: var(--popover-1);
+  --primary: 38 72% 56%;
+  --primary-foreground: 10 20% 10%;
+  --accent: var(--surface-2);
+  --accent-foreground: var(--foreground-1);
+
+  /* Named aliases */
+  --background2: var(--surface-0);
+  --input2: var(--input-1);
+  --overlay: var(--overlay-0);
+
+  /* Body colors */
+  --body-bg: hsl(var(--background-0));
+  --body-color: hsl(var(--foreground-1));
+
+  /* Grid cell border */
+  --grid-cell-border: hsl(var(--border-0));
+
+  /* Semantic tokens */
+  --text-primary: hsl(var(--foreground-1));
+  --text-muted: rgba(236,227,208,0.50);
+  --text-faint: rgba(236,227,208,0.25);
+  --border-default: rgba(236,227,208,0.12);
+  --border-subtle: rgba(236,227,208,0.06);
+  --surface-card: hsl(var(--surface-1));
+  --surface-overlay: rgba(24,16,14,0.90);
+  --input-bg: rgba(236,227,208,0.06);
+  --input-border: rgba(236,227,208,0.14);
+  --accent-blue: #e0a63f;            /* mustard = the primary action color */
+  --accent-blue-hover: #c98f2c;
+  --accent-blue-text: #eec563;
+  --accent-blue-bg: rgba(224,166,63,0.16);
+  --accent-blue-border: rgba(224,166,63,0.45);
+  --accent-green-text: #7fc0ae;      /* teal */
+  --accent-green-bg: rgba(62,142,126,0.18);
+  --accent-green-border: rgba(62,142,126,0.45);
+  --accent-purple-text: #d9a0b0;     /* maroon-rose */
+  --accent-purple-bg: rgba(125,48,73,0.22);
+  --accent-purple-border: rgba(125,48,73,0.50);
+  --danger: #e2543a;
+  --danger-bg: rgba(226,84,58,0.14);
+  --danger-border: rgba(226,84,58,0.35);
+  --danger-text: rgb(240,170,150);
+}
+
 html.dark {
   color-scheme: dark;
 }
 
 /* Light theme color-scheme */
-html[data-theme="moduli-light"] {
+html[data-theme="moduli-light"],
+html[data-theme="vintage-light"] {
   color-scheme: light;
 }
 

@@ -2,6 +2,22 @@
 
 _Updated: 2026-07-24. Check this file before re-reading source._
 
+## Recent Changes (2026-07-25 — addNewOption.js NEW: "+ Add new" = select-an-occurrence + field entry)
+- **`addNewOption.js` (NEW)** — the "+ Add new" flow for occurrence dropdowns. A field's
+  `meta.optionsSource.addNew` is either `{ parentOccurrenceId }` (legacy single) or
+  `{ targets: [occId, …] }` (MULTIPLE candidate destinations). Exports:
+  `normalizeAddNewTargets`, `targetOptionsForAddNew` (labels resolved from the LIVE occurrence —
+  never stored config strings), `collectPredicateFieldIds` (the `fields.<fid>.value` lefts of the
+  dropdown's own find predicate), `buildStampFields` (legacy `stampFields` + **the chosen
+  parent's own values for those predicate fields, read at run time** — the generic tag mechanism;
+  nothing here knows what a "board" is), `createOptionUnderParent` (stamps bound HIDDEN,
+  `addNew.fieldIds` bound visible), `promptEntryFields` (one chained question per entry field
+  through the EXISTING `operationsBridge.requestUserInput` modal; cancel keeps the occurrence and
+  stops the chain). 11 tests in `__tests__/addNewOption.test.js`.
+- **`CommitHelpers.createLeafInstanceInParent`** gained optional `fieldBindings` (the add flow
+  binds the new option's identity + entry fields on its minted module).
+- Consumer + the latent gridId bug: see ui/CLAUDE.md (Field.jsx).
+
 ## Recent Changes (2026-07-24 — drag autoscroll: zone/ramp/grace via new autoscrollMath.js)
 - **`autoscrollMath.js` (NEW)** — pure math behind DragProvider's continuous drag-over
   autoscroll (user: "slow and finicky", esp. mobile). `autoscrollZone(h)` = quarter-height

@@ -1,6 +1,40 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-07-20. Check this file before re-reading source._
+_Updated: 2026-07-25. Check this file before re-reading source._
+
+## Recent Changes (2026-07-25 — Poms grid: nine dimensions of wellness; test grid untouchable)
+Whole-seed rebuild onto a NEW grid (`DEFAULT_GRID_NAME = "Poms"`). Plan:
+`docs/superpowers/plans/2026-07-25-poms-grid-nine-dimensions.md`. All in `scripts/createLiveData.js`
+(NO builder changes — the project is data-only apart from the themes + the addNew chooser).
+- **`Grid.updateMany({ userId }, { $unset: { "meta.defaultGrid" } })` → filtered** to
+  `{ "meta.defaultGrid": { $exists: true } }`. The unscoped form bumped `updatedAt` on EVERY grid
+  the user owns on every reseed — including the untouchable **`test grid`** — as a pure no-op
+  write. Verified after: test grid's `updatedAt` no longer moves; its 859 occs / 803 mods intact.
+- **`boardCategory` select field (34 tags)** — the scoping tag for the new option BOARDS. Every
+  option instance carries it; every board CONTAINER occurrence carries its OWN tag value (the
+  addNew flow reads the chosen parent's value at run time) AND a `feed` on that tag, so a board is
+  the materialized view over the tag. 31 new occurrence-dropdown fields (`boardFindSource`), 8
+  querying several boards via an OR-group predicate. Every dropdown's predicate also carries
+  `meta.feedSourceId IS_EMPTY` — feed copies inherit their source's tag and would double-list.
+- **34 boards** = `Boards` folder → 7 life-area sub-folders → one `kind:"board"` page + container
+  each, all with folder-page occurrences (a bare Folder record shows in the tree but is invisible
+  on a folder-page card grid — 2026-06-09 lesson). Reuse instead of duplicates: the 30 exercise
+  occurrences now live ON the Movements board, Library books/courses are tagged in place, the 10
+  person occurrences parent under the People board container.
+- **Pages**: one **Routines** page (9 dimension containers + ~103 action instances) replaces the
+  11 wellness pages; **Tasks** (same 9 containers, empty) replaces Todo List; **Trackers** (goal
+  containers + account containers) replaces Goals AND Accounts, with
+  `goalsPageOccId`/`accountsPageOccId` as aliases of it. A post-save pass rescopes the 20 ops
+  whose `ancestorLabel` `makeTrackerOp` bakes as "Goals"/"Accounts" → "Trackers".
+- **People page/table/profile-card + `People Table: Build` + `People: Show Profile` DELETED** —
+  People renders as a plain board.
+- **Tracker retargets** (same goals, new sources): workouts key on the **Movement** pick
+  (`presenceFieldId`, and the per-muscle Volume trackers resolve the pick to read ITS
+  muscleGroup); 4 per-meal Nutrition trackers → ONE Eat-scoped `Meal Nutrition`; media history →
+  the new pick fields (Media/Reading made multiSelect so the pick-array loops still apply);
+  **Track** (flow replace) supersedes Set Account Balance; **Earn** binds Income so the Checking
+  Balance NET agg (Income minus Amount) keeps two distinct money fields.
+- **Reseed applied.** 245/245 server + 1352/1352 client.
 
 ## Recent Changes (2026-07-20 — alarm → schedule op (Option A): fired alarms drop an instance onto today's Schedule)
 - **`utils/liveSystemBuilders.js` (`makeAlarmOp`)** — new optional `sched`

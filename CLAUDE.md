@@ -6,6 +6,63 @@
 
 ---
 
+## Handoff — 2026-07-25 (Poms grid: nine dimensions of wellness — NEW grid, boards, one Routines page)
+
+Per user (CLAUDE_CHAT 2026-07-25), a whole new seeded grid built beside the old one. Plan:
+`docs/superpowers/plans/2026-07-25-poms-grid-nine-dimensions.md` (Tasks 1-8, all shipped).
+
+- **The old Live Grid is now `test grid` and is UNTOUCHABLE.** The seed targets a new grid named
+  **`Poms`** (`DEFAULT_GRID_NAME`), so `dropExistingLiveGrid` / `sweepStaleGrids` / the seed
+  export never see the old data. One late fix: the `meta.defaultGrid` clear was an unscoped
+  `Grid.updateMany({ userId })` that bumped `updatedAt` on EVERY grid each reseed (a pure no-op
+  write to test grid) — now filtered to grids that actually carry the flag. Verified: test grid's
+  `updatedAt` no longer moves on reseed and its 859 occurrences / 803 modules are untouched.
+- **34 option BOARDS** (`Boards` folder → 7 life-area sub-folders → one `kind:"board"` page each).
+  A new hidden **`Board Category`** select is THE scoping tag: every option instance carries it,
+  every board dropdown's find predicate matches on it (always `AND meta.feedSourceId IS_EMPTY` —
+  feed copies carry their source's tag and would otherwise double-list), and every board
+  CONTAINER occurrence carries its OWN tag value + a `feed` on that tag. So the tag is the source
+  of truth and the board is the materialized view: an option tagged anywhere gets pulled in.
+  31 new occurrence-dropdown fields; 8 of them query SEVERAL boards via an OR-group predicate
+  (Purchase Item, Ingredient, Media, Skill, Reading, Savings Goal, Creative Work, Idea).
+  Recipe boards bind other dropdowns (a Meal carries its Ingredients, a Program its Movements,
+  an Event its People + Place).
+- **`addNew.targets` — "select an occurrence" (the one client change besides themes).** New
+  `helpers/addNewOption.js`: `targets` is a plain list of candidate PARENT OCCURRENCE ids; when
+  there's more than one the picker asks which, rendering each by its LIVE label. The new option's
+  identity fields are copied from the CHOSEN PARENT at run time (`buildStampFields` reads the
+  dropdown's own predicate fields off that occurrence) — nothing in the code knows what a "board"
+  is. `addNew.fieldIds` additionally prompts for field values through the EXISTING GET_USER_INPUT
+  modal. **Found a latent bug doing this:** Field.jsx read `s.gridId`/`s.userId` off the actions
+  context, which never carried them (they live on `s.state`), so `createLeafInstanceInParent`
+  silently bailed and "+ Add new" had never minted anything. Fixed with `s.state` fallbacks.
+- **Pages restructured**: ONE **Routines** board page (9 dimension containers, vintage colors,
+  ~103 granular action instances) replaces the 11 wellness pages; **Tasks** (the same 9
+  containers, EMPTY, `meta.todoListContainer` kept) replaces Todo List; **Trackers** (all goal
+  containers + the account containers, 18 children) replaces Goals AND Accounts.
+  `goalsPageOccId`/`accountsPageOccId` are now aliases of `trackersPageOccId` so every
+  HAS_ANCESTOR-scoped tracker rule kept working; a post-save pass rescopes the 20 ops whose
+  `ancestorLabel` was baked as "Goals"/"Accounts" by `makeTrackerOp` (builders untouched — the
+  project is data-only apart from the two permitted client changes).
+- **People is a BOARD** (Social folder, feed-backed, the 10 person occurrences parent under it).
+  The standalone People page + table + profile-card page + their two ops are DELETED.
+- **Trackers retargeted, same goals**: workouts key on the **Movement pick** (muscleGroup lives on
+  the picked movement OPTION now, so the per-muscle Volume trackers resolve the pick and read ITS
+  muscleGroup, and Workout History rows read "Bench Press", not "Exercise"); the 4 per-meal
+  Nutrition trackers collapse to ONE Eat-scoped `Meal Nutrition`; media history reads the new pick
+  fields (Media/Reading became multiSelect so the trackers' pick-array loops still apply);
+  **Track** is the universal money occurrence (flow toggle in/out/**replace**) superseding Set
+  Account Balance; **Earn** carries Income (the Checking Balance NET agg is Income minus Amount,
+  so the two money fields must stay distinct).
+- **Verified**: 1352/1352 client + 245/245 server, build clean. Headless on the reseeded grid:
+  Routines 9 colored containers · Tasks 9 empty · Trackers 18 children with live tiles · Schedule
+  builds with the new routine clones (Drink/Hygiene/Eat/Walk/Exercise/Journal) · 34 feed-backed
+  board pages · Pomodoro intact · zero page errors · multi-target addNew E2E (add "Tortillas" via
+  Ingredient → pick Grocery List → lands there, tagged `grocery`, tag binding hidden).
+- **NOT done / deliberate**: no deploy yet (see Task 8 Step 4 — `./deploy.sh` + verify prod HEAD).
+
+---
+
 ## Handoff — 2026-07-24 (drag autoscroll feel + multicell panels scroll natively on mobile + smaller insert gap)
 
 Per user (CLAUDE_CHAT 2026-07-24), three UX asks, all shipped + headless-verified:

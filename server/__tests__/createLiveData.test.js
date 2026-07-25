@@ -1,6 +1,6 @@
 // server/__tests__/createLiveData.test.js
 // Structural assertions for createLiveData:
-// - grid.name === "Live Grid"
+// - grid.name === "Poms"
 // - Zero operations with an AGGREGATE step (deep-walk + JSON stringify both checked)
 // - Zero container modules at grid scope with meta.scheduleSlot === true (slot
 //   containers must only exist in the Templates manifest subtree with
@@ -85,11 +85,11 @@ describe("createLiveData — structural assertions", () => {
   });
 
   // ── 1. Grid name ─────────────────────────────────────────────────────────────
-  it("grid.name === 'Live Grid'", async () => {
+  it("grid.name === 'Poms'", async () => {
     if (!connected) return;
-    const grid = await Grid.findOne({ userId: USER_ID });
+    const grid = await Grid.findOne({ userId: USER_ID, name: "Poms" });
     expect(grid).toBeTruthy();
-    expect(grid.name).toBe("Live Grid");
+    expect(grid.name).toBe("Poms");
   });
 
   // ── 2. Zero AGGREGATE steps (deep structural scan + JSON string guard) ───────

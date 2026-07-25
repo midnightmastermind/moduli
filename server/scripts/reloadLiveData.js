@@ -85,18 +85,31 @@ async function main() {
     const userId = user._id.toString();
     console.log(`✅ Found user: ${userId}\n`);
 
-    // Wipe every grid-scoped collection for this user.
+    // Wipe ONLY the grids present in the seed snapshot (+ their scoped
+    // docs). The snapshot is gridId-scoped since 2026-07-25 (the Poms
+    // grid); other grids — notably the preserved "test grid" — must
+    // survive a reload untouched.
+    const gridsPath = resolve(seedDir, "grids.json");
+    const seedGridIds = fs.existsSync(gridsPath)
+      ? JSON.parse(fs.readFileSync(gridsPath, "utf-8")).map(g => String(g._id)).filter(Boolean)
+      : [];
+    if (seedGridIds.length === 0) {
+      throw new Error("seed/grids.json has no grid ids — refusing a blind user-wide wipe");
+    }
     const t0 = Date.now();
-    console.log("🗑️  Clearing existing user data...");
+    console.log(`🗑️  Clearing seed-scoped data (${seedGridIds.length} grid(s): ${seedGridIds.join(", ")})...`);
     for (const [name, model] of COLLECTIONS) {
-      const { deletedCount } = await model.deleteMany({ userId });
+      const filter = name === "grids"
+        ? { userId, _id: { $in: seedGridIds } }
+        : { userId, gridId: { $in: seedGridIds } };
+      const { deletedCount } = await model.deleteMany(filter);
       if (deletedCount > 0) console.log(`   ${name.padEnd(12)} −${deletedCount}`);
     }
     // Transactions aren't part of COLLECTIONS (no transactions.json — they
-    // accumulate at runtime, not at seed time), but they share the user
+    // accumulate at runtime, not at seed time), but they share the grid
     // scope and grow unbounded (65k+ rows in dev). Wipe alongside.
     {
-      const { deletedCount } = await Transaction.deleteMany({ userId });
+      const { deletedCount } = await Transaction.deleteMany({ userId, gridId: { $in: seedGridIds } });
       if (deletedCount > 0) console.log(`   ${"transactions".padEnd(12)} −${deletedCount}`);
     }
     console.log(`   ✅ Cleared in ${Date.now() - t0}ms\n`);
