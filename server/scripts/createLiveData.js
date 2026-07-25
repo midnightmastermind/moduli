@@ -2714,44 +2714,10 @@ export async function createLiveData(userId, options = {}) {
 
   // ── Todo instances ───────────────────────────────────────────────────────────
   // Note: fields.dueDate in createDefaultUserData → fields.due.id here (same field, renamed key)
+  // ── Kept todo-era task modules (2026-07-25): Pay Bill + Cancel
+  // Subscription live in the FINANCIAL dimension now (bill mechanics
+  // unchanged — billRef / subscriptionRef / Schedule Due: Seed).
   const todoInstances = {
-    buyGroceries: {
-      id: uid(), label: "Buy groceries", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.due.id, role: "input", order: 1 },
-        { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
-      ],
-    },
-    cleanGarage: {
-      id: uid(), label: "Clean out garage", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-      ],
-    },
-    fixLeakyFaucet: {
-      id: uid(), label: "Fix leaky faucet", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.priority.id, role: "input", order: 1 },
-      ],
-    },
-    returnBooks: {
-      id: uid(), label: "Return library books", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.due.id, role: "input", order: 1 },
-        { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
-      ],
-    },
-    organizePantry: {
-      id: uid(), label: "Organize pantry", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-      ],
-    },
     payBills: {
       // Generic Pay Bill task. The user picks which bill via the billRef
       // dropdown; Schedule Due: Seed copies this task into the Schedule Due
@@ -2780,145 +2746,12 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: fields.subscriptionRef.id, role: "input", order: 1 },
       ],
     },
-    renewLicense: {
-      id: uid(), label: "Renew driver's license", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.due.id, role: "input", order: 1 },
-        { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
-      ],
-    },
-    dentistAppt: {
-      id: uid(), label: "Schedule dentist appointment", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.due.id, role: "input", order: 1 },
-        { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
-      ],
-    },
-    fileInsurance: {
-      id: uid(), label: "File insurance claim", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.due.id, role: "input", order: 1 },
-        { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
-      ],
-    },
-    orderSupplies: {
-      id: uid(), label: "Order office supplies", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.accountRef.id, role: "input", order: 0 },
-        { fieldId: fields.amount.id,     role: "input", order: 1 },
-      ],
-    },
-    backupComputer: {
-      id: uid(), label: "Backup computer files", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [],
-    },
-    updatePortfolio: {
-      id: uid(), label: "Update portfolio site", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-      ],
-    },
-    prepPresentation: {
-      id: uid(), label: "Prep client presentation", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.priority.id, role: "input", order: 1 },
-        { fieldId: fields.due.id, role: "input", order: 2 },
-        { fieldId: fields.daysUntilDue.id, role: "display", order: 3 },
-      ],
-    },
-    callMom: {
-      id: uid(), label: "Call mom", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [],
-    },
-    planVacation: {
-      id: uid(), label: "Plan summer vacation", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.notes.id, role: "input", order: 1 },
-      ],
-    },
-    birthdayGift: {
-      id: uid(), label: "Buy birthday gift for Sarah", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.accountRef.id, role: "input", order: 0 },
-        { fieldId: fields.amount.id, role: "input", order: 1 },
-        { fieldId: fields.due.id, role: "input", order: 2 },
-        { fieldId: fields.daysUntilDue.id, role: "display", order: 3 },
-      ],
-    },
-    signUpClass: {
-      id: uid(), label: "Sign up for cooking class", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.accountRef.id, role: "input", order: 0 },
-        { fieldId: fields.amount.id, role: "input", order: 1 },
-      ],
-    },
   };
 
-  // ── Planning instances ───────────────────────────────────────────────────────
-  const planningInstances = {
-    moduliLaunch: {
-      id: uid(), label: "Moduli MVP Launch", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.priority.id, role: "input", order: 1 },
-        { fieldId: fields.due.id, role: "input", order: 2 },
-        { fieldId: fields.daysUntilDue.id, role: "display", order: 3 },
-        { fieldId: fields.notes.id, role: "input", order: 4 },
-      ],
-    },
-    doctorCheckup: {
-      id: uid(), label: "Annual Doctor Checkup", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.due.id, role: "input", order: 1 },
-        { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
-      ],
-    },
-    // carInsurance (Car Insurance Renewal) intentionally removed per B9 —
-    // recurring renewals now live as a bill in the Bills page
-    // (carInsuranceBill, every-180-days cadence). The Pay Bill task in the
-    // Financial wellness page picks it up via billRef; Schedule Due: Seed
-    // (C2 follow-up) copies it into Schedule Due when billNextDue lands.
+  // (Planning instances removed 2026-07-25 — the Tasks page starts EMPTY;
+  // the user supplies task data.)
 
-    fileTaxes: {
-      id: uid(), label: "File Taxes", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.due.id, role: "input", order: 1 },
-        { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
-        { fieldId: fields.notes.id, role: "input", order: 3 },
-      ],
-    },
-    quarterlyReview: {
-      id: uid(), label: "Quarterly Financial Review", kind: "board",
-      defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.due.id, role: "input", order: 1 },
-        { fieldId: fields.daysUntilDue.id, role: "display", order: 2 },
-      ],
-    },
-  };
-
-  // ── Goal display instances ───────────────────────────────────────────────────
-  // NB: workoutGoal/nutritionGoal keys also exist in goalContainerMods (instance vs container
-  //     — different docs). fitnessAccount/productivityAccount/wellnessAccount/readingAccount
-  //     keys also exist in accountContainerMods. Same for accountInstances.bankAccount etc.
-  const goalInstances = {
+    const goalInstances = {
     // Per-metric split — was a single "Physical Wellness" umbrella holding
     // 8 display fields. Stage 3 of the Goals restructure: one occurrence per
     // logical metric so picker-direct binding (`$allItemsById.<id>`) points at
@@ -3314,7 +3147,6 @@ export async function createLiveData(userId, options = {}) {
     ...billInstances,
     ...workoutInstances, // movement option modules (occurrences live on the Movements board)
     ...todoInstances,
-    ...planningInstances,
     ...goalInstances,
     ...accountInstances,
   };
@@ -3414,21 +3246,20 @@ export async function createLiveData(userId, options = {}) {
     creative:      { id: uid(), label: "Creative",      styleMode: "own", ownStyle: { bg: DIM_COLORS.creative } },
   };
 
-  // ── Todo containers (5 categories) ───────────────────────────────────────────
-  const todoContainerMods = {
-    // Kanban-synced containers — `Project: Sync To Todo List` op
-    // copy-links the example project's kanban tasks here when status is
-    // Backburner / Docket. Labels are "<Project Name> Backburner" /
-    // "<Project Name> Docket" to make it clear at a glance which
-    // project's pre-active queue this is. When more projects exist,
-    // each will get its own pair of containers (future op extension).
-    todoBackburner: { id: uid(), label: "Moduli v1 Launch Backburner", meta: { todoListContainer: true } },
-    todoDocket:     { id: uid(), label: "Moduli v1 Launch Docket",     meta: { todoListContainer: true } },
-    todoHome:       { id: uid(), label: "Home & Errands",              meta: { todoListContainer: true } },
-    todoFinance:    { id: uid(), label: "Finance & Admin",             meta: { todoListContainer: true } },
-    todoWork:       { id: uid(), label: "Work Projects",               meta: { todoListContainer: true } },
-    todoPersonal:   { id: uid(), label: "Personal / Fun",              meta: { todoListContainer: true } },
-    todoPlan:       { id: uid(), label: "Planning & Deadlines",        meta: { todoListContainer: true } },
+  // ── Task containers (2026-07-25) — the Tasks page's 9 EMPTY dimension
+  // containers (fresh modules, NOT multi-parented from Routines). They keep
+  // meta.todoListContainer so drag-to-Schedule flows treat them as task
+  // sources exactly like the old Todo List containers.
+  const taskContainerMods = {
+    taskPhysical:      { id: uid(), label: "Physical",      styleMode: "own", ownStyle: { bg: DIM_COLORS.physical },      meta: { todoListContainer: true } },
+    taskEmotional:     { id: uid(), label: "Emotional",     styleMode: "own", ownStyle: { bg: DIM_COLORS.emotional },     meta: { todoListContainer: true } },
+    taskIntellectual:  { id: uid(), label: "Intellectual",  styleMode: "own", ownStyle: { bg: DIM_COLORS.intellectual },  meta: { todoListContainer: true } },
+    taskSocial:        { id: uid(), label: "Social",        styleMode: "own", ownStyle: { bg: DIM_COLORS.social },        meta: { todoListContainer: true } },
+    taskSpiritual:     { id: uid(), label: "Spiritual",     styleMode: "own", ownStyle: { bg: DIM_COLORS.spiritual },     meta: { todoListContainer: true } },
+    taskOccupational:  { id: uid(), label: "Occupational",  styleMode: "own", ownStyle: { bg: DIM_COLORS.occupational },  meta: { todoListContainer: true } },
+    taskFinancial:     { id: uid(), label: "Financial",     styleMode: "own", ownStyle: { bg: DIM_COLORS.financial },     meta: { todoListContainer: true } },
+    taskEnvironmental: { id: uid(), label: "Environmental", styleMode: "own", ownStyle: { bg: DIM_COLORS.environmental }, meta: { todoListContainer: true } },
+    taskCreative:      { id: uid(), label: "Creative",      styleMode: "own", ownStyle: { bg: DIM_COLORS.creative },      meta: { todoListContainer: true } },
   };
 
   // ── Goal containers (8 dimensions + workout + nutrition + planning + movies) ────
@@ -3485,7 +3316,7 @@ export async function createLiveData(userId, options = {}) {
   // ── Merge + persist container modules ────────────────────────────────────────
   const containerMods = {
     ...toolkitContainerMods,
-    ...todoContainerMods,
+    ...taskContainerMods,
     ...goalContainerMods,
     ...accountContainerMods,
     ...libraryContainerMods,
@@ -3563,11 +3394,6 @@ export async function createLiveData(userId, options = {}) {
   const billOtherContOccId         = uid();
 
   // Todo containers
-  const todoHomeContOccId     = uid();
-  const todoFinanceContOccId  = uid();
-  const todoWorkContOccId     = uid();
-  const todoPersonalContOccId = uid();
-  const todoPlanContOccId     = uid();
 
   // Goal containers
   const physicalGoalContOccId      = uid();
@@ -3683,65 +3509,15 @@ export async function createLiveData(userId, options = {}) {
   // Append to the emotional container's occurrences[]
   await Occurrence.findOneAndUpdate({ id: emotionalContOccId }, { $push: { occurrences: moodTodayOccId } });
 
-  // ── Todo containers ────────────────────────────────────────────────────────
-  // Due date pre-fills for planning instances (matches createDefaultUserData planningDueDates)
-  const planningDueDates = {
-    moduliLaunch:    daysFromNow(45),
-    doctorCheckup:   daysFromNow(90),
-    fileTaxes:       daysFromNow(38),
-    quarterlyReview: daysFromNow(21),
-  };
-
-  const todoMappings = {
-    todoHome:     { contOccId: todoHomeContOccId,     contModKey: "todoHome",     instKeys: ["buyGroceries", "cleanGarage", "fixLeakyFaucet", "returnBooks", "organizePantry"] },
-    // todoFinance — Pay Bill + Cancel Subscription moved to Daily Toolkit's
-    // Financial wellness page (recurring finance tasks belong with the rest
-    // of the financial daily habits, not with Todo List one-offs).
-    todoFinance:  { contOccId: todoFinanceContOccId,  contModKey: "todoFinance",  instKeys: ["renewLicense", "dentistAppt", "fileInsurance"] },
-    todoWork:     { contOccId: todoWorkContOccId,     contModKey: "todoWork",     instKeys: ["orderSupplies", "backupComputer", "updatePortfolio", "prepPresentation"] },
-    todoPersonal: { contOccId: todoPersonalContOccId, contModKey: "todoPersonal", instKeys: ["callMom", "planVacation", "birthdayGift", "signUpClass"] },
-    todoPlan:     { contOccId: todoPlanContOccId,     contModKey: "todoPlan",     instKeys: ["moduliLaunch", "doctorCheckup", "fileTaxes", "quarterlyReview"] },
-  };
-
-  const todoContOccIds = {};
-
-  for (const [key, { contOccId, contModKey, instKeys }] of Object.entries(todoMappings)) {
-    const childOccIds = [];
-    for (let i = 0; i < instKeys.length; i++) {
-      const instKey = instKeys[i];
-      const inst = instanceMods[instKey];
-      // Every todo gets a Due date stamped on its occurrence (createTestGrid
-      // parity: createTestGrid pre-filled each todo occ with
-      // `fields[dueFieldId] = { value: <date ISO>, flow: "in", ... }` — without
-      // it the Todo List renders the bound Due field with no value).
-      // Planning instances keep their specific real deadlines; every other
-      // todo gets a randomized due date 1–14 days out so the list has varied,
-      // schedule-sweepable dates (Schedule: Build Day matches
-      // `fields.<dueFieldId>.value SAME_DAY $schedDate`).
-      const dueDate = planningDueDates[instKey]
-        || daysFromNow(1 + Math.floor(Math.random() * 14));
-      const dueDatePreFill = { [fields.due.id]: fv(dueDate.toISOString()) };
-      // Pre-fill amount values on todo + planning instances that bind fields.amount
-      // so "Spent Today" / "Net Balance" trackers show non-zero values after the
-      // first Schedule: Build Day sweep.  Flow is "out" (expense) for all.
-      const todoDefaultAmounts = {
-        // payBills / cancelSub moved to Financial wellness toolkit page (no
-        // longer in todo list). carInsurance removed entirely — recurring
-        // renewal now handled by Pay Bill against carInsuranceBill in the
-        // Bills page (every-180-days cadence).
-        orderSupplies: 45,  // office supplies order
-        birthdayGift:  55,  // birthday gift for Sarah
-        signUpClass:   75,  // cooking class enrollment
-      };
-      if (todoDefaultAmounts[instKey] !== undefined) {
-        dueDatePreFill[fields.amount.id] = fv(todoDefaultAmounts[instKey], "out");
-      }
-      const childId = await mkOcc({ moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: dueDatePreFill });
-      childOccIds.push(childId);
-    }
-    await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds, filterOverride: {} });
-    todoContOccIds[contModKey] = contOccId;
+  // ── Tasks page containers — EMPTY (2026-07-25) ─────────────────────────────
+  // The user supplies task data. filterOverride: {} — task containers ignore
+  // the date filter (old Todo List convention carried over).
+  const taskContOccIds = {};
+  for (const [tKey, tMod] of Object.entries(taskContainerMods)) {
+    const tOccId = await mkOcc({ moduleId: tMod.id, occurrences: [], filterOverride: {} });
+    taskContOccIds[tKey] = tOccId;
   }
+
 
   // ── Goal containers ────────────────────────────────────────────────────────
   // Goal containers do NOT get filterOverride: {} — date cascade from the
@@ -4532,19 +4308,22 @@ export async function createLiveData(userId, options = {}) {
   // Folder record shows in the TREE but is invisible on a folder-page card
   // grid (PageFolder lists folder-page occurrences, 2026-06-09 lesson). With
   // these, the Boards page drills: Boards → Food → Meals.
+  let boardsFolderPageOccId = null; // the accounts-panel slot opens here (Task 5)
   for (const [folderId, label] of [
     [boardsFolderId, "Boards"],
     ...BOARD_GROUPS.map(([key, name]) => [boardGroupFolderIds[key], name]),
   ]) {
     const modId = uid();
+    const pageOccId = uid();
     await new Module({ id: modId, userId, gridId, role: "page", kind: "folder", label }).save();
     await mkOcc({
-      id: uid(), moduleId: modId,
+      id: pageOccId, moduleId: modId,
       parentId: folderId, sortOrder: -1,
       occurrences: [],
       iteration: { mode: "persistent" }, fields: {},
       filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
     });
+    if (folderId === boardsFolderId) boardsFolderPageOccId = pageOccId;
   }
 
   const personOccByLabel = Object.fromEntries(peopleSeed.map(p => [p.label, p.occId]));
@@ -5271,31 +5050,32 @@ export async function createLiveData(userId, options = {}) {
   const wellnessPageOccList = [routinesPageOccId];
   const toolkitPageOccId = routinesPageOccId;
 
-  const todoPageModId = uid(); const todoPageOccId = uid();
-  await new Module({ id: todoPageModId, userId, gridId, role: "page", kind: "board", label: "Todo List" }).save();
+  // ── Tasks page (2026-07-25) — 9 EMPTY dimension containers ────────────────
+  const tasksPageModId = uid(); const tasksPageOccId = uid();
+  await new Module({ id: tasksPageModId, userId, gridId, role: "page", kind: "board", label: "Tasks" }).save();
   await mkOcc({
-    id: todoPageOccId, moduleId: todoPageModId,
+    id: tasksPageOccId, moduleId: tasksPageModId,
     parentId: tasksFolderId, sortOrder: 1,
-    occurrences: Object.values(todoContOccIds),
+    occurrences: Object.values(taskContOccIds),
     iteration: { mode: "persistent" }, fields: {},
     filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
   });
 
-  const goalsPageModId = uid(); const goalsPageOccId = uid();
-  await new Module({ id: goalsPageModId, userId, gridId, role: "page", kind: "board", label: "Goals" }).save();
+  // ── Trackers page (2026-07-25) — ALL goal containers + the account
+  // containers on ONE page (replaces the Goals AND Accounts pages). Keeps the
+  // Goals page's date-cascade behavior: the filter is configured but defaults
+  // OFF (trackers show totals until the user opts into a period).
+  const trackersPageModId = uid(); const trackersPageOccId = uid();
+  await new Module({ id: trackersPageModId, userId, gridId, role: "page", kind: "board", label: "Trackers" }).save();
   await mkOcc({
-    id: goalsPageOccId, moduleId: goalsPageModId,
+    id: trackersPageOccId, moduleId: trackersPageModId,
     parentId: trackersFolderId, sortOrder: 0,
-    occurrences: Object.values(goalContOccIds),
+    occurrences: [...Object.values(goalContOccIds), ...Object.values(accountContOccIds)],
     iteration: { mode: "persistent" }, fields: {},
-    // Date filter is configured but defaults to OFF — trackers default to
-    // "show totals" (no date filter). The user can toggle the filter on
-    // via the LocalFilterNav when they want to focus on a single period.
     filters: [
       {
         id: goalsFilterId, fieldId: dateFieldId, active: false, showNav: true,
         timeUnit: "day", defaultNavValue: null,
-        // D/W/M/Y unit toggle stays available when the user enables the filter.
         units: ["day", "week", "month", "year"],
         condition: { operator: "OR", rules: [
           { left: "$field.value", comparator: "DATE_EQUALS", right: "$nav" },
@@ -5304,29 +5084,10 @@ export async function createLiveData(userId, options = {}) {
       },
     ],
   });
-
-  const accountsPageModId = uid(); const accountsPageOccId = uid();
-  await new Module({ id: accountsPageModId, userId, gridId, role: "page", kind: "board", label: "Accounts" }).save();
-  await mkOcc({
-    id: accountsPageOccId, moduleId: accountsPageModId,
-    parentId: trackersFolderId, sortOrder: 1,
-    occurrences: Object.values(accountContOccIds),
-    iteration: { mode: "persistent" }, fields: {},
-    // Date filter is configured but defaults to OFF — accounts default to
-    // "show totals" (all-time aggregation). User can opt into a period via
-    // the LocalFilterNav.
-    filters: [
-      {
-        id: accountsFilterId, fieldId: dateFieldId, active: false, showNav: true,
-        timeUnit: "day", defaultNavValue: null,
-        units: ["day", "week", "month", "year"],
-        condition: { operator: "OR", rules: [
-          { left: "$field.value", comparator: "DATE_EQUALS", right: "$nav" },
-          { left: "$field.value", comparator: "IS_EMPTY" },
-        ]},
-      },
-    ],
-  });
+  // Op-scoping aliases: every tracker that ancestor-scoped to the Goals or
+  // Accounts page now scopes to Trackers through the same variables.
+  const goalsPageOccId = trackersPageOccId;
+  const accountsPageOccId = trackersPageOccId;
 
   // Patch accountRef predicate now that the Accounts page exists. Any
   // amount-bearing task or bill instance with accountRef gets a dropdown
@@ -5826,10 +5587,12 @@ export async function createLiveData(userId, options = {}) {
   // Day Page: Build adds it via ADD_CHILD at runtime (Task 13). Notebook DOC
   // pages (Task 11) are NOT pinned — they live only under notesFolderId.
   await Occurrence.findOneAndUpdate({ id: panelOccIds.toolkit },  { $set: { occurrences: [toolkitFolderPageOccId, ...wellnessPageOccList] } });
-  await Occurrence.findOneAndUpdate({ id: panelOccIds.todo },     { $set: { occurrences: [todoPageOccId] } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.todo },     { $set: { occurrences: [tasksPageOccId] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.notebook }, { $set: { occurrences: [logoPageOccId, schedPageOccId, notebookFolderPageOccId, schedCanvasPageOccId, examplesPageOccId].filter(Boolean) } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.goals },    { $set: { occurrences: [goalsPageOccId] } });
-  await Occurrence.findOneAndUpdate({ id: panelOccIds.accounts }, { $set: { occurrences: [accountsPageOccId] } });
+  // The Accounts page is folded into Trackers — the freed panel opens the
+  // Boards drill-down (Boards → life area → board).
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.accounts }, { $set: { occurrences: [boardsFolderPageOccId] } });
 
   // ── STEP 11: Finalize grid ──────────────────────────────────────────────────
   // Open the seeded grid in BSP "mosaic" layout (opt-in per grid — see
@@ -5943,7 +5706,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field", targetId: completedFieldId, priority: 3 },
       { eventType: "onAdd",          subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
       { eventType: "onDelete",       subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid", targetId: "", priority: 3 },
     ],
     pipeline: {
@@ -6056,7 +5819,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     enabled: true,
@@ -6155,7 +5918,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     enabled: true,
@@ -6459,7 +6222,7 @@ export async function createLiveData(userId, options = {}) {
         { eventType: "onChange",       subjectType: "field", targetId: fields.muscleGroup.id, priority: 3 },
         { eventType: "onAdd",          subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
         { eventType: "onDelete",       subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
-        { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+        { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
         { eventType: "onLoad",         subjectType: "grid", targetId: "", priority: 3 },
       ],
       pipeline: {
@@ -6546,7 +6309,7 @@ export async function createLiveData(userId, options = {}) {
         { eventType: "onChange",       subjectType: "field", targetId: fields.mealCategory.id,  priority: 3 },
         { eventType: "onAdd",          subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
         { eventType: "onDelete",       subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
-        { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+        { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
         { eventType: "onLoad",         subjectType: "grid", targetId: "", priority: 3 },
       ],
       pipeline: {
@@ -6762,7 +6525,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     pipeline: {
@@ -6904,7 +6667,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     pipeline: {
@@ -7043,7 +6806,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     pipeline: {
@@ -7185,7 +6948,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     pipeline: {
@@ -7409,8 +7172,8 @@ export async function createLiveData(userId, options = {}) {
     description: "DISABLED 2026-05-21 (commit 088b35a2). Originally stamped each goal/account instance's _effectiveFilter date into its dateFieldId. The date field was removed from goal/account instances entirely — the page-header date filter covers the same intent — so this op is now enabled:false and kept only for run-log archaeology / quick re-enable if the design reverses.",
     triggerTypes: ["onFilterChange", "onLoad"],
     triggerObjects: [
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals",    priority: 2 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Accounts", priority: 2 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers",    priority: 2 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 2 },
       { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 2 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 2 },
     ],
@@ -7461,12 +7224,12 @@ export async function createLiveData(userId, options = {}) {
   // when the grid filter hasn't moved — same cascade the trackers use).
   await new Operation({
     id: uid(), userId, gridId, priority: 4,
-    name: "Goals: Date-Prefix Labels",
+    name: "Trackers: Date-Prefix Labels",
     description: "Sets each goal/tracker tile's label to '<active date>'s <name>' (Today's / Yesterday's / July 18th) so the tile reflects the day being viewed. Writes occurrence.label; reads moduleLabel as the stable base; date from the Goals page filter cascade.",
     triggerTypes: ["onFilterChange", "onLoad"],
     targetOccurrenceId: goalsPageOccId,
     triggerObjects: [
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 4 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 4 },
       { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 4 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 4 },
     ],
@@ -7511,7 +7274,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field", targetId: fields.checkingBalance.id,    priority: 6 },
       { eventType: "onChange",       subjectType: "field", targetId: fields.savingsBalance.id,     priority: 6 },
       { eventType: "onChange",       subjectType: "field", targetId: fields.momsAccountBalance.id, priority: 6 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Accounts", priority: 6 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 6 },
       { eventType: "onLoad",         subjectType: "grid", targetId: "", priority: 6 },
     ],
     pipeline: {
@@ -7604,7 +7367,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field", targetId: fields.amount.id, priority: 6 },
       { eventType: "onAdd",          subjectType: "module", subjectRole: "instance", targetId: "", priority: 6 },
       { eventType: "onDelete",       subjectType: "module", subjectRole: "instance", targetId: "", priority: 6 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Accounts", priority: 6 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 6 },
       { eventType: "onLoad",         subjectType: "grid", targetId: "", priority: 6 },
     ],
     pipeline: {
@@ -7666,7 +7429,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field", targetId: billCadenceFieldId,       priority: 6 },
       { eventType: "onAdd",          subjectType: "module", subjectRole: "instance", targetId: "", priority: 6 },
       { eventType: "onDelete",       subjectType: "module", subjectRole: "instance", targetId: "", priority: 6 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Accounts", priority: 6 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 6 },
       { eventType: "onLoad",         subjectType: "grid", targetId: "", priority: 6 },
     ],
     pipeline: {
@@ -8345,7 +8108,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId,         priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     folderId: opCategoryIds.trackers,
@@ -8421,7 +8184,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     folderId: opCategoryIds.trackers,
@@ -8516,7 +8279,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field",     targetId: fields.set3Reps.id, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     folderId: opCategoryIds.trackers,
@@ -8588,7 +8351,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field",     targetId: fields.calories.id, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     folderId: opCategoryIds.trackers,
@@ -8648,7 +8411,7 @@ export async function createLiveData(userId, options = {}) {
       { eventType: "onChange",       subjectType: "field",     targetId: fields.amount.id, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Goals", priority: 3 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
     ],
     folderId: opCategoryIds.trackers,
@@ -8763,7 +8526,7 @@ export async function createLiveData(userId, options = {}) {
           over: "$allInstances",
           predicate: { operator: "AND", rules: [
             { id: uid(), left: "linkedGroupId", comparator: "IS", right: "$lgId" },
-            { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: todoPageOccId },
+            { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: tasksPageOccId },
             { id: uid(), left: "$lgId", comparator: "IS_NOT_EMPTY", right: "" },
           ]},
           itemVar: "$mirror",
@@ -8786,7 +8549,7 @@ export async function createLiveData(userId, options = {}) {
                 { id: uid(), type: "action", config: {
                   type: "COPY_LINK",
                   sourceId: "$task.id",
-                  parent: todoContOccIds.todoBackburner,
+                  parent: taskContOccIds.taskOccupational,
                 }},
               ],
               else: [
@@ -8795,7 +8558,7 @@ export async function createLiveData(userId, options = {}) {
                 { id: uid(), type: "action", config: {
                   type: "MOVE_OCCURRENCE",
                   occurrenceIdExpr: "$mirrorId",
-                  toContainerId: todoContOccIds.todoBackburner,
+                  toContainerId: taskContOccIds.taskOccupational,
                 }},
               ],
             },
@@ -8816,14 +8579,14 @@ export async function createLiveData(userId, options = {}) {
                 { id: uid(), type: "action", config: {
                   type: "COPY_LINK",
                   sourceId: "$task.id",
-                  parent: todoContOccIds.todoDocket,
+                  parent: taskContOccIds.taskOccupational,
                 }},
               ],
               else: [
                 { id: uid(), type: "action", config: {
                   type: "MOVE_OCCURRENCE",
                   occurrenceIdExpr: "$mirrorId",
-                  toContainerId: todoContOccIds.todoDocket,
+                  toContainerId: taskContOccIds.taskOccupational,
                 }},
               ],
             },
@@ -9284,6 +9047,30 @@ export async function createLiveData(userId, options = {}) {
     if (changed.length) console.log(`   Period-all policy: ${changed.length} trackers`);
   }
 
+  // Trackers-page scoping (2026-07-25): the Goals + Accounts pages are folded
+  // into ONE "Trackers" page, but makeTrackerOp's on-page nav trigger scopes
+  // by ancestor LABEL "Goals". Data-side rewrite (builders untouched per the
+  // data-only rule): every trigger scoped to "Goals"/"Accounts" now scopes to
+  // "Trackers". Idempotent.
+  {
+    const allOps = await Operation.find({ userId, gridId }).lean();
+    let relabeled = 0;
+    for (const op of allOps) {
+      let dirty = false;
+      for (const t of op.triggerObjects || []) {
+        if (t.ancestorLabel === "Goals" || t.ancestorLabel === "Accounts") {
+          t.ancestorLabel = "Trackers";
+          dirty = true;
+        }
+      }
+      if (dirty) {
+        await Operation.updateOne({ _id: op._id }, { $set: { triggerObjects: op.triggerObjects } });
+        relabeled++;
+      }
+    }
+    if (relabeled) console.log(`   Trackers-page scoping: ${relabeled} ops re-labeled Goals/Accounts → Trackers`);
+  }
+
   // Global-filter policy: every filter-driven op (Schedule builders + all
   // goal/account/tracker aggregations) must ALSO fire on the GLOBAL (toolbar)
   // filter change, not just its on-page nav — so changing the grid date updates
@@ -9303,7 +9090,7 @@ export async function createLiveData(userId, options = {}) {
     containerMods,
     // Occurrence id maps — consumed by Tasks 10–13
     toolkitContOccIds,   // contModKey → containerOccId for toolkit containers
-    todoContOccIds,      // contModKey → containerOccId for todo containers
+    taskContOccIds,      // dimension key → containerOccId for Tasks page containers
     goalContOccIds,      // contModKey → containerOccId for goal containers
     accountContOccIds,   // contModKey → containerOccId for account containers
     billContOccIds,      // contModKey → containerOccId for bill containers (B3)
@@ -9329,7 +9116,7 @@ export async function createLiveData(userId, options = {}) {
     // Page occurrence ids — consumed by Task 13 ops
     schedPageOccId,
     toolkitPageOccId,
-    todoPageOccId,
+    tasksPageOccId,
     goalsPageOccId,
     accountsPageOccId,
     // Folder-page default tabs (card-grid landing for each hub panel)
@@ -9411,7 +9198,7 @@ async function main() {
     const instanceCount  = Object.keys(result.instanceMods || {}).length;
     const containerCount = Object.keys(result.containerMods || {}).length;
     const tkContOccs     = Object.keys(result.toolkitContOccIds || {}).length;
-    const tdContOccs     = Object.keys(result.todoContOccIds || {}).length;
+    const tdContOccs     = Object.keys(result.taskContOccIds || {}).length;
     const glContOccs     = Object.keys(result.goalContOccIds || {}).length;
     const acContOccs     = Object.keys(result.accountContOccIds || {}).length;
     const blContOccs     = Object.keys(result.billContOccIds || {}).length;
