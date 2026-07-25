@@ -26,6 +26,10 @@ export default function InsertGap({
   // gap-insert must carry the same context a drag into the container does.
   panelId = null,
   containerLabel = "",
+  // Empty-container variant (2026-07-25): fills the container's empty body so
+  // clicking anywhere in it opens the add menu ANCHORED THERE. Bumping the
+  // header's QuickAddMenu instead made the menu pop up way above the click.
+  emptyBody = false,
 }) {
   const { dispatch, socket, gridId, userId, state, modulesById } = useGridActions() || {};
   const resolvedGridId = gridId || state?.grid?._id || state?.gridId;
@@ -65,9 +69,10 @@ export default function InsertGap({
   };
 
   return (
-    <div className={`insert-gap${menuOpen ? " insert-gap--open" : ""}`} data-insert-index={index}>
-      <div className="insert-gap-line" />
+    <div className={`insert-gap${menuOpen ? " insert-gap--open" : ""}${emptyBody ? " insert-gap--empty" : ""}`} data-insert-index={index}>
+      {!emptyBody && <div className="insert-gap-line" />}
       <div className="insert-gap-btn">
+        {emptyBody && <span className="insert-gap-empty-label">Add new item</span>}
         <QuickAddMenu
           targetRole={targetRole}
           onSelect={insertExisting}

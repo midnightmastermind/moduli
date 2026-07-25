@@ -1969,6 +1969,43 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 }
 
 /* Container empty placeholder (inline flow) */
+/* Empty-container add affordance (2026-07-25, per user): the whole empty body
+   is ALWAYS clickable to add, and the "Add new item" LABEL only appears on
+   hover of that container — so an empty board doesn't read as a wall of
+   repeated text. The menu anchors to the body (it used to open from the
+   header, so it popped up far above where you clicked). */
+.insert-gap--empty {
+  flex: 1;
+  min-height: 44px;
+  height: auto;
+  margin: 0;
+  display: flex;
+}
+.insert-gap--empty .insert-gap-btn {
+  position: static;
+  width: 100%;
+  height: auto;
+  min-height: 44px;
+  opacity: 1;                /* always clickable */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.insert-gap-empty-label {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--text-muted);
+  opacity: 0;                /* label fades in on container hover */
+  transition: opacity 0.12s ease-out;
+  pointer-events: none;
+}
+.container-shell:hover .insert-gap-empty-label,
+.insert-gap--empty:hover .insert-gap-empty-label,
+.insert-gap--empty.insert-gap--open .insert-gap-empty-label {
+  opacity: 0.75;
+}
+
 /* Empty-container "Add new item" (2026-07-25, per user): the whole empty body
    is ALWAYS clickable to add, but the LABEL only appears on hover of that
    container — so an empty board doesn't read as a wall of repeated text.

@@ -4313,6 +4313,16 @@ export async function createLiveData(userId, options = {}) {
     if (folderId === boardsFolderId) boardsFolderPageOccId = pageOccId;
   }
 
+  // Board option thumbnails (2026-07-25). Colored by LIFE AREA from the vintage
+  // palette so each board's options read as a set; the label is drawn into the
+  // image, so a dropdown chip is recognizable at thumbnail size.
+  const BOARD_GROUP_BG = {
+    food: "b34f24", body: "3e8e7e", mind: "4a3b52", money: "6d7434",
+    home: "4a8c5c", social: "e08b31", creative: "d94f30",
+  };
+  const boardOptionPoster = (group, label) =>
+    ph(BOARD_GROUP_BG[group] || "4a3b52", "ece3d0", label);
+
   const personOccByLabel = Object.fromEntries(peopleSeed.map(p => [p.label, p.occId]));
   const opt = (label, extra = null) => ({ label, ...(extra || {}) });
 
@@ -4519,6 +4529,11 @@ export async function createLiveData(userId, options = {}) {
         label: o.label, defaultDragMode: "copy",
         fieldBindings: [
           { fieldId: boardCategoryFieldId, role: "input", order: 0, hidden: true },
+          // Every option carries an IMAGE (2026-07-25, per user: "give all the
+          // board occurrences images so the dropdown can use them") — role
+          // "media" is what the occurrence-dropdown chips + option rows render
+          // as a thumbnail. Hidden as an inline input; the media block shows it.
+          { fieldId: posterUrlFieldId, role: "media", order: 98, hidden: true },
           ...(o.bindings || []),
         ],
       }).save();
@@ -4526,6 +4541,7 @@ export async function createLiveData(userId, options = {}) {
         moduleId: modId, parentId: contOccId,
         fields: {
           [boardCategoryFieldId]: fv(def.tag),
+          [posterUrlFieldId]: fv(boardOptionPoster(def.group, o.label)),
           ...(o.fields ? o.fields() : {}),
         },
       });

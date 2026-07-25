@@ -84,6 +84,27 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
       // parentId only — e.g. artifact occurrences under a folder page).
       // Look up reverse via a scan once and cache.
     }
+    // FOLDER pages hold nothing in `occurrences[]` — their cards are the
+    // occurrences parented under the FOLDER itself (see ModulePage's
+    // folderChildOccs). A folder is not an occurrence, so the walk above can
+    // never reach them and the preview rendered empty (2026-07-25: "if i click
+    // on mind, its filled with boards but doesnt show it in the preview").
+    // Seed the folder's contents, plus the folder-page occurrences of any
+    // CHILD folder so nested folders show as cards too.
+    const rootOcc = occByIdAll[occurrenceId];
+    const rootFolderId = rootOcc?.parentId;
+    if (rootFolderId) {
+      const childFolderIds = new Set(
+        (parentState?.folders || [])
+          .filter(f => f.parentId === rootFolderId && f.folderType !== "category")
+          .map(f => f.id)
+      );
+      for (const occ of allOccurrences) {
+        if (!occ.id || seen.has(occ.id)) continue;
+        if (occ.parentId === rootFolderId || childFolderIds.has(occ.parentId)) seen.add(occ.id);
+      }
+    }
+
     // One parentId-reverse pass: include any occurrence whose parentId is
     // already in `seen` (handles parentId-linked artifacts/textblocks).
     let changed = true;
@@ -95,7 +116,7 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
       }
     }
     return seen;
-  }, [allOccurrences, occurrenceId]);
+  }, [allOccurrences, occurrenceId, parentState?.folders]);
 
   const occurrencesById = useMemo(() => {
     const out = Object.create(null);

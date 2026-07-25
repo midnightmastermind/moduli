@@ -9,7 +9,7 @@
 // Module-type icons come from helpers/moduleIcons.js so the tiles read the same
 // as the CategoryPathPicker / value picker. Portal-rendered to avoid layout push.
 
-import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Plus, ChevronLeft, Check, Search } from "lucide-react";
 import { useGridActionsSelector } from "../GridActionsContext";
@@ -99,8 +99,20 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   const reposition = useCallback(() => {
     if (!btnRef.current) return;
     const rect = btnRef.current.getBoundingClientRect();
-    setPos(menuPosition(rect, window.innerWidth, window.innerHeight));
+    // Measured height when the menu is already up; the 360 default is a
+    // worst-case guess used for the first paint only.
+    const height = menuRef.current?.getBoundingClientRect?.().height || undefined;
+    setPos(menuPosition(rect, window.innerWidth, window.innerHeight, height ? { height } : undefined));
   }, []);
+
+  // Re-position once the menu has REAL dimensions (2026-07-25). The default
+  // 360px estimate is much taller than the actual ~240px tile menu, so
+  // clicking low in the viewport flipped it above the anchor even when it
+  // would have fit below — the user's "menu pops up way above where i clicked".
+  useLayoutEffect(() => {
+    if (!open) return;
+    reposition();
+  }, [open, pickingFields, reposition]);
 
   const handleOpen = useCallback((e) => {
     e.stopPropagation();
