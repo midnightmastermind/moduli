@@ -721,8 +721,8 @@ export async function createLiveData(userId, options = {}) {
     ["movement",       "Movement",         ["movement"],                                                                true],
     ["workoutProgram", "Workout Program",  ["program"],                                                                 false],
     ["route",          "Route",            ["route"],                                                                   false],
-    ["reading",        "Reading",          ["reading", "verse"],                                                        false],
-    ["mediaPick",      "Media",            ["media", "song", "course"],                                                 false],
+    ["reading",        "Reading",          ["reading", "verse"],                                                        true],
+    ["mediaPick",      "Media",            ["media", "song", "course"],                                                 true],
     ["practice",       "Practice",         ["practice"],                                                                false],
     ["prompt",         "Prompt",           ["prompt"],                                                                  false],
     ["leisureActivity","Leisure Activity", ["leisure"],                                                                 false],
@@ -2469,7 +2469,10 @@ export async function createLiveData(userId, options = {}) {
     // add / subtract / SET-the-balance, superseding Set Account Balance)
     budget:          act("Budget",    [bfd(fields.accountRef.id), bfd(fields.savingsGoalPick.id), bfd(fields.amount.id)]),
     save:            act("Save",      [bfd(fields.accountRef.id), bfd(fields.savingsGoalPick.id), bfd(fields.amount.id)]),
-    earn:            act("Earn",      [bfd(fields.accountRef.id), bfd(fields.amount.id)]),
+    // Earn carries INCOME (not Amount): the Earned tracker sums Income, and
+    // the Checking Balance NET agg is Income minus Amount — it needs the two
+    // money fields to stay distinct, so money IN has its own field.
+    earn:            act("Earn",      [bfd(fields.accountRef.id), bfd(fields.income.id)]),
     invest:          act("Invest",    [bfd(fields.accountRef.id), bfd(fields.savingsGoalPick.id), bfd(fields.amount.id)]),
     spend:           act("Spend",     [bfd(fields.accountRef.id), bfd(fields.purchaseItem.id), bfd(fields.amount.id)]),
     buy:             act("Buy",       [bfd(fields.accountRef.id), bfd(fields.purchaseItem.id), bfd(fields.amount.id)]),
@@ -2961,33 +2964,10 @@ export async function createLiveData(userId, options = {}) {
       fieldBindings: [{ fieldId: fields.totalRepsToday.id, role: "display", order: 0 }] },
     cardioVolumeGoal:   { id: uid(), label: "Cardio Volume",   kind: "board", defaultDragMode: "move",
       fieldBindings: [{ fieldId: fields.totalRepsToday.id, role: "display", order: 0 }] },
-    // Per-meal nutrition goals (B7 Deep). Each tracks the daily sums of ALL
-    // FOUR macros (calories/protein/carbs/fats — was protein-only until
-    // 2026-07-14: "set the breakfast nutrition and the others to have more
-    // than protein") across nutrition instances whose `mealCategory` matches.
-    // Shares the macro display fields — per-goal values live on the occurrence.
-    breakfastNutritionGoal: { id: uid(), label: "Breakfast Nutrition", kind: "board", defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.totalCalories.id, role: "display", order: 0 },
-        { fieldId: fields.totalProtein.id,  role: "display", order: 1 },
-        { fieldId: fields.totalCarbs.id,    role: "display", order: 2 },
-        { fieldId: fields.totalFats.id,     role: "display", order: 3 },
-      ] },
-    lunchNutritionGoal:     { id: uid(), label: "Lunch Nutrition",     kind: "board", defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.totalCalories.id, role: "display", order: 0 },
-        { fieldId: fields.totalProtein.id,  role: "display", order: 1 },
-        { fieldId: fields.totalCarbs.id,    role: "display", order: 2 },
-        { fieldId: fields.totalFats.id,     role: "display", order: 3 },
-      ] },
-    dinnerNutritionGoal:    { id: uid(), label: "Dinner Nutrition",    kind: "board", defaultDragMode: "move",
-      fieldBindings: [
-        { fieldId: fields.totalCalories.id, role: "display", order: 0 },
-        { fieldId: fields.totalProtein.id,  role: "display", order: 1 },
-        { fieldId: fields.totalCarbs.id,    role: "display", order: 2 },
-        { fieldId: fields.totalFats.id,     role: "display", order: 3 },
-      ] },
-    snackNutritionGoal:     { id: uid(), label: "Snack Nutrition",     kind: "board", defaultDragMode: "move",
+    // Meal nutrition goal (2026-07-25): the 4 per-meal tiles collapse to ONE
+    // — the Eat action has no meal-category axis (it picks a Meal from the
+    // Meals board), so one Eat-scoped tracker fills all four macro displays.
+    mealNutritionGoal: { id: uid(), label: "Meal Nutrition", kind: "board", defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalCalories.id, role: "display", order: 0 },
         { fieldId: fields.totalProtein.id,  role: "display", order: 1 },
@@ -3543,7 +3523,7 @@ export async function createLiveData(userId, options = {}) {
     environmentalGoal: { contOccId: environmentalGoalContOccId, contModKey: "environmentalGoal", instKeys: ["environmentalSummary"] },
     creativeGoal:      { contOccId: creativeGoalContOccId,      contModKey: "creativeGoal",      instKeys: ["creativeDuration"] },
     workoutGoal:       { contOccId: workoutGoalContOccId,       contModKey: "workoutGoal",       instKeys: ["workoutReps", "workoutLog", "chestVolumeGoal", "backVolumeGoal", "legsVolumeGoal", "shouldersVolumeGoal", "armsVolumeGoal", "cardioVolumeGoal"] },
-    nutritionGoal:     { contOccId: nutritionGoalContOccId,     contModKey: "nutritionGoal",     instKeys: ["nutritionProtein", "nutritionCarbs", "nutritionFats", "nutritionLog", "breakfastNutritionGoal", "lunchNutritionGoal", "dinnerNutritionGoal", "snackNutritionGoal"] },
+    nutritionGoal:     { contOccId: nutritionGoalContOccId,     contModKey: "nutritionGoal",     instKeys: ["nutritionProtein", "nutritionCarbs", "nutritionFats", "nutritionLog", "mealNutritionGoal"] },
     planningGoal:      { contOccId: planningGoalContOccId,      contModKey: "planningGoal",      instKeys: ["planningOverdue", "planningUpcoming"] },
     mediaGoal:         { contOccId: mediaGoalContOccId,         contModKey: "mediaGoal",         instKeys: ["mediaMovies", "mediaBooks", "mediaPodcasts"] },
     // (coursesTakenGoal entry removed — courses is part of Intellectual now.)
@@ -6213,13 +6193,13 @@ export async function createLiveData(userId, options = {}) {
     await new Operation({
       id: uid(), userId, gridId, priority: 3,
       name: goalLabel,
-      description: `Sum set1+set2+set3 reps across workouts with muscleGroup="${key}" on the active day; write to the "${goalLabel}" goal's totalRepsToday.`,
+      description: `Sum set1+set2+set3 reps across completed Schedule actions whose picked Movement is in muscle group "${key}" on the active day; write to the "${goalLabel}" goal's totalRepsToday.`,
       triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
       triggerObjects: [
         { eventType: "onChange",       subjectType: "field", targetId: fields.set1Reps.id,    priority: 3 },
         { eventType: "onChange",       subjectType: "field", targetId: fields.set2Reps.id,    priority: 3 },
         { eventType: "onChange",       subjectType: "field", targetId: fields.set3Reps.id,    priority: 3 },
-        { eventType: "onChange",       subjectType: "field", targetId: fields.muscleGroup.id, priority: 3 },
+        { eventType: "onChange",       subjectType: "field", targetId: fields.movement.id, priority: 3 },
         { eventType: "onAdd",          subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
         { eventType: "onDelete",       subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
         { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
@@ -6249,24 +6229,33 @@ export async function createLiveData(userId, options = {}) {
                 body: [
                   { id: uid(), type: "if",
                     condition: { operator: "AND", rules: [
-                      { id: uid(), left: `$item.fields.${fields.muscleGroup.id}.value`, comparator: "IS", right: key },
+                      // The logged action (Exercise / Lift) carries a MOVEMENT
+                      // pick; muscleGroup lives on the picked movement OPTION.
+                      { id: uid(), left: `$item.fields.${fields.movement.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
                       { id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
-                      // Scope + feed guard (2026-07-09) — match the stock Total Reps tracker:
-                      // only SCHEDULE items count, and feed copies (Schedule Table / Canvas
-                      // mirrors, meta.feedSourceId) never aggregate — they triple-counted
-                      // every scheduled workout (user saw 90 for one 30-rep workout).
                       { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: schedPageOccId },
                       { id: uid(), left: "$item.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                      // Completion gate (2026-07-09) — volume only counts a workout the
-                      // user actually COMPLETED (an uncompleted set is intent, not fact —
-                      // same rule as Steps/Water/Protein). User: "it added the total weight
-                      // volume even though i didnt complete the workout."
                       { id: uid(), left: `$item.fields.${fields.completed.id}.value`, comparator: "IS", right: true },
                     ] },
                     then: [
-                      { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.set1Reps.id}.value` } },
-                      { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.set2Reps.id}.value` } },
-                      { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.set3Reps.id}.value` } },
+                      // Resolve each picked movement; only the ones in THIS
+                      // muscle group contribute the action's set volume.
+                      { id: uid(), type: "loop", overExpr: `$item.fields.${fields.movement.id}.value`, as: "$mvId",
+                        body: [
+                          { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$mv", expr: "$allItemsById.${$mvId}" } },
+                          { id: uid(), type: "if",
+                            condition: { operator: "AND", rules: [
+                              { id: uid(), left: `$mv.fields.${fields.muscleGroup.id}.value`, comparator: "IS", right: key },
+                            ] },
+                            then: [
+                              { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.set1Reps.id}.value` } },
+                              { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.set2Reps.id}.value` } },
+                              { id: uid(), type: "action", config: { type: "ADD_TO_VAR", name: "$acc", expr: `$item.fields.${fields.set3Reps.id}.value` } },
+                            ],
+                            else: [],
+                          },
+                        ],
+                      },
                     ],
                     else: [],
                   },
@@ -6284,29 +6273,26 @@ export async function createLiveData(userId, options = {}) {
     }).save();
   }
 
-  // ── PER-MEAL NUTRITION (B7 Deep) ────────────────────────────────────────────
-  // One tracker per meal category. Sums ALL FOUR macros (calories / protein /
-  // carbs / fats — was protein-only until 2026-07-14) across nutrition
-  // instances whose `mealCategory` matches, scoped to today. Writes the sums
-  // into the per-meal goal's macro displays.
-  const MEAL_CATEGORIES = [
-    { key: "Breakfast", goalLabel: "Breakfast Nutrition", occId: goalOccIds.breakfastNutritionGoal },
-    { key: "Lunch",     goalLabel: "Lunch Nutrition",     occId: goalOccIds.lunchNutritionGoal },
-    { key: "Dinner",    goalLabel: "Dinner Nutrition",    occId: goalOccIds.dinnerNutritionGoal },
-    { key: "Snack",     goalLabel: "Snack Nutrition",     occId: goalOccIds.snackNutritionGoal },
-  ];
-  for (const { key, goalLabel, occId } of MEAL_CATEGORIES) {
+  // ── MEAL NUTRITION (2026-07-25 — was 4 per-meal trackers) ──────────────────
+  // ONE tracker: sums all four macros (calories / protein / carbs / fats)
+  // across completed EAT actions in the Schedule for the active period, and
+  // writes them into the Meal Nutrition goal's macro displays. The meal-type
+  // axis is gone with the old per-meal toolkit instances — Eat picks a Meal
+  // from the Meals board instead.
+  {
+    const goalLabel = "Meal Nutrition";
+    const occId = goalOccIds.mealNutritionGoal;
     await new Operation({
       id: uid(), userId, gridId, priority: 3,
       name: goalLabel,
-      description: `Sum calories/protein/carbs/fats across nutrition instances with mealCategory="${key}" on the active day; write to the "${goalLabel}" goal's macro displays.`,
+      description: `Sum calories/protein/carbs/fats across completed Eat actions in the Schedule on the active day; write to the "${goalLabel}" goal's macro displays.`,
       triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
       triggerObjects: [
         { eventType: "onChange",       subjectType: "field", targetId: fields.protein.id,       priority: 3 },
         { eventType: "onChange",       subjectType: "field", targetId: fields.calories.id,      priority: 3 },
         { eventType: "onChange",       subjectType: "field", targetId: fields.carbs.id,         priority: 3 },
         { eventType: "onChange",       subjectType: "field", targetId: fields.fats.id,          priority: 3 },
-        { eventType: "onChange",       subjectType: "field", targetId: fields.mealCategory.id,  priority: 3 },
+        { eventType: "onChange",       subjectType: "field", targetId: fields.mealPick.id,      priority: 3 },
         { eventType: "onAdd",          subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
         { eventType: "onDelete",       subjectType: "module", subjectRole: "instance", targetId: "", priority: 3 },
         { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
@@ -6334,7 +6320,7 @@ export async function createLiveData(userId, options = {}) {
                 body: [
                   { id: uid(), type: "if",
                     condition: { operator: "AND", rules: [
-                      { id: uid(), left: `$item.fields.${fields.mealCategory.id}.value`, comparator: "IS", right: key },
+                      { id: uid(), left: "$item.templateId", comparator: "IS", right: actionInstances.eat.id },
                       { id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       // Scope + feed guard (2026-07-09) — see the muscle-volume note above.
                       { id: uid(), left: "$item._ancestors", comparator: "HAS_ANCESTOR", right: schedPageOccId },
@@ -6440,10 +6426,11 @@ export async function createLiveData(userId, options = {}) {
     ...trackerArgs, name: "Total Workouts",
     goalLabel: "Fitness Stats", goalOccurrenceId: accountOccIds.fitnessAccount, goalFieldId: fields.totalWorkouts.id,
     agg: "countTrue", timeFilter: "daily",
-    // Only items that carry a muscleGroup value are workouts — without this
-    // gate every completed Schedule item (water logs, mood checks) counted
-    // as a workout (caught by the 2026-07-07 behavioral probe).
-    presenceFieldId: fields.muscleGroup.id,
+    // Only items carrying a MOVEMENT pick are workouts (2026-07-25: Exercise
+    // and Lift bind Movement; the muscleGroup value now lives on the movement
+    // OPTION, not the logged action). Without the gate every completed
+    // Schedule item counted as a workout (2026-07-07 behavioral probe).
+    presenceFieldId: fields.movement.id,
     // All-time accumulating counter — Pages pattern. Blue at 0/null, green
     // once filled. No target on the display field, so no target-based rules.
     displayRules: {
@@ -6520,7 +6507,7 @@ export async function createLiveData(userId, options = {}) {
     description: "Build a label list of movies watched today and update the Movies Watched goal display.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
-      { eventType: "onChange",       subjectType: "field",     targetId: moviesWatchedFieldId, priority: 3 },
+      { eventType: "onChange",       subjectType: "field",     targetId: fields.mediaPick.id, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
@@ -6599,7 +6586,7 @@ export async function createLiveData(userId, options = {}) {
                     // Inner loop: iterate the moviesWatched array (array of occurrence IDs)
                     {
                       type: "loop",
-                      overExpr: `$watchInst.fields.${moviesWatchedFieldId}.value`,
+                      overExpr: `$watchInst.fields.${fields.mediaPick.id}.value`,
                       as: "$movieOccId",
                       body: [
                         // Resolve the movie occurrence from $allInstances
@@ -6662,7 +6649,7 @@ export async function createLiveData(userId, options = {}) {
     description: "Build a label list of books read today and update the Books Read goal display.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
-      { eventType: "onChange",       subjectType: "field",     targetId: booksReadFieldId, priority: 3 },
+      { eventType: "onChange",       subjectType: "field",     targetId: fields.reading.id, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
@@ -6737,7 +6724,7 @@ export async function createLiveData(userId, options = {}) {
                     // Inner loop: iterate the booksRead array (array of occurrence IDs)
                     {
                       type: "loop",
-                      overExpr: `$readInst.fields.${booksReadFieldId}.value`,
+                      overExpr: `$readInst.fields.${fields.reading.id}.value`,
                       as: "$bookOccId",
                       body: [
                         // Resolve the book occurrence from $allInstances
@@ -6801,7 +6788,7 @@ export async function createLiveData(userId, options = {}) {
     description: "Build a label list of podcasts listened today and update the Podcasts Listened goal display.",
     triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
     triggerObjects: [
-      { eventType: "onChange",       subjectType: "field",     targetId: podcastsListenedFieldId, priority: 3 },
+      { eventType: "onChange",       subjectType: "field",     targetId: fields.mediaPick.id, priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
       { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
@@ -6879,7 +6866,7 @@ export async function createLiveData(userId, options = {}) {
                     // Inner loop: iterate the podcastsListened array (array of occurrence IDs)
                     {
                       type: "loop",
-                      overExpr: `$podcastInst.fields.${podcastsListenedFieldId}.value`,
+                      overExpr: `$podcastInst.fields.${fields.mediaPick.id}.value`,
                       as: "$podcastOccId",
                       body: [
                         // Resolve the podcast occurrence from $allInstances
@@ -8301,33 +8288,39 @@ export async function createLiveData(userId, options = {}) {
               condition: { operator: "AND", rules: [
                 { id: uid(), left: "$inst._ancestors",                         comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                 { id: uid(), left: "$inst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                // Presence discriminator = muscleGroup, the field the workout
-                // EXERCISE instances (Bench Press, Squat, …) actually carry —
-                // NOT workoutType, which only the generic "Morning Workout" task
-                // binds. The old workoutType gate excluded every exercise, so the
-                // Exercise/Reps/Wt history never filled (2026-07-14 repro).
-                { id: uid(), left: `$inst.fields.${fields.muscleGroup.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
+                // Presence discriminator = the MOVEMENT pick (2026-07-25): the
+                // Exercise / Lift actions bind Movement; muscleGroup lives on
+                // the movement OPTION now, not on the logged action.
+                { id: uid(), left: `$inst.fields.${fields.movement.id}.value`, comparator: "IS_NOT_EMPTY", right: "" },
                 { id: uid(), left: `$inst.fields.${dateFieldId}.value`,        comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
               ] },
               then: [
-                { id: uid(), type: "action", config: {
-                  type: "PUSH_TO_ARRAY", name: "$rows",
-                  value: {
-                    label:    "$inst.label",
-                    // All three set counts + their per-set weights, one column
-                    // each (2026-07-14: "only showing 1 of the rep counts" +
-                    // "add 3 weights too").
-                    s1:       `$inst.fields.${fields.set1Reps.id}.value`,
-                    w1:       `$inst.fields.${fields.workoutWeight.id}.value`,
-                    s2:       `$inst.fields.${fields.set2Reps.id}.value`,
-                    w2:       `$inst.fields.${fields.workoutWeight2.id}.value`,
-                    s3:       `$inst.fields.${fields.set3Reps.id}.value`,
-                    w3:       `$inst.fields.${fields.workoutWeight3.id}.value`,
-                    timeslot: `$inst.fields.${timeslotFieldId}.value`,
-                    date:     `$inst.fields.${dateFieldId}.value`,
-                  },
-                } },
-                { id: uid(), type: "action", config: { type: "SET_VAR", name: "$lastW", expr: "$inst.label" } },
+                // Inner loop: Movement is a multi-pick of occurrence ids —
+                // resolve each on the Movements board so the row reads
+                // "Bench Press", not the action's label ("Exercise").
+                { id: uid(), type: "loop", overExpr: `$inst.fields.${fields.movement.id}.value`, as: "$mvId",
+                  body: [
+                    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$mv", expr: "$allItemsById.${$mvId}" } },
+                    { id: uid(), type: "action", config: {
+                      type: "PUSH_TO_ARRAY", name: "$rows",
+                      value: {
+                        label:    "$mv.label",
+                        // All three set counts + their per-set weights, one column
+                        // each (2026-07-14: "only showing 1 of the rep counts" +
+                        // "add 3 weights too").
+                        s1:       `$inst.fields.${fields.set1Reps.id}.value`,
+                        w1:       `$inst.fields.${fields.workoutWeight.id}.value`,
+                        s2:       `$inst.fields.${fields.set2Reps.id}.value`,
+                        w2:       `$inst.fields.${fields.workoutWeight2.id}.value`,
+                        s3:       `$inst.fields.${fields.set3Reps.id}.value`,
+                        w3:       `$inst.fields.${fields.workoutWeight3.id}.value`,
+                        timeslot: `$inst.fields.${timeslotFieldId}.value`,
+                        date:     `$inst.fields.${dateFieldId}.value`,
+                      },
+                    } },
+                    { id: uid(), type: "action", config: { type: "SET_VAR", name: "$lastW", expr: "$mv.label" } },
+                  ],
+                },
               ],
               else: [],
             },
