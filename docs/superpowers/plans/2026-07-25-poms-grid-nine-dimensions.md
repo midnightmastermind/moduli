@@ -129,7 +129,9 @@ Multi-board fields in this seed:
 - each **Savings Goal** binds Amount: the goal carries its target;
 - each **Creative Work** binds Medium: the album knows it is a Piano piece.
 
-**Capture loops (`addNew` as journaling):** some boards GROW from completing actions instead of being pre-curated — the dropdown's "+ Add" is the journal entry point:
+**Every dropdown can mint new options (per user):** EVERY board dropdown field carries `addNew: { parentOccurrenceId: <its board's container> }` — the picker's "+ Add" entry types a new option straight onto the board, for all 34 boards, not just the capture-loop ones. Multi-board fields pick ONE home board for their addNew (Purchase Item → Grocery List, Ingredient → Ingredients, Media → Media, Skill → Skills, Reading → Readings, Savings Goal → Savings Goals, Creative Work → Creative Works, Idea → Ideas); new entries land there tagged with that board's category so every querying dropdown sees them immediately.
+
+**Capture loops (`addNew` as journaling):** on top of that baseline, some boards GROW primarily from completing actions instead of being pre-curated — the dropdown's "+ Add" is the journal entry point:
 - **Gratitude** → typing into its Gratitude Entry dropdown mints onto the Gratitude Log board (the board IS the gratitude journal);
 - **Celebrate** → new Wins land on the Wins board (a trophy shelf that accumulates);
 - **Brainstorm** → new Ideas land on the Ideas board (idea inbox), where Prototype/Invent later pick them up;
@@ -442,7 +444,7 @@ For each board, mint `role:"instance"` modules with `fieldBindings: [{ fieldId: 
 
 - [ ] **Step 3: Boards folder + pages + addNew patch**
 
-Create a manifest folder "Boards" (sortOrder after Library) holding one `role:"page" kind:"board"` page per board — all 34 from the boards table: Meals, Ingredients, Grocery List, Beverages, Supplements, Movements, Workout Programs, Routes, Readings, Verses, Media, Courses, Practices, Prompts, Leisure, Projects, Ideas, Skills, Topics, Wish List, Savings Goals, Charities, Places, Events, Gift Ideas, Areas, Equipment, Plants, Mediums, Songs, Creative Works, Gratitude Log, Wins, People — each with its single container. Consider sub-grouping the Boards folder's tree by life area (Food, Body, Mind, Money, Home, Social, Creative) if 34 flat pages read as noise — folders are cheap; the pages are what matter. Mirror the Bills-page wiring shape (`createLiveData.js:5539` + `4218`). After container occurrences exist, patch each dropdown field's `meta.optionsSource.addNew.parentOccurrenceId` (mirror `createLiveData.js:4773-4776`) — capture-loop boards (Gratitude Log, Wins, Ideas, Grocery List) MUST get their addNew sink wired or the journaling loops are dead. Recipe-pattern option instances (Meals→Ingredient, Workout Programs→Movement, Events→People+Place, Gift Ideas→People, Savings Goals→Amount, Creative Works→Medium) bind those fields on their modules and stamp seed values.
+Create a manifest folder "Boards" (sortOrder after Library) holding one `role:"page" kind:"board"` page per board — all 34 from the boards table: Meals, Ingredients, Grocery List, Beverages, Supplements, Movements, Workout Programs, Routes, Readings, Verses, Media, Courses, Practices, Prompts, Leisure, Projects, Ideas, Skills, Topics, Wish List, Savings Goals, Charities, Places, Events, Gift Ideas, Areas, Equipment, Plants, Mediums, Songs, Creative Works, Gratitude Log, Wins, People — each with its single container. Consider sub-grouping the Boards folder's tree by life area (Food, Body, Mind, Money, Home, Social, Creative) if 34 flat pages read as noise — folders are cheap; the pages are what matter. Mirror the Bills-page wiring shape (`createLiveData.js:5539` + `4218`). After container occurrences exist, patch EVERY dropdown field's `meta.optionsSource.addNew.parentOccurrenceId` (mirror `createLiveData.js:4773-4776`) — all 34 boards take "+ Add" from their dropdowns (per user); a null addNew target on any field is a bug. The addNew mint must stamp the new occurrence's `boardCategory` with the home board's tag (the `addNew` config carries the initial fields, same as the peopleAssigned `library:"person"` addNew shape) so every dropdown querying that tag sees the new option immediately. Recipe-pattern option instances (Meals→Ingredient, Workout Programs→Movement, Events→People+Place, Gift Ideas→People, Savings Goals→Amount, Creative Works→Medium) bind those fields on their modules and stamp seed values.
 
 - [ ] **Step 4: Verify**
 
@@ -451,7 +453,7 @@ Reseed: `node --env-file=.env server/scripts/createLiveData.js` — expect succe
 ```bash
 node --env-file=.env -e '/* load Field collection, group by lowercase name, assert no group >1 */'
 ```
-Expected: `0 duplicate field names`, every board tag ≥3 options.
+Expected: `0 duplicate field names`, every board tag ≥3 options, and every board dropdown field has a non-null `addNew.parentOccurrenceId` resolving to a real board container occurrence (assert all three in the probe). Then one interactive check: open a dropdown, use "+ Add" to type a new option → it appears on the board page AND in every other dropdown querying that tag.
 
 - [ ] **Step 5: Commit**
 
