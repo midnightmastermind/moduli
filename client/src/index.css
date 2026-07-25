@@ -1109,9 +1109,15 @@ body[data-clipboard-active="true"] {
    middle of the tall content. (Two-class selector beats the global `.module-drag-handle`
    `align-self:flex-start`; scoped to `.instance-content` so containers/panels are
    untouched.) */
-.instance-content { align-items: center; }
-.instance-content:has(.instance-body) { align-items: flex-start; }
-.instance-content .module-drag-handle { align-self: center; margin-top: 0; }
+/* Instance rows anchor their label / inline image / drag handle to the TOP-LEFT
+   (2026-07-25, per user) instead of vertically centering. A row whose fields
+   wrap to several lines used to float the handle+label to the middle of that
+   block; top alignment keeps the identity of the row where you read it. */
+.instance-content { align-items: flex-start; }
+.instance-content .module-drag-handle { align-self: flex-start; margin-top: 0; }
+/* Single-line rows (no wrapped field block) still read better centered. */
+.instance-content:not(:has(.instance-fields)) { align-items: center; }
+.instance-content:not(:has(.instance-fields)) .module-drag-handle { align-self: center; }
 /* Container HEADER (doc/board) is a one-line row, so center its drag handle with the
    label too (it was sitting higher than the label). */
 .container-header { align-items: center; }
@@ -1992,6 +1998,14 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   justify-content: center;
   gap: 4px;
 }
+/* The between-items gap stretches its "+" trigger to 100% so the whole blue
+   line is clickable — in the EMPTY variant that pushed the label to the far
+   left. Here the trigger sizes to its glyph so label + "+" center as a pair
+   (the whole body is still clickable: the gap itself is the hit area). */
+.insert-gap--empty .quick-add-btn {
+  width: auto !important;
+  flex: 0 0 auto;
+}
 .insert-gap-empty-label {
   font-size: 11px;
   font-style: italic;
@@ -2000,7 +2014,11 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   transition: opacity 0.12s ease-out;
   pointer-events: none;
 }
-.container-shell:hover .insert-gap-empty-label,
+/* Only the INNERMOST hovered container reveals its label. `:hover` matches every
+   ancestor shell too, so hovering one Schedule slot lit up the label in every
+   other empty slot (nested day-col / page shells all matched). Same
+   `:not(:has(… :hover))` guard the cog-handle cascade uses. */
+.container-shell:hover:not(:has(.container-shell:hover)) .insert-gap-empty-label,
 .insert-gap--empty:hover .insert-gap-empty-label,
 .insert-gap--empty.insert-gap--open .insert-gap-empty-label {
   opacity: 0.75;
@@ -4187,6 +4205,20 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 
 /* Instance media section — image/video/audio block under label + fields on
    board/list instances. Also an artifact drop target (dashed when empty). */
+/* Inline media thumbnail (2026-07-25, per user: board option images should be
+   "a lot smaller and in line with the label"). Opt-in via meta.mediaInline —
+   the full-width .instance-media block below is for everything else. */
+.instance-media-inline {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-radius: 3px;
+  object-fit: cover;
+  margin-right: 5px;
+  align-self: center;
+  background: rgba(var(--occ-card) / 0.35);
+}
+
 .instance-media {
   margin-top: 4px;
   border-radius: 6px;

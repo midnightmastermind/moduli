@@ -1076,8 +1076,17 @@ function Field({
               value={localValue ?? ""}
               onChange={(e) => handleChange(type === "number" ? (e.target.value === "" ? null : Number(e.target.value)) : e.target.value)}
               onKeyDown={handleKeyDown} onBlur={handleCommit} disabled={disabled}
-              className={`${compact ? "h-5 text-[10px] w-14" : "h-6 text-xs w-16"} px-1 text-center ${showFlowToggle ? "border-0 bg-transparent" : ""}`}
-              style={{ minWidth: 40, ...(showFlowToggle ? { color: "inherit" } : {}) }} />
+              // TEXT gets a wide, left-aligned box (2026-07-25, per user: editing
+              // an email in a 56px centered box was unusable). Numbers/durations
+              // keep the narrow centered field — they're a few glyphs wide.
+              className={`${compact ? "h-5 text-[10px]" : "h-6 text-xs"} ${
+                type === "number" ? (compact ? "w-14" : "w-16") + " text-center" : "w-full text-left"
+              } px-1 ${showFlowToggle ? "border-0 bg-transparent" : ""}`}
+              style={{
+                minWidth: type === "number" ? 40 : 180,
+                ...(type === "number" ? {} : { maxWidth: "min(420px, 60vw)" }),
+                ...(showFlowToggle ? { color: "inherit" } : {}),
+              }} />
             {postfix && <span className="text-[10px] text-muted-foreground">{postfix}</span>}
           </div>
         );

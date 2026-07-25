@@ -381,6 +381,15 @@ function InstanceInner({
   const showMedia = !renderBody && !!mediaBinding && (
     !cellEmbedCtx?.__inCell || !!cellEmbedCtx?.showMedia
   );
+  // Opt-in compact media (2026-07-25, per user): a SMALL thumbnail inline with
+  // the label instead of the full-width block below. Board option occurrences
+  // set it — a poster-sized block per option made the boards unreadable.
+  const mediaInline = !!(occurrence?.meta?.mediaInline ?? instance?.meta?.mediaInline);
+  // mediaValue is either a local upload (fileRef → /uploads/<…>) or an
+  // absolute URL (http(s):// or data:) — seeded posters are absolute.
+  const mediaSrc = typeof mediaValue === "string"
+    ? (/^(https?:\/\/|data:)/.test(mediaValue) ? mediaValue : `/uploads/${mediaValue}`)
+    : null;
 
   const mediaDropRef = useRef(null);
 
@@ -706,6 +715,15 @@ function InstanceInner({
                 }}
               />
             ) : (
+              <>
+              {showMedia && mediaInline && mediaSrc && mediaTag === "img" && (
+                <img
+                  className="instance-media-inline"
+                  src={mediaSrc}
+                  alt={label || "media"}
+                  title={mediaBinding?.field?.name || "Media"}
+                />
+              )}
               <div
                 className="instance-label"
                 onDoubleClick={(e) => { e.stopPropagation(); startLabelEdit(); }}
@@ -734,6 +752,7 @@ function InstanceInner({
                   ? <AutoMarquee>{resolveLabelTokens(label, occurrence, fieldsById)}</AutoMarquee>
                   : (renderBody ? null : <span style={{ opacity: 0.4, fontStyle: "italic" }}>Untitled</span>)}
               </div>
+              </>
             )
           )}
         </div>{/* end label+radial wrapper */}
@@ -794,8 +813,11 @@ function InstanceInner({
         )}
 
         {/* Media section — full-width row below label + fields. Board/list
-            only (showMedia gate). Doubles as an artifact drop target. */}
-        {showMedia && (() => {
+            only (showMedia gate). Doubles as an artifact drop target.
+            `meta.mediaInline` opts into a SMALL thumbnail rendered inline with
+            the label instead (board options — a poster-sized block per option
+            made the boards unreadable). */}
+        {showMedia && !mediaInline && (() => {
           // mediaValue can be either a local upload (fileRef → /uploads/<…>)
           // or an absolute URL (http(s):// or data:) — e.g. seeded library
           // poster URLs from openlibrary / wikimedia. Detect-and-use-as-is

@@ -58,6 +58,10 @@ import {
   makeTrackerOp,
   makeAlarmOp,
 } from "../utils/liveSystemBuilders.js";
+import { createRequire as _createRequire } from "module";
+// Board option images — harvested once via the app's image search; see the
+// boardOptionPoster comment below.
+const BOARD_OPTION_IMAGES = _createRequire(import.meta.url)("../seed/boardOptionImages.json");
 import { gateScheduleTrackers, GATE_TRACKER_NAMES } from "../utils/completionGate.js";
 import { applyPeriodAllPolicy } from "../utils/periodAllPolicy.js";
 import { ensureGridFilterTrigger } from "../utils/gridFilterTrigger.js";
@@ -1428,116 +1432,116 @@ export async function createLiveData(userId, options = {}) {
       id: personNameFieldId,
       name: "Name",
       type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: {}, displayConfig: {},
     },
     personEmail: {
       id: personEmailFieldId,
       name: "Email",
       type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: {}, displayConfig: {},
     },
     personPhone: {
       id: personPhoneFieldId,
       name: "Phone",
       type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: {}, displayConfig: {},
     },
     personGender: {
       id: personGenderFieldId,
       name: "Gender",
       type: "select",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: { options: ["female", "male", "non-binary", "other", "prefer not to say"], multiSelect: false },
     },
     personNotes: {
       id: personNotesFieldId,
       name: "Person Notes",
       type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: { multiline: true }, displayConfig: {},
     },
     // ── Extended profile fields (#46, 2026-05-23) ─────────────────────
     personBirthday: {
       id: personBirthdayFieldId, name: "Birthday", type: "date",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: {}, displayConfig: {},
     },
     personAddress: {
       id: personAddressFieldId, name: "Address", type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: { multiline: true }, displayConfig: {},
     },
     personCity: {
       id: personCityFieldId, name: "City", type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: {}, displayConfig: {},
     },
     personCompany: {
       id: personCompanyFieldId, name: "Company", type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: {}, displayConfig: {},
     },
     personJobTitle: {
       id: personJobTitleFieldId, name: "Job Title", type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: {}, displayConfig: {},
     },
     personRelationship: {
       id: personRelationshipFieldId, name: "Relationship", type: "select",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: { options: ["family", "close friend", "friend", "colleague", "acquaintance", "neighbor", "mentor", "client", "other"], multiSelect: false },
     },
     personWebsite: {
       id: personWebsiteFieldId, name: "Website", type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: {}, displayConfig: {},
     },
     personInstagram: {
       id: personInstagramFieldId, name: "Instagram", type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: { prefix: "@" }, displayConfig: {},
     },
     personTwitter: {
       id: personTwitterFieldId, name: "Twitter / X", type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: { prefix: "@" }, displayConfig: {},
     },
     personLinkedIn: {
       id: personLinkedInFieldId, name: "LinkedIn", type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: {}, displayConfig: {},
     },
     personLastContact: {
       id: personLastContactFieldId, name: "Last Contact", type: "date",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: {}, displayConfig: {},
     },
     personFavoriteFood: {
       id: personFavoriteFoodFieldId, name: "Favorite Food", type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: {}, displayConfig: {},
     },
     personAllergies: {
       id: personAllergiesFieldId, name: "Allergies", type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: { multiline: true }, displayConfig: {},
     },
     personInterests: {
       id: personInterestsFieldId, name: "Interests", type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: { multiline: true }, displayConfig: {},
     },
     personHowMet: {
       id: personHowMetFieldId, name: "How We Met", type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: { multiline: true }, displayConfig: {},
     },
     personEmergencyContact: {
       id: personEmergencyContactFieldId, name: "Emergency Contact", type: "text",
-      inputEnabled: true, displayEnabled: true,
+      inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: {}, displayConfig: {},
     },
     // (Show Profile button field removed 2026-07-25 — the People table +
@@ -1636,7 +1640,7 @@ export async function createLiveData(userId, options = {}) {
       name: "Project",
       type: "occurrence",
       inputEnabled: true,
-      displayEnabled: true,
+      displayEnabled: false, // input-only (both flags render the pick twice)
       // Repointed 2026-07-25 (nine-dimensions rebuild): options come from the
       // Projects BOARD (boardCategory:"project") instead of label-matching
       // "Project:" pages. The kanban Status Router never reads this field and
@@ -3693,21 +3697,21 @@ export async function createLiveData(userId, options = {}) {
   // 8 movie modules (role:"instance", hidden library + poster bindings)
   await Module.insertMany([
     { id: movieInceptionModId,       userId, gridId, role: "instance", kind: "board", label: "Inception",
-      defaultDragMode: "copy", fieldBindings: movieFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: movieFieldBindings },
     { id: movieMatrixModId,          userId, gridId, role: "instance", kind: "board", label: "The Matrix",
-      defaultDragMode: "copy", fieldBindings: movieFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: movieFieldBindings },
     { id: movieArrivalModId,         userId, gridId, role: "instance", kind: "board", label: "Arrival",
-      defaultDragMode: "copy", fieldBindings: movieFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: movieFieldBindings },
     { id: movieDuneModId,            userId, gridId, role: "instance", kind: "board", label: "Dune",
-      defaultDragMode: "copy", fieldBindings: movieFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: movieFieldBindings },
     { id: movieInterstellarModId,    userId, gridId, role: "instance", kind: "board", label: "Interstellar",
-      defaultDragMode: "copy", fieldBindings: movieFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: movieFieldBindings },
     { id: movieBladeRunner2049ModId, userId, gridId, role: "instance", kind: "board", label: "Blade Runner 2049",
-      defaultDragMode: "copy", fieldBindings: movieFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: movieFieldBindings },
     { id: moviePrestigeModId,        userId, gridId, role: "instance", kind: "board", label: "The Prestige",
-      defaultDragMode: "copy", fieldBindings: movieFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: movieFieldBindings },
     { id: movieTenetModId,           userId, gridId, role: "instance", kind: "board", label: "Tenet",
-      defaultDragMode: "copy", fieldBindings: movieFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: movieFieldBindings },
   ]);
 
   // 7 book modules — fieldBindings include libraryFieldId (type), pagesFieldId
@@ -3720,19 +3724,19 @@ export async function createLiveData(userId, options = {}) {
   ];
   await Module.insertMany([
     { id: bookAtomicHabitsModId,     userId, gridId, role: "instance", kind: "board", label: "Atomic Habits",
-      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
     { id: bookDeepWorkModId,         userId, gridId, role: "instance", kind: "board", label: "Deep Work",
-      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
     { id: bookSapiensModId,          userId, gridId, role: "instance", kind: "board", label: "Sapiens",
-      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
     { id: bookThinkingFastSlowModId, userId, gridId, role: "instance", kind: "board", label: "Thinking, Fast and Slow",
-      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
     { id: bookMeditationsModId,      userId, gridId, role: "instance", kind: "board", label: "Meditations",
-      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
     { id: bookMansSearchModId,       userId, gridId, role: "instance", kind: "board", label: "Man's Search for Meaning",
-      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
     { id: book4HourWorkweekModId,    userId, gridId, role: "instance", kind: "board", label: "The 4-Hour Workweek",
-      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
   ]);
 
   // Podcast / course modules share the same bindings shape: library type +
@@ -3749,27 +3753,27 @@ export async function createLiveData(userId, options = {}) {
   // 5 podcast modules
   await Module.insertMany([
     { id: podcastTimFerrissModId,      userId, gridId, role: "instance", kind: "board", label: "The Tim Ferriss Show",
-      defaultDragMode: "copy", fieldBindings: podcastFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: podcastFieldBindings },
     { id: podcastLexFridmanModId,      userId, gridId, role: "instance", kind: "board", label: "Lex Fridman Podcast",
-      defaultDragMode: "copy", fieldBindings: podcastFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: podcastFieldBindings },
     { id: podcastHardcoreHistoryModId, userId, gridId, role: "instance", kind: "board", label: "Hardcore History",
-      defaultDragMode: "copy", fieldBindings: podcastFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: podcastFieldBindings },
     { id: podcastHubermanLabModId,     userId, gridId, role: "instance", kind: "board", label: "Huberman Lab",
-      defaultDragMode: "copy", fieldBindings: podcastFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: podcastFieldBindings },
     { id: podcastConvosTylerModId,     userId, gridId, role: "instance", kind: "board", label: "Conversations with Tyler",
-      defaultDragMode: "copy", fieldBindings: podcastFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: podcastFieldBindings },
   ]);
 
   // 4 course modules
   await Module.insertMany([
     { id: courseAlgorithmsModId,      userId, gridId, role: "instance", kind: "board", label: "Algorithms (Coursera)",
-      defaultDragMode: "copy", fieldBindings: courseFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: courseFieldBindings },
     { id: courseMLSpecModId,          userId, gridId, role: "instance", kind: "board", label: "Machine Learning Specialization",
-      defaultDragMode: "copy", fieldBindings: courseFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: courseFieldBindings },
     { id: courseSystemDesignModId,    userId, gridId, role: "instance", kind: "board", label: "System Design Primer",
-      defaultDragMode: "copy", fieldBindings: courseFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: courseFieldBindings },
     { id: courseIntroPhilosophyModId, userId, gridId, role: "instance", kind: "board", label: "Introduction to Philosophy",
-      defaultDragMode: "copy", fieldBindings: courseFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: courseFieldBindings },
   ]);
 
   // 10 person modules (task #46, 2026-05-22). Profile fields are bound
@@ -3806,25 +3810,25 @@ export async function createLiveData(userId, options = {}) {
   ];
   await Module.insertMany([
     { id: personAvaModId,    userId, gridId, role: "instance", kind: "board", label: "Ava Martinez",
-      defaultDragMode: "copy", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
     { id: personBenModId,    userId, gridId, role: "instance", kind: "board", label: "Ben Chen",
-      defaultDragMode: "copy", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
     { id: personChloeModId,  userId, gridId, role: "instance", kind: "board", label: "Chloe Patel",
-      defaultDragMode: "copy", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
     { id: personDevenModId,  userId, gridId, role: "instance", kind: "board", label: "Deven Wright",
-      defaultDragMode: "copy", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
     { id: personEliseModId,  userId, gridId, role: "instance", kind: "board", label: "Elise Nakamura",
-      defaultDragMode: "copy", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
     { id: personFelixModId,  userId, gridId, role: "instance", kind: "board", label: "Felix Romero",
-      defaultDragMode: "copy", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
     { id: personGraceModId,  userId, gridId, role: "instance", kind: "board", label: "Grace Okonkwo",
-      defaultDragMode: "copy", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
     { id: personHenryModId,  userId, gridId, role: "instance", kind: "board", label: "Henry Lindqvist",
-      defaultDragMode: "copy", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
     { id: personIsabelModId, userId, gridId, role: "instance", kind: "board", label: "Isabel Sokolov",
-      defaultDragMode: "copy", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
     { id: personJackModId,   userId, gridId, role: "instance", kind: "board", label: "Jack Brennan",
-      defaultDragMode: "copy", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
   ]);
 
   // Reflection question modules (library type "question"). One Module per
@@ -3955,9 +3959,9 @@ export async function createLiveData(userId, options = {}) {
   const bookPsalmsModId     = uid();
   await Module.insertMany([
     { id: bookTaoTeChingModId, userId, gridId, role: "instance", kind: "board", label: "Tao Te Ching",
-      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
     { id: bookPsalmsModId,     userId, gridId, role: "instance", kind: "board", label: "Book of Psalms",
-      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
   ]);
   const bookTaoTeChingOccId = await mkOcc({ moduleId: bookTaoTeChingModId, parentId: libraryContOccId, fields: bookFields("Tao Te Ching", 160) });
   const bookPsalmsOccId     = await mkOcc({ moduleId: bookPsalmsModId,     parentId: libraryContOccId, fields: bookFields("Book of Psalms", 260) });
@@ -4313,15 +4317,11 @@ export async function createLiveData(userId, options = {}) {
     if (folderId === boardsFolderId) boardsFolderPageOccId = pageOccId;
   }
 
-  // Board option thumbnails (2026-07-25). Colored by LIFE AREA from the vintage
-  // palette so each board's options read as a set; the label is drawn into the
-  // image, so a dropdown chip is recognizable at thumbnail size.
-  const BOARD_GROUP_BG = {
-    food: "b34f24", body: "3e8e7e", mind: "4a3b52", money: "6d7434",
-    home: "4a8c5c", social: "e08b31", creative: "d94f30",
-  };
-  const boardOptionPoster = (group, label) =>
-    ph(BOARD_GROUP_BG[group] || "4a3b52", "ece3d0", label);
+  // Board option thumbnails (2026-07-25). REAL images, resolved once through the
+  // app's OWN image search (the same endpoint the ImagePicker uses) and baked
+  // into seed/boardOptionImages.json — so a reseed is deterministic and needs no
+  // network. Placeholder-service URLs were tried first and rendered broken.
+  const boardOptionPoster = (group, label) => BOARD_OPTION_IMAGES[label] || null;
 
   const personOccByLabel = Object.fromEntries(peopleSeed.map(p => [p.label, p.occId]));
   const opt = (label, extra = null) => ({ label, ...(extra || {}) });
@@ -4527,6 +4527,9 @@ export async function createLiveData(userId, options = {}) {
         // Board options default to COPY (2026-07-25, per user): picking one
         // onto a day should leave the option on its board, never move it off.
         label: o.label, defaultDragMode: "copy",
+        // Small thumbnail INLINE with the label (2026-07-25, per user) rather
+        // than the full-width media block.
+        meta: { mediaInline: true },
         fieldBindings: [
           { fieldId: boardCategoryFieldId, role: "input", order: 0, hidden: true },
           // Every option carries an IMAGE (2026-07-25, per user: "give all the
@@ -4541,7 +4544,9 @@ export async function createLiveData(userId, options = {}) {
         moduleId: modId, parentId: contOccId,
         fields: {
           [boardCategoryFieldId]: fv(def.tag),
-          [posterUrlFieldId]: fv(boardOptionPoster(def.group, o.label)),
+          ...(boardOptionPoster(def.group, o.label)
+            ? { [posterUrlFieldId]: fv(boardOptionPoster(def.group, o.label)) }
+            : {}),
           ...(o.fields ? o.fields() : {}),
         },
       });
