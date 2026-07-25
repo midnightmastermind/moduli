@@ -4,7 +4,7 @@
 
 **Goal:** Rename the current Live Grid to "test grid" (DB-only, nothing else touched), then create a NEW grid named **"Poms"** with the same machinery (Schedule, day pages, task system, goals/trackers, alarms, Library, Pomodoro) but with the routine layer replaced by the user's granular action types organized into the 9 dimensions of wellness — one **Routines** page (9 containers, populated), one **Tasks** page (same 9 containers, empty), one **Trackers** page (ALL goals + tracker displays), occurrence-dropdown fields sourced from new option **Boards**, plus two vintage color themes (**light vintage** + **dark vintage**) from `screenshots/489e33c0035b2c2481a08ff831b8afae.jpg` and `screenshots/360_F_475749391_6HwhwbLaTfkVqLZu0xtVdBAm0ENpgYiE.jpg`.
 
-**Scope rule (per user):** this is a DATA project, not a code project. Everything ships as seed/DB data through `createLiveData.js`; the ONLY app-code change allowed is the two theme definitions (themes can only live in `client/src/index.css` + `client/src/helpers/useTheme.js`). No new components, no new executor features, no builder changes unless a seed call literally cannot express something — in which case stop and ask.
+**Scope rule (per user):** this is a DATA project, not a code project. Everything ships as seed/DB data through `createLiveData.js`, with exactly TWO permitted app-code changes: (1) the two theme definitions (themes can only live in `client/src/index.css` + `client/src/helpers/useTheme.js`), and (2) the multi-board addNew board chooser (Task 3.5 — user picked "ask which board at add time", which is picker UI). Nothing else: no new components beyond that, no executor features, no builder changes — if a seed call literally cannot express something, stop and ask.
 
 **Architecture:** All data work is seed surgery in `server/scripts/createLiveData.js` (the JS seed is the spec for the next seed; the DB is running state). The seed's grid name becomes **"Poms"** (`DEFAULT_GRID_NAME`), so `dropExistingLiveGrid` drops/rebuilds only "Poms" on reseed — the renamed "test grid" is permanently out of the seed's blast radius. Option dropdowns follow the existing Library pattern: occurrence-type fields with find-mode `optionsSource` filtered on a hidden tag field, `addNew.parentOccurrenceId` pointing at the board's container. Themes: `[data-theme="vintage-light"]` + `[data-theme="vintage-dark"]` blocks + two `SYSTEM_THEMES` entries.
 
@@ -129,7 +129,32 @@ Multi-board fields in this seed:
 - each **Savings Goal** binds Amount: the goal carries its target;
 - each **Creative Work** binds Medium: the album knows it is a Piano piece.
 
-**Every dropdown can mint new options (per user):** EVERY board dropdown field carries `addNew: { parentOccurrenceId: <its board's container> }` — the picker's "+ Add" entry types a new option straight onto the board, for all 34 boards, not just the capture-loop ones. Multi-board fields pick ONE home board for their addNew (Purchase Item → Grocery List, Ingredient → Ingredients, Media → Media, Skill → Skills, Reading → Readings, Savings Goal → Savings Goals, Creative Work → Creative Works, Idea → Ideas); new entries land there tagged with that board's category so every querying dropdown sees them immediately.
+**Every dropdown can mint new options (per user):** EVERY board dropdown field carries `addNew` — the picker's "+ Add" entry types a new option straight onto a board, for all 34 boards, not just the capture-loop ones. Single-board fields keep the existing shape (`addNew: { parentOccurrenceId }`). **Multi-board fields carry a targets list** and the picker asks WHICH board at add time (user decision):
+
+```js
+addNew: { targets: [
+  { label: "Grocery List", parentOccurrenceId: boardContainerOccIds.grocery,    tag: "grocery" },
+  { label: "Wish List",    parentOccurrenceId: boardContainerOccIds.wishlist,   tag: "wishlist" },
+  { label: "Ingredients",  parentOccurrenceId: boardContainerOccIds.ingredient, tag: "ingredient" },
+  // …one per queried board, first entry = default
+] }
+```
+
+**The chooser is NOT board-aware (per user: "don't make it specifically a board, select an occurrence").** `addNew.targets` is just a list of candidate parent OCCURRENCE ids — the picker renders each target by resolving the occurrence's live label (no stored display strings, no "board" concept in code), and the user selects the occurrence the new option should be created under. Generic mechanism, usable by any occurrence field anywhere:
+
+```js
+addNew: { targets: [
+  boardContainerOccIds.grocery,     // rendered by each occurrence's own label,
+  boardContainerOccIds.wishlist,    // first entry = default
+  boardContainerOccIds.ingredient,
+] }
+```
+
+**Tag stamping happens AT ADD TIME, as a field on the new occurrence (per user — no operation):** each board CONTAINER occurrence carries its own `boardCategory` field value (`fields[boardCategoryFieldId] = "<tag>"`). When the addNew create runs, it reads the chosen parent occurrence's `boardCategory` value and stamps the same field on the new occurrence — picked at run time from whichever occurrence the user selected, no per-board ops, no config-baked tag strings in the picker.
+
+**Boards PULL their data via feeds (per user):** every board container carries an `occurrence.feed` — condition `boardCategory IS "<tag>"` (the existing feedSync engine, seeded the same way as the Schedule Table/Canvas feeds). The tag is the source of truth and the board is the materialized view over it: an option tagged ANYWHERE in the grid gets pulled onto its board as a copy-linked child, self-healing on every sync; trackers already exclude feed copies (`meta.feedSourceId IS_EMPTY`) so nothing double-counts. At implementation, verify feedSync skips sources that are already the board's own direct children (addNew creates directly under it); if it would duplicate them, exclude own children in the feed CONDITIONS — data, not engine code.
+
+**Boards PULL their data via feeds (per user):** every board container also carries an `occurrence.feed` — `{ enabled: true, conditions: [{ field: boardCategoryFieldId, comparator: "IS", value: "<tag>" }], … }` (the existing feedSync engine, seeded like the Schedule Table/Canvas feeds). The tag is the source of truth and the board is the materialized view over it: an option occurrence created ANYWHERE (an Idea jotted on a day page, an ingredient tagged inside a meal doc) gets pulled onto its board as a copy-linked child automatically, self-healing on every sync. Trackers already exclude feed copies (`meta.feedSourceId IS_EMPTY`), so board feeds can't double-count anything. **Implementation check:** verify feedSync does not mint a duplicate copy for a source that is ALREADY a direct child of the board (addNew creates directly under it) — if it does, add a feed condition excluding the board's own children rather than changing engine code.
 
 **Capture loops (`addNew` as journaling):** on top of that baseline, some boards GROW primarily from completing actions instead of being pre-curated — the dropdown's "+ Add" is the journal entry point:
 - **Gratitude** → typing into its Gratitude Entry dropdown mints onto the Gratitude Log board (the board IS the gratitude journal);
@@ -444,7 +469,7 @@ For each board, mint `role:"instance"` modules with `fieldBindings: [{ fieldId: 
 
 - [ ] **Step 3: Boards folder + pages + addNew patch**
 
-Create a manifest folder "Boards" (sortOrder after Library) holding one `role:"page" kind:"board"` page per board — all 34 from the boards table: Meals, Ingredients, Grocery List, Beverages, Supplements, Movements, Workout Programs, Routes, Readings, Verses, Media, Courses, Practices, Prompts, Leisure, Projects, Ideas, Skills, Topics, Wish List, Savings Goals, Charities, Places, Events, Gift Ideas, Areas, Equipment, Plants, Mediums, Songs, Creative Works, Gratitude Log, Wins, People — each with its single container. Consider sub-grouping the Boards folder's tree by life area (Food, Body, Mind, Money, Home, Social, Creative) if 34 flat pages read as noise — folders are cheap; the pages are what matter. Mirror the Bills-page wiring shape (`createLiveData.js:5539` + `4218`). After container occurrences exist, patch EVERY dropdown field's `meta.optionsSource.addNew.parentOccurrenceId` (mirror `createLiveData.js:4773-4776`) — all 34 boards take "+ Add" from their dropdowns (per user); a null addNew target on any field is a bug. The addNew mint must stamp the new occurrence's `boardCategory` with the home board's tag (the `addNew` config carries the initial fields, same as the peopleAssigned `library:"person"` addNew shape) so every dropdown querying that tag sees the new option immediately. Recipe-pattern option instances (Meals→Ingredient, Workout Programs→Movement, Events→People+Place, Gift Ideas→People, Savings Goals→Amount, Creative Works→Medium) bind those fields on their modules and stamp seed values.
+Create a manifest folder "Boards" (sortOrder after Library) holding one `role:"page" kind:"board"` page per board — all 34 from the boards table: Meals, Ingredients, Grocery List, Beverages, Supplements, Movements, Workout Programs, Routes, Readings, Verses, Media, Courses, Practices, Prompts, Leisure, Projects, Ideas, Skills, Topics, Wish List, Savings Goals, Charities, Places, Events, Gift Ideas, Areas, Equipment, Plants, Mediums, Songs, Creative Works, Gratitude Log, Wins, People — each with its single container. Consider sub-grouping the Boards folder's tree by life area (Food, Body, Mind, Money, Home, Social, Creative) if 34 flat pages read as noise — folders are cheap; the pages are what matter. Mirror the Bills-page wiring shape (`createLiveData.js:5539` + `4218`). After container occurrences exist, patch EVERY dropdown field's addNew (mirror the two-phase pattern at `createLiveData.js:4773-4776`): single-board fields get `addNew.parentOccurrenceId`; multi-board fields get `addNew.targets: [<occId>, …]` (candidate parent occurrences, first = default — consumed by Task 3.5's chooser). A null/empty addNew on any dropdown field is a bug — all 34 boards take "+ Add" (per user). **Stamp each board CONTAINER occurrence with its own tag**: `fields[boardCategoryFieldId] = "<tag>"` on the container occurrence itself — the addNew create (Task 3.5) reads the chosen parent's value at run time and stamps the same field on the new option occurrence. No retag ops (per user). **Seed each board container's `feed`** (condition `boardCategory IS "<tag>"`, mirroring the Schedule Table feed seeding) so boards pull in tagged occurrences from anywhere in the grid; verify no duplicate copies for the board's own direct children (see the feeds paragraph in the Design Reference). Recipe-pattern option instances (Meals→Ingredient, Workout Programs→Movement, Events→People+Place, Gift Ideas→People, Savings Goals→Amount, Creative Works→Medium) bind those fields on their modules and stamp seed values.
 
 - [ ] **Step 4: Verify**
 
@@ -453,13 +478,53 @@ Reseed: `node --env-file=.env server/scripts/createLiveData.js` — expect succe
 ```bash
 node --env-file=.env -e '/* load Field collection, group by lowercase name, assert no group >1 */'
 ```
-Expected: `0 duplicate field names`, every board tag ≥3 options, and every board dropdown field has a non-null `addNew.parentOccurrenceId` resolving to a real board container occurrence (assert all three in the probe). Then one interactive check: open a dropdown, use "+ Add" to type a new option → it appears on the board page AND in every other dropdown querying that tag.
+Expected: `0 duplicate field names`, every board tag ≥3 options, and every board dropdown field has a non-empty addNew (`parentOccurrenceId` OR `targets[]`, every id resolving to a real container occurrence — assert all three in the probe). Then two interactive checks (the multi-target one lands after Task 3.5): (a) single-board dropdown "+ Add" → new option appears on the board page, retag op stamps its tag, and it shows in every dropdown querying that tag; (b) multi-board dropdown "+ Add" → the select-an-occurrence chooser lists the target occurrences by label and creating under the second one lands it there, correctly tagged by that container's op.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add server/scripts/createLiveData.js server/seed
 git commit -m "feat(seed): option Boards (34 pages incl. People, capture-loop + recipe boards) + Board Category tag + occurrence dropdown fields"
+```
+
+---
+
+### Task 3.5: Multi-target addNew — "select an occurrence" chooser (client; permitted app-code change #2)
+
+**Files:**
+- Modify: the occurrence-dropdown addNew flow — locate via `grep -rn "addNew" client/src --include=*.jsx --include=*.js` (the consumer of `meta.optionsSource.addNew.parentOccurrenceId`; expected in the occurrence dropdown rendering in `ui/Field.jsx` and/or `helpers/optionsResolver.js` + the add-commit helper that mints the new occurrence)
+- Test: colocated in `client/src/__tests__/` next to the existing optionsResolver/Field tests
+
+**Interfaces:**
+- Consumes: `addNew.targets: [<parentOccurrenceId>, …]` from Task 3's field configs (first entry = default).
+- Produces: generic picker behavior — NOT board-aware. When a field's `addNew` has multiple targets, "+ Add" asks the user to **select an occurrence** (each candidate rendered by its live occurrence label from `occurrencesById`); the new option is created under the chosen occurrence via the existing create path, stamping the chosen parent's `boardCategory` field value onto the new occurrence at run time. **The add flow also lets the user ENTER FIELD VALUES on the new occurrence** (per user) — after naming it and picking the destination, its bound input fields are presented for entry using the EXISTING field-entry picker component (locate the one already used for filling fields on a fresh occurrence — QuickAddMenu / GET_USER_INPUT-modal / InstanceForm family; reuse, do not build a new component). Single `parentOccurrenceId` (or one-element `targets`) skips only the destination prompt — field entry still offered.
+
+- [ ] **Step 1: Write the failing test**
+
+Test cases (shape them to the local test idiom once the consumer file is located):
+1. `addNew` with `targets: [occA, occB]` → the add flow surfaces both candidates, labeled by the occurrences' labels (assert labels come from `occurrencesById`, not config strings).
+2. Choosing the second candidate creates the new occurrence with `parentId = occB` (and splices into occB's `occurrences[]` via the existing helper) AND stamps `fields[boardCategoryFieldId]` with occB's own `boardCategory` value.
+3. `addNew: { parentOccurrenceId: occA }` (legacy single shape) → no destination chooser, creates under occA.
+4. `targets` with one entry → no destination chooser.
+5. The add flow presents the new occurrence's bound input fields for value entry (via the existing field-entry picker) and the entered values land on the created occurrence's `fields`.
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `cd client && npx vitest run src/__tests__/<new test file> 2>&1 | tail -5` — expect FAIL (targets shape unhandled).
+
+- [ ] **Step 3: Implement**
+
+In the addNew consumer: normalize `const targets = addNew.targets?.length ? addNew.targets : (addNew.parentOccurrenceId ? [addNew.parentOccurrenceId] : [])`. If `targets.length > 1`, render the candidates as a small select-an-occurrence submenu (labels resolved live; reuse the existing menu-row components — no new component files) and thread the chosen id into the same create call the single-target path uses. Keep the mechanism generic: nothing in the code mentions boards.
+
+- [ ] **Step 4: Run tests + full client suite**
+
+Run: `cd client && npx vitest run 2>&1 | tail -3` — expect PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add client/src
+git commit -m "feat(fields): addNew.targets — '+ Add new' on a multi-source occurrence dropdown asks which occurrence to create under"
 ```
 
 ---
@@ -645,5 +710,5 @@ Update the handoff blocks; commit.
 
 - Every user requirement maps: rename-only (T1), theme (T2), boards + dropdown fields (T3), one Routines page with 9 dimension containers (T4), empty Tasks page (T5), single Trackers page with same goals (T5+T6), fields adapted/new (T3+T4), everything else unchanged (scope guards in T4–T6).
 - Deliberate deviations to confirm with user at execution: (a) Accounts page folded into Trackers (reading "all the goals and trackers under one page" broadly); (b) Dark Vintage made the DEFAULT theme (Light Vintage available in the picker); (c) Todo List replaced by the Tasks page; (d) Project/People/Account dropdowns reuse the existing FIELDS (People is a board per user direction — the field just sources from it; the standalone People page with table + profile card is removed).
-- Scope-rule check: Tasks 1 and 3–8 touch only seed/data (+ tests/docs); Task 2 is the sole app-code task (the two themes, explicitly requested). Task 6 must NOT modify `server/utils/liveSystemBuilders.js` — if an existing builder param can't express a retarget, stop and ask instead.
+- Scope-rule check: Tasks 1 and 3–8 touch only seed/data (+ tests/docs); the two app-code tasks are Task 2 (themes) and Task 3.5 (multi-target addNew chooser — user picked "ask which board at add time", generalized per user to "select an occurrence"). Task 6 must NOT modify `server/utils/liveSystemBuilders.js` — if an existing builder param can't express a retarget, stop and ask instead.
 - The seed is 9.8k lines — Tasks 3–6 give anchors + complete shapes rather than full-file listings; each ends with a reseed + observable verification so drift is caught per-task, not at the end.
