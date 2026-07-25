@@ -2,6 +2,21 @@
 
 _Updated: 2026-07-20. Check this file before re-reading source._
 
+## Recent Changes (2026-07-25 — Field.jsx: "+ Add new" on every occurrence dropdown + destination chooser)
+- **`Field.jsx`** — `occurrenceAddNewCfg` is no longer gated on `meta.multiSelect`, so SINGLE-select
+  occurrence dropdowns take "+ Add" too (every board dropdown mints options, per user). New
+  `AddNewOccurrenceRow` renders the add row in the single-select popover; `MultiSelectWithAdd`
+  gained `addNewTargets` + an inline chooser. When a field's `addNew` declares MULTIPLE targets,
+  "+" first asks WHICH occurrence to create under (labels resolved live). `handleOccurrenceAddNew`
+  now routes through `helpers/addNewOption.js` (stamps the chosen parent's predicate-field values
+  at run time, then prompts `addNew.fieldIds` through the existing user-input modal).
+- **LATENT BUG FIXED:** the `gridId`/`userId` selectors read `s.gridId` / `s.userId` off the
+  GridActions provider, which never carried them at top level (they live on `s.state`) — so
+  `createLeafInstanceInParent` bailed on its `!gridId || !userId` guard and "+ Add new" had NEVER
+  minted an occurrence. Now `s.gridId ?? s.state?.gridId` (same for userId). Caught only by the
+  headless E2E probe — the unit tests passed either way.
+
+
 ## Recent Changes (2026-07-20 — AlarmDropdown: alarms it mints reach the Schedule)
 - **`AlarmDropdown.jsx`** — `add()` now passes `sched = state.grid.meta.scheduleFieldIds`
   (seed-stamped { dateFieldId, timeslotFieldId, scheduleFormatFieldId }) into

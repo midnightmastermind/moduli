@@ -5603,7 +5603,13 @@ export async function createLiveData(userId, options = {}) {
   // meta.defaultGrid: the server's full_state fallback prefers this grid when
   // the client has no / a stale gridId — so the site loads the seeded grid by
   // default. Cleared on the user's other grids first so exactly one is default.
-  await Grid.updateMany({ userId }, { $unset: { "meta.defaultGrid": "" } });
+  // FILTERED to grids that actually CARRY the flag (2026-07-25): an unscoped
+  // updateMany bumped updatedAt on every grid the user owns — including the
+  // untouchable "test grid" — on every reseed, as a pure no-op write.
+  await Grid.updateMany(
+    { userId, "meta.defaultGrid": { $exists: true } },
+    { $unset: { "meta.defaultGrid": "" } },
+  );
   await Grid.findByIdAndUpdate(grid._id, { $set: { occurrences: gridOccIds, colSizes: [0.8, 1, 0.8], "meta.layoutTree": mosaicLayoutTree, "meta.assistantSeedId": uid(), "meta.defaultGrid": true, "meta.scheduleFieldIds": { dateFieldId, timeslotFieldId, scheduleFormatFieldId } } });
 
   // ── STEP 12: Operations ─────────────────────────────────────────────────────
