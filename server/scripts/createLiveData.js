@@ -362,9 +362,11 @@ export async function createLiveData(userId, options = {}) {
   // occurrence carries its own tag value so the addNew flow can stamp new
   // options from whichever parent the user picks at add time (no baked tags).
   const boardCategoryFieldId = uid();
-  // The People board container occ id is pre-generated because the person
-  // occurrences (seeded with the Library block) parent directly under it.
+  // The People + Movements board container occ ids are pre-generated: person
+  // occurrences (seeded with the Library block) and the 30 exercise
+  // occurrences (created in the boards section) parent directly under them.
   const peopleBoardContOccId = uid();
+  const movementsBoardContOccId = uid();
 
   // Project kanban fields — Status select (6 options matching the agile
   // kanban columns) + Project occurrence-ref (lets a single Todo List
@@ -662,8 +664,8 @@ export async function createLiveData(userId, options = {}) {
   //   listType              — select bound only to enrichmentInstances (actWatch/Read/Listen/Play)
   //
   // KEPT DESPITE JOURNAL ADJACENCY:
-  //   journalQuestion       — also bound to toolkitInstances.journaling (kept)
-  //   journalAnswer         — also bound to toolkitInstances.journaling (kept)
+  //   journalQuestion       — also bound to the old toolkit journaling instance (rotator now targets the Journal action) (kept)
+  //   journalAnswer         — also bound to the old toolkit journaling instance (rotator now targets the Journal action) (kept)
   //
   // POOL→TEXT conversions (type:"select" + meta.sourceType:"pool" → type:"text"):
   //   None needed after exclusions — all pool-backed selects were enrichment-exclusive
@@ -2339,169 +2341,80 @@ export async function createLiveData(userId, options = {}) {
   //   notebookNoteInstancesFlat — notebook sub-heading instances (Task 11)
   //   workoutGoalInstance / nutritionGoalInstance — kept; added as part of goalInstances below
   //
-  // KEPT sets: toolkitInstances, workoutInstances, nutritionInstances,
-  //            todoInstances, planningInstances, goalInstances, accountInstances.
+  // KEPT sets: actionInstances (the nine-dimension catalog), workoutInstances
+  //            (movement modules), todoInstances, planningInstances,
+  //            goalInstances, accountInstances.
   //
   // FIELD MAP NOTE: createDefaultUserData uses `fields.dueDate`; createLiveData uses
   //   `fields.due` (same field, different map key). All `dueDate` refs → `fields.due.id`.
   //
-  // DAILY-ROUTINE CONVENTION: The 6 Daily Routine source instances must have a
-  //   hidden `dateFieldId` binding (createTestGrid convention, Task 13 op-wiring).
-  //   Labels match EXACTLY: "Drink Water", "Take Vitamins", "Morning Run",
-  //   "Scrambled Eggs + Veg", "Greek Salad + Chicken", "Read a chapter".
-  //   NOTE: "Morning Run" is its own module (not the same as "Morning Workout").
-  //   "Read a chapter" is added here as a minimal todo-style schedulable instance.
+  // DAILY-ROUTINE CONVENTION: routine source instances carry a hidden
+  //   `dateFieldId` binding (every ACTION binds it — see the catalog below).
+  //   The Daily Routine picks live in routineBySlot (STEP 7b).
   //
   // CATEGORY FIELD: createDefaultUserData injects a hidden category binding on every
   //   instance (line ~1991). Replicated here via the post-loop category injection.
 
-  // Helper — add hidden dateFieldId binding if not already present.
-  function ensureDateBinding(bindings) {
-    if (bindings.some(b => b.fieldId === dateFieldId)) return bindings;
-    const maxOrder = bindings.reduce((m, b) => Math.max(m, b.order ?? 0), 0);
-    return [...bindings, { fieldId: dateFieldId, role: "input", order: maxOrder + 1, hidden: false }];
-  }
-
-  // ── Toolkit instances (keep all from createDefaultUserData.toolkitInstances) ──
-  const toolkitInstances = {
+  // ── Nine-dimension ACTION catalog (2026-07-25 rebuild) ──────────────────────
+  // One role:"instance" module per granular action (the user's verbatim list
+  // + Cook and Buy). Every action binds Completed first, its per-action input
+  // fields (board dropdowns + numerics per the design table), and a hidden
+  // Date last (the DAILY-ROUTINE CONVENTION — routine sources need the
+  // binding; it is uniform + harmless on the rest).
+  const bfd = (fieldId, extra = {}) => ({ fieldId, role: "input", ...extra });
+  const act = (label, extraBindings = []) => ({
+    id: uid(), label, kind: "board", defaultDragMode: "copy",
+    fieldBindings: [
+      { fieldId: fields.completed.id, role: "input", order: 0 },
+      ...extraBindings.map((b, i) => ({ ...b, order: i + 1 })),
+      { fieldId: dateFieldId, role: "input", order: 90, hidden: true },
+    ],
+  });
+  // Paired set + weight columns for Exercise / Lift (2026-07-14 convention).
+  const setWeightPairs = [
+    bfd(fields.set1Reps.id), bfd(fields.workoutWeight.id),
+    bfd(fields.set2Reps.id), bfd(fields.workoutWeight2.id),
+    bfd(fields.set3Reps.id), bfd(fields.workoutWeight3.id),
+  ];
+  const actionInstances = {
     // === PHYSICAL ===
-    morningWorkout: {
-      id: uid(), label: "Morning Workout", kind: "board",
-      defaultDragMode: "copy",
-      styleMode: "own",
-      ownStyle: { bg: "rgba(180,74,26,0.15)", textColor: "#e06a3a" },
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.workoutType.id, role: "input", order: 1 },
-        { fieldId: fields.duration.id, role: "input", order: 2 },
-        { fieldId: fields.calories.id, role: "input", order: 3 },
-      ],
-    },
-    eveningRun: {
-      id: uid(), label: "Evening Run", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-        { fieldId: fields.steps.id, role: "input", order: 2 },
-      ],
-    },
-    stretching: {
-      id: uid(), label: "Stretching", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-      ],
-    },
-    drinkWater: {
-      id: uid(), label: "Drink Water", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.water.id, role: "input", order: 1 },
-        { fieldId: dateFieldId, role: "input", order: 2, hidden: false }, // Daily Routine source
-      ],
-    },
-    takeMeds: {
-      id: uid(), label: "Take Vitamins", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: dateFieldId, role: "input", order: 1, hidden: false }, // Daily Routine source
-      ],
-    },
-    sleepLog: {
-      id: uid(), label: "Sleep Log", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-        { fieldId: fields.energy.id, role: "input", order: 2 },
-      ],
-    },
+    eat:      act("Eat",      [bfd(fields.mealPick.id), bfd(fields.ingredient.id), bfd(fields.calories.id), bfd(fields.protein.id), bfd(fields.carbs.id), bfd(fields.fats.id)]),
+    cook:     act("Cook",     [bfd(fields.mealPick.id), bfd(fields.ingredient.id), bfd(fields.duration.id)]),
+    drink:    act("Drink",    [bfd(fields.beverage.id), bfd(fields.water.id)]),
+    sleep:    act("Sleep",    [bfd(fields.duration.id)]),
+    nap:      act("Nap",      [bfd(fields.duration.id)]),
+    exercise: act("Exercise", [bfd(fields.workoutProgram.id), bfd(fields.movement.id), ...setWeightPairs]),
+    stretch:  act("Stretch",  [bfd(fields.movement.id), bfd(fields.duration.id)]),
+    walk:     act("Walk",     [bfd(fields.route.id), bfd(fields.steps.id), bfd(fields.duration.id)]),
+    run:      act("Run",      [bfd(fields.workoutProgram.id), bfd(fields.route.id), bfd(fields.steps.id), bfd(fields.duration.id)]),
+    lift:     act("Lift",     [bfd(fields.workoutProgram.id), bfd(fields.movement.id), ...setWeightPairs]),
+    recover:  act("Recover",  [bfd(fields.supplement.id), bfd(fields.duration.id)]),
+    hygiene:  act("Hygiene"),
+    groom:    act("Groom"),
 
-    // === INTELLECTUAL ===
-    reading: {
-      id: uid(), label: "Reading", kind: "board",
-      defaultDragMode: "copy",
-      styleMode: "own", ownStyle: { bg: "rgba(21,98,176,0.15)", textColor: "#4a9fe0" },
-      fieldBindings: [
-        { fieldId: booksReadFieldId, role: "input", order: 0 },
-        { fieldId: dateFieldId,      role: "input", order: 1, hidden: false },
-      ],
-    },
-    podcast: {
-      id: uid(), label: "Listen to Podcast", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: podcastsListenedFieldId, role: "input", order: 0 },
-        { fieldId: dateFieldId,             role: "input", order: 1, hidden: false },
-      ],
-    },
-    watchMovie: {
-      id: uid(), label: "Watch Movie", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: moviesWatchedFieldId, role: "input", order: 0 },
-        { fieldId: dateFieldId,          role: "input", order: 1, hidden: false },
-      ],
-    },
-    onlineCourse: {
-      id: uid(), label: "Online Course", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: coursesTakenFieldId, role: "input", order: 0 },
-        { fieldId: dateFieldId,         role: "input", order: 1, hidden: false },
-      ],
-    },
-    brainGames: {
-      id: uid(), label: "Brain Games", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-      ],
-    },
-    journaling: {
-      id: uid(), label: "Daily Journal", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.journalQuestion.id, role: "display", order: 1 },
-        { fieldId: fields.journalAnswer.id, role: "input", order: 2 },
-        { fieldId: fields.duration.id, role: "input", order: 3 },
-      ],
-    },
+    // === EMOTIONAL ===
+    journal:    act("Journal",    [bfd(fields.prompt.id), bfd(fields.mood.id)]),
+    reflect:    act("Reflect",    [bfd(fields.prompt.id), bfd(fields.duration.id)]),
+    meditate:   act("Meditate",   [bfd(fields.practice.id), bfd(fields.duration.id)]),
+    checkIn:    act("Check In",   [bfd(fields.mood.id)]),
+    express:    act("Express",    [bfd(fields.mood.id)]),
+    vent:       act("Vent",       [bfd(fields.mood.id)]),
+    celebrate:  act("Celebrate",  [bfd(fields.win.id), bfd(fields.eventPick.id), bfd(fields.leisureActivity.id)]),
+    forgive:    act("Forgive"),
+    relax:      act("Relax",      [bfd(fields.leisureActivity.id), bfd(fields.duration.id)]),
+    decompress: act("Decompress", [bfd(fields.leisureActivity.id), bfd(fields.duration.id)]),
 
-    // "Answered Daily Question" — toolkit-side task counterpart to the
-    // day-page Daily Question container. Same field set as journaling
-    // (journalQuestion + journalAnswer) but with date binding so a
-    // drag-to-Schedule stamp brings it into the same linked group as the
-    // day-page container. When dragged onto Schedule, Schedule: Stamp Date
-    // & Time Slot writes fields[dateFieldId]; the day-page container
-    // already carries that date from Day Page: Build's defaultFields. Both
-    // now share the link value — propagateBoundFieldWrite from BoundHeader
-    // / BoundBody on the day-page side fans out writes to this occurrence.
-    // (v1 note: edits made directly on this instance's field rows do NOT
-    // auto-propagate back to the day-page side; only binding-driven writes
-    // through the header dropdown / body editor fan out.)
-    answeredDailyQuestion: {
-      id: uid(), label: "Answered Daily Question", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.journalQuestion.id, role: "display", order: 1 },
-        { fieldId: fields.journalAnswer.id, role: "input", order: 2 },
-        { fieldId: fields.duration.id, role: "input", order: 3 },
-      ],
-    },
-
-    // Pomodoro Session template — sits in the Intellectual wellness page as
-    // a normal task, AND is the COPY_LINK source for Pomodoro: Start (which
-    // mints a session occurrence under the current Schedule slot every time
-    // the toolbar timer starts a work phase). date+timeslot are hidden
-    // bindings stamped by the Start op (kept hidden via fieldHidden).
+    // === INTELLECTUAL === (the Pomodoro template keeps its home here)
+    read:      act("Read",     [bfd(fields.reading.id), bfd(fields.pages.id), bfd(fields.duration.id)]),
+    study:     act("Study",    [bfd(fields.topic.id), bfd(fields.coursesTaken.id), bfd(fields.duration.id)]),
+    watch:     act("Watch",    [bfd(fields.mediaPick.id), bfd(fields.duration.id)]),
+    listen:    act("Listen",   [bfd(fields.mediaPick.id), bfd(fields.duration.id)]),
+    practice:  act("Practice", [bfd(fields.skill.id), bfd(fields.duration.id)]),
+    memorize:  act("Memorize", [bfd(fields.topic.id), bfd(fields.duration.id)]),
+    research:  act("Research", [bfd(fields.topic.id), bfd(fields.duration.id)]),
+    explore:   act("Explore",  [bfd(fields.topic.id), bfd(fields.duration.id)]),
+    analyze:   act("Analyze",  [bfd(fields.topic.id), bfd(fields.duration.id)]),
+    teach:     act("Teach",    [bfd(fields.topic.id), bfd(fields.skill.id), bfd(fields.duration.id)]),
     pomodoro: {
       id: uid(), label: "Pomodoro", kind: "board",
       defaultDragMode: "copy",
@@ -2515,346 +2428,141 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
 
-    // === EMOTIONAL ===
-    gratitude: {
-      id: uid(), label: "Gratitude Practice", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.mood.id, role: "input", order: 1 },
-        { fieldId: fields.notes.id, role: "input", order: 2 },
-      ],
-    },
-    meditation: {
-      id: uid(), label: "Meditation", kind: "board",
-      defaultDragMode: "copy",
-      styleMode: "own",
-      ownStyle: { bg: "rgba(160,33,88,0.15)", textColor: "#d94080" },
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-        { fieldId: fields.mood.id, role: "input", order: 2 },
-      ],
-    },
-    breathing: {
-      id: uid(), label: "Breathing Exercise", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-      ],
-    },
-    moodCheck: {
-      id: uid(), label: "Mood Check-in", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.mood.id, role: "input", order: 0 },
-        { fieldId: fields.energy.id, role: "input", order: 1 },
-        { fieldId: fields.notes.id, role: "input", order: 2 },
-      ],
-    },
-    selfCare: {
-      id: uid(), label: "Self-Care Activity", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-        { fieldId: fields.notes.id, role: "input", order: 2 },
-      ],
-    },
-
     // === SOCIAL ===
-    callFriend: {
-      id: uid(), label: "Call a Friend", kind: "board",
-      defaultDragMode: "copy",
-      styleMode: "own", ownStyle: { bg: "rgba(196,144,0,0.15)", textColor: "#e8c030" },
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-        { fieldId: peopleAssignedFieldId, role: "input", order: 2 }, // task #46 — multi-select people (picker + add)
-        { fieldId: fields.notes.id, role: "input", order: 3 },
-      ],
-    },
-    familyTime: {
-      id: uid(), label: "Family Time", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-      ],
-    },
-    socialEvent: {
-      id: uid(), label: "Social Event", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-        { fieldId: fields.notes.id, role: "input", order: 2 },
-      ],
-    },
-    helpSomeone: {
-      id: uid(), label: "Help Someone", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.notes.id, role: "input", order: 1 },
-      ],
-    },
+    text:        act("Text",        [bfd(peopleAssignedFieldId)]),
+    call:        act("Call",        [bfd(peopleAssignedFieldId)]),
+    chat:        act("Chat",        [bfd(peopleAssignedFieldId)]),
+    meet:        act("Meet",        [bfd(peopleAssignedFieldId), bfd(fields.place.id), bfd(fields.eventPick.id), bfd(fields.duration.id)]),
+    date:        act("Date",        [bfd(peopleAssignedFieldId), bfd(fields.place.id), bfd(fields.eventPick.id), bfd(fields.duration.id)]),
+    visit:       act("Visit",       [bfd(peopleAssignedFieldId), bfd(fields.place.id), bfd(fields.giftIdea.id), bfd(fields.duration.id)]),
+    host:        act("Host",        [bfd(peopleAssignedFieldId), bfd(fields.place.id), bfd(fields.eventPick.id), bfd(fields.duration.id)]),
+    collaborate: act("Collaborate", [bfd(peopleAssignedFieldId), bfd(projectFieldId), bfd(fields.duration.id)]),
+    mentor:      act("Mentor",      [bfd(peopleAssignedFieldId), bfd(fields.skill.id), bfd(fields.duration.id)]),
+    volunteer:   act("Volunteer",   [bfd(peopleAssignedFieldId), bfd(fields.place.id), bfd(fields.charity.id), bfd(fields.duration.id)]),
 
-    // === SPIRITUAL ===
-    prayer: {
-      id: uid(), label: "Prayer/Reflection", kind: "board",
-      defaultDragMode: "copy",
-      styleMode: "own", ownStyle: { bg: "rgba(100,39,197,0.15)", textColor: "#9b6eee" },
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-      ],
-    },
-    natureWalk: {
-      id: uid(), label: "Nature Walk", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-        { fieldId: fields.steps.id, role: "input", order: 2 },
-      ],
-    },
-    spiritualReading: {
-      id: uid(), label: "Spiritual Reading", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-        { fieldId: fields.pages.id, role: "input", order: 2 },
-      ],
-    },
-    mindfulness: {
-      id: uid(), label: "Mindfulness", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-      ],
-    },
+    // === SPIRITUAL === (duplicate labels across dimensions are separate modules)
+    pray:              act("Pray",            [bfd(fields.practice.id), bfd(fields.verse.id), bfd(fields.duration.id)]),
+    meditateSpiritual: act("Meditate",        [bfd(fields.practice.id), bfd(fields.duration.id)]),
+    reflectSpiritual:  act("Reflect",         [bfd(fields.prompt.id), bfd(fields.duration.id)]),
+    worship:           act("Worship",         [bfd(fields.practice.id), bfd(fields.verse.id), bfd(fields.duration.id)]),
+    readScripture:     act("Read Scripture",  [bfd(fields.reading.id), bfd(fields.pages.id), bfd(fields.duration.id)]),
+    readPhilosophy:    act("Read Philosophy", [bfd(fields.reading.id), bfd(fields.pages.id), bfd(fields.duration.id)]),
+    gratitude:         act("Gratitude",       [bfd(fields.gratitudeEntry.id), bfd(fields.practice.id)]),
+    mindfulness:       act("Mindfulness",     [bfd(fields.practice.id), bfd(fields.duration.id)]),
+    nature:            act("Nature",          [bfd(fields.route.id), bfd(fields.duration.id)]),
+    serve:             act("Serve",           [bfd(fields.charity.id), bfd(fields.duration.id)]),
 
     // === OCCUPATIONAL ===
-    deepWork: {
-      id: uid(), label: "Deep Work Session", kind: "board",
-      defaultDragMode: "copy",
-      styleMode: "own", ownStyle: { bg: "rgba(13,122,82,0.15)", textColor: "#29b87e" },
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-        { fieldId: fields.priority.id, role: "input", order: 2 },
-        { fieldId: fields.notes.id, role: "input", order: 3 },
-      ],
-    },
-    meeting: {
-      id: uid(), label: "Meeting", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-        { fieldId: fields.notes.id, role: "input", order: 2 },
-      ],
-    },
-    emailBlock: {
-      id: uid(), label: "Email Block", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-      ],
-    },
-    skillDev: {
-      id: uid(), label: "Skill Development", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-        { fieldId: fields.notes.id, role: "input", order: 2 },
-      ],
-    },
-    networking: {
-      id: uid(), label: "Networking", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.notes.id, role: "input", order: 1 },
-      ],
-    },
+    plan:       act("Plan",       [bfd(projectFieldId), bfd(fields.duration.id)]),
+    prioritize: act("Prioritize", [bfd(projectFieldId), bfd(fields.duration.id)]),
+    focus:      act("Focus",      [bfd(fields.duration.id)]),
+    build:      act("Build",      [bfd(projectFieldId), bfd(fields.duration.id)]),
+    code:       act("Code",       [bfd(projectFieldId), bfd(fields.duration.id)]),
+    design:     act("Design",     [bfd(projectFieldId), bfd(fields.duration.id)]),
+    write:      act("Write",      [bfd(projectFieldId), bfd(fields.duration.id)]),
+    review:     act("Review",     [bfd(projectFieldId), bfd(fields.duration.id)]),
+    email:      act("Email",      [bfd(peopleAssignedFieldId)]),
+    network:    act("Network",    [bfd(peopleAssignedFieldId)]),
 
-    // === FINANCIAL ===
-    budgetReview: {
-      id: uid(), label: "Budget Review", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-      ],
-    },
-    trackExpense: {
-      // accountSelect (legacy string-options) replaced by accountRef
-      // (occurrence-pointer → instance under Accounts page) per B4. Every
-      // amount-bearing task now uses accountRef.
-      id: uid(), label: "Track Expense", kind: "board",
-      defaultDragMode: "copy",
-      styleMode: "own", ownStyle: { bg: "rgba(29,138,48,0.15)", textColor: "#4cba64" },
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.accountRef.id, role: "input", order: 1 },
-        { fieldId: fields.amount.id, role: "input", order: 2 },
-        { fieldId: fields.category.id, role: "input", order: 3 },
-        { fieldId: fields.notes.id, role: "input", order: 4 },
-      ],
-    },
-    purchase: {
-      id: uid(), label: "Purchase", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.accountRef.id, role: "input", order: 1 },
-        { fieldId: fields.amount.id, role: "input", order: 2 },
-      ],
-    },
-    logIncome: {
-      id: uid(), label: "Log Income", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.income.id, role: "input", order: 1 },
-        { fieldId: fields.notes.id, role: "input", order: 2 },
-      ],
-    },
-    investmentCheck: {
-      id: uid(), label: "Check Investments", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.income.id, role: "input", order: 1 },
-        { fieldId: fields.notes.id, role: "input", order: 2 },
-      ],
-    },
-    savingsGoal: {
-      id: uid(), label: "Savings Goal", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.accountRef.id, role: "input", order: 1 },
-        { fieldId: fields.amount.id, role: "input", order: 2 },
-      ],
-    },
-    setAccountBalance: {
-      // REPLACES the picked account's balance instead of adding/subtracting:
-      // its amount field is seeded with flow:"replace" (the occurrence-level
-      // default below), which the balance trackers honor as a reset — the
-      // latest completed in-Schedule "set" becomes the base, and only later
-      // transactions add on top (makeTrackerOp supportsReplace, 2026-07-11).
-      id: uid(), label: "Set Account Balance", kind: "board",
-      defaultDragMode: "copy",
-      styleMode: "own", ownStyle: { bg: "rgba(29,138,48,0.15)", textColor: "#4cba64" },
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.accountRef.id, role: "input", order: 1 },
-        { fieldId: fields.amount.id, role: "input", order: 2 },
-      ],
-    },
+    // === FINANCIAL === (Pay Bill / Cancel Subscription re-home here as peers;
+    // Track is the universal money occurrence — the flow toggle decides
+    // add / subtract / SET-the-balance, superseding Set Account Balance)
+    budget:          act("Budget",    [bfd(fields.accountRef.id), bfd(fields.savingsGoalPick.id), bfd(fields.amount.id)]),
+    save:            act("Save",      [bfd(fields.accountRef.id), bfd(fields.savingsGoalPick.id), bfd(fields.amount.id)]),
+    earn:            act("Earn",      [bfd(fields.accountRef.id), bfd(fields.amount.id)]),
+    invest:          act("Invest",    [bfd(fields.accountRef.id), bfd(fields.savingsGoalPick.id), bfd(fields.amount.id)]),
+    spend:           act("Spend",     [bfd(fields.accountRef.id), bfd(fields.purchaseItem.id), bfd(fields.amount.id)]),
+    buy:             act("Buy",       [bfd(fields.accountRef.id), bfd(fields.purchaseItem.id), bfd(fields.amount.id)]),
+    pay:             act("Pay",       [bfd(fields.accountRef.id), bfd(fields.amount.id)]),
+    track:           act("Track",     [bfd(fields.accountRef.id), bfd(fields.amount.id)]),
+    reconcile:       act("Reconcile", [bfd(fields.accountRef.id), bfd(fields.amount.id)]),
+    donate:          act("Donate",    [bfd(fields.accountRef.id), bfd(fields.charity.id), bfd(fields.amount.id)]),
+    reviewFinancial: act("Review",    [bfd(fields.accountRef.id), bfd(fields.amount.id)]),
 
     // === ENVIRONMENTAL ===
-    cleanDesk: {
-      id: uid(), label: "Clean Desk", kind: "board",
-      defaultDragMode: "copy",
-      styleMode: "own", ownStyle: { bg: "rgba(7,121,160,0.15)", textColor: "#32b4e0" },
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-      ],
-    },
-    declutter: {
-      id: uid(), label: "Declutter Space", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-        { fieldId: fields.notes.id, role: "input", order: 2 },
-      ],
-    },
-    plantCare: {
-      id: uid(), label: "Plant Care", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-      ],
-    },
-    recycling: {
-      id: uid(), label: "Recycling", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-      ],
-    },
-    ecoAction: {
-      id: uid(), label: "Eco-Friendly Action", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.notes.id, role: "input", order: 1 },
-      ],
-    },
+    clean:     act("Clean",     [bfd(fields.area.id), bfd(fields.duration.id)]),
+    declutter: act("Declutter", [bfd(fields.area.id), bfd(fields.duration.id)]),
+    organize:  act("Organize",  [bfd(fields.area.id), bfd(fields.duration.id)]),
+    laundry:   act("Laundry"),
+    dishes:    act("Dishes"),
+    vacuum:    act("Vacuum",    [bfd(fields.area.id), bfd(fields.duration.id)]),
+    recycle:   act("Recycle"),
+    repair:    act("Repair",    [bfd(fields.equipment.id), bfd(fields.duration.id)]),
+    maintain:  act("Maintain",  [bfd(fields.equipment.id), bfd(fields.duration.id)]),
+    garden:    act("Garden",    [bfd(fields.plant.id), bfd(fields.duration.id)]),
 
-    // === CREATIVE (9th wellness — Make / Explore / Express) ===
-    sketch: {
-      id: uid(), label: "Sketch / Draw", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-        { fieldId: fields.notes.id, role: "input", order: 2 },
-      ],
-    },
-    writeCreative: {
-      id: uid(), label: "Creative Writing", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-        { fieldId: fields.notes.id, role: "input", order: 2 },
-      ],
-    },
-    playMusic: {
-      id: uid(), label: "Play Music", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-      ],
-    },
-    photograph: {
-      id: uid(), label: "Photograph", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.notes.id, role: "input", order: 1 },
-      ],
-    },
-    craftMake: {
-      id: uid(), label: "Craft / Make", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.duration.id, role: "input", order: 1 },
-        { fieldId: fields.notes.id, role: "input", order: 2 },
-      ],
-    },
+    // === CREATIVE ===
+    draw:              act("Draw",               [bfd(fields.medium.id), bfd(fields.creativeWork.id), bfd(fields.duration.id)]),
+    paint:             act("Paint",              [bfd(fields.medium.id), bfd(fields.creativeWork.id), bfd(fields.duration.id)]),
+    sketch:            act("Sketch",             [bfd(fields.medium.id), bfd(fields.creativeWork.id), bfd(fields.duration.id)]),
+    writeCreative:     act("Write",              [bfd(fields.prompt.id), bfd(fields.medium.id), bfd(fields.creativeWork.id), bfd(fields.duration.id)]),
+    journalCreatively: act("Journal Creatively", [bfd(fields.prompt.id), bfd(fields.medium.id), bfd(fields.creativeWork.id), bfd(fields.duration.id)]),
+    compose:           act("Compose",            [bfd(fields.song.id), bfd(fields.medium.id), bfd(fields.creativeWork.id), bfd(fields.duration.id)]),
+    sing:              act("Sing",               [bfd(fields.song.id), bfd(fields.medium.id), bfd(fields.creativeWork.id), bfd(fields.duration.id)]),
+    dance:             act("Dance",              [bfd(fields.song.id), bfd(fields.medium.id), bfd(fields.creativeWork.id), bfd(fields.duration.id)]),
+    craft:             act("Craft",              [bfd(fields.medium.id), bfd(fields.creativeWork.id), bfd(fields.duration.id)]),
+    photograph:        act("Photograph",         [bfd(fields.medium.id), bfd(fields.creativeWork.id), bfd(fields.duration.id)]),
+    film:              act("Film",               [bfd(fields.medium.id), bfd(fields.creativeWork.id), bfd(fields.duration.id)]),
+    edit:              act("Edit",               [bfd(fields.medium.id), bfd(fields.creativeWork.id), bfd(fields.duration.id)]),
+    brainstorm:        act("Brainstorm",         [bfd(fields.idea.id), bfd(fields.prompt.id), bfd(fields.duration.id)]),
+    prototype:         act("Prototype",          [bfd(fields.idea.id), bfd(fields.medium.id), bfd(fields.duration.id)]),
+    invent:            act("Invent",             [bfd(fields.idea.id), bfd(fields.medium.id), bfd(fields.duration.id)]),
+  };
 
-    // === BILLS (Bills page — under Library folder; B3 from carry-over plan) ===
-    // Every bill instance carries the FULL bill-schedule field set (cadence /
-    // day / cadenceN / anchor / amount / account + the op-computed billNextDue).
-    // Bill: Compute Next Due reads cadence+day+anchor to write billNextDue;
-    // Schedule Due: Seed COPY_LINKs a Pay Bill task into Schedule Due when
-    // billNextDue falls in the active window. Cancel Subscription targets the
-    // Subscriptions container via subscriptionRef.
+  // ── Workout instances (5 per muscle group × 6 groups = 30) ──────────────────
+  function makeWorkout(label, group) {
+    return {
+      id: uid(), label, kind: "board",
+      defaultDragMode: "copy",
+      fieldBindings: [
+        { fieldId: fields.completed.id, role: "input", order: 0 },
+        // Paired set + weight per slot (2026-07-14).
+        { fieldId: fields.set1Reps.id, role: "input", order: 1 },
+        { fieldId: fields.workoutWeight.id, role: "input", order: 2 },
+        { fieldId: fields.set2Reps.id, role: "input", order: 3 },
+        { fieldId: fields.workoutWeight2.id, role: "input", order: 4 },
+        { fieldId: fields.set3Reps.id, role: "input", order: 5 },
+        { fieldId: fields.workoutWeight3.id, role: "input", order: 6 },
+        { fieldId: fields.muscleGroup.id, role: "input", order: 7 },
+      ],
+      meta: { defaultMuscleGroup: group.toLowerCase() },
+    };
+  }
+  const workoutInstances = {
+    benchPress:     makeWorkout("Bench Press",        "Chest"),
+    inclinePress:   makeWorkout("Incline Press",      "Chest"),
+    chestFly:       makeWorkout("Chest Fly",          "Chest"),
+    pushUps:        makeWorkout("Push-ups",           "Chest"),
+    cableCrossover: makeWorkout("Cable Crossover",    "Chest"),
+    deadlift:       makeWorkout("Deadlift",           "Back"),
+    pullUps:        makeWorkout("Pull-ups",           "Back"),
+    bentRow:        makeWorkout("Bent-over Row",      "Back"),
+    latPulldown:    makeWorkout("Lat Pulldown",       "Back"),
+    seatedRow:      makeWorkout("Seated Cable Row",   "Back"),
+    squat:          makeWorkout("Squat",              "Legs"),
+    legPress:       makeWorkout("Leg Press",          "Legs"),
+    lunges:         makeWorkout("Lunges",             "Legs"),
+    legCurl:        makeWorkout("Leg Curl",           "Legs"),
+    calfRaise:      makeWorkout("Calf Raise",         "Legs"),
+    overheadPress:  makeWorkout("Overhead Press",     "Shoulders"),
+    lateralRaise:   makeWorkout("Lateral Raise",      "Shoulders"),
+    frontRaise:     makeWorkout("Front Raise",        "Shoulders"),
+    facePull:       makeWorkout("Face Pull",          "Shoulders"),
+    shrugs:         makeWorkout("Shrugs",             "Shoulders"),
+    bicepCurl:      makeWorkout("Bicep Curl",         "Arms"),
+    hammerCurl:     makeWorkout("Hammer Curl",        "Arms"),
+    tricepDip:      makeWorkout("Tricep Dip",         "Arms"),
+    skullCrusher:   makeWorkout("Skull Crusher",      "Arms"),
+    tricepPushdown: makeWorkout("Tricep Pushdown",    "Arms"),
+    running:        makeWorkout("Running",            "Cardio"),
+    cycling:        makeWorkout("Cycling",            "Cardio"),
+    jumpRope:       makeWorkout("Jump Rope",          "Cardio"),
+    rowMachine:     makeWorkout("Row Machine",        "Cardio"),
+    burpees:        makeWorkout("Burpees",            "Cardio"),
+  };
+
+  // ── Bill instances (Bills page — unchanged by the 2026-07-25 rebuild) ──────
+  const billInstances = {
     netflixSub: {
       id: uid(), label: "Netflix", kind: "board",
       defaultDragMode: "copy",
@@ -2999,128 +2707,10 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
 
-    // === DAILY ROUTINE SOURCE MODULES (schedulable — hidden dateFieldId binding required) ===
-    // These 6 land in the Daily Routine template; the hidden date binding enables
-    // the seed's SAME_DAY dedup-FIND and per-copy date stamp (createTestGrid convention).
-    morningRun: {
-      id: uid(), label: "Morning Run", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: dateFieldId, role: "input", order: 1, hidden: false },
-      ],
-    },
-    readAChapter: {
-      id: uid(), label: "Read a chapter", kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: dateFieldId, role: "input", order: 1, hidden: false },
-      ],
-    },
-    // NOTE: scrambledEggs + greekSaladChicken are in nutritionInstances below and
-    //       also get the hidden dateFieldId ensured via ensureDateBinding().
   };
 
-  // ── Workout instances (5 per muscle group × 6 groups = 30) ──────────────────
-  function makeWorkout(label, group) {
-    return {
-      id: uid(), label, kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        // Paired set + weight per slot (2026-07-14).
-        { fieldId: fields.set1Reps.id, role: "input", order: 1 },
-        { fieldId: fields.workoutWeight.id, role: "input", order: 2 },
-        { fieldId: fields.set2Reps.id, role: "input", order: 3 },
-        { fieldId: fields.workoutWeight2.id, role: "input", order: 4 },
-        { fieldId: fields.set3Reps.id, role: "input", order: 5 },
-        { fieldId: fields.workoutWeight3.id, role: "input", order: 6 },
-        { fieldId: fields.muscleGroup.id, role: "input", order: 7 },
-      ],
-      meta: { defaultMuscleGroup: group.toLowerCase() },
-    };
-  }
-  const workoutInstances = {
-    benchPress:     makeWorkout("Bench Press",        "Chest"),
-    inclinePress:   makeWorkout("Incline Press",      "Chest"),
-    chestFly:       makeWorkout("Chest Fly",          "Chest"),
-    pushUps:        makeWorkout("Push-ups",           "Chest"),
-    cableCrossover: makeWorkout("Cable Crossover",    "Chest"),
-    deadlift:       makeWorkout("Deadlift",           "Back"),
-    pullUps:        makeWorkout("Pull-ups",           "Back"),
-    bentRow:        makeWorkout("Bent-over Row",      "Back"),
-    latPulldown:    makeWorkout("Lat Pulldown",       "Back"),
-    seatedRow:      makeWorkout("Seated Cable Row",   "Back"),
-    squat:          makeWorkout("Squat",              "Legs"),
-    legPress:       makeWorkout("Leg Press",          "Legs"),
-    lunges:         makeWorkout("Lunges",             "Legs"),
-    legCurl:        makeWorkout("Leg Curl",           "Legs"),
-    calfRaise:      makeWorkout("Calf Raise",         "Legs"),
-    overheadPress:  makeWorkout("Overhead Press",     "Shoulders"),
-    lateralRaise:   makeWorkout("Lateral Raise",      "Shoulders"),
-    frontRaise:     makeWorkout("Front Raise",        "Shoulders"),
-    facePull:       makeWorkout("Face Pull",          "Shoulders"),
-    shrugs:         makeWorkout("Shrugs",             "Shoulders"),
-    bicepCurl:      makeWorkout("Bicep Curl",         "Arms"),
-    hammerCurl:     makeWorkout("Hammer Curl",        "Arms"),
-    tricepDip:      makeWorkout("Tricep Dip",         "Arms"),
-    skullCrusher:   makeWorkout("Skull Crusher",      "Arms"),
-    tricepPushdown: makeWorkout("Tricep Pushdown",    "Arms"),
-    running:        makeWorkout("Running",            "Cardio"),
-    cycling:        makeWorkout("Cycling",            "Cardio"),
-    jumpRope:       makeWorkout("Jump Rope",          "Cardio"),
-    rowMachine:     makeWorkout("Row Machine",        "Cardio"),
-    burpees:        makeWorkout("Burpees",            "Cardio"),
-  };
-
-  // ── Nutrition instances (Mediterranean diet, 34yr lean male 5'11") ──────────
-  // Daily Routine sources: scrambledEggs + greekSaladChicken get hidden dateFieldId.
-  function makeNutrition(label, mealType, cal, prot, c, fat) {
-    return {
-      id: uid(), label, kind: "board",
-      defaultDragMode: "copy",
-      fieldBindings: [
-        { fieldId: fields.completed.id, role: "input", order: 0 },
-        { fieldId: fields.mealCategory.id, role: "input", order: 1 },
-        { fieldId: fields.calories.id, role: "input", order: 2 },
-        { fieldId: fields.protein.id, role: "input", order: 3 },
-        { fieldId: fields.carbs.id, role: "input", order: 4 },
-        { fieldId: fields.fats.id, role: "input", order: 5 },
-      ],
-      meta: { defaultMealType: mealType, defaultCal: cal, defaultProtein: prot, defaultCarbs: c, defaultFats: fat },
-    };
-  }
-  const nutritionInstances = {
-    greekYogurtBowl:   makeNutrition("Greek Yogurt Bowl",         "Breakfast", 380, 28, 42, 8),
-    scrambledEggs:     makeNutrition("Scrambled Eggs + Veg",      "Breakfast", 320, 24, 18, 16),
-    oatmealBerries:    makeNutrition("Oatmeal + Berries",         "Breakfast", 350, 12, 62, 7),
-    avocadoToast:      makeNutrition("Avocado Toast",             "Breakfast", 420, 14, 38, 22),
-    smoothieBowl:      makeNutrition("Smoothie Bowl",             "Breakfast", 390, 18, 58, 10),
-    greekSaladChicken: makeNutrition("Greek Salad + Chicken",     "Lunch",     520, 48, 22, 24),
-    tunaWrap:          makeNutrition("Tuna Wrap",                 "Lunch",     460, 38, 42, 14),
-    lentilSoup:        makeNutrition("Lentil Soup",               "Lunch",     340, 20, 52, 6),
-    quinoaBowl:        makeNutrition("Quinoa Bowl",               "Lunch",     480, 22, 68, 12),
-    hummusPita:        makeNutrition("Hummus + Whole Grain Pita", "Lunch",     380, 14, 52, 14),
-    almonds:           makeNutrition("Almonds (1oz)",             "Snack",     160, 6,  6,  14),
-    olivesHummus:      makeNutrition("Olives + Hummus",           "Snack",     140, 4,  10, 10),
-    cheeseCrackers:    makeNutrition("Cheese + Crackers",         "Snack",     180, 8,  16, 9),
-    mixedBerries:      makeNutrition("Mixed Berries",             "Snack",     80,  1,  20, 0),
-    proteinBar:        makeNutrition("Protein Bar",               "Snack",     220, 20, 24, 6),
-    grilledSalmon:     makeNutrition("Grilled Salmon",            "Dinner",    520, 52, 12, 28),
-    chickenSouvlaki:   makeNutrition("Chicken Souvlaki",          "Dinner",    560, 56, 30, 22),
-    lambKofta:         makeNutrition("Lamb Kofta",                "Dinner",    580, 44, 28, 32),
-    pastaMarinara:     makeNutrition("Pasta Marinara",            "Dinner",    520, 22, 78, 12),
-    stuffedPeppers:    makeNutrition("Stuffed Peppers",           "Dinner",    440, 30, 48, 14),
-    oliveOil:          makeNutrition("Olive Oil (1 tbsp)",        "Ingredient",120, 0,  0,  14),
-    chickpeas:         makeNutrition("Chickpeas (1/2 cup)",       "Ingredient",135, 7,  22, 2),
-    lemonGarlic:       makeNutrition("Lemon + Garlic base",       "Ingredient",20,  1,  4,  0),
-    wholeGrainBread:   makeNutrition("Whole Grain Bread (2sl)",   "Ingredient",180, 8,  32, 3),
-    greekOlives:       makeNutrition("Greek Olives (10pc)",       "Ingredient",50,  0,  2,  5),
-  };
-  // Ensure Daily Routine nutrition sources have hidden dateFieldId binding
-  nutritionInstances.scrambledEggs.fieldBindings = ensureDateBinding(nutritionInstances.scrambledEggs.fieldBindings);
-  nutritionInstances.greekSaladChicken.fieldBindings = ensureDateBinding(nutritionInstances.greekSaladChicken.fieldBindings);
+  // (Nutrition instances removed 2026-07-25 — Eat/Cook + the Meals board
+  // replace the per-meal toolkit items.)
 
   // ── Todo instances ───────────────────────────────────────────────────────────
   // Note: fields.dueDate in createDefaultUserData → fields.due.id here (same field, renamed key)
@@ -3720,9 +3310,9 @@ export async function createLiveData(userId, options = {}) {
 
   // ── Merge all kept instance sets ─────────────────────────────────────────────
   const allInstances = {
-    ...toolkitInstances,
-    ...workoutInstances,
-    ...nutritionInstances,
+    ...actionInstances,
+    ...billInstances,
+    ...workoutInstances, // movement option modules (occurrences live on the Movements board)
     ...todoInstances,
     ...planningInstances,
     ...goalInstances,
@@ -3798,46 +3388,30 @@ export async function createLiveData(userId, options = {}) {
   // anymore). Physical splits into 4 daily-habit groups; Physical-Fitness into
   // 6 muscle groups; Physical-Nutrition into 5 meal types; the rest are single
   // containers per page until the user wants finer breakdown.
-  const PHYS_BG  = "#b44a1a";
-  const INTEL_BG = "#1562b0";
-  const EMO_BG   = "#a02158";
-  const SOC_BG   = "#c49000";
-  const SPIR_BG  = "#6427c5";
-  const OCC_BG   = "#0d7a52";
-  const FIN_BG   = "#1d8a30";
-  const ENV_BG   = "#0779a0";
-  const CRE_BG   = "#c2399a"; // magenta — Creative wellness (NEW)
+  // ── 9 dimension containers (2026-07-25 rebuild) ─────────────────────────────
+  // Colors from the two vintage reference screenshots — distinct in both
+  // vintage themes (see the nine-dimensions plan's color table).
+  const DIM_COLORS = {
+    physical:      "#b34f24", // rust
+    emotional:     "#7d3049", // maroon
+    intellectual:  "#4a3b52", // plum
+    social:        "#e08b31", // orange
+    spiritual:     "#e0a63f", // mustard
+    occupational:  "#6d7434", // avocado
+    financial:     "#3e8e7e", // teal
+    environmental: "#4a8c5c", // green
+    creative:      "#d94f30", // red
+  };
   const toolkitContainerMods = {
-    // Physical (general daily habits) — 4 sub-containers
-    physicalMovement:  { id: uid(), label: "Movement",  styleMode: "own", ownStyle: { bg: PHYS_BG } },
-    physicalHydration: { id: uid(), label: "Hydration", styleMode: "own", ownStyle: { bg: PHYS_BG } },
-    physicalMeds:      { id: uid(), label: "Medication",styleMode: "own", ownStyle: { bg: PHYS_BG } },
-    physicalSleep:     { id: uid(), label: "Sleep",     styleMode: "own", ownStyle: { bg: PHYS_BG } },
-
-    // Physical-Fitness — 6 muscle-group containers
-    chestExercises:     { id: uid(), label: "Chest",     styleMode: "own", ownStyle: { bg: PHYS_BG } },
-    backExercises:      { id: uid(), label: "Back",      styleMode: "own", ownStyle: { bg: PHYS_BG } },
-    legsExercises:      { id: uid(), label: "Legs",      styleMode: "own", ownStyle: { bg: PHYS_BG } },
-    shouldersExercises: { id: uid(), label: "Shoulders", styleMode: "own", ownStyle: { bg: PHYS_BG } },
-    armsExercises:      { id: uid(), label: "Arms",      styleMode: "own", ownStyle: { bg: PHYS_BG } },
-    cardioExercises:    { id: uid(), label: "Cardio",    styleMode: "own", ownStyle: { bg: PHYS_BG } },
-
-    // Physical-Nutrition — 5 meal-type containers
-    mealBreakfast:   { id: uid(), label: "Breakfast",   styleMode: "own", ownStyle: { bg: PHYS_BG } },
-    mealLunch:       { id: uid(), label: "Lunch",       styleMode: "own", ownStyle: { bg: PHYS_BG } },
-    mealSnack:       { id: uid(), label: "Snack",       styleMode: "own", ownStyle: { bg: PHYS_BG } },
-    mealDinner:      { id: uid(), label: "Dinner",      styleMode: "own", ownStyle: { bg: PHYS_BG } },
-    mealIngredients: { id: uid(), label: "Ingredients", styleMode: "own", ownStyle: { bg: PHYS_BG } },
-
-    // Single container per remaining wellness page
-    intellectual:  { id: uid(), label: "Intellectual",   styleMode: "own", ownStyle: { bg: INTEL_BG } },
-    emotional:     { id: uid(), label: "Emotional",      styleMode: "own", ownStyle: { bg: EMO_BG  } },
-    social:        { id: uid(), label: "Social",         styleMode: "own", ownStyle: { bg: SOC_BG  } },
-    spiritual:     { id: uid(), label: "Spiritual",      styleMode: "own", ownStyle: { bg: SPIR_BG } },
-    occupational:  { id: uid(), label: "Occupational",   styleMode: "own", ownStyle: { bg: OCC_BG  } },
-    financial:     { id: uid(), label: "Financial",      styleMode: "own", ownStyle: { bg: FIN_BG  } },
-    environmental: { id: uid(), label: "Environmental",  styleMode: "own", ownStyle: { bg: ENV_BG  } },
-    creative:      { id: uid(), label: "Creative",       styleMode: "own", ownStyle: { bg: CRE_BG  } }, // NEW
+    physical:      { id: uid(), label: "Physical",      styleMode: "own", ownStyle: { bg: DIM_COLORS.physical } },
+    emotional:     { id: uid(), label: "Emotional",     styleMode: "own", ownStyle: { bg: DIM_COLORS.emotional } },
+    intellectual:  { id: uid(), label: "Intellectual",  styleMode: "own", ownStyle: { bg: DIM_COLORS.intellectual } },
+    social:        { id: uid(), label: "Social",        styleMode: "own", ownStyle: { bg: DIM_COLORS.social } },
+    spiritual:     { id: uid(), label: "Spiritual",     styleMode: "own", ownStyle: { bg: DIM_COLORS.spiritual } },
+    occupational:  { id: uid(), label: "Occupational",  styleMode: "own", ownStyle: { bg: DIM_COLORS.occupational } },
+    financial:     { id: uid(), label: "Financial",     styleMode: "own", ownStyle: { bg: DIM_COLORS.financial } },
+    environmental: { id: uid(), label: "Environmental", styleMode: "own", ownStyle: { bg: DIM_COLORS.environmental } },
+    creative:      { id: uid(), label: "Creative",      styleMode: "own", ownStyle: { bg: DIM_COLORS.creative } },
   };
 
   // ── Todo containers (5 categories) ───────────────────────────────────────────
@@ -3971,21 +3545,7 @@ export async function createLiveData(userId, options = {}) {
   // Physical (general) splits into 4 daily-habit groups. Physical-Fitness splits
   // into 6 muscle groups. Physical-Nutrition splits into 5 meal types. Other
   // wellness pages keep a single container until the user wants finer breakdown.
-  const physMovementContOccId  = uid();
-  const physHydrationContOccId = uid();
-  const physMedsContOccId      = uid();
-  const physSleepContOccId     = uid();
-  const chestExContOccId      = uid();
-  const backExContOccId       = uid();
-  const legsExContOccId       = uid();
-  const shouldersExContOccId  = uid();
-  const armsExContOccId       = uid();
-  const cardioExContOccId     = uid();
-  const mealBreakfastContOccId   = uid();
-  const mealLunchContOccId       = uid();
-  const mealSnackContOccId       = uid();
-  const mealDinnerContOccId      = uid();
-  const mealIngredientsContOccId = uid();
+  const physicalContOccId      = uid();
   const intellectualContOccId  = uid();
   const emotionalContOccId     = uid();
   const socialContOccId        = uid();
@@ -4040,59 +3600,16 @@ export async function createLiveData(userId, options = {}) {
   // structure (which containers belong to which page) is defined separately
   // in `wellnessPages` below.
   const toolkitMappings = {
-    // Physical (general) — split daily habits into 4 sub-containers
-    physicalMovement:  { contOccId: physMovementContOccId,  contModKey: "physicalMovement",  instKeys: ["morningWorkout", "eveningRun", "stretching"] },
-    physicalHydration: { contOccId: physHydrationContOccId, contModKey: "physicalHydration", instKeys: ["drinkWater"] },
-    physicalMeds:      { contOccId: physMedsContOccId,      contModKey: "physicalMeds",      instKeys: ["takeMeds"] },
-    physicalSleep:     { contOccId: physSleepContOccId,     contModKey: "physicalSleep",     instKeys: ["sleepLog"] },
-
-    // Physical-Fitness — split 30 exercises across 6 muscle groups
-    chestExercises:     { contOccId: chestExContOccId,     contModKey: "chestExercises",     instKeys: ["benchPress", "inclinePress", "chestFly", "pushUps", "cableCrossover"] },
-    backExercises:      { contOccId: backExContOccId,      contModKey: "backExercises",      instKeys: ["deadlift", "pullUps", "bentRow", "latPulldown", "seatedRow"] },
-    legsExercises:      { contOccId: legsExContOccId,      contModKey: "legsExercises",      instKeys: ["squat", "legPress", "lunges", "legCurl", "calfRaise"] },
-    shouldersExercises: { contOccId: shouldersExContOccId, contModKey: "shouldersExercises", instKeys: ["overheadPress", "lateralRaise", "frontRaise", "facePull", "shrugs"] },
-    armsExercises:      { contOccId: armsExContOccId,      contModKey: "armsExercises",      instKeys: ["bicepCurl", "hammerCurl", "tricepDip", "skullCrusher", "tricepPushdown"] },
-    cardioExercises:    { contOccId: cardioExContOccId,    contModKey: "cardioExercises",    instKeys: ["running", "cycling", "jumpRope", "rowMachine", "burpees"] },
-
-    // Physical-Nutrition — meal types
-    mealBreakfast:    { contOccId: mealBreakfastContOccId,   contModKey: "mealBreakfast",   instKeys: ["greekYogurtBowl", "scrambledEggs", "oatmealBerries", "avocadoToast", "smoothieBowl"] },
-    mealLunch:        { contOccId: mealLunchContOccId,       contModKey: "mealLunch",       instKeys: ["greekSaladChicken", "tunaWrap", "lentilSoup", "quinoaBowl", "hummusPita"] },
-    mealSnack:        { contOccId: mealSnackContOccId,       contModKey: "mealSnack",       instKeys: ["almonds", "olivesHummus", "cheeseCrackers", "mixedBerries", "proteinBar"] },
-    mealDinner:       { contOccId: mealDinnerContOccId,      contModKey: "mealDinner",      instKeys: ["grilledSalmon", "chickenSouvlaki", "lambKofta", "pastaMarinara", "stuffedPeppers"] },
-    mealIngredients:  { contOccId: mealIngredientsContOccId, contModKey: "mealIngredients", instKeys: ["oliveOil", "chickpeas", "lemonGarlic", "wholeGrainBread", "greekOlives"] },
-
-    // Remaining wellness pages — single container each
-    intellectual:  { contOccId: intellectualContOccId, contModKey: "intellectual",  instKeys: ["reading", "podcast", "watchMovie", "onlineCourse", "brainGames", "journaling", "answeredDailyQuestion", "pomodoro"] },
-    emotional:     { contOccId: emotionalContOccId,    contModKey: "emotional",     instKeys: ["gratitude", "meditation", "breathing", "moodCheck", "selfCare"] },
-    social:        { contOccId: socialContOccId,       contModKey: "social",        instKeys: ["callFriend", "familyTime", "socialEvent", "helpSomeone"] },
-    spiritual:     { contOccId: spiritualContOccId,    contModKey: "spiritual",     instKeys: ["prayer", "natureWalk", "spiritualReading", "mindfulness"] },
-    occupational:  { contOccId: occupationalContOccId, contModKey: "occupational",  instKeys: ["deepWork", "meeting", "emailBlock", "skillDev", "networking"] },
-    // Financial wellness — daily finance habits + Pay Bill + Cancel Sub
-    // (moved here from Todo List per user spec; Pay Bill drags into Schedule
-    // via the upcoming Schedule Due: Seed op, Cancel Subscription targets
-    // the Bills page's Subscriptions container via subscriptionRef).
-    financial:     { contOccId: financialContOccId,    contModKey: "financial",     instKeys: ["budgetReview", "trackExpense", "purchase", "logIncome", "investmentCheck", "savingsGoal", "setAccountBalance", "payBills", "cancelSub"] },
-    environmental: { contOccId: environmentalContOccId,contModKey: "environmental", instKeys: ["cleanDesk", "declutter", "plantCare", "recycling", "ecoAction"] },
-    creative:      { contOccId: creativeContOccId,     contModKey: "creative",      instKeys: ["sketch", "writeCreative", "playMusic", "photograph", "craftMake"] },
+    physical:      { contOccId: physicalContOccId,     contModKey: "physical",      instKeys: ["eat", "cook", "drink", "sleep", "nap", "exercise", "stretch", "walk", "run", "lift", "recover", "hygiene", "groom"] },
+    emotional:     { contOccId: emotionalContOccId,    contModKey: "emotional",     instKeys: ["journal", "reflect", "meditate", "checkIn", "express", "vent", "celebrate", "forgive", "relax", "decompress"] },
+    intellectual:  { contOccId: intellectualContOccId, contModKey: "intellectual",  instKeys: ["read", "study", "watch", "listen", "practice", "memorize", "research", "explore", "analyze", "teach", "pomodoro"] },
+    social:        { contOccId: socialContOccId,       contModKey: "social",        instKeys: ["text", "call", "chat", "meet", "date", "visit", "host", "collaborate", "mentor", "volunteer"] },
+    spiritual:     { contOccId: spiritualContOccId,    contModKey: "spiritual",     instKeys: ["pray", "meditateSpiritual", "reflectSpiritual", "worship", "readScripture", "readPhilosophy", "gratitude", "mindfulness", "nature", "serve"] },
+    occupational:  { contOccId: occupationalContOccId, contModKey: "occupational",  instKeys: ["plan", "prioritize", "focus", "build", "code", "design", "write", "review", "email", "network"] },
+    financial:     { contOccId: financialContOccId,    contModKey: "financial",     instKeys: ["budget", "save", "earn", "invest", "spend", "buy", "pay", "track", "reconcile", "donate", "reviewFinancial", "payBills", "cancelSub"] },
+    environmental: { contOccId: environmentalContOccId,contModKey: "environmental", instKeys: ["clean", "declutter", "organize", "laundry", "dishes", "vacuum", "recycle", "repair", "maintain", "garden"] },
+    creative:      { contOccId: creativeContOccId,     contModKey: "creative",      instKeys: ["draw", "paint", "sketch", "writeCreative", "journalCreatively", "compose", "sing", "dance", "craft", "photograph", "film", "edit", "brainstorm", "prototype", "invent"] },
   };
-
-  // Wellness PAGE → containers (used in Task 12 to wire 11 wellness pages
-  // under the Daily Toolkit folder). The grid panel at [0,0] hosts ALL of
-  // these pages as tabs; the manifest tree shows them under the Daily Toolkit
-  // folder so the user can navigate them by name.
-  const wellnessPages = [
-    { key: "physical",         label: "Physical",          containers: ["physicalMovement", "physicalHydration", "physicalMeds", "physicalSleep"] },
-    { key: "physicalFitness",  label: "Physical - Fitness",containers: ["chestExercises", "backExercises", "legsExercises", "shouldersExercises", "armsExercises", "cardioExercises"] },
-    { key: "physicalNutrition",label: "Physical - Nutrition", containers: ["mealBreakfast", "mealLunch", "mealSnack", "mealDinner", "mealIngredients"] },
-    { key: "intellectual",     label: "Intellectual",      containers: ["intellectual"] },
-    { key: "emotional",        label: "Emotional",         containers: ["emotional"] },
-    { key: "social",           label: "Social",            containers: ["social"] },
-    { key: "spiritual",        label: "Spiritual",         containers: ["spiritual"] },
-    { key: "occupational",     label: "Occupational",      containers: ["occupational"] },
-    { key: "financial",        label: "Financial",         containers: ["financial"] },
-    { key: "environmental",    label: "Environmental",     containers: ["environmental"] },
-    { key: "creative",         label: "Creative",          containers: ["creative"] },
-  ];
 
   // Per-exercise starting weights (lbs) — a realistic intermediate-lifter
   // state, as if the user had been progressively overloading. Bodyweight /
@@ -4115,74 +3632,52 @@ export async function createLiveData(userId, options = {}) {
   // start of a day matched template + session #1 → array → broken create
   // ("each timeslot can have multiple pomodoros", 2026-07-14).
   let pomodoroTemplateOccId = null;
-  // Exercise occurrence ids by workout key — the Workout Program recipe
-  // options (Push Day A …) bind Movement with these ids (2026-07-25).
-  const workoutOccIdByKey = {};
+  // Action occurrence ids by dimension + key — Task 6 binds trackers and the
+  // Daily Routine template picker-direct to these.
+  const actionOccIds = {};
 
   for (const [key, { contOccId, contModKey, instKeys }] of Object.entries(toolkitMappings)) {
     const childOccIds = [];
+    actionOccIds[key] = {};
     for (let i = 0; i < instKeys.length; i++) {
       const instKey = instKeys[i];
       const inst = instanceMods[instKey];
-      // Pre-fill default field values from instance meta (mirrors createDefaultUserData)
       const defaultFields = {};
-      if (inst.meta?.defaultMuscleGroup) {
-        defaultFields[fields.muscleGroup.id] = fv(inst.meta.defaultMuscleGroup, "replace");
-        // Every exercise IS a movement option (2026-07-25): the tag puts it
-        // in the Movement dropdown + the Movements board feed pulls it in.
-        defaultFields[boardCategoryFieldId] = fv("movement");
-        // Workout starting state: a descending rep pyramid (12/10/8) at the
-        // exercise's progressive-overload weight, so each exercise opens
-        // showing "where I'm at" instead of empty inputs.
-        defaultFields[fields.set1Reps.id]     = fv(12, "replace");
-        defaultFields[fields.set2Reps.id]     = fv(10, "replace");
-        defaultFields[fields.set3Reps.id]     = fv(8,  "replace");
-        defaultFields[fields.workoutWeight.id]  = fv(workoutStartWeights[instKey] ?? 20, "replace");
-        defaultFields[fields.workoutWeight2.id] = fv(workoutStartWeights[instKey] ?? 20, "replace");
-        defaultFields[fields.workoutWeight3.id] = fv(workoutStartWeights[instKey] ?? 20, "replace");
-      }
-      if (inst.meta?.defaultMealType)    defaultFields[fields.mealCategory.id] = fv(inst.meta.defaultMealType, "replace");
-      if (inst.meta?.defaultCal)         defaultFields[fields.calories.id]     = fv(inst.meta.defaultCal, "replace");
-      if (inst.meta?.defaultProtein)     defaultFields[fields.protein.id]      = fv(inst.meta.defaultProtein, "replace");
-      if (inst.meta?.defaultCarbs)       defaultFields[fields.carbs.id]        = fv(inst.meta.defaultCarbs, "replace");
-      if (inst.meta?.defaultFats)        defaultFields[fields.fats.id]         = fv(inst.meta.defaultFats, "replace");
-      // Pre-fill a sensible default amount on toolkit instances that bind fields.amount
-      // so "Spent Today" / "Net Balance" trackers show non-zero values on first run.
+      // Money actions with a sensible starter amount so financial trackers
+      // show non-zero values on first run.
       const toolkitDefaultAmounts = {
-        trackExpense: 35,  // generic tracked expense (~coffee + lunch)
-        purchase:     22,  // small purchase
-        savingsGoal:  50,  // contribution toward a savings target
-        payBills:     85,  // generic pay-bill default until user picks billRef
-        cancelSub:    15,  // subscription cancellation fee / last charge
+        spend:    35,  // generic tracked expense (~coffee + lunch)
+        buy:      22,  // small purchase
+        donate:   20,
+        payBills: 85,  // generic pay-bill default until user picks billRef
+        cancelSub: 15, // subscription cancellation fee / last charge
       };
       if (toolkitDefaultAmounts[instKey] !== undefined) {
         defaultFields[fields.amount.id] = fv(toolkitDefaultAmounts[instKey], "out");
       }
-      // Set Account Balance: the amount is a REPLACE (balance reset), not an
-      // in/out delta. Seeded null so the toolkit source is inert until the
-      // user types a value; copies inherit the flow, and the UI's commit path
-      // preserves the stored flow on edits (FieldRenderer.handleCommit).
-      if (instKey === "setAccountBalance") {
+      // Track = the universal money occurrence (supersedes Set Account
+      // Balance): seeded null + flow "replace" so the source opens in
+      // set-the-balance mode; the visible flow toggle flips per entry.
+      if (instKey === "track") {
         defaultFields[fields.amount.id] = fv(null, "replace");
       }
       const childId = await mkOcc({ moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: defaultFields });
       if (instKey === "pomodoro") pomodoroTemplateOccId = childId;
-      if (inst.meta?.defaultMuscleGroup) workoutOccIdByKey[instKey] = childId; // movement options — recipe boards reference these
+      actionOccIds[key][instKey] = childId;
       childOccIds.push(childId);
     }
     await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds, filterOverride: {} });
     toolkitContOccIds[contModKey] = contOccId;
   }
 
-  // Extra mood check-in pre-seeded in emotional container (mirrors createDefaultUserData
-  // moodTodayOccId — demonstrates mood wheel UI on first load)
+  // Extra pre-seeded Check In in the Emotional container (demonstrates the
+  // mood wheel UI on first load — mirrors the old moodCheck pre-fill).
   const moodTodayOccId = await mkOcc({
-    moduleId: instanceMods.moodCheck.id,
+    moduleId: actionInstances.checkIn.id,
     parentId: emotionalContOccId,
     sortOrder: 99, // append after the regular instances
     fields: {
-      [fields.mood.id]:   fv("focused", "in"),
-      [fields.energy.id]: fv(4, "in"),
+      [fields.mood.id]: fv("focused", "in"),
     },
   });
   // Append to the emotional container's occurrences[]
@@ -5055,6 +4550,27 @@ export async function createLiveData(userId, options = {}) {
   const personOccByLabel = Object.fromEntries(peopleSeed.map(p => [p.label, p.occId]));
   const opt = (label, extra = null) => ({ label, ...(extra || {}) });
 
+  // The 30 exercise occurrences live ON the Movements board (2026-07-25 —
+  // their old fitness sub-containers are gone). Same starting state as the
+  // old fitness pages: descending rep pyramid at progressive-overload weights.
+  const workoutOccIdByKey = {};
+  const movementReuseOccIds = [];
+  for (const [wKey, wInst] of Object.entries(workoutInstances)) {
+    const wFields = {
+      [fields.muscleGroup.id]:    fv(wInst.meta.defaultMuscleGroup, "replace"),
+      [boardCategoryFieldId]:     fv("movement"),
+      [fields.set1Reps.id]:       fv(12, "replace"),
+      [fields.set2Reps.id]:       fv(10, "replace"),
+      [fields.set3Reps.id]:       fv(8,  "replace"),
+      [fields.workoutWeight.id]:  fv(workoutStartWeights[wKey] ?? 20, "replace"),
+      [fields.workoutWeight2.id]: fv(workoutStartWeights[wKey] ?? 20, "replace"),
+      [fields.workoutWeight3.id]: fv(workoutStartWeights[wKey] ?? 20, "replace"),
+    };
+    const wOccId = await mkOcc({ moduleId: wInst.id, parentId: movementsBoardContOccId, fields: wFields });
+    workoutOccIdByKey[wKey] = wOccId;
+    movementReuseOccIds.push(wOccId);
+  }
+
   // Board table. `options[].bindings` = extra fieldBindings on the option's
   // module (recipe pattern — a Meal carries its Ingredients, a Program its
   // Movements, an Event its People + Place…); `options[].fields` = a THUNK
@@ -5091,10 +4607,8 @@ export async function createLiveData(userId, options = {}) {
     ]},
     // ── Body ──
     { key: "movement", tag: "movement", label: "Movements", group: "body", options: [
-      // The 30 exercises are tagged in the toolkit loop and feed in; only the
-      // stretches are new.
       opt("Hamstring Stretch"), opt("Hip Flexor Stretch"), opt("Shoulder Stretch"),
-    ]},
+    ], reuseOccIds: movementReuseOccIds },
     { key: "program", tag: "program", label: "Workout Programs", group: "body", options: [
       "Push Day A|benchPress,inclinePress,overheadPress,tricepPushdown",
       "Pull Day B|deadlift,pullUps,bentRow,bicepCurl",
@@ -5221,9 +4735,11 @@ export async function createLiveData(userId, options = {}) {
   const boardGroupCounters = {};
   for (const def of BOARD_DEFS) {
     const contModId = uid();
-    // The People container occ id was pre-generated (person occurrences,
-    // created with the Library block, parent under it directly).
-    const contOccId = def.tag === "person" ? peopleBoardContOccId : uid();
+    // People / Movements container occ ids were pre-generated (their
+    // occurrences are created earlier and parent under them directly).
+    const contOccId = def.tag === "person" ? peopleBoardContOccId
+      : def.tag === "movement" ? movementsBoardContOccId
+      : uid();
     boardContOccIds[def.tag] = contOccId;
     boardOptionOccIds[def.tag] = {};
 
@@ -5376,14 +4892,12 @@ export async function createLiveData(userId, options = {}) {
   // Slot-label keys are EXACTLY the strings generateTimeSlots() emits:
   //   `${h}:${m}${ampm}` where h has no leading zero, m is "00"/"30", ampm is lowercase.
   const routineBySlot = {
-    "6:00am": [
-      { sourceModId: instanceMods.drinkWater.id,        label: "Drink Water" },
-      { sourceModId: instanceMods.takeMeds.id,          label: "Take Vitamins" },
-    ],
-    "7:00am": [{ sourceModId: instanceMods.morningRun.id,        label: "Morning Run" }],
-    "8:00am": [{ sourceModId: instanceMods.scrambledEggs.id,     label: "Scrambled Eggs + Veg" }],
-    "12:00pm": [{ sourceModId: instanceMods.greekSaladChicken.id, label: "Greek Salad + Chicken" }],
-    "6:00pm": [{ sourceModId: instanceMods.readAChapter.id,      label: "Read a chapter" }],
+    "6:00am":  [{ sourceModId: instanceMods.drink.id,    label: "Drink" }],
+    "7:00am":  [{ sourceModId: instanceMods.hygiene.id,  label: "Hygiene" }],
+    "8:00am":  [{ sourceModId: instanceMods.eat.id,      label: "Eat" }],
+    "12:00pm": [{ sourceModId: instanceMods.walk.id,     label: "Walk" }],
+    "5:00pm":  [{ sourceModId: instanceMods.exercise.id, label: "Exercise" }],
+    "9:00pm":  [{ sourceModId: instanceMods.journal.id,  label: "Journal" }],
   };
 
   // Schedule Template page lives in Library > Templates (NOT in the
@@ -5740,29 +5254,22 @@ export async function createLiveData(userId, options = {}) {
   // further below in panel wiring). manifest tree shows them by label.
   // Loop emits the same per-page filterOverride + nav-hide as every non-
   // Schedule/non-Daily-Goals page (createTestGrid date-scope rule).
-  const wellnessPageOccs = {}; // wellnessPage.key → page occurrence id
-  const wellnessPageMods = {}; // wellnessPage.key → page module id
-  for (let i = 0; i < wellnessPages.length; i++) {
-    const wp = wellnessPages[i];
-    const pageModId = uid();
-    const pageOccId = uid();
-    wellnessPageMods[wp.key] = pageModId;
-    wellnessPageOccs[wp.key] = pageOccId;
-    await new Module({ id: pageModId, userId, gridId, role: "page", kind: "board", label: wp.label }).save();
-    await mkOcc({
-      id: pageOccId, moduleId: pageModId,
-      parentId: dailyToolkitFolderId, sortOrder: i,
-      occurrences: wp.containers.map(ck => toolkitContOccIds[ck]).filter(Boolean),
-      iteration: { mode: "persistent" }, fields: {},
-      filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
-    });
-  }
-  // Used by panel wiring + return value (the grid panel pins all 11 in order).
-  const wellnessPageOccList = wellnessPages.map(wp => wellnessPageOccs[wp.key]);
-  // Convenience pointer to the FIRST wellness page (Physical) — kept on the
-  // return value for back-compat with any consumer that expected a single
-  // "Daily Toolkit" page (and as the default active tab on the panel).
-  const toolkitPageOccId = wellnessPageOccs.physical;
+  // ── Routines page (2026-07-25) — ONE page, 9 dimension containers ─────────
+  // Replaces the 11 wellness pages; the Daily Toolkit folder holds just this.
+  const routinesPageModId = uid();
+  const routinesPageOccId = uid();
+  await new Module({ id: routinesPageModId, userId, gridId, role: "page", kind: "board", label: "Routines" }).save();
+  await mkOcc({
+    id: routinesPageOccId, moduleId: routinesPageModId,
+    parentId: dailyToolkitFolderId, sortOrder: 0,
+    occurrences: Object.values(toolkitMappings).map(m => m.contOccId),
+    iteration: { mode: "persistent" }, fields: {},
+    filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
+  });
+  // Panel-tab list + default-tab pointer (names kept — panel wiring below and
+  // the return value consume them).
+  const wellnessPageOccList = [routinesPageOccId];
+  const toolkitPageOccId = routinesPageOccId;
 
   const todoPageModId = uid(); const todoPageOccId = uid();
   await new Module({ id: todoPageModId, userId, gridId, role: "page", kind: "board", label: "Todo List" }).save();
@@ -6680,7 +6187,7 @@ export async function createLiveData(userId, options = {}) {
                 conjunction: "AND",
                 rules: [
                   // Call task — label match scopes to "Call a Friend" copies.
-                  { left: "$call.templateId",                         comparator: "IS",             right: toolkitInstances.callFriend.id },
+                  { left: "$call.templateId",                         comparator: "IS",             right: actionInstances.call.id },
                   { left: `$call.fields.${dateFieldId}.value`,        comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                   { left: "$call._ancestors",                         comparator: "HAS_ANCESTOR",   right: "$schedPageId" },
                   { left: "$call.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
@@ -7322,7 +6829,7 @@ export async function createLiveData(userId, options = {}) {
                       { left: `$watchInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       { left: "$watchInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                       { left: "$watchInst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                      { left: "$watchInst.templateId", comparator: "IS", right: toolkitInstances.watchMovie.id },
+                      { left: "$watchInst.templateId", comparator: "IS", right: actionInstances.watch.id },
                     ],
                   },
                   then: [
@@ -7460,7 +6967,7 @@ export async function createLiveData(userId, options = {}) {
                       { left: `$readInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       { left: "$readInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                       { left: "$readInst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                      { left: "$readInst.templateId", comparator: "IS", right: toolkitInstances.reading.id },
+                      { left: "$readInst.templateId", comparator: "IS", right: actionInstances.read.id },
                     ],
                   },
                   then: [
@@ -7602,7 +7109,7 @@ export async function createLiveData(userId, options = {}) {
                       { left: `$podcastInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       { left: "$podcastInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                       { left: "$podcastInst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                      { left: "$podcastInst.templateId", comparator: "IS", right: toolkitInstances.podcast.id },
+                      { left: "$podcastInst.templateId", comparator: "IS", right: actionInstances.listen.id },
                     ],
                   },
                   then: [
@@ -7740,7 +7247,7 @@ export async function createLiveData(userId, options = {}) {
                       { left: `$courseInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
                       { left: "$courseInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                       { left: "$courseInst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                      { left: "$courseInst.templateId", comparator: "IS", right: toolkitInstances.onlineCourse.id },
+                      { left: "$courseInst.templateId", comparator: "IS", right: actionInstances.study.id },
                     ],
                   },
                   then: [
@@ -7866,7 +7373,7 @@ export async function createLiveData(userId, options = {}) {
             predicate: {
               conjunction: "AND",
               rules: [
-                { left: "templateId", comparator: "IS", right: toolkitInstances.journaling.id },
+                { left: "templateId", comparator: "IS", right: actionInstances.journal.id },
               ],
             },
             itemVar: "$journalingInst", itemIdVar: "$journalingInstId",
