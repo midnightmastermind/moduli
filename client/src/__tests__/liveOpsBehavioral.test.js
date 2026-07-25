@@ -129,10 +129,17 @@ function trackerValue(opName) {
 // Press" movement on the Movements board). Board options are the pick targets
 // for the occurrence-dropdown fields the actions bind (2026-07-25 rebuild).
 function boardOptionId(label) {
-  const mod = moduleByLabel(label, "instance");
-  expect(mod, `board option module "${label}"`).toBeTruthy();
-  const occ = Object.values(occurrencesById).find(o =>
-    o.moduleId === mod.id && !ancestorChain(o.id).labels.includes("Schedule"));
+  // Match on the Board Category TAG, not just the label — several non-board
+  // things share these labels (the "Water" goal tile is a module labeled
+  // "Water" too, and picking it made the Water tracker's Beverage gate never
+  // match). A board option is exactly: tagged, and not a feed copy.
+  const tagFid = Object.values(fieldsById).find(f => f.name === "Board Category")?.id;
+  expect(tagFid, "Board Category field").toBeTruthy();
+  const occ = Object.values(occurrencesById).find(o => {
+    if (o.meta?.feedSourceId) return false;
+    if (!o.fields?.[tagFid]?.value) return false;
+    return (o.label || modulesById[o.moduleId]?.label) === label;
+  });
   expect(occ, `board option occurrence "${label}"`).toBeTruthy();
   return occ.id;
 }
@@ -299,13 +306,22 @@ describe("number inputs", () => {
     inputField(id, "Completed", true);
     expect(goalValue("Steps", "Daily Steps")).toBe(4200);
   });
-  it("Water on completed schedule items sums into Daily Water", () => {
-    const a = addToSlot("Drink", "2:30am", { Completed: true });
-    inputField(a, "Water", 16);
+  it("Liquid Amount on completed Drinks sums into Daily Water — ONLY when the Beverage is Water", () => {
+    // 2026-07-25: the input field is "Liquid Amount" (Drink logs any
+    // beverage) and the Water tracker gates on the Beverage pick, so a
+    // coffee's ounces never move the water goal.
+    const waterOpt = boardOptionId("Water");
+    const a = addToSlot("Drink", "2:30am", { Completed: true, Beverage: waterOpt });
+    inputField(a, "Liquid Amount", 16);
     const afterFirst = goalValue("Water", "Daily Water");
     expect(afterFirst).toBeGreaterThanOrEqual(16);
-    const b = addToSlot("Drink", "3:00am", { Completed: true });
-    inputField(b, "Water", 8);
+    const b = addToSlot("Drink", "3:00am", { Completed: true, Beverage: waterOpt });
+    inputField(b, "Liquid Amount", 8);
+    expect(goalValue("Water", "Daily Water")).toBe(afterFirst + 8);
+
+    // A non-water drink logs its ounces but does NOT count toward the goal.
+    const coffee = addToSlot("Drink", "3:30am", { Completed: true, Beverage: boardOptionId("Coffee") });
+    inputField(coffee, "Liquid Amount", 12);
     expect(goalValue("Water", "Daily Water")).toBe(afterFirst + 8);
   });
   it("Pages on a completed schedule item lands in the reading Pages tracker", () => {

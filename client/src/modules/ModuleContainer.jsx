@@ -1588,10 +1588,19 @@ function Container({
             {containerOccurrence && items.length === 0 && (
               <InsertGap parentOccurrence={containerOccurrence} index={0} hostOccurrence={containerOccurrence} panelId={panelId} containerLabel={module?.label || ""} />
             )}
+            {/* Empty container: a CLICKABLE "Add new item" (2026-07-25, per
+               user — was a dead "Drop items here" label). Bumps the header
+               QuickAddMenu's openTrigger so it opens the same palette the "+"
+               does; dropping still works exactly as before. */}
             {items.length === 0 && (
-              <div className="text-xs text-muted-foreground p-2 text-center empty-placeholder-inline">
-                Drop items here
-              </div>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground p-2 text-center empty-placeholder-inline"
+                style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer" }}
+                onClick={(e) => { e.stopPropagation(); setQuickAddTrigger(t => t + 1); }}
+              >
+                Add new item
+              </button>
             )}
           </div>
         </div>

@@ -2094,6 +2094,12 @@ export function makeTrackerOp({
   // restructure where many goals share field names like "Tasks Completed".
   goalOccurrenceId,
   sourceFieldId, sourceFieldIds, incomeFieldId, spentFieldId,
+  // Caller-supplied EXTRA gate rules, ANDed into every value loop's predicate
+  // (2026-07-25). Generic: the caller passes fully-formed rules referencing
+  // `$item`, so a tracker can narrow to a specific pick without the builder
+  // knowing anything about what the field means. Used by Water, which only
+  // counts a Drink whose Beverage pick IS the "Water" option.
+  matchRules = [],
   agg, flow = "any", timeFilter = "daily", scopeLabel = "Schedule",
   // Picker-direct scope page — the occurrence id of the page the data lives
   // under (the Schedule page). When provided, $scopePageId is bound from this
@@ -2220,6 +2226,7 @@ export function makeTrackerOp({
       rules.push({ id: uid(), left: `$item.fields.${presenceFieldId}.value`, comparator: "IS_NOT_EMPTY", right: "" });
     }
     if (extraRules && extraRules.length) rules.push(...extraRules);
+    if (matchRules && matchRules.length) rules.push(...matchRules);
     return rules;
   }
 

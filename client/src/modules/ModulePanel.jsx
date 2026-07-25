@@ -886,7 +886,7 @@ function Panel({
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                   padding: "3px 5px", border: "none", borderRadius: 4, cursor: "pointer",
-                  background: localTreeOpen ? "rgba(6,182,212,0.12)" : "transparent",
+                  background: localTreeOpen ? "rgba(var(--occ-pill) / 0.12)" : "transparent",
                   color: localTreeOpen ? "#06b6d4" : "var(--text-muted)",
                 }}
               >

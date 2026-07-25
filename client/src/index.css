@@ -47,6 +47,24 @@
    ============================================================================= */
 .dark,
 [data-theme="moduli-dark"] {
+  /* Value-state signal trio (2026-07-25) — tracker tiles color by their value
+     (zero / positive / negative). Theme-owned so a vintage grid doesn't show
+     a bright material-blue "0". */
+  --signal-zero: 96 165 250;
+  --signal-pos: 34 197 94;
+  --signal-neg: 248 113 113;
+
+  /* Occurrence-card + field-pill chrome (2026-07-25) — these used to be
+     hardcoded teal in the rules themselves, which is why switching themes
+     left every doc/card still reading green. Now theme-owned. */
+  --occ-card: 12 53 70;
+  --occ-card-a: .55;
+  --occ-card-soft-a: .38;
+  --occ-card-hover-a: .52;
+  --occ-pill: 6 182 212;
+  --occ-pill-text: rgb(180 225 245);
+  --figure-well: 8 20 28;
+
   /* Backgrounds */
   --background-0: 222 30% 6%;
   --background-1: 222 30% 7%;
@@ -137,6 +155,24 @@
    Clean bright workspace with blue accents.
    ============================================================================= */
 [data-theme="moduli-light"] {
+  /* Value-state signal trio (2026-07-25) — tracker tiles color by their value
+     (zero / positive / negative). Theme-owned so a vintage grid doesn't show
+     a bright material-blue "0". */
+  --signal-zero: 59 130 246;
+  --signal-pos: 22 163 74;
+  --signal-neg: 220 38 38;
+
+  /* Occurrence-card + field-pill chrome (2026-07-25) — these used to be
+     hardcoded teal in the rules themselves, which is why switching themes
+     left every doc/card still reading green. Now theme-owned. */
+  --occ-card: 12 53 70;
+  --occ-card-a: .07;
+  --occ-card-soft-a: .05;
+  --occ-card-hover-a: .10;
+  --occ-pill: 6 182 212;
+  --occ-pill-text: rgb(14 90 110);
+  --figure-well: 12 53 70;
+
   /* Backgrounds */
   --background-0: 220 20% 96%;
   --background-1: 220 20% 97%;
@@ -227,6 +263,24 @@
    Pure black with violet / indigo accents.
    ============================================================================= */
 [data-theme="midnight"] {
+  /* Value-state signal trio (2026-07-25) — tracker tiles color by their value
+     (zero / positive / negative). Theme-owned so a vintage grid doesn't show
+     a bright material-blue "0". */
+  --signal-zero: 96 165 250;
+  --signal-pos: 34 197 94;
+  --signal-neg: 248 113 113;
+
+  /* Occurrence-card + field-pill chrome (2026-07-25) — these used to be
+     hardcoded teal in the rules themselves, which is why switching themes
+     left every doc/card still reading green. Now theme-owned. */
+  --occ-card: 12 53 70;
+  --occ-card-a: .55;
+  --occ-card-soft-a: .38;
+  --occ-card-hover-a: .52;
+  --occ-pill: 6 182 212;
+  --occ-pill-text: rgb(180 225 245);
+  --figure-well: 8 20 28;
+
   /* Backgrounds */
   --background-0: 265 25% 4%;
   --background-1: 265 22% 5%;
@@ -318,6 +372,24 @@
    Palette from the retro reference art (screenshots 2026-07-25).
    ============================================================================= */
 [data-theme="vintage-light"] {
+  /* Value-state signal trio (2026-07-25) — tracker tiles color by their value
+     (zero / positive / negative). Theme-owned so a vintage grid doesn't show
+     a bright material-blue "0". */
+  --signal-zero: 62 142 126;
+  --signal-pos: 109 116 52;
+  --signal-neg: 179 79 36;
+
+  /* Occurrence-card + field-pill chrome (2026-07-25) — these used to be
+     hardcoded teal in the rules themselves, which is why switching themes
+     left every doc/card still reading green. Now theme-owned. */
+  --occ-card: 179 79 36;
+  --occ-card-a: .10;
+  --occ-card-soft-a: .07;
+  --occ-card-hover-a: .16;
+  --occ-pill: 179 79 36;
+  --occ-pill-text: rgb(138 58 22);
+  --figure-well: 179 166 143;
+
   /* Backgrounds */
   --background-0: 40 43% 88%;
   --background-1: 40 43% 90%;
@@ -409,6 +481,24 @@
    Palette from the retro reference art (screenshots 2026-07-25).
    ============================================================================= */
 [data-theme="vintage-dark"] {
+  /* Value-state signal trio (2026-07-25) — tracker tiles color by their value
+     (zero / positive / negative). Theme-owned so a vintage grid doesn't show
+     a bright material-blue "0". */
+  --signal-zero: 110 185 170;
+  --signal-pos: 141 170 78;
+  --signal-neg: 217 79 48;
+
+  /* Occurrence-card + field-pill chrome (2026-07-25) — these used to be
+     hardcoded teal in the rules themselves, which is why switching themes
+     left every doc/card still reading green. Now theme-owned. */
+  --occ-card: 70 44 30;
+  --occ-card-a: .55;
+  --occ-card-soft-a: .40;
+  --occ-card-hover-a: .62;
+  --occ-pill: 224 166 63;
+  --occ-pill-text: rgb(238 197 99);
+  --figure-well: 26 18 15;
+
   /* Backgrounds */
   --background-0: 10 20% 10%;
   --background-1: 10 20% 11%;
@@ -942,7 +1032,7 @@ body[data-clipboard-active="true"] {
   width: 100%;
   border-radius: 8px;
   border: 1px solid hsl(var(--border));
-  background: rgba(12, 53, 70, 0.55);
+  background: rgba(var(--occ-card) / var(--occ-card-a));
   padding: 3px;
   box-shadow:
     0 2px 10px rgba(0, 0, 0, 0.35),
@@ -1539,6 +1629,26 @@ body[data-drag-kind="panel"] .container-shell {
 /* Hide the trailing <br> ProseMirror injects inside block-pill paragraphs — it adds a full line-height of empty space */
 .doc-editor-content.ProseMirror p:has(.doc-instance-block) > br { display: none; }
 
+/* Trailing click-to-type line, revealed on hover (2026-07-25, per user).
+   A doc occurrence ends with an empty paragraph so there's somewhere to click
+   and keep writing — but at rest that's a full line-height of dead space at the
+   bottom of every textblock / doc container. Collapse it, and give it back on
+   hover of that occurrence (or whenever the editor has focus, so it never
+   collapses out from under the caret).
+   `:not(:first-child)` keeps a genuinely EMPTY doc clickable — that lone
+   paragraph is the only thing there is to click. */
+.doc-editor-content.ProseMirror > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child) {
+  height: 0;
+  margin: 0;
+  overflow: hidden;
+  transition: height 0.12s ease-out;
+}
+.doc-editor-wrapper:hover .doc-editor-content.ProseMirror > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child),
+.doc-editor-content.ProseMirror:focus-within > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child) {
+  height: auto;
+  margin: 0.25em 0;
+}
+
 .doc-editor-content.ProseMirror ul,
 .doc-editor-content.ProseMirror ol {
   margin: 0.25em 0;
@@ -1746,7 +1856,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 /* Doc-instance card — block mode instance in a doc container */
 /* Visual mix: list instance card style (dark bg, border) + doc container layout (header row) */
 .doc-instance-card {
-  background: rgba(12, 53, 70, 0.38);
+  background: rgba(var(--occ-card) / var(--occ-card-soft-a));
   box-shadow:
     0 1px 4px rgba(0, 0, 0, 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
@@ -1754,7 +1864,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 }
 
 .doc-instance-card:hover {
-  background: rgba(12, 53, 70, 0.52);
+  background: rgba(var(--occ-card) / var(--occ-card-hover-a));
   border-color: hsl(var(--border-2));
 }
 
@@ -1859,9 +1969,14 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 }
 
 /* Container empty placeholder (inline flow) */
+/* Empty-container "Add new item" (2026-07-25, per user): the whole empty body
+   is ALWAYS clickable to add, but the LABEL only appears on hover of that
+   container — so an empty board doesn't read as a wall of repeated text.
+   Opacity (not visibility/display) keeps the hit area live while hidden. */
 .empty-placeholder-inline {
   font-style: italic;
-  opacity: 0.6;
+  opacity: 0;
+  transition: opacity 0.12s ease-out;
   position: relative;
   z-index: 2;
   margin-top: -5px;
@@ -1870,6 +1985,11 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   display: flex;
   align-items: center;
   justify-content: center;
+}
+.container-shell:hover .empty-placeholder-inline,
+.empty-placeholder-inline:hover,
+.empty-placeholder-inline:focus-visible {
+  opacity: 0.6;
 }
 
 /* Pool pill — show delete button on hover */
@@ -3178,7 +3298,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .wrap-group--on .wrap-group-content > * > :not(:last-child) .instance-row {
   position: relative;
   padding: 0 !important;
-  background: rgba(8, 20, 28, 0.5) !important;
+  background: rgba(var(--figure-well) / 0.5) !important;
   border: 1px solid hsl(var(--border)) !important;
   border-radius: 8px !important;
   overflow: hidden;          /* clip the image to the rounded border */
@@ -3778,7 +3898,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .page-board-hscroll::-webkit-scrollbar-thumb {
   background: rgba(140, 205, 230, 0.32);
   border-radius: 6px;
-  border: 2px solid rgba(8, 20, 28, 0.6);
+  border: 2px solid rgba(var(--figure-well) / 0.6);
 }
 .page-board-hscroll::-webkit-scrollbar-thumb:hover { background: rgba(140, 205, 230, 0.55); }
 .page-board-hscroll::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.28); border-radius: 6px; }

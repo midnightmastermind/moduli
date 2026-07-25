@@ -2211,6 +2211,17 @@ const Editor = forwardRef(function Editor({
     if (!view || !wrapEl) return;
     // Don't recompute while the pointer is over the affordance itself.
     if (e.target?.closest?.(".doc-insert-gap")) return;
+    // Only the editor that OWNS the pointer draws a gap (2026-07-25, per user:
+    // "2 hover add new lines at the bottom of the container"). mousemove
+    // bubbles through every ancestor editor, so hovering inside a nested doc
+    // CONTAINER made both that container's editor AND the page editor paint
+    // one — two stacked insert lines. Same ownership test the mousedown
+    // caret fix-up uses.
+    const myDocEditor = wrapEl.closest(".doc-editor");
+    if (myDocEditor && e.target?.closest?.(".doc-editor") !== myDocEditor) {
+      clearDocGapUnlessPinned();
+      return;
+    }
     // Only show the gap in the empty gutter BETWEEN blocks. While the pointer is
     // over a block's content (clicking a heading to edit, selecting text) stay
     // hidden — otherwise a click-to-edit pops a stray insert line under the

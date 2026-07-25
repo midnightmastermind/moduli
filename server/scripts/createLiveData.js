@@ -1037,7 +1037,11 @@ export async function createLiveData(userId, options = {}) {
     },
     water: {
       id: uid(),
-      name: "Water",
+      // Renamed 2026-07-25 (per user): Drink logs ANY beverage, so the input
+      // is the liquid amount. The Water GOAL still works — its tracker keys on
+      // this field's ID and now additionally gates on the Beverage pick being
+      // Water (see the Water tracker's matchRules).
+      name: "Liquid Amount",
       type: "number",
       inputEnabled: true,
       displayEnabled: false,
@@ -3243,16 +3247,19 @@ export async function createLiveData(userId, options = {}) {
   };
 
   // ── Goal containers (8 dimensions + workout + nutrition + planning + movies) ────
+  // The goal containers ARE the nine dimensions — same vintage palette as the
+  // Routines/Tasks containers (2026-07-25). These per-occurrence colors are the
+  // deliberate EXCEPTION to "everything comes from the theme" (per user).
   const goalContainerMods = {
-    physicalGoal:      { id: uid(), label: "Physical",      styleMode: "own", ownStyle: { bg: "#b44a1a" } },
-    intellectualGoal:  { id: uid(), label: "Intellectual",  styleMode: "own", ownStyle: { bg: "#1562b0" } },
-    emotionalGoal:     { id: uid(), label: "Emotional",     styleMode: "own", ownStyle: { bg: "#a02158" } },
-    socialGoal:        { id: uid(), label: "Social",        styleMode: "own", ownStyle: { bg: "#c49000" } },
-    spiritualGoal:     { id: uid(), label: "Spiritual",     styleMode: "own", ownStyle: { bg: "#6427c5" } },
-    occupationalGoal:  { id: uid(), label: "Occupational",  styleMode: "own", ownStyle: { bg: "#0d7a52" } },
-    financialGoal:     { id: uid(), label: "Financial",     styleMode: "own", ownStyle: { bg: "#1d8a30" } },
-    environmentalGoal: { id: uid(), label: "Environmental", styleMode: "own", ownStyle: { bg: "#0779a0" } },
-    creativeGoal:      { id: uid(), label: "Creative",      styleMode: "own", ownStyle: { bg: "#c2399a" } },
+    physicalGoal:      { id: uid(), label: "Physical",      styleMode: "own", ownStyle: { bg: DIM_COLORS.physical } },
+    intellectualGoal:  { id: uid(), label: "Intellectual",  styleMode: "own", ownStyle: { bg: DIM_COLORS.intellectual } },
+    emotionalGoal:     { id: uid(), label: "Emotional",     styleMode: "own", ownStyle: { bg: DIM_COLORS.emotional } },
+    socialGoal:        { id: uid(), label: "Social",        styleMode: "own", ownStyle: { bg: DIM_COLORS.social } },
+    spiritualGoal:     { id: uid(), label: "Spiritual",     styleMode: "own", ownStyle: { bg: DIM_COLORS.spiritual } },
+    occupationalGoal:  { id: uid(), label: "Occupational",  styleMode: "own", ownStyle: { bg: DIM_COLORS.occupational } },
+    financialGoal:     { id: uid(), label: "Financial",     styleMode: "own", ownStyle: { bg: DIM_COLORS.financial } },
+    environmentalGoal: { id: uid(), label: "Environmental", styleMode: "own", ownStyle: { bg: DIM_COLORS.environmental } },
+    creativeGoal:      { id: uid(), label: "Creative",      styleMode: "own", ownStyle: { bg: DIM_COLORS.creative } },
     workoutGoal:      { id: uid(), label: "Workout" },
     nutritionGoal:    { id: uid(), label: "Nutrition" },
     planningGoal:     { id: uid(), label: "Planning" },
@@ -3686,21 +3693,21 @@ export async function createLiveData(userId, options = {}) {
   // 8 movie modules (role:"instance", hidden library + poster bindings)
   await Module.insertMany([
     { id: movieInceptionModId,       userId, gridId, role: "instance", kind: "board", label: "Inception",
-      defaultDragMode: "move", fieldBindings: movieFieldBindings },
+      defaultDragMode: "copy", fieldBindings: movieFieldBindings },
     { id: movieMatrixModId,          userId, gridId, role: "instance", kind: "board", label: "The Matrix",
-      defaultDragMode: "move", fieldBindings: movieFieldBindings },
+      defaultDragMode: "copy", fieldBindings: movieFieldBindings },
     { id: movieArrivalModId,         userId, gridId, role: "instance", kind: "board", label: "Arrival",
-      defaultDragMode: "move", fieldBindings: movieFieldBindings },
+      defaultDragMode: "copy", fieldBindings: movieFieldBindings },
     { id: movieDuneModId,            userId, gridId, role: "instance", kind: "board", label: "Dune",
-      defaultDragMode: "move", fieldBindings: movieFieldBindings },
+      defaultDragMode: "copy", fieldBindings: movieFieldBindings },
     { id: movieInterstellarModId,    userId, gridId, role: "instance", kind: "board", label: "Interstellar",
-      defaultDragMode: "move", fieldBindings: movieFieldBindings },
+      defaultDragMode: "copy", fieldBindings: movieFieldBindings },
     { id: movieBladeRunner2049ModId, userId, gridId, role: "instance", kind: "board", label: "Blade Runner 2049",
-      defaultDragMode: "move", fieldBindings: movieFieldBindings },
+      defaultDragMode: "copy", fieldBindings: movieFieldBindings },
     { id: moviePrestigeModId,        userId, gridId, role: "instance", kind: "board", label: "The Prestige",
-      defaultDragMode: "move", fieldBindings: movieFieldBindings },
+      defaultDragMode: "copy", fieldBindings: movieFieldBindings },
     { id: movieTenetModId,           userId, gridId, role: "instance", kind: "board", label: "Tenet",
-      defaultDragMode: "move", fieldBindings: movieFieldBindings },
+      defaultDragMode: "copy", fieldBindings: movieFieldBindings },
   ]);
 
   // 7 book modules — fieldBindings include libraryFieldId (type), pagesFieldId
@@ -3713,19 +3720,19 @@ export async function createLiveData(userId, options = {}) {
   ];
   await Module.insertMany([
     { id: bookAtomicHabitsModId,     userId, gridId, role: "instance", kind: "board", label: "Atomic Habits",
-      defaultDragMode: "move", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
     { id: bookDeepWorkModId,         userId, gridId, role: "instance", kind: "board", label: "Deep Work",
-      defaultDragMode: "move", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
     { id: bookSapiensModId,          userId, gridId, role: "instance", kind: "board", label: "Sapiens",
-      defaultDragMode: "move", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
     { id: bookThinkingFastSlowModId, userId, gridId, role: "instance", kind: "board", label: "Thinking, Fast and Slow",
-      defaultDragMode: "move", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
     { id: bookMeditationsModId,      userId, gridId, role: "instance", kind: "board", label: "Meditations",
-      defaultDragMode: "move", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
     { id: bookMansSearchModId,       userId, gridId, role: "instance", kind: "board", label: "Man's Search for Meaning",
-      defaultDragMode: "move", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
     { id: book4HourWorkweekModId,    userId, gridId, role: "instance", kind: "board", label: "The 4-Hour Workweek",
-      defaultDragMode: "move", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
   ]);
 
   // Podcast / course modules share the same bindings shape: library type +
@@ -3742,27 +3749,27 @@ export async function createLiveData(userId, options = {}) {
   // 5 podcast modules
   await Module.insertMany([
     { id: podcastTimFerrissModId,      userId, gridId, role: "instance", kind: "board", label: "The Tim Ferriss Show",
-      defaultDragMode: "move", fieldBindings: podcastFieldBindings },
+      defaultDragMode: "copy", fieldBindings: podcastFieldBindings },
     { id: podcastLexFridmanModId,      userId, gridId, role: "instance", kind: "board", label: "Lex Fridman Podcast",
-      defaultDragMode: "move", fieldBindings: podcastFieldBindings },
+      defaultDragMode: "copy", fieldBindings: podcastFieldBindings },
     { id: podcastHardcoreHistoryModId, userId, gridId, role: "instance", kind: "board", label: "Hardcore History",
-      defaultDragMode: "move", fieldBindings: podcastFieldBindings },
+      defaultDragMode: "copy", fieldBindings: podcastFieldBindings },
     { id: podcastHubermanLabModId,     userId, gridId, role: "instance", kind: "board", label: "Huberman Lab",
-      defaultDragMode: "move", fieldBindings: podcastFieldBindings },
+      defaultDragMode: "copy", fieldBindings: podcastFieldBindings },
     { id: podcastConvosTylerModId,     userId, gridId, role: "instance", kind: "board", label: "Conversations with Tyler",
-      defaultDragMode: "move", fieldBindings: podcastFieldBindings },
+      defaultDragMode: "copy", fieldBindings: podcastFieldBindings },
   ]);
 
   // 4 course modules
   await Module.insertMany([
     { id: courseAlgorithmsModId,      userId, gridId, role: "instance", kind: "board", label: "Algorithms (Coursera)",
-      defaultDragMode: "move", fieldBindings: courseFieldBindings },
+      defaultDragMode: "copy", fieldBindings: courseFieldBindings },
     { id: courseMLSpecModId,          userId, gridId, role: "instance", kind: "board", label: "Machine Learning Specialization",
-      defaultDragMode: "move", fieldBindings: courseFieldBindings },
+      defaultDragMode: "copy", fieldBindings: courseFieldBindings },
     { id: courseSystemDesignModId,    userId, gridId, role: "instance", kind: "board", label: "System Design Primer",
-      defaultDragMode: "move", fieldBindings: courseFieldBindings },
+      defaultDragMode: "copy", fieldBindings: courseFieldBindings },
     { id: courseIntroPhilosophyModId, userId, gridId, role: "instance", kind: "board", label: "Introduction to Philosophy",
-      defaultDragMode: "move", fieldBindings: courseFieldBindings },
+      defaultDragMode: "copy", fieldBindings: courseFieldBindings },
   ]);
 
   // 10 person modules (task #46, 2026-05-22). Profile fields are bound
@@ -3799,25 +3806,25 @@ export async function createLiveData(userId, options = {}) {
   ];
   await Module.insertMany([
     { id: personAvaModId,    userId, gridId, role: "instance", kind: "board", label: "Ava Martinez",
-      defaultDragMode: "move", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", fieldBindings: personFieldBindings },
     { id: personBenModId,    userId, gridId, role: "instance", kind: "board", label: "Ben Chen",
-      defaultDragMode: "move", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", fieldBindings: personFieldBindings },
     { id: personChloeModId,  userId, gridId, role: "instance", kind: "board", label: "Chloe Patel",
-      defaultDragMode: "move", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", fieldBindings: personFieldBindings },
     { id: personDevenModId,  userId, gridId, role: "instance", kind: "board", label: "Deven Wright",
-      defaultDragMode: "move", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", fieldBindings: personFieldBindings },
     { id: personEliseModId,  userId, gridId, role: "instance", kind: "board", label: "Elise Nakamura",
-      defaultDragMode: "move", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", fieldBindings: personFieldBindings },
     { id: personFelixModId,  userId, gridId, role: "instance", kind: "board", label: "Felix Romero",
-      defaultDragMode: "move", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", fieldBindings: personFieldBindings },
     { id: personGraceModId,  userId, gridId, role: "instance", kind: "board", label: "Grace Okonkwo",
-      defaultDragMode: "move", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", fieldBindings: personFieldBindings },
     { id: personHenryModId,  userId, gridId, role: "instance", kind: "board", label: "Henry Lindqvist",
-      defaultDragMode: "move", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", fieldBindings: personFieldBindings },
     { id: personIsabelModId, userId, gridId, role: "instance", kind: "board", label: "Isabel Sokolov",
-      defaultDragMode: "move", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", fieldBindings: personFieldBindings },
     { id: personJackModId,   userId, gridId, role: "instance", kind: "board", label: "Jack Brennan",
-      defaultDragMode: "move", fieldBindings: personFieldBindings },
+      defaultDragMode: "copy", fieldBindings: personFieldBindings },
   ]);
 
   // Reflection question modules (library type "question"). One Module per
@@ -3948,9 +3955,9 @@ export async function createLiveData(userId, options = {}) {
   const bookPsalmsModId     = uid();
   await Module.insertMany([
     { id: bookTaoTeChingModId, userId, gridId, role: "instance", kind: "board", label: "Tao Te Ching",
-      defaultDragMode: "move", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
     { id: bookPsalmsModId,     userId, gridId, role: "instance", kind: "board", label: "Book of Psalms",
-      defaultDragMode: "move", fieldBindings: bookFieldBindings },
+      defaultDragMode: "copy", fieldBindings: bookFieldBindings },
   ]);
   const bookTaoTeChingOccId = await mkOcc({ moduleId: bookTaoTeChingModId, parentId: libraryContOccId, fields: bookFields("Tao Te Ching", 160) });
   const bookPsalmsOccId     = await mkOcc({ moduleId: bookPsalmsModId,     parentId: libraryContOccId, fields: bookFields("Book of Psalms", 260) });
@@ -4507,7 +4514,9 @@ export async function createLiveData(userId, options = {}) {
       const modId = uid();
       await new Module({
         id: modId, userId, gridId, role: "instance", kind: "board",
-        label: o.label, defaultDragMode: "move",
+        // Board options default to COPY (2026-07-25, per user): picking one
+        // onto a day should leave the option on its board, never move it off.
+        label: o.label, defaultDragMode: "copy",
         fieldBindings: [
           { fieldId: boardCategoryFieldId, role: "input", order: 0, hidden: true },
           ...(o.bindings || []),
@@ -5504,12 +5513,15 @@ export async function createLiveData(userId, options = {}) {
   // description/logo page is the default active tab; Schedule / Interfaces
   // folder-page / Canvas / Schedule Table / Schedule Canvas stay pinned.
   const notebookHubViewId = uid();
-  await new View({ id: notebookHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: logoPageOccId }).save();
+  // SCHEDULE is the center panel's default tab (2026-07-25, per user) — the
+  // Viafluere description page stays pinned as a tab beside it.
+  await new View({ id: notebookHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: schedPageOccId }).save();
 
-  // Daily Toolkit View — folder-page (card grid of all 11 wellness pages) is
-  // the default active tab; per-wellness pages remain pinned as tabs.
+  // Daily Toolkit View — ROUTINES is the default active tab (2026-07-25, per
+  // user: open straight onto the routines, not the folder card-grid). The
+  // Daily Toolkit folder-page stays pinned as a tab beside it.
   const toolkitHubViewId = uid();
-  await new View({ id: toolkitHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: toolkitFolderPageOccId }).save();
+  await new View({ id: toolkitHubViewId, userId, gridId, viewType: "board", activeOccurrenceId: routinesPageOccId }).save();
 
   // ── STEP 9: Panel modules + panel occurrences (grid placements) ─────────────
   // Layout (2 rows × 3 cols per buildGridDoc):
@@ -5667,11 +5679,11 @@ export async function createLiveData(userId, options = {}) {
     // untargeted days. ArrowUp throughout (more done = good direction).
     displayRules: {
       "Completed": [
-        { when: { target: "met" },     color: "rgb(134,239,172)", icon: "ArrowUp" },
-        { when: { target: "notMet" },  color: "rgb(252,165,165)", icon: "ArrowUp" },
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(134,239,172)" },
+        { when: { target: "met" },     color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
+        { when: { target: "notMet" },  color: "rgb(var(--signal-neg))", icon: "ArrowUp" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
       ],
     },
   })).save();
@@ -5707,9 +5719,9 @@ export async function createLiveData(userId, options = {}) {
         // decorates writes from THIS op.
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$displayRules", expr: `json:${JSON.stringify({
           "Completed": [
-            { when: { value: "null" },     color: "rgb(96,165,250)" },
-            { when: { value: "zero" },     color: "rgb(134,239,172)", icon: "Check" },
-            { when: { value: "positive" }, color: "rgb(252,165,165)", icon: "ArrowDown", suffix: "left" },
+            { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+            { when: { value: "zero" },     color: "rgb(var(--signal-pos))", icon: "Check" },
+            { when: { value: "positive" }, color: "rgb(var(--signal-neg))", icon: "ArrowDown", suffix: "left" },
           ],
         })}` } },
         // 1. Picker-style direct binding to Completed per-metric occurrence.
@@ -5990,11 +6002,11 @@ export async function createLiveData(userId, options = {}) {
     // step entries). Same pattern Time Spent / Pages use.
     displayRules: {
       "Steps": [
-        { when: { target: "met" },     color: "rgb(134,239,172)", icon: "ArrowUp" },
-        { when: { target: "notMet" },  color: "rgb(252,165,165)", icon: "ArrowUp" },
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(134,239,172)" },
+        { when: { target: "met" },     color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
+        { when: { target: "notMet" },  color: "rgb(var(--signal-neg))", icon: "ArrowUp" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
       ],
     },
   })).save();
@@ -6002,6 +6014,13 @@ export async function createLiveData(userId, options = {}) {
     ...trackerArgs, name: "Water",
     goalLabel: "Water", goalOccurrenceId: goalOccIds.physicalWater, goalFieldId: fields.totalWater.id,
     sourceFieldId: fields.water.id, agg: "sum", timeFilter: "daily",
+    // Only WATER counts toward the water goal (2026-07-25, per user): the
+    // Liquid Amount field is shared by every Drink, so gate on the Beverage
+    // pick being the Water option (picker-direct occurrence id — no label
+    // matching). A Drink of Coffee logs its ounces but never moves this goal.
+    matchRules: [
+      { id: uid(), left: `$item.fields.${fields.beverage.id}.value`, comparator: "IS", right: boardOptionOccIds.beverage["Water"] },
+    ],
     // Goal-with-target rules: green ArrowUp when hitting target, red
     // ArrowUp when not. The arrow direction is the SAME (up = good for
     // water) — color carries the met/notMet signal. Keyed off the
@@ -6009,8 +6028,8 @@ export async function createLiveData(userId, options = {}) {
     // display field now lives.
     displayRules: {
       "Water": [
-        { when: { target: "met" },    color: "rgb(134,239,172)", icon: "ArrowUp" },
-        { when: { target: "notMet" }, color: "rgb(252,165,165)", icon: "ArrowUp" },
+        { when: { target: "met" },    color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
+        { when: { target: "notMet" }, color: "rgb(var(--signal-neg))", icon: "ArrowUp" },
       ],
     },
   })).save();
@@ -6021,9 +6040,9 @@ export async function createLiveData(userId, options = {}) {
     // Pages-style neutral counter — more is good but less isn't bad.
     displayRules: {
       "Reading Time": [
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(134,239,172)" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
       ],
     },
   })).save();
@@ -6036,9 +6055,9 @@ export async function createLiveData(userId, options = {}) {
     // read has no "good direction" because not reading is neutral.
     displayRules: {
       "Pages Read": [
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(134,239,172)" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
       ],
     },
   })).save();
@@ -6056,8 +6075,8 @@ export async function createLiveData(userId, options = {}) {
     // the Water pattern: green ArrowUp on met, red ArrowUp on notMet.
     displayRules: {
       "Pomodoros": [
-        { when: { target: "met" },    color: "rgb(134,239,172)", icon: "ArrowUp" },
-        { when: { target: "notMet" }, color: "rgb(252,165,165)", icon: "ArrowUp" },
+        { when: { target: "met" },    color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
+        { when: { target: "notMet" }, color: "rgb(var(--signal-neg))", icon: "ArrowUp" },
       ],
     },
   })).save();
@@ -6073,9 +6092,9 @@ export async function createLiveData(userId, options = {}) {
     // until / unless that shape is added.)
     displayRules: {
       "Pomodoros": [
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(134,239,172)" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
       ],
     },
   })).save();
@@ -6089,9 +6108,9 @@ export async function createLiveData(userId, options = {}) {
     // amount spent reads red regardless of sign. 0/null is blue.
     displayRules: {
       "Spent": [
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(252,165,165)", icon: "ArrowDown" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-neg))", icon: "ArrowDown" },
       ],
     },
   })).save();
@@ -6106,9 +6125,9 @@ export async function createLiveData(userId, options = {}) {
     // paired signal.
     displayRules: {
       "Income": [
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(134,239,172)", icon: "ArrowUp" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
       ],
     },
   })).save();
@@ -6124,11 +6143,11 @@ export async function createLiveData(userId, options = {}) {
     sourceFieldId: fields.protein.id, agg: "sum", timeFilter: "daily",
     displayRules: {
       "Protein": [
-        { when: { target: "met" },     color: "rgb(134,239,172)", icon: "ArrowUp" },
-        { when: { target: "notMet" },  color: "rgb(252,165,165)", icon: "ArrowUp" },
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(134,239,172)" },
+        { when: { target: "met" },     color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
+        { when: { target: "notMet" },  color: "rgb(var(--signal-neg))", icon: "ArrowUp" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
       ],
     },
   })).save();
@@ -6138,11 +6157,11 @@ export async function createLiveData(userId, options = {}) {
     sourceFieldId: fields.carbs.id, agg: "sum", timeFilter: "daily",
     displayRules: {
       "Carbs": [
-        { when: { target: "met" },     color: "rgb(134,239,172)", icon: "ArrowUp" },
-        { when: { target: "notMet" },  color: "rgb(252,165,165)", icon: "ArrowUp" },
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(134,239,172)" },
+        { when: { target: "met" },     color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
+        { when: { target: "notMet" },  color: "rgb(var(--signal-neg))", icon: "ArrowUp" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
       ],
     },
   })).save();
@@ -6152,11 +6171,11 @@ export async function createLiveData(userId, options = {}) {
     sourceFieldId: fields.fats.id, agg: "sum", timeFilter: "daily",
     displayRules: {
       "Fats": [
-        { when: { target: "met" },     color: "rgb(134,239,172)", icon: "ArrowUp" },
-        { when: { target: "notMet" },  color: "rgb(252,165,165)", icon: "ArrowUp" },
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(134,239,172)" },
+        { when: { target: "met" },     color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
+        { when: { target: "notMet" },  color: "rgb(var(--signal-neg))", icon: "ArrowUp" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
       ],
     },
   })).save();
@@ -6173,11 +6192,11 @@ export async function createLiveData(userId, options = {}) {
     // decorates writes to the top-level Workout goal.
     displayRules: {
       "Reps": [
-        { when: { target: "met" },     color: "rgb(134,239,172)", icon: "ArrowUp" },
-        { when: { target: "notMet" },  color: "rgb(252,165,165)", icon: "ArrowUp" },
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(134,239,172)" },
+        { when: { target: "met" },     color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
+        { when: { target: "notMet" },  color: "rgb(var(--signal-neg))", icon: "ArrowUp" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
       ],
     },
   })).save();
@@ -6384,10 +6403,10 @@ export async function createLiveData(userId, options = {}) {
     // signal). Same rule applies to Mom's Account below.
     displayRules: {
       "Checking Account": [
-        { when: { value: "negative" }, color: "rgb(252,165,165)", icon: "ArrowDown" },
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(134,239,172)", icon: "ArrowUp" },
+        { when: { value: "negative" }, color: "rgb(var(--signal-neg))", icon: "ArrowDown" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
       ],
     },
   })).save();
@@ -6403,10 +6422,10 @@ export async function createLiveData(userId, options = {}) {
     // Same negative/zero/positive pattern as the main Checking Account.
     displayRules: {
       "Mom's Account": [
-        { when: { value: "negative" }, color: "rgb(252,165,165)", icon: "ArrowDown" },
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(134,239,172)", icon: "ArrowUp" },
+        { when: { value: "negative" }, color: "rgb(var(--signal-neg))", icon: "ArrowDown" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
       ],
     },
   })).save();
@@ -6421,10 +6440,10 @@ export async function createLiveData(userId, options = {}) {
     supportsReplace: true,
     displayRules: {
       "Cash": [
-        { when: { value: "negative" }, color: "rgb(252,165,165)", icon: "ArrowDown" },
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(134,239,172)", icon: "ArrowUp" },
+        { when: { value: "negative" }, color: "rgb(var(--signal-neg))", icon: "ArrowDown" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
       ],
     },
   })).save();
@@ -6441,9 +6460,9 @@ export async function createLiveData(userId, options = {}) {
     // once filled. No target on the display field, so no target-based rules.
     displayRules: {
       "Fitness Stats": [
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(134,239,172)" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
       ],
     },
   })).save();
@@ -6455,9 +6474,9 @@ export async function createLiveData(userId, options = {}) {
     // good but absence isn't bad).
     displayRules: {
       "Reading Stats": [
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(134,239,172)" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
       ],
     },
   })).save();
@@ -6470,7 +6489,7 @@ export async function createLiveData(userId, options = {}) {
     // (no signal direction means avoid implying green/red).
     displayRules: {
       "Productivity": [
-        { when: {}, color: "rgb(96,165,250)" },
+        { when: {}, color: "rgb(var(--signal-zero))" },
       ],
     },
   })).save();
@@ -6490,9 +6509,9 @@ export async function createLiveData(userId, options = {}) {
     // Pages-style neutral counter (no target on the weekly field).
     displayRules: {
       "Productivity": [
-        { when: { value: "null" },     color: "rgb(96,165,250)" },
-        { when: { value: "zero" },     color: "rgb(96,165,250)" },
-        { when: { value: "positive" }, color: "rgb(134,239,172)" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
       ],
     },
   })).save();
@@ -7279,10 +7298,10 @@ export async function createLiveData(userId, options = {}) {
         // semantics from the existing rule pool.
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$displayRules", expr: `json:${JSON.stringify({
           "Net Worth": [
-            { when: { value: "negative" }, color: "rgb(252,165,165)", icon: "ArrowDown" },
-            { when: { value: "null" },     color: "rgb(96,165,250)" },
-            { when: { value: "zero" },     color: "rgb(96,165,250)" },
-            { when: { value: "positive" }, color: "rgb(134,239,172)", icon: "ArrowUp" },
+            { when: { value: "negative" }, color: "rgb(var(--signal-neg))", icon: "ArrowDown" },
+            { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+            { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+            { when: { value: "positive" }, color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
           ],
         })}` } },
         { id: uid(), type: "action", config: {
@@ -7371,9 +7390,9 @@ export async function createLiveData(userId, options = {}) {
         // neutral blue at 0/null.
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$displayRules", expr: `json:${JSON.stringify({
           "Total Subscriptions": [
-            { when: { value: "null" },     color: "rgb(96,165,250)" },
-            { when: { value: "zero" },     color: "rgb(96,165,250)" },
-            { when: { value: "positive" }, color: "rgb(252,165,165)" },
+            { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+            { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+            { when: { value: "positive" }, color: "rgb(var(--signal-neg))" },
           ],
         })}` } },
         { id: uid(), type: "action", config: {
@@ -7434,9 +7453,9 @@ export async function createLiveData(userId, options = {}) {
         // occurrence label since that's where the amount display lives.
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$displayRules", expr: `json:${JSON.stringify({
           "Monthly Bills": [
-            { when: { value: "null" },     color: "rgb(96,165,250)" },
-            { when: { value: "zero" },     color: "rgb(96,165,250)" },
-            { when: { value: "positive" }, color: "rgb(252,165,165)" },
+            { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+            { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+            { when: { value: "positive" }, color: "rgb(var(--signal-neg))" },
           ],
         })}` } },
         { id: uid(), type: "action", config: {
@@ -8197,8 +8216,8 @@ export async function createLiveData(userId, options = {}) {
             { when: { value: { comp: "GTE", right: 100 } },  color: "rgb(255,215,0)",  icon: "Star",   suffix: " 🌟 LEGEND" },
             { when: { value: { comp: "GTE", right: 30 } },   color: "rgb(251,191,36)", icon: "Star",   suffix: " 🌟 30+ days!" },
             { when: { value: { comp: "GTE", right: 14 } },   color: "rgb(253,186,116)", icon: "Star",   suffix: " 🔥 2 weeks!" },
-            { when: { value: { comp: "GTE", right: 7 } },    color: "rgb(252,165,165)", icon: "Star",  suffix: " 🔥 1 week!" },
-            { when: { value: { comp: "GTE", right: 3 } },    color: "rgb(134,239,172)" },
+            { when: { value: { comp: "GTE", right: 7 } },    color: "rgb(var(--signal-neg))", icon: "Star",  suffix: " 🔥 1 week!" },
+            { when: { value: { comp: "GTE", right: 3 } },    color: "rgb(var(--signal-pos))" },
             { when: { value: { comp: "GTE", right: 1 } },    color: "rgb(186,230,253)" },
           ],
         })}` } },

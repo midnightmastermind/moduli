@@ -160,12 +160,12 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
       {/* Border lives on this wrapper so the randomize dice can sit INSIDE it
           (a divided trailing segment) instead of as a separate sibling button. */}
       <div className={`flex items-stretch w-full rounded border overflow-hidden ${compact ? "h-6" : "h-7"}`}
-        style={{ borderColor: fieldName ? "rgba(6,182,212,0.25)" : "var(--input-border, hsl(var(--border)))" }}>
+        style={{ borderColor: fieldName ? "rgba(var(--occ-pill) / 0.25)" : "var(--input-border, hsl(var(--border)))" }}>
         <Popover open={isOpen} onOpenChange={setIsOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" role="combobox" disabled={disabled}
               className={`w-full justify-between font-normal border-0 rounded-none ${compact ? "h-6 text-xs" : "h-7 text-sm"}`}
-              style={fieldName ? { background: "rgba(6,182,212,0.08)", color: "rgb(180,225,245)" } : undefined}>
+              style={fieldName ? { background: "rgba(var(--occ-pill) / 0.08)", color: "var(--occ-pill-text)" } : undefined}>
               {/* occurrence field-pill: always show the field name so it reads
                   as a labelled pill (fixes "occurrence selects show no field
                   name / no pill"). */}
@@ -382,22 +382,22 @@ function valueSignColor(value) {
 // backgrounds (used by the compact display variant).
 function valueSignPillTint(value) {
   if (value == null || value === "" || value === 0) {
-    return { bg: "rgba(96,165,250,0.18)", border: "rgba(96,165,250,0.35)" };
+    return { bg: "rgba(var(--signal-zero) / 0.18)", border: "rgba(var(--signal-zero) / 0.35)" };
   }
   if (typeof value === "number") {
     return value < 0
-      ? { bg: "rgba(248,113,113,0.2)", border: "rgba(248,113,113,0.35)" }
-      : { bg: "rgba(34,197,94,0.2)",  border: "rgba(34,197,94,0.35)" };
+      ? { bg: "rgba(var(--signal-neg) / 0.2)", border: "rgba(var(--signal-neg) / 0.35)" }
+      : { bg: "rgba(var(--signal-pos) / 0.2)",  border: "rgba(var(--signal-pos) / 0.35)" };
   }
   if (typeof value === "boolean") {
     return value
-      ? { bg: "rgba(34,197,94,0.2)",  border: "rgba(34,197,94,0.35)" }
-      : { bg: "rgba(96,165,250,0.18)", border: "rgba(96,165,250,0.35)" };
+      ? { bg: "rgba(var(--signal-pos) / 0.2)",  border: "rgba(var(--signal-pos) / 0.35)" }
+      : { bg: "rgba(var(--signal-zero) / 0.18)", border: "rgba(var(--signal-zero) / 0.35)" };
   }
   if (Array.isArray(value)) {
     return value.length > 0
-      ? { bg: "rgba(34,197,94,0.2)",  border: "rgba(34,197,94,0.35)" }
-      : { bg: "rgba(96,165,250,0.18)", border: "rgba(96,165,250,0.35)" };
+      ? { bg: "rgba(var(--signal-pos) / 0.2)",  border: "rgba(var(--signal-pos) / 0.35)" }
+      : { bg: "rgba(var(--signal-zero) / 0.18)", border: "rgba(var(--signal-zero) / 0.35)" };
   }
   return { bg: "rgba(34,197,94,0.2)", border: "rgba(34,197,94,0.35)" };
 }
@@ -1021,7 +1021,7 @@ function Field({
           }}
           className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full border transition-all
             ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
-          style={{ background: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(180,225,245)" }}
+          style={{ background: "rgba(var(--occ-pill) / 0.1)", borderColor: "rgba(var(--occ-pill) / 0.25)", color: "var(--occ-pill-text)" }}
           title={`${name}: ${localValue || "no image"} — click to set`}
         >
           {src
@@ -1253,13 +1253,13 @@ function Field({
       return (
         // Border on the wrapper so the randomize dice sits INSIDE the pill.
         <div className="field-input inline-flex items-stretch rounded-full border overflow-hidden"
-          style={{ background: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)" }}>
+          style={{ background: "rgba(var(--occ-pill) / 0.1)", borderColor: "rgba(var(--occ-pill) / 0.25)" }}>
         <Popover>
           <PopoverTrigger asChild>
             <button type="button" disabled={disabled}
               className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] transition-all
                 ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
-              style={{ background: "transparent", border: "none", color: "rgb(180,225,245)" }}
+              style={{ background: "transparent", border: "none", color: "var(--occ-pill-text)" }}
               title={`${name}: ${currentLabel}`}
             >
               <Link2 style={{ width: 10, height: 10, opacity: 0.6 }} />
@@ -1281,8 +1281,8 @@ function Field({
                       style={{
                         width: "100%", display: "flex", alignItems: "center", padding: "4px 8px",
                         borderRadius: 4, fontSize: 11, fontFamily: "var(--font-mono)",
-                        background: localValue === o.value ? "rgba(6,182,212,0.15)" : "transparent",
-                        color: localValue === o.value ? "rgb(180,225,245)" : "var(--text-muted)",
+                        background: localValue === o.value ? "rgba(var(--occ-pill) / 0.15)" : "transparent",
+                        color: localValue === o.value ? "var(--occ-pill-text)" : "var(--text-muted)",
                         border: "none", cursor: "pointer", textAlign: "left",
                       }}
                     >
@@ -1352,7 +1352,7 @@ function Field({
               }}
               className={`inline-flex items-center gap-2 px-2 py-1 text-xs rounded border transition-all self-start
                 ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
-              style={{ background: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(180,225,245)" }}
+              style={{ background: "rgba(var(--occ-pill) / 0.1)", borderColor: "rgba(var(--occ-pill) / 0.25)", color: "var(--occ-pill-text)" }}
               title={`${name}: ${localValue || "no image"} — click to set`}
             >
               {src
@@ -1618,14 +1618,14 @@ function Field({
           {showLabel && <span style={inputLabelStyle}>{name}</span>}
           {/* Border on this row so the randomize dice sits INSIDE the pill. */}
           <div className="inline-flex items-stretch self-start overflow-hidden"
-            style={{ background: "rgba(6,182,212,0.08)", border: "1px solid rgba(6,182,212,0.25)", borderRadius: 5 }}>
+            style={{ background: "rgba(var(--occ-pill) / 0.08)", border: "1px solid rgba(var(--occ-pill) / 0.25)", borderRadius: 5 }}>
           <Popover open={selectOpen} onOpenChange={setSelectOpen}>
             <PopoverTrigger asChild>
               <button type="button" disabled={disabled}
                 style={{
                   minHeight: 28, fontSize: 12, fontFamily: "var(--font-mono)",
                   background: "transparent", border: "none",
-                  color: "rgb(180,225,245)", padding: "4px 8px", outline: "none",
+                  color: "var(--occ-pill-text)", padding: "4px 8px", outline: "none",
                   display: "flex", alignItems: "center", gap: 6, cursor: disabled ? "not-allowed" : "pointer",
                   textAlign: "left",
                 }}>
@@ -1648,7 +1648,7 @@ function Field({
                         style={{
                           width: "100%", display: "flex", alignItems: "center", padding: "5px 6px",
                           borderRadius: 4, border: "none", cursor: "pointer", textAlign: "left",
-                          background: localValue === o.value ? "rgba(6,182,212,0.15)" : "transparent",
+                          background: localValue === o.value ? "rgba(var(--occ-pill) / 0.15)" : "transparent",
                         }}>
                         <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps} />
                       </button>
@@ -1862,7 +1862,7 @@ function Field({
     if (type === "occurrence") {
       return (
         <div className="field-display field-display-compact" style={{ ...pillBase,
-          background: "rgba(6,182,212,0.1)", borderColor: "rgba(6,182,212,0.25)", color: "rgb(180,225,245)",
+          background: "rgba(var(--occ-pill) / 0.1)", borderColor: "rgba(var(--occ-pill) / 0.25)", color: "var(--occ-pill-text)",
         }}>
           <Link2 style={{ width: 10, height: 10, opacity: 0.6 }} />
           {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}

@@ -1093,18 +1093,26 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
 
   // Open pages list for the local section — grouped by parent folder for B2
   const localTreeData = useMemo(() => {
-    if (!isPagePanel) return { folderGroups: [], rootPages: [] };
-    const pageOccs = (panelOccurrence.occurrences || [])
+    if (!isPagePanel) return { folderGroups: [], rootPages: [], folderNodes: [] };
+    const pinned = (panelOccurrence.occurrences || [])
       .map(id => occurrencesById?.[id])
-      .filter(occ => {
-        const mod = occ ? modulesById?.[occ.moduleId] : null;
-        // Exclude folder-page NAV occurrences (kind:"folder" role:"page") — they
-        // are the "open this folder as a page" artifact, not a content page. Left
-        // in, a pinned folder-page (e.g. Interfaces) grouped under its own folder
-        // rendered as an empty duplicate row ("Interfaces inside Interfaces",
-        // 2026-07-18). FolderNode.pageOccs already applies the same exclusion.
-        return occ && mod?.role === "page" && mod?.kind !== "folder";
-      });
+      .filter(occ => occ && modulesById?.[occ.moduleId]?.role === "page");
+    // A pinned FOLDER page (kind:"folder") is the "open this folder" artifact,
+    // not a content page — it can't be a tree row itself. But when it's the
+    // ONLY thing a panel holds (the Boards panel: one folder page fronting 34
+    // board pages nested in 7 sub-folders), excluding it left the sidebar
+    // reading "No pages" (2026-07-25). Render the FOLDER it points at as a real
+    // FolderNode instead, so its whole subtree is browsable from the panel.
+    const folderNodes = [];
+    const pageOccs = [];
+    for (const occ of pinned) {
+      if (modulesById[occ.moduleId]?.kind === "folder") {
+        const folder = occ.parentId ? foldersById?.[occ.parentId] : null;
+        if (folder) folderNodes.push(folder);
+      } else {
+        pageOccs.push(occ);
+      }
+    }
     const folderMap = new Map();
     const rootPages = [];
     for (const occ of pageOccs) {
@@ -1116,7 +1124,14 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
         rootPages.push(occ.id);
       }
     }
-    return { folderGroups: [...folderMap.values()], rootPages };
+    // A folder already shown as a full FolderNode must not ALSO render as a
+    // flat pinned-pages group — that would list its pages twice.
+    const nodeIds = new Set(folderNodes.map(f => f.id));
+    return {
+      folderGroups: [...folderMap.values()].filter(g => !nodeIds.has(g.folder.id)),
+      rootPages,
+      folderNodes,
+    };
   }, [isPagePanel, panelOccurrence?.occurrences, occurrencesById, modulesById, foldersById]);
 
   // Touch drag to open/close sidebar
@@ -1195,7 +1210,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                  panel sidebar reads as one expandable section instead of N
                  flat top-level folder headers. Chevron + pill mirrors
                  LocalFolderGroup/FolderNode chrome. */
-              (localTreeData.rootPages.length === 0 && localTreeData.folderGroups.length === 0) ? (
+              (localTreeData.rootPages.length === 0 && localTreeData.folderGroups.length === 0 && localTreeData.folderNodes.length === 0) ? (
                 <div style={{ fontSize: 11, color: "var(--text-faint)", padding: "0 8px" }}>No pages</div>
               ) : (
                 <div>
@@ -1214,6 +1229,24 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                   </div>
                   {localRootOpen && (
                   <div style={{ marginLeft: 12 }}>
+                  {/* Pinned FOLDER pages render their real folder subtree, so a
+                      panel fronted by a folder page (Boards) is fully browsable. */}
+                  {localTreeData.folderNodes.map(folder => (
+                    <FolderNode
+                      key={folder.id}
+                      folder={folder}
+                      depth={0}
+                      foldersById={foldersById}
+                      occurrencesById={occurrencesById}
+                      modulesById={modulesById}
+                      childrenByParentId={childrenByParentId}
+                      activeOccurrenceId={view?.activeOccurrenceId}
+                      onSelect={handleSelect}
+                      onScrollTo={handleScrollTo}
+                      onOpenPage={handleOpenPage}
+                      onOpenPageAndClose={handleOpenPage}
+                    />
+                  ))}
                   {/* Folder groups — chevron + folder pill, pages indented underneath (same as FolderNode) */}
                   {localTreeData.folderGroups.map(({ folder, pages }) => (
                     <LocalFolderGroup
