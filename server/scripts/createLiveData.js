@@ -1,6 +1,6 @@
 // scripts/createLiveData.js
 // ============================================================
-// Creates (or recreates) the "Live Grid" for a user. Intended as the
+// Creates (or recreates) the "Poms" grid for a user. Intended as the
 // production-quality grid that replaces createTestGrid's fixture data.
 //
 // Runnable standalone via:
@@ -8,8 +8,10 @@
 //   node --env-file=.env scripts/createLiveData.js                 # default user (josh)
 //   node --env-file=.env scripts/createLiveData.js test@moduli.test
 //
-// Standalone runs drop the existing "Live Grid" + its scoped data first so
-// re-running is idempotent. Other grids on the user are left UNTOUCHED.
+// Standalone runs drop the existing "Poms" grid + its scoped data first so
+// re-running is idempotent. Other grids on the user are left UNTOUCHED —
+// in particular "test grid" (the frozen pre-2026-07-25 live grid) must
+// NEVER be dropped, swept, cleared, or exported by this script.
 // The exported `createLiveData(userId, options)` function itself is pure-create
 // — callers that have already wiped user data don't need a second drop.
 //
@@ -68,13 +70,17 @@ const __liveDataDirname = dirname(__filename);
 const ROOT_DIR_MD = join(__liveDataDirname, "../../docs/");
 
 const DEFAULT_USER_EMAIL = "josh@jpoms.com";
-const DEFAULT_GRID_NAME = "Live Grid";
+const DEFAULT_GRID_NAME = "Poms";
 const uid = () => nanoid(12);
 
-// Drop the existing "Live Grid" for this userId and all its gridId-scoped child docs.
-// Scoping is DUAL — both userId AND the literal grid name "Live Grid" — so this
+// Grids this script must never touch, no matter the flags. "test grid" is the
+// frozen pre-2026-07-25 live grid (renamed, kept as-is per user).
+const PRESERVED_GRID_NAMES = new Set(["test grid"]);
+
+// Drop the existing "Poms" grid for this userId and all its gridId-scoped child docs.
+// Scoping is DUAL — both userId AND the literal grid name "Poms" — so this
 // can NEVER delete a different user's data or a grid with a different name
-// (e.g. "Test Grid" is completely safe).
+// (e.g. "test grid" is completely safe).
 export async function dropExistingLiveGrid(userId, gridName = DEFAULT_GRID_NAME) {
   const existing = await Grid.findOne({ userId, name: gridName });
   if (!existing) return false;
@@ -100,10 +106,12 @@ export async function dropExistingLiveGrid(userId, gridName = DEFAULT_GRID_NAME)
 // should only be 2", 2026-07-04 + 2026-07-07). Rule: a grid with no panel
 // occurrences that is NOT 1×1 is a dead skeleton → delete it + its scoped
 // docs. Deliberately kept: the user's empty 1×1 scratch grid (0 panels but
-// 1×1), the Live Grid (has panels), and any real grid with content.
+// 1×1), the Poms grid (has panels), any real grid with content, and every
+// PRESERVED_GRID_NAMES grid unconditionally.
 export async function sweepStaleGrids(userId) {
   const grids = await Grid.find({ userId }).lean();
   const stale = grids.filter(g =>
+    !PRESERVED_GRID_NAMES.has(g.name) &&
     (g.occurrences || []).length === 0 && !(g.rows === 1 && g.cols === 1)
   );
   for (const g of stale) {
@@ -123,25 +131,36 @@ export async function sweepStaleGrids(userId) {
   return stale.map(g => ({ id: g._id.toString(), name: g.name || "(unnamed)", rows: g.rows, cols: g.cols }));
 }
 
-// `--clear` flag: nuke EVERY grid + every grid-scoped doc for the user
-// before reseeding. The single-grid `dropExistingLiveGrid` above only
-// drops the one named "Live Grid", so prior runs with different grid
+// `--clear` flag: nuke every NON-PRESERVED grid + its grid-scoped docs for
+// the user before reseeding. The single-grid `dropExistingLiveGrid` above
+// only drops the one named "Poms", so prior runs with different grid
 // names (or partial reseeds, or test-grid leftovers) accumulate over
 // time. Accumulated stale data is the #1 reason `full_state` queries
 // slow down — Atlas has to load + filter every Module/Occurrence row
 // the user owns, even when most belong to dead grids. The User doc
 // itself is preserved so auth + the user account stay intact.
+// PRESERVED_GRID_NAMES grids ("test grid") and all their scoped docs
+// survive --clear: deletes are scoped to the doomed gridIds only.
 export async function clearAllUserGrids(userId) {
   // Collect every gridId for this user FIRST so we can wipe per-grid
   // scoped collections by id, not by userId — keeps deletes precise.
-  const grids = await Grid.find({ userId }).select({ _id: 1, name: 1 }).lean();
+  const allGrids = await Grid.find({ userId }).select({ _id: 1, name: 1 }).lean();
+  const grids = allGrids.filter(g => !PRESERVED_GRID_NAMES.has(g.name));
+  const preservedIds = allGrids
+    .filter(g => PRESERVED_GRID_NAMES.has(g.name))
+    .map(g => g._id.toString());
   const gridIds = grids.map(g => g._id.toString());
-  // Also include grid-scoped docs that may carry userId but a stale/null
-  // gridId (from earlier failed runs). Use both filters in OR so nothing
-  // owned by this user survives.
-  const filter = gridIds.length
-    ? { $or: [{ userId }, { gridId: { $in: gridIds } }] }
-    : { userId };
+  // Grid-scoped docs may carry userId but a stale/null gridId (from earlier
+  // failed runs) — include those via the userId arm, but always exclude the
+  // preserved grids' docs.
+  const filter = {
+    $and: [
+      gridIds.length
+        ? { $or: [{ userId }, { gridId: { $in: gridIds } }] }
+        : { userId },
+      ...(preservedIds.length ? [{ gridId: { $nin: preservedIds } }] : []),
+    ],
+  };
   const [occ, mod, fld, man, vw, fol, op, txn] = await Promise.all([
     Occurrence.deleteMany(filter),
     Module.deleteMany(filter),
@@ -152,7 +171,7 @@ export async function clearAllUserGrids(userId) {
     Operation.deleteMany(filter),
     Transaction.deleteMany(filter),
   ]);
-  const gridDel = await Grid.deleteMany({ userId });
+  const gridDel = gridIds.length ? await Grid.deleteMany({ _id: { $in: grids.map(g => g._id) } }) : { deletedCount: 0 };
   return {
     grids: gridDel.deletedCount,
     gridNames: grids.map(g => g.name || "(unnamed)"),
@@ -183,11 +202,17 @@ const SEED_COLLECTIONS_FOR_EXPORT = [
   ["operations",  Operation],
 ];
 
-export async function exportLiveSeedData(userId, outDir) {
+export async function exportLiveSeedData(userId, outDir, gridId = null) {
   fs.mkdirSync(outDir, { recursive: true });
   const stats = {};
   for (const [name, model] of SEED_COLLECTIONS_FOR_EXPORT) {
-    const docs = await model.find({ userId }).lean();
+    // Scope to the seeded grid when known — the export must NEVER sweep in
+    // other grids' data (the preserved "test grid" would otherwise ride
+    // along and get restored/cloned by reloadLiveData).
+    const filter = gridId
+      ? (name === "grids" ? { userId, _id: gridId } : { userId, gridId })
+      : { userId };
+    const docs = await model.find(filter).lean();
     const cleaned = docs.map(d => {
       const o = { ...d };
       if (o._id) o._id = o._id.toString();
@@ -9800,7 +9825,7 @@ async function main() {
     const totalContOccs  = tkContOccs + tdContOccs + glContOccs + acContOccs + blContOccs;
     const notebookCount  = Object.keys(result.notebookDocOccIds || {}).length;
     console.log("=".repeat(50));
-    console.log("Live Grid created!");
+    console.log("Poms grid created!");
     console.log(`   Grid ID:        ${result.gridId}`);
     console.log(`   Grid Name:      ${result.gridName}`);
     console.log(`   Fields:         ${fieldCount}`);
@@ -9840,7 +9865,7 @@ async function main() {
       const seedDir = resolve(__dirname, "../seed");
       console.log(`\n📦 Exporting seed → ${seedDir}/`);
       const t0 = Date.now();
-      const stats = await exportLiveSeedData(userId, seedDir);
+      const stats = await exportLiveSeedData(userId, seedDir, result.gridId);
       for (const [name, count] of Object.entries(stats)) {
         console.log(`   ${name.padEnd(12)} ${count} docs`);
       }
