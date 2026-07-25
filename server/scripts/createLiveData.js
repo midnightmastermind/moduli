@@ -5033,6 +5033,25 @@ export async function createLiveData(userId, options = {}) {
   await Promise.all(BOARD_GROUPS.map(([key, name], i) =>
     new Folder({ id: boardGroupFolderIds[key], userId, gridId, name, parentId: boardsFolderId, folderType: "normal", sortOrder: i, isExpanded: false }).save()));
 
+  // Folder-page occurrences for Boards + each life-area sub-folder — a bare
+  // Folder record shows in the TREE but is invisible on a folder-page card
+  // grid (PageFolder lists folder-page occurrences, 2026-06-09 lesson). With
+  // these, the Boards page drills: Boards → Food → Meals.
+  for (const [folderId, label] of [
+    [boardsFolderId, "Boards"],
+    ...BOARD_GROUPS.map(([key, name]) => [boardGroupFolderIds[key], name]),
+  ]) {
+    const modId = uid();
+    await new Module({ id: modId, userId, gridId, role: "page", kind: "folder", label }).save();
+    await mkOcc({
+      id: uid(), moduleId: modId,
+      parentId: folderId, sortOrder: -1,
+      occurrences: [],
+      iteration: { mode: "persistent" }, fields: {},
+      filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
+    });
+  }
+
   const personOccByLabel = Object.fromEntries(peopleSeed.map(p => [p.label, p.occId]));
   const opt = (label, extra = null) => ({ label, ...(extra || {}) });
 
@@ -5314,6 +5333,24 @@ export async function createLiveData(userId, options = {}) {
     await Field.findOneAndUpdate(
       { id: fieldId },
       { $set: { "meta.optionsSource.addNew": { targets: tags.map(t => boardContOccIds[t]) } } },
+    );
+  }
+  // Entry fields at add time (addNew.fieldIds): a new option minted from
+  // these dropdowns immediately asks for its recipe fields through the
+  // user-input modal (a new Meal asks its Ingredients, a new Savings Goal its
+  // Amount, …) and binds them on the minted module.
+  const addNewEntryFieldPatches = [
+    [boardDropdownFields.mealPick.id,        [boardDropdownFields.ingredient.id]],
+    [boardDropdownFields.workoutProgram.id,  [boardDropdownFields.movement.id]],
+    [boardDropdownFields.eventPick.id,       [peopleAssignedFieldId, boardDropdownFields.place.id]],
+    [boardDropdownFields.giftIdea.id,        [peopleAssignedFieldId]],
+    [boardDropdownFields.savingsGoalPick.id, [fields.amount.id]],
+    [boardDropdownFields.creativeWork.id,    [boardDropdownFields.medium.id]],
+  ];
+  for (const [fieldId, fieldIds] of addNewEntryFieldPatches) {
+    await Field.findOneAndUpdate(
+      { id: fieldId },
+      { $set: { "meta.optionsSource.addNew.fieldIds": fieldIds } },
     );
   }
   // Reused fields repoint their addNew at board containers: new people land on
