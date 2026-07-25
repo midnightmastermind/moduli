@@ -49,17 +49,35 @@ Duplicate instance labels across dimensions (Meditate, Reflect, Write, Review) a
 | Board page | Tag value | Seed options | Dropdown field (type `occurrence`) | Used by |
 |---|---|---|---|---|
 | Meals | `meal` | Scrambled Eggs, Greek Salad with Chicken, Oatmeal with Berries, Protein Shake, Chicken and Rice, Salmon and Vegetables | **Meal** | Eat |
+| Ingredients | `ingredient` | Chicken Breast, Eggs, Rice, Spinach, Greek Yogurt, Oats, Salmon, Olive Oil, Sweet Potatoes, Black Beans | **Ingredient** (multiSelect) | Eat (recipe components) |
+| Grocery List | `grocery` | Milk, Bananas, Coffee Beans, Paper Towels, Chicken Thighs, Frozen Berries | **Grocery Item** (multiSelect) | Spend, Track |
 | Beverages | `beverage` | Water, Coffee, Green Tea, Electrolyte Drink, Smoothie | **Beverage** | Drink |
-| Movements | `movement` | the 30 existing exercises (Bench Press … Burpees) + Hamstring Stretch, Hip Flexor Stretch, Shoulder Stretch | **Movement** | Exercise, Stretch, Lift, Run, Walk |
+| Supplements | `supplement` | Creatine, Vitamin D, Fish Oil, Magnesium, Protein Powder, Multivitamin | **Supplement** (multiSelect) | Recover |
+| Movements | `movement` | the 30 existing exercises (Bench Press … Burpees) + Hamstring Stretch, Hip Flexor Stretch, Shoulder Stretch | **Movement** | Exercise, Stretch, Lift |
+| Routes | `route` | Neighborhood Loop, River Trail, Park Circuit, Hill Repeats, Forest Path | **Route** | Walk, Run, Nature |
 | Readings | `reading` | reuse Library book entries + Meditations (Marcus Aurelius), Tao Te Ching, Book of Psalms | **Reading** | Read, Read Scripture, Read Philosophy |
 | Media | `media` | The Daily (podcast), Planet Earth II, Lex Fridman Podcast, Veritasium, Kurzgesagt | **Media** | Watch, Listen |
 | Practices | `practice` | Breathwork, Body Scan, Loving-Kindness, Gratitude List, Silent Prayer, Walking Meditation | **Practice** | Meditate ×2, Pray, Worship, Gratitude, Mindfulness, Check In |
+| Prompts | `prompt` | "What went well today?", "What am I avoiding?", "What would make tomorrow great?", "Describe a place from memory", "Write a letter you will never send" | **Prompt** | Journal, Reflect ×2, Journal Creatively, Brainstorm |
+| Leisure | `leisure` | Chess, Video Games, Hot Bath, Puzzle, Movie Night, Hammock Time | **Leisure Activity** | Relax, Decompress, Celebrate |
 | Projects | `project` | Moduli v1 Launch, Portfolio Site, Home Lab, Garden Build | **Project Pick** (see note) | Plan, Prioritize, Focus, Build, Code, Design, Write, Review |
-| Areas | `area` | Desk, Kitchen, Bedroom, Bathroom, Garage, Yard | **Area** | Clean, Declutter, Organize, Vacuum, Repair, Maintain, Garden |
-| Mediums | `medium` | Pencil, Watercolor, Acrylic, Guitar, Piano, Camera, Clay | **Medium** | Draw, Paint, Sketch, Compose, Craft, Photograph, Film, Sing, Dance |
-| Topics | `topic` | Spanish, Algorithms, Music Theory, World History, Machine Learning | **Topic** | Study, Practice, Memorize, Research, Explore, Analyze, Teach |
+| Skills | `skill` | Guitar, Typing, Public Speaking, Spanish Conversation, Chess Openings, Sketching | **Skill** | Practice, Teach, Mentor, Prototype |
+| Topics | `topic` | Spanish, Algorithms, Music Theory, World History, Machine Learning | **Topic** | Study, Memorize, Research, Explore, Analyze, Teach |
+| Wish List | `wishlist` | Standing Desk, Espresso Machine, Noise-Canceling Headphones, Weighted Blanket, New Running Shoes | **Wish List Item** | Save, Spend, Budget |
+| Charities | `charity` | Local Food Bank, Red Cross, Habitat for Humanity, Animal Shelter, Library Fund | **Charity** | Donate, Volunteer, Serve |
+| Places | `place` | Coffee Shop, City Park, Gym, Mom's House, Downtown Library, Farmers Market | **Place** | Meet, Date, Visit, Host, Volunteer |
+| Areas | `area` | Desk, Kitchen, Bedroom, Bathroom, Garage, Yard | **Area** | Clean, Declutter, Organize, Vacuum |
+| Equipment | `equipment` | Car, Bike, Lawn Mower, Laptop, Coffee Machine, HVAC Filter | **Equipment** (see note) | Repair, Maintain |
+| Plants | `plant` | Monstera, Tomatoes, Basil, Snake Plant, Rosemary | **Plant** | Garden |
+| Mediums | `medium` | Pencil, Watercolor, Acrylic, Guitar, Piano, Camera, Clay | **Medium** | Draw, Paint, Sketch, Craft, Photograph, Film, Edit, Invent |
+| Songs | `song` | Hallelujah, Blackbird, Clair de Lune, Take Five, Redbone | **Song** | Sing, Dance, Compose |
+| People | `person` | the 10 existing person occurrences (profile fields + photos intact) | **People** (existing `peopleAssigned` field, multiSelect) | Text, Call, Chat, Meet, Date, Visit, Host, Collaborate, Mentor, Volunteer, Email, Network |
 
-Reused existing occurrence fields (do NOT mint new ones): **People** (`peopleAssigned`) for Text/Call/Chat/Meet/Date/Visit/Host/Collaborate/Mentor/Volunteer/Email/Network; **Account** (`accountRef`) for Budget/Save/Earn/Invest/Spend/Pay/Track/Reconcile/Donate/Review(Financial).
+> **People is a board (per user):** the 10 person occurrences move into a People board page in the Boards folder (they keep their profile fields, photos, and `library:"person"` tag so nothing else breaks). The standalone People page (table + profile card) is REMOVED — People renders as a plain board list. The `peopleAssigned` field keeps its existing find-mode optionsSource; only its `addNew.parentOccurrenceId` is repointed at the People board container.
+> **Equipment field-name note:** grep existing field names before minting — if "Equipment" (or any other new name) collides with an existing field, suffix the board noun ("Equipment Item") rather than renaming the existing field. The zero-duplicates verification in Task 3 Step 4 is the net.
+> Grocery List and Wish List double as standalone checklist boards (that is their main use); their dropdown fields exist so financial/errand actions can reference specific items.
+
+Reused existing occurrence fields (do NOT mint new ones): **People** (`peopleAssigned`, now sourcing from the People board) for Text/Call/Chat/Meet/Date/Visit/Host/Collaborate/Mentor/Volunteer/Email/Network; **Account** (`accountRef`) for Budget/Save/Earn/Invest/Spend/Pay/Track/Reconcile/Donate/Review(Financial). Every other dropdown in the table is a NEW field.
 
 > **Project Pick note:** the seed already has a `project` field (occurrence-ref scoped to `Project:` pages, from the kanban). Boards want a board-scoped picker instead. At implementation, if the existing `project` field's optionsSource can be repointed at the Projects BOARD without breaking the kanban Status Router, reuse it and keep the name "Project"; otherwise mint "Project Pick" — check name uniqueness either way.
 
@@ -69,33 +87,51 @@ Scoping mechanism: one new hidden select field **Board Category** (`boardCategor
 
 | Action(s) | Extra input fields |
 |---|---|
-| Eat | Meal, Calories?, Protein, Carbs, Fats (existing macro input fields) |
+| Eat | Meal, Ingredient (multi), Calories, Protein, Carbs, Fats (existing macro input fields) |
 | Drink | Beverage, Water (oz) |
-| Sleep, Nap, Recover, Relax, Decompress, Focus | Duration |
+| Sleep, Nap, Focus | Duration |
+| Recover | Supplement (multi), Duration |
+| Relax, Decompress, Celebrate | Leisure Activity, Duration |
 | Exercise, Lift | Movement, Set 1–3, Weight 1–3 |
 | Stretch | Movement, Duration |
-| Walk, Run | Steps, Duration |
-| Hygiene, Groom, Laundry, Dishes, Recycle, Celebrate, Forgive | (completed only) |
-| Journal, Check In, Express, Vent | Mood (emotion wheel field) |
-| Reflect (both), Meditate (both), Pray, Worship, Gratitude, Mindfulness | Practice, Duration |
+| Walk, Run | Route, Steps, Duration |
+| Hygiene, Groom, Laundry, Dishes, Recycle, Forgive | (completed only) |
+| Journal | Prompt, Mood (emotion wheel field) |
+| Check In, Express, Vent | Mood |
+| Reflect (both) | Prompt, Duration |
+| Meditate (both), Pray, Worship, Gratitude, Mindfulness | Practice, Duration |
 | Read, Read Scripture, Read Philosophy | Reading, Pages, Duration |
-| Study, Memorize, Research, Explore, Analyze, Teach, Practice (Intellectual) | Topic, Duration |
+| Study, Memorize, Research, Explore, Analyze | Topic, Duration |
+| Teach | Topic, Skill, Duration |
+| Practice (Intellectual) | Skill, Duration |
 | Watch, Listen | Media, Duration |
-| Text, Call, Chat | People |
-| Meet, Date, Visit, Host, Collaborate, Mentor, Volunteer | People, Duration |
+| Text, Call, Chat, Email, Network | People |
+| Meet, Date, Visit, Host | People, Place, Duration |
+| Collaborate | People, Duration |
+| Mentor | People, Skill, Duration |
+| Volunteer | People, Place, Charity, Duration |
 | Plan, Prioritize, Build, Code, Design, Write (Occ.), Review (Occ.) | Project, Duration |
-| Email, Network | People |
-| Budget, Save, Earn, Invest, Spend, Pay, Track, Reconcile, Donate, Review (Fin.) | Account, Amount (with flow) |
-| Clean, Declutter, Organize, Vacuum, Repair, Maintain, Garden | Area, Duration |
-| Nature, Serve | Duration |
-| Draw, Paint, Sketch, Compose, Sing, Dance, Craft, Photograph, Film, Edit, Brainstorm, Prototype, Invent, Journal Creatively, Write (Creative) | Medium, Duration |
+| Budget | Account, Wish List Item, Amount (with flow) |
+| Save, Spend | Account, Wish List Item, Amount (with flow) |
+| Earn, Invest, Pay, Reconcile, Review (Fin.) | Account, Amount (with flow) |
+| Track | Account, Grocery Item (multi), Amount (with flow) |
+| Donate | Account, Charity, Amount (with flow) |
+| Clean, Declutter, Organize, Vacuum | Area, Duration |
+| Repair, Maintain | Equipment, Duration |
+| Garden | Plant, Duration |
+| Nature | Route, Duration |
+| Serve | Charity, Duration |
+| Sing, Dance, Compose | Song, Medium, Duration |
+| Brainstorm | Prompt, Duration |
+| Journal Creatively, Write (Creative) | Prompt, Medium, Duration |
+| Draw, Paint, Sketch, Craft, Photograph, Film, Edit, Prototype, Invent | Medium, Duration |
 
 ### Page restructure
 
 - **Routines** page (`kind:"board"`): 9 containers (one per dimension), each holding that dimension's action instances. Replaces the Daily Toolkit folder's 11 wellness pages (`wellnessPages` at `createLiveData.js:3976`). The Daily Toolkit folder now holds just this page (+ Pomodoro stays parented in the Intellectual container as its template home).
 - **Tasks** page (`kind:"board"`): the same 9 dimension containers, EMPTY. Replaces the Todo List page (`todoPageModId`, `createLiveData.js:5371`) and its Home/Finance/Work/Personal/Plan containers.
 - **Trackers** page (`kind:"board"`): ALL goal-metric occurrences (`goalInstances`, `createLiveData.js:3224`) AND the account balance displays (`accountInstances`) under one page named "Trackers". Replaces the Goals page (`goalsPageModId`, line 5381) and the Accounts page (`accountsPageModId`, line 5405). Same goals — trackers retargeted to the new actions.
-- Unchanged: Schedule (+ Table + Canvas + Due seeding + day-col build), Day Page template + folder, Library, People, Bills, Daily Journal Questions, notebook doc pages, alarms, Pomodoro system, feeds.
+- Unchanged: Schedule (+ Table + Canvas + Due seeding + day-col build), Day Page template + folder, Library, Bills, Daily Journal Questions, notebook doc pages, alarms, Pomodoro system, feeds. (The People PAGE is not in this list — it is replaced by the People board, see the boards table.)
 
 ### Tracker retargeting (same goals, new sources)
 
@@ -297,7 +333,7 @@ git commit -m "feat(theme): Light Vintage + Dark Vintage '70s themes; Dark Vinta
 - Modify: `server/scripts/createLiveData.js` STEP 2 (fields, ~line 619+), STEP 3/6 (option instance modules + occurrences), STEP 7/8 (Boards folder + board pages)
 
 **Interfaces:**
-- Produces (used by Tasks 4–6): `boardCategoryFieldId`; dropdown field ids `mealFieldId, beverageFieldId, movementFieldId, readingFieldId, mediaFieldId, practiceFieldId, areaFieldId, mediumFieldId, topicFieldId`; `boardContainerOccIds = { meal, beverage, movement, reading, media, practice, project, area, medium, topic }`.
+- Produces (used by Tasks 4–6): `boardCategoryFieldId`; dropdown field ids `mealFieldId, ingredientFieldId, groceryItemFieldId, beverageFieldId, supplementFieldId, movementFieldId, routeFieldId, readingFieldId, mediaFieldId, practiceFieldId, promptFieldId, leisureFieldId, skillFieldId, topicFieldId, wishListItemFieldId, charityFieldId, placeFieldId, areaFieldId, equipmentFieldId, plantFieldId, mediumFieldId, songFieldId` (+ resolved Project field per the note); `boardContainerOccIds = { meal, ingredient, grocery, beverage, supplement, movement, route, reading, media, practice, prompt, leisure, project, skill, topic, wishlist, charity, place, area, equipment, plant, medium, song, person }` — 24 boards total.
 
 - [ ] **Step 1: Add the tag field + 9 dropdown fields to STEP 2**
 
@@ -307,7 +343,9 @@ Follow the exact shape of the existing `peopleAssigned` field (`~line 1121`). On
 boardCategory: {
   id: uid(), name: "Board Category", type: "select", inputEnabled: true,
   meta: { optionsSource: { mode: "manual",
-    options: ["meal","beverage","movement","reading","media","practice","project","area","medium","topic"] } },
+    options: ["meal","ingredient","grocery","beverage","supplement","movement","route","reading","media",
+              "practice","prompt","leisure","project","skill","topic","wishlist","charity","place","area",
+              "equipment","plant","medium","song","person"] } },
 },
 ```
 
@@ -334,11 +372,11 @@ Mint: Meal, Beverage, Movement, Reading, Media, Practice, Area, Medium, Topic (+
 
 - [ ] **Step 2: Seed option instance modules + occurrences**
 
-For each board, mint `role:"instance"` modules with `fieldBindings: [{ fieldId: boardCategoryFieldId, role: "input", hidden: true }]` and occurrences stamped `fields: { [boardCategoryFieldId]: { value: "<tag>" } }`, parented under that board's container occurrence. Movements board REUSES the existing 30 exercise modules (they already exist with muscleGroup/sets bindings — add the boardCategory stamp to their occurrences rather than duplicating modules) + 3 new stretch instances. Readings board: stamp the existing Library book occurrences with `boardCategory: "reading"` + add the 3 new philosophy/scripture entries into the Library container (tagged). People/Accounts need NO new board (existing People page / account instances already back `peopleAssigned` / `accountRef`).
+For each board, mint `role:"instance"` modules with `fieldBindings: [{ fieldId: boardCategoryFieldId, role: "input", hidden: true }]` and occurrences stamped `fields: { [boardCategoryFieldId]: { value: "<tag>" } }`, parented under that board's container occurrence. Reuse rules: Movements board REUSES the existing 30 exercise modules (they already exist with muscleGroup/sets bindings — add the boardCategory stamp to their occurrences rather than duplicating modules) + 3 new stretch instances. Readings board: stamp the existing Library book occurrences with `boardCategory: "reading"` + add the 3 new philosophy/scripture entries into the Library container (tagged). People board: MOVE the 10 existing person occurrences (profile fields, photos, `library:"person"` tag intact) under the People board container — the standalone People page (table + profile card + its Build op) is removed; `peopleAssigned` keeps its find-mode optionsSource with `addNew.parentOccurrenceId` repointed here. Accounts need no board (account instances already back `accountRef`). All other 20 boards mint fresh option instances per the table's seed-options column.
 
 - [ ] **Step 3: Boards folder + pages + addNew patch**
 
-Create a manifest folder "Boards" (sortOrder after Library) holding one `role:"page" kind:"board"` page per board (Meals, Beverages, Movements, Readings, Media, Practices, Projects, Areas, Mediums, Topics), each with its single container. Mirror the Bills-page wiring shape (`createLiveData.js:5539` + `4218`). After container occurrences exist, patch each dropdown field's `meta.optionsSource.addNew.parentOccurrenceId` (mirror `createLiveData.js:4773-4776`).
+Create a manifest folder "Boards" (sortOrder after Library) holding one `role:"page" kind:"board"` page per board — all 24 from the boards table: Meals, Ingredients, Grocery List, Beverages, Supplements, Movements, Routes, Readings, Media, Practices, Prompts, Leisure, Projects, Skills, Topics, Wish List, Charities, Places, Areas, Equipment, Plants, Mediums, Songs, People — each with its single container. Mirror the Bills-page wiring shape (`createLiveData.js:5539` + `4218`). After container occurrences exist, patch each dropdown field's `meta.optionsSource.addNew.parentOccurrenceId` (mirror `createLiveData.js:4773-4776`).
 
 - [ ] **Step 4: Verify**
 
@@ -353,7 +391,7 @@ Expected: `0 duplicate field names`, every board tag ≥3 options.
 
 ```bash
 git add server/scripts/createLiveData.js server/seed
-git commit -m "feat(seed): option Boards (10 pages) + Board Category tag + occurrence dropdown fields"
+git commit -m "feat(seed): option Boards (24 pages incl. People) + Board Category tag + occurrence dropdown fields"
 ```
 
 ---
@@ -538,6 +576,6 @@ Update the handoff blocks; commit.
 ## Self-Review Notes
 
 - Every user requirement maps: rename-only (T1), theme (T2), boards + dropdown fields (T3), one Routines page with 9 dimension containers (T4), empty Tasks page (T5), single Trackers page with same goals (T5+T6), fields adapted/new (T3+T4), everything else unchanged (scope guards in T4–T6).
-- Deliberate deviations to confirm with user at execution: (a) Accounts page folded into Trackers (reading "all the goals and trackers under one page" broadly); (b) Dark Vintage made the DEFAULT theme (Light Vintage available in the picker); (c) Todo List replaced by the Tasks page; (d) Project/People/Account dropdowns reuse existing fields instead of new boards.
+- Deliberate deviations to confirm with user at execution: (a) Accounts page folded into Trackers (reading "all the goals and trackers under one page" broadly); (b) Dark Vintage made the DEFAULT theme (Light Vintage available in the picker); (c) Todo List replaced by the Tasks page; (d) Project/People/Account dropdowns reuse the existing FIELDS (People is a board per user direction — the field just sources from it; the standalone People page with table + profile card is removed).
 - Scope-rule check: Tasks 1 and 3–8 touch only seed/data (+ tests/docs); Task 2 is the sole app-code task (the two themes, explicitly requested). Task 6 must NOT modify `server/utils/liveSystemBuilders.js` — if an existing builder param can't express a retarget, stop and ask instead.
 - The seed is 9.8k lines — Tasks 3–6 give anchors + complete shapes rather than full-file listings; each ends with a reseed + observable verification so drift is caught per-task, not at the end.
