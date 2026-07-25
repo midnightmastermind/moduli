@@ -152,7 +152,16 @@ addNew: { targets: [
 
 **Tag stamping happens AT ADD TIME, as a field on the new occurrence (per user — no operation):** each board CONTAINER occurrence carries its own `boardCategory` field value (`fields[boardCategoryFieldId] = "<tag>"`). When the addNew create runs, it reads the chosen parent occurrence's `boardCategory` value and stamps the same field on the new occurrence — picked at run time from whichever occurrence the user selected, no per-board ops, no config-baked tag strings in the picker.
 
-**Boards PULL their data via feeds (per user):** every board container carries an `occurrence.feed` — condition `boardCategory IS "<tag>"` (the existing feedSync engine, seeded the same way as the Schedule Table/Canvas feeds). The tag is the source of truth and the board is the materialized view over it: an option tagged ANYWHERE in the grid gets pulled onto its board as a copy-linked child, self-healing on every sync; trackers already exclude feed copies (`meta.feedSourceId IS_EMPTY`) so nothing double-counts. At implementation, verify feedSync skips sources that are already the board's own direct children (addNew creates directly under it); if it would duplicate them, exclude own children in the feed CONDITIONS — data, not engine code.
+**Boards PULL their data via feeds (per user):** every board container carries an `occurrence.feed` (the existing feedSync engine, seeded the same way as the Schedule Table/Canvas feeds) with conditions — all data, no engine code:
+
+- `fields.<boardCategoryFieldId>.value IS "<tag>"` (the match)
+- `meta.feedSourceId IS_EMPTY` (never pull another feed's copies — prevents feed-of-feed loops)
+- `parentId IS_NOT <this board's container occ id>` (its own direct children are already rendered; no duplicate copies)
+- `id IS_NOT <this board's container occ id>` (the container carries its own tag field for the addNew runtime read — it must not pull ITSELF as a child)
+
+The tag is the source of truth and the board is the materialized view over it: an option tagged ANYWHERE in the grid gets pulled onto its board as a copy-linked child, self-healing on every sync; trackers already exclude feed copies so nothing double-counts.
+
+**Dropdown predicates must exclude feed copies too:** every board dropdown's find predicate is `boardCategory IS "<tag>" AND meta.feedSourceId IS_EMPTY` — feed copies carry the same tag as their source, and without the exclusion every option would appear twice in the picker.
 
 **Boards PULL their data via feeds (per user):** every board container also carries an `occurrence.feed` — `{ enabled: true, conditions: [{ field: boardCategoryFieldId, comparator: "IS", value: "<tag>" }], … }` (the existing feedSync engine, seeded like the Schedule Table/Canvas feeds). The tag is the source of truth and the board is the materialized view over it: an option occurrence created ANYWHERE (an Idea jotted on a day page, an ingredient tagged inside a meal doc) gets pulled onto its board as a copy-linked child automatically, self-healing on every sync. Trackers already exclude feed copies (`meta.feedSourceId IS_EMPTY`), so board feeds can't double-count anything. **Implementation check:** verify feedSync does not mint a duplicate copy for a source that is ALREADY a direct child of the board (addNew creates directly under it) — if it does, add a feed condition excluding the board's own children rather than changing engine code.
 
@@ -240,6 +249,7 @@ addNew: { targets: [
 | Nutrition totals (Calories/Protein/Carbs/Fats) | `Eat` macro fields (replaces 4 per-meal trackers with one `Eat`-scoped tracker writing the same 4 goal fields) |
 | Total Workouts / Workout History | `Exercise`+`Lift` (presence discriminator switches from `muscleGroup` to the Movement field: `movementFieldId IS_NOT_EMPTY`) |
 | Financial (Spent/Earned/balances) | unchanged mechanics (generic on Amount+flow); `supportsReplace` balance trackers now anchor on **Track** replace entries (Track = the universal Set-Account-Balance, per user) |
+| Movie/Book/Podcast/Course History (media row-lists) | `Watch` completions' Media pick, `Listen` completions' Media pick, `Read` completions' Reading pick, `Study` completions' Course pick — history rows resolve the picked occurrence's label like the old Movies/Books pickers did |
 
 `presenceFieldId` per tracker follows the existing `makeTrackerOp` param — no marker fields, no label matching.
 
@@ -299,8 +309,9 @@ import Grid from "../models/Grid.js";
 
 const uri = process.env.MONGO_URI || process.env.MONGODB_URI;
 await mongoose.connect(uri);
+const USER_ID = "<the userId recorded in Step 1>"; // fill in before running
 const res = await Grid.updateOne(
-  { name: "Live Grid" },
+  { userId: USER_ID, name: "Live Grid" },
   { $set: { name: "test grid" } }
 );
 console.log("matched:", res.matchedCount, "modified:", res.modifiedCount);
@@ -453,6 +464,7 @@ meal: {
       over: "$allInstances",
       predicate: { logic: "AND", rules: [
         { left: `fields.${boardCategoryFieldId}.value`, comparator: "IS", right: "literal:meal" },
+        { left: "meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
       ]},
       valuePath: "id", labelPath: "label",
     },
@@ -465,7 +477,7 @@ Mint: Meal, Beverage, Movement, Reading, Media, Practice, Area, Medium, Topic (+
 
 - [ ] **Step 2: Seed option instance modules + occurrences**
 
-For each board, mint `role:"instance"` modules with `fieldBindings: [{ fieldId: boardCategoryFieldId, role: "input", hidden: true }]` and occurrences stamped `fields: { [boardCategoryFieldId]: { value: "<tag>" } }`, parented under that board's container occurrence. Reuse rules: Movements board REUSES the existing 30 exercise modules (they already exist with muscleGroup/sets bindings — add the boardCategory stamp to their occurrences rather than duplicating modules) + 3 new stretch instances. Readings board: stamp the existing Library book occurrences with `boardCategory: "reading"` + add the 3 new philosophy/scripture entries into the Library container (tagged). People board: MOVE the 10 existing person occurrences (profile fields, photos, `library:"person"` tag intact) under the People board container — the standalone People page (table + profile card + its Build op) is removed; `peopleAssigned` keeps its find-mode optionsSource with `addNew.parentOccurrenceId` repointed here. Accounts need no board (account instances already back `accountRef`). All other 20 boards mint fresh option instances per the table's seed-options column.
+For each board, mint `role:"instance"` modules with `fieldBindings: [{ fieldId: boardCategoryFieldId, role: "input", hidden: true }]` and occurrences stamped `fields: { [boardCategoryFieldId]: { value: "<tag>" } }`, parented under that board's container occurrence. Reuse rules: Movements board REUSES the existing 30 exercise modules (they already exist with muscleGroup/sets bindings — no duplicate modules) but their occurrences are RE-PARENTED under the Movements board container and stamped with the tag — their old homes (the fitness sub-containers) are deleted in Task 4, so the board is their only home. Readings board: stamp the existing Library book occurrences with `boardCategory: "reading"` + add the 3 new philosophy/scripture entries into the Library container (tagged). People board: MOVE the 10 existing person occurrences (profile fields, photos, `library:"person"` tag intact) under the People board container — the standalone People page (table + profile card + its Build op) is removed; `peopleAssigned` keeps its find-mode optionsSource with `addNew.parentOccurrenceId` repointed here. Accounts need no board (account instances already back `accountRef`). All other 20 boards mint fresh option instances per the table's seed-options column.
 
 - [ ] **Step 3: Boards folder + pages + addNew patch**
 
