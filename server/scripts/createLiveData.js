@@ -285,6 +285,7 @@ export async function createLiveData(userId, options = {}) {
     intellectual: uid(),
     bills:        uid(),
     display:      uid(),
+    boards:       uid(), // Option-board dropdown fields (2026-07-25)
     refs:         uid(),
   };
   const opCategoryIds = {
@@ -355,12 +356,15 @@ export async function createLiveData(userId, options = {}) {
   const personHowMetFieldId       = uid();
   const personEmergencyContactFieldId = uid();
   const peopleAssignedFieldId = uid();
-  // "People: Show Profile" operation id — pre-generated so the button
-  // field's `meta.operationId` can reference it before the op is saved.
-  const showProfileOpId = uid();
-  // Button-type field id — bound to each person module. Click fires the
-  // Show Profile op with $trigger.occurrenceId = clicked row.
-  const personShowProfileButtonFieldId = uid();
+  // ── Option Boards (nine-dimensions rebuild, 2026-07-25) ────────────────────
+  // boardCategory is THE scoping tag: every option instance carries it, every
+  // board dropdown's find predicate filters on it, and every board CONTAINER
+  // occurrence carries its own tag value so the addNew flow can stamp new
+  // options from whichever parent the user picks at add time (no baked tags).
+  const boardCategoryFieldId = uid();
+  // The People board container occ id is pre-generated because the person
+  // occurrences (seeded with the Library block) parent directly under it.
+  const peopleBoardContOccId = uid();
 
   // Project kanban fields — Status select (6 options matching the agile
   // kanban columns) + Project occurrence-ref (lets a single Todo List
@@ -431,15 +435,8 @@ export async function createLiveData(userId, options = {}) {
   const personHenryModId     = uid();
   const personIsabelModId    = uid();
   const personJackModId      = uid();
-  // People page + table + profile-card-page IDs (task #46)
-  const peoplePageModId      = uid();
-  const peoplePageOccId      = uid();
-  const peopleTableModId     = uid();
-  const peopleTableOccId     = uid();
-  const profileCardModId     = uid(); // role:"page" kind:"doc" — page-within-page
-  const profileCardOccId     = uid();
-  const profileTemplateModId = uid(); // template subtree root (template manifest)
-  const profileTemplateOccId = uid();
+  // (People page + table + profile-card IDs removed 2026-07-25 — People is a
+  // BOARD now; person occurrences parent under the People board container.)
 
   // Week View / Month View pages REMOVED (2026-05-24). Per user direction:
   // "just have schedule. (not a specific week view or specific month view
@@ -682,7 +679,105 @@ export async function createLiveData(userId, options = {}) {
   //   These four ids are referenced by Tasks 13+ op-wiring (makeTrackerOp, makeScheduleBuildDayOp, etc.)
   //   and must match the scaffold's pre-generated values.
 
+  // ── Option-board dropdown fields (2026-07-25, nine-dimensions rebuild) ─────
+  // One occurrence-type picker per option board (some query SEVERAL boards via
+  // an OR group). All follow the peopleAssigned/moviesWatched find-mode shape,
+  // scoped on the boardCategory tag + never listing feed copies (a copy
+  // carries the same tag as its source — without the exclusion every option
+  // would appear twice). addNew is patched post-create once the board
+  // container occurrences exist: single-board fields get parentOccurrenceId,
+  // multi-board fields get targets[] (candidate parent occ ids, first =
+  // default — consumed by the select-an-occurrence chooser).
+  const boardFindSource = (tags) => ({
+    mode: "find",
+    over: "$allInstances",
+    predicate: {
+      operator: "AND",
+      rules: [
+        tags.length === 1
+          ? { left: `fields.${boardCategoryFieldId}.value`, comparator: "IS", right: tags[0] }
+          : { operator: "OR", rules: tags.map(t => ({ left: `fields.${boardCategoryFieldId}.value`, comparator: "IS", right: t })) },
+        { left: "meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
+      ],
+    },
+    valuePath: "id",
+    labelPath: "label",
+    addNew: { parentOccurrenceId: null }, // patched post-create (see the boards section)
+  });
+  // [key, field name, tags queried, multiSelect]. Reused fields NOT minted
+  // here: People (peopleAssigned), Account (accountRef), Project (repointed
+  // above), Course (Courses Taken).
+  const BOARD_DROPDOWN_FIELD_DEFS = [
+    ["mealPick",       "Meal",             ["meal"],                                                                    false],
+    ["ingredient",     "Ingredient",       ["ingredient", "grocery"],                                                   true],
+    ["purchaseItem",   "Purchase Item",    ["grocery", "wishlist", "ingredient", "supplement", "equipment", "plant", "gift"], true],
+    ["beverage",       "Beverage",         ["beverage"],                                                                false],
+    ["supplement",     "Supplement",       ["supplement"],                                                              true],
+    // Movement is multiSelect so Workout Program recipes can carry several
+    // movements (Push Day A = Bench Press + Incline Press + …); an Exercise
+    // log just picks one.
+    ["movement",       "Movement",         ["movement"],                                                                true],
+    ["workoutProgram", "Workout Program",  ["program"],                                                                 false],
+    ["route",          "Route",            ["route"],                                                                   false],
+    ["reading",        "Reading",          ["reading", "verse"],                                                        false],
+    ["mediaPick",      "Media",            ["media", "song", "course"],                                                 false],
+    ["practice",       "Practice",         ["practice"],                                                                false],
+    ["prompt",         "Prompt",           ["prompt"],                                                                  false],
+    ["leisureActivity","Leisure Activity", ["leisure"],                                                                 false],
+    ["skill",          "Skill",            ["skill", "song"],                                                           false],
+    ["topic",          "Topic",            ["topic"],                                                                   false],
+    ["wishListItem",   "Wish List Item",   ["wishlist"],                                                                false],
+    ["savingsGoalPick","Savings Goal",     ["savingsGoal", "wishlist"],                                                 false],
+    ["charity",        "Charity",          ["charity"],                                                                 false],
+    ["place",          "Place",            ["place"],                                                                   false],
+    ["eventPick",      "Event",            ["event"],                                                                   false],
+    ["giftIdea",       "Gift Idea",        ["gift"],                                                                    false],
+    ["area",           "Area",             ["area"],                                                                    false],
+    ["equipment",      "Equipment",        ["equipment"],                                                               false],
+    ["plant",          "Plant",            ["plant"],                                                                   false],
+    ["medium",         "Medium",           ["medium"],                                                                  false],
+    ["song",           "Song",             ["song"],                                                                    false],
+    ["verse",          "Verse",            ["verse"],                                                                   false],
+    ["gratitudeEntry", "Gratitude Entry",  ["gratitude"],                                                               false],
+    ["win",            "Win",              ["win"],                                                                     false],
+    ["idea",           "Idea",             ["idea", "prompt"],                                                          false],
+    ["creativeWork",   "Creative Work",    ["creativeWork", "project"],                                                 false],
+  ];
+  const boardDropdownFields = {};
+  for (const [key, name, tags, multiSelect] of BOARD_DROPDOWN_FIELD_DEFS) {
+    boardDropdownFields[key] = {
+      id: uid(),
+      name,
+      type: "occurrence",
+      inputEnabled: true,
+      displayEnabled: false,
+      folderId: fieldCategoryIds.boards,
+      meta: { multiSelect, optionsSource: boardFindSource(tags) },
+    };
+  }
+
   const fields = {
+    // ── OPTION-BOARD FIELDS (2026-07-25) ─────────────────────────────────────
+    // The scoping tag every option instance carries. Board CONTAINER
+    // occurrences carry their own tag value too — the addNew flow reads the
+    // chosen parent's value at run time and stamps it on the new option.
+    boardCategory: {
+      id: boardCategoryFieldId,
+      name: "Board Category",
+      type: "select",
+      inputEnabled: true,
+      displayEnabled: false,
+      folderId: fieldCategoryIds.boards,
+      meta: {
+        multiSelect: false,
+        options: ["meal","ingredient","grocery","beverage","supplement","movement","route","reading","media",
+                  "practice","prompt","leisure","project","skill","topic","wishlist","charity","place","area",
+                  "equipment","plant","medium","song","person","program","course","event","gift","verse",
+                  "gratitude","win","idea","savingsGoal","creativeWork"],
+      },
+    },
+    ...boardDropdownFields,
+
     // ── SCHEDULE CONTROL (4 canonical fields; ids from scaffold pre-gen) ─────
     // These shapes mirror createTestGrid STEP 2 exactly.
     completed: {
@@ -1439,22 +1534,8 @@ export async function createLiveData(userId, options = {}) {
       inputEnabled: true, displayEnabled: true,
       meta: {}, displayConfig: {},
     },
-    // ── Button field (NEW field type 2026-05-23) ─────────────────────
-    // Renders as a click-to-run button. `meta.operationId` says which
-    // op to fire; the host occurrence id is passed as $trigger.occurrenceId
-    // so the op knows which row was clicked. Used on the People table to
-    // open a person's profile card.
-    personShowProfileButton: {
-      id: personShowProfileButtonFieldId,
-      name: "Show Profile",
-      type: "button",
-      inputEnabled: false, displayEnabled: true,
-      meta: {
-        operationId: showProfileOpId,
-        buttonLabel: "Show Profile",
-      },
-      displayConfig: {},
-    },
+    // (Show Profile button field removed 2026-07-25 — the People table +
+    // profile-card page it drove are gone; People renders as a plain board.)
     peopleAssigned: {
       id: peopleAssignedFieldId,
       name: "People",
@@ -1550,20 +1631,27 @@ export async function createLiveData(userId, options = {}) {
       type: "occurrence",
       inputEnabled: true,
       displayEnabled: true,
+      // Repointed 2026-07-25 (nine-dimensions rebuild): options come from the
+      // Projects BOARD (boardCategory:"project") instead of label-matching
+      // "Project:" pages. The kanban Status Router never reads this field and
+      // no seed value stamps it, so the repoint is behavior-safe; occupational
+      // actions (Plan/Build/Code/…) bind it to name what they worked on.
       meta: {
         optionsSource: {
           mode: "find",
           find: {
-            over: "$allPages",
+            over: "$allInstances",
             predicate: {
-              conjunction: "AND",
+              operator: "AND",
               rules: [
-                { left: "label", comparator: "STARTS_WITH", right: "Project:" },
+                { left: `fields.${boardCategoryFieldId}.value`, comparator: "IS", right: "project" },
+                { left: "meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
               ],
             },
             valuePath: "id",
             labelPath: "label",
           },
+          addNew: { parentOccurrenceId: null }, // patched to the Projects board container post-create
         },
       },
     },
@@ -1581,14 +1669,8 @@ export async function createLiveData(userId, options = {}) {
       displayEnabled: false,
       meta: { placeholder: "Workout type..." },
     },
-    mealDescription: {
-      id: uid(),
-      name: "Meal",
-      type: "text",
-      inputEnabled: true,
-      displayEnabled: false,
-      meta: { placeholder: "What did you eat..." },
-    },
+    // (mealDescription free-text "Meal" field removed 2026-07-25 — it was
+    // bound nowhere; the name now belongs to the Meals board dropdown.)
     activityDescription: {
       id: uid(),
       name: "Activity",
@@ -4033,6 +4115,9 @@ export async function createLiveData(userId, options = {}) {
   // start of a day matched template + session #1 → array → broken create
   // ("each timeslot can have multiple pomodoros", 2026-07-14).
   let pomodoroTemplateOccId = null;
+  // Exercise occurrence ids by workout key — the Workout Program recipe
+  // options (Push Day A …) bind Movement with these ids (2026-07-25).
+  const workoutOccIdByKey = {};
 
   for (const [key, { contOccId, contModKey, instKeys }] of Object.entries(toolkitMappings)) {
     const childOccIds = [];
@@ -4043,6 +4128,9 @@ export async function createLiveData(userId, options = {}) {
       const defaultFields = {};
       if (inst.meta?.defaultMuscleGroup) {
         defaultFields[fields.muscleGroup.id] = fv(inst.meta.defaultMuscleGroup, "replace");
+        // Every exercise IS a movement option (2026-07-25): the tag puts it
+        // in the Movement dropdown + the Movements board feed pulls it in.
+        defaultFields[boardCategoryFieldId] = fv("movement");
         // Workout starting state: a descending rep pyramid (12/10/8) at the
         // exercise's progressive-overload weight, so each exercise opens
         // showing "where I'm at" instead of empty inputs.
@@ -4079,6 +4167,7 @@ export async function createLiveData(userId, options = {}) {
       }
       const childId = await mkOcc({ moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: defaultFields });
       if (instKey === "pomodoro") pomodoroTemplateOccId = childId;
+      if (inst.meta?.defaultMuscleGroup) workoutOccIdByKey[instKey] = childId; // movement options — recipe boards reference these
       childOccIds.push(childId);
     }
     await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds, filterOverride: {} });
@@ -4455,10 +4544,7 @@ export async function createLiveData(userId, options = {}) {
     { fieldId: personHowMetFieldId,          role: "input", order: 20, hidden: true },
     { fieldId: personEmergencyContactFieldId, role: "input", order: 21, hidden: true },
     { fieldId: personNotesFieldId,     role: "input", order: 22, hidden: true },
-    // Button field bound to display — appears as a "Show Profile" button
-    // on each person row (table + Library page). Click fires the op
-    // with $trigger.occurrenceId = the clicked row.
-    { fieldId: personShowProfileButtonFieldId, role: "display", order: 23 },
+    // (Show Profile button binding removed 2026-07-25 — People is a board.)
   ];
   await Module.insertMany([
     { id: personAvaModId,    userId, gridId, role: "instance", kind: "board", label: "Ava Martinez",
@@ -4560,8 +4646,14 @@ export async function createLiveData(userId, options = {}) {
     return out;
   };
 
-  // Helper for book fields (adds pages alongside library+poster).
-  const bookFields = (title, pages) => ({ ...libFields("book", title, bookPosters), [pagesFieldId]: fv(pages) });
+  // Helper for book fields (adds pages alongside library+poster). Every book
+  // is also a Readings-board option (boardCategory:"reading", 2026-07-25) —
+  // the Reading dropdown lists it and the Readings board feed pulls it in.
+  const bookFields = (title, pages) => ({
+    ...libFields("book", title, bookPosters),
+    [pagesFieldId]: fv(pages),
+    [boardCategoryFieldId]: fv("reading"),
+  });
 
   // 8 movie occurrences (parentId = libraryContOccId, library field = "movie")
   const movieInceptionOccId       = await mkOcc({ moduleId: movieInceptionModId,       parentId: libraryContOccId, fields: libFields("movie", "Inception",           moviePosters) });
@@ -4589,11 +4681,28 @@ export async function createLiveData(userId, options = {}) {
   const podcastHubermanLabOccId     = await mkOcc({ moduleId: podcastHubermanLabModId,     parentId: libraryContOccId, fields: libFields("podcast", "Huberman Lab",             podcastPosters) });
   const podcastConvosTylerOccId     = await mkOcc({ moduleId: podcastConvosTylerModId,     parentId: libraryContOccId, fields: libFields("podcast", "Conversations with Tyler", podcastPosters) });
 
-  // 4 course occurrences (library field = "course")
-  const courseAlgorithmsOccId      = await mkOcc({ moduleId: courseAlgorithmsModId,      parentId: libraryContOccId, fields: libFields("course", "Algorithms (Coursera)",           coursePosters) });
-  const courseMLSpecOccId          = await mkOcc({ moduleId: courseMLSpecModId,          parentId: libraryContOccId, fields: libFields("course", "Machine Learning Specialization", coursePosters) });
-  const courseSystemDesignOccId    = await mkOcc({ moduleId: courseSystemDesignModId,    parentId: libraryContOccId, fields: libFields("course", "System Design Primer",            coursePosters) });
-  const courseIntroPhilosophyOccId = await mkOcc({ moduleId: courseIntroPhilosophyModId, parentId: libraryContOccId, fields: libFields("course", "Introduction to Philosophy",     coursePosters) });
+  // 4 course occurrences (library field = "course"). Also tagged
+  // boardCategory:"course" (2026-07-25) so the multi-board Media dropdown
+  // (media|song|course) lists them and the Courses board feed pulls them in.
+  const courseFields = (title) => ({ ...libFields("course", title, coursePosters), [boardCategoryFieldId]: fv("course") });
+  const courseAlgorithmsOccId      = await mkOcc({ moduleId: courseAlgorithmsModId,      parentId: libraryContOccId, fields: courseFields("Algorithms (Coursera)") });
+  const courseMLSpecOccId          = await mkOcc({ moduleId: courseMLSpecModId,          parentId: libraryContOccId, fields: courseFields("Machine Learning Specialization") });
+  const courseSystemDesignOccId    = await mkOcc({ moduleId: courseSystemDesignModId,    parentId: libraryContOccId, fields: courseFields("System Design Primer") });
+  const courseIntroPhilosophyOccId = await mkOcc({ moduleId: courseIntroPhilosophyModId, parentId: libraryContOccId, fields: courseFields("Introduction to Philosophy") });
+
+  // 2 extra Readings-board entries (2026-07-25): scripture/philosophy texts
+  // for Read Scripture / Read Philosophy. Regular Library books (tagged
+  // reading like the rest) — Meditations already covers the third.
+  const bookTaoTeChingModId = uid();
+  const bookPsalmsModId     = uid();
+  await Module.insertMany([
+    { id: bookTaoTeChingModId, userId, gridId, role: "instance", kind: "board", label: "Tao Te Ching",
+      defaultDragMode: "move", fieldBindings: bookFieldBindings },
+    { id: bookPsalmsModId,     userId, gridId, role: "instance", kind: "board", label: "Book of Psalms",
+      defaultDragMode: "move", fieldBindings: bookFieldBindings },
+  ]);
+  const bookTaoTeChingOccId = await mkOcc({ moduleId: bookTaoTeChingModId, parentId: libraryContOccId, fields: bookFields("Tao Te Ching", 160) });
+  const bookPsalmsOccId     = await mkOcc({ moduleId: bookPsalmsModId,     parentId: libraryContOccId, fields: bookFields("Book of Psalms", 260) });
 
   // 10 person occurrences (library field = "person"). Each carries profile
   // fields (name/email/phone/gender/notes) so the People table renders them
@@ -4727,12 +4836,18 @@ export async function createLiveData(userId, options = {}) {
       notes: "Best friend since college. Pinged for non-work; weekly run on Sat mornings (8am Crissy Field). Knows the SF housing market top-to-bottom.",
     },
   ];
+  // Person occurrences parent under the PEOPLE BOARD container (2026-07-25 —
+  // People is a board; the standalone People page/table/profile-card are
+  // gone). They keep the library:"person" tag so peopleAssigned's existing
+  // find predicate is untouched, plus boardCategory:"person" like every
+  // other board option.
   for (const p of peopleSeed) {
     p.occId = await mkOcc({
       moduleId: p.modId,
-      parentId: libraryContOccId,
+      parentId: peopleBoardContOccId,
       fields: {
         [libraryFieldId]:                fv("person"),
+        [boardCategoryFieldId]:          fv("person"),
         [posterUrlFieldId]:              fv(personPosterFor(p.gender, p.seed)),
         [personNameFieldId]:             fv(p.name),
         [personEmailFieldId]:            fv(p.email),
@@ -4777,16 +4892,16 @@ export async function createLiveData(userId, options = {}) {
       // movies
       movieInceptionOccId, movieMatrixOccId, movieArrivalOccId, movieDuneOccId,
       movieInterstellarOccId, movieBladeRunner2049OccId, moviePrestigeOccId, movieTenetOccId,
-      // books
+      // books (incl. the 2 Readings-board scripture/philosophy texts)
       bookAtomicHabitsOccId, bookDeepWorkOccId, bookSapiensOccId, bookThinkingFastSlowOccId,
       bookMeditationsOccId, bookMansSearchOccId, book4HourWorkweekOccId,
+      bookTaoTeChingOccId, bookPsalmsOccId,
       // podcasts
       podcastTimFerrissOccId, podcastLexFridmanOccId, podcastHardcoreHistoryOccId,
       podcastHubermanLabOccId, podcastConvosTylerOccId,
       // courses
       courseAlgorithmsOccId, courseMLSpecOccId, courseSystemDesignOccId, courseIntroPhilosophyOccId,
-      // people (10 seeded contact records — task #46)
-      ...peopleSeed.map(p => p.occId),
+      // (people moved to the People BOARD container, 2026-07-25)
       // questions (one occurrence per PHIL_QUESTIONS entry — ~117 entries)
       ...phQuestionOccIds,
     ],
@@ -4888,6 +5003,332 @@ export async function createLiveData(userId, options = {}) {
     new Folder({ id: opCategoryIds.projects, userId, gridId, name: "Projects",       parentId: null, folderType: "category", categoryKind: "op", sortOrder: 206, isExpanded: false }).save(),
   ]);
 
+  // ── STEP 7a: Option Boards (nine-dimensions rebuild, 2026-07-25) ────────────
+  //
+  // 34 boards. Each board = one page (role:"page" kind:"board") in the Boards
+  // folder tree (grouped by life area) + one container whose occurrence:
+  //   - carries its OWN boardCategory tag value — the addNew flow reads the
+  //     chosen parent occurrence's value at run time and stamps it on the new
+  //     option (no per-board ops, no baked tag strings in picker config);
+  //   - carries a FEED on that tag: the tag is the source of truth and the
+  //     board is the materialized view — an option tagged anywhere in the grid
+  //     gets pulled in as a copy-linked child (feedSync excludes the owner,
+  //     its own direct children, and other feeds' copies automatically).
+  // Option instances mostly mint fresh here. Reuse instead of duplicates:
+  // Movements = the 30 exercise occurrences (tagged in the toolkit loop; they
+  // feed in as copies until Task 4 re-homes them), Readings/Courses = Library
+  // entries (tagged in the Library block), People = the 10 person occurrences
+  // (parented under the People board container directly).
+
+  const boardsFolderId = uid();
+  const boardGroupFolderIds = {
+    food: uid(), body: uid(), mind: uid(), money: uid(),
+    home: uid(), social: uid(), creative: uid(),
+  };
+  await new Folder({ id: boardsFolderId, userId, gridId, name: "Boards", parentId: rootFolderId, folderType: "normal", sortOrder: 8, isExpanded: true }).save();
+  const BOARD_GROUPS = [
+    ["food", "Food"], ["body", "Body"], ["mind", "Mind"], ["money", "Money"],
+    ["home", "Home"], ["social", "Social"], ["creative", "Creative"],
+  ];
+  await Promise.all(BOARD_GROUPS.map(([key, name], i) =>
+    new Folder({ id: boardGroupFolderIds[key], userId, gridId, name, parentId: boardsFolderId, folderType: "normal", sortOrder: i, isExpanded: false }).save()));
+
+  const personOccByLabel = Object.fromEntries(peopleSeed.map(p => [p.label, p.occId]));
+  const opt = (label, extra = null) => ({ label, ...(extra || {}) });
+
+  // Board table. `options[].bindings` = extra fieldBindings on the option's
+  // module (recipe pattern — a Meal carries its Ingredients, a Program its
+  // Movements, an Event its People + Place…); `options[].fields` = a THUNK
+  // returning the extra stamped values (thunk because recipe values reference
+  // option occ ids minted earlier in this same loop).
+  const BOARD_DEFS = [
+    // ── Food ──
+    { key: "ingredient", tag: "ingredient", label: "Ingredients", group: "food", options: [
+      opt("Chicken Breast"), opt("Eggs"), opt("Rice"), opt("Spinach"), opt("Greek Yogurt"),
+      opt("Oats"), opt("Salmon"), opt("Olive Oil"), opt("Sweet Potatoes"), opt("Black Beans"),
+    ]},
+    { key: "grocery", tag: "grocery", label: "Grocery List", group: "food", options: [
+      opt("Milk"), opt("Bananas"), opt("Coffee Beans"), opt("Paper Towels"), opt("Chicken Thighs"), opt("Frozen Berries"),
+    ]},
+    { key: "meal", tag: "meal", label: "Meals", group: "food", options: [
+      "Scrambled Eggs|Eggs,Olive Oil",
+      "Greek Salad with Chicken|Chicken Breast,Spinach,Olive Oil",
+      "Oatmeal with Berries|Oats,Greek Yogurt",
+      "Protein Shake|Greek Yogurt",
+      "Chicken and Rice|Chicken Breast,Rice",
+      "Salmon and Vegetables|Salmon,Spinach,Sweet Potatoes,Olive Oil",
+    ].map(row => {
+      const [label, ings] = row.split("|");
+      return opt(label, {
+        bindings: [{ fieldId: boardDropdownFields.ingredient.id, role: "input", order: 1 }],
+        fields: () => ({ [boardDropdownFields.ingredient.id]: fv(ings.split(",").map(l => boardOptionOccIds.ingredient[l])) }),
+      });
+    })},
+    { key: "beverage", tag: "beverage", label: "Beverages", group: "food", options: [
+      opt("Water"), opt("Coffee"), opt("Green Tea"), opt("Electrolyte Drink"), opt("Smoothie"),
+    ]},
+    { key: "supplement", tag: "supplement", label: "Supplements", group: "food", options: [
+      opt("Creatine"), opt("Vitamin D"), opt("Fish Oil"), opt("Magnesium"), opt("Protein Powder"), opt("Multivitamin"),
+    ]},
+    // ── Body ──
+    { key: "movement", tag: "movement", label: "Movements", group: "body", options: [
+      // The 30 exercises are tagged in the toolkit loop and feed in; only the
+      // stretches are new.
+      opt("Hamstring Stretch"), opt("Hip Flexor Stretch"), opt("Shoulder Stretch"),
+    ]},
+    { key: "program", tag: "program", label: "Workout Programs", group: "body", options: [
+      "Push Day A|benchPress,inclinePress,overheadPress,tricepPushdown",
+      "Pull Day B|deadlift,pullUps,bentRow,bicepCurl",
+      "Leg Day|squat,legPress,lunges,calfRaise",
+      "Full Body 5x5|squat,benchPress,deadlift,overheadPress,bentRow",
+      "Couch to 5K|running",
+    ].map(row => {
+      const [label, moves] = row.split("|");
+      return opt(label, {
+        bindings: [{ fieldId: boardDropdownFields.movement.id, role: "input", order: 1 }],
+        fields: () => ({ [boardDropdownFields.movement.id]: fv(moves.split(",").map(k => workoutOccIdByKey[k])) }),
+      });
+    })},
+    { key: "route", tag: "route", label: "Routes", group: "body", options: [
+      opt("Neighborhood Loop"), opt("River Trail"), opt("Park Circuit"), opt("Hill Repeats"), opt("Forest Path"),
+    ]},
+    // ── Mind ──
+    { key: "reading", tag: "reading", label: "Readings", group: "mind", options: [] }, // Library books feed in
+    { key: "verse", tag: "verse", label: "Verses", group: "mind", options: [
+      opt("Psalm 23"), opt("Sermon on the Mount"), opt("Ecclesiastes 3"), opt("Proverbs 3:5-6"),
+    ]},
+    { key: "media", tag: "media", label: "Media", group: "mind", options: [
+      opt("The Daily"), opt("Planet Earth II"), opt("Lex Fridman Podcast"), opt("Veritasium"), opt("Kurzgesagt"),
+    ]},
+    { key: "course", tag: "course", label: "Courses", group: "mind", options: [] }, // Library courses feed in
+    { key: "practice", tag: "practice", label: "Practices", group: "mind", options: [
+      opt("Breathwork"), opt("Body Scan"), opt("Loving-Kindness"), opt("Gratitude List"), opt("Silent Prayer"), opt("Walking Meditation"),
+    ]},
+    { key: "prompt", tag: "prompt", label: "Prompts", group: "mind", options: [
+      opt("What went well today?"), opt("What am I avoiding?"), opt("What would make tomorrow great?"),
+      opt("Describe a place from memory"), opt("Write a letter you will never send"),
+    ]},
+    { key: "topic", tag: "topic", label: "Topics", group: "mind", options: [
+      opt("Spanish"), opt("Algorithms"), opt("Music Theory"), opt("World History"), opt("Machine Learning"),
+    ]},
+    { key: "skill", tag: "skill", label: "Skills", group: "mind", options: [
+      opt("Guitar"), opt("Typing"), opt("Public Speaking"), opt("Spanish Conversation"), opt("Chess Openings"), opt("Sketching"),
+    ]},
+    { key: "idea", tag: "idea", label: "Ideas", group: "mind", options: [
+      opt("Plant herb wall"), opt("App for tracking loans to friends"), opt("Photo series: doors"),
+    ]},
+    // ── Money ──
+    { key: "wishlist", tag: "wishlist", label: "Wish List", group: "money", options: [
+      opt("Standing Desk"), opt("Espresso Machine"), opt("Noise-Canceling Headphones"), opt("Weighted Blanket"), opt("New Running Shoes"),
+    ]},
+    { key: "savingsGoal", tag: "savingsGoal", label: "Savings Goals", group: "money", options: [
+      ["Emergency Fund", 10000], ["Japan Trip", 4000], ["New Laptop", 2500], ["Down Payment", 60000],
+    ].map(([label, target]) => opt(label, {
+      bindings: [{ fieldId: fields.amount.id, role: "input", order: 1 }],
+      fields: () => ({ [fields.amount.id]: fv(target) }),
+    }))},
+    { key: "charity", tag: "charity", label: "Charities", group: "money", options: [
+      opt("Local Food Bank"), opt("Red Cross"), opt("Habitat for Humanity"), opt("Animal Shelter"), opt("Library Fund"),
+    ]},
+    { key: "gift", tag: "gift", label: "Gift Ideas", group: "money", options: [
+      ["Cookbook for Mom", "Jack Brennan"], ["Board Game", "Ben Chen"],
+      ["Concert Tickets", "Isabel Sokolov"], ["Handmade Mug", "Felix Romero"],
+    ].map(([label, person]) => opt(label, {
+      bindings: [{ fieldId: peopleAssignedFieldId, role: "input", order: 1 }],
+      fields: () => ({ [peopleAssignedFieldId]: fv([personOccByLabel[person]]) }),
+    }))},
+    // ── Home ──
+    { key: "area", tag: "area", label: "Areas", group: "home", options: [
+      opt("Desk"), opt("Kitchen"), opt("Bedroom"), opt("Bathroom"), opt("Garage"), opt("Yard"),
+    ]},
+    { key: "equipment", tag: "equipment", label: "Equipment", group: "home", options: [
+      opt("Car"), opt("Bike"), opt("Lawn Mower"), opt("Laptop"), opt("Coffee Machine"), opt("HVAC Filter"),
+    ]},
+    { key: "plant", tag: "plant", label: "Plants", group: "home", options: [
+      opt("Monstera"), opt("Tomatoes"), opt("Basil"), opt("Snake Plant"), opt("Rosemary"),
+    ]},
+    // ── Social ──
+    { key: "person", tag: "person", label: "People", group: "social", options: [],
+      reuseOccIds: peopleSeed.map(p => p.occId) },
+    { key: "place", tag: "place", label: "Places", group: "social", options: [
+      opt("Coffee Shop"), opt("City Park"), opt("Gym"), opt("Mom's House"), opt("Downtown Library"), opt("Farmers Market"),
+    ]},
+    { key: "event", tag: "event", label: "Events", group: "social", options: [
+      ["Game Night", ["Ben Chen", "Jack Brennan"], "Mom's House"],
+      ["Book Club", ["Chloe Patel", "Grace Okonkwo"], "Downtown Library"],
+      ["Birthday Dinner", ["Felix Romero"], "Mom's House"],
+      ["Movie Night", ["Isabel Sokolov", "Deven Wright"], null],
+      ["Barbecue", ["Jack Brennan", "Ben Chen", "Felix Romero"], "City Park"],
+    ].map(([label, people, place]) => opt(label, {
+      bindings: [
+        { fieldId: peopleAssignedFieldId, role: "input", order: 1 },
+        { fieldId: boardDropdownFields.place.id, role: "input", order: 2 },
+      ],
+      fields: () => ({
+        [peopleAssignedFieldId]: fv(people.map(p => personOccByLabel[p])),
+        ...(place ? { [boardDropdownFields.place.id]: fv(boardOptionOccIds.place[place]) } : {}),
+      }),
+    }))},
+    { key: "leisure", tag: "leisure", label: "Leisure", group: "social", options: [
+      opt("Chess"), opt("Video Games"), opt("Hot Bath"), opt("Puzzle"), opt("Movie Night"), opt("Hammock Time"),
+    ]},
+    { key: "gratitude", tag: "gratitude", label: "Gratitude Log", group: "social", options: [
+      opt("Morning coffee on the porch"), opt("Call with Dad"), opt("Finished the 5K"),
+    ]},
+    { key: "win", tag: "win", label: "Wins", group: "social", options: [
+      opt("Shipped the feature"), opt("First pull-up"), opt("Paid off the card"),
+    ]},
+    // ── Creative ──
+    { key: "project", tag: "project", label: "Projects", group: "creative", options: [
+      opt("Moduli v1 Launch"), opt("Portfolio Site"), opt("Home Lab"), opt("Garden Build"),
+    ]},
+    { key: "medium", tag: "medium", label: "Mediums", group: "creative", options: [
+      opt("Pencil"), opt("Watercolor"), opt("Acrylic"), opt("Guitar"), opt("Piano"), opt("Camera"), opt("Clay"),
+    ]},
+    { key: "song", tag: "song", label: "Songs", group: "creative", options: [
+      opt("Hallelujah"), opt("Blackbird"), opt("Clair de Lune"), opt("Take Five"), opt("Redbone"),
+    ]},
+    { key: "creativeWork", tag: "creativeWork", label: "Creative Works", group: "creative", options: [
+      ["Sketchbook Vol. 3", "Pencil"], ["Untitled Album", "Piano"],
+      ["Short Film: Doors", "Camera"], ["Family Photo Book", "Camera"],
+    ].map(([label, medium]) => opt(label, {
+      bindings: [{ fieldId: boardDropdownFields.medium.id, role: "input", order: 1 }],
+      fields: () => ({ [boardDropdownFields.medium.id]: fv(boardOptionOccIds.medium[medium]) }),
+    }))},
+  ];
+
+  const boardContOccIds = {};   // tag → container occ id
+  const boardOptionOccIds = {}; // tag → { option label → occ id }
+  const boardGroupCounters = {};
+  for (const def of BOARD_DEFS) {
+    const contModId = uid();
+    // The People container occ id was pre-generated (person occurrences,
+    // created with the Library block, parent under it directly).
+    const contOccId = def.tag === "person" ? peopleBoardContOccId : uid();
+    boardContOccIds[def.tag] = contOccId;
+    boardOptionOccIds[def.tag] = {};
+
+    const optionOccIds = [];
+    for (const o of def.options) {
+      const modId = uid();
+      await new Module({
+        id: modId, userId, gridId, role: "instance", kind: "board",
+        label: o.label, defaultDragMode: "move",
+        fieldBindings: [
+          { fieldId: boardCategoryFieldId, role: "input", order: 0, hidden: true },
+          ...(o.bindings || []),
+        ],
+      }).save();
+      const occId = await mkOcc({
+        moduleId: modId, parentId: contOccId,
+        fields: {
+          [boardCategoryFieldId]: fv(def.tag),
+          ...(o.fields ? o.fields() : {}),
+        },
+      });
+      boardOptionOccIds[def.tag][o.label] = occId;
+      optionOccIds.push(occId);
+    }
+    const children = [...(def.reuseOccIds || []), ...optionOccIds];
+
+    await new Module({ id: contModId, userId, gridId, role: "container", kind: "board", label: def.label }).save();
+    await mkOcc({
+      id: contOccId, moduleId: contModId,
+      occurrences: children,
+      // The container's OWN tag value — read at add time by the addNew flow
+      // to stamp new options minted under it.
+      fields: { [boardCategoryFieldId]: fv(def.tag) },
+      // The board pulls in anything tagged with its category from anywhere in
+      // the grid (feedSync self-excludes the owner, its direct children, and
+      // feed copies — no extra conditions needed).
+      feed: {
+        enabled: true,
+        conditions: [{ fieldId: boardCategoryFieldId, comparator: "IS", value: def.tag }],
+        roles: ["instance"],
+        sort: null,
+        limit: 200,
+      },
+    });
+
+    const pageModId = uid();
+    const pageOccId = uid();
+    const sortOrder = boardGroupCounters[def.group] = (boardGroupCounters[def.group] ?? -1) + 1;
+    await new Module({ id: pageModId, userId, gridId, role: "page", kind: "board", label: def.label }).save();
+    await mkOcc({
+      id: pageOccId, moduleId: pageModId,
+      parentId: boardGroupFolderIds[def.group], sortOrder,
+      occurrences: [contOccId],
+      iteration: { mode: "persistent" }, fields: {},
+      filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
+    });
+  }
+
+  // addNew patches — EVERY board dropdown takes "+ Add" (per user). Single-
+  // board fields get parentOccurrenceId; multi-board fields get targets[]
+  // (candidate parent occ ids, first = default — the select-an-occurrence
+  // chooser lists them by live label and the chosen parent's boardCategory
+  // value is stamped on the new option at run time).
+  const singleBoardAddNew = [
+    [boardDropdownFields.mealPick.id,        "meal"],
+    [boardDropdownFields.beverage.id,        "beverage"],
+    [boardDropdownFields.supplement.id,      "supplement"],
+    [boardDropdownFields.movement.id,        "movement"],
+    [boardDropdownFields.workoutProgram.id,  "program"],
+    [boardDropdownFields.route.id,           "route"],
+    [boardDropdownFields.practice.id,        "practice"],
+    [boardDropdownFields.prompt.id,          "prompt"],
+    [boardDropdownFields.leisureActivity.id, "leisure"],
+    [boardDropdownFields.topic.id,           "topic"],
+    [boardDropdownFields.wishListItem.id,    "wishlist"],
+    [boardDropdownFields.charity.id,         "charity"],
+    [boardDropdownFields.place.id,           "place"],
+    [boardDropdownFields.eventPick.id,       "event"],
+    [boardDropdownFields.giftIdea.id,        "gift"],
+    [boardDropdownFields.area.id,            "area"],
+    [boardDropdownFields.equipment.id,       "equipment"],
+    [boardDropdownFields.plant.id,           "plant"],
+    [boardDropdownFields.medium.id,          "medium"],
+    [boardDropdownFields.song.id,            "song"],
+    [boardDropdownFields.verse.id,           "verse"],
+    [boardDropdownFields.gratitudeEntry.id,  "gratitude"],
+    [boardDropdownFields.win.id,             "win"],
+    [projectFieldId,                         "project"],
+  ];
+  for (const [fieldId, tag] of singleBoardAddNew) {
+    await Field.findOneAndUpdate(
+      { id: fieldId },
+      { $set: { "meta.optionsSource.addNew.parentOccurrenceId": boardContOccIds[tag] } },
+    );
+  }
+  const multiBoardAddNew = [
+    [boardDropdownFields.ingredient.id,      ["ingredient", "grocery"]],
+    [boardDropdownFields.purchaseItem.id,    ["grocery", "wishlist", "ingredient", "supplement", "equipment", "plant", "gift"]],
+    [boardDropdownFields.reading.id,         ["reading", "verse"]],
+    [boardDropdownFields.mediaPick.id,       ["media", "song", "course"]],
+    [boardDropdownFields.skill.id,           ["skill", "song"]],
+    [boardDropdownFields.savingsGoalPick.id, ["savingsGoal", "wishlist"]],
+    [boardDropdownFields.idea.id,            ["idea", "prompt"]],
+    [boardDropdownFields.creativeWork.id,    ["creativeWork", "project"]],
+  ];
+  for (const [fieldId, tags] of multiBoardAddNew) {
+    await Field.findOneAndUpdate(
+      { id: fieldId },
+      { $set: { "meta.optionsSource.addNew": { targets: tags.map(t => boardContOccIds[t]) } } },
+    );
+  }
+  // Reused fields repoint their addNew at board containers: new people land on
+  // the People board (library:"person" stampFields kept — the find predicate
+  // is unchanged); new courses land on the Courses board (library:"course"
+  // stampFields kept so the Courses Taken dropdown still lists them).
+  await Field.findOneAndUpdate(
+    { id: peopleAssignedFieldId },
+    { $set: { "meta.optionsSource.addNew.parentOccurrenceId": peopleBoardContOccId } },
+  );
+  await Field.findOneAndUpdate(
+    { id: coursesTakenFieldId },
+    { $set: { "meta.optionsSource.addNew.parentOccurrenceId": boardContOccIds.course } },
+  );
+
   // ── STEP 7b: Templates manifest + Daily Routine + Day Page templates ────────
   // Separate manifest from the user manifest (createTestGrid pattern).
   // buildTemplatesManifest mints the Templates folder + manifest and returns
@@ -4946,114 +5387,8 @@ export async function createLiveData(userId, options = {}) {
     statusFieldId, projectFieldId,
   });
 
-  // ── Profile Card template (task #46) ───────────────────────────────────────
-  // A `role:"page" kind:"doc"` template stored in the Templates manifest. The
-  // "People: Show Profile" op APPLY_TEMPLATEs this into profileCardOccId with
-  // a replacements map that swaps the bracket tokens for the clicked person's
-  // field values. Layout: H1 name → photo image → 2-column "Contact" rows →
-  // notes paragraph. Same bracket-token pattern as buildDayPageTemplate.
-  await new Module({
-    id: profileTemplateModId, userId, gridId,
-    role: "page", kind: "doc",
-    label: "Profile Page",
-    meta: { templateModule: true, templateName: "Profile Page" },
-  }).save();
-  await mkOcc({
-    id: profileTemplateOccId,
-    moduleId: profileTemplateModId,
-    parentId: tplManifestRootFolderId,
-    sortOrder: 4,
-    iteration: { mode: "persistent" },
-    fields: {},
-    filterOverride: {},
-    meta: { templateName: "Profile Page" },
-    // Bracket-token textmap. Tokens swapped by the Show Profile op's
-    // APPLY_TEMPLATE replacements. The image src token references the
-    // raw poster URL — works for absolute URLs (pravatar). Field-row
-    // labels stay literal; only values are templated.
-    textmap: {
-      type: "doc",
-      content: [
-        // Header row — name as H1, with a small relationship pill below.
-        { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "{name}" }] },
-        { type: "paragraph", content: [
-          { type: "text", marks: [{ type: "italic" }], text: "{relationship} · {city}" },
-        ] },
-        // Profile image (block-level — sized via Image extension).
-        { type: "image", attrs: { src: "{photo}", alt: "Profile" } },
-        // Contact block.
-        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Contact" }] },
-        { type: "paragraph", content: [
-          { type: "text", marks: [{ type: "bold" }], text: "Email: " },
-          { type: "text", text: "{email}" },
-        ] },
-        { type: "paragraph", content: [
-          { type: "text", marks: [{ type: "bold" }], text: "Phone: " },
-          { type: "text", text: "{phone}" },
-        ] },
-        { type: "paragraph", content: [
-          { type: "text", marks: [{ type: "bold" }], text: "Birthday: " },
-          { type: "text", text: "{birthday}" },
-        ] },
-        { type: "paragraph", content: [
-          { type: "text", marks: [{ type: "bold" }], text: "Address: " },
-          { type: "text", text: "{address}" },
-        ] },
-        // Work block.
-        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Work" }] },
-        { type: "paragraph", content: [
-          { type: "text", marks: [{ type: "bold" }], text: "Company: " },
-          { type: "text", text: "{company}" },
-          { type: "text", text: " — " },
-          { type: "text", text: "{jobTitle}" },
-        ] },
-        { type: "paragraph", content: [
-          { type: "text", marks: [{ type: "bold" }], text: "Website: " },
-          { type: "text", text: "{website}" },
-        ] },
-        { type: "paragraph", content: [
-          { type: "text", marks: [{ type: "bold" }], text: "LinkedIn: " },
-          { type: "text", text: "{linkedin}" },
-        ] },
-        // Social block.
-        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Social" }] },
-        { type: "paragraph", content: [
-          { type: "text", marks: [{ type: "bold" }], text: "Instagram: @" },
-          { type: "text", text: "{instagram}" },
-          { type: "text", text: "    " },
-          { type: "text", marks: [{ type: "bold" }], text: "Twitter: @" },
-          { type: "text", text: "{twitter}" },
-        ] },
-        // Personal block.
-        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Personal" }] },
-        { type: "paragraph", content: [
-          { type: "text", marks: [{ type: "bold" }], text: "Favorite food: " },
-          { type: "text", text: "{favoriteFood}" },
-        ] },
-        { type: "paragraph", content: [
-          { type: "text", marks: [{ type: "bold" }], text: "Allergies: " },
-          { type: "text", text: "{allergies}" },
-        ] },
-        { type: "paragraph", content: [
-          { type: "text", marks: [{ type: "bold" }], text: "Interests: " },
-          { type: "text", text: "{interests}" },
-        ] },
-        { type: "paragraph", content: [
-          { type: "text", marks: [{ type: "bold" }], text: "Last contact: " },
-          { type: "text", text: "{lastContact}" },
-        ] },
-        { type: "paragraph", content: [
-          { type: "text", marks: [{ type: "bold" }], text: "Emergency contact: " },
-          { type: "text", text: "{emergencyContact}" },
-        ] },
-        // How we met + freeform notes.
-        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "How we met" }] },
-        { type: "paragraph", content: [{ type: "text", text: "{howMet}" }] },
-        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Notes" }] },
-        { type: "paragraph", content: [{ type: "text", text: "{notes}" }] },
-      ],
-    },
-  });
+  // (Profile Card template removed 2026-07-25 — People is a board; the
+  // profile-card page + Show Profile op are gone.)
 
   // ── STEP 7c: Notebook docs parsed into DB textmaps ──────────────────────────
   //
@@ -5580,107 +5915,9 @@ export async function createLiveData(userId, options = {}) {
     filterNavConfig: { filter_daily: { visible: false } },
   });
 
-  // ── People page (task #46 — under Library folder, sortOrder 3) ─────────────
-  // `kind:"board"` page hosting TWO children stacked top-to-bottom:
-  //   1. Profile card — a `role:"page" kind:"doc"` page-within-page (#45) that
-  //      displays the selected person's profile via APPLY_TEMPLATE.
-  //   2. People table — a `role:"container" kind:"table"` with field-projection
-  //      columns (Photo / Name / Email / Phone / Gender / Notes). Rows are
-  //      COPY_LINKed person occurrences built by "People Table: Build".
-  // Per user direction 2026-05-22: when a person row is clicked, the Profile
-  // card above fills in via APPLY_TEMPLATE from the Profile Page template.
-  const peopleColumns = {
-    photo:   uid(),
-    name:    uid(),
-    email:   uid(),
-    phone:   uid(),
-    gender:  uid(),
-    notes:   uid(),
-    actions: uid(),
-  };
-
-  // ── Step 1: Profile-card page (page-within-page) ──────────────────────────
-  // role:"page" kind:"doc" — the page-within-page primitive (#45) renders
-  // this with container-style chrome when nested in the People page in
-  // "actual" mode. The textmap starts empty; the "People: Show Profile" op
-  // replaces it via APPLY_TEMPLATE with a clone of profileTemplateOccId,
-  // substituting bracket tokens with the clicked person's field values.
-  await new Module({ id: profileCardModId, userId, gridId, role: "page", kind: "doc", label: "Profile Card" }).save();
-  await mkOcc({
-    id: profileCardOccId,
-    moduleId: profileCardModId,
-    parentId: peoplePageOccId,
-    sortOrder: 0,
-    occurrences: [],
-    iteration: { mode: "persistent" },
-    fields: {},
-    filterOverride: {},
-    filterNavConfig: { filter_daily: { visible: false } },
-    // Force the cascade to render this nested page in "actual" mode so it
-    // inlines as a container-style surface (#45). User can still flip to
-    // "representation" via the HeaderDropdown ViewModeSection if they want
-    // the chip view.
-    meta: { viewMode: "actual", layoutCascadeOverride: { dragInView: "actual" } },
-    // Empty default textmap — the Show-Profile op fills it on row click.
-    textmap: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Click a person below to load their profile." }] }] },
-  });
-
-  // ── Step 2: People-table container (role:"container" kind:"table") ───────
-  // The table that was previously embedded directly on the page is now a
-  // dedicated container child. Same column shape as before.
-  await new Module({ id: peopleTableModId, userId, gridId, role: "container", kind: "table", label: "People Table" }).save();
-  await mkOcc({
-    id: peopleTableOccId,
-    moduleId: peopleTableModId,
-    parentId: peoplePageOccId,
-    sortOrder: 1,
-    occurrences: [],
-    iteration: { mode: "persistent" },
-    fields: {},
-    filterOverride: {},
-    filterNavConfig: { filter_daily: { visible: false } },
-    meta: {
-      table: {
-        columns: [
-          { id: peopleColumns.photo,  title: "Photo",  width: 90,  displayFieldId: null, sort: null, filter: null,
-            fieldVisibility: { mode: "show", fieldIds: [posterUrlFieldId]     }, hideLabel: true },
-          { id: peopleColumns.name,   title: "Name",   width: 180, displayFieldId: null, sort: null, filter: null,
-            fieldVisibility: { mode: "show", fieldIds: [personNameFieldId]    }, hideLabel: true },
-          { id: peopleColumns.email,  title: "Email",  width: 220, displayFieldId: null, sort: null, filter: null,
-            fieldVisibility: { mode: "show", fieldIds: [personEmailFieldId]   }, hideLabel: true },
-          { id: peopleColumns.phone,  title: "Phone",  width: 150, displayFieldId: null, sort: null, filter: null,
-            fieldVisibility: { mode: "show", fieldIds: [personPhoneFieldId]   }, hideLabel: true },
-          { id: peopleColumns.gender, title: "Gender", width: 110, displayFieldId: null, sort: null, filter: null,
-            fieldVisibility: { mode: "show", fieldIds: [personGenderFieldId]  }, hideLabel: true },
-          { id: peopleColumns.notes,  title: "Notes",  width: 300, displayFieldId: null, sort: null, filter: null,
-            fieldVisibility: { mode: "show", fieldIds: [personNotesFieldId]   }, hideLabel: true },
-          // Actions column — projects ONLY the Show Profile button field.
-          // Same embed pattern as the other columns; button field renders
-          // as a click-to-run button via Field.jsx's type-dispatch.
-          { id: peopleColumns.actions, title: "Actions", width: 120, displayFieldId: null, sort: null, filter: null,
-            fieldVisibility: { mode: "show", fieldIds: [personShowProfileButtonFieldId] }, hideLabel: true },
-        ],
-        rowCount: 0,
-        cells: {},
-        sort: { colId: peopleColumns.name, dir: "asc" },
-      },
-    },
-  });
-
-  // ── Step 3: People board page itself ──────────────────────────────────────
-  // Hosts profile-card + people-table as children, in that order.
-  await new Module({ id: peoplePageModId, userId, gridId, role: "page", kind: "board", label: "People" }).save();
-  await mkOcc({
-    id: peoplePageOccId,
-    moduleId: peoplePageModId,
-    parentId: libraryFolderId,
-    sortOrder: 3,
-    occurrences: [profileCardOccId, peopleTableOccId],
-    iteration: { mode: "persistent" },
-    fields: {},
-    filterOverride: {},
-    filterNavConfig: { filter_daily: { visible: false } },
-  });
+  // (People page + People Table + profile-card page removed 2026-07-25 —
+  // People renders as a plain BOARD in the Boards folder; person
+  // occurrences live under the People board container.)
 
   // Month View / Week View pages REMOVED (2026-05-24). Schedule page's
   // own filter (week/month unit) drives multi-day rendering via the
@@ -9456,195 +9693,7 @@ export async function createLiveData(userId, options = {}) {
     },
   }).save();
 
-  // ── People Table: Build (task #46) ────────────────────────────────────────
-  // Mirrors every Library person occurrence into the People-table container
-  // (`role:"container" kind:"table"` — a child of the People board page).
-  // Per person: ONE COPY_LINK occurrence parented under peopleTableOccId, with
-  // the 6 columns each projecting a single field via column-level
-  // fieldVisibility. Row-level dedup via templateId IS source person's id.
-  // $r appends from the table's current rowCount so re-runs add nothing.
-  // Priority 8 — runs after page-build ops so $allItemsById is populated.
-  const ptCellDoc = (occVar) => ({ type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: occVar } }] });
-  await new Operation({
-    id: uid(), userId, gridId, priority: 8, folderId: opCategoryIds.library,
-    name: "People Table: Build",
-    description: "Mirror Library person occurrences into the People-table container. Per person → one copy-linked occurrence parented under the table. Idempotent: existing rows are skipped via templateId dedup; new rows append from current rowCount.",
-    triggerTypes: ["onAdd", "onDelete", "onLoad"],
-    triggerObjects: [
-      // Narrowed to ancestorLabel:"Library" so an instance add anywhere else
-      // (Schedule task drop, Daily Toolkit edit) doesn't pay the People Table
-      // rebuild match cost. Library is the only legitimate source of changes
-      // this op needs to react to.
-      { eventType: "onAdd",    subjectType: "module", subjectRole: "instance", targetId: "", ancestorLabel: "Library", priority: 8 },
-      { eventType: "onDelete", subjectType: "module", subjectRole: "instance", targetId: "", ancestorLabel: "Library", priority: 8 },
-      { eventType: "onLoad",   subjectType: "grid",   targetId: "",            priority: 8 },
-    ],
-    enabled: true,
-    pipeline: {
-      sources: [],
-      steps: [
-        // Picker-direct binding to the People table container (was the People
-        // page itself before #46 refactor — table is now a container child).
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$tbl",   expr: `$allItemsById.${peopleTableOccId}` } },
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$tblId", expr: "$tbl.id" } },
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$r",     expr: "$tbl.meta.table.rowCount" } },
-        // SCOPE GUARD (2026-05-25 part 3 — inclusive). Rebuild ONLY on a
-        // genuine Library change: a bulk fire (no trigger occurrence) OR a
-        // trigger occurrence that lives under the Library container (a real
-        // person add/remove). The table's OWN rows are COPY_LINK copies that
-        // ALSO carry library:"person", but they're parented under the table
-        // (not the Library container), so they fail this ancestor check — which
-        // is what stops People Table: Build from re-firing on its own (and
-        // every other mirror op's) row CRUD. Same fix as Canvas: Build /
-        // Schedule Table: Build. Library container id is baked in at seed time.
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerOccId",   expr: "$trigger.occurrenceId" } },
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$isSourceChange", expr: "literal:0" } },
-        { id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$triggerOccId", comparator: "IS_EMPTY", right: "" }] },
-          then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$isSourceChange", expr: "literal:1" } }],
-          else: [],
-        },
-        { id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$trigger.occurrence._ancestors", comparator: "HAS_ANCESTOR", right: libraryContOccId }] },
-          then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$isSourceChange", expr: "literal:1" } }],
-          else: [],
-        },
-        { id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$isSourceChange", comparator: "IS", right: 1 }] },
-          then: [
-        // Loop every library:"person" occurrence in $allInstances.
-        { id: uid(), type: "loop", overExpr: "$allInstances", as: "$person",
-          body: [
-            { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [
-                { id: uid(), left: `$person.fields.${libraryFieldId}.value`, comparator: "IS", right: "person" },
-                { id: uid(), left: "$person.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-              ]},
-              then: [
-                // Dedup — already a copy of this person on the People table?
-                { id: uid(), type: "action", config: {
-                    type: "FIND",
-                    over: "$allInstances",
-                    predicate: { operator: "AND", rules: [
-                      { id: uid(), left: "templateId",  comparator: "IS",            right: "$person.templateId" },
-                      { id: uid(), left: "_ancestors",  comparator: "HAS_ANCESTOR",  right: "$tblId" },
-                    ]},
-                    itemIdVar: "$existingRowId",
-                }},
-                { id: uid(), type: "if",
-                  condition: { operator: "AND", rules: [{ id: uid(), left: "$existingRowId", comparator: "IS_EMPTY", right: "" }]},
-                  then: [
-                    // COPY_LINK the person, parent under the table page.
-                    { id: uid(), type: "action", config: {
-                        type: "COPY_LINK",
-                        sourceId: "$person.id",
-                        parent: "$tblId",
-                        itemIdVar: "$rowOccId",
-                    }},
-                    // Write the embed doc to EVERY column for this row — the
-                    // column's `fieldVisibility` picks which single field to
-                    // project from the same shared embed.
-                    { id: uid(), type: "action", config: { type: "UPDATE", path: `$tbl.meta.table.cells.\${$r}:0`, value: ptCellDoc("$rowOccId") } },
-                    { id: uid(), type: "action", config: { type: "UPDATE", path: `$tbl.meta.table.cells.\${$r}:1`, value: ptCellDoc("$rowOccId") } },
-                    { id: uid(), type: "action", config: { type: "UPDATE", path: `$tbl.meta.table.cells.\${$r}:2`, value: ptCellDoc("$rowOccId") } },
-                    { id: uid(), type: "action", config: { type: "UPDATE", path: `$tbl.meta.table.cells.\${$r}:3`, value: ptCellDoc("$rowOccId") } },
-                    { id: uid(), type: "action", config: { type: "UPDATE", path: `$tbl.meta.table.cells.\${$r}:4`, value: ptCellDoc("$rowOccId") } },
-                    { id: uid(), type: "action", config: { type: "UPDATE", path: `$tbl.meta.table.cells.\${$r}:5`, value: ptCellDoc("$rowOccId") } },
-                    // Column 6 — Actions (Show Profile button). Same embed
-                    // shape; the column's `fieldVisibility` projects only
-                    // the button field. Button click fires the op with
-                    // $trigger.occurrenceId = this row's id.
-                    { id: uid(), type: "action", config: { type: "UPDATE", path: `$tbl.meta.table.cells.\${$r}:6`, value: ptCellDoc("$rowOccId") } },
-                    { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$r", by: 1 } },
-                  ],
-                  else: [],
-                },
-              ],
-              else: [],
-            },
-          ],
-        },
-        // Persist final rowCount.
-        { id: uid(), type: "action", config: { type: "UPDATE", path: "$tbl.meta.table.rowCount", value: "$r" } },
-          ],
-          else: [],
-        },
-      ],
-    },
-  }).save();
-
-  // ── People: Show Profile (task #46) ────────────────────────────────────────
-  // Button-trigger op — fires when the user clicks the "Show Profile" button
-  // on a person row. The button is rendered by the `personShowProfileButton`
-  // field (type: "button"), which fires a ButtonOp transaction with the
-  // clicked row's occurrence id as `$trigger.occurrenceId`.
-  //
-  // Pipeline: resolve the clicked row via $allItemsById[$trigger.occurrenceId],
-  // then APPLY_TEMPLATE the Profile Page template into the profile card
-  // occurrence with bracket-token replacements drawn from the row's field
-  // values. (Rows are COPY_LINKed copies of the Library person occurrences,
-  // so the field values are mirrored.) Idempotent: re-running with the same
-  // row overwrites the card's textmap with the fresh template clone.
-  await new Operation({
-    id: showProfileOpId, userId, gridId, priority: 5, folderId: opCategoryIds.library,
-    name: "People: Show Profile",
-    description: "Fill the People page's profile card with the clicked person's profile via APPLY_TEMPLATE. Fired by the Show Profile button on each row.",
-    triggerTypes: ["onButton", "manual"],
-    triggerObjects: [
-      { eventType: "onButton", subjectType: "grid", targetId: "", priority: 5 },
-      { eventType: "manual",   subjectType: "grid", targetId: "", priority: 5 },
-    ],
-    enabled: true,
-    pipeline: {
-      sources: [],
-      steps: [
-        // 1. Resolve the clicked person row directly from $allItemsById.
-        //    $trigger.occurrenceId is set by the button-field click handler.
-        //    Falls back to manual mode via GET_USER_INPUT when no trigger
-        //    occurrence (e.g. running from Command Center).
-        { id: uid(), type: "action", config: {
-          type: "INIT_VAR", name: "$person",
-          expr: "$allItemsById.${$trigger.occurrenceId}",
-        } },
-        // 3. APPLY_TEMPLATE the Profile Page template into the profile card,
-        //    swapping bracket tokens with the person's field values. Mode
-        //    "replace" wipes the card's previous content first so the swap
-        //    is clean (no leftover from a prior person's profile).
-        // NOTE (2026-07-07 op audit): the executor reads cfg.templateRef +
-        // cfg.targetOccurrenceVar — this op originally used templateId/targetId,
-        // which APPLY_TEMPLATE never reads, so it silently no-op'd forever.
-        { id: uid(), type: "action", config: {
-          type: "APPLY_TEMPLATE",
-          templateRef: profileTemplateOccId,
-          targetOccurrenceVar: profileCardOccId,
-          mode: "replace",
-          replacements: {
-            "{name}":             `$person.fields.${personNameFieldId}.value`,
-            "{email}":            `$person.fields.${personEmailFieldId}.value`,
-            "{phone}":            `$person.fields.${personPhoneFieldId}.value`,
-            "{birthday}":         `$person.fields.${personBirthdayFieldId}.value`,
-            "{address}":          `$person.fields.${personAddressFieldId}.value`,
-            "{city}":             `$person.fields.${personCityFieldId}.value`,
-            "{company}":          `$person.fields.${personCompanyFieldId}.value`,
-            "{jobTitle}":         `$person.fields.${personJobTitleFieldId}.value`,
-            "{relationship}":     `$person.fields.${personRelationshipFieldId}.value`,
-            "{website}":          `$person.fields.${personWebsiteFieldId}.value`,
-            "{instagram}":        `$person.fields.${personInstagramFieldId}.value`,
-            "{twitter}":          `$person.fields.${personTwitterFieldId}.value`,
-            "{linkedin}":         `$person.fields.${personLinkedInFieldId}.value`,
-            "{lastContact}":      `$person.fields.${personLastContactFieldId}.value`,
-            "{favoriteFood}":     `$person.fields.${personFavoriteFoodFieldId}.value`,
-            "{allergies}":        `$person.fields.${personAllergiesFieldId}.value`,
-            "{interests}":        `$person.fields.${personInterestsFieldId}.value`,
-            "{howMet}":           `$person.fields.${personHowMetFieldId}.value`,
-            "{emergencyContact}": `$person.fields.${personEmergencyContactFieldId}.value`,
-            "{notes}":            `$person.fields.${personNotesFieldId}.value`,
-            "{photo}":            `$person.fields.${posterUrlFieldId}.value`,
-          },
-        } },
-      ],
-    },
-  }).save();
+  // (People Table: Build + People: Show Profile ops removed 2026-07-25.)
 
   // ── Categorize operations (post-save bulk patch) ───────────────────────────
   // Same name-pattern routing as fields. Lets Operation records defined
