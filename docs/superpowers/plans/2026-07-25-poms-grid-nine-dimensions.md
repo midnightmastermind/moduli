@@ -76,6 +76,16 @@ Two actions added beyond the user's verbatim list, per follow-up direction ("coo
 | Mediums | `medium` | Pencil, Watercolor, Acrylic, Guitar, Piano, Camera, Clay | **Medium** | Draw, Paint, Sketch, Craft, Photograph, Film, Edit, Invent |
 | Songs | `song` | Hallelujah, Blackbird, Clair de Lune, Take Five, Redbone | **Song** | Sing, Dance, Compose |
 | People | `person` | the 10 existing person occurrences (profile fields + photos intact) | **People** (existing `peopleAssigned` field, multiSelect) | Text, Call, Chat, Meet, Date, Visit, Host, Collaborate, Mentor, Volunteer, Email, Network |
+| Workout Programs | `program` | Push Day A, Pull Day B, Leg Day, Full Body 5x5, Couch to 5K | **Workout Program** | Exercise, Lift, Run |
+| Courses | `course` | reuse the Library course entries | **Course** (reuse the existing course picker field if one exists — check before minting) | Study, Watch |
+| Events | `event` | Game Night, Book Club, Birthday Dinner, Movie Night, Barbecue | **Event** | Host, Meet, Date, Celebrate |
+| Gift Ideas | `gift` | Cookbook for Mom, Board Game, Concert Tickets, Handmade Mug | **Gift Idea** | Date, Visit (+ Buy via Purchase Item) |
+| Verses | `verse` | Psalm 23, Sermon on the Mount, Ecclesiastes 3, Proverbs 3:5-6 | **Verse** | Read Scripture, Worship, Pray |
+| Gratitude Log | `gratitude` | "Morning coffee on the porch", "Call with Dad", "Finished the 5K" | **Gratitude Entry** | Gratitude (this board IS the gratitude journal — see capture loops) |
+| Wins | `win` | "Shipped the feature", "First pull-up", "Paid off the card" | **Win** | Celebrate (capture loop) |
+| Ideas | `idea` | "Plant herb wall", "App for tracking loans to friends", "Photo series: doors" | **Idea** | Brainstorm, Prototype, Invent |
+| Savings Goals | `savingsGoal` | Emergency Fund, Japan Trip, New Laptop, Down Payment | **Savings Goal** | Save, Budget, Invest |
+| Creative Works | `creativeWork` | Sketchbook Vol. 3, Untitled Album, Short Film "Doors", Family Photo Book | **Creative Work** | every Creative action (the piece being worked on) |
 
 > **People is a board (per user):** the 10 person occurrences move into a People board page in the Boards folder (they keep their profile fields, photos, and `library:"person"` tag so nothing else breaks). The standalone People page (table + profile card) is REMOVED — People renders as a plain board list. The `peopleAssigned` field keeps its existing find-mode optionsSource; only its `addNew.parentOccurrenceId` is repointed at the People board container.
 > **Equipment field-name note:** grep existing field names before minting — if "Equipment" (or any other new name) collides with an existing field, suffix the board noun ("Equipment Item") rather than renaming the existing field. The zero-duplicates verification in Task 3 Step 4 is the net.
@@ -102,13 +112,28 @@ Multi-board fields in this seed:
 
 | Field | Boards queried | Why |
 |---|---|---|
-| **Purchase Item** (NEW, multiSelect) | Grocery List + Wish List + Ingredients + Supplements + Equipment + Plants | Buy/Spend can log ANY buyable thing — a grocery run, a wish-list splurge, recipe ingredients, a new plant. `addNew` parents into Grocery List (the everyday case). |
+| **Purchase Item** (NEW, multiSelect) | Grocery List + Wish List + Ingredients + Supplements + Equipment + Plants + Gift Ideas | Buy/Spend can log ANY buyable thing — a grocery run, a wish-list splurge, recipe ingredients, a plant, a gift. `addNew` parents into Grocery List (the everyday case). |
 | **Ingredient** (multiSelect) | Ingredients + Grocery List | Cook/Eat can pull from the pantry list OR something just bought off the grocery list. `addNew` → Ingredients. |
-| **Media** | Media + Songs | Listen can pick a podcast/show or a single song. |
+| **Media** | Media + Songs + Courses | Listen/Watch can pick a podcast, a show, a single song, or a course video. |
 | **Skill** | Skills + Songs | Practice covers "practice guitar" AND "practice Blackbird". |
-| **Reading** | Readings (Library books + scripture/philosophy entries share the tag) | already effectively multi-source via the Library reuse |
+| **Reading** | Readings + Verses | Read/Read Scripture can pick a book or a single passage. |
+| **Savings Goal** | Savings Goals + Wish List | Save can fund a named goal or save TOWARD a wish-list item. |
+| **Creative Work** | Creative Works + Projects | a creative piece and a project are both "the thing I'm working on" — Edit/Film/Compose can pick either. |
+| **Idea** | Ideas + Prompts | Prototype/Invent pull from the idea inbox or riff on a creative prompt. |
 
-Outside-the-box seed touches enabled by this: each **Meal** option instance on the Meals board binds the Ingredient field itself (a meal IS a recipe — pick a meal on Cook and its ingredient list is one click away); the Grocery List board is the natural `addNew` sink so anything typed into a Buy/Spend dropdown lands on the grocery list automatically.
+**Boards that reference boards (recipe pattern):** option instances can bind the other dropdown fields, so a board entry carries its own composition —
+- each **Meal** binds Ingredient (multi): a meal IS a recipe; pick a meal on Cook and its ingredient list is one click away;
+- each **Workout Program** binds Movement (multi): a program IS a workout recipe (Push Day A = Bench Press + Incline Press + …);
+- each **Event** binds People (multi) + Place: Game Night knows who is invited and where;
+- each **Gift Idea** binds People: the gift knows who it is for;
+- each **Savings Goal** binds Amount: the goal carries its target;
+- each **Creative Work** binds Medium: the album knows it is a Piano piece.
+
+**Capture loops (`addNew` as journaling):** some boards GROW from completing actions instead of being pre-curated — the dropdown's "+ Add" is the journal entry point:
+- **Gratitude** → typing into its Gratitude Entry dropdown mints onto the Gratitude Log board (the board IS the gratitude journal);
+- **Celebrate** → new Wins land on the Wins board (a trophy shelf that accumulates);
+- **Brainstorm** → new Ideas land on the Ideas board (idea inbox), where Prototype/Invent later pick them up;
+- **Buy/Spend** → unknown items land on the Grocery List.
 
 ### Per-action input field bindings (all actions also bind hidden Date; `completed` bound everywhere unless noted)
 
@@ -119,29 +144,40 @@ Outside-the-box seed touches enabled by this: each **Meal** option instance on t
 | Drink | Beverage, Water (oz) |
 | Sleep, Nap, Focus | Duration |
 | Recover | Supplement (multi), Duration |
-| Relax, Decompress, Celebrate | Leisure Activity, Duration |
-| Exercise, Lift | Movement, Set 1–3, Weight 1–3 |
+| Relax, Decompress | Leisure Activity, Duration |
+| Celebrate | Win, Event, Leisure Activity |
+| Exercise, Lift | Workout Program, Movement, Set 1–3, Weight 1–3 |
 | Stretch | Movement, Duration |
-| Walk, Run | Route, Steps, Duration |
+| Walk | Route, Steps, Duration |
+| Run | Workout Program, Route, Steps, Duration |
 | Hygiene, Groom, Laundry, Dishes, Recycle, Forgive | (completed only) |
 | Journal | Prompt, Mood (emotion wheel field) |
 | Check In, Express, Vent | Mood |
 | Reflect (both) | Prompt, Duration |
-| Meditate (both), Pray, Worship, Gratitude, Mindfulness | Practice, Duration |
-| Read, Read Scripture, Read Philosophy | Reading, Pages, Duration |
-| Study, Memorize, Research, Explore, Analyze | Topic, Duration |
+| Meditate (both), Mindfulness | Practice, Duration |
+| Pray, Worship | Practice, Verse, Duration |
+| Gratitude | Gratitude Entry, Practice |
+| Read, Read Philosophy | Reading, Pages, Duration |
+| Read Scripture | Reading (queries Readings + Verses), Pages, Duration |
+| Study | Topic, Course, Duration |
+| Memorize, Research, Explore, Analyze | Topic, Duration |
 | Teach | Topic, Skill, Duration |
 | Practice (Intellectual) | Skill, Duration |
-| Watch, Listen | Media, Duration |
+| Watch | Media (queries Media + Songs + Courses), Duration |
+| Listen | Media (queries Media + Songs + Courses), Duration |
 | Text, Call, Chat, Email, Network | People |
-| Meet, Date, Visit, Host | People, Place, Duration |
-| Collaborate | People, Duration |
+| Meet, Date | People, Place, Event, Duration |
+| Visit | People, Place, Gift Idea, Duration |
+| Host | People, Place, Event, Duration |
+| Collaborate | People, Project, Duration |
 | Mentor | People, Skill, Duration |
 | Volunteer | People, Place, Charity, Duration |
 | Plan, Prioritize, Build, Code, Design, Write (Occ.), Review (Occ.) | Project, Duration |
-| Budget, Save | Account, Wish List Item, Amount (with flow) |
+| Budget | Account, Savings Goal, Amount (with flow) |
+| Save | Account, Savings Goal (queries Savings Goals + Wish List), Amount (with flow) |
 | Spend, Buy | Account, Purchase Item (multi), Amount (with flow) |
-| Earn, Invest, Pay, Reconcile, Review (Fin.) | Account, Amount (with flow) |
+| Invest | Account, Savings Goal, Amount (with flow) |
+| Earn, Pay, Reconcile, Review (Fin.) | Account, Amount (with flow) |
 | Track | Account, Amount (with flow — `field.meta.flowToggle` visible so in/out/replace is one tap; replace SETS the account balance via `supportsReplace`) |
 | Donate | Account, Charity, Amount (with flow) |
 | Clean, Declutter, Organize, Vacuum | Area, Duration |
@@ -149,10 +185,11 @@ Outside-the-box seed touches enabled by this: each **Meal** option instance on t
 | Garden | Plant, Duration |
 | Nature | Route, Duration |
 | Serve | Charity, Duration |
-| Sing, Dance, Compose | Song, Medium, Duration |
-| Brainstorm | Prompt, Duration |
-| Journal Creatively, Write (Creative) | Prompt, Medium, Duration |
-| Draw, Paint, Sketch, Craft, Photograph, Film, Edit, Prototype, Invent | Medium, Duration |
+| Sing, Dance, Compose | Song, Medium, Creative Work, Duration |
+| Brainstorm | Idea, Prompt, Duration |
+| Prototype, Invent | Idea (queries Ideas + Prompts), Medium, Duration |
+| Journal Creatively, Write (Creative) | Prompt, Medium, Creative Work, Duration |
+| Draw, Paint, Sketch, Craft, Photograph, Film, Edit | Medium, Creative Work (queries Creative Works + Projects), Duration |
 
 ### Page restructure
 
@@ -361,7 +398,7 @@ git commit -m "feat(theme): Light Vintage + Dark Vintage '70s themes; Dark Vinta
 - Modify: `server/scripts/createLiveData.js` STEP 2 (fields, ~line 619+), STEP 3/6 (option instance modules + occurrences), STEP 7/8 (Boards folder + board pages)
 
 **Interfaces:**
-- Produces (used by Tasks 4–6): `boardCategoryFieldId`; dropdown field ids `mealFieldId, ingredientFieldId, purchaseItemFieldId, beverageFieldId, supplementFieldId, movementFieldId, routeFieldId, readingFieldId, mediaFieldId, practiceFieldId, promptFieldId, leisureFieldId, skillFieldId, topicFieldId, wishListItemFieldId, charityFieldId, placeFieldId, areaFieldId, equipmentFieldId, plantFieldId, mediumFieldId, songFieldId` (+ resolved Project field per the note); multi-board fields (Purchase Item, Ingredient, Media, Skill) use the OR-group predicate from the Design Reference; `boardContainerOccIds = { meal, ingredient, grocery, beverage, supplement, movement, route, reading, media, practice, prompt, leisure, project, skill, topic, wishlist, charity, place, area, equipment, plant, medium, song, person }` — 24 boards total.
+- Produces (used by Tasks 4–6): `boardCategoryFieldId`; dropdown field ids `mealFieldId, ingredientFieldId, purchaseItemFieldId, beverageFieldId, supplementFieldId, movementFieldId, workoutProgramFieldId, routeFieldId, readingFieldId, mediaFieldId, courseFieldId, practiceFieldId, promptFieldId, leisureFieldId, skillFieldId, topicFieldId, wishListItemFieldId, savingsGoalFieldId, charityFieldId, placeFieldId, eventFieldId, giftIdeaFieldId, areaFieldId, equipmentFieldId, plantFieldId, mediumFieldId, songFieldId, verseFieldId, gratitudeEntryFieldId, winFieldId, ideaFieldId, creativeWorkFieldId` (+ resolved Project field per the note); multi-board fields (Purchase Item, Ingredient, Media, Skill, Reading, Savings Goal, Creative Work, Idea) use the OR-group predicate from the Design Reference; `boardContainerOccIds` keyed by every tag in the boardCategory enum — **34 boards total**.
 
 - [ ] **Step 1: Add the tag field + 9 dropdown fields to STEP 2**
 
@@ -373,7 +410,8 @@ boardCategory: {
   meta: { optionsSource: { mode: "manual",
     options: ["meal","ingredient","grocery","beverage","supplement","movement","route","reading","media",
               "practice","prompt","leisure","project","skill","topic","wishlist","charity","place","area",
-              "equipment","plant","medium","song","person"] } },
+              "equipment","plant","medium","song","person","program","course","event","gift","verse",
+              "gratitude","win","idea","savingsGoal","creativeWork"] } },
 },
 ```
 
@@ -404,7 +442,7 @@ For each board, mint `role:"instance"` modules with `fieldBindings: [{ fieldId: 
 
 - [ ] **Step 3: Boards folder + pages + addNew patch**
 
-Create a manifest folder "Boards" (sortOrder after Library) holding one `role:"page" kind:"board"` page per board — all 24 from the boards table: Meals, Ingredients, Grocery List, Beverages, Supplements, Movements, Routes, Readings, Media, Practices, Prompts, Leisure, Projects, Skills, Topics, Wish List, Charities, Places, Areas, Equipment, Plants, Mediums, Songs, People — each with its single container. Mirror the Bills-page wiring shape (`createLiveData.js:5539` + `4218`). After container occurrences exist, patch each dropdown field's `meta.optionsSource.addNew.parentOccurrenceId` (mirror `createLiveData.js:4773-4776`).
+Create a manifest folder "Boards" (sortOrder after Library) holding one `role:"page" kind:"board"` page per board — all 34 from the boards table: Meals, Ingredients, Grocery List, Beverages, Supplements, Movements, Workout Programs, Routes, Readings, Verses, Media, Courses, Practices, Prompts, Leisure, Projects, Ideas, Skills, Topics, Wish List, Savings Goals, Charities, Places, Events, Gift Ideas, Areas, Equipment, Plants, Mediums, Songs, Creative Works, Gratitude Log, Wins, People — each with its single container. Consider sub-grouping the Boards folder's tree by life area (Food, Body, Mind, Money, Home, Social, Creative) if 34 flat pages read as noise — folders are cheap; the pages are what matter. Mirror the Bills-page wiring shape (`createLiveData.js:5539` + `4218`). After container occurrences exist, patch each dropdown field's `meta.optionsSource.addNew.parentOccurrenceId` (mirror `createLiveData.js:4773-4776`) — capture-loop boards (Gratitude Log, Wins, Ideas, Grocery List) MUST get their addNew sink wired or the journaling loops are dead. Recipe-pattern option instances (Meals→Ingredient, Workout Programs→Movement, Events→People+Place, Gift Ideas→People, Savings Goals→Amount, Creative Works→Medium) bind those fields on their modules and stamp seed values.
 
 - [ ] **Step 4: Verify**
 
@@ -419,7 +457,7 @@ Expected: `0 duplicate field names`, every board tag ≥3 options.
 
 ```bash
 git add server/scripts/createLiveData.js server/seed
-git commit -m "feat(seed): option Boards (24 pages incl. People) + Board Category tag + occurrence dropdown fields"
+git commit -m "feat(seed): option Boards (34 pages incl. People, capture-loop + recipe boards) + Board Category tag + occurrence dropdown fields"
 ```
 
 ---
