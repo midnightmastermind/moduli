@@ -1,0 +1,257 @@
+# Occurrence Search — design (2026-07-26)
+
+Per user direction (this session): a magnifying-glass button in the panel header that expands
+into a textbox and shows a live dropdown of matching occurrences. Picking one opens the page the
+occurrence lives on **in that panel** and scrolls to it. Plus a second, page-scoped search in the
+page header that only searches occurrences on that page.
+
+Matching covers labels, **ancestor locations**, **field names and values**, and **textblock /
+doc body text** — "it shouldn't just be for labels".
+
+---
+
+## 1. Surfaces
+
+| | Panel header search | Page header search |
+|---|---|---|
+| Where | Left of the Root-tree (Folder) button in `ModulePanel`'s page header row | Left of the filter funnel (`HeaderChevron`) in `ModulePage`'s header |
+| Scope | Every occurrence in the current grid | Descendants of that page occurrence only |
+| On pick | Resolve nearest ancestor page → pin + activate it **in this panel** → scroll + flash | Scroll + flash (no page switch) |
+
+The panel header carries no filter button today (panel-level filter UI is deliberately suppressed
+— `ModulePanel.jsx` ~line 906), so "left of the filter button" resolves to left of the Root-tree
+toggle there. Header order becomes:
+
+```
+[radial handle] [Local tree] page label [🔍] [Root tree] [stack] [fullscreen]
+```
+
+Both surfaces render the same component. Collapsed it is an icon button; clicking expands it into
+an input in place; the dropdown opens on the first keystroke.
+
+---
+
+## 2. Engine — `helpers/occurrenceSearch.js` (new, pure)
+
+```
+buildSearchIndex({ occurrencesById, modulesById, fieldsById, gridId, cache })
+  → { entries: SearchEntry[], byId: Map }
+
+searchOccurrences(index, query, { scopeRootId = null, limit = 50 })
+  → { results: SearchResult[], total }
+```
+
+Pure functions, no React, no socket. Unit-testable in isolation; this is where the behavior lives.
+
+### 2.1 `SearchEntry`
+
+```js
+{
+  occId,
+  label,            // what the renderer shows
+  pathLabels,       // ["Routines", "Physical"] — root-first ancestor labels
+  ancestorIds,      // for scoping the page search
+  pageOccId,        // nearest role:"page" ancestor (inclusive), null if none
+  role, kind,       // for the row's type icon
+  haystacks: {
+    label:  "drink water",
+    path:   "routines physical",
+    fields: "water 16oz completed yes time slot 6:00am",
+    body:   "…plain text of textmap…",
+    dates:  "2026-07-25 jul 25 july 25 july 25th friday fri 2026",
+  },
+  fieldPairs,       // [{ name, text }] — used to build the "why it matched" line
+}
+```
+
+All haystacks are lowercased once at index time. The query is lowercased once per search.
+
+### 2.2 What feeds each haystack
+
+**Label** — `occurrence.label ?? computeScheduleColLabel(occurrence, module) ?? module.label`.
+This must mirror the renderer or search and screen drift. `computeScheduleColLabel` currently
+lives inside `modules/ModuleContainer.jsx`; it moves into the search helper (or a shared
+`helpers/labelHelpers.js`) and `ModuleContainer` imports it. Behavior-preserving move.
+
+**Path** — each ancestor's label resolved the same way, root-first. Ancestors come from the
+`occurrences[]` reverse map (`helpers/dragHitTesting.buildParentMap`) with a `parentId` fallback,
+matching every other ancestor walk in the codebase.
+
+**Dates** — for each ISO date found on the occurrence (a `filterOverride` value, or any date-typed
+field value), expand into aliases: `2026-07-25`, `jul 25`, `july 25`, `july 25th`, `friday`, `fri`,
+`2026`. This is what makes the user's `9pm july 25` example work: day-column labels render as
+`Schedule - Jul 25` (short month, via `summarizeSelection`) or a stamped
+`Schedule - Sunday, May 24th, 2026`, so a literal substring match on "july 25" would otherwise miss.
+
+**Field names + values** — for every entry in `occurrence.fields`:
+- the field's `name` is indexed (so "protein" finds everything carrying a Protein field);
+- the value is stringified by type:
+  - number/duration → `value` and `value+unit` (`42`, `42g`)
+  - boolean → `yes` / `no`
+  - date → the date-alias expansion above
+  - select / multi-select → the option values, joined
+  - **occurrence-ref (single or array) → the referenced occurrence's label**, never the raw id
+    (a Meal indexes "Tortillas, Cheese"; matching UUIDs is useless)
+  - text → verbatim
+- Values that are `{ value, flow }` are unwrapped first (arrays pass through — see the 2026-07-12
+  `extractValue` bug).
+
+**Body** — plain text of `occurrence.textmap` (textblocks, doc containers) and of any free-text
+cells in `occurrence.meta.table.cells`. `plainText()` already exists in `helpers/tableCells.js`;
+it lifts into its own small module (`helpers/textmapText.js`) and `tableCells` imports it, so a
+search helper doesn't depend on table code. Capped at **10,000 characters per occurrence** so one
+imported Wikipedia article can't dominate the index.
+
+### 2.3 Matching
+
+The query is split on whitespace into terms. **Every term must match somewhere** in the entry
+(any haystack). AND-of-terms is the whole mechanism behind "add search terms for the container
+label it's in":
+
+- `water` → every Drink Water copy, the Water Intake tracker, the water bottle board option
+- `water 9:00am` → only the copy under the 9:00am slot
+- `9pm july 25` → the 9:00pm slot under the July 25 day-column
+
+Substring matching, case-insensitive. No fuzzy matching in v1 — with AND-of-terms, fuzz produces
+more noise than help.
+
+### 2.4 Ranking
+
+Each term records its **best tier** on that entry; the entry's score is the sum. Lower is better:
+
+| Tier | Source |
+|---|---|
+| 0 | label, prefix match |
+| 1 | label, substring |
+| 2 | field name or field value |
+| 3 | ancestor path or date alias |
+| 4 | body text |
+
+Ties break by ancestor depth (shallower first), then alphabetically by label. Stable and
+deterministic — no recency or click-weighting in v1.
+
+Tiering is load-bearing: without it, typing "water" puts every paragraph that mentions water above
+the actual Drink Water item.
+
+### 2.5 What is excluded
+
+- `role: "panel"` occurrences — grid scaffolding, not content.
+- Occurrences whose module is missing (orphans).
+- Occurrences from another grid (`occ.gridId !== gridId`).
+
+**Feed copies are NOT excluded.** An occurrence carrying `meta.feedSourceId` lives on a real board
+page; excluding it would mean an item you can see on a board isn't findable. Duplicates are
+handled by showing every match with its location, per the user's direction.
+
+### 2.6 Caching
+
+Building the body-text haystack is the expensive part. Per-occurrence entries are cached in a
+module-level `WeakMap` keyed on the **occurrence object identity** — a write swaps the identity of
+only the occurrences that changed, so a rebuild re-extracts only those and reuses the rest. The
+assembled index is memoized against `occurrencesById` identity. The index is built lazily on the
+first keystroke, never at mount.
+
+---
+
+## 3. `ui/OccurrenceSearch.jsx` (new)
+
+```jsx
+<OccurrenceSearch
+  scopeRootId={null}          // null = whole grid; a page occId = that page's subtree
+  onPick={(occId) => …}
+  placeholder="Search occurrences…"
+/>
+```
+
+- **Collapsed**: a `Search` (lucide) icon button sized like its header neighbors.
+- **Expanded**: the input grows in place; the header label shrinks to make room (`flex` already
+  handles this — the label span is `flex: 1, minWidth: 0` with an `AutoMarquee`).
+- **Dropdown**: portal-rendered at `position: fixed` anchored to the input, matching the
+  `HeaderDropdown` / `QuickAddMenu` pattern (both already solve clipping by `overflow:hidden`
+  ancestors). Repositions on scroll rather than closing — the lesson from the 2026-06-09
+  QuickAddMenu fix.
+- **Rows**: type icon (`helpers/moduleIcons.getModuleTypeIcon`) · label with matched span
+  highlighted · muted `Page › Container` path · and, when the match came from anything other than
+  the label, a third muted line showing the matching fragment with the term highlighted:
+
+```
+Drink Water
+  Routines › Physical
+Greek Salad
+  Routines › Eat
+  Protein 42g · Calories 520
+Anything you do can be measured
+  Viafluere › About
+  …track what you actually did, so "I ran ✅ for 25…"
+```
+
+- Capped at 50 rows with a `+N more` tail.
+- **Keyboard**: ↑/↓ move, Enter picks, Escape closes (collapse + clear). Outside mousedown closes.
+- Debounced 120ms between keystroke and re-query.
+
+---
+
+## 4. Opening a result
+
+Extract the pin/activate/jump sequence that already exists inline in
+`ui/AssistantDrawer.jsx` (`PanelPickCard.openInPanel`) into a shared
+`helpers/openOccurrenceInPanel.js`:
+
+```
+openOccurrenceInPanel({ occId, panelOccurrence, ...maps, dispatch, socket })
+```
+
+1. Walk up to the nearest `role: "page"` ancestor (inclusive).
+2. If that page isn't already in `panelOccurrence.occurrences[]`, pin it
+   (`CommitHelpers.pinPageToPanel`).
+3. `CommitHelpers.updateView({ ...view, activeOccurrenceId: pageOccId })` on the panel's view.
+4. `jumpToOccurrence(occId)` — which already retries after a page-switch grace window.
+
+The panel search calls this. The page search calls `jumpToOccurrence(occId)` directly, since the
+page is already open. AssistantDrawer is migrated to the shared helper in the same pass (one
+implementation, not two).
+
+**Filtered-out results**: an occurrence hidden by the active filter cascade isn't in the DOM, so
+`jumpToOccurrence` returns false. Both surfaces surface that as a toast — "Bike Ride is on
+Schedule but hidden by the current filter" — rather than appearing to do nothing.
+
+---
+
+## 5. Page-header × (close page)
+
+Small related ask, same file. `ModulePage`'s header gets an `X` button to the right of the page
+name that closes the page out of its panel. `ModulePanel` already owns `closePage(occId)` (it
+backs the manifest tree's `page-tree-close-btn`); it just needs threading down as an
+`onClosePage` prop through `<Page>`. The button follows the existing reveal-on-hover pattern used
+by the tree's close button. No new state, no server change.
+
+---
+
+## 6. Testing
+
+Pure-helper tests (`__tests__/occurrenceSearch.test.js`):
+- label prefix ranks above label substring ranks above body text
+- AND-of-terms: `water 9:00am` matches only the copy under that slot
+- date aliases: `july 25`, `jul 25`, `2026-07-25` all match the same day-column
+- field name match (`protein`) and field value match (`42g`)
+- occurrence-ref field indexes the referenced label, not the id
+- `scopeRootId` restricts to a page's subtree
+- panels excluded, feed copies included
+- WeakMap reuse: rebuilding with one changed occurrence re-extracts only that entry
+
+Component tests (`__tests__/occurrenceSearch.ui.test.jsx`): expand on click, dropdown on
+keystroke, ↑/↓/Enter selection, Escape collapses and clears.
+
+Headless verification on the reseeded Poms grid: panel search "water 9" → the slot copy → panel
+switches to Schedule and the row flashes; page search on Routines finds a body-text match; the ×
+closes the page out of the panel.
+
+---
+
+## 7. Out of scope (v1)
+
+- Fuzzy / typo-tolerant matching.
+- Recency or frequency weighting of results.
+- Searching operations, fields-as-entities, or templates (this searches **occurrences**).
+- A global (grid-wide, not panel-local) search surface in the toolbar.
+- Persisting recent searches.
