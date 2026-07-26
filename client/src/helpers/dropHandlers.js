@@ -1348,12 +1348,12 @@ export function handleOccurrenceMove(dropContext, ctx) {
     // field.
     const sourceOcc = occurrenceId ? occurrencesById[occurrenceId] : null;
     // MD1 — re-stamp under the destination day-col when one is present.
-    const copyDayColOcc = toCOcc
+    const copyFilterAncestorOcc = toCOcc
       ? findFilterOverrideAncestor({ pointer, occurrencesById, excludeOccId: toCOcc.id })
       : null;
     const stampedFields = computePageFilterFields({
       state, occurrencesById,
-      parentContainerOcc: copyDayColOcc || toCOcc,
+      parentContainerOcc: copyFilterAncestorOcc || toCOcc,
       existingFields: sourceOcc?.fields || {},
     });
     const toPanelMod = toPanelOcc?.moduleId
@@ -1413,13 +1413,13 @@ export function handleOccurrenceMove(dropContext, ctx) {
       // MD1 — when the drop landed under a day-col (or any ancestor with
       // its own filterOverride), use IT as the parent for date stamping
       // so a multi-day Schedule drag re-stamps to the destination day.
-      const dayColOcc = findFilterOverrideAncestor({
+      const filterAncestorOcc = findFilterOverrideAncestor({
         pointer, occurrencesById, excludeOccId: toCOcc.id,
       });
       stampPageFilterFields({
         dispatch, socket, state, occurrencesById,
         occurrence: occurrencesById[occurrenceId],
-        parentContainerOcc: dayColOcc || toCOcc,
+        parentContainerOcc: filterAncestorOcc || toCOcc,
       });
       autoAppendOnDrop({ ctx, newOccurrenceId: occurrenceId, parentOccurrenceId: toCOcc.id });
       toast.success(`Moved "${_occName(occurrenceId)}": ${_contName(fromC, fromCOcc)} → ${_destName(toC, toCOcc)} (#${_destPos(toCOcc)})`);
@@ -1894,7 +1894,7 @@ export function handleModuleDrop(dropContext, ctx) {
       // MD1 — when dropping into a day-col's slot, use the day-col as the
       // parent for filter resolution so the new copy stamps the destination
       // day's date.
-      const ccDayColOcc = targetContainerOcc
+      const ccFilterAncestorOcc = targetContainerOcc
         ? findFilterOverrideAncestor({
             pointer, occurrencesById, excludeOccId: targetContainerOcc.id,
           })
@@ -1903,7 +1903,7 @@ export function handleModuleDrop(dropContext, ctx) {
       // with the right date — same reasoning as handleOccurrenceMove copy mode.
       const stampedFields = computePageFilterFields({
         state, occurrencesById,
-        parentContainerOcc: ccDayColOcc || targetContainerOcc,
+        parentContainerOcc: ccFilterAncestorOcc || targetContainerOcc,
         existingFields: {},
       });
       const ccCopyResult = LayoutHelpers.copyInstanceToContainer({
