@@ -126,6 +126,15 @@ const gridOptions = useMemo(
     );
   }
 
+  // One logo element, placed differently per layout: desktop keeps it at the head
+  // of the left cluster; mobile puts it at the very left edge, ahead of the
+  // status/notification pills (they used to sit left of it).
+  const logoEl = (
+    <div className="header-logo flex items-center shrink-0" style={{ minWidth: isMobileLayout ? 28 : 80 }}>
+      <img src="/viafluere_sideways.png" alt="Via Fluere" style={{ height: 22, width: "auto", display: "block" }} />
+    </div>
+  );
+
   return (
     <div
       data-testid="toolbar"
@@ -153,7 +162,8 @@ const gridOptions = useMemo(
     >
       {/* Notification pills — full stack on desktop, compact count pill on mobile */}
       {isMobileLayout ? (
-        <div className="flex items-center" style={{ zIndex: 5 }}>
+        <div className="flex items-center gap-1" style={{ zIndex: 5 }}>
+          {logoEl}
           <SocketStatusBanner />
           <TransactionNotificationStack compact />
         </div>
@@ -178,10 +188,8 @@ const gridOptions = useMemo(
       <div className="flex items-center w-full gap-1.5">
         {/* ── Left: Logo + Add Panel + Grid Select ── */}
         <div className="flex items-center gap-1 shrink-0">
-          {/* Logo */}
-          <div className="header-logo flex items-center shrink-0" style={{ minWidth: isMobileLayout ? 28 : 80 }}>
-            <img src="/viafluere_sideways.png" alt="Via Fluere" style={{ height: 22, width: "auto", display: "block" }} />
-          </div>
+          {/* Logo — mobile renders it further left, ahead of the pills. */}
+          {!isMobileLayout && logoEl}
 
           {/* Add Panel button */}
           <Button
