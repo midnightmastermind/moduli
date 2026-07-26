@@ -19,6 +19,7 @@ import { getCurrentLocation, subscribeCurrentLocation } from "../helpers/current
 import MiniGridMap from "../mobile/MiniGridMap";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
+import { openOccurrenceInPanel } from "../helpers/openOccurrenceInPanel";
 import { createImportsDocPage, ensureImportsFolderAndPage, shouldWrapImportOutput } from "../helpers/importsFolder";
 
 const STORAGE_KEY = "moduli_api_token";
@@ -1081,36 +1082,32 @@ function PanelPickCard({ occId }) {
     const userId = occ.userId || mod?.userId;
     const gridId = occ.gridId || curGridId;
 
-    let pageOccId;
     if (pageOcc) {
-      // Open the real ancestor page (Schedule, etc.) as a tab in this panel.
-      pageOccId = pageOcc.id;
-      if (!(panelOcc.occurrences || []).includes(pageOccId)) {
-        CommitHelpers.pinPageToPanel({ dispatch, socket, pageOccurrenceId: pageOccId, panelOccurrenceId: panelOcc.id });
-      }
+      // Pin the real ancestor page as a tab here, activate it, scroll to the
+      // item. Shared with the panel header search — one implementation.
+      openOccurrenceInPanel({
+        occId, panelOccurrence: panelOcc, occurrencesById, modulesById, viewsById, dispatch, socket,
+      });
     } else {
       // No ancestor page (e.g. an imported container at root) — wrap it in a
       // DOC page (multi-parented; content stays where it was created), parented
       // under a dedicated "Imports" folder so it lands grouped in the panel's
       // Local tree instead of as a loose root page.
-      pageOccId = createImportsDocPage({
+      const pageOccId = createImportsDocPage({
         rootOccId: occId, panelOccurrenceId: panelOcc.id, grid,
         manifests: Object.values(manifestsById || {}),
         folders: Object.values(foldersById || {}),
         occurrencesById,
         dispatch, socket, userId, label: mod?.label,
       });
+      const panelMod = modulesById?.[panelOcc.moduleId || panelOcc.targetId];
+      const viewId = panelOcc.viewId || panelMod?.viewId;
+      const view = viewId ? viewsById?.[viewId] : null;
+      if (view) {
+        CommitHelpers.updateView({ dispatch, socket, view: { ...view, activeOccurrenceId: pageOccId }, emit: true });
+      }
+      setTimeout(() => jumpToOccurrence(occId), 300);
     }
-
-    // Activate the page in the panel's existing view, then scroll + highlight
-    // the new item once the panel has re-rendered.
-    const panelMod = modulesById?.[panelOcc.moduleId || panelOcc.targetId];
-    const viewId = panelOcc.viewId || panelMod?.viewId;
-    const view = viewId ? viewsById?.[viewId] : null;
-    if (view) {
-      CommitHelpers.updateView({ dispatch, socket, view: { ...view, activeOccurrenceId: pageOccId }, emit: true });
-    }
-    setTimeout(() => jumpToOccurrence(occId), 300);
     setDone(panel.label);
   }
 
