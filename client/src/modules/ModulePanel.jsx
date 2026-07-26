@@ -56,6 +56,7 @@ import {
   Maximize2,
   Minimize2,
   Plus,
+  PlusSquare,
 } from "lucide-react";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 
@@ -316,6 +317,7 @@ function Panel({
   const leafModulesById = useGridActionsSelector(s => s.leafModulesById);
   const containersById = useGridActionsSelector(s => s.containersById);
   const viewsById = useGridActionsSelector(s => s.viewsById);
+  const addNewPanel = useGridActionsSelector(s => s.addNewPanel);
   const modulesById = useGridActionsSelector(s => s.modulesById);
   const manifestsById = useGridActionsSelector(s => s.manifestsById);
   const foldersById = useGridActionsSelector(s => s.foldersById);
@@ -506,6 +508,14 @@ function Panel({
           icon: Plus,
           onClick: () => setPanelQuickAddTrigger((n) => n + 1),
         },
+        // The toolbar's + button is gone (2026-07-26). Empty grid cells are the
+        // primary way to add a panel, but a MOSAIC grid has none — every pane is
+        // filled — so panel creation lives here too.
+        addNewPanel && {
+          label: "Add panel",
+          icon: PlusSquare,
+          onClick: () => addNewPanel("board"),
+        },
         { label: showHeader ? "Hide header" : "Show header", onClick: () => setShowHeader(v => !v) },
         { label: "Copy panel", icon: Copy, onClick: handleCopyPanel },
         { label: "Link panel", icon: Link2, onClick: handleCopylinkPanel },
@@ -521,7 +531,7 @@ function Panel({
         { label: "Remove from grid", icon: Trash2, danger: true, onClick: handleRemovePanel },
       ].filter(Boolean),
     });
-  }, [handleCopyPanel, handleCopylinkPanel, handleSplitPanel, handleUnsplitPanel, handleRemovePanel, isSplit, panelOccurrence, module.id, dispatch, socket, showHeader]);
+  }, [handleCopyPanel, handleCopylinkPanel, handleSplitPanel, handleUnsplitPanel, handleRemovePanel, isSplit, panelOccurrence, module.id, dispatch, socket, showHeader, addNewPanel]);
 
   // Touch: long-press opens the same panel menu.
   const panelLongPress = useLongPress(({ x, y }) =>

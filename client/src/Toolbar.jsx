@@ -16,7 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { PlusSquare, Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, X } from "lucide-react";
+import { Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, X } from "lucide-react";
 import ToolbarFilterDropdown from "./ui/ToolbarFilterDropdown";
 import SocketStatusBanner from "./ui/SocketStatusBanner";
 import TransactionNotificationStack from "./ui/TransactionNotificationStack";
@@ -33,7 +33,6 @@ export default function Toolbar({
 
   onGridChange,
   onCreateNewGrid,
-  onAddPanel,
   // Command Center
   onCommandCenter,
   commandCenterOpen = false,
@@ -190,17 +189,6 @@ const gridOptions = useMemo(
         <div className="flex items-center gap-1 shrink-0">
           {/* Logo — mobile renders it further left, ahead of the pills. */}
           {!isMobileLayout && logoEl}
-
-          {/* Add Panel button */}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => onAddPanel?.("board")}
-            title="Add panel"
-            style={{ height: 26, width: 26, padding: 0 }}
-          >
-            <PlusSquare className="h-3.5 w-3.5" />
-          </Button>
 
           {/* Grid Select — desktop only (in drawer on mobile) */}
           {!isMobileLayout && (

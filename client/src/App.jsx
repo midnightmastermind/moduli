@@ -806,6 +806,10 @@ export default function App() {
       operationsById,
       addContainerToPanel,
       addInstanceToContainer,
+      // Panel creation. The toolbar's + button is gone (2026-07-26); empty grid
+      // cells are the primary way in, and the panel right-click menu carries
+      // this for MOSAIC grids, which have no empty cells at all.
+      addNewPanel,
       // Field CRUD
       createField,
       updateField,
@@ -845,6 +849,7 @@ export default function App() {
       operationsById,
       addContainerToPanel,
       addInstanceToContainer,
+      addNewPanel,
       createField,
       updateField,
       deleteField,
@@ -906,7 +911,6 @@ export default function App() {
           availableGrids={state.availableGrids || []}
           onGridChange={handleGridChange}
           onCreateNewGrid={handleCreateNewGrid}
-          onAddPanel={addNewPanel}
           grid={state?.grid}
           fieldsById={fieldsById}
           onCommandCenter={() => setCommandCenterOpen((prev) => !prev)}
