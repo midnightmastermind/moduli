@@ -6,6 +6,75 @@
 
 ---
 
+## Handoff — 2026-07-26 (occurrence SEARCH in both headers; the de-schedule sweep; snap-to-today)
+
+Spec `docs/superpowers/specs/2026-07-26-occurrence-search-design.md`, plan
+`docs/superpowers/plans/2026-07-26-occurrence-search-and-deschedule.md` (15 tasks; 14 shipped,
+one dropped on purpose — see below). 1411 client + 246 server tests, build clean, RESEEDED.
+
+- **Occurrence search, two surfaces, one engine.** `helpers/occurrenceSearch.js` (pure, 25 tests)
+  indexes every occurrence's label (`occurrence.label ?? module.label` — no other rule), its
+  ancestor PATH, field NAMES + VALUES (occurrence refs resolve to the referenced LABEL, never an
+  id), textmap/table body text (capped 10k chars), and **date aliases** (`2026-07-25` / `jul 25` /
+  `july 25th` / `saturday`) drawn from the occurrence's own date field or `filterOverride` **AND
+  from every ancestor's** — that last part is what makes `water july 25` and `9pm july 25` work
+  (the date lives on the CONTAINER, not the item; the first implementation missed it and a test
+  caught it). Query is **AND-of-terms** across all haystacks, so extra terms narrow by location;
+  ranking is tiered label-prefix > label-substring > field > path/date > body, without which a
+  paragraph mentioning "water" outranks Drink Water itself. Non-label hits carry the fragment
+  that matched, rendered as a third row line.
+- **`ui/OccurrenceSearch.jsx`** — magnifier that expands in place, portalled dropdown (repositions
+  on scroll, never closes on it), ↑/↓/Enter/Escape. Mounted in the PANEL header left of the
+  Root-tree button (whole grid; picking opens the result's page in THAT panel via the new shared
+  `helpers/openOccurrenceInPanel.js`, which AssistantDrawer now also uses) and in the PAGE header
+  left of the filter funnel (`scopeRootId` = that page; picking just scrolls). A match that is
+  filtered out of the DOM says so instead of silently doing nothing.
+- **Index caching:** entries are cached per occurrence OBJECT (a write swaps only what changed) —
+  and the cache record holds the ancestor objects it was built from, because a PARENT rename
+  doesn't touch the child object and would otherwise leave a stale path.
+- **Page header also gained the × close button** (unpins the page from the panel via the panel's
+  existing `closePage`).
+- **DE-SCHEDULE SWEEP (user: "there shouldnt be anything schedule specific in the code").** Four
+  violations found and removed, with `__tests__/noDomainKnowledge.test.js` guarding each:
+  (1) `ModuleContainer` `SCHEDULE_LABEL_PREFIX` + `computeScheduleColLabel` — the header
+  string-matched a `"Schedule - "` label prefix to recompute its title; (2) `PageBoard`
+  `WEEKDAY_RAINBOW`/`weekdayColor` — hardcoded Mon-red…Sun-violet tints from a date field, same
+  class as the timeslot-passed tint deleted 2026-06-03; (3) `PomodoroTimer.currentSlotLabel()`
+  baked the `"9:00am"` format to string-match slots — now `pickTimeOptionForNow` picks the latest
+  elapsed option from the timeslot FIELD's own options; (4) `alarmOps` + its server twin
+  `makeAlarmOp` found the destination page by `label IS "Schedule"` — now `id IS
+  <pageOccurrenceId>`, seeded onto `grid.meta.scheduleFieldIds`. Seed files stay exempt (they
+  author the schedule as DATA). `dropHandlers`' `dayColOcc` locals renamed `filterAncestorOcc`.
+  **DELIBERATELY NOT DONE:** the planned day-column label-stamping op. The day-col module label is
+  already minted as `"Schedule - ${dateLong:$day}"` per day, so the op would rewrite the identical
+  string while looping every container on every load. Accepted loss: changing ONE day column's own
+  date override no longer retitles it (only the deleted label-sniffing supported that).
+- **`SET_FILTER` was half-wired** — `SET_FILTER_NAV` writes only `filterNavState` (the nav WIDGET);
+  the cascade reads `grid.activeFilterValues`. So an op could move the date on screen without
+  filtering anything. Now patches both + persists, decision extracted as pure
+  `applySetFilterEffect` (6 tests) keeping the unchanged-value guard that stops onLoad loops.
+- **`Grid: Snap Filter To Today`** (new seeded op, onLoad, trigger priority 0): a page's date is
+  persisted in its OWN `filterOverride` and the full_state bootstrap deliberately never overwrites
+  an explicit value — so the grid still showed yesterday the next morning. The op compares a hidden
+  **"Last Opened Date"** marker occurrence to `$today` and, on a new day only, moves every
+  date-carrying page forward and stamps the marker; same-day reloads write nothing, so a date you
+  navigated to survives a refresh. **To express that as data, `UPDATE` gained
+  `$page.filterOverride.<fieldId>`** → `UPDATE_ITEM_FILTER_OVERRIDE`, applied through
+  `updateOccurrenceFilterOverride` so the NavigationOp cascade fires for the page + inheriting
+  descendants (null clears the key). Any op can navigate a page's date now.
+- **Finding, not fixed:** `op.priority` is NOT in the Operation schema — Mongoose strips it, so
+  every seeded op exports `priority: null` and the executor's sort falls back to
+  `triggerObject.priority` (which does persist). Op-level priority values in the seed are inert.
+- Also this session: **alarms stop instantly on Stop** (`alarmSound.stopAlarm()` ramps each live
+  gain to zero over 10ms then stops the oscillator — `ringAlarm` scheduled the whole burst on the
+  audio timeline, so clearing the interval let it play out); empty-container **+ stays centered**
+  (the hidden "Add new item" label was `opacity:0` but still held its width); inline instance
+  images 18px → 22px.
+- **NOT done:** no deploy (`./deploy.sh` + verify prod HEAD), and no on-device check of either
+  search surface.
+
+---
+
 ## Handoff — 2026-07-25 (Poms grid: nine dimensions of wellness — NEW grid, boards, one Routines page)
 
 Per user (CLAUDE_CHAT 2026-07-25), a whole new seeded grid built beside the old one. Plan:
