@@ -64,6 +64,9 @@ import { CanvasDrawSection } from "./CanvasContent.jsx";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
+import OccurrenceSearch from "../ui/OccurrenceSearch.jsx";
+import { openOccurrenceInPanel } from "../helpers/openOccurrenceInPanel";
+import { toast } from "sonner";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import LayoutCascadeSection from "../ui/LayoutCascadeSection";
@@ -688,6 +691,16 @@ function Panel({
     }
   }, [panelOccurrence, currentView, dispatch, socket]);
 
+  // Panel-header search: the result may live on any page of the grid, so open
+  // that page HERE (pin + activate) before scrolling to it.
+  const handleSearchPick = useCallback((occId) => {
+    const res = openOccurrenceInPanel({
+      occId, panelOccurrence, occurrencesById, modulesById, viewsById, dispatch, socket,
+    });
+    if (!res.ok) toast("That item isn't on a page yet");
+    else if (res.found === false) toast("Found it, but it's hidden by the current filter");
+  }, [panelOccurrence, occurrencesById, modulesById, viewsById, dispatch, socket]);
+
   if (hidden && !forceFullscreen) return null;
 
   const cellWidth = liveSize.w !== null ? liveSize.w : (module.width || 1);
@@ -915,6 +928,9 @@ function Panel({
                   still inherit grid + higher-ancestor filters past a panel
                   with all its local filters off ("skip generations"). */}
               <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 5, alignItems: "center" }}>
+                {/* Search every occurrence on the grid; picking one opens its
+                    page in THIS panel and scrolls to it. */}
+                <OccurrenceSearch onPick={handleSearchPick} title="Search all occurrences" />
                 {/* Root tree toggle — replaces the + quick-add (per user). Opens
                     the RIGHT sidebar with the root page directory; page creation
                     lives in the tree's own + menu. Drag-enter opens it so a drag
