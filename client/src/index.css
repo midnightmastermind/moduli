@@ -2042,7 +2042,16 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    ancestor shell too, so hovering one Schedule slot lit up the label in every
    other empty slot (nested day-col / page shells all matched). Same
    `:not(:has(… :hover))` guard the cog-handle cascade uses. */
-.container-shell:hover:not(:has(.container-shell:hover)) .insert-gap-empty-label,
+/* Reveal ONLY the hovered container's own empty-body gap. This used to be a
+   DESCENDANT selector off `.container-shell:hover`, so hovering anywhere in a
+   container — including an insert gap between its items — lit up the "Add new
+   item" label of every empty container nested anywhere beneath it (user
+   2026-07-26: "whenever i go over a blue highlighted quick add, all the labels
+   on the empty containers are showing"). The gap sits at
+   `.container-list > div > .insert-gap--empty`, so direct-child scoping matches
+   that container's own gap and can never reach a nested one. An empty container
+   has no children by definition, so nothing is lost. */
+.container-list:hover > * > .insert-gap--empty .insert-gap-empty-label,
 .insert-gap--empty:hover .insert-gap-empty-label,
 .insert-gap--empty.insert-gap--open .insert-gap-empty-label {
   opacity: 0.75;
