@@ -92,7 +92,15 @@ import InsertGap from "../ui/InsertGap.jsx";
 import ArtifactCard from "./ArtifactCard.jsx";
 import TextblockCard from "./TextblockCard.jsx";
 import BoundHeader from "./BoundHeader.jsx";
-import QuickAddMenu from "../ui/QuickAddMenu.jsx";
+import QuickAddMenu, { KIND_TILE, tileKindsForRole } from "../ui/QuickAddMenu.jsx";
+import { getModuleTypeBadge } from "../helpers/moduleIcons";
+
+// The kinds the container context menu can mint DIRECTLY. Artifact and image
+// are excluded: they need the file dialog / image picker that lives in
+// QuickAddMenu, and duplicating that here would be a second implementation.
+const CONTEXT_ADD_KINDS = tileKindsForRole("instance").filter(
+  (k) => k !== "artifact" && k !== "image",
+);
 import FieldRenderer from "../ui/FieldRenderer.jsx";
 import { resolveEditorBinding } from "../state/editorBindings.js";
 
@@ -795,28 +803,28 @@ function Container({
           },
         },
         clip && { separator: true },
+        // The occurrence TYPES, same palette (and same labels/icons) the header
+        // "+" shows — this menu used to carry four vague "add" rows and none of
+        // the actual kinds. Artifact and Image are not here because they need
+        // the file dialog / image picker the QuickAddMenu owns; the row below
+        // opens it for them rather than duplicating that machinery.
+        ...CONTEXT_ADD_KINDS.map((kind) => {
+          const meta = KIND_TILE[kind] || { label: kind };
+          const tileRole = kind === "instance" ? "instance" : kind === "textblock" ? "textblock" : "container";
+          const { Icon } = getModuleTypeBadge({
+            role: tileRole,
+            kind: ["instance", "textblock"].includes(kind) ? undefined : kind,
+          });
+          return {
+            label: meta.label,
+            icon: Icon,
+            onClick: () => handleQuickCreate({ kind }),
+          };
+        }),
         {
-          label: "Add new item here",
-          icon: Plus,
-          onClick: () => onAdd?.(),
-        },
-        {
-          label: "Add item…",
+          label: "Artifact or image…",
           icon: Plus,
           onClick: () => setQuickAddTrigger((n) => n + 1),
-        },
-        {
-          label: "Add textblock here",
-          icon: FileText,
-          onClick: () => {
-            if (!containerOccurrence) return;
-            CommitHelpers.createTextblockInContainer({
-              dispatch, socket,
-              gridId: ctxGridId,
-              userId: ctxUserId,
-              containerOccurrence,
-            });
-          },
         },
         {
           label: "Add inline textblock here",

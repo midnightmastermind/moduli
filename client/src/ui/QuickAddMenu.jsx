@@ -30,7 +30,7 @@ export function menuPosition(rect, vw, vh, { width = 260, height = 360 } = {}) {
 
 // Per-kind tile copy. The icon + color come from moduleIcons (getModuleTypeBadge);
 // this only supplies the human label + one-line description.
-const KIND_TILE = {
+export const KIND_TILE = {
   instance:  { label: "Item",      desc: "Trackable item with fields" },
   board:     { label: "Board",     desc: "Containers as columns" },
   doc:       { label: "Document",  desc: "Rich-text editor" },
