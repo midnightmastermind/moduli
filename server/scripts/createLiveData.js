@@ -3274,14 +3274,12 @@ export async function createLiveData(userId, options = {}) {
     // (coursesTakenGoal container removed — courses moved into Intellectual.)
   };
 
-  // ── Account containers (5 lifetime-aggregation categories) ───────────────────
-  const accountContainerMods = {
-    financeAccount:      { id: uid(), label: "Finances" },
-    fitnessAccount:      { id: uid(), label: "Fitness" },
-    learningAccount:     { id: uid(), label: "Learning" },
-    productivityAccount: { id: uid(), label: "Productivity" },
-    wellnessAccount:     { id: uid(), label: "Wellness" },
-  };
+  // The five lifetime-aggregation "account" containers (Finances / Fitness /
+  // Learning / Productivity / Wellness) are GONE (2026-07-25, per user:
+  // "combine Todays Financials with Todays Finances… and others like that").
+  // They were a second taxonomy sitting beside the nine dimensions and read as
+  // near-duplicates on the Trackers page. Their tiles now live inside the
+  // dimension they belong to (see `acctKeys` in goalMappings below).
 
   // ── Library container module ────────────────────────────────────────────────
   // Holds the 8 movie instances (and future books/shows). Placed in the manifest
@@ -3309,7 +3307,6 @@ export async function createLiveData(userId, options = {}) {
     ...toolkitContainerMods,
     ...taskContainerMods,
     ...goalContainerMods,
-    ...accountContainerMods,
     ...libraryContainerMods,
     ...billContainerMods,
   };
@@ -3401,11 +3398,6 @@ export async function createLiveData(userId, options = {}) {
   const planningGoalContOccId      = uid();
 
   // Account containers
-  const financeAccountContOccId      = uid();
-  const fitnessAccountContOccId      = uid();
-  const learningAccountContOccId     = uid();
-  const productivityAccountContOccId = uid();
-  const wellnessAccountContOccId     = uid();
 
   // Movies Watched / Books Read / Podcasts Listened goal containers
   // (coursesTakenGoalContOccId removed — courses lives inside Intellectual.)
@@ -3522,15 +3514,15 @@ export async function createLiveData(userId, options = {}) {
   // (HeaderChevron → FiltersSection) narrows it to the picked day / span. This is
   // the "gate present but disabled by default" the user asked for — NOT the blunt
   // timeFilter:"all" (which removed the gate entirely).
-  const DATE_FILTER_OFF_BY_DEFAULT = new Set(["financialGoal", "financeAccount"]);
+  const DATE_FILTER_OFF_BY_DEFAULT = new Set(["financialGoal"]);
   const goalMappings = {
-    physicalGoal:      { contOccId: physicalGoalContOccId,      contModKey: "physicalGoal",      instKeys: ["physicalCompleted", "physicalWater", "physicalSteps", "physicalStreak", "physicalNow"] },
-    intellectualGoal:  { contOccId: intellectualGoalContOccId,  contModKey: "intellectualGoal",  instKeys: ["intellectualPagesRead", "intellectualReadingTime", "intellectualPomodoros", "intellectualCourses"] },
-    emotionalGoal:     { contOccId: emotionalGoalContOccId,     contModKey: "emotionalGoal",     instKeys: ["emotionalMood"] },
+    physicalGoal:      { contOccId: physicalGoalContOccId,      contModKey: "physicalGoal",      instKeys: ["physicalCompleted", "physicalWater", "physicalSteps", "physicalStreak", "physicalNow"], acctKeys: ["fitnessAccount"] },
+    intellectualGoal:  { contOccId: intellectualGoalContOccId,  contModKey: "intellectualGoal",  instKeys: ["intellectualPagesRead", "intellectualReadingTime", "intellectualPomodoros", "intellectualCourses"], acctKeys: ["readingAccount"] },
+    emotionalGoal:     { contOccId: emotionalGoalContOccId,     contModKey: "emotionalGoal",     instKeys: ["emotionalMood"], acctKeys: ["wellnessAccount"] },
     socialGoal:        { contOccId: socialGoalContOccId,        contModKey: "socialGoal",        instKeys: ["socialConnectionTime", "socialPhoneCalls"] },
     spiritualGoal:     { contOccId: spiritualGoalContOccId,     contModKey: "spiritualGoal",     instKeys: ["spiritualPractice"] },
-    occupationalGoal:  { contOccId: occupationalGoalContOccId,  contModKey: "occupationalGoal",  instKeys: ["occupationalWork"] },
-    financialGoal:     { contOccId: financialGoalContOccId,     contModKey: "financialGoal",     instKeys: ["financialSpent", "financialIncome"] },
+    occupationalGoal:  { contOccId: occupationalGoalContOccId,  contModKey: "occupationalGoal",  instKeys: ["occupationalWork"], acctKeys: ["productivityAccount"] },
+    financialGoal:     { contOccId: financialGoalContOccId,     contModKey: "financialGoal",     instKeys: ["financialSpent", "financialIncome"], acctKeys: ["bankAccount", "savingsAccount", "momsAccount", "cashAccount", "netWorth", "totalSubscriptions", "monthlyBills"] },
     environmentalGoal: { contOccId: environmentalGoalContOccId, contModKey: "environmentalGoal", instKeys: ["environmentalSummary"] },
     creativeGoal:      { contOccId: creativeGoalContOccId,      contModKey: "creativeGoal",      instKeys: ["creativeDuration"] },
     workoutGoal:       { contOccId: workoutGoalContOccId,       contModKey: "workoutGoal",       instKeys: ["workoutReps", "workoutLog", "chestVolumeGoal", "backVolumeGoal", "legsVolumeGoal", "shouldersVolumeGoal", "armsVolumeGoal", "cardioVolumeGoal"] },
@@ -3552,7 +3544,7 @@ export async function createLiveData(userId, options = {}) {
   const accountOccIds = {};
   for (const k of Object.keys(accountInstances)) accountOccIds[k] = uid();
 
-  for (const [key, { contOccId, contModKey, instKeys }] of Object.entries(goalMappings)) {
+  for (const [key, { contOccId, contModKey, instKeys, acctKeys = [] }] of Object.entries(goalMappings)) {
     const childOccIds = [];
     for (let i = 0; i < instKeys.length; i++) {
       const instKey = instKeys[i];
@@ -3560,35 +3552,21 @@ export async function createLiveData(userId, options = {}) {
       const childId = await mkOcc({ id: goalOccIds[instKey], moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: {} });
       childOccIds.push(childId);
     }
+    // Lifetime-aggregation tiles for this dimension (the former "account"
+    // containers). Their occurrence ids come from accountOccIds — every
+    // tracker op targets them by id, so the re-parent is invisible to ops.
+    for (let i = 0; i < acctKeys.length; i++) {
+      const instKey = acctKeys[i];
+      const inst = instanceMods[instKey];
+      const childId = await mkOcc({ id: accountOccIds[instKey], moduleId: inst.id, parentId: contOccId, sortOrder: instKeys.length + i, fields: {} });
+      childOccIds.push(childId);
+    }
     await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds,
       ...(DATE_FILTER_OFF_BY_DEFAULT.has(contModKey) ? { filterOverride: {} } : {}) });
     goalContOccIds[contModKey] = contOccId;
   }
 
-  // ── Account containers ─────────────────────────────────────────────────────
-  // Account containers are all-time aggregations — no filterOverride needed.
-  const accountMappings = {
-    financeAccount:      { contOccId: financeAccountContOccId,      contModKey: "financeAccount",      instKeys: ["bankAccount", "savingsAccount", "momsAccount", "cashAccount", "netWorth", "totalSubscriptions", "monthlyBills"] },
-    fitnessAccount:      { contOccId: fitnessAccountContOccId,      contModKey: "fitnessAccount",      instKeys: ["fitnessAccount"] },
-    learningAccount:     { contOccId: learningAccountContOccId,     contModKey: "learningAccount",     instKeys: ["readingAccount"] },
-    productivityAccount: { contOccId: productivityAccountContOccId, contModKey: "productivityAccount", instKeys: ["productivityAccount"] },
-    wellnessAccount:     { contOccId: wellnessAccountContOccId,     contModKey: "wellnessAccount",     instKeys: ["wellnessAccount"] },
-  };
-
-  const accountContOccIds = {};
-
-  for (const [key, { contOccId, contModKey, instKeys }] of Object.entries(accountMappings)) {
-    const childOccIds = [];
-    for (let i = 0; i < instKeys.length; i++) {
-      const instKey = instKeys[i];
-      const inst = instanceMods[instKey];
-      const childId = await mkOcc({ id: accountOccIds[instKey], moduleId: inst.id, parentId: contOccId, sortOrder: i, fields: {} });
-      childOccIds.push(childId);
-    }
-    await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds,
-      ...(DATE_FILTER_OFF_BY_DEFAULT.has(contModKey) ? { filterOverride: {} } : {}) });
-    accountContOccIds[contModKey] = contOccId;
-  }
+  const accountContOccIds = {}; // account containers merged into the dimensions above
 
   // ── Bill containers + instances (B3 from carry-over plan) ──────────────────
   // Bills page (under Library folder) hosts 5 sub-containers by bill type.
@@ -5080,7 +5058,7 @@ export async function createLiveData(userId, options = {}) {
   await mkOcc({
     id: trackersPageOccId, moduleId: trackersPageModId,
     parentId: trackersFolderId, sortOrder: 0,
-    occurrences: [...Object.values(goalContOccIds), ...Object.values(accountContOccIds)],
+    occurrences: [...Object.values(goalContOccIds)],
     iteration: { mode: "persistent" }, fields: {},
     filters: [
       {
@@ -5110,7 +5088,7 @@ export async function createLiveData(userId, options = {}) {
           conjunction: "AND",
           rules: [{ left: "$record._ancestors", comparator: "HAS_ANCESTOR", right: accountsPageOccId }],
         },
-        "meta.optionsSource.addNew": { parentOccurrenceId: financeAccountContOccId },
+        "meta.optionsSource.addNew": { parentOccurrenceId: financialGoalContOccId },
     }},
   );
 
@@ -7258,7 +7236,7 @@ export async function createLiveData(userId, options = {}) {
   await new Operation({
     id: uid(), userId, gridId, priority: 4,
     name: "Trackers: Date-Prefix Labels",
-    description: "Sets each goal/tracker tile's label to '<active date>'s <name>' (Today's / Yesterday's / July 18th) so the tile reflects the day being viewed. Writes occurrence.label; reads moduleLabel as the stable base; date from the Goals page filter cascade.",
+    description: "Sets each tracker CONTAINER's label to '<active date>'s <name>' (Today's Social / Yesterday's Physical / July 18th Creative) so the group reflects the day being viewed, and clears any date prefix off the tiles inside it (they read as the plain metric — 'Connection Time'). Writes occurrence.label; reads moduleLabel as the stable base; date from the Trackers page filter cascade.",
     triggerTypes: ["onFilterChange", "onLoad"],
     targetOccurrenceId: goalsPageOccId,
     triggerObjects: [
@@ -7269,6 +7247,27 @@ export async function createLiveData(userId, options = {}) {
     pipeline: {
       sources: [],
       steps: [
+        // The date phrase lives on the CONTAINER (2026-07-25, per user:
+        // "Todays Socials" as the group heading) …
+        {
+          id: uid(), type: "loop", overExpr: "$allContainers", as: "$grp",
+          body: [
+            {
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$grp._ancestors", comparator: "HAS_ANCESTOR", right: goalsPageOccId },
+                { id: uid(), left: "$grp.moduleLabel", comparator: "IS_NOT_EMPTY", right: "" },
+              ] },
+              then: [
+                { id: uid(), type: "action", config: { type: "UPDATE", path: "$grp.label", value: "${$activeDatePossessive} ${$grp.moduleLabel}" } },
+              ],
+              else: [],
+            },
+          ],
+        },
+        // … and the TILES inside read as the bare metric ("Connection Time").
+        // Clearing occurrence.label falls the renderer back to the module label,
+        // and also strips prefixes written by earlier runs of this op.
         {
           id: uid(), type: "loop", overExpr: "$allInstances", as: "$goal",
           body: [
@@ -7276,10 +7275,10 @@ export async function createLiveData(userId, options = {}) {
               id: uid(), type: "if",
               condition: { operator: "AND", rules: [
                 { id: uid(), left: "$goal._ancestors", comparator: "HAS_ANCESTOR", right: goalsPageOccId },
-                { id: uid(), left: "$goal.moduleLabel", comparator: "IS_NOT_EMPTY", right: "" },
+                { id: uid(), left: "$goal.label", comparator: "IS_NOT_EMPTY", right: "" },
               ] },
               then: [
-                { id: uid(), type: "action", config: { type: "UPDATE", path: "$goal.label", value: "${$activeDatePossessive} ${$goal.moduleLabel}" } },
+                { id: uid(), type: "action", config: { type: "UPDATE", path: "$goal.label", value: null } },
               ],
               else: [],
             },

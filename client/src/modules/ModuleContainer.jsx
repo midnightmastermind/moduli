@@ -1206,7 +1206,7 @@ function Container({
                 <span
                   onDoubleClick={!headerBinding ? (e) => { e.stopPropagation(); setIsEditingLabel(true); } : undefined}
                   title={!headerBinding ? "Double-click to rename" : undefined}
-                  style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", padding: module.kind === "board" ? "2px 0" : 0, fontSize: module.kind === "board" ? "0.8rem" : "0.75rem", fontWeight: module.kind === "board" ? 500 : 500, display: "flex", alignItems: "center", gap: 4, position: "relative", top: -1, cursor: !headerBinding ? "text" : undefined }}
+                  style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", padding: module.kind === "board" ? "2px 0" : 0, fontSize: module.kind === "board" ? "0.95rem" : "0.9rem", fontWeight: module.kind === "board" ? 500 : 500, display: "flex", alignItems: "center", gap: 4, position: "relative", top: -1, cursor: !headerBinding ? "text" : undefined }}
                 >
                   <AutoMarquee>
                     {headerBinding ? (

@@ -2232,6 +2232,18 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   box-sizing: border-box;
 }
 
+/* Multicell panel native scroll: the panel is taller than the viewport, so a
+   page scroller INSIDE it must hand its overscroll off to the viewport once it
+   bottoms out — otherwise the panel's lower half is unreachable and the content
+   there is stranded (2026-07-25: the Schedule's last slots stopped at ~9pm,
+   even though `viewport.scrollTop = 814` revealed 11:30pm). Every page scroller
+   sets `overscroll-behavior: contain` INLINE (PageBoard/PageDoc/PageFolder) —
+   correct for a single-cell panel, fatal here — hence the !important. The
+   viewport itself keeps `contain` so nothing chains on out to the document. */
+.mobile-grid-viewport[data-panel-native-scroll="1"] .mobile-grid-slider * {
+  overscroll-behavior-y: auto !important;
+}
+
 /* Inner slider — expanded to full grid size, animated */
 .mobile-grid-slider { will-change: transform; backface-visibility: hidden; }
 .mobile-grid-slider.animating { transition: transform 80ms ease-out; }

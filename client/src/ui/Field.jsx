@@ -495,10 +495,12 @@ function OccurrenceOption({ occId, fallbackLabel, maps, chipDisplay = null, onSe
           {mediaVal && isImg
             ? <img src={resolveFileRef(mediaVal)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             : <Link2 style={{ width: 12, height: 12, opacity: 0.4 }} />}
-          {onSetImage && (
-            // "Set image" — Calibre-style cover lookup for THIS option. A real
-            // click target inside the option row: swallow the event so it
-            // doesn't select the option or close the popover.
+          {onSetImage && !(mediaVal && isImg) && (
+            // "Set image" — Calibre-style cover lookup for THIS option, offered
+            // only while the option has NO image; once one is set the row shows
+            // the picture alone (2026-07-25, per user). A real click target
+            // inside the option row: swallow the event so it doesn't select the
+            // option or close the popover.
             <span
               role="button"
               title="Set image…"

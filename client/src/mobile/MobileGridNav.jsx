@@ -235,8 +235,12 @@ export default function MobileGridNav({
       viewport.scrollLeft = 0;
       delete viewport.dataset.scrollMaxTop;
       delete viewport.dataset.scrollMaxLeft;
+      delete viewport.dataset.panelNativeScroll;
       return;
     }
+    // Marks the mode for CSS: the page scrollers INSIDE the panel must be
+    // allowed to chain their overscroll into this viewport (see index.css).
+    viewport.dataset.panelNativeScroll = "1";
     const cell = activeCellRef.current;
     const panel = findPanelForCell(visiblePanelsRef.current, cell.row, cell.col);
     if (!panel) return;
@@ -277,6 +281,7 @@ export default function MobileGridNav({
     viewport.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       viewport.removeEventListener('scroll', onScroll);
+      delete viewport.dataset.panelNativeScroll;
       if (scrollSyncRafRef.current) {
         cancelAnimationFrame(scrollSyncRafRef.current);
         scrollSyncRafRef.current = 0;
