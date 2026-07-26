@@ -1130,6 +1130,14 @@ body[data-clipboard-active="true"] {
 .page-header-row { align-items: center; }
 .page-header-row .module-drag-handle { align-self: center; margin-top: 0; }
 
+/* Container header label on PHONES. The desktop size (0.9-0.95rem) reads too
+   large on a narrow screen; it should still outrank the 12px instance labels
+   under it, just not shout. `!important` is required — the size is an inline
+   style in ModuleContainer, which beats a plain stylesheet rule. Embedded
+   (in-document) container headers are untouched: they size off
+   meta.headingLevel and carry no .container-header-label. */
+body[data-layout="mobile"] .container-header-label { font-size: 0.85rem !important; }
+
 /* Cog handle — shown when header is hidden; absolute top-left, reveals on shell hover.
    2026-05-22: leaves a tiny lip visible at rest (so the user sees an autohidden
    header exists) and glides down from above on hover instead of fading in
