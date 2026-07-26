@@ -20,6 +20,7 @@ import {
   updateModule,
   deleteModule,
   updateOccurrence,
+  updateOccurrenceFilterOverride,
   ensureModuleBindingsForOccurrenceFields,
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
@@ -993,6 +994,30 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         const nextOwnStyle = { ...(occ.ownStyle || {}), [effect.styleKey]: effect.value };
         localOccsById[effect.itemId] = { ...occ, ownStyle: nextOwnStyle };
         updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, ownStyle: nextOwnStyle } });
+        break;
+      }
+
+      case "UPDATE_ITEM_FILTER_OVERRIDE": {
+        // Move (or clear, with a null value) one key of an occurrence's own
+        // filter override. Goes through updateOccurrenceFilterOverride so the
+        // NavigationOp cascade fires for this occurrence AND every descendant
+        // still inheriting — the same path a nav widget takes.
+        const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
+        const occ = occOverlay[effect.itemId];
+        if (!occ || !effect.fieldId) break;
+        const nextOverride = { ...(occ.filterOverride || {}) };
+        if (effect.value == null) delete nextOverride[effect.fieldId];
+        else nextOverride[effect.fieldId] = effect.value;
+        localOccsById[effect.itemId] = { ...occ, filterOverride: nextOverride };
+        updateOccurrenceFilterOverride({
+          dispatch: socketDispatch, socket,
+          occurrenceId: effect.itemId,
+          filterOverride: nextOverride,
+          occurrencesById: occOverlay,
+          modulesById: state.modulesById,
+          navFieldId: effect.fieldId,
+          date: effect.value,
+        });
         break;
       }
 

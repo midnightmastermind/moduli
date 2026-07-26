@@ -72,6 +72,7 @@ export function substituteTextmapTokens(textmap, tokens) {
  *                       - `$item.fields.<fieldId>.flow`
  *                       - `$item.parentId`
  *                       - `$item.meta.<key>`
+ *                       - `$item.filterOverride.<fieldId>`
  *                       - `$item.textmap`
  *                       - `$display.<fieldId>.<itemId>`
  *                       - `$<varName>` (single segment, pipeline-internal)
@@ -253,6 +254,29 @@ function routeRecordPath(path, segments, value, { item, occurrencesById }) {
           _effect: "UPDATE_ITEM_OWN_STYLE",
           itemId,
           styleKey,
+          value,
+        },
+      ],
+      varWrites: {},
+    };
+  }
+
+  // $page.filterOverride.<fieldId> — the per-occurrence date/period override the
+  // filter cascade reads (and the nav widgets write). Lets an operation move a
+  // page's own date the same way navigating it by hand does; the effect routes
+  // through updateOccurrenceFilterOverride so descendants re-derive.
+  // `value: null` clears that key, falling the occurrence back to inheriting.
+  if (segments[1] === "filterOverride") {
+    const fieldId = segments[2];
+    if (!fieldId) {
+      throw new Error(`unknown path head: ${path}`);
+    }
+    return {
+      effects: [
+        {
+          _effect: "UPDATE_ITEM_FILTER_OVERRIDE",
+          itemId,
+          fieldId,
           value,
         },
       ],

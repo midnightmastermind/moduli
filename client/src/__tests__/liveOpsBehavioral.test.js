@@ -854,3 +854,69 @@ describe("an action's board pick lands in its tracker rows", () => {
     expect(rows.some(r => r.label === "Exercise")).toBe(false);
   });
 });
+
+describe("Grid: Snap Filter To Today (first load of the day)", () => {
+  // The date a page carries is persisted in its own filterOverride, and the
+  // full_state bootstrap never overwrites an explicit value — so without this op
+  // the grid still shows yesterday when you open it the next morning.
+  const snapOp = () => operations.find(o => o.name === "Grid: Snap Filter To Today");
+  const marker = () => Object.values(occurrencesById)
+    .find(o => o.fields && lastOpenedFieldId() in (o.fields || {}))
+    || Object.values(occurrencesById).find(o => modulesById[o.moduleId]?.label === "Last Opened");
+  const lastOpenedFieldId = () => fieldIdByName["Last Opened Date"];
+  const dateFieldId = () => fieldIdByName["Date"];
+  const runSnap = () => {
+    const updates = executePipeline(snapOp(), buildCtx(), { type: "OnLoadOp" });
+    applyEffectsToLiveOccs(occurrencesById, updates);
+    return updates;
+  };
+  const localToday = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  it("is seeded, onLoad-only, and runs before the trackers", () => {
+    const op = snapOp();
+    expect(op, "Grid: Snap Filter To Today").toBeTruthy();
+    expect(op.triggerTypes).toEqual(["onLoad"]);
+    // The executor sorts on the TRIGGER's priority (op.priority is not in the
+    // Operation schema — Mongoose strips it, so every seeded op exports null).
+    // 0 puts this ahead of the trackers, which must aggregate against the date
+    // this op just moved.
+    expect(op.triggerObjects[0].priority).toBe(0);
+  });
+
+  it("moves a stale page date to today and stamps the marker", () => {
+    const m = marker();
+    expect(m, "Last Opened marker").toBeTruthy();
+    m.fields = { ...(m.fields || {}), [lastOpenedFieldId()]: { value: "2020-01-01", flow: "in" } };
+
+    // A page carrying a stale date of its own.
+    const page = Object.values(occurrencesById).find(o =>
+      modulesById[o.moduleId]?.role === "page" && o.filterOverride && dateFieldId() in o.filterOverride);
+    const target = page || (() => {
+      const p = Object.values(occurrencesById).find(o => modulesById[o.moduleId]?.role === "page");
+      p.filterOverride = { ...(p.filterOverride || {}), [dateFieldId()]: "2020-01-01" };
+      return p;
+    })();
+    target.filterOverride = { ...(target.filterOverride || {}), [dateFieldId()]: "2020-01-01" };
+
+    const updates = runSnap();
+    const overrideWrite = updates.find(u =>
+      u._effect === "UPDATE_ITEM_FILTER_OVERRIDE" && u.itemId === target.id);
+    expect(overrideWrite, "filterOverride write for the stale page").toBeTruthy();
+    expect(overrideWrite.value).toBe(localToday());
+
+    const stamp = updates.find(u => u._effect === "UPDATE_ITEM_FIELD" && u.fieldId === lastOpenedFieldId());
+    expect(stamp, "marker stamp").toBeTruthy();
+    expect(stamp.value).toBe(localToday());
+  });
+
+  it("does nothing at all when it already ran today", () => {
+    const m = marker();
+    m.fields = { ...(m.fields || {}), [lastOpenedFieldId()]: { value: localToday(), flow: "in" } };
+    const updates = runSnap();
+    expect(updates.filter(u => u._effect === "UPDATE_ITEM_FILTER_OVERRIDE")).toHaveLength(0);
+    expect(updates.filter(u => u._effect === "UPDATE_ITEM_FIELD" && u.fieldId === lastOpenedFieldId())).toHaveLength(0);
+  });
+});

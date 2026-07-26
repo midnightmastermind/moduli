@@ -90,3 +90,25 @@ describe("applyUpdate with a user-defined $var bound to an occurrence record", (
     expect(out.effects[0].value).toBe(99);
   });
 });
+
+describe("applyUpdate filterOverride routing", () => {
+  const page = { id: "page1", targetId: "mod_page", fields: {}, filterOverride: { f_date: "2026-07-25" } };
+  const ctx = () => ({ vars: { $page: page }, occurrencesById: { page1: page } });
+
+  it("routes $page.filterOverride.<fieldId> to an UPDATE_ITEM_FILTER_OVERRIDE effect", () => {
+    const out = applyUpdate("$page.filterOverride.f_date", "2026-07-26", ctx());
+    expect(out.varWrites).toEqual({});
+    expect(out.effects).toEqual([
+      { _effect: "UPDATE_ITEM_FILTER_OVERRIDE", itemId: "page1", fieldId: "f_date", value: "2026-07-26" },
+    ]);
+  });
+
+  it("carries a null value through, which clears that key", () => {
+    const out = applyUpdate("$page.filterOverride.f_date", null, ctx());
+    expect(out.effects[0].value).toBeNull();
+  });
+
+  it("rejects a bare filterOverride path with no field", () => {
+    expect(() => applyUpdate("$page.filterOverride", "x", ctx())).toThrow(/unknown path head/);
+  });
+});

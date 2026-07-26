@@ -261,6 +261,11 @@ export async function createLiveData(userId, options = {}) {
   // format based on $activePeriodCount; PageBoard reads this field to
   // pick the layout.
   const scheduleFormatFieldId = uid();
+  // Marker for "first load of the day": the day the grid was last opened. An
+  // onLoad op compares it to today, snaps the filter forward when it differs,
+  // then stamps it. Lives on a hidden occurrence — there is no op action that
+  // writes grid.meta, and an occurrence field is a first-class op write.
+  const lastOpenedFieldId = uid();
   // Bill schedule fields — used by bill instances in the new Bills page.
   // billCadence is a select; billDay/billCadenceN are numeric; billAnchor
   // is a date used as the cycle origin; billNextDue is the op-computed
@@ -798,6 +803,14 @@ export async function createLiveData(userId, options = {}) {
     date: {
       id: dateFieldId,
       name: "Date",
+      type: "date",
+      inputEnabled: true,
+      displayEnabled: false,
+      folderId: fieldCategoryIds.scheduling,
+    },
+    lastOpened: {
+      id: lastOpenedFieldId,
+      name: "Last Opened Date",
       type: "date",
       inputEnabled: true,
       displayEnabled: false,
@@ -5072,6 +5085,27 @@ export async function createLiveData(userId, options = {}) {
       },
     ],
   });
+  // ── "Last opened" marker ────────────────────────────────────────────────
+  // A hidden singleton whose Last Opened Date field records the day the grid was
+  // last opened. `Grid: Snap Filter To Today` (below) reads it, moves the filter
+  // forward on the first load of a new day, then stamps it. Parented under
+  // Trackers so it is never homeless, and `hidden: true` so it never renders
+  // (isOccurrenceVisible returns false for it — state/selectors.js).
+  const lastOpenedModId = uid(); const lastOpenedOccId = uid();
+  await new Module({
+    id: lastOpenedModId, userId, gridId, role: "instance", kind: "list",
+    label: "Last Opened",
+    fieldBindings: [{ fieldId: lastOpenedFieldId, role: "input", order: 0, hidden: true }],
+  }).save();
+  await mkOcc({
+    id: lastOpenedOccId, moduleId: lastOpenedModId,
+    parentId: trackersPageOccId, sortOrder: 999,
+    hidden: true,
+    iteration: { mode: "persistent" },
+    fields: {},
+    filterOverride: {},
+  });
+
   // Op-scoping aliases: every tracker that ancestor-scoped to the Goals or
   // Accounts page now scopes to Trackers through the same variables.
   const goalsPageOccId = trackersPageOccId;
@@ -7287,6 +7321,64 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
     folderId: opCategoryIds.trackers,
+    enabled: true,
+  }).save();
+
+  // ── Grid: Snap Filter To Today ─────────────────────────────────────────────
+  // The date a page carries is PERSISTED in its own filterOverride, and the
+  // full_state bootstrap deliberately never overwrites an explicit value — so
+  // once you navigate, that date is pinned and the grid still shows yesterday
+  // when you open it the next morning.
+  //
+  // This runs on load, compares the "Last Opened Date" marker to today, and on
+  // the FIRST load of a new day moves every date-carrying page forward to today
+  // (writing filterOverride, which is what the filter cascade reads), then
+  // stamps the marker. Same-day reloads take the ELSE branch and change nothing,
+  // so navigating to another date and refreshing leaves you where you were.
+  await new Operation({
+    id: uid(), userId, gridId, priority: 0,
+    name: "Grid: Snap Filter To Today",
+    description: "On the first load of each day, move every page's own date override to today and stamp the Last Opened Date marker. Later loads the same day do nothing, so a date you navigated to survives a refresh.",
+    triggerTypes: ["onLoad"],
+    triggerObjects: [
+      { eventType: "onLoad", subjectType: "grid", targetId: "", priority: 0 },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$openMarker", expr: `$allItemsById.${lastOpenedOccId}` } },
+        {
+          id: uid(), type: "if",
+          // Already opened today → nothing to do. An empty marker (first ever
+          // load) fails SAME_DAY and falls to the else, which is what we want.
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: `$openMarker.fields.${lastOpenedFieldId}.value`, comparator: "SAME_DAY", right: "$today" },
+          ] },
+          then: [],
+          else: [
+            {
+              id: uid(), type: "loop", overExpr: "$allPages", as: "$pg",
+              body: [
+                {
+                  id: uid(), type: "if",
+                  // Only pages that actually carry their own date — leave the
+                  // ones deliberately opted out of the date cascade alone.
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: `$pg.filterOverride.${dateFieldId}`, comparator: "IS_NOT_EMPTY", right: "" },
+                  ] },
+                  then: [
+                    { id: uid(), type: "action", config: { type: "UPDATE", path: `$pg.filterOverride.${dateFieldId}`, value: "$today" } },
+                  ],
+                  else: [],
+                },
+              ],
+            },
+            { id: uid(), type: "action", config: { type: "UPDATE", path: `$openMarker.fields.${lastOpenedFieldId}.value`, value: "$today" } },
+          ],
+        },
+      ],
+    },
+    folderId: opCategoryIds.daypage,
     enabled: true,
   }).save();
 
