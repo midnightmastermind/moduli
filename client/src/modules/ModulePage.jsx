@@ -9,8 +9,9 @@ import RadialMenu from "../ui/RadialMenu";
 import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
+import OccurrenceSearch from "../ui/OccurrenceSearch.jsx";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
-import { Trash2, FileText, ClipboardPaste, Rss, Plus } from "lucide-react";
+import { Trash2, FileText, ClipboardPaste, Rss, Plus, X } from "lucide-react";
 import HeaderChevron from "../ui/HeaderChevron";
 import { bumpRender } from "../helpers/renderProbe";
 import HeaderDropdown from "../ui/HeaderDropdown";
@@ -75,6 +76,7 @@ function Page({
   addInstanceToContainer,
   drilldownTarget,
   onDrilldownComplete,
+  onClosePage = null,
 }) {
   bumpRender("page");
   // Occurrence-derived maps (occurrencesById / childrenByParentId) rebuild on
@@ -667,6 +669,16 @@ function Page({
           <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 0", marginLeft: "auto" }}>
             {/* Filter (HeaderChevron) now leads; the add (QuickAddMenu) moved to the end. */}
             <div onPointerDown={(e) => e.stopPropagation()} style={{ display: "flex", flexShrink: 0, gap: 4, alignItems: "center" }}>
+              {/* Search scoped to THIS page — the result is already open, so
+                  picking one only scrolls + flashes it. */}
+              <OccurrenceSearch
+                scopeRootId={occurrence?.id || null}
+                onPick={(occId) => {
+                  if (!jumpToOccurrence(occId)) toast("Found it, but it's hidden by the current filter");
+                }}
+                title="Search this page"
+                placeholder="Search this page…"
+              />
               {occurrence?.feed?.enabled && (
                 <Rss size={10} style={{ color: "rgba(96,165,250,0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
               )}
@@ -694,6 +706,21 @@ function Page({
               >
                 <AutoMarquee>{pageModule.label || "Untitled"}</AutoMarquee>
               </span>
+            )}
+
+            {/* Close this page out of the panel (the page itself is untouched —
+                this unpins the tab, same as the tree's close button). */}
+            {onClosePage && (
+              <button
+                type="button"
+                className="page-header-close-btn"
+                title="Close this page"
+                aria-label="Close this page"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); onClosePage(occurrence.id); }}
+              >
+                <X size={11} />
+              </button>
             )}
 
             {/* Add (QuickAddMenu) moved here, after the label. */}

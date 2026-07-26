@@ -4533,3 +4533,14 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .occ-search-row-why { color: var(--text-muted); font-style: italic; }
 .occ-search-empty,
 .occ-search-more { padding: 6px; font-size: 10px; color: var(--text-faint); text-align: center; }
+
+/* Close-this-page button in the page header (right of the name). Hover-revealed
+   like the manifest tree's close button — the same action, at the page. */
+.page-header-close-btn {
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; padding: 2px; border: none; border-radius: 3px;
+  background: transparent; color: var(--text-faint); cursor: pointer;
+  opacity: 0; transition: opacity 0.12s ease-out;
+}
+.page-shell:hover .page-header-close-btn { opacity: 1; }
+.page-header-close-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.08); }

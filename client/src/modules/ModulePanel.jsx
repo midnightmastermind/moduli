@@ -66,7 +66,7 @@ import FiltersSection from "../ui/FiltersSection";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import OccurrenceSearch from "../ui/OccurrenceSearch.jsx";
 import { openOccurrenceInPanel } from "../helpers/openOccurrenceInPanel";
-import { toast } from "sonner";
+import { toast } from "../state/notificationStore";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import LayoutCascadeSection from "../ui/LayoutCascadeSection";
@@ -999,6 +999,7 @@ function Panel({
                   dispatch={dispatch}
                   socket={socket}
                   drilldownTarget={pendingDrilldown}
+                  onClosePage={closePage}
                   onDrilldownComplete={handleDrilldownComplete}
                 />
               ) : (
