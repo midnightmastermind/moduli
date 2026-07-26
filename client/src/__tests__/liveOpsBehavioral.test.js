@@ -18,6 +18,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { runMatchingOperations, applyEffectsToLiveOccs, executePipeline } from "../helpers/operationExecutor";
+import { resolveOptions } from "../helpers/optionsResolver";
 import { buildAlarmOperation } from "../helpers/alarmOps";
 
 const seedDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../server/seed");
@@ -779,20 +780,17 @@ describe("Alarm op drops an instance onto today's Schedule (2026-07-20 alarm→s
 // (excluding feed copies, which carry the same tag as their source).
 describe("board dropdowns resolve their options from the tagged boards", () => {
   // Mirrors helpers/optionsResolver's find-mode evaluation over $allInstances.
+  // Calls the REAL resolver rather than re-implementing its matching. The
+  // previous version mirrored it by hand and went stale the moment Board
+  // Category became multi-value (it compared a Set against an array and
+  // silently matched nothing).
   function resolveBoardOptions(fieldName) {
     const field = Object.values(fieldsById).find(f => f.name === fieldName);
     expect(field, `field "${fieldName}"`).toBeTruthy();
     const cfg = field.meta?.optionsSource?.find || field.meta?.optionsSource;
     expect(cfg?.mode === "find" || cfg?.over, `"${fieldName}" is a find-mode source`).toBeTruthy();
-    const tagFid = Object.values(fieldsById).find(f => f.name === "Board Category")?.id;
-    const tags = new Set(
-      JSON.stringify(cfg.predicate).match(/"right":"([a-zA-Z]+)"/g)?.map(s => s.slice(9, -1)) || []);
-    return Object.values(occurrencesById).filter(o => {
-      if (o.meta?.feedSourceId) return false;            // feed copies never list
-      const v = o.fields?.[tagFid];
-      const val = v && typeof v === "object" && "value" in v ? v.value : v;
-      return val && tags.has(val);
-    });
+    const { options } = resolveOptions(field, { occurrencesById, modulesById, fieldsById, foldersById: {} });
+    return options.map(o => occurrencesById[o.value]).filter(Boolean);
   }
 
   it("Beverage lists the Beverages board's options (and nothing else)", () => {

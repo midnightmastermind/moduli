@@ -706,8 +706,8 @@ export async function createLiveData(userId, options = {}) {
       operator: "AND",
       rules: [
         tags.length === 1
-          ? { left: `fields.${boardCategoryFieldId}.value`, comparator: "IS", right: tags[0] }
-          : { operator: "OR", rules: tags.map(t => ({ left: `fields.${boardCategoryFieldId}.value`, comparator: "IS", right: t })) },
+          ? { left: `fields.${boardCategoryFieldId}.value`, comparator: "CONTAINS", right: tags[0] }
+          : { operator: "OR", rules: tags.map(t => ({ left: `fields.${boardCategoryFieldId}.value`, comparator: "CONTAINS", right: t })) },
         { left: "meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
       ],
     },
@@ -780,7 +780,13 @@ export async function createLiveData(userId, options = {}) {
       displayEnabled: false,
       folderId: fieldCategoryIds.boards,
       meta: {
-        multiSelect: false,
+        // MULTI (2026-07-26, per user: ingredients that you also buy should
+        // appear on the shopping list). One option can carry several board
+        // tags, and every board's feed pulls anything carrying ITS tag — so a
+        // multi-tagged option is materialized as a copy-link on each board.
+        // Every predicate on this field therefore uses CONTAINS, which is
+        // array-aware (exact member match), never IS.
+        multiSelect: true,
         options: ["meal","ingredient","grocery","beverage","supplement","movement","route","reading","media",
                   "practice","prompt","leisure","project","skill","topic","wishlist","charity","place","area",
                   "equipment","plant","medium","song","person","program","course","event","gift","verse",
@@ -1667,7 +1673,7 @@ export async function createLiveData(userId, options = {}) {
             predicate: {
               operator: "AND",
               rules: [
-                { left: `fields.${boardCategoryFieldId}.value`, comparator: "IS", right: "project" },
+                { left: `fields.${boardCategoryFieldId}.value`, comparator: "CONTAINS", right: "project" },
                 { left: "meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
               ],
             },
@@ -3905,7 +3911,7 @@ export async function createLiveData(userId, options = {}) {
   const bookFields = (title, pages) => ({
     ...libFields("book", title, bookPosters),
     [pagesFieldId]: fv(pages),
-    [boardCategoryFieldId]: fv("reading"),
+    [boardCategoryFieldId]: fv(["reading"]),
   });
 
   // 8 movie occurrences (parentId = libraryContOccId, library field = "movie")
@@ -3937,7 +3943,7 @@ export async function createLiveData(userId, options = {}) {
   // 4 course occurrences (library field = "course"). Also tagged
   // boardCategory:"course" (2026-07-25) so the multi-board Media dropdown
   // (media|song|course) lists them and the Courses board feed pulls them in.
-  const courseFields = (title) => ({ ...libFields("course", title, coursePosters), [boardCategoryFieldId]: fv("course") });
+  const courseFields = (title) => ({ ...libFields("course", title, coursePosters), [boardCategoryFieldId]: fv(["course"]) });
   const courseAlgorithmsOccId      = await mkOcc({ moduleId: courseAlgorithmsModId,      parentId: libraryContOccId, fields: courseFields("Algorithms (Coursera)") });
   const courseMLSpecOccId          = await mkOcc({ moduleId: courseMLSpecModId,          parentId: libraryContOccId, fields: courseFields("Machine Learning Specialization") });
   const courseSystemDesignOccId    = await mkOcc({ moduleId: courseSystemDesignModId,    parentId: libraryContOccId, fields: courseFields("System Design Primer") });
@@ -4100,7 +4106,7 @@ export async function createLiveData(userId, options = {}) {
       parentId: peopleBoardContOccId,
       fields: {
         [libraryFieldId]:                fv("person"),
-        [boardCategoryFieldId]:          fv("person"),
+        [boardCategoryFieldId]:          fv(["person"]),
         [posterUrlFieldId]:              fv(personPosterFor(p.gender, p.seed)),
         [personNameFieldId]:             fv(p.name),
         [personEmailFieldId]:            fv(p.email),
@@ -4325,7 +4331,7 @@ export async function createLiveData(userId, options = {}) {
   for (const [wKey, wInst] of Object.entries(workoutInstances)) {
     const wFields = {
       [fields.muscleGroup.id]:    fv(wInst.meta.defaultMuscleGroup, "replace"),
-      [boardCategoryFieldId]:     fv("movement"),
+      [boardCategoryFieldId]:     fv(["movement"]),
       [fields.set1Reps.id]:       fv(12, "replace"),
       [fields.set2Reps.id]:       fv(10, "replace"),
       [fields.set3Reps.id]:       fv(8,  "replace"),
@@ -4345,12 +4351,29 @@ export async function createLiveData(userId, options = {}) {
   // option occ ids minted earlier in this same loop).
   const BOARD_DEFS = [
     // ── Food ──
+    // Food items you BUY carry both tags, so each board's feed materializes them
+    // as copy-links on the other (2026-07-26, per user: "the ingredients and the
+    // shopping list appropriate items should be copy linked"). Anything that is
+    // only ever bought and never cooked with — Paper Towels — stays grocery-only.
     { key: "ingredient", tag: "ingredient", label: "Ingredients", group: "food", options: [
-      opt("Chicken Breast"), opt("Eggs"), opt("Rice"), opt("Spinach"), opt("Greek Yogurt"),
-      opt("Oats"), opt("Salmon"), opt("Olive Oil"), opt("Sweet Potatoes"), opt("Black Beans"),
+      opt("Chicken Breast", { tags: ["ingredient", "grocery"] }),
+      opt("Eggs",           { tags: ["ingredient", "grocery"] }),
+      opt("Rice",           { tags: ["ingredient", "grocery"] }),
+      opt("Spinach",        { tags: ["ingredient", "grocery"] }),
+      opt("Greek Yogurt",   { tags: ["ingredient", "grocery"] }),
+      opt("Oats",           { tags: ["ingredient", "grocery"] }),
+      opt("Salmon",         { tags: ["ingredient", "grocery"] }),
+      opt("Olive Oil",      { tags: ["ingredient", "grocery"] }),
+      opt("Sweet Potatoes", { tags: ["ingredient", "grocery"] }),
+      opt("Black Beans",    { tags: ["ingredient", "grocery"] }),
     ]},
     { key: "grocery", tag: "grocery", label: "Grocery List", group: "food", options: [
-      opt("Milk"), opt("Bananas"), opt("Coffee Beans"), opt("Paper Towels"), opt("Chicken Thighs"), opt("Frozen Berries"),
+      opt("Milk",            { tags: ["grocery", "ingredient"] }),
+      opt("Bananas",         { tags: ["grocery", "ingredient"] }),
+      opt("Coffee Beans",    { tags: ["grocery", "ingredient"] }),
+      opt("Paper Towels"),
+      opt("Chicken Thighs",  { tags: ["grocery", "ingredient"] }),
+      opt("Frozen Berries",  { tags: ["grocery", "ingredient"] }),
     ]},
     { key: "meal", tag: "meal", label: "Meals", group: "food", options: [
       "Scrambled Eggs|Eggs,Olive Oil",
@@ -4534,7 +4557,7 @@ export async function createLiveData(userId, options = {}) {
       const occId = await mkOcc({
         moduleId: modId, parentId: contOccId,
         fields: {
-          [boardCategoryFieldId]: fv(def.tag),
+          [boardCategoryFieldId]: fv(o.tags || [def.tag]),
           ...(boardOptionPoster(def.group, o.label)
             ? { [posterUrlFieldId]: fv(boardOptionPoster(def.group, o.label)) }
             : {}),
@@ -4552,13 +4575,13 @@ export async function createLiveData(userId, options = {}) {
       occurrences: children,
       // The container's OWN tag value — read at add time by the addNew flow
       // to stamp new options minted under it.
-      fields: { [boardCategoryFieldId]: fv(def.tag) },
+      fields: { [boardCategoryFieldId]: fv([def.tag]) },
       // The board pulls in anything tagged with its category from anywhere in
       // the grid (feedSync self-excludes the owner, its direct children, and
       // feed copies — no extra conditions needed).
       feed: {
         enabled: true,
-        conditions: [{ fieldId: boardCategoryFieldId, comparator: "IS", value: def.tag }],
+        conditions: [{ fieldId: boardCategoryFieldId, comparator: "CONTAINS", value: def.tag }],
         roles: ["instance"],
         sort: null,
         limit: 200,
