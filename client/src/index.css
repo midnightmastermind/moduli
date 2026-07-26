@@ -1988,7 +1988,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   display: flex;
 }
 .insert-gap--empty .insert-gap-btn {
-  position: static;
+  position: relative;        /* anchors the absolutely-placed label */
   width: 100%;
   height: auto;
   min-height: 44px;
@@ -1996,7 +1996,6 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
 }
 /* The between-items gap stretches its "+" trigger to 100% so the whole blue
    line is clickable — in the EMPTY variant that pushed the label to the far
@@ -2006,7 +2005,17 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   width: auto !important;
   flex: 0 0 auto;
 }
+/* Taken OUT OF FLOW (2026-07-26, per user): at rest the label is only
+   opacity:0, so it still reserved its width and pushed the "+" right of
+   center — and the "+" jumped sideways as the label faded in on hover.
+   Absolute + right-of-center-minus-the-glyph keeps the "+" dead centered in
+   both states, with the label hanging to its left when revealed. */
 .insert-gap-empty-label {
+  position: absolute;
+  top: 50%;
+  right: 50%;
+  transform: translate(-14px, -50%);  /* clear the centered "+" glyph */
+  white-space: nowrap;
   font-size: 11px;
   font-style: italic;
   color: var(--text-muted);
@@ -4221,9 +4230,9 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    "a lot smaller and in line with the label"). Opt-in via meta.mediaInline —
    the full-width .instance-media block below is for everything else. */
 .instance-media-inline {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
   border-radius: 3px;
   object-fit: cover;
   margin-right: 5px;
@@ -4472,3 +4481,55 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    same as on desktop") — no coarse-pointer label compaction. Phones still shrink
    labels under the max-width:600px block. The `.instance-label` class hook stays
    on the instance label div for future targeting. */
+
+/* ── Occurrence search (panel header = whole grid, page header = that page) ──
+   Collapsed the trigger is a header-sized icon button; open, the field grows
+   in place and the results dropdown is portalled to the body so no
+   overflow:hidden ancestor can clip it. */
+.occ-search { display: flex; align-items: center; flex-shrink: 0; min-width: 0; }
+.occ-search--open { flex: 1 1 auto; }
+.occ-search-trigger {
+  display: flex; align-items: center; justify-content: center;
+  padding: 3px 5px; border: none; border-radius: 4px; cursor: pointer;
+  background: transparent; color: var(--text-muted);
+}
+.occ-search-trigger:hover { color: var(--text-primary); background: rgba(255,255,255,0.06); }
+.occ-search-field {
+  display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0;
+  padding: 2px 4px; border: 1px solid var(--border-default);
+  border-radius: 4px; background: var(--input-bg);
+}
+.occ-search-field-icon { color: var(--text-faint); flex-shrink: 0; }
+.occ-search-input {
+  flex: 1; min-width: 0; background: transparent; border: none; outline: none;
+  font-size: 11px; font-family: var(--font-mono); color: var(--text-primary);
+}
+.occ-search-clear {
+  display: flex; align-items: center; border: none; background: transparent;
+  color: var(--text-faint); cursor: pointer; padding: 1px;
+}
+.occ-search-clear:hover { color: var(--text-primary); }
+.occ-search-menu {
+  z-index: 1200; overflow-y: auto;
+  background: var(--surface, #1f2125);
+  border: 1px solid var(--border-default); border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  padding: 4px;
+}
+.occ-search-row {
+  display: flex; align-items: flex-start; gap: 6px;
+  padding: 5px 6px; border-radius: 4px; cursor: pointer;
+}
+.occ-search-row--active { background: rgba(96,165,250,0.14); }
+.occ-search-row-icon { margin-top: 2px; flex-shrink: 0; opacity: 0.7; }
+.occ-search-row-text { min-width: 0; flex: 1; }
+.occ-search-row-label { font-size: 12px; color: var(--text-primary); }
+.occ-search-row-label mark { background: rgba(96,165,250,0.35); color: inherit; border-radius: 2px; }
+.occ-search-row-path,
+.occ-search-row-why {
+  font-size: 10px; color: var(--text-faint); font-family: var(--font-mono);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.occ-search-row-why { color: var(--text-muted); font-style: italic; }
+.occ-search-empty,
+.occ-search-more { padding: 6px; font-size: 10px; color: var(--text-faint); text-align: center; }
