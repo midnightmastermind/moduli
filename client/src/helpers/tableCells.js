@@ -2,6 +2,13 @@
 // Pure helpers for the table container's layout-only cell model.
 // A cell's content is a TipTap doc fragment stored in
 // occurrence.meta.table.cells["r:c"]. Cells are not entities.
+//
+// plainText lives in helpers/textmapText.js (the occurrence search index needs
+// it too, and a search helper shouldn't depend on table code); re-exported here
+// so existing `import { plainText } from "./tableCells"` call sites keep working.
+import { plainText } from "./textmapText";
+
+export { plainText };
 
 export function cellKey(r, c) {
   return `${r}:${c}`;
@@ -16,17 +23,6 @@ export function makeEmbedCellDoc(occurrenceId) {
     type: "doc",
     content: [{ type: "moduleEmbed", attrs: { occurrenceId } }],
   };
-}
-
-export function plainText(doc) {
-  let out = "";
-  const walk = (n) => {
-    if (!n) return;
-    if (n.type === "text" && typeof n.text === "string") out += n.text;
-    (n.content || []).forEach(walk);
-  };
-  walk(doc);
-  return out.trim();
 }
 
 export function firstEmbedOccId(doc) {
