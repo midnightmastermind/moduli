@@ -4,7 +4,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Filter } from "lucide-react";
+import HeaderChevron from "./HeaderChevron.jsx";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
@@ -86,19 +86,13 @@ export default function ToolbarFilterDropdown() {
 
   return (
     <>
-      <button
-        ref={btnRef}
-        type="button"
-        onClick={openMenu}
-        title="Filters"
-        style={{
-          background: "transparent", border: 0, padding: "2px 4px",
-          cursor: "pointer", display: "inline-flex", alignItems: "center",
-          color: "rgba(80, 150, 100, 0.85)",
-        }}
-      >
-        <Filter size={13} fill="rgba(80, 150, 100, 0.85)" />
-      </button>
+      {/* Same trigger the container / page / panel headers use — the toolbar
+          funnel now reads identically to the one on every page. It carries no
+          occurrence (the toolbar's scope is the GRID), so it renders the
+          neutral state rather than a per-occurrence active/deactivated tint. */}
+      <span ref={btnRef} style={{ display: "inline-flex", alignItems: "center" }}>
+        <HeaderChevron onClick={openMenu} isOpen={open} />
+      </span>
 
       {open && anchor && createPortal(
         <div
@@ -106,17 +100,17 @@ export default function ToolbarFilterDropdown() {
           role="dialog"
           style={{
             position: "fixed", top: anchor.bottom + 4, left: anchor.left,
-            zIndex: 1100, minWidth: 240, maxWidth: 320,
+            zIndex: 1100, minWidth: 280, maxWidth: 340,
             background: "var(--panel-bg, #1f2937)",
             color: "var(--panel-fg, #f3f4f6)",
             border: "1px solid var(--panel-border, #374151)",
-            borderRadius: 8, padding: 10,
+            borderRadius: 8, padding: 12,
             boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
             fontFamily: "var(--font-mono)",
           }}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          <div style={{ fontSize: 9, opacity: 0.55, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+          <div style={{ fontSize: 10, opacity: 0.6, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, fontWeight: 600 }}>
             Filters
           </div>
           {filters.length === 0 && (

@@ -100,12 +100,23 @@ const NAVIGATE_COOLDOWN = 400;
 // position, and activeCell silently tracks the nearest sub-cell (rails,
 // persistence, drag-edge nav all keep working off it).
 
-export function panelScrollMax(panel, viewportW, viewportH) {
+// `content` (optional) = { height, width } of the scroller's actual content
+// (viewport.scrollHeight / scrollWidth). The cell span is a FLOOR, not a cap:
+// a 2-high panel is guaranteed at least one extra viewport of scroll so you can
+// cross its cells, but a panel whose content is TALLER than its cells (the
+// Schedule's 48 timeslots in a 2-high panel) must still scroll all the way to
+// the end. Capping at the cell span stranded everything past ~9:30pm
+// (2026-07-25, per user: "id like the viewport to handle the full height").
+export function panelScrollMax(panel, viewportW, viewportH, content = null) {
   const h = panel?.height || 1;
   const w = panel?.width || 1;
+  const spanTop = Math.max(0, (h - 1) * viewportH);
+  const spanLeft = Math.max(0, (w - 1) * viewportW);
+  const contentTop = content?.height ? Math.max(0, content.height - viewportH) : 0;
+  const contentLeft = content?.width ? Math.max(0, content.width - viewportW) : 0;
   return {
-    maxTop: Math.max(0, (h - 1) * viewportH),
-    maxLeft: Math.max(0, (w - 1) * viewportW),
+    maxTop: Math.max(spanTop, contentTop),
+    maxLeft: Math.max(spanLeft, contentLeft),
   };
 }
 
@@ -122,7 +133,8 @@ export function nearestSubCell(panel, scrollTop, scrollLeft, viewportW, viewport
 // this direction? (Gate for overscroll-to-navigate OUT of a multicell panel.)
 export function isViewportAtPanelEnd(viewport, panel, direction) {
   if (!viewport) return true;
-  const { maxTop, maxLeft } = panelScrollMax(panel, viewport.clientWidth, viewport.clientHeight);
+  const { maxTop, maxLeft } = panelScrollMax(panel, viewport.clientWidth, viewport.clientHeight,
+    { height: viewport.scrollHeight, width: viewport.scrollWidth });
   const threshold = 5;
   if (direction === 'down') return viewport.scrollTop >= maxTop - threshold;
   if (direction === 'up') return viewport.scrollTop <= threshold;
@@ -235,7 +247,8 @@ export default function MobileGridNav({
     // Publish the clamp caps — DragProvider's drag autoscroll reads
     // data-scroll-max-top so it doesn't fight the clamp at the panel edge.
     const stampCaps = () => {
-      const { maxTop, maxLeft } = panelScrollMax(panel, viewport.clientWidth, viewport.clientHeight);
+      const { maxTop, maxLeft } = panelScrollMax(panel, viewport.clientWidth, viewport.clientHeight,
+        { height: viewport.scrollHeight, width: viewport.scrollWidth });
       viewport.dataset.scrollMaxTop = String(maxTop);
       viewport.dataset.scrollMaxLeft = String(maxLeft);
       return { maxTop, maxLeft };
