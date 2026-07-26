@@ -63,6 +63,38 @@ Per user (CLAUDE_CHAT 2026-07-25), a whole new seeded grid built beside the old 
 
 ---
 
+## Handoff — 2026-07-25 (2) (tracker containers carry the date; account containers merged; mobile scroll reaches the end)
+
+Follow-on batch to the Poms rebuild, all shipped + deployed (`f06bbddf`, prod HEAD verified) and
+verified live on prod with a mobile probe:
+- **The date phrase moved from the tracker TILES to their CONTAINERS.** `Trackers: Date-Prefix
+  Labels` now stamps `"Today's <Dimension>"` on each container under the Trackers page and CLEARS
+  `occurrence.label` on the tiles inside, so a tile reads as the bare metric ("Connection Time").
+  Reading `moduleLabel` — not `label` — is what stops the op re-prefixing its own write.
+- **The five "account" containers are gone.** Finances / Fitness / Learning / Productivity /
+  Wellness were a second taxonomy beside the nine dimensions, which is what produced the user's
+  "Today's Financial next to Today's Finances". Their tiles now live in the dimension they belong
+  to (`acctKeys` on each `goalMappings` entry): Finances→Financial, Fitness→Physical,
+  Reading→Intellectual, Productivity→Occupational, Wellness→Emotional. Tracker ops target tiles by
+  occurrence id, so re-parenting them changed nothing else.
+- **Mobile Schedule "stops at 9:30pm" ROOT-CAUSED and fixed.** Not the clamp (that fix was already
+  live and correct) — the page scroller INSIDE a multicell panel sets `overscroll-behavior: contain`
+  inline, so on reaching its end it never chained into the viewport and the panel's lower half was
+  unreachable. Driving the scrollers by hand proved it: inner-at-max stopped at 9:00pm, and
+  `viewport.scrollTop = 814` then showed 11:30pm. The viewport now stamps
+  `data-panel-native-scroll` while the mode is live and CSS flips descendants to
+  `overscroll-behavior-y: auto !important` (the viewport keeps `contain`, so nothing chains out to
+  the document).
+- Container header labels one size up (they matched the instance labels); occurrence-dropdown
+  option rows drop the "Set image" overlay once an image is set.
+- 1352/1352 client + 245/245 server, build clean, reseeded, deployed.
+- **Probe lessons (cost two runs each):** a text check ("is 12:00am on screen") proves nothing about
+  which mobile cell is ACTIVE — every panel's DOM sits in the slider, just translated off-screen;
+  detect a multicell panel by the viewport flipping to `overflow: auto`. And synthetic `TouchEvent`s
+  do not drive native scrolling at all — drive the scrollers directly and assert on geometry.
+
+---
+
 ## Handoff — 2026-07-24 (drag autoscroll feel + multicell panels scroll natively on mobile + smaller insert gap)
 
 Per user (CLAUDE_CHAT 2026-07-24), three UX asks, all shipped + headless-verified:

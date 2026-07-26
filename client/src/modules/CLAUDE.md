@@ -2,6 +2,12 @@
 
 _Updated: 2026-07-18. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-07-25 — container header label one size up)
+- **`ModuleContainer.jsx`** — the standard/board container header label went `0.75rem`/`0.8rem` →
+  `0.9rem`/`0.95rem`. It rendered at 12px, the same size as the instance labels underneath it, so a
+  container read as just another row (user: "it matches instances right now and it looks off").
+  The EMBEDDED header is unaffected — it sizes off `meta.headingLevel` (HEADING_SIZES).
+
 ## Recent Changes (2026-07-18 — manifest tree: root indent matches local; no folder-page dupe row; tablet labels)
 - **`ManifestTree.jsx` (`FolderNode`)** — root-tree folder rows indented at `depth * 14`; every
   other tree row (pages, the local/panel tree) uses `depth * 8`, so the root (FILES) tree stepped

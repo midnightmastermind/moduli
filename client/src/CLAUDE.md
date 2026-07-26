@@ -2,6 +2,29 @@
 
 _Updated: 2026-07-24. Check this file before re-reading source._
 
+## Recent Changes (2026-07-25 — mobile multicell panel scroll reaches the END (overscroll chaining))
+- **The bug (user, twice): the Schedule "ends at 9:30pm and won't go further" on MOBILE.**
+  Root-caused by driving each scroller directly on prod (390x844, real device metrics): a 2-row
+  panel is 1628px of slider but the viewport shows 814 of it, and the page scroller INSIDE the
+  panel (`pages/PageBoard.jsx`, 1550 tall over 6400 of content) sets `overscroll-behavior: contain`
+  INLINE. So the inner list scrolled to its end — last visible slot **9:00pm** (the user's 9:30pm)
+  — and then hard-stopped: `contain` means it never chains into the viewport, and the panel's lower
+  half, which holds the remaining slots, was unreachable. Setting `viewport.scrollTop = 814` by
+  hand revealed **11:30pm**, proving the content was there all along.
+- **Fix:** `mobile/MobileGridNav.jsx` stamps `data-panel-native-scroll="1"` on the viewport while
+  the multicell native-scroll mode is live (cleared in the inactive branch AND the effect cleanup),
+  and `index.css` flips descendant scrollers to `overscroll-behavior-y: auto !important` under that
+  attribute. `!important` is required — the page scrollers set `contain` as an inline style. The
+  viewport itself KEEPS `contain`, so nothing chains on out to the document. Single-cell panels are
+  untouched (their viewport is `overflow: hidden`, so there is nothing to chain into).
+- Verified on prod after deploy: mode active, inner scroller computed
+  `overscroll-behavior-y: auto`, viewport still `contain`, inner-at-max → 9:00pm → chained viewport
+  scroll → **11:30pm**. **Probe lesson (cost two runs):** a text check like "is 12:00am on screen"
+  proves NOTHING about which cell is active — every panel's DOM lives in the slider, just
+  translated off-screen. Detect arrival on a multicell panel by the viewport flipping to
+  `overflow: auto`. Also: synthetic `TouchEvent`s do not drive native scrolling at all; drive the
+  scrollers directly (or CDP) and assert on the resulting geometry.
+
 ## Recent Changes (2026-07-24 — multicell panels scroll NATIVELY on mobile + drag autoscroll feel + smaller insert gap)
 - **`mobile/MobileGridNav.jsx` — multicell panel native scroll.** A panel spanning 2+ rows/cols
   no longer cell-snaps inside itself (user: "autoswitch to the next cell but its jumpy"). While

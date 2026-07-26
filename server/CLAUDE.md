@@ -2,6 +2,26 @@
 
 _Updated: 2026-07-25. Check this file before re-reading source._
 
+## Recent Changes (2026-07-25 (2) — date phrase on tracker CONTAINERS; account containers merged away)
+- **`Trackers: Date-Prefix Labels` retargeted** (`scripts/createLiveData.js`): loop 1 stamps every
+  CONTAINER under the Trackers page (`$allContainers`, `HAS_ANCESTOR` + `moduleLabel IS_NOT_EMPTY`)
+  with `"${$activeDatePossessive} ${$grp.moduleLabel}"`; loop 2 CLEARS `occurrence.label` on the
+  instances under it so each tile falls back to its plain module label. Per user: "have the
+  container have the date phrase in it instead of the occurrences — Todays Socials instead of
+  Todays Connection Time (it would just be connection time)". Reading `moduleLabel` (the stable
+  template base) is what keeps the op from re-prefixing its own prior write.
+- **The five account containers are GONE** (`accountContainerMods` deleted): Finances / Fitness /
+  Learning / Productivity / Wellness were a SECOND taxonomy beside the nine dimensions and read as
+  near-duplicates on the Trackers page ("Today's Financial" next to "Today's Finances" — the user's
+  report). `goalMappings` entries gained an `acctKeys` array and the goal loop now mints those
+  tiles into the dimension container after its own: Finances→Financial (7 tiles), Fitness→Physical,
+  Reading→Intellectual, Productivity→Occupational, Wellness→Emotional. Occurrence ids still come
+  from `accountOccIds`, so every tracker op (which targets by id) is untouched. `accountContOccIds`
+  is now an empty object kept only for the export shape; `accountsPageOccId` still aliases the
+  Trackers page. The accountRef "+ Add" now parents under the Financial container.
+- **Reseed applied + deployed.** Verified live on prod: "Today's Financial" holds Spent / Income /
+  Checking / Savings…, every tile's own label is null. 245/245 server + 1352/1352 client.
+
 ## Recent Changes (2026-07-25 — Poms grid: nine dimensions of wellness; test grid untouchable)
 Whole-seed rebuild onto a NEW grid (`DEFAULT_GRID_NAME = "Poms"`). Plan:
 `docs/superpowers/plans/2026-07-25-poms-grid-nine-dimensions.md`. All in `scripts/createLiveData.js`

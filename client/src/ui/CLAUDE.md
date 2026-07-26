@@ -2,6 +2,13 @@
 
 _Updated: 2026-07-20. Check this file before re-reading source._
 
+## Recent Changes (2026-07-25 (2) — dropdown option rows: no "Set image" overlay once an image is set)
+- **`Field.jsx` (`OccurrenceOption`)** — the hover `ImagePlus` overlay on a picker option's media
+  slot now renders only while that option has NO image (`onSetImage && !(mediaVal && isImg)`).
+  Per user: "hide the set image button on the image generator picker — just show the image, not the
+  overlay." Options that still lack an image keep the affordance, so there's no way to end up with
+  an image-less option you can't fill from the dropdown.
+
 ## Recent Changes (2026-07-25 — Field.jsx: "+ Add new" on every occurrence dropdown + destination chooser)
 - **`Field.jsx`** — `occurrenceAddNewCfg` is no longer gated on `meta.multiSelect`, so SINGLE-select
   occurrence dropdowns take "+ Add" too (every board dropdown mints options, per user). New
