@@ -272,3 +272,61 @@ export function searchOccurrences(index, query, { scopeRootId = null, limit = 50
 
   return { results: scored.slice(0, limit), total: scored.length };
 }
+
+// ── Cached access ────────────────────────────────────────────────────────
+// Extracting body text is the expensive part of indexing, so entries are cached
+// on the occurrence OBJECT: a write swaps the identity of only what changed, and
+// everything else is reused. An entry also embeds its ancestors' labels and
+// dates, so the cache record holds the ancestor objects it was built from and is
+// invalidated when any of them is replaced (a parent rename must not leave a
+// child with a stale path). The assembled index is memoized on the map identity.
+const _entryCache = new WeakMap();
+let _lastArgs = null;
+let _lastIndex = null;
+
+export function getSearchIndex({ occurrencesById = {}, modulesById = {}, fieldsById = {}, gridId = null } = {}) {
+  if (_lastArgs
+    && _lastArgs.occurrencesById === occurrencesById
+    && _lastArgs.modulesById === modulesById
+    && _lastArgs.fieldsById === fieldsById
+    && _lastArgs.gridId === gridId) return _lastIndex;
+
+  const parentBy = buildParentMap(occurrencesById);
+  const parentOf = (id) => parentBy[id] ?? occurrencesById[id]?.parentId ?? null;
+  const ctx = { occurrencesById, modulesById, fieldsById, parentOf };
+
+  const entries = [];
+  const byId = new Map();
+  for (const occ of Object.values(occurrencesById)) {
+    if (!occ?.id) continue;
+    if (gridId && occ.gridId && occ.gridId !== gridId) continue;
+
+    const cached = _entryCache.get(occ);
+    const reusable = cached
+      && cached.modulesById === modulesById
+      && cached.fieldsById === fieldsById
+      && cached.ancestors.every(a => occurrencesById[a.id] === a);
+
+    let entry;
+    if (reusable) {
+      entry = cached.entry;
+    } else {
+      entry = buildEntry(occ, ctx);
+      if (entry) {
+        _entryCache.set(occ, {
+          entry,
+          modulesById,
+          fieldsById,
+          ancestors: entry.ancestorIds.map(id => occurrencesById[id]).filter(Boolean),
+        });
+      }
+    }
+    if (!entry) continue;
+    entries.push(entry);
+    byId.set(entry.occId, entry);
+  }
+
+  _lastArgs = { occurrencesById, modulesById, fieldsById, gridId };
+  _lastIndex = { entries, byId };
+  return _lastIndex;
+}
