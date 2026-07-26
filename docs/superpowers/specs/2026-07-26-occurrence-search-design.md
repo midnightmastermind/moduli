@@ -237,6 +237,59 @@ by the tree's close button. No new state, no server change.
 
 ---
 
+## 5b. De-schedule the renderers (folded in, per user)
+
+The rule the search engine now states explicitly ("no domain knowledge") is a project-wide rule.
+A sweep of the client and the generic server code found four places that break it. Seed files
+(`createLiveData.js`, `createDefaultUserData.js`, `liveSystemBuilders.js`) are excluded — they
+*define* the schedule as data, which is the correct place for it.
+
+| # | Site | Violation | Fix |
+|---|---|---|---|
+| 1 | `modules/ModuleContainer.jsx:46-93` | `SCHEDULE_LABEL_PREFIX = "Schedule - "` — `computeScheduleColLabel` string-matches a label prefix to decide whether to recompute a header from its date filter | Delete both. Header renders `occurrence.label ?? module.label`. A seed op stamps `occurrence.label` per-placement via the existing `UPDATE_ITEM_LABEL` effect + `$activeDateRelativeLabel`, exactly as the Trackers containers already get "Today's Physical" |
+| 2 | `modules/pages/PageBoard.jsx:39-57, 178-181` | `WEEKDAY_RAINBOW` + `weekdayColor()` — the generic board renderer derives a weekday from a child's date field and applies hardcoded Mon-red…Sun-violet tints | Delete. Same class as the timeslot-passed tint removed 2026-06-03. If the colors are wanted, an op writes `ownStyle` on the child |
+| 3 | `ui/PomodoroTimer.jsx:33-44, 173` | `currentSlotLabel()` mints `"9:00am"` solely to string-match `meta.slotLabel` on slot containers | Verify first: the Pomodoro: Start op moved to field-based day-col + slot resolution on 2026-07-14, so `slotLabel` may be vestigial. If unread, delete the helper and the transaction key; if still read, the op switches to the timeslot FIELD (the 2026-07-20 alarm pattern) |
+| 4 | `helpers/alarmOps.js:52` | `{ left: "label", comparator: "IS", right: "Schedule" }` — the alarm pipeline builder finds its destination page by literal name | Resolve from a seeded id. `grid.meta.scheduleFieldIds` already carries the field ids; extend it with the page occurrence id and read that. Server twin `makeAlarmOp` changes in lockstep — **keep the two builders in sync** |
+
+Naming-only, no behavior change, cleaned as we pass through: `dropHandlers.js` locals
+`dayColOcc` / `copyDayColOcc` / `ccDayColOcc` (all results of the generic
+`findFilterOverrideAncestor`).
+
+#1 and #2 change what renders. #1 leaves those headers showing their stamped label until the
+stamping op runs, so the op ships in the same pass and a reseed is required. #2 removes the
+weekday tints outright.
+
+## 5c. "Snap the filter to today on first load of the day" (folded in, per user)
+
+**Why it's needed.** The full_state bootstrap (`state/bindSocketToStore.js:161-186`) fills
+`grid.activeFilterValues` only for fieldIds that have no value, and deliberately never overwrites
+an explicit one — then persists it. So the first navigation pins that date permanently and the
+grid still shows yesterday when you open it the next morning.
+
+**Blocker to fix first — `SET_FILTER` is half-wired.** `operationActions.js:3226` pushes a
+`SET_FILTER` effect; the handler (`bindSocketToStore.js:1242`) dispatches `setFilterNavAction`;
+the reducer's `SET_FILTER_NAV` (`masterReducer.js:465`) writes **only** `filterNavState` — the nav
+widget. The cascade (`isOccurrenceVisible`) reads `grid.activeFilterValues`. An op can therefore
+move the date display today without filtering anything.
+
+Fix: the `SET_FILTER` effect handler also patches `grid.activeFilterValues[fieldId]`
+(`updateGridAction` + `safeEmit("update_grid", …)`), mirroring the bootstrap's own write. The
+existing "skip if unchanged" guard stays — it is what keeps an onLoad op from looping.
+
+**The op** (seed data, no new action types):
+
+- Name: `Grid: Snap Filter To Today`, `triggerTypes: ["onLoad"]`, priority ahead of the trackers
+  so they aggregate against the right date.
+- Marker: a seeded hidden occurrence carrying a date field ("Last Opened"). There is no op action
+  that writes `grid.meta`, and adding one is more surface than this needs — an occurrence field is
+  a first-class op write already.
+- Pipeline: FIND the marker (picker-direct `$allItemsById.<id>`) → IF its date is NOT
+  `SAME_DAY $today` → `SET_FILTER { fieldId: <date field>, value: $today }` + UPDATE the marker to
+  `$today`.
+
+Same-day reloads therefore leave the filter alone: navigate to July 20, reload, you stay on
+July 20. Open it the next morning and it snaps to today, once.
+
 ## 6. Testing
 
 Pure-helper tests (`__tests__/occurrenceSearch.test.js`):
@@ -254,9 +307,20 @@ Pure-helper tests (`__tests__/occurrenceSearch.test.js`):
 Component tests (`__tests__/occurrenceSearch.ui.test.jsx`): expand on click, dropdown on
 keystroke, ↑/↓/Enter selection, Escape collapses and clears.
 
+De-schedule (§5b): a regression test asserting no client source file matches
+`/SCHEDULE_LABEL_PREFIX|computeScheduleColLabel|WEEKDAY_RAINBOW/`, so these can't come back;
+`ModuleContainer` renders `occurrence.label` over `module.label` (existing behavior, now the only
+rule); `alarmOps` builds its FIND from a configured id, not the string "Schedule".
+
+Snap-to-today (§5c): `SET_FILTER` effect patches `grid.activeFilterValues` **and**
+`filterNavState`; the unchanged-value guard still short-circuits; a behavioral test in
+`liveOpsBehavioral` — marker dated yesterday → onLoad sweep moves the filter to today and stamps
+the marker; marker dated today → no writes at all.
+
 Headless verification on the reseeded Poms grid: panel search "water 9" → the slot copy → panel
-switches to Schedule and the row flashes; page search on Routines finds a body-text match; the ×
-closes the page out of the panel.
+switches to that page and the row flashes; page search on Routines finds a body-text match; the ×
+closes the page out of the panel; day-column headers still read their date after the stamping op
+runs; opening with a stale marker lands on today.
 
 ---
 
