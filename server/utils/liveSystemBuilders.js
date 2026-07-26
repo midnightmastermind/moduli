@@ -2704,7 +2704,8 @@ function alarmTimeslotLabel(hhmm) {
 // matching and de-duping on the TIMESLOT field (not the label), and stamping it on
 // the created instance. MUST mirror the client's alarmScheduleSteps in helpers/alarmOps.js.
 function alarmScheduleSteps({ sched, instanceLabel, time }) {
-  if (!sched || !sched.dateFieldId || !sched.scheduleFormatFieldId || !sched.timeslotFieldId) return [];
+  if (!sched || !sched.dateFieldId || !sched.scheduleFormatFieldId
+      || !sched.timeslotFieldId || !sched.pageOccurrenceId) return [];
   const df = sched.dateFieldId;
   const sf = sched.scheduleFormatFieldId;
   const tf = sched.timeslotFieldId;
@@ -2713,7 +2714,7 @@ function alarmScheduleSteps({ sched, instanceLabel, time }) {
   return [
     { id: uid(), type: "action", config: { type: "FIND", over: "$allPages",
       predicate: { operator: "AND", rules: [
-        { id: uid(), left: "label", comparator: "IS", right: "Schedule" },
+        { id: uid(), left: "id", comparator: "IS", right: sched.pageOccurrenceId },
       ] }, itemIdVar: "$alSchedPage" } },
     { id: uid(), type: "if",
       condition: { operator: "AND", rules: [{ id: uid(), left: "$alSchedPage", comparator: "IS_NOT_EMPTY", right: "" }] },

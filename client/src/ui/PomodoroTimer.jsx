@@ -30,16 +30,26 @@ function fmt(seconds) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-// Slot label in the format Schedule: Build Day mints (e.g. "9:00am",
-// "12:00pm"). Hour-rounded; minutes ignored — sessions land in the
-// hour-slot they're started in. Schedule slot containers carry
-// meta.slotLabel matching this exact format so the Pomodoro: Start op's
-// FIND resolves by string equality.
-function currentSlotLabel(now = new Date()) {
-  const h24 = now.getHours();
-  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-  const ampm = h24 < 12 ? "am" : "pm";
-  return `${h12}:00${ampm}`;
+// The destination value the Pomodoro: Start op matches against the timeslot
+// FIELD. Candidates are that field's OWN configured options — this component
+// formats nothing and assumes nothing about what the options mean; it just
+// picks the latest one that has already come round today.
+export function pickTimeOptionForNow(options, now = new Date()) {
+  const minutesNow = now.getHours() * 60 + now.getMinutes();
+  let best = null;
+  let bestMinutes = -1;
+  for (const opt of options || []) {
+    const m = /^(\d{1,2}):(\d{2})\s*(am|pm)?$/i.exec(String(opt).trim());
+    if (!m) continue;
+    let h = Number(m[1]);
+    const mins = Number(m[2]);
+    const ampm = m[3]?.toLowerCase();
+    if (ampm === "pm" && h !== 12) h += 12;
+    if (ampm === "am" && h === 12) h = 0;
+    const total = h * 60 + mins;
+    if (total <= minutesNow && total > bestMinutes) { bestMinutes = total; best = String(opt); }
+  }
+  return best;
 }
 
 export default function PomodoroTimer() {
@@ -56,9 +66,18 @@ export default function PomodoroTimer() {
   // When unset, the op falls back to its existing slotLabel-based FIND
   // (current behavior). When set, the transaction carries `targetContainerId`
   // so the op (or future ops) can route directly to the chosen container.
-  const { dispatch, socket, state, modulesById, occurrencesById } = useGridActions();
+  const { dispatch, socket, state, modulesById, occurrencesById, fieldsById } = useGridActions();
   const grid = state?.grid;
   const targetContainerId = grid?.meta?.pomodoroTargetContainerId || null;
+  // The timeslot field is named by the grid's own configuration; its options are
+  // the candidate destination values. No configuration -> no slotLabel, and the
+  // op falls through to the picked target container.
+  const timeslotFieldId = grid?.meta?.scheduleFieldIds?.timeslotFieldId || null;
+  const timeslotOptions = useMemo(() => {
+    const f = timeslotFieldId ? fieldsById?.[timeslotFieldId] : null;
+    const src = f?.meta?._resolvedOptions || f?.meta?.optionsSource?.values || f?.meta?.options || [];
+    return (Array.isArray(src) ? src : []).map(o => (typeof o === "string" ? o : o?.value)).filter(Boolean);
+  }, [fieldsById, timeslotFieldId]);
   // Build options keyed by container occurrence so each PLACEMENT shows
   // its own Page › Container chain. The pomodoroTargetContainerId stored
   // on the grid is the occurrence id (was the module id — same shape,
@@ -170,7 +189,7 @@ export default function PomodoroTimer() {
         const pomoNumber = (phaseIndex / 2 | 0) + 1; // 1..4 within the cycle
         operationsBridge.fireOperations?.("PomoStartOp", {
           type: "PomoStartOp",
-          slotLabel: currentSlotLabel(),
+          slotLabel: pickTimeOptionForNow(timeslotOptions),
           minutes: 0,
           pomoNumber,
           phase: "work",

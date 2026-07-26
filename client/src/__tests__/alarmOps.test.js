@@ -58,3 +58,30 @@ describe("alarmOps", () => {
     expect(list.map((o) => o.id)).toEqual(["b", "a"]);
   });
 });
+
+describe("alarm destination page", () => {
+  it("finds the destination page by id, never by the label \"Schedule\"", () => {
+    const op = buildAlarmOperation({
+      alarm: { type: "alarm", label: "Wake up", time: "06:30" },
+      sched: {
+        dateFieldId: "f_date",
+        timeslotFieldId: "f_slot",
+        scheduleFormatFieldId: "f_fmt",
+        pageOccurrenceId: "page_abc",
+      },
+    });
+    const json = JSON.stringify(op);
+    expect(json).toContain("page_abc");
+    expect(json).not.toContain('"Schedule"');
+  });
+
+  it("skips the schedule steps entirely when no destination page is configured", () => {
+    const op = buildAlarmOperation({
+      alarm: { type: "alarm", label: "Wake up", time: "06:30" },
+      sched: { dateFieldId: "f_date", timeslotFieldId: "f_slot", scheduleFormatFieldId: "f_fmt" },
+    });
+    // op.alarm echoes the config; what must be empty is the PIPELINE.
+    expect(JSON.stringify(op.pipeline)).not.toContain("f_fmt");
+    expect(op.pipeline.steps).toHaveLength(1);   // the NOTIFY only
+  });
+});

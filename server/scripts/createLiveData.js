@@ -5621,7 +5621,7 @@ export async function createLiveData(userId, options = {}) {
     { userId, "meta.defaultGrid": { $exists: true } },
     { $unset: { "meta.defaultGrid": "" } },
   );
-  await Grid.findByIdAndUpdate(grid._id, { $set: { occurrences: gridOccIds, colSizes: [0.8, 1, 0.8], "meta.layoutTree": mosaicLayoutTree, "meta.assistantSeedId": uid(), "meta.defaultGrid": true, "meta.scheduleFieldIds": { dateFieldId, timeslotFieldId, scheduleFormatFieldId } } });
+  await Grid.findByIdAndUpdate(grid._id, { $set: { occurrences: gridOccIds, colSizes: [0.8, 1, 0.8], "meta.layoutTree": mosaicLayoutTree, "meta.assistantSeedId": uid(), "meta.defaultGrid": true, "meta.scheduleFieldIds": { dateFieldId, timeslotFieldId, scheduleFormatFieldId, pageOccurrenceId: schedPageOccId } } });
 
   // ── STEP 12: Operations ─────────────────────────────────────────────────────
   //
@@ -7880,7 +7880,7 @@ export async function createLiveData(userId, options = {}) {
   // twin of client helpers/alarmOps.js buildAlarmOperation (can't drift).
   // sched: each fired alarm also drops an instance onto today's Schedule (like
   // Pomodoro: Start) — resolves today's day-col + the matching slot by timeslot.
-  const alarmSched = { dateFieldId, timeslotFieldId, scheduleFormatFieldId };
+  const alarmSched = { dateFieldId, timeslotFieldId, scheduleFormatFieldId, pageOccurrenceId: schedPageOccId };
   await new Operation(makeAlarmOp({ userId, gridId, folderId: opCategoryIds.alarms, label: "5 PM", time: "17:00", sched: alarmSched })).save();
   await new Operation(makeAlarmOp({ userId, gridId, folderId: opCategoryIds.alarms, label: "6:30 AM", time: "06:30", sched: alarmSched })).save();
 

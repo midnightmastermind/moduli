@@ -530,7 +530,7 @@ describe("trackers fire on instance drops + carry no task-concept rules (2026-07
 describe("makeAlarmOp schedule-insert steps", () => {
   it("with sched, appends the Schedule day-col + slot resolution + de-dup CREATE (timeslot field)", async () => {
     const { makeAlarmOp } = await import("../utils/liveSystemBuilders.js");
-    const sched = { dateFieldId: "DF", timeslotFieldId: "TF", scheduleFormatFieldId: "SF" };
+    const sched = { dateFieldId: "DF", timeslotFieldId: "TF", scheduleFormatFieldId: "SF", pageOccurrenceId: "PAGE" };
     const op = makeAlarmOp({ userId: "u", gridId: "g", label: "5 PM", time: "17:00", sched });
     expect(op.alarm.sched).toEqual(sched);
     const raw = JSON.stringify(op.pipeline);
@@ -543,16 +543,26 @@ describe("makeAlarmOp schedule-insert steps", () => {
     // CREATE stamps date + timeslot on the alarm instance.
     expect(raw).toContain('"CREATE"');
     expect(raw).toContain('"⏰ 5 PM"');
+    // The destination page is resolved by ID — never by the name "Schedule".
+    expect(raw).toContain('"PAGE"');
+    expect(raw).not.toContain('"Schedule"');
   });
 
   it("off-slot minutes (e.g. :15) still stamp the exact timeslot label and skip the slot FIND", async () => {
     const { makeAlarmOp } = await import("../utils/liveSystemBuilders.js");
     const op = makeAlarmOp({ userId: "u", gridId: "g", label: "X", time: "17:15",
-      sched: { dateFieldId: "DF", timeslotFieldId: "TF", scheduleFormatFieldId: "SF" } });
+      sched: { dateFieldId: "DF", timeslotFieldId: "TF", scheduleFormatFieldId: "SF", pageOccurrenceId: "PAGE" } });
     const raw = JSON.stringify(op.pipeline);
     expect(raw).toContain('"5:15pm"');
     // No exact half-hour slot to match → only the day-col + de-dup FINDs (one $allContainers FIND).
     expect((raw.match(/"\$allContainers"/g) || []).length).toBe(1);
+  });
+
+  it("without a destination page id, the schedule steps are skipped entirely", async () => {
+    const { makeAlarmOp } = await import("../utils/liveSystemBuilders.js");
+    const op = makeAlarmOp({ userId: "u", gridId: "g", label: "5 PM", time: "17:00",
+      sched: { dateFieldId: "DF", timeslotFieldId: "TF", scheduleFormatFieldId: "SF" } });
+    expect(op.pipeline.steps).toHaveLength(1);   // the NOTIFY only
   });
 
   it("without sched, the pipeline is a bare NOTIFY", async () => {

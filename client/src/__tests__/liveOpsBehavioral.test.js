@@ -716,10 +716,21 @@ describe("Alarm op drops an instance onto today's Schedule (2026-07-20 alarm→s
   // its timeslot (else the day-col), and creates ONE instance/day — matching +
   // de-duping on the TIME SLOT field, stamped on the created instance. Fires
   // via executePipeline (the useScheduler path), not a transaction trigger.
+  // The destination page is addressed by ID (the builder resolves it with a
+  // FIND on `id`, never on the name) — the seed stamps this on
+  // grid.meta.scheduleFieldIds; here we look it up in the fixture.
+  const schedulePageOccId = () => {
+    for (const occ of Object.values(occurrencesById)) {
+      const mod = modulesById[occ.moduleId || occ.targetId];
+      if (mod?.role === "page" && mod.label === "Schedule") return occ.id;
+    }
+    return null;
+  };
   const sched = () => ({
     dateFieldId: fieldIdByName["Date"],
     timeslotFieldId: fieldIdByName["Time Slot"],
     scheduleFormatFieldId: fieldIdByName["Schedule Format"],
+    pageOccurrenceId: schedulePageOccId(),
   });
   const runAlarm = (op) => {
     const updates = executePipeline(op, buildCtx(), {

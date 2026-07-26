@@ -5,7 +5,7 @@
 // it calls startAlarmRing; the store loops the synthesized ring until the user
 // stops it (or snoozes, which re-rings after N minutes). The AlarmDropdown
 // subscribes via useSyncExternalStore to surface the ringing banner.
-import { ringAlarm } from "../helpers/alarmSound";
+import { ringAlarm, stopAlarm } from "../helpers/alarmSound";
 
 const RING_EVERY_MS = 3500;   // re-trigger the ring so it's continuous
 const RING_BURSTS = 4;        // shorter burst per loop tick
@@ -33,9 +33,12 @@ export function startAlarmRing(alarm = {}) {
 
 // Stop ringing NOW (silence + clear the banner). The alarm's schedule is
 // untouched — a daily alarm still rings at its next occurrence.
+// stopAlarm() cuts the beeps ALREADY scheduled on the audio timeline —
+// clearing the loop timer alone would let the current burst play out.
 export function stopAlarmRing() {
   if (_loopTimer) { clearInterval(_loopTimer); _loopTimer = null; }
   if (_snoozeTimer) { clearTimeout(_snoozeTimer); _snoozeTimer = null; }
+  stopAlarm();
   if (!_ringing) return;
   _ringing = null;
   _emit();

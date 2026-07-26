@@ -13,6 +13,12 @@ function ctx() {
   return _ctx;
 }
 
+// Every scheduled beep's nodes, so stopAlarm() can kill the ones that haven't
+// sounded yet. A ring schedules its whole burst on the AudioContext timeline
+// up front, so without this the sound plays out to the end no matter what the
+// caller does (the "Stop finishes the ring first" bug).
+const _scheduled = new Set();
+
 function beep(ac, at, freq, dur = 0.09, gainPeak = 0.22) {
   const osc = ac.createOscillator();
   const g = ac.createGain();
@@ -24,6 +30,9 @@ function beep(ac, at, freq, dur = 0.09, gainPeak = 0.22) {
   osc.connect(g).connect(ac.destination);
   osc.start(at);
   osc.stop(at + dur + 0.02);
+  const entry = { osc, g };
+  _scheduled.add(entry);
+  osc.onended = () => { _scheduled.delete(entry); };
 }
 
 export function ringAlarm({ bursts = 8 } = {}) {
@@ -42,5 +51,28 @@ export function ringAlarm({ bursts = 8 } = {}) {
     beep(ac, base + 0.32, 2093);  // C7
     beep(ac, base + 0.46, 2093);
   }
+  return true;
+}
+
+/**
+ * Silence the ring IMMEDIATELY — including beeps already scheduled on the
+ * AudioContext timeline. Each live gain is ramped to zero over 10ms (a hard
+ * cut would click) and its oscillator stopped right after. Beeps that have
+ * not started yet are stopped at the same instant, which cancels them.
+ * Safe to call when nothing is ringing.
+ */
+export function stopAlarm() {
+  const ac = _ctx;
+  if (!ac) return false;
+  const now = ac.currentTime;
+  for (const { osc, g } of _scheduled) {
+    try {
+      g.gain.cancelScheduledValues(now);
+      g.gain.setValueAtTime(Math.max(g.gain.value, 0.0001), now);
+      g.gain.linearRampToValueAtTime(0.0001, now + 0.01);
+      osc.stop(now + 0.012);
+    } catch { /* already stopped — nothing to silence */ }
+  }
+  _scheduled.clear();
   return true;
 }
