@@ -41,16 +41,7 @@ import AutoMarquee from "../ui/AutoMarquee.jsx";
 import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
 import { buildLayoutCascadeContext, resolveLayoutCascade } from "../helpers/layoutCascade";
-import { summarizeSelection } from "../ui/filterSummary";
 
-// Schedule day-cols have a module label like "Schedule - Sunday, May 24th, 2026"
-// stamped at CREATE time and never updated again. When the user changes a
-// day-col's own filterOverride (HeaderDropdown picker), the title should reflect
-// the new range. computeScheduleColLabel returns a recomputed label string, or
-// null when the occurrence isn't a schedule day-col / has no date in its
-// override (caller falls back to module.label).
-const SCHEDULE_LABEL_PREFIX = "Schedule - ";
-const ISO_DAY_RX = /^\d{4}-\d{2}-\d{2}/;
 // Embedded-container header font size by section-hierarchy level (meta.headingLevel).
 // 1 = article title (H1) … 6. Smaller + cascading; containers without a level
 // use the default 15.
@@ -70,26 +61,6 @@ function LabelShell({ mode, style, children, ...rest }) {
     return <span {...rest} style={{ ...style, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{children}</span>;
   }
   return <span {...rest} style={{ ...style, overflow: "hidden" }}><AutoMarquee>{children}</AutoMarquee></span>;
-}
-function computeScheduleColLabel(occurrence, module) {
-  if (!module?.label || !module.label.startsWith(SCHEDULE_LABEL_PREFIX)) return null;
-  const override = occurrence?.filterOverride;
-  if (!override || typeof override !== "object") return null;
-  let shape = null;
-  for (const v of Object.values(override)) {
-    if (v == null) continue;
-    if (typeof v === "string" && ISO_DAY_RX.test(v)) {
-      shape = { value: v, unit: "day" };
-      break;
-    }
-    if (typeof v === "object" && v && typeof v.value === "string" && ISO_DAY_RX.test(v.value)) {
-      shape = v;
-      break;
-    }
-  }
-  if (!shape) return null;
-  const summary = summarizeSelection(shape, { maxSegments: 3 });
-  return summary ? `${SCHEDULE_LABEL_PREFIX}${summary}` : null;
 }
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import SortSection from "../ui/SortSection";
@@ -407,18 +378,12 @@ function Container({
 
   const containerDragMode = containerOccurrence?.dragMode ?? module?.defaultDragMode ?? "move";
 
-  // Dynamic display label for schedule day-cols. When the occurrence's
-  // filterOverride carries a multi-day shape (after the user picks a range
-  // / multi via the chevron picker), recompute the title to match —
-  // otherwise the day-col stays stamped with its CREATE-time single date.
-  // For every other container this falls back to module.label byte-identical.
-  // occurrence.label is a per-placement override (set by ops — e.g. the
-  // date-prefix goal/tracker labels). It wins over the schedule-col computed
-  // label and the module base label. Day-cols never set occurrence.label, so
-  // they keep computeScheduleColLabel; everything else falls back to module.label.
+  // A per-placement `occurrence.label` (written by an operation) wins over the
+  // shared template label. That is the ONLY label rule — the renderer knows
+  // nothing about what any particular container is.
   const displayLabel = useMemo(
-    () => containerOccurrence?.label ?? computeScheduleColLabel(containerOccurrence, module) ?? module.label,
-    [containerOccurrence, module]
+    () => containerOccurrence?.label ?? module.label,
+    [containerOccurrence?.label, module.label],
   );
 
   // Section-hierarchy header sizing (imported docs stamp meta.headingLevel

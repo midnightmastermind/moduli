@@ -33,28 +33,6 @@ function childSortKey(occurrence, fieldId) {
   return Number.isFinite(n) ? n : null;
 }
 
-// Rainbow by weekday (Mon→Sun) — schedule day-columns read as a color band down
-// the row (user 2026-07-19). Applied only in the multi-day layouts where the
-// children carry a date (sortChildrenByField), so plain boards are untouched.
-const WEEKDAY_RAINBOW = [
-  { tint: "rgba(239,68,68,0.16)" },  // Mon red
-  { tint: "rgba(249,115,22,0.16)" }, // Tue orange
-  { tint: "rgba(234,179,8,0.16)" },  // Wed yellow
-  { tint: "rgba(34,197,94,0.16)" },  // Thu green
-  { tint: "rgba(56,189,248,0.16)" }, // Fri sky
-  { tint: "rgba(99,102,241,0.16)" }, // Sat indigo
-  { tint: "rgba(168,85,247,0.16)" }, // Sun violet
-];
-function weekdayColor(occurrence, fieldId) {
-  const v = occurrence?.fields?.[fieldId]?.value;
-  if (!v || typeof v !== "string") return null;
-  const [y, mo, dd] = v.slice(0, 10).split("-").map(Number);
-  if (!y || !mo || !dd) return null;
-  const d = new Date(y, mo - 1, dd); // LOCAL — no tz weekday drift
-  if (isNaN(d.getTime())) return null;
-  return WEEKDAY_RAINBOW[(d.getDay() + 6) % 7]; // Mon=0 … Sun=6
-}
-
 export default function PageBoard({
   occurrence,
   containersList,
@@ -175,10 +153,7 @@ export default function PageBoard({
               gapPx={childGap}
             />
           );
-          const dayColor = childWrapperStyle && sortField ? weekdayColor(containerOcc, sortField) : null;
-          const wrapStyle = dayColor
-            ? { ...childWrapperStyle, background: dayColor.tint, borderRadius: 6 }
-            : childWrapperStyle;
+          const wrapStyle = childWrapperStyle;
           return wrapStyle
             ? <div key={containerOcc?.id || container.id} style={wrapStyle}>{card}</div>
             : card;
