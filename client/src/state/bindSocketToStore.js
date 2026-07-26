@@ -11,6 +11,7 @@ import { setComputedValuesAction, createModuleAction, updateModuleAction, delete
 import { toast, pushTxNotification } from "./notificationStore";
 import { makeOpNotificationCallbacks } from "../helpers/opResultSummary";
 import { syncAllFeeds } from "../helpers/feedSync";
+import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import {
   setOccurrenceFieldValue,
   moveOccurrence,
@@ -1285,6 +1286,24 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       case "SHOW_OCCURRENCE":
         socket?.emit("update_occurrence_hidden", { occurrenceId: effect.occurrenceId, hidden: false });
         break;
+
+      case "SCROLL_TO": {
+        // An onLoad op runs during hydration, so the target is usually NOT in
+        // the DOM yet — its page may still be mounting (measured: a schedule
+        // slot appears well after the sweep). jumpToOccurrence returns false
+        // when it can't find the node, so poll until it lands, then stop.
+        // Bounded so a target that never renders (page not open in any panel)
+        // costs a handful of cheap lookups and gives up silently.
+        if (!effect.itemId) break;
+        const { itemId, block } = effect;
+        let tries = 0;
+        const attempt = () => {
+          if (jumpToOccurrence(itemId, { scrollBlock: block || "center" })) return;
+          if (++tries < 24) setTimeout(attempt, 250);   // up to ~6s
+        };
+        setTimeout(attempt, 250);
+        break;
+      }
 
       case "SET_FILTER": {
         const plan = applySetFilterEffect(effect, state);

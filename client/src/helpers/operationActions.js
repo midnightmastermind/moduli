@@ -3223,6 +3223,19 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
 
+    case "SCROLL_TO": {
+      // Bring an occurrence into view and flash it — the same scroll+highlight
+      // the search results and representation chips use. cfg: { itemId | target
+      // | itemIdExpr, block } where block is "center" (default) | "start" |
+      // "nearest". No-op when the occurrence isn't currently rendered.
+      const target = resolveExpr(cfg.itemIdExpr ?? cfg.itemId ?? cfg.target, $vars);
+      const itemId = target && typeof target === "object" ? target.id : target;
+      if (itemId) {
+        updates.push({ _effect: "SCROLL_TO", itemId: String(itemId), block: cfg.block || "center" });
+      }
+      break;
+    }
+
     case "SET_FILTER": {
       // Write a filter value to grid.activeFilterValues[fieldId].
       // cfg: { fieldId, valueExpr } — fieldId is the filter column; valueExpr resolves to a value.

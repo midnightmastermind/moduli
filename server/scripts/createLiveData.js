@@ -8942,8 +8942,13 @@ export async function createLiveData(userId, options = {}) {
     id: uid(), userId, gridId, priority: 5,
     name: "Schedule: Mark Passed Slots",
     description: "Time-based (every 5 min). Colors today's schedule slots: GREEN on the current (active-now) slot, dim RED on slots whose time has already passed (and every slot in a past day-column); future days untouched. Writes the generic occurrence.ownStyle.bg the container already renders (no schedule knowledge in any component); references the timeslot/scheduleFormat/date fields by id; uses TIME_BEFORE/TIME_AFTER + DATE_BEFORE comparators. Two-pass: pass 1 finds the latest started slot (the current one), pass 2 paints. Dedup'd so a fire only writes slots whose color flipped.",
-    triggerTypes: [],
-    triggerObjects: [],
+    // Also runs in the LOAD sweep (2026-07-26): the colours are persisted, but a
+    // fresh grid has none until the first interval tick, and the scroll below
+    // needs the current slot painted in this same pass.
+    triggerTypes: ["onLoad"],
+    triggerObjects: [
+      { eventType: "onLoad", subjectType: "grid", targetId: "", priority: 9 },
+    ],
     enabled: true,
     schedule: { kind: "interval", every: 5, unit: "minute", lastFiredAt: null },
     pipeline: {
@@ -9048,6 +9053,18 @@ export async function createLiveData(userId, options = {}) {
                             { id: uid(), type: "if",
                               condition: { operator: "AND", rules: [{ id: uid(), left: "$slot.ownStyle.bg", comparator: "IS_NOT", right: currentSlotColor }] },
                               then: [{ id: uid(), type: "action", config: { type: "UPDATE", path: "$slot.ownStyle.bg", value: currentSlotColor } }],
+                              else: [],
+                            },
+                            // Centre the view on the slot that is current RIGHT NOW —
+                            // but only on the load pass. This op also ticks every 5
+                            // minutes, and yanking the page while someone is working
+                            // would be hostile. executePipeline defaults a missing
+                            // transaction to `{ type: "onLoad" }`, so that string —
+                            // NOT an empty check — is what identifies the load sweep
+                            // (a scheduler tick sets type "ScheduleTick").
+                            { id: uid(), type: "if",
+                              condition: { operator: "AND", rules: [{ id: uid(), left: "$trigger.type", comparator: "IS", right: "onLoad" }] },
+                              then: [{ id: uid(), type: "action", config: { type: "SCROLL_TO", itemIdExpr: "$slot.id", block: "center" } }],
                               else: [],
                             },
                           ],
