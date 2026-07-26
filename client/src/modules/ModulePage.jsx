@@ -593,6 +593,7 @@ function Page({
 
       {/* Page header row — handle LEFT, then spacer, then actions RIGHT */}
       <div
+        className="page-header-row"
         style={{
           flexShrink: 0,
           width: "100%",

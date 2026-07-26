@@ -161,10 +161,11 @@ const gridOptions = useMemo(
     >
       {/* Notification pills — full stack on desktop, compact count pill on mobile */}
       {isMobileLayout ? (
-        <div className="flex items-center gap-1" style={{ zIndex: 5 }}>
+        // Logo only at the far left. The status / notification pills live in the
+        // RIGHT cluster on mobile: sitting them between the logo and the mini
+        // grid map meant every arriving notification shoved the map sideways.
+        <div className="flex items-center shrink-0" style={{ zIndex: 5 }}>
           {logoEl}
-          <SocketStatusBanner />
-          <TransactionNotificationStack compact />
         </div>
       ) : (
         <div
@@ -184,7 +185,7 @@ const gridOptions = useMemo(
         </div>
       )}
 
-      <div className="flex items-center w-full gap-1.5">
+      <div className="flex items-center flex-1 min-w-0 gap-1.5">
         {/* ── Left: Logo + Add Panel + Grid Select ── */}
         <div className="flex items-center gap-1 shrink-0">
           {/* Logo — mobile renders it further left, ahead of the pills. */}
@@ -340,6 +341,14 @@ const gridOptions = useMemo(
                 </PopoverContent>
               </Popover>
             </>
+          )}
+
+          {/* Mobile-only: status + notification pills, then the drawer toggle. */}
+          {isMobileLayout && (
+            <div className="flex items-center gap-1 shrink-0">
+              <SocketStatusBanner />
+              <TransactionNotificationStack compact />
+            </div>
           )}
 
           {/* Mobile-only: Drawer toggle */}

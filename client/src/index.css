@@ -1122,6 +1122,13 @@ body[data-clipboard-active="true"] {
    label too (it was sitting higher than the label). */
 .container-header { align-items: center; }
 .container-header .module-drag-handle { align-self: center; margin-top: 0; }
+/* Same for the PAGE header. `.module-drag-handle` is top-anchored by default so
+   it doesn't float mid-text on tall blocks, but a header is a single centred
+   row. Invisible on desktop (25px row, ~1px off); on mobile the row grows to
+   ~39px under the coarse-pointer touch sizes and the handle drifted 8px above
+   the page label. */
+.page-header-row { align-items: center; }
+.page-header-row .module-drag-handle { align-self: center; margin-top: 0; }
 
 /* Cog handle — shown when header is hidden; absolute top-left, reveals on shell hover.
    2026-05-22: leaves a tiny lip visible at rest (so the user sees an autohidden
