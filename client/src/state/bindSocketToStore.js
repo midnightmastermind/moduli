@@ -33,6 +33,28 @@ import { analyzeAllOperations } from "../helpers/operationIntrospection";
  */
 export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLocalMod: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, beginDropBatch: null, endDropBatch: null, markDerivedOcc: null };
 
+// Pure decision half of the SET_FILTER effect, so it can be tested without a
+// socket. `filterNavState` drives the nav WIDGET; `grid.activeFilterValues`
+// drives the filter CASCADE (isOccurrenceVisible) — an op must write BOTH or it
+// moves the date display without actually filtering anything.
+// Returns null when there is nothing to do; the no-op guard is what keeps an
+// onLoad op from looping on its own write.
+export function applySetFilterEffect(effect, state) {
+  const key = effect?.filterId || effect?.fieldId;
+  if (!key) return null;
+  const value = effect.value;
+  const currentNav = state?.filterNavState?.[key];
+  const currentGrid = state?.grid?.activeFilterValues?.[key];
+  const gridMatches = currentGrid === value
+    || (currentGrid && typeof currentGrid === "object" && currentGrid.value === value);
+  if (currentNav === value && gridMatches) return null;
+  return {
+    navValue: { key, value },
+    gridPatch: { activeFilterValues: { ...(state?.grid?.activeFilterValues || {}), [key]: value } },
+    gridId: state?.grid?._id || null,
+  };
+}
+
 export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) {
   // Wrap dispatch to tag all socket-originated actions
   // This prevents BroadcastChannel from re-broadcasting server events
@@ -1240,12 +1262,13 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         break;
 
       case "SET_FILTER": {
-        // Write a filter nav value. Skip if already set to avoid infinite loop on onLoad ops.
-        if (!effect.filterId && !effect.fieldId) break;
-        const key = effect.filterId || effect.fieldId;
-        const currentVal = state?.filterNavState?.[key];
-        if (currentVal === effect.value) break;
-        socketDispatch(setFilterNavAction(key, effect.value));
+        const plan = applySetFilterEffect(effect, state);
+        if (!plan) break;
+        socketDispatch(setFilterNavAction(plan.navValue.key, plan.navValue.value));
+        if (plan.gridId) {
+          socketDispatch(updateGridAction({ gridId: plan.gridId, grid: plan.gridPatch }));
+          safeEmit(socket, "update_grid", { gridId: plan.gridId, patch: plan.gridPatch });
+        }
         break;
       }
 
