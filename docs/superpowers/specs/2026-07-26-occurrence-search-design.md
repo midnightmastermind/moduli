@@ -43,6 +43,13 @@ searchOccurrences(index, query, { scopeRootId = null, limit = 50 })
 
 Pure functions, no React, no socket. Unit-testable in isolation; this is where the behavior lives.
 
+**Hard constraint — no domain knowledge.** The engine reads occurrences, modules, fields and
+their values. It must never recognize a label prefix, a container kind, a page name, or a
+`meta` flag as meaning something ("this is a schedule", "this is a day column", "this is a
+goal"). Every capability here is data-driven: a date is indexed because it is a date, a field
+value because it is a field value. If a behavior seems to need "but only for X", the answer is a
+field or an operation, not a branch in the search.
+
 ### 2.1 `SearchEntry`
 
 ```js
@@ -68,20 +75,23 @@ All haystacks are lowercased once at index time. The query is lowercased once pe
 
 ### 2.2 What feeds each haystack
 
-**Label** — `occurrence.label ?? computeScheduleColLabel(occurrence, module) ?? module.label`.
-This must mirror the renderer or search and screen drift. `computeScheduleColLabel` currently
-lives inside `modules/ModuleContainer.jsx`; it moves into the search helper (or a shared
-`helpers/labelHelpers.js`) and `ModuleContainer` imports it. Behavior-preserving move.
+**Label** — `occurrence.label ?? module.label`. Nothing else. The per-placement override wins over
+the template label; the search knows no other label rules and no occurrence kinds.
 
 **Path** — each ancestor's label resolved the same way, root-first. Ancestors come from the
 `occurrences[]` reverse map (`helpers/dragHitTesting.buildParentMap`) with a `parentId` fallback,
 matching every other ancestor walk in the codebase.
 
-**Dates** — for each ISO date found on the occurrence (a `filterOverride` value, or any date-typed
-field value), expand into aliases: `2026-07-25`, `jul 25`, `july 25`, `july 25th`, `friday`, `fri`,
-`2026`. This is what makes the user's `9pm july 25` example work: day-column labels render as
-`Schedule - Jul 25` (short month, via `summarizeSelection`) or a stamped
-`Schedule - Sunday, May 24th, 2026`, so a literal substring match on "july 25" would otherwise miss.
+**Dates** — for each ISO date found on the occurrence, expand into aliases: `2026-07-25`,
+`jul 25`, `july 25`, `july 25th`, `friday`, `fri`, `2026`. Two generic sources, both pure data:
+any value in the occurrence's own `filterOverride` that parses as a date, and any date-typed
+field value.
+
+This is what makes `9pm july 25` work, and it is deliberately **not** label-based. Stored labels
+carry whatever text they were stamped with, in whatever format, and can go stale relative to the
+occurrence's own date; the alias index reads the date itself. The search never inspects label
+text for meaning, never recognizes a container kind, and has no notion of what a date on an
+occurrence signifies — a date is a date.
 
 **Field names + values** — for every entry in `occurrence.fields`:
 - the field's `name` is indexed (so "protein" finds everything carrying a Protein field);
@@ -110,7 +120,7 @@ label it's in":
 
 - `water` → every Drink Water copy, the Water Intake tracker, the water bottle board option
 - `water 9:00am` → only the copy under the 9:00am slot
-- `9pm july 25` → the 9:00pm slot under the July 25 day-column
+- `9pm july 25` → the occurrence labelled 9:00pm whose ancestor carries the July 25 date
 
 Substring matching, case-insensitive. No fuzzy matching in v1 — with AND-of-terms, fuzz produces
 more noise than help.
@@ -232,7 +242,9 @@ by the tree's close button. No new state, no server change.
 Pure-helper tests (`__tests__/occurrenceSearch.test.js`):
 - label prefix ranks above label substring ranks above body text
 - AND-of-terms: `water 9:00am` matches only the copy under that slot
-- date aliases: `july 25`, `jul 25`, `2026-07-25` all match the same day-column
+- date aliases: `july 25`, `jul 25`, `2026-07-25` all match an occurrence carrying that date,
+  from a `filterOverride` value and from a date-typed field value alike
+- a date alias on an ANCESTOR is reachable from its descendants (the location-terms case)
 - field name match (`protein`) and field value match (`42g`)
 - occurrence-ref field indexes the referenced label, not the id
 - `scopeRootId` restricts to a page's subtree
