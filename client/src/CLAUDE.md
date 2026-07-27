@@ -2,6 +2,27 @@
 
 _Updated: 2026-07-24. Check this file before re-reading source._
 
+## Recent Changes (2026-07-27 (2) — instance rows: the field pills sit on the label's centreline)
+- **`index.css` `.instance-content`** — the handle and label were already pixel-aligned (measured
+  Δ 0.0), but the field pills sat **3px low** in every row: `.instance-content` is
+  `align-items: flex-start` (deliberate — 2026-07-25, so the handle/label stay top-left when the
+  field block wraps to several lines), and top-aligning a 24px pill against the 18px label line
+  puts its centre 3px below. The field block now lifts by half that difference
+  (`--field-line-h` 24px / `--label-line-h` 18px → `--field-line-lift`), so the FIRST field line
+  shares the label centreline and the handle/label do not move (user 2026-07-27: "move the fields
+  up to align with the label and handle" — the alternatives all moved the LABEL down instead).
+- **Two corrections the measurements forced**, both verified on prod against 160 real rows:
+  (1) when the row is narrow the field block wraps onto its OWN line, where the lift has nothing to
+  align to and just eats the gap (4px → 1px) — paid back via
+  `row-gap: calc(4px + var(--field-line-lift)) !important` on the content (the base 4px is an
+  INLINE rowGap in ModuleInstance, hence `!important`), scoped with `:has()` so an under-body field
+  strip (which takes no lift) keeps the base gap; (2) rows carrying a 22px
+  `.instance-media-inline` thumbnail have a taller first line, so they override `--label-line-h`
+  to 22px and the calc re-resolves to a 1px lift — without it those 4 rows went from +1 to −2.
+- The `@media (max-width: 600px)` column mode resets both (fields are always their own row there).
+- Verified on prod at 1500/900/700px: same-line rows worst delta 3.3px → **0.3px** (inline-media
+  rows included), wrapped-row gaps unchanged at 4-6px.
+
 ## Recent Changes (2026-07-27 — mobile rail taps switch cells without waiting on React)
 - **`mobile/MobileGridNav.jsx`** — the rail buttons felt laggy because `activeCell` is App state:
   the tap's `setActiveCell` re-rendered the whole grid and the slider transform only moved on that

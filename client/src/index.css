@@ -1118,6 +1118,34 @@ body[data-clipboard-active="true"] {
 /* Single-line rows (no wrapped field block) still read better centered. */
 .instance-content:not(:has(.instance-fields)) { align-items: center; }
 .instance-content:not(:has(.instance-fields)) .module-drag-handle { align-self: center; }
+/* …but top-aligning a 24px field pill against the 18px label line leaves the
+   pill's centre 3px BELOW the label + handle centreline, which reads as
+   misaligned (user 2026-07-27: "move the fields up to align with the label and
+   handle"). Lift the field block by half the height difference so the FIRST
+   field line shares the label's centreline; later field lines follow it down as
+   before, and the handle/label stay exactly where they are. Measured across the
+   whole grid: every field pill is 24px, so these two constants are the whole
+   story — change them together if either box is restyled. */
+.instance-content {
+  --field-line-h: 24px;
+  --label-line-h: 18px;
+  --field-line-lift: calc((var(--field-line-h) - var(--label-line-h)) / 2);
+}
+/* A row carrying an inline media thumbnail has a TALLER first line (the 22px
+   `.instance-media-inline`), so its lift is correspondingly smaller — the
+   --field-line-lift calc below re-resolves against this override. */
+.instance-content:has(.instance-media-inline) { --label-line-h: 22px; }
+.instance-content > .instance-fields:not(.instance-fields--under-body) {
+  margin-top: calc(-1 * var(--field-line-lift));
+}
+/* When the row is narrow the field block WRAPS onto its own line, where the lift
+   has nothing to align to and just eats the gap (measured 4px → 1px). Pay it
+   back in the row gap, which only applies once they wrap. The base 4px is the
+   inline rowGap in ModuleInstance — hence !important. An under-body field strip
+   takes no lift, so it keeps the base gap. */
+.instance-content:has(> .instance-fields:not(.instance-fields--under-body)) {
+  row-gap: calc(4px + var(--field-line-lift)) !important;
+}
 /* Container HEADER (doc/board) is a one-line row, so center its drag handle with the
    label too (it was sitting higher than the label). */
 .container-header { align-items: center; }
@@ -2525,7 +2553,12 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   .instance-fields {
     flex: 0 0 auto !important;
     justify-content: flex-start !important;
+    /* The desktop lift centres the first field line on the LABEL line; in this
+       column mode the fields are ALWAYS their own row under the label, so the
+       lift (and the row-gap that pays it back) would only distort the spacing. */
+    margin-top: 0 !important;
   }
+  .instance-content:has(> .instance-fields) { row-gap: 4px !important; }
 
   /* Disable hover effects on mobile — prevent sticky :hover on touch */
   .instance-wrap:hover > .instance-row { box-shadow: 0 2px 10px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.04) inset !important; }
