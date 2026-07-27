@@ -6,6 +6,33 @@
 
 ---
 
+## Handoff — 2026-07-27 (the 2026-07-26 batch is DEPLOYED; mobile rail taps switch instantly)
+
+Everything from the 2026-07-26 handoff below plus the six follow-up commits (mobile toolbar/page
+header, container label size, container menu occurrence types, boards copy-link, hover-label leak,
+scroll-to-current-slot) is **deployed** — prod HEAD `a714a037`, verified by SSH + a byte-identical
+sha256 on the served `App-*.js` chunk. 1416 client + 246 server tests, build clean.
+
+- **Mobile cell-switch lag FIXED** (user: "the side buttons have a delay on the switch").
+  `activeCell` lives in App state, so a rail tap re-rendered the whole grid BEFORE the slider
+  transform moved — that commit is the delay. `mobile/MobileGridNav.jsx` now paints the target
+  transform **imperatively in the tap's own frame** (`cellTransform(row,col)`, the same string the
+  render computes) and holds the target in `pendingCellRef` until the state catches up, so an
+  unrelated re-render in between can't snap the cell back. The pending cell is compared **by
+  value** — `MosaicMobileNav` passes a fresh `{row,col}` object every render, so identity
+  comparison would clear it instantly; it clears when the state reaches the target OR moves
+  anywhere else on its own (the silent sub-cell scroll sync). `navigate` clamps against
+  `activeCellRef` (the optimistic cell) so back-to-back taps compose. Rail buttons fire on
+  **pointerup** with a 12px tap-slop guard (a swipe that starts on the rail doesn't navigate) and
+  drop the trailing synthesized click; `touch-action: manipulation` on `.mobile-rail-btn`.
+  5 tests. **Prod probe (390×844): transform moves 0.9ms after the tap, settles unchanged, no
+  page errors.**
+- **Still open from below:** "food is outside the boards folder" — unreproduced (seed parents Food
+  under Boards; the rendered root tree shows it indented under Boards). Need the surface it's
+  wrong on.
+
+---
+
 ## Handoff — 2026-07-26 (occurrence SEARCH in both headers; the de-schedule sweep; snap-to-today)
 
 Spec `docs/superpowers/specs/2026-07-26-occurrence-search-design.md`, plan

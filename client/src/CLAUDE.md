@@ -2,6 +2,27 @@
 
 _Updated: 2026-07-24. Check this file before re-reading source._
 
+## Recent Changes (2026-07-27 — mobile rail taps switch cells without waiting on React)
+- **`mobile/MobileGridNav.jsx`** — the rail buttons felt laggy because `activeCell` is App state:
+  the tap's `setActiveCell` re-rendered the whole grid and the slider transform only moved on that
+  commit. The tap now writes the transform ITSELF (`sliderRef.current.style.transform =
+  cellTransform(row, col)` — the same anchor math the render does, panel ORIGIN inside a multicell
+  panel) and stores the target in `pendingCellRef`; the render body reads `cell = pendingCellRef ||
+  activeCell` so the interim renders agree instead of snapping back. **Compare the pending cell BY
+  VALUE** — `Grid.jsx MosaicMobileNav` passes a fresh `{row,col}` literal every render, so an
+  identity check clears it immediately and the snap-back returns. It clears when the state reaches
+  the target OR moves elsewhere itself (the panel-scroll sub-cell sync). `activeCellRef` /
+  `visiblePanelsRef` hoisted above `navigate` for this; `navigate` clamps against `activeCellRef`
+  so rapid taps compose instead of all resolving from the same stale cell.
+- **`RailButton` fires on `onPointerUp`** (12px `RAIL_TAP_SLOP` guard so a swipe starting on the
+  full-height edge rail doesn't navigate) and drops the click that follows within 700ms; a click
+  with no pointerup (keyboard) still navigates. The `press` ref is declared ABOVE the
+  `if (disabled) return null` — `disabled` toggles per cell, so a hook after it breaks hook order.
+- **`index.css` `.mobile-rail-btn`** — `touch-action: manipulation`.
+- 5 tests in `__tests__/MobileGridNav.test.jsx` (sync paint, single fire per tap, swipe ignored, no
+  snap-back on an interim render, state wins once it lands). Note jsdom normalizes `-0%` → `0%` in
+  a round-tripped style property, hence the `tf()` helper. Prod-probed at 390×844: 0.9ms.
+
 ## Recent Changes (2026-07-25 — mobile multicell panel scroll reaches the END (overscroll chaining))
 - **The bug (user, twice): the Schedule "ends at 9:30pm and won't go further" on MOBILE.**
   Root-caused by driving each scroller directly on prod (390x844, real device metrics): a 2-row
