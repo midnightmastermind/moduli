@@ -2294,6 +2294,8 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   color: rgb(190,220,255);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  /* No double-tap-zoom arbitration on the rails — the tap fires on pointerup. */
+  touch-action: manipulation;
   backdrop-filter: blur(1px);
 }
 .mobile-rail-btn:active {

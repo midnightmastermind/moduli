@@ -6,15 +6,38 @@ const RAIL_ICON = {
   'up-left': ArrowUpLeft, 'up-right': ArrowUpRight, 'down-left': ArrowDownLeft, 'down-right': ArrowDownRight,
 };
 
+// Tap slop for the pointerup fire below: past this the press was a swipe/scroll
+// that started on the rail, not a tap on it.
+const RAIL_TAP_SLOP = 12;
+
 function RailButton({ direction, onClick, disabled, label }) {
+  // Fire on pointerup rather than click: click is synthesized after the browser
+  // finishes its own tap processing, which is dead time the user reads as lag.
+  // (Declared above the disabled early-return — `disabled` toggles per cell.)
+  const press = useRef({ x: 0, y: 0, firedAt: 0 });
   if (disabled) return null;
   const Icon = RAIL_ICON[direction];
   const isSide = direction === 'left' || direction === 'right';
   const isDiag = direction.includes('-');
+  const onPointerDown = (e) => { press.current.x = e.clientX; press.current.y = e.clientY; };
+  const onPointerUp = (e) => {
+    if (Math.abs(e.clientX - press.current.x) > RAIL_TAP_SLOP ||
+        Math.abs(e.clientY - press.current.y) > RAIL_TAP_SLOP) return;
+    press.current.firedAt = Date.now();
+    onClick?.(e);
+  };
+  // The click that follows our own pointerup is the same tap — drop it. A click
+  // with no pointerup (keyboard Enter/Space) still navigates.
+  const handleClick = (e) => {
+    if (Date.now() - press.current.firedAt < 700) return;
+    onClick?.(e);
+  };
   return (
     <button
       className={`mobile-rail-btn mobile-rail-${direction}`}
-      onClick={onClick}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onClick={handleClick}
       aria-label={`Navigate ${direction}${label ? ` to ${label}` : ''}`}
       title={isDiag ? (label || undefined) : undefined}
     >
@@ -158,6 +181,32 @@ export default function MobileGridNav({
   const sliderRef = useRef(null);
   const viewportRef = useRef(null);
 
+  // Stable ref for activeCell so the touch handler always sees the latest value
+  const activeCellRef = useRef(activeCell);
+  // Stable ref for visiblePanels so the touch handler can check panel bounds
+  const visiblePanelsRef = useRef(visiblePanels);
+  visiblePanelsRef.current = visiblePanels;
+
+  // activeCell lives in App state, so a rail tap re-renders the whole grid
+  // before the transform moves — on a phone that reads as a lag between the tap
+  // and the cell switch. The tap now paints the target transform IMMEDIATELY
+  // (imperatively, in its own frame) and holds the target here until the state
+  // catches up, so the render that follows agrees instead of snapping back.
+  // (Compared BY VALUE — MosaicMobileNav passes a fresh {row,col} each render.)
+  const pendingCellRef = useRef(null);
+  const lastSeenCellRef = useRef(activeCell);
+  const seenCell = lastSeenCellRef.current;
+  const stateMoved = seenCell.row !== activeCell.row || seenCell.col !== activeCell.col;
+  lastSeenCellRef.current = activeCell;
+  if (pendingCellRef.current && (stateMoved ||
+      (pendingCellRef.current.row === activeCell.row && pendingCellRef.current.col === activeCell.col))) {
+    // The state either reached our target or moved somewhere else of its own
+    // accord — either way it is the truth again.
+    pendingCellRef.current = null;
+  }
+  const cell = pendingCellRef.current || activeCell;
+  activeCellRef.current = cell;
+
   const triggerAnimation = useCallback(() => {
     const el = sliderRef.current;
     if (!el) return;
@@ -169,21 +218,36 @@ export default function MobileGridNav({
     el.addEventListener("transitionend", onEnd);
   }, []);
 
+  // The same transform the render computes — see the anchor note down there.
+  const cellTransform = useCallback(
+    (row, col) => {
+      const panel = findPanelForCell(visiblePanelsRef.current, row, col);
+      const anchorRow = panel && (panel.height || 1) >= 2 ? panel.row : row;
+      const anchorCol = panel && (panel.width || 1) >= 2 ? panel.col : col;
+      return `translate(${-(anchorCol * (100 / cols))}%, ${-(anchorRow * (100 / rows))}%)`;
+    },
+    [rows, cols]
+  );
+
   const navigate = useCallback(
     (dRow, dCol) => {
       // Dismiss mobile keyboard before navigating — prevents viewport dimension bugs
       if (document.activeElement && document.activeElement !== document.body) {
         document.activeElement.blur();
       }
-      setActiveCell((prev) => {
-        const row = Math.max(0, Math.min(rows - 1, prev.row + dRow));
-        const col = Math.max(0, Math.min(cols - 1, prev.col + dCol));
-        if (row === prev.row && col === prev.col) return prev;
-        return { row, col };
-      });
+      const prev = activeCellRef.current;
+      const row = Math.max(0, Math.min(rows - 1, prev.row + dRow));
+      const col = Math.max(0, Math.min(cols - 1, prev.col + dCol));
+      if (row === prev.row && col === prev.col) return;
+      const next = { row, col };
+      pendingCellRef.current = next;
+      activeCellRef.current = next;
       triggerAnimation();
+      // Move NOW; the React commit lands on the same transform a frame or two later.
+      if (sliderRef.current && !zoomedOut) sliderRef.current.style.transform = cellTransform(row, col);
+      setActiveCell(next);
     },
-    [rows, cols, setActiveCell, triggerAnimation]
+    [rows, cols, setActiveCell, triggerAnimation, cellTransform, zoomedOut]
   );
 
   // Animate on zoomedOut toggle (zoom-out triggered from toolbar)
@@ -203,16 +267,10 @@ export default function MobileGridNav({
   // --- Auto-scroll: detect overscroll at content boundaries → navigate to next cell ---
   const touchRef = useRef({ startY: 0, startX: 0, lastY: 0, lastX: 0, delta: 0, axis: null, touchTarget: null, panelEl: null });
   const cooldownRef = useRef(false);
-  // Stable ref for activeCell so the touch handler always sees the latest value
-  const activeCellRef = useRef(activeCell);
-  activeCellRef.current = activeCell;
-  // Stable ref for visiblePanels so the touch handler can check panel bounds
-  const visiblePanelsRef = useRef(visiblePanels);
-  visiblePanelsRef.current = visiblePanels;
 
   // Panel the active cell sits in (hoisted above the effects — the native
   // panel-scroll wiring keys off it). height/width ≥ 2 → continuous scroll.
-  const currentPanel = findPanelForCell(visiblePanels, activeCell.row, activeCell.col);
+  const currentPanel = findPanelForCell(visiblePanels, cell.row, cell.col);
   const panelHeightSpan = currentPanel ? (currentPanel.height || 1) : 1;
   const panelWidthSpan = currentPanel ? (currentPanel.width || 1) : 1;
   const panelScrollV = panelHeightSpan >= 2;
@@ -460,7 +518,7 @@ export default function MobileGridNav({
   // Desktop passthrough — zero overhead
   if (!isMobileLayout) return children;
 
-  const { row, col } = activeCell;
+  const { row, col } = cell;
 
   // Boundary hints for multi-cell panels (panel itself hoisted above the effects)
   const panelHeight = panelHeightSpan;
@@ -557,7 +615,7 @@ export default function MobileGridNav({
         <CellOverlay
           rows={rows}
           cols={cols}
-          activeCell={activeCell}
+          activeCell={cell}
           onSelect={handleCellSelect}
         />
       )}
