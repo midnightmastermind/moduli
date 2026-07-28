@@ -2,6 +2,44 @@
 
 _Updated: 2026-07-25. Check this file before re-reading source._
 
+## Recent Changes (2026-07-28 — poms grid is PROTECTED live data; seed targets "test grid 2")
+- **`utils/protectedGrids.js` (NEW)** — the ONE protected-grid rule. `PROTECTED_GRID_NAMES`
+  (`poms grid`, `test grid 1`), `isProtectedGrid` (name OR the rename-proof `meta.protected`
+  stamp), `assertNotProtected` (THROWS — every caller is about to run a deleteMany, and a boolean
+  someone forgets to check is not a guard), `partitionProtected`, `protectedGridIdsForUser`,
+  `withProtectedExcluded`. Honoured by: `dropExistingLiveGrid` (asserts on the NAME before it
+  queries AND on the document it finds), `sweepStaleGrids`, `clearAllUserGrids`, `resetData.js`
+  and `clearUserData.js` (both did a bare `Grid.deleteMany({ userId })` and honoured NO preserved
+  list), and `socketHandlers/crud.js delete_grid` (the only destructive path reachable by hand —
+  one window.confirm in Grid Settings; the client now renders "protected grid" instead).
+- **`DEFAULT_GRID_NAME` is now `"test grid 2"`.** `poms grid` is permanent live data (user):
+  seeded once, then only the app and reviewed migrations write it. Two `meta.defaultGrid` fixes:
+  the clear excludes protected grids (poms grid carries the flag), and the seed only CLAIMS
+  default when no protected grid holds it — otherwise a reseed silently moved "opens by default"
+  onto the test grid. Verified by a real reseed: test grid 2 built (975 occs) while both protected
+  grids kept their counts AND `updatedAt` to the millisecond.
+- **`scripts/backupGrid.js` + `restoreGrid.js` (NEW)** — grid-scoped timestamped backups
+  (`npm run backup:poms`) and a verbatim restore. Restore keeps the SAME ids (Occurrence.id is
+  globally unique and ids are woven through parentId/occurrences[]/viewId/textmap embeds/op
+  pipelines — a half-correct remap would give false confidence in the one tool whose job is to be
+  trustworthy), so rehearsals go to a scratch DATABASE via `--into-db`. `--verify` compares
+  CONTENT HASHES per collection, not just counts. Refuses: restoring over a grid that still
+  exists, `--overwrite` without `--yes-overwrite-live`, `--drop-db` without `--into-db`, and a
+  backup whose file is shorter than its manifest claims (caught BEFORE any live delete).
+- **`scripts/renameGrids.js` (NEW, idempotent)** — `Poms`→`poms grid`, `test grid`→`test grid 1`,
+  + the `meta.protected` stamp.
+- **`migrations/` + `scripts/runMigrations.js` (NEW)** — how poms grid changes now. Auto-snapshots
+  before any write; records applied ids in `grid.meta.migrations` after EACH migration (a later
+  failure must not make the runner forget what succeeded); on a throw it stops and prints the
+  restore command for its own snapshot. `npm run migrate:poms`.
+- **HARD-LEARNED (2026-07-28):** verifying the guards by running them against the LIVE database
+  dropped the live grid — the guard refused `"poms grid"` but the grid was still named `"Poms"`
+  (the rename was a later task), so nothing matched. Restored byte-identical from the backup.
+  **Land the rename/stamp BEFORE writing any check that exercises a name-matched rule, and verify
+  guards on a MOCKED model** (`__tests__/protectedGridsIntegration.test.js`) — a test that guards
+  live data must not be able to destroy it. Plan + full threat model:
+  `docs/superpowers/plans/2026-07-28-poms-grid-live-data-freeze.md`.
+
 ## Recent Changes (2026-07-25 (2) — date phrase on tracker CONTAINERS; account containers merged away)
 - **`Trackers: Date-Prefix Labels` retargeted** (`scripts/createLiveData.js`): loop 1 stamps every
   CONTAINER under the Trackers page (`$allContainers`, `HAS_ANCESTOR` + `moduleLabel IS_NOT_EMPTY`)

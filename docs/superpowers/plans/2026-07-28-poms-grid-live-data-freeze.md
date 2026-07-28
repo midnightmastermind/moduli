@@ -111,7 +111,8 @@ Nothing else in this plan is safe to start without a restore path.
 Pure `name` field updates — no data movement. Do it as one small script so it is reviewable and idempotent.
 
 **Steps:**
-- [ ] `Poms` → `poms grid`; `test grid` → `test grid 1`.
+- [x] `Poms` → `poms grid`; `test grid` → `test grid 1` (`server/scripts/renameGrids.js`,
+      idempotent; also stamps `meta.protected`). **Do this BEFORE verifying any guard.**
 - [ ] Delete the stray unnamed 1×1 grid (`6a2b76b23c6b5fcb91d25d97`) **and its 3 occurrences / 2 modules** — the runtime `delete_grid` orphans scoped docs, so do this with a scoped script, not the UI button.
 - [ ] Re-run the census; confirm counts unchanged for the two survivors and that the stray is gone.
 
@@ -148,6 +149,52 @@ This is what keeps the freeze from becoming a straitjacket. Structural changes (
 - [ ] A restore drill recorded in the docs: the exact commands, run once, output pasted.
 - [ ] `CLAUDE.md` handoff: the four grid names, the protected rule, and "never reseed poms grid" stated where a future session reads it first.
 - [ ] **Recommendation for the user, not scheduled here:** split dev and prod databases. Every mitigation above is a guard rail on a road that should not be shared in the first place. As long as one Atlas database backs both, a local mistake is a production incident.
+
+---
+
+## Progress — 2026-07-28
+
+**Done: Tasks 1, 2, 3, 4, 5, 7.** Remaining: **Task 6 (the final build + freeze)** and
+**Task 8 (scheduled snapshots + restore drill doc)**.
+
+- **Task 1 — backup + restore.** `server/scripts/backupGrid.js` / `restoreGrid.js`, `npm run
+  backup:poms`. Restore is verbatim (same grid id, same document ids) because `Occurrence.id` is
+  globally unique and ids are woven through parentId/occurrences[]/viewId/textmap embeds/op
+  pipelines — a half-correct remap would give false confidence in the one tool whose job is to be
+  trustworthy. Rehearsals go to a scratch DATABASE (`--into-db`). Verify compares **content
+  hashes**, not just counts.
+- **Task 2/4/5 — one protected rule, everywhere.** `server/utils/protectedGrids.js`:
+  `assertNotProtected` THROWS. Wired into `dropExistingLiveGrid` (both the name AND the found
+  document), `sweepStaleGrids`, `clearAllUserGrids`, `resetData.js`, `clearUserData.js`, and the
+  runtime `delete_grid` handler; Grid Settings renders "protected grid" instead of the danger
+  zone. Grids renamed + stamped `meta.protected`.
+- **Task 3 — seed targets `test grid 2`.** Verified by a real reseed: `test grid 2` built (975
+  occurrences) while both protected grids kept their counts AND their `updatedAt` to the
+  millisecond; hash-compared `poms grid` against its pre-reseed backup — all eight content
+  collections identical. Two extra fixes the plan predicted: the `meta.defaultGrid` clear now
+  excludes protected grids, and the seed only CLAIMS default when no protected grid holds it.
+- **Task 7 — migrations.** `server/migrations/` + `runMigrations.js` (`npm run migrate:poms`).
+  Auto-snapshots before any write; records each id after each migration, not at the end.
+
+### The near-miss, recorded because the lesson is the whole point
+
+While verifying the Task 2 guards I ran a destructive check **against the live database** and it
+**dropped the live grid** — the guard correctly refused `"poms grid"`, but the grid was still
+named `"Poms"` (the rename was Task 5, not yet done), so nothing on the list matched it and
+`dropExistingLiveGrid(uid, "Poms")` did exactly what it is built to do. It was restored
+byte-identical from the Task 1 backup: all nine collections hash-matched, same grid id, same
+document ids.
+
+Three things changed as a result:
+
+1. **Task 5 (rename + stamp) moved BEFORE any guard verification.** A name-matched rule protects
+   nothing until the names match. The `meta.protected` stamp was applied at the same time, which
+   is the half that survives a later rename.
+2. **Guard tests never touch a database.** `__tests__/protectedGridsIntegration.test.js` runs on a
+   mocked model. A test that guards the live data must not be able to destroy it.
+3. **Task 1 first was correct and is not negotiable.** The recovery took one command because the
+   backup existed *and had been restored from once already*. Had the plan been executed in a
+   "sensible" order — guards first, backups later — this would have been unrecoverable.
 
 ---
 
