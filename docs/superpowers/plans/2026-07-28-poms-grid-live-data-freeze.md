@@ -154,8 +154,8 @@ This is what keeps the freeze from becoming a straitjacket. Structural changes (
 
 ## Progress — 2026-07-28
 
-**Done: Tasks 1, 2, 3, 4, 5, 7.** Remaining: **Task 6 (the final build + freeze)** and
-**Task 8 (scheduled snapshots + restore drill doc)**.
+**Done: Tasks 1, 2, 3, 4, 5, 7, 8.** Remaining: **Task 6 — the final build + freeze** (the
+irreversible one; awaiting an explicit go-ahead since it discards the current contents).
 
 - **Task 1 — backup + restore.** `server/scripts/backupGrid.js` / `restoreGrid.js`, `npm run
   backup:poms`. Restore is verbatim (same grid id, same document ids) because `Occurrence.id` is
@@ -175,6 +175,15 @@ This is what keeps the freeze from becoming a straitjacket. Structural changes (
   excludes protected grids, and the seed only CLAIMS default when no protected grid holds it.
 - **Task 7 — migrations.** `server/migrations/` + `runMigrations.js` (`npm run migrate:poms`).
   Auto-snapshots before any write; records each id after each migration, not at the end.
+- **Task 8 — ongoing safety.** Nightly cron on the droplet (04:17, `backupCron.sh`, keeps 14
+  unlabelled snapshots per grid; labelled ones never prune) — **run once by hand on the droplet
+  before scheduling it**, because an untested cron job is a hope, not a backup. Restore drill
+  documented with its real output in `docs/backup-restore.md`. `delete_grid` now CASCADES its
+  scoped documents (it deleted the Grid row only, which is where 186 orphans came from);
+  `scripts/deleteGrid.js` is the protected-aware, backup-first version. The stray 1×1 grid is
+  gone. `scripts/sweepOrphans.js` removed 186 documents belonging to six dead grids — it dumps
+  every document to `backups/orphans/` first, and deliberately LEAVES the 45 null-gridId
+  documents alone ("probably dead" is not good enough for a delete).
 
 ### The near-miss, recorded because the lesson is the whole point
 
