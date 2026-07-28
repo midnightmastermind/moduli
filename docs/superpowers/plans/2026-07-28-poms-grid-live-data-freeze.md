@@ -4,14 +4,15 @@
 
 **Goal:** `poms grid` becomes permanent live data — created from the seed exactly ONE more time, then never written by `createLiveData.js` again. From that moment, every change to it lives in the data itself (the app, or a reviewed migration), never in the create file.
 
-**Naming (user, 2026-07-28):** four grids.
+**Naming (user, 2026-07-28):** three grids.
 
 | Name | What it is | Seed may write it? |
 |---|---|---|
 | `poms grid` | **The live data.** Frozen after one final build. | **NEVER** |
 | `test grid 1` | The pre-2026-07-25 live grid, already frozen | Never |
 | `test grid 2` | The seed's target — overwrite freely, any time | **Yes, always** |
-| `test grid 3` | The stray 1×1 grid that already exists | Never |
+
+Three grids end state. The stray 1×1 grid is **deleted**, not renamed (user, 2026-07-28).
 
 **Current state (verified against Atlas 2026-07-28, user `josh@jpoms.com` / `699bbdfbf62b06018225b91a`):**
 
@@ -19,7 +20,7 @@
 |---|---|---|---|---|
 | `Poms` | `6a668aedb434ccb3ac262b3e` | 2×3 mosaic, 5 panels, `meta.defaultGrid` | 1074 / 1010 / 68 / 161 | `poms grid` |
 | `test grid` | `6a5e12cde72d64753a5a116b` | 2×3 mosaic, 5 panels | 859 / 803 / 72 / 130 | `test grid 1` |
-| `(unnamed)` | `6a2b76b23c6b5fcb91d25d97` | 1×1, 2 panels | 3 / 2 / 0 / 0 | `test grid 3` |
+| `(unnamed)` | `6a2b76b23c6b5fcb91d25d97` | 1×1, 2 panels | 3 / 2 / 0 / 0 | **deleted** |
 | — | — | — | — | `test grid 2` (new) |
 
 ---
@@ -77,7 +78,7 @@ Nothing else in this plan is safe to start without a restore path.
 - Create: `server/__tests__/protectedGrids.test.js`
 
 **Steps:**
-- [ ] `protectedGrids.js` exports `PROTECTED_GRID_NAMES` (`poms grid`, `test grid 1`, `test grid 3`), `isProtectedGrid(name)`, and `assertNotProtected(name, action)` which THROWS with a message naming the grid and the attempted action.
+- [ ] `protectedGrids.js` exports `PROTECTED_GRID_NAMES` (`poms grid`, `test grid 1`), `isProtectedGrid(name)`, and `assertNotProtected(name, action)` which THROWS with a message naming the grid and the attempted action.
 - [ ] `dropExistingLiveGrid` calls `assertNotProtected(gridName, "drop")` before it queries. Today it takes the name as a parameter and trusts it — that is the hole.
 - [ ] `sweepStaleGrids` and `clearAllUserGrids` filter through `isProtectedGrid`.
 - [ ] `resetData.js` + `clearUserData.js`: replace `Grid.deleteMany({ userId })` with a protected-aware delete, and scope their other collection deletes so protected grids' docs survive (mirror the `clearAllUserGrids` `$nin` pattern — do **not** re-derive it).
@@ -91,7 +92,7 @@ Nothing else in this plan is safe to start without a restore path.
 - [ ] `DEFAULT_GRID_NAME` → `"test grid 2"`.
 - [ ] Grep the seed + `liveSystemBuilders.js` + `deploydata.sh` for any remaining literal `"Poms"` and repoint or delete it.
 - [ ] The seed's `meta.defaultGrid` clear (`:5675`) must not touch protected grids — confirm the existing filtered `updateMany` already excludes them (it was narrowed 2026-07-25 to only grids carrying the flag; `poms grid` **does** carry it today, so this needs an explicit exclusion).
-- [ ] Run a reseed. **Verify by census:** `test grid 2` is rebuilt; `poms grid` / `test grid 1` / `test grid 3` are byte-identical, `updatedAt` unmoved.
+- [ ] Run a reseed. **Verify by census:** `test grid 2` is rebuilt; `poms grid` and `test grid 1` are byte-identical, `updatedAt` unmoved.
 
 ### Task 4: Protect the runtime delete path
 
@@ -110,17 +111,18 @@ Nothing else in this plan is safe to start without a restore path.
 Pure `name` field updates — no data movement. Do it as one small script so it is reviewable and idempotent.
 
 **Steps:**
-- [ ] `Poms` → `poms grid`; `test grid` → `test grid 1`; `(unnamed 1×1)` → `test grid 3`.
-- [ ] Re-run the census; confirm counts unchanged for all three.
+- [ ] `Poms` → `poms grid`; `test grid` → `test grid 1`.
+- [ ] Delete the stray unnamed 1×1 grid (`6a2b76b23c6b5fcb91d25d97`) **and its 3 occurrences / 2 modules** — the runtime `delete_grid` orphans scoped docs, so do this with a scoped script, not the UI button.
+- [ ] Re-run the census; confirm counts unchanged for the two survivors and that the stray is gone.
 
 ### Task 6: The final build, then the freeze
 
 > ⚠️ **This is the irreversible step.** Everything above must be green first.
 
-**Open question for the user — answer before running (see "Decisions needed"):** does the final build start from a *fresh* seed (wiping the 1074 occurrences currently in `Poms`, including anything logged since 2026-07-25), or is the CURRENT `Poms` content already the live data we are freezing?
+**Decided (user, 2026-07-28): REBUILD FRESH.** The current 1074 occurrences in `Poms` are discarded; the backup from Task 1 is the only copy, so Task 1 must be verified-restorable before this runs.
 
 - [ ] Take a labelled backup: `backups/poms-grid/pre-freeze-<ts>/`.
-- [ ] **If rebuilding:** run the seed once with an explicit `--grid "poms grid" --force-protected` one-shot flag (which is the ONLY thing that can bypass `assertNotProtected`, requires an interactive typed confirmation, and logs loudly).
+- [ ] Run the seed once with an explicit `--grid "poms grid" --force-protected` one-shot flag (which is the ONLY thing that can bypass `assertNotProtected`, requires an interactive typed confirmation, and logs loudly).
 - [ ] Verify the result in the app: 9 dimension containers, 34 board pages, trackers live, Schedule builds, zero page errors.
 - [ ] Take the post-build backup.
 - [ ] Stamp `grid.meta.protected = true`, `grid.meta.frozenAt = <ISO>`, `grid.meta.frozenAtCommit = <sha>`.
@@ -149,8 +151,8 @@ This is what keeps the freeze from becoming a straitjacket. Structural changes (
 
 ---
 
-## Decisions needed from the user
+## Decisions — settled 2026-07-28
 
-1. **Fresh rebuild or freeze-in-place?** (Task 6.) A fresh seed gives a clean, fully-current structure but discards everything logged in `Poms` since 2026-07-25. Freezing the current content keeps that history but locks in whatever drift it already carries. *Recommendation: back up, rebuild fresh, and restore-forward anything specific you want to keep — but only if you have not logged much real data yet.*
-2. **`test grid 2` content:** a straight seed build (same as `poms grid`'s structure), or a slimmed-down grid for testing? *Recommendation: straight seed build — it stays a faithful rehearsal of what the seed does.*
-3. **`test grid 3`** (the 1×1 stray, 3 occurrences): keep as a scratch grid, or delete it? It is currently protected from the sweep only because it is 1×1.
+1. **Final build: REBUILD FRESH.** (Task 6.) The current `Poms` contents are discarded in favour of a clean seed build. Consequence: Task 1's backup is the only copy of anything logged since 2026-07-25, so its restore path must be *proven* (not just written) before Task 6 runs.
+2. **The 1×1 stray: DELETE**, with its scoped docs, not just the Grid row.
+3. **`test grid 2` content:** straight seed build — a faithful rehearsal of what the seed does. (Open unless the user says otherwise.)
