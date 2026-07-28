@@ -50,6 +50,10 @@ export function GridSettingsTab() {
 
   // ── Layout mode: rows×cols Grid vs BSP "Mosaic" ──────────────────────────
   const isMosaic = !!grid?.meta?.layoutTree;
+  // Protected live data (server/utils/protectedGrids.js). The STAMP is what the
+  // client reads — it's portable and survives a rename, whereas the server's
+  // name list is for scripts. The server refuses the delete regardless.
+  const isProtected = grid?.meta?.protected === true;
   const setLayoutMode = useCallback((mode) => {
     if (!gridId) return;
     const meta = { ...(grid?.meta || {}) };
@@ -472,16 +476,28 @@ export function GridSettingsTab() {
 
       <Separator className="mb-3" />
 
-      {/* Danger zone */}
-      <div>
-        <h4 className="text-xs font-semibold text-red-400 mb-1">Danger zone</h4>
-        <p className="text-[10px] text-foregroundScale-2/80 mb-2">
-          This deletes the grid and all UI inside it.
-        </p>
-        <Button type="button" variant="destructive" size="sm" onClick={deleteGrid}>
-          Delete Grid
-        </Button>
-      </div>
+      {/* Danger zone — absent entirely for protected live data. The server
+          refuses the delete too (socketHandlers/crud.js); this is so the button
+          isn't there to click in the first place. */}
+      {isProtected ? (
+        <div>
+          <h4 className="text-xs font-semibold text-foregroundScale-2 mb-1">Protected grid</h4>
+          <p className="text-[10px] text-foregroundScale-2/80">
+            This grid holds live data and cannot be deleted. Back it up with
+            the backup script, and change its structure through a migration.
+          </p>
+        </div>
+      ) : (
+        <div>
+          <h4 className="text-xs font-semibold text-red-400 mb-1">Danger zone</h4>
+          <p className="text-[10px] text-foregroundScale-2/80 mb-2">
+            This deletes the grid and all UI inside it.
+          </p>
+          <Button type="button" variant="destructive" size="sm" onClick={deleteGrid}>
+            Delete Grid
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

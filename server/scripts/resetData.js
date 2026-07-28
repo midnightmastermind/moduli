@@ -33,6 +33,7 @@ import Operation from "../models/Operation.js";
 // Import the reusable utility
 import createDefaultUserData from "../utils/createDefaultUserData.js";
 import { createTestGrid } from "./createTestGrid.js";
+import { protectedGridIdsForUser, withProtectedExcluded } from "../utils/protectedGrids.js";
 
 const MONGO_URI = process.env.MONGO_URI;
 
@@ -44,17 +45,26 @@ const TEST_USER_EMAIL = "test@moduli.test";
 const TEST_USER_PASSWORD = "testpass123";
 
 async function resetUserData(userId) {
+  // Protected grids (the live data) and their scoped docs survive a reset —
+  // this script's bare Grid.deleteMany({ userId }) used to take them too.
+  const protectedIds = await protectedGridIdsForUser(Grid, userId);
+  if (protectedIds.length) console.log(`  (preserving ${protectedIds.length} protected grid(s))`);
+
   // Preserve imported codex/notebook data (meta.source === "codex-import")
-  const preserveFilter = { userId, "meta.source": { $ne: "codex-import" } };
+  const preserveFilter = withProtectedExcluded(
+    { userId, "meta.source": { $ne: "codex-import" } }, protectedIds);
+  const userFilter = withProtectedExcluded({ userId }, protectedIds);
+  const gridFilter = protectedIds.length ? { userId, _id: { $nin: protectedIds } } : { userId };
+
   await Occurrence.deleteMany(preserveFilter);
-  await Field.deleteMany({ userId });
+  await Field.deleteMany(userFilter);
   await Module.deleteMany(preserveFilter);
-  await Transaction.deleteMany({ userId });
-  await Grid.deleteMany({ userId });
-  await Manifest.deleteMany({ userId });
+  await Transaction.deleteMany(userFilter);
+  await Grid.deleteMany(gridFilter);
+  await Manifest.deleteMany(userFilter);
   await View.deleteMany(preserveFilter);
   await Folder.deleteMany(preserveFilter);
-  await Operation.deleteMany({ userId });
+  await Operation.deleteMany(userFilter);
 }
 
 async function resetData() {

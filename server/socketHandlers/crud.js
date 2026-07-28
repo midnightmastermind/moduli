@@ -8,6 +8,7 @@ import Operation from "../models/Operation.js";
 import Folder from "../models/Folder.js";
 import Manifest from "../models/Manifest.js";
 import View from "../models/View.js";
+import { isProtectedGrid } from "../utils/protectedGrids.js";
 
 export function registerCrudHandlers(socket, {
   ensureUserCache, userCacheReady, loadUserIntoCache,
@@ -67,6 +68,17 @@ export function registerCrudHandlers(socket, {
   socket.on("delete_grid", async ({ gridId } = {}) => {
     try {
       if (!userId || !gridId) return;
+      // A protected grid (the live data) can't be deleted from the UI. This is
+      // the ONLY destructive path a user can reach by hand — one window.confirm
+      // in Grid Settings — so the refusal lives on the server, not just in the
+      // client that renders the button.
+      const target = await Grid.findOne({ _id: gridId, userId }).lean();
+      if (!target) return;
+      if (isProtectedGrid(target)) {
+        socket.emit("server_error",
+          `"${target.name}" is protected live data and cannot be deleted.`);
+        return;
+      }
       await Grid.findOneAndDelete({ _id: gridId, userId });
       socket.to(userRoom(userId)).emit("grid_deleted", { gridId });
       if (socket.data.activeGridId === gridId) {

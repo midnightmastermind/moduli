@@ -27,6 +27,7 @@ import Manifest from "../models/Manifest.js";
 import View from "../models/View.js";
 import Folder from "../models/Folder.js";
 import Operation from "../models/Operation.js";
+import { protectedGridIdsForUser, withProtectedExcluded } from "../utils/protectedGrids.js";
 
 const TARGET_EMAIL = process.argv[2] || "josh@jpoms.com";
 
@@ -42,19 +43,30 @@ async function clearUserData() {
     const userId = user._id.toString();
     console.log(`User ID: ${userId}\n`);
 
+    // Protected grids (the live data) and everything scoped to them survive.
+    // Without this, "wipe this user" took the live grid with it — this script
+    // and resetData.js were the only two paths with NO preserved-grid rule.
+    const protectedIds = await protectedGridIdsForUser(Grid, userId);
+    if (protectedIds.length) console.log(`Protected grids (untouched): ${protectedIds.length}\n`);
+
     // Preserve codex/notebook imports — same logic as resetData.js
-    const preserveFilter = { userId, "meta.source": { $ne: "codex-import" } };
+    const preserveFilter = withProtectedExcluded(
+      { userId, "meta.source": { $ne: "codex-import" } }, protectedIds);
+    const userFilter = withProtectedExcluded({ userId }, protectedIds);
+    const gridFilter = protectedIds.length
+      ? { userId, _id: { $nin: protectedIds } }
+      : { userId };
 
     const [occs, fields, mods, txns, grids, manifests, views, folders, ops] = await Promise.all([
       Occurrence.deleteMany(preserveFilter),
-      Field.deleteMany({ userId }),
+      Field.deleteMany(userFilter),
       Module.deleteMany(preserveFilter),
-      Transaction.deleteMany({ userId }),
-      Grid.deleteMany({ userId }),
-      Manifest.deleteMany({ userId }),
+      Transaction.deleteMany(userFilter),
+      Grid.deleteMany(gridFilter),
+      Manifest.deleteMany(userFilter),
       View.deleteMany(preserveFilter),
       Folder.deleteMany(preserveFilter),
-      Operation.deleteMany({ userId }),
+      Operation.deleteMany(userFilter),
     ]);
 
     console.log("Deleted:");

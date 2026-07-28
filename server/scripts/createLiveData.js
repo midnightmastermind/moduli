@@ -65,6 +65,9 @@ const BOARD_OPTION_IMAGES = _createRequire(import.meta.url)("../seed/boardOption
 import { gateScheduleTrackers, GATE_TRACKER_NAMES } from "../utils/completionGate.js";
 import { applyPeriodAllPolicy } from "../utils/periodAllPolicy.js";
 import { ensureGridFilterTrigger } from "../utils/gridFilterTrigger.js";
+import {
+  PROTECTED_GRID_NAMES, isProtectedGrid, assertNotProtected, partitionProtected,
+} from "../utils/protectedGrids.js";
 import fs from "fs";
 import { parseSectionsWithInstances } from "../utils/mdParsers.js";
 import { makeDocContent, buildMergedDocTextmap, inlineToTipTap } from "../utils/docBuilders.js";
@@ -77,17 +80,23 @@ const DEFAULT_USER_EMAIL = "josh@jpoms.com";
 const DEFAULT_GRID_NAME = "Poms";
 const uid = () => nanoid(12);
 
-// Grids this script must never touch, no matter the flags. "test grid" is the
-// frozen pre-2026-07-25 live grid (renamed, kept as-is per user).
-const PRESERVED_GRID_NAMES = new Set(["test grid"]);
-
-// Drop the existing "Poms" grid for this userId and all its gridId-scoped child docs.
-// Scoping is DUAL — both userId AND the literal grid name "Poms" — so this
-// can NEVER delete a different user's data or a grid with a different name
-// (e.g. "test grid" is completely safe).
+// Grids this script must never touch, no matter the flags. The list itself
+// lives in utils/protectedGrids.js — one source of truth shared with
+// resetData.js, clearUserData.js and the runtime delete_grid handler.
+// Drop the target grid for this userId and all its gridId-scoped child docs.
+// Scoping is DUAL — both userId AND the grid name — so this can never delete a
+// different user's data or a grid with a different name.
+//
+// The name is a PARAMETER, so "we only ever pass the disposable one" was a
+// convention, not a guarantee. `assertNotProtected` makes it a guarantee: this
+// throws before it queries if anyone points it at live data.
 export async function dropExistingLiveGrid(userId, gridName = DEFAULT_GRID_NAME) {
+  assertNotProtected(gridName, "drop");
   const existing = await Grid.findOne({ userId, name: gridName });
   if (!existing) return false;
+  // Second gate: a grid can be renamed onto a safe-looking name but still carry
+  // the freeze stamp. Check the document we actually found, not just the string.
+  assertNotProtected(existing, "drop");
   const gridId = existing._id.toString();
   await Promise.all([
     Occurrence.deleteMany({ gridId }),
@@ -111,11 +120,14 @@ export async function dropExistingLiveGrid(userId, gridName = DEFAULT_GRID_NAME)
 // occurrences that is NOT 1×1 is a dead skeleton → delete it + its scoped
 // docs. Deliberately kept: the user's empty 1×1 scratch grid (0 panels but
 // 1×1), the Poms grid (has panels), any real grid with content, and every
-// PRESERVED_GRID_NAMES grid unconditionally.
+// protected grid unconditionally (see utils/protectedGrids.js).
 export async function sweepStaleGrids(userId) {
   const grids = await Grid.find({ userId }).lean();
   const stale = grids.filter(g =>
-    !PRESERVED_GRID_NAMES.has(g.name) &&
+    // isProtectedGrid, not a name-set lookup: a protected grid caught mid-write
+    // (or whose panels were transiently pruned) would otherwise match the
+    // zero-panel rule and be swept as a "dead skeleton".
+    !isProtectedGrid(g) &&
     (g.occurrences || []).length === 0 && !(g.rows === 1 && g.cols === 1)
   );
   for (const g of stale) {
@@ -143,16 +155,16 @@ export async function sweepStaleGrids(userId) {
 // slow down — Atlas has to load + filter every Module/Occurrence row
 // the user owns, even when most belong to dead grids. The User doc
 // itself is preserved so auth + the user account stay intact.
-// PRESERVED_GRID_NAMES grids ("test grid") and all their scoped docs
-// survive --clear: deletes are scoped to the doomed gridIds only.
+// Protected grids and all their scoped docs survive --clear: deletes are
+// scoped to the doomed gridIds only.
 export async function clearAllUserGrids(userId) {
   // Collect every gridId for this user FIRST so we can wipe per-grid
   // scoped collections by id, not by userId — keeps deletes precise.
-  const allGrids = await Grid.find({ userId }).select({ _id: 1, name: 1 }).lean();
-  const grids = allGrids.filter(g => !PRESERVED_GRID_NAMES.has(g.name));
-  const preservedIds = allGrids
-    .filter(g => PRESERVED_GRID_NAMES.has(g.name))
-    .map(g => g._id.toString());
+  // `meta` is selected because protection can ride on meta.protected, which is
+  // what survives a rename.
+  const allGrids = await Grid.find({ userId }).select({ _id: 1, name: 1, meta: 1 }).lean();
+  const { safe: grids, protected: keep } = partitionProtected(allGrids);
+  const preservedIds = keep.map(g => g._id.toString());
   const gridIds = grids.map(g => g._id.toString());
   // Grid-scoped docs may carry userId but a stale/null gridId (from earlier
   // failed runs) — include those via the userId arm, but always exclude the
