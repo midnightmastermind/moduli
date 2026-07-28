@@ -6,6 +6,43 @@
 
 ---
 
+## Handoff — 2026-07-28 (poms grid is PROTECTED live data; backups + migrations shipped)
+
+Plan: `docs/superpowers/plans/2026-07-28-poms-grid-live-data-freeze.md`. **Tasks 1-5, 7, 8 done;
+Task 6 (the final rebuild + freeze) is the only one left and is awaiting an explicit go-ahead —
+it discards the current 1075 occurrences.**
+
+- **Three grids now.** `poms grid` = permanent live data, `meta.protected: true`, the seed must
+  NEVER write it. `test grid 1` = the frozen old live grid. `test grid 2` = `DEFAULT_GRID_NAME`,
+  the seed's target, overwrite freely. The stray 1×1 is deleted.
+- **`server/utils/protectedGrids.js` is THE rule.** `assertNotProtected` throws (a boolean someone
+  forgets to check is not a guard). Honoured by `dropExistingLiveGrid` (name AND the found
+  document), `sweepStaleGrids`, `clearAllUserGrids`, `resetData.js`, `clearUserData.js`, and the
+  runtime `delete_grid`; Grid Settings hides the delete button for a protected grid.
+- **Backups: `npm run backup:poms`**, nightly cron on the droplet at 04:17 (14 kept, labelled ones
+  never prune). Restore is VERBATIM (same ids — `Occurrence.id` is globally unique and ids are
+  woven through parentId/textmap embeds/op pipelines), so rehearse with `--into-db <scratch>`.
+  `--verify` compares CONTENT HASHES, not counts. Full drill + refusal table:
+  `docs/backup-restore.md`.
+- **Changing the live grid from now on:** `server/migrations/` + `npm run migrate:poms`. Content
+  changes happen in the app; migrations are only for structure the UI cannot express.
+- **`delete_grid` now CASCADES** (it deleted the Grid row only — that stranded 186 documents
+  across six dead grids, since swept via `scripts/sweepOrphans.js`, which dumps to
+  `backups/orphans/` first and leaves null-gridId docs alone).
+- **HARD-LEARNED, recorded so it doesn't repeat:** verifying the guards by running them against
+  the LIVE database dropped the live grid — the guard refused `"poms grid"` but the grid was
+  still named `"Poms"` (the rename was a later task), so nothing matched. Restored byte-identical
+  from the Task 1 backup in one command. **Land the rename/stamp BEFORE any check that exercises
+  a name-matched rule, and verify guards on a MOCKED model** — a test that guards the live data
+  must not be able to destroy it.
+- Also this session: **occurrence search highlights the copy in the panel it opened** (the lookup
+  was document-wide, so a copy in another cell stole the flash — prod-reproduced), and **instance
+  rows align label/handle/fields on one centreline** (fields sat 3px low; the lift is paid back in
+  the row gap when they wrap, and inline-media rows take a smaller lift).
+- 296 server + 1429 client tests, build clean, deployed (`920b7917`), prod verified.
+
+---
+
 ## Handoff — 2026-07-27 (the 2026-07-26 batch is DEPLOYED; mobile rail taps switch instantly)
 
 Everything from the 2026-07-26 handoff below plus the six follow-up commits (mobile toolbar/page
