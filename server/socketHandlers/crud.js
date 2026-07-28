@@ -79,6 +79,18 @@ export function registerCrudHandlers(socket, {
           `"${target.name}" is protected live data and cannot be deleted.`);
         return;
       }
+      // CASCADE the scoped documents. This used to delete the Grid row only,
+      // stranding every Occurrence/Module/Field/… that pointed at it — that is
+      // where the 27 folders under a long-gone gridId came from (found
+      // 2026-07-28). Orphans are invisible but they still load into every
+      // `full_state` scan, so they are a slow leak, not just untidiness.
+      const scoped = { gridId };
+      await Promise.all([
+        Occurrence.deleteMany(scoped), Module.deleteMany(scoped),
+        Field.deleteMany(scoped), Manifest.deleteMany(scoped),
+        View.deleteMany(scoped), Folder.deleteMany(scoped),
+        Operation.deleteMany(scoped),
+      ]);
       await Grid.findOneAndDelete({ _id: gridId, userId });
       socket.to(userRoom(userId)).emit("grid_deleted", { gridId });
       if (socket.data.activeGridId === gridId) {

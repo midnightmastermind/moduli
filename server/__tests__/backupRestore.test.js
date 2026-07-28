@@ -11,7 +11,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 
-import { slugify, stampNow, listBackups, BACKUP_COLLECTIONS } from "../scripts/backupGrid.js";
+import { slugify, stampNow, listBackups, pruneBackups, BACKUP_COLLECTIONS } from "../scripts/backupGrid.js";
 import { readBackup, contentHash } from "../scripts/restoreGrid.js";
 
 let tmp;
@@ -126,5 +126,43 @@ describe("listBackups", () => {
     const rows = listBackups(path.join(tmp, "backups"));
     expect(rows).toHaveLength(2);
     expect(rows[0].takenAt).toBe("2026-07-28T00:00:00.000Z");
+  });
+});
+
+describe("pruneBackups retention", () => {
+  function mk(root, stamp, { label = null, takenAt } = {}) {
+    const dir = path.join(root, stamp);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({ takenAt, label }));
+    return dir;
+  }
+
+  it("keeps the newest N unlabelled snapshots and deletes the rest", () => {
+    const root = path.join(tmp, "backups", "poms-grid");
+    const dirs = ["a", "b", "c", "d"].map((s, i) =>
+      mk(root, s, { takenAt: `2026-07-0${i + 1}T00:00:00.000Z` }));
+    const pruned = pruneBackups(path.join(tmp, "backups"), "poms-grid", 2);
+    expect(pruned).toHaveLength(2);
+    // Newest two survive (d = 07-04, c = 07-03).
+    expect(fs.existsSync(dirs[3])).toBe(true);
+    expect(fs.existsSync(dirs[2])).toBe(true);
+    expect(fs.existsSync(dirs[1])).toBe(false);
+    expect(fs.existsSync(dirs[0])).toBe(false);
+  });
+
+  it("NEVER prunes a labelled snapshot — the point of taking one is that it stays", () => {
+    const root = path.join(tmp, "backups", "poms-grid");
+    const freeze = mk(root, "freeze", { label: "pre-freeze", takenAt: "2026-01-01T00:00:00.000Z" });
+    const routine = ["a", "b", "c"].map((s, i) =>
+      mk(root, s, { takenAt: `2026-07-0${i + 1}T00:00:00.000Z` }));
+    pruneBackups(path.join(tmp, "backups"), "poms-grid", 1);
+    // Oldest of all, but labelled → survives.
+    expect(fs.existsSync(freeze)).toBe(true);
+    expect(fs.existsSync(routine[2])).toBe(true);
+    expect(fs.existsSync(routine[0])).toBe(false);
+  });
+
+  it("is a no-op when there is nothing to prune", () => {
+    expect(pruneBackups(path.join(tmp, "nope"), "poms-grid", 5)).toEqual([]);
   });
 });

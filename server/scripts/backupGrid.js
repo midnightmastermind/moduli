@@ -22,6 +22,8 @@
 //   --user <email>    default josh@jpoms.com
 //   --out <dir>       default <repo>/backups
 //   --list            list existing backups and exit
+//   --keep <n>        after backing up, keep only the n newest UNLABELLED
+//                     snapshots for that grid (labelled ones are never pruned)
 //
 // Every child collection is scoped by gridId (verified 2026-07-28: every
 // Manifest and Folder row carries one, so nothing is user-scoped-only).
@@ -77,7 +79,7 @@ function gitHead() {
 }
 
 function parseArgs(argv) {
-  const out = { all: false, list: false, label: null, grid: null, gridId: null,
+  const out = { all: false, list: false, label: null, grid: null, gridId: null, keep: null,
                 user: "josh@jpoms.com", outDir: resolve(REPO_ROOT, "backups") };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -88,6 +90,7 @@ function parseArgs(argv) {
     else if (a === "--label") out.label = argv[++i];
     else if (a === "--user") out.user = argv[++i];
     else if (a === "--out") out.outDir = resolve(argv[++i]);
+    else if (a === "--keep") out.keep = Number(argv[++i]);
   }
   return out;
 }
@@ -136,6 +139,30 @@ export async function backupGrid(gridDoc, { outDir, label = null, userEmail = nu
     );
   }
   return { dir, manifest };
+}
+
+/**
+ * Keep the newest `keep` backups for a grid slug, delete the rest.
+ *
+ * Labelled backups (pre-freeze, pre-migration-…) are NEVER pruned: they mark a
+ * specific moment someone deliberately captured, and the whole point of taking
+ * one is that it is still there later. Only routine unlabelled snapshots rotate.
+ */
+export function pruneBackups(outDir, slug, keep = 14) {
+  const slugDir = path.join(outDir, slug);
+  if (!fs.existsSync(slugDir)) return [];
+  const rows = fs.readdirSync(slugDir)
+    .map(stamp => ({ stamp, dir: path.join(slugDir, stamp) }))
+    .filter(r => fs.existsSync(path.join(r.dir, "manifest.json")))
+    .map(r => {
+      const m = JSON.parse(fs.readFileSync(path.join(r.dir, "manifest.json"), "utf8"));
+      return { ...r, takenAt: m.takenAt || "", label: m.label || null };
+    })
+    .filter(r => !r.label)
+    .sort((a, b) => String(b.takenAt).localeCompare(String(a.takenAt)));
+  const doomed = rows.slice(keep);
+  for (const d of doomed) fs.rmSync(d.dir, { recursive: true, force: true });
+  return doomed.map(d => d.dir);
 }
 
 export function listBackups(outDir) {
@@ -200,6 +227,10 @@ async function main() {
     console.log(`   occurrences=${c.occurrences} modules=${c.modules} operations=${c.operations} ` +
                 `fields=${c.fields} views=${c.views} manifests=${c.manifests} folders=${c.folders} ` +
                 `transactions=${c.transactions}`);
+    if (args.keep > 0) {
+      const pruned = pruneBackups(args.outDir, slugify(g.name || g._id.toString()), args.keep);
+      if (pruned.length) console.log(`   🧹 pruned ${pruned.length} old snapshot(s), kept ${args.keep}`);
+    }
   }
 }
 
