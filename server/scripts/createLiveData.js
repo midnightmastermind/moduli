@@ -1,6 +1,6 @@
 // scripts/createLiveData.js
 // ============================================================
-// Creates (or recreates) the "Poms" grid for a user. Intended as the
+// Creates (or recreates) the seed's target grid for a user. Intended as the
 // production-quality grid that replaces createTestGrid's fixture data.
 //
 // Runnable standalone via:
@@ -8,7 +8,7 @@
 //   node --env-file=.env scripts/createLiveData.js                 # default user (josh)
 //   node --env-file=.env scripts/createLiveData.js test@moduli.test
 //
-// Standalone runs drop the existing "Poms" grid + its scoped data first so
+// Standalone runs drop the existing target grid + its scoped data first so
 // re-running is idempotent. Other grids on the user are left UNTOUCHED —
 // in particular "test grid" (the frozen pre-2026-07-25 live grid) must
 // NEVER be dropped, swept, cleared, or exported by this script.
@@ -67,6 +67,7 @@ import { applyPeriodAllPolicy } from "../utils/periodAllPolicy.js";
 import { ensureGridFilterTrigger } from "../utils/gridFilterTrigger.js";
 import {
   PROTECTED_GRID_NAMES, isProtectedGrid, assertNotProtected, partitionProtected,
+  protectedGridIdsForUser,
 } from "../utils/protectedGrids.js";
 import fs from "fs";
 import { parseSectionsWithInstances } from "../utils/mdParsers.js";
@@ -77,7 +78,12 @@ const __liveDataDirname = dirname(__filename);
 const ROOT_DIR_MD = join(__liveDataDirname, "../../docs/");
 
 const DEFAULT_USER_EMAIL = "josh@jpoms.com";
-const DEFAULT_GRID_NAME = "Poms";
+// The seed builds the DISPOSABLE grid. `poms grid` is permanent live data
+// (user, 2026-07-28): it was seeded once and from then on only the running app
+// and reviewed migrations write it — see
+// docs/superpowers/plans/2026-07-28-poms-grid-live-data-freeze.md.
+// Pointing this at a protected name now throws (utils/protectedGrids.js).
+const DEFAULT_GRID_NAME = "test grid 2";
 const uid = () => nanoid(12);
 
 // Grids this script must never touch, no matter the flags. The list itself
@@ -119,7 +125,7 @@ export async function dropExistingLiveGrid(userId, gridName = DEFAULT_GRID_NAME)
 // should only be 2", 2026-07-04 + 2026-07-07). Rule: a grid with no panel
 // occurrences that is NOT 1×1 is a dead skeleton → delete it + its scoped
 // docs. Deliberately kept: the user's empty 1×1 scratch grid (0 panels but
-// 1×1), the Poms grid (has panels), any real grid with content, and every
+// 1×1), any real grid with content, and every
 // protected grid unconditionally (see utils/protectedGrids.js).
 export async function sweepStaleGrids(userId) {
   const grids = await Grid.find({ userId }).lean();
@@ -149,7 +155,7 @@ export async function sweepStaleGrids(userId) {
 
 // `--clear` flag: nuke every NON-PRESERVED grid + its grid-scoped docs for
 // the user before reseeding. The single-grid `dropExistingLiveGrid` above
-// only drops the one named "Poms", so prior runs with different grid
+// only drops the one it targets, so prior runs with different grid
 // names (or partial reseeds, or test-grid leftovers) accumulate over
 // time. Accumulated stale data is the #1 reason `full_state` queries
 // slow down — Atlas has to load + filter every Module/Occurrence row
@@ -5686,11 +5692,33 @@ export async function createLiveData(userId, options = {}) {
   // FILTERED to grids that actually CARRY the flag (2026-07-25): an unscoped
   // updateMany bumped updatedAt on every grid the user owns — including the
   // untouchable "test grid" — on every reseed, as a pure no-op write.
+  // PROTECTED GRIDS EXCLUDED (2026-07-28): `poms grid` carries the flag, so
+  // without this a reseed would steal "open by default" from the live grid and
+  // hand it to the disposable one — a write to protected data, and a confusing
+  // one (the site would open on the test grid every time you reseeded).
+  const protectedIds = await protectedGridIdsForUser(Grid, userId);
   await Grid.updateMany(
-    { userId, "meta.defaultGrid": { $exists: true } },
+    {
+      userId,
+      "meta.defaultGrid": { $exists: true },
+      ...(protectedIds.length ? { _id: { $nin: protectedIds } } : {}),
+    },
     { $unset: { "meta.defaultGrid": "" } },
   );
-  await Grid.findByIdAndUpdate(grid._id, { $set: { occurrences: gridOccIds, colSizes: [0.8, 1, 0.8], "meta.layoutTree": mosaicLayoutTree, "meta.assistantSeedId": uid(), "meta.defaultGrid": true, "meta.scheduleFieldIds": { dateFieldId, timeslotFieldId, scheduleFormatFieldId, pageOccurrenceId: schedPageOccId } } });
+  // …and only CLAIM default when no protected grid already holds it. The live
+  // grid keeps "opens by default"; a reseed of the disposable grid must not
+  // change which grid the site opens on.
+  const protectedHoldsDefault = protectedIds.length > 0 && await Grid.exists({
+    _id: { $in: protectedIds }, "meta.defaultGrid": { $exists: true },
+  });
+  await Grid.findByIdAndUpdate(grid._id, { $set: {
+    occurrences: gridOccIds,
+    colSizes: [0.8, 1, 0.8],
+    "meta.layoutTree": mosaicLayoutTree,
+    "meta.assistantSeedId": uid(),
+    ...(protectedHoldsDefault ? {} : { "meta.defaultGrid": true }),
+    "meta.scheduleFieldIds": { dateFieldId, timeslotFieldId, scheduleFormatFieldId, pageOccurrenceId: schedPageOccId },
+  } });
 
   // ── STEP 12: Operations ─────────────────────────────────────────────────────
   //
@@ -9387,7 +9415,7 @@ async function main() {
     const totalContOccs  = tkContOccs + tdContOccs + glContOccs + acContOccs + blContOccs;
     const notebookCount  = Object.keys(result.notebookDocOccIds || {}).length;
     console.log("=".repeat(50));
-    console.log("Poms grid created!");
+    console.log(`${DEFAULT_GRID_NAME} created!`);
     console.log(`   Grid ID:        ${result.gridId}`);
     console.log(`   Grid Name:      ${result.gridName}`);
     console.log(`   Fields:         ${fieldCount}`);
