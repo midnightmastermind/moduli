@@ -26,8 +26,23 @@ export function nearestPageOccId(occId, { occurrencesById = {}, modulesById = {}
   return null;
 }
 
+/**
+ * The panel's DOM element, resolved LAZILY (it is looked up again on every
+ * retry — the panel survives the page swap, but this keeps the scope honest if
+ * it ever remounts). `ModulePanel` stamps `data-panel-id` with the panel MODULE
+ * id, not the occurrence id.
+ */
+function panelRootResolver(panelOccurrence, modulesById) {
+  const panelModuleId = panelOccurrence?.moduleId || panelOccurrence?.targetId;
+  if (!panelModuleId || typeof document === "undefined") return null;
+  const safe = typeof CSS !== "undefined" && CSS.escape
+    ? CSS.escape(String(panelModuleId)) : String(panelModuleId);
+  return () => document.querySelector(`[data-panel-id="${safe}"]`);
+}
+
 export function openOccurrenceInPanel({
   occId, panelOccurrence, occurrencesById = {}, modulesById = {}, viewsById = {}, dispatch, socket,
+  onMissing,
 }) {
   if (!occId || !panelOccurrence?.id) return { ok: false, pageOccId: null, alreadyOpen: false };
 
@@ -52,9 +67,20 @@ export function openOccurrenceInPanel({
     }
   }
 
-  // jumpToOccurrence already retries after a page-switch grace window; `found`
-  // is false when the target is real but filtered out of the DOM, which callers
-  // surface rather than appearing to do nothing.
-  const found = jumpToOccurrence(occId, { onActivatePage: () => {} });
+  // Scoped to THIS panel: the same occurrence is often mounted in another cell
+  // too (a page pinned twice, a copy-link, a feed copy), and an unscoped lookup
+  // highlights whichever the document happens to hold first — so the search
+  // opened the item here and flashed it over there (user 2026-07-27).
+  // When the page was already open there is nothing to wait for, so a miss
+  // means "filtered out" and is reported synchronously via `found`. When we
+  // just pinned/activated the page, its subtree needs a few frames to mount:
+  // poll, and report a miss through `onMissing` instead.
+  const root = panelRootResolver(panelOccurrence, modulesById);
+  const found = jumpToOccurrence(occId, {
+    root,
+    retries: alreadyOpen ? 0 : 16,
+    retryMs: 120,
+    onMissing,
+  });
   return { ok: true, pageOccId, alreadyOpen, found };
 }

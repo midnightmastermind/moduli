@@ -706,6 +706,9 @@ function Panel({
   const handleSearchPick = useCallback((occId) => {
     const res = openOccurrenceInPanel({
       occId, panelOccurrence, occurrencesById, modulesById, viewsById, dispatch, socket,
+      // Reported asynchronously when the page had to be opened first: the
+      // helper polls for the target inside THIS panel and gives up eventually.
+      onMissing: () => toast("Found it, but it's hidden by the current filter"),
     });
     if (!res.ok) toast("That item isn't on a page yet");
     else if (res.found === false) toast("Found it, but it's hidden by the current filter");

@@ -675,7 +675,11 @@ function Page({
               <OccurrenceSearch
                 scopeRootId={occurrence?.id || null}
                 onPick={(occId) => {
-                  if (!jumpToOccurrence(occId)) toast("Found it, but it's hidden by the current filter");
+                  // Scoped to THIS page's shell — the same occurrence may also
+                  // be mounted in another panel, and an unscoped lookup would
+                  // flash that copy instead of the one on the page you searched.
+                  if (!jumpToOccurrence(occId, { root: () => dragRef.current }))
+                    toast("Found it, but it's hidden by the current filter");
                 }}
                 title="Search this page"
                 placeholder="Search this page…"

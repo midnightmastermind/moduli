@@ -62,3 +62,37 @@ describe("openOccurrenceInPanel", () => {
     expect(out.ok).toBe(false);
   });
 });
+
+describe("openOccurrenceInPanel scopes the jump to its own panel", () => {
+  it("passes a root resolving to THIS panel's element (by panel MODULE id)", () => {
+    document.body.innerHTML = `
+      <div id="pA" data-panel-id="mod_A"></div>
+      <div id="pB" data-panel-id="mod_B"></div>`;
+    const panelOccurrence = { id: "panel1", moduleId: "mod_B", viewId: "v1", occurrences: [] };
+    openOccurrenceInPanel({ ...base, occId: "item1", panelOccurrence });
+    const opts = jumpToOccurrence.mock.calls[0][1];
+    expect(typeof opts.root).toBe("function");
+    expect(opts.root()).toBe(document.querySelector("#pB"));
+  });
+
+  it("polls while the freshly-activated page mounts, but not when it was already open", () => {
+    const panelOccurrence = { id: "panel1", moduleId: "mod_B", viewId: "v1", occurrences: [] };
+    openOccurrenceInPanel({ ...base, occId: "item1", panelOccurrence });
+    expect(jumpToOccurrence.mock.calls[0][1].retries).toBeGreaterThan(0);
+
+    vi.clearAllMocks();
+    openOccurrenceInPanel({
+      ...base, occId: "item1",
+      panelOccurrence: { id: "panel1", moduleId: "mod_B", viewId: "v1", occurrences: ["page1"] },
+      viewsById: { v1: { id: "v1", activeOccurrenceId: "page1" } },
+    });
+    expect(jumpToOccurrence.mock.calls[0][1].retries).toBe(0);
+  });
+
+  it("forwards onMissing so an async miss can still be reported", () => {
+    const onMissing = vi.fn();
+    const panelOccurrence = { id: "panel1", moduleId: "mod_B", viewId: "v1", occurrences: [] };
+    openOccurrenceInPanel({ ...base, occId: "item1", panelOccurrence, onMissing });
+    expect(jumpToOccurrence.mock.calls[0][1].onMissing).toBe(onMissing);
+  });
+});
