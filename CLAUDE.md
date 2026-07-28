@@ -8,9 +8,11 @@
 
 ## Handoff — 2026-07-28 (poms grid is PROTECTED live data; backups + migrations shipped)
 
-Plan: `docs/superpowers/plans/2026-07-28-poms-grid-live-data-freeze.md`. **Tasks 1-5, 7, 8 done;
-Task 6 (the final rebuild + freeze) is the only one left and is awaiting an explicit go-ahead —
-it discards the current 1075 occurrences.**
+Plan: `docs/superpowers/plans/2026-07-28-poms-grid-live-data-freeze.md`. **ALL EIGHT TASKS DONE —
+`poms grid` is FROZEN** (`meta.frozenAt`, `frozenAtCommit=ecac1069`, new id
+`6a690f6fb8e785df961a9f3c`, 975 occurrences). Rebuilt once from the seed via a one-shot script
+that was deleted immediately after; snapshots either side. **The seed must never touch it again —
+content changes happen in the app, structure changes go through `server/migrations/`.**
 
 - **Three grids now.** `poms grid` = permanent live data, `meta.protected: true`, the seed must
   NEVER write it. `test grid 1` = the frozen old live grid. `test grid 2` = `DEFAULT_GRID_NAME`,

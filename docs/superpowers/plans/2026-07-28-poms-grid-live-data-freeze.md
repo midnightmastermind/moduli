@@ -122,8 +122,14 @@ Pure `name` field updates — no data movement. Do it as one small script so it 
 
 **Decided (user, 2026-07-28): REBUILD FRESH.** The current 1074 occurrences in `Poms` are discarded; the backup from Task 1 is the only copy, so Task 1 must be verified-restorable before this runs.
 
-- [ ] Take a labelled backup: `backups/poms-grid/pre-freeze-<ts>/`.
-- [ ] Run the seed once with an explicit `--grid "poms grid" --force-protected` one-shot flag (which is the ONLY thing that can bypass `assertNotProtected`, requires an interactive typed confirmation, and logs loudly).
+- [x] Take a labelled backup: `backups/poms-grid/pre-freeze-final-<ts>/`.
+- [x] Rebuilt via a one-shot `scripts/rebuildPomsGrid.js`, **deleted immediately after the run**.
+      Deliberately NOT a `--force-protected` flag on `createLiveData.js`: an escape hatch that
+      lives in the seed is one someone reaches for later. `createLiveData(userId, {gridName})`
+      does not drop anything itself (the CLI wrapper does), so the one-shot could un-protect,
+      delete and rebuild explicitly and leave no bypass behind.
+- [x] Verified live, stamped the freeze, took the post-freeze snapshot.
+- ~~Run the seed once with an explicit `--grid "poms grid" --force-protected` one-shot flag~~ (which is the ONLY thing that can bypass `assertNotProtected`, requires an interactive typed confirmation, and logs loudly).
 - [ ] Verify the result in the app: 9 dimension containers, 34 board pages, trackers live, Schedule builds, zero page errors.
 - [ ] Take the post-build backup.
 - [ ] Stamp `grid.meta.protected = true`, `grid.meta.frozenAt = <ISO>`, `grid.meta.frozenAtCommit = <sha>`.
@@ -154,8 +160,19 @@ This is what keeps the freeze from becoming a straitjacket. Structural changes (
 
 ## Progress — 2026-07-28
 
-**Done: Tasks 1, 2, 3, 4, 5, 7, 8.** Remaining: **Task 6 — the final build + freeze** (the
-irreversible one; awaiting an explicit go-ahead since it discards the current contents).
+**ALL EIGHT TASKS DONE. `poms grid` is frozen.**
+
+`poms grid` was rebuilt from the seed one final time on 2026-07-28 and stamped
+`meta.protected` / `frozenAt` / `frozenAtCommit=ecac1069`. New id
+`6a690f6fb8e785df961a9f3c` (a fresh grid, so the id changed — stale client gridIds fall back to
+the default grid, which this is). 975 occurrences / 974 modules / 68 operations / 161 fields.
+Verified live: 5 panels, 9 dimension containers, the green current timeslot, trackers, 34 boards,
+zero page errors. Snapshots either side: `pre-freeze-final` (the old 1075-occurrence contents)
+and `post-freeze`.
+
+**From here on:** content changes happen in the app; structure changes go through
+`server/migrations/` (`npm run migrate:poms`). No script in this repo may create, drop, or
+bulk-rewrite it.
 
 - **Task 1 — backup + restore.** `server/scripts/backupGrid.js` / `restoreGrid.js`, `npm run
   backup:poms`. Restore is verbatim (same grid id, same document ids) because `Occurrence.id` is
