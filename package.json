@@ -22,6 +22,8 @@
     "backup:list": "TMPDIR=$HOME/tmp node --env-file=./server/.env server/scripts/backupGrid.js --list",
     "backup:grid": "TMPDIR=$HOME/tmp node --env-file=./server/.env server/scripts/backupGrid.js",
     "restore:grid": "TMPDIR=$HOME/tmp node --env-file=./server/.env server/scripts/restoreGrid.js",
+    "migrate": "TMPDIR=$HOME/tmp node --env-file=./server/.env server/scripts/runMigrations.js",
+    "migrate:poms": "TMPDIR=$HOME/tmp node --env-file=./server/.env server/scripts/runMigrations.js --grid \"poms grid\"",
     "seed:reset": "TMPDIR=$HOME/tmp node server/scripts/resetData.js",
     "seed:live": "TMPDIR=$HOME/tmp node server/scripts/createLiveData.js",
     "deploy": "bash scripts/deploy.sh",
