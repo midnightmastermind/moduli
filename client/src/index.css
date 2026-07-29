@@ -1127,25 +1127,28 @@ body[data-clipboard-active="true"] {
    whole grid: every field pill is 24px, so these two constants are the whole
    story — change them together if either box is restyled. */
 .instance-content {
-  --field-line-h: 24px;
-  --label-line-h: 18px;
-  --field-line-lift: calc((var(--field-line-h) - var(--label-line-h)) / 2);
+  /* The height a compact field control settles at (single-select pill, toggle,
+     number pill — all 21px after the marquee-box centring below). The label
+     group is pinned to the same height so the two centre on each other without
+     any negative margin stealing the row's padding. */
+  --field-pill-h: 21px;
 }
 /* A row carrying an inline media thumbnail has a TALLER first line (the 22px
    `.instance-media-inline`), so its lift is correspondingly smaller — the
    --field-line-lift calc below re-resolves against this override. */
-.instance-content:has(.instance-media-inline) { --label-line-h: 22px; }
-.instance-content > .instance-fields:not(.instance-fields--under-body) {
-  margin-top: calc(-1 * var(--field-line-lift));
+/* A row with an inline media thumbnail has a taller first line (the 22px
+   .instance-media-inline), so its label group matches that instead. */
+.instance-content:has(.instance-media-inline) { --field-pill-h: 22px; }
+/* NO negative margin here. The lift this used to apply (-3px) exactly cancelled
+   the row's own 3px padding, so the fields sat FLUSH against the top border
+   (user 2026-07-29: "there should be a 1px margin above the fields, right now
+   it's flush"). Alignment is handled instead by giving the label+handle group
+   the same line height as a field pill (below) and centring both — which keeps
+   the padding intact. */
+.instance-content > div:first-child:not(.instance-body):not(.instance-fields) {
+  min-height: var(--field-pill-h);
 }
-/* When the row is narrow the field block WRAPS onto its own line, where the lift
-   has nothing to align to and just eats the gap (measured 4px → 1px). Pay it
-   back in the row gap, which only applies once they wrap. The base 4px is the
-   inline rowGap in ModuleInstance — hence !important. An under-body field strip
-   takes no lift, so it keeps the base gap. */
-.instance-content:has(> .instance-fields:not(.instance-fields--under-body)) {
-  row-gap: calc(4px + var(--field-line-lift)) !important;
-}
+
 /* Container HEADER (doc/board) is a one-line row, so center its drag handle with the
    label too (it was sitting higher than the label). */
 .container-header { align-items: center; }
