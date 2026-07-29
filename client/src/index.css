@@ -2043,13 +2043,26 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   align-items: center;
   justify-content: center;
 }
-/* The between-items gap stretches its "+" trigger to 100% so the whole blue
-   line is clickable — in the EMPTY variant that pushed the label to the far
-   left. Here the trigger sizes to its glyph so label + "+" center as a pair
-   (the whole body is still clickable: the gap itself is the hit area). */
+/* EMPTY container pocket: the whole pocket opens the add menu, not just the
+   little "+" (user 2026-07-29: "clicking anywhere in the pocket should open
+   it"). The trigger is taken out of flow and stretched over the entire body,
+   with its glyph centred — the comment here used to claim the gap itself was
+   the hit area, but nothing was wired to it, so only the glyph responded.
+   The label sits above the trigger and ignores pointer events so the click
+   always lands on the button underneath. */
 .insert-gap--empty .quick-add-btn {
-  width: auto !important;
-  flex: 0 0 auto;
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100%;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.insert-gap--empty .insert-gap-empty-label {
+  z-index: 1;
+  pointer-events: none;
 }
 /* Taken OUT OF FLOW (2026-07-26, per user): at rest the label is only
    opacity:0, so it still reserved its width and pushed the "+" right of
