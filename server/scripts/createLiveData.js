@@ -748,7 +748,6 @@ export async function createLiveData(userId, options = {}) {
     // movements (Push Day A = Bench Press + Incline Press + …); an Exercise
     // log just picks one.
     ["movement",       "Movement",         ["movement"],                                                                true],
-    ["workoutProgram", "Workout Program",  ["program"],                                                                 false],
     ["route",          "Route",            ["route"],                                                                   false],
     ["reading",        "Reading",          ["reading", "verse"],                                                        true],
     ["mediaPick",      "Media",            ["media", "song", "course"],                                                 true],
@@ -2198,7 +2197,7 @@ export async function createLiveData(userId, options = {}) {
     },
     upcomingThisWeek: {
       id: uid(),
-      name: "Due This Week",
+      name: "Due",
       type: "number",
       inputEnabled: false,
       displayEnabled: true,
@@ -2281,19 +2280,19 @@ export async function createLiveData(userId, options = {}) {
       },
     },
     totalProtein: {
-      id: uid(), name: "Total Protein", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Protein", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: "g" }, displayConfig: {},
     },
     totalCalories: {
-      id: uid(), name: "Total Calories", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Calories", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: " kcal" }, displayConfig: {},
     },
     totalCarbs: {
-      id: uid(), name: "Total Carbs", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Carbs", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: "g" }, displayConfig: {},
     },
     totalFats: {
-      id: uid(), name: "Total Fats", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Fats", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: "g" }, displayConfig: {},
     },
 
@@ -2430,11 +2429,11 @@ export async function createLiveData(userId, options = {}) {
     drink:    act("Drink",    [bfd(fields.beverage.id), bfd(fields.water.id)]),
     sleep:    act("Sleep",    [bfd(fields.duration.id)]),
     nap:      act("Nap",      [bfd(fields.duration.id)]),
-    exercise: act("Exercise", [bfd(fields.workoutProgram.id), bfd(fields.movement.id), ...setWeightPairs]),
+    exercise: act("Exercise", [bfd(fields.movement.id), ...setWeightPairs]),
     stretch:  act("Stretch",  [bfd(fields.movement.id), bfd(fields.duration.id)]),
     walk:     act("Walk",     [bfd(fields.route.id), bfd(fields.steps.id), bfd(fields.duration.id)]),
-    run:      act("Run",      [bfd(fields.workoutProgram.id), bfd(fields.route.id), bfd(fields.steps.id), bfd(fields.duration.id)]),
-    lift:     act("Lift",     [bfd(fields.workoutProgram.id), bfd(fields.movement.id), ...setWeightPairs]),
+    run:      act("Run",      [bfd(fields.route.id), bfd(fields.steps.id), bfd(fields.duration.id)]),
+    lift:     act("Lift",     [bfd(fields.movement.id), ...setWeightPairs]),
     recover:  act("Recover",  [bfd(fields.supplement.id), bfd(fields.duration.id)]),
     hygiene:  act("Hygiene"),
     groom:    act("Groom"),
@@ -3026,18 +3025,6 @@ export async function createLiveData(userId, options = {}) {
     // Each macro has its own daily tracker (Protein/Carbs/Fats) and the meal
     // log has the Meal History op — all four tiles are written, none dead.
     // Per-meal tiles (breakfast/lunch/... below) are unchanged siblings.
-    nutritionProtein: {
-      id: uid(), label: "Protein", kind: "board", defaultDragMode: "move",
-      fieldBindings: [{ fieldId: fields.totalProtein.id, role: "display", order: 0 }],
-    },
-    nutritionCarbs: {
-      id: uid(), label: "Carbs", kind: "board", defaultDragMode: "move",
-      fieldBindings: [{ fieldId: fields.totalCarbs.id, role: "display", order: 0 }],
-    },
-    nutritionFats: {
-      id: uid(), label: "Fats", kind: "board", defaultDragMode: "move",
-      fieldBindings: [{ fieldId: fields.totalFats.id, role: "display", order: 0 }],
-    },
     nutritionLog: {
       id: uid(), label: "Meal Log", kind: "board", defaultDragMode: "move",
       // Last+Array pair (task #29/#54): scalar last meal + array history.
@@ -3571,7 +3558,7 @@ export async function createLiveData(userId, options = {}) {
     environmentalGoal: { contOccId: environmentalGoalContOccId, contModKey: "environmentalGoal", instKeys: ["environmentalSummary"] },
     creativeGoal:      { contOccId: creativeGoalContOccId,      contModKey: "creativeGoal",      instKeys: ["creativeDuration"] },
     workoutGoal:       { contOccId: workoutGoalContOccId,       contModKey: "workoutGoal",       instKeys: ["workoutReps", "workoutLog", "chestVolumeGoal", "backVolumeGoal", "legsVolumeGoal", "shouldersVolumeGoal", "armsVolumeGoal", "cardioVolumeGoal"] },
-    nutritionGoal:     { contOccId: nutritionGoalContOccId,     contModKey: "nutritionGoal",     instKeys: ["nutritionProtein", "nutritionCarbs", "nutritionFats", "nutritionLog", "mealNutritionGoal"] },
+    nutritionGoal:     { contOccId: nutritionGoalContOccId,     contModKey: "nutritionGoal",     instKeys: ["nutritionLog", "mealNutritionGoal"] },
     planningGoal:      { contOccId: planningGoalContOccId,      contModKey: "planningGoal",      instKeys: ["planningOverdue", "planningUpcoming"] },
     mediaGoal:         { contOccId: mediaGoalContOccId,         contModKey: "mediaGoal",         instKeys: ["mediaMovies", "mediaBooks", "mediaPodcasts"] },
     // (coursesTakenGoal entry removed — courses is part of Intellectual now.)
@@ -4425,19 +4412,6 @@ export async function createLiveData(userId, options = {}) {
     { key: "movement", tag: "movement", label: "Movements", group: "body", options: [
       opt("Hamstring Stretch"), opt("Hip Flexor Stretch"), opt("Shoulder Stretch"),
     ], reuseOccIds: movementReuseOccIds },
-    { key: "program", tag: "program", label: "Workout Programs", group: "body", options: [
-      "Push Day A|benchPress,inclinePress,overheadPress,tricepPushdown",
-      "Pull Day B|deadlift,pullUps,bentRow,bicepCurl",
-      "Leg Day|squat,legPress,lunges,calfRaise",
-      "Full Body 5x5|squat,benchPress,deadlift,overheadPress,bentRow",
-      "Couch to 5K|running",
-    ].map(row => {
-      const [label, moves] = row.split("|");
-      return opt(label, {
-        bindings: [{ fieldId: boardDropdownFields.movement.id, role: "input", order: 1 }],
-        fields: () => ({ [boardDropdownFields.movement.id]: fv(moves.split(",").map(k => workoutOccIdByKey[k])) }),
-      });
-    })},
     { key: "route", tag: "route", label: "Routes", group: "body", options: [
       opt("Neighborhood Loop"), opt("River Trail"), opt("Park Circuit"), opt("Hill Repeats"), opt("Forest Path"),
     ]},
@@ -4637,7 +4611,6 @@ export async function createLiveData(userId, options = {}) {
     [boardDropdownFields.beverage.id,        "beverage"],
     [boardDropdownFields.supplement.id,      "supplement"],
     [boardDropdownFields.movement.id,        "movement"],
-    [boardDropdownFields.workoutProgram.id,  "program"],
     [boardDropdownFields.route.id,           "route"],
     [boardDropdownFields.practice.id,        "practice"],
     [boardDropdownFields.prompt.id,          "prompt"],
@@ -4686,7 +4659,6 @@ export async function createLiveData(userId, options = {}) {
   // Amount, …) and binds them on the minted module.
   const addNewEntryFieldPatches = [
     [boardDropdownFields.mealPick.id,        [boardDropdownFields.ingredient.id]],
-    [boardDropdownFields.workoutProgram.id,  [boardDropdownFields.movement.id]],
     [boardDropdownFields.eventPick.id,       [peopleAssignedFieldId, boardDropdownFields.place.id]],
     [boardDropdownFields.giftIdea.id,        [peopleAssignedFieldId]],
     [boardDropdownFields.savingsGoalPick.id, [fields.amount.id]],
@@ -6241,48 +6213,6 @@ export async function createLiveData(userId, options = {}) {
   // hitting your macro target reads green ArrowUp, falling short reads red
   // ArrowUp — same direction (more = good), color carries the met signal.
   // null/zero blue as a no-signal fallback when the day's intake is empty.
-  await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Protein",
-    goalLabel: "Protein", goalOccurrenceId: goalOccIds.nutritionProtein, goalFieldId: fields.totalProtein.id,
-    sourceFieldId: fields.protein.id, agg: "sum", timeFilter: "daily",
-    displayRules: {
-      "Protein": [
-        { when: { target: "met" },     color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
-        { when: { target: "notMet" },  color: "rgb(var(--signal-neg))", icon: "ArrowUp" },
-        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
-        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
-        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
-      ],
-    },
-  })).save();
-  await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Carbs",
-    goalLabel: "Carbs", goalOccurrenceId: goalOccIds.nutritionCarbs, goalFieldId: fields.totalCarbs.id,
-    sourceFieldId: fields.carbs.id, agg: "sum", timeFilter: "daily",
-    displayRules: {
-      "Carbs": [
-        { when: { target: "met" },     color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
-        { when: { target: "notMet" },  color: "rgb(var(--signal-neg))", icon: "ArrowUp" },
-        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
-        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
-        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
-      ],
-    },
-  })).save();
-  await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Fats",
-    goalLabel: "Fats", goalOccurrenceId: goalOccIds.nutritionFats, goalFieldId: fields.totalFats.id,
-    sourceFieldId: fields.fats.id, agg: "sum", timeFilter: "daily",
-    displayRules: {
-      "Fats": [
-        { when: { target: "met" },     color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
-        { when: { target: "notMet" },  color: "rgb(var(--signal-neg))", icon: "ArrowUp" },
-        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
-        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
-        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
-      ],
-    },
-  })).save();
 
   // ── DAILY WORKOUT (multi-source roll-up) ──
   await new Operation(makeTrackerOp({

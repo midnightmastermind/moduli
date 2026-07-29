@@ -25,7 +25,7 @@ const seedDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.
 const loadSeed = (name) => JSON.parse(readFileSync(path.join(seedDir, name), "utf8"));
 
 // ── Shared executor world ──────────────────────────────────────────────────
-let operations, operationsById, fieldsById, fieldIdByName, modulesById, occurrencesById, grid;
+let operations, operationsById, fieldsById, fieldIdByName, displayFieldIdByName, modulesById, occurrencesById, grid;
 
 const uid = () => `test-${Math.random().toString(36).slice(2, 10)}`;
 const todayIso = () => {
@@ -86,7 +86,7 @@ function goalOcc(moduleLabel, fieldName = null) {
   const modIds = new Set(mods.map(m => m.id));
   const all = Object.values(occurrencesById).filter(o => modIds.has(o.moduleId));
   if (fieldName) {
-    const fid = fieldIdByName[fieldName];
+    const fid = displayFieldIdByName[fieldName] ?? fieldIdByName[fieldName];
     const withField = all.find(o => o.fields && fid in o.fields);
     if (withField) return withField;
   }
@@ -94,7 +94,9 @@ function goalOcc(moduleLabel, fieldName = null) {
 }
 function goalValue(moduleLabel, fieldName) {
   const occ = goalOcc(moduleLabel, fieldName);
-  const fid = fieldIdByName[fieldName];
+  // A goal tile holds the DISPLAY twin (trackers write outputs), so prefer it
+  // when the label is shared with an input field.
+  const fid = displayFieldIdByName[fieldName] ?? fieldIdByName[fieldName];
   const v = occ?.fields?.[fid];
   return v && typeof v === "object" && "value" in v ? v.value : v;
 }
@@ -239,6 +241,11 @@ beforeAll(() => {
   fieldsById = Object.fromEntries(flds.map(f => [f.id, f]));
   fieldIdByName = {};
   for (const f of flds) if (!(f.name in fieldIdByName)) fieldIdByName[f.name] = f.id;
+  // Field NAMES are labels and may repeat now (the per-meal "Protein" you type
+  // and the day's total "Protein" the tracker writes). Assertions about a
+  // tracker's OUTPUT need the display twin specifically.
+  displayFieldIdByName = {};
+  for (const f of flds) if (f.displayEnabled && !(f.name in displayFieldIdByName)) displayFieldIdByName[f.name] = f.id;
   modulesById = Object.fromEntries(mods.map(m => [m.id, m]));
   occurrencesById = Object.fromEntries(occs.map(o => [o.id, o]));
 
@@ -406,10 +413,17 @@ describe("workout inputs (reps + Movement pick + presence-gated Workouts)", () =
 });
 
 describe("nutrition inputs", () => {
-  it("Protein on a completed meal lands in the Protein tracker", () => {
+  // 2026-07-29: the three per-macro trackers (Protein/Carbs/Fats) and their
+  // standalone tiles were removed — Meal Nutrition already summed all four
+  // macros onto one tile, so they were a second tile for the same fields.
+  it("macros on a completed meal land on the Meal Nutrition tile", () => {
     const id = addToSlot("Eat", "7:30am", { Completed: true });
     inputField(id, "Protein", 21);
-    expect(trackerValue("Protein")).toBe(21);
+    inputField(id, "Carbs", 40);
+    inputField(id, "Fats", 9);
+    expect(goalValue("Meal Nutrition", "Protein")).toBe(21);
+    expect(goalValue("Meal Nutrition", "Carbs")).toBe(40);
+    expect(goalValue("Meal Nutrition", "Fats")).toBe(9);
   });
 });
 

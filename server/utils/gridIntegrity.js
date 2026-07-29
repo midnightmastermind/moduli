@@ -73,8 +73,13 @@ export function checkGridIntegrity({ occurrences = [], modules = [], fields = []
   if (deadFields.length) add("warn", "unused-field",
     `${deadFields.length} field(s) are never bound, never valued and referenced by no operation`, deadFields);
 
-  // 5. Duplicate field names — the standing rule (2026-07-14). FieldsTab
-  //    enforces it for user edits; this covers the seed.
+  // 5. Duplicate field names. WARN, not error (user 2026-07-29: "we can have
+  //    duplicate field labels but not the actual variable name"). The name is a
+  //    LABEL — two fields may legitimately read "Protein" (the per-meal input
+  //    and the day's total) or "Due". Identity is the id, which is unique by
+  //    construction. Still surfaced, because a duplicate makes `[Field]` label
+  //    tokens ambiguous (labelTokens falls back to the field the occurrence
+  //    actually carries) and makes pickers harder to read.
   const byName = new Map();
   for (const f of fields) {
     const k = String(f.name || "").trim().toLowerCase();
@@ -82,8 +87,8 @@ export function checkGridIntegrity({ occurrences = [], modules = [], fields = []
     byName.set(k, (byName.get(k) || 0) + 1);
   }
   const dupNames = [...byName].filter(([, n]) => n > 1).map(([k]) => k);
-  if (dupNames.length) add("error", "duplicate-field-name",
-    `${dupNames.length} field name(s) are used more than once`, dupNames);
+  if (dupNames.length) add("warn", "duplicate-field-name",
+    `${dupNames.length} field name(s) are used more than once (ids are still unique)`, dupNames);
 
   // 6. Duplicate operation names — RUN_OPERATION resolves by NAME, so a
   //    duplicate makes which one runs a coin flip.

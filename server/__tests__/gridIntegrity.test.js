@@ -105,9 +105,12 @@ describe("unused fields", () => {
 });
 
 describe("duplicate names", () => {
-  it("flags duplicate field names case-insensitively (the standing rule)", () => {
+  it("WARNS on duplicate field names — they are labels, not identity", () => {
+    // 2026-07-29: duplicate labels are allowed ("Protein" the per-meal input and
+    // "Protein" the day's total); only the id must be unique. Still surfaced,
+    // because it makes [Field] label tokens ambiguous.
     const f = checkGridIntegrity({ fields: [{ id: "a", name: "Water" }, { id: "b", name: "water" }] });
-    expect(f.find(x => x.code === "duplicate-field-name").level).toBe("error");
+    expect(f.find(x => x.code === "duplicate-field-name").level).toBe("warn");
   });
 
   it("flags duplicate operation names — RUN_OPERATION resolves by name", () => {
