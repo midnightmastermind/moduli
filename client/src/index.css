@@ -4404,6 +4404,39 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    clamps a single over-wide pill so it scrolls instead of bleeding past the
    container. No extra rules needed — AutoMarquee's inline styles suffice. */
 
+/* …except for VERTICAL alignment. The controls inside these boxes come from
+   three different components (boolean toggle, single-select occurrence pill,
+   multi-select occurrence pill) with three different intrinsic heights, so on
+   one instance row they sat at three different heights (user 2026-07-29:
+   "the two dropdowns … each have a missing padding on top to match up").
+   Centring them in the marquee box lines every pill on the row up regardless
+   of which component drew it. */
+/* !important is REQUIRED: AutoMarquee sets display:block as an INLINE style,
+   which beats a plain stylesheet rule regardless of specificity. (Same trap as
+   the .instance-content flex overrides — inline styles in JSX win.) The
+   marquee box is a fixed 24px; centring the control inside it is what makes a
+   21px pill land at the same y no matter which component drew it. */
+.instance-field-mq {
+  display: flex !important;
+  align-items: center !important;
+}
+.instance-field-mq > .auto-marquee-inner {
+  display: flex !important;
+  align-items: center !important;
+  min-width: 0;
+}
+
+/* The multi-select occurrence trigger is a shadcn <Button>, whose own size
+   classes set 12px/16px text where the single-select pill uses 10px/15px —
+   a 1px taller box. Pin the compact one to the single-select's type scale so
+   the two dropdowns are the same pill. */
+.field-input-select-multi .rounded-full button,
+.field-input-select-multi .rounded-full button * {
+  font-size: 10px;
+  line-height: 15px;
+}
+.field-input-select-multi .rounded-full button svg { width: 10px; height: 10px; }
+
 .table-cell-static { width: 100%; min-width: 0; }
 .table-td .instance-wrap { width: 100% !important; max-width: 100% !important; margin: 0 !important; }
 /* Drop-active highlight: shown while an external drop is hovering the cell.

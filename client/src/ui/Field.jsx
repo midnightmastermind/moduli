@@ -155,17 +155,30 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
     doAdd(addNewTargets?.[0]?.id ?? null);
   }, [newValue, addNewTargets, doAdd]);
   return (
-    <div className="field-input field-input-select-multi">
+    <div className={compact ? "field-input field-input-select-multi inline-flex" : "field-input field-input-select-multi"}>
       {showLabel && <Label className="text-xs text-muted-foreground mb-1">{name}</Label>}
       {/* Border lives on this wrapper so the randomize dice can sit INSIDE it
-          (a divided trailing segment) instead of as a separate sibling button. */}
-      <div className={`flex items-stretch w-full rounded border overflow-hidden ${compact ? "h-6" : "h-7"}`}
-        style={{ borderColor: fieldName ? "rgba(var(--occ-pill) / 0.25)" : "var(--input-border, hsl(var(--border)))" }}>
+          (a divided trailing segment) instead of as a separate sibling button.
+          COMPACT renders the same PILL as the single-select occurrence dropdown
+          (rounded-full, inline, no fixed height): the two sat side by side on
+          one instance row at different heights and corner radii, and neither
+          lined up with the boolean/number pills beside them (user 2026-07-29).
+          Height comes from the trigger's padding, exactly like the single
+          variant, so all the pills on a row share one box model. */}
+      <div className={compact
+        ? "inline-flex items-stretch rounded-full border overflow-hidden"
+        : "flex items-stretch w-full rounded border overflow-hidden h-7"}
+        style={{ borderColor: fieldName ? "rgba(var(--occ-pill) / 0.25)" : "var(--input-border, hsl(var(--border)))",
+                 ...(compact && fieldName ? { background: "rgba(var(--occ-pill) / 0.1)" } : {}) }}>
         <Popover open={isOpen} onOpenChange={setIsOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" role="combobox" disabled={disabled}
-              className={`w-full justify-between font-normal border-0 rounded-none ${compact ? "h-6 text-xs" : "h-7 text-sm"}`}
-              style={fieldName ? { background: "rgba(var(--occ-pill) / 0.08)", color: "var(--occ-pill-text)" } : undefined}>
+              className={compact
+                ? "justify-between font-normal border-0 rounded-none h-auto px-1.5 py-0.5 text-[10px]"
+                : "w-full justify-between font-normal border-0 rounded-none h-7 text-sm"}
+              style={fieldName
+                ? { background: compact ? "transparent" : "rgba(var(--occ-pill) / 0.08)", color: "var(--occ-pill-text)" }
+                : undefined}>
               {/* occurrence field-pill: always show the field name so it reads
                   as a labelled pill (fixes "occurrence selects show no field
                   name / no pill"). */}

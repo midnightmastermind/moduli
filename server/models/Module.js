@@ -28,7 +28,9 @@ const ModuleSchema = new mongoose.Schema(
 
     // ─── Kind — the SUB-TYPE within a role ───────────────────────────────────
     // Meaningful for:
-    //   container → "list" | "doc" | "board" | "canvas" | "table" | "pool"
+    //   container → "board" | "doc" | "canvas" | "table" | "pool"
+    //                 (there is no "list" kind — it is BOARD everywhere, per the
+    //                  standing rename; "list" only survives in legacy rows)
     //   page      → "board" | "doc" | "canvas" | "table" | "folder" | "display"
     //   artifact  → "image" | "video" | "audio" | "pdf" | "code" | "markdown" | "quote"
     // INERT for instance/textblock leaves — 539 instance modules carry
