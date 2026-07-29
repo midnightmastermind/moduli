@@ -219,7 +219,7 @@ export function FieldPill({ field, selected, onClick, compact = false }) {
 // FIELD DETAIL (native inputs for dark-panel aesthetic)
 // ============================================================
 export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
-  const { modulesById, roleByModuleId, fieldsById } = useGridActions();
+  const { modulesById, fieldsById } = useGridActions();
   const [local, setLocal] = useState(field);
   const [nameError, setNameError] = useState(null);
   useMemo(() => { setLocal(field); setNameError(null); }, [field.id]);
@@ -247,7 +247,7 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
   // Find all instances that bind this field
   const usedInModules = useMemo(
     () => Object.values(modulesById || {}).filter(
-      m => (roleByModuleId?.[m.id] || m.role || "instance") === "instance" && (m.fieldBindings || []).some(b => b.fieldId === field.id)
+      m => (m.role || "instance") === "instance" && (m.fieldBindings || []).some(b => b.fieldId === field.id)
     ),
     [modulesById, field.id]
   );
@@ -487,7 +487,7 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
                   background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)",
                   color: "rgb(216,180,254)",
                 }}
-                title={`Role: ${roleByModuleId?.[m.id] || m.role || "instance"} — id: ${m.id}`}
+                title={`Role: ${m.role || "instance"} — id: ${m.id}`}
               >
                 {m.label || m.id}
               </span>

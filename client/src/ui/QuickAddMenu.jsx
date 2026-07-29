@@ -76,7 +76,6 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   // profile. occurrencesById is read at OPEN time via the non-subscribing
   // getter; the module/folder maps are stable across occurrence writes.
   const modulesById = useGridActionsSelector(s => s.modulesById);
-  const roleByModuleId = useGridActionsSelector(s => s.roleByModuleId);
   const socket = useGridActionsSelector(s => s.socket);
   const manifestsById = useGridActionsSelector(s => s.manifestsById);
   const foldersById = useGridActionsSelector(s => s.foldersById);
@@ -249,12 +248,12 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     return Object.values(modulesById || {})
       .filter(m => !m.trashed)
       .filter(m => {
-        const role = roleByModuleId?.[m.id] || m.role || "instance";
+        const role = m.role || "instance";
         if (role !== targetRole) return false;
         if (allowedKinds && m.kind && !allowedKinds.has(m.kind)) return false;
         return true;
       });
-  }, [open, modulesById, roleByModuleId, targetRole]);
+  }, [open, modulesById, targetRole]);
 
   const filteredModules = useMemo(() => {
     const q = search.trim().toLowerCase();

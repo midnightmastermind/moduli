@@ -12,12 +12,31 @@ const ModuleSchema = new mongoose.Schema(
     userId: { type: String, required: true, index: true },
     gridId: { type: String, index: true },
 
-    // ─── Hierarchy (deprecated — role is inferred from occurrence hierarchy on client) ─
-    // Kept as optional string for backward compat. Use roleByModuleId on client instead.
+    // ─── Role — THE source of truth for what a module is ─────────────────────
+    // "panel" | "page" | "container" | "instance" | "textblock" | "artifact".
+    // Every renderer reads this directly. Always set in practice (verified
+    // 2026-07-29: 0 of 2779 modules across all grids lack one).
+    //
+    // The header here used to say "deprecated — inferred from occurrence
+    // hierarchy on client". That was backwards, and the inference it pointed at
+    // (`computeRoleByModuleId`) was DELETED 2026-07-29: measured against the
+    // live grid it disagreed with the stored role on 57 modules, because it had
+    // no notion of a container nested inside a container and so labelled every
+    // Schedule slot container an "instance". Three Command Center tabs read it
+    // and were the only places showing those slots with the wrong role.
     role: { type: String, default: null },
 
-    // ─── Kind (deprecated — rendering type belongs on View.viewType) ─────────────────
-    // Kept as optional string for backward compat. Use view.viewType on client instead.
+    // ─── Kind — the SUB-TYPE within a role ───────────────────────────────────
+    // Meaningful for:
+    //   container → "list" | "doc" | "board" | "canvas" | "table" | "pool"
+    //   page      → "board" | "doc" | "canvas" | "table" | "folder" | "display"
+    //   artifact  → "image" | "video" | "audio" | "pdf" | "code" | "markdown" | "quote"
+    // INERT for instance/textblock leaves — 539 instance modules carry
+    // kind:"board" in the live grid and nothing reads it. Harmless noise; not
+    // worth a migration, but don't add meaning to it either.
+    //
+    // View.viewType is a SEPARATE axis (how a panel renders its content) and is
+    // not a replacement for this despite what the old comment claimed.
     kind: { type: String, default: null },
 
     // ─── Label / name ────────────────────────────────────────

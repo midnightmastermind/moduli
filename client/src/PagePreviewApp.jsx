@@ -9,7 +9,6 @@ import { GridDataContext } from "./GridDataContext";
 import { GridLiveContext } from "./GridLiveContext";
 import { publishComputedValues } from "./state/computedValuesStore";
 import { buildLookup } from "./helpers/LayoutHelpers";
-import { computeRoleByModuleId } from "./state/selectors";
 import { useTheme } from "./helpers/useTheme";
 
 import Page from "./modules/ModulePage.jsx";
@@ -247,11 +246,6 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
   const occurrence = occurrencesById[occurrenceId];
   const module = occurrence?.moduleId ? modulesById[occurrence.moduleId] : null;
 
-  const roleByModuleId = useMemo(
-    () => computeRoleByModuleId(parentState?.grid, occurrencesById, modulesById),
-    [parentState?.grid, occurrencesById, modulesById]
-  );
-
   const noop = useMemo(() => () => {}, []);
   // Mirror App.jsx's stable non-subscribing getters so hot-path components
   // (ModuleContainer / ModuleInstance) work identically under preview.
@@ -282,10 +276,9 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
     manifestsById,
     foldersById,
     operationsById,
-    roleByModuleId,
     linkedGroupIndex: {},
     childrenByParentId,
-  }), [occurrencesById, modulesById, viewsById, fieldsById, containersById, instancesById, artifactsById, textblocksById, leafModulesById, manifestsById, foldersById, operationsById, roleByModuleId, childrenByParentId, noop, parentState, getOcc, getMod, getOccMap, getModMap, getParentId, getLinkedGroup, getState]);
+  }), [occurrencesById, modulesById, viewsById, fieldsById, containersById, instancesById, artifactsById, textblocksById, leafModulesById, manifestsById, foldersById, operationsById, childrenByParentId, noop, parentState, getOcc, getMod, getOccMap, getModMap, getParentId, getLinkedGroup, getState]);
 
   const dataValue = useMemo(() => ({ state: parentState || {} }), [parentState]);
   // Preview iframes have their own module graph → their own computedValues

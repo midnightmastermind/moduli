@@ -44,7 +44,6 @@ import * as LayoutHelpers from "./helpers/LayoutHelpers";
 import { requestLabelEdit } from "./helpers/pendingLabelEdit.js";
 import { openPanelOnRootFolderPage } from "./helpers/importsFolder";
 import { buildLookup } from "./helpers/LayoutHelpers";
-import { computeRoleByModuleId } from "./state/selectors";
 
 function findNextOpenPosition(panels = [], rows = 1, cols = 1) {
   const taken = new Set(panels.map((p) => `${p.row}-${p.col}`));
@@ -107,11 +106,6 @@ export default function App() {
   const modulesById = useMemo(
     () => buildLookup(state.modules),
     [state.modules]
-  );
-
-  const roleByModuleId = useMemo(
-    () => computeRoleByModuleId(state.grid, buildLookup(state.occurrences), modulesById),
-    [state.grid, state.occurrences, modulesById]
   );
 
   const instancesById = useMemo(
@@ -786,7 +780,6 @@ export default function App() {
       state,
 
       modulesById,
-      roleByModuleId,
       instancesById,
       artifactsById,
       textblocksById,
@@ -829,7 +822,6 @@ export default function App() {
       state.userId, state.gridId, state.activeId, state.softTick,
       state.filterNavState,
       modulesById,
-      roleByModuleId,
       instancesById,
       artifactsById,
       textblocksById,

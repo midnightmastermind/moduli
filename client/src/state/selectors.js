@@ -118,60 +118,15 @@ export function createLookupsFromState(state) {
     fieldsById,
   };
 }
-
-/**
- * Computes a { [moduleId]: "panel"|"container"|"instance" } map from occurrence hierarchy.
- * This is the canonical role source — replaces module.role.
- * Falls back to module.role for modules not yet placed in the hierarchy.
- */
-export function computeRoleByModuleId(grid, occurrencesById, modulesById) {
-  const map = {};
-
-  function traverseContainerChildren(containerOcc) {
-    for (const childOccId of containerOcc.occurrences || []) {
-      const childOcc = occurrencesById[childOccId];
-      if (!childOcc?.moduleId) continue;
-      const childMod = modulesById?.[childOcc.moduleId];
-      if (childMod?.role === "artifact") map[childOcc.moduleId] = "artifact";
-      else if (childMod?.role === "textblock") map[childOcc.moduleId] = "textblock";
-      else map[childOcc.moduleId] = "instance";
-    }
-  }
-
-  const panelOccIds = grid?.occurrences || [];
-  for (const panelOccId of panelOccIds) {
-    const panelOcc = occurrencesById[panelOccId];
-    if (!panelOcc) continue;
-    if (panelOcc.moduleId) map[panelOcc.moduleId] = "panel";
-    for (const childOccId of panelOcc.occurrences || []) {
-      const childOcc = occurrencesById[childOccId];
-      if (!childOcc) continue;
-      const childMod = modulesById?.[childOcc.moduleId];
-
-      if (childMod?.role === "page") {
-        // New hierarchy: panel → page → container → instance
-        map[childOcc.moduleId] = "page";
-        for (const containerOccId of childOcc.occurrences || []) {
-          const containerOcc = occurrencesById[containerOccId];
-          if (!containerOcc) continue;
-          if (containerOcc.moduleId) map[containerOcc.moduleId] = "container";
-          traverseContainerChildren(containerOcc);
-        }
-      } else {
-        // Legacy hierarchy: panel → container → instance
-        if (childOcc.moduleId) map[childOcc.moduleId] = "container";
-        traverseContainerChildren(childOcc);
-      }
-    }
-  }
-  // Fallback: use module.role for unplaced modules (e.g. templates, unplaced CC items)
-  if (modulesById) {
-    for (const [id, mod] of Object.entries(modulesById)) {
-      if (!map[id] && mod.role && !mod.trashed) map[id] = mod.role;
-    }
-  }
-  return map;
-}
+// computeRoleByModuleId — DELETED 2026-07-29.
+// It inferred a module's role from where its occurrences sit in the tree, as a
+// second source of truth beside the stored `module.role`. Measured against the
+// live grid it DISAGREED on 57 of 1002 modules: it has no notion of a container
+// inside a container (which this app supports), so every Schedule slot container
+// came back "instance". Only three Command Center tabs read it, and they were
+// the only places showing those 48 slots with the wrong role. Every module in
+// every grid carries a role, so the inference had no fallback purpose either.
+// `module.role` is the source of truth.
 
 /**
  * Autofills an occurrence with its target entity

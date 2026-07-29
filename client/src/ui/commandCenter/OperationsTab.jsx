@@ -470,7 +470,7 @@ export function ScheduleEditor({ schedule, onChange }) {
 // OPERATION EDITOR
 // ============================================================
 export function OperationEditor({ operation, fields, onSave, onDelete, onRun, categoryFolders = [], isDuplicate = false }) {
-  const { modulesById, occurrencesById, fieldsById, operationsById, roleByModuleId } = useGridActions();
+  const { modulesById, occurrencesById, fieldsById, operationsById } = useGridActions();
   const [local, setLocal] = useState(operation);
   useMemo(() => setLocal(operation), [operation?.id]);
 
@@ -527,7 +527,7 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
   };
 
   // Container + panel options for onDrop config
-  const getRole = useCallback((m) => roleByModuleId?.[m.id] || m.role || "instance", [roleByModuleId]);
+  const getRole = useCallback((m) => m.role || "instance", []);
   const allContainers = useMemo(() => Object.values(modulesById || {}).filter(m => getRole(m) === "container"), [modulesById, getRole]);
   const allPanels = useMemo(() => Object.values(modulesById || {}).filter(m => getRole(m) === "panel"), [modulesById, getRole]);
 

@@ -54,7 +54,6 @@ const DEFAULT_VALUE = {
 
   // lookups (passed in)
   modulesById: Object.create(null),
-  roleByModuleId: Object.create(null),
   instancesById: Object.create(null),
   artifactsById: Object.create(null),
   textblocksById: Object.create(null),
