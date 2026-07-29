@@ -6,6 +6,51 @@
 
 ---
 
+## Handoff — 2026-07-29 (full-site audit: 5 real bugs found and fixed; integrity gate added)
+
+Audited the live grid's data, schema and runtime (not just the code). Findings + fixes, all
+deployed. **My initial headline was WRONG and is retracted**: the feed engine is NOT broken — it
+resolves 10 matches for Grocery List, all visible, and mints correctly; boards with `matches=0`
+legitimately have nothing to pull. What was real:
+
+- **Dangling child refs (the big one).** A parent's `occurrences[]` listed 42 ids naming
+  occurrences that do not exist. Cause is an asymmetry: `create_occurrence` is QUEUED server-side
+  and bails at every stage on disconnect, `update_occurrence` is neither — so a client that went
+  away mid-burst persisted a parent listing children that were never created. Worse, they were
+  **self-restoring**: the client holds whatever the last full_state gave it and echoes the whole
+  array back, so sweeping the DB fixed nothing (42 refs survived four repairs). Fixed at BOTH
+  ends — the client no longer emits its own parent-list write (the create carries `parentId` and
+  the server `$push`es it atomically, only if the create persisted), and **the server now drops
+  child ids that name no occurrence**. Proven: 4 abrupt sessions → 0 dangling.
+  **Operational note: a DB-level `occurrences[]` repair needs a server restart** — the warm
+  per-user cache is authoritative for reads and will re-serve the old array otherwise. That cost
+  three misleading regression runs.
+- **`targetId` was still read in live code paths** — and not just as a dead fallback. The schema
+  dropped it and no occurrence carries it, yet `layoutCascade.js` used it in 3 of 4 module
+  lookups (so the WHOLE layout cascade resolved role/kind to undefined and silently defaulted),
+  ManifestTree's page-child filter matched nothing, and the assistant's `list_pages` came back
+  empty. 34 dead fallbacks + 9 broken sole-lookups removed. The test fixtures encoded the same
+  pre-rename shape, which is why none of it was caught.
+- **Two enabled ops wrote the same target.** `Mark Passed Timeslots` (30 min) and
+  `Schedule: Mark Passed Slots` (5 min) both wrote `$slot.ownStyle.bg`, so the slower stomped the
+  newer op's green current-slot tint twice an hour. Removed from the seed, and removed from the
+  frozen `poms grid` via **migration `0002-drop-duplicate-slot-painter`** — the first real use of
+  the migration runner.
+- **`Operation.priority` was missing from the schema** while the seed had passed it since
+  2026-04-27 — strict mode dropped it, all 68 ops persisted `priority: null`, and the documented
+  ordering silently fell back to `triggerObject.priority`. Added.
+- **`server/utils/gridIntegrity.js` (NEW) + `scripts/checkGrid.js`** — the seed now FAILS on a
+  structurally invalid grid. Checks: dangling child refs, module-less occurrences, two enabled
+  ops writing one PRESENTATION target (deliberately narrow — several ops writing one FIELD is
+  normal and flagging it made the check noise), unused fields, duplicate field/op names,
+  unfireable ops. Every defect above is representable; each had been silent for months.
+- Remaining warning on all grids: 14 fields never bound/valued/referenced. Some are deliberate
+  palette fields (Tags was seeded for the feed field-check), so they were NOT deleted — worth a
+  pass to decide which are leftovers from the 2026-07-25 media retarget.
+- 1430 client + 314 server tests, build clean, prod verified desktop + mobile, zero page errors.
+
+---
+
 ## Handoff — 2026-07-28 (poms grid is PROTECTED live data; backups + migrations shipped)
 
 Plan: `docs/superpowers/plans/2026-07-28-poms-grid-live-data-freeze.md`. **ALL EIGHT TASKS DONE —
