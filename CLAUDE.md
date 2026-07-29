@@ -51,6 +51,35 @@ legitimately have nothing to pull. What was real:
 
 ---
 
+### 2026-07-29 (2) — kind removed from leaves; media trackers folded into a builder
+
+- **`kind` dropped from instance + panel modules** (user: "get rid of kind if we arent using it").
+  It IS used — kind is the sub-type WITHIN a role, and container/page/artifact/textblock all
+  render by it (board vs doc vs canvas vs table; image vs video vs pdf; the inline chip vs the
+  block textblock). So it was removed only from the roles with no sub-types. **Not cosmetic:**
+  `getModuleTypeIcon` resolves kind BEFORE role, so 519 instances + 5 panels carrying
+  `kind:"board"` drew the BOARD icon everywhere an icon appears. Seed strips it at the single
+  chokepoint every instance passes through (the bulk `insertMany`) so it can't be forgotten;
+  migration `0003` cleared 525 on poms grid + 369 on test grid 1, leaving the kind-bearing roles
+  untouched; `gridIntegrity` gained an `inert-kind` rule. **There is no "list" container kind —
+  it is BOARD everywhere** (the Module.js comment briefly said otherwise; corrected).
+- **`makeMediaHistoryOp`** — Movies Watched / Books Read / Podcasts Listened were three
+  hand-written Operation literals with an identical 19-node pipeline: ~12KB of duplicated JSON
+  over 409 seed lines, now 52. **Provable no-op:** the regenerated pipelines were diffed against
+  the pre-change `server/seed/operations.json` and are byte-identical once per-reseed ids are
+  normalised — which is why loop-var names are PARAMETERS (not derived from a prefix) and row
+  extras have before/after-label slots. New callers pass `varPrefix` and take the defaults.
+  6 tests. The remaining bespoke clusters (Workout/Meal/Purchase History, the Pomodoro quartet)
+  are the same opportunity and the same method.
+- **Field pills on an instance row now share one box** — the multi-select occurrence dropdown
+  rendered a completely different control (full-width, square, fixed 24px) from the single-select
+  pill (21px, rounded), and neither lined up with the boolean/number pills. All now 21px at one
+  y. `!important` was REQUIRED on the centring: AutoMarquee sets `display:block` INLINE, which
+  beats a stylesheet rule — the first attempt silently did nothing.
+- 1433 client + 323 server tests, all three grids integrity-clean, prod verified desktop+mobile.
+
+---
+
 ## Handoff — 2026-07-28 (poms grid is PROTECTED live data; backups + migrations shipped)
 
 Plan: `docs/superpowers/plans/2026-07-28-poms-grid-live-data-freeze.md`. **ALL EIGHT TASKS DONE —
