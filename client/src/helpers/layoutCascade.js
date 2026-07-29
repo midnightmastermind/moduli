@@ -142,7 +142,7 @@ export function classifyOccurrenceContext({ occurrence, occurrencesById, modules
   if (!occurrence?.parentId) return "topLevel";
   const parent = occurrencesById?.[occurrence.parentId];
   if (!parent) return "topLevel";
-  const parentMod = parent.targetId ? modulesById?.[parent.targetId] : null;
+  const parentMod = parent.moduleId ? modulesById?.[parent.moduleId] : null;
   const parentRole = parentMod?.role;
   if (parentRole === "page") return "nestedInPage";
   if (parentRole === "container") return "nestedInContainer";
@@ -276,7 +276,7 @@ export function buildLayoutCascadeContext({ leafOccurrence, occurrencesById, mod
   // to detect "nested in a page" / "nested in a container". If we put a
   // page leaf into ctx.page, every top-level page would falsely classify
   // as nested.
-  const leafMod = modulesById[leafOccurrence.targetId];
+  const leafMod = modulesById[leafOccurrence.moduleId];
   ctx.leafOcc = leafOccurrence;
   ctx.leaf = leafMod || null;
   // Back-compat alias for the Slice 5 wiring that reads ctx.instanceOcc:
@@ -295,7 +295,7 @@ export function buildLayoutCascadeContext({ leafOccurrence, occurrencesById, mod
     const parentId = parentByChildId[cur.id];
     cur = parentId ? occurrencesById[parentId] : null;
     if (!cur) break;
-    const mod = modulesById[cur.targetId];
+    const mod = modulesById[cur.moduleId];
     if (!mod) continue;
     if (mod.role === "container" && !ctx.container) {
       ctx.container = mod; ctx.containerOcc = cur;
@@ -314,7 +314,7 @@ export function buildLayoutCascadeContext({ leafOccurrence, occurrencesById, mod
 // + resolveLayoutCascade into a single call.
 export function resolveEffectiveLayout({ occurrence, occurrencesById, modulesById, grid }) {
   if (!occurrence) return resolveDefaultLayout({ role: "instance" });
-  const mod = modulesById?.[occurrence.targetId];
+  const mod = modulesById?.[occurrence.moduleId];
   const role = mod?.role || "instance";
   const kind = mod?.kind || null;
   const ctx = buildLayoutCascadeContext({ leafOccurrence: occurrence, occurrencesById, modulesById, grid });

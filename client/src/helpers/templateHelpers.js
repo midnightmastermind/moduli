@@ -17,7 +17,7 @@ export function rootFolderForTemplates(lookups, gridId) {
 
 export function templateKindOf(lookups, templateOccurrence) {
   if (!templateOccurrence) return null;
-  const modId = templateOccurrence.moduleId || templateOccurrence.targetId;
+  const modId = templateOccurrence.moduleId;
   const m = lookups?.modulesById?.[modId];
   return m?.role || m?.kind || null;
 }

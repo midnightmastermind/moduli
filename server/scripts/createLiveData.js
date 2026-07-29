@@ -65,6 +65,7 @@ const BOARD_OPTION_IMAGES = _createRequire(import.meta.url)("../seed/boardOption
 import { gateScheduleTrackers, GATE_TRACKER_NAMES } from "../utils/completionGate.js";
 import { applyPeriodAllPolicy } from "../utils/periodAllPolicy.js";
 import { ensureGridFilterTrigger } from "../utils/gridFilterTrigger.js";
+import { checkGridIntegrity, reportGridIntegrity } from "../utils/gridIntegrity.js";
 import {
   PROTECTED_GRID_NAMES, isProtectedGrid, assertNotProtected, partitionProtected,
   protectedGridIdsForUser,
@@ -7940,67 +7941,12 @@ export async function createLiveData(userId, options = {}) {
     enabled: true,
   }).save();
 
-  // ── Mark Passed Timeslots (time-based / scheduled) ─────────────────────────
-  // Every 30 min, walks Schedule slot containers and stamps a red bg on
-  // any whose timeslot is in the past. Writes to `occurrence.ownStyle.bg`
-  // — the SAME field the occurrence settings menu writes to. The IF guard
-  // inside the loop keeps each fire to ~1 write (only the slot that
-  // crossed since last fire); ownStyle.bg is checked so already-stamped
-  // slots are skipped. UI reads occurrence.ownStyle via the standard
-  // resolveContainerStyle cascade — no CSS rule, no data-attribute hack.
-  const PASSED_TIMESLOT_BG = "rgba(248, 113, 113, 0.12)";
-  await new Operation({
-    id: uid(), userId, gridId, priority: 4,
-    name: "Mark Passed Timeslots",
-    description: "Every 30 min: walk Schedule slot containers; for each whose timeslot has passed AND isn't already tinted, write a red bg onto occurrence.ownStyle.bg. Same path the occurrence settings menu writes to.",
-    triggerTypes: [],
-    triggerObjects: [],
-    schedule: {
-      kind: "interval",
-      every: 30,
-      unit: "minute",
-      suppressNotifications: true,
-      lastFiredAt: null,
-    },
-    pipeline: {
-      sources: [],
-      steps: [
-        // 1. Find the Schedule page (HAS_ANCESTOR scope).
-        // Picker-direct binding (was FIND-by-label "Schedule" — replaced 2026-05-22).
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedPageOccId}` } },
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
-        { id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPageId", comparator: "IS_NOT_EMPTY", right: "" }] },
-          then: [
-            // 2. Loop slot containers under Schedule. Predicate guards:
-            //    (a) is a slot (scheduleFormat field = "slot"),
-            //    (b) timeslot < $now,
-            //    (c) NOT already tinted — keeps each fire to only the
-            //        slots that newly crossed.
-            { id: uid(), type: "loop", overExpr: "$allContainers", as: "$slot",
-              body: [
-                { id: uid(), type: "if",
-                  condition: { operator: "AND", rules: [
-                    { id: uid(), left: "$slot._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                    { id: uid(), left: `$slot.fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "slot" },
-                    { id: uid(), left: `$slot.fields.${timeslotFieldId}.value`, comparator: "DATE_BEFORE_TODAY", right: "" },
-                    { id: uid(), left: "$slot.ownStyle.bg", comparator: "IS_NOT", right: PASSED_TIMESLOT_BG },
-                  ] },
-                  then: [
-                    { id: uid(), type: "action", config: { type: "UPDATE", path: "$slot.ownStyle.bg", value: PASSED_TIMESLOT_BG } },
-                  ],
-                  else: [],
-                },
-              ],
-            },
-          ],
-          else: [],
-        },
-      ],
-    },
-    folderId: opCategoryIds.trackers,
-    enabled: true,
-  }).save();
+  // ── Mark Passed Timeslots — DELETED 2026-07-29 ─────────────────────────────
+  // Superseded by "Schedule: Mark Passed Slots" (every 5 min), which paints the
+  // CURRENT slot green as well as tinting passed ones. Both wrote the same
+  // target — `$slot.ownStyle.bg` on the same slot containers — at different
+  // cadences, so whichever fired last won and the green current-slot tint got
+  // stomped every half hour. One writer per target.
 
   // ── Hourly chime (DISABLED — was firing every second) ──────────────────────
   // The lastFiredAt sync between scheduler and Redux isn't holding up under
@@ -9290,6 +9236,25 @@ export async function createLiveData(userId, options = {}) {
     const changed = ensureGridFilterTrigger(allOps);
     for (const op of changed) await Operation.updateOne({ _id: op._id }, { $set: { triggerObjects: op.triggerObjects, triggerTypes: op.triggerTypes } });
     if (changed.length) console.log(`   Global-filter triggers: ${changed.length} ops now respond to the grid filter`);
+  }
+
+  // ── Structural integrity gate ───────────────────────────────────────────────
+  // Runs against what was ACTUALLY written, not what the builders intended.
+  // Every defect the 2026-07-29 audit turned up by hand is representable here
+  // (dangling child refs, a module-less occurrence, two ops fighting over one
+  // presentation target, dead fields, duplicate field/op names). Errors THROW:
+  // a seed that produces a structurally broken grid should fail at build time,
+  // not months later in an audit. Warnings are printed and allowed.
+  {
+    const [occs_, mods_, flds_, ops_] = await Promise.all([
+      Occurrence.find({ gridId }).lean(), Module.find({ gridId }).lean(),
+      Field.find({ gridId }).lean(), Operation.find({ gridId }).lean(),
+    ]);
+    const findings = checkGridIntegrity({ occurrences: occs_, modules: mods_, fields: flds_, operations: ops_ });
+    const clean = reportGridIntegrity(findings, { label: `"${gridName}"` });
+    if (!clean) {
+      throw new Error(`Seed produced a structurally invalid grid — ${findings.filter(f => f.level === "error").length} error(s) above.`);
+    }
   }
 
   return {

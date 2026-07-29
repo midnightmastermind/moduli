@@ -2699,7 +2699,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       function clone(srcOccId, parentId, isRoot) {
         const srcOcc = occurrencesById[srcOccId];
         if (!srcOcc) return null;
-        const srcModId = srcOcc.moduleId || srcOcc.targetId;
+        const srcModId = srcOcc.moduleId;
         const srcMod = srcModId ? modulesById[srcModId] : null;
         if (!srcMod) return null;
 
@@ -2910,7 +2910,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       function clone(srcOccId, parentId) {
         const srcOcc = occurrencesById[srcOccId];
         if (!srcOcc) return null;
-        const srcModId = srcOcc.moduleId || srcOcc.targetId;
+        const srcModId = srcOcc.moduleId;
         const srcMod = srcModId ? modulesById[srcModId] : null;
         if (!srcMod) return null;
 

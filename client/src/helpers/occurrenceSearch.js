@@ -83,7 +83,7 @@ function rawOf(stored) {
 }
 
 function labelOf(occ, modulesById) {
-  return occ?.label ?? modulesById?.[occ?.moduleId || occ?.targetId]?.label ?? "";
+  return occ?.label ?? modulesById?.[occ?.moduleId]?.label ?? "";
 }
 
 /**
@@ -115,7 +115,7 @@ function datesForOcc(occ, fieldsById) {
  * a board item you can see unfindable.
  */
 export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, parentOf }) {
-  const module = modulesById[occ.moduleId || occ.targetId];
+  const module = modulesById[occ.moduleId];
   if (!module) return null;
   if (module.role === "panel") return null;
 
@@ -133,7 +133,7 @@ export function buildEntry(occ, { occurrencesById, modulesById, fieldsById, pare
   while (cursor && guard++ < 64) {
     const anc = occurrencesById[cursor];
     if (!anc) break;
-    const ancMod = modulesById[anc.moduleId || anc.targetId];
+    const ancMod = modulesById[anc.moduleId];
     ancestorIds.push(cursor);
     if (ancMod && ancMod.role !== "panel") pathLabels.unshift(labelOf(anc, modulesById));
     if (!pageOccId && ancMod?.role === "page") pageOccId = anc.id;

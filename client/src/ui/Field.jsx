@@ -441,7 +441,7 @@ function Stars({ rating, max = 5, size = "w-4 h-4" }) {
 function resolveOccCard(occId, { occurrencesById, modulesById, fieldsById }, chipDisplay = null) {
   const occ = occurrencesById?.[occId];
   if (!occ) return null;
-  const mod = modulesById?.[occ.moduleId || occ.targetId] || null;
+  const mod = modulesById?.[occ.moduleId] || null;
   const bindings = Array.isArray(mod?.fieldBindings) ? mod.fieldBindings : [];
   const mediaB = bindings.find(b => b.role === "media");
   const showMedia = chipDisplay ? chipDisplay.showMedia !== false : true;
@@ -758,7 +758,7 @@ function Field({
     const occMap = getOccMap();
     const occ = occMap?.[occId];
     if (!occ) return;
-    const mod = modulesById?.[occ.moduleId || occ.targetId] || null;
+    const mod = modulesById?.[occ.moduleId] || null;
     const bindings = Array.isArray(mod?.fieldBindings) ? mod.fieldBindings : [];
     let mediaFieldId =
       bindings.find(b => b.role === "media")?.fieldId ||
@@ -1008,7 +1008,7 @@ function Field({
     const isMediaBinding = binding?.role === "media";
     if (compact && isMediaBinding && type === "text" && !isClickEditing) {
       const src = typeof localValue === "string" && localValue ? resolveFileRef(localValue) : null;
-      const hostLabel = modulesById?.[hostOccurrence?.moduleId || hostOccurrence?.targetId]?.label
+      const hostLabel = modulesById?.[hostOccurrence?.moduleId]?.label
         || hostOccurrence?.label || "";
       return (
         <button type="button" disabled={disabled}
@@ -1347,7 +1347,7 @@ function Field({
       // fields edited in forms had no search until 2026-07-11).
       if (binding?.role === "media") {
         const src = typeof localValue === "string" && localValue ? resolveFileRef(localValue) : null;
-        const hostLabel = modulesById?.[hostOccurrence?.moduleId || hostOccurrence?.targetId]?.label
+        const hostLabel = modulesById?.[hostOccurrence?.moduleId]?.label
           || hostOccurrence?.label || "";
         return (
           <div className="field-input field-input-media" style={{ display: "flex", flexDirection: "column", gap: 3 }}>

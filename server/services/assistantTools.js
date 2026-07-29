@@ -45,8 +45,8 @@ export function summarizeGridState(state, { limit = 50 } = {}) {
 
   const roleByModuleId = new Map(modules.map(m => [m.id, m.role]));
   const pages = occurrences
-    .filter(o => roleByModuleId.get(o.targetId) === "page")
-    .map(o => ({ id: o.id, label: modules.find(m => m.id === o.targetId)?.label || o.id }));
+    .filter(o => roleByModuleId.get(o.moduleId) === "page")
+    .map(o => ({ id: o.id, label: modules.find(m => m.id === o.moduleId)?.label || o.id }));
 
   const cap = (arr, fn) => arr.slice(0, limit).map(fn);
   return {

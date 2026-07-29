@@ -1289,7 +1289,7 @@ export function handleOccurrenceMove(dropContext, ctx) {
   const _nmods = state?.modulesById || {};
   const _occName = (occId) => {
     const o = occurrencesById[occId];
-    return (o && (o.label || _nmods[o.moduleId]?.label || _nmods[o.targetId]?.label)) || "item";
+    return (o && (o.label || _nmods[o.moduleId]?.label)) || "item";
   };
   const _contName = (cMod, cOcc) => cOcc?.label || _nmods[cMod?.id]?.label || cMod?.label || "container";
   // 1-based landing position. toIndex null = appended → end of the dest list.

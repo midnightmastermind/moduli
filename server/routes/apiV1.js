@@ -1085,7 +1085,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       const titleToOccId = {};
       for (const rootId of rootOccurrenceIds) {
         const occ = occById.get(rootId);
-        const mod = occ && modById.get(occ.moduleId || occ.targetId);
+        const mod = occ && modById.get(occ.moduleId);
         if (mod?.label) titleToOccId[mod.label] = rootId;
       }
       const seen = new Set();

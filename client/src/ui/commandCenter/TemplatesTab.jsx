@@ -40,7 +40,7 @@ function targetCandidates(lookups, gridId, kindOrRole) {
           cur = cur.parentId ? lookups.occurrencesById[cur.parentId] : null;
         }
       }
-      const modId = o.moduleId || o.targetId;
+      const modId = o.moduleId;
       const mod = lookups?.modulesById?.[modId];
       const role = mod?.role;
       return role === targetRole;
@@ -48,7 +48,7 @@ function targetCandidates(lookups, gridId, kindOrRole) {
 }
 
 function labelFor(modulesById, occ) {
-  const modId = occ.moduleId || occ.targetId;
+  const modId = occ.moduleId;
   return modulesById?.[modId]?.label || "(unnamed)";
 }
 

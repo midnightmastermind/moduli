@@ -628,8 +628,8 @@ export function extractDestinations(state, { limit = 150 } = {}) {
   const parentByChild = new Map();
   for (const o of occurrences) for (const childId of (o.occurrences || [])) if (!parentByChild.has(childId)) parentByChild.set(childId, o.id);
 
-  const labelOf = (occ) => moduleById.get(occ.targetId)?.label || null;
-  const roleOf = (occ) => moduleById.get(occ.targetId)?.role;
+  const labelOf = (occ) => moduleById.get(occ.moduleId)?.label || null;
+  const roleOf = (occ) => moduleById.get(occ.moduleId)?.role;
   const parentLabelOf = (occ) => {
     const pid = parentByChild.get(occ.id) || occ.parentId;
     if (!pid) return null;

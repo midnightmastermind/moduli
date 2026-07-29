@@ -1759,7 +1759,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       const occ = occurrencesById[id];
       if (!occ) return id.slice(0, 6);
       return (
-        modulesById[occ.targetId]?.label ||
+        modulesById[occ.moduleId]?.label ||
         modulesById[occ.moduleId]?.label ||
         occ.label ||
         id.slice(0, 6)
@@ -1790,7 +1790,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         seen.add(cur);
         const occ = occurrencesById[cur];
         if (!occ) break;
-        const mod = modulesById[occ.moduleId] || modulesById[occ.targetId];
+        const mod = modulesById[occ.moduleId];
         const label = mod?.label || occ.label;
         if (label) labels.unshift(label);
         // Stop after we've passed the page level so we don't surface the

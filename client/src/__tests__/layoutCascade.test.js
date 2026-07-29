@@ -143,10 +143,10 @@ describe("resolveLayoutCascade", () => {
 describe("buildLayoutCascadeContext", () => {
   it("walks parent chain via occurrences[] reverse map", () => {
     const occurrencesById = {
-      p1: { id: "p1", targetId: "panelMod", occurrences: ["pg1"] },
-      pg1: { id: "pg1", targetId: "pageMod", occurrences: ["c1"] },
-      c1: { id: "c1", targetId: "contMod", occurrences: ["i1"] },
-      i1: { id: "i1", targetId: "instMod" },
+      p1: { id: "p1", moduleId: "panelMod", occurrences: ["pg1"] },
+      pg1: { id: "pg1", moduleId: "pageMod", occurrences: ["c1"] },
+      c1: { id: "c1", moduleId: "contMod", occurrences: ["i1"] },
+      i1: { id: "i1", moduleId: "instMod" },
     };
     const modulesById = {
       panelMod: { role: "panel" },
@@ -170,7 +170,7 @@ describe("buildLayoutCascadeContext", () => {
 
   it("page leaf does NOT populate ctx.page (ancestor slot)", () => {
     const occurrencesById = {
-      pg1: { id: "pg1", targetId: "pageMod" },
+      pg1: { id: "pg1", moduleId: "pageMod" },
     };
     const modulesById = { pageMod: { role: "page", kind: "doc" } };
     const ctx = buildLayoutCascadeContext({
@@ -190,8 +190,8 @@ describe("buildLayoutCascadeContext", () => {
 describe("page-within-page (task #45)", () => {
   it("page nested in a container — actual-converted default, switcher exposes representation too (Q2 2026-05-24)", () => {
     const occurrencesById = {
-      c1: { id: "c1", targetId: "contMod", occurrences: ["pg1"] },
-      pg1: { id: "pg1", targetId: "pageMod" },
+      c1: { id: "c1", moduleId: "contMod", occurrences: ["pg1"] },
+      pg1: { id: "pg1", moduleId: "pageMod" },
     };
     const modulesById = {
       contMod: { role: "container", kind: "doc" },
@@ -211,8 +211,8 @@ describe("page-within-page (task #45)", () => {
 
   it("page at top level — forced actual, no switcher", () => {
     const occurrencesById = {
-      panel1: { id: "panel1", targetId: "panelMod", occurrences: ["pg1"] },
-      pg1: { id: "pg1", targetId: "pageMod" },
+      panel1: { id: "panel1", moduleId: "panelMod", occurrences: ["pg1"] },
+      pg1: { id: "pg1", moduleId: "pageMod" },
     };
     const modulesById = {
       panelMod: { role: "panel" },
@@ -231,8 +231,8 @@ describe("page-within-page (task #45)", () => {
 
   it("page nested in another page — forced representation", () => {
     const occurrencesById = {
-      pg1: { id: "pg1", targetId: "parentPageMod", occurrences: ["pg2"] },
-      pg2: { id: "pg2", targetId: "childPageMod" },
+      pg1: { id: "pg1", moduleId: "parentPageMod", occurrences: ["pg2"] },
+      pg2: { id: "pg2", moduleId: "childPageMod" },
     };
     const modulesById = {
       parentPageMod: { role: "page", kind: "board" },
@@ -255,9 +255,9 @@ describe("page-within-page (task #45)", () => {
 
   it("page-in-page — per-occurrence meta.viewMode 'actual' survives the cascade", () => {
     const occurrencesById = {
-      panel1: { id: "panel1", targetId: "panelMod", occurrences: ["pg1"] },
-      pg1: { id: "pg1", targetId: "parentPageMod", occurrences: ["pg2"] },
-      pg2: { id: "pg2", targetId: "childPageMod", meta: { layoutCascadeOverride: { dragInView: "actual" } } },
+      panel1: { id: "panel1", moduleId: "panelMod", occurrences: ["pg1"] },
+      pg1: { id: "pg1", moduleId: "parentPageMod", occurrences: ["pg2"] },
+      pg2: { id: "pg2", moduleId: "childPageMod", meta: { layoutCascadeOverride: { dragInView: "actual" } } },
     };
     const modulesById = {
       panelMod: { role: "panel" },
@@ -275,8 +275,8 @@ describe("page-within-page (task #45)", () => {
 
   it("page-in-container — defaults to actual-converted, switcher exposes representation too (Q2 2026-05-24)", () => {
     const occurrencesById = {
-      parent: { id: "parent", targetId: "contMod", occurrences: ["pg"] },
-      pg: { id: "pg", targetId: "pageMod" },
+      parent: { id: "parent", moduleId: "contMod", occurrences: ["pg"] },
+      pg: { id: "pg", moduleId: "pageMod" },
     };
     const modulesById = {
       contMod: { role: "container", kind: "board" },
@@ -296,8 +296,8 @@ describe("page-within-page (task #45)", () => {
 describe("resolveEffectiveLayout", () => {
   it("end-to-end: instance in canvas container → representation default", () => {
     const occurrencesById = {
-      c1: { id: "c1", targetId: "canvasMod", occurrences: ["i1"] },
-      i1: { id: "i1", targetId: "instMod" },
+      c1: { id: "c1", moduleId: "canvasMod", occurrences: ["i1"] },
+      i1: { id: "i1", moduleId: "instMod" },
     };
     const modulesById = {
       canvasMod: { role: "container", kind: "canvas" },
@@ -324,8 +324,8 @@ describe("resolveEffectiveLayout", () => {
 describe("resolveEffectiveViewModeFromCascade (task #45)", () => {
   it("nested page in container — stored meta.viewMode wins when allowed (Q2 2026-05-24)", () => {
     const occurrencesById = {
-      c1: { id: "c1", targetId: "contMod", occurrences: ["pg1"] },
-      pg1: { id: "pg1", targetId: "pageMod", meta: { viewMode: "representation" } },
+      c1: { id: "c1", moduleId: "contMod", occurrences: ["pg1"] },
+      pg1: { id: "pg1", moduleId: "pageMod", meta: { viewMode: "representation" } },
     };
     const modulesById = {
       contMod: { role: "container", kind: "board" },
@@ -341,8 +341,8 @@ describe("resolveEffectiveViewModeFromCascade (task #45)", () => {
 
   it("nested page in container with no stored meta — defaults to actual-converted (Q2 2026-05-24)", () => {
     const occurrencesById = {
-      c1: { id: "c1", targetId: "contMod", occurrences: ["pg1"] },
-      pg1: { id: "pg1", targetId: "pageMod" },
+      c1: { id: "c1", moduleId: "contMod", occurrences: ["pg1"] },
+      pg1: { id: "pg1", moduleId: "pageMod" },
     };
     const modulesById = {
       contMod: { role: "container", kind: "board" },
@@ -357,8 +357,8 @@ describe("resolveEffectiveViewModeFromCascade (task #45)", () => {
 
   it("top-level page — cascade forces actual even if meta says representation", () => {
     const occurrencesById = {
-      panel1: { id: "panel1", targetId: "panelMod", occurrences: ["pg1"] },
-      pg1: { id: "pg1", targetId: "pageMod", meta: { viewMode: "representation" } },
+      panel1: { id: "panel1", moduleId: "panelMod", occurrences: ["pg1"] },
+      pg1: { id: "pg1", moduleId: "pageMod", meta: { viewMode: "representation" } },
     };
     const modulesById = {
       panelMod: { role: "panel" },
@@ -373,7 +373,7 @@ describe("resolveEffectiveViewModeFromCascade (task #45)", () => {
 
   it("instance with cascade-allowed change — stored mode wins if allowed", () => {
     const occurrencesById = {
-      i1: { id: "i1", targetId: "instMod", meta: { viewMode: "actual" } },
+      i1: { id: "i1", moduleId: "instMod", meta: { viewMode: "actual" } },
     };
     const modulesById = { instMod: { role: "instance" } };
     const mode = resolveEffectiveViewModeFromCascade({
@@ -391,8 +391,8 @@ describe("classifyOccurrenceContext (Slice 1 helper, regression-tested)", () => 
 
   it("nestedInPage when parent is a page", () => {
     const occurrencesById = {
-      parent: { id: "parent", targetId: "pageMod" },
-      child: { id: "child", parentId: "parent", targetId: "childMod" },
+      parent: { id: "parent", moduleId: "pageMod" },
+      child: { id: "child", parentId: "parent", moduleId: "childMod" },
     };
     const modulesById = { pageMod: { role: "page" }, childMod: { role: "page" } };
     expect(classifyOccurrenceContext({
@@ -402,8 +402,8 @@ describe("classifyOccurrenceContext (Slice 1 helper, regression-tested)", () => 
 
   it("nestedInContainer when parent is a container", () => {
     const occurrencesById = {
-      parent: { id: "parent", targetId: "contMod" },
-      child: { id: "child", parentId: "parent", targetId: "childMod" },
+      parent: { id: "parent", moduleId: "contMod" },
+      child: { id: "child", parentId: "parent", moduleId: "childMod" },
     };
     const modulesById = { contMod: { role: "container" }, childMod: { role: "page" } };
     expect(classifyOccurrenceContext({
@@ -417,10 +417,10 @@ describe("isMoveBlockedByCascadeLock (Slice 4)", () => {
   // plus another container "openC" elsewhere.
   function buildWorld({ lockedCMeta = { layoutCascade: { locked: true } } } = {}) {
     const occurrencesById = {
-      lockedC: { id: "lockedC", targetId: "contMod", occurrences: ["i1"], meta: lockedCMeta },
-      openC:   { id: "openC",   targetId: "contMod", occurrences: ["i2"] },
-      i1:      { id: "i1", targetId: "instMod" },
-      i2:      { id: "i2", targetId: "instMod" },
+      lockedC: { id: "lockedC", moduleId: "contMod", occurrences: ["i1"], meta: lockedCMeta },
+      openC:   { id: "openC",   moduleId: "contMod", occurrences: ["i2"] },
+      i1:      { id: "i1", moduleId: "instMod" },
+      i2:      { id: "i2", moduleId: "instMod" },
     };
     const modulesById = {
       contMod: { role: "container", kind: "board" },
@@ -474,10 +474,10 @@ describe("isMoveBlockedByCascadeLock (Slice 4)", () => {
     // lockedPage holds two containers; moving an instance from one to the other
     // is still inside the locked surface.
     const occurrencesById = {
-      lockedPage: { id: "lockedPage", targetId: "pageMod", occurrences: ["cA", "cB"], meta: { layoutCascade: { locked: true } } },
-      cA: { id: "cA", targetId: "contMod", occurrences: ["i1"] },
-      cB: { id: "cB", targetId: "contMod", occurrences: [] },
-      i1: { id: "i1", targetId: "instMod" },
+      lockedPage: { id: "lockedPage", moduleId: "pageMod", occurrences: ["cA", "cB"], meta: { layoutCascade: { locked: true } } },
+      cA: { id: "cA", moduleId: "contMod", occurrences: ["i1"] },
+      cB: { id: "cB", moduleId: "contMod", occurrences: [] },
+      i1: { id: "i1", moduleId: "instMod" },
     };
     const modulesById = {
       pageMod: { role: "page", kind: "board" },
@@ -494,10 +494,10 @@ describe("isMoveBlockedByCascadeLock (Slice 4)", () => {
 
   it("blocks move out of locked page to an unrelated destination", () => {
     const occurrencesById = {
-      lockedPage: { id: "lockedPage", targetId: "pageMod", occurrences: ["cA"], meta: { layoutCascade: { locked: true } } },
-      cA: { id: "cA", targetId: "contMod", occurrences: ["i1"] },
-      otherC: { id: "otherC", targetId: "contMod", occurrences: [] },
-      i1: { id: "i1", targetId: "instMod" },
+      lockedPage: { id: "lockedPage", moduleId: "pageMod", occurrences: ["cA"], meta: { layoutCascade: { locked: true } } },
+      cA: { id: "cA", moduleId: "contMod", occurrences: ["i1"] },
+      otherC: { id: "otherC", moduleId: "contMod", occurrences: [] },
+      i1: { id: "i1", moduleId: "instMod" },
     };
     const modulesById = {
       pageMod: { role: "page", kind: "board" },

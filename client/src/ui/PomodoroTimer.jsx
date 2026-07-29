@@ -90,12 +90,12 @@ export default function PomodoroTimer() {
       for (const childId of occ?.occurrences || []) parentByChild[childId] = occ.id;
     }
     const labelFor = (occ) => {
-      const mod = modulesById?.[occ.moduleId] || modulesById?.[occ.targetId];
+      const mod = modulesById?.[occ.moduleId];
       return mod?.label || occ.label || occ.id.slice(0, 6);
     };
     const out = [];
     for (const occ of Object.values(occMap)) {
-      const mod = modulesById?.[occ.moduleId] || modulesById?.[occ.targetId];
+      const mod = modulesById?.[occ.moduleId];
       if (!mod || mod.role !== "container") continue;
       // Walk up to find page-chain crumbs.
       const crumbs = [];
@@ -106,7 +106,7 @@ export default function PomodoroTimer() {
         seen.add(cur);
         const a = occMap[cur];
         if (!a) break;
-        const am = modulesById?.[a.moduleId] || modulesById?.[a.targetId];
+        const am = modulesById?.[a.moduleId];
         if (am?.label) crumbs.unshift(am.label);
         if (am?.role === "page") break;
         cur = parentByChild[cur] || a.parentId;

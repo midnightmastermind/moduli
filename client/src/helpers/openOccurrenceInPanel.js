@@ -19,7 +19,7 @@ export function nearestPageOccId(occId, { occurrencesById = {}, modulesById = {}
   while (cursor && guard++ < 64) {
     const occ = occurrencesById[cursor];
     if (!occ) return null;
-    const mod = modulesById[occ.moduleId || occ.targetId];
+    const mod = modulesById[occ.moduleId];
     if (mod?.role === "page") return cursor;
     cursor = parentBy[cursor] ?? occ.parentId ?? null;
   }
@@ -33,7 +33,7 @@ export function nearestPageOccId(occId, { occurrencesById = {}, modulesById = {}
  * id, not the occurrence id.
  */
 function panelRootResolver(panelOccurrence, modulesById) {
-  const panelModuleId = panelOccurrence?.moduleId || panelOccurrence?.targetId;
+  const panelModuleId = panelOccurrence?.moduleId;
   if (!panelModuleId || typeof document === "undefined") return null;
   const safe = typeof CSS !== "undefined" && CSS.escape
     ? CSS.escape(String(panelModuleId)) : String(panelModuleId);
@@ -50,7 +50,7 @@ export function openOccurrenceInPanel({
   if (!pageOccId) return { ok: false, pageOccId: null, alreadyOpen: false };
 
   const viewId = panelOccurrence.viewId
-    || modulesById[panelOccurrence.moduleId || panelOccurrence.targetId]?.viewId;
+    || modulesById[panelOccurrence.moduleId]?.viewId;
   const view = viewId ? viewsById[viewId] : null;
   const alreadyOpen = view?.activeOccurrenceId === pageOccId;
 

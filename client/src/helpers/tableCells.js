@@ -53,7 +53,7 @@ export function getCellSortValue(doc, column, ctx) {
       const v = fv && typeof fv === "object" ? fv.value : fv;
       return v == null ? "" : v;
     }
-    const mod = occ && ctx?.modulesById?.[occ.targetId];
+    const mod = occ && ctx?.modulesById?.[occ.moduleId];
     return mod?.label || occ?.label || "";
   }
   const txt = plainText(doc);

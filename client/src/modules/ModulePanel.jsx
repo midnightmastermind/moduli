@@ -630,7 +630,7 @@ function Panel({
     // lands in the folder; any other page resolves to the page occurrence.
     try {
       const occ = occurrencesById?.[occId];
-      const mod = occ && modulesById?.[occ.moduleId || occ.targetId];
+      const mod = occ && modulesById?.[occ.moduleId];
       if (mod?.kind === "folder" && mod?.role === "page" && occ?.parentId) {
         const folder = foldersById?.[occ.parentId];
         setCurrentLocation({ id: occ.parentId, label: folder?.name || mod.label || "folder", type: "folder" });
@@ -662,7 +662,7 @@ function Panel({
         // (canonical), fall back to module.viewId (legacy panels).
         for (const occ of Object.values(occurrencesById || {})) {
           if (occ?.viewId === vid) {
-            const mid = occ.moduleId || occ.targetId;
+            const mid = occ.moduleId;
             if (mid) otherPanelIds.add(mid);
           }
         }

@@ -401,7 +401,7 @@ function InstanceInner({
     let mod = null;
     if (d.type === "artifact" && d.occurrenceId) {
       const occ = getOcc(d.occurrenceId);
-      mod = occ ? (modulesById?.[occ.moduleId || occ.targetId]) : null;
+      mod = occ ? (modulesById?.[occ.moduleId]) : null;
     } else if (d.type === "module" && d.role === "artifact") {
       mod = d.data || modulesById?.[d.id];
     }

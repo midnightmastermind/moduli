@@ -133,7 +133,6 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
       const occ = occurrencesById[id];
       if (!occ) continue;
       if (occ.moduleId) ids.add(occ.moduleId);
-      if (occ.targetId && occ.targetType === "module") ids.add(occ.targetId);
     }
     return ids;
   }, [subtreeOccurrenceIds, occurrencesById]);

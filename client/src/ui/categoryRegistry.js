@@ -315,7 +315,7 @@ export const TEMPLATE_PICKER_CONFIG = {
         return Object.values(occById)
           .filter(o => o?.meta?.templateName)
           .map(o => {
-            const mod = modById[o.moduleId || o.targetId];
+            const mod = modById[o.moduleId];
             const kind = mod?.role || mod?.kind || "";
             return {
               value: o.id,

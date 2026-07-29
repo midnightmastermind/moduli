@@ -22,7 +22,7 @@ export default function TemplatesSection({ occurrence }) {
     [manifestsById, foldersById, occurrencesById, modulesById]
   );
 
-  const myModule = modulesById?.[occurrence?.moduleId || occurrence?.targetId];
+  const myModule = modulesById?.[occurrence?.moduleId];
   const myKind = myModule?.role || myModule?.kind || null;
 
   const templates = useMemo(

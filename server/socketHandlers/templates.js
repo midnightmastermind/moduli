@@ -168,7 +168,7 @@ export function registerTemplateHandlers(socket, {
       for (const o of toDelete) {
         await Occurrence.deleteOne({ id: o.id });
         delete uc.occurrencesById[o.id];
-        const modId = o.moduleId || o.targetId;
+        const modId = o.moduleId;
         if (modId && uc.modulesById[modId] && !deletedModIds.has(modId)) {
           await Module.deleteOne({ id: modId });
           delete uc.modulesById[modId];

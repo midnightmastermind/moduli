@@ -787,9 +787,9 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurre
   // Children from explicit occurrences[] array + implicit parentId linkage
   const explicitOccs = (pageOcc.occurrences || [])
     .map(id => occurrencesById?.[id])
-    .filter(o => o && modulesById?.[o.targetId] && modulesById[o.targetId].role !== "page");
+    .filter(o => o && modulesById?.[o.moduleId] && modulesById[o.moduleId].role !== "page");
   const implicitOccs = (childrenByParentId?.[pageOccId] || [])
-    .filter(o => o && modulesById?.[o.targetId] && modulesById[o.targetId].role !== "page");
+    .filter(o => o && modulesById?.[o.moduleId] && modulesById[o.moduleId].role !== "page");
   // Deduplicate by ID
   const seenIds = new Set(explicitOccs.map(o => o.id));
   const combined = [...explicitOccs, ...implicitOccs.filter(o => !seenIds.has(o.id))];

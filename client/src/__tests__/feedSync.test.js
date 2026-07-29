@@ -152,19 +152,46 @@ describe("syncFeed (materializer)", () => {
     expect(new Set(creates.map(c => c.meta.feedSourceId))).toEqual(new Set(["task1", "task2"]));
   });
 
-  it("multi-mint accumulates the parent's child list (no clobber)", () => {
+  it("multi-mint accumulates the parent's child list LOCALLY (no clobber)", () => {
     const { modulesById, occurrencesById } = world();
     const feedOcc = { ...occurrencesById.feedPage, feed: { enabled: true, roles: ["instance"], scope: "sched" } };
     occurrencesById.feedPage = feedOcc;
     syncFeed(feedOcc, { state: state(occurrencesById), occurrencesById, modulesById, dispatch, socket });
     // The LAST parent occurrences[] write must contain BOTH minted copies —
     // 2026-07-07 regression: per-mint stale parent reads meant only the final
-    // copy survived in the child list.
-    const parentWrites = emitted
-      .filter(([ev, p]) => ev === "update_occurrence" && p.occurrence?.id === "feedPage" && Array.isArray(p.occurrence.occurrences))
-      .map(([, p]) => p.occurrence.occurrences);
+    // copy survived in the child list. The accumulation invariant is unchanged;
+    // what moved (2026-07-29) is WHERE it is observed. The client no longer
+    // EMITS the parent-list write — the server's create_occurrence handler
+    // $push-es the child atomically, and only once the create persisted — so
+    // this asserts on the optimistic DISPATCH instead of the socket.
+    // The action shape differs across creators, so pull the occurrence from
+    // wherever it sits rather than hard-coding one envelope.
+    const occOf = (a) => a?.payload?.occurrence || a?.occurrence || a?.payload || null;
+    const parentWrites = dispatch.mock.calls
+      .map(([a]) => occOf(a))
+      .filter(o => o?.id === "feedPage" && Array.isArray(o.occurrences))
+      .map(o => o.occurrences);
     const last = parentWrites[parentWrites.length - 1];
     expect(last).toHaveLength(2);
+  });
+
+  it("does NOT emit its own parent-list write — the server owns that push", () => {
+    // create_occurrence is QUEUED server-side and bails on disconnect;
+    // update_occurrence is neither. A client that went away mid-burst used to
+    // leave the parent listing children that were never created (42 such
+    // dangling ids in the live grid, 2026-07-29 audit). The create carries
+    // parentId, so the server links it atomically or not at all.
+    const { modulesById, occurrencesById } = world();
+    const feedOcc = { ...occurrencesById.feedPage, feed: { enabled: true, roles: ["instance"], scope: "sched" } };
+    occurrencesById.feedPage = feedOcc;
+    syncFeed(feedOcc, { state: state(occurrencesById), occurrencesById, modulesById, dispatch, socket });
+    const parentEmits = emitted.filter(([ev, p]) =>
+      ev === "update_occurrence" && p.occurrence?.id === "feedPage");
+    expect(parentEmits).toHaveLength(0);
+    // …but every create still carries the parent link the server pushes on.
+    const creates = emitted.filter(([ev]) => ev === "create_occurrence").map(([, p]) => p.occurrence);
+    expect(creates).toHaveLength(2);
+    for (const c of creates) expect(c.parentId).toBe("feedPage");
   });
 
   it("is idempotent: existing copies are not re-minted", () => {

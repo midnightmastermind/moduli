@@ -761,7 +761,16 @@ export function copyInstanceToContainer({
   // Add occurrence to container occurrence (ordering lives on the container occurrence)
   const toContainerOcc = toContainer._occurrence || null;
   if (toContainerOcc) {
-    addInstanceToContainer({ dispatch, socket, containerOccurrence: toContainerOcc, occurrenceId, index: toIndex, emit });
+    // emit:false ON PURPOSE — the new occurrence already carries `parentId`, and
+    // the server's create_occurrence handler atomically $push-es it into the
+    // parent's occurrences[] (with a $ne guard) only once the create actually
+    // persisted. Emitting a second, independent parent-list write is not just
+    // redundant: `create_occurrence` is QUEUED and bails on disconnect while
+    // `update_occurrence` is neither, so a client that goes away mid-burst used
+    // to persist a parent listing children that were never created. That is
+    // where the dangling child refs came from (2026-07-29 audit). The local
+    // dispatch still happens, so optimistic ordering is unchanged.
+    addInstanceToContainer({ dispatch, socket, containerOccurrence: toContainerOcc, occurrenceId, index: toIndex, emit: false });
   } else {
     console.warn('[LayoutHelpers] copyInstanceToContainer: toContainer._occurrence is null — ordering skipped');
   }
@@ -856,7 +865,16 @@ export function copylinkInstanceToContainer({
   // Add occurrence to container occurrence (ordering lives on the container occurrence)
   const toContainerOcc = toContainer._occurrence || null;
   if (toContainerOcc) {
-    addInstanceToContainer({ dispatch, socket, containerOccurrence: toContainerOcc, occurrenceId, index: toIndex, emit });
+    // emit:false ON PURPOSE — the new occurrence already carries `parentId`, and
+    // the server's create_occurrence handler atomically $push-es it into the
+    // parent's occurrences[] (with a $ne guard) only once the create actually
+    // persisted. Emitting a second, independent parent-list write is not just
+    // redundant: `create_occurrence` is QUEUED and bails on disconnect while
+    // `update_occurrence` is neither, so a client that goes away mid-burst used
+    // to persist a parent listing children that were never created. That is
+    // where the dangling child refs came from (2026-07-29 audit). The local
+    // dispatch still happens, so optimistic ordering is unchanged.
+    addInstanceToContainer({ dispatch, socket, containerOccurrence: toContainerOcc, occurrenceId, index: toIndex, emit: false });
   } else {
     console.warn('[LayoutHelpers] copylinkInstanceToContainer: toContainer._occurrence is null — ordering skipped');
   }

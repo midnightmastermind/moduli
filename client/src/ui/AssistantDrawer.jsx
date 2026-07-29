@@ -619,7 +619,7 @@ function useLocations() {
       // Keep the assistant scoped to the CURRENT grid only — never offer
       // (or best-guess) a container/page that lives in another grid.
       if (curGridId && occ.gridId && occ.gridId !== curGridId) continue;
-      const mod = modById[occ.moduleId || occ.targetId];
+      const mod = modById[occ.moduleId];
       const role = mod?.role;
       if (role !== "container" && role !== "page") continue;
       if (!mod?.label) continue;
@@ -629,7 +629,7 @@ function useLocations() {
     const labelOf = (id) => {
       const occ = occById[id]; if (!occ) return null;
       if (curGridId && occ.gridId && occ.gridId !== curGridId) return null;
-      return modById[occ.moduleId || occ.targetId]?.label || null;
+      return modById[occ.moduleId]?.label || null;
     };
     return { options, labelOf };
   }, [occurrencesById, modulesById, curGridId]);
@@ -677,7 +677,7 @@ function friendlyArgValue(key, val, { occurrencesById, modulesById, fieldsById }
   if (typeof val === "string") {
     if (/parent|occurrence|target/i.test(key)) {
       const occ = occurrencesById?.[val];
-      const lbl = (occ && modulesById?.[occ.moduleId || occ.targetId]?.label) || modulesById?.[val]?.label;
+      const lbl = (occ && modulesById?.[occ.moduleId]?.label) || modulesById?.[val]?.label;
       if (lbl) return lbl;
     }
     if (/field/i.test(key)) { const f = fieldsById?.[val]?.name; if (f) return f; }
@@ -1013,7 +1013,7 @@ function PanelPickCard({ occId }) {
   const [dismissed, setDismissed] = useState(false);
 
   const occ = occurrencesById?.[occId] || null;
-  const mod = occ ? modulesById?.[occ.moduleId || occ.targetId] : null;
+  const mod = occ ? modulesById?.[occ.moduleId] : null;
   const role = mod?.role;
 
   // Walk up the occurrences[] tree (parentId as fallback) to the nearest
@@ -1033,14 +1033,14 @@ function PanelPickCard({ occId }) {
       seen.add(cur);
       const o = occById[cur];
       if (!o) break;
-      const m = modulesById?.[o.moduleId || o.targetId];
+      const m = modulesById?.[o.moduleId];
       if (m?.role === "page") return o;
       cur = parentByChild[cur] ?? o.parentId ?? null;
     }
     return null;
   }, [occ, occId, occurrencesById, modulesById]);
 
-  const pageMod = pageOcc ? modulesById?.[pageOcc.moduleId || pageOcc.targetId] : null;
+  const pageMod = pageOcc ? modulesById?.[pageOcc.moduleId] : null;
   const targetLabel = pageMod?.label || mod?.label || "the new item";
 
   // Map each grid cell that hosts a panel → its occurrence id + label.
@@ -1049,7 +1049,7 @@ function PanelPickCard({ occId }) {
     const panelAt = {};
     for (const o of Object.values(occurrencesById || {})) {
       if (curGridId && o.gridId && o.gridId !== curGridId) continue;
-      const m = modulesById?.[o.moduleId || o.targetId];
+      const m = modulesById?.[o.moduleId];
       if (m?.role !== "panel") continue;
       const r = o.placement?.row ?? o.panel?.row ?? 0;
       const c = o.placement?.col ?? o.panel?.col ?? 0;
@@ -1100,7 +1100,7 @@ function PanelPickCard({ occId }) {
         occurrencesById,
         dispatch, socket, userId, label: mod?.label,
       });
-      const panelMod = modulesById?.[panelOcc.moduleId || panelOcc.targetId];
+      const panelMod = modulesById?.[panelOcc.moduleId];
       const viewId = panelOcc.viewId || panelMod?.viewId;
       const view = viewId ? viewsById?.[viewId] : null;
       if (view) {

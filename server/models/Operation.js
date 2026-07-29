@@ -62,6 +62,17 @@ const OperationSchema = new mongoose.Schema(
     // Whether this operation is active
     enabled: { type: Boolean, default: true },
 
+    // Execution order within one fire: LOWER runs first. `runMatchingOperations`
+    // sorts on (priority ?? 5) then sortOrder, so an auto-builder (priority 1)
+    // finishes before the trackers (3) read what it created.
+    //
+    // This field was MISSING until 2026-07-29 while the seed had been passing
+    // `priority: N` since 2026-04-27 — strict mode dropped it on every save, so
+    // all 68 operations persisted `priority: null` and the ordering silently
+    // fell back to `triggerObject.priority` (which does persist). Ordering that
+    // only appears to be declared is worse than none.
+    priority: { type: Number, default: null },
+
     sortOrder: { type: Number, default: 0 },
     // Category folder — references a Folder with folderType "category"
     folderId: { type: String, default: null },

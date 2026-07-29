@@ -127,7 +127,7 @@ export function ensureModuleBindingsForOccurrenceFields({ dispatch, socket, occu
     return vv != null && vv !== "";
   });
   if (fieldIds.length === 0) return;
-  const moduleId = occurrence.moduleId || occurrence.targetId;
+  const moduleId = occurrence.moduleId;
   if (!moduleId) return;
   const mod = operationsBridge.getLocalMod?.(moduleId);
   if (!mod) return;

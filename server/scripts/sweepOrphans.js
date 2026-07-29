@@ -12,6 +12,14 @@
 // ALONE — they could be mid-flight writes, and "probably dead" is not good
 // enough for a delete.
 //
+// ALSO repairs DANGLING CHILD REFS: ids in an occurrence's `occurrences[]`
+// that point at documents which do not exist. Those are litter from the
+// create/update asymmetry — `create_occurrence` is queued server-side and
+// bails on disconnect, `update_occurrence` is neither, so a client that went
+// away mid-burst persisted a parent listing children that were never created
+// (fixed at the source 2026-07-29: the create carries parentId and the server
+// links it atomically, so the client no longer emits its own parent write).
+//
 // Usage:
 //   node --env-file=server/.env server/scripts/sweepOrphans.js            # dry run
 //   node --env-file=server/.env server/scripts/sweepOrphans.js --apply
@@ -76,14 +84,33 @@ async function main() {
     plan.push({ name, model, ids: orphans.map(o => o._id) });
   }
 
+  // ── Dangling child refs ────────────────────────────────────────────────
+  const allOccs = await Occurrence.find({ userId }).select({ _id: 1, id: 1, gridId: 1, occurrences: 1 }).lean();
+  const liveIds = new Set(allOccs.map(o => o.id));
+  const doomedIds = new Set(plan.flatMap(p => p.ids.map(String)));
+  const byId = new Map(allOccs.map(o => [String(o._id), o]));
+  const danglingFix = [];
+  for (const o of allOccs) {
+    if (doomedIds.has(String(o._id))) continue;          // being deleted anyway
+    const kids = o.occurrences || [];
+    const kept = kids.filter(k => liveIds.has(k));
+    if (kept.length !== kids.length) danglingFix.push({ _id: o._id, id: o.id, gridId: o.gridId, before: kids.length, kept });
+  }
+  const danglingTotal = danglingFix.reduce((n, d) => n + (d.before - d.kept.length), 0);
+  if (danglingTotal) {
+    console.log(`\n   DANGLING child refs: ${danglingTotal} across ${danglingFix.length} parent(s)`);
+    for (const d of danglingFix.slice(0, 6)) console.log(`      ${d.id}: ${d.before} → ${d.kept.length}`);
+    if (danglingFix.length > 6) console.log(`      … ${danglingFix.length - 6} more`);
+  }
+
   if (nullTotal) {
     console.log(`\n   ${nullTotal} document(s) have NO gridId — left alone on purpose ` +
                 `(could be mid-flight; "probably dead" is not good enough for a delete).`);
   }
-  if (!orphanTotal) { console.log("\n✅ No orphans."); return; }
+  if (!orphanTotal && !danglingTotal) { console.log("\n✅ No orphans, no dangling child refs."); return; }
 
-  console.log(`\n   TOTAL: ${orphanTotal} orphan(s) from ${new Set(plan.flatMap(p => p.ids)).size ? "dead grid(s)" : ""}`);
-  if (!APPLY) { console.log("\nDRY RUN — nothing deleted. Re-run with --apply."); return; }
+  console.log(`\n   TOTAL: ${orphanTotal} orphan document(s), ${danglingTotal} dangling child ref(s)`);
+  if (!APPLY) { console.log("\nDRY RUN — nothing written. Re-run with --apply."); return; }
 
   // Dump the FULL documents before deleting. backupGrid can't cover these —
   // it is grid-scoped and these belong to no grid — so this is their only
@@ -91,12 +118,12 @@ async function main() {
   const dumpDir = resolve(REPO_ROOT, "backups", "orphans");
   fs.mkdirSync(dumpDir, { recursive: true });
   const dumpPath = path.join(dumpDir, `${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
-  const dump = {};
+  const dump = { _danglingParents: danglingFix.map(d => ({ _id: d._id, id: d.id, gridId: d.gridId, occurrencesBefore: (byId.get(String(d._id))?.occurrences) || [] })) };
   for (const { name, model, ids } of plan) {
     dump[name] = await model.find({ _id: { $in: ids } }).lean();
   }
   fs.writeFileSync(dumpPath, JSON.stringify(dump, null, 2));
-  const dumped = Object.values(dump).reduce((n, a) => n + a.length, 0);
+  const dumped = Object.entries(dump).reduce((n, [k, a]) => n + (k.startsWith("_") ? 0 : a.length), 0);
   if (dumped !== orphanTotal) {
     throw new Error(`Dump holds ${dumped} of ${orphanTotal} orphans — refusing to delete.`);
   }
@@ -106,7 +133,13 @@ async function main() {
     const { deletedCount } = await model.deleteMany({ _id: { $in: ids } });
     console.log(`   🗑️  ${name}: ${deletedCount}`);
   }
-  console.log(`\n✅ Swept ${orphanTotal} orphan(s). Dump: ${dumpPath}`);
+  // Repair the child lists. Dumped above alongside the orphans so a bad prune
+  // is reversible.
+  for (const d of danglingFix) {
+    await Occurrence.updateOne({ _id: d._id }, { $set: { occurrences: d.kept } });
+  }
+  if (danglingTotal) console.log(`   🔗 repaired ${danglingTotal} dangling child ref(s) across ${danglingFix.length} parent(s)`);
+  console.log(`\n✅ Swept ${orphanTotal} orphan(s), repaired ${danglingTotal} child ref(s). Dump: ${dumpPath}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {

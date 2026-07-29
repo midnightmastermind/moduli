@@ -45,7 +45,7 @@ describe("tableCells", () => {
   it("getCellSortValue: embed, no displayFieldId → occurrence label", () => {
     const doc = makeEmbedCellDoc("occ_1");
     const ctx = {
-      occurrencesById: { occ_1: { id: "occ_1", targetId: "mod_1" } },
+      occurrencesById: { occ_1: { id: "occ_1", moduleId: "mod_1" } },
       modulesById: { mod_1: { id: "mod_1", label: "Protein" } },
     };
     expect(getCellSortValue(doc, { displayFieldId: null }, ctx)).toBe("Protein");

@@ -36,7 +36,7 @@ export function normalizeAddNewTargets(addNew) {
 export function targetOptionsForAddNew(addNew, { occurrencesById = {}, modulesById = {} } = {}) {
   return normalizeAddNewTargets(addNew).map((id) => {
     const occ = occurrencesById[id] || null;
-    const mod = occ ? modulesById[occ.moduleId || occ.targetId] : null;
+    const mod = occ ? modulesById[occ.moduleId] : null;
     return { id, label: occ?.label ?? mod?.label ?? mod?.name ?? id };
   });
 }

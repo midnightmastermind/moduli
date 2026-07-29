@@ -580,7 +580,7 @@ function LinkSettingsSection({ occurrence, dispatch, socket, occurrencesById, mo
   const targetLabel = useMemo(() => {
     if (!targetId) return null;
     const o = occurrencesById?.[targetId];
-    return o ? (modulesById?.[o.moduleId || o.targetId]?.label || targetId) : targetId;
+    return o ? (modulesById?.[o.moduleId]?.label || targetId) : targetId;
   }, [targetId, occurrencesById, modulesById]);
 
   const matches = useMemo(() => {
@@ -589,7 +589,7 @@ function LinkSettingsSection({ occurrence, dispatch, socket, occurrencesById, mo
     const out = [];
     for (const o of Object.values(occurrencesById || {})) {
       if (o.id === occurrence?.id) continue;
-      const m = modulesById?.[o.moduleId || o.targetId];
+      const m = modulesById?.[o.moduleId];
       const label = m?.label;
       if (!label || !label.toLowerCase().includes(q)) continue;
       out.push({ id: o.id, label, role: m.role });

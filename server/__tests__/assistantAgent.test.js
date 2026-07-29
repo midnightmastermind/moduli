@@ -108,15 +108,15 @@ describe("extractDestinations (join state → named places)", () => {
       { id: "m_inst", role: "instance", label: "Drink Water" },
     ],
     occurrences: [
-      { id: "occ_page", targetId: "m_page", occurrences: ["occ_slot"] },
-      { id: "occ_slot", targetId: "m_slot", occurrences: ["occ_inst"] },
-      { id: "occ_gen", targetId: "m_gen", parentId: "folder-tasks" },
-      { id: "occ_inst", targetId: "m_inst" },
+      { id: "occ_page", moduleId: "m_page", occurrences: ["occ_slot"] },
+      { id: "occ_slot", moduleId: "m_slot", occurrences: ["occ_inst"] },
+      { id: "occ_gen", moduleId: "m_gen", parentId: "folder-tasks" },
+      { id: "occ_inst", moduleId: "m_inst" },
     ],
     folders: [{ id: "folder-tasks", name: "Tasks" }, { id: "bad" }],
   };
 
-  it("derives pages and containers by joining occurrence.targetId → module", () => {
+  it("derives pages and containers by joining occurrence.moduleId → module", () => {
     const d = extractDestinations(state);
     expect(d.pages).toEqual([{ id: "occ_page", label: "Schedule" }]);
     expect(d.containers).toContainEqual({ id: "occ_slot", label: "6:30pm", parent: "Schedule" });
@@ -171,8 +171,8 @@ describe("summarizeGridState (Fix #4 — bounded snapshot)", () => {
       { id: "m_inst", role: "instance", label: "Drink Water" },
     ],
     occurrences: [
-      { id: "occ_page", targetId: "m_page" },
-      ...Array.from({ length: 600 }, (_, i) => ({ id: `occ${i}`, targetId: "m_inst" })),
+      { id: "occ_page", moduleId: "m_page" },
+      ...Array.from({ length: 600 }, (_, i) => ({ id: `occ${i}`, moduleId: "m_inst" })),
     ],
     fields: [{ id: "fld1", name: "water", type: "number" }],
     operations: [{ id: "op1", name: "Tracker: Water" }],
@@ -185,7 +185,7 @@ describe("summarizeGridState (Fix #4 — bounded snapshot)", () => {
     expect(JSON.stringify(s).length).toBeLessThan(2000);
   });
 
-  it("derives pages by joining occurrence.targetId → page-role module", () => {
+  it("derives pages by joining occurrence.moduleId → page-role module", () => {
     const s = summarizeGridState(state);
     expect(s.pages).toEqual([{ id: "occ_page", label: "Examples" }]);
     expect(s.counts.pages).toBe(1);
