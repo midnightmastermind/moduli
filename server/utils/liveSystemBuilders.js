@@ -2789,3 +2789,145 @@ export function makeAlarmOp({ userId, gridId, folderId, type = "alarm", label = 
     enabled,
   };
 }
+
+// ─── makeMediaHistoryOp ──────────────────────────────────────────────────────
+// The "what did I consume today" trackers — Movies Watched / Books Read /
+// Podcasts Listened. All three were hand-written Operation literals with an
+// IDENTICAL 19-node pipeline skeleton (verified by structural diff against the
+// live grid 2026-07-29); they differed only in ids, loop-variable names, and
+// one optional extra key on each pushed row. ~12KB of duplicated JSON, and the
+// duplication is why three of them drifted apart in trigger surface over time.
+//
+// The pipeline: resolve the goal occurrence → bail if missing → resolve
+// $goalPeriod from its effective filter → resolve the Schedule page → trigger
+// gate (mirrors makeTrackerOp) → loop source instances in period under
+// Schedule → inner-loop the pick array → resolve each picked occurrence →
+// push a row + remember the last title → write rows + last title to the goal.
+//
+// Var names are PARAMETERS rather than derived, so this reproduces the three
+// existing pipelines byte-for-byte and the extraction is provably a no-op.
+// New callers should just pass a `varPrefix` and take the defaults.
+export function makeMediaHistoryOp({
+  uid, userId, gridId,
+  name, description,
+  goalOccurrenceId,          // the per-type occurrence under Media
+  schedulePageOccId,
+  sourceTemplateId,          // the action module whose occurrences carry the pick
+  pickFieldId,               // array field holding picked occurrence ids
+  rowsFieldId,               // display field receiving the row array
+  lastTitleFieldId,          // display field receiving the most recent title
+  triggerFieldId,            // field whose onChange retriggers this
+  dateFieldId, timeslotFieldId,
+  varPrefix = "item",
+  instVar = `$${varPrefix}Inst`,
+  pickVar = `$${varPrefix}OccId`,
+  itemVar = `$${varPrefix}`,
+  itemIdVar = `$${varPrefix}Id`,
+  // Row extras, split by SLOT so the emitted key order matches each existing
+  // op exactly (Movies: poster,label,…; Books: poster,label,pages,…). Key order
+  // is semantically irrelevant, but keeping it lets the extraction be verified
+  // by byte-diff rather than by argument.
+  rowBeforeLabel = null,
+  rowAfterLabel = null,
+  ancestorLabel = "Trackers",
+  priority = 3,
+}) {
+  const gate = (t) => ({ operator: "AND", rules: [
+    { left: "$trigger.type", comparator: "IS", right: t },
+    { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
+  ]});
+
+  return {
+    id: uid(), userId, gridId, priority,
+    name, description,
+    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
+    triggerObjects: [
+      { eventType: "onChange",       subjectType: "field",     targetId: triggerFieldId, priority },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel, priority },
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority },
+    ],
+    pipeline: {
+      sources: [],
+      steps: [
+        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItem",   expr: `$allItemsById.${goalOccurrenceId}` } },
+        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItemId", expr: "$goalItem.id" } },
+        {
+          type: "if",
+          condition: { conjunction: "AND", rules: [{ left: "$goalItemId", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
+          else: [],
+        },
+        {
+          type: "action", action: "INIT_VAR",
+          cfg: { name: "$goalPeriod", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
+        },
+        { type: "action", action: "INIT_VAR", cfg: { name: "$schedPage",   expr: `$allItemsById.${schedulePageOccId}` } },
+        { type: "action", action: "INIT_VAR", cfg: { name: "$schedPageId", expr: "$schedPage.id" } },
+        {
+          type: "if",
+          condition: { operator: "OR", rules: [
+            { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "onLoad" }] },
+            { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "NavigationOp" }] },
+            gate("OccurrenceCreateOp"), gate("OccurrenceDeleteOp"), gate("MeasureOp"),
+          ]},
+          then: [
+            { type: "action", action: "INIT_VAR", cfg: { name: "$rows", value: [] } },
+            { type: "action", action: "INIT_VAR", cfg: { name: "$lastTitle", value: "" } },
+            {
+              type: "loop", overExpr: "$allInstances", as: instVar,
+              body: [{
+                type: "if",
+                condition: { conjunction: "AND", rules: [
+                  { left: `${instVar}.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
+                  { left: `${instVar}._ancestors`, comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                  { left: `${instVar}.meta.feedSourceId`, comparator: "IS_EMPTY", right: "" },
+                  { left: `${instVar}.templateId`, comparator: "IS", right: sourceTemplateId },
+                ]},
+                then: [{
+                  type: "loop", overExpr: `${instVar}.fields.${pickFieldId}.value`, as: pickVar,
+                  body: [
+                    {
+                      type: "action", action: "FIND",
+                      cfg: {
+                        over: "$allInstances",
+                        predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: pickVar }] },
+                        itemVar, itemIdVar,
+                      },
+                    },
+                    {
+                      type: "if",
+                      condition: { conjunction: "AND", rules: [{ left: itemIdVar, comparator: "IS_NOT_EMPTY", right: "" }] },
+                      then: [
+                        {
+                          type: "action", action: "PUSH_TO_ARRAY",
+                          cfg: { name: "$rows", value: {
+                            ...(rowBeforeLabel || {}),
+                            label:    { kind: "occurrence", id: `${itemVar}.id` },
+                            ...(rowAfterLabel || {}),
+                            timeslot: `${instVar}.fields.${timeslotFieldId}.value`,
+                            date:     `${instVar}.fields.${dateFieldId}.value`,
+                          }},
+                        },
+                        { type: "action", action: "SET_VAR", cfg: { name: "$lastTitle", expr: `${itemVar}.label` } },
+                      ],
+                      else: [],
+                    },
+                  ],
+                }],
+                else: [],
+              }],
+            },
+            { type: "action", action: "UPDATE", cfg: { path: `$goalItem.fields.${rowsFieldId}.value`, value: "$rows" } },
+            { type: "action", action: "UPDATE", cfg: { path: `$goalItem.fields.${lastTitleFieldId}.value`, value: "$lastTitle" } },
+          ],
+          else: [],
+        },
+      ],
+    },
+    enabled: true,
+  };
+}

@@ -1,6 +1,6 @@
 // server/__tests__/liveSystemBuilders.test.js
 import { describe, it, expect } from "vitest";
-import { buildGridDoc, buildScheduleFilters, buildDailyRoutineTemplate, buildDayPageTemplate, makeScheduleBuildDayOp, makeScheduleBuildScheduleOp, makeDayPageBuildOp, makeStampDateTimeSlotOp, makeClearDateOnMoveOutOp, makeTrackerOp, makeDayPageBuildTasksCompletedOp } from "../utils/liveSystemBuilders.js";
+import { buildGridDoc, buildScheduleFilters, buildDailyRoutineTemplate, buildDayPageTemplate, makeScheduleBuildDayOp, makeScheduleBuildScheduleOp, makeDayPageBuildOp, makeStampDateTimeSlotOp, makeClearDateOnMoveOutOp, makeTrackerOp, makeDayPageBuildTasksCompletedOp, makeMediaHistoryOp } from "../utils/liveSystemBuilders.js";
 
 // Recursively flatten a pipeline's steps (then/else/body branches included).
 function flattenSteps(steps) {
@@ -570,5 +570,72 @@ describe("makeAlarmOp schedule-insert steps", () => {
     const op = makeAlarmOp({ userId: "u", gridId: "g", label: "5 PM", time: "17:00" });
     expect(op.pipeline.steps).toHaveLength(1);
     expect(op.alarm.sched).toBeUndefined();
+  });
+});
+
+describe("makeMediaHistoryOp", () => {
+  // Movies Watched / Books Read / Podcasts Listened were three hand-written
+  // Operation literals with an identical 19-node pipeline — ~12KB of duplicated
+  // JSON, which is exactly why their trigger surfaces had drifted apart. The
+  // extraction was verified against the seed export as a byte-for-byte no-op
+  // (modulo per-reseed ids); these lock the shape it emits.
+  const base = {
+    uid: (() => { let n = 0; return () => `id${n++}`; })(),
+    userId: "u1", gridId: "g1",
+    name: "Movies Watched", description: "d",
+    goalOccurrenceId: "goalOcc", schedulePageOccId: "schedOcc",
+    sourceTemplateId: "tplWatch", pickFieldId: "fPick",
+    rowsFieldId: "fRows", lastTitleFieldId: "fLast", triggerFieldId: "fPick",
+    dateFieldId: "fDate", timeslotFieldId: "fSlot",
+  };
+
+  it("binds the goal and schedule page picker-direct, never by label", () => {
+    const op = makeMediaHistoryOp(base);
+    const json = JSON.stringify(op.pipeline);
+    expect(json).toContain("$allItemsById.goalOcc");
+    expect(json).toContain("$allItemsById.schedOcc");
+    // FIND-by-label is the pattern this codebase moved OFF (2026-05-22) — a
+    // label match picks the wrong occurrence as soon as one is duplicated.
+    expect(json).not.toContain('"label", comparator: "IS"');
+  });
+
+  it("scopes the source loop to the Schedule page and excludes feed copies", () => {
+    const rules = makeMediaHistoryOp(base).pipeline.steps[6].then[2].body[0].condition.rules;
+    expect(rules.map(r => r.comparator)).toEqual(
+      expect.arrayContaining(["DATE_IN_PERIOD", "HAS_ANCESTOR", "IS_EMPTY", "IS"]));
+    // Feed copies carry their source's fields; counting them double-counts.
+    expect(rules.find(r => r.left.endsWith("meta.feedSourceId")).comparator).toBe("IS_EMPTY");
+  });
+
+  it("names every loop variable from the prefix by default", () => {
+    const op = makeMediaHistoryOp({ ...base, varPrefix: "movie" });
+    const json = JSON.stringify(op.pipeline);
+    expect(json).toContain("$movieInst");
+    expect(json).toContain("$movieOccId");
+  });
+
+  it("honours explicit var names — that is what made the extraction byte-exact", () => {
+    const op = makeMediaHistoryOp({ ...base, instVar: "$watchInst", itemVar: "$movie" });
+    const json = JSON.stringify(op.pipeline);
+    expect(json).toContain("$watchInst");
+    expect(json).toContain("$movie.label");
+  });
+
+  it("places row extras in the requested SLOT so key order is preserved", () => {
+    const op = makeMediaHistoryOp({
+      ...base,
+      rowBeforeLabel: { poster: "P" },
+      rowAfterLabel: { pages: "G" },
+    });
+    const push = op.pipeline.steps[6].then[2].body[0].then[0].body[1].then[0];
+    expect(Object.keys(push.cfg.value)).toEqual(["poster", "label", "pages", "timeslot", "date"]);
+  });
+
+  it("emits the full trigger surface, including the onChange field", () => {
+    const op = makeMediaHistoryOp(base);
+    expect(op.triggerTypes).toEqual(["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"]);
+    expect(op.triggerObjects[0]).toMatchObject({ eventType: "onChange", targetId: "fPick" });
+    // The drift this extraction removes: all three now get the same surface.
+    expect(op.triggerObjects).toHaveLength(7);
   });
 });

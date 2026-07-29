@@ -57,6 +57,7 @@ import {
   makeClearDateOnMoveOutOp,
   makeTrackerOp,
   makeAlarmOp,
+  makeMediaHistoryOp,
 } from "../utils/liveSystemBuilders.js";
 import { createRequire as _createRequire } from "module";
 // Board option images — harvested once via the app's image search; see the
@@ -6629,423 +6630,66 @@ export async function createLiveData(userId, options = {}) {
   // Schedule page → [trigger gate] → LOOP $allInstances for Watch Movie occs
   // dated $goalDate → inner LOOP over moviesWatched array → resolve each movie
   // label → concat to $output → UPDATE display field on the goal item.
-  await new Operation({
-    id: uid(), userId, gridId, priority: 3,
+  // ── Media history trackers ─────────────────────────────────────────────────
+  // Movies / Books / Podcasts were three hand-written Operation literals with
+  // an IDENTICAL 19-node pipeline (verified by structural diff, 2026-07-29) —
+  // ~12KB of duplicated JSON, and the duplication is exactly why their trigger
+  // surfaces had drifted apart. One builder now emits all three; the var names
+  // are passed through so the generated pipelines are byte-identical to what
+  // the literals produced.
+  await new Operation(makeMediaHistoryOp({
+    uid, userId, gridId,
     name: "Movies Watched",
     description: "Build a label list of movies watched today and update the Movies Watched goal display.",
-    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
-    triggerObjects: [
-      { eventType: "onChange",       subjectType: "field",     targetId: fields.mediaPick.id, priority: 3 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
-      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
-    ],
-    pipeline: {
-      sources: [],
-      steps: [
-        // 1. Picker-direct binding to the Movies per-type occurrence under Media
-        //    (was FIND-by-label "Movies Watched" — replaced when the standalone
-        //    goal folded into the Media container, Stage 3).
-        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItem",   expr: `$allItemsById.${goalOccIds.mediaMovies}` } },
-        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItemId", expr: "$goalItem.id" } },
-        // 2. Bail if goal not found
-        {
-          type: "if",
-          condition: { conjunction: "AND", rules: [{ left: "$goalItemId", comparator: "IS_EMPTY", right: "" }] },
-          then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
-          else: [],
-        },
-        // 3. Resolve $goalPeriod from the goal item's effective filter — full
-        // {value, unit} object (DATE_IN_PERIOD reads both bare-string + object).
-        {
-          type: "action", action: "INIT_VAR",
-          cfg: { name: "$goalPeriod", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
-        },
-        // 4. Find the Schedule page (needed for HAS_ANCESTOR; outside trigger gate like makeTrackerOp)
-        // Picker-direct binding (was FIND-by-label "Schedule" — replaced 2026-05-22).
-        { type: "action", action: "INIT_VAR", cfg: { name: "$schedPage",   expr: `$allItemsById.${schedPageOccId}` } },
-        { type: "action", action: "INIT_VAR", cfg: { name: "$schedPageId", expr: "$schedPage.id" } },
-        // 5. Trigger gate (mirrors makeTrackerOp's triggerGateRules OR block).
-        // Per-event sub-rules use DATE_IN_PERIOD $goalPeriod so weekly/monthly
-        // views retrigger on any in-period item change, not just same-day.
-        {
-          type: "if",
-          condition: { operator: "OR", rules: [
-            { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "onLoad" }] },
-            { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "NavigationOp" }] },
-            { operator: "AND", rules: [
-              { left: "$trigger.type", comparator: "IS", right: "OccurrenceCreateOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
-            ]},
-            { operator: "AND", rules: [
-              { left: "$trigger.type", comparator: "IS", right: "OccurrenceDeleteOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
-            ]},
-            { operator: "AND", rules: [
-              { left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
-            ]},
-          ]},
-          then: [
-            // 5a. Init rows accumulator + count + last-title scalars.
-            { type: "action", action: "INIT_VAR", cfg: { name: "$rows", value: [] } },
-            { type: "action", action: "INIT_VAR", cfg: { name: "$lastTitle", value: "" } },
-            // 5b. Loop over Watch Movie occurrences in $goalPeriod under Schedule
-            {
-              type: "loop",
-              overExpr: "$allInstances",
-              as: "$watchInst",
-              body: [
-                {
-                  type: "if",
-                  condition: {
-                    conjunction: "AND",
-                    rules: [
-                      { left: `$watchInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
-                      { left: "$watchInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                      { left: "$watchInst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                      { left: "$watchInst.templateId", comparator: "IS", right: actionInstances.watch.id },
-                    ],
-                  },
-                  then: [
-                    // Inner loop: iterate the moviesWatched array (array of occurrence IDs)
-                    {
-                      type: "loop",
-                      overExpr: `$watchInst.fields.${fields.mediaPick.id}.value`,
-                      as: "$movieOccId",
-                      body: [
-                        // Resolve the movie occurrence from $allInstances
-                        {
-                          type: "action", action: "FIND",
-                          cfg: {
-                            over: "$allInstances",
-                            predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: "$movieOccId" }] },
-                            itemVar: "$movie", itemIdVar: "$movieId",
-                          },
-                        },
-                        // Push {label, date} when the movie resolved
-                        {
-                          type: "if",
-                          condition: { conjunction: "AND", rules: [{ left: "$movieId", comparator: "IS_NOT_EMPTY", right: "" }] },
-                          then: [
-                            {
-                              type: "action", action: "PUSH_TO_ARRAY",
-                              cfg: {
-                                name: "$rows",
-                                value: {
-                                  poster:   { kind: "media", id: "$movie.id", fieldId: posterUrlFieldId },
-                                  label:    { kind: "occurrence", id: "$movie.id" },
-                                  timeslot: `$watchInst.fields.${timeslotFieldId}.value`,
-                                  date:     `$watchInst.fields.${dateFieldId}.value`,
-                                },
-                              },
-                            },
-                            { type: "action", action: "SET_VAR", cfg: { name: "$lastTitle", expr: "$movie.label" } },
-                          ],
-                          else: [],
-                        },
-                      ],
-                    },
-                  ],
-                  else: [],
-                },
-              ],
-            },
-            // 5c. Write history rows + last-title to the Movies occ.
-            {
-              type: "action", action: "UPDATE",
-              cfg: { path: `$goalItem.fields.${moviesWatchedDisplayFieldId}.value`, value: "$rows" },
-            },
-            { type: "action", action: "UPDATE", cfg: { path: `$goalItem.fields.${lastMovieFieldId}.value`, value: "$lastTitle" } },
-          ],
-          else: [],
-        },
-      ],
-    },
-    enabled: true,
-  }).save();
+    goalOccurrenceId: goalOccIds.mediaMovies,
+    schedulePageOccId: schedPageOccId,
+    sourceTemplateId: actionInstances.watch.id,
+    pickFieldId: fields.mediaPick.id,
+    rowsFieldId: moviesWatchedDisplayFieldId,
+    lastTitleFieldId: lastMovieFieldId,
+    triggerFieldId: fields.mediaPick.id,
+    dateFieldId, timeslotFieldId,
+    instVar: "$watchInst", pickVar: "$movieOccId", itemVar: "$movie", itemIdVar: "$movieId",
+    rowBeforeLabel: { poster: { kind: "media", id: "$movie.id", fieldId: posterUrlFieldId } },
+  })).save();
 
   // ── Tracker: Books Read ────────────────────────────────────────────────────
   // Same pipeline shape as Tracker: Movies Watched but for books.
   // Trigger gate added to match makeTrackerOp surface.
-  await new Operation({
-    id: uid(), userId, gridId, priority: 3,
+  await new Operation(makeMediaHistoryOp({
+    uid, userId, gridId,
     name: "Books Read",
     description: "Build a label list of books read today and update the Books Read goal display.",
-    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
-    triggerObjects: [
-      { eventType: "onChange",       subjectType: "field",     targetId: fields.reading.id, priority: 3 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
-      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
-    ],
-    pipeline: {
-      sources: [],
-      steps: [
-        // 1. Picker-direct binding to the Books per-type occurrence under Media
-        //    (was FIND-by-label "Books Read" — folded into Media, Stage 3).
-        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItem",   expr: `$allItemsById.${goalOccIds.mediaBooks}` } },
-        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItemId", expr: "$goalItem.id" } },
-        // 2. Bail if goal not found
-        {
-          type: "if",
-          condition: { conjunction: "AND", rules: [{ left: "$goalItemId", comparator: "IS_EMPTY", right: "" }] },
-          then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
-          else: [],
-        },
-        // 3. Resolve $goalPeriod — full {value, unit} object (DATE_IN_PERIOD-ready).
-        {
-          type: "action", action: "INIT_VAR",
-          cfg: { name: "$goalPeriod", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
-        },
-        // 4. Find the Schedule page (needed for HAS_ANCESTOR; outside trigger gate like makeTrackerOp)
-        // Picker-direct binding (was FIND-by-label "Schedule" — replaced 2026-05-22).
-        { type: "action", action: "INIT_VAR", cfg: { name: "$schedPage",   expr: `$allItemsById.${schedPageOccId}` } },
-        { type: "action", action: "INIT_VAR", cfg: { name: "$schedPageId", expr: "$schedPage.id" } },
-        // 5. Trigger gate — mirrors makeTrackerOp's triggerGateRules OR block.
-        {
-          type: "if",
-          condition: { operator: "OR", rules: [
-            { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "onLoad" }] },
-            { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "NavigationOp" }] },
-            { operator: "AND", rules: [
-              { left: "$trigger.type", comparator: "IS", right: "OccurrenceCreateOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
-            ]},
-            { operator: "AND", rules: [
-              { left: "$trigger.type", comparator: "IS", right: "OccurrenceDeleteOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
-            ]},
-            { operator: "AND", rules: [
-              { left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
-            ]},
-          ]},
-          then: [
-            // 5a. Init rows accumulator + count + last-title scalars.
-            { type: "action", action: "INIT_VAR", cfg: { name: "$rows", value: [] } },
-            { type: "action", action: "INIT_VAR", cfg: { name: "$lastTitle", value: "" } },
-            // 5b. Loop over Reading occurrences in $goalPeriod under Schedule
-            {
-              type: "loop",
-              overExpr: "$allInstances",
-              as: "$readInst",
-              body: [
-                {
-                  type: "if",
-                  condition: {
-                    conjunction: "AND",
-                    rules: [
-                      { left: `$readInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
-                      { left: "$readInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                      { left: "$readInst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                      { left: "$readInst.templateId", comparator: "IS", right: actionInstances.read.id },
-                    ],
-                  },
-                  then: [
-                    // Inner loop: iterate the booksRead array (array of occurrence IDs)
-                    {
-                      type: "loop",
-                      overExpr: `$readInst.fields.${fields.reading.id}.value`,
-                      as: "$bookOccId",
-                      body: [
-                        // Resolve the book occurrence from $allInstances
-                        {
-                          type: "action", action: "FIND",
-                          cfg: {
-                            over: "$allInstances",
-                            predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: "$bookOccId" }] },
-                            itemVar: "$book", itemIdVar: "$bookId",
-                          },
-                        },
-                        // Push a row { label, pages, date } when found
-                        {
-                          type: "if",
-                          condition: { conjunction: "AND", rules: [{ left: "$bookId", comparator: "IS_NOT_EMPTY", right: "" }] },
-                          then: [
-                            {
-                              type: "action", action: "PUSH_TO_ARRAY",
-                              cfg: {
-                                name: "$rows",
-                                value: {
-                                  poster:   { kind: "media", id: "$book.id", fieldId: posterUrlFieldId },
-                                  label:    { kind: "occurrence", id: "$book.id" },
-                                  pages:    `$book.fields.${pagesFieldId}.value`,
-                                  timeslot: `$readInst.fields.${timeslotFieldId}.value`,
-                                  date:     `$readInst.fields.${dateFieldId}.value`,
-                                },
-                              },
-                            },
-                            { type: "action", action: "SET_VAR", cfg: { name: "$lastTitle", expr: "$book.label" } },
-                          ],
-                          else: [],
-                        },
-                      ],
-                    },
-                  ],
-                  else: [],
-                },
-              ],
-            },
-            // 5c. Write history rows + last-title to the Books occ.
-            {
-              type: "action", action: "UPDATE",
-              cfg: { path: `$goalItem.fields.${booksReadDisplayFieldId}.value`, value: "$rows" },
-            },
-            { type: "action", action: "UPDATE", cfg: { path: `$goalItem.fields.${lastBookFieldId}.value`, value: "$lastTitle" } },
-          ],
-          else: [],
-        },
-      ],
-    },
-    enabled: true,
-  }).save();
+    goalOccurrenceId: goalOccIds.mediaBooks,
+    schedulePageOccId: schedPageOccId,
+    sourceTemplateId: actionInstances.read.id,
+    pickFieldId: fields.reading.id,
+    rowsFieldId: booksReadDisplayFieldId,
+    lastTitleFieldId: lastBookFieldId,
+    triggerFieldId: fields.reading.id,
+    dateFieldId, timeslotFieldId,
+    instVar: "$readInst", pickVar: "$bookOccId", itemVar: "$book", itemIdVar: "$bookId",
+    rowBeforeLabel: { poster: { kind: "media", id: "$book.id", fieldId: posterUrlFieldId } },
+    rowAfterLabel: { pages: `$book.fields.${pagesFieldId}.value` },
+  })).save();
 
   // ── Tracker: Podcasts Listened ─────────────────────────────────────────────
   // Same pipeline shape as Tracker: Movies Watched but for podcasts.
   // Trigger gate added to match makeTrackerOp surface.
-  await new Operation({
-    id: uid(), userId, gridId, priority: 3,
+  await new Operation(makeMediaHistoryOp({
+    uid, userId, gridId,
     name: "Podcasts Listened",
-    description: "Build a label list of podcasts listened today and update the Podcasts Listened goal display.",
-    triggerTypes: ["onChange", "onAdd", "onDelete", "onFilterChange", "onLoad"],
-    triggerObjects: [
-      { eventType: "onChange",       subjectType: "field",     targetId: fields.mediaPick.id, priority: 3 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 3 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Trackers", priority: 3 },
-      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 3 },
-    ],
-    pipeline: {
-      sources: [],
-      steps: [
-        // 1. Find the Podcasts Listened goal instance
-        {
-          type: "action", action: "INIT_VAR", cfg: { name: "$goalItem", expr: `$allItemsById.${goalOccIds.mediaPodcasts}` },
-        },
-        // (Picker-direct binding to the Podcasts per-type occurrence under Media
-        //  — was FIND-by-label "Podcasts Listened" — folded into Media, Stage 3.)
-        { type: "action", action: "INIT_VAR", cfg: { name: "$goalItemId", expr: "$goalItem.id" } },
-        // 2. Bail if goal not found
-        {
-          type: "if",
-          condition: { conjunction: "AND", rules: [{ left: "$goalItemId", comparator: "IS_EMPTY", right: "" }] },
-          then: [{ type: "action", action: "INIT_VAR", cfg: { name: "$earlyExit", expr: "true" } }],
-          else: [],
-        },
-        // 3. Resolve $goalPeriod — full {value, unit} object (DATE_IN_PERIOD-ready).
-        {
-          type: "action", action: "INIT_VAR",
-          cfg: { name: "$goalPeriod", expr: `$goalItem._effectiveFilter.${dateFieldId}`, fallback: "$trigger.date", fallback2: "$today" },
-        },
-        // 4. Find the Schedule page (needed for HAS_ANCESTOR; outside trigger gate like makeTrackerOp)
-        // Picker-direct binding (was FIND-by-label "Schedule" — replaced 2026-05-22).
-        { type: "action", action: "INIT_VAR", cfg: { name: "$schedPage",   expr: `$allItemsById.${schedPageOccId}` } },
-        { type: "action", action: "INIT_VAR", cfg: { name: "$schedPageId", expr: "$schedPage.id" } },
-        // 5. Trigger gate — mirrors makeTrackerOp's triggerGateRules OR block.
-        {
-          type: "if",
-          condition: { operator: "OR", rules: [
-            { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "onLoad" }] },
-            { operator: "AND", rules: [{ left: "$trigger.type", comparator: "IS", right: "NavigationOp" }] },
-            { operator: "AND", rules: [
-              { left: "$trigger.type", comparator: "IS", right: "OccurrenceCreateOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
-            ]},
-            { operator: "AND", rules: [
-              { left: "$trigger.type", comparator: "IS", right: "OccurrenceDeleteOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
-            ]},
-            { operator: "AND", rules: [
-              { left: "$trigger.type", comparator: "IS", right: "MeasureOp" },
-              { left: `$trigger.occurrence.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
-            ]},
-          ]},
-          then: [
-            // 5a. Init rows accumulator + count + last-title scalars.
-            { type: "action", action: "INIT_VAR", cfg: { name: "$rows", value: [] } },
-            { type: "action", action: "INIT_VAR", cfg: { name: "$lastTitle", value: "" } },
-            // 5b. Loop over Listen to Podcast occurrences in $goalPeriod under Schedule
-            {
-              type: "loop",
-              overExpr: "$allInstances",
-              as: "$podcastInst",
-              body: [
-                {
-                  type: "if",
-                  condition: {
-                    conjunction: "AND",
-                    rules: [
-                      { left: `$podcastInst.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" },
-                      { left: "$podcastInst._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                      { left: "$podcastInst.meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
-                      { left: "$podcastInst.templateId", comparator: "IS", right: actionInstances.listen.id },
-                    ],
-                  },
-                  then: [
-                    // Inner loop: iterate the podcastsListened array (array of occurrence IDs)
-                    {
-                      type: "loop",
-                      overExpr: `$podcastInst.fields.${fields.mediaPick.id}.value`,
-                      as: "$podcastOccId",
-                      body: [
-                        // Resolve the podcast occurrence from $allInstances
-                        {
-                          type: "action", action: "FIND",
-                          cfg: {
-                            over: "$allInstances",
-                            predicate: { conjunction: "AND", rules: [{ left: "id", comparator: "IS", right: "$podcastOccId" }] },
-                            itemVar: "$podcast", itemIdVar: "$podcastId",
-                          },
-                        },
-                        // Push {label, date} when the podcast resolved
-                        {
-                          type: "if",
-                          condition: { conjunction: "AND", rules: [{ left: "$podcastId", comparator: "IS_NOT_EMPTY", right: "" }] },
-                          then: [
-                            {
-                              type: "action", action: "PUSH_TO_ARRAY",
-                              cfg: {
-                                name: "$rows",
-                                value: {
-                                  label:    { kind: "occurrence", id: "$podcast.id" },
-                                  timeslot: `$podcastInst.fields.${timeslotFieldId}.value`,
-                                  date:     `$podcastInst.fields.${dateFieldId}.value`,
-                                },
-                              },
-                            },
-                            { type: "action", action: "SET_VAR", cfg: { name: "$lastTitle", expr: "$podcast.label" } },
-                          ],
-                          else: [],
-                        },
-                      ],
-                    },
-                  ],
-                  else: [],
-                },
-              ],
-            },
-            // 5c. Write history rows + last-title to the Podcasts occ.
-            {
-              type: "action", action: "UPDATE",
-              cfg: { path: `$goalItem.fields.${podcastsListenedDisplayFieldId}.value`, value: "$rows" },
-            },
-            { type: "action", action: "UPDATE", cfg: { path: `$goalItem.fields.${lastPodcastFieldId}.value`, value: "$lastTitle" } },
-          ],
-          else: [],
-        },
-      ],
-    },
-    enabled: true,
-  }).save();
+    description: "Build a label list of podcasts listened to today and update the Podcasts Listened goal display.",
+    goalOccurrenceId: goalOccIds.mediaPodcasts,
+    schedulePageOccId: schedPageOccId,
+    sourceTemplateId: actionInstances.listen.id,
+    pickFieldId: fields.mediaPick.id,
+    rowsFieldId: podcastsListenedDisplayFieldId,
+    lastTitleFieldId: lastPodcastFieldId,
+    triggerFieldId: fields.mediaPick.id,
+    dateFieldId, timeslotFieldId,
+    instVar: "$podcastInst", pickVar: "$podcastOccId", itemVar: "$podcast", itemIdVar: "$podcastId",
+  })).save();
 
   // ── Tracker: Courses Taken ─────────────────────────────────────────────────
   // Same pipeline shape as Tracker: Movies Watched but for courses. Writes
