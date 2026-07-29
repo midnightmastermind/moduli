@@ -93,7 +93,23 @@ export function checkGridIntegrity({ occurrences = [], modules = [], fields = []
   if (dupOps.length) add("error", "duplicate-operation-name",
     `${dupOps.length} operation name(s) are used more than once`, dupOps);
 
-  // 7. An operation that can never fire: no trigger objects, no trigger types,
+  // 7. `kind` on a role that has no sub-types. It is inert there, but not
+  //    harmless: getModuleTypeIcon resolves kind BEFORE role, so an instance
+  //    carrying kind:"board" draws the BOARD icon everywhere an icon appears.
+  //    539 of them did, for months (2026-07-29).
+  const KIND_BEARING = new Set(["container", "page", "artifact", "textblock"]);
+  const strayKind = modules
+    .filter(m => m.kind && m.role && !KIND_BEARING.has(m.role))
+    .map(m => `${m.role}/${m.kind}`);
+  if (strayKind.length) {
+    const counts = strayKind.reduce((a, k) => { a[k] = (a[k] || 0) + 1; return a; }, {});
+    add("warn", "inert-kind",
+      `${strayKind.length} module(s) carry a kind on a role that has none — the icon resolver ` +
+      `prefers kind over role, so these draw the wrong icon`,
+      Object.entries(counts).map(([k, n]) => `${k}×${n}`));
+  }
+
+  // 8. An operation that can never fire: no trigger objects, no trigger types,
   //    no schedule. Not an error (manual-run ops are legitimate) but worth
   //    surfacing, because it is usually a half-finished wiring job.
   const inert = operations

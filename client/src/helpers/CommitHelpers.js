@@ -1001,7 +1001,7 @@ export function createChildInContainer({
   }
   // default: a leaf instance (with any pre-picked fields)
   return createLeafInstanceAtIndex({
-    ...args, role: "instance", kind: "board", fieldIds,
+    ...args, role: "instance", fieldIds,
     parentOccurrence: containerOccurrence,
     panelId, containerLabel,
   });
@@ -1021,7 +1021,9 @@ export function createLeafInstanceInParent({
 
   const module = {
     id: moduleId, userId, gridId,
-    role: "instance", kind: "board",
+    // No `kind`: it is inert on an instance leaf and the icon resolver prefers
+    // kind over role, so a stray kind renders the WRONG icon (2026-07-29).
+    role: "instance",
     label: label || "",
     // Optional bindings (the addNew option flow binds stamp fields hidden +
     // entry fields visible so a fresh option renders its inputs).
@@ -1065,7 +1067,7 @@ export function createLeafInstanceInParent({
 // race (unlike the App-level append path).
 export function createLeafInstanceAtIndex({
   dispatch, socket, gridId, userId, parentOccurrence, index = null,
-  existingModuleId = null, role = "instance", kind = "list", label = "", initialFields = {},
+  existingModuleId = null, role = "instance", kind = null, label = "", initialFields = {},
   fieldIds = [], panelId = null, containerLabel = "",
 }) {
   if (!gridId || !userId || !parentOccurrence) return null;
@@ -1079,7 +1081,11 @@ export function createLeafInstanceAtIndex({
 
   if (!moduleId) {
     moduleId = crypto?.randomUUID?.() || `li-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const module = { id: moduleId, userId, gridId, role, kind, label: label || "" };
+    // `kind` is omitted when null — it is the SUB-TYPE within a role and is
+    // inert on instance/textblock leaves. Writing a junk one is not harmless:
+    // getModuleTypeIcon prefers kind over role, so an instance carrying
+    // kind:"board" renders the BOARD icon everywhere (2026-07-29 audit).
+    const module = { id: moduleId, userId, gridId, role, label: label || "", ...(kind ? { kind } : {}) };
     // Bind any fields the user pre-picked in the QuickAddMenu field step.
     if (Array.isArray(fieldIds) && fieldIds.length) {
       module.fieldBindings = fieldIds.map(fid => ({ fieldId: fid, role: "input" }));

@@ -2862,7 +2862,7 @@ export async function createDefaultUserData(userId) {
   // parentOccId defaults to dayPageDocOccId but can be set to a section/list container occurrence ID
   function dpTextblock(paragraphContent, parentOccId) {
     const modId = uid(); const occId = uid();
-    _dpTbMods.push({ id: modId, userId, gridId, role: "instance", kind: "doc", label: "" });
+    _dpTbMods.push({ id: modId, userId, gridId, role: "instance", label: "" });
     _dpTbOccs.push({
       id: occId, userId, gridId, moduleId: modId,
       parentId: parentOccId || dayPageDocOccId, iteration: { mode: "persistent" },
@@ -2912,7 +2912,7 @@ export async function createDefaultUserData(userId) {
 
   // Physical list textblock — H3 + mini-textblock pills (parented to Daily Log section)
   const dpPhysicalListTBMod = uid();
-  _dpTbMods.push({ id: dpPhysicalListTBMod, userId, gridId, role: "instance", kind: "doc", label: "Physical" });
+  _dpTbMods.push({ id: dpPhysicalListTBMod, userId, gridId, role: "instance", label: "Physical" });
   _dpTbOccs.push({
     id: dpListTBOccIds.physical, userId, gridId, moduleId: dpPhysicalListTBMod,
     parentId: dpSectionOccIds.dailyLog, iteration: { mode: "persistent" }, fields: {},
@@ -2925,7 +2925,7 @@ export async function createDefaultUserData(userId) {
 
   // Mind & Soul list textblock — H3 + mini-textblock pills (parented to Daily Log section)
   const dpMindSoulListTBMod = uid();
-  _dpTbMods.push({ id: dpMindSoulListTBMod, userId, gridId, role: "instance", kind: "doc", label: "Mind & Soul" });
+  _dpTbMods.push({ id: dpMindSoulListTBMod, userId, gridId, role: "instance", label: "Mind & Soul" });
   _dpTbOccs.push({
     id: dpListTBOccIds.mindSoul, userId, gridId, moduleId: dpMindSoulListTBMod,
     parentId: dpSectionOccIds.dailyLog, iteration: { mode: "persistent" }, fields: {},
@@ -2938,7 +2938,7 @@ export async function createDefaultUserData(userId) {
 
   // Nutrition list textblock — H3 + mini-textblock pills (parented to Daily Log section)
   const dpNutritionListTBMod = uid();
-  _dpTbMods.push({ id: dpNutritionListTBMod, userId, gridId, role: "instance", kind: "doc", label: "Nutrition" });
+  _dpTbMods.push({ id: dpNutritionListTBMod, userId, gridId, role: "instance", label: "Nutrition" });
   _dpTbOccs.push({
     id: dpListTBOccIds.nutrition, userId, gridId, moduleId: dpNutritionListTBMod,
     parentId: dpSectionOccIds.dailyLog, iteration: { mode: "persistent" }, fields: {},
@@ -3180,7 +3180,7 @@ export async function createDefaultUserData(userId) {
       } else {
         content = paragraphNodes;
       }
-      _textblockModules.push({ id: modId, userId, gridId, role: "instance", kind: "doc", label: "" });
+      _textblockModules.push({ id: modId, userId, gridId, role: "instance", label: "" });
       _textblockOccurrences.push({
         id: occId, userId, gridId,
         moduleId: modId,
@@ -4342,7 +4342,7 @@ export async function createDefaultUserData(userId) {
     const pageOccId = uid();
     const cardOccIds = [];
     for (const card of pageDef.cards) {
-      const cardMod = new Module({ id: uid(), userId, gridId, role: "instance", kind: "board", label: card.label, fieldBindings: [] });
+      const cardMod = new Module({ id: uid(), userId, gridId, role: "instance", label: card.label, fieldBindings: [] });
       await cardMod.save();
       const cardOccId = await createOccurrence({ moduleId: cardMod.id, meta: { x: card.x, y: card.y, containerId: pageMod.id } });
       cardOccIds.push(cardOccId);

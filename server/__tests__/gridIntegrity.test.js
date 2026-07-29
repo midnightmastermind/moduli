@@ -143,3 +143,32 @@ describe("reportGridIntegrity", () => {
     expect(reportGridIntegrity([{ level: "warn", code: "x", message: "m" }], { log: noop })).toBe(true);
   });
 });
+
+describe("inert kind on leaf roles", () => {
+  it("flags an instance carrying a kind — the icon resolver prefers kind over role", () => {
+    const f = checkGridIntegrity({ modules: [
+      { id: "m1", role: "instance", kind: "board" },
+      { id: "m2", role: "panel", kind: "board" },
+    ]});
+    const hit = f.find(x => x.code === "inert-kind");
+    expect(hit.level).toBe("warn");
+    expect(hit.ids).toEqual(expect.arrayContaining(["instance/board×1", "panel/board×1"]));
+  });
+
+  it("leaves the roles where kind is MEANINGFUL alone", () => {
+    // container/page/artifact/textblock all render by kind — flagging those
+    // would make the check useless noise.
+    const f = checkGridIntegrity({ modules: [
+      { id: "c", role: "container", kind: "doc" },
+      { id: "p", role: "page", kind: "board" },
+      { id: "a", role: "artifact", kind: "image" },
+      { id: "t", role: "textblock", kind: "inline" },
+    ]});
+    expect(f.map(x => x.code)).not.toContain("inert-kind");
+  });
+
+  it("is quiet when a leaf carries no kind at all", () => {
+    const f = checkGridIntegrity({ modules: [{ id: "m1", role: "instance" }] });
+    expect(f.map(x => x.code)).not.toContain("inert-kind");
+  });
+});

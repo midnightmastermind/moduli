@@ -3203,8 +3203,14 @@ export async function createLiveData(userId, options = {}) {
   // the date filter in the page header covers the same intent — the
   // inline Date row was redundant.
 
-  // Persist instance modules (parallel insertMany in batches)
-  const instanceDocs = Object.values(allInstances).map(inst => ({
+  // Persist instance modules (parallel insertMany in batches).
+  // `kind` is dropped HERE rather than at each of the ~40 literals above: this
+  // is the one chokepoint every instance module passes through, so stripping it
+  // once is both DRY and impossible to forget. Kind is the sub-type WITHIN a
+  // role and an instance has no sub-types — and it is not inert cosmetically,
+  // because getModuleTypeIcon resolves kind BEFORE role, so an instance
+  // carrying kind:"board" draws the BOARD icon everywhere (2026-07-29 audit).
+  const instanceDocs = Object.values(allInstances).map(({ kind: _inertOnLeaves, ...inst }) => ({
     ...inst,
     userId,
     gridId,
@@ -3712,21 +3718,21 @@ export async function createLiveData(userId, options = {}) {
   ];
   // 8 movie modules (role:"instance", hidden library + poster bindings)
   await Module.insertMany([
-    { id: movieInceptionModId,       userId, gridId, role: "instance", kind: "board", label: "Inception",
+    { id: movieInceptionModId,       userId, gridId, role: "instance", label: "Inception",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: movieFieldBindings },
-    { id: movieMatrixModId,          userId, gridId, role: "instance", kind: "board", label: "The Matrix",
+    { id: movieMatrixModId,          userId, gridId, role: "instance", label: "The Matrix",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: movieFieldBindings },
-    { id: movieArrivalModId,         userId, gridId, role: "instance", kind: "board", label: "Arrival",
+    { id: movieArrivalModId,         userId, gridId, role: "instance", label: "Arrival",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: movieFieldBindings },
-    { id: movieDuneModId,            userId, gridId, role: "instance", kind: "board", label: "Dune",
+    { id: movieDuneModId,            userId, gridId, role: "instance", label: "Dune",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: movieFieldBindings },
-    { id: movieInterstellarModId,    userId, gridId, role: "instance", kind: "board", label: "Interstellar",
+    { id: movieInterstellarModId,    userId, gridId, role: "instance", label: "Interstellar",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: movieFieldBindings },
-    { id: movieBladeRunner2049ModId, userId, gridId, role: "instance", kind: "board", label: "Blade Runner 2049",
+    { id: movieBladeRunner2049ModId, userId, gridId, role: "instance", label: "Blade Runner 2049",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: movieFieldBindings },
-    { id: moviePrestigeModId,        userId, gridId, role: "instance", kind: "board", label: "The Prestige",
+    { id: moviePrestigeModId,        userId, gridId, role: "instance", label: "The Prestige",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: movieFieldBindings },
-    { id: movieTenetModId,           userId, gridId, role: "instance", kind: "board", label: "Tenet",
+    { id: movieTenetModId,           userId, gridId, role: "instance", label: "Tenet",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: movieFieldBindings },
   ]);
 
@@ -3739,19 +3745,19 @@ export async function createLiveData(userId, options = {}) {
     { fieldId: posterUrlFieldId, role: "media", order: 2, hidden: true },
   ];
   await Module.insertMany([
-    { id: bookAtomicHabitsModId,     userId, gridId, role: "instance", kind: "board", label: "Atomic Habits",
+    { id: bookAtomicHabitsModId,     userId, gridId, role: "instance", label: "Atomic Habits",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
-    { id: bookDeepWorkModId,         userId, gridId, role: "instance", kind: "board", label: "Deep Work",
+    { id: bookDeepWorkModId,         userId, gridId, role: "instance", label: "Deep Work",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
-    { id: bookSapiensModId,          userId, gridId, role: "instance", kind: "board", label: "Sapiens",
+    { id: bookSapiensModId,          userId, gridId, role: "instance", label: "Sapiens",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
-    { id: bookThinkingFastSlowModId, userId, gridId, role: "instance", kind: "board", label: "Thinking, Fast and Slow",
+    { id: bookThinkingFastSlowModId, userId, gridId, role: "instance", label: "Thinking, Fast and Slow",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
-    { id: bookMeditationsModId,      userId, gridId, role: "instance", kind: "board", label: "Meditations",
+    { id: bookMeditationsModId,      userId, gridId, role: "instance", label: "Meditations",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
-    { id: bookMansSearchModId,       userId, gridId, role: "instance", kind: "board", label: "Man's Search for Meaning",
+    { id: bookMansSearchModId,       userId, gridId, role: "instance", label: "Man's Search for Meaning",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
-    { id: book4HourWorkweekModId,    userId, gridId, role: "instance", kind: "board", label: "The 4-Hour Workweek",
+    { id: book4HourWorkweekModId,    userId, gridId, role: "instance", label: "The 4-Hour Workweek",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
   ]);
 
@@ -3768,27 +3774,27 @@ export async function createLiveData(userId, options = {}) {
 
   // 5 podcast modules
   await Module.insertMany([
-    { id: podcastTimFerrissModId,      userId, gridId, role: "instance", kind: "board", label: "The Tim Ferriss Show",
+    { id: podcastTimFerrissModId,      userId, gridId, role: "instance", label: "The Tim Ferriss Show",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: podcastFieldBindings },
-    { id: podcastLexFridmanModId,      userId, gridId, role: "instance", kind: "board", label: "Lex Fridman Podcast",
+    { id: podcastLexFridmanModId,      userId, gridId, role: "instance", label: "Lex Fridman Podcast",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: podcastFieldBindings },
-    { id: podcastHardcoreHistoryModId, userId, gridId, role: "instance", kind: "board", label: "Hardcore History",
+    { id: podcastHardcoreHistoryModId, userId, gridId, role: "instance", label: "Hardcore History",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: podcastFieldBindings },
-    { id: podcastHubermanLabModId,     userId, gridId, role: "instance", kind: "board", label: "Huberman Lab",
+    { id: podcastHubermanLabModId,     userId, gridId, role: "instance", label: "Huberman Lab",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: podcastFieldBindings },
-    { id: podcastConvosTylerModId,     userId, gridId, role: "instance", kind: "board", label: "Conversations with Tyler",
+    { id: podcastConvosTylerModId,     userId, gridId, role: "instance", label: "Conversations with Tyler",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: podcastFieldBindings },
   ]);
 
   // 4 course modules
   await Module.insertMany([
-    { id: courseAlgorithmsModId,      userId, gridId, role: "instance", kind: "board", label: "Algorithms (Coursera)",
+    { id: courseAlgorithmsModId,      userId, gridId, role: "instance", label: "Algorithms (Coursera)",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: courseFieldBindings },
-    { id: courseMLSpecModId,          userId, gridId, role: "instance", kind: "board", label: "Machine Learning Specialization",
+    { id: courseMLSpecModId,          userId, gridId, role: "instance", label: "Machine Learning Specialization",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: courseFieldBindings },
-    { id: courseSystemDesignModId,    userId, gridId, role: "instance", kind: "board", label: "System Design Primer",
+    { id: courseSystemDesignModId,    userId, gridId, role: "instance", label: "System Design Primer",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: courseFieldBindings },
-    { id: courseIntroPhilosophyModId, userId, gridId, role: "instance", kind: "board", label: "Introduction to Philosophy",
+    { id: courseIntroPhilosophyModId, userId, gridId, role: "instance", label: "Introduction to Philosophy",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: courseFieldBindings },
   ]);
 
@@ -3825,25 +3831,25 @@ export async function createLiveData(userId, options = {}) {
     // (Show Profile button binding removed 2026-07-25 — People is a board.)
   ];
   await Module.insertMany([
-    { id: personAvaModId,    userId, gridId, role: "instance", kind: "board", label: "Ava Martinez",
+    { id: personAvaModId,    userId, gridId, role: "instance", label: "Ava Martinez",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
-    { id: personBenModId,    userId, gridId, role: "instance", kind: "board", label: "Ben Chen",
+    { id: personBenModId,    userId, gridId, role: "instance", label: "Ben Chen",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
-    { id: personChloeModId,  userId, gridId, role: "instance", kind: "board", label: "Chloe Patel",
+    { id: personChloeModId,  userId, gridId, role: "instance", label: "Chloe Patel",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
-    { id: personDevenModId,  userId, gridId, role: "instance", kind: "board", label: "Deven Wright",
+    { id: personDevenModId,  userId, gridId, role: "instance", label: "Deven Wright",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
-    { id: personEliseModId,  userId, gridId, role: "instance", kind: "board", label: "Elise Nakamura",
+    { id: personEliseModId,  userId, gridId, role: "instance", label: "Elise Nakamura",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
-    { id: personFelixModId,  userId, gridId, role: "instance", kind: "board", label: "Felix Romero",
+    { id: personFelixModId,  userId, gridId, role: "instance", label: "Felix Romero",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
-    { id: personGraceModId,  userId, gridId, role: "instance", kind: "board", label: "Grace Okonkwo",
+    { id: personGraceModId,  userId, gridId, role: "instance", label: "Grace Okonkwo",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
-    { id: personHenryModId,  userId, gridId, role: "instance", kind: "board", label: "Henry Lindqvist",
+    { id: personHenryModId,  userId, gridId, role: "instance", label: "Henry Lindqvist",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
-    { id: personIsabelModId, userId, gridId, role: "instance", kind: "board", label: "Isabel Sokolov",
+    { id: personIsabelModId, userId, gridId, role: "instance", label: "Isabel Sokolov",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
-    { id: personJackModId,   userId, gridId, role: "instance", kind: "board", label: "Jack Brennan",
+    { id: personJackModId,   userId, gridId, role: "instance", label: "Jack Brennan",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: personFieldBindings },
   ]);
 
@@ -3861,7 +3867,7 @@ export async function createLiveData(userId, options = {}) {
     PHIL_QUESTIONS.map((label, i) => ({
       id: phQuestionModIds[i],
       userId, gridId,
-      role: "instance", kind: "board",
+      role: "instance",
       label,
       defaultDragMode: "move",
       fieldBindings: [{ fieldId: libraryFieldId, role: "input", order: 0, hidden: true }],
@@ -3974,9 +3980,9 @@ export async function createLiveData(userId, options = {}) {
   const bookTaoTeChingModId = uid();
   const bookPsalmsModId     = uid();
   await Module.insertMany([
-    { id: bookTaoTeChingModId, userId, gridId, role: "instance", kind: "board", label: "Tao Te Ching",
+    { id: bookTaoTeChingModId, userId, gridId, role: "instance", label: "Tao Te Ching",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
-    { id: bookPsalmsModId,     userId, gridId, role: "instance", kind: "board", label: "Book of Psalms",
+    { id: bookPsalmsModId,     userId, gridId, role: "instance", label: "Book of Psalms",
       defaultDragMode: "copy", meta: { mediaInline: true }, fieldBindings: bookFieldBindings },
   ]);
   const bookTaoTeChingOccId = await mkOcc({ moduleId: bookTaoTeChingModId, parentId: libraryContOccId, fields: bookFields("Tao Te Ching", 160) });
@@ -4556,7 +4562,7 @@ export async function createLiveData(userId, options = {}) {
     for (const o of def.options) {
       const modId = uid();
       await new Module({
-        id: modId, userId, gridId, role: "instance", kind: "board",
+        id: modId, userId, gridId, role: "instance",
         // Board options default to COPY (2026-07-25, per user): picking one
         // onto a day should leave the option on its board, never move it off.
         label: o.label, defaultDragMode: "copy",
@@ -5135,7 +5141,7 @@ export async function createLiveData(userId, options = {}) {
   // (isOccurrenceVisible returns false for it — state/selectors.js).
   const lastOpenedModId = uid(); const lastOpenedOccId = uid();
   await new Module({
-    id: lastOpenedModId, userId, gridId, role: "instance", kind: "list",
+    id: lastOpenedModId, userId, gridId, role: "instance",
     label: "Last Opened",
     fieldBindings: [{ fieldId: lastOpenedFieldId, role: "input", order: 0, hidden: true }],
   }).save();
@@ -5611,11 +5617,11 @@ export async function createLiveData(userId, options = {}) {
   const accountsPanelId = uid();
 
   await Module.insertMany([
-    { id: toolkitPanelId,  userId, gridId, role: "panel", kind: "board", label: "Panel A", defaultDragMode: "copy", layout: panelLayout("Panel A") },
-    { id: todoPanelId,     userId, gridId, role: "panel", kind: "board", label: "Panel B", defaultDragMode: "move", layout: { ...panelLayout("Panel B"), gapPx: 8 } },
-    { id: notebookPanelId, userId, gridId, role: "panel", kind: "board", label: "Panel C", defaultDragMode: "move", layout: panelLayout("Panel C") },
-    { id: goalsPanelId,    userId, gridId, role: "panel", kind: "board", label: "Panel D", defaultDragMode: "move", layout: panelLayout("Panel D") },
-    { id: accountsPanelId, userId, gridId, role: "panel", kind: "board", label: "Panel E", defaultDragMode: "move", layout: panelLayout("Panel E") },
+    { id: toolkitPanelId,  userId, gridId, role: "panel", label: "Panel A", defaultDragMode: "copy", layout: panelLayout("Panel A") },
+    { id: todoPanelId,     userId, gridId, role: "panel", label: "Panel B", defaultDragMode: "move", layout: { ...panelLayout("Panel B"), gapPx: 8 } },
+    { id: notebookPanelId, userId, gridId, role: "panel", label: "Panel C", defaultDragMode: "move", layout: panelLayout("Panel C") },
+    { id: goalsPanelId,    userId, gridId, role: "panel", label: "Panel D", defaultDragMode: "move", layout: panelLayout("Panel D") },
+    { id: accountsPanelId, userId, gridId, role: "panel", label: "Panel E", defaultDragMode: "move", layout: panelLayout("Panel E") },
   ]);
 
   const panelOccIds = {};

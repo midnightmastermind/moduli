@@ -180,7 +180,7 @@ export async function buildDailyRoutineTemplate({
       const srcMod = await findModule({ id: r.sourceModId, gridId });
       await new Module({
         id: tplInstModId, userId, gridId,
-        role: "instance", kind: "board", label: r.label,
+        role: "instance", label: r.label,
         defaultDragMode: "copy",
         fieldBindings: srcMod?.fieldBindings || [],
         meta: { templateModule: true },
@@ -343,7 +343,7 @@ export async function buildScheduleTemplatePage({
       const srcMod = await findModule({ id: r.sourceModId, gridId });
       await new Module({
         id: tplInstModId, userId, gridId,
-        role: "instance", kind: "board", label: r.label,
+        role: "instance", label: r.label,
         defaultDragMode: "copy",
         fieldBindings: srcMod?.fieldBindings || [],
       }).save();
@@ -2751,7 +2751,7 @@ function alarmScheduleSteps({ sched, instanceLabel, time }) {
               condition: { operator: "AND", rules: [{ id: uid(), left: "$alExisting", comparator: "IS_EMPTY", right: "" }] },
               then: [
                 { id: uid(), type: "action", config: {
-                  type: "CREATE", role: "instance", kind: "list", name: instanceLabel,
+                  type: "CREATE", role: "instance", name: instanceLabel,
                   parent: "$alTarget", fields: { [df]: "$today", [tf]: tsLabel },
                   fieldHidden: { [df]: true, [tf]: true },
                 } },
