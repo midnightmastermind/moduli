@@ -174,7 +174,9 @@ describe("syncFeed (materializer)", () => {
     const feedOcc = { ...occurrencesById.feedPage, occurrences: ["copyA", "copyB"], feed: { enabled: true, roles: ["instance"], scope: "sched" } };
     occurrencesById.feedPage = feedOcc;
     const r = syncFeed(feedOcc, { state: state(occurrencesById), occurrencesById, modulesById, dispatch, socket });
-    expect(r).toEqual({ minted: 0, swept: 0 });
+    // toMatchObject, not toEqual: syncFeed also returns diagnostic counts
+    // (matches/visible/existing) that this assertion is not about.
+    expect(r).toMatchObject({ minted: 0, swept: 0 });
     expect(emitted.filter(([ev]) => ev === "create_occurrence")).toHaveLength(0);
   });
 

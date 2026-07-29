@@ -30,12 +30,12 @@ import {
 } from "../state/selectors";
 
 // One sync pass for ONE feed owner. Returns { minted, swept } counts.
-export function syncFeed(feedOcc, { state, occurrencesById, modulesById, dispatch, socket }) {
+export function syncFeed(feedOcc, { state, occurrencesById, modulesById, dispatch, socket, diag = false }) {
   const feed = feedOcc?.feed;
-  if (!feed?.enabled) return { minted: 0, swept: 0 };
+  if (!feed?.enabled) return { minted: 0, swept: 0, bail: "disabled" };
   const gridId = state?.gridId || state?.grid?._id;
   const userId = state?.userId;
-  if (!gridId || !userId) return { minted: 0, swept: 0 };
+  if (!gridId || !userId) return { minted: 0, swept: 0, bail: `no ${!gridId ? "gridId" : "userId"}` };
 
   // 1. Which sources match RIGHT NOW — feed conditions first, then the
   //    owner's effective filter (the "pulled for the active period" rule:
@@ -54,6 +54,9 @@ export function syncFeed(feedOcc, { state, occurrencesById, modulesById, dispatc
   ];
   const visible = matches.filter(m =>
     isOccurrenceVisible(m.occurrence, effectiveFilters, conditions.length ? conditions : null));
+  if (diag && matches.length !== visible.length) {
+    console.log(`[feedDiag]     "${feedOcc.label || feedOcc.id}" filtered out ${matches.length - visible.length} of ${matches.length} by the effective filter`, effectiveFilters);
+  }
 
   // 2. Diff against the copies this feed already minted — found by SCAN
   //    (meta.feedSourceId + parentId), NOT by the parent's occurrences[]
@@ -131,19 +134,30 @@ export function syncFeed(feedOcc, { state, occurrencesById, modulesById, dispatc
       parentOcc = { ...parentOcc, occurrences: [...(parentOcc.occurrences || []), res.occurrence.id] };
     }
   }
-  return { minted, swept };
+  return { minted, swept, matches: matches.length, visible: visible.length, existing: existingBySource.size };
 }
 
 // Sync EVERY enabled feed on the grid. Called after full_state settles and
 // (debounced) after filter changes / occurrence CRUD — the same moments the
 // old Build ops' trigger objects covered, minus the per-op wiring.
 export function syncAllFeeds({ state, occurrencesById, modulesById, dispatch, socket }) {
-  let minted = 0, swept = 0;
+  let minted = 0, swept = 0, feeds = 0;
+  // `window.__feedDiag = true` prints a per-feed breakdown. A feed that mints
+  // nothing is indistinguishable from a feed that never ran, which is exactly
+  // the ambiguity that made the 2026-07-29 under-population hard to pin down.
+  const diag = typeof window !== "undefined" && window.__feedDiag === true;
+  const rows = [];
   for (const occ of Object.values(occurrencesById || {})) {
     if (!occ?.feed?.enabled) continue;
-    const r = syncFeed(occ, { state, occurrencesById, modulesById, dispatch, socket });
+    feeds++;
+    const r = syncFeed(occ, { state, occurrencesById, modulesById, dispatch, socket, diag });
     minted += r.minted; swept += r.swept;
+    if (diag) rows.push({ owner: occ.label || occ.id, ...r });
+  }
+  if (diag) {
+    console.log(`[feedDiag] ${feeds} feed(s) visited; minted ${minted}, swept ${swept}`);
+    for (const r of rows) console.log(`[feedDiag]   "${r.owner}" matches=${r.matches} visible=${r.visible} existing=${r.existing} minted=${r.minted} swept=${r.swept}${r.bail ? ` BAIL:${r.bail}` : ""}`);
   }
   if (minted || swept) console.log(`[feedSync] minted ${minted}, swept ${swept}`);
-  return { minted, swept };
+  return { minted, swept, feeds };
 }
