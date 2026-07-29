@@ -761,6 +761,7 @@ export async function createLiveData(userId, options = {}) {
     ["charity",        "Charity",          ["charity"],                                                                 false],
     ["place",          "Place",            ["place"],                                                                   false],
     ["eventPick",      "Event",            ["event"],                                                                   false],
+    ["appointmentType","Appointment Type", ["appointment"],                                                             false],
     ["giftIdea",       "Gift Idea",        ["gift"],                                                                    false],
     ["area",           "Area",             ["area"],                                                                    false],
     ["equipment",      "Equipment",        ["equipment"],                                                               false],
@@ -809,7 +810,7 @@ export async function createLiveData(userId, options = {}) {
         options: ["meal","ingredient","grocery","beverage","supplement","movement","route","reading","media",
                   "practice","prompt","leisure","project","skill","topic","wishlist","charity","place","area",
                   "equipment","plant","medium","song","person","program","course","event","gift","verse",
-                  "gratitude","win","idea","savingsGoal","creativeWork"],
+                  "gratitude","win","idea","savingsGoal","creativeWork","appointment"],
       },
     },
     ...boardDropdownFields,
@@ -2509,6 +2510,11 @@ export async function createLiveData(userId, options = {}) {
     review:     act("Review",     [bfd(projectFieldId), bfd(fields.duration.id)]),
     email:      act("Email",      [bfd(peopleAssignedFieldId)]),
     network:    act("Network",    [bfd(peopleAssignedFieldId)]),
+    // A scheduled commitment (2026-07-29, per user). Lives in Occupational —
+    // the obligations/admin dimension — rather than Social, so the Social
+    // dimension keeps reading as chosen contact. Trackers aggregate by FIELD,
+    // not by container, so the dimension is purely where you go to find it.
+    appointment: act("Appointment", [bfd(fields.appointmentType.id), bfd(fields.place.id), bfd(peopleAssignedFieldId), bfd(fields.duration.id)]),
 
     // === FINANCIAL === (Pay Bill / Cancel Subscription re-home here as peers;
     // Track is the universal money occurrence — the flow toggle decides
@@ -3446,7 +3452,7 @@ export async function createLiveData(userId, options = {}) {
     intellectual:  { contOccId: intellectualContOccId, contModKey: "intellectual",  instKeys: ["read", "study", "watch", "listen", "practice", "memorize", "research", "explore", "analyze", "teach", "pomodoro"] },
     social:        { contOccId: socialContOccId,       contModKey: "social",        instKeys: ["text", "call", "chat", "meet", "date", "visit", "host", "collaborate", "mentor", "volunteer"] },
     spiritual:     { contOccId: spiritualContOccId,    contModKey: "spiritual",     instKeys: ["pray", "meditateSpiritual", "reflectSpiritual", "worship", "readScripture", "readPhilosophy", "gratitude", "mindfulness", "nature", "serve"] },
-    occupational:  { contOccId: occupationalContOccId, contModKey: "occupational",  instKeys: ["plan", "prioritize", "focus", "build", "code", "design", "write", "review", "email", "network"] },
+    occupational:  { contOccId: occupationalContOccId, contModKey: "occupational",  instKeys: ["plan", "prioritize", "focus", "build", "code", "design", "write", "review", "email", "network", "appointment"] },
     financial:     { contOccId: financialContOccId,    contModKey: "financial",     instKeys: ["budget", "save", "earn", "invest", "spend", "buy", "pay", "track", "reconcile", "donate", "reviewFinancial", "payBills", "cancelSub"] },
     environmental: { contOccId: environmentalContOccId,contModKey: "environmental", instKeys: ["clean", "declutter", "organize", "laundry", "dishes", "vacuum", "recycle", "repair", "maintain", "garden"] },
     creative:      { contOccId: creativeContOccId,     contModKey: "creative",      instKeys: ["draw", "paint", "sketch", "writeCreative", "journalCreatively", "compose", "sing", "dance", "craft", "photograph", "film", "edit", "brainstorm", "prototype", "invent"] },
@@ -4492,6 +4498,15 @@ export async function createLiveData(userId, options = {}) {
         ...(place ? { [boardDropdownFields.place.id]: fv(boardOptionOccIds.place[place]) } : {}),
       }),
     }))},
+    // Appointment TYPES (2026-07-29, per user: "we need an appointment
+    // occurrence if we don't already have one"). The noun half of the pair —
+    // the "Appointment" action in the Occupational dimension picks one of
+    // these, plus a Place and the person you're seeing. Grouped with Social
+    // because an appointment resolves to a person at a place.
+    { key: "appointment", tag: "appointment", label: "Appointments", group: "social", options: [
+      opt("Doctor"), opt("Dentist"), opt("Therapy"), opt("Optometrist"),
+      opt("Haircut"), opt("Car Service"), opt("Vet"),
+    ]},
     { key: "leisure", tag: "leisure", label: "Leisure", group: "social", options: [
       opt("Chess"), opt("Video Games"), opt("Hot Bath"), opt("Puzzle"), opt("Movie Night"), opt("Hammock Time"),
     ]},
@@ -4620,6 +4635,7 @@ export async function createLiveData(userId, options = {}) {
     [boardDropdownFields.charity.id,         "charity"],
     [boardDropdownFields.place.id,           "place"],
     [boardDropdownFields.eventPick.id,       "event"],
+    [boardDropdownFields.appointmentType.id, "appointment"],
     [boardDropdownFields.giftIdea.id,        "gift"],
     [boardDropdownFields.area.id,            "area"],
     [boardDropdownFields.equipment.id,       "equipment"],

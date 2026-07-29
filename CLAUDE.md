@@ -6,6 +6,49 @@
 
 ---
 
+### 2026-07-29 (3) — empty pocket actually clickable; the Appointment occurrence
+
+Picked up the two items account2's session left open.
+
+- **The empty-pocket fix (`0d1b390a`) did not work, and prod proved it.** Clicking anywhere in an
+  empty container's pocket still did nothing below the top 20px. Cause: the CSS marked
+  `width: 100% !important` but left `height: 100%` unmarked — QuickAddMenu sets **both** as INLINE
+  styles (20px each), and an inline style beats a stylesheet rule regardless of specificity. So the
+  trigger stretched full-width but stayed a 20px band at the top of the 44px pocket. One word
+  (`!important` on height) fixed it. **This is the third time this exact trap has been recorded**
+  (AutoMarquee's `display:block`, ModuleInstance's inline flex-wrap) — when a rule silently does
+  nothing, check for an inline style before anything else. Verified on prod by clicking 14px in
+  from a pocket's left edge: `elementFromPoint` now returns the BUTTON and the menu opens.
+- **Appointment occurrence added** (user: "we need an appointment occurance if we dont already have
+  one"). Nothing modelled a scheduled commitment — the nearest things were Social's Meet/Visit/Host
+  (people you choose to see) and the Events board (Game Night, Book Club). Added the same noun/verb
+  pair the rest of the grid uses: an **Appointments board** (Doctor/Dentist/Therapy/Optometrist/
+  Haircut/Car Service/Vet) under the Social board group, feed-backed on `boardCategory:"appointment"`;
+  an **Appointment Type** dropdown scoped to that tag; and an **Appointment** action binding
+  Completed · Appointment Type · Place · People · Duration · Date(hidden), so it drags onto a slot
+  and stamps date + timeslot like any other action.
+  **Placed in OCCUPATIONAL, not Social** — the obligations/admin dimension — so Social keeps reading
+  as chosen contact. Trackers aggregate by FIELD, not by container, so the dimension is purely where
+  you go to find it; moving it is a one-line change with zero tracker consequence.
+- **Migration `0005-appointment-occurrence`** carries it to the frozen grids; the seed produces the
+  same thing. **The dry run earned its keep:** `Board Category` stores its tag list in
+  `meta.optionsSource.values` (manual mode) on poms grid but in `meta.options` in the seed — a blind
+  `$set` on `meta.options` would have left a stray one-element list on a field whose real options
+  live elsewhere. The migration now appends to whichever list the grid actually uses. Everything is
+  resolved BY NAME at run time (no baked ids); the Occupational ROUTINES container is disambiguated
+  from the same-labelled tracker container by finding the parent of the unique "Network" action.
+  Rehearsed on `test grid 2` (stripped first so the CREATE path ran for real), re-run to prove
+  idempotency, then applied to poms grid + **pm2 restarted** (the warm cache would otherwise re-serve
+  the old grid).
+- 1434 client + 323 server tests, all three grids integrity-clean (0 errors, the same 2 pre-existing
+  warnings), deployed, verified live on prod.
+- **Probe lesson:** the first verification probe reported the Appointment missing — it read
+  `state.modulesById`, but the client store holds FLAT ARRAYS (`modules`/`occurrences`/`fields`).
+  The DOM disagreed with the probe, which is what caught it. Check the probe before believing a
+  failure.
+
+---
+
 ## Handoff — 2026-07-29 (full-site audit: 5 real bugs found and fixed; integrity gate added)
 
 Audited the live grid's data, schema and runtime (not just the code). Findings + fixes, all
