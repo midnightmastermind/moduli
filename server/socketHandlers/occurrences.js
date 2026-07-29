@@ -164,6 +164,29 @@ export function registerOccurrenceHandlers(socket, {
         next.fieldUpdatedAt = nextFieldTs;
       }
       if (textmap !== undefined) next.textmap = textmap; // keep raw (decompressed) textmap in cache
+
+      // ── Reject child ids that name no occurrence ───────────────────────────
+      // A parent's occurrences[] is a list of REAL children. A client can send a
+      // stale one — it holds whatever the last full_state gave it, and a write
+      // echoes the whole array back — so a single bad array becomes permanent
+      // and self-restoring: sweep the database and the next client write puts it
+      // straight back (observed 2026-07-29, 42 refs that survived four repairs).
+      //
+      // The server is the only place that can settle this, because it is the
+      // only party that knows what exists. Keep an id when the occurrence is
+      // known, or when it is the one being created RIGHT NOW (create emits its
+      // parent link before the child row lands, and the create handler does its
+      // own atomic $push afterwards).
+      if (Array.isArray(next.occurrences) && next.occurrences.length) {
+        const known = (cid) => cid === id || !!uc.occurrencesById?.[cid];
+        const kept = next.occurrences.filter(known);
+        if (kept.length !== next.occurrences.length) {
+          const dropped = next.occurrences.length - kept.length;
+          console.log(`🧹 update_occurrence ${id}: dropped ${dropped} unknown child id(s)`);
+          next.occurrences = kept;
+        }
+      }
+
       uc.occurrencesById[id] = next;
 
       // Compress textmap before persisting to DB
