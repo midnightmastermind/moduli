@@ -2494,3 +2494,27 @@ describe("GROUP_BY action (2026-05-23)", () => {
     expect($vars.$g.b.map(x => x.n)).toEqual([2, 5]);
   });
 });
+
+describe("CREATE — kind is not invented for kind-less roles (2026-07-30)", () => {
+  const run = (cfg) => {
+    const $vars = { $allTemplates: [], $allItems: [] };
+    const updates = executeActionItem("CREATE", { ...cfg }, $vars, makeContext());
+    return updates.find(u => u._effect === "CREATE_ITEM").template;
+  };
+
+  it("role:instance gets NO kind (getModuleTypeIcon prefers kind over role)", () => {
+    const t = run({ name: "Alarm row", role: "instance" });
+    expect(t.role).toBe("instance");
+    expect(t.kind).toBeUndefined();
+  });
+
+  it("an explicit kind is still honoured", () => {
+    expect(run({ name: "x", role: "instance", kind: "image" }).kind).toBe("image");
+  });
+
+  it("container/page keep the historical 'doc' default", () => {
+    expect(run({ name: "c" }).kind).toBe("doc");
+    expect(run({ name: "c", role: "container" }).kind).toBe("doc");
+    expect(run({ name: "p", role: "page" }).kind).toBe("doc");
+  });
+});

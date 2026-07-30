@@ -932,3 +932,73 @@ describe("Grid: Snap Filter To Today (first load of the day)", () => {
     expect(updates.filter(u => u._effect === "UPDATE_ITEM_FIELD" && u.fieldId === lastOpenedFieldId())).toHaveLength(0);
   });
 });
+
+// ── Schedule: Stamp Date & Time Slot — the slot GATE ────────────────────────
+// User 2026-07-29: "in workouts, time is set to schedule canvas and not a time
+// right now." Time Slot is a select of the 48 generated slot labels, but the op
+// wrote the destination CONTAINER'S LABEL unconditionally — so anything created
+// under the hub panel that isn't a slot stamped a page/container NAME as the
+// "time" (live grid held "Schedule Canvas" ×6, "Due" ×2, "No timeslot" ×2), and
+// every history row reading the field showed it.
+describe("Schedule: Stamp Date & Time Slot — only stamps a REAL timeslot", () => {
+  const stampOp = () => Object.values(operationsById).find(o => o.name === "Schedule: Stamp Date & Time Slot");
+  const tsFieldId = () => fieldIdByName["Time Slot"];
+  const sfFieldId = () => fieldIdByName["Schedule Format"];
+
+  // Fire the create the way bindSocketToStore actually does: containerId is the
+  // destination's OCCURRENCE id (occurrence.parentId), and panelId is the hub
+  // panel module the op's trigger is scoped to.
+  function createUnder(containerOcc) {
+    const hubPanelModuleId = stampOp().triggerObjects[0].targetId;
+    const mod = moduleByLabel("Exercise", "instance");
+    const id = uid();
+    occurrencesById[id] = {
+      id, moduleId: mod.id, parentId: containerOcc.id, fields: {},
+      occurrences: [], role: "instance", label: mod.label,
+    };
+    occurrencesById[containerOcc.id] = {
+      ...containerOcc, occurrences: [...(containerOcc.occurrences || []), id],
+    };
+    const anc = ancestorChain(id);
+    const label = containerOcc.label
+      || modulesById[containerOcc.moduleId]?.label
+      || "";
+    fire("OccurrenceCreateOp", {
+      type: "OccurrenceCreateOp",
+      occurrenceId: id, instanceId: mod.id,
+      containerId: containerOcc.id, containerLabel: label, panelId: hubPanelModuleId,
+      fields: {}, _ancestorIds: anc.ids, _ancestorLabels: anc.labels,
+    });
+    return occurrencesById[id];
+  }
+
+  it("the op is gated on Schedule Format, not on the container's name", () => {
+    expect(JSON.stringify(stampOp().pipeline)).toContain(sfFieldId());
+  });
+
+  it("creating in a real slot DOES stamp that slot's time", () => {
+    const slot = scheduleSlotOcc("6:00am");
+    expect(slot, "6:00am slot").toBeTruthy();
+    expect(slot.fields?.[sfFieldId()]?.value).toBe("slot");
+    const made = createUnder(slot);
+    expect(made.fields?.[tsFieldId()]?.value).toBe("6:00am");
+  });
+
+  it("creating in a NON-slot container under the hub panel stamps NOTHING", () => {
+    // Any container/page under the Schedule that is not a slot — this is the
+    // class that produced "Schedule Canvas" / "Due" / "No timeslot".
+    const nonSlot = Object.values(occurrencesById).find((o) => {
+      if (!o || o.fields?.[sfFieldId()]?.value === "slot") return false;
+      const label = o.label || modulesById[o.moduleId]?.label || "";
+      if (!/^(Due|No timeslot|Schedule Canvas|Schedule Table)$/i.test(label)) return false;
+      return ancestorChain(o.id).labels.includes("Schedule") || /^Schedule /i.test(label);
+    });
+    expect(nonSlot, "a non-slot container under the Schedule").toBeTruthy();
+    const made = createUnder(nonSlot);
+    const written = made.fields?.[tsFieldId()]?.value ?? null;
+    expect(written).toBeNull();
+    // The regression this locks: it must never be the container's own name.
+    const label = nonSlot.label || modulesById[nonSlot.moduleId]?.label;
+    expect(written).not.toBe(label);
+  });
+});

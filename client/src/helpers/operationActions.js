@@ -269,6 +269,10 @@ export function deepResolveExpr(value, $vars) {
 // HAS_ANCESTOR and the array-aware CONTAINS branches.
 const arrayIncludes = (arr, val) => arr.some(a => String(a) === String(val));
 
+// Roles that carry NO sub-type, so a CREATE must not invent one for them
+// (2026-07-29 kind removal). Everything else keeps the historical "doc" default.
+const KINDLESS_CREATE_ROLES = new Set(["instance", "panel"]);
+
 export function evalRule(rule, $vars) {
   const { left, comparator, right } = rule;
   const leftVal = resolveExpr(left, $vars);
@@ -1331,12 +1335,22 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         }
       } else {
         templateId = globalThis.crypto?.randomUUID?.() ?? String(Date.now());
+        // `kind` is the sub-type WITHIN a role, and instance/panel have none
+        // (2026-07-29). Defaulting every op-minted module to "doc" stamped an
+        // inert kind on every instance a pipeline created — and because
+        // getModuleTypeIcon resolves kind BEFORE role, those rows drew the wrong
+        // icon. It also meant dropping an explicit kind from a CREATE (the alarm
+        // op's kind:"list") only moved the value to "doc" rather than removing
+        // it. An explicit cfg.kind is still honoured; container/page keep the
+        // "doc" default byte-identically.
+        const createdRole = cfg.role || "container";
+        const createdKind = cfg.kind || (KINDLESS_CREATE_ROLES.has(createdRole) ? null : "doc");
         templateRecord = {
           id: templateId,
           name,
           label: name,
-          role: cfg.role || "container",
-          kind: cfg.kind || "doc",
+          role: createdRole,
+          ...(createdKind ? { kind: createdKind } : {}),
           ...(resolvedMeta ? { meta: resolvedMeta } : {}),
           ...(attachFieldIds.length ? { fieldBindings: buildBindings() } : {}),
         };
