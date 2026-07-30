@@ -24,10 +24,12 @@ import { makeStampDateTimeSlotOp } from "../utils/liveSystemBuilders.js";
 export const id = "0006-timeslot-gate-and-alarm-kind";
 export const describe =
   "Regenerates the Stamp Date & Time Slot pipeline so Time Slot is only written when the " +
-  "destination IS a timeslot (and cleared when it isn't), NULLS the out-of-range Time Slot values " +
-  "already stored (container/page names, not times), and strips the inert kind:\"list\" from the " +
-  "alarm ops' CREATE step + from any instance module already carrying it. Clears field VALUES that " +
-  "are not valid slot labels; creates and deletes nothing else.";
+  "destination IS a timeslot (and cleared when it isn't), then repairs the values already stored: " +
+  "an occurrence holding a PARENT's label is reset to its own slot time when it has one (the " +
+  "per-day slot copies) and cleared otherwise; a value equal to the occurrence's OWN label is an " +
+  "identity marker (the Due / No timeslot containers, which Schedule: Build Schedule finds BY that " +
+  "value) and is left untouched. Also strips the inert kind from the alarm ops' CREATE step and " +
+  "from any instance module carrying one. Changes field VALUES only; creates and deletes nothing.";
 
 /** Walk every step (loop bodies + if branches) and hand each action config to fn. */
 function eachActionConfig(steps, fn) {
@@ -88,20 +90,42 @@ export async function up({ gridId, models, log, dryRun }) {
       log("Time Slot has no option list — refusing to judge which values are invalid");
     } else {
       const carriers = await Occurrence.find({ gridId, [`fields.${timeslotFieldId}`]: { $exists: true } })
-        .select({ id: 1, fields: 1 }).lean();
-      const bad = carriers.filter(o => {
+        .select({ id: 1, fields: 1, label: 1, moduleId: 1 }).lean();
+      // A value equal to the occurrence's OWN label is an identity MARKER, not a
+      // mis-stamp: the "Due" and "No timeslot" containers carry their own name
+      // here and `Schedule: Build Schedule` FINDs them by exactly that
+      // (`fields.<timeslot>.value IS "No timeslot"`). Nulling those breaks the
+      // schedule build. The bug is a value equal to a PARENT's label — a slot
+      // copy labelled "12:00am" holding "Schedule - Thursday…", an Exercise
+      // holding "Schedule Canvas".
+      const labelOf = async (o) => o.label
+        || (await Module.findOne({ gridId, id: o.moduleId }).select({ label: 1 }).lean())?.label
+        || null;
+      // A mis-stamped occurrence whose OWN label IS a slot time is a SLOT
+      // CONTAINER (the per-day copies): its correct value is its own time, not
+      // null. Alarm / Pomodoro: Start FIND their slot by
+      // `fields.<timeslot>.value IS "5:00pm"`, and Mark Passed Slots compares it
+      // TIME_BEFORE now — nulling those silently breaks all three. Everything
+      // else (a day-col, an Exercise) has no time of its own, so it clears.
+      const bad = [];
+      for (const o of carriers) {
         const v = o.fields?.[timeslotFieldId]?.value;
-        return v !== null && v !== undefined && v !== "" && !valid.has(v);
-      });
+        if (v === null || v === undefined || v === "" || valid.has(v)) continue;
+        const own = await labelOf(o);
+        if (v === own) continue;                       // own-label marker — leave it
+        bad.push({ ...o, _fix: valid.has(own) ? own : null });
+      }
       if (!bad.length) log(`all ${carriers.length} stored Time Slot values are valid slot labels`);
       else {
         const tally = {};
         for (const o of bad) { const v = o.fields[timeslotFieldId].value; tally[v] = (tally[v] || 0) + 1; }
-        log(`NULL ${bad.length} out-of-range Time Slot value(s): ${JSON.stringify(tally)}`);
+        const restored = bad.filter(o => o._fix).length;
+        log(`fix ${bad.length} out-of-range Time Slot value(s): ${JSON.stringify(tally)} ` +
+            `→ ${restored} reset to the occurrence's OWN slot time, ${bad.length - restored} cleared`);
         if (!dryRun) {
           for (const o of bad) {
             await Occurrence.updateOne({ gridId, id: o.id },
-              { $set: { [`fields.${timeslotFieldId}.value`]: null } });
+              { $set: { [`fields.${timeslotFieldId}.value`]: o._fix ?? null } });
           }
         }
       }

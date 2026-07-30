@@ -35,7 +35,45 @@ containers do exist (`ModuleContainer.jsx:668-671` dispatches all four kinds), s
   existing-matches list, not the create tiles) — placing an EXISTING page/table/canvas as a preview
   is a separate ask.
 
-**Found, root-caused, NOT fixed (awaiting the user's call):**
+### 2026-07-30 — both ops bugs FIXED (and a third, which was the real root of one)
+
+- **Time Slot only gets stamped when the destination IS a slot.**
+  `makeStampDateTimeSlotOp` gained an optional `scheduleFormatFieldId`: it now FINDs the
+  destination off `$trigger.containerId` and writes `$trigger.containerLabel` ONLY when that
+  container carries `Schedule Format IS "slot"`, else writes null. **The ELSE matters as much as
+  the gate** — a COPY carries the source's fields, so a slotted item copied onto a canvas would
+  otherwise keep a slot it no longer sits in. Grids without the field (createTestGrid) keep the
+  ungated stamp byte-identically. Proven in `liveOpsBehavioral` (3 new): gated on the field, a real
+  slot stamps "6:00am", a non-slot container stamps null and NEVER its own name. Verified live too
+  (created under the day-col → null).
+- **`kind` — my first fix was HALF the bug.** Dropping `kind:"list"` from `alarmOps.js` just moved
+  the value: `operationActions.js` CREATE defaulted **every** op-minted module to `kind: "doc"`
+  regardless of role, so instances kept getting an inert kind (today's 6 routine clones proved it).
+  Now `KINDLESS_CREATE_ROLES` (instance/panel) get no kind; an explicit `cfg.kind` is honoured and
+  container/page keep the "doc" default. 3 tests.
+- **Migration `0006`** carries all of it to the frozen grids. **The data repair took three passes
+  because "not a valid slot label" is NOT the same as "wrong":**
+  1. Blunt null-everything ALSO nulled the `Due` / `No timeslot` CONTAINERS, which carry their OWN
+     label in Time Slot as an **identity marker** — `Schedule: Build Schedule` FINDs them by
+     exactly that (`fields.<timeslot>.value IS "No timeslot"`). Restored from the pre-migration
+     snapshot.
+  2. It also nulled the per-day SLOT COPIES, whose correct value is their own time — Alarm and
+     Pomodoro: Start FIND their slot by `fields.<timeslot>.value IS "5:00pm"` and Mark Passed Slots
+     compares it `TIME_BEFORE` now. Nulling those silently breaks all three.
+  - **The rule that actually separates them:** a value equal to the occurrence's OWN label is an
+    identity marker (leave it); a value equal to a PARENT's label is the mis-stamp — reset it to
+    the occurrence's own slot time when it has one, else clear. Live grid now: 97/97 slots carry a
+    valid time, today's 5:00pm findable, both markers intact, 0 mis-stamped.
+- **Probe debris is a real hazard on the frozen grid.** Closing a browser mid-create leaves the
+  documented pathology (`create_occurrence` is queued server-side and bails on disconnect; the
+  parent-list update is not) — 24 dangling child refs + 2 module-less occurrences, integrity went
+  to 2 ERRORS. Swept scoped strictly to the `17854*` client-minted ids. **Sweep probe writes and
+  re-check integrity before calling a session done.**
+- 1447 client + 325 server tests, all three grids 0 errors, deployed, prod-verified.
+
+---
+
+**Found, root-caused (both now FIXED above — kept for the reasoning trail):**
 1. **Time Slot gets a CONTAINER LABEL, not a time** (user: "in workouts, time is set to schedule
    canvas and not a time"). `makeStampDateTimeSlotOp` writes `value: "$trigger.containerLabel"`
    into the Time Slot field with **no check that the destination is a slot at all** — Time Slot is a
