@@ -284,6 +284,22 @@ describe("schedule ops", () => {
     expect(s).toContain("$allItemsById.TPL");
     expect(s).not.toContain("meta.templateName");
   });
+  it("both day-page ops name the page from $activeDate, never the raw period object", () => {
+    // The picker persists {value, unit, kind, dates} even for a single day, so
+    // $trigger.date / _effectiveFilter interpolate to "Day Page - [object
+    // Object]" — observed on prod the first time Build ran twice.
+    const build = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC", goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL" });
+    const tc = makeDayPageBuildTasksCompletedOp({ userId: "u", gridId: "g", dateFieldId: "DF", completedFieldId: "CF", schedulePageOccId: "SP" });
+    for (const op of [build, tc]) {
+      const s = JSON.stringify(op.pipeline);
+      expect(s).toContain('"name":"$dayDate","expr":"$activeDate"');
+      expect(s).not.toContain("$trigger.date");
+      expect(s).not.toContain("_effectiveFilter");
+      // $activeDate resolves through THIS occurrence's cascade, so the op has
+      // to say which occurrence — else it silently reads the grid filter.
+      expect(op.targetOccurrenceId).toBe("SP");
+    }
+  });
   it("Day Page: Build refuses to build without a template id", () => {
     expect(() => makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC", goalsPageOccId: "GP", schedulePageOccId: "SP" }))
       .toThrow(/dayPageTemplateOccId required/);

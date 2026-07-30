@@ -1493,6 +1493,10 @@ export function makeDayPageBuildOp({
   const wantsTodoLink = !!(timeslotFieldId && scheduleFormatFieldId);
   return {
     id: uid(), userId, gridId, name: "Day Page: Build",
+    // $activeDate is resolved through THIS occurrence's filter cascade, so the
+    // op follows the Schedule page's own date — including an on-page switch that
+    // never touches the grid filter. Same wiring Build Schedule uses.
+    targetOccurrenceId: schedulePageOccId,
     description: "Create one doc Day Page per active date in the Day Pages folder, applying the Day Page template with the date stamped into the textblock heading.",
     // Trigger surface (2026-05-22 refactor — picker-direct ancestor):
     //   grid-subject onLoad/onFilterChange + broad filterNav. Pipeline IF
@@ -1523,18 +1527,21 @@ export function makeDayPageBuildOp({
             { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS",       right: "$goalsPage.id" },
           ]},
           then: [
-        // Resolve the date exactly like Build Day: $trigger.date wins (every
-        // trigger here is an explicit user action carrying the intended
-        // date), then the Schedule page's effective filter for the onLoad
-        // case, then $today as a cold-start last resort.
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$trigger.date" } },
+        // $activeDate, NOT $trigger.date or the raw effective filter.
+        //
+        // The date picker persists a PERIOD OBJECT ({value, unit, kind, dates})
+        // even for a single day, and both of those hand it back verbatim — so
+        // "Day Page - ${$dayDate}" interpolated to the literal
+        // "Day Page - [object Object]" (observed on prod the first time this op
+        // built a second page). $activeDate is the executor's normalized
+        // YYYY-MM-DD for the same period, resolved through
+        // operation.targetOccurrenceId's filter cascade — which is why this op
+        // now sets targetOccurrenceId to the Schedule page, the way Build
+        // Schedule already does. Same class as the 2026-06-03 Table/Canvas
+        // period-object bug.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$activeDate" } },
         {
-          id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$dayDate", comparator: "IS_EMPTY", right: "" }] },
-          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: `$schedPage._effectiveFilter.${dateFieldId}` } }],
-          else: [],
-        },
-        {
+          // $activeDate is null when no date filter is set at all (cold start).
           id: uid(), type: "if",
           condition: { operator: "AND", rules: [{ id: uid(), left: "$dayDate", comparator: "IS_EMPTY", right: "" }] },
           then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$today" } }],
@@ -2044,6 +2051,10 @@ export function makeDayPageBuildTasksCompletedOp({
 }) {
   return {
     id: uid(), userId, gridId, name: "Day Page: Build Tasks Completed",
+    // $activeDate is resolved through THIS occurrence's filter cascade, so the
+    // op follows the Schedule page's own date — including an on-page switch that
+    // never touches the grid filter. Same wiring Build Schedule uses.
+    targetOccurrenceId: schedulePageOccId,
     description: "Rewrite the Tasks Completed container on the active day's Day Page with moduleEmbed nodes for every completed schedule task on that date.",
     // Priority 4 — runs AFTER Build Day (1), Stamp (2), trackers (3) so the
     // completion state it reads is fully settled.
@@ -2073,12 +2084,13 @@ export function makeDayPageBuildTasksCompletedOp({
         // no label check.
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedulePageOccId}` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", value: schedulePageOccId } },
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$trigger.date" } },
-        { id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$dayDate", comparator: "IS_EMPTY", right: "" }] },
-          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: `$schedPage._effectiveFilter.${dateFieldId}` } }],
-          else: [],
-        },
+        // $activeDate — the executor's normalized YYYY-MM-DD, NOT $trigger.date
+        // or the raw effective filter. Those hand back the picker's period
+        // OBJECT, which interpolates into the literal "Day Page - [object
+        // Object]" and then matches no page at all. Same reason as Day Page:
+        // Build; both ops carry targetOccurrenceId so it resolves through the
+        // Schedule page's filter cascade.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$activeDate" } },
         { id: uid(), type: "if",
           condition: { operator: "AND", rules: [{ id: uid(), left: "$dayDate", comparator: "IS_EMPTY", right: "" }] },
           then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$today" } }],

@@ -31,7 +31,7 @@
 // bound container/textblock clones, and PUSH_TO_ARRAY resolving nested leaves)
 // ship in the same commit — the ops here depend on both.
 
-import { makeDayPageBuildOp, TODO_SLOT_LABEL } from "../utils/liveSystemBuilders.js";
+import { makeDayPageBuildOp, makeDayPageBuildTasksCompletedOp, TODO_SLOT_LABEL } from "../utils/liveSystemBuilders.js";
 
 export const id = "0011-day-page-repair-and-writing-sections";
 export const describe =
@@ -136,9 +136,35 @@ export async function up({ gridId, grid, models, log, dryRun }) {
   if (!tplPage) throw new Error("Day Page template occurrence not found under the Templates folder");
 
   const dayFolder = await Folder.findOne({ gridId, folderType: "day-pages" }).select({ id: 1 }).lean();
-  const livePages = dayFolder
+  const allDayPages = dayFolder
     ? await Occurrence.find({ gridId, parentId: dayFolder.id, "meta.templateName": "Day Page" }).lean()
     : [];
+
+  // Sweep pages the period-object bug named. `$dayDate` used to resolve to the
+  // picker's {value,unit,…} object, so the name interpolated to the literal
+  // "Day Page - [object Object]" — a page for no date at all, which nothing can
+  // ever find again. Deleted with its children rather than renamed: there is no
+  // date to rename it TO.
+  // APPLY_TEMPLATE's rootLabel lands on the cloned MODULE, so the occurrence's
+  // own `label` is usually null — resolve through the module before matching.
+  const pageMods = await Module.find({ gridId, id: { $in: allDayPages.map(p => p.moduleId) } }).select({ id: 1, label: 1 }).lean();
+  const modLabel = new Map(pageMods.map(m => [m.id, m.label]));
+  const nameOf = (p) => p.label ?? modLabel.get(p.moduleId) ?? "";
+  const malformed = allDayPages.filter(p => /\[object Object\]/.test(nameOf(p)));
+  const livePages = allDayPages.filter(p => !malformed.includes(p));
+  if (malformed.length) {
+    log(`delete ${malformed.length} malformed day page(s) named by the period-object bug: ${malformed.map(nameOf).join(", ")}`);
+    if (!dryRun) {
+      for (const p of malformed) {
+        const kidIds = p.occurrences || [];
+        const grandKids = await Occurrence.find({ gridId, id: { $in: kidIds } }).select({ occurrences: 1 }).lean();
+        const doomed = [p.id, ...kidIds, ...grandKids.flatMap(k => k.occurrences || [])];
+        await Occurrence.deleteMany({ gridId, id: { $in: doomed } });
+        // Unlink from anything still listing it (the hub panel's tab strip).
+        await Occurrence.updateMany({ gridId, occurrences: { $in: doomed } }, { $pull: { occurrences: { $in: doomed } } });
+      }
+    }
+  }
 
   // Mints the three containers under `page` when absent and rebuilds the page's
   // textmap in the agreed order. Idempotent: a page that already carries them
@@ -191,7 +217,7 @@ export async function up({ gridId, grid, models, log, dryRun }) {
   log(`Day Page template: ${tplAdded ? `added ${tplAdded} writing section(s)` : "already carries the writing sections"}`);
   for (const p of livePages) {
     const n = await addSections(p, false);
-    log(`  ${p.label || p.id}: ${n ? `added ${n} writing section(s)` : "already complete"}`);
+    log(`  ${nameOf(p)}: ${n ? `added ${n} writing section(s)` : "already complete"}`);
   }
 
   // ── 5. Day Page: Build — regenerate from the builder ──────────────────────
@@ -217,10 +243,40 @@ export async function up({ gridId, grid, models, log, dryRun }) {
     dayPageTemplateOccId: tplPage.id,
     timeslotFieldId, scheduleFormatFieldId,
   });
-  log(`Day Page: Build — regenerate pipeline (template ref -> $allItemsById.${tplPage.id}, + Todo link pass)`);
+  log(`Day Page: Build — regenerate pipeline (template ref -> $allItemsById.${tplPage.id}, $activeDate, + Todo link pass)`);
   if (!dryRun) {
     await Operation.updateOne({ gridId, id: old.id }, {
-      $set: { pipeline: rebuilt.pipeline, triggerTypes: rebuilt.triggerTypes, triggerObjects: rebuilt.triggerObjects },
+      $set: {
+        pipeline: rebuilt.pipeline,
+        triggerTypes: rebuilt.triggerTypes,
+        triggerObjects: rebuilt.triggerObjects,
+        targetOccurrenceId: rebuilt.targetOccurrenceId,
+      },
     });
+  }
+
+  // ── 6. Day Page: Build Tasks Completed — same date fix ────────────────────
+  // It resolved $dayDate the same broken way, so its $dayPageName never matched
+  // a real page. Regenerated for the date chain + targetOccurrenceId; its
+  // embeds only resolve correctly alongside the PUSH_TO_ARRAY deep-resolve fix
+  // shipping in the same commit.
+  const oldTC = await Operation.findOne({ gridId, name: "Day Page: Build Tasks Completed" }).lean();
+  if (oldTC) {
+    const completed = await Field.findOne({ gridId, name: "Completed" }).select({ id: 1 }).lean();
+    const completedFieldId = completed?.id
+      || JSON.stringify(oldTC.pipeline).match(/"left":"fields\.([\w-]+)\.value","comparator":"IS","right":"true"/)?.[1];
+    if (!completedFieldId) throw new Error("could not resolve the Completed field id for Day Page: Build Tasks Completed");
+    const rebuiltTC = makeDayPageBuildTasksCompletedOp({ userId, gridId, dateFieldId, completedFieldId, schedulePageOccId });
+    log("Day Page: Build Tasks Completed — regenerate pipeline ($activeDate + targetOccurrenceId)");
+    if (!dryRun) {
+      await Operation.updateOne({ gridId, id: oldTC.id }, {
+        $set: {
+          pipeline: rebuiltTC.pipeline,
+          triggerTypes: rebuiltTC.triggerTypes,
+          triggerObjects: rebuiltTC.triggerObjects,
+          targetOccurrenceId: rebuiltTC.targetOccurrenceId,
+        },
+      });
+    }
   }
 }
