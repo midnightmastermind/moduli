@@ -2858,6 +2858,14 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   max-width: 100%;
   flex: 0 0 auto;
   margin: 0 auto;
+  order: 0;
+}
+/* The info block is FIRST in the DOM (it used to sit to the right of the
+   image), so stacking alone would put the caption ON TOP. Order flips it under
+   the picture — same trick the doc-editor figure rule below uses. */
+.artifact-card--with-info .artifact-thumb-info {
+  order: 1;
+  flex: 0 0 auto;
 }
 .artifact-thumb-info {
   display: flex;
