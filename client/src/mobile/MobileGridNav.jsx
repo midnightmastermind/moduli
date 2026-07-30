@@ -294,7 +294,23 @@ export default function MobileGridNav({
       delete viewport.dataset.scrollMaxTop;
       delete viewport.dataset.scrollMaxLeft;
       delete viewport.dataset.panelNativeScroll;
-      return;
+      // …and KEEP it there. `overflow: hidden` does NOT make a box
+      // unscrollable — it only hides the bars. Anything that reveals a
+      // descendant (scrollIntoView from the scroll-to-current-slot pass, an
+      // occurrence-search jump, focusing a freshly minted label editor) scrolls
+      // every scrollable ancestor, this viewport included. The offset then sits
+      // on top of the cell transform forever: the grid renders off-centre, you
+      // see a slice of the neighbouring cells, and the rails point at the cell
+      // the app thinks you are on rather than the one you can see (user
+      // 2026-07-30, measured on prod at 390×844: overflow hidden with
+      // scrollTop 439 / scrollLeft 370). A one-shot reset above can't help —
+      // the scroll happens later — so pin it for as long as the mode is off.
+      const pin = () => {
+        if (viewport.scrollTop !== 0) viewport.scrollTop = 0;
+        if (viewport.scrollLeft !== 0) viewport.scrollLeft = 0;
+      };
+      viewport.addEventListener("scroll", pin, { passive: true });
+      return () => viewport.removeEventListener("scroll", pin);
     }
     // Marks the mode for CSS: the page scrollers INSIDE the panel must be
     // allowed to chain their overscroll into this viewport (see index.css).
