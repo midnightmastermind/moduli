@@ -55,9 +55,23 @@ reproduced: today's day-col listed 37 children — 6:00am→11:30pm plus a 1:30a
   clock order (parse `h:mm am/pm` → minutes; non-slot children preserved after the slots). The
   script REFUSED to drop any duplicate carrying children. Verified live: 48 children, 12:00am first,
   11:30pm last, none missing, none out of order, all 48 painted.
+- **Same failure took out today's `Due` + `No timeslot` too** (user reported separately). Both
+  copies existed with `parentId` = today's day-col but were unlisted, AND their Time Slot identity
+  marker was `""` — because my first too-blunt migration run nulled the MASTERS at 10:22 and the
+  build COPY_LINKed them at 10:23, carrying the emptied value through. Restored both markers and
+  rebuilt the child list to the convention the correctly-built Fri/Sat day-cols use:
+  **[Due, No timeslot, …48 slots in clock order] = 50 children.** All three day-cols now match, 50
+  painted each. Lesson: a data repair on a MASTER propagates into every per-day copy minted
+  afterwards — repair the masters and the copies in the same pass, or rebuild the copies.
 - **Still fragile (not changed):** `Schedule: Build Schedule` self-heals a day-col that is EMPTY,
-  but not one that is PARTIALLY linked — nothing re-links a slot whose `parentId` already points at
-  the day-col but is absent from its array. Worth an idempotent relink pass in the op.
+  but not one that is PARTIALLY linked — nothing re-links a child whose `parentId` already points at
+  the day-col but is absent from its array. That covers the slots AND the Due / No timeslot heads.
+  Worth an idempotent relink pass in the op.
+- **The stale tab kept re-minting the fixed bug, with timestamps to prove it:** 12 more
+  `kind:"doc"` instance modules appeared at 11:44 (the Fri/Sat routine clones) — after the
+  `operationActions` fix deployed at 10:36. An open tab runs the OLD bundle, whose CREATE still
+  defaults `kind` to "doc". Cleared; **it recurs until the tab reloads**. Don't re-investigate a
+  fix that "didn't take" before checking the client's vintage.
 - **Separately: a stale TAB can re-introduce fixed bugs.** The 6:30 AM alarm fired at 11:30Z and
   STILL minted `kind:"list"` even though the stored pipeline had been stripped at 10:22 and the
   builders were fixed — because the browser tab had been open since before the migration and fired
