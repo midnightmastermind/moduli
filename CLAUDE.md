@@ -35,6 +35,24 @@ containers do exist (`ModuleContainer.jsx:668-671` dispatches all four kinds), s
   existing-matches list, not the create tiles) — placing an EXISTING page/table/canvas as a preview
   is a separate ask.
 
+### 2026-07-30 (5) — Routines split into sub-categories; feed pages are a dangling-ref source
+
+`ROUTINE_GROUPS` (seed) + migration `0009` group all **97 actions into 31 sub-category containers**
+under the nine dimensions — Physical → Nutrition/Fitness/Rest/Care, Financial →
+Earning/Spending/Saving/Admin, and so on. Dimension modules gain
+`meta.allowChildContainers`. The seed THROWS if a dimension's `instKeys` isn't fully placed, so a
+future action can't silently fall off the page; the migration keeps any unlisted action at top level
+and logs it rather than dropping it. Applied to poms grid, 0 leftovers.
+
+**Finding worth keeping:** the post-migration integrity check caught 12 dangling child refs — on
+**Schedule Canvas** and **Schedule Table**, the two FEED-backed pages, from client-minted ids ~7
+minutes earlier. So the recurring dangling-ref source is the FEED engine (feedSync mints copies
+client-side; the create is queued server-side and bails on disconnect while the parent-list write is
+not), NOT just headless probes as assumed on 2026-07-29. Swept; all three grids 0 errors. A feed
+resync that reconciles the parent list would close it for good.
+
+---
+
 ### 2026-07-30 (4) — mobile: the grid rendered off-centre because a HIDDEN viewport was scrolled
 
 User: "switching grid cells is glitching out, making the screen off center and viewing the wrong

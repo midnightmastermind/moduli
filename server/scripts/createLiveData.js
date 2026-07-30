@@ -3507,6 +3507,24 @@ export async function createLiveData(userId, options = {}) {
     creative:      { contOccId: creativeContOccId,     contModKey: "creative",      instKeys: ["draw", "paint", "sketch", "writeCreative", "journalCreatively", "compose", "sing", "dance", "craft", "photograph", "film", "edit", "brainstorm", "prototype", "invent"] },
   };
 
+
+  // Sub-categories WITHIN each dimension (user 2026-07-30: "split up the
+  // routines into smaller categories too with containers within containers,
+  // like nutrition should be in physical in its own container"). Every action
+  // key of a dimension must appear exactly once here — the loop below asserts
+  // it, so a future action can't silently fall out of the page.
+  const ROUTINE_GROUPS = {
+    physical:      { Nutrition: ["eat", "cook", "drink"], Fitness: ["exercise", "stretch", "walk", "run", "recover"], Rest: ["sleep"], Care: ["hygiene", "groom"] },
+    emotional:     { Reflection: ["journal", "reflect", "checkIn"], Expression: ["express", "vent", "celebrate", "forgive"], Recovery: ["relax", "decompress"] },
+    intellectual:  { Study: ["read", "study", "memorize", "research"], Media: ["watch", "listen"], Skill: ["practice", "teach", "analyze", "explore"], Focus: ["pomodoro"] },
+    social:        { "Reach Out": ["text", "call", "chat"], Together: ["meet", "date", "visit", "host"], Give: ["collaborate", "mentor", "volunteer"] },
+    spiritual:     { Practice: ["pray", "meditateSpiritual", "worship", "mindfulness"], Study: ["readScripture", "readPhilosophy"], Gratitude: ["gratitude", "nature", "serve"] },
+    occupational:  { Planning: ["plan", "prioritize", "review", "appointment"], "Deep Work": ["focus", "build", "code", "design"], People: ["email", "network"] },
+    financial:     { Earning: ["earn"], Spending: ["spend", "buy", "pay", "donate"], Saving: ["budget", "save", "invest"], Admin: ["track", "reconcile", "payBills", "cancelSub"] },
+    environmental: { Cleaning: ["clean", "declutter", "organize", "vacuum"], Chores: ["laundry", "dishes", "recycle"], Upkeep: ["repair", "maintain", "garden"] },
+    creative:      { Visual: ["draw", "paint", "sketch", "photograph", "film", "edit"], Words: ["writeCreative", "journalCreatively"], Music: ["compose", "sing", "dance"], Making: ["craft", "brainstorm", "prototype", "invent"] },
+  };
+
   // Per-exercise starting weights (lbs) — a realistic intermediate-lifter
   // state, as if the user had been progressively overloading. Bodyweight /
   // cardio movements carry 0 weight. Keyed by workout instance key; any
@@ -3534,6 +3552,7 @@ export async function createLiveData(userId, options = {}) {
 
   for (const [key, { contOccId, contModKey, instKeys }] of Object.entries(toolkitMappings)) {
     const childOccIds = [];
+    const occIdByInstKey = {};
     actionOccIds[key] = {};
     for (let i = 0; i < instKeys.length; i++) {
       const instKey = instKeys[i];
@@ -3561,8 +3580,32 @@ export async function createLiveData(userId, options = {}) {
       if (instKey === "pomodoro") pomodoroTemplateOccId = childId;
       actionOccIds[key][instKey] = childId;
       childOccIds.push(childId);
+      occIdByInstKey[instKey] = childId;
     }
-    await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: childOccIds, filterOverride: {} });
+    // Wrap the actions in their sub-category containers. The dimension then
+    // lists CONTAINERS, not actions — so it needs allowChildContainers, the
+    // same flag the nested tracker containers need.
+    const groups = ROUTINE_GROUPS[key];
+    let containerChildren = childOccIds;
+    if (groups) {
+      const grouped = new Set(Object.values(groups).flat());
+      const missing = instKeys.filter(k => !grouped.has(k));
+      if (missing.length) throw new Error(`ROUTINE_GROUPS.${key} does not place: ${missing.join(", ")}`);
+      containerChildren = [];
+      for (const [groupLabel, keys] of Object.entries(groups)) {
+        const kids = keys.map(k => occIdByInstKey[k]).filter(Boolean);
+        if (!kids.length) continue;
+        const gModId = uid(), gOccId = uid();
+        await new Module({ id: gModId, userId, gridId, role: "container", kind: "board", label: groupLabel }).save();
+        await mkOcc({ id: gOccId, moduleId: gModId, parentId: contOccId, occurrences: kids, filterOverride: {} });
+        for (const kid of kids) await Occurrence.findOneAndUpdate({ id: kid }, { $set: { parentId: gOccId } });
+        containerChildren.push(gOccId);
+      }
+      containerMods[contModKey].meta = { ...(containerMods[contModKey].meta || {}), allowChildContainers: true };
+      await Module.findOneAndUpdate({ id: containerMods[contModKey].id },
+        { $set: { "meta.allowChildContainers": true } });
+    }
+    await mkOcc({ id: contOccId, moduleId: containerMods[contModKey].id, occurrences: containerChildren, filterOverride: {} });
     toolkitContOccIds[contModKey] = contOccId;
   }
 

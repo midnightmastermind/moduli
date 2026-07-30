@@ -6,152 +6,279 @@ Generated from the live `poms grid`, 2026-07-30. For sweeping what you need and 
 
 ## Routines
 
-The action catalog by dimension. "Asks you for" lists only the visible inputs — Completed, Date, Time Slot, Last Seen and the hidden Habit marker are plumbing and are omitted.
+Dimension → sub-category → action. "Asks you for" lists only the visible inputs; Completed, Date, Time Slot, Last Seen and the hidden Habit marker are plumbing.
 
 ### Physical
+
+**Nutrition**
 
 | Action | Asks you for |
 |---|---|
 | **Eat** | Meal, Ingredient, Calories, Protein, Carbs, Fats |
 | **Cook** | Meal, Ingredient, Duration |
 | **Drink** | Beverage, Liquid Amount |
-| **Sleep** | _just a checkbox_ |
+
+**Fitness**
+
+| Action | Asks you for |
+|---|---|
 | **Exercise** | Movement, Set 1, Weight 1, Set 2, Weight 2, Set 3, Weight 3 |
 | **Stretch** | Movement, Duration |
 | **Walk** | Route, Steps, Duration |
 | **Run** | Route, Steps, Duration |
 | **Recover** | Supplement, Duration |
+
+**Rest**
+
+| Action | Asks you for |
+|---|---|
+| **Sleep** | Duration |
+
+**Care**
+
+| Action | Asks you for |
+|---|---|
 | **Hygiene** | _just a checkbox_ |
 | **Groom** | _just a checkbox_ |
 
 ### Emotional
+
+**Reflection**
 
 | Action | Asks you for |
 |---|---|
 | **Journal** | Prompt, Mood |
 | **Reflect** | Prompt, Duration |
 | **Check In** | Mood |
+
+**Expression**
+
+| Action | Asks you for |
+|---|---|
 | **Express** | Mood |
 | **Vent** | Mood |
 | **Celebrate** | Win, Event, Leisure Activity |
 | **Forgive** | _just a checkbox_ |
+
+**Recovery**
+
+| Action | Asks you for |
+|---|---|
 | **Relax** | Leisure Activity, Duration |
 | **Decompress** | Leisure Activity, Duration |
 
 ### Intellectual
 
+**Study**
+
 | Action | Asks you for |
 |---|---|
 | **Read** | Reading, Pages, Duration |
 | **Study** | Topic, Courses Taken, Duration |
-| **Watch** | Media, Duration |
-| **Listen** | Media, Duration |
-| **Practice** | Skill, Duration |
 | **Memorize** | Topic, Duration |
 | **Research** | Topic, Duration |
-| **Explore** | Topic, Duration |
-| **Analyze** | Topic, Duration |
+
+**Media**
+
+| Action | Asks you for |
+|---|---|
+| **Watch** | Media, Duration |
+| **Listen** | Media, Duration |
+
+**Skill**
+
+| Action | Asks you for |
+|---|---|
+| **Practice** | Skill, Duration |
 | **Teach** | Topic, Skill, Duration |
+| **Analyze** | Topic, Duration |
+| **Explore** | Topic, Duration |
+
+**Focus**
+
+| Action | Asks you for |
+|---|---|
 | **Pomodoro** | Pomodoro Minutes, Pomodoro #, Pomodoro Phase |
 
 ### Social
+
+**Reach Out**
 
 | Action | Asks you for |
 |---|---|
 | **Text** | People |
 | **Call** | People |
 | **Chat** | People |
+
+**Together**
+
+| Action | Asks you for |
+|---|---|
 | **Meet** | People, Place, Event, Duration |
 | **Date** | People, Place, Event, Duration |
 | **Visit** | People, Place, Gift Idea, Duration |
 | **Host** | People, Place, Event, Duration |
+
+**Give**
+
+| Action | Asks you for |
+|---|---|
 | **Collaborate** | People, Project, Duration |
 | **Mentor** | People, Skill, Duration |
 | **Volunteer** | People, Place, Charity, Duration |
 
 ### Spiritual
 
+**Practice**
+
 | Action | Asks you for |
 |---|---|
 | **Pray** | Practice, Verse, Duration |
 | **Meditate** | Practice, Duration |
 | **Worship** | Practice, Verse, Duration |
+| **Mindfulness** | Practice, Duration |
+
+**Study**
+
+| Action | Asks you for |
+|---|---|
 | **Read Scripture** | Reading, Pages, Duration |
 | **Read Philosophy** | Reading, Pages, Duration |
+
+**Gratitude**
+
+| Action | Asks you for |
+|---|---|
 | **Gratitude** | Gratitude Entry, Practice |
-| **Mindfulness** | Practice, Duration |
 | **Nature** | Route, Duration |
 | **Serve** | Charity, Duration |
 
 ### Occupational
 
+**Planning**
+
 | Action | Asks you for |
 |---|---|
 | **Plan** | Project, Duration |
 | **Prioritize** | Project, Duration |
+| **Review** | Project, Duration |
+| **Appointment** | Appointment Type, Place, People, Duration |
+
+**Deep Work**
+
+| Action | Asks you for |
+|---|---|
 | **Focus** | Duration |
 | **Build** | Project, Duration |
 | **Code** | Project, Duration |
 | **Design** | Project, Duration |
-| **Review** | Project, Duration |
+
+**People**
+
+| Action | Asks you for |
+|---|---|
 | **Email** | People |
 | **Network** | People |
-| **Appointment** | Appointment Type, Place, People, Duration |
 
 ### Financial
+
+**Earning**
+
+| Action | Asks you for |
+|---|---|
+| **Earn** | Account, Income |
+
+**Spending**
+
+| Action | Asks you for |
+|---|---|
+| **Spend** | Account, Purchase Item, Amount |
+| **Buy** | Account, Purchase Item, Amount |
+| **Pay** | Account, Amount |
+| **Donate** | Account, Charity, Amount |
+
+**Saving**
 
 | Action | Asks you for |
 |---|---|
 | **Budget** | Account, Savings Goal, Amount |
 | **Save** | Account, Savings Goal, Amount |
-| **Earn** | Account, Income |
 | **Invest** | Account, Savings Goal, Amount |
-| **Spend** | Account, Purchase Item, Amount |
-| **Buy** | Account, Purchase Item, Amount |
-| **Pay** | Account, Amount |
+
+**Admin**
+
+| Action | Asks you for |
+|---|---|
 | **Track** | Account, Amount |
 | **Reconcile** | Account, Amount |
-| **Donate** | Account, Charity, Amount |
 | **Pay Bill** | Bill, Account, Amount, Due |
 | **Cancel Subscription** | Subscription |
 
 ### Environmental
+
+**Cleaning**
 
 | Action | Asks you for |
 |---|---|
 | **Clean** | Area, Duration |
 | **Declutter** | Area, Duration |
 | **Organize** | Area, Duration |
+| **Vacuum** | Area, Duration |
+
+**Chores**
+
+| Action | Asks you for |
+|---|---|
 | **Laundry** | _just a checkbox_ |
 | **Dishes** | _just a checkbox_ |
-| **Vacuum** | Area, Duration |
 | **Recycle** | _just a checkbox_ |
+
+**Upkeep**
+
+| Action | Asks you for |
+|---|---|
 | **Repair** | Equipment, Duration |
 | **Maintain** | Equipment, Duration |
 | **Garden** | Plant, Duration |
 
 ### Creative
 
+**Visual**
+
 | Action | Asks you for |
 |---|---|
 | **Draw** | Medium, Creative Work, Duration |
 | **Paint** | Medium, Creative Work, Duration |
 | **Sketch** | Medium, Creative Work, Duration |
-| **Write** | Prompt, Medium, Creative Work, Duration |
-| **Journal Creatively** | Prompt, Medium, Creative Work, Duration |
-| **Compose** | Song, Medium, Creative Work, Duration |
-| **Sing** | Song, Medium, Creative Work, Duration |
-| **Dance** | Song, Medium, Creative Work, Duration |
-| **Craft** | Medium, Creative Work, Duration |
 | **Photograph** | Medium, Creative Work, Duration |
 | **Film** | Medium, Creative Work, Duration |
 | **Edit** | Medium, Creative Work, Duration |
+
+**Words**
+
+| Action | Asks you for |
+|---|---|
+| **Write** | Prompt, Medium, Creative Work, Duration |
+| **Journal Creatively** | Prompt, Medium, Creative Work, Duration |
+
+**Music**
+
+| Action | Asks you for |
+|---|---|
+| **Compose** | Song, Medium, Creative Work, Duration |
+| **Sing** | Song, Medium, Creative Work, Duration |
+| **Dance** | Song, Medium, Creative Work, Duration |
+
+**Making**
+
+| Action | Asks you for |
+|---|---|
+| **Craft** | Medium, Creative Work, Duration |
 | **Brainstorm** | Idea, Prompt, Duration |
 | **Prototype** | Idea, Medium, Duration |
 | **Invent** | Idea, Medium, Duration |
 
-**97 actions.**
-
+**97 actions across the nine dimensions.**
 ## What's prefilled every day
 
 Cloned into each new day by `Schedule: Build Schedule` from the **Day** template container. Everything else you drag in yourself.
