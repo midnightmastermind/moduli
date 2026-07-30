@@ -35,6 +35,38 @@ containers do exist (`ModuleContainer.jsx:668-671` dispatches all four kinds), s
   existing-matches list, not the create tiles) — placing an EXISTING page/table/canvas as a preview
   is a separate ask.
 
+### 2026-07-30 (2) — today's Schedule was missing its first 11 slots (MY probe caused it)
+
+User: "we dont have the full schedule … 6am to 1130pm with a random 130 am at the end." Exactly
+reproduced: today's day-col listed 37 children — 6:00am→11:30pm plus a 1:30am appended last.
+
+- **Not a build failure — a LINK failure.** All 48 slot copies for today existed, and the missing 11
+  already carried `parentId` pointing at the day-col. What was missing was their id in the day-col's
+  **`occurrences[]`**, which is what the renderer reads. Same asymmetry the 2026-07-29 audit
+  documented from the other side: `create_occurrence` is QUEUED server-side and survives, while the
+  parent-list write is a separate `update_occurrence` that does not — so a client that goes away
+  mid-build leaves created-but-unlisted children. The stray 1:30am was a second copy added by a
+  later pass, which is why it sorted last (the array is the render order).
+- **I caused this instance**: my `_slotgate.mjs` probe was the first client to load after midnight,
+  so IT ran the new-day Build Schedule, and the probe closes its browser seconds later — mid-burst.
+  **A probe that loads the live grid can trigger the day rollover. Keep it open, or expect to
+  repair.**
+- Repaired by relinking the 11, deleting the duplicate 1:30am, and rewriting `occurrences[]` in
+  clock order (parse `h:mm am/pm` → minutes; non-slot children preserved after the slots). The
+  script REFUSED to drop any duplicate carrying children. Verified live: 48 children, 12:00am first,
+  11:30pm last, none missing, none out of order, all 48 painted.
+- **Still fragile (not changed):** `Schedule: Build Schedule` self-heals a day-col that is EMPTY,
+  but not one that is PARTIALLY linked — nothing re-links a slot whose `parentId` already points at
+  the day-col but is absent from its array. Worth an idempotent relink pass in the op.
+- **Separately: a stale TAB can re-introduce fixed bugs.** The 6:30 AM alarm fired at 11:30Z and
+  STILL minted `kind:"list"` even though the stored pipeline had been stripped at 10:22 and the
+  builders were fixed — because the browser tab had been open since before the migration and fired
+  from its in-memory pre-migration copy of the op (its `lastFiredAt` never reached the DB either).
+  Data cleared; **a reload is the remedy**. When a fix "didn't take", check whether the client
+  predates it before re-opening the investigation.
+
+---
+
 ### 2026-07-30 — both ops bugs FIXED (and a third, which was the real root of one)
 
 - **Time Slot only gets stamped when the destination IS a slot.**
