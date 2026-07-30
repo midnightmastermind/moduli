@@ -1997,7 +1997,7 @@ export function makeDayPageBuildTasksCompletedOp({
   };
 }
 
-export function makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, hubPanelModuleId, lastSeenFieldId = null, dateFieldId = null }) {
+export function makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, hubPanelModuleId, lastSeenFieldId = null, dateFieldId = null, scheduleFormatFieldId = null }) {
   const steps = [
     // Bind $item to the freshly-created occurrence so UPDATE paths resolve.
     { id: uid(), type: "action", config: {
@@ -2007,14 +2007,63 @@ export function makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, hubPa
         ]},
         itemVar: "$item",
     }},
-    // Timeslot label — derives from the destination container's label, which
-    // the OccurrenceCreateOp trigger carries as $trigger.containerLabel.
-    { id: uid(), type: "action", config: {
+  ];
+  // Timeslot label — derives from the destination container's label, which the
+  // OccurrenceCreateOp trigger carries as $trigger.containerLabel.
+  //
+  // GATED on the destination actually BEING a timeslot (2026-07-29, user: "in
+  // workouts, time is set to schedule canvas and not a time"). Time Slot is a
+  // select of the 48 generated slot labels, and this op used to write the
+  // container's label unconditionally — so creating anything under the hub panel
+  // that ISN'T a slot stamped a page/container NAME as the "time" ("Schedule
+  // Canvas", "Schedule Table", "Due", "No timeslot"), and every history row that
+  // reads the field showed it. The ELSE branch matters as much as the gate: a
+  // COPY carries the source's fields, so a slotted item copied onto a canvas
+  // would otherwise keep a slot it no longer sits in. Null = Due / no slot,
+  // which is the field's own documented empty state.
+  //
+  // `scheduleFormat` is the data-driven discriminator already used by
+  // makeAlarmOp and Pomodoro: Start — no label matching, no hardcoded names.
+  // Optional: grids without the field (createTestGrid) keep the old
+  // unconditional stamp, byte-identical.
+  if (scheduleFormatFieldId) {
+    steps.push(
+      { id: uid(), type: "action", config: {
+          type: "FIND",
+          over: "$allOccurrences",
+          predicate: { operator: "AND", rules: [
+            { id: uid(), left: "id", comparator: "IS", right: "$trigger.containerId" },
+          ]},
+          itemVar: "$destContainer",
+      }},
+      {
+        id: uid(), type: "if",
+        condition: { operator: "AND", rules: [
+          { id: uid(), left: `$destContainer.fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "slot" },
+        ]},
+        then: [
+          { id: uid(), type: "action", config: {
+              type: "UPDATE",
+              path: `$item.fields.${timeslotFieldId}.value`,
+              value: "$trigger.containerLabel",
+          }},
+        ],
+        else: [
+          { id: uid(), type: "action", config: {
+              type: "UPDATE",
+              path: `$item.fields.${timeslotFieldId}.value`,
+              value: null,
+          }},
+        ],
+      },
+    );
+  } else {
+    steps.push({ id: uid(), type: "action", config: {
         type: "UPDATE",
         path: `$item.fields.${timeslotFieldId}.value`,
         value: "$trigger.containerLabel",
-    }},
-  ];
+    }});
+  }
   // Date stamp — resolves the destination's effective filter date via the
   // bound $item's _effectiveFilter (precomputed by executePipeline at
   // pipeline start), falling back to $today. Routes through UPDATE_ITEM_FIELD

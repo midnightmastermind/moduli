@@ -237,6 +237,37 @@ describe("schedule ops", () => {
     expect(op.triggerObjects[0]).toMatchObject({ eventType: "onCreate", targetId: "HUB" });
     expect(JSON.stringify(op.pipeline)).toContain("TS");
   });
+  // 2026-07-29: the ungated stamp wrote the destination CONTAINER'S LABEL into a
+  // select of 48 time labels, so a drop onto the Schedule Canvas / Table / Due
+  // stamped that page's NAME as the "time".
+  it("Stamp op GATES the timeslot write on the destination being a slot, and clears it otherwise", () => {
+    const op = makeStampDateTimeSlotOp({
+      userId: "u", gridId: "g", timeslotFieldId: "TS", hubPanelModuleId: "HUB", scheduleFormatFieldId: "SF",
+    });
+    // Resolves the destination container off the trigger...
+    const s = JSON.stringify(op.pipeline);
+    expect(s).toContain("$trigger.containerId");
+    // ...and the label write now lives inside an if on scheduleFormat IS "slot".
+    const gate = op.pipeline.steps.find(st => st.type === "if");
+    expect(gate).toBeTruthy();
+    expect(gate.condition.rules[0]).toMatchObject({
+      left: "$destContainer.fields.SF.value", comparator: "IS", right: "slot",
+    });
+    expect(JSON.stringify(gate.then)).toContain("$trigger.containerLabel");
+    // The ELSE clears it — a COPY carries the source's fields, so a slotted item
+    // copied onto a canvas must not keep a slot it no longer sits in.
+    const els = JSON.stringify(gate.else);
+    expect(els).toContain(`"path":"$item.fields.TS.value"`);
+    expect(els).toContain(`"value":null`);
+    // The label must NEVER be written outside the gate.
+    const outsideGate = op.pipeline.steps.filter(st => st.type !== "if");
+    expect(JSON.stringify(outsideGate)).not.toContain("$trigger.containerLabel");
+  });
+  it("Stamp op without a scheduleFormat field keeps the ungated stamp (test grid stays byte-identical)", () => {
+    const op = makeStampDateTimeSlotOp({ userId: "u", gridId: "g", timeslotFieldId: "TS", hubPanelModuleId: "HUB" });
+    expect(op.pipeline.steps.some(st => st.type === "if")).toBe(false);
+    expect(JSON.stringify(op.pipeline)).toContain("$trigger.containerLabel");
+  });
   it("Day Page: Build is named correctly, priority-1, embeds the folder + hub params", () => {
     const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC", goalsPageOccId: "GP", schedulePageOccId: "SP" });
     expect(op.name).toBe("Day Page: Build");

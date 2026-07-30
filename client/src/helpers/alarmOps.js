@@ -86,7 +86,12 @@ function alarmScheduleSteps({ sched, instanceLabel, time }) {
               condition: { operator: "AND", rules: [{ id: uid(), left: "$alExisting", comparator: "IS_EMPTY", right: "" }] },
               then: [
                 { id: uid(), type: "action", config: {
-                  type: "CREATE", role: "instance", kind: "list", name: instanceLabel,
+                  // No `kind`: it is inert on an instance leaf and the icon
+                  // resolver prefers kind over role, so a stray kind:"list" made
+                  // every fired alarm draw the BOARD icon on the Schedule
+                  // (2026-07-29). The server twin makeAlarmOp already omits it —
+                  // these two builders must stay in sync.
+                  type: "CREATE", role: "instance", name: instanceLabel,
                   parent: "$alTarget", fields: { [df]: "$today", [tf]: tsLabel },
                   fieldHidden: { [df]: true, [tf]: true },
                 } },

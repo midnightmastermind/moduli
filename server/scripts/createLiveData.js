@@ -8349,7 +8349,7 @@ export async function createLiveData(userId, options = {}) {
       ],
     },
   }).save();
-  await new Operation(makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, dateFieldId, lastSeenFieldId, hubPanelModuleId: panelModuleIds.notebook })).save();
+  await new Operation(makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, dateFieldId, lastSeenFieldId, scheduleFormatFieldId, hubPanelModuleId: panelModuleIds.notebook })).save();
   await new Operation(makeClearDateOnMoveOutOp({ userId, gridId, dateFieldId, timeslotFieldId, schedulePageOccId: schedPageOccId })).save();
 
   // ── Import from Wikipedia (manual; demonstrates GET_USER_INPUT chain) ─────
