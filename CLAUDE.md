@@ -35,6 +35,28 @@ containers do exist (`ModuleContainer.jsx:668-671` dispatches all four kinds), s
   existing-matches list, not the create tiles) — placing an EXISTING page/table/canvas as a preview
   is a separate ask.
 
+### 2026-07-30 (4) — mobile: the grid rendered off-centre because a HIDDEN viewport was scrolled
+
+User: "switching grid cells is glitching out, making the screen off center and viewing the wrong
+cells/side bar buttons being off." Measured on prod at 390×844: the `.mobile-grid-viewport` computed
+`overflow: hidden` **and** sat at `scrollTop 439 / scrollLeft 370`.
+
+- **`overflow: hidden` does NOT make a box unscrollable** — it only hides the scrollbars. Anything
+  that reveals a descendant (the scroll-to-current-slot pass, an occurrence-search jump, focusing a
+  freshly minted label editor) scrolls every scrollable ancestor, this viewport included. That
+  offset then rides on top of the cell transform permanently: the grid paints off-centre, you see a
+  slice of the neighbouring cells, and the rails point at the cell `activeCell` says you are on
+  rather than the one on screen.
+- The mode-off branch already reset scroll to 0, but only ONCE at effect time — the offending
+  scroll happens later. It now **pins** the viewport with a scroll listener for as long as the
+  panel-native-scroll mode is off. Verified on prod: 439/370 → **0/0**.
+- Multicell panels are untouched (that branch owns the scroll deliberately). 23 mobile tests pass.
+- **Probe note:** the same run printed "MISMATCH" on every rail tap — that was the PROBE reading a
+  non-existent `moduli-activeCell` localStorage key, so its expectation was always `?`. Don't chase
+  it; find the real key before re-testing rail↔transform agreement.
+
+---
+
 ### 2026-07-30 (3) — Routines catalog de-duplicated; Sleep loses Duration. TRACKERS RESTRUCTURE IS QUEUED
 
 Shipped (seed + migration `0007`, applied to poms grid, deployed): the catalog went **104 → 97
