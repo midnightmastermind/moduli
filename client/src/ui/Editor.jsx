@@ -432,7 +432,14 @@ const Editor = forwardRef(function Editor({
       // first frame its editor exists. The creator used to rAF-poll the DOM for
       // this editor instead (up to 60 frames); when the poll missed, the next
       // keystroke spawned ANOTHER textblock. See helpers/pendingTextblockFocus.
-      if (occurrence?.id && consumeTextblockFocus(occurrence.id)) {
+      //
+      // Gated on `content`: the content-sync effect SKIPS a focused editor (so a
+      // server echo can't yank the caret mid-typing), so focusing one that has
+      // not received its content yet strands it empty — the character that
+      // created the textblock is then dropped and the user sees "robe check".
+      // When content isn't here yet the claim stays pending and the sync effect
+      // below consumes it the moment it lands.
+      if (occurrence?.id && content && consumeTextblockFocus(occurrence.id)) {
         editor.commands.focus("end");
       }
       // Migrate old instancePill+pillDisplay:block nodes to instanceTextblock.
@@ -1243,6 +1250,13 @@ const Editor = forwardRef(function Editor({
           willRestore: userHasFocusedRef.current && (from > 1 || to > 1),
         });
         editor.commands.setContent(content, { emitUpdate: false });
+        // A just-typed textblock whose editor mounted BEFORE its content arrived
+        // takes the caret now — content first, then focus, so the character that
+        // created it is never dropped (see the onCreate claim above).
+        if (occurrence?.id && consumeTextblockFocus(occurrence.id)) {
+          editor.commands.focus("end");
+          return;
+        }
         // Only restore cursor if user has actively positioned it (not the initial pos 1).
         // Without this guard, initial content load restores pos 1 = beginning,
         // which fights with the user's first click placement.
