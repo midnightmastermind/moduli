@@ -8305,7 +8305,7 @@ export async function createLiveData(userId, options = {}) {
   // dayContainerOccId is the Day container inside the Schedule Template
   // page (seeded above via buildScheduleTemplatePage). The op COPY_LINKs
   // it into the Schedule page per active day — picker-direct, no FIND.
-  await new Operation(makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId, completedTrackerName: "Completed", waterTrackerName: "Water", goalsPageOccId, schedulePageOccId: schedPageOccId, dayContainerOccId })).save();
+  await new Operation(makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId, completedTrackerName: "Completed Tasks", waterTrackerName: "Water", goalsPageOccId, schedulePageOccId: schedPageOccId, dayContainerOccId })).save();
   // Extend Stamp Date & Time Slot to also stamp lastSeen on every dropped occurrence.
   await new Operation(makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolderId, hubPanelOccIdVar: panelOccIds.notebook, goalsPageOccId, schedulePageOccId: schedPageOccId })).save();
   // Body-seeds the Tasks Completed container minted by buildDayPageTemplate.

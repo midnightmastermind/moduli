@@ -230,6 +230,21 @@ export async function up({ gridId, models, log, dryRun }) {
       agg: "countTrue", timeFilter: "daily", perItem: 30,
       matchRules: sleepMod ? [{ id: uid(), left: "$item.templateId", comparator: "IS", right: sleepMod.id }] : [] }],
   ];
+  // Schedule: Build Schedule calls the completed tracker BY NAME in its tail
+  // RUN_OPERATION. Renaming the op above orphans that call ("operation not
+  // found"), which is exactly the failure the completedTrackerName param was
+  // added to prevent — so repoint the stored pipeline too.
+  const buildOp = await Operation.findOne({ gridId, name: /Build Schedule/ }).lean();
+  if (buildOp) {
+    const before = JSON.stringify(buildOp.pipeline || {});
+    const after = before.replace(/"operationName":"Completed"/g, '"operationName":"Completed Tasks"');
+    if (after === before) log("Build Schedule already calls 'Completed Tasks'");
+    else {
+      log("repoint Build Schedule's RUN_OPERATION → 'Completed Tasks'");
+      if (!dryRun) await Operation.updateOne({ _id: buildOp._id }, { $set: { pipeline: JSON.parse(after) } });
+    }
+  }
+
   for (const [name, args] of newOps) {
     if (await Operation.findOne({ gridId, name }).select({ id: 1 }).lean()) { log(`op "${name}" exists`); continue; }
     log(`create op "${name}"`);
