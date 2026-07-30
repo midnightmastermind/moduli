@@ -1681,73 +1681,57 @@ export function makeDayPageBuildOp({
                     // (a) the tree link — idempotent, no-ops when already listed.
                     { id: uid(), type: "action", config: { type: "ADD_CHILD", parentId: "$dayPageId", childId: "$todoId" } },
 
-                    // (b) the textmap embed. A doc page renders ONLY its textmap,
-                    // so the child list alone would leave Todo invisible.
-                    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$todoEmbedded", expr: "literal:0" } },
-                    { id: uid(), type: "loop", over: "$dayPage.textmap.content", as: "$node", body: [
-                      { id: uid(), type: "if",
-                        condition: { operator: "AND", rules: [
-                          { id: uid(), left: "$node.attrs.occurrenceId", comparator: "IS", right: "$todoId" },
+                    // (b) the textmap. A doc page renders ONLY its textmap, so
+                    // the child list alone leaves Todo invisible.
+                    //
+                    // The whole array is rewritten from FINDs rather than
+                    // spliced. The pipeline language has NO splice, and the
+                    // obvious substitute — LOOP over "$dayPage.textmap.content",
+                    // pushing each node — does not work: a loop's `over` cannot
+                    // resolve a nested path into a var, and instead of failing it
+                    // falls back to iterating EVERY occurrence. That silently
+                    // wrote 1278 occurrence records into a live page's textmap as
+                    // if they were TipTap nodes. Rewriting the array whole is
+                    // verbose but uses only supported primitives, is idempotent
+                    // (same array every fire), and self-heals a damaged page.
+                    //
+                    // The cost, stated plainly: this op now owns the page's
+                    // section ORDER, so a section added to the template must be
+                    // added here too.
+                    ...["Daily Question", "Journal", "Notes", "Tasks Completed", "Highlights"].map((label, i) => ({
+                      id: uid(), type: "action", config: {
+                        type: "FIND",
+                        over: "$allContainers",
+                        predicate: { operator: "AND", rules: [
+                          { id: uid(), left: "parentId", comparator: "IS", right: "$dayPageId" },
+                          { id: uid(), left: "label",    comparator: "IS", right: label },
                         ]},
-                        then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$todoEmbedded", expr: "literal:1" } }],
-                        else: [],
+                        itemIdVar: `$sec${i}`,
                       },
-                    ]},
-                    { id: uid(), type: "if",
-                      condition: { operator: "AND", rules: [{ id: uid(), left: "$todoEmbedded", comparator: "IS", right: 0 }] },
-                      then: [
-                        // Rebuild the content array in order, inserting the Todo
-                        // embed right after the Daily Question. A LOOP + PUSH is
-                        // how the pipeline language expresses a splice; the
-                        // template still owns every other section's position.
-                        { id: uid(), type: "action", config: {
-                            type: "FIND",
-                            over: "$allContainers",
-                            predicate: { operator: "AND", rules: [
-                              { id: uid(), left: "parentId", comparator: "IS", right: "$dayPageId" },
-                              { id: uid(), left: "label",    comparator: "IS", right: "Daily Question" },
-                            ]},
-                            itemIdVar: "$dqId",
-                        }},
-                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$content",      expr: "json:[]" } },
-                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$todoInserted", expr: "literal:0" } },
-                        { id: uid(), type: "loop", over: "$dayPage.textmap.content", as: "$node", body: [
-                          { id: uid(), type: "action", config: { type: "PUSH_TO_ARRAY", name: "$content", value: "$node" } },
-                          { id: uid(), type: "if",
-                            condition: { operator: "AND", rules: [
-                              // $dqId must be non-empty in its own right: a node
-                              // with no attrs resolves to undefined, which would
-                              // otherwise "match" an empty id and splice early.
-                              { id: uid(), left: "$dqId", comparator: "IS_NOT_EMPTY", right: "" },
-                              { id: uid(), left: "$node.attrs.occurrenceId", comparator: "IS", right: "$dqId" },
-                            ]},
-                            then: [
-                              { id: uid(), type: "action", config: {
-                                  type: "PUSH_TO_ARRAY", name: "$content",
-                                  value: { type: "moduleEmbed", attrs: { occurrenceId: "$todoId" } },
-                              }},
-                              { id: uid(), type: "action", config: { type: "SET_VAR", name: "$todoInserted", expr: "literal:1" } },
-                            ],
-                            else: [],
-                          },
+                    })),
+                    // The heading is an instanceTextblock, which also needs the
+                    // child's MODULE id — hence itemVar as well as itemIdVar.
+                    { id: uid(), type: "action", config: {
+                        type: "FIND",
+                        over: "$allOccurrences",
+                        predicate: { operator: "AND", rules: [
+                          { id: uid(), left: "parentId", comparator: "IS", right: "$dayPageId" },
+                          { id: uid(), left: "label",    comparator: "IS", right: "Day Page heading" },
                         ]},
-                        // No Daily Question on this page (binding context absent,
-                        // or the user deleted it) — append rather than drop it.
-                        { id: uid(), type: "if",
-                          condition: { operator: "AND", rules: [{ id: uid(), left: "$todoInserted", comparator: "IS", right: 0 }] },
-                          then: [{ id: uid(), type: "action", config: {
-                              type: "PUSH_TO_ARRAY", name: "$content",
-                              value: { type: "moduleEmbed", attrs: { occurrenceId: "$todoId" } },
-                          }}],
-                          else: [],
-                        },
-                        { id: uid(), type: "action", config: {
-                            type: "UPDATE", path: "$dayPage.textmap",
-                            value: { type: "doc", content: "$content" },
-                        }},
-                      ],
-                      else: [],
-                    },
+                        itemIdVar: "$headId", itemVar: "$head",
+                    }},
+                    { id: uid(), type: "action", config: {
+                        type: "UPDATE", path: "$dayPage.textmap",
+                        value: { type: "doc", content: [
+                          { type: "instanceTextblock", attrs: { instanceId: "$head.moduleId", occurrenceId: "$headId" } },
+                          { type: "moduleEmbed", attrs: { occurrenceId: "$sec0" } },   // Daily Question
+                          { type: "moduleEmbed", attrs: { occurrenceId: "$todoId" } }, // the day-column's own Todo
+                          { type: "moduleEmbed", attrs: { occurrenceId: "$sec1" } },   // Journal
+                          { type: "moduleEmbed", attrs: { occurrenceId: "$sec2" } },   // Notes
+                          { type: "moduleEmbed", attrs: { occurrenceId: "$sec3" } },   // Tasks Completed
+                          { type: "moduleEmbed", attrs: { occurrenceId: "$sec4" } },   // Highlights
+                        ]},
+                    }},
                   ],
                   else: [],
                 },

@@ -32,6 +32,10 @@
 // ship in the same commit — the ops here depend on both.
 
 import { makeDayPageBuildOp, makeDayPageBuildTasksCompletedOp, TODO_SLOT_LABEL } from "../utils/liveSystemBuilders.js";
+// Textmaps are stored COMPRESSED. A migration reads raw DB documents, so a bare
+// `page.textmap.content` is undefined rather than the node list — which silently
+// turned the damage check below into a no-op the first time round.
+import { decompressTextmap } from "../utils/textmapCompression.js";
 
 export const id = "0011-day-page-repair-and-writing-sections";
 export const describe =
@@ -81,6 +85,37 @@ export async function up({ gridId, grid, models, log, dryRun }) {
             identitySignature: `slot:${TODO_SLOT_LABEL}`,
           },
         });
+      }
+    }
+  }
+
+  // A day-column may hold TWO Todo copies: Build Schedule dedupes by
+  // `meta.copyLinkSource`, so a copy minted by any other path is invisible to
+  // that check and survives alongside the real one. Keep the copy-linked one
+  // (the one Build Schedule will keep re-finding); drop childless strays only —
+  // a duplicate holding items is data, and gets left alone to be looked at.
+  if (catchAll) {
+    const all = await Occurrence.find({ gridId, moduleId: catchAll.id }).select({ id: 1, parentId: 1, meta: 1, occurrences: 1 }).lean();
+    const byParent = new Map();
+    for (const o of all) {
+      if (!o.parentId) continue;
+      (byParent.get(o.parentId) || byParent.set(o.parentId, []).get(o.parentId)).push(o);
+    }
+    const strays = [];
+    for (const [, group] of byParent) {
+      if (group.length < 2) continue;
+      const keeper = group.find(o => o.meta?.copyLinkSource) || group[0];
+      for (const o of group) {
+        if (o.id === keeper.id) continue;
+        if ((o.occurrences || []).length) { log(`  duplicate Todo ${o.id} holds ${o.occurrences.length} item(s) — LEFT IN PLACE for review`); continue; }
+        strays.push(o.id);
+      }
+    }
+    if (strays.length) {
+      log(`delete ${strays.length} duplicate empty Todo container(s) from their day-column(s)`);
+      if (!dryRun) {
+        await Occurrence.deleteMany({ gridId, id: { $in: strays } });
+        await Occurrence.updateMany({ gridId, occurrences: { $in: strays } }, { $pull: { occurrences: { $in: strays } } });
       }
     }
   }
@@ -175,8 +210,15 @@ export async function up({ gridId, grid, models, log, dryRun }) {
     const labelOf = new Map(kidMods.map(m => [m.id, m.label]));
     const have = new Map(kids.map(k => [labelOf.get(k.moduleId), k.id]));
 
+    // A page whose textmap holds nodes that are not TipTap nodes was written by
+    // the loop-over-nested-path bug (it iterated every occurrence and wrote 1278
+    // occurrence records in as if they were nodes). Rebuild it regardless of
+    // whether the sections are present.
+    const tm = decompressTextmap(page.textmap) || {};
+    const damaged = (tm.content || []).some(n => !n?.type);
     const missing = WRITING_SECTIONS.filter(s => !have.has(s));
-    if (!missing.length) return 0;
+    if (!missing.length && !damaged) return 0;
+    if (damaged) log(`  ${nameOf(page)}: textmap holds ${(tm.content || []).length} entries, some of them not nodes — rebuilding`);
 
     for (const label of missing) {
       const modId = uid(), occId = uid();
@@ -195,15 +237,23 @@ export async function up({ gridId, grid, models, log, dryRun }) {
     }
 
     // Rebuild the child list + textmap in ORDER. Anything the page carries that
-    // ORDER does not name (a section the user added) is preserved at the end
-    // rather than dropped.
+    // ORDER does not name (a Todo link, a section the user added) is preserved
+    // at the end rather than dropped — de-duplicated, because ADD_CHILD ran
+    // once per op fire before the child list settled.
     const known = new Set(ORDER);
-    const extras = kids.filter(k => !known.has(labelOf.get(k.moduleId))).map(k => k.id);
+    const extras = [...new Set(kids.filter(k => !known.has(labelOf.get(k.moduleId))).map(k => k.id))];
     const ordered = ORDER.map(l => have.get(l)).filter(Boolean).concat(extras);
 
-    const oldContent = (page.textmap?.content || []);
-    const nodeFor = (occId) => oldContent.find(n => n?.attrs?.occurrenceId === occId)
-      || { type: "moduleEmbed", attrs: { occurrenceId: occId } };
+    // The heading child is hosted by an `instanceTextblock` node (which also
+    // carries the child's MODULE id), every other section by a `moduleEmbed`.
+    // Emitting the wrong node type renders the heading as an empty block.
+    const modIdOf = new Map(kids.map(k => [k.id, k.moduleId]));
+    const headingOccId = have.get("Day Page heading");
+    const oldContent = tm.content || [];
+    const nodeFor = (occId) => oldContent.find(n => n?.type && n?.attrs?.occurrenceId === occId)
+      || (occId === headingOccId
+        ? { type: "instanceTextblock", attrs: { instanceId: modIdOf.get(occId), occurrenceId: occId } }
+        : { type: "moduleEmbed", attrs: { occurrenceId: occId } });
 
     if (!dryRun) {
       await Occurrence.updateOne({ gridId, id: page.id }, {
