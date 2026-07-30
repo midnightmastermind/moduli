@@ -1229,8 +1229,16 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                         { id: uid(), type: "action", config: {
                             type: "FIND", over: "$allContainers",
                             predicate: { operator: "AND", rules: [
-                              { id: uid(), left: "meta.copyLinkSource", comparator: "IS",           right: "$tplChildId" },
-                              { id: uid(), left: "_ancestors",          comparator: "HAS_ANCESTOR", right: "$dayColId" },
+                              { id: uid(), left: "meta.copyLinkSource", comparator: "IS", right: "$tplChildId" },
+                              // parentId, NOT _ancestors. These copies are DIRECT
+                              // children, and `_ancestors` is derived from the
+                              // parent map — so the moment a copy gains a SECOND
+                              // parent (the day page multi-parents the Todo
+                              // container in), its ancestor chain can resolve
+                              // through that other parent instead and this dedupe
+                              // stops matching, re-minting a duplicate on every
+                              // single load. parentId stays the day-column.
+                              { id: uid(), left: "parentId", comparator: "IS", right: "$dayColId" },
                             ]},
                             itemIdVar: "$slotCopyId",
                         }},

@@ -142,7 +142,15 @@ export async function up({ gridId, grid, models, log, dryRun }) {
   const buildSched = await Operation.findOne({ gridId, name: "Schedule: Build Schedule" }).lean();
   if (buildSched) {
     const before = JSON.stringify(buildSched.pipeline);
-    const after = before.split('"No timeslot"').join(`"${TODO_SLOT_LABEL}"`);
+    // ALSO: the per-slot dedupe matched `_ancestors HAS_ANCESTOR $dayColId`.
+    // Once the day page multi-parents the Todo container in, that copy's
+    // ancestor chain can resolve through the PAGE instead of the day-column, so
+    // the dedupe misses and a duplicate is minted on every load. parentId is the
+    // precise test for a direct child and is unaffected by a second parent.
+    const after = before
+      .split('"No timeslot"').join(`"${TODO_SLOT_LABEL}"`)
+      .replace(/\{("id":"[^"]*",)?"left":"_ancestors","comparator":"HAS_ANCESTOR","right":"\$dayColId"\}(\]\},"itemIdVar":"\$slotCopyId")/g,
+               (_m, idPart = "", tail) => `{${idPart}"left":"parentId","comparator":"IS","right":"$dayColId"}${tail}`);
     if (after !== before) {
       log(`Schedule: Build Schedule — retarget ${before.split('"No timeslot"').length - 1} marker rule(s) to "${TODO_SLOT_LABEL}"`);
       if (!dryRun) await Operation.updateOne({ gridId, id: buildSched.id }, { $set: { pipeline: JSON.parse(after) } });
