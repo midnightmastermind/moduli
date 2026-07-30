@@ -263,20 +263,26 @@ describe("onLoad sweep (seed sanity)", () => {
     expect(scheduleSlotOcc("1:00am")).toBeTruthy();
   });
   it("mints the day's goal occurrences with baseline values", () => {
-    expect(goalOcc("Completed")).toBeTruthy();
-    expect(typeof goalValue("Completed", "Tasks Completed")).toBe("number");
-    expect(typeof goalValue("Completed", "Tasks Left")).toBe("number");
+    // Both halves of the split now live in the Stats container (2026-07-30).
+    expect(goalOcc("Completed Tasks")).toBeTruthy();
+    expect(goalOcc("Completed Habits")).toBeTruthy();
+    expect(typeof goalValue("Completed Tasks", "Tasks Completed")).toBe("number");
+    expect(typeof goalValue("Completed Tasks", "Tasks Left")).toBe("number");
+    expect(typeof goalValue("Completed Habits", "Habits Completed")).toBe("number");
   });
 });
 
 describe("drops (onAdd/onDelete) re-aggregate trackers — 2026-07-07 trigger fix", () => {
   let addedId;
-  it("dropping an ALREADY-COMPLETED item into a slot bumps Tasks Completed on the DROP", () => {
-    const before = goalValue("Completed", "Tasks Completed");
-    const leftBefore = goalValue("Completed", "Tasks Left");
+  // Stretch is a ROUTINE, so completing it moves Completed HABITS and must
+  // leave Completed Tasks alone (user 2026-07-30: routines like sleep must not
+  // inflate the task count). The discriminator is the hidden Habit binding.
+  it("dropping an ALREADY-COMPLETED routine into a slot bumps Completed Habits on the DROP", () => {
+    const before = goalValue("Completed Habits", "Habits Completed");
+    const tasksBefore = goalValue("Completed Tasks", "Tasks Completed");
     addedId = addToSlot("Stretch", "1:00am", { Completed: true });
-    expect(goalValue("Completed", "Tasks Completed")).toBe(before + 1);
-    expect(goalValue("Completed", "Tasks Left")).toBe(leftBefore - 1);
+    expect(goalValue("Completed Habits", "Habits Completed")).toBe(before + 1);
+    expect(goalValue("Completed Tasks", "Tasks Completed")).toBe(tasksBefore);
   });
   it("the completed drop also starts the streak", () => {
     expect(goalValue("Streak", "Current Streak")).toBeGreaterThanOrEqual(1);
@@ -287,20 +293,20 @@ describe("drops (onAdd/onDelete) re-aggregate trackers — 2026-07-07 trigger fi
     expect(trackerValue("Total Workouts") || 0).toBe(0);
   });
   it("deleting the dropped item re-aggregates back down", () => {
-    const before = goalValue("Completed", "Tasks Completed");
+    const before = goalValue("Completed Habits", "Habits Completed");
     deleteOcc(addedId);
-    expect(goalValue("Completed", "Tasks Completed")).toBe(before - 1);
+    expect(goalValue("Completed Habits", "Habits Completed")).toBe(before - 1);
   });
 });
 
 describe("boolean input (Completed toggle)", () => {
-  it("completing an incomplete slot item bumps Tasks Completed / drops Tasks Left", () => {
+  it("completing an incomplete routine bumps Completed Habits", () => {
     const id = addToSlot("Stretch", "1:30am"); // incomplete
-    const done = goalValue("Completed", "Tasks Completed");
-    const left = goalValue("Completed", "Tasks Left");
+    const done = goalValue("Completed Habits", "Habits Completed");
+    const tasks = goalValue("Completed Tasks", "Tasks Completed");
     inputField(id, "Completed", true);
-    expect(goalValue("Completed", "Tasks Completed")).toBe(done + 1);
-    expect(goalValue("Completed", "Tasks Left")).toBe(left - 1);
+    expect(goalValue("Completed Habits", "Habits Completed")).toBe(done + 1);
+    expect(goalValue("Completed Tasks", "Tasks Completed")).toBe(tasks);
   });
 });
 
@@ -432,7 +438,7 @@ describe("feed copies vs trackers (2026-07-08)", () => {
     // Simulate what feedSync mints: a copy-linked mirror of a completed task,
     // parented OUTSIDE Schedule (the mirror page), marked meta.feedSourceId.
     const src = addToSlot("Stretch", "8:30am", { Completed: true });
-    const after = goalValue("Completed", "Tasks Completed");
+    const after = goalValue("Completed Habits", "Habits Completed");
     const copyId = uid();
     const srcOcc = occurrencesById[src];
     occurrencesById[copyId] = {
@@ -447,7 +453,7 @@ describe("feed copies vs trackers (2026-07-08)", () => {
       fields: { [fieldIdByName["Completed"]]: true },
       _ancestorIds: anc.ids, _ancestorLabels: anc.labels,
     });
-    expect(goalValue("Completed", "Tasks Completed")).toBe(after); // unchanged
+    expect(goalValue("Completed Habits", "Habits Completed")).toBe(after); // unchanged
   });
 
   it("dragging OUT of a feed into the Schedule mints a CLEAN copy that counts", () => {
@@ -455,10 +461,10 @@ describe("feed copies vs trackers (2026-07-08)", () => {
     // the new occurrence carries no feedSourceId, so trackers treat it like
     // any toolkit drop (user question 2026-07-08: "if I drag from there to a
     // schedule, will it still count" — yes).
-    const before = goalValue("Completed", "Tasks Completed");
+    const before = goalValue("Completed Habits", "Habits Completed");
     const id = addToSlot("Recover", "9:00am", { Completed: true });
     expect(occurrencesById[id].meta?.feedSourceId).toBeUndefined();
-    expect(goalValue("Completed", "Tasks Completed")).toBe(before + 1);
+    expect(goalValue("Completed Habits", "Habits Completed")).toBe(before + 1);
   });
 });
 

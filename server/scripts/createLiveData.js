@@ -1774,6 +1774,38 @@ export async function createLiveData(userId, options = {}) {
     },
 
     // ── DISPLAY FIELDS (written by operations) ────────────────────────────────
+    // Marks an action as part of the ROUTINE catalog. Bound HIDDEN on every
+    // routine action module, never valued: the discriminator is the module
+    // BINDING (`_boundFieldIds`), which travels with a copy for free — the
+    // 2026-07-11 idiom. Completed Habits counts items carrying it; Completed
+    // Tasks counts items that do not.
+    habit: {
+      id: uid(),
+      name: "Habit",
+      type: "boolean",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: { variant: "switch", defaultValue: false },
+      folderId: fieldCategoryIds.scheduling,
+    },
+    totalCompletedHabits: {
+      id: uid(),
+      name: "Habits Completed",
+      type: "number",
+      inputEnabled: false,
+      displayEnabled: true,
+      displayConfig: { showArrows: true },
+      folderId: fieldCategoryIds.scheduling,
+    },
+    totalSleep: {
+      id: uid(),
+      name: "Sleep Time",
+      type: "duration",
+      inputEnabled: false,
+      displayEnabled: true,
+      displayConfig: { showArrows: true },
+      folderId: fieldCategoryIds.scheduling,
+    },
     totalCompleted: {
       id: uid(),
       name: "Tasks Completed",
@@ -2415,6 +2447,9 @@ export async function createLiveData(userId, options = {}) {
       { fieldId: fields.completed.id, role: "input", order: 0 },
       ...extraBindings.map((b, i) => ({ ...b, order: i + 1 })),
       { fieldId: dateFieldId, role: "input", order: 90, hidden: true },
+      // Hidden marker: this is a routine, so completing it counts as a HABIT
+      // rather than a task (see fields.habit).
+      { fieldId: fields.habit.id, role: "input", order: 91, hidden: true },
     ],
   });
   // Paired set + weight columns for Exercise / Lift (2026-07-14 convention).
@@ -2472,6 +2507,7 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: fields.pomodoroPhase.id,    role: "input", order: 3 },
         { fieldId: dateFieldId,                role: "input", order: 4, hidden: false },
         { fieldId: timeslotFieldId,            role: "input", order: 5, hidden: false },
+        { fieldId: fields.habit.id,            role: "input", order: 91, hidden: true },
       ],
     },
 
@@ -2810,11 +2846,25 @@ export async function createLiveData(userId, options = {}) {
     // the exact thing each tracker writes to, displayRules key by per-metric
     // label, and each per-metric card on the goals page reads independently.
     physicalCompleted: {
-      id: uid(), label: "Completed", kind: "board",
+      id: uid(), label: "Completed Tasks", kind: "board",
       defaultDragMode: "move",
       fieldBindings: [
         { fieldId: fields.totalCompleted.id, role: "display", order: 0 },
         { fieldId: fields.taskCountdown.id,  role: "display", order: 1 },
+      ],
+    },
+    completedHabits: {
+      id: uid(), label: "Completed Habits", kind: "board",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalCompletedHabits.id, role: "display", order: 0 },
+      ],
+    },
+    physicalSleep: {
+      id: uid(), label: "Sleep", kind: "board",
+      defaultDragMode: "move",
+      fieldBindings: [
+        { fieldId: fields.totalSleep.id, role: "display", order: 0 },
       ],
     },
     physicalWater: {
@@ -3290,12 +3340,13 @@ export async function createLiveData(userId, options = {}) {
   // Routines/Tasks containers (2026-07-25). These per-occurrence colors are the
   // deliberate EXCEPTION to "everything comes from the theme" (per user).
   const goalContainerMods = {
-    physicalGoal:      { id: uid(), label: "Physical",      styleMode: "own", ownStyle: { bg: DIM_COLORS.physical } },
-    intellectualGoal:  { id: uid(), label: "Intellectual",  styleMode: "own", ownStyle: { bg: DIM_COLORS.intellectual } },
+    statsGoal:         { id: uid(), label: "Stats",         styleMode: "own", ownStyle: { bg: DIM_COLORS.physical } },
+    physicalGoal:      { id: uid(), label: "Physical",      styleMode: "own", ownStyle: { bg: DIM_COLORS.physical }, meta: { allowChildContainers: true } },
+    intellectualGoal:  { id: uid(), label: "Intellectual",  styleMode: "own", ownStyle: { bg: DIM_COLORS.intellectual }, meta: { allowChildContainers: true } },
     emotionalGoal:     { id: uid(), label: "Emotional",     styleMode: "own", ownStyle: { bg: DIM_COLORS.emotional } },
     socialGoal:        { id: uid(), label: "Social",        styleMode: "own", ownStyle: { bg: DIM_COLORS.social } },
     spiritualGoal:     { id: uid(), label: "Spiritual",     styleMode: "own", ownStyle: { bg: DIM_COLORS.spiritual } },
-    occupationalGoal:  { id: uid(), label: "Occupational",  styleMode: "own", ownStyle: { bg: DIM_COLORS.occupational } },
+    occupationalGoal:  { id: uid(), label: "Occupational",  styleMode: "own", ownStyle: { bg: DIM_COLORS.occupational }, meta: { allowChildContainers: true } },
     financialGoal:     { id: uid(), label: "Financial",     styleMode: "own", ownStyle: { bg: DIM_COLORS.financial } },
     environmentalGoal: { id: uid(), label: "Environmental", styleMode: "own", ownStyle: { bg: DIM_COLORS.environmental } },
     creativeGoal:      { id: uid(), label: "Creative",      styleMode: "own", ownStyle: { bg: DIM_COLORS.creative } },
@@ -3430,6 +3481,7 @@ export async function createLiveData(userId, options = {}) {
   const creativeGoalContOccId      = uid();
   const workoutGoalContOccId       = uid();
   const nutritionGoalContOccId     = uid();
+  const statsGoalContOccId         = uid();
   const planningGoalContOccId      = uid();
 
   // Account containers
@@ -3539,7 +3591,11 @@ export async function createLiveData(userId, options = {}) {
   // timeFilter:"all" (which removed the gate entirely).
   const DATE_FILTER_OFF_BY_DEFAULT = new Set(["financialGoal"]);
   const goalMappings = {
-    physicalGoal:      { contOccId: physicalGoalContOccId,      contModKey: "physicalGoal",      instKeys: ["physicalCompleted", "physicalWater", "physicalSteps", "physicalStreak", "physicalNow"], acctKeys: ["fitnessAccount"] },
+    // Cross-cutting day stats live in their own container FIRST on the page
+    // (user 2026-07-30). "Completed Tasks" was always grid-wide — it only READ
+    // as physical because it sat in the Physical container.
+    statsGoal:         { contOccId: statsGoalContOccId,         contModKey: "statsGoal",         instKeys: ["physicalCompleted", "completedHabits", "physicalNow", "physicalStreak"] },
+    physicalGoal:      { contOccId: physicalGoalContOccId,      contModKey: "physicalGoal",      instKeys: ["physicalWater", "physicalSteps", "physicalSleep"], acctKeys: ["fitnessAccount"] },
     intellectualGoal:  { contOccId: intellectualGoalContOccId,  contModKey: "intellectualGoal",  instKeys: ["intellectualPagesRead", "intellectualReadingTime", "intellectualPomodoros", "intellectualCourses"], acctKeys: ["readingAccount"] },
     emotionalGoal:     { contOccId: emotionalGoalContOccId,     contModKey: "emotionalGoal",     instKeys: ["emotionalMood"], acctKeys: ["wellnessAccount"] },
     socialGoal:        { contOccId: socialGoalContOccId,        contModKey: "socialGoal",        instKeys: ["socialConnectionTime", "socialPhoneCalls"] },
@@ -3588,6 +3644,31 @@ export async function createLiveData(userId, options = {}) {
       ...(DATE_FILTER_OFF_BY_DEFAULT.has(contModKey) ? { filterOverride: {} } : {}) });
     goalContOccIds[contModKey] = contOccId;
   }
+
+  // Sub-domain tracker containers nest INSIDE the dimension they belong to
+  // (user 2026-07-30: "move the container for workouts into physical (a
+  // container inside a container), and the other relevant ones"). Re-parenting
+  // is invisible to the tracker ops — every one of them targets its tile by
+  // OCCURRENCE ID, the same reason the 2026-07-25 account-container merge was
+  // free.
+  const NESTED_TRACKER_CONTAINERS = {
+    workoutGoal:   "physicalGoal",
+    nutritionGoal: "physicalGoal",
+    mediaGoal:     "intellectualGoal",
+    planningGoal:  "occupationalGoal",
+  };
+  for (const [childKey, parentKey] of Object.entries(NESTED_TRACKER_CONTAINERS)) {
+    const childOccId = goalContOccIds[childKey], parentOccId = goalContOccIds[parentKey];
+    if (!childOccId || !parentOccId) continue;
+    await Occurrence.findOneAndUpdate({ id: childOccId }, { $set: { parentId: parentOccId } });
+    await Occurrence.findOneAndUpdate({ id: parentOccId }, { $push: { occurrences: childOccId } });
+  }
+  // Page order: Stats first, then the nine dimensions. The four nested
+  // containers are deliberately absent — they render inside their parent.
+  const TRACKER_PAGE_ORDER = [
+    "statsGoal", "physicalGoal", "intellectualGoal", "emotionalGoal", "socialGoal",
+    "spiritualGoal", "occupationalGoal", "financialGoal", "environmentalGoal", "creativeGoal",
+  ];
 
   const accountContOccIds = {}; // account containers merged into the dimensions above
 
@@ -5093,7 +5174,7 @@ export async function createLiveData(userId, options = {}) {
   await mkOcc({
     id: trackersPageOccId, moduleId: trackersPageModId,
     parentId: trackersFolderId, sortOrder: 0,
-    occurrences: [...Object.values(goalContOccIds)],
+    occurrences: TRACKER_PAGE_ORDER.map(k => goalContOccIds[k]).filter(Boolean),
     iteration: { mode: "persistent" }, fields: {},
     filters: [
       {
@@ -5746,16 +5827,24 @@ export async function createLiveData(userId, options = {}) {
   const trackerArgs = { userId, gridId, dateFieldId, completedFieldId, folderId: opCategoryIds.trackers, scopePageOccId: schedPageOccId };
 
   // ── DAILY TASK / WELLNESS ──
+  // Habits = the routine half of the same count.
+
+  // TASKS only — a routine carries the hidden Habit marker and is counted by
+  // "Completed Habits" instead (user 2026-07-30: sleep and the other routines
+  // must not inflate the task count). The discriminator is the module BINDING,
+  // never a stored value, so it holds for every copy of a routine.
+  const notAHabitRule = [{ id: uid(), left: "$item._boundFieldIds", comparator: "ARRAY_NOT_INCLUDES", right: fields.habit.id }];
+  const isAHabitRule  = [{ id: uid(), left: "$item._boundFieldIds", comparator: "ARRAY_INCLUDES",     right: fields.habit.id }];
   await new Operation(makeTrackerOp({
-    ...trackerArgs, name: "Completed",
-    goalLabel: "Completed", goalOccurrenceId: goalOccIds.physicalCompleted, goalFieldId: fields.totalCompleted.id,
-    agg: "countTrue", timeFilter: "daily",
+    ...trackerArgs, name: "Completed Tasks",
+    goalLabel: "Completed Tasks", goalOccurrenceId: goalOccIds.physicalCompleted, goalFieldId: fields.totalCompleted.id,
+    agg: "countTrue", timeFilter: "daily", matchRules: notAHabitRule,
     // Paired with Task Countdown on the same per-metric occurrence: this
     // counts UP as tasks complete. Target rules carry the met/notMet
     // signal when a target is set on totalCompleted; value-fallback covers
     // untargeted days. ArrowUp throughout (more done = good direction).
     displayRules: {
-      "Completed": [
+      "Completed Tasks": [
         { when: { target: "met" },     color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
         { when: { target: "notMet" },  color: "rgb(var(--signal-neg))", icon: "ArrowUp" },
         { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
@@ -6070,6 +6159,36 @@ export async function createLiveData(userId, options = {}) {
   }).save();
 
   // ── DAILY ACTIVITY ──
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Completed Habits",
+    goalLabel: "Completed Habits", goalOccurrenceId: goalOccIds.completedHabits, goalFieldId: fields.totalCompletedHabits.id,
+    agg: "countTrue", timeFilter: "daily", matchRules: isAHabitRule,
+    displayRules: {
+      "Completed Habits": [
+        { when: { target: "met" },     color: "rgb(var(--signal-pos))", icon: "ArrowUp" },
+        { when: { target: "notMet" },  color: "rgb(var(--signal-neg))", icon: "ArrowUp" },
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
+      ],
+    },
+  })).save();
+  // Sleep carries NO Duration field: a slot IS 30 minutes, so each completed
+  // Sleep occurrence contributes 30 (perItem) and the tile reads the minutes
+  // slept straight off how many half-hour slots you filled.
+  await new Operation(makeTrackerOp({
+    ...trackerArgs, name: "Sleep Time",
+    goalLabel: "Sleep", goalOccurrenceId: goalOccIds.physicalSleep, goalFieldId: fields.totalSleep.id,
+    agg: "countTrue", timeFilter: "daily", perItem: 30,
+    matchRules: [{ id: uid(), left: "$item.templateId", comparator: "IS", right: actionInstances.sleep.id }],
+    displayRules: {
+      "Sleep": [
+        { when: { value: "null" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "zero" },     color: "rgb(var(--signal-zero))" },
+        { when: { value: "positive" }, color: "rgb(var(--signal-pos))" },
+      ],
+    },
+  })).save();
   await new Operation(makeTrackerOp({
     ...trackerArgs, name: "Steps",
     goalLabel: "Steps", goalOccurrenceId: goalOccIds.physicalSteps, goalFieldId: fields.totalSteps.id,

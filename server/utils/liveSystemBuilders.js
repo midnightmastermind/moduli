@@ -2149,6 +2149,11 @@ export function makeTrackerOp({
   // knowing anything about what the field means. Used by Water, which only
   // counts a Drink whose Beverage pick IS the "Water" option.
   matchRules = [],
+  // How much ONE counted item contributes (count / countTrue only). Default 1 =
+  // a plain tally. Sleep passes 30: a slot IS 30 minutes, so "how many
+  // half-hour Sleep slots did you complete" IS the minutes slept, with no
+  // Duration field to fill in (user 2026-07-30).
+  perItem = 1,
   agg, flow = "any", timeFilter = "daily", scopeLabel = "Schedule",
   // Picker-direct scope page — the occurrence id of the page the data lives
   // under (the Schedule page). When provided, $scopePageId is bound from this
@@ -2389,7 +2394,7 @@ export function makeTrackerOp({
       steps.push(buildLoopFor("count", {
         completionGate: false,
         includePresence: false,
-        accumulator: [{ type: "INCREMENT_VAR", name: accVar, by: 1 }],
+        accumulator: [{ type: "INCREMENT_VAR", name: accVar, by: perItem }],
       }));
     } else if (agg === "countTrue") {
       // Tasks: count(+1) where completed IS true — STRICT: completion is the
@@ -2397,7 +2402,7 @@ export function makeTrackerOp({
       steps.push(buildLoopFor("countTrue", {
         completionGate: "strict",
         includePresence: false,
-        accumulator: [{ type: "INCREMENT_VAR", name: accVar, by: 1 }],
+        accumulator: [{ type: "INCREMENT_VAR", name: accVar, by: perItem }],
       }));
     } else if (agg === "last") {
       // Raw read of the most-recent matching item's value (loop overwrites).
