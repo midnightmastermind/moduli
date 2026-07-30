@@ -1513,9 +1513,14 @@ export function makeDayPageBuildOp({
     //   ancestorLabel approach (was "Daily Goals" / "Schedule" hardcoded).
     triggerTypes: ["onLoad", "onFilterChange"],
     triggerObjects: [
-      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 1 },
-      { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 1 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", priority: 1 },
+      // Priority 5, NOT 1. The Todo link pass reads the day-column's children,
+      // so it has to run after Schedule: Build Schedule (1) has actually minted
+      // them — at equal priority it can read a copy the schedule build then
+      // sweeps and re-mints, leaving the page embedding a dead id. Creating the
+      // page a few ops later in the same sweep costs nothing.
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 5 },
+      { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 5 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", priority: 5 },
     ],
     enabled: true,
     pipeline: {

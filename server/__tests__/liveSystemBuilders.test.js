@@ -268,10 +268,10 @@ describe("schedule ops", () => {
     expect(op.pipeline.steps.some(st => st.type === "if")).toBe(false);
     expect(JSON.stringify(op.pipeline)).toContain("$trigger.containerLabel");
   });
-  it("Day Page: Build is named correctly, priority-1, embeds the folder + hub params", () => {
+  it("Day Page: Build is named correctly, priority-5 (after the schedule build), embeds the folder + hub params", () => {
     const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC", goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL" });
     expect(op.name).toBe("Day Page: Build");
-    expect(op.triggerObjects.every(t => t.priority === 1)).toBe(true);
+    expect(op.triggerObjects.every(t => t.priority === 5)).toBe(true);
     const s = JSON.stringify(op.pipeline);
     expect(s).toContain("DPF");
     expect(s).toContain("HUBOCC");
