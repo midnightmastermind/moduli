@@ -17,6 +17,7 @@ import {
   createOperation, updateOperation, deleteOperation,
   createModule, updateModule, deleteModule,
   createLeafInstanceAtIndex,
+  createPageInContainer, createChildInContainer,
 } from "../helpers/CommitHelpers";
 
 // ─── Mock factory ──────────────────────────────────────────────────────────
@@ -433,5 +434,59 @@ describe("addImageArtifactFromUrl", () => {
     const out = addImageArtifactFromUrl({ dispatch, socket, ...base(), url: "https://i/y.png", index: 0 });
     expect(emitted(socket, "update_occurrence").occurrence.occurrences).toEqual([out.occurrenceId, "a", "b"]);
     expect(addImageArtifactFromUrl({ dispatch, socket, ...base() })).toBeNull();
+  });
+});
+
+describe("createPageInContainer / createChildInContainer page-* tiles", () => {
+  const base = () => ({
+    gridId: "g1", userId: "u1",
+    containerOccurrence: { id: "c1", moduleId: "cm1", occurrences: ["a", "b"] },
+  });
+  const emitted = (socket, event) => socket.emit.mock.calls.find(c => c[0] === event)?.[1];
+  const allEmitted = (socket, event) => socket.emit.mock.calls.filter(c => c[0] === event).map(c => c[1]);
+
+  test("mints ONE page module + ONE occurrence homed in the folder and listed by the container", () => {
+    const { dispatch, socket } = makeMocks();
+    const out = createPageInContainer({ dispatch, socket, ...base(), kind: "canvas", folderId: "root-folder" });
+    const mod = emitted(socket, "create_module").module;
+    expect(mod.role).toBe("page");
+    expect(mod.kind).toBe("canvas");
+
+    // Exactly one occurrence — two would give a doc/canvas page two textmaps.
+    const occs = allEmitted(socket, "create_occurrence");
+    expect(occs).toHaveLength(1);
+    const occ = occs[0].occurrence;
+    // Home in the tree...
+    expect(occ.parentId).toBe("root-folder");
+    // ...and multi-parented into the container that spawned it.
+    expect(emitted(socket, "update_occurrence").occurrence.occurrences).toEqual(["a", "b", out.occurrenceId]);
+    // Pinned to the compact view; the cascade would otherwise default to
+    // actual-converted (an empty inline box for a brand-new page).
+    expect(occ.meta.layoutCascadeOverride.dragInView).toBe("representation");
+    // canvas/doc pages need a textmap to mount clean.
+    expect(occ.textmap).toEqual({ type: "doc", content: [] });
+  });
+
+  test("a table page gets no textmap, and with no folder the container is its only home", () => {
+    const { dispatch, socket } = makeMocks();
+    createPageInContainer({ dispatch, socket, ...base(), kind: "table", folderId: null });
+    const occ = emitted(socket, "create_occurrence").occurrence;
+    expect(occ.textmap).toBeUndefined();
+    expect(occ.parentId).toBe("c1");
+  });
+
+  test("createChildInContainer routes page-* to a PAGE and the bare kind to a CONTAINER", () => {
+    const { dispatch, socket } = makeMocks();
+    createChildInContainer({ dispatch, socket, ...base(), kind: "page-doc", folderId: "root-folder" });
+    expect(emitted(socket, "create_module").module.role).toBe("page");
+
+    const second = makeMocks();
+    createChildInContainer({ dispatch, socket: second.socket, ...base(), kind: "doc" });
+    expect(emitted(second.socket, "create_module").module.role).toBe("container");
+  });
+
+  test("returns null without a container", () => {
+    const { dispatch, socket } = makeMocks();
+    expect(createPageInContainer({ dispatch, socket, gridId: "g1", userId: "u1", containerOccurrence: null })).toBeNull();
   });
 });

@@ -40,7 +40,27 @@ export const KIND_TILE = {
   textblock: { label: "Textblock", desc: "Inline rich-text snippet" },
   artifact:  { label: "Artifact",  desc: "File-backed content" },
   image:     { label: "Image",     desc: "Search the web / upload / URL" },
+  // PAGE tiles (2026-07-29, per user). Distinct from the bare kinds above,
+  // which create nested CONTAINERS: these mint a real page — filed in the
+  // manifest tree — and place a preview of it where you clicked +.
+  "page-board":  { label: "Board page",  desc: "New board page, previewed here" },
+  "page-doc":    { label: "Doc page",    desc: "New document page, previewed here" },
+  "page-table":  { label: "Table page",  desc: "New table page, previewed here" },
+  "page-canvas": { label: "Canvas page", desc: "New canvas page, previewed here" },
 };
+
+// Container-vs-page disambiguation. Inside a CONTAINER's add menu both exist, so
+// the four bare kinds have to read as containers ("Board" alone is ambiguous
+// next to "Board page"). Every other role's menu offers only one of the two, so
+// their labels stay short.
+const CONTAINER_TILE_LABEL = { board: "Board container", doc: "Doc container", table: "Table container", canvas: "Canvas container" };
+export function tileMeta(kind, targetRole) {
+  const base = KIND_TILE[kind] || { label: kind, desc: "" };
+  if (targetRole === "instance" && CONTAINER_TILE_LABEL[kind]) {
+    return { label: CONTAINER_TILE_LABEL[kind], desc: `Nested ${kind} container` };
+  }
+  return base;
+}
 
 // Which kinds are placeable in each role's add-menu — used to filter the
 // existing-matches list (instances are leaf items + textblocks + artifacts;
@@ -62,7 +82,15 @@ export function tileKindsForRole(targetRole) {
   // or an Artifact (file upload). The host routes each via createChildInContainer.
   // "image" is the Calibre-style pick: ImagePicker (web search / upload / URL)
   // instead of the artifact tile's bare OS file dialog.
-  if (targetRole === "instance") return ["instance", "textblock", "board", "doc", "table", "canvas", "artifact", "image"];
+  // Per user 2026-07-29 ("pretty much its to create any occurance type"): every
+  // occurrence type a container can hold — the three leaves, all four nested
+  // CONTAINER kinds, and all four PAGE kinds (which file a real page in the tree
+  // and preview it here).
+  if (targetRole === "instance") return [
+    "instance", "textblock", "artifact", "image",
+    "board", "doc", "table", "canvas",
+    "page-board", "page-doc", "page-table", "page-canvas",
+  ];
   if (targetRole === "container") return ["board", "doc", "canvas", "table"];
   if (targetRole === "page") return ["board", "doc", "canvas", "table", "folder"];
   return ["board"]; // panel
@@ -91,6 +119,9 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   // grid has at least one field.
   const [pickingFields, setPickingFields] = useState(null);
   const [fieldSearch, setFieldSearch] = useState("");
+  // Where a page tile files the page it creates, so it shows in the Local/Root
+  // tree instead of existing only at the spot it was added.
+  const rootFolderId = manifestsById?.[ctxGrid?.manifestId]?.rootFolderId || null;
   const menuRef = useRef(null);
   const btnRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -191,9 +222,17 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
       closeMenu();
       return;
     }
+    // A page tile needs the page's home in the tree. Resolved HERE (the menu is
+    // the only layer holding manifestsById) and passed to the host, which hands
+    // it to createChildInContainer — hosts have no reason to know about folders.
+    if (kind.startsWith("page-")) {
+      onCreateNew?.({ fieldIds: [], kind, folderId: rootFolderId });
+      closeMenu();
+      return;
+    }
     onCreateNew?.({ fieldIds: [], kind });
     closeMenu();
-  }, [targetRole, fieldsById, onCreateNew, onAddTextblock, closeMenu]);
+  }, [targetRole, fieldsById, onCreateNew, onAddTextblock, closeMenu, rootFolderId]);
 
   // Artifact tile → OS file picker → route the File through onCreateNew so the
   // host (createChildInContainer) uploads it into THIS container.
@@ -406,12 +445,15 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
               {/* Type tiles — instant create */}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "8px", borderBottom: "1px solid var(--border-subtle)" }}>
                 {tileKinds.map(kind => {
-                  const tileRole = kind === "instance" ? "instance"
+                  const isPageTile = kind.startsWith("page-");
+                  const baseKind = isPageTile ? kind.slice("page-".length) : kind;
+                  const tileRole = isPageTile ? "page"
+                    : kind === "instance" ? "instance"
                     : kind === "textblock" ? "textblock"
                     : (kind === "artifact" || kind === "image") ? "artifact"
                     : "container";
-                  const { Icon, color } = getModuleTypeBadge({ role: tileRole, kind: ["instance", "textblock", "artifact"].includes(kind) ? undefined : kind });
-                  const meta = KIND_TILE[kind] || { label: kind, desc: "" };
+                  const { Icon, color } = getModuleTypeBadge({ role: tileRole, kind: ["instance", "textblock", "artifact"].includes(kind) ? undefined : baseKind });
+                  const meta = tileMeta(kind, targetRole);
                   return (
                     <button
                       key={kind}

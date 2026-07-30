@@ -906,6 +906,67 @@ export function createContainerInContainer({
   return { moduleId, occurrenceId };
 }
 
+// Create a PAGE (doc / table / canvas / board) from a container's add-menu and
+// show it at that spot as a preview (user 2026-07-29: the page tiles "creating
+// those pages and putting the preview viewed one in the place we are adding
+// too").
+//
+// ONE module and ONE occurrence, deliberately. The occurrence is HOMED in the
+// manifest folder (`parentId = folderId`, so the Local/Root tree lists it as a
+// real page) and ALSO spliced into the container's `occurrences[]` — the
+// multi-parent pattern the Schedule already uses to share one slot across
+// several day-columns.
+//
+// Do NOT "solve" this with two occurrences, one per home: `textmap` lives on the
+// OCCURRENCE, so a doc/canvas page would then carry two independent bodies and
+// the in-container copy would render permanently empty.
+//
+// The layout cascade renders a page nested in a container as either a
+// representation chip or `actual-converted` (inline container chrome), and
+// defaults to the latter — which for a brand-new empty page is an empty box
+// indistinguishable from just adding a container. So the occurrence carries the
+// per-occurrence override that survives the cascade walk, pinning it to the
+// compact representation view; the header switcher still lets the user flip it.
+export function createPageInContainer({
+  dispatch, socket, gridId, userId, containerOccurrence, containerModule = null,
+  kind = "doc", label = "", index = null, folderId = null,
+}) {
+  if (!gridId || !userId || !containerOccurrence) return null;
+  const moduleId = crypto?.randomUUID?.() || `pm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const occurrenceId = crypto?.randomUUID?.() || `po-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  const module = { id: moduleId, userId, gridId, role: "page", kind, label: label || "" };
+  const occurrence = {
+    id: occurrenceId, userId, gridId, moduleId,
+    // Its home in the tree. Null (no manifest yet) leaves the container as its
+    // only parent — still renders, just not listed in the tree.
+    parentId: folderId || containerOccurrence.id,
+    occurrences: [],
+    meta: { layoutCascadeOverride: { dragInView: "representation" } },
+    // doc/canvas pages render a textmap; seed an empty one so they mount clean.
+    ...((kind === "doc" || kind === "canvas") ? { textmap: { type: "doc", content: [] } } : {}),
+  };
+
+  dispatch?.(createModuleAction(module));
+  dispatch?.(createOccurrenceAction(occurrence));
+  safeEmit(socket, "create_module", { module });
+  safeEmit(socket, "create_occurrence", { occurrence });
+
+  spliceChildIntoParent({ dispatch, socket, parentOccurrence: containerOccurrence, occurrenceId, index });
+
+  // The parent has to be willing to render a non-leaf child (same reason
+  // createContainerInContainer flips it).
+  const parentMeta = containerModule?.meta || {};
+  if (!parentMeta.allowChildContainers && containerOccurrence.moduleId) {
+    updateModule({
+      dispatch, socket,
+      module: { id: containerOccurrence.moduleId, meta: { ...parentMeta, allowChildContainers: true } },
+    });
+  }
+
+  return { moduleId, occurrenceId };
+}
+
 // Upload a file as an artifact and place it inside a container. Pre-mints the
 // module/occurrence ids so the server upsert lands on them, then optimistically
 // splices the new occurrence into the container's occurrences[] at `index`.
@@ -985,9 +1046,16 @@ export function addImageArtifactFromUrl({
 export function createChildInContainer({
   dispatch, socket, gridId, userId, containerOccurrence, containerModule = null,
   kind = "instance", role = null, fieldIds = [], index = null, file = null, url = null,
-  panelId = null, containerLabel = "",
+  panelId = null, containerLabel = "", folderId = null,
 }) {
   const args = { dispatch, socket, gridId, userId, containerOccurrence, index };
+  // "page-<kind>" tiles create a real PAGE and show a preview of it here; the
+  // bare kinds keep creating nested CONTAINERS (unchanged).
+  if (typeof kind === "string" && kind.startsWith("page-")) {
+    return createPageInContainer({
+      ...args, containerModule, kind: kind.slice("page-".length), folderId,
+    });
+  }
   if (kind === "textblock" || role === "textblock") {
     return createTextblockInContainer({ ...args, kind: "doc" });
   }

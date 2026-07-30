@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tileKindsForRole, ALLOWED_KINDS_BY_ROLE } from "../ui/QuickAddMenu.jsx";
+import { tileKindsForRole, tileMeta, ALLOWED_KINDS_BY_ROLE } from "../ui/QuickAddMenu.jsx";
 
 describe("tileKindsForRole — create tiles per role", () => {
   it("container → board/doc/canvas/table", () => {
@@ -14,8 +14,29 @@ describe("tileKindsForRole — create tiles per role", () => {
     expect(tileKindsForRole("panel")).toEqual(["board"]);
   });
 
-  it("instance → full child palette: Item, Textblock, nested containers, Artifact upload, Image search", () => {
-    expect(tileKindsForRole("instance")).toEqual(["instance", "textblock", "board", "doc", "table", "canvas", "artifact", "image"]);
+  it("instance → every occurrence type: leaves, all 4 nested containers, all 4 pages", () => {
+    expect(tileKindsForRole("instance")).toEqual([
+      "instance", "textblock", "artifact", "image",
+      "board", "doc", "table", "canvas",
+      "page-board", "page-doc", "page-table", "page-canvas",
+    ]);
+  });
+});
+
+describe("tileMeta — container vs page labels", () => {
+  it("inside a container, the bare kinds read as CONTAINERS (they sit next to page tiles)", () => {
+    expect(tileMeta("board", "instance").label).toBe("Board container");
+    expect(tileMeta("canvas", "instance").label).toBe("Canvas container");
+  });
+
+  it("page tiles are labelled as pages", () => {
+    expect(tileMeta("page-board", "instance").label).toBe("Board page");
+    expect(tileMeta("page-table", "instance").label).toBe("Table page");
+  });
+
+  it("other roles offer only one of the two, so labels stay short", () => {
+    expect(tileMeta("board", "page").label).toBe("Board");
+    expect(tileMeta("doc", "container").label).toBe("Document");
   });
 });
 
