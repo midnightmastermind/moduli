@@ -6,6 +6,41 @@
 
 ---
 
+### 2026-07-30 (8) — the day page CRASHED the app: a LOOP iterated the whole grid
+
+User: "the daypage is crashing the app." Not an exception — a **dead renderer**. Today's
+`Tasks Completed` container held a `moduleEmbed` for **every one of the grid's 1280 occurrences**,
+the day page that contains it included, so painting the page was unbounded work and Chromium killed
+the tab. That page is the hub panel's ACTIVE tab, so the whole app died on load (the probe saw
+`page.on("crash")` with zero `pageerror` lines — a crash, not a throw).
+
+**Two executor gaps in the LOOP step, both fixed (`operationExecutor.js:2083`):**
+- **`over: "$allInstances"` iterated everything.** That is FIND's spelling for a collection and the
+  Tasks Completed builder used it on a LOOP; LOOP only resolved `overExpr`, so the step fell through
+  every `gatherLoopItems` branch to its `let occs = Object.values(occurrencesById)` default. A
+  `$`-led `over` now resolves as an expression — a legacy typed collection is a bare word
+  (`field_occurrences`, `occurrences`, `templates`), so the two spellings cannot collide.
+- **`predicate` on a loop step was ignored outright** — the three rules narrowing the pool to
+  today's completed tasks never ran. It now filters via `evalGroupAgainstRecord`, exactly as FIND's
+  predicate does (rule lefts are RECORD paths, not `$var` expressions).
+Either gap alone yields garbage; together they wrote the whole grid into a document. 2 tests.
+
+**This is the SECOND time this class has bitten** (see 2026-07-30 (7): "a LOOP whose `over` is a
+nested var path silently iterates EVERYTHING"). Same silent default, different spelling. The
+executor now handles both — but the standing rule stands: **a LOOP's `over` is not FIND's `over`;
+check what the step actually iterated before trusting a pipeline that "looks right."**
+
+**Migration `0012`** empties any Tasks Completed body embedding something other than a task
+occurrence (the honest test — a real busy day has many embeds; ONE embed of the page itself is
+enough to hang the tab). Applied to poms grid (679/1280 embeds bad) and test grid 1 (864/864).
+**Order matters: deploy, THEN migrate** — a tab on the old bundle re-poisons the container on its
+next load; pm2 restarted after the write so the warm cache re-reads it.
+1451 client + 329 server tests, all three grids 0 errors, deployed (`aff4142e`), prod-verified: 5
+panels render, day page paints heading · Daily Question · Todo · Journal · Notes · Tasks Completed
+(11 real entries, all instances) · Highlights. **Items 2 and 3 below are still open.**
+
+---
+
 ### 2026-07-30 (7) — the day page builds daily + journal/notes/todo sections. THREE ITEMS STILL OPEN
 
 User: "make sure the daypage is working on poms grid … add in writing sections in the necessary
