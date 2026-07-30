@@ -6,6 +6,79 @@
 
 ---
 
+### 2026-07-30 (7) — the day page builds daily + journal/notes/todo sections. THREE ITEMS STILL OPEN
+
+User: "make sure the daypage is working on poms grid … add in writing sections in the necessary
+spots. like a journal todolist notetaking daypage." Spec:
+`docs/superpowers/specs/2026-07-30-day-page-design.md`. Migration `0011`, applied to poms grid.
+Page order: `# Day Page - <date>` · Daily Question · **Todo** · Journal · Notes · Tasks Completed ·
+Highlights. 1449 client + 329 server tests, all three grids 0 errors, deployed.
+
+**START HERE — three things are OPEN, in priority order:**
+1. **`ADD_CHILD` does not pin the new day page to the hub panel.** The page IS minted and complete
+   in the DB, but never joins the hub's tab strip — so the user correctly reported "that was the
+   only day page created" while I kept reporting success from DB queries. Repaired 07-30 by hand
+   (`$push` into `rkN14S6dVkeG.occurrences`); **it will recur tomorrow.** The `ADD_CHILD
+   parentId=<hub> childId=$newDayPageId` sits in the mint branch — suspect `$newDayPageId`
+   (`APPLY_TEMPLATE`'s `rootIdVar`) comes back empty and ADD_CHILD silently no-ops. Verify the
+   binding.
+2. **Daily Question header shows "(no options — check pool predicate)".** RULED OUT already, do not
+   re-check: the field IS `inputEnabled`; `meta._resolvedOptions` is undefined (so BoundHeader:56's
+   early return is NOT short-circuiting); BoundHeader passes a correct ctx; `$allInstances` is a
+   valid COLLECTION_KEY; `conjunction:"AND"` is harmless (operator defaults to AND);
+   `buildCollection` DOES merge the module label — which matters, because the 117 question
+   occurrences carry `label: null` and the text lives on the MODULE. Config and call site both look
+   right and it still resolves empty. **Stop reading the code — run `resolveOptions` against the
+   live field.**
+3. **The Examples / sample-files page was never looked at** (user asked 3×): broken links, and an
+   image that should be STACKED rather than beside its text. Ask for a screenshot of that page.
+
+**Eight defects fixed, each root-caused from live data:**
+- **The build jammed after the FIRST page.** `FIND meta.templateName IS "Day Page"` also matched
+  every CLONE (APPLY_TEMPLATE copies meta); a multi-match FIND returns an ARRAY that APPLY_TEMPLATE
+  can't resolve. Now picker-direct by id; the builder THROWS without one.
+- **`APPLY_TEMPLATE defaultFields` was gated to `role === "instance"`,** so the Daily Question
+  (container) and Daily Answer (textblock) never got the date their header/body links join on. The
+  gate now asks whether the clone's module BINDS the field — slot/page clones still get nothing.
+- **`PUSH_TO_ARRAY` resolved only the TOP level of an object,** so every TipTap node it pushed kept
+  the literal `"$task.id"` one level down in `attrs`. It deep-resolves now (as UPDATE already did).
+  This was the "Tasks Completed has broken links" report.
+- **The page name came from the picker's period OBJECT** → a page literally named
+  `Day Page - [object Object]`. Both day-page ops use `$activeDate` + `targetOccurrenceId` now.
+- **A LOOP whose `over` is a nested var path silently iterates EVERYTHING.**
+  `LOOP over "$dayPage.textmap.content"` wrote 1278 occurrence records into a live page's textmap as
+  if they were nodes. **There is no splice in the pipeline language** — the op writes the whole
+  content array from FINDs instead, so it owns the section ORDER (add a section to the template →
+  add it here too).
+- **TWO ancestor-scoped FINDs broke once Todo had a second parent.** `_ancestors` is derived from the
+  parent map, so multi-parenting Todo into the day page let its chain resolve through the PAGE:
+  Build Schedule's slot dedupe re-minted a duplicate every load, and the op's OWN Todo lookup found
+  nothing and stopped rewriting its embed (it sawed off its own branch). Both key on `parentId` now
+  — the precise test for a direct child.
+- **`Daily Question` was display-only** → its bound header rendered no writable control.
+- **Past day pages kept (and kept APPENDING) unresolved embeds** — 1086 on the 07-28 page — because
+  Tasks Completed only ever rewrites the CURRENT day's page. Migration clears them.
+
+**Design notes:** Todo is the day-column's OWN container multi-parented in, NOT a copy — one
+occurrence, two parents, so a tick here and on the Schedule are the same write (two copies would fork
+the state; same reasoning as `createPageInContainer`). `No timeslot` → `Todo` renames the label AND
+the Time Slot identity marker in one pass. Journal/Notes/Highlights store plain per-day
+`occurrence.textmap` with NO field bindings — the occurrence is minted per day, so the writing is
+per-day for free; a binding would only matter if the text had to sync elsewhere (which is why Daily
+Answer has one).
+
+**RETRACTED:** an earlier claim that the `Due`/`No timeslot` identity markers were null and Build
+Schedule's un-slotted sweep was dead. They are intact — the probe read
+`scheduleFieldIds.timeslot` instead of `.timeslotFieldId`.
+
+**The lesson of this session:** three separate times a DB query said "working" while the user's screen
+disagreed — the malformed page name, the dead Todo embed, and the unpinned hub tab. **The DOM and the
+tab strip are ground truth for "is it working," not the collection.** Also: migrations read RAW
+documents, where `textmap` is COMPRESSED — a bare `page.textmap.content` is undefined, which silently
+turned a damage check into a no-op.
+
+---
+
 ### 2026-07-29 (4) — the add menu creates EVERY occurrence type; two ops bugs found (NOT fixed)
 
 **Shipped — `tileKindsForRole("instance")` is now 12 tiles** (user: "pretty much its to create any
