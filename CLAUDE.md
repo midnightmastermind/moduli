@@ -6,6 +6,57 @@
 
 ---
 
+### 2026-07-29 (4) — the add menu creates EVERY occurrence type; two ops bugs found (NOT fixed)
+
+**Shipped — `tileKindsForRole("instance")` is now 12 tiles** (user: "pretty much its to create any
+occurance type"). Item · Textblock · Artifact · Image · **4 nested CONTAINERS** (Board/Doc/Table/
+Canvas) · **4 PAGES** (Board/Doc/Table/Canvas). Confirmed with the user that table + canvas
+containers do exist (`ModuleContainer.jsx:668-671` dispatches all four kinds), so their first list
+("board container, doc container") was widened.
+- Page tiles use new `page-<kind>` keys — the bare kinds keep meaning CONTAINERS, so no existing
+  call site changes meaning. `tileMeta(kind, targetRole)` labels the bare kinds "… container" ONLY
+  in the instance menu (where both exist); the page/container-role menus keep short labels.
+- **`CommitHelpers.createPageInContainer` (NEW)** — ONE module, ONE occurrence: `parentId` = the
+  manifest ROOT FOLDER (so the tree lists it as a real page) and spliced into the container's
+  `occurrences[]` (the multi-parent pattern the Schedule uses for shared slots). **Do not "fix"
+  this with two occurrences, one per home: `textmap` lives on the OCCURRENCE, so a doc/canvas page
+  would carry two independent bodies and the in-container copy would render permanently empty.**
+- The cascade defaults a page-in-container to `actual-converted` — for a brand-new empty page that
+  is an empty inline box, indistinguishable from just adding a container. So the occurrence carries
+  `meta.layoutCascadeOverride.dragInView = "representation"` (the per-occurrence override that
+  survives the cascade walk); the header switcher still flips it. NOTE: "preview" proper (the iframe
+  card) is a folder-page-only mode — `representation` is the compact view available in a container.
+- `folderId` is resolved IN QuickAddMenu (the only layer holding `manifestsById`) and threaded
+  through `onCreateNew` → `createChildInContainer`; hosts stay ignorant of folders.
+- 1441 client tests (7 new), deployed, prod-verified: all 12 labels render, and "Canvas page" mints
+  a `role:page kind:canvas` homed in Root, listed by the container, in representation view, with a
+  textmap. **The verification probe wrote to the frozen grid — the page it created was swept and
+  pm2 restarted.** `ALLOWED_KINDS_BY_ROLE` was deliberately NOT widened (it filters the
+  existing-matches list, not the create tiles) — placing an EXISTING page/table/canvas as a preview
+  is a separate ask.
+
+**Found, root-caused, NOT fixed (awaiting the user's call):**
+1. **Time Slot gets a CONTAINER LABEL, not a time** (user: "in workouts, time is set to schedule
+   canvas and not a time"). `makeStampDateTimeSlotOp` writes `value: "$trigger.containerLabel"`
+   into the Time Slot field with **no check that the destination is a slot at all** — Time Slot is a
+   select of 48 time labels, so anything else is out of range. Live grid holds 3 Exercise
+   occurrences reading `"Schedule Canvas"` (two under the Schedule Canvas / Schedule Table pages,
+   one under a real `12:00am` slot) plus `"Due"`×2 and `"No timeslot"`×2. The Workout History row's
+   `timeslot` reads that field verbatim, which is why the tile shows it. **Fix**: gate the UPDATE on
+   the destination being a slot — `$trigger.containerId`'s occurrence has `Schedule Format IS
+   "slot"` (96 slots + 1 day-col carry it; the canvas/table pages and Due carry null). The
+   discriminator is already the one `makeAlarmOp` and Pomodoro: Start use. Then null the 7 bad
+   values via migration.
+2. **Every fired alarm mints an instance with `kind: "list"`** → `getModuleTypeIcon` prefers kind
+   over role, so it draws the BOARD icon (exactly the class of bug the 2026-07-29 kind removal
+   fixed). Surfaced as a NEW `inert-kind` integrity warning after today's 5 PM alarm fired
+   ("⏰ 5 PM", 22:00Z). `client/src/helpers/alarmOps.js:89` still emits `kind: "list"`; the server
+   twin `makeAlarmOp` (liveSystemBuilders.js:2754) already dropped it — **the twins have drifted**.
+   The frozen grids' two stored alarm pipelines still carry it, so the fix is both the client
+   builder AND a migration over `Alarm: 5 PM` / `Alarm: 6:30 AM`.
+
+---
+
 ### 2026-07-29 (3) — empty pocket actually clickable; the Appointment occurrence
 
 Picked up the two items account2's session left open.
