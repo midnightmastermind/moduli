@@ -1672,7 +1672,14 @@ export function makeDayPageBuildOp({
                 type: "FIND",
                 over: "$allContainers",
                 predicate: { operator: "AND", rules: [
-                  { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$dayColId" },
+                  // parentId, NOT _ancestors — for the same reason the slot
+                  // dedupe uses it. THIS op multi-parents the Todo into the day
+                  // page, so from the next fire on its ancestor chain can
+                  // resolve through the PAGE and a HAS_ANCESTOR test on the
+                  // day-column finds nothing: the guard below skips, the embed
+                  // is never rewritten, and the page keeps whatever stale id it
+                  // had. The op sawed off the branch it was sitting on.
+                  { id: uid(), left: "parentId", comparator: "IS", right: "$dayColId" },
                   { id: uid(), left: `fields.${timeslotFieldId}.value`, comparator: "IS", right: todoMarkerValue },
                 ]},
                 itemIdVar: "$todoId",
