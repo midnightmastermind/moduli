@@ -52,6 +52,23 @@ describe("makeDayPageBuildTasksCompletedOp — inclusive scope guard (cascade fi
       s.condition?.rules?.some(r => r.left === "$isSourceChange" && r.comparator === "IS" && r.right === 1));
     expect(gate).toBeTruthy();
   });
+
+  // A day of half-hour sleep slots is 11+ completed occurrences, and they filled
+  // the whole section (user 2026-07-30). Habits belong to Completed Habits; the
+  // discriminator is the module BINDING, never a stored value.
+  it("excludes habits when a habit marker field is passed", () => {
+    const withHabit = makeDayPageBuildTasksCompletedOp({
+      userId: "u", gridId: "g", dateFieldId: "DF", completedFieldId: "CF", schedulePageOccId: "SP", habitFieldId: "HF",
+    });
+    const loop = flattenSteps(withHabit.pipeline.steps).find(s => s.type === "loop");
+    const rule = loop.predicate.rules.find(r => r.left === "_boundFieldIds");
+    expect(rule).toMatchObject({ comparator: "ARRAY_NOT_INCLUDES", right: "HF" });
+  });
+
+  it("omits the habit rule entirely when no marker field is passed", () => {
+    const loop = steps.find(s => s.type === "loop");
+    expect(loop.predicate.rules.some(r => r.left === "_boundFieldIds")).toBe(false);
+  });
 });
 
 describe("buildGridDoc", () => {

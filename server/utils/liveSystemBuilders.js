@@ -2051,7 +2051,7 @@ export function makeProjectStatusRouterOp({ userId, gridId, statusFieldId }) {
 }
 
 export function makeDayPageBuildTasksCompletedOp({
-  userId, gridId, dateFieldId, completedFieldId, schedulePageOccId,
+  userId, gridId, dateFieldId, completedFieldId, schedulePageOccId, habitFieldId = null,
 }) {
   return {
     id: uid(), userId, gridId, name: "Day Page: Build Tasks Completed",
@@ -2170,6 +2170,14 @@ export function makeDayPageBuildTasksCompletedOp({
                     { id: uid(), left: "_ancestors",                              comparator: "HAS_ANCESTOR", right: "$schedPageId" },
                     { id: uid(), left: `fields.${dateFieldId}.value`,             comparator: "SAME_DAY",     right: "$dayDate" },
                     { id: uid(), left: `fields.${completedFieldId}.value`,        comparator: "IS",           right: "true" },
+                    // TASKS only. A routine action (Sleep, Drink, Hygiene …) binds
+                    // the hidden Habit marker and belongs to Completed Habits — the
+                    // same module-BINDING discriminator the two trackers use, so a
+                    // day of sleep slots can't crowd out the tasks (user 2026-07-30:
+                    // "dont include sleep in the tasks completed").
+                    ...(habitFieldId
+                      ? [{ id: uid(), left: "_boundFieldIds", comparator: "ARRAY_NOT_INCLUDES", right: habitFieldId }]
+                      : []),
                   ]},
                   body: [
                     // PUSH_TO_ARRAY deep-resolves `$task.id` inside the embed

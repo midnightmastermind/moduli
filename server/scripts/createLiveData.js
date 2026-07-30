@@ -1735,7 +1735,12 @@ export async function createLiveData(userId, options = {}) {
     journalQuestion: {
       id: journalQuestionFieldId,
       name: "Daily Question",
-      type: "text",
+      // SELECT, not text: `resolveOptions` returns nothing for any other type
+      // (its first line), so a text field with a perfect 117-question pool
+      // resolved to zero options and the bound header rendered
+      // "(no options — check pool predicate)". The stored value is still the
+      // question STRING (valuePath "label") — select only changes how it is picked.
+      type: "select",
       // input-enabled so the Daily Question container's bound HEADER can be
       // written — a display-only field renders no writable control no matter how
       // good its options source, which is why the header's picker was dead.
@@ -8372,7 +8377,7 @@ export async function createLiveData(userId, options = {}) {
   // Body-seeds the Tasks Completed container minted by buildDayPageTemplate.
   // Runs at priority 4 — after Build Day, Stamp, and trackers — so the
   // completion state and date stamps it reads are settled.
-  await new Operation(makeDayPageBuildTasksCompletedOp({ userId, gridId, dateFieldId, completedFieldId, schedulePageOccId: schedPageOccId })).save();
+  await new Operation(makeDayPageBuildTasksCompletedOp({ userId, gridId, dateFieldId, completedFieldId, schedulePageOccId: schedPageOccId, habitFieldId: fields.habit.id })).save();
   // Project: Create — APPLY_TEMPLATEs the Project Page template into
   // the Projects folder with {ProjectName} + {ProjectScope} replacements.
   // triggerType:"manual" so it only fires when the user explicitly runs
