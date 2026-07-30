@@ -271,6 +271,27 @@ export async function up({ gridId, grid, models, log, dryRun }) {
     return missing.length;
   }
 
+  // Tasks Completed on OLD day pages still holds the unresolved embeds the
+  // one-level PUSH_TO_ARRAY wrote (`attrs.occurrenceId === "$task.id"`), which
+  // render as rows of literal "embed: $task.id". The op only ever rewrites the
+  // CURRENT day's page, so a past page keeps them forever. Reset those bodies to
+  // an empty paragraph — the op refills any page it is asked to build again, and
+  // an empty section is honest where a dead embed is not.
+  for (const p of livePages) {
+    const kids = await Occurrence.find({ gridId, id: { $in: p.occurrences || [] } }).select({ id: 1, moduleId: 1, textmap: 1 }).lean();
+    for (const k of kids) {
+      const kmod = await Module.findOne({ gridId, id: k.moduleId }).select({ label: 1 }).lean();
+      if (kmod?.label !== "Tasks Completed") continue;
+      const kt = decompressTextmap(k.textmap) || {};
+      const dead = (kt.content || []).filter(n => typeof n?.attrs?.occurrenceId === "string" && n.attrs.occurrenceId.startsWith("$"));
+      if (!dead.length) continue;
+      log(`  ${nameOf(p)}: clearing ${dead.length} unresolved "$task.id" embed(s) from Tasks Completed`);
+      if (!dryRun) {
+        await Occurrence.updateOne({ gridId, id: k.id }, { $set: { textmap: { type: "doc", content: [{ type: "paragraph" }] } } });
+      }
+    }
+  }
+
   const tplAdded = await addSections(tplPage, true);
   log(`Day Page template: ${tplAdded ? `added ${tplAdded} writing section(s)` : "already carries the writing sections"}`);
   for (const p of livePages) {
