@@ -15,7 +15,7 @@
 import { BlockType } from "./blockTypes";
 import { evaluateBlock } from "./blockEvaluator";
 import { applyAggregation } from "./CalculationHelpers";
-import { resolveExpr, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleAgainstRecord } from "./operationActions";
+import { resolveExpr, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleAgainstRecord, evalGroupAgainstRecord } from "./operationActions";
 import { buildParentMap } from "./dragHitTesting";
 import { isEventCompatible } from "./triggerTypes";
 import { getEffectiveFilterForOccurrence, makeEffectiveFilterResolver } from "../state/selectors";
@@ -2087,11 +2087,23 @@ function executeSteps(steps, $vars, context, transaction) {
       // $vars is shared so variable mutations (ADD_TO_VAR) accumulate across iterations
       const varName = step.as || "$item";
       let items;
-      if (step.overExpr) {
-        const resolved = resolveExpr(step.overExpr, $vars);
+      // `over` naming a COLLECTION or a var (`$allInstances`, `$dayCol.occurrences`)
+      // is the FIND action's spelling, and authors reach for it here too. Resolve it
+      // as an expression — a legacy typed collection is a bare word, never `$`-led,
+      // so the two can't collide. Without this the step fell through gatherLoopItems'
+      // branches to its every-occurrence default and silently iterated the whole grid.
+      const overExpr = step.overExpr || (typeof step.over === "string" && step.over.startsWith("$") ? step.over : null);
+      if (overExpr) {
+        const resolved = resolveExpr(overExpr, $vars);
         items = Array.isArray(resolved) ? resolved : (resolved != null ? Object.values(resolved) : []);
       } else {
         items = gatherLoopItems(step, context, $vars);
+      }
+      // A predicate on the loop step filters the collection the same way FIND's
+      // does — rule lefts are record paths (`parentId`, `fields.<id>.value`,
+      // `_ancestors`), not `$var` expressions.
+      if (step.predicate && Array.isArray(step.predicate.rules) && step.predicate.rules.length) {
+        items = items.filter(it => evalGroupAgainstRecord(step.predicate, it, $vars));
       }
       log?.add("loop", { over: step.overExpr || step.over, as: varName, itemCount: items.length });
       let i = 0;

@@ -1633,6 +1633,73 @@ describe("resolveExpr — bug fixes", () => {
     expect(result[0].value).toBe(55);  // 30 + 25, old occurrence excluded
   });
 
+  // A LOOP that names a COLLECTION KEY in `over` (the FIND action's spelling)
+  // used to fall through gatherLoopItems' legacy-key branches and iterate EVERY
+  // occurrence on the grid, and a `predicate` on the loop step was ignored
+  // outright. Together those wrote one embed per occurrence into a day page.
+  test("LOOP over a $collection key iterates that collection, not every occurrence", () => {
+    const occs = {
+      i1: { id: "i1", moduleId: "instMod", parentId: null, fields: {} },
+      i2: { id: "i2", moduleId: "instMod", parentId: null, fields: {} },
+      c1: { id: "c1", moduleId: "contMod", parentId: null, fields: {} },
+      p1: { id: "p1", moduleId: "pageMod", parentId: null, fields: {} },
+    };
+    const state = {
+      modules: [
+        { id: "instMod", role: "instance", label: "Task" },
+        { id: "contMod", role: "container", label: "Box" },
+        { id: "pageMod", role: "page", label: "Page" },
+      ],
+    };
+    const op = makeOp({
+      triggerType: "onFilterChange",
+      triggerTypes: ["onFilterChange", "onLoad"],
+      pipeline: {
+        sources: [],
+        steps: [
+          { id: "s1", type: "action", config: { type: "INIT_VAR", name: "$count", value: 0 } },
+          {
+            id: "s2", type: "loop", over: "$allInstances", as: "$item",
+            body: [{ id: "t1", type: "action", config: { type: "INCREMENT_VAR", name: "$count", by: 1 } }],
+          },
+          { id: "s3", type: "action", config: { type: "UPDATE", path: "$display.f1.t", value: "$count" } },
+        ],
+      },
+    });
+    const result = runMatchingOperations([op], null, null, { state, fieldsById: {}, occurrencesById: occs });
+    expect(result[0].value).toBe(2);  // the two instances — NOT all four occurrences
+  });
+
+  test("LOOP honors a predicate on the step", () => {
+    const occs = {
+      i1: { id: "i1", moduleId: "instMod", parentId: "keep", fields: { done: { value: true } } },
+      i2: { id: "i2", moduleId: "instMod", parentId: "keep", fields: { done: { value: false } } },
+      i3: { id: "i3", moduleId: "instMod", parentId: "other", fields: { done: { value: true } } },
+    };
+    const state = { modules: [{ id: "instMod", role: "instance", label: "Task" }] };
+    const op = makeOp({
+      triggerType: "onFilterChange",
+      triggerTypes: ["onFilterChange", "onLoad"],
+      pipeline: {
+        sources: [],
+        steps: [
+          { id: "s1", type: "action", config: { type: "INIT_VAR", name: "$count", value: 0 } },
+          {
+            id: "s2", type: "loop", over: "$allInstances", as: "$item",
+            predicate: { operator: "AND", rules: [
+              { id: "r1", left: "parentId", comparator: "IS", right: "keep" },
+              { id: "r2", left: "fields.done.value", comparator: "IS", right: "true" },
+            ] },
+            body: [{ id: "t1", type: "action", config: { type: "INCREMENT_VAR", name: "$count", by: 1 } }],
+          },
+          { id: "s3", type: "action", config: { type: "UPDATE", path: "$display.f1.t", value: "$count" } },
+        ],
+      },
+    });
+    const result = runMatchingOperations([op], null, null, { state, fieldsById: {}, occurrencesById: occs });
+    expect(result[0].value).toBe(1);  // only i1 satisfies both rules
+  });
+
   test("UPDATE display effect carries fieldId/itemId/value (no target on the effect)", () => {
     const op = makeOp({
       triggerType: "onFilterChange",
