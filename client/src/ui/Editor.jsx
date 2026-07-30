@@ -83,6 +83,7 @@ import { createArtifactPlaceholders, uploadArtifactPlaceholders } from "../helpe
 import QuickAddMenu from "./QuickAddMenu.jsx";
 import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type, Plus, Shuffle } from "lucide-react";
 import { convertLeafRole } from "../helpers/convertOccurrence";
+import { consumeTextblockFocus } from "../helpers/pendingTextblockFocus";
 
 // Atomic same-doc move for a TipTap embed node (instanceTextblock,
 // moduleEmbed). Scans the editor's doc for a node whose attrs match
@@ -427,6 +428,13 @@ const Editor = forwardRef(function Editor({
     content: content || { type: "doc", content: [{ type: "paragraph", content: [] }] },
     editable,
     onCreate: ({ editor }) => {
+      // A textblock the user just created BY TYPING claims the caret here — the
+      // first frame its editor exists. The creator used to rAF-poll the DOM for
+      // this editor instead (up to 60 frames); when the poll missed, the next
+      // keystroke spawned ANOTHER textblock. See helpers/pendingTextblockFocus.
+      if (occurrence?.id && consumeTextblockFocus(occurrence.id)) {
+        editor.commands.focus("end");
+      }
       // Migrate old instancePill+pillDisplay:block nodes to instanceTextblock.
       // These were created before the textblock was its own node type.
       // Runs on first open; persists the migrated JSON immediately so subsequent

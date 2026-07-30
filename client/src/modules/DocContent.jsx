@@ -7,6 +7,7 @@ import Editor from "../ui/Editor";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { Lock, Unlock } from "lucide-react";
 import { logCaretInterference } from "../helpers/caretDiag";
+import { requestTextblockFocus, cancelTextblockFocus } from "../helpers/pendingTextblockFocus";
 
 export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false, scrollAnchor, onExitBlock, onDeleteBlock, onAutoCreateTextblock }) {
   const [showLockBtn, setShowLockBtn] = useState(false);
@@ -95,24 +96,37 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
     // the merge AND any onUpdate during the race keep re-arming it.
     recentAutoCreateRef.current = { occId, expireAt: Date.now() + 1500 };
 
-    // Focus the sub-editor at END of content as soon as it appears in the DOM.
-    // Retry generously (~1s) because the inner ProseMirror is mounted by
-    // React + TipTap on the next render cycle and may not appear for several
-    // frames. The outer-editor onUpdate merge pre-pass catches any chars
-    // that land in a fresh paragraph after the textblock during this window.
+    // The new sub-editor takes the caret ITSELF, in its own onCreate — the
+    // first frame it exists (helpers/pendingTextblockFocus). The DOM poll below
+    // stays only to CLOSE the merge window once focus has actually landed; it
+    // no longer has to win a race to place the caret, so a missed frame can't
+    // strand the user in the outer editor spawning duplicate textblocks.
+    requestTextblockFocus(occId);
+
+    // Watch for focus landing so the cooldown + merge window clear at the right
+    // moment. Retries ~1s; the outer-editor merge pre-pass folds any chars that
+    // land in a fresh paragraph during the window into this textblock.
     const tryFocus = (attempts = 0) => {
       const wrapper = editor.view.dom.closest(".doc-editor-wrapper");
       const subEditor = wrapper?.querySelector(`[data-occurrence-id="${occId}"] .ProseMirror`);
       if (subEditor) {
-        subEditor.focus();
-        try {
-          const range = document.createRange();
-          range.selectNodeContents(subEditor);
-          range.collapse(false);
-          const sel = window.getSelection();
-          sel?.removeAllRanges();
-          sel?.addRange(range);
-        } catch (_) {}
+        const alreadyFocused = document.activeElement === subEditor
+          || subEditor.contains(document.activeElement);
+        // Only place the caret when the sub-editor did NOT claim it itself —
+        // a bound body (BoundBody) mounts its own editor and never runs the
+        // Editor onCreate hook, so it still needs this. Re-focusing an editor
+        // that already has the caret would yank it back to the end mid-typing.
+        if (!alreadyFocused) {
+          subEditor.focus();
+          try {
+            const range = document.createRange();
+            range.selectNodeContents(subEditor);
+            range.collapse(false);
+            const sel = window.getSelection();
+            sel?.removeAllRanges();
+            sel?.addRange(range);
+          } catch (_) {}
+        }
         // VERIFY focus actually moved before we close the merge window.
         // The element can appear in the DOM a frame before it accepts
         // focus (React paint still in flight); clearing the refs at that
@@ -130,6 +144,10 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       if (attempts < 60) {
         requestAnimationFrame(() => tryFocus(attempts + 1));
       } else {
+        // Gave up watching. Drop the standing focus claim too, so an editor
+        // that mounts minutes later (scrolled into view, undo) can't snatch
+        // the caret away from whatever the user is doing by then.
+        cancelTextblockFocus(occId);
         autoCreateCooldownRef.current = false;
         recentAutoCreateRef.current = { occId: null, expireAt: 0 };
       }

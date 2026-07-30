@@ -2839,15 +2839,25 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 /* Image card WITH an info column — fills the empty space beside the thumbnail
    (drag-handle-to-image gap) with the image's name/dimensions/size. The info grows
    to take the left space; the image keeps its natural size on the right. */
+/* An image card STACKS: the picture on top at full width, its info (name /
+   dimensions / size) UNDER it — not squeezed into the gap beside it at 55%
+   width (user 2026-07-30, on the Examples page: the image "should be STACKED
+   rather than beside its text"). Same shape the doc-editor figure rule further
+   down already uses, so an image reads the same on a board page as in a doc.
+   The .wrap-group overrides below still win for a wrapped neighbor, where the
+   info is hidden entirely and the image fills the notch. */
 .artifact-card--with-info {
+  flex-direction: column;
+  align-items: stretch;
   justify-content: flex-start;
-  gap: 10px;
+  gap: 6px;
   padding: 6px 8px;
 }
 .artifact-card--with-info .artifact-thumb {
-  width: auto;
-  max-width: 55%;
+  width: 100%;
+  max-width: 100%;
   flex: 0 0 auto;
+  margin: 0 auto;
 }
 .artifact-thumb-info {
   display: flex;

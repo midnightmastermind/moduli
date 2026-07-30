@@ -5575,15 +5575,21 @@ export async function createLiveData(userId, options = {}) {
   // on a fresh re-seed without the user having to drop any files. fileRefs
   // are absolute URLs (Wikimedia / GCS / W3C) — resolveFileRef passes those
   // through unchanged, so no upload is needed.
+  // Every URL here was re-checked 2026-07-30 (user: the Examples page has
+  // "broken links") — three of the five were dead: both Wikimedia images 404'd
+  // on a stale hash directory / a since-renamed file, and the GCS sample video
+  // now answers 403. Replacements verified 200 before landing, and the video
+  // moved to Wikimedia's own transcode so all four externals share one host
+  // whose URLs are content-addressed and stable.
   const SAMPLE_ARTIFACTS = [
     { name: "Earthrise (Apollo 8).jpg", kind: "image", mime: "image/jpeg",
-      url: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/NASA-Apollo8-Dec24-Earthrise.jpg/1280px-NASA-Apollo8-Dec24-Earthrise.jpg" },
+      url: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/NASA-Apollo8-Dec24-Earthrise.jpg/1280px-NASA-Apollo8-Dec24-Earthrise.jpg" },
     { name: "Pillars of Creation.jpg", kind: "image", mime: "image/jpeg",
-      url: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/Pillars_2014_HST_WFC3-UVIS_full-res_denoised.jpg/1280px-Pillars_2014_HST_WFC3-UVIS_full-res_denoised.jpg" },
+      url: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/Eagle_nebula_pillars.jpg/1280px-Eagle_nebula_pillars.jpg" },
     { name: "Blue Marble (Apollo 17).jpg", kind: "image", mime: "image/jpeg",
       url: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/The_Earth_seen_from_Apollo_17.jpg/1280px-The_Earth_seen_from_Apollo_17.jpg" },
-    { name: "Big Buck Bunny (sample).mp4", kind: "video", mime: "video/mp4",
-      url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" },
+    { name: "Big Buck Bunny (sample).webm", kind: "video", mime: "video/webm",
+      url: "https://upload.wikimedia.org/wikipedia/commons/transcoded/c/c0/Big_Buck_Bunny_4K.webm/Big_Buck_Bunny_4K.webm.480p.vp9.webm" },
     { name: "W3C dummy.pdf", kind: "pdf", mime: "application/pdf",
       url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf" },
   ];
