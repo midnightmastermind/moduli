@@ -2428,13 +2428,14 @@ export async function createLiveData(userId, options = {}) {
     eat:      act("Eat",      [bfd(fields.mealPick.id), bfd(fields.ingredient.id), bfd(fields.calories.id), bfd(fields.protein.id), bfd(fields.carbs.id), bfd(fields.fats.id)]),
     cook:     act("Cook",     [bfd(fields.mealPick.id), bfd(fields.ingredient.id), bfd(fields.duration.id)]),
     drink:    act("Drink",    [bfd(fields.beverage.id), bfd(fields.water.id)]),
-    sleep:    act("Sleep",    [bfd(fields.duration.id)]),
-    nap:      act("Nap",      [bfd(fields.duration.id)]),
+    // No Duration binding (user 2026-07-30): a slot IS 30 minutes, so sleep is
+    // measured by how many half-hour slots it occupies — the tracker counts each
+    // completed Sleep occurrence as 30 min rather than asking for a number.
+    sleep:    act("Sleep"),
     exercise: act("Exercise", [bfd(fields.movement.id), ...setWeightPairs]),
     stretch:  act("Stretch",  [bfd(fields.movement.id), bfd(fields.duration.id)]),
     walk:     act("Walk",     [bfd(fields.route.id), bfd(fields.steps.id), bfd(fields.duration.id)]),
     run:      act("Run",      [bfd(fields.route.id), bfd(fields.steps.id), bfd(fields.duration.id)]),
-    lift:     act("Lift",     [bfd(fields.movement.id), ...setWeightPairs]),
     recover:  act("Recover",  [bfd(fields.supplement.id), bfd(fields.duration.id)]),
     hygiene:  act("Hygiene"),
     groom:    act("Groom"),
@@ -2442,7 +2443,6 @@ export async function createLiveData(userId, options = {}) {
     // === EMOTIONAL ===
     journal:    act("Journal",    [bfd(fields.prompt.id), bfd(fields.mood.id)]),
     reflect:    act("Reflect",    [bfd(fields.prompt.id), bfd(fields.duration.id)]),
-    meditate:   act("Meditate",   [bfd(fields.practice.id), bfd(fields.duration.id)]),
     checkIn:    act("Check In",   [bfd(fields.mood.id)]),
     express:    act("Express",    [bfd(fields.mood.id)]),
     vent:       act("Vent",       [bfd(fields.mood.id)]),
@@ -2490,7 +2490,6 @@ export async function createLiveData(userId, options = {}) {
     // === SPIRITUAL === (duplicate labels across dimensions are separate modules)
     pray:              act("Pray",            [bfd(fields.practice.id), bfd(fields.verse.id), bfd(fields.duration.id)]),
     meditateSpiritual: act("Meditate",        [bfd(fields.practice.id), bfd(fields.duration.id)]),
-    reflectSpiritual:  act("Reflect",         [bfd(fields.prompt.id), bfd(fields.duration.id)]),
     worship:           act("Worship",         [bfd(fields.practice.id), bfd(fields.verse.id), bfd(fields.duration.id)]),
     readScripture:     act("Read Scripture",  [bfd(fields.reading.id), bfd(fields.pages.id), bfd(fields.duration.id)]),
     readPhilosophy:    act("Read Philosophy", [bfd(fields.reading.id), bfd(fields.pages.id), bfd(fields.duration.id)]),
@@ -2506,7 +2505,6 @@ export async function createLiveData(userId, options = {}) {
     build:      act("Build",      [bfd(projectFieldId), bfd(fields.duration.id)]),
     code:       act("Code",       [bfd(projectFieldId), bfd(fields.duration.id)]),
     design:     act("Design",     [bfd(projectFieldId), bfd(fields.duration.id)]),
-    write:      act("Write",      [bfd(projectFieldId), bfd(fields.duration.id)]),
     review:     act("Review",     [bfd(projectFieldId), bfd(fields.duration.id)]),
     email:      act("Email",      [bfd(peopleAssignedFieldId)]),
     network:    act("Network",    [bfd(peopleAssignedFieldId)]),
@@ -2532,7 +2530,6 @@ export async function createLiveData(userId, options = {}) {
     track:           act("Track",     [bfd(fields.accountRef.id), bfd(fields.amount.id)]),
     reconcile:       act("Reconcile", [bfd(fields.accountRef.id), bfd(fields.amount.id)]),
     donate:          act("Donate",    [bfd(fields.accountRef.id), bfd(fields.charity.id), bfd(fields.amount.id)]),
-    reviewFinancial: act("Review",    [bfd(fields.accountRef.id), bfd(fields.amount.id)]),
 
     // === ENVIRONMENTAL ===
     clean:     act("Clean",     [bfd(fields.area.id), bfd(fields.duration.id)]),
@@ -3447,13 +3444,13 @@ export async function createLiveData(userId, options = {}) {
   // structure (which containers belong to which page) is defined separately
   // in `wellnessPages` below.
   const toolkitMappings = {
-    physical:      { contOccId: physicalContOccId,     contModKey: "physical",      instKeys: ["eat", "cook", "drink", "sleep", "nap", "exercise", "stretch", "walk", "run", "lift", "recover", "hygiene", "groom"] },
-    emotional:     { contOccId: emotionalContOccId,    contModKey: "emotional",     instKeys: ["journal", "reflect", "meditate", "checkIn", "express", "vent", "celebrate", "forgive", "relax", "decompress"] },
+    physical:      { contOccId: physicalContOccId,     contModKey: "physical",      instKeys: ["eat", "cook", "drink", "sleep", "exercise", "stretch", "walk", "run", "recover", "hygiene", "groom"] },
+    emotional:     { contOccId: emotionalContOccId,    contModKey: "emotional",     instKeys: ["journal", "reflect", "checkIn", "express", "vent", "celebrate", "forgive", "relax", "decompress"] },
     intellectual:  { contOccId: intellectualContOccId, contModKey: "intellectual",  instKeys: ["read", "study", "watch", "listen", "practice", "memorize", "research", "explore", "analyze", "teach", "pomodoro"] },
     social:        { contOccId: socialContOccId,       contModKey: "social",        instKeys: ["text", "call", "chat", "meet", "date", "visit", "host", "collaborate", "mentor", "volunteer"] },
-    spiritual:     { contOccId: spiritualContOccId,    contModKey: "spiritual",     instKeys: ["pray", "meditateSpiritual", "reflectSpiritual", "worship", "readScripture", "readPhilosophy", "gratitude", "mindfulness", "nature", "serve"] },
-    occupational:  { contOccId: occupationalContOccId, contModKey: "occupational",  instKeys: ["plan", "prioritize", "focus", "build", "code", "design", "write", "review", "email", "network", "appointment"] },
-    financial:     { contOccId: financialContOccId,    contModKey: "financial",     instKeys: ["budget", "save", "earn", "invest", "spend", "buy", "pay", "track", "reconcile", "donate", "reviewFinancial", "payBills", "cancelSub"] },
+    spiritual:     { contOccId: spiritualContOccId,    contModKey: "spiritual",     instKeys: ["pray", "meditateSpiritual", "worship", "readScripture", "readPhilosophy", "gratitude", "mindfulness", "nature", "serve"] },
+    occupational:  { contOccId: occupationalContOccId, contModKey: "occupational",  instKeys: ["plan", "prioritize", "focus", "build", "code", "design", "review", "email", "network", "appointment"] },
+    financial:     { contOccId: financialContOccId,    contModKey: "financial",     instKeys: ["budget", "save", "earn", "invest", "spend", "buy", "pay", "track", "reconcile", "donate", "payBills", "cancelSub"] },
     environmental: { contOccId: environmentalContOccId,contModKey: "environmental", instKeys: ["clean", "declutter", "organize", "laundry", "dishes", "vacuum", "recycle", "repair", "maintain", "garden"] },
     creative:      { contOccId: creativeContOccId,     contModKey: "creative",      instKeys: ["draw", "paint", "sketch", "writeCreative", "journalCreatively", "compose", "sing", "dance", "craft", "photograph", "film", "edit", "brainstorm", "prototype", "invent"] },
   };
@@ -3517,18 +3514,6 @@ export async function createLiveData(userId, options = {}) {
     toolkitContOccIds[contModKey] = contOccId;
   }
 
-  // Extra pre-seeded Check In in the Emotional container (demonstrates the
-  // mood wheel UI on first load — mirrors the old moodCheck pre-fill).
-  const moodTodayOccId = await mkOcc({
-    moduleId: actionInstances.checkIn.id,
-    parentId: emotionalContOccId,
-    sortOrder: 99, // append after the regular instances
-    fields: {
-      [fields.mood.id]: fv("focused", "in"),
-    },
-  });
-  // Append to the emotional container's occurrences[]
-  await Occurrence.findOneAndUpdate({ id: emotionalContOccId }, { $push: { occurrences: moodTodayOccId } });
 
   // ── Tasks page containers — EMPTY (2026-07-25) ─────────────────────────────
   // The user supplies task data. filterOverride: {} — task containers ignore

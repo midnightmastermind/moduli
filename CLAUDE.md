@@ -35,6 +35,49 @@ containers do exist (`ModuleContainer.jsx:668-671` dispatches all four kinds), s
   existing-matches list, not the create tiles) — placing an EXISTING page/table/canvas as a preview
   is a separate ask.
 
+### 2026-07-30 (3) — Routines catalog de-duplicated; Sleep loses Duration. TRACKERS RESTRUCTURE IS QUEUED
+
+Shipped (seed + migration `0007`, applied to poms grid, deployed): the catalog went **104 → 97
+actions with ZERO duplicate labels**. Dropped Nap (Sleep covers it), Lift (bindings were IDENTICAL
+to Exercise), Emotional Meditate (Spiritual keeps it), Spiritual Reflect (Emotional keeps it),
+Occupational Write (Creative keeps it), Financial Review (Reconcile already covers reviewing
+accounts, so Occupational keeps the one Review), and a duplicate Check In placement (the mood-wheel
+demo row — Emotional listed it twice).
+**Verified before deleting anything**: none of the seven was referenced by any op pipeline, trigger,
+or template textmap, and each removed module had exactly ONE occurrence (no Schedule copies), so
+nothing was orphaned. The migration still guards per-module at run time and refuses any entry with
+children.
+**Sleep no longer binds Duration** (user: "the operation should just count each one as 30 min") — a
+slot IS 30 minutes, so sleep is measured by how many half-hour slots it fills. The 12 stored
+Duration values were CLEARED, which matters beyond tidiness: the "Time Spent" tracker sums Duration
+across every completed schedule item, so leaving them would have double-counted sleep.
+
+**QUEUED — approved by the user, designed, NOT yet built** (kept here so nothing is lost):
+1. **New "Stats" container, first on the Trackers page** (the date-prefix op will render it
+   "Today's Stats"), holding **Completed Tasks · Completed Habits · Now · Streak** — the first three
+   moved out of Physical, Completed Habits new.
+   *Useful finding: the existing Completed tracker is ALREADY grid-wide* (`trackerArgs` carries
+   `scopePageOccId: schedPageOccId`); it only READS as physical because of where it sits. Moving it
+   satisfies "should be all, not just physical" with no scope change.
+2. **Habit vs task discriminator (user-approved):** bind a hidden marker field on every Routines
+   action module. `Completed Habits` = completed AND carries it; `Completed Tasks` = completed AND
+   does NOT. Use the module-BINDING form (`_boundFieldIds ARRAY_INCLUDES/ARRAY_NOT_INCLUDES`), not a
+   stored value — the 2026-07-11 idiom, and it survives copies for free. Sleep counts as a HABIT
+   (user's pick), so it drops out of the tasks count automatically. Note: Completed Tasks will read
+   0 until the Tasks page has content, and workout MOVEMENTS dragged from the board count as tasks
+   under this rule — flag if that should change.
+3. **Sleep = 30 min per completed occurrence** — needs a destination tile; fold into the Stats build.
+4. **Nest tracker containers (user-approved):** Workout + Nutrition → Physical, Media →
+   Intellectual, Planning → Occupational. Parent container modules need
+   `meta.allowChildContainers: true`. Re-parenting is invisible to ops (they target tiles by id —
+   same lesson as the 2026-07-25 account-container merge).
+5. **Sub-categorize the Routines page the same way** ("nutrition should be in physical in its own
+   container etc") — ~35 sub-containers across the 9 dimensions. Deliberately NOT bundled with the
+   above: it is the one open-ended piece and a big live-grid change, so it wants its own reviewable
+   migration.
+
+---
+
 ### 2026-07-30 (2) — today's Schedule was missing its first 11 slots (MY probe caused it)
 
 User: "we dont have the full schedule … 6am to 1130pm with a random 130 am at the end." Exactly
