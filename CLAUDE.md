@@ -35,6 +35,19 @@ containers do exist (`ModuleContainer.jsx:668-671` dispatches all four kinds), s
   existing-matches list, not the create tiles) — placing an EXISTING page/table/canvas as a preview
   is a separate ask.
 
+### 2026-07-30 (6) — workout movements count as habits
+
+User: "workouts is a habit but the completed tasks is okay." The 0008 rule made every Routines
+action a habit and left everything else a task, which put the 30 workout MOVEMENTS on the tasks side
+— they live on the Movements board, not in the Routines catalog. Seed (`makeWorkout`) + migration
+`0010` bind the same hidden Habit marker on them, so logging a lift moves Completed Habits.
+Identified STRUCTURALLY (whatever the Movements board holds, feed copies skipped), not from a label
+list, so it can't drift as movements are added. 33 modules marked.
+Completed Tasks reading 0 until the Tasks page has content is CONFIRMED FINE by the user — don't
+"fix" it.
+
+---
+
 ### 2026-07-30 (5) — Routines split into sub-categories; feed pages are a dangling-ref source
 
 `ROUTINE_GROUPS` (seed) + migration `0009` group all **97 actions into 31 sub-category containers**

@@ -2612,6 +2612,10 @@ export async function createLiveData(userId, options = {}) {
         { fieldId: fields.set3Reps.id, role: "input", order: 5 },
         { fieldId: fields.workoutWeight3.id, role: "input", order: 6 },
         { fieldId: fields.muscleGroup.id, role: "input", order: 7 },
+        // A logged movement is a ROUTINE, not a one-off task (user 2026-07-30:
+        // "workouts is a habit") — same hidden marker every Routines action
+        // carries, so completing one moves Completed Habits.
+        { fieldId: fields.habit.id, role: "input", order: 91, hidden: true },
       ],
       meta: { defaultMuscleGroup: group.toLowerCase() },
     };
