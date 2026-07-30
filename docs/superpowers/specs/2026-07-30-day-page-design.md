@@ -14,7 +14,7 @@ build every day and turning it into a journal / todo / notetaking surface.
 | `Daily Question` already knows how to offer them | `meta.optionsSource` find-mode + `randomizable: true` |
 | `Daily Question` cannot be written | `inputEnabled: false, displayEnabled: true` |
 | Day-col children are COPY_LINKed from a master "Day" container | `$dayCont = $allItemsById.9EZL5iXnYhul`; per-day copies carry `meta.copyLinkSource` |
-| `Due` / `No timeslot` identity markers are null | master **and** every per-day copy: `fields.<timeslot>` is absent |
+| `Due` / `No timeslot` identity markers are INTACT | all 4 occurrences of each carry their own label in `fields.<timeslotFieldId>` |
 
 ## Root causes
 
@@ -53,18 +53,23 @@ that, not remove it.
 `Daily Question` is display-only. `inputEnabled: false` means the bound header renders no writable
 control regardless of how good the options source is.
 
-### 4. The "sweep un-slotted drops" behaviour is dead
+### 4. Tasks Completed writes embeds that point at a literal string
 
-`Schedule: Build Schedule` sweeps loose day-col instances into the catch-all container via:
+`PUSH_TO_ARRAY` resolved only the TOP level of an object value, but the TipTap node the day-page ops
+push carries its id one level down:
 
 ```
-FIND $allContainers where _ancestors HAS_ANCESTOR $dayColId
-                      AND fields.<timeslot>.value IS "No timeslot"
+{ type: "moduleEmbed", attrs: { occurrenceId: "$task.id" } }
 ```
 
-Every `No timeslot` occurrence has a null Time Slot marker, so `$noSlotId` is always empty and the
-sweep never runs. (The container itself still exists because it is COPY_LINKed by
-`meta.copyLinkSource`, a different key.) An item dropped on a day column without a slot stays loose.
+So `attrs.occurrenceId` was never resolved. The live `Tasks Completed` container holds **21 embeds,
+every one of them addressed to the literal string `"$task.id"`** — which is the reported "Tasks
+Completed has all of those broken links", root-caused.
+
+*Retracted from an earlier draft of this spec: a claim that the `Due` / `No timeslot` identity
+markers were null and Build Schedule's un-slotted sweep was therefore dead. They are intact; the
+probe that said otherwise read `scheduleFieldIds.timeslot` instead of `.timeslotFieldId`. Renaming
+the container to `Todo` is a user request, not a repair.*
 
 ### 5. Nothing re-links a day page built before its day column
 
@@ -110,10 +115,12 @@ item off on the day page and on the Schedule are the same write on one occurrenc
    `role === "instance"` test. Preserves the original intent (slot/page clones don't bind the date,
    so they still get nothing) while stamping Daily Question and Daily Answer.
 3. **`Daily Question` → `inputEnabled: true`.** Pool and randomize already work.
-4. **Todo rename + marker repair** — module label `No timeslot` → `Todo`, Time Slot marker value set
-   to `Todo` on the master and every per-day copy, and both `Schedule: Build Schedule` FIND rules
-   updated in the same pass. Renaming the label while leaving the marker reading `No timeslot` would
-   be exactly the silent label/marker drift that cost three passes on 2026-07-30.
+4. **Todo rename** — module label `No timeslot` → `Todo`, the Time Slot identity marker set to match
+   on the master and every per-day copy, and both `Schedule: Build Schedule` FIND rules updated, all
+   in one pass. Renaming the label while leaving the marker reading `No timeslot` would be exactly
+   the silent label/marker drift that cost three passes on 2026-07-30.
+4b. **`PUSH_TO_ARRAY` deep-resolves object values**, the same way `UPDATE`'s object branch already
+   does. Flat rows (every pre-existing caller) resolve identically; nested ones now work.
 5. **Idempotent link pass** — `Day Page: Build` gains a tail that runs every load: find the day-col
    for `$dayDate`, find its Todo, splice into the day page if absent. Self-healing, and it covers
    the day pages already built.

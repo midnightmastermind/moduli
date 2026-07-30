@@ -1051,6 +1051,88 @@ describe("APPLY_TEMPLATE", () => {
     expect(slotCreate.instance.fields.f_due).toBeUndefined();
   });
 
+  it("PUSH_TO_ARRAY resolves NESTED leaves, not just top-level ones", () => {
+    // The day-page ops push TipTap nodes, whose id lives one level down in
+    // `attrs`. One-level resolution left the literal "$task.id" in every embed
+    // — the live poms grid's Tasks Completed container held 21 of them, which
+    // is exactly what "Tasks Completed has broken links" was.
+    const $vars = { $rows: [], $task: { id: "occ-42", label: "Drink Water" } };
+    executeActionItem(
+      "PUSH_TO_ARRAY",
+      { name: "$rows", value: { type: "moduleEmbed", attrs: { occurrenceId: "$task.id" } } },
+      $vars, makeContext({}), {}
+    );
+    expect($vars.$rows).toEqual([
+      { type: "moduleEmbed", attrs: { occurrenceId: "occ-42" } },
+    ]);
+
+    // Flat rows (every pre-existing caller) behave exactly as before.
+    executeActionItem(
+      "PUSH_TO_ARRAY",
+      { name: "$rows", value: { label: "$task.label", n: 3 } },
+      $vars, makeContext({}), {}
+    );
+    expect($vars.$rows[1]).toEqual({ label: "Drink Water", n: 3 });
+  });
+
+  it("defaultFields also stamps container/textblock clones that BIND the field", () => {
+    // The Day Page template's Daily Question is a container and its Daily
+    // Answer is a textblock; both bind the date field so their header/body
+    // links have something to join on. Only the bound key lands — an unbound
+    // key stays off, so slot/page clones keep their lean fields map.
+    const state = {
+      modulesById: {
+        tplRootMod: { id: "tplRootMod", role: "page", kind: "doc", label: "Day Page" },
+        tplContMod: {
+          id: "tplContMod", role: "container", kind: "doc", label: "Daily Question",
+          fieldBindings: [{ fieldId: "f_date", role: "input", hidden: true, order: 0 }],
+        },
+        tplTextMod: {
+          id: "tplTextMod", role: "textblock", kind: "doc", label: "Daily Answer",
+          fieldBindings: [{ fieldId: "f_date", role: "input", hidden: true, order: 0 }],
+        },
+        tplPlainMod: { id: "tplPlainMod", role: "container", kind: "doc", label: "Journal" },
+        pageMod: { id: "pageMod", role: "page", kind: "doc", label: "Day Pages" },
+      },
+    };
+    const occurrencesById = {
+      tplRoot:  { id: "tplRoot",  moduleId: "tplRootMod",  occurrences: ["tplCont", "tplPlain"] },
+      tplCont:  { id: "tplCont",  moduleId: "tplContMod",  parentId: "tplRoot", occurrences: ["tplText"] },
+      tplText:  { id: "tplText",  moduleId: "tplTextMod",  parentId: "tplCont", occurrences: [] },
+      tplPlain: { id: "tplPlain", moduleId: "tplPlainMod", parentId: "tplRoot", occurrences: [] },
+      page:     { id: "page",     moduleId: "pageMod",     occurrences: [] },
+    };
+    const $vars = {
+      $allOccurrences: Object.values(occurrencesById),
+      $allItems: Object.values(occurrencesById),
+      $tpl: "tplRoot", $tgt: "page", $dayDate: "2026-07-30",
+    };
+    const ctx = makeContext({ state, occurrencesById, modulesById: state.modulesById });
+
+    const updates = executeActionItem(
+      "APPLY_TEMPLATE",
+      {
+        templateRef: "$tpl", targetOccurrenceVar: "$tgt", mode: "append", unwrapRoot: true,
+        // f_other is bound by nothing — it must not land anywhere.
+        defaultFields: { f_date: "$dayDate", f_other: "$dayDate" },
+      },
+      $vars, ctx, {}
+    );
+
+    const creates = updates.filter(u => u._effect === "CREATE_ITEM");
+    const byLabel = (l) => creates.find(c => c.template.label === l);
+
+    // Bound container + bound textblock BOTH carry the date now.
+    expect(byLabel("Daily Question").instance.fields.f_date).toEqual({ value: "2026-07-30", flow: "in" });
+    expect(byLabel("Daily Answer").instance.fields.f_date).toEqual({ value: "2026-07-30", flow: "in" });
+
+    // An unbound key never lands, even on a module that binds a DIFFERENT field.
+    expect(byLabel("Daily Question").instance.fields.f_other).toBeUndefined();
+
+    // A container binding nothing stays clean — the reason the gate exists.
+    expect(byLabel("Journal").instance.fields.f_date).toBeUndefined();
+  });
+
   it("appends new container-role stubs into $allContainers, not $allInstances", () => {
     const state = {
       modulesById: {

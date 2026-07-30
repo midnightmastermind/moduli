@@ -663,7 +663,7 @@ export async function createTestGrid(userId, options = {}) {
     completedFieldId, waterFieldId, isTaskFieldId,
   });
 
-  await buildDayPageTemplate({ userId, gridId, tplManifestRootFolderId, mkOcc, Module });
+  const dayPageTemplateOccId = await buildDayPageTemplate({ userId, gridId, tplManifestRootFolderId, mkOcc, Module });
 
   // ── STEP 8: Page modules + page occurrences ─────────────────────────────────
   // Date-filter scope rule (per user): only Schedule + Daily Goals pages
@@ -935,7 +935,9 @@ export async function createTestGrid(userId, options = {}) {
   // Each factory is a faithful step-for-step extraction of the prior inline
   // pipeline literal; the produced Operation docs are structurally identical.
   await new Operation(makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId })).save();
-  await new Operation(makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolderId, hubPanelOccIdVar: panelOccIds.hub })).save();
+  // No timeslot/scheduleFormat ids here, so the op skips the Todo link pass —
+  // the test grid's schedule has no day-columns to link one from.
+  await new Operation(makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolderId, hubPanelOccIdVar: panelOccIds.hub, dayPageTemplateOccId })).save();
   await new Operation(makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, hubPanelModuleId: centerHubId })).save();
   await new Operation(makeClearDateOnMoveOutOp({ userId, gridId, dateFieldId, timeslotFieldId })).save();
 

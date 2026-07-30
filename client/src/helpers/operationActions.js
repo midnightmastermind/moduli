@@ -674,17 +674,18 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     case "PUSH_TO_ARRAY": {
       // Push an object row (or primitive) onto an array variable.
       // cfg: { name: string, value: object | any }
-      // When cfg.value is a plain object, each leaf value is resolved via resolveExpr
-      // so you can write: { label: "$book.label", pages: "$book.fields.<id>.value" }
+      // When cfg.value is a plain object, EVERY string leaf is resolved (deeply)
+      // so you can write flat rows — { label: "$book.label", pages:
+      // "$book.fields.<id>.value" } — or a nested one like a TipTap node,
+      // { type: "moduleEmbed", attrs: { occurrenceId: "$task.id" } }, whose id
+      // sits a level down. Resolving only the top level left the literal
+      // "$task.id" in every embed the day-page ops pushed (21 of them on the
+      // live grid) — same deep-resolve UPDATE's object branch already does.
       const arrName = cfg.name;
       if (!arrName) break;
       if (!Array.isArray($vars[arrName])) $vars[arrName] = [];
       if (cfg.value !== null && typeof cfg.value === "object" && !Array.isArray(cfg.value)) {
-        const resolved = {};
-        for (const [k, v] of Object.entries(cfg.value)) {
-          resolved[k] = resolveExpr(v, $vars);
-        }
-        $vars[arrName] = [...$vars[arrName], resolved];
+        $vars[arrName] = [...$vars[arrName], deepResolveExpr(cfg.value, $vars)];
       } else {
         const pv = resolveExpr(cfg.value, $vars);
         $vars[arrName] = [...$vars[arrName], pv];
@@ -2614,11 +2615,10 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       // skipping the root node itself.
       const unwrapRoot = !!cfg.unwrapRoot;
 
-      // defaultFields:{[fid]:expr} — merged into each cloned instance's `fields`
-      // map at CREATE_ITEM time, only when role==="instance" (slot containers
-      // have no date binding). Avoids a follow-up LOOP+UPDATE_ITEM_FIELD pass
-      // whose socket emits race the create's createQueue: if update_occurrence
-      // wins the upsert order, the create's $set clobbers the date stamp.
+      // defaultFields:{[fid]:expr} — merged into a clone's `fields` map at
+      // CREATE_ITEM time. Avoids a follow-up LOOP+UPDATE_ITEM_FIELD pass whose
+      // socket emits race the create's createQueue: if update_occurrence wins
+      // the upsert order, the create's $set clobbers the date stamp.
       const resolvedDefaultFields = (() => {
         const out = {};
         const raw = cfg.defaultFields;
@@ -2630,6 +2630,28 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         }
         return out;
       })();
+      const hasDefaultFields = Object.keys(resolvedDefaultFields).length > 0;
+
+      // Which of those keys a given clone actually takes. An instance takes all
+      // of them (the Schedule's slot copies rely on this — they carry date +
+      // scheduleFormat without binding either). Every other role takes only the
+      // keys its module BINDS: the Day Page template's Daily Question is a
+      // container and its Daily Answer a textblock, and both bind the date their
+      // header/body links join on. Blanket-merging instead would put dead keys on
+      // slot/page clones and inflate their fieldBindings via CREATE_ITEM's
+      // auto-attach — which is why this gate exists at all.
+      const defaultFieldsFor = (srcMod) => {
+        if (!hasDefaultFields) return {};
+        if (srcMod?.role === "instance") return resolvedDefaultFields;
+        const bound = Array.isArray(srcMod?.fieldBindings) ? srcMod.fieldBindings : [];
+        if (bound.length === 0) return {};
+        const boundIds = new Set(bound.map(b => b?.fieldId).filter(Boolean));
+        const out = {};
+        for (const [fid, val] of Object.entries(resolvedDefaultFields)) {
+          if (boundIds.has(fid)) out[fid] = val;
+        }
+        return out;
+      };
 
       // replacements:{ "[token]": expr } — find-and-replace pass over every
       // cloned occurrence's textmap. Each value expr is resolved once here;
@@ -2786,13 +2808,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             id: cloneOccId,
             templateId: cloneModId,
             parentId,
-            // Merge defaultFields onto instance-role clones only — slot/page
-            // clones don't carry the date binding so the extra key would be
-            // dead weight (and CREATE_ITEM's auto-attach would inflate their
-            // fieldBindings with an unrelated id).
-            fields: srcMod.role === "instance"
-              ? { ...(srcOcc.fields || {}), ...resolvedDefaultFields }
-              : { ...(srcOcc.fields || {}) },
+            fields: { ...(srcOcc.fields || {}), ...defaultFieldsFor(srcMod) },
             textmap: cloneTextmap(srcOcc.textmap),
             viewId: srcOcc.viewId || null,
             meta: newOccMeta,

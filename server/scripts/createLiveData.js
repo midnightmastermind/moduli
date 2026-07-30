@@ -1736,7 +1736,10 @@ export async function createLiveData(userId, options = {}) {
       id: journalQuestionFieldId,
       name: "Daily Question",
       type: "text",
-      inputEnabled: false,
+      // input-enabled so the Daily Question container's bound HEADER can be
+      // written — a display-only field renders no writable control no matter how
+      // good its options source, which is why the header's picker was dead.
+      inputEnabled: true,
       displayEnabled: true,
       // `randomizable: true` + an `optionsSource.find` pool lets FieldRenderer
       // surface a 🎲 button on the display-only field. The Daily Question
@@ -4843,7 +4846,7 @@ export async function createLiveData(userId, options = {}) {
     scheduleFormatFieldId,
   });
 
-  await buildDayPageTemplate({
+  const dayPageTemplateOccId = await buildDayPageTemplate({
     userId, gridId, tplManifestRootFolderId, mkOcc, Module,
     // Editor↔field binding wiring: Daily Question container in the day page
     // template carries header binding for journalQuestion (dropdown from the
@@ -8354,7 +8357,18 @@ export async function createLiveData(userId, options = {}) {
   // it into the Schedule page per active day — picker-direct, no FIND.
   await new Operation(makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId, completedTrackerName: "Completed Tasks", waterTrackerName: "Water", goalsPageOccId, schedulePageOccId: schedPageOccId, dayContainerOccId })).save();
   // Extend Stamp Date & Time Slot to also stamp lastSeen on every dropped occurrence.
-  await new Operation(makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolderId, hubPanelOccIdVar: panelOccIds.notebook, goalsPageOccId, schedulePageOccId: schedPageOccId })).save();
+  // dayPageTemplateOccId is picker-direct: resolving the template by
+  // meta.templateName matches every CLONE too (APPLY_TEMPLATE copies meta), and
+  // a multi-match FIND returns an array APPLY_TEMPLATE can't use — which is what
+  // jammed the op after the first day page. timeslot + scheduleFormat let it
+  // multi-parent that day's Todo container in from the Schedule day-column.
+  await new Operation(makeDayPageBuildOp({
+    userId, gridId, dateFieldId, dayPagesFolderId,
+    hubPanelOccIdVar: panelOccIds.notebook,
+    goalsPageOccId, schedulePageOccId: schedPageOccId,
+    dayPageTemplateOccId,
+    timeslotFieldId, scheduleFormatFieldId,
+  })).save();
   // Body-seeds the Tasks Completed container minted by buildDayPageTemplate.
   // Runs at priority 4 — after Build Day, Stamp, and trackers — so the
   // completion state and date stamps it reads are settled.

@@ -7,6 +7,11 @@
 import { uid } from "./operationBuilders.js";
 import { completionGateOrRule } from "./completionGate.js";
 
+// The day-column's no-time bucket. This ONE constant is both the container's
+// label and its Time Slot identity-marker value — the ops FIND it by the marker,
+// so letting the two drift apart is a silent breakage (2026-07-30).
+export const TODO_SLOT_LABEL = "Todo";
+
 // Mirrors createTestGrid STEP 1. Returns a plain object the caller passes to `new Grid(obj)`.
 export function buildGridDoc({ userId, gridName, manifestId, dateFieldId }) {
   return {
@@ -295,15 +300,22 @@ export async function buildScheduleTemplatePage({
     identitySignature: "slot:Due",
   });
 
-  // "No timeslot" container — like Due, but the bucket for tasks dropped in the
+  // "Todo" container — like Due, but the bucket for tasks with no time on them:
+  // anything dropped on a day-column outside a slot, plus drops made in the
   // SUMMARIZED (>7-day) view, which has no timeslot grid. Hidden in summary;
   // shown as a slot in the full view so summary drops "pop up" here when you open
-  // the full day (user 2026-07-19).
+  // the full day (user 2026-07-19). Also the day page's Todo section — the page
+  // multi-parents THIS occurrence rather than copying it.
+  //
+  // The LABEL and the Time Slot identity MARKER are one constant on purpose.
+  // The marker is what Schedule: Build Schedule and Day Page: Build FIND by, so a
+  // label that says one thing while the marker says another is a silent trap —
+  // exactly the drift that cost three repair passes on 2026-07-30.
   const tplNoSlotModId = uid();
   const tplNoSlotOccId = uid();
   await new Module({
     id: tplNoSlotModId, userId, gridId,
-    role: "container", kind: "board", label: "No timeslot",
+    role: "container", kind: "board", label: TODO_SLOT_LABEL,
     fieldBindings: [{ fieldId: timeslotFieldId, role: "input", hidden: true, order: 0 }],
   }).save();
   await mkOcc({
@@ -311,9 +323,9 @@ export async function buildScheduleTemplatePage({
     moduleId: tplNoSlotModId,
     targetId: tplNoSlotModId, targetType: "module",
     parentId: dayContainerOccId,
-    fields: { [timeslotFieldId]: { value: "No timeslot", flow: "in" } },
+    fields: { [timeslotFieldId]: { value: TODO_SLOT_LABEL, flow: "in" } },
     occurrences: [],
-    identitySignature: "slot:No timeslot",
+    identitySignature: `slot:${TODO_SLOT_LABEL}`,
   });
 
   // 48 slot containers + per-slot routine instances.
@@ -466,6 +478,26 @@ export async function buildDayPageTemplate({
     meta: { templateModule: true },
   }).save();
 
+  // The free-writing sections. Same shape as Tasks Completed — a kind:doc
+  // container whose LABEL is the `##` header and whose body is an open editor —
+  // but nothing writes into them: the user does. They carry NO field bindings
+  // on purpose. The occurrence is minted fresh per day, so its `textmap` is
+  // already per-day; binding a field would only matter if the text had to sync
+  // with some OTHER occurrence (the reason Daily Answer binds one), and these
+  // have nothing to sync with.
+  const WRITING_SECTIONS = ["Journal", "Notes", "Highlights"];
+  const tplWritingSections = [];
+  for (const label of WRITING_SECTIONS) {
+    const modId = uid();
+    await new Module({
+      id: modId, userId, gridId,
+      role: "container", kind: "doc", label,
+      meta: { templateModule: true },
+    }).save();
+    tplWritingSections.push({ label, modId, occId: uid() });
+  }
+  const sectionOcc = (label) => tplWritingSections.find(s => s.label === label);
+
   // Daily Question container — only mounted when binding context is supplied.
   // Header binding: container.fields[journalQuestion] drives the header
   // dropdown (options come from journalQuestion's find-mode pool).
@@ -541,6 +573,18 @@ export async function buildDayPageTemplate({
     occurrences: [],
   });
 
+  for (const s of tplWritingSections) {
+    await mkOcc({
+      id: s.occId,
+      moduleId: s.modId,
+      targetId: s.modId, targetType: "module",
+      parentId: tplDayPageRootOccId,
+      // Blank body — this is where the user writes.
+      textmap: { type: "doc", content: [{ type: "paragraph" }] },
+      occurrences: [],
+    });
+  }
+
   if (wantsDailyQuestion) {
     // Daily Question container occurrence — fields[dateFieldId] is stamped at
     // APPLY_TEMPLATE time by Day Page: Build (replacements + defaultFields).
@@ -575,20 +619,30 @@ export async function buildDayPageTemplate({
     });
   }
 
-  const dayPageOccurrencesList = wantsDailyQuestion
-    ? [tplDayPageTextblockOccId, tplDailyQContOccId, tplTasksCompletedContOccId]
-    : [tplDayPageTextblockOccId, tplTasksCompletedContOccId];
+  // Page order, top to bottom: prompt → plan → write → capture → review.
+  // The TODO section is absent here on purpose — it is not a section the
+  // template owns. It is that day's own Todo container from the Schedule's
+  // day-column, multi-parented in by Day Page: Build (which inserts it right
+  // after the Daily Question), so checking an item off here and on the Schedule
+  // are the same write on one occurrence.
+  const dayPageOccurrencesList = [
+    tplDayPageTextblockOccId,
+    ...(wantsDailyQuestion ? [tplDailyQContOccId] : []),
+    sectionOcc("Journal").occId,
+    sectionOcc("Notes").occId,
+    tplTasksCompletedContOccId,
+    sectionOcc("Highlights").occId,
+  ];
 
-  const dayPageTextmapContent = wantsDailyQuestion
-    ? [
-        { type: "instanceTextblock", attrs: { instanceId: tplDayPageTextblockModId, occurrenceId: tplDayPageTextblockOccId } },
-        { type: "moduleEmbed",       attrs: { occurrenceId: tplDailyQContOccId } },
-        { type: "moduleEmbed",       attrs: { occurrenceId: tplTasksCompletedContOccId } },
-      ]
-    : [
-        { type: "instanceTextblock", attrs: { instanceId: tplDayPageTextblockModId, occurrenceId: tplDayPageTextblockOccId } },
-        { type: "moduleEmbed",       attrs: { occurrenceId: tplTasksCompletedContOccId } },
-      ];
+  const embed = (occId) => ({ type: "moduleEmbed", attrs: { occurrenceId: occId } });
+  const dayPageTextmapContent = [
+    { type: "instanceTextblock", attrs: { instanceId: tplDayPageTextblockModId, occurrenceId: tplDayPageTextblockOccId } },
+    ...(wantsDailyQuestion ? [embed(tplDailyQContOccId)] : []),
+    embed(sectionOcc("Journal").occId),
+    embed(sectionOcc("Notes").occId),
+    embed(tplTasksCompletedContOccId),
+    embed(sectionOcc("Highlights").occId),
+  ];
 
   await mkOcc({
     id: tplDayPageRootOccId,
@@ -1143,7 +1197,7 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                       // the ROUTINE flat clones (marked scheduleFormat="flat" by the
                       // summary build) — they get re-cloned into their timeslot slots
                       // below. USER DROPS (unmarked flat instances) are PRESERVED and
-                      // re-homed into the "No timeslot" slot after the slots exist
+                      // re-homed into the Todo slot after the slots exist
                       // (user 2026-07-19: dropping in summary must persist to full).
                       { id: uid(), type: "action", config: { type: "SET_VAR", name: "$dcOcc", expr: "$allItemsById.${$dayColId}" }},
                       { id: uid(), type: "loop", overExpr: "$dcOcc.occurrences", as: "$dcKidId",
@@ -1215,14 +1269,14 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                       ],
                     },
                     // Re-home surviving USER DROPS (unmarked flat instances still
-                    // directly under the day-col) into the "No timeslot" slot now
+                    // directly under the day-col) into the Todo slot now
                     // that the slots exist — a task dropped in summary view shows up
-                    // under "No timeslot" when you open the full day (user 2026-07-19).
+                    // under Todo when you open the full day (user 2026-07-19).
                     { id: uid(), type: "action", config: {
                         type: "FIND", over: "$allContainers",
                         predicate: { operator: "AND", rules: [
                           { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$dayColId" },
-                          { id: uid(), left: `fields.${timeslotFieldId}.value`, comparator: "IS", right: "No timeslot" },
+                          { id: uid(), left: `fields.${timeslotFieldId}.value`, comparator: "IS", right: TODO_SLOT_LABEL },
                         ]},
                         itemIdVar: "$noSlotId",
                     }},
@@ -1248,13 +1302,13 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                     }],
                       else: [
                         // PRESERVE user drops on the way DOWN to summary: flatten the
-                        // "No timeslot" slot's tasks to directly under the day-col
+                        // Todo slot's tasks to directly under the day-col
                         // BEFORE the container teardown cascade-deletes that slot.
                         { id: uid(), type: "action", config: {
                             type: "FIND", over: "$allContainers",
                             predicate: { operator: "AND", rules: [
                               { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$dayColId" },
-                              { id: uid(), left: `fields.${timeslotFieldId}.value`, comparator: "IS", right: "No timeslot" },
+                              { id: uid(), left: `fields.${timeslotFieldId}.value`, comparator: "IS", right: TODO_SLOT_LABEL },
                             ]},
                             itemIdVar: "$noSlotId",
                         }},
@@ -1427,9 +1481,16 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
 //   new day page as an inactive tab on that panel; hub View.activeOccurrenceId
 //   stays Schedule, so the tab is present but not shown until the user clicks it.
 // dayPagesFolderId — the folder id of the "Day Pages" day-pages folder.
-export function makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolderId, hubPanelOccIdVar, goalsPageOccId, schedulePageOccId }) {
+export function makeDayPageBuildOp({
+  userId, gridId, dateFieldId, dayPagesFolderId, hubPanelOccIdVar, goalsPageOccId, schedulePageOccId,
+  dayPageTemplateOccId,
+  // Todo-link context (optional — omit and the op skips the link pass entirely).
+  timeslotFieldId = null, scheduleFormatFieldId = null, todoMarkerValue = "Todo",
+}) {
   if (!schedulePageOccId) throw new Error("makeDayPageBuildOp: schedulePageOccId required (picker-direct ancestor + page ref; see CLAUDE_CHAT.md 2026-05-22)");
   if (!goalsPageOccId)    throw new Error("makeDayPageBuildOp: goalsPageOccId required (picker-direct ancestor; see CLAUDE_CHAT.md 2026-05-22)");
+  if (!dayPageTemplateOccId) throw new Error("makeDayPageBuildOp: dayPageTemplateOccId required — resolving the template by meta.templateName matches the CLONES too (APPLY_TEMPLATE copies meta), and a multi-match FIND returns an ARRAY that APPLY_TEMPLATE cannot use");
+  const wantsTodoLink = !!(timeslotFieldId && scheduleFormatFieldId);
   return {
     id: uid(), userId, gridId, name: "Day Page: Build",
     description: "Create one doc Day Page per active date in the Day Pages folder, applying the Day Page template with the date stamped into the textblock heading.",
@@ -1496,15 +1557,19 @@ export function makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolder
           id: uid(), type: "if",
           condition: { operator: "AND", rules: [{ id: uid(), left: "$existingDayPageId", comparator: "IS_EMPTY", right: "" }] },
           then: [
-            // Locate the Day Page template root (templates manifest).
-            { id: uid(), type: "action", config: {
-                type: "FIND",
-                over: "$allOccurrences",
-                predicate: { operator: "AND", rules: [
-                  { id: uid(), left: "meta.templateName", comparator: "IS", right: "Day Page" },
-                ]},
-                itemIdVar: "$dayPageTplId",
-            }},
+            // The Day Page template root, bound picker-direct by id.
+            //
+            // This CANNOT go back to `FIND meta.templateName IS "Day Page"`:
+            // APPLY_TEMPLATE copies the template's `meta` onto the clone, so from
+            // the second day onward that FIND matches the template AND every day
+            // page ever built. A multi-match FIND returns an ARRAY (which still
+            // passes IS_NOT_EMPTY), and APPLY_TEMPLATE cannot resolve an array
+            // templateRef — so the op silently stopped building day pages after
+            // the first one. Same failure class as the 2026-07-14 Pomodoro
+            // COPY_LINK FIND-by-label bug: a clone inheriting the discriminator
+            // its own lookup keys on.
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayPageTpl",   expr: `$allItemsById.${dayPageTemplateOccId}` }},
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayPageTplId", expr: "$dayPageTpl.id" }},
             {
               id: uid(), type: "if",
               condition: { operator: "AND", rules: [{ id: uid(), left: "$dayPageTplId", comparator: "IS_NOT_EMPTY", right: "" }] },
@@ -1551,6 +1616,140 @@ export function makeDayPageBuildOp({ userId, gridId, dateFieldId, dayPagesFolder
           ],
           else: [],
         },
+
+        // ── Link that day's Todo container into the page ────────────────────
+        // The Todo section is NOT cloned from the template — it IS the Schedule
+        // day-column's own catch-all container, multi-parented in (the pattern
+        // the shared slots already use), so ticking an item here and on the
+        // Schedule are one write on one occurrence. Two copies would fork the
+        // state instead — the same reason createPageInContainer stays one
+        // occurrence (2026-07-29).
+        //
+        // This runs on EVERY fire, not just at mint: Day Page: Build and
+        // Schedule: Build Schedule are both onLoad with no ordering guarantee,
+        // so a page can be built before the day-column that owns its Todo. Both
+        // steps are idempotent, so re-running just re-asserts the link — which
+        // is also what repairs the day pages built before this shipped.
+        ...(wantsTodoLink ? [{
+          id: uid(), type: "action", config: {
+            type: "FIND",
+            over: "$allContainers",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+              { id: uid(), left: `fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "day-col" },
+              { id: uid(), left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$dayDate" },
+            ]},
+            itemIdVar: "$dayColId",
+          },
+        }, {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$dayColId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [
+            // The Todo container is found by its Time Slot IDENTITY MARKER, the
+            // same way Schedule: Build Schedule finds it — never by label, which
+            // the user is free to rename.
+            { id: uid(), type: "action", config: {
+                type: "FIND",
+                over: "$allContainers",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$dayColId" },
+                  { id: uid(), left: `fields.${timeslotFieldId}.value`, comparator: "IS", right: todoMarkerValue },
+                ]},
+                itemIdVar: "$todoId",
+            }},
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$todoId", comparator: "IS_NOT_EMPTY", right: "" }] },
+              then: [
+                { id: uid(), type: "action", config: {
+                    type: "FIND",
+                    over: "$allPages",
+                    predicate: { operator: "AND", rules: [
+                      { id: uid(), left: "label", comparator: "IS", right: "$dayPageName" },
+                    ]},
+                    itemIdVar: "$dayPageId", itemVar: "$dayPage",
+                }},
+                { id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [{ id: uid(), left: "$dayPageId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                  then: [
+                    // (a) the tree link — idempotent, no-ops when already listed.
+                    { id: uid(), type: "action", config: { type: "ADD_CHILD", parentId: "$dayPageId", childId: "$todoId" } },
+
+                    // (b) the textmap embed. A doc page renders ONLY its textmap,
+                    // so the child list alone would leave Todo invisible.
+                    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$todoEmbedded", expr: "literal:0" } },
+                    { id: uid(), type: "loop", over: "$dayPage.textmap.content", as: "$node", body: [
+                      { id: uid(), type: "if",
+                        condition: { operator: "AND", rules: [
+                          { id: uid(), left: "$node.attrs.occurrenceId", comparator: "IS", right: "$todoId" },
+                        ]},
+                        then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$todoEmbedded", expr: "literal:1" } }],
+                        else: [],
+                      },
+                    ]},
+                    { id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [{ id: uid(), left: "$todoEmbedded", comparator: "IS", right: 0 }] },
+                      then: [
+                        // Rebuild the content array in order, inserting the Todo
+                        // embed right after the Daily Question. A LOOP + PUSH is
+                        // how the pipeline language expresses a splice; the
+                        // template still owns every other section's position.
+                        { id: uid(), type: "action", config: {
+                            type: "FIND",
+                            over: "$allContainers",
+                            predicate: { operator: "AND", rules: [
+                              { id: uid(), left: "parentId", comparator: "IS", right: "$dayPageId" },
+                              { id: uid(), left: "label",    comparator: "IS", right: "Daily Question" },
+                            ]},
+                            itemIdVar: "$dqId",
+                        }},
+                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$content",      expr: "json:[]" } },
+                        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$todoInserted", expr: "literal:0" } },
+                        { id: uid(), type: "loop", over: "$dayPage.textmap.content", as: "$node", body: [
+                          { id: uid(), type: "action", config: { type: "PUSH_TO_ARRAY", name: "$content", value: "$node" } },
+                          { id: uid(), type: "if",
+                            condition: { operator: "AND", rules: [
+                              // $dqId must be non-empty in its own right: a node
+                              // with no attrs resolves to undefined, which would
+                              // otherwise "match" an empty id and splice early.
+                              { id: uid(), left: "$dqId", comparator: "IS_NOT_EMPTY", right: "" },
+                              { id: uid(), left: "$node.attrs.occurrenceId", comparator: "IS", right: "$dqId" },
+                            ]},
+                            then: [
+                              { id: uid(), type: "action", config: {
+                                  type: "PUSH_TO_ARRAY", name: "$content",
+                                  value: { type: "moduleEmbed", attrs: { occurrenceId: "$todoId" } },
+                              }},
+                              { id: uid(), type: "action", config: { type: "SET_VAR", name: "$todoInserted", expr: "literal:1" } },
+                            ],
+                            else: [],
+                          },
+                        ]},
+                        // No Daily Question on this page (binding context absent,
+                        // or the user deleted it) — append rather than drop it.
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [{ id: uid(), left: "$todoInserted", comparator: "IS", right: 0 }] },
+                          then: [{ id: uid(), type: "action", config: {
+                              type: "PUSH_TO_ARRAY", name: "$content",
+                              value: { type: "moduleEmbed", attrs: { occurrenceId: "$todoId" } },
+                          }}],
+                          else: [],
+                        },
+                        { id: uid(), type: "action", config: {
+                            type: "UPDATE", path: "$dayPage.textmap",
+                            value: { type: "doc", content: "$content" },
+                        }},
+                      ],
+                      else: [],
+                    },
+                  ],
+                  else: [],
+                },
+              ],
+              else: [],
+            },
+          ],
+          else: [],
+        }] : []),
           ],
           else: [],
         },
@@ -2016,7 +2215,7 @@ export function makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, hubPa
   // select of the 48 generated slot labels, and this op used to write the
   // container's label unconditionally — so creating anything under the hub panel
   // that ISN'T a slot stamped a page/container NAME as the "time" ("Schedule
-  // Canvas", "Schedule Table", "Due", "No timeslot"), and every history row that
+  // Canvas", "Schedule Table", "Due", "Todo"), and every history row that
   // reads the field showed it. The ELSE branch matters as much as the gate: a
   // COPY carries the source's fields, so a slotted item copied onto a canvas
   // would otherwise keep a slot it no longer sits in. Null = Due / no slot,

@@ -115,12 +115,12 @@ describe("buildScheduleTemplatePage", () => {
     const day = occs.find(o => o.id === dayContainerOccId);
     expect(day.identitySignature).toBe("day-container");
     expect(day.parentId).toBe(schedTplPageOccId);
-    // Day's occurrences[] = [Due, No timeslot, slot1, slot2]
+    // Day's occurrences[] = [Due, Todo, slot1, slot2]
     expect(day.occurrences).toHaveLength(4);
     const slotOccs = occs.filter(o => o.identitySignature?.startsWith("slot:"));
     expect(slotOccs).toHaveLength(4);
     expect(slotOccs.some(o => o.identitySignature === "slot:Due")).toBe(true);
-    expect(slotOccs.some(o => o.identitySignature === "slot:No timeslot")).toBe(true);
+    expect(slotOccs.some(o => o.identitySignature === "slot:Todo")).toBe(true);
     expect(slotOccs.every(o => o.parentId === dayContainerOccId)).toBe(true);
   });
 });
@@ -269,12 +269,46 @@ describe("schedule ops", () => {
     expect(JSON.stringify(op.pipeline)).toContain("$trigger.containerLabel");
   });
   it("Day Page: Build is named correctly, priority-1, embeds the folder + hub params", () => {
-    const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC", goalsPageOccId: "GP", schedulePageOccId: "SP" });
+    const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC", goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL" });
     expect(op.name).toBe("Day Page: Build");
     expect(op.triggerObjects.every(t => t.priority === 1)).toBe(true);
     const s = JSON.stringify(op.pipeline);
     expect(s).toContain("DPF");
     expect(s).toContain("HUBOCC");
+  });
+  it("Day Page: Build binds its template by id — NEVER by meta.templateName", () => {
+    // APPLY_TEMPLATE copies meta onto the clone, so a templateName FIND matches
+    // every day page ever built; the multi-match array then breaks the apply.
+    const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC", goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL" });
+    const s = JSON.stringify(op.pipeline);
+    expect(s).toContain("$allItemsById.TPL");
+    expect(s).not.toContain("meta.templateName");
+  });
+  it("Day Page: Build refuses to build without a template id", () => {
+    expect(() => makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC", goalsPageOccId: "GP", schedulePageOccId: "SP" }))
+      .toThrow(/dayPageTemplateOccId required/);
+  });
+  it("Day Page: Build links the day-column's Todo container in — and skips it without the field ids", () => {
+    const withLink = makeDayPageBuildOp({
+      userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC",
+      goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL",
+      timeslotFieldId: "TS", scheduleFormatFieldId: "SF",
+    });
+    const s = JSON.stringify(withLink.pipeline);
+    // Finds the day-col, then its Todo by the Time Slot identity MARKER.
+    expect(s).toContain("fields.SF.value");
+    expect(s).toContain('"right":"day-col"');
+    expect(s).toContain('"left":"fields.TS.value","comparator":"IS","right":"Todo"');
+    // Links it BOTH ways: child list + textmap embed (a doc page renders only
+    // its textmap, so the child list alone would leave Todo invisible).
+    expect(s).toContain("ADD_CHILD");
+    expect(s).toContain("$dayPage.textmap");
+
+    const without = makeDayPageBuildOp({
+      userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC",
+      goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL",
+    });
+    expect(JSON.stringify(without.pipeline)).not.toContain("$todoId");
   });
   it("Clear Date on Move-Out is onMove and clears date + timeslot fields", () => {
     const op = makeClearDateOnMoveOutOp({ userId: "u", gridId: "g", dateFieldId: "DF", timeslotFieldId: "TS" });
