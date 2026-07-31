@@ -152,8 +152,14 @@ export async function up({ gridId, grid, models, log, dryRun }) {
 
   // ── 4. the hub keeps ONE tab ──────────────────────────────────────────────
   const dayOccIds = new Set(dayOccs.map(o => o.id));
-  const hubs = await Occurrence.find({ gridId, occurrences: { $in: [...dayOccIds] } })
-    .select({ id: 1, occurrences: 1, viewId: 1 }).lean();
+  const hubs = (await Occurrence.find({ gridId, occurrences: { $in: [...dayOccIds] } })
+    .select({ id: 1, occurrences: 1, viewId: 1 }).lean())
+    // NOT the board itself. It legitimately lists day pages — they are its
+    // COLUMNS — so an unfiltered "who links a day page" query matches it, and
+    // the unpin below would then strip its columns and add the board to its own
+    // occurrences[]. (It did exactly that on the first run; caught by reading
+    // the board's children back afterwards.)
+    .filter(h => h.id !== boardOccId);
   for (const hub of hubs) {
     const kept = (hub.occurrences || []).filter(k => !dayOccIds.has(k));
     if (!kept.includes(boardOccId)) kept.push(boardOccId);
