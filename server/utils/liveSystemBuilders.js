@@ -466,18 +466,15 @@ export async function buildDayPageTemplate({
     fieldBindings: dateFieldId
       ? [{ fieldId: dateFieldId, role: "input", hidden: true, order: 0 }]
       : [],
-    meta: { templateModule: true },
+    // The column IS the day's H1 — its header carries the date, so the template
+    // no longer holds a heading textblock repeating it underneath.
+    meta: { templateModule: true, headingLevel: 1 },
   }).save();
 
-  // Day page heading (textblock) — H1 "Day Page - {Date}". APPLY_TEMPLATE
-  // replaces {Date} via cfg.replacements when Day Page: Build clones the
-  // template into a fresh occurrence.
-  const tplDayPageTextblockModId = uid();
-  await new Module({
-    id: tplDayPageTextblockModId, userId, gridId,
-    role: "textblock", kind: "doc", label: "Day Page heading",
-    meta: { templateModule: true },
-  }).save();
+  // NO heading textblock. It rendered "Day Page - {Date}" directly under a
+  // column header already reading "Day Page - <date>" — the same string twice
+  // (2026-07-31). The column IS the day's heading; its label carries the date
+  // and its meta.headingLevel makes it the H1.
 
   // Tasks Completed container — kind:doc so its body is a TipTap editor that
   // "Day Page: Build Tasks Completed" (separate op, pending) can write a
@@ -494,7 +491,7 @@ export async function buildDayPageTemplate({
   await new Module({
     id: tplTasksCompletedContModId, userId, gridId,
     role: "container", kind: "board", label: "Tasks Completed",
-    meta: { templateModule: true },
+    meta: { templateModule: true, headingLevel: 2 },
   }).save();
 
   // The free-writing sections. Same shape as Tasks Completed — a kind:doc
@@ -511,7 +508,7 @@ export async function buildDayPageTemplate({
     await new Module({
       id: modId, userId, gridId,
       role: "container", kind: "doc", label,
-      meta: { templateModule: true },
+      meta: { templateModule: true, headingLevel: 2 },
     }).save();
     tplWritingSections.push({ label, modId, occId: uid() });
   }
@@ -551,7 +548,7 @@ export async function buildDayPageTemplate({
     await new Module({
       id: tplDailyQOuterModId, userId, gridId,
       role: "container", kind: "doc", label: "Daily Question",
-      meta: { templateModule: true },
+      meta: { templateModule: true, headingLevel: 2 },
     }).save();
 
     await new Module({
@@ -585,31 +582,7 @@ export async function buildDayPageTemplate({
   }
 
   const tplDayPageRootOccId = uid();
-  const tplDayPageTextblockOccId = uid();
   const tplTasksCompletedContOccId = uid();
-
-  await mkOcc({
-    id: tplDayPageTextblockOccId,
-    moduleId: tplDayPageTextblockModId,
-    targetId: tplDayPageTextblockModId, targetType: "module",
-    parentId: tplDayPageRootOccId,
-    // identitySignature is what lets APPLY_TEMPLATE's MERGE mode re-apply this
-    // template onto a day that already exists: a section already carrying the
-    // signature is left alone, and only sections the template has GAINED are
-    // cloned in. Without it, every rebuild would duplicate every section — and
-    // with it, editing the template updates existing days instead of only
-    // future ones (user 2026-07-31: "id also like to change the template on the
-    // fly so it updates").
-    identitySignature: "daypage:heading",
-
-    textmap: {
-      type: "doc",
-      content: [
-        { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Day Page - {Date}" }] },
-      ],
-    },
-    occurrences: [],
-  });
 
   await mkOcc({
     id: tplTasksCompletedContOccId,
@@ -691,7 +664,6 @@ export async function buildDayPageTemplate({
   // after the Daily Question), so checking an item off here and on the Schedule
   // are the same write on one occurrence.
   const dayPageOccurrencesList = [
-    tplDayPageTextblockOccId,
     ...(wantsDailyQuestion ? [tplDailyQOuterOccId] : []),
     sectionOcc("Journal").occId,
     sectionOcc("Notes").occId,
@@ -701,7 +673,6 @@ export async function buildDayPageTemplate({
 
   const embed = (occId) => ({ type: "moduleEmbed", attrs: { occurrenceId: occId } });
   const dayPageTextmapContent = [
-    { type: "instanceTextblock", attrs: { instanceId: tplDayPageTextblockModId, occurrenceId: tplDayPageTextblockOccId } },
     ...(wantsDailyQuestion ? [embed(tplDailyQOuterOccId)] : []),
     embed(sectionOcc("Journal").occId),
     embed(sectionOcc("Notes").occId),
@@ -1755,18 +1726,12 @@ export function makeDayPageBuildOp({
                 },
               ],
             },
-            ...(wantsTodoLink ? [{
-              id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$todoId", comparator: "IS_NOT_EMPTY", right: "" }] },
-              then: [
-                { id: uid(), type: "action", config: {
-                    type: "PUSH_TO_ARRAY", name: "$body",
-                    value: { type: "moduleEmbed", attrs: { occurrenceId: "$todoId" } },
-                }},
-              ],
-              else: [],
-            }] : []),
-            // Pass 2 — every other child, in the template's order.
+            // Pass 2 — every other child, in the template's order, with Todo
+            // slotted in after the FIRST section. Counted rather than named:
+            // the op must not know which section comes first (it is the Daily
+            // Question today, and that is the template's business, not this
+            // pipeline's).
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$secN", expr: "literal:0" } },
             { id: uid(), type: "loop", overExpr: "$col.occurrences", as: "$kidId2",
               body: [
                 { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$kid2", expr: "$allItemsById.${$kidId2}" } },
@@ -1780,6 +1745,21 @@ export function makeDayPageBuildOp({
                         type: "PUSH_TO_ARRAY", name: "$body",
                         value: { type: "moduleEmbed", attrs: { occurrenceId: "$kidId2" } },
                     }},
+                    { id: uid(), type: "action", config: { type: "INCREMENT_VAR", name: "$secN", by: 1 } },
+                    ...(wantsTodoLink ? [{
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [
+                        { id: uid(), left: "$secN",   comparator: "IS",           right: 1 },
+                        { id: uid(), left: "$todoId", comparator: "IS_NOT_EMPTY", right: "" },
+                      ]},
+                      then: [
+                        { id: uid(), type: "action", config: {
+                            type: "PUSH_TO_ARRAY", name: "$body",
+                            value: { type: "moduleEmbed", attrs: { occurrenceId: "$todoId" } },
+                        }},
+                      ],
+                      else: [],
+                    }] : []),
                   ],
                   else: [],
                 },

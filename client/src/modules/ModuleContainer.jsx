@@ -396,6 +396,7 @@ function Container({
 
   // Section-hierarchy header sizing (imported docs stamp meta.headingLevel
   // 1=article … 6). Falls back to the default 20/700 for every other container.
+  const headingLevel = Number(module?.meta?.headingLevel) || 1;
   const headerFontSize = HEADING_SIZES[module?.meta?.headingLevel] || 20;
   const headerFontWeight = HEADING_WEIGHTS[module?.meta?.headingLevel] || 700;
   // Per-occurrence header label overflow: marquee (default) | wrap | none.
@@ -1034,7 +1035,12 @@ function Container({
                   />
                 </PopoverContent>
               </Popover>
-              <span className="embedded-hash" style={{ fontSize: headerFontSize, fontWeight: headerFontWeight, color: embeddedAccent, fontFamily: "var(--font-mono)" }}>#</span>
+              {/* One hash per heading LEVEL, the way the markdown it mirrors
+                  reads: a level-2 section shows "##" (user 2026-07-31: "make the
+                  day page container headings ## not #. except the top one saying
+                  the date"). Driven by the level in module.meta, so the renderer
+                  still knows nothing about which containers those are. */}
+              <span className="embedded-hash" style={{ fontSize: headerFontSize, fontWeight: headerFontWeight, color: embeddedAccent, fontFamily: "var(--font-mono)" }}>{"#".repeat(headingLevel)}</span>
               {headerBinding ? (
                 <LabelShell
                   mode={boundLabelOverflow}

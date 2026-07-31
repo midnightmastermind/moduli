@@ -431,17 +431,33 @@ describe("schedule ops", () => {
 });
 
 describe("buildDayPageTemplate", () => {
-  it("creates a doc-page root referencing a textblock child with the {Date} token", async () => {
+  it("creates a day-COLUMN root: a container that binds Date and is the H1", async () => {
     const occs = [];
+    const mods = [];
     const mkOcc = async (d) => { const id = d.id || `o${occs.length}`; occs.push({ ...d, id }); return id; };
-    const ModuleStub = function (o) { Object.assign(this, o); this.save = async () => {}; };
+    const ModuleStub = function (o) { Object.assign(this, o); mods.push(o); this.save = async () => {}; };
     const rootOccId = await buildDayPageTemplate({
       userId: "u", gridId: "g", tplManifestRootFolderId: "tplRoot", mkOcc, Module: ModuleStub,
+      dateFieldId: "DF",
     });
     const root = occs.find(o => o.id === rootOccId);
     expect(root.meta).toMatchObject({ templateName: "Day Page", templateModule: true });
-    const child = occs.find(o => o.id !== rootOccId);
-    expect(JSON.stringify(child.textmap)).toContain("Day Page - {Date}");
+    const rootMod = mods.find(m => m.id === root.moduleId);
+    // A COLUMN, not a page — the board page holds one per day.
+    expect(rootMod.role).toBe("container");
+    expect(rootMod.kind).toBe("doc");
+    // It carries the date, which is what makes it answer the filter cascade.
+    expect(rootMod.fieldBindings.some(b => b.fieldId === "DF")).toBe(true);
+    expect(rootMod.meta.headingLevel).toBe(1);
+    // No heading textblock: the column header already reads the date, and a
+    // child repeating it rendered the same string twice.
+    expect(mods.some(m => m.label === "Day Page heading")).toBe(false);
+    expect(JSON.stringify(occs)).not.toContain("Day Page - {Date}");
+    // Sections are H2, and each carries an identity so a merge tops up rather
+    // than duplicating.
+    const sections = occs.filter(o => o.id !== rootOccId && o.identitySignature);
+    expect(sections.length).toBeGreaterThanOrEqual(4);
+    for (const sec of sections) expect(sec.identitySignature).toMatch(/^daypage:/);
   });
 });
 
