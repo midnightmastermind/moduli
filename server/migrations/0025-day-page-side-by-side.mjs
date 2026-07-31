@@ -42,7 +42,7 @@ export async function up({ gridId, grid, models, log, dryRun }) {
     // the add new item menu"). An uncapped column grows with its content, so
     // anything that changes height on hover shoves everything below it and the
     // hover target slides out from under the pointer.
-    childMaxHeight: 600,
+    childMaxHeight: 420,
     ...(dateFieldId ? { sortChildrenByField: dateFieldId } : {}),
   };
   const current = boardOcc.meta?.layoutCascade || null;

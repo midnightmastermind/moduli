@@ -49,7 +49,7 @@ import { buildLayoutCascadeContext, resolveLayoutCascade } from "../helpers/layo
 // `##` section and the user rightly called it out ("it should show a # heading
 // but it doesnt look bigger than the nested container labels"). The gap between
 // 1 and 2 is now the widest in the scale.
-const HEADING_SIZES = { 1: 22, 2: 16, 3: 14, 4: 13, 5: 12, 6: 12 };
+const HEADING_SIZES = { 1: 18, 2: 15, 3: 14, 4: 13, 5: 12, 6: 12 };
 const HEADING_WEIGHTS = { 1: 700, 2: 650, 3: 600, 4: 600, 5: 600, 6: 600 };
 
 // Container-header label overflow behavior, configurable per-occurrence via
@@ -989,7 +989,15 @@ function Container({
           ? { padding: "0", alignItems: "stretch", flexDirection: "column", ...embeddedHeaderStyle }
           : module.kind === "board"
             ? { gap: 6, padding: "4px 3px 2px 3px", minHeight: "20px" } // +2px above the items
-            : { height: "20px", gap: 6, padding: "2px 3px" }
+            // A heading container (meta.headingLevel) sizes to its TEXT and takes
+            // real padding on all four sides. The fixed 20px height below is
+            // shorter than an 18px heading line, so the label overflowed its own
+            // header — measured 35px tall starting 9px ABOVE the header row,
+            // which is what made the day columns read as unpadded and
+            // misaligned (2026-07-31).
+            : module?.meta?.headingLevel
+              ? { gap: 6, padding: "6px 10px", minHeight: 0, alignItems: "center" }
+              : { height: "20px", gap: 6, padding: "2px 3px" }
         }
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); openContainerMenu({ x: e.clientX, y: e.clientY }); }}
         {...containerLongPress}
@@ -997,9 +1005,9 @@ function Container({
         {embedded ? (
           /* Embedded: single-row header — handle + #label + filter */
           <>
-            {/* 6px top = the row's original 4 plus the 2px of air the user
-                asked for above the label. */}
-            <div style={{ display: "flex", alignItems: "center", padding: "6px 4px 0px 2px", minHeight: 12, gap: 4 }}>
+            {/* 3px top — 6 read as too much air above a nested section header
+                (user 2026-07-31); the label keeps its own 2px below. */}
+            <div style={{ display: "flex", alignItems: "center", padding: "3px 4px 0px 2px", minHeight: 12, gap: 4 }}>
               <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
                 <PopoverAnchor asChild>
                   <div ref={containerHandleRef} className="module-drag-handle module-grab-zone" data-dnd-handle="true" style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}>
@@ -1212,7 +1220,11 @@ function Container({
                       ? headerFontSize
                       : (module.kind === "board" ? "0.95rem" : "0.9rem"),
                     fontWeight: module?.meta?.headingLevel ? headerFontWeight : 500,
-                    display: "flex", alignItems: "center", gap: 4, position: "relative", top: -1,
+                    display: "flex", alignItems: "center", gap: 4, position: "relative",
+                    // The -1px nudge is for the small fixed-height headers; a
+                    // heading sits in a padded row and must not ride up out of it.
+                    top: module?.meta?.headingLevel ? 0 : -1,
+                    lineHeight: module?.meta?.headingLevel ? 1.15 : undefined,
                     cursor: !headerBinding ? "text" : undefined,
                   }}
                 >
