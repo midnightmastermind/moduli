@@ -4720,8 +4720,13 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    the row makes scrollWidth == clientWidth, so the marquee goes inert and the
    selected question simply truncates. */
 .bound-header-select {
-  width: 100%;
+  /* NOT width:100% — the marquee wrapper this sits in is sized to its CONTENT,
+     so 100% resolved to the select's own intrinsic width (745px inside a 530px
+     panel) and pushed the field-name badge off the visible row. Shrink to fit
+     the row instead. */
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 .bound-header-select > select {
   flex: 1 1 auto;
