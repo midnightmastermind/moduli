@@ -1139,6 +1139,14 @@ body[data-clipboard-active="true"] {
 /* A row with an inline media thumbnail has a taller first line (the 22px
    .instance-media-inline), so its label group matches that instead. */
 .instance-content:has(.instance-media-inline) { --field-pill-h: 44px; }
+/* …and the handle + label sit at the TOP of that thumbnail rather than
+   centring on it (user 2026-07-31: "keep the text on the top though, right now
+   it's centered with the image"). The group is a flex row holding
+   [handle, thumbnail, label]; centring it against a 104px picture floated the
+   name to the middle of the face. The thumbnail keeps its own
+   `align-self: stretch` (align-self beats align-items), so it still tracks the
+   row height — only the text moves. */
+.instance-content > div:first-child:has(.instance-media-inline) { align-items: flex-start; }
 /* NO negative margin here. The lift this used to apply (-3px) exactly cancelled
    the row's own 3px padding, so the fields sat FLUSH against the top border
    (user 2026-07-29: "there should be a 1px margin above the fields, right now
