@@ -400,6 +400,12 @@ function Container({
   const headerFontWeight = HEADING_WEIGHTS[module?.meta?.headingLevel] || 700;
   // Per-occurrence header label overflow: marquee (default) | wrap | none.
   const labelOverflow = containerOccurrence?.meta?.labelOverflow ?? module?.meta?.labelOverflow ?? "marquee";
+  // A BOUND header is a control, not prose: marqueeing it scrolls the picker
+  // and its field-name badge out of the row (measured on the day page — a 745px
+  // marquee track inside a 466px window, badge parked at x=1150). Default those
+  // headers to "none" so the control shrinks to the row and truncates in place.
+  // An explicit per-occurrence/module labelOverflow still wins.
+  const boundLabelOverflow = containerOccurrence?.meta?.labelOverflow ?? module?.meta?.labelOverflow ?? "none";
 
   // Editor↔field binding for the container header. When set, the contentEditable
   // / static label is replaced by a BoundHeader that reads/writes the linked
@@ -1031,7 +1037,7 @@ function Container({
               <span className="embedded-hash" style={{ fontSize: headerFontSize, fontWeight: headerFontWeight, color: embeddedAccent, fontFamily: "var(--font-mono)" }}>#</span>
               {headerBinding ? (
                 <LabelShell
-                  mode={labelOverflow}
+                  mode={boundLabelOverflow}
                   onPointerDown={(e) => e.stopPropagation()}
                   style={{ fontFamily: "var(--font-mono)", fontSize: headerFontSize, fontWeight: headerFontWeight, color: embeddedAccent, lineHeight: 1.2, flex: 1, minWidth: 0 }}
                 >
