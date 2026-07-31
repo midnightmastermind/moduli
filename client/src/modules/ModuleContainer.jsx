@@ -45,7 +45,11 @@ import { buildLayoutCascadeContext, resolveLayoutCascade } from "../helpers/layo
 // Embedded-container header font size by section-hierarchy level (meta.headingLevel).
 // 1 = article title (H1) … 6. Smaller + cascading; containers without a level
 // use the default 15.
-const HEADING_SIZES = { 1: 18, 2: 16, 3: 14, 4: 13, 5: 12, 6: 12 };
+// `#` has to READ as the top of the hierarchy. At 18 it was only 2px above an
+// `##` section and the user rightly called it out ("it should show a # heading
+// but it doesnt look bigger than the nested container labels"). The gap between
+// 1 and 2 is now the widest in the scale.
+const HEADING_SIZES = { 1: 22, 2: 16, 3: 14, 4: 13, 5: 12, 6: 12 };
 const HEADING_WEIGHTS = { 1: 700, 2: 650, 3: 600, 4: 600, 5: 600, 6: 600 };
 
 // Container-header label overflow behavior, configurable per-occurrence via
@@ -993,7 +997,9 @@ function Container({
         {embedded ? (
           /* Embedded: single-row header — handle + #label + filter */
           <>
-            <div style={{ display: "flex", alignItems: "center", padding: "4px 4px 0px 2px", minHeight: 12, gap: 4 }}>
+            {/* 6px top = the row's original 4 plus the 2px of air the user
+                asked for above the label. */}
+            <div style={{ display: "flex", alignItems: "center", padding: "6px 4px 0px 2px", minHeight: 12, gap: 4 }}>
               <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
                 <PopoverAnchor asChild>
                   <div ref={containerHandleRef} className="module-drag-handle module-grab-zone" data-dnd-handle="true" style={{ position: "relative", top: 0, left: "auto", transform: "none", flexShrink: 0 }}>
@@ -1192,7 +1198,23 @@ function Container({
                   className="container-header-label"
                   onDoubleClick={!headerBinding ? (e) => { e.stopPropagation(); setIsEditingLabel(true); } : undefined}
                   title={!headerBinding ? "Double-click to rename" : undefined}
-                  style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", padding: module.kind === "board" ? "2px 0" : 0, fontSize: module.kind === "board" ? "0.95rem" : "0.9rem", fontWeight: module.kind === "board" ? 500 : 500, display: "flex", alignItems: "center", gap: 4, position: "relative", top: -1, cursor: !headerBinding ? "text" : undefined }}
+                  style={{
+                    flex: "1 1 auto", minWidth: 0, overflow: "hidden",
+                    // 2px of air above the label (user 2026-07-31) — it sat
+                    // hard against the container's top edge.
+                    paddingTop: 2,
+                    paddingBottom: module.kind === "board" ? 2 : 0,
+                    // A container that declares a heading level sizes by it,
+                    // exactly as the embedded header does. Without this a day
+                    // COLUMN (level 1, standard header) rendered SMALLER than
+                    // the `##` sections nested inside it.
+                    fontSize: module?.meta?.headingLevel
+                      ? headerFontSize
+                      : (module.kind === "board" ? "0.95rem" : "0.9rem"),
+                    fontWeight: module?.meta?.headingLevel ? headerFontWeight : 500,
+                    display: "flex", alignItems: "center", gap: 4, position: "relative", top: -1,
+                    cursor: !headerBinding ? "text" : undefined,
+                  }}
                 >
                   <AutoMarquee>
                     {headerBinding ? (
