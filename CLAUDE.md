@@ -6,6 +6,65 @@
 
 ---
 
+### 2026-07-31 — the day page is DAY COLUMNS, template-driven; Tasks Completed is a board
+
+**The day page works like the Schedule now** (user: "make daypage work like the schedule. with
+containers being the days. these would be doccontainers with other containers inside of it").
+Migration `0018`, applied to poms grid, deployed, verified live.
+
+```
+Day Page  (board page — pinned ONCE)
+  └─ Day Page - 2026-07-31    day COLUMN, kind:doc, carries the Date field
+       ├─ Daily Question → the question → Daily Answer
+       ├─ Todo                the Schedule day-col's OWN container, multi-parented
+       ├─ Journal / Notes / Tasks Completed / Highlights
+```
+- **This retires the ADD_CHILD pinning bug by construction** — there is no per-day page to pin, so
+  the hub keeps one tab instead of gaining one every morning (it had three plus a junk
+  `[object Object]` module by day three; the module is deleted).
+- **It answers filters like the Schedule**: the column carries the Date field and the op targets
+  the BOARD page, so an on-page date switch (which never touches the grid filter) builds and shows
+  the days you are looking at. Verified live: only today's column renders under `Fri, Jul 31`.
+- **TEMPLATE-DRIVEN, both directions** (user: "id also like to change the template on the fly so it
+  updates" / "add to it and save the template so i can save my daily routine"):
+  the column body is rebuilt from the column's OWN children (the op no longer owns a hardcoded
+  section list — that is why a section added to the template used to be cloned but never rendered);
+  every template section carries an `identitySignature`, so `mode:"merge"` tops up days that ALREADY
+  exist with sections the template has gained and leaves what the user wrote alone; and each column
+  is stamped `appliedFromTemplateId`, which is what lights up **"Save over Day Page"** in the header
+  dropdown.
+- **Where the templates live** (asked directly): `Schedule Template` is a real `page/board` at
+  **Library › Templates**; `Day Page` (`ktMxTVErceWq`) is in the separate **Templates manifest**,
+  reachable from Command Center → Templates. Both are ordinary modules + occurrences.
+
+**`Tasks Completed` is a BOARD like Todo** (user: "it says click to edit instead of add new item") —
+its tasks are CHILDREN now, not moduleEmbeds painted into a doc body. That needed a new pipeline
+verb: **`REMOVE_CHILD`**, the exact inverse of ADD_CHILD. It matters because these children are the
+SCHEDULE's own occurrences multi-parented in — tidying the list with `REMOVE_OCCURRENCE` would
+delete the user's task out of their Schedule. The sweep's keep-test is the add predicate verbatim
+with the unlink on its ELSE, so the two cannot drift.
+
+**Also fixed:** habits (Sleep) no longer fill Tasks Completed (module-BINDING discriminator, `0013`);
+Sleep's Duration binding was BACK after `0007` and is unbound again — found structurally (the Sleep
+module carrying the Habit marker; there are two "Sleep" modules and the other legitimately binds
+Sleep Time); **Daily Question resolved zero options because the FIELD WAS TYPE `text`** —
+`resolveOptions` returns nothing for any type but select/occurrence on its FIRST line, so the
+117-question pool never had a chance (everything the previous session ruled out was genuinely fine);
+the question is a section wrapping a bound question container so it renders ONCE; a bound header
+truncates instead of marqueeing (a control is not prose); Examples' three dead sample links
+repointed after checking each for a 200 (`0014`); image cards stack with the caption under them.
+
+**Two traps worth keeping:**
+- **Replacing a function by SPAN swallows its neighbours.** Rewriting `makeDayPageBuildOp` by
+  index-slicing the file also deleted `makeProjectCreateOp` + `makeProjectStatusRouterOp`; the seed
+  caught it on import. Restored verbatim, then *diffed the exported function and const lists against
+  HEAD* to prove nothing else went. Do that diff after any span surgery.
+- **A migration that asks "who links X?" will match the thing that OWNS X.** The unpin step matched
+  the board itself (it lists day pages — they are its columns), stripped its columns and made it its
+  own child. Caught by reading the board's children back after applying. Always read the result back.
+
+---
+
 ### 2026-07-30 (8) — the day page CRASHED the app: a LOOP iterated the whole grid
 
 User: "the daypage is crashing the app." Not an exception — a **dead renderer**. Today's
