@@ -6,6 +6,41 @@
 
 ---
 
+### 2026-07-31 (4) — the signature invariant is now a GATE, and it caught a second armed bug immediately
+
+`gridIntegrity` gained two rules so the 07-31 (3) duplication class cannot go silent again:
+- **`unsigned-template-node` (error)** — any occurrence inside a TEMPLATE subtree with no
+  `identitySignature`. Template roots are found from `meta.appliedFromTemplateId` on clones plus
+  modules carrying `meta.templateModule`. The ROOT is exempt (it is matched by the apply target).
+- **`duplicate-template-section` (error)** — the damage rule: a template-applied page holding the
+  same section container twice, ignoring anything multi-parented in (its `parentId` points
+  elsewhere), so the Schedule's Todo is never counted or "deduped".
+
+**Deliberately NOT checked: the clones' own children.** Merge only ever duplicates TEMPLATE nodes;
+a column's other children are whatever the user typed, which has no template counterpart and is
+rightly unsigned. A blanket clone-side rule would have flagged every journal entry — the check
+would have been noise on day one. Scope came from asking what merge actually matches on.
+
+**It found a second armed duplicate-bomb the moment it ran.** `buildProjectTemplate` wrote each
+kanban column's `identitySignature` into the **MODULE's `meta`** — but `identitySignature` is a
+TOP-LEVEL field on the OCCURRENCE (schema, 2026-05-14). So those signatures had never done
+anything, and re-applying the Project template would have cloned all six columns exactly the way
+the Day Page cloned its sections. It just had not gone off yet, because projects are created
+rarely. Builder fixed (columns + the Kanban container + the scope textblock), migration `0024`
+signs the template on the frozen grid.
+
+- **The seed is the enforcement point**: it already fails on a structurally invalid grid, so this
+  is a gate, not a report. Proven by RESEEDING test grid 2 (the seed's own target) and getting a
+  clean run — that is what shows the builder fix is right, not reading the diff.
+- **`test grid 1` still reports 12 unsigned nodes and is left alone on purpose** — it is the frozen
+  ARCHIVE of the old live grid, holding the pre-fix shape. Migrations target `poms grid`; mutating
+  an archive to quiet a checker would be the wrong trade.
+- Probe debris swept again (6 dangling refs on Schedule Table + Schedule Canvas, all
+  `<epoch-ms>-<rand>` client-minted ids from this session's loads — the documented feedSync source).
+  poms grid + test grid 2: **0 errors**. 347 server tests (9 new).
+
+---
+
 ### 2026-07-31 (3) — the day page duplicated because merge matches on a SIGNATURE, and children need one too
 
 User: "the daypage for yesterday added all the sections twice" — and today's Daily Question had
