@@ -84,6 +84,7 @@ import QuickAddMenu from "./QuickAddMenu.jsx";
 import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type, Plus, Shuffle } from "lucide-react";
 import { convertLeafRole } from "../helpers/convertOccurrence";
 import { consumeTextblockFocus } from "../helpers/pendingTextblockFocus";
+import { operationsBridge } from "../state/bindSocketToStore";
 
 // Atomic same-doc move for a TipTap embed node (instanceTextblock,
 // moduleEmbed). Scans the editor's doc for a node whose attrs match
@@ -562,7 +563,15 @@ const Editor = forwardRef(function Editor({
             tr.setMeta("skipAutoCreate", true);
             for (let i = merges.length - 1; i >= 0; i--) {
               const { offset: off, nodeSize, occId, nodeJson } = merges[i];
-              const targetOcc = getOccMap()[occId];
+              // Read the LIVE cache first, not the per-render lookup map. The
+              // textblock this merge folds into was created microseconds ago in
+              // the same tick: CommitHelpers.createOccurrence pushes it into the
+              // executor's cache synchronously, while the render-scoped map is a
+              // frame behind. Reading the stale map returned an occurrence with
+              // no textmap, so `existing` came back empty, the concat branch was
+              // skipped, and the merge OVERWROTE the character that created the
+              // textblock — type "probe check" fast and it stored "robe check".
+              const targetOcc = operationsBridge.getLocalOcc?.(occId) || getOccMap()[occId];
               if (targetOcc) {
                 const tm = targetOcc.textmap || { type: "doc", content: [] };
                 const existing = tm.content || [];
@@ -658,7 +667,15 @@ const Editor = forwardRef(function Editor({
             tr.setMeta("skipAutoCreate", true);
             for (let i = merges.length - 1; i >= 0; i--) {
               const { offset, nodeSize, occId, nodeJson } = merges[i];
-              const targetOcc = getOccMap()[occId];
+              // Read the LIVE cache first, not the per-render lookup map. The
+              // textblock this merge folds into was created microseconds ago in
+              // the same tick: CommitHelpers.createOccurrence pushes it into the
+              // executor's cache synchronously, while the render-scoped map is a
+              // frame behind. Reading the stale map returned an occurrence with
+              // no textmap, so `existing` came back empty, the concat branch was
+              // skipped, and the merge OVERWROTE the character that created the
+              // textblock — type "probe check" fast and it stored "robe check".
+              const targetOcc = operationsBridge.getLocalOcc?.(occId) || getOccMap()[occId];
               if (targetOcc) {
                 const tm = targetOcc.textmap || { type: "doc", content: [] };
                 CommitHelpers.updateOccurrence({
