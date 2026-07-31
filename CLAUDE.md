@@ -6,6 +6,40 @@
 
 ---
 
+### 2026-07-31 (3) — the day page duplicated because merge matches on a SIGNATURE, and children need one too
+
+User: "the daypage for yesterday added all the sections twice" — and today's Daily Question had
+quietly collected **23** empty question wrappers, one per app load.
+
+**`APPLY_TEMPLATE mode:"merge"` decides "this already exists" by `identitySignature`, and it
+RECURSES into whatever it matched.** Two separate gaps, both fixed:
+- **Sections** (`0022`): migration `0018` converted the old per-day PAGES into columns and kept
+  their sections as they were — with NO signature. Every merge since looked for `daypage:Journal`,
+  found nothing, and cloned a second Journal beside the user's. Signing the existing sections is
+  the actual fix; deleting the clones is cleanup. 07-28 was unsigned too and would have duplicated
+  on its next build.
+- **The section's CHILDREN** (`0023` + the builder): signing the section only stops the SECTION
+  being re-cloned. Merge then walks inside it, finds the question container unsigned, and clones
+  that — every single load. The template now signs `daypage:Daily Question/question` and
+  `/answer`. **Signing a node without signing its subtree just moves the duplication one level
+  down.**
+- **Repair safety, both migrations:** the keeper is whichever copy holds writing, and anything
+  containing text is NEVER deleted (it logs and keeps both instead) — a duplicate section is a
+  nuisance, a deleted journal entry is not. Todo is skipped entirely: it is the Schedule's own
+  container multi-parented in, so its `parentId` points elsewhere, which is the discriminator used.
+- **Verified by REPEATING the trigger, not by reading the code**: two full app loads (each runs the
+  build op) left every column at exactly one of each section and one wrapper. That is the only
+  proof that matters for an idempotency bug.
+
+**Artifact occurrences look like objects again** (user: "it needs to look like a draggable thing.
+right now it just blends with the background"). The 2026-06-11 rule stripped the row's card chrome
+so the picture alone was the visual box; with the frame gone the occurrence dissolved into the
+surface. The row keeps normal instance chrome now, and `.instance-content:has(.artifact-card)`
+top-anchors the drag handle (a row with no field pills was being centred by the single-line rule —
+an artifact row is never a single line).
+
+---
+
 ### 2026-07-31 (2) — "you got rid of my trackers" was a RENDER flag, not deleted data
 
 **Nothing was deleted.** The user reported Workout Log and other trackers gone; the DB had every
