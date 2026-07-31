@@ -636,7 +636,7 @@ export async function createTestGrid(userId, options = {}) {
   await new Folder({ id: interfacesFolderId,userId, gridId, parentId: rootFolderId, name: "Interfaces", folderType: "normal", sortOrder: 2, isExpanded: true }).save();
   await new Folder({ id: notesFolderId, userId, gridId, parentId: rootFolderId, name: "Notes", folderType: "normal", sortOrder: 3, isExpanded: true }).save();
   // Day Pages folder — the "Day Page: Build" op drops one doc page per date here.
-  await new Folder({ id: dayPagesFolderId, userId, gridId, parentId: rootFolderId, name: "Day Pages", folderType: "day-pages", sortOrder: 4, isExpanded: true }).save();
+  await new Folder({ id: dayPagesFolderId, userId, gridId, parentId: rootFolderId, name: "Day Pages", folderType: "normal", sortOrder: 4, isExpanded: true }).save();
   // Library folder — reference library for movies, books, TV shows, etc.
   await new Folder({ id: libraryFolderId, userId, gridId, parentId: rootFolderId, name: "Library", folderType: "normal", sortOrder: 5, isExpanded: true }).save();
 

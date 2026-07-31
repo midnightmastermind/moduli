@@ -48,7 +48,12 @@ export async function up({ gridId, grid, models, log, dryRun }) {
   if (!dateFieldId || !schedulePageOccId) throw new Error("grid.meta.scheduleFieldIds is incomplete");
 
   // ── 1. the board page ─────────────────────────────────────────────────────
-  const dayFolder = await Folder.findOne({ gridId, folderType: "day-pages" }).select({ id: 1 }).lean();
+  // Historical lookup: the folder used to carry folderType "day-pages" until
+  // that domain value was removed from the schema. Match either, and tolerate
+  // neither — the callers below already handle a missing folder.
+  const dayFolder = await Folder.findOne({
+    gridId, $or: [{ folderType: "day-pages" }, { name: "Day Pages" }],
+  }).select({ id: 1 }).lean();
   let boardMod = await Module.findOne({ gridId, role: "page", kind: "board", label: "Day Page" }).select({ id: 1 }).lean();
   let boardOcc = boardMod
     ? await Occurrence.findOne({ gridId, moduleId: boardMod.id }).select({ id: 1, occurrences: 1 }).lean()

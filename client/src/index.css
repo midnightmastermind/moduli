@@ -1138,7 +1138,7 @@ body[data-clipboard-active="true"] {
    --field-line-lift calc below re-resolves against this override. */
 /* A row with an inline media thumbnail has a taller first line (the 22px
    .instance-media-inline), so its label group matches that instead. */
-.instance-content:has(.instance-media-inline) { --field-pill-h: 22px; }
+.instance-content:has(.instance-media-inline) { --field-pill-h: 44px; }
 /* NO negative margin here. The lift this used to apply (-3px) exactly cancelled
    the row's own 3px padding, so the fields sat FLUSH against the top border
    (user 2026-07-29: "there should be a 1px margin above the fields, right now
@@ -4359,13 +4359,17 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 
 /* Instance media section — image/video/audio block under label + fields on
    board/list instances. Also an artifact drop target (dashed when empty). */
-/* Inline media thumbnail (2026-07-25, per user: board option images should be
-   "a lot smaller and in line with the label"). Opt-in via meta.mediaInline —
-   the full-width .instance-media block below is for everything else. */
+/* Inline media thumbnail. Opt-in via meta.mediaInline — the full-width
+   .instance-media block below is for everything else.
+   Sized 22px on 2026-07-25 ("a lot smaller and in line with the label"), and
+   back up to 44 on 2026-07-31 ("you can make the people images alot bigger") —
+   a person reads as a face at this size, where 22px was a dot. Still inline
+   with the label; the row's --field-pill-h tracks it so the handle, label and
+   field pills keep their shared centreline. */
 .instance-media-inline {
-  width: 22px;
-  height: 22px;
-  flex: 0 0 22px;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
   border-radius: 3px;
   object-fit: cover;
   margin-right: 5px;
@@ -4384,7 +4388,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .instance-media-el {
   display: block;
   max-width: 100%;
-  max-height: 160px;
+  max-height: 260px;   /* was 160 — same 2026-07-31 ask, for the block form */
   border-radius: 6px;
   object-fit: cover;
 }

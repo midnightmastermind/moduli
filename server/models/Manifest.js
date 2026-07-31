@@ -24,7 +24,7 @@ const ManifestSchema = new mongoose.Schema(
     // Manifest purpose
     manifestType: {
       type: String,
-      enum: ["files", "day-pages", "templates", "user"],
+      enum: ["files", "templates", "user"],   // no "day-pages": never created, and a manifest kind is structural
       default: "files",
     },
 

@@ -116,7 +116,7 @@ export async function createDefaultUserData(userId) {
   const drawingFolderId = uid();   // "Drawing" folder (new, replaces Tasks)
 
   await new Folder({ id: userManifestRootFolderId, userId, gridId, parentId: null, name: "Root", folderType: "normal", sortOrder: 0, isExpanded: true }).save();
-  await new Folder({ id: dayPagesFolderId, userId, gridId, parentId: userManifestRootFolderId, name: "Day Pages", folderType: "day-pages", sortOrder: 0, isExpanded: true }).save();
+  await new Folder({ id: dayPagesFolderId, userId, gridId, parentId: userManifestRootFolderId, name: "Day Pages", folderType: "normal", sortOrder: 0, isExpanded: true }).save();
   await new Folder({ id: trackingFolderId, userId, gridId, parentId: userManifestRootFolderId, name: "Trackers", folderType: "normal", sortOrder: 1, isExpanded: false }).save();
   await new Folder({ id: drawingFolderId, userId, gridId, parentId: userManifestRootFolderId, name: "Drawing", folderType: "normal", sortOrder: 2, isExpanded: false }).save();
   await new Manifest({ id: userManifestId, userId, name: "Pages", manifestType: "user", rootFolderId: userManifestRootFolderId }).save();

@@ -178,7 +178,12 @@ export async function up({ gridId, grid, models, log, dryRun }) {
     : null;
   if (!tplPage) throw new Error("Day Page template occurrence not found under the Templates folder");
 
-  const dayFolder = await Folder.findOne({ gridId, folderType: "day-pages" }).select({ id: 1 }).lean();
+  // Historical lookup: the folder used to carry folderType "day-pages" until
+  // that domain value was removed from the schema. Match either, and tolerate
+  // neither — the callers below already handle a missing folder.
+  const dayFolder = await Folder.findOne({
+    gridId, $or: [{ folderType: "day-pages" }, { name: "Day Pages" }],
+  }).select({ id: 1 }).lean();
   const allDayPages = dayFolder
     ? await Occurrence.find({ gridId, parentId: dayFolder.id, "meta.templateName": "Day Page" }).lean()
     : [];

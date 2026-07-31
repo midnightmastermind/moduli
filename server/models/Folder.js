@@ -33,7 +33,11 @@ const FolderSchema = new mongoose.Schema(
     // Special folder types
     folderType: {
       type: String,
-      enum: ["normal", "trash", "templates", "day-pages", "category", "global", "grid", "panel"],
+      // No "day-pages" here. A folder holding day pages is a NORMAL folder that
+      // happens to be named "Day Pages" — the schema should not know that days
+      // are a thing the app has (feedback_no_hardcoding). The remaining values
+      // are structural: how the tree treats the folder, not what lives in it.
+      enum: ["normal", "trash", "templates", "category", "global", "grid", "panel"],
       default: "normal",
     },
 
