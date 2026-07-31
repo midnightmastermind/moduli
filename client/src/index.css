@@ -2867,6 +2867,26 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   order: 1;
   flex: 0 0 auto;
 }
+/* The file NAME is already the row's label directly above the picture, so
+   repeating it under the image read as a caption that was really just the
+   filename twice (user 2026-07-31: "get rid of the caption for them and stack
+   the file name with the image"). The info block stays — dimensions, size, and
+   a real caption when there is one — it just stops echoing the name. Scoped
+   away from `.doc-editor-content`, where the alt text IS the figure caption. */
+:not(.doc-editor-content) > * .artifact-card--with-info .artifact-thumb-info-name,
+.artifact-card--with-info .artifact-thumb-info-name {
+  display: none;
+}
+.doc-editor-content .artifact-card--with-info .artifact-thumb-info-name {
+  display: -webkit-box;
+}
+/* Frame the picture itself the way a doc figure is framed, so a stacked card
+   reads as a framed image rather than a bare bitmap on the card surface. */
+.artifact-card--with-info .artifact-thumb {
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  overflow: hidden;
+}
 .artifact-thumb-info {
   display: flex;
   flex-direction: column;
