@@ -3004,6 +3004,16 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .instance-body:has(.artifact-card) {
   flex: unset !important;
 }
+/* …except a STACKED card (picture over filename), which fills the row. The rule
+   above sizes the body to its content, and `.instance-content` is
+   space-between, so a content-sized card gets shoved against the right edge —
+   with the caption now UNDER the image instead of beside it, that left a wide
+   empty gutter where the caption used to sit. Same specificity as the rule
+   above, so source order decides: this must stay after it. */
+.instance-body:has(.artifact-card--with-info) {
+  flex: 1 1 auto !important;
+  min-width: 0;
+}
 /* Edge-to-edge artifact: when an instance row renders an artifact (image / pdf /
    audio via renderBody=ArtifactCard), strip the instance "keycap" chrome
    (bg / border / shadow / padding) so the ARTIFACT-CARD itself is the visual box —
