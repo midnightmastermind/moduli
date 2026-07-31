@@ -3014,18 +3014,22 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   flex: 1 1 auto !important;
   min-width: 0;
 }
-/* Edge-to-edge artifact: when an instance row renders an artifact (image / pdf /
-   audio via renderBody=ArtifactCard), strip the instance "keycap" chrome
-   (bg / border / shadow / padding) so the ARTIFACT-CARD itself is the visual box —
-   a clean filled, draggable media block instead of "an instance with a picture"
-   (a thumbnail double-framed inside an instance card). The GripVertical drag handle
-   stays (hover-only, absolute). Expanded + quote cards keep their own chrome. */
+/* An artifact row IS a card. The 2026-06-11 rule here stripped the instance
+   "keycap" chrome so the picture alone was the visual box — but with the frame
+   gone the occurrence blended into the surface behind it and stopped reading as
+   a thing you can pick up (user 2026-07-31: "all the artifact occurrences should
+   have a border and such. it needs to look like a draggable thing. right now it
+   just blends with the background"). The row keeps the same chrome every other
+   instance row has, so an artifact looks like — and is — a draggable occurrence.
+   Expanded + quote cards still own their own chrome. */
 .instance-wrap > .instance-row:has(.artifact-card:not(.artifact-card--expanded):not(.artifact-card--quote)) {
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  padding: 0;
+  padding: 4px;
 }
+/* The drag handle sits at the TOP of a tall picture rather than floating to its
+   middle (user, same message). A row with no field pills is centred by the
+   single-line rule far above; an artifact row is never a single line. */
+.instance-content:has(.artifact-card) { align-items: flex-start; }
+.instance-content:has(.artifact-card) .module-drag-handle { align-self: flex-start; }
 /* The filled artifact block reads as floating media (rounded corners already on
    .artifact-card) — give it a subtle drop shadow so it pops off the doc surface. */
 .artifact-card:not(.artifact-card--expanded):not(.artifact-card--quote) {
