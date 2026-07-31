@@ -74,6 +74,11 @@ export default function LayoutCascadeEditor({
       if (typeof r.locked === "boolean") seed.locked = r.locked;
       if (typeof r.showFieldsByDefault === "boolean") seed.showFieldsByDefault = r.showFieldsByDefault;
       if (typeof r.stickyHeaders === "boolean") seed.stickyHeaders = r.stickyHeaders;
+      // Seed the layout shape too, so switching to Own starts from what is
+      // on screen rather than snapping the board back to a stacked default.
+      if (r.mode) seed.mode = r.mode;
+      if (Number.isFinite(r.columns)) seed.columns = r.columns;
+      if (Number.isFinite(r.childGap)) seed.childGap = r.childGap;
       onChange?.(seed);
     }
   }, [mode, onChange, cascade]);
@@ -129,6 +134,44 @@ export default function LayoutCascadeEditor({
       {/* Editor controls — only shown in own mode */}
       {mode === "own" ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          {/* How this surface arranges its children. Consumed by PageBoard —
+              "Columns" is the side-by-side layout the Schedule uses. */}
+          <RuleRadio
+            label="Arrangement"
+            value={cur.mode ?? null}
+            onChange={(v) => setKey("mode", v)}
+            options={[
+              { value: null, label: "—" },
+              { value: "stack", label: "Stack" },
+              { value: "flex-row", label: "Columns" },
+              { value: "grid", label: "Grid" },
+            ]}
+          />
+          {cur.mode === "grid" ? (
+            <RuleNumber
+              label="Grid columns"
+              value={cur.columns ?? null}
+              onChange={(v) => setKey("columns", v)}
+              min={1}
+              max={12}
+            />
+          ) : null}
+          <RuleNumber
+            label="Gap (px)"
+            value={cur.childGap ?? null}
+            onChange={(v) => setKey("childGap", v)}
+            min={0}
+            max={64}
+          />
+          <RuleSelect
+            label="Order by"
+            value={cur.sortChildrenByField ?? null}
+            onChange={(v) => setKey("sortChildrenByField", v)}
+            options={[
+              { value: null, label: "Manual order" },
+              ...fieldsList.map(f => ({ value: f.id, label: f.name })),
+            ]}
+          />
           <RuleRadio
             label="Drag-in view"
             value={cur.dragInView ?? null}
@@ -209,6 +252,53 @@ function RuleRadio({ label, value, onChange, options }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function RuleNumber({ label, value, onChange, min = 0, max = 99 }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+      <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
+      <input
+        type="number"
+        min={min}
+        max={max}
+        value={value ?? ""}
+        placeholder="—"
+        onChange={(e) => {
+          const raw = e.target.value;
+          if (raw === "") { onChange(null); return; }
+          const n = Number(raw);
+          if (Number.isFinite(n)) onChange(Math.max(min, Math.min(max, n)));
+        }}
+        style={{
+          width: 56, padding: "1px 5px", borderRadius: 3,
+          background: "var(--input-bg)", border: "1px solid var(--border-subtle)",
+          color: "var(--text-primary)", fontSize: 9, fontFamily: "var(--font-mono)",
+        }}
+      />
+    </div>
+  );
+}
+
+function RuleSelect({ label, value, onChange, options }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+      <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--text-faint)", minWidth: 78 }}>{label}</span>
+      <select
+        value={value ?? ""}
+        onChange={(e) => onChange(e.target.value || null)}
+        style={{
+          flex: 1, minWidth: 0, padding: "1px 4px", borderRadius: 3,
+          background: "var(--input-bg)", border: "1px solid var(--border-subtle)",
+          color: "var(--text-muted)", fontSize: 9, fontFamily: "var(--font-mono)",
+        }}
+      >
+        {options.map(o => (
+          <option key={o.value ?? "__none"} value={o.value ?? ""}>{o.label}</option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -313,9 +403,15 @@ function RuleFieldList({ label, value, onChange, fieldsList }) {
   );
 }
 
+const MODE_LABELS = { stack: "stack", "flex-row": "columns", grid: "grid" };
+
 function summarize(rule) {
   if (!rule) return "—";
   const parts = [];
+  if (rule.mode) parts.push(MODE_LABELS[rule.mode] || rule.mode);
+  if (rule.mode === "grid" && Number.isFinite(rule.columns)) parts.push(`${rule.columns}col`);
+  if (Number.isFinite(rule.childGap)) parts.push(`gap ${rule.childGap}`);
+  if (rule.sortChildrenByField) parts.push("sorted");
   if (rule.dragInView) parts.push(`drag→${rule.dragInView}`);
   if (Array.isArray(rule.navOptions)) parts.push(`nav[${rule.navOptions.join("/") || "—"}]`);
   if (typeof rule.navAllowChange === "boolean") parts.push(rule.navAllowChange ? "open" : "locked");

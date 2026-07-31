@@ -42,6 +42,28 @@ import { buildParentMap } from "./dragHitTesting";
 // an op carve out which children of a page are "owned" by other surfaces
 // (e.g. multi-parented into day-cols) without the renderer needing any
 // domain knowledge.
+// The shape keys describe how a surface ARRANGES ITS OWN CHILDREN, so unlike
+// the view-mode rules they apply to the surface that declares them — not only
+// to its descendants. That distinction is what makes the header menu work: a
+// page/container writes its settings to `meta.layoutCascade` (the push-down
+// slot), and without this list the board's own renderer would never read them
+// back, because the leaf layer only looks at `meta.layoutCascadeOverride`.
+// View-mode keys are deliberately NOT here: a container saying "my children
+// render as chips" must not turn ITSELF into a chip.
+export const SURFACE_SHAPE_KEYS = Object.freeze([
+  "mode", "columns", "childGap", "hideChildIds", "sortChildrenByField",
+]);
+
+/** The shape-only subset of a stored cascade partial (null when it has none). */
+export function pickSurfaceShape(rule) {
+  if (!rule) return null;
+  const out = {};
+  for (const k of SURFACE_SHAPE_KEYS) {
+    if (rule[k] !== undefined && rule[k] !== null) out[k] = rule[k];
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 const PAGE_DEFAULTS = {
   folder:        { dragInView: "preview",        navOptions: ["preview", "representation"],         navAllowChange: true, locked: false, showFieldsByDefault: true,  mode: "stack",    columns: 1, childGap: 12, hideChildIds: [] },
   board:         { dragInView: "actual",         navOptions: ["preview", "representation", "actual"], navAllowChange: true, locked: false, showFieldsByDefault: true,  mode: "stack",    columns: 1, childGap: 12, hideChildIds: [] },
@@ -230,6 +252,13 @@ export function resolveLayoutCascade(ctx, leafRole = "instance", leafKind = null
   // `leafOcc` is the canonical leaf slot; `instanceOcc` is a back-compat alias
   // for the original Slice 5 wiring (ViewModeSection / ContainerForm).
   const leafOcc = ctx?.leafOcc || ctx?.instanceOcc;
+  // The leaf's OWN push-down rules, shape keys only — how this surface arranges
+  // its children is its own business, so a board must read back the layout its
+  // header menu just wrote (that menu writes `layoutCascade`, not the override).
+  const ownShape = pickSurfaceShape(leafOcc?.meta?.layoutCascade);
+  if (ownShape) {
+    pushOverride(leafRole, "This surface", ownShape, "leafOcc.meta.layoutCascade (shape)");
+  }
   if (leafOcc?.meta?.layoutCascadeOverride) {
     pushOverride(leafRole, "This placement", leafOcc.meta.layoutCascadeOverride, "leafOcc.meta.layoutCascadeOverride");
   }

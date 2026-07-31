@@ -8,6 +8,7 @@ import {
   resolveEffectiveViewModeFromCascade,
   classifyOccurrenceContext,
   isMoveBlockedByCascadeLock,
+  pickSurfaceShape,
 } from "../helpers/layoutCascade";
 
 // Layout cascade semantics:
@@ -511,5 +512,65 @@ describe("isMoveBlockedByCascadeLock (Slice 4)", () => {
     });
     expect(r.blocked).toBe(true);
     expect(r.lockedAncestorId).toBe("lockedPage");
+  });
+});
+
+describe("a surface's own layout applies to itself", () => {
+  // The header menu writes a page/container's settings to `meta.layoutCascade`
+  // (the push-down slot), but the board rendering ITSELF resolves as the LEAF —
+  // which only ever read `meta.layoutCascadeOverride`. So every layout change
+  // made from the menu was written to a key the renderer never read, and the
+  // board never moved. Shape keys now apply to the surface that declares them.
+  const worlds = (pageMeta) => ({
+    occurrencesById: { page: { id: "page", moduleId: "pageMod", meta: pageMeta, occurrences: ["c1"] },
+                       c1: { id: "c1", moduleId: "contMod" } },
+    modulesById: { pageMod: { role: "page", kind: "board" }, contMod: { role: "container", kind: "board" } },
+    grid: {},
+  });
+
+  it("reads back the arrangement the header menu just wrote", () => {
+    const w = worlds({ layoutCascade: { mode: "flex-row", childGap: 8 } });
+    const layout = resolveEffectiveLayout({ occurrence: w.occurrencesById.page, ...w });
+    expect(layout.mode).toBe("flex-row");
+    expect(layout.childGap).toBe(8);
+  });
+
+  it("still honours the op-written override slot", () => {
+    const w = worlds({ layoutCascadeOverride: { mode: "grid", columns: 3 } });
+    const layout = resolveEffectiveLayout({ occurrence: w.occurrencesById.page, ...w });
+    expect(layout.mode).toBe("grid");
+    expect(layout.columns).toBe(3);
+  });
+
+  it("lets the per-placement override win over the surface's own rule", () => {
+    const w = worlds({ layoutCascade: { mode: "flex-row" }, layoutCascadeOverride: { mode: "grid" } });
+    expect(resolveEffectiveLayout({ occurrence: w.occurrencesById.page, ...w }).mode).toBe("grid");
+  });
+
+  it("does NOT apply the surface's own VIEW-MODE rules to itself", () => {
+    // A container saying "my children render as chips" must not become a chip.
+    const w = worlds({ layoutCascade: { dragInView: "representation", mode: "flex-row" } });
+    const layout = resolveEffectiveLayout({ occurrence: w.occurrencesById.page, ...w });
+    expect(layout.mode).toBe("flex-row");
+    expect(layout.dragInView).toBe("actual"); // standalone page stays forced-actual
+  });
+
+  it("keeps the default arrangement when nothing is set", () => {
+    const w = worlds({});
+    expect(resolveEffectiveLayout({ occurrence: w.occurrencesById.page, ...w }).mode).toBe("stack");
+  });
+
+  describe("pickSurfaceShape", () => {
+    it("keeps only shape keys", () => {
+      expect(pickSurfaceShape({ mode: "grid", columns: 2, dragInView: "actual", locked: true }))
+        .toEqual({ mode: "grid", columns: 2 });
+    });
+    it("returns null when there is no shape opinion", () => {
+      expect(pickSurfaceShape({ dragInView: "actual" })).toBeNull();
+      expect(pickSurfaceShape(null)).toBeNull();
+    });
+    it("ignores explicit nulls (no opinion)", () => {
+      expect(pickSurfaceShape({ mode: null, columns: 3 })).toEqual({ columns: 3 });
+    });
   });
 });
