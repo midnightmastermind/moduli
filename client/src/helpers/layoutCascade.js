@@ -51,7 +51,7 @@ import { buildParentMap } from "./dragHitTesting";
 // View-mode keys are deliberately NOT here: a container saying "my children
 // render as chips" must not turn ITSELF into a chip.
 export const SURFACE_SHAPE_KEYS = Object.freeze([
-  "mode", "columns", "childGap", "hideChildIds", "sortChildrenByField",
+  "mode", "columns", "childGap", "hideChildIds", "sortChildrenByField", "childMaxHeight",
 ]);
 
 /** The shape-only subset of a stored cascade partial (null when it has none). */

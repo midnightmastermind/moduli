@@ -163,6 +163,13 @@ export default function LayoutCascadeEditor({
             min={0}
             max={64}
           />
+          <RuleNumber
+            label="Max height"
+            value={cur.childMaxHeight ?? null}
+            onChange={(v) => setKey("childMaxHeight", v)}
+            min={0}
+            max={2000}
+          />
           <RuleSelect
             label="Order by"
             value={cur.sortChildrenByField ?? null}
@@ -411,6 +418,7 @@ function summarize(rule) {
   if (rule.mode) parts.push(MODE_LABELS[rule.mode] || rule.mode);
   if (rule.mode === "grid" && Number.isFinite(rule.columns)) parts.push(`${rule.columns}col`);
   if (Number.isFinite(rule.childGap)) parts.push(`gap ${rule.childGap}`);
+  if (Number.isFinite(rule.childMaxHeight)) parts.push(`max ${rule.childMaxHeight}px`);
   if (rule.sortChildrenByField) parts.push("sorted");
   if (rule.dragInView) parts.push(`drag→${rule.dragInView}`);
   if (Array.isArray(rule.navOptions)) parts.push(`nav[${rule.navOptions.join("/") || "—"}]`);

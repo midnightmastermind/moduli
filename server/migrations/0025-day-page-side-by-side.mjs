@@ -37,10 +37,17 @@ export async function up({ gridId, grid, models, log, dryRun }) {
   const shape = {
     mode: "flex-row",
     childGap: 12,
+    // Cap each day column and let it scroll inside itself (user: "the daypage
+    // containers should have a height max. right now it expands and messes up
+    // the add new item menu"). An uncapped column grows with its content, so
+    // anything that changes height on hover shoves everything below it and the
+    // hover target slides out from under the pointer.
+    childMaxHeight: 600,
     ...(dateFieldId ? { sortChildrenByField: dateFieldId } : {}),
   };
   const current = boardOcc.meta?.layoutCascade || null;
-  if (current && current.mode === shape.mode && current.sortChildrenByField === shape.sortChildrenByField) {
+  if (current && current.mode === shape.mode && current.sortChildrenByField === shape.sortChildrenByField
+      && current.childMaxHeight === shape.childMaxHeight) {
     log("Day Page board already lays out side by side");
     return;
   }

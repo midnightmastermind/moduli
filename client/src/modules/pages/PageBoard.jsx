@@ -79,6 +79,13 @@ export default function PageBoard({
   // child occurrence (e.g. schedule day-columns by their date). Generic — this
   // renderer knows nothing about "schedule"; an op/seed sets the field id.
   const sortField = layout?.sortChildrenByField || null;
+  // Cap a child's height and let it scroll inside itself. Without this a tall
+  // child grows the whole surface, and anything that changes height on hover
+  // (an empty add-pocket revealing its label) shoves everything below it —
+  // which is what made the hover target slip out from under the pointer.
+  const childMaxHeight = Number.isFinite(layout?.childMaxHeight) && layout.childMaxHeight > 0
+    ? layout.childMaxHeight
+    : null;
 
   const visibleList = useMemo(() => {
     const filtered = containersList.filter((e) => !hideSet.has(e?.occurrence?.id));
@@ -115,10 +122,13 @@ export default function PageBoard({
         }
       : { position: "relative", minHeight: "100%", zIndex: 1 };
 
+  const capStyle = childMaxHeight
+    ? { maxHeight: childMaxHeight, overflowY: "auto", overscrollBehavior: "contain" }
+    : null;
   const childWrapperStyle =
-    mode === "flex-row" ? { flex: "0 0 auto", minWidth: 280, maxWidth: 360 }
-      : mode === "grid" ? { minWidth: 0, minHeight: 100 }
-      : undefined;
+    mode === "flex-row" ? { flex: "0 0 auto", minWidth: 280, maxWidth: 360, ...capStyle }
+      : mode === "grid" ? { minWidth: 0, minHeight: 100, ...capStyle }
+      : capStyle || undefined;
 
   return (
     <div
