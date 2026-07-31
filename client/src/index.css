@@ -4367,15 +4367,17 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    with the label; the row's --field-pill-h tracks it so the handle, label and
    field pills keep their shared centreline. */
 .instance-media-inline {
-  /* Sized to the ROW, not to a fixed box (user 2026-07-31: "increased to the
-     height of the instance"): align-self:stretch makes it fill the flex line,
-     so a person with many field pills gets a tall picture and a bare row gets a
-     small one. min-height keeps a picture-less-looking sliver from appearing on
-     the shortest rows. */
+  /* Tracks the ROW height (user 2026-07-31: "increased to the height of the
+     instance") — but CAPPED, because stretch alone is a feedback loop: a wider
+     picture leaves less room for the field pills, they wrap, the row grows, and
+     the picture grows with it. Unbounded it settled at 300px with the label
+     clipped off the row. The cap breaks the loop and keeps a person's picture
+     to a size a row can carry. */
   align-self: stretch;
   width: auto;
   height: auto;
   min-height: 44px;
+  max-height: 104px;
   aspect-ratio: 1;
   flex: 0 0 auto;
   border-radius: 4px;
