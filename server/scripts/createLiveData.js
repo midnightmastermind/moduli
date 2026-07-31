@@ -5301,6 +5301,31 @@ export async function createLiveData(userId, options = {}) {
     fieldVisibility: { mode: "hide", fieldIds: [dateFieldId, timeslotFieldId, lastSeenFieldId] },
   });
 
+  // ── Day Page (board) ──────────────────────────────────────────────────────
+  // ONE page holding a COLUMN per active date, exactly like the Schedule page
+  // holds day-cols (user 2026-07-31: "make daypage work like the schedule, with
+  // containers being the days"). It replaces the old page-per-day, which minted
+  // a fresh page AND a fresh hub tab every morning — the tab strip had three by
+  // the third day, and the pinning step was the recurring failure.
+  //
+  // It carries the same date filter the Schedule does, so navigating dates here
+  // builds and shows the days you are looking at ("the daypage should respond
+  // to the filters like schedule"); Day Page: Build targets this occurrence, so
+  // an on-page switch that never touches the grid filter still drives it.
+  const dayPageBoardModId = uid(); const dayPageBoardOccId = uid();
+  await new Module({ id: dayPageBoardModId, userId, gridId, role: "page", kind: "board", label: "Day Page" }).save();
+  await mkOcc({
+    id: dayPageBoardOccId, moduleId: dayPageBoardModId,
+    parentId: dayPagesFolderId, sortOrder: 0,
+    occurrences: [],            // EMPTY — Day Page: Build mints the columns
+    iteration: { mode: "persistent" }, fields: {},
+    filters: buildScheduleFilters({
+      schedFilterId: uid(), timeslotFilterId: uid(),
+      dateFieldId, timeslotFieldId, timeslotLabels,
+    }).slice(0, 1),             // the DATE filter only — days, not slots
+    fieldVisibility: { mode: "hide", fieldIds: [dateFieldId, timeslotFieldId, lastSeenFieldId] },
+  });
+
   // (Removed 2026-05-21) Standalone "Canvas" scratchpad page deleted
   // — user consolidated to a single canvas (Schedule Canvas) as the
   // canonical home for the mind-map demo. No consumers in
@@ -8374,8 +8399,7 @@ export async function createLiveData(userId, options = {}) {
   // jammed the op after the first day page. timeslot + scheduleFormat let it
   // multi-parent that day's Todo container in from the Schedule day-column.
   await new Operation(makeDayPageBuildOp({
-    userId, gridId, dateFieldId, dayPagesFolderId,
-    hubPanelOccIdVar: panelOccIds.notebook,
+    userId, gridId, dateFieldId, dayPageBoardOccId,
     goalsPageOccId, schedulePageOccId: schedPageOccId,
     dayPageTemplateOccId,
     timeslotFieldId, scheduleFormatFieldId,
@@ -8383,7 +8407,7 @@ export async function createLiveData(userId, options = {}) {
   // Body-seeds the Tasks Completed container minted by buildDayPageTemplate.
   // Runs at priority 4 — after Build Day, Stamp, and trackers — so the
   // completion state and date stamps it reads are settled.
-  await new Operation(makeDayPageBuildTasksCompletedOp({ userId, gridId, dateFieldId, completedFieldId, schedulePageOccId: schedPageOccId, habitFieldId: fields.habit.id })).save();
+  await new Operation(makeDayPageBuildTasksCompletedOp({ userId, gridId, dateFieldId, completedFieldId, schedulePageOccId: schedPageOccId, habitFieldId: fields.habit.id, dayPageBoardOccId })).save();
   // Project: Create — APPLY_TEMPLATEs the Project Page template into
   // the Projects folder with {ProjectName} + {ProjectScope} replacements.
   // triggerType:"manual" so it only fires when the user explicitly runs

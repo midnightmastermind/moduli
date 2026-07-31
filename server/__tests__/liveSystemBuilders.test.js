@@ -316,44 +316,91 @@ describe("schedule ops", () => {
     expect(JSON.stringify(op.pipeline)).toContain("$trigger.containerLabel");
   });
   it("Day Page: Build is named correctly, priority-5 (after the schedule build), embeds the folder + hub params", () => {
-    const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC", goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL" });
+    const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: "BOARD", goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL" });
     expect(op.name).toBe("Day Page: Build");
     expect(op.triggerObjects.every(t => t.priority === 5)).toBe(true);
     const s = JSON.stringify(op.pipeline);
-    expect(s).toContain("DPF");
-    expect(s).toContain("HUBOCC");
+    // Columns are built under the board page, and the board is also what the
+    // op's date resolves through (so the page answers filters like the
+    // Schedule does).
+    expect(s).toContain("BOARD");
+    expect(op.targetOccurrenceId).toBe("BOARD");
+  });
+
+  it("builds one COLUMN per active date, not one page per day", () => {
+    const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: "BOARD", goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL" });
+    const loops = flattenSteps(op.pipeline.steps).filter(x => x.type === "loop");
+    expect(loops.some(l => l.overExpr === "$activePeriodDates")).toBe(true);
+    // The column is matched on its DATE FIELD under the board — never a label.
+    const s = JSON.stringify(op.pipeline);
+    expect(s).toContain("SAME_DAY");
+    expect(s).not.toContain('"label","comparator":"IS","right":"$dayPageName"');
+  });
+
+  it("tops up an existing column by MERGING the template (so a template edit reaches days that already exist)", () => {
+    const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: "BOARD", goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL" });
+    const applies = flattenSteps(op.pipeline.steps).filter(x => x.config?.type === "APPLY_TEMPLATE");
+    expect(applies).toHaveLength(2);                       // fresh column + top-up
+    const merge = applies.find(a => a.config.mode === "merge");
+    expect(merge).toBeTruthy();
+    expect(merge.config.targetOccurrenceVar).toBe("$colId");
+    expect(merge.config.unwrapRoot).toBe(true);
+  });
+
+  it("stamps appliedFromTemplateId so the column can be saved back over the template", () => {
+    const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: "BOARD", goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL" });
+    const stamp = flattenSteps(op.pipeline.steps).find(x =>
+      x.config?.type === "UPDATE" && x.config?.path === "$col.meta.appliedFromTemplateId");
+    expect(stamp).toBeTruthy();
+    expect(stamp.config.value).toBe("$tplId");
+  });
+
+  it("rebuilds the column body from its OWN children — no hardcoded section list", () => {
+    const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: "BOARD", goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL" });
+    const s = JSON.stringify(op.pipeline);
+    // The old version FOUND each section by label and wrote a fixed array; a
+    // section added to the template was cloned but never rendered.
+    expect(s).not.toContain('"right":"Journal"');
+    expect(s).not.toContain('"right":"Highlights"');
+    const bodyLoops = flattenSteps(op.pipeline.steps).filter(x => x.overExpr === "$col.occurrences");
+    expect(bodyLoops.length).toBeGreaterThanOrEqual(1);
   });
   it("Day Page: Build binds its template by id — NEVER by meta.templateName", () => {
     // APPLY_TEMPLATE copies meta onto the clone, so a templateName FIND matches
     // every day page ever built; the multi-match array then breaks the apply.
-    const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC", goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL" });
+    const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: "BOARD", goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL" });
     const s = JSON.stringify(op.pipeline);
     expect(s).toContain("$allItemsById.TPL");
     expect(s).not.toContain("meta.templateName");
   });
-  it("both day-page ops name the page from $activeDate, never the raw period object", () => {
+  it("both day-page ops take their date from the executor's normalized vars, never the raw period object", () => {
     // The picker persists {value, unit, kind, dates} even for a single day, so
     // $trigger.date / _effectiveFilter interpolate to "Day Page - [object
     // Object]" — observed on prod the first time Build ran twice.
-    const build = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC", goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL" });
+    const build = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: "BOARD", goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL" });
     const tc = makeDayPageBuildTasksCompletedOp({ userId: "u", gridId: "g", dateFieldId: "DF", completedFieldId: "CF", schedulePageOccId: "SP" });
     for (const op of [build, tc]) {
       const s = JSON.stringify(op.pipeline);
-      expect(s).toContain('"name":"$dayDate","expr":"$activeDate"');
       expect(s).not.toContain("$trigger.date");
       expect(s).not.toContain("_effectiveFilter");
-      // $activeDate resolves through THIS occurrence's cascade, so the op has
-      // to say which occurrence — else it silently reads the grid filter.
-      expect(op.targetOccurrenceId).toBe("SP");
     }
+    // Build walks the whole PERIOD (one column per day); Tasks Completed still
+    // works a single day at a time.
+    expect(JSON.stringify(build.pipeline)).toContain('"overExpr":"$activePeriodDates"');
+    expect(JSON.stringify(tc.pipeline)).toContain('"name":"$dayDate","expr":"$activeDate"');
+    // Those vars resolve through the op's OWN target occurrence, so each op has
+    // to say which one — else it silently reads the grid filter instead of the
+    // page the user is looking at.
+    expect(build.targetOccurrenceId).toBe("BOARD");
+    expect(tc.targetOccurrenceId).toBe("SP");
   });
   it("Day Page: Build refuses to build without a template id", () => {
-    expect(() => makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC", goalsPageOccId: "GP", schedulePageOccId: "SP" }))
+    expect(() => makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: "BOARD", goalsPageOccId: "GP", schedulePageOccId: "SP" }))
       .toThrow(/dayPageTemplateOccId required/);
   });
   it("Day Page: Build links the day-column's Todo container in — and skips it without the field ids", () => {
     const withLink = makeDayPageBuildOp({
-      userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC",
+      userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: "BOARD",
       goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL",
       timeslotFieldId: "TS", scheduleFormatFieldId: "SF",
     });
@@ -365,10 +412,10 @@ describe("schedule ops", () => {
     // Links it BOTH ways: child list + textmap embed (a doc page renders only
     // its textmap, so the child list alone would leave Todo invisible).
     expect(s).toContain("ADD_CHILD");
-    expect(s).toContain("$dayPage.textmap");
+    expect(s).toContain("$col.textmap");
 
     const without = makeDayPageBuildOp({
-      userId: "u", gridId: "g", dateFieldId: "DF", dayPagesFolderId: "DPF", hubPanelOccIdVar: "HUBOCC",
+      userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: "BOARD",
       goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL",
     });
     expect(JSON.stringify(without.pipeline)).not.toContain("$todoId");

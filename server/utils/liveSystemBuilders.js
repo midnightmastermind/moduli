@@ -449,10 +449,23 @@ export async function buildDayPageTemplate({
   journalQuestionFieldId = null,
   journalAnswerFieldId = null,
 }) {
+  // The template root is a day COLUMN, not a page (user 2026-07-31: "make
+  // daypage work like the schedule, with containers being the days — these
+  // would be doccontainers with other containers inside of it"). One "Day Page"
+  // BOARD page holds the columns, exactly as the Schedule page holds its
+  // day-cols, so:
+  //   * a period of several days renders side by side instead of one page per
+  //     day plus a hub tab per day (which had been accumulating),
+  //   * the column carries the Date field, so it answers the filter cascade the
+  //     same way a schedule day-col does,
+  //   * nothing has to be pinned per day — the page is pinned once.
   const tplDayPageRootModId = uid();
   await new Module({
     id: tplDayPageRootModId, userId, gridId,
-    role: "page", kind: "doc", label: "Day Page",
+    role: "container", kind: "doc", label: "Day Page",
+    fieldBindings: dateFieldId
+      ? [{ fieldId: dateFieldId, role: "input", hidden: true, order: 0 }]
+      : [],
     meta: { templateModule: true },
   }).save();
 
@@ -580,6 +593,15 @@ export async function buildDayPageTemplate({
     moduleId: tplDayPageTextblockModId,
     targetId: tplDayPageTextblockModId, targetType: "module",
     parentId: tplDayPageRootOccId,
+    // identitySignature is what lets APPLY_TEMPLATE's MERGE mode re-apply this
+    // template onto a day that already exists: a section already carrying the
+    // signature is left alone, and only sections the template has GAINED are
+    // cloned in. Without it, every rebuild would duplicate every section — and
+    // with it, editing the template updates existing days instead of only
+    // future ones (user 2026-07-31: "id also like to change the template on the
+    // fly so it updates").
+    identitySignature: "daypage:heading",
+
     textmap: {
       type: "doc",
       content: [
@@ -594,6 +616,7 @@ export async function buildDayPageTemplate({
     moduleId: tplTasksCompletedContModId,
     targetId: tplTasksCompletedContModId, targetType: "module",
     parentId: tplDayPageRootOccId,
+    identitySignature: "daypage:Tasks Completed",
     // Empty placeholder paragraph — the seeding op rewrites this on each
     // Day Page: Build run with the schedule tasks for that day.
     textmap: { type: "doc", content: [{ type: "paragraph" }] },
@@ -606,6 +629,7 @@ export async function buildDayPageTemplate({
       moduleId: s.modId,
       targetId: s.modId, targetType: "module",
       parentId: tplDayPageRootOccId,
+      identitySignature: `daypage:${s.label}`,
       // Blank body — this is where the user writes.
       textmap: { type: "doc", content: [{ type: "paragraph" }] },
       occurrences: [],
@@ -651,6 +675,7 @@ export async function buildDayPageTemplate({
       moduleId: tplDailyQOuterModId,
       targetId: tplDailyQOuterModId, targetType: "module",
       parentId: tplDayPageRootOccId,
+      identitySignature: "daypage:Daily Question",
       textmap: {
         type: "doc",
         content: [{ type: "moduleEmbed", attrs: { occurrenceId: tplDailyQContOccId } }],
@@ -1530,34 +1555,29 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
 //   stays Schedule, so the tab is present but not shown until the user clicks it.
 // dayPagesFolderId — the folder id of the "Day Pages" day-pages folder.
 export function makeDayPageBuildOp({
-  userId, gridId, dateFieldId, dayPagesFolderId, hubPanelOccIdVar, goalsPageOccId, schedulePageOccId,
+  userId, gridId, dateFieldId, dayPageBoardOccId, goalsPageOccId, schedulePageOccId,
   dayPageTemplateOccId,
   // Todo-link context (optional — omit and the op skips the link pass entirely).
   timeslotFieldId = null, scheduleFormatFieldId = null, todoMarkerValue = "Todo",
 }) {
-  if (!schedulePageOccId) throw new Error("makeDayPageBuildOp: schedulePageOccId required (picker-direct ancestor + page ref; see CLAUDE_CHAT.md 2026-05-22)");
-  if (!goalsPageOccId)    throw new Error("makeDayPageBuildOp: goalsPageOccId required (picker-direct ancestor; see CLAUDE_CHAT.md 2026-05-22)");
+  if (!schedulePageOccId) throw new Error("makeDayPageBuildOp: schedulePageOccId required (picker-direct ancestor + page ref)");
+  if (!goalsPageOccId)    throw new Error("makeDayPageBuildOp: goalsPageOccId required (picker-direct ancestor)");
+  if (!dayPageBoardOccId) throw new Error("makeDayPageBuildOp: dayPageBoardOccId required — the board page the day COLUMNS live on");
   if (!dayPageTemplateOccId) throw new Error("makeDayPageBuildOp: dayPageTemplateOccId required — resolving the template by meta.templateName matches the CLONES too (APPLY_TEMPLATE copies meta), and a multi-match FIND returns an ARRAY that APPLY_TEMPLATE cannot use");
   const wantsTodoLink = !!(timeslotFieldId && scheduleFormatFieldId);
   return {
     id: uid(), userId, gridId, name: "Day Page: Build",
-    // $activeDate is resolved through THIS occurrence's filter cascade, so the
-    // op follows the Schedule page's own date — including an on-page switch that
-    // never touches the grid filter. Same wiring Build Schedule uses.
-    targetOccurrenceId: schedulePageOccId,
-    description: "Create one doc Day Page per active date in the Day Pages folder, applying the Day Page template with the date stamped into the textblock heading.",
-    // Trigger surface (2026-05-22 refactor — picker-direct ancestor):
-    //   grid-subject onLoad/onFilterChange + broad filterNav. Pipeline IF
-    //   guard at the top matches $trigger._ancestorIds against the picker-
-    //   bound goals + schedule pages. Drops the rename-fragile
-    //   ancestorLabel approach (was "Daily Goals" / "Schedule" hardcoded).
+    // The DAY PAGE's own filter drives the build, exactly as Build Schedule
+    // keys off the Schedule page (user 2026-07-31: "the daypage should respond
+    // to the filters like schedule"). $activePeriodDates therefore resolves
+    // through this page's cascade, so an on-page date switch — which never
+    // touches the grid filter — builds the days you are looking at.
+    targetOccurrenceId: dayPageBoardOccId,
+    description: "Build one day COLUMN per active date on the Day Page board, cloning the Day Page template into each and keeping existing columns topped up with any section the template has gained.",
     triggerTypes: ["onLoad", "onFilterChange"],
     triggerObjects: [
-      // Priority 5, NOT 1. The Todo link pass reads the day-column's children,
-      // so it has to run after Schedule: Build Schedule (1) has actually minted
-      // them — at equal priority it can read a copy the schedule build then
-      // sweeps and re-mints, leaving the page embedding a dead id. Creating the
-      // page a few ops later in the same sweep costs nothing.
+      // Priority 5, after Schedule: Build Schedule (1) — the Todo link reads the
+      // day-column's children, so it has to run once those exist.
       { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 5 },
       { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 5 },
       { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", priority: 5 },
@@ -1565,699 +1585,212 @@ export function makeDayPageBuildOp({
     enabled: true,
     pipeline: {
       steps: [
-        // Picker-style direct bindings — rename-stable refs to seed-time pages.
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedulePageOccId}` }},
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" }},
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalsPage",   expr: `$allItemsById.${goalsPageOccId}` }},
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$board",       expr: `$allItemsById.${dayPageBoardOccId}` }},
+        // The template, bound picker-direct by id. This CANNOT go back to
+        // `FIND meta.templateName IS "Day Page"`: APPLY_TEMPLATE copies meta
+        // onto every clone, so that FIND matches the template AND every day it
+        // ever built; a multi-match FIND returns an ARRAY, which APPLY_TEMPLATE
+        // cannot resolve, and the op silently stops building.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$tpl",   expr: `$allItemsById.${dayPageTemplateOccId}` }},
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$tplId", expr: "$tpl.id" }},
 
-        // Source-only guard — fires once per filter change (grid/onLoad
-        // when source is empty; the Schedule/Goals page itself when source
-        // matches). Descendant-cascade NavigationOps are skipped.
+        // Source-only guard — fires once per filter change. Descendant-cascade
+        // NavigationOps are skipped.
         { id: uid(), type: "if",
           condition: { operator: "OR", rules: [
             { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS_EMPTY", right: "" },
             { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS",       right: "$schedPage.id" },
             { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS",       right: "$goalsPage.id" },
+            { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS",       right: "$board.id" },
           ]},
           then: [
-        // $activeDate, NOT $trigger.date or the raw effective filter.
-        //
-        // The date picker persists a PERIOD OBJECT ({value, unit, kind, dates})
-        // even for a single day, and both of those hand it back verbatim — so
-        // "Day Page - ${$dayDate}" interpolated to the literal
-        // "Day Page - [object Object]" (observed on prod the first time this op
-        // built a second page). $activeDate is the executor's normalized
-        // YYYY-MM-DD for the same period, resolved through
-        // operation.targetOccurrenceId's filter cascade — which is why this op
-        // now sets targetOccurrenceId to the Schedule page, the way Build
-        // Schedule already does. Same class as the 2026-06-03 Table/Canvas
-        // period-object bug.
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$activeDate" } },
-        {
-          // $activeDate is null when no date filter is set at all (cold start).
-          id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$dayDate", comparator: "IS_EMPTY", right: "" }] },
-          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$today" } }],
-          else: [],
-        },
-
-        // Deterministic page name — also the idempotency key.
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayPageName", expr: "Day Page - ${$dayDate}" } },
-
-        // Already built for this date?
-        { id: uid(), type: "action", config: {
-            type: "FIND",
-            over: "$allPages",
-            predicate: { operator: "AND", rules: [
-              { id: uid(), left: "label", comparator: "IS", right: "$dayPageName" },
-            ]},
-            itemIdVar: "$existingDayPageId",
-        }},
-        {
-          id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$existingDayPageId", comparator: "IS_EMPTY", right: "" }] },
-          then: [
-            // The Day Page template root, bound picker-direct by id.
-            //
-            // This CANNOT go back to `FIND meta.templateName IS "Day Page"`:
-            // APPLY_TEMPLATE copies the template's `meta` onto the clone, so from
-            // the second day onward that FIND matches the template AND every day
-            // page ever built. A multi-match FIND returns an ARRAY (which still
-            // passes IS_NOT_EMPTY), and APPLY_TEMPLATE cannot resolve an array
-            // templateRef — so the op silently stopped building day pages after
-            // the first one. Same failure class as the 2026-07-14 Pomodoro
-            // COPY_LINK FIND-by-label bug: a clone inheriting the discriminator
-            // its own lookup keys on.
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayPageTpl",   expr: `$allItemsById.${dayPageTemplateOccId}` }},
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayPageTplId", expr: "$dayPageTpl.id" }},
-            {
-              id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$dayPageTplId", comparator: "IS_NOT_EMPTY", right: "" }] },
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$tplId", comparator: "IS_NOT_EMPTY", right: "" }] },
               then: [
-                // Fresh doc page in the Day Pages folder. parent is the
-                // folder id (pages parent to folders via parentId — same as
-                // the seeded Notes/Schedule pages).
-                // Mint a fresh doc page (root + its textblock child) straight
-                // into the Day Pages folder. rootParent makes APPLY_TEMPLATE
-                // create a standalone new page (no pre-CREATE, no merge into an
-                // existing target); rootLabel names it per date; replacements
-                // stamps the date into the cloned textblock's H1. The page's
-                // own instanceTextblock ref is auto-remapped to the clone.
-                //
-                // defaultFields stamps fields[dateFieldId] = $dayDate on every
-                // cloned occurrence (the Daily Question container + textblock
-                // need this so their { selfField, link:dateFieldId } bindings
-                // can JOIN with the journaling instance for that day). The H1
-                // textblock and Tasks Completed container also receive the
-                // stamp — harmless; they just don't read it.
-                { id: uid(), type: "action", config: {
-                    type: "APPLY_TEMPLATE",
-                    templateRef: "$dayPageTplId",
-                    rootParent: dayPagesFolderId,
-                    rootLabel: "$dayPageName",
-                    replacements: { "{Date}": "$dayDate" },
-                    rootIdVar: "$newDayPageId",
-                    defaultFields: { [dateFieldId]: "$dayDate" },
-                }},
-                // Pin the new day page into the Center Hub panel as an
-                // inactive tab — same as how the Notes page is "opened"
-                // alongside Schedule. parentId stays the Day Pages folder
-                // (tree); this only appends to the panel occ's occurrences[].
-                // The hub View's activeOccurrenceId remains Schedule, so the
-                // tab is present but not shown until the user clicks it.
-                { id: uid(), type: "action", config: {
-                    type: "ADD_CHILD",
-                    parentId: hubPanelOccIdVar,
-                    childId: "$newDayPageId",
-                }},
-              ],
-              else: [],
-            },
-          ],
-          else: [],
-        },
 
-        // ── Link that day's Todo container into the page ────────────────────
-        // The Todo section is NOT cloned from the template — it IS the Schedule
-        // day-column's own catch-all container, multi-parented in (the pattern
-        // the shared slots already use), so ticking an item here and on the
-        // Schedule are one write on one occurrence. Two copies would fork the
-        // state instead — the same reason createPageInContainer stays one
-        // occurrence (2026-07-29).
-        //
-        // This runs on EVERY fire, not just at mint: Day Page: Build and
-        // Schedule: Build Schedule are both onLoad with no ordering guarantee,
-        // so a page can be built before the day-column that owns its Todo. Both
-        // steps are idempotent, so re-running just re-asserts the link — which
-        // is also what repairs the day pages built before this shipped.
-        ...(wantsTodoLink ? [{
-          id: uid(), type: "action", config: {
-            type: "FIND",
-            over: "$allContainers",
-            predicate: { operator: "AND", rules: [
-              { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-              { id: uid(), left: `fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "day-col" },
-              { id: uid(), left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$dayDate" },
-            ]},
-            itemIdVar: "$dayColId",
-          },
-        }, {
-          id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$dayColId", comparator: "IS_NOT_EMPTY", right: "" }] },
-          then: [
-            // The Todo container is found by its Time Slot IDENTITY MARKER, the
-            // same way Schedule: Build Schedule finds it — never by label, which
-            // the user is free to rename.
+        // ── one column per active date ──────────────────────────────────────
+        // $activePeriodDates is the executor's normalized YYYY-MM-DD list for
+        // the period — the same var Build Schedule loops. Never the raw filter
+        // value: the picker persists a period OBJECT even for a single day, and
+        // interpolating that yields "Day Page - [object Object]".
+        { id: uid(), type: "loop", overExpr: "$activePeriodDates", as: "$day",
+          body: [
+            // Existing column for this date? Matched on the DATE FIELD, not on
+            // a label — the label is the user's to rename.
             { id: uid(), type: "action", config: {
                 type: "FIND",
                 over: "$allContainers",
                 predicate: { operator: "AND", rules: [
-                  // parentId, NOT _ancestors — for the same reason the slot
-                  // dedupe uses it. THIS op multi-parents the Todo into the day
-                  // page, so from the next fire on its ancestor chain can
-                  // resolve through the PAGE and a HAS_ANCESTOR test on the
-                  // day-column finds nothing: the guard below skips, the embed
-                  // is never rewritten, and the page keeps whatever stale id it
-                  // had. The op sawed off the branch it was sitting on.
-                  { id: uid(), left: "parentId", comparator: "IS", right: "$dayColId" },
-                  { id: uid(), left: `fields.${timeslotFieldId}.value`, comparator: "IS", right: todoMarkerValue },
+                  { id: uid(), left: "parentId", comparator: "IS", right: dayPageBoardOccId },
+                  { id: uid(), left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$day" },
                 ]},
-                itemIdVar: "$todoId",
+                itemIdVar: "$colId", itemVar: "$col",
             }},
             { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$todoId", comparator: "IS_NOT_EMPTY", right: "" }] },
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$colId", comparator: "IS_EMPTY", right: "" }] },
               then: [
-                { id: uid(), type: "action", config: {
-                    type: "FIND",
-                    over: "$allPages",
-                    predicate: { operator: "AND", rules: [
-                      { id: uid(), left: "label", comparator: "IS", right: "$dayPageName" },
-                    ]},
-                    itemIdVar: "$dayPageId", itemVar: "$dayPage",
-                }},
-                { id: uid(), type: "if",
-                  condition: { operator: "AND", rules: [{ id: uid(), left: "$dayPageId", comparator: "IS_NOT_EMPTY", right: "" }] },
-                  then: [
-                    // (a) the tree link — idempotent, no-ops when already listed.
-                    { id: uid(), type: "action", config: { type: "ADD_CHILD", parentId: "$dayPageId", childId: "$todoId" } },
-
-                    // (b) the textmap. A doc page renders ONLY its textmap, so
-                    // the child list alone leaves Todo invisible.
-                    //
-                    // The whole array is rewritten from FINDs rather than
-                    // spliced. The pipeline language has NO splice, and the
-                    // obvious substitute — LOOP over "$dayPage.textmap.content",
-                    // pushing each node — does not work: a loop's `over` cannot
-                    // resolve a nested path into a var, and instead of failing it
-                    // falls back to iterating EVERY occurrence. That silently
-                    // wrote 1278 occurrence records into a live page's textmap as
-                    // if they were TipTap nodes. Rewriting the array whole is
-                    // verbose but uses only supported primitives, is idempotent
-                    // (same array every fire), and self-heals a damaged page.
-                    //
-                    // The cost, stated plainly: this op now owns the page's
-                    // section ORDER, so a section added to the template must be
-                    // added here too.
-                    ...["Daily Question", "Journal", "Notes", "Tasks Completed", "Highlights"].map((label, i) => ({
-                      id: uid(), type: "action", config: {
-                        type: "FIND",
-                        over: "$allContainers",
-                        predicate: { operator: "AND", rules: [
-                          { id: uid(), left: "parentId", comparator: "IS", right: "$dayPageId" },
-                          { id: uid(), left: "label",    comparator: "IS", right: label },
-                        ]},
-                        itemIdVar: `$sec${i}`,
-                      },
-                    })),
-                    // The heading is an instanceTextblock, which also needs the
-                    // child's MODULE id — hence itemVar as well as itemIdVar.
-                    { id: uid(), type: "action", config: {
-                        type: "FIND",
-                        over: "$allOccurrences",
-                        predicate: { operator: "AND", rules: [
-                          { id: uid(), left: "parentId", comparator: "IS", right: "$dayPageId" },
-                          { id: uid(), left: "label",    comparator: "IS", right: "Day Page heading" },
-                        ]},
-                        itemIdVar: "$headId", itemVar: "$head",
-                    }},
-                    { id: uid(), type: "action", config: {
-                        type: "UPDATE", path: "$dayPage.textmap",
-                        value: { type: "doc", content: [
-                          { type: "instanceTextblock", attrs: { instanceId: "$head.moduleId", occurrenceId: "$headId" } },
-                          { type: "moduleEmbed", attrs: { occurrenceId: "$sec0" } },   // Daily Question
-                          { type: "moduleEmbed", attrs: { occurrenceId: "$todoId" } }, // the day-column's own Todo
-                          { type: "moduleEmbed", attrs: { occurrenceId: "$sec1" } },   // Journal
-                          { type: "moduleEmbed", attrs: { occurrenceId: "$sec2" } },   // Notes
-                          { type: "moduleEmbed", attrs: { occurrenceId: "$sec3" } },   // Tasks Completed
-                          { type: "moduleEmbed", attrs: { occurrenceId: "$sec4" } },   // Highlights
-                        ]},
-                    }},
-                  ],
-                  else: [],
-                },
-              ],
-              else: [],
-            },
-          ],
-          else: [],
-        }] : []),
-          ],
-          else: [],
-        },
-      ],
-    },
-  };
-}
-
-// ── Project: Create ──────────────────────────────────────────────────────────
-// APPLY_TEMPLATEs the Project Page template into the Projects folder,
-// swapping {ProjectName} + {ProjectScope} tokens at instantiation
-// (same bracket-replacement technique Day Page uses for {Date}).
-//
-// Dual-trigger behavior:
-//   - onLoad → seeds an EXAMPLE project ("Moduli v1 Launch") with a
-//     long-form demo scope. Idempotent — only mints if no project page
-//     of that label exists yet. Gives every fresh user a populated
-//     Projects folder on first load.
-//   - manual → GET_USER_INPUT prompts for the project name first, then
-//     the project scope description. Both bound to $projectName /
-//     $projectScope and passed into APPLY_TEMPLATE's replacements.
-//
-// Both paths converge on the same APPLY_TEMPLATE branch — the template
-// (with its kanban + 6 columns + scope skeleton) is preserved; only the
-// name + scope-paragraph text get filled in.
-export function makeProjectCreateOp({ userId, gridId, projectsFolderId }) {
-  // Demo scope text — used on onLoad. Single paragraph string that
-  // fills the {ProjectScope} token in the template's Overview section.
-  // The rest of the scope skeleton (Goals / Milestones / Risks / Success
-  // Criteria) is structural and lives in the template.
-  const DEMO_PROJECT_SCOPE = "Ship the Moduli v1 release: assistant drawer in every workspace, public REST API at /api/v1, drilldown date picker, display rules system, project kanban demo. The launch is a deliverable, not a moment — every feature has to survive the hard edges of real day-to-day use before it counts as shipped.";
-
-  return {
-    id: uid(), userId, gridId, name: "Project: Create",
-    description: "Mint a new project page from the Project Page template. onLoad → seeds an example 'Moduli v1 Launch' project (idempotent). Manual → GET_USER_INPUT prompts for name + scope, then APPLY_TEMPLATEs with those replacements. Same {token} replacement technique as Day Page.",
-    triggerType: "manual",
-    triggerTypes: ["manual", "onLoad"],
-    triggerObjects: [
-      { eventType: "onLoad", subjectType: "grid", targetId: "", priority: 5 },
-    ],
-    enabled: true,
-    pipeline: {
-      sources: [],
-      steps: [
-        // ── Branch on trigger type ─────────────────────────────────────────
-        // onLoad → hardcoded demo values. Manual → prompt the user.
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerType", expr: "$trigger.type" } },
-        {
-          id: uid(), type: "if",
-          condition: { operator: "AND", rules: [
-            { id: uid(), left: "$triggerType", comparator: "IS", right: "onLoad" },
-          ]},
-          then: [
-            // onLoad path — stamp the demo values directly.
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectName",  expr: "literal:Moduli v1 Launch" } },
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectScope", expr: `literal:${DEMO_PROJECT_SCOPE}` } },
-          ],
-          else: [
-            // Manual path — prompt for name, then scope. Each
-            // GET_USER_INPUT suspends the pipeline until the user
-            // submits the modal; the response binds to resultVar and
-            // the next step runs.
-            { id: uid(), type: "action", config: {
-                type: "GET_USER_INPUT",
-                title: "Create Project",
-                question: "What's the project name?",
-                inputType: "text",
-                defaultValue: "Untitled",
-                resultVar: "$projectName",
-            }},
-            { id: uid(), type: "action", config: {
-                type: "GET_USER_INPUT",
-                title: "Create Project",
-                question: "Brief scope / overview (one paragraph)?",
-                inputType: "text",
-                defaultValue: "—",
-                resultVar: "$projectScope",
-            }},
-          ],
-        },
-        // Defensive fallbacks if either var ended up empty (e.g. the
-        // user cancelled a modal). Use the literal: prefix so the
-        // resolveExpr fallback path doesn't try to look up a $-var.
-        { id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$projectName", comparator: "IS_EMPTY", right: "" }] },
-          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectName", expr: "literal:Untitled" } }],
-          else: [],
-        },
-        { id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$projectScope", comparator: "IS_EMPTY", right: "" }] },
-          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectScope", expr: "literal:—" } }],
-          else: [],
-        },
-
-        // ── Idempotency-by-label gate ──────────────────────────────────────
-        // Same pattern as Day Page: Build — never dupe.
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectPageName", expr: "Project: ${$projectName}" } },
-        { id: uid(), type: "action", config: {
-            type: "FIND", over: "$allPages",
-            predicate: { operator: "AND", rules: [
-              { id: uid(), left: "label", comparator: "IS", right: "$projectPageName" },
-            ]},
-            itemIdVar: "$existingProjectPageId",
-        }},
-        {
-          id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$existingProjectPageId", comparator: "IS_EMPTY", right: "" }] },
-          then: [
-            // Locate the Project Page template root.
-            { id: uid(), type: "action", config: {
-                type: "FIND", over: "$allOccurrences",
-                predicate: { operator: "AND", rules: [
-                  { id: uid(), left: "meta.templateName", comparator: "IS", right: "Project Page" },
-                ]},
-                itemIdVar: "$projectTplId",
-            }},
-            {
-              id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$projectTplId", comparator: "IS_NOT_EMPTY", right: "" }] },
-              then: [
-                // APPLY_TEMPLATE into the Projects folder, swapping
-                // {ProjectName} + {ProjectScope} tokens via replacements.
+                // Fresh column. rootParent makes APPLY_TEMPLATE mint a
+                // standalone subtree under the board; replacements stamps the
+                // date into the cloned heading; defaultFields puts the date on
+                // every clone that BINDS it — the column itself (so it answers
+                // the filter cascade) and the Daily Question pair (whose
+                // header/body bindings JOIN on it).
                 { id: uid(), type: "action", config: {
                     type: "APPLY_TEMPLATE",
-                    templateRef: "$projectTplId",
-                    rootParent: projectsFolderId,
-                    rootLabel: "$projectPageName",
-                    replacements: {
-                      "{ProjectName}":  "$projectName",
-                      "{ProjectScope}": "$projectScope",
-                    },
-                    rootIdVar: "$newProjectPageId",
+                    templateRef: "$tplId",
+                    rootParent: dayPageBoardOccId,
+                    rootLabel: "Day Page - ${$day}",
+                    replacements: { "{Date}": "$day" },
+                    rootIdVar: "$colId",
+                    defaultFields: { [dateFieldId]: "$day" },
                 }},
-              ],
-              else: [],
-            },
-          ],
-          else: [],
-        },
-      ],
-    },
-  };
-}
-
-// ── Day Page: Build Tasks Completed ─────────────────────────────────────────
-// Sibling op to `Day Page: Build`. After the day page exists (containing the
-// cloned "Tasks Completed" doc container), this op walks $allInstances and
-// rewrites the container's textmap to a list of moduleEmbed nodes pointing at
-// each completed schedule task for `$dayDate`.
-//
-// Trigger surface:
-//   - onLoad                                            — cold-start build
-//   - onFilterChange grid                               — global filter date moved
-//   - onFilterChange filterNav ancestorLabel "Schedule" — schedule day navigation
-//   - onChange on completedFieldId                      — tick a task complete/uncomplete
-//
-// $dayDate chain mirrors Day Page: Build (and Build Day): $trigger.date →
-// Schedule page's effective filter → $today. The day page is found by its
-// deterministic label "Day Page - <date>" (the same idempotency key Build
-// uses). The Tasks Completed container is found by walking the day page's
-// occurrences[] and matching `label IS "Tasks Completed"`.
-//
-// Sort: naïve. $allInstances iteration order is whatever insertion order the
-// executor's $allItems carries (typically load-time order). For perfectly
-// time-ordered rendering, a future SORT_BY primitive would walk
-// `$schedPage.occurrences` (slot containers in time order) and inner-loop
-// each slot's children. Filed as TODO; the unsorted list is still useful.
-// ── Project: Status Router ───────────────────────────────────────────────────
-// onChange trigger on the statusFieldId. When a task in any project's kanban
-// gets its status field set to one of the 6 column labels (Backburner /
-// Docket / Working On / In Review / Test / Complete), this op MOVE_OCCURRENCEs
-// the task between columns on the same project page.
-//
-// Strategy (no global routing tables — derive everything from the live tree):
-//   1. Resolve $newStatus + $taskId from the trigger.
-//   2. Look up the task in $allInstances so we can read its parentId (current
-//      kanban column).
-//   3. Look up the current column in $allContainers — its parentId is the
-//      kanban board occurrence.
-//   4. FIND the target column under the same kanban board where
-//      label IS $newStatus. The column labels match the status field's
-//      option values verbatim, so no mapping is needed.
-//   5. If the target column exists AND differs from the current column,
-//      MOVE_OCCURRENCE the task to it.
-//
-// Same-project guarantee: by anchoring step 4 on parentId = the task's
-// current kanban board, we never cross over to a different project's
-// kanban (each project page has its own kanban board container).
-//
-// Skipped silently when:
-//   - the task isn't inside a kanban board (parent or grandparent doesn't
-//     match), so changing status on a non-kanban task is a no-op
-//   - the new column doesn't exist (status options out of sync with column
-//     set — e.g. typo) — fail closed rather than create a bad move
-//   - the task is already in the target column (idempotent re-fire)
-export function makeProjectStatusRouterOp({ userId, gridId, statusFieldId }) {
-  return {
-    id: uid(), userId, gridId, name: "Project: Status Router",
-    description: "When a task's status field changes, move the task between kanban columns on the same project page. Column label = status value (Backburner / Docket / Working On / In Review / Test / Complete).",
-    triggerType: "onChange",
-    triggerTypes: ["onChange"],
-    triggerObjects: [
-      { eventType: "onChange", subjectType: "field", targetId: statusFieldId, priority: 5 },
-    ],
-    enabled: true,
-    pipeline: {
-      sources: [],
-      steps: [
-        // ── Trigger args ──────────────────────────────────────────────────
-        // MeasureOp carries `fields: { [fid]: { value, flow } }` (coalesced
-        // shape — see CommitHelpers / dropHandlers fire sites). Read the
-        // status field's new value off that map.
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$newStatus", expr: `$trigger.fields.${statusFieldId}.value` } },
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$taskId",    expr: "$trigger.occurrenceId" } },
-
-        // ── Resolve the task occurrence (need its parentId) ──────────────
-        { id: uid(), type: "action", config: {
-            type: "FIND", over: "$allInstances",
-            predicate: { operator: "AND", rules: [
-              { id: uid(), left: "id", comparator: "IS", right: "$taskId" },
-            ]},
-            itemVar: "$task", itemIdVar: "$taskFoundId",
-        }},
-
-        // ── Only continue if the task was found and has a parent column ──
-        {
-          id: uid(), type: "if",
-          condition: { operator: "AND", rules: [
-            { id: uid(), left: "$taskFoundId", comparator: "IS_NOT_EMPTY", right: "" },
-            { id: uid(), left: "$task.parentId", comparator: "IS_NOT_EMPTY", right: "" },
-          ]},
-          then: [
-            // ── Resolve current column (one level up from task) ──────────
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$currentColId", expr: "$task.parentId" } },
-            { id: uid(), type: "action", config: {
-                type: "FIND", over: "$allContainers",
-                predicate: { operator: "AND", rules: [
-                  { id: uid(), left: "id", comparator: "IS", right: "$currentColId" },
-                ]},
-                itemVar: "$currentCol", itemIdVar: "$currentColFoundId",
-            }},
-
-            {
-              id: uid(), type: "if",
-              condition: { operator: "AND", rules: [
-                { id: uid(), left: "$currentColFoundId", comparator: "IS_NOT_EMPTY", right: "" },
-                { id: uid(), left: "$currentCol.parentId", comparator: "IS_NOT_EMPTY", right: "" },
-              ]},
-              then: [
-                // $kanbanBoardId is the parent of the current column. Find the
-                // target column whose label matches $newStatus AND whose parent
-                // is the same kanban board — guarantees we stay within the
-                // same project.
-                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$kanbanBoardId", expr: "$currentCol.parentId" } },
+                { id: uid(), type: "action", config: { type: "ADD_CHILD", parentId: dayPageBoardOccId, childId: "$colId" } },
+                // Re-bind the record now that it exists, so the steps below can
+                // write through $col.
                 { id: uid(), type: "action", config: {
                     type: "FIND", over: "$allContainers",
                     predicate: { operator: "AND", rules: [
-                      { id: uid(), left: "parentId", comparator: "IS", right: "$kanbanBoardId" },
-                      { id: uid(), left: "label",    comparator: "IS", right: "$newStatus"    },
+                      { id: uid(), left: "id", comparator: "IS", right: "$colId" },
                     ]},
-                    itemVar: "$targetCol", itemIdVar: "$targetColId",
+                    itemIdVar: "$colId2", itemVar: "$col",
                 }},
+              ],
+              else: [
+                // TOP UP an existing column: merge mode clones only the
+                // sections the template has GAINED (matched on
+                // identitySignature), leaving everything the user has written
+                // untouched. This is what makes a template edit reach days that
+                // already exist instead of only future ones.
+                { id: uid(), type: "action", config: {
+                    type: "APPLY_TEMPLATE",
+                    templateRef: "$tplId",
+                    targetOccurrenceVar: "$colId",
+                    mode: "merge",
+                    unwrapRoot: true,
+                    replacements: { "{Date}": "$day" },
+                    defaultFields: { [dateFieldId]: "$day" },
+                }},
+              ],
+            },
+            // Stamp the route BACK to the template, which is what lights up
+            // "Save over Day Page" in the header dropdown — edit a day the way
+            // you want it, then save it as the template.
+            { id: uid(), type: "action", config: {
+                type: "UPDATE", path: "$col.meta.appliedFromTemplateId", value: "$tplId",
+            }},
 
-                {
-                  id: uid(), type: "if",
+            // ── that day's Todo, multi-parented in ──────────────────────────
+            // NOT cloned: it IS the Schedule day-column's own catch-all
+            // container, so ticking an item here and on the Schedule are one
+            // write on one occurrence. Two copies would fork the state.
+            ...(wantsTodoLink ? [
+              { id: uid(), type: "action", config: {
+                  type: "FIND", over: "$allContainers",
+                  predicate: { operator: "AND", rules: [
+                    { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                    { id: uid(), left: `fields.${scheduleFormatFieldId}.value`, comparator: "IS", right: "day-col" },
+                    { id: uid(), left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$day" },
+                  ]},
+                  itemIdVar: "$dayColId",
+              }},
+              { id: uid(), type: "if",
+                condition: { operator: "AND", rules: [{ id: uid(), left: "$dayColId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                then: [
+                  // Found by its Time Slot IDENTITY MARKER, never by label. And
+                  // by parentId, NOT _ancestors: this op multi-parents the Todo
+                  // into the column, so an ancestor test would then resolve
+                  // through the COLUMN and stop finding it — the op would saw
+                  // off the branch it sits on.
+                  { id: uid(), type: "action", config: {
+                      type: "FIND", over: "$allContainers",
+                      predicate: { operator: "AND", rules: [
+                        { id: uid(), left: "parentId", comparator: "IS", right: "$dayColId" },
+                        { id: uid(), left: `fields.${timeslotFieldId}.value`, comparator: "IS", right: todoMarkerValue },
+                      ]},
+                      itemIdVar: "$todoId",
+                  }},
+                  { id: uid(), type: "if",
+                    condition: { operator: "AND", rules: [{ id: uid(), left: "$todoId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                    then: [
+                      { id: uid(), type: "action", config: { type: "ADD_CHILD", parentId: "$colId", childId: "$todoId" } },
+                    ],
+                    else: [],
+                  },
+                ],
+                else: [],
+              },
+            ] : []),
+
+            // ── the column's body, rebuilt from ITS OWN CHILDREN ─────────────
+            // Template-driven: the order is whatever the template produced (and
+            // merge appends anything it later gains), so this op no longer owns
+            // a hardcoded section list — the previous version did, which is why
+            // a section added to the template was cloned but never rendered.
+            //
+            // Rewritten whole rather than spliced: the pipeline language has no
+            // splice, and looping a nested path with `over` silently iterates
+            // every occurrence on the grid (that once wrote 1278 occurrence
+            // records into a live page's textmap). `overExpr` resolves the path
+            // properly.
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$body", expr: "json:[]" } },
+            // Pass 1 — the heading, then the Todo directly under it, so the
+            // day opens with the question and the plan.
+            { id: uid(), type: "loop", overExpr: "$col.occurrences", as: "$kidId",
+              body: [
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$kid", expr: "$allItemsById.${$kidId}" } },
+                { id: uid(), type: "if",
                   condition: { operator: "AND", rules: [
-                    { id: uid(), left: "$targetColId",  comparator: "IS_NOT_EMPTY", right: "" },
-                    { id: uid(), left: "$targetColId",  comparator: "IS_NOT",       right: "$currentColId" },
+                    { id: uid(), left: "$kid.role", comparator: "IS", right: "textblock" },
                   ]},
                   then: [
                     { id: uid(), type: "action", config: {
-                        type: "MOVE_OCCURRENCE",
-                        occurrenceIdExpr: "$taskId",
-                        toContainerIdExpr: "$targetColId",
+                        type: "PUSH_TO_ARRAY", name: "$body",
+                        value: { type: "instanceTextblock", attrs: { instanceId: "$kid.moduleId", occurrenceId: "$kidId" } },
                     }},
                   ],
                   else: [],
                 },
               ],
-              else: [],
             },
-          ],
-          else: [],
-        },
-      ],
-    },
-  };
-}
-
-export function makeDayPageBuildTasksCompletedOp({
-  userId, gridId, dateFieldId, completedFieldId, schedulePageOccId, habitFieldId = null,
-}) {
-  return {
-    id: uid(), userId, gridId, name: "Day Page: Build Tasks Completed",
-    // $activeDate is resolved through THIS occurrence's filter cascade, so the
-    // op follows the Schedule page's own date — including an on-page switch that
-    // never touches the grid filter. Same wiring Build Schedule uses.
-    targetOccurrenceId: schedulePageOccId,
-    description: "Rewrite the Tasks Completed container on the active day's Day Page with moduleEmbed nodes for every completed schedule task on that date.",
-    // Priority 4 — runs AFTER Build Day (1), Stamp (2), trackers (3) so the
-    // completion state it reads is fully settled.
-    // onAdd / onDelete on BOTH container AND instance subjects.
-    // Container subjects catch slot-container churn from Schedule:
-    // Build Day's APPLY_TEMPLATE; instance subjects catch task-level
-    // adds/removes (drag in/out of Schedule, manual deletion). Both
-    // are needed — root cause of stale moduleEmbed refs was that the
-    // prior trigger set only covered containers, leaving instance-
-    // level deletions to orphan embeds at ids no longer in the store.
-    triggerTypes: ["onLoad", "onFilterChange", "onChange", "onAdd", "onDelete"],
-    triggerObjects: [
-      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 4 },
-      { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 4 },
-      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Schedule", priority: 4 },
-      { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId, priority: 4 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 4 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 4 },
-      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 4 },
-      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 4 },
-    ],
-    enabled: true,
-    pipeline: {
-      steps: [
-        // Resolve $dayDate exactly like Day Page: Build. Picker-direct Schedule
-        // page — the object (for _effectiveFilter) + its id (for HAS_ANCESTOR),
-        // no label check.
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedulePageOccId}` } },
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", value: schedulePageOccId } },
-        // $activeDate — the executor's normalized YYYY-MM-DD, NOT $trigger.date
-        // or the raw effective filter. Those hand back the picker's period
-        // OBJECT, which interpolates into the literal "Day Page - [object
-        // Object]" and then matches no page at all. Same reason as Day Page:
-        // Build; both ops carry targetOccurrenceId so it resolves through the
-        // Schedule page's filter cascade.
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$activeDate" } },
-        { id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$dayDate", comparator: "IS_EMPTY", right: "" }] },
-          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$today" } }],
-          else: [],
-        },
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayPageName", expr: "Day Page - ${$dayDate}" } },
-
-        // SCOPE GUARD (2026-05-25 part 3 — inclusive). Only rebuild the
-        // Tasks-Completed embed list on a genuine Schedule change: a bulk
-        // fire (no trigger occurrence) OR a trigger occurrence under the
-        // Schedule page (a task completion toggle, a drag in/out, a slot
-        // container from Build Day's APPLY_TEMPLATE). Without this, the op's
-        // unscoped onAdd/onDelete instance+container triggers re-fire it on
-        // EVERY other mirror op's row/card CRUD — it fired 57x in the
-        // toolkit-drop freeze even though it only writes a textmap (no CRUD
-        // fuel of its own). ANDed into the $dayPageId gate below.
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerOccId",   expr: "$trigger.occurrenceId" } },
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$isSourceChange", expr: "literal:0" } },
-        { id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$triggerOccId", comparator: "IS_EMPTY", right: "" }] },
-          then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$isSourceChange", expr: "literal:1" } }],
-          else: [],
-        },
-        { id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$trigger.occurrence._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" }] },
-          then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$isSourceChange", expr: "literal:1" } }],
-          else: [],
-        },
-
-        // Locate the day page for $dayDate.
-        { id: uid(), type: "action", config: {
-            type: "FIND",
-            over: "$allPages",
-            predicate: { operator: "AND", rules: [
-              { id: uid(), left: "label", comparator: "IS", right: "$dayPageName" },
-            ]},
-            itemIdVar: "$dayPageId",
-            itemVar: "$dayPage",
-        }},
-        // Bail when no day page has been built yet — Day Page: Build runs
-        // earlier in the same priority sweep but this op is safe either way.
-        // Also bail (no-op) when this wasn't a genuine Schedule source change
-        // (see SCOPE GUARD above) so non-source CRUD echoes don't rebuild.
-        { id: uid(), type: "if",
-          condition: { operator: "AND", rules: [
-            { id: uid(), left: "$dayPageId",      comparator: "IS_NOT_EMPTY", right: "" },
-            { id: uid(), left: "$isSourceChange", comparator: "IS",           right: 1  },
-          ] },
-          then: [
-            // Find the Tasks Completed container as a direct child of the
-            // day page. Match by parentId + label — both fields survive the
-            // template clone (the template module's label "Tasks Completed"
-            // copies onto the clone; parentId is the cloned day page id).
-            { id: uid(), type: "action", config: {
-                type: "FIND",
-                over: "$allContainers",
-                predicate: { operator: "AND", rules: [
-                  { id: uid(), left: "parentId", comparator: "IS",  right: "$dayPageId" },
-                  { id: uid(), left: "label",    comparator: "IS",  right: "Tasks Completed" },
-                ]},
-                itemIdVar: "$tcContId",
-                itemVar: "$tcCont",
-            }},
-            { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [{ id: uid(), left: "$tcContId", comparator: "IS_NOT_EMPTY", right: "" }] },
+            ...(wantsTodoLink ? [{
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$todoId", comparator: "IS_NOT_EMPTY", right: "" }] },
               then: [
-                // ── SWEEP first ────────────────────────────────────────────
-                // Anything listed here that is no longer a completed task for
-                // this day is UNLINKED — never deleted. These children are the
-                // Schedule's own occurrences, multi-parented in, so deleting
-                // one would take the user's task out of the Schedule too. That
-                // is exactly why REMOVE_CHILD exists (REMOVE_OCCURRENCE would
-                // have been the wrong verb).
-                { id: uid(), type: "loop",
-                  overExpr: "$tcCont.occurrences",
-                  as: "$kidId",
-                  body: [
-                    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$kid", expr: "$allItemsById.${$kidId}" } },
-                    // The KEEP test is the add predicate verbatim, and the
-                    // unlink hangs off its ELSE — there is no NOT_SAME_DAY
-                    // comparator, and more importantly a hand-inverted copy of
-                    // the rule is a second source of truth that drifts.
-                    { id: uid(), type: "if",
-                      condition: { operator: "AND", rules: [
-                        { id: uid(), left: `$kid.fields.${completedFieldId}.value`, comparator: "IS",       right: "true" },
-                        { id: uid(), left: `$kid.fields.${dateFieldId}.value`,      comparator: "SAME_DAY", right: "$dayDate" },
-                        ...(habitFieldId
-                          ? [{ id: uid(), left: "$kid._boundFieldIds", comparator: "ARRAY_NOT_INCLUDES", right: habitFieldId }]
-                          : []),
-                      ]},
-                      then: [],
-                      else: [
-                        { id: uid(), type: "action", config: { type: "REMOVE_CHILD", parentId: "$tcContId", childId: "$kidId" } },
-                      ],
-                    },
-                  ],
-                },
-                // ── then LINK every completed task for the day ─────────────
-                // ADD_CHILD is idempotent, so re-running just re-asserts the
-                // list. The container is a BOARD (like Todo), so its children
-                // ARE what it renders — no textmap to keep in step.
-                { id: uid(), type: "loop",
-                  over: "$allInstances",
-                  as: "$task",
-                  predicate: { operator: "AND", rules: [
-                    { id: uid(), left: "_ancestors",                              comparator: "HAS_ANCESTOR", right: "$schedPageId" },
-                    { id: uid(), left: `fields.${dateFieldId}.value`,             comparator: "SAME_DAY",     right: "$dayDate" },
-                    { id: uid(), left: `fields.${completedFieldId}.value`,        comparator: "IS",           right: "true" },
-                    // TASKS only. A routine action (Sleep, Drink, Hygiene …) binds
-                    // the hidden Habit marker and belongs to Completed Habits — the
-                    // same module-BINDING discriminator the two trackers use, so a
-                    // day of sleep slots can't crowd out the tasks (user 2026-07-30:
-                    // "dont include sleep in the tasks completed").
-                    ...(habitFieldId
-                      ? [{ id: uid(), left: "_boundFieldIds", comparator: "ARRAY_NOT_INCLUDES", right: habitFieldId }]
-                      : []),
+                { id: uid(), type: "action", config: {
+                    type: "PUSH_TO_ARRAY", name: "$body",
+                    value: { type: "moduleEmbed", attrs: { occurrenceId: "$todoId" } },
+                }},
+              ],
+              else: [],
+            }] : []),
+            // Pass 2 — every other child, in the template's order.
+            { id: uid(), type: "loop", overExpr: "$col.occurrences", as: "$kidId2",
+              body: [
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$kid2", expr: "$allItemsById.${$kidId2}" } },
+                { id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: "$kid2.role", comparator: "IS_NOT", right: "textblock" },
+                    ...(wantsTodoLink ? [{ id: uid(), left: "$kidId2", comparator: "IS_NOT", right: "$todoId" }] : []),
                   ]},
-                  body: [
+                  then: [
                     { id: uid(), type: "action", config: {
-                        type: "ADD_CHILD", parentId: "$tcContId", childId: "$task.id",
+                        type: "PUSH_TO_ARRAY", name: "$body",
+                        value: { type: "moduleEmbed", attrs: { occurrenceId: "$kidId2" } },
                     }},
                   ],
+                  else: [],
                 },
+              ],
+            },
+            { id: uid(), type: "action", config: {
+                type: "UPDATE", path: "$col.textmap",
+                value: { type: "doc", content: "$body" },
+            }},
+          ],
+        },
               ],
               else: [],
             },
@@ -3257,3 +2790,454 @@ export function makeMediaHistoryOp({
     enabled: true,
   };
 }
+export function makeProjectCreateOp({ userId, gridId, projectsFolderId }) {
+  // Demo scope text — used on onLoad. Single paragraph string that
+  // fills the {ProjectScope} token in the template's Overview section.
+  // The rest of the scope skeleton (Goals / Milestones / Risks / Success
+  // Criteria) is structural and lives in the template.
+  const DEMO_PROJECT_SCOPE = "Ship the Moduli v1 release: assistant drawer in every workspace, public REST API at /api/v1, drilldown date picker, display rules system, project kanban demo. The launch is a deliverable, not a moment — every feature has to survive the hard edges of real day-to-day use before it counts as shipped.";
+
+  return {
+    id: uid(), userId, gridId, name: "Project: Create",
+    description: "Mint a new project page from the Project Page template. onLoad → seeds an example 'Moduli v1 Launch' project (idempotent). Manual → GET_USER_INPUT prompts for name + scope, then APPLY_TEMPLATEs with those replacements. Same {token} replacement technique as Day Page.",
+    triggerType: "manual",
+    triggerTypes: ["manual", "onLoad"],
+    triggerObjects: [
+      { eventType: "onLoad", subjectType: "grid", targetId: "", priority: 5 },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        // ── Branch on trigger type ─────────────────────────────────────────
+        // onLoad → hardcoded demo values. Manual → prompt the user.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerType", expr: "$trigger.type" } },
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: "$triggerType", comparator: "IS", right: "onLoad" },
+          ]},
+          then: [
+            // onLoad path — stamp the demo values directly.
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectName",  expr: "literal:Moduli v1 Launch" } },
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectScope", expr: `literal:${DEMO_PROJECT_SCOPE}` } },
+          ],
+          else: [
+            // Manual path — prompt for name, then scope. Each
+            // GET_USER_INPUT suspends the pipeline until the user
+            // submits the modal; the response binds to resultVar and
+            // the next step runs.
+            { id: uid(), type: "action", config: {
+                type: "GET_USER_INPUT",
+                title: "Create Project",
+                question: "What's the project name?",
+                inputType: "text",
+                defaultValue: "Untitled",
+                resultVar: "$projectName",
+            }},
+            { id: uid(), type: "action", config: {
+                type: "GET_USER_INPUT",
+                title: "Create Project",
+                question: "Brief scope / overview (one paragraph)?",
+                inputType: "text",
+                defaultValue: "—",
+                resultVar: "$projectScope",
+            }},
+          ],
+        },
+        // Defensive fallbacks if either var ended up empty (e.g. the
+        // user cancelled a modal). Use the literal: prefix so the
+        // resolveExpr fallback path doesn't try to look up a $-var.
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$projectName", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectName", expr: "literal:Untitled" } }],
+          else: [],
+        },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$projectScope", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectScope", expr: "literal:—" } }],
+          else: [],
+        },
+
+        // ── Idempotency-by-label gate ──────────────────────────────────────
+        // Same pattern as Day Page: Build — never dupe.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectPageName", expr: "Project: ${$projectName}" } },
+        { id: uid(), type: "action", config: {
+            type: "FIND", over: "$allPages",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "label", comparator: "IS", right: "$projectPageName" },
+            ]},
+            itemIdVar: "$existingProjectPageId",
+        }},
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$existingProjectPageId", comparator: "IS_EMPTY", right: "" }] },
+          then: [
+            // Locate the Project Page template root.
+            { id: uid(), type: "action", config: {
+                type: "FIND", over: "$allOccurrences",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "meta.templateName", comparator: "IS", right: "Project Page" },
+                ]},
+                itemIdVar: "$projectTplId",
+            }},
+            {
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$projectTplId", comparator: "IS_NOT_EMPTY", right: "" }] },
+              then: [
+                // APPLY_TEMPLATE into the Projects folder, swapping
+                // {ProjectName} + {ProjectScope} tokens via replacements.
+                { id: uid(), type: "action", config: {
+                    type: "APPLY_TEMPLATE",
+                    templateRef: "$projectTplId",
+                    rootParent: projectsFolderId,
+                    rootLabel: "$projectPageName",
+                    replacements: {
+                      "{ProjectName}":  "$projectName",
+                      "{ProjectScope}": "$projectScope",
+                    },
+                    rootIdVar: "$newProjectPageId",
+                }},
+              ],
+              else: [],
+            },
+          ],
+          else: [],
+        },
+      ],
+    },
+  };
+}
+
+// ── Day Page: Build Tasks Completed ─────────────────────────────────────────
+// Sibling op to `Day Page: Build`. After the day page exists (containing the
+// cloned "Tasks Completed" doc container), this op walks $allInstances and
+// rewrites the container's textmap to a list of moduleEmbed nodes pointing at
+// each completed schedule task for `$dayDate`.
+//
+// Trigger surface:
+//   - onLoad                                            — cold-start build
+//   - onFilterChange grid                               — global filter date moved
+//   - onFilterChange filterNav ancestorLabel "Schedule" — schedule day navigation
+//   - onChange on completedFieldId                      — tick a task complete/uncomplete
+//
+// $dayDate chain mirrors Day Page: Build (and Build Day): $trigger.date →
+// Schedule page's effective filter → $today. The day page is found by its
+// deterministic label "Day Page - <date>" (the same idempotency key Build
+// uses). The Tasks Completed container is found by walking the day page's
+// occurrences[] and matching `label IS "Tasks Completed"`.
+//
+// Sort: naïve. $allInstances iteration order is whatever insertion order the
+// executor's $allItems carries (typically load-time order). For perfectly
+// time-ordered rendering, a future SORT_BY primitive would walk
+// `$schedPage.occurrences` (slot containers in time order) and inner-loop
+// each slot's children. Filed as TODO; the unsorted list is still useful.
+// ── Project: Status Router ───────────────────────────────────────────────────
+// onChange trigger on the statusFieldId. When a task in any project's kanban
+// gets its status field set to one of the 6 column labels (Backburner /
+// Docket / Working On / In Review / Test / Complete), this op MOVE_OCCURRENCEs
+// the task between columns on the same project page.
+//
+// Strategy (no global routing tables — derive everything from the live tree):
+//   1. Resolve $newStatus + $taskId from the trigger.
+//   2. Look up the task in $allInstances so we can read its parentId (current
+//      kanban column).
+//   3. Look up the current column in $allContainers — its parentId is the
+//      kanban board occurrence.
+//   4. FIND the target column under the same kanban board where
+//      label IS $newStatus. The column labels match the status field's
+//      option values verbatim, so no mapping is needed.
+//   5. If the target column exists AND differs from the current column,
+//      MOVE_OCCURRENCE the task to it.
+//
+// Same-project guarantee: by anchoring step 4 on parentId = the task's
+// current kanban board, we never cross over to a different project's
+// kanban (each project page has its own kanban board container).
+//
+// Skipped silently when:
+//   - the task isn't inside a kanban board (parent or grandparent doesn't
+//     match), so changing status on a non-kanban task is a no-op
+//   - the new column doesn't exist (status options out of sync with column
+//     set — e.g. typo) — fail closed rather than create a bad move
+//   - the task is already in the target column (idempotent re-fire)
+export function makeProjectStatusRouterOp({ userId, gridId, statusFieldId }) {
+  return {
+    id: uid(), userId, gridId, name: "Project: Status Router",
+    description: "When a task's status field changes, move the task between kanban columns on the same project page. Column label = status value (Backburner / Docket / Working On / In Review / Test / Complete).",
+    triggerType: "onChange",
+    triggerTypes: ["onChange"],
+    triggerObjects: [
+      { eventType: "onChange", subjectType: "field", targetId: statusFieldId, priority: 5 },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        // ── Trigger args ──────────────────────────────────────────────────
+        // MeasureOp carries `fields: { [fid]: { value, flow } }` (coalesced
+        // shape — see CommitHelpers / dropHandlers fire sites). Read the
+        // status field's new value off that map.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$newStatus", expr: `$trigger.fields.${statusFieldId}.value` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$taskId",    expr: "$trigger.occurrenceId" } },
+
+        // ── Resolve the task occurrence (need its parentId) ──────────────
+        { id: uid(), type: "action", config: {
+            type: "FIND", over: "$allInstances",
+            predicate: { operator: "AND", rules: [
+              { id: uid(), left: "id", comparator: "IS", right: "$taskId" },
+            ]},
+            itemVar: "$task", itemIdVar: "$taskFoundId",
+        }},
+
+        // ── Only continue if the task was found and has a parent column ──
+        {
+          id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: "$taskFoundId", comparator: "IS_NOT_EMPTY", right: "" },
+            { id: uid(), left: "$task.parentId", comparator: "IS_NOT_EMPTY", right: "" },
+          ]},
+          then: [
+            // ── Resolve current column (one level up from task) ──────────
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$currentColId", expr: "$task.parentId" } },
+            { id: uid(), type: "action", config: {
+                type: "FIND", over: "$allContainers",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "id", comparator: "IS", right: "$currentColId" },
+                ]},
+                itemVar: "$currentCol", itemIdVar: "$currentColFoundId",
+            }},
+
+            {
+              id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$currentColFoundId", comparator: "IS_NOT_EMPTY", right: "" },
+                { id: uid(), left: "$currentCol.parentId", comparator: "IS_NOT_EMPTY", right: "" },
+              ]},
+              then: [
+                // $kanbanBoardId is the parent of the current column. Find the
+                // target column whose label matches $newStatus AND whose parent
+                // is the same kanban board — guarantees we stay within the
+                // same project.
+                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$kanbanBoardId", expr: "$currentCol.parentId" } },
+                { id: uid(), type: "action", config: {
+                    type: "FIND", over: "$allContainers",
+                    predicate: { operator: "AND", rules: [
+                      { id: uid(), left: "parentId", comparator: "IS", right: "$kanbanBoardId" },
+                      { id: uid(), left: "label",    comparator: "IS", right: "$newStatus"    },
+                    ]},
+                    itemVar: "$targetCol", itemIdVar: "$targetColId",
+                }},
+
+                {
+                  id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [
+                    { id: uid(), left: "$targetColId",  comparator: "IS_NOT_EMPTY", right: "" },
+                    { id: uid(), left: "$targetColId",  comparator: "IS_NOT",       right: "$currentColId" },
+                  ]},
+                  then: [
+                    { id: uid(), type: "action", config: {
+                        type: "MOVE_OCCURRENCE",
+                        occurrenceIdExpr: "$taskId",
+                        toContainerIdExpr: "$targetColId",
+                    }},
+                  ],
+                  else: [],
+                },
+              ],
+              else: [],
+            },
+          ],
+          else: [],
+        },
+      ],
+    },
+  };
+}
+
+export function makeDayPageBuildTasksCompletedOp({
+  userId, gridId, dateFieldId, completedFieldId, schedulePageOccId, habitFieldId = null,
+  // The board page the day COLUMNS live on. Without it this op can only look
+  // for a per-day PAGE, which no longer exists.
+  dayPageBoardOccId = null,
+}) {
+  return {
+    id: uid(), userId, gridId, name: "Day Page: Build Tasks Completed",
+    // $activeDate is resolved through THIS occurrence's filter cascade, so the
+    // op follows the Schedule page's own date — including an on-page switch that
+    // never touches the grid filter. Same wiring Build Schedule uses.
+    targetOccurrenceId: schedulePageOccId,
+    description: "Rewrite the Tasks Completed container on the active day's Day Page with moduleEmbed nodes for every completed schedule task on that date.",
+    // Priority 4 — runs AFTER Build Day (1), Stamp (2), trackers (3) so the
+    // completion state it reads is fully settled.
+    // onAdd / onDelete on BOTH container AND instance subjects.
+    // Container subjects catch slot-container churn from Schedule:
+    // Build Day's APPLY_TEMPLATE; instance subjects catch task-level
+    // adds/removes (drag in/out of Schedule, manual deletion). Both
+    // are needed — root cause of stale moduleEmbed refs was that the
+    // prior trigger set only covered containers, leaving instance-
+    // level deletions to orphan embeds at ids no longer in the store.
+    triggerTypes: ["onLoad", "onFilterChange", "onChange", "onAdd", "onDelete"],
+    triggerObjects: [
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: 4 },
+      { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: 4 },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", ancestorLabel: "Schedule", priority: 4 },
+      { eventType: "onChange",       subjectType: "field",     targetId: completedFieldId, priority: 4 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 4 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "container", targetId: "", ancestorLabel: "Schedule", priority: 4 },
+      { eventType: "onAdd",          subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 4 },
+      { eventType: "onDelete",       subjectType: "module",    subjectRole: "instance",  targetId: "", ancestorLabel: "Schedule", priority: 4 },
+    ],
+    enabled: true,
+    pipeline: {
+      steps: [
+        // Resolve $dayDate exactly like Day Page: Build. Picker-direct Schedule
+        // page — the object (for _effectiveFilter) + its id (for HAS_ANCESTOR),
+        // no label check.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedulePageOccId}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", value: schedulePageOccId } },
+        // $activeDate — the executor's normalized YYYY-MM-DD, NOT $trigger.date
+        // or the raw effective filter. Those hand back the picker's period
+        // OBJECT, which interpolates into the literal "Day Page - [object
+        // Object]" and then matches no page at all. Same reason as Day Page:
+        // Build; both ops carry targetOccurrenceId so it resolves through the
+        // Schedule page's filter cascade.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$activeDate" } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$dayDate", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayDate", expr: "$today" } }],
+          else: [],
+        },
+
+        // SCOPE GUARD (2026-05-25 part 3 — inclusive). Only rebuild the
+        // Tasks-Completed embed list on a genuine Schedule change: a bulk
+        // fire (no trigger occurrence) OR a trigger occurrence under the
+        // Schedule page (a task completion toggle, a drag in/out, a slot
+        // container from Build Day's APPLY_TEMPLATE). Without this, the op's
+        // unscoped onAdd/onDelete instance+container triggers re-fire it on
+        // EVERY other mirror op's row/card CRUD — it fired 57x in the
+        // toolkit-drop freeze even though it only writes a textmap (no CRUD
+        // fuel of its own). ANDed into the $dayPageId gate below.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerOccId",   expr: "$trigger.occurrenceId" } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$isSourceChange", expr: "literal:0" } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$triggerOccId", comparator: "IS_EMPTY", right: "" }] },
+          then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$isSourceChange", expr: "literal:1" } }],
+          else: [],
+        },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$trigger.occurrence._ancestors", comparator: "HAS_ANCESTOR", right: "$schedPageId" }] },
+          then: [{ id: uid(), type: "action", config: { type: "SET_VAR", name: "$isSourceChange", expr: "literal:1" } }],
+          else: [],
+        },
+
+        // Locate the day page for $dayDate.
+        { id: uid(), type: "action", config: {
+            type: "FIND",
+            // The day COLUMN, matched on its date field under the Day Page
+            // board — not on a page label. Day pages are columns now, and a
+            // label is the user's to rename.
+            over: "$allContainers",
+            predicate: { operator: "AND", rules: [
+              ...(dayPageBoardOccId
+                ? [{ id: uid(), left: "parentId", comparator: "IS", right: dayPageBoardOccId }]
+                : []),
+              { id: uid(), left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$dayDate" },
+            ]},
+            itemIdVar: "$dayPageId",
+            itemVar: "$dayPage",
+        }},
+        // Bail when no day page has been built yet — Day Page: Build runs
+        // earlier in the same priority sweep but this op is safe either way.
+        // Also bail (no-op) when this wasn't a genuine Schedule source change
+        // (see SCOPE GUARD above) so non-source CRUD echoes don't rebuild.
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: "$dayPageId",      comparator: "IS_NOT_EMPTY", right: "" },
+            { id: uid(), left: "$isSourceChange", comparator: "IS",           right: 1  },
+          ] },
+          then: [
+            // Find the Tasks Completed container as a direct child of the
+            // day page. Match by parentId + label — both fields survive the
+            // template clone (the template module's label "Tasks Completed"
+            // copies onto the clone; parentId is the cloned day page id).
+            { id: uid(), type: "action", config: {
+                type: "FIND",
+                over: "$allContainers",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "parentId", comparator: "IS",  right: "$dayPageId" },
+                  { id: uid(), left: "label",    comparator: "IS",  right: "Tasks Completed" },
+                ]},
+                itemIdVar: "$tcContId",
+                itemVar: "$tcCont",
+            }},
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$tcContId", comparator: "IS_NOT_EMPTY", right: "" }] },
+              then: [
+                // ── SWEEP first ────────────────────────────────────────────
+                // Anything listed here that is no longer a completed task for
+                // this day is UNLINKED — never deleted. These children are the
+                // Schedule's own occurrences, multi-parented in, so deleting
+                // one would take the user's task out of the Schedule too. That
+                // is exactly why REMOVE_CHILD exists (REMOVE_OCCURRENCE would
+                // have been the wrong verb).
+                { id: uid(), type: "loop",
+                  overExpr: "$tcCont.occurrences",
+                  as: "$kidId",
+                  body: [
+                    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$kid", expr: "$allItemsById.${$kidId}" } },
+                    // The KEEP test is the add predicate verbatim, and the
+                    // unlink hangs off its ELSE — there is no NOT_SAME_DAY
+                    // comparator, and more importantly a hand-inverted copy of
+                    // the rule is a second source of truth that drifts.
+                    { id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [
+                        { id: uid(), left: `$kid.fields.${completedFieldId}.value`, comparator: "IS",       right: "true" },
+                        { id: uid(), left: `$kid.fields.${dateFieldId}.value`,      comparator: "SAME_DAY", right: "$dayDate" },
+                        ...(habitFieldId
+                          ? [{ id: uid(), left: "$kid._boundFieldIds", comparator: "ARRAY_NOT_INCLUDES", right: habitFieldId }]
+                          : []),
+                      ]},
+                      then: [],
+                      else: [
+                        { id: uid(), type: "action", config: { type: "REMOVE_CHILD", parentId: "$tcContId", childId: "$kidId" } },
+                      ],
+                    },
+                  ],
+                },
+                // ── then LINK every completed task for the day ─────────────
+                // ADD_CHILD is idempotent, so re-running just re-asserts the
+                // list. The container is a BOARD (like Todo), so its children
+                // ARE what it renders — no textmap to keep in step.
+                { id: uid(), type: "loop",
+                  over: "$allInstances",
+                  as: "$task",
+                  predicate: { operator: "AND", rules: [
+                    { id: uid(), left: "_ancestors",                              comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                    { id: uid(), left: `fields.${dateFieldId}.value`,             comparator: "SAME_DAY",     right: "$dayDate" },
+                    { id: uid(), left: `fields.${completedFieldId}.value`,        comparator: "IS",           right: "true" },
+                    // TASKS only. A routine action (Sleep, Drink, Hygiene …) binds
+                    // the hidden Habit marker and belongs to Completed Habits — the
+                    // same module-BINDING discriminator the two trackers use, so a
+                    // day of sleep slots can't crowd out the tasks (user 2026-07-30:
+                    // "dont include sleep in the tasks completed").
+                    ...(habitFieldId
+                      ? [{ id: uid(), left: "_boundFieldIds", comparator: "ARRAY_NOT_INCLUDES", right: habitFieldId }]
+                      : []),
+                  ]},
+                  body: [
+                    { id: uid(), type: "action", config: {
+                        type: "ADD_CHILD", parentId: "$tcContId", childId: "$task.id",
+                    }},
+                  ],
+                },
+              ],
+              else: [],
+            },
+          ],
+          else: [],
+        },
+      ],
+    },
+  };
+}
+
