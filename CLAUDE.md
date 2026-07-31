@@ -6,6 +6,42 @@
 
 ---
 
+### 2026-07-31 (5) — the layout MENU wrote a key the renderer never read
+
+User: "do a full sweep on the layout view menu and make sure thats hooked up so i can change the
+boards layout."
+
+**Two independent breaks, both silent.**
+1. **Nothing to change.** `LayoutCascadeEditor` exposed only the six VIEW-MODE rules. The layout
+   shape PageBoard actually consumes — `mode` / `columns` / `childGap` / `sortChildrenByField` —
+   had NO control at all. The Schedule is side-by-side only because Build Schedule stamps
+   `mode:"flex-row"` from an op. Editor now has Arrangement (Stack/Columns/Grid), grid columns,
+   gap, max height, order-by.
+2. **The write went to the wrong key.** For a page/container the menu writes `meta.layoutCascade`
+   (the push-DOWN slot), but a page rendering ITSELF resolves as the LEAF — and the leaf layer
+   only ever read `meta.layoutCascadeOverride`. So a layout set from the header menu was stored
+   somewhere its own renderer never looked.
+   **Fix: `SURFACE_SHAPE_KEYS` + `pickSurfaceShape`** — shape keys describe how a surface arranges
+   its OWN children, so they apply to the surface that declares them. View-mode keys deliberately
+   still push down only: a container saying "my children render as chips" must not become a chip.
+   That distinction is the whole fix; 8 tests pin both halves.
+
+- **Day page is side by side** (`0025`): `flex-row`, ordered by the date field, `childMaxHeight:
+  600` so a column scrolls inside itself. Written to the SAME slot the menu writes, so changing it
+  in-app replaces this instead of fighting an op. Verified on prod: same y, distinct x, 360px each,
+  chronological.
+- **`#` now reads as `#`.** The STANDARD container header ignored `meta.headingLevel` entirely and
+  rendered a fixed ~15px, while an EMBEDDED `##` section renders 16 — so a day COLUMN was
+  SMALLER than the sections nested inside it. Standard headers size by heading level now, and
+  `HEADING_SIZES[1]` 18 → 22 so the gap between `#` and `##` is the widest in the scale.
+  Container labels also got the 2px of air above them that was asked for.
+- **OPEN — the sticky hover button.** Measured, not fixed: hovering inside the Daily Question grows
+  that box ~76px (an empty add-pocket at y=623 jumps to 699 and back), and that reflow is what
+  makes the hover target slip. The height cap bounds the damage; WHICH element grows is still
+  unidentified. Don't guess at it — reproduce with the hover probe and find the growing node first.
+
+---
+
 ### 2026-07-31 (4) — the signature invariant is now a GATE, and it caught a second armed bug immediately
 
 `gridIntegrity` gained two rules so the 07-31 (3) duplication class cannot go silent again:
