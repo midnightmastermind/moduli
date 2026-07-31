@@ -510,6 +510,8 @@ export async function buildDayPageTemplate({
   let tplDailyQContOccId = null;
   let tplDailyQTextblockModId = null;
   let tplDailyQTextblockOccId = null;
+  let tplDailyQOuterModId = null;
+  let tplDailyQOuterOccId = null;
 
   if (wantsDailyQuestion) {
     tplDailyQContModId = uid();
@@ -517,9 +519,28 @@ export async function buildDayPageTemplate({
     tplDailyQTextblockModId = uid();
     tplDailyQTextblockOccId = uid();
 
+    // TWO containers, not one (user 2026-07-31: "put the daily question in a
+    // daily question container with the actual question being a container
+    // inside of it"). The OUTER one is the section — a plain "Daily Question"
+    // heading like Journal or Notes. The INNER one is the question itself: its
+    // header is the bound picker, so the selected question reads as the
+    // heading and the field name sits small beside it in the binding badge.
+    // Splitting them is what stops the section header from BEING a whole
+    // sentence, which marquee-scrolled its own empty space.
+    tplDailyQOuterModId = uid();
+    tplDailyQOuterOccId = uid();
+    await new Module({
+      id: tplDailyQOuterModId, userId, gridId,
+      role: "container", kind: "doc", label: "Daily Question",
+      meta: { templateModule: true },
+    }).save();
+
     await new Module({
       id: tplDailyQContModId, userId, gridId,
-      role: "container", kind: "doc", label: "Daily Question",
+      // No label: the header renders the SELECTED QUESTION (BoundHeader's
+      // picker). A label here would print beside the question — the exact
+      // duplication the user flagged.
+      role: "container", kind: "doc", label: "",
       fieldBindings: [
         { fieldId: dateFieldId, role: "input", hidden: true, order: 0 },
         { fieldId: journalQuestionFieldId, role: "input", hidden: true, order: 1 },
@@ -606,7 +627,7 @@ export async function buildDayPageTemplate({
       id: tplDailyQContOccId,
       moduleId: tplDailyQContModId,
       targetId: tplDailyQContModId, targetType: "module",
-      parentId: tplDayPageRootOccId,
+      parentId: tplDailyQOuterOccId,
       // Container body embeds the textblock (which is what the user types into
       // for the answer).
       textmap: {
@@ -616,6 +637,19 @@ export async function buildDayPageTemplate({
         ],
       },
       occurrences: [tplDailyQTextblockOccId],
+    });
+
+    // The section wrapper: "Daily Question" heading, question container inside.
+    await mkOcc({
+      id: tplDailyQOuterOccId,
+      moduleId: tplDailyQOuterModId,
+      targetId: tplDailyQOuterModId, targetType: "module",
+      parentId: tplDayPageRootOccId,
+      textmap: {
+        type: "doc",
+        content: [{ type: "moduleEmbed", attrs: { occurrenceId: tplDailyQContOccId } }],
+      },
+      occurrences: [tplDailyQContOccId],
     });
   }
 
@@ -627,7 +661,7 @@ export async function buildDayPageTemplate({
   // are the same write on one occurrence.
   const dayPageOccurrencesList = [
     tplDayPageTextblockOccId,
-    ...(wantsDailyQuestion ? [tplDailyQContOccId] : []),
+    ...(wantsDailyQuestion ? [tplDailyQOuterOccId] : []),
     sectionOcc("Journal").occId,
     sectionOcc("Notes").occId,
     tplTasksCompletedContOccId,
@@ -637,7 +671,7 @@ export async function buildDayPageTemplate({
   const embed = (occId) => ({ type: "moduleEmbed", attrs: { occurrenceId: occId } });
   const dayPageTextmapContent = [
     { type: "instanceTextblock", attrs: { instanceId: tplDayPageTextblockModId, occurrenceId: tplDayPageTextblockOccId } },
-    ...(wantsDailyQuestion ? [embed(tplDailyQContOccId)] : []),
+    ...(wantsDailyQuestion ? [embed(tplDailyQOuterOccId)] : []),
     embed(sectionOcc("Journal").occId),
     embed(sectionOcc("Notes").occId),
     embed(tplTasksCompletedContOccId),

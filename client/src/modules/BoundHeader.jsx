@@ -122,16 +122,26 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
         className="bound-header bound-header-select"
         style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
       >
-        <span>{markdownPrefix}{stringifyValue(value, options)}</span>
+        {/* The SELECT already displays the current value. Printing it beside the
+            control too showed the whole question twice — and, being a header
+            label, the long copy marquee-scrolled its own empty space (user
+            2026-07-31: "make sure its not repeating the question next to it …
+            it should say the question as the selection and daily question small
+            next to it"). The field name lives in the badge at the end of the
+            row, which is the "small next to it". Only the markdown prefix (the
+            `#` heading marker) is printed here. */}
+        {markdownPrefix ? <span>{markdownPrefix}</span> : null}
         <select
           aria-label="bound select"
           value={value ?? ""}
           onChange={(e) => writeAndSync(e.target.value)}
-          style={{ fontSize: 11, padding: "2px 4px" }}
+          style={{ fontSize: 11, padding: "2px 4px", maxWidth: "100%" }}
         >
           {hasOptions ? (
             <>
-              <option value="">— pick —</option>
+              {/* Empty, like every other field select — an unset question reads
+                  as blank rather than announcing a placeholder. */}
+              <option value=""></option>
               {options.map((opt) => {
                 const v = typeof opt === "string" ? opt : opt.value;
                 const l = typeof opt === "string" ? opt : (opt.label ?? opt.value);
@@ -179,15 +189,6 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
       <BindingBadge field={field} isLinked={isLinked} />
     </span>
   );
-}
-
-function stringifyValue(value, options) {
-  if (value == null || value === "") return "";
-  if (Array.isArray(options)) {
-    const match = options.find((o) => (typeof o === "string" ? o : o.value) === value);
-    if (match) return typeof match === "string" ? match : (match.label ?? match.value);
-  }
-  return String(value);
 }
 
 function extractPlainText(tiptap) {
