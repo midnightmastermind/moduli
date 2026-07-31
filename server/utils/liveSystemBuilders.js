@@ -471,10 +471,16 @@ export async function buildDayPageTemplate({
   // sorted-by-timeslot list into. Label "Tasks Completed" renders as the
   // embedded-container H2-ish header (Container.jsx embedded mode already
   // styles the label as a 20px/700 mono heading, matching `##`).
+  // BOARD, not doc — it holds that day's completed tasks as real rows, the
+  // same way the Todo section does (user 2026-07-31: "tasks completed in the
+  // daypage should be like the todo container … it says click to edit instead
+  // of add new item"). A doc body could only ever hold a rendering of them.
+  // The build op links the tasks as CHILDREN now, so this container has no
+  // textmap to keep in step.
   const tplTasksCompletedContModId = uid();
   await new Module({
     id: tplTasksCompletedContModId, userId, gridId,
-    role: "container", kind: "doc", label: "Tasks Completed",
+    role: "container", kind: "board", label: "Tasks Completed",
     meta: { templateModule: true },
   }).save();
 
@@ -2195,8 +2201,41 @@ export function makeDayPageBuildTasksCompletedOp({
             { id: uid(), type: "if",
               condition: { operator: "AND", rules: [{ id: uid(), left: "$tcContId", comparator: "IS_NOT_EMPTY", right: "" }] },
               then: [
-                // Build the moduleEmbed array via PUSH_TO_ARRAY.
-                { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$tcContent", expr: "json:[]" } },
+                // ── SWEEP first ────────────────────────────────────────────
+                // Anything listed here that is no longer a completed task for
+                // this day is UNLINKED — never deleted. These children are the
+                // Schedule's own occurrences, multi-parented in, so deleting
+                // one would take the user's task out of the Schedule too. That
+                // is exactly why REMOVE_CHILD exists (REMOVE_OCCURRENCE would
+                // have been the wrong verb).
+                { id: uid(), type: "loop",
+                  overExpr: "$tcCont.occurrences",
+                  as: "$kidId",
+                  body: [
+                    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$kid", expr: "$allItemsById.${$kidId}" } },
+                    // The KEEP test is the add predicate verbatim, and the
+                    // unlink hangs off its ELSE — there is no NOT_SAME_DAY
+                    // comparator, and more importantly a hand-inverted copy of
+                    // the rule is a second source of truth that drifts.
+                    { id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [
+                        { id: uid(), left: `$kid.fields.${completedFieldId}.value`, comparator: "IS",       right: "true" },
+                        { id: uid(), left: `$kid.fields.${dateFieldId}.value`,      comparator: "SAME_DAY", right: "$dayDate" },
+                        ...(habitFieldId
+                          ? [{ id: uid(), left: "$kid._boundFieldIds", comparator: "ARRAY_NOT_INCLUDES", right: habitFieldId }]
+                          : []),
+                      ]},
+                      then: [],
+                      else: [
+                        { id: uid(), type: "action", config: { type: "REMOVE_CHILD", parentId: "$tcContId", childId: "$kidId" } },
+                      ],
+                    },
+                  ],
+                },
+                // ── then LINK every completed task for the day ─────────────
+                // ADD_CHILD is idempotent, so re-running just re-asserts the
+                // list. The container is a BOARD (like Todo), so its children
+                // ARE what it renders — no textmap to keep in step.
                 { id: uid(), type: "loop",
                   over: "$allInstances",
                   as: "$task",
@@ -2214,32 +2253,8 @@ export function makeDayPageBuildTasksCompletedOp({
                       : []),
                   ]},
                   body: [
-                    // PUSH_TO_ARRAY deep-resolves `$task.id` inside the embed
-                    // object so each push lands a unique occurrenceId.
                     { id: uid(), type: "action", config: {
-                        type: "PUSH_TO_ARRAY",
-                        name: "$tcContent",
-                        value: { type: "moduleEmbed", attrs: { occurrenceId: "$task.id" } },
-                    }},
-                  ],
-                },
-                // If the loop pushed nothing, leave a single empty paragraph
-                // so the container body still renders cleanly (TipTap requires
-                // doc.content to be non-empty).
-                { id: uid(), type: "if",
-                  condition: { operator: "AND", rules: [{ id: uid(), left: "$tcContent.length", comparator: "IS", right: "0" }] },
-                  then: [
-                    { id: uid(), type: "action", config: {
-                        type: "UPDATE",
-                        path: "$tcCont.textmap",
-                        value: { type: "doc", content: [{ type: "paragraph" }] },
-                    }},
-                  ],
-                  else: [
-                    { id: uid(), type: "action", config: {
-                        type: "UPDATE",
-                        path: "$tcCont.textmap",
-                        value: { type: "doc", content: "$tcContent" },
+                        type: "ADD_CHILD", parentId: "$tcContId", childId: "$task.id",
                     }},
                   ],
                 },

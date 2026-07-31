@@ -60,14 +60,44 @@ describe("makeDayPageBuildTasksCompletedOp — inclusive scope guard (cascade fi
     const withHabit = makeDayPageBuildTasksCompletedOp({
       userId: "u", gridId: "g", dateFieldId: "DF", completedFieldId: "CF", schedulePageOccId: "SP", habitFieldId: "HF",
     });
-    const loop = flattenSteps(withHabit.pipeline.steps).find(s => s.type === "loop");
+    const loop = flattenSteps(withHabit.pipeline.steps).find(s => s.type === "loop" && s.over === "$allInstances");
     const rule = loop.predicate.rules.find(r => r.left === "_boundFieldIds");
     expect(rule).toMatchObject({ comparator: "ARRAY_NOT_INCLUDES", right: "HF" });
   });
 
   it("omits the habit rule entirely when no marker field is passed", () => {
-    const loop = steps.find(s => s.type === "loop");
+    const loop = steps.find(s => s.type === "loop" && s.over === "$allInstances");
     expect(loop.predicate.rules.some(r => r.left === "_boundFieldIds")).toBe(false);
+  });
+
+  // The container is a BOARD now (like Todo), so its CHILDREN are what it
+  // renders — the op links tasks instead of writing a doc body.
+  it("links completed tasks as children instead of writing a textmap", () => {
+    const addLoop = steps.find(s => s.type === "loop" && s.over === "$allInstances");
+    expect(JSON.stringify(addLoop.body)).toContain("ADD_CHILD");
+    expect(JSON.stringify(op.pipeline)).not.toContain("moduleEmbed");
+  });
+
+  // The children are the SCHEDULE's own occurrences, multi-parented in. Tidying
+  // the list must unlink, never delete — REMOVE_OCCURRENCE would take the task
+  // out of the user's Schedule too.
+  it("sweeps stale children with REMOVE_CHILD and never REMOVE_OCCURRENCE", () => {
+    const json = JSON.stringify(op.pipeline);
+    expect(json).toContain("REMOVE_CHILD");
+    expect(json).not.toContain("REMOVE_OCCURRENCE");
+    expect(json).not.toContain("DELETE");
+  });
+
+  // The keep-test must be the add predicate, not a hand-inverted copy that can
+  // drift away from it.
+  it("keeps a child only when it still satisfies the add predicate", () => {
+    const sweep = steps.find(s => s.type === "loop" && s.overExpr === "$tcCont.occurrences");
+    const gate = flattenSteps(sweep.body).find(s => s.type === "if");
+    const lefts = gate.condition.rules.map(r => r.left);
+    expect(lefts.some(l => /completed|CF/i.test(l))).toBe(true);
+    expect(gate.condition.rules.some(r => r.comparator === "SAME_DAY")).toBe(true);
+    expect(gate.then).toEqual([]);                       // keeping does nothing
+    expect(JSON.stringify(gate.else)).toContain("REMOVE_CHILD");
   });
 });
 

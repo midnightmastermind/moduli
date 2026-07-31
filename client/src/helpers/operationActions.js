@@ -2278,6 +2278,31 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
 
+    // ---- REMOVE_CHILD: drop childId from a parent occurrence's occurrences[] ----
+    // cfg: { parentId, childId } (both exprs). The exact inverse of ADD_CHILD:
+    // it UNLINKS, it does not delete. That distinction is the whole point —
+    // a child listed here is usually MULTI-PARENTED (the day page's Todo and
+    // its completed tasks are the Schedule's own occurrences), so reaching for
+    // REMOVE_OCCURRENCE to tidy a list would delete the user's task out of the
+    // Schedule as well. Idempotent: a no-op when the child isn't listed.
+    case "REMOVE_CHILD": {
+      const parentId = resolveExpr(cfg.parentId, $vars);
+      const childId = resolveExpr(cfg.childId, $vars);
+      if (!parentId || !childId) break;
+      const parentOcc =
+        (context.occurrencesById && context.occurrencesById[parentId])
+        || (Array.isArray($vars.$allOccurrences) && $vars.$allOccurrences.find(o => o?.id === parentId))
+        || null;
+      const existing = Array.isArray(parentOcc?.occurrences) ? parentOcc.occurrences : [];
+      if (!existing.includes(childId)) break;
+      const next = existing.filter(id => id !== childId);
+      if (context.occurrencesById && context.occurrencesById[parentId]) {
+        context.occurrencesById[parentId] = { ...context.occurrencesById[parentId], occurrences: next };
+      }
+      updates.push({ _effect: "UPDATE_OCCURRENCE", occurrence: { id: parentId, occurrences: next } });
+      break;
+    }
+
     case "UPDATE_MODULE": {
       const modId = resolveExpr(cfg.moduleId || cfg.moduleIdExpr || "$trigger.moduleId", $vars);
       let patch = cfg.patch;
