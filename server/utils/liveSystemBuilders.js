@@ -620,6 +620,9 @@ export async function buildDayPageTemplate({
       moduleId: tplDailyQTextblockModId,
       targetId: tplDailyQTextblockModId, targetType: "module",
       parentId: tplDailyQContOccId,
+      // Signed for the same reason as its parent below: merge recurses into a
+      // matched node, and anything unsigned inside it gets cloned again.
+      identitySignature: "daypage:Daily Question/answer",
       // Blank doc — the bound body editor will populate from
       // fields[journalAnswer] via BoundBody at render time.
       textmap: { type: "doc", content: [{ type: "paragraph" }] },
@@ -631,6 +634,11 @@ export async function buildDayPageTemplate({
       moduleId: tplDailyQContModId,
       targetId: tplDailyQContModId, targetType: "module",
       parentId: tplDailyQOuterOccId,
+      // MUST be signed. A signature on the SECTION alone only stops the section
+      // being re-cloned — merge then recurses INTO it, finds this child
+      // unsigned, and clones a second question wrapper. Every load added one:
+      // today's column had collected 23 before this was caught (2026-07-31).
+      identitySignature: "daypage:Daily Question/question",
       // Container body embeds the textblock (which is what the user types into
       // for the answer).
       textmap: {
