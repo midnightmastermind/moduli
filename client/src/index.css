@@ -4732,3 +4732,8 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   border: 1px solid hsl(var(--border));
   border-radius: 4px;
 }
+/* Keep the field-name badge visible beside the picker — the control may shrink,
+   the badge may not (user: "daily question small next to it"). */
+.bound-header-select > .bound-binding-badge {
+  flex: 0 0 auto;
+}
