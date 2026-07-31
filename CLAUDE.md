@@ -6,6 +6,27 @@
 
 ---
 
+### 2026-07-31 (6) — the day-column header was overflowing its own row
+
+From the screenshot: headers unpadded, text too big, columns not lining up. All ONE cause, found by
+measuring rather than eyeballing — **the header row is locked to `height: 20px`, but the 22px
+heading label rendered 35px tall STARTING 9px ABOVE the row**. It overflowed its own header, which
+is why the text read as unpadded, why the rows looked cramped, and why the two columns didn't
+align (the overflow interacts with the marquee, so each column settled differently).
+
+- A container with `meta.headingLevel` no longer takes the fixed-height branch: it sizes to its
+  text with real padding on all four sides (`6px 10px`), and the label drops the `-1px` nudge that
+  exists only for the small fixed-height headers.
+- `HEADING_SIZES[1]` 22 → **18** (bold, as asked); level 2 → 15 so the step is still legible.
+- Nested/embedded section header top padding 6 → **3px**.
+- Day column `childMaxHeight` 600 → **420**.
+- Verified on prod: both columns identical (wrap y=87, header y=92 h=36, body y=128), label now
+  INSIDE its header (y=98 h=23, was y=83 h=35), 18px/700, padding `6px 10px`.
+- **Still open, unasked:** at 18px the title still overflows a 360px column, so it marquees
+  continuously. Truncating would read calmer — say the word.
+
+---
+
 ### 2026-07-31 (5) — the layout MENU wrote a key the renderer never read
 
 User: "do a full sweep on the layout view menu and make sure thats hooked up so i can change the
