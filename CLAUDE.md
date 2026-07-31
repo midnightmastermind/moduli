@@ -6,6 +6,51 @@
 
 ---
 
+### 2026-07-31 (2) — "you got rid of my trackers" was a RENDER flag, not deleted data
+
+**Nothing was deleted.** The user reported Workout Log and other trackers gone; the DB had every
+one of them (Workout Log, Reps, the six Volume tiles, Meal Log, Meal Nutrition) correctly parented.
+**A container only renders child CONTAINERS when its module carries `meta.allowChildContainers`** —
+and when the tracker tiles were nested (Workout+Nutrition→Physical, Media→Intellectual,
+Planning→Occupational), the re-parenting landed but the flag didn't. So the nested groups and every
+tile inside them dropped off the page while the data sat untouched. The Routines dimensions carry
+the flag, which is why the identical nesting works there. Migration `0021` sets it on any Trackers
+container that HOLDS a container (structural, so it can't drift as more groups get nested).
+**The lesson is the one this file already records, from the other direction: the DOM is ground
+truth. A tree that reads correctly in Mongo can still render nothing.**
+
+- **Day-page heading levels + colours** (`0020` + `0021`): the day COLUMN is `#` (it holds the
+  date), every section is `##`, and the heading TEXTBLOCK that repeated the column's own title is
+  deleted — verified to hold only the date string before removing any. Sections take the nine-
+  dimension vintage palette (Todo rust · Daily Question plum · Journal teal · Notes avocado ·
+  Tasks Completed green · Highlights mustard). The renderer prints one hash per `meta.headingLevel`,
+  so no code learns which containers these are.
+- **TWO migration selectors were wrong and the DRY RUN caught both** — worth repeating because both
+  markers look authoritative and neither is: `meta.appliedFromTemplateId` sits on every Schedule
+  ROUTINE CLONE too (the first dry run was about to make 30 workout instances heading level 1), and
+  `meta.templateName` is COPIED onto every clone by APPLY_TEMPLATE (so it resolved to a day column,
+  not the template). **The template is the one whose MODULE still has `meta.templateModule: true`** —
+  apply_template strips that from what it mints. Resolve day columns as the board's children.
+- **`$set: { "ownStyle.bg": … }` throws when `ownStyle` is null** ("Cannot create field 'bg' in
+  element {ownStyle: null}") — write the whole object.
+- **Instance rows: the inline-style trap, for the FOURTH recorded time.** "The people's names still
+  aren't aligned at the top" after a CSS fix that looked right — the label group's
+  `alignItems: "center"` is an INLINE style in `ModuleInstance.jsx`, which beats any stylesheet rule
+  regardless of specificity. Fixed at the source (`hasInlineThumb`), not with `!important`.
+  **When a rule silently does nothing, check for an inline style before anything else.**
+- **Artifact cards: filename UNDER the image** (user reversed the earlier "above"). The info block
+  already had `order: 1`; the name just had to stop being hidden, and the row label above it is
+  suppressed so the name reads once. That then exposed a second rule — `.instance-body:has(
+  .artifact-card){flex:unset}` sizes the body to content, and `.instance-content` is
+  `space-between`, so the card was shoved to the right edge leaving the gutter the caption used to
+  fill. `--with-info` cards now take the row width (same specificity, so it must stay AFTER that
+  rule in source order).
+- 1462 client + 338 server tests, deployed, all four verified on prod with measurements AND
+  screenshots (label delta 0px from the image top, filename below the image, nested trackers
+  rendering, six distinct section colours).
+
+---
+
 ### 2026-07-31 — the day page is DAY COLUMNS, template-driven; Tasks Completed is a board
 
 **The day page works like the Schedule now** (user: "make daypage work like the schedule. with
