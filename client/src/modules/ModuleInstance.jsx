@@ -453,6 +453,14 @@ function InstanceInner({
     return "img"; // best-effort default
   }, [mediaValue]);
 
+  // A row carrying an inline thumbnail anchors its handle + label to the TOP of
+  // that picture instead of centring on it (user 2026-07-31: "keep the text on
+  // the top though, right now it's centered with the image"). This has to be
+  // decided HERE rather than in a stylesheet: the group's alignItems is an
+  // INLINE style below, and an inline style beats any rule regardless of
+  // specificity — the fourth time that trap has bitten this codebase.
+  const hasInlineThumb = showMedia && mediaInline && !!mediaSrc && mediaTag === "img";
+
   // Operation widget bindings
   const operationWidgets = useMemo(() => {
     if (!instance?.operationBindings?.length || !operationsById) return [];
@@ -650,7 +658,7 @@ function InstanceInner({
           // AutoMarquee detect overflow) whenever space is tight. No flex-grow
           // so wide layouts are visually unchanged (group sizes to content,
           // fields take the remainder exactly as before).
-          : { display: "flex", flexDirection: "row", alignItems: "center", gap: 4, minWidth: 0 }
+          : { display: "flex", flexDirection: "row", alignItems: hasInlineThumb ? "flex-start" : "center", gap: 4, minWidth: 0 }
         }>
           <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
             <PopoverAnchor asChild>

@@ -1139,14 +1139,9 @@ body[data-clipboard-active="true"] {
 /* A row with an inline media thumbnail has a taller first line (the 22px
    .instance-media-inline), so its label group matches that instead. */
 .instance-content:has(.instance-media-inline) { --field-pill-h: 44px; }
-/* …and the handle + label sit at the TOP of that thumbnail rather than
-   centring on it (user 2026-07-31: "keep the text on the top though, right now
-   it's centered with the image"). The group is a flex row holding
-   [handle, thumbnail, label]; centring it against a 104px picture floated the
-   name to the middle of the face. The thumbnail keeps its own
-   `align-self: stretch` (align-self beats align-items), so it still tracks the
-   row height — only the text moves. */
-.instance-content > div:first-child:has(.instance-media-inline) { align-items: flex-start; }
+/* The handle + label top-align against that thumbnail rather than centring on
+   it — but that lives in ModuleInstance's JSX (`hasInlineThumb`), NOT here:
+   the group's alignItems is an inline style, which no stylesheet rule can beat. */
 /* NO negative margin here. The lift this used to apply (-3px) exactly cancelled
    the row's own 3px padding, so the fields sat FLUSH against the top border
    (user 2026-07-29: "there should be a 1px margin above the fields, right now
@@ -2875,18 +2870,20 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   order: 1;
   flex: 0 0 auto;
 }
-/* The file NAME is already the row's label directly above the picture, so
-   repeating it under the image read as a caption that was really just the
-   filename twice (user 2026-07-31: "get rid of the caption for them and stack
-   the file name with the image"). The info block stays — dimensions, size, and
-   a real caption when there is one — it just stops echoing the name. Scoped
-   away from `.doc-editor-content`, where the alt text IS the figure caption. */
-:not(.doc-editor-content) > * .artifact-card--with-info .artifact-thumb-info-name,
+/* The file NAME sits UNDER the picture (user 2026-07-31: "the file name should
+   go underneath the image"). It rides in the info block, which `order: 1`
+   already places below the image — so the name just has to render. It was
+   briefly hidden here as a duplicate of the row label above the card; the row
+   label is suppressed for these cards instead (ModuleInstance `hideLabelForArtifactCard`),
+   so the name appears exactly once, under the image where it was asked for. */
 .artifact-card--with-info .artifact-thumb-info-name {
-  display: none;
-}
-.doc-editor-content .artifact-card--with-info .artifact-thumb-info-name {
   display: -webkit-box;
+}
+/* …and the row label above the card is dropped, so the file name reads once,
+   under the picture, instead of twice. Scoped by :has() to rows whose body IS
+   an info-bearing artifact card — every other instance row keeps its label. */
+.instance-content:has(.artifact-card--with-info) > div:first-child .instance-label {
+  display: none;
 }
 /* Frame the picture itself the way a doc figure is framed, so a stacked card
    reads as a framed image rather than a bare bitmap on the card surface. */
