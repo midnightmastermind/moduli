@@ -4710,3 +4710,25 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 }
 .page-shell:hover .page-header-close-btn { opacity: 1; }
 .page-header-close-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.08); }
+
+/* ── Bound header (the day page's Daily Question picker) ────────────────────
+   The header is wrapped in AutoMarquee, which scrolls whatever overflows it.
+   A native <select> sizes to its longest option, so a pool of full-sentence
+   questions made the header permanently wider than its container and it
+   marquee-scrolled — mostly through empty space (user 2026-07-31: "make it
+   shorter, cause it marquees empty at the moment"). Constraining the control to
+   the row makes scrollWidth == clientWidth, so the marquee goes inert and the
+   selected question simply truncates. */
+.bound-header-select {
+  width: 100%;
+  min-width: 0;
+}
+.bound-header-select > select {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  background: transparent;
+  color: inherit;
+  border: 1px solid hsl(var(--border));
+  border-radius: 4px;
+}
