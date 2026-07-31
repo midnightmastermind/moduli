@@ -173,7 +173,6 @@ export const ACTION_TREE = [
           { value: "ADD_CHILD",         title: "Add as child",      sub: "wire to parent.occurrences[]", description: "Append occurrence ID to a parent's children list." },
           { value: "LINK_OCCURRENCE_TO_PARENT", title: "Link to parent", sub: "set parentId",     description: "Reparent an existing occurrence." },
           { value: "APPLY_TEMPLATE",    title: "Apply template",    sub: "fill from saved template", description: "Stamp a template subtree into a target." },
-          { value: "CREATE_OCCURRENCE_WITH_ITERATION", title: "Create page (by date)", sub: "find-or-create date-keyed", description: "Idempotent day-page creator." },
         ],
       },
       {
@@ -187,7 +186,7 @@ export const ACTION_TREE = [
           { value: "MARK_COMPLETE",      title: "Mark complete",     sub: "boolean field = true/false", description: "Tick a completion field." },
           { value: "UPDATE_MODULE",      title: "Update module",     sub: "patch module record",   description: "JSON patch the template." },
           { value: "UPDATE_STYLE",       title: "Set style",         sub: "ownStyle.bg / color / ...", description: "Set per-module style overrides." },
-          { value: "UPDATE_VIEW",        title: "Update view",       sub: "viewId.activeOccurrenceId", description: "Switch active artifact / day-page." },
+          { value: "UPDATE_VIEW",        title: "Update view",       sub: "viewId.activeOccurrenceId", description: "Switch a view's active occurrence." },
           { value: "APPEND_TO_DOC",      title: "Append to doc",     sub: "paragraph to textmap",  description: "Add a paragraph to an occurrence's TipTap doc." },
         ],
       },
@@ -210,7 +209,6 @@ export const ACTION_TREE = [
         description: "Relocate occurrences",
         children: [
           { value: "MOVE_OCCURRENCE",   title: "Move occurrence",   sub: "+ multiple switch",            description: "Move an occurrence to a new parent. Toggle `multiple` for ids[]." },
-          { value: "NAVIGATE_DAY_PAGE", title: "Navigate day page", sub: "find-or-create + switch view", description: "Atomic day-page nav." },
         ],
       },
     ],

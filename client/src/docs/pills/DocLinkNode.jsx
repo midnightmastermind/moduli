@@ -6,7 +6,7 @@
 
 import { useMemo, useCallback } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
-import { FileText, Calendar, FolderOpen } from "lucide-react";
+import { FileText, FolderOpen } from "lucide-react";
 import { useGridActions } from "../../GridActionsContext";
 
 /**
@@ -30,10 +30,13 @@ export default function DocLinkNode({ node, selected }) {
   const displayLabel = label || target?.label || target?.title || targetId || "Unknown";
 
   // Determine if link is valid
-  const isValid = !!target || linkType === "dayPage";
+  // A link is valid when it RESOLVES. There used to be an exception here for
+  // linkType === "dayPage", which rendered as valid with nothing behind it —
+  // generic link rendering carrying a domain concept.
+  const isValid = !!target;
 
   // Icon based on link type
-  const Icon = linkType === "dayPage" ? Calendar : linkType === "folder" ? FolderOpen : FileText;
+  const Icon = linkType === "folder" ? FolderOpen : FileText;
 
   // Handle click to navigate — fire custom event (ArtifactDisplay panels listen for it)
   const handleClick = useCallback((e) => {

@@ -5,7 +5,7 @@
 // ============================================================
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { FileText, Calendar, Search } from "lucide-react";
+import { FileText, Search } from "lucide-react";
 import { useGridActions } from "../../GridActionsContext";
 
 /**
@@ -35,28 +35,15 @@ export default function DocLinkSuggestion({
     });
   }, [containersById, occurrencesById, viewsById]);
 
-  // Generate recent day pages
-  const dayPages = useMemo(() => {
-    const pages = [];
-    const today = new Date();
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split("T")[0];
-      pages.push({
-        id: `day-${dateStr}`,
-        label: i === 0 ? "Today" : i === 1 ? "Yesterday" : dateStr,
-        dateStr,
-        type: "dayPage",
-      });
-    }
-    return pages;
-  }, []);
+  // NOTE: this list used to INVENT seven "day page" entries from the calendar
+  // (Today / Yesterday / a date string) — generic doc-link UI deciding that a
+  // day page is a thing that exists and what it is called. The link picker
+  // offers what the GRID actually holds; if a day is a page or a column, it
+  // shows up because it is there, not because this file knows about days.
 
   // Combine and filter based on query
   const suggestions = useMemo(() => {
-    const containers = docContainers.map((c) => ({ id: c.id, label: c.label || "Untitled", type: "doc" }));
-    const all = [...dayPages, ...containers];
+    const all = docContainers.map((c) => ({ id: c.id, label: c.label || "Untitled", type: "doc" }));
 
     if (!query) return all;
 
@@ -67,7 +54,7 @@ export default function DocLinkSuggestion({
         item.id.toLowerCase().includes(q) ||
         (item.dateStr && item.dateStr.includes(q))
     );
-  }, [docContainers, dayPages, query]);
+  }, [docContainers, query]);
 
   // Reset selection when query changes
   useEffect(() => {
@@ -169,7 +156,7 @@ export default function DocLinkSuggestion({
         ) : (
           suggestions.map((item, index) => {
             const isSelected = index === selectedIndex;
-            const Icon = item.type === "dayPage" ? Calendar : FileText;
+            const Icon = FileText;
 
             return (
               <div
@@ -182,7 +169,7 @@ export default function DocLinkSuggestion({
                   ${isSelected ? "bg-accent text-accent-foreground" : "hover:bg-accent/50"}
                 `}
               >
-                <Icon className={`w-4 h-4 ${item.type === "dayPage" ? "text-amber-500" : "text-blue-400"}`} />
+                <Icon className="w-4 h-4 text-blue-400" />
                 <span className="text-sm truncate">{item.label}</span>
               </div>
             );
