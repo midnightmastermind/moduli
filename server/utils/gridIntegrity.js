@@ -124,6 +124,75 @@ export function checkGridIntegrity({ occurrences = [], modules = [], fields = []
   if (inert.length) add("warn", "unfireable-operation",
     `${inert.length} enabled operation(s) have no trigger and no schedule (manual-run only)`, inert);
 
+  // 9. A node inside a TEMPLATE that carries no identitySignature.
+  //    `APPLY_TEMPLATE mode:"merge"` decides "this already exists" by matching
+  //    identitySignature, and it RECURSES into whatever it matched — so an
+  //    unsigned node is cloned again on every single apply. On 2026-07-31 the
+  //    Day Page template's question container was unsigned and today's column
+  //    had silently collected 23 empty copies of it, one per app load.
+  //    The check lives on the TEMPLATE, not the clones, because that is where
+  //    the invariant is crisp: a clone's children include whatever the user
+  //    typed, which has no template counterpart and is rightly unsigned.
+  //    The ROOT is exempt — it is matched by the apply target, not by signature.
+  const templateRoots = new Set();
+  for (const o of occurrences) {
+    const from = o.meta?.appliedFromTemplateId;
+    if (from) templateRoots.add(from);
+    if (modById.get(o.moduleId)?.meta?.templateModule) templateRoots.add(o.id);
+  }
+  // `templateModule` is stamped on EVERY module in a cloned template, not just
+  // its root, so the inner nodes are candidate roots too — walking each would
+  // report the same node several times. Report per occurrence id instead.
+  const unsignedById = new Map();
+  for (const rootId of templateRoots) {
+    const root = occById.get(rootId);
+    if (!root) continue;
+    const seen = new Set([rootId]);
+    const walk = (id) => {
+      const o = occById.get(id);
+      if (!o) return;
+      if (!o.identitySignature && !unsignedById.has(o.id)) {
+        const label = modById.get(o.moduleId)?.label || "(unlabelled)";
+        unsignedById.set(o.id, `${label} in ${modById.get(root.moduleId)?.label || rootId}`);
+      }
+      for (const c of o.occurrences || []) if (!seen.has(c)) { seen.add(c); walk(c); }
+    };
+    for (const c of root.occurrences || []) if (!seen.has(c)) { seen.add(c); walk(c); }
+  }
+  const unsigned = [...unsignedById.values()];
+  if (unsigned.length) add("error", "unsigned-template-node",
+    `${unsigned.length} occurrence(s) inside a template carry no identitySignature — a merge apply ` +
+    `clones an unsigned node every time it runs`, unsigned);
+
+  // 10. The damage rule for #9, in case structure is ever added to an already
+  //     built page by hand (a migration, an import) rather than to the
+  //     template: two children of a template-applied node that are the same
+  //     section twice. That is what a merge with a missed signature produces,
+  //     and it is what the user reported ("the daypage for yesterday added all
+  //     the sections twice") before either signature gap was found.
+  const dupSections = [];
+  for (const o of occurrences) {
+    if (!o.meta?.appliedFromTemplateId) continue;
+    const labels = new Map();
+    for (const c of o.occurrences || []) {
+      const child = occById.get(c);
+      // Only the node's OWN children — something multi-parented in from
+      // elsewhere (the Schedule's Todo) is not this template's to count.
+      if (!child || child.parentId !== o.id) continue;
+      const mod = modById.get(child.moduleId);
+      if (mod?.role !== "container") continue;
+      const key = mod.label || "";
+      if (!key) continue;
+      labels.set(key, (labels.get(key) || 0) + 1);
+    }
+    for (const [label, n] of labels) {
+      if (n > 1) dupSections.push(`${modById.get(o.moduleId)?.label || o.id} › ${label}×${n}`);
+    }
+  }
+  if (dupSections.length) add("error", "duplicate-template-section",
+    `${dupSections.length} template-applied page(s) hold the same section more than once — the merge ` +
+    `could not match an existing section and cloned it`, dupSections);
+
   return findings;
 }
 

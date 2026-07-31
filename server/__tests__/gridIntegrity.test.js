@@ -175,3 +175,134 @@ describe("inert kind on leaf roles", () => {
     expect(f.map(x => x.code)).not.toContain("inert-kind");
   });
 });
+
+describe("unsigned nodes inside a template", () => {
+  // APPLY_TEMPLATE mode:"merge" matches by identitySignature and RECURSES into
+  // whatever it matched, so an unsigned node is re-cloned on every apply. On
+  // 2026-07-31 the Day Page template's question container was unsigned and one
+  // column had collected 23 empty copies of it — one per app load.
+  const tplMod = (id, label) => mod(id, { role: "container", label, meta: { templateModule: true } });
+
+  it("flags a template child that carries no identitySignature", () => {
+    const f = checkGridIntegrity({
+      modules: [tplMod("mRoot", "Day Page"), tplMod("mSec", "Daily Question")],
+      occurrences: [
+        occ("root", "mRoot", { occurrences: ["sec"] }),
+        occ("sec", "mSec"),
+      ],
+    });
+    const hit = f.find(x => x.code === "unsigned-template-node");
+    expect(hit.level).toBe("error");
+    expect(hit.ids).toEqual(["Daily Question in Day Page"]);
+  });
+
+  it("follows the whole subtree — an unsigned GRANDchild duplicates too", () => {
+    // The exact 2026-07-31 shape: the section was signed, its question
+    // container was not, so merge matched the section and cloned the child.
+    const f = checkGridIntegrity({
+      modules: [tplMod("mRoot", "Day Page"), tplMod("mSec", "Daily Question"), tplMod("mQ", "question")],
+      occurrences: [
+        occ("root", "mRoot", { occurrences: ["sec"] }),
+        occ("sec", "mSec", { identitySignature: "daypage:Daily Question", occurrences: ["q"] }),
+        occ("q", "mQ"),
+      ],
+    });
+    expect(f.find(x => x.code === "unsigned-template-node").ids).toEqual(["question in Day Page"]);
+  });
+
+  it("is quiet when every node below the root is signed", () => {
+    const f = checkGridIntegrity({
+      modules: [tplMod("mRoot", "Day Page"), tplMod("mSec", "Daily Question"), tplMod("mQ", "question")],
+      occurrences: [
+        occ("root", "mRoot", { occurrences: ["sec"] }),
+        occ("sec", "mSec", { identitySignature: "daypage:Daily Question", occurrences: ["q"] }),
+        occ("q", "mQ", { identitySignature: "daypage:Daily Question/question" }),
+      ],
+    });
+    expect(codes(f)).not.toContain("unsigned-template-node");
+  });
+
+  it("exempts the ROOT — it is matched by the apply target, not by a signature", () => {
+    const f = checkGridIntegrity({
+      modules: [tplMod("mRoot", "Day Page")],
+      occurrences: [occ("root", "mRoot")],
+    });
+    expect(codes(f)).not.toContain("unsigned-template-node");
+  });
+
+  it("reports a node ONCE even though every inner module is flagged templateModule", () => {
+    // clone_subtree_as_template stamps templateModule on every module in the
+    // subtree, so the inner nodes are candidate roots too and a naive walk
+    // reports the same node once per ancestor.
+    const f = checkGridIntegrity({
+      modules: [tplMod("mRoot", "Project"), tplMod("mMid", "Kanban"), tplMod("mLeaf", "Backburner")],
+      occurrences: [
+        occ("root", "mRoot", { occurrences: ["mid"] }),
+        occ("mid", "mMid", { occurrences: ["leaf"] }),
+        occ("leaf", "mLeaf"),
+      ],
+    });
+    const hit = f.find(x => x.code === "unsigned-template-node");
+    expect(hit.ids).toEqual(["Kanban in Project", "Backburner in Project"]);
+  });
+
+  it("checks templates reached only through a clone's appliedFromTemplateId", () => {
+    const f = checkGridIntegrity({
+      modules: [mod("mRoot", { role: "container", label: "Day Page" }), mod("mSec", { role: "container", label: "Journal" })],
+      occurrences: [
+        occ("root", "mRoot", { occurrences: ["sec"] }),
+        occ("sec", "mSec"),
+        occ("clone", "mRoot", { meta: { appliedFromTemplateId: "root" } }),
+      ],
+    });
+    expect(f.find(x => x.code === "unsigned-template-node").ids).toEqual(["Journal in Day Page"]);
+  });
+});
+
+describe("duplicate sections on a template-applied page", () => {
+  // The damage rule: what a merge with a missed signature actually produces,
+  // and what the user reported ("the daypage for yesterday added all the
+  // sections twice") before either signature gap had been found.
+  const sec = (id, label) => mod(id, { role: "container", label });
+
+  it("flags the same section twice under one applied page", () => {
+    const f = checkGridIntegrity({
+      modules: [mod("mCol", { role: "container", label: "Day Page - 2026-07-30" }), sec("mJ", "Journal")],
+      occurrences: [
+        occ("col", "mCol", { meta: { appliedFromTemplateId: "tpl" }, occurrences: ["j1", "j2"] }),
+        occ("j1", "mJ", { parentId: "col" }),
+        occ("j2", "mJ", { parentId: "col" }),
+      ],
+    });
+    const hit = f.find(x => x.code === "duplicate-template-section");
+    expect(hit.level).toBe("error");
+    expect(hit.ids).toEqual(["Day Page - 2026-07-30 › Journal×2"]);
+  });
+
+  it("does not count a container MULTI-PARENTED in from somewhere else", () => {
+    // Todo is the Schedule day-column's own container, listed by the day page
+    // as well. Its parentId points at the schedule, so it is not the day
+    // page's to count — and must never be "deduped" away.
+    const f = checkGridIntegrity({
+      modules: [mod("mCol", { role: "container", label: "Day Page" }), sec("mT", "Todo")],
+      occurrences: [
+        occ("col", "mCol", { meta: { appliedFromTemplateId: "tpl" }, occurrences: ["t1", "t2"] }),
+        occ("t1", "mT", { parentId: "elsewhere" }),
+        occ("t2", "mT", { parentId: "elsewhere" }),
+      ],
+    });
+    expect(codes(f)).not.toContain("duplicate-template-section");
+  });
+
+  it("is quiet on a page that was never applied from a template", () => {
+    const f = checkGridIntegrity({
+      modules: [mod("mP", { role: "container", label: "Page" }), sec("mJ", "Journal")],
+      occurrences: [
+        occ("p", "mP", { occurrences: ["j1", "j2"] }),
+        occ("j1", "mJ", { parentId: "p" }),
+        occ("j2", "mJ", { parentId: "p" }),
+      ],
+    });
+    expect(codes(f)).not.toContain("duplicate-template-section");
+  });
+});

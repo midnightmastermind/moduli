@@ -770,10 +770,7 @@ export async function buildProjectTemplate({
       id: modId, userId, gridId,
       role: "container", kind: "board", label: col.label,
       styleMode: "own", ownStyle: { bg: col.bg },
-      meta: {
-        templateModule: true,
-        identitySignature: `kanbanCol:${col.key}`,
-      },
+      meta: { templateModule: true },
     }).save();
   }
 
@@ -800,6 +797,11 @@ export async function buildProjectTemplate({
       moduleId: tplKanbanColModIds[col.key],
       targetId: tplKanbanColModIds[col.key], targetType: "module",
       parentId: tplProjectKanbanOccId,
+      // identitySignature is a TOP-LEVEL field on the OCCURRENCE (schema,
+      // 2026-05-14). It used to be written into the MODULE's meta here, where
+      // merge never reads it — so re-applying this template duplicated all six
+      // columns. Caught by the `unsigned-template-node` integrity check.
+      identitySignature: `kanbanCol:${col.key}`,
       iteration: { mode: "persistent" }, fields: {},
       occurrences: [],
     });
@@ -811,6 +813,7 @@ export async function buildProjectTemplate({
     moduleId: tplProjectKanbanModId,
     targetId: tplProjectKanbanModId, targetType: "module",
     parentId: tplProjectPageOccId,
+    identitySignature: "project:Kanban",
     iteration: { mode: "persistent" }, fields: {},
     occurrences: PROJECT_KANBAN_COLS.map(c => tplKanbanColOccIds[c.key]),
   });
@@ -825,6 +828,7 @@ export async function buildProjectTemplate({
     moduleId: tplProjectScopeModId,
     targetId: tplProjectScopeModId, targetType: "module",
     parentId: tplProjectPageOccId,
+    identitySignature: "project:Project Scope",
     iteration: { mode: "persistent" }, fields: {},
     textmap: {
       type: "doc",
