@@ -62,13 +62,21 @@ export function gapClosed(info, how = "transition") {
  */
 export function sweepGaps(reason = "manual") {
   if (!on() || typeof document === "undefined") return [];
-  const stuck = [...document.querySelectorAll(".insert-gap--open")].map((el) => {
+  const stuck = [...document.querySelectorAll(".insert-gap--open, .insert-gap--hot")].map((el) => {
     const line = el.querySelector(".insert-gap-line");
     const shell = el.closest(".container-shell");
     const label = shell?.innerText?.split("\n")[0]?.trim()?.slice(0, 24) || "?";
     return {
       where: label,
       index: el.dataset.insertIndex,
+      why: el.classList.contains("insert-gap--open") ? "menu-open" : "hover",
+      // `hover` + pointer NOT inside the rect = the stale-hover case; the JS
+      // claim should have released it, so that would be a real regression.
+      pointerInside: (() => {
+        const r = el.getBoundingClientRect();
+        const p = window.__lastPointer;
+        return p ? (p.x >= r.left && p.x <= r.right && p.y >= r.top && p.y <= r.bottom) : null;
+      })(),
       lineOpacity: line ? getComputedStyle(line).opacity : "(no line)",
       hovered: el.matches(":hover"),
       // present here = the HOST still believes its menu is open (cause A);
@@ -77,7 +85,7 @@ export function sweepGaps(reason = "manual") {
     };
   });
   // A line can also be lit with NO forced-open class — that is cause C.
-  const hoverLit = [...document.querySelectorAll(".insert-gap:not(.insert-gap--open) .insert-gap-line")]
+  const hoverLit = [...document.querySelectorAll(".insert-gap:not(.insert-gap--open):not(.insert-gap--hot) .insert-gap-line")]
     .filter((l) => getComputedStyle(l).opacity !== "0")
     .map((l) => {
       const el = l.closest(".insert-gap");
@@ -96,6 +104,12 @@ export function sweepGaps(reason = "manual") {
 }
 
 if (typeof window !== "undefined") {
+  // Pointer position, so a sweep can say whether a lit gap is one the pointer
+  // is actually over (fine) or one it left behind (the bug).
+  document.addEventListener("pointermove", (e) => {
+    window.__lastPointer = { x: e.clientX, y: e.clientY };
+  }, { passive: true, capture: true });
+
   // Call `__gapStuck()` in the console the moment a line is stuck — that single
   // line says which cause it is.
   window.__gapStuck = () => sweepGaps("manual");
@@ -110,7 +124,9 @@ if (typeof window !== "undefined") {
     let lastCount = 0;
     setInterval(() => {
       if (!on() || typeof document === "undefined") return;
-      const n = document.querySelectorAll(".insert-gap--open").length;
+      // BOTH classes. Hover is JS-owned now, so a stuck highlight is `--hot`,
+      // which the first version of this watcher could not see at all.
+      const n = document.querySelectorAll(".insert-gap--open, .insert-gap--hot").length;
       if (n !== lastCount) {
         lastCount = n;
         if (n > 0) sweepGaps(`watcher saw ${n} forced-open`);
