@@ -273,7 +273,7 @@ a glance where prose lines would have buried it.
 
 ---
 
-### 2026-08-01 (11) — why today's day column never appears: a RANGE filter + an already-stamped marker
+### 2026-08-01 (11) — [SETTLED — see the note at the end] why today's day column never appears: a RANGE filter + an already-stamped marker
 
 Root-caused from live data (the user's log kept showing `Grid: Snap Filter To Today` firing with
 **0fx** on Aug 1):
@@ -302,6 +302,18 @@ should ALWAYS ensure today's column exists regardless of the filter window.
 
 Do not "fix" the marker or force the snap without settling that first — the same rule protects
 every other date-carrying page on the grid.
+
+**SETTLED (recorded 2026-08-01 (18) — the decision was made the same day but never written down
+here, so this entry read as still-open for a while).** The user picked **(b), collapse to today**.
+Migration `0031-collapse-day-page-range-to-today` carries it, and it shipped inside a
+`deploy: update site` commit, which is why it left no trace in this file. Verified on the live grid:
+the Day Page board's override is now the single day `2026-08-01` and today's column exists.
+
+**The durable half is STILL OPEN, by the migration's own explicit scope.** `0031` un-stuck the grid
+that was stuck that day; it did NOT teach `Grid: Snap Filter To Today` to collapse a range when a
+new day starts, so **this recurs the next time a multi-day range is picked and left overnight**.
+That fix changes a SHARED op governing every date-carrying page on the grid, which is exactly why
+it was held back for its own reviewed pass. Start there, not at the marker.
 
 ---
 
