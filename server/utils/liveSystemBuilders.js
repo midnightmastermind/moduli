@@ -1625,7 +1625,9 @@ export function makeDayPageBuildOp({
                     type: "APPLY_TEMPLATE",
                     templateRef: "$tplId",
                     rootParent: dayPageBoardOccId,
-                    rootLabel: "Day Page - ${$day}",
+                    // Just the date — the board is already called "Day Page", so
+                    // repeating it on every column was noise (user 2026-07-31).
+                    rootLabel: "${$day}",
                     replacements: { "{Date}": "$day" },
                     rootIdVar: "$colId",
                     defaultFields: { [dateFieldId]: "$day" },
