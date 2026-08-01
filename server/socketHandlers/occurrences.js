@@ -4,6 +4,7 @@ import Occurrence from "../models/Occurrence.js";
 import Transaction from "../models/Transaction.js";
 import { nanoid } from "nanoid";
 import { compressTextmap, decompressTextmap } from "../utils/textmapCompression.js";
+import { recordDoc } from "../utils/txRecorder.js";
 
 export function registerOccurrenceHandlers(socket, {
   io, ensureUserCache, userCacheReady, loadUserIntoCache,
@@ -35,7 +36,8 @@ export function registerOccurrenceHandlers(socket, {
     abortController.abort();
   });
 
-  socket.on("update_occurrence", async ({ occurrence, expectedUpdatedAt, expectedFieldUpdatedAt } = {}) => {
+  socket.on("update_occurrence", async (payload = {}) => {
+    const { occurrence, expectedUpdatedAt, expectedFieldUpdatedAt } = payload;
     try {
       if (!userId) return;
       const uc = await getUc();
@@ -43,6 +45,10 @@ export function registerOccurrenceHandlers(socket, {
       if (!id) return;
 
       const prev = uc.occurrencesById[id] || {};
+      // Snapshot the prior state for undo BEFORE anything mutates it. This one
+      // handler carries field edits AND textmap edits, which is what makes doc
+      // history work at all — nothing else records textmaps.
+      const undoBefore = uc.occurrencesById[id] ? { ...prev } : null;
 
       // Track the LAST socket to successfully write each occurrence. A stale
       // baseline only signals a real conflict when a DIFFERENT client landed
@@ -188,6 +194,22 @@ export function registerOccurrenceHandlers(socket, {
       }
 
       uc.occurrencesById[id] = next;
+
+      // Undo snapshot. `__actionId` groups this write with the user action that
+      // caused it, so a drop and its ~40 tracker writes are ONE undo step.
+      try {
+        recordDoc({
+          userId, gridId: txGridId || socket.data.activeGridId,
+          actionId: payload?.__actionId || null,
+          model: "occurrence", id, before: undoBefore, after: next,
+          broadcast: (txJson) => {
+            socket.emit("transaction_created", { transaction: txJson });
+            socket.to(userRoom(userId)).emit("transaction_created", { transaction: txJson });
+          },
+        });
+      } catch (recErr) {
+        console.error("update_occurrence undo-record failed (continuing):", recErr?.message || recErr);
+      }
 
       // Compress textmap before persisting to DB
       const dbDoc = textmap !== undefined

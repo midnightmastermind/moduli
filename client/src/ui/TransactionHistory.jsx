@@ -58,8 +58,12 @@ const STATE_CONFIG = {
   redone: { label: "Redone", color: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
 };
 
-// Undo/redo temporarily disabled (broken server-side) — see TransactionRow.
-const UNDO_REDO_ENABLED = false;
+// Undo/redo works again as of 2026-08-01: transactions now carry before/after
+// document SNAPSHOTS and the server restores them wholesale, instead of trying
+// to compute an inverse per mutation type (which silently no-op'd for moves,
+// creates, deletes and textmaps alike). Only a transaction that actually has
+// snapshots is undoable — pre-2026-08-01 rows are history-only.
+const UNDO_REDO_ENABLED = true;
 
 /**
  * Single transaction row
@@ -77,11 +81,13 @@ function TransactionRow({
 
   const isUndone = transaction.state === "undone";
   const isRedone = transaction.state === "redone";
-  // Undo/redo are DISABLED for now (2026-07-03, per user — "the undo and redo
-  // don't even work right now so let's hide that"). History stays viewable;
-  // flip UNDO_REDO_ENABLED when the server-side undo path is fixed.
-  const canUndo = UNDO_REDO_ENABLED && (transaction.state === "applied" || transaction.state === "redone");
-  const canRedo = UNDO_REDO_ENABLED && transaction.state === "undone";
+  // A transaction is only reversible if it carries snapshots. Rows recorded
+  // before the 2026-08-01 rewrite (and derived/bookkeeping writes) have none —
+  // they stay VIEWABLE but offer no undo button, rather than offering one that
+  // silently does nothing.
+  const hasSnapshots = Array.isArray(transaction.docs) && transaction.docs.length > 0;
+  const canUndo = UNDO_REDO_ENABLED && hasSnapshots && (transaction.state === "applied" || transaction.state === "redone");
+  const canRedo = UNDO_REDO_ENABLED && hasSnapshots && transaction.state === "undone";
 
   const timestamp = transaction.timestamp
     ? formatDistanceToNow(new Date(transaction.timestamp), { addSuffix: true })

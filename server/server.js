@@ -43,7 +43,9 @@ import { getOccurrencesForGrid, createOccurrenceData } from "./utils/occurrenceH
 import { decompressTextmap } from "./utils/textmapCompression.js";
 import { selectGrid } from "./utils/gridHelpers.js";
 
-const MODEL_MAP = { grid: Grid, module: Module, field: Field, occurrence: Occurrence, manifest: Manifest, view: View, folder: Folder };
+// `operation` was missing here, so undo/redo could not resolve a Model for an
+// operation snapshot and silently skipped it (2026-08-01).
+const MODEL_MAP = { grid: Grid, module: Module, field: Field, occurrence: Occurrence, manifest: Manifest, view: View, folder: Folder, operation: Operation };
 function getModelByType(entityType) { return MODEL_MAP[entityType] || null; }
 
 // ========================================================

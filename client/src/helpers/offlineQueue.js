@@ -1,7 +1,16 @@
 // helpers/offlineQueue.js
 // Buffers socket.emit calls when disconnected. Flushes after reconnect + full_state.
 
+import { getActionId, getActionLabel } from "./actionScope";
+
 const queue = [];
+
+// Reads that carry no state change — stamping an action id on them would pull
+// unrelated traffic into the user's undo step.
+const NON_MUTATING = new Set([
+  "request_full_state", "request_textmap", "get_transactions", "get_undo_state",
+  "get_op_run_logs", "get_field_history", "undo_transaction", "redo_transaction",
+]);
 
 // Events where only the latest payload per entity matters (dedup by key)
 const DEDUP_EVENTS = new Set([
@@ -29,6 +38,15 @@ function dedupKey(event, data) {
  */
 export function safeEmit(socket, event, data) {
   if (!socket) return;
+
+  // Stamp the open user action so the server can group this write with the rest
+  // of the cascade into one undo step (see helpers/actionScope.js). Done HERE
+  // because safeEmit is the single chokepoint every socket write passes
+  // through — 50+ call sites in CommitHelpers alone.
+  const actionId = getActionId();
+  if (actionId && !NON_MUTATING.has(event) && data && typeof data === "object" && !Array.isArray(data)) {
+    data = { ...data, __actionId: actionId, __actionLabel: getActionLabel() || undefined };
+  }
 
   if (socket.connected) {
     socket.emit(event, data);

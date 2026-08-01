@@ -140,6 +140,31 @@ const OperationSchema = new mongoose.Schema(
   { _id: false }
 );
 
+// Snapshot of ONE document either side of a change. This is what undo/redo
+// actually runs on (2026-08-01) — `operations` above stays for the audit
+// trail + `get_field_history`, but it can't drive undo:
+//   * an inverse has to be written per mutation type, and any type without one
+//     silently no-ops (exactly how undo broke — the move inverse wrote
+//     `containerId`/`panelId`, which are not fields on Occurrence at all);
+//   * there is no sane inverse for a textmap edit.
+// A before/after snapshot is one code path for every entity type, and textmaps
+// come along for free.
+//
+// `before: null` = the document was CREATED (undo deletes it).
+// `after: null`  = the document was DELETED (undo re-creates it from `before`).
+// Both sides store the doc AS PERSISTED, so `textmap` stays gzip-compressed —
+// a snapshot costs about what the document costs.
+const DocSnapshotSchema = new mongoose.Schema(
+  {
+    // Key into MODEL_MAP (server.js): grid|module|field|occurrence|manifest|view|folder|operation
+    model: { type: String, required: true },
+    id: { type: String, required: true },
+    before: { type: mongoose.Schema.Types.Mixed, default: null },
+    after: { type: mongoose.Schema.Types.Mixed, default: null },
+  },
+  { _id: false }
+);
+
 // Main Transaction schema
 const TransactionSchema = new mongoose.Schema(
   {
@@ -164,6 +189,15 @@ const TransactionSchema = new mongoose.Schema(
     // Array of operations in this transaction
     // Multiple operations can be batched into a single transaction
     operations: { type: [OperationSchema], default: [] },
+
+    // Before/after snapshots — the undo/redo payload. See DocSnapshotSchema.
+    docs: { type: [DocSnapshotSchema], default: [] },
+
+    // Groups ONE user action with every write its operation cascade produced,
+    // so a drop that fans out into ~40 tracker writes is a single Ctrl+Z.
+    // Minted client-side (helpers/actionScope.js) and carried on every socket
+    // write; null for writes with no user action behind them.
+    actionId: { type: String, default: null, index: true },
 
     // Transaction state for undo/redo chain (like git)
     // applied = action was performed
@@ -201,6 +235,10 @@ const TransactionSchema = new mongoose.Schema(
 TransactionSchema.index({ gridId: 1, timestamp: -1 });
 TransactionSchema.index({ userId: 1, timestamp: -1 });
 TransactionSchema.index({ gridId: 1, state: 1, timestamp: -1 });
+// The undo/redo stack query: newest undoable / most-recently-undone for a grid.
+// Ordered by `sequence`, NOT timestamp — two writes can share a millisecond,
+// and the stack has to be totally ordered or undo can skip or repeat a step.
+TransactionSchema.index({ userId: 1, gridId: 1, state: 1, sequence: -1 });
 
 // Hide Mongo internals in API responses
 TransactionSchema.set("toJSON", {

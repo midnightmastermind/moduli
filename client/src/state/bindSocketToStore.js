@@ -25,6 +25,7 @@ import {
   ensureModuleBindingsForOccurrenceFields,
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
+import { beginAction, endAction } from "../helpers/actionScope";
 import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers";
 import { migrateFieldOptionsSource, needsMigration } from "./migrateFieldOptionsSource";
 import { analyzeAllOperations } from "../helpers/operationIntrospection";
@@ -1571,11 +1572,17 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
   // Drop-batch: collect all top-level op fires during a drop, then flush
   // them after rAF so the browser can paint the committed drop first.
-  operationsBridge.beginDropBatch = () => { _dropBatchFires = []; };
+  operationsBridge.beginDropBatch = () => {
+    _dropBatchFires = [];
+    // Open the undo action here and hold it across the WHOLE drain below, so
+    // the move and every tracker write it causes land in one transaction —
+    // one Ctrl+Z puts the user back where they were.
+    beginAction("Moved item");
+  };
   operationsBridge.endDropBatch = () => {
     const batch = _dropBatchFires;
     _dropBatchFires = null;
-    if (!batch || batch.length === 0) return;
+    if (!batch || batch.length === 0) { endAction(); return; }
     // DOUBLE rAF: a single requestAnimationFrame runs BEFORE the next paint, so
     // the deferred op cascade (trackers + Table/Canvas builds → a big grid
     // re-render) executed in the SAME frame as the optimistic move and blocked
@@ -1597,6 +1604,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     const step = () => {
       const next = batch.shift();
       if (!next) {
+        // The cascade has drained — close the undo action so later writes
+        // aren't swallowed into this one.
+        endAction();
         if (typeof window !== "undefined" && window.__dragPerf === true) {
           console.log(`[drop] op drain done — ${total} fires, ${cascadeSet.size} ops, ${Math.round(performance.now() - t0)}ms`);
         }

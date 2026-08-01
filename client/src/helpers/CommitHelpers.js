@@ -1,6 +1,7 @@
 // helpers/CommitHelpers.js
 import { operationsBridge } from "../state/bindSocketToStore";
 import { safeEmit } from "./offlineQueue";
+import { beginAction, endAction } from "./actionScope";
 import { buildParentMap } from "./dragHitTesting";
 import {
   createGridAction,
@@ -780,19 +781,26 @@ export function setOccurrenceFieldValue({ dispatch, socket, occurrences, occurre
       [fieldId]: { value, flow, timestamp: Date.now() },
     },
   };
-  dispatch?.(updateOccurrenceAction(updatedOcc));
-  // Update local occurrence cache + fire operations immediately (optimistic)
-  operationsBridge.updateLocalOcc?.(updatedOcc);
-  const sfvAncestors = operationsBridge.getAncestorChain?.(occurrenceId) || { ids: [], labels: [] };
-  operationsBridge.fireOperations?.("MeasureOp", {
-    type: "MeasureOp",
-    occurrenceId,
-    instanceId: occ.moduleId,
-    fields: { [fieldId]: value },
-    _ancestorIds: sfvAncestors.ids,
-    _ancestorLabels: sfvAncestors.labels,
-  });
-  safeEmit(socket, "update_occurrence", { occurrence: updatedOcc });
+  // One undo step for the edit AND the tracker cascade it triggers. The fire
+  // below is synchronous, so everything it writes is stamped with this action.
+  beginAction("Changed a value");
+  try {
+    dispatch?.(updateOccurrenceAction(updatedOcc));
+    // Update local occurrence cache + fire operations immediately (optimistic)
+    operationsBridge.updateLocalOcc?.(updatedOcc);
+    const sfvAncestors = operationsBridge.getAncestorChain?.(occurrenceId) || { ids: [], labels: [] };
+    operationsBridge.fireOperations?.("MeasureOp", {
+      type: "MeasureOp",
+      occurrenceId,
+      instanceId: occ.moduleId,
+      fields: { [fieldId]: value },
+      _ancestorIds: sfvAncestors.ids,
+      _ancestorLabels: sfvAncestors.labels,
+    });
+    safeEmit(socket, "update_occurrence", { occurrence: updatedOcc });
+  } finally {
+    endAction();
+  }
 }
 
 /**

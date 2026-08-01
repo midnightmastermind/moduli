@@ -9,6 +9,7 @@ import Folder from "../models/Folder.js";
 import Manifest from "../models/Manifest.js";
 import View from "../models/View.js";
 import { isProtectedGrid } from "../utils/protectedGrids.js";
+import { recordDoc } from "../utils/txRecorder.js";
 
 export function registerCrudHandlers(socket, {
   ensureUserCache, userCacheReady, loadUserIntoCache,
@@ -21,6 +22,26 @@ export function registerCrudHandlers(socket, {
     const gId = socket.data.activeGridId;
     if (!userCacheReady(userId, gId)) await loadUserIntoCache(userId, gId);
     return ensureUserCache(userId, gId);
+  };
+
+  // Undo/redo capture. `__actionId` rides on every client write (see
+  // client/src/helpers/actionScope.js) so one user action and the whole
+  // operation cascade behind it land in ONE transaction. Recording must never
+  // be able to fail a write — the user's edit outranks the audit trail.
+  const broadcastTx = (txJson) => {
+    socket.emit("transaction_created", { transaction: txJson });
+    socket.to(userRoom(userId)).emit("transaction_created", { transaction: txJson });
+  };
+  const recordChange = ({ model, id, before, after, payload, label }) => {
+    try {
+      recordDoc({
+        userId, gridId: socket.data.activeGridId,
+        actionId: payload?.__actionId || null,
+        model, id, before, after, label, broadcast: broadcastTx,
+      });
+    } catch (err) {
+      console.error("recordChange failed (continuing):", err?.message || err);
+    }
   };
 
   // ── GRID ──────────────────────────────────────────────────
@@ -186,7 +207,8 @@ export function registerCrudHandlers(socket, {
   // ── OCCURRENCE (simple create/delete — update_occurrence is in occurrences.js) ──
   setupOccurrencesCRUD(socket, userId, getUc, { userRoom, createOccurrenceData });
 
-  socket.on("delete_occurrence", async ({ occurrenceId } = {}) => {
+  socket.on("delete_occurrence", async (payload = {}) => {
+    const { occurrenceId } = payload;
     try {
       if (!userId || !occurrenceId) return;
       const uc = await getUc();
@@ -211,11 +233,16 @@ export function registerCrudHandlers(socket, {
       }
       collectDescendants(occurrenceId);
 
-      // Delete all collected occurrences from cache + DB
+      // Delete all collected occurrences from cache + DB. Every one is
+      // snapshotted BEFORE deletion — a cascade delete of a 50-node subtree
+      // records 50 `before`s, and undo restores the whole subtree. This is the
+      // case an inverse-op design could never get right.
       const deletedParentId = uc.occurrencesById[occurrenceId]?.parentId;
       for (const id of toDelete) {
+        const before = (await Occurrence.findOne({ id, userId }).lean()) || uc.occurrencesById[id] || null;
         delete uc.occurrencesById[id];
         await Occurrence.findOneAndDelete({ id, userId });
+        recordChange({ model: "occurrence", id, before, after: null, payload, label: "Deleted item" });
         socket.to(userRoom(userId)).emit("occurrence_deleted", { occurrenceId: id });
       }
 
@@ -224,6 +251,7 @@ export function registerCrudHandlers(socket, {
         if (!Array.isArray(occ.occurrences)) continue;
         if (!occ.occurrences.some(id => toDelete.has(id))) continue;
         const next = { ...occ, occurrences: occ.occurrences.filter(id => !toDelete.has(id)) };
+        recordChange({ model: "occurrence", id: next.id, before: occ, after: next, payload });
         uc.occurrencesById[next.id] = next;
         await Occurrence.findOneAndUpdate({ id: next.id, userId }, next, { upsert: true });
         socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: next });
@@ -509,13 +537,17 @@ export function registerCrudHandlers(socket, {
 
   // ── GENERIC CRUD (Manifest, View, Folder, Operation, Iteration) ────────────
   function setupGenericCRUD(modelName, Model, cacheKey) {
-    socket.on(`create_${modelName}`, async ({ [modelName]: entity } = {}) => {
+    socket.on(`create_${modelName}`, async (payload = {}) => {
+      const entity = payload?.[modelName];
       try {
         if (!userId) return;
         const uc = await getUc();
         const id = entity?.id;
         if (!id) return;
         const next = { ...entity, id, userId };
+        // Snapshot BEFORE the cache slot is overwritten — `uc[cacheKey][id]` is
+        // the only copy of the prior state, and it is about to be replaced.
+        const before = uc[cacheKey][id] || null;
         uc[cacheKey][id] = next;
         try {
           await Model.findOneAndUpdate({ id, userId }, next, { upsert: true });
@@ -526,6 +558,7 @@ export function registerCrudHandlers(socket, {
             throw upsertErr;
           }
         }
+        recordChange({ model: modelName, id, before, after: next, payload });
         socket.to(userRoom(userId)).emit(`${modelName}_created`, { [modelName]: next });
       } catch (err) {
         console.error(`create_${modelName} error:`, err);
@@ -533,13 +566,15 @@ export function registerCrudHandlers(socket, {
       }
     });
 
-    socket.on(`update_${modelName}`, async ({ [modelName]: entity } = {}) => {
+    socket.on(`update_${modelName}`, async (payload = {}) => {
+      const entity = payload?.[modelName];
       try {
         if (!userId) return;
         const uc = await getUc();
         const id = entity?.id;
         if (!id) return;
-        const next = { ...(uc[cacheKey][id] || {}), ...entity, id, userId };
+        const before = uc[cacheKey][id] || null;
+        const next = { ...(before || {}), ...entity, id, userId };
         uc[cacheKey][id] = next;
         try {
           await Model.findOneAndUpdate({ id, userId }, next, { upsert: true });
@@ -552,6 +587,7 @@ export function registerCrudHandlers(socket, {
             throw upsertErr;
           }
         }
+        recordChange({ model: modelName, id, before, after: next, payload });
         socket.to(userRoom(userId)).emit(`${modelName}_updated`, { [modelName]: next });
       } catch (err) {
         console.error(`update_${modelName} error:`, err);
@@ -559,13 +595,18 @@ export function registerCrudHandlers(socket, {
       }
     });
 
-    socket.on(`delete_${modelName}`, async ({ [`${modelName}Id`]: entityId } = {}) => {
+    socket.on(`delete_${modelName}`, async (payload = {}) => {
+      const entityId = payload?.[`${modelName}Id`];
       try {
         if (!userId) return;
         const uc = await getUc();
         if (!entityId) return;
+        // Read the doc before deleting — the cache copy may be partial, and a
+        // delete's `before` is the ONLY thing that can restore it.
+        const before = (await Model.findOne({ id: entityId, userId }).lean()) || uc[cacheKey]?.[entityId] || null;
         if (uc[cacheKey]?.[entityId]) delete uc[cacheKey][entityId];
         await Model.findOneAndDelete({ id: entityId, userId });
+        recordChange({ model: modelName, id: entityId, before, after: null, payload });
         socket.to(userRoom(userId)).emit(`${modelName}_deleted`, { [`${modelName}Id`]: entityId });
       } catch (err) {
         console.error(`delete_${modelName} error:`, err);
@@ -823,6 +864,22 @@ export function registerCrudHandlers(socket, {
 // booting the full Express + Socket.io server.
 export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
   const userRoomFn = deps.userRoom || ((uid) => `user:${uid}`);
+
+  // Undo/redo capture (see registerCrudHandlers for the contract).
+  const broadcastTx = (txJson) => {
+    socket.emit("transaction_created", { transaction: txJson });
+    socket.to(userRoomFn(userId)).emit("transaction_created", { transaction: txJson });
+  };
+  const recordChange = ({ model, id, before, after, actionId, label }) => {
+    try {
+      recordDoc({
+        userId, gridId: socket.data.activeGridId,
+        actionId: actionId || null, model, id, before, after, label, broadcast: broadcastTx,
+      });
+    } catch (err) {
+      console.error("recordChange failed (continuing):", err?.message || err);
+    }
+  };
   const createOccurrenceDataFn = deps.createOccurrenceData
     || ((p) => ({ id: p.id, userId: p.userId, moduleId: p.moduleId, gridId: p.gridId, fields: p.fields || {}, meta: p.meta || {}, ...(p.placement && { placement: p.placement }), ...(p.linkedGroupId && { linkedGroupId: p.linkedGroupId }) }));
 
@@ -855,8 +912,11 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
     abortController.abort();
   });
 
-  socket.on("create_occurrence", ({ occurrence } = {}) => {
-    createQueue = createQueue.then(() => handleCreateOccurrence(occurrence)).catch(() => {});
+  socket.on("create_occurrence", (payload = {}) => {
+    const { occurrence } = payload;
+    createQueue = createQueue
+      .then(() => handleCreateOccurrence(occurrence, payload?.__actionId || null))
+      .catch(() => {});
     return createQueue;
   });
 
@@ -896,7 +956,7 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
     }
   }
 
-  async function handleCreateOccurrence(occurrence) {
+  async function handleCreateOccurrence(occurrence, actionId = null) {
     const _id = occurrence?.id || "?";
     try {
       // Bail on disconnect. Reason: each Build Day run mints fresh UUIDs for its
@@ -995,6 +1055,8 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
         }
       }
       if (disconnected) return; // bail before the parent push too
+      // before:null marks a CREATE — undo deletes the document.
+      recordChange({ model: "occurrence", id, before: null, after: occurrenceData, actionId, label: "Created item" });
       socket.to(userRoomFn(userId)).emit("occurrence_created", { occurrence: occurrenceData });
 
       // ── Auto-push into parent.occurrences[] (atomic — many concurrent
@@ -1017,6 +1079,15 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
         );
         if (updatedParent) {
           const parentObj = typeof updatedParent.toObject === "function" ? updatedParent.toObject() : updatedParent;
+          // The parent's occurrences[] change is its OWN undo step. Restoring a
+          // deleted child without restoring the list that names it leaves the
+          // child in the data and invisible on screen — the exact "listed but
+          // not embedded" class of bug the Daily Question hit on 2026-08-01.
+          const parentBefore = {
+            ...parentObj,
+            occurrences: (parentObj.occurrences || []).filter(c => c !== id),
+          };
+          recordChange({ model: "occurrence", id: occurrenceData.parentId, before: parentBefore, after: parentObj, actionId });
           uc.occurrencesById[occurrenceData.parentId] = parentObj;
           socket.to(userRoomFn(userId)).emit("occurrence_updated", { occurrence: parentObj });
         }
