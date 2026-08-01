@@ -6,6 +6,33 @@
 
 ---
 
+### 2026-08-01 (12) — the first real capture said "healthy", and the target may not be a gap at all
+
+The `[gap]` sweep finally fired on the user's screen:
+
+```
+where: Tasks Completed   why: hover   pointerInside: TRUE   hovered: true   hostThinksOpen: false
+```
+
+`pointerInside: true` means the pointer WAS inside that gap — it was behaving correctly. My watcher
+labelled every lit gap "forced-open", which made a healthy capture read as a bug. It now reports
+only ORPHANS (lit with the pointer elsewhere); a lit gap under the pointer logs as
+`clean (N lit, all under the pointer)`.
+
+**And the target may not be an insert gap at all** — user: "idk if its a gap or an empty line".
+That reframes the hunt: an empty paragraph / trailing empty line in a doc body looks very similar
+to a gap's highlight strip, and NONE of the gap instrumentation would ever see it. Before chasing
+gap state again, identify the element: `document.elementFromPoint(x, y)` over the thing on screen,
+or right-click → Inspect. If it has no `.insert-gap` / `.doc-insert-gap` ancestor, every fix in
+entries (4), (5), (9) is aimed at the wrong component.
+
+**Logging style — standing preference (also saved to memory):** use `console.table` for any
+diagnostic with repeated fields, one row per candidate, columns chosen to DISCRIMINATE between the
+competing explanations. The user called it out unprompted: the table above answered the question at
+a glance where prose lines would have buried it.
+
+---
+
 ### 2026-08-01 (11) — why today's day column never appears: a RANGE filter + an already-stamped marker
 
 Root-caused from live data (the user's log kept showing `Grid: Snap Filter To Today` firing with
