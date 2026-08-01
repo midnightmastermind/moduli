@@ -162,7 +162,14 @@ const DocSnapshotSchema = new mongoose.Schema(
     before: { type: mongoose.Schema.Types.Mixed, default: null },
     after: { type: mongoose.Schema.Types.Mixed, default: null },
   },
-  { _id: false }
+  // `minimize: false` is LOAD-BEARING, and it does NOT inherit from the parent
+  // schema's setting. Mongoose's default (`minimize: true`) STRIPS empty objects
+  // when saving — so a snapshot of an occurrence with `fields: {}` persisted
+  // without a `fields` key at all, and undo's `$set: before` then had nothing to
+  // clear the field with: the value the user just added SURVIVED the undo.
+  // Caught only by an end-to-end run against a real database; every unit test
+  // passed because none of them round-tripped through Mongo.
+  { _id: false, minimize: false }
 );
 
 // Main Transaction schema
