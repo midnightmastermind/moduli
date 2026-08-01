@@ -52,7 +52,10 @@ import { buildLayoutCascadeContext, resolveLayoutCascade } from "../helpers/layo
 // The steps have to be VISIBLE — 15 vs 14 read as the same size, so a `###`
 // section inside a `##` one looked identical to it (user 2026-08-01). Each
 // level now drops at least 2px, and the weight drops with it.
-const HEADING_SIZES = { 1: 18, 2: 16, 3: 14, 4: 12, 5: 11, 6: 11 };
+// Level 4 is 13, not 12: the bound-header <select> resolves one step under its
+// declared size (measured 11 against a declared 12), which tied it with 11px
+// body text. 13 clears body either way and still sits clearly under ### (14).
+const HEADING_SIZES = { 1: 18, 2: 16, 3: 14, 4: 13, 5: 12, 6: 12 };
 const HEADING_WEIGHTS = { 1: 700, 2: 650, 3: 550, 4: 500, 5: 500, 6: 500 };
 
 // Container-header label overflow behavior, configurable per-occurrence via
