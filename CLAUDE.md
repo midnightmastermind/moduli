@@ -6,6 +6,31 @@
 
 ---
 
+### 2026-08-01 (9) — gaps stuck open because each editor owned its own, with nothing coordinating
+
+User: "if i visit a gap, it will stick whenever i highlight a diff gap… gaps from the daily
+question container and journal container are autoopening even if i hovered at the bottom of the
+daypage container."
+
+**Every doc editor holds a SEPARATE `docGap` state.** Per-editor clearing can never fix this,
+because the editor that ought to clear is precisely the one no longer receiving pointer events —
+it has no idea anything happened. So the claim is now GLOBAL (`claimExclusiveGap` in
+`helpers/gapHover.js`): opening a gap anywhere closes whichever was open before. At most one gap
+exists on screen, by construction, regardless of which of the several code paths set it.
+
+Verified by travelling the pointer down a whole day column (11 stops, then resting at the bottom):
+**max 1 open at any moment**, 1 while resting, 0 after leaving. Before, each editor left its own.
+
+**OPEN — the Daily Question text still needs a marquee.** A native `<select>` truncates its
+selected option internally and cannot marquee: `AutoMarquee` measures overflow, and a select with
+`max-width:100%` never reports any. The fix is the pattern the Alarms tab already uses — render the
+selected question as a real marquee span and lay the native select over it transparently for
+interaction (`opacity:0`, absolutely positioned). Deliberately NOT attempted at the end of a long
+session: it restructures a header that is one of the most-touched surfaces here, and I had already
+shipped one ReferenceError today.
+
+---
+
 ### 2026-08-01 (8) — the `####` header was 11px because of an INLINE style (the 5th time)
 
 Traced by walking the computed chain from the `<select>` upward, which named the culprit in one
