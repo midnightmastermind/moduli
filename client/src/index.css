@@ -1731,8 +1731,24 @@ body[data-drag-kind="panel"] .container-shell {
   overflow: hidden;
   transition: height 0.12s ease-out;
 }
-.doc-editor-wrapper:hover .doc-editor-content.ProseMirror > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child),
-.doc-editor-content.ProseMirror:focus-within > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child) {
+/* Reveal ONLY the innermost editor under the pointer/caret. Both halves used to
+   leak, and together they ARE the long-hunted "extra lines" (2026-08-01):
+   1. `.doc-editor-wrapper:hover <descendant>` — a nested doc container renders
+      its editor INSIDE its parent's wrapper, so hovering anywhere in a day
+      column matched the day column's wrapper and then reached EVERY nested
+      editor's trailing paragraph. Journal + Daily Question + the column all
+      un-collapsed at once, and all of them vanished on leaving the COLUMN —
+      which is exactly how the user described it. Measured: hovering Todo grew
+      the column 592->661 (+69 = 3 x 23, one per nesting level).
+   2. `:focus-within` accumulated the same way UP the chain — a caret in Daily
+      Question also un-collapsed Journal's and the column's trailing lines.
+   Fix is the guard already used by the cog handle and the empty-gap label:
+   `:not(:has(… hovered/focused))` picks the innermost, and the `> * >` child
+   path pins the match to that wrapper's OWN ProseMirror (the DOM is
+   `.doc-editor-wrapper > div > .doc-editor-content`) so it can never reach a
+   nested one. Exactly one trailing line is ever revealed. */
+.doc-editor-wrapper:hover:not(:has(.doc-editor-wrapper:hover)) > * > .doc-editor-content.ProseMirror > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child),
+.doc-editor-content.ProseMirror:focus-within:not(:has(.doc-editor-content:focus-within)) > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child) {
   height: auto;
   margin: 0.25em 0;
 }

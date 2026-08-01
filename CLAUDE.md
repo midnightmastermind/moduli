@@ -6,6 +6,59 @@
 
 ---
 
+### 2026-08-01 (17) — SOLVED. It was an empty LINE, and the user's "look at the heights" ended it.
+
+User: "just look at the heights when you hover over todo. look at journal and daily question and
+daypage container height changes." That reframing solved a six-round hunt in one probe — the thing
+on screen was never something *appearing*, it was a **layout shift**.
+
+**Measured first, hovering Todo** (`_heights.mjs`, real pointer input, console.table):
+```
+day column  592 -> 661  (+69)      Journal  195 -> 241  (+46)
+Daily Question 142 -> 165 (+23)    Todo itself: 0        Notes/Tasks/Highlights: pushed down 46
+```
++23 per nesting level, accumulating upward — and Todo, the thing being hovered, never moved.
+
+**Root cause — `index.css:1734`, a plain DESCENDANT combinator:**
+```css
+.doc-editor-wrapper:hover .doc-editor-content.ProseMirror > p:last-child…{height:auto}
+```
+Every doc occurrence ends with a collapsed empty paragraph (`height:0`) that un-collapses on hover
+so you can click and keep typing (2026-07-25, per user). But a NESTED doc container renders its
+editor INSIDE its parent's `.doc-editor-wrapper` — so hovering anywhere in a day column matched the
+COLUMN's wrapper and then reached **every nested editor's** trailing paragraph. Journal, Daily
+Question and the column all un-collapsed at once, and all vanished on leaving the COLUMN. That is
+the report, verbatim, from the very first round.
+
+**`:focus-within` had the identical leak** in the same rule, accumulating UP the chain — a caret in
+Daily Question also un-collapsed Journal's and the column's lines. Fixed in the same pass.
+
+**Fix** — the guard the cog handle and empty-gap label already use, plus a child path pinning the
+match to the wrapper's OWN ProseMirror (`.doc-editor-wrapper > div > .doc-editor-content`):
+`:hover:not(:has(.doc-editor-wrapper:hover)) > * > …`. Exactly one trailing line can ever be lit.
+
+**Verified on the live DOM** by swapping the rule in via CSSOM and re-measuring the same gesture:
+```
+                 dDay  dJournal  dDq   trailing lines lit
+prod (leaking)   +69     +46     +23         3
+fixed            +23       0       0         1
+```
+The remaining +23 is the INTENDED affordance (the innermost editor reveals its own line). `npm run
+build` clean.
+
+**The lesson, and it is the expensive one.** Entry (12) wrote *"idk if its a gap or an empty line"*
+and entry (14) concluded from evidence that it was **not a gap** — both were RIGHT, and the next
+round still went looking at gap/placeholder components. Rounds 4, 5, 9, 12, 15 all failed the same
+way: each measured whether a suspected COMPONENT was lit, and never measured the one thing the user
+kept describing — that **things MOVED**. A report about position or size is a layout question;
+diff the geometry of the whole subtree before reaching for any component's state. And when the user
+tells you which numbers to look at, look at those numbers first.
+
+Retro on (16): removing the dead `.empty-placeholder-inline` was still correct, but it was not this
+bug — it was noise cleared on the way.
+
+---
+
 ### 2026-08-01 (16) — RETRACTION: entry (15)'s fix was INERT. The class it guarded is never rendered.
 
 Went to verify the one thing (15) flagged as unchecked — the positive case, "hovering an empty
