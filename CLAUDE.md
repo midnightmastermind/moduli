@@ -6,6 +6,27 @@
 
 ---
 
+### 2026-08-01 (7) — type scale inverted at the bottom; trailing room for the last gap
+
+- **Body text was BIGGER than the deepest heading** (13px body vs a `####` rendering 11), so the
+  hierarchy read upside-down at the bottom. One step down was not enough — body is 11 now, and the
+  heading scale is even 2px steps: **18 / 16 / 14 / 13**. Verified live: column 18, Journal 16,
+  Daily Question 14, body 11.
+- **Trailing room at the end of a doc container** (`.container-shell .container-doc` padding-bottom
+  10px) so the last insert gap has somewhere to live instead of sitting flush against the bottom
+  edge, PLUS a pointer grace band in `gapHover.js` (6px, **14px at the BOTTOM** — the worst case,
+  since there is nothing below the last gap to re-enter). The two are complementary: the padding
+  gives the gap a place to be, the grace band stops it releasing while you travel toward the "+".
+
+**OPEN — the `####` question header does not follow the heading scale.** It renders 11px whether
+its level declares 12 or 13, so it currently TIES body text instead of sitting above it. `font:
+inherit` on the select is not winning against something that fixes 11px; the parent chain has not
+been traced. Everything else in the scale is correct. Next step: computed-style walk from the
+`<select>` up to find what sets 11px — do NOT keep bumping HEADING_SIZES, the level is not what
+this element reads.
+
+---
+
 ### 2026-08-01 (6) — I shipped a ReferenceError: `watchRegion is not defined`
 
 Hovering the day page crashed the panel. My edit added the `watchRegion(...)` CALL to `Editor.jsx`
