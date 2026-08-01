@@ -136,3 +136,22 @@ if (typeof window !== "undefined") {
     new ResizeObserver(() => { if (regions.size) checkRegions(); }).observe(document.documentElement);
   }
 }
+
+
+// ── One gap at a time, globally ───────────────────────────────────────────
+// Every doc editor owns a SEPARATE `docGap` state and nothing coordinated them,
+// so visiting a gap in the Journal editor and then hovering one in the column
+// left the first still open (user 2026-08-01: "if i visit a gap, it will stick
+// whenever i highlight a diff gap"). Per-editor clearing can never fix that —
+// the editor that should clear is the one NOT receiving events. So the claim is
+// global: opening a gap anywhere closes whichever was open before.
+let exclusiveClear = null;
+
+export function claimExclusiveGap(clearFn) {
+  if (exclusiveClear && exclusiveClear !== clearFn) exclusiveClear();
+  exclusiveClear = clearFn;
+}
+
+export function releaseExclusiveGap(clearFn) {
+  if (exclusiveClear === clearFn) exclusiveClear = null;
+}

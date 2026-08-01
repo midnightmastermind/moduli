@@ -22,7 +22,7 @@ import {
   forwardRef, useImperativeHandle,
 } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
-import { watchRegion } from "../helpers/gapHover.js";
+import { watchRegion, claimExclusiveGap, releaseExclusiveGap } from "../helpers/gapHover.js";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Image from "@tiptap/extension-image";
@@ -297,7 +297,11 @@ const Editor = forwardRef(function Editor({
   // editor's CURRENT rect instead of trusting the leave event.
   useEffect(() => {
     if (!docGap || docGap.pinned) return undefined;
-    return watchRegion(docGapElRef.current, () => clearDocGapUnlessPinned());
+    const clear = () => clearDocGapUnlessPinned();
+    // Closes whichever gap was open in ANY other editor.
+    claimExclusiveGap(clear);
+    const stopWatching = watchRegion(docGapElRef.current, clear);
+    return () => { stopWatching(); releaseExclusiveGap(clear); };
   }, [docGap, clearDocGapUnlessPinned]);
   // Bumped by the context menu's "Add occurrence here…" row to imperatively
   // open the doc gap's QuickAddMenu at the right-clicked block boundary (#13).
