@@ -4761,6 +4761,10 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   overflow: hidden;
 }
 .bound-header-select > select {
+  /* A <select> does NOT inherit font by default — it used the UA font (11px),
+     so a bound header never LOOKED like the heading level it declared
+     (user 2026-08-01: "it doesnt even look like the # heading"). */
+  font: inherit;
   flex: 1 1 auto;
   min-width: 0;
   max-width: 100%;

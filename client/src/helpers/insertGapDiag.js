@@ -99,4 +99,22 @@ if (typeof window !== "undefined") {
   // Call `__gapStuck()` in the console the moment a line is stuck — that single
   // line says which cause it is.
   window.__gapStuck = () => sweepGaps("manual");
+
+  // The first version only logged on open/close, so a session where nothing was
+  // opened printed NOTHING and read as "the logging isn't working" (user
+  // 2026-08-01: "i didnt see logs for the gap"). Say so on load, then watch on
+  // a timer and speak up only when something is actually stuck — a stuck line
+  // is the whole point and it can appear without a close ever firing.
+  if (on()) {
+    console.log("[gap] diagnostics active — __gapStuck() to sweep now, window.__gapDiag = false to mute");
+    let lastCount = 0;
+    setInterval(() => {
+      if (!on() || typeof document === "undefined") return;
+      const n = document.querySelectorAll(".insert-gap--open").length;
+      if (n !== lastCount) {
+        lastCount = n;
+        if (n > 0) sweepGaps(`watcher saw ${n} forced-open`);
+      }
+    }, 3000);
+  }
 }

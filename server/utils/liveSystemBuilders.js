@@ -575,6 +575,8 @@ export async function buildDayPageTemplate({
       ],
       meta: {
         templateModule: true,
+        // #### — column # › Journal ## › Daily Question ### › the question.
+        headingLevel: 4,
         headerLink: { selfField: journalQuestionFieldId, link: dateFieldId },
       },
     }).save();
