@@ -280,6 +280,7 @@ const Editor = forwardRef(function Editor({
   // Insert-here doc gap: { top (wrapper-relative px), pos (PM insert position) }
   // or null. Driven by mousemove over the editor wrapper when enableInsertGaps.
   const [docGap, setDocGap] = useState(null);
+  const docGapElRef = useRef(null);
   // A menu-opened ("pinned") gap must survive the hover machinery — every
   // gap clear/move site funnels through these two so the pinned rule can't be
   // forgotten at a new call site (2026-07-12 doc "Add occurrence here…").
@@ -289,6 +290,14 @@ const Editor = forwardRef(function Editor({
   const setDocGapUnlessPinned = useCallback((b) => {
     setDocGap((prev) => (prev?.pinned ? prev : (b && prev && prev.pos === b.pos ? prev : b)));
   }, []);
+  // `mouseleave` cannot fire when the layout shifts under a STATIONARY pointer,
+  // so a doc gap could stay lit after an op drain reflowed the page — the same
+  // stale-pointer bug the board gaps had. Re-test the pointer against the
+  // editor's CURRENT rect instead of trusting the leave event.
+  useEffect(() => {
+    if (!docGap || docGap.pinned) return undefined;
+    return watchRegion(docGapElRef.current, () => clearDocGapUnlessPinned());
+  }, [docGap, clearDocGapUnlessPinned]);
   // Bumped by the context menu's "Add occurrence here…" row to imperatively
   // open the doc gap's QuickAddMenu at the right-clicked block boundary (#13).
   const [gapAddTrigger, setGapAddTrigger] = useState(0);
@@ -2340,6 +2349,7 @@ const Editor = forwardRef(function Editor({
         className={`doc-editor-wrapper min-h-[100px] pr-2 pl-3 flex-1${stickyToolbar ? " overflow-auto" : ""}`}
         style={{ paddingTop: 5, paddingBottom: 5 }}
         draggable={false}
+        ref={(el) => { docGapElRef.current = el; }}
         onMouseMove={gapsOn ? handleGapMove : undefined}
         onMouseLeave={gapsOn ? (e) => { if (!e.relatedTarget?.closest?.(".doc-insert-gap")) clearDocGapUnlessPinned(); } : undefined}
         onMouseDown={(e) => {

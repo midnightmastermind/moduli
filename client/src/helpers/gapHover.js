@@ -83,3 +83,47 @@ if (typeof window !== "undefined") {
     }
   }, 1000);
 }
+
+
+// ── Generic region watch ──────────────────────────────────────────────────
+// Same physics, different owner: the DOC gap (`.doc-insert-gap`, rendered by
+// ui/Editor.jsx from its own `docGap` state) clears on the wrapper's
+// `mouseleave`, which does NOT fire when the layout shifts out from under a
+// stationary pointer. So a doc gap could stay lit for exactly the same reason
+// the board gap did — and it lives inside the doc bodies, which is where the
+// user's screenshot showed the stuck bars.
+//
+// `watchRegion(el, onLeave)` calls `onLeave()` as soon as the pointer is no
+// longer inside `el`'s CURRENT rect, re-checked on pointer move, scroll and
+// resize. Returns an unsubscribe.
+const regions = new Set();
+
+function checkRegions() {
+  for (const r of [...regions]) {
+    if (!r.el?.isConnected) { regions.delete(r); r.onLeave(); continue; }
+    const b = r.el.getBoundingClientRect();
+    if (!(lastX >= b.left && lastX <= b.right && lastY >= b.top && lastY <= b.bottom)) {
+      regions.delete(r);
+      r.onLeave();
+    }
+  }
+}
+
+export function watchRegion(el, onLeave) {
+  if (!el) return () => {};
+  install();
+  const rec = { el, onLeave };
+  regions.add(rec);
+  return () => regions.delete(rec);
+}
+
+if (typeof window !== "undefined") {
+  document.addEventListener("pointermove", (e) => {
+    lastX = e.clientX; lastY = e.clientY;
+    if (regions.size) checkRegions();
+  }, { passive: true, capture: true });
+  document.addEventListener("scroll", () => { if (regions.size) checkRegions(); }, { passive: true, capture: true });
+  if (typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(() => { if (regions.size) checkRegions(); }).observe(document.documentElement);
+  }
+}

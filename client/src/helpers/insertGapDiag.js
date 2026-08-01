@@ -62,14 +62,18 @@ export function gapClosed(info, how = "transition") {
  */
 export function sweepGaps(reason = "manual") {
   if (!on() || typeof document === "undefined") return [];
-  const stuck = [...document.querySelectorAll(".insert-gap--open, .insert-gap--hot")].map((el) => {
+  // Doc gaps are a SEPARATE implementation (ui/Editor.jsx `docGap`) that also
+  // paints an `.insert-gap-line` — invisible to the first version of this sweep,
+  // and exactly where the user's stuck bars were (inside doc bodies).
+  const stuck = [...document.querySelectorAll(".insert-gap--open, .insert-gap--hot, .doc-insert-gap")].map((el) => {
     const line = el.querySelector(".insert-gap-line");
     const shell = el.closest(".container-shell");
     const label = shell?.innerText?.split("\n")[0]?.trim()?.slice(0, 24) || "?";
     return {
       where: label,
       index: el.dataset.insertIndex,
-      why: el.classList.contains("insert-gap--open") ? "menu-open" : "hover",
+      why: el.classList.contains("doc-insert-gap") ? "DOC gap"
+         : el.classList.contains("insert-gap--open") ? "menu-open" : "hover",
       // `hover` + pointer NOT inside the rect = the stale-hover case; the JS
       // claim should have released it, so that would be a real regression.
       pointerInside: (() => {
