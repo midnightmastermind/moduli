@@ -1747,6 +1747,21 @@ body[data-drag-kind="panel"] .container-shell {
    path pins the match to that wrapper's OWN ProseMirror (the DOM is
    `.doc-editor-wrapper > div > .doc-editor-content`) so it can never reach a
    nested one. Exactly one trailing line is ever revealed. */
+/* HOVER TARGET IS THE WHOLE CARD, not the editor wrapper (2026-08-01, fixing a
+   regression I introduced). Keying the reveal to `.doc-editor-wrapper:hover`
+   made a container's own trailing line UNREACHABLE as soon as nested children
+   filled its body — measured: Journal had 3px of its own wrapper left to hover,
+   the day column had 0px. So the line could never be revealed and there was no
+   way to click a new line into those containers (user: "i cant make a new line
+   anymore and theres no gap").
+   `.container-shell:hover:not(:has(.container-shell:hover))` = the innermost
+   card under the pointer, which includes its header and padding — a big, always
+   reachable target — while still never matching an ancestor (the day column is
+   excluded the moment you are over Journal). The child chain then pins the match
+   to THAT card's own editor, so it still cannot reach a nested one. The
+   wrapper-hover rule is kept for doc editors that are not inside a card (doc
+   PAGES), where it is the only trigger and reachability was never a problem. */
+.container-shell:hover:not(:has(.container-shell:hover)) > .container-doc > .doc-container > .doc-editor > .doc-editor-wrapper > * > .doc-editor-content.ProseMirror > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child),
 .doc-editor-wrapper:hover:not(:has(.doc-editor-wrapper:hover)) > * > .doc-editor-content.ProseMirror > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child),
 .doc-editor-content.ProseMirror:focus-within:not(:has(.doc-editor-content:focus-within)) > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child) {
   height: auto;
