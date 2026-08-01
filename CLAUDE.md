@@ -6,6 +6,31 @@
 
 ---
 
+### 2026-08-01 (3) — the question header: #### and actually sized; gap logs made visible
+
+- **The inner question container carried NO headingLevel**, so it fell to the level-1 default and
+  printed a single `#` four levels deep. It is `####` now (`0030` + the builder): column `#` ›
+  Journal `##` › Daily Question `###` › the question `####`.
+- **"It doesn't even look like a heading" was a `<select>` quirk** — a select does NOT inherit
+  font, so the bound header rendered at the UA's 11px regardless of the level it declared.
+  `font: inherit` on `.bound-header-select > select` makes the declared level apply. Measured
+  after: hash `####`, question 11px / weight 500 against the 9px "Answer", so the question reads
+  above its answer as asked. (The 11 vs the level's 12 is an intermediate wrapper's size — visible
+  hierarchy is right, the 1px is not worth another round.)
+- **The `[gap]` logging printed NOTHING in a quiet session** and read as broken (user: "i didnt see
+  logs for the gap"): it only spoke on open/close. It now announces itself on load and watches on a
+  3s timer, reporting ONLY when something is actually stuck — a stuck line can appear without a
+  close ever firing, which is exactly the case being hunted.
+
+**OPEN — today's day column did not build.** User: "daypage didnt open for today (once) like
+schedule." The board still shows Jul 30-31 on Aug 1. NOT investigated yet. First place to look:
+the board's own `filterOverride` is pinned to a MULTI-day selection (Jul 30-31), and
+`Grid: Snap Filter To Today` moves date-carrying pages forward on a new day — check whether it
+skips multi-day shapes, since a multi selection is exactly "a date the user navigated to", which
+that op deliberately preserves. Verify against the live filterOverride before changing the op.
+
+---
+
 ### 2026-08-01 (2) — wider columns, weekday names, a readable heading step, question marquee
 
 - **Column width is a cascade rule now** (`childMinWidth`/`childMaxWidth`, `0028`) instead of
