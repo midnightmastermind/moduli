@@ -54,6 +54,16 @@ build` clean.
   make the gap bigger tho, just shift the text down a little". Relative offset moves the PAINTED
   box only, so the gap keeps its (now smaller) height. Measured: text sits **3px** below the
   container above, container growth still exactly +18.
+- **REGRESSION I CAUSED, then fixed:** keying the reveal to `.doc-editor-wrapper:hover` made a
+  container's own trailing line UNREACHABLE once nested children filled its body — measured,
+  Journal had **3px** of its own wrapper left to hover and the day column **0px**, so Journal's
+  line never lit at ANY pointer position and there was no way to click a new line in (user: "i
+  cant make a new line anymore and theres no gap"). The hover target is now the innermost
+  `.container-shell` (header + padding included = always reachable), with a direct-child chain
+  pinning the match to that card's OWN editor so it still cannot reach a nested one. Verified:
+  hovering Journal anywhere lights Journal's line, hovering the column lights the column's, never
+  two at once. **Lesson: an affordance revealed on hover must have a hover target that survives
+  the element being full — check reachability, not just correctness.**
 - **Placeholder text removed** (user: "dont write click to edit") — `Editor.jsx`'s default
   `placeholder` is now `""` instead of `"Click to edit…"`. Only the generic default is dropped;
   call sites that deliberately prompt keep theirs (ArtifactContent's "Start writing…"). Verified on
