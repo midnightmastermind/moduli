@@ -6,6 +6,26 @@
 
 ---
 
+### 2026-08-01 (6) — I shipped a ReferenceError: `watchRegion is not defined`
+
+Hovering the day page crashed the panel. My edit added the `watchRegion(...)` CALL to `Editor.jsx`
+but the import line was inserted with a `.replace()` whose anchor string did not exist — and unlike
+every other edit in that script, that one had **no assert**. The self-check I did print
+(`"watchRegion" in s`) was satisfied by the call I had just added, so it reported success while the
+import was missing.
+
+**Two rules this cost, both cheap:**
+1. **Assert every replace, including the import.** A silent no-op replace is indistinguishable from
+   success at the string level.
+2. **Run `npm run build` before deploying a cross-module edit.** The test suite passed — Editor.jsx
+   is not directly unit-tested — but a build resolves imports and would have failed instantly. Tests
+   green is NOT evidence that a module resolves.
+
+Verified after the fix by driving the pointer down the whole day column (14 positions, the exact
+gesture that crashed): 5 panels still rendered, ZERO page errors.
+
+---
+
 ### 2026-08-01 (5) — it stuck again: the DOC gap is a second, separate implementation
 
 The user's screenshot put the stuck bars inside DOC BODIES (the answer area, the Notes body).
