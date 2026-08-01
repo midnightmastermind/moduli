@@ -508,7 +508,15 @@ export async function buildDayPageTemplate({
     await new Module({
       id: modId, userId, gridId,
       role: "container", kind: "doc", label,
-      meta: { templateModule: true, headingLevel: 2 },
+      meta: {
+        templateModule: true,
+        headingLevel: 2,
+        // Journal HOLDS the Daily Question section. A container renders child
+        // CONTAINERS only when it carries this flag — without it the nested
+        // question would vanish while sitting perfectly well in the data
+        // (the 2026-07-31 "you got rid of my trackers" lesson).
+        ...(label === "Journal" ? { allowChildContainers: true } : {}),
+      },
     }).save();
     tplWritingSections.push({ label, modId, occId: uid() });
   }
@@ -548,7 +556,8 @@ export async function buildDayPageTemplate({
     await new Module({
       id: tplDailyQOuterModId, userId, gridId,
       role: "container", kind: "doc", label: "Daily Question",
-      meta: { templateModule: true, headingLevel: 2 },
+      // ### — it sits INSIDE Journal (##), so it is a level deeper.
+      meta: { templateModule: true, headingLevel: 3 },
     }).save();
 
     await new Module({
@@ -655,7 +664,7 @@ export async function buildDayPageTemplate({
       id: tplDailyQOuterOccId,
       moduleId: tplDailyQOuterModId,
       targetId: tplDailyQOuterModId, targetType: "module",
-      parentId: tplDayPageRootOccId,
+      parentId: sectionOcc("Journal").occId,
       identitySignature: "daypage:Daily Question",
       textmap: {
         type: "doc",
@@ -672,7 +681,8 @@ export async function buildDayPageTemplate({
   // after the Daily Question), so checking an item off here and on the Schedule
   // are the same write on one occurrence.
   const dayPageOccurrencesList = [
-    ...(wantsDailyQuestion ? [tplDailyQOuterOccId] : []),
+    // Daily Question is NOT listed here — it lives inside Journal now
+    // (user 2026-08-01), so the column lists Journal and Journal lists it.
     sectionOcc("Journal").occId,
     sectionOcc("Notes").occId,
     tplTasksCompletedContOccId,
@@ -681,7 +691,6 @@ export async function buildDayPageTemplate({
 
   const embed = (occId) => ({ type: "moduleEmbed", attrs: { occurrenceId: occId } });
   const dayPageTextmapContent = [
-    ...(wantsDailyQuestion ? [embed(tplDailyQOuterOccId)] : []),
     embed(sectionOcc("Journal").occId),
     embed(sectionOcc("Notes").occId),
     embed(tplTasksCompletedContOccId),

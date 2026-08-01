@@ -10,11 +10,12 @@
 // Reuses QuickAddMenu wholesale (categories / search / field-picker / template
 // tiles). The only new piece is wiring its onCreateNew / onSelect to
 // `createLeafInstanceAtIndex` with the gap's index.
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useGridActions } from "../GridActionsContext.js";
 import QuickAddMenu from "./QuickAddMenu.jsx";
 import { createChildInContainer, createLeafInstanceAtIndex } from "../helpers/CommitHelpers";
 import { requestLabelEdit } from "../helpers/pendingLabelEdit.js";
+import { gapOpened, gapClosed } from "../helpers/insertGapDiag.js";
 
 export default function InsertGap({
   parentOccurrence,
@@ -37,6 +38,16 @@ export default function InsertGap({
   // While the menu is open, force the gap revealed (it normally only shows on
   // hover — moving the pointer to the portal menu would otherwise collapse it).
   const [menuOpen, setMenuOpen] = useState(false);
+  // `[gap]` diagnostics — every open/close is logged with this gap's identity so
+  // a stuck line can be traced to an OPEN with no matching CLOSE. Also reports
+  // an unmount-while-open, the leak fixed on 2026-07-31.
+  const diagInfo = useRef({ containerLabel, index });
+  diagInfo.current = { containerLabel, index };
+  const openRef = useRef(false);
+  openRef.current = menuOpen;
+  useEffect(() => () => {
+    if (openRef.current) gapClosed(diagInfo.current, "UNMOUNT-while-open");
+  }, []);
 
   if (!parentOccurrence || !resolvedGridId || !resolvedUserId) return null;
 
@@ -78,7 +89,10 @@ export default function InsertGap({
           onSelect={insertExisting}
           onCreateNew={insertNew}
           hostOccurrence={hostOccurrence}
-          onOpenChange={setMenuOpen}
+          onOpenChange={(v) => {
+            setMenuOpen(v);
+            (v ? gapOpened : gapClosed)({ containerLabel, index });
+          }}
         />
       </div>
     </div>
