@@ -1829,8 +1829,14 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   cursor: pointer;
 }
 /* Reveal is opacity-only — NO height change, so hovering never reflows siblings. */
-.insert-gap:hover .insert-gap-line, .insert-gap--open .insert-gap-line { opacity: 1; }
-.insert-gap:hover .insert-gap-btn, .insert-gap--open .insert-gap-btn { opacity: 1; }
+/* Reveal is driven by the JS-owned `--hot` class, NOT by CSS `:hover`. A browser
+   does not re-evaluate :hover until the pointer MOVES, so when an op drain
+   reflows the page under a stationary pointer the gap that was hovered stays
+   lit until you move back over it — the stuck highlight (user 2026-08-01: "if i
+   go back over the highlight, it disappears again"). A JS flag can be corrected
+   without pointer movement; :hover cannot. */
+.insert-gap--hot .insert-gap-line, .insert-gap--open .insert-gap-line { opacity: 1; }
+.insert-gap--hot .insert-gap-btn, .insert-gap--open .insert-gap-btn { opacity: 1; }
 /* The QuickAddMenu trigger inside a gap fills the strip (override its inline 20px
    width) so clicking anywhere on the blue line opens the add menu, with a pointer
    cursor across the whole thing — the "+" glyph stays centered. */
