@@ -2148,37 +2148,15 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   opacity: 0.75;
 }
 
-/* Empty-container "Add new item" (2026-07-25, per user): the whole empty body
-   is ALWAYS clickable to add, but the LABEL only appears on hover of that
-   container — so an empty board doesn't read as a wall of repeated text.
-   Opacity (not visibility/display) keeps the hit area live while hidden. */
-.empty-placeholder-inline {
-  font-style: italic;
-  opacity: 0;
-  transition: opacity 0.12s ease-out;
-  position: relative;
-  z-index: 2;
-  margin-top: -5px;
-  min-height: 36px;
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-/* ONLY the innermost hovered container reveals its own placeholder. This was a
-   plain DESCENDANT selector, so hovering anywhere in a day column lit the
-   placeholder in EVERY empty container nested beneath it — Journal, Daily
-   Question, Notes, Highlights all at once — and they vanished on leaving the
-   column (user 2026-08-01: "it still has those extra lines. they disappear when
-   i hover off of the daypage container. are you sure its not a css issue" — it
-   was). Identical `:not(:has(… :hover))` guard to the one the empty-gap label
-   and the cog handle already use; the fix was applied to those two in July and
-   missed here. */
-.container-shell:hover:not(:has(.container-shell:hover)) .empty-placeholder-inline,
-.empty-placeholder-inline:hover,
-.empty-placeholder-inline:focus-visible {
-  opacity: 0.6;
-}
+/* NOTE (2026-08-01): `.empty-placeholder-inline` used to be styled here and was
+   DEAD — nothing has rendered that class since the Module.jsx split into
+   ModuleRouter/ModuleContainer/ModuleInstance (zero hits in src AND in the built
+   bundle, while the sibling `.empty-placeholder` still shows 3). The empty
+   container's "Add new item" affordance is `.insert-gap-empty-label` inside
+   `.insert-gap--empty` (ui/InsertGap.jsx, mounted from ModuleContainer's
+   `items.length === 0` branch) — its reveal rule lives above at
+   `.container-list:hover > * > .insert-gap--empty`. Rules removed; if an empty
+   container's placeholder misbehaves, that is the selector to look at. */
 
 /* Pool pill — show delete button on hover */
 .pool-pill:hover .pool-pill-delete {

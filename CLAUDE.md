@@ -6,7 +6,51 @@
 
 ---
 
-### 2026-08-01 (15) — it WAS a CSS issue: an unscoped descendant hover (user was right)
+### 2026-08-01 (16) — RETRACTION: entry (15)'s fix was INERT. The class it guarded is never rendered.
+
+Went to verify the one thing (15) flagged as unchecked — the positive case, "hovering an empty
+container directly should still reveal its own placeholder." It cannot be checked, because
+**`.empty-placeholder-inline` is not rendered by anything.**
+
+Proof, not inference:
+```
+grep empty-placeholder-inline  client/src/**  →  index.css only (+ two .md files)
+grep empty-placeholder-inline  dist/assets/*.js  →  0 hits
+grep empty-placeholder         dist/assets/*.js  →  3 hits   ← the method works
+```
+The sibling class proves the grep would have found it. The class died in the `Module.jsx` split
+into ModuleRouter/ModuleContainer/ModuleInstance (it was introduced by that file, per the
+2026-05-21 backup notes); the CSS was orphaned and nobody noticed for months.
+
+**So entry (15) is wrong on both halves.** The rule it "fixed" styles nothing, so it could not have
+been the cause of the user's extra lines, and it cannot have fixed them. Its "Verified: hovering the
+column shows zero placeholders" was **vacuously true** — there was never an element there to light
+up. That is exactly the failure mode this file keeps warning about, arrived at from a new direction:
+I verified an ABSENCE and read it as a fix. **An observation that a thing is not visible proves
+nothing unless you have first proven the thing can be visible.** Check the positive case FIRST.
+
+**What actually renders an empty container's "Add new item":** `.insert-gap-empty-label` inside
+`.insert-gap--empty` — `ui/InsertGap.jsx:98`, mounted from `ModuleContainer.jsx:1615` on the
+`items.length === 0` branch. Its reveal rule is `index.css:2145`
+(`.container-list:hover > * > .insert-gap--empty …`), already direct-child scoped back on
+2026-07-26. That scoping is why it cannot bleed into a nested container — and it is the ONLY
+selector worth touching if the placeholder misbehaves.
+
+**Done:** dead rules deleted (a pointer comment left in their place); `npm run build` clean with
+the documented chunk sanity check holding (tiptap 435 / highlight 969 / CommandCenter 203 /
+PagePreviewApp 916). CSS-only removal of an unreferenced class, so the build IS the verification.
+
+**STILL OPEN — the user's report is NOT fixed and never was.** Five rounds have now gone into it
+(entries 4, 5, 9, 12, 15) and the element on screen has still never been identified. Entry (14)'s
+probe found zero doc gaps and zero mismatch, which combined with this retraction means every
+component blamed so far has been ruled out. **Do not write another fix.** The next action is the
+one (12) and (14) both asked for and nobody has done: get `document.elementFromPoint(x, y)` — or a
+right-click → Inspect — on the actual lines while they are visible, and report the class list.
+Everything else is guessing.
+
+---
+
+### 2026-08-01 (15) — [RETRACTED by (16) — the guarded class is never rendered] it WAS a CSS issue: an unscoped descendant hover (user was right)
 
 User: "they disappear when i hover off of the daypage container. are you sure its not a css issue."
 It was, and that detail — vanishing on leaving the PARENT — is what identified it: the reveal was
