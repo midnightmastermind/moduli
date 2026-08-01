@@ -135,7 +135,15 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
           aria-label="bound select"
           value={value ?? ""}
           onChange={(e) => writeAndSync(e.target.value)}
-          style={{ fontSize: 11, padding: "2px 4px", maxWidth: "100%" }}
+          // NO inline fontSize. A hardcoded 11px here beat the heading size the
+          // host span sets (the parent measured 13px while this stayed 11), so a
+          // bound header never rendered at the level it declared — and it is an
+          // INLINE style, which no stylesheet rule can override. That is the
+          // fifth time this trap has been recorded in this codebase: when a size
+          // or layout rule silently does nothing, look for an inline style
+          // FIRST. `font: inherit` in index.css now supplies family/size/weight
+          // from the heading.
+          style={{ padding: "2px 4px", maxWidth: "100%" }}
         >
           {hasOptions ? (
             <>
