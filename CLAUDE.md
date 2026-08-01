@@ -6,6 +6,28 @@
 
 ---
 
+### 2026-08-01 (10) — the Daily Question select expands on hover (absolutely)
+
+A native `<select>` truncates its selected option and cannot marquee, so the long question was
+unreadable. Hovering it now expands it to `width: max-content` (capped at `min(60vw, 560px)`)
+**absolutely positioned**, so nothing around it reflows — the user was explicit that it must not
+push anything, and that this is the SELECT only, not the randomize button (the rule targets
+`.bound-header-select:hover > select`, so the segment beside it is untouched).
+
+Hover cannot flicker: the expanded select is still a DESCENDANT of the hovered span, so `:hover`
+on the parent stays true even though the select leaves the flow. `.bound-header-select` gained
+`position: relative` as the positioning context. A `title` also carries the full text for the
+keyboard/no-hover case.
+
+**Verified only as far as the CSS** — confirmed present in the served stylesheet
+(`index-BYEDAd4w.css`). The headless hover did NOT reproduce the expansion (the select reported
+`position: static` under the probe's pointer, most likely because a doc-gap overlay sits over that
+point and takes the hover), so the on-screen behaviour is UNCONFIRMED. If it does not expand in a
+real browser, the first thing to check is whether the gap overlay is intercepting the pointer —
+not the rule, which is definitely deployed.
+
+---
+
 ### 2026-08-01 (9) — gaps stuck open because each editor owned its own, with nothing coordinating
 
 User: "if i visit a gap, it will stick whenever i highlight a diff gap… gaps from the daily
