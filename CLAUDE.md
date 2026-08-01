@@ -6,6 +6,38 @@
 
 ---
 
+### 2026-08-01 (11) — why today's day column never appears: a RANGE filter + an already-stamped marker
+
+Root-caused from live data (the user's log kept showing `Grid: Snap Filter To Today` firing with
+**0fx** on Aug 1):
+
+```
+marker "Last Opened"        = 2026-08-01      ← already stamped TODAY
+Day Page board filterOverride = { value: "2026-07-30", unit: "day", span: 2, kind: "range" }
+```
+
+Two facts together explain it:
+1. The board is pinned to a two-day **RANGE** (Jul 30-31), not a single day. `Snap Filter To Today`
+   advances date-carrying pages on a new day, but this page's value is a `kind:"range"` shape.
+2. The marker is ALREADY stamped 2026-08-01, so the op believes it has done its job for today and
+   will not retry — which is why every subsequent load logs 0 effects rather than an error.
+
+So the op ran once this morning, did not move the range, stamped the marker, and now no-ops
+forever. `Day Page: Build` then builds for the days the filter names — Jul 30-31 — and today never
+gets a column.
+
+**NEEDS A PRODUCT DECISION, not a guess.** When a new day starts and a page is showing a multi-day
+RANGE, it should either (a) shift the whole range forward by the elapsed days, (b) collapse to
+today, or (c) stay put — which is what it does now, and is arguably correct, since a range is a
+window the user deliberately chose and the op's whole design goal (2026-07-26) is that "a date you
+navigated to survives a refresh". Picking (c) means the real fix is elsewhere: Day Page: Build
+should ALWAYS ensure today's column exists regardless of the filter window.
+
+Do not "fix" the marker or force the snap without settling that first — the same rule protects
+every other date-carrying page on the grid.
+
+---
+
 ### 2026-08-01 (10) — the Daily Question select expands on hover (absolutely)
 
 A native `<select>` truncates its selected option and cannot marquee, so the long question was
