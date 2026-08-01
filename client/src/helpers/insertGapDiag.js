@@ -96,15 +96,20 @@ export function sweepGaps(reason = "manual") {
       return { index: el?.dataset?.insertIndex, hovered: el?.matches(":hover") };
     });
 
-  if (stuck.length || hoverLit.length) {
-    console.log(`[gap] SWEEP (${reason}) — forced-open: ${stuck.length}, lit-without-class: ${hoverLit.length}`);
-    if (stuck.length) console.table(stuck);
+  // A gap the pointer is genuinely inside is CORRECT, not stuck. Reporting
+  // those as "forced-open" made a healthy capture look like a bug (2026-08-01:
+  // Tasks Completed, pointerInside true). Only orphans — lit with the pointer
+  // elsewhere — are worth a line.
+  const orphans = stuck.filter((r) => r.pointerInside === false);
+  if (orphans.length || hoverLit.length) {
+    console.log(`[gap] SWEEP (${reason}) — ORPHANED: ${orphans.length}, lit-without-class: ${hoverLit.length}`);
+    if (orphans.length) console.table(orphans);
     if (hoverLit.length) console.table(hoverLit);
     console.log("[gap]   hosts that believe they are open:", [...openGaps.keys()]);
   } else {
-    console.log(`[gap] SWEEP (${reason}) — clean`);
+    console.log(`[gap] SWEEP (${reason}) — clean (${stuck.length} lit, all under the pointer)`);
   }
-  return stuck;
+  return orphans;
 }
 
 if (typeof window !== "undefined") {
@@ -133,7 +138,7 @@ if (typeof window !== "undefined") {
       const n = document.querySelectorAll(".insert-gap--open, .insert-gap--hot").length;
       if (n !== lastCount) {
         lastCount = n;
-        if (n > 0) sweepGaps(`watcher saw ${n} forced-open`);
+        if (n > 0) sweepGaps(`watcher saw ${n} lit`);
       }
     }, 3000);
   }
