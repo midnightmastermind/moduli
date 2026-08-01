@@ -4779,11 +4779,19 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    marquee, so this is how the full text becomes readable in place.
    Hover survives the switch: the expanded select is still a DESCENDANT of the
    hovered span, so `:hover` on the parent stays true and it cannot flicker. */
+/* The parent clips (`overflow: hidden`, below) — an absolutely positioned child
+   is clipped by that too, so the expansion has to lift it for the hover. */
+.bound-header-select:hover { overflow: visible; }
 .bound-header-select:hover > select {
   position: absolute;
   top: 0;
   left: 0;
   z-index: 60;
+  /* `max-content` ALONE SHRANK it: a select's max-content is its widest option
+     (measured 307px) which is NARROWER than the width it already had stretched
+     in the flex row (342px). min-width pins it to at least the width it had, so
+     the hover can only ever grow it. */
+  min-width: 100%;
   width: max-content;
   max-width: min(60vw, 560px);
   background: var(--input-bg);
