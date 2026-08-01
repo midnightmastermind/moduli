@@ -1750,7 +1750,17 @@ body[data-drag-kind="panel"] .container-shell {
 .doc-editor-wrapper:hover:not(:has(.doc-editor-wrapper:hover)) > * > .doc-editor-content.ProseMirror > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child),
 .doc-editor-content.ProseMirror:focus-within:not(:has(.doc-editor-content:focus-within)) > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child) {
   height: auto;
-  margin: 0.25em 0;
+  /* Gap read too tall for an 11px line, so the 0.25em top+bottom margins are
+     dropped — that is the "drop it like 5px" (0.25em x 2 at 11px = 5.5px). */
+  margin: 0;
+  /* Then nudge the line (and therefore the CARET) 3px down so it isn't flush
+     against the container above (user 2026-08-01: "when the text cursor pops up
+     its touching the container above" / "dont make the gap bigger tho, just
+     shift the text down a little"). `position:relative` offsets the PAINTED box
+     only — the element still occupies its original space, so this buys the
+     breathing room WITHOUT adding height back. Padding/margin would have. */
+  position: relative;
+  top: 3px;
 }
 
 .doc-editor-content.ProseMirror ul,
