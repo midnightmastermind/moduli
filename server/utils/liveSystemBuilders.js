@@ -1637,9 +1637,11 @@ export function makeDayPageBuildOp({
                     type: "APPLY_TEMPLATE",
                     templateRef: "$tplId",
                     rootParent: dayPageBoardOccId,
-                    // Just the date — the board is already called "Day Page", so
-                    // repeating it on every column was noise (user 2026-07-31).
-                    rootLabel: "${$day}",
+                    // "Friday, July 31st, 2026" — the day of the week reads first
+                    // (user 2026-08-01). Same `dateLong:` token the Schedule's
+                    // day-columns use, so both surfaces name a day identically.
+                    // No "Day Page - " prefix: the board is already called that.
+                    rootLabel: "${dateLong:$day}",
                     replacements: { "{Date}": "$day" },
                     rootIdVar: "$colId",
                     defaultFields: { [dateFieldId]: "$day" },
