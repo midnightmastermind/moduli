@@ -6,6 +6,24 @@
 
 ---
 
+### 2026-07-31 (7) — day columns: content height, bare date names, horizontal scroll
+
+- **Full content height** (`0026`): the 420px `childMaxHeight` is cleared, so a column is as tall as
+  its day. That cap was my remedy for a hover-expansion shove; the user would rather see the whole
+  day on load, and the Layout menu can put a cap back if it ever bites. Verified: wrap 667 ≥ shell
+  663, nothing clipped.
+- **Names lose the "Day Page - " prefix** — the BOARD is already called Day Page, so every column
+  repeated it. Renamed the existing columns AND patched `rootLabel` in the stored Build op (and the
+  builder): without the op change the prefix returns on the next new day. Columns now read
+  "2026-07-30" / "2026-07-31".
+- **Horizontal scroll needed no code** — `mode:"flex-row"` already gives the board a
+  `width:max-content` row inside an `overflow-x:auto` scroller, so picking a week in the filter
+  widens the board instead of squashing the columns. Measured: scrollWidth 742 > clientWidth 542.
+  The migration ASSERTS the board is still flex-row and throws otherwise, so a regression surfaces
+  as a failed migration rather than a squashed page.
+
+---
+
 ### 2026-07-31 (6) — the day-column header was overflowing its own row
 
 From the screenshot: headers unpadded, text too big, columns not lining up. All ONE cause, found by
