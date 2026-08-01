@@ -6,6 +6,33 @@
 
 ---
 
+### 2026-08-01 (4) — the stuck highlight was a STALE `:hover`, not a state leak
+
+The user's log settled it: **zero `[gap] OPEN` lines** — no menu ever opened — plus "if i go back
+over the highlight, it disappears again". So it was never the forced-open state fixed on 07-31.
+
+**A browser only re-computes `:hover` when the POINTER MOVES.** Moduli reflows constantly under a
+stationary pointer — the on-load op drain in the user's own log is 580ms / 124 effects — so a gap
+that was hovered keeps `:hover` after the layout shifts out from under the cursor, and stays lit
+until the user moves back over it and away. That is exactly the reported behaviour, and nothing in
+CSS can correct it: `:hover` is the browser's to own.
+
+**Fix — hover is JS-owned now** (`helpers/gapHover.js`, NEW). `.insert-gap--hot` drives the reveal
+instead of `:hover`; a gap claims hover on pointerenter, and one shared document listener re-tests
+the pointer against the claimant's CURRENT rect on pointermove, on scroll, and on any
+ResizeObserver hit — the layout-change case `:hover` cannot see. A 1s sweep also strips `--hot`
+from anything left orphaned by an unmount.
+
+**Reproduced, finally** — hover a gap (1 lit) → force a reflow with the pointer STATIONARY → 0 lit.
+Before the fix that middle step stayed lit. That reproduction is the thing three earlier rounds
+lacked; the earlier probes all moved the mouse, which is precisely what hides this bug.
+
+**Lesson worth keeping: the absence of a log line was the evidence.** No OPEN lines meant the whole
+forced-open theory was wrong, which is what pointed at `:hover`. Instrument the thing you believe,
+then believe the silence.
+
+---
+
 ### 2026-08-01 (3) — the question header: #### and actually sized; gap logs made visible
 
 - **The inner question container carried NO headingLevel**, so it fell to the level-1 default and
