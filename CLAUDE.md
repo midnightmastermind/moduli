@@ -6,6 +6,35 @@
 
 ---
 
+### 2026-08-01 (15) — it WAS a CSS issue: an unscoped descendant hover (user was right)
+
+User: "they disappear when i hover off of the daypage container. are you sure its not a css issue."
+It was, and that detail — vanishing on leaving the PARENT — is what identified it: the reveal was
+keyed to the parent's `:hover`, not the element's.
+
+`.container-shell:hover .empty-placeholder-inline` was a plain DESCENDANT selector, so hovering
+anywhere in a day column revealed the "Add new item" placeholder in EVERY empty container nested
+beneath it — Journal, Daily Question, Notes, Highlights simultaneously. Those faint strips are what
+had been reported as stuck gaps all along. Fixed with the SAME
+`:not(:has(.container-shell:hover))` guard the empty-gap label and the cog handle already use —
+that guard was added to both of those in July (2026-07-26, same symptom, same cause) and simply
+missed here.
+
+**What this costs, recorded honestly:** four rounds of gap-state work (JS-owned hover, global
+exclusivity, the doc-gap watcher, orphan-only sweeps) chased a component that was never involved.
+Each was a real improvement and none of them could have ended the report. The tells were there
+early — no `[gap] OPEN` lines, no reproduction under synthetic hover, and the user twice describing
+behaviour keyed to the PARENT — and I kept fixing the thing I had already built instrumentation
+for. **When a report survives three fixes to one component, the component is the wrong suspect;
+re-derive from the user's description of WHEN it appears and disappears.**
+
+**Verified:** hovering the column, mid-column, and at rest all show zero placeholders (was: every
+empty descendant lit at once). **NOT verified:** the positive case — hovering an empty container
+DIRECTLY should still reveal its own placeholder. The guard permits it (an empty container has no
+nested shell to match), but it was not exercised; worth an eyeball.
+
+---
+
 ### 2026-08-01 (14) — could NOT reproduce the nested-gap complaint; evidence says it is not a gap
 
 Drove the pointer down eight points of a day column's own body and recorded, at each stop, which
