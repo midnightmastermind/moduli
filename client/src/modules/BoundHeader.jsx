@@ -103,6 +103,16 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
   // fields AND text-type fields with an optionsSource (e.g. journalQuestion's
   // find-mode pool). Falls back to the text branch when no options resolve.
   const hasOptions = options.length > 0;
+  // The <select> truncates its selected option, and a native select cannot be
+  // made to marquee. Until the header is restructured (render the text as a
+  // marquee span with the select laid over it transparently — the Alarms tab's
+  // pattern), the full text is at least reachable on hover (user 2026-08-01:
+  // "it should at least have a hover that says the full thing").
+  const selectedLabel = useMemo(() => {
+    const hit = options.find((o) => (typeof o === "string" ? o : o.value) === value);
+    if (hit) return typeof hit === "string" ? hit : (hit.label ?? hit.value);
+    return value == null || value === "" ? "" : String(value);
+  }, [options, value]);
   // Any field with a configured optionsSource — render the dropdown UI
   // even when the predicate currently resolves zero options. Gives users
   // a visible affordance (instead of a silent text fallback) plus a
@@ -133,6 +143,7 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
         {markdownPrefix ? <span>{markdownPrefix}</span> : null}
         <select
           aria-label="bound select"
+          title={selectedLabel || undefined}
           value={value ?? ""}
           onChange={(e) => writeAndSync(e.target.value)}
           // NO inline fontSize. A hardcoded 11px here beat the heading size the
