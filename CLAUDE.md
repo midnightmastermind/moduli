@@ -6,6 +6,30 @@
 
 ---
 
+### 2026-08-01 (14) — could NOT reproduce the nested-gap complaint; evidence says it is not a gap
+
+Drove the pointer down eight points of a day column's own body and recorded, at each stop, which
+container the pointer was in and which container (if any) was showing a doc gap:
+
+```
+pointerIn: Todo / Daily Question / Tasks Completed / …    gapShownIn: null    mismatch: false
+```
+
+**Zero doc gaps opened at any point, and no mismatch anywhere.** So the reported behaviour — gaps
+popping up in Journal and Daily Question while hovering the parent — does not reproduce under
+synthetic hover on the current build.
+
+Combined with the user's own "idk if its a gap or an empty line", the weight of evidence now says
+the thing on screen is **not a `.doc-insert-gap` at all**. Candidates worth checking first: an empty
+paragraph / trailing empty line in a doc body, or the `is-empty is-editor-empty` placeholder (which
+this probe DID find under the pointer inside the question container).
+
+**Do not write more gap-state code until the element is identified** — entries (4), (5), (9) and
+(12) all improved gap handling and none of them ended the report. The next move is
+`document.elementFromPoint` / Inspect on the actual thing, not another state fix.
+
+---
+
 ### 2026-08-01 (13) — a LONE column fills the panel; the width caps apply only to several
 
 User: "if its 1 daypage or 1 schedule, it takes up the panel width wise, once we get multiple, we
