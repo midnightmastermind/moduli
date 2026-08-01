@@ -6,6 +6,28 @@
 
 ---
 
+### 2026-08-01 (2) — wider columns, weekday names, a readable heading step, question marquee
+
+- **Column width is a cascade rule now** (`childMinWidth`/`childMaxWidth`, `0028`) instead of
+  PageBoard's hardcoded 280/360. That matters because the SCHEDULE uses the same flex-row renderer
+  — bumping the constant would have widened it too. Day Page is 420-560; the default is unchanged
+  for everything else, and the width is settable from the page's Layout menu.
+- **`##` vs `###` were 15px and 14px** — indistinguishable, so a nested section looked identical to
+  its parent (user: "looks like the same size despite diff headings"). Every level now drops at
+  least 2px AND loses weight: `{1:18/700, 2:15/650, 3:13/550, 4:12/500 …}`.
+- **The Daily Question header marquees** (`meta.labelOverflow: "marquee"`). Bound headers truncate
+  by DEFAULT on purpose (2026-07-31, "a control is not prose") — but the question IS prose, reading
+  it is the whole point, and it rarely fits a column. Set per-module as data, so the default stands
+  for every other bound header.
+- **Columns are named "Friday, July 31st, 2026"** (`0029`) via the `dateLong:` token — the same one
+  the Schedule's day-columns already use, so both surfaces name a day identically. Renamed by DATE
+  rather than by parsing the old label, and a column the user has since renamed by hand is left
+  alone.
+- Verified live: 560px columns, weekday names, Journal 15/650 holding Daily Question 13/550,
+  marquee present, zero page errors.
+
+---
+
 ### 2026-08-01 — `[gap]` diagnostics for the stuck insert lines; Daily Question nests under Journal
 
 **Diagnostics (`helpers/insertGapDiag.js`, NEW).** The stuck blue insert lines still happen "a
