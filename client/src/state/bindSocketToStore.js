@@ -1750,6 +1750,15 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // matched onLoad triggers (undefined == null) and every tracker UPDATE
     // looped back into another transaction_created echo.
     if (!transaction.type) return;
+    // A SnapshotOp is an UNDO RECORD, not a domain event — it carries no
+    // trigger semantics, so firing operations for it would run the whole
+    // matcher (~70 ops) against a type nothing matches, and the toast
+    // machinery below is O(grid) per transaction (it rebuilds modulesById,
+    // occurrencesById and a full parent reverse map). Since every write now
+    // produces one, that work would run on every keystroke-debounced doc save.
+    // TransactionHistory has its own `transaction_created` listener and still
+    // live-updates from these.
+    if (transaction.type === "SnapshotOp") return;
     fireOperations(transaction.type, transaction);
 
     // Toast per transaction

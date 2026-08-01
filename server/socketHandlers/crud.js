@@ -239,7 +239,13 @@ export function registerCrudHandlers(socket, {
       // case an inverse-op design could never get right.
       const deletedParentId = uc.occurrencesById[occurrenceId]?.parentId;
       for (const id of toDelete) {
-        const before = (await Occurrence.findOne({ id, userId }).lean()) || uc.occurrencesById[id] || null;
+        // Warm cache FIRST — it is authoritative for reads (loadUserIntoCache
+        // populates it fully). Reading the DB here instead added one Atlas
+        // round trip PER NODE, so deleting a 50-node subtree paid 50 extra
+        // round trips before a single delete ran. DB only on a cache miss.
+        const before = uc.occurrencesById[id]
+          || (await Occurrence.findOne({ id, userId }).lean())
+          || null;
         delete uc.occurrencesById[id];
         await Occurrence.findOneAndDelete({ id, userId });
         recordChange({ model: "occurrence", id, before, after: null, payload, label: "Deleted item" });
@@ -601,9 +607,12 @@ export function registerCrudHandlers(socket, {
         if (!userId) return;
         const uc = await getUc();
         if (!entityId) return;
-        // Read the doc before deleting — the cache copy may be partial, and a
-        // delete's `before` is the ONLY thing that can restore it.
-        const before = (await Model.findOne({ id: entityId, userId }).lean()) || uc[cacheKey]?.[entityId] || null;
+        // Snapshot before deleting — a delete's `before` is the ONLY thing that
+        // can restore it. Warm cache first (authoritative for reads); the DB
+        // read is the cache-miss fallback, not the default path.
+        const before = uc[cacheKey]?.[entityId]
+          || (await Model.findOne({ id: entityId, userId }).lean())
+          || null;
         if (uc[cacheKey]?.[entityId]) delete uc[cacheKey][entityId];
         await Model.findOneAndDelete({ id: entityId, userId });
         recordChange({ model: modelName, id: entityId, before, after: null, payload });

@@ -195,6 +195,15 @@ export function registerOccurrenceHandlers(socket, {
 
       uc.occurrencesById[id] = next;
 
+      // Compress textmap before persisting to DB. Computed BEFORE the undo
+      // snapshot so the snapshot can reuse it — gzip dominates snapshot cost,
+      // and compressing the same bytes for both the DB write and the snapshot
+      // was doubling it on every doc edit.
+      const compressedTextmap = textmap !== undefined ? compressTextmap(textmap) : undefined;
+      const dbDoc = compressedTextmap !== undefined
+        ? { ...next, textmap: compressedTextmap }
+        : next;
+
       // Undo snapshot. `__actionId` groups this write with the user action that
       // caused it, so a drop and its ~40 tracker writes are ONE undo step.
       try {
@@ -202,6 +211,7 @@ export function registerOccurrenceHandlers(socket, {
           userId, gridId: txGridId || socket.data.activeGridId,
           actionId: payload?.__actionId || null,
           model: "occurrence", id, before: undoBefore, after: next,
+          compressedTextmap,
           broadcast: (txJson) => {
             socket.emit("transaction_created", { transaction: txJson });
             socket.to(userRoom(userId)).emit("transaction_created", { transaction: txJson });
@@ -210,11 +220,6 @@ export function registerOccurrenceHandlers(socket, {
       } catch (recErr) {
         console.error("update_occurrence undo-record failed (continuing):", recErr?.message || recErr);
       }
-
-      // Compress textmap before persisting to DB
-      const dbDoc = textmap !== undefined
-        ? { ...next, textmap: compressTextmap(textmap) }
-        : next;
 
       // Create MeasureOp transaction when fields change. Isolate from the
       // persistence path: a transaction-write failure (e.g. validation, race)

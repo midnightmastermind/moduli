@@ -49,19 +49,31 @@ const seqByGrid = new Map();
  *   shaped unlike every other.
  * - `_id`/`__v` stripped: `$set: { _id }` on restore is rejected by Mongo.
  */
-export function snapshotDoc(doc) {
+export function snapshotDoc(doc, precompressedTextmap) {
   if (!doc) return null;
   const plain = typeof doc.toObject === "function" ? doc.toObject() : doc;
+  // Clone WITHOUT the textmap, then attach the compressed form. Cloning a
+  // decompressed textmap and then throwing it away is pure waste — on a
+  // 310KB imported article that alone was ~1ms per snapshot.
+  const { textmap, ...rest } = plain;
   let clone;
   try {
-    clone = structuredClone(plain);
+    clone = structuredClone(rest);
   } catch {
-    clone = JSON.parse(JSON.stringify(plain));
+    clone = JSON.parse(JSON.stringify(rest));
   }
   delete clone._id;
   delete clone.__v;
-  if (clone.textmap && !isCompressed(clone.textmap)) {
-    clone.textmap = compressTextmap(clone.textmap);
+  if (textmap != null) {
+    // gzip DOMINATES snapshot cost (measured: 4.4ms of 5.5ms on a 310KB
+    // textmap). `precompressedTextmap` lets the caller hand over a compressed
+    // form it already has — the `before`/`after` pair of a field-only write
+    // share one textmap object, and update_occurrence already compresses for
+    // its own DB write. Without it the same bytes were gzipped up to 3× per
+    // write.
+    clone.textmap = precompressedTextmap !== undefined
+      ? precompressedTextmap
+      : (isCompressed(textmap) ? textmap : compressTextmap(textmap));
   }
   return clone;
 }
@@ -97,18 +109,29 @@ function bufferFor({ userId, gridId, actionId, label, broadcast }) {
  * action collapse: the FIRST `before` and the LATEST `after` win, so undoing a
  * cascade that touched a tracker six times restores its original value once.
  */
-export function recordDoc({ userId, gridId, actionId, model, id, before, after, label, broadcast }) {
+export function recordDoc({ userId, gridId, actionId, model, id, before, after, label, broadcast, compressedTextmap }) {
   if (!userId || !gridId || !model || !id) return;
   const key = actionId || `auto-${nanoid(10)}`;
   const buf = bufferFor({ userId, gridId, actionId: key, label, broadcast });
   if (!actionId) buf.derived = true;
 
+  // A write that does not touch the textmap leaves `before` and `after`
+  // pointing at the SAME textmap object (handlers build `next` by spreading
+  // `prev`). Compress once and reuse — that is the overwhelmingly common case
+  // (every field edit), and it halves the gzip bill for it.
+  const sharedTextmap = before && after && before.textmap === after.textmap;
+
   const docKey = `${model}:${id}`;
   const existing = buf.docs.get(docKey);
   if (existing) {
-    existing.after = snapshotDoc(after);      // latest wins
+    existing.after = snapshotDoc(after, compressedTextmap);   // latest wins
   } else {
-    buf.docs.set(docKey, { model, id, before: snapshotDoc(before), after: snapshotDoc(after) });
+    const beforeSnap = snapshotDoc(before, sharedTextmap ? compressedTextmap : undefined);
+    const afterSnap = snapshotDoc(
+      after,
+      sharedTextmap ? beforeSnap?.textmap : compressedTextmap,
+    );
+    buf.docs.set(docKey, { model, id, before: beforeSnap, after: afterSnap });
   }
 
   // A write with no action behind it is its own transaction — flush on the
