@@ -6,6 +6,52 @@
 
 ---
 
+### 2026-08-01 (18) — closing out (17): migration `0032` committed, and the recurring `missing-module` debris now has a TOOL
+
+Picked up the previous session's uncommitted work. Two things, both verified against the live grid.
+
+**`0032-detached-daily-question-answers` was already APPLIED but never committed.** Re-ran it as a
+forced DRY RUN and it reports `nothing detached to remove` — so it converged and is idempotent, and
+the file is now in git where the runner's applied-ledger (`grid.meta.migrations`) already claims it
+is. Its own header records the important part: detached Daily Question wrappers / Daily Answer
+textblocks are measured through `decompressTextmap`, never a regex over the raw document, because
+raw reads store textmap COMPRESSED and a naive scan reports "no text" for everything — it would
+have deleted journal entries. Nothing containing writing is ever dropped.
+
+**The `missing-module` integrity error had no fix, only a fresh ad-hoc script each time.** poms grid
+was carrying 2 module-less occurrences created at 13:21/13:22 that day — the documented
+create/disconnect asymmetry one level UP from the dangling-ref case: the occurrence's own
+`create_occurrence` survived the server queue and its MODULE's did not, so it renders as nothing,
+forever. This is at least the third recorded round of the same cleanup (2026-07-30, 07-31, now), so
+it went into `sweepOrphans.js` as a third pass instead of a fourth throwaway script.
+
+The predicate is the conservative one the rest of that file already commits to — an occurrence is
+swept only when it is **empty AND unreachable**: no text, no field values, no children, listed by no
+parent's `occurrences[]` and embedded in no textmap. Anything failing any one of those is logged
+with the reason and LEFT ALONE. Module lookup is keyed `${gridId}::${moduleId}` to match
+`gridIntegrity`'s rule exactly, so a clean sweep actually clears the error rather than half of it.
+Dumped RAW (textmap still compressed) to `backups/orphans/` before deleting — a restore has to be
+byte-for-byte what was removed.
+
+**Verified, in this order:** dry run reported exactly the 2 the integrity check named and **zero
+false positives across all three grids** (that is the check that matters — the predicate is the
+whole risk); applied; poms grid **1 error → 0**. `test grid 1`'s remaining
+`unsigned-template-node` is the frozen archive, still deliberately untouched (2026-07-31 (4)).
+347 server + 1472 client tests, build clean with the chunk sanity check holding.
+
+**Not done, deliberately:** no pm2 restart. The documented restart rule is for `occurrences[]`
+ARRAY repairs, where the warm cache is authoritative for reads and would re-serve the old array —
+here whole documents were deleted that nothing references, so a cache still holding them changes
+nothing observable, and it ages out on its own TTL.
+
+**Pre-existing, NOT introduced here and NOT chased:** both poms grid and test grid 2 warn
+`duplicate-field-name` on `due, calories, protein, carbs, fats`. It reproduces on the seed's own
+target grid, so it is a SEED issue, not live-data drift — and it contradicts the standing
+unique-field-names rule (2026-07-14 (5), which swept 11 duplicates and evidently missed these 5).
+Worth a pass; it was out of scope for finishing someone else's migration.
+
+---
+
 ### 2026-08-01 (17) — SOLVED. It was an empty LINE, and the user's "look at the heights" ended it.
 
 User: "just look at the heights when you hover over todo. look at journal and daily question and

@@ -20,6 +20,18 @@
 // (fixed at the source 2026-07-29: the create carries parentId and the server
 // links it atomically, so the client no longer emits its own parent write).
 //
+// ALSO sweeps MODULE-LESS OCCURRENCES: the same asymmetry one level up. The
+// occurrence's own create survived the queue and its MODULE's did not, so it
+// renders as nothing, forever — `gridIntegrity`'s `missing-module` error. These
+// turn up after most live-probing sessions and were being cleaned by a fresh
+// ad-hoc script each time; this is that script, kept.
+//
+// Only EMPTY, UNREACHABLE ones go: no text, no field values, no children, and
+// listed by no parent's `occurrences[]` or textmap embed. Anything else is
+// reported and LEFT ALONE. Text is measured through `decompressTextmap` — raw
+// reads store textmap COMPRESSED, so scanning the raw value reports "no text"
+// for everything and would happily delete a journal entry.
+//
 // Usage:
 //   node --env-file=server/.env server/scripts/sweepOrphans.js            # dry run
 //   node --env-file=server/.env server/scripts/sweepOrphans.js --apply
@@ -39,6 +51,7 @@ import Manifest from "../models/Manifest.js";
 import Folder from "../models/Folder.js";
 import Operation from "../models/Operation.js";
 import User from "../models/User.js";
+import { decompressTextmap } from "../utils/textmapCompression.js";
 
 const COLLECTIONS = [
   ["occurrences", Occurrence], ["modules", Module], ["fields", Field],
@@ -85,7 +98,9 @@ async function main() {
   }
 
   // ── Dangling child refs ────────────────────────────────────────────────
-  const allOccs = await Occurrence.find({ userId }).select({ _id: 1, id: 1, gridId: 1, occurrences: 1 }).lean();
+  const allOccs = await Occurrence.find({ userId })
+    .select({ _id: 1, id: 1, gridId: 1, occurrences: 1, moduleId: 1, parentId: 1, label: 1, fields: 1, textmap: 1 })
+    .lean();
   const liveIds = new Set(allOccs.map(o => o.id));
   const doomedIds = new Set(plan.flatMap(p => p.ids.map(String)));
   const byId = new Map(allOccs.map(o => [String(o._id), o]));
@@ -103,13 +118,66 @@ async function main() {
     if (danglingFix.length > 6) console.log(`      … ${danglingFix.length - 6} more`);
   }
 
+  // ── Module-less occurrences ────────────────────────────────────────────
+  // Matches gridIntegrity's `missing-module` rule exactly (per-grid module
+  // lookup) so a clean sweep clears that error rather than half of it.
+  const allMods = await Module.find({ userId }).select({ id: 1, gridId: 1 }).lean();
+  const modKeys = new Set(allMods.map(m => `${m.gridId}::${m.id}`));
+  const listedIds = new Set();
+  const embeddedIds = new Set();
+  for (const o of allOccs) {
+    for (const k of o.occurrences || []) listedIds.add(k);
+    const tm = decompressTextmap(o.textmap) || {};
+    for (const n of tm.content || []) {
+      const ref = n?.attrs?.occurrenceId;
+      if (ref) embeddedIds.add(ref);
+    }
+  }
+  const hasText = (o) => {
+    const tm = decompressTextmap(o?.textmap) || {};
+    return /"text":"[^"]+"/.test(JSON.stringify(tm.content || []));
+  };
+  const hasFieldValue = (o) => Object.values(o.fields || {})
+    .some(v => v && v.value !== null && v.value !== undefined && v.value !== "");
+
+  const moduleLessDrop = [];
+  let moduleLessKept = 0;
+  for (const o of allOccs) {
+    if (doomedIds.has(String(o._id))) continue;          // its whole grid is going
+    if (!o.gridId || modKeys.has(`${o.gridId}::${o.moduleId}`)) continue;
+    const why = [];
+    if (hasText(o)) why.push("has writing");
+    if (hasFieldValue(o)) why.push("has field values");
+    if ((o.occurrences || []).length) why.push("has children");
+    if (listedIds.has(o.id)) why.push("a parent lists it");
+    if (embeddedIds.has(o.id)) why.push("a textmap embeds it");
+    if (why.length) {
+      console.log(`      KEEPING module-less ${o.id.slice(0, 8)} — ${why.join(", ")}`);
+      moduleLessKept++;
+      continue;
+    }
+    moduleLessDrop.push(o);
+  }
+  if (moduleLessDrop.length || moduleLessKept) {
+    console.log(`\n   MODULE-LESS occurrences: ${moduleLessDrop.length} empty + unreachable ` +
+                `(deleting)${moduleLessKept ? `, ${moduleLessKept} kept` : ""}`);
+    for (const o of moduleLessDrop.slice(0, 6)) {
+      console.log(`      ${o.id.slice(0, 8)}  parentId=${(o.parentId || "(none)").slice(0, 8)}`);
+    }
+    if (moduleLessDrop.length > 6) console.log(`      … ${moduleLessDrop.length - 6} more`);
+  }
+
   if (nullTotal) {
     console.log(`\n   ${nullTotal} document(s) have NO gridId — left alone on purpose ` +
                 `(could be mid-flight; "probably dead" is not good enough for a delete).`);
   }
-  if (!orphanTotal && !danglingTotal) { console.log("\n✅ No orphans, no dangling child refs."); return; }
+  if (!orphanTotal && !danglingTotal && !moduleLessDrop.length) {
+    console.log("\n✅ No orphans, no dangling child refs, no module-less occurrences.");
+    return;
+  }
 
-  console.log(`\n   TOTAL: ${orphanTotal} orphan document(s), ${danglingTotal} dangling child ref(s)`);
+  console.log(`\n   TOTAL: ${orphanTotal} orphan document(s), ${danglingTotal} dangling child ref(s)` +
+              `, ${moduleLessDrop.length} module-less occurrence(s)`);
   if (!APPLY) { console.log("\nDRY RUN — nothing written. Re-run with --apply."); return; }
 
   // Dump the FULL documents before deleting. backupGrid can't cover these —
@@ -122,10 +190,16 @@ async function main() {
   for (const { name, model, ids } of plan) {
     dump[name] = await model.find({ _id: { $in: ids } }).lean();
   }
+  // Dumped RAW (textmap still compressed) — a restore has to be byte-for-byte
+  // what was deleted, not a decompressed rendering of it.
+  const moduleLessIds = moduleLessDrop.map(o => o._id);
+  dump.moduleLess = moduleLessIds.length
+    ? await Occurrence.find({ _id: { $in: moduleLessIds } }).lean() : [];
   fs.writeFileSync(dumpPath, JSON.stringify(dump, null, 2));
   const dumped = Object.entries(dump).reduce((n, [k, a]) => n + (k.startsWith("_") ? 0 : a.length), 0);
-  if (dumped !== orphanTotal) {
-    throw new Error(`Dump holds ${dumped} of ${orphanTotal} orphans — refusing to delete.`);
+  const expected = orphanTotal + moduleLessDrop.length;
+  if (dumped !== expected) {
+    throw new Error(`Dump holds ${dumped} of ${expected} documents — refusing to delete.`);
   }
   console.log(`\n💾 Dumped ${dumped} document(s) → ${dumpPath}`);
 
@@ -133,13 +207,18 @@ async function main() {
     const { deletedCount } = await model.deleteMany({ _id: { $in: ids } });
     console.log(`   🗑️  ${name}: ${deletedCount}`);
   }
+  if (moduleLessIds.length) {
+    const { deletedCount } = await Occurrence.deleteMany({ _id: { $in: moduleLessIds } });
+    console.log(`   🗑️  module-less occurrences: ${deletedCount}`);
+  }
   // Repair the child lists. Dumped above alongside the orphans so a bad prune
   // is reversible.
   for (const d of danglingFix) {
     await Occurrence.updateOne({ _id: d._id }, { $set: { occurrences: d.kept } });
   }
   if (danglingTotal) console.log(`   🔗 repaired ${danglingTotal} dangling child ref(s) across ${danglingFix.length} parent(s)`);
-  console.log(`\n✅ Swept ${orphanTotal} orphan(s), repaired ${danglingTotal} child ref(s). Dump: ${dumpPath}`);
+  console.log(`\n✅ Swept ${orphanTotal} orphan(s) + ${moduleLessDrop.length} module-less occurrence(s), ` +
+              `repaired ${danglingTotal} child ref(s). Dump: ${dumpPath}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
