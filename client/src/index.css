@@ -3671,14 +3671,26 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    their capped-thumbnail look. Placed after the .wrap-group overrides so it
    also wins for a doc-embedded wrap neighbor (caption shows, image fills its
    column). */
-.doc-editor-content .artifact-card[data-kind="image"] {
+/* NOT INSIDE A WRAP GROUP (`:not(.wrap-group *)`, added 2026-08-01).
+   These rules make a doc image a full-width figure — `width:100%`, caption
+   underneath, 22px of air above. That is right for a standalone image in a
+   doc, and WRONG for a wrapped one: a wrap neighbor is a sized column the
+   prose flows beside, and the `[data-kind]` attribute made these out-specify
+   every `.wrap-group` rule (the caption line below even says so). The result
+   was the Eminem lead image blowing out to the full column and stacking above
+   the infobox instead of floating beside the prose (user 2026-08-01: "the
+   image is taking up the full width and stacking on top of the infobox").
+   The wrap rules further up own the wrapped case; these own the standalone
+   one. Keep the guard on EVERY selector in this block — dropping it from one
+   is enough to reintroduce the bug. */
+.doc-editor-content .artifact-card[data-kind="image"]:not(.wrap-group *) {
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
   padding: 0;
   gap: 0;
 }
-.doc-editor-content .artifact-card[data-kind="image"] .artifact-thumb {
+.doc-editor-content .artifact-card[data-kind="image"]:not(.wrap-group *) .artifact-thumb {
   width: 100%;
   max-width: 100%;
   height: auto;
@@ -3688,15 +3700,15 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   flex: 0 0 auto;
   margin-top: 22px;      /* breathing room above the image in image occurrences */
 }
-.doc-editor-content .artifact-card[data-kind="image"] .artifact-thumb-info {
-  display: flex;         /* override the .wrap-group hide so captions show */
+.doc-editor-content .artifact-card[data-kind="image"]:not(.wrap-group *) .artifact-thumb-info {
+  display: flex;         /* show captions on STANDALONE doc images */
   order: 1;              /* caption renders BELOW the image */
   flex: 0 0 auto;
   text-align: center;
   align-items: center;
   padding: 4px 10px 6px;
 }
-.doc-editor-content .artifact-card[data-kind="image"] .artifact-thumb-info-name {
+.doc-editor-content .artifact-card[data-kind="image"]:not(.wrap-group *) .artifact-thumb-info-name {
   -webkit-line-clamp: 3;
   font-weight: 400;
   font-style: italic;    /* reads as a photo caption */
@@ -3712,7 +3724,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    body so the handle sits to the LEFT of the image and the image fills the rest
    of the row. Top-aligned (handle keeps its `align-self:flex-start`) — NOT
    vertically centered. */
-.doc-editor-content .instance-content:has(.artifact-card[data-kind="image"]) {
+.doc-editor-content .instance-content:has(.artifact-card[data-kind="image"]):not(.wrap-group *) {
   /* `.instance-content` sets flex-wrap:wrap + justify-content:space-between as
      INLINE styles (ModuleInstance JSX), which beat stylesheet rules — so these
      need !important to win. Without nowrap the full-width image body wraps to a
