@@ -22,6 +22,7 @@ import {
   forwardRef, useImperativeHandle,
 } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
+import { watchRegion } from "../helpers/gapHover.js";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Image from "@tiptap/extension-image";
