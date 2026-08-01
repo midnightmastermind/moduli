@@ -19,8 +19,9 @@
 
 import {
   useCallback, useEffect, useMemo, useRef, useState,
-  forwardRef, useImperativeHandle,
+  forwardRef, useImperativeHandle, useSyncExternalStore,
 } from "react";
+import { subscribeForceSync, getForceSyncToken } from "../helpers/editorSyncSignal";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { watchRegion, claimExclusiveGap, releaseExclusiveGap } from "../helpers/gapHover.js";
 import StarterKit from "@tiptap/starter-kit";
@@ -324,6 +325,11 @@ const Editor = forwardRef(function Editor({
   // Without this, a debounced save from before auto-create fires can echo back
   // after the sub-editor takes focus (outer hasFocus=false) and reset the doc
   // to the pre-textblock state, removing the empty paragraphs the user created.
+  // Undo/redo force-sync (helpers/editorSyncSignal.js) — bumped once per
+  // applied undo so the content-sync effect can bypass its echo guards.
+  const forceSyncToken = useSyncExternalStore(
+    subscribeForceSync, getForceSyncToken, getForceSyncToken);
+  const appliedForceSyncRef = useRef(getForceSyncToken());
   const locallyModifiedRef = useRef(false);
   const locallyModifiedTimerRef = useRef(null);
 
@@ -1265,15 +1271,31 @@ const Editor = forwardRef(function Editor({
     // but guard against it so TipTap doesn't render garbled text.
     if (typeof content === "string") return;
     try {
+      // An UNDO/REDO must land even though every guard below would reject it:
+      // it is an explicit command that necessarily arrives while the editor has
+      // focus and was just typed in. Without this bypass the revert reached the
+      // DB and the store but never the screen, and the next keystroke saved the
+      // stale text back over it. See helpers/editorSyncSignal.js.
+      const forced = forceSyncToken !== appliedForceSyncRef.current;
+      appliedForceSyncRef.current = forceSyncToken;
+
       // Skip if editor has focus (user is typing) OR mid-click (mousedown fired but focus not yet)
       const editorDom = editor.view?.dom;
       const hasFocus = editorDom && document.activeElement && editorDom.contains(document.activeElement);
-      if (hasFocus) return;
-      if (recentMousedownRef.current) return;
-      // Skip if the editor was recently modified locally. Without this, a debounced
-      // save from before auto-create fires echoes back after the sub-editor takes focus
-      // (outer hasFocus=false) and resets the doc to the pre-textblock state.
-      if (locallyModifiedRef.current) return;
+      if (!forced) {
+        if (hasFocus) return;
+        if (recentMousedownRef.current) return;
+        // Skip if the editor was recently modified locally. Without this, a debounced
+        // save from before auto-create fires echoes back after the sub-editor takes focus
+        // (outer hasFocus=false) and resets the doc to the pre-textblock state.
+        if (locallyModifiedRef.current) return;
+      } else {
+        // Clear the local-modification window too, or the pending debounced save
+        // would immediately re-persist the content we just reverted.
+        locallyModifiedRef.current = false;
+        if (locallyModifiedTimerRef.current) clearTimeout(locallyModifiedTimerRef.current);
+        if (saveTimeout.current) clearTimeout(saveTimeout.current);
+      }
       const current = editor.getJSON();
       if (JSON.stringify(current) !== JSON.stringify(content)) {
         const { from, to } = editor.state.selection;
@@ -1308,7 +1330,7 @@ const Editor = forwardRef(function Editor({
     } catch (_) {
       // Editor view not ready yet (TipTap throws if view isn't mounted during rapid re-renders)
     }
-  }, [editor, content]);
+  }, [editor, content, forceSyncToken]);
 
   // ── expr + embed selection handlers (declared AFTER editor to avoid TDZ) ─
   const handleSelectExpr = useCallback((fieldName) => {

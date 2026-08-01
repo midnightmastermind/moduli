@@ -26,6 +26,7 @@ import {
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
 import { beginAction, endAction } from "../helpers/actionScope";
+import { requestForceSync, commitForceSync } from "../helpers/editorSyncSignal";
 import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers";
 import { migrateFieldOptionsSource, needsMigration } from "./migrateFieldOptionsSource";
 import { analyzeAllOperations } from "../helpers/operationIntrospection";
@@ -144,6 +145,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     payload = { ...payload, fields: migratedFields };
 
     socketDispatch({ type: ActionTypes.FULL_STATE, payload });
+
+    // The replacement state is in the store now, so a pending undo force-sync
+    // can be released: mounted editors re-render with the reverted content AND
+    // the bumped token, and accept it despite their echo guards. No-op unless
+    // an undo/redo actually requested one.
+    commitForceSync();
 
     // Initialize ephemeral filter nav values from each occurrence's filter defaultNavValue.
     // All date strings are LOCAL-tz YYYY-MM-DD. `toISOString().slice(0,10)` returns the
@@ -290,8 +297,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   }
   socket.on("textmaps_loaded", onTextmapsLoaded);
 
-  // Undo/redo: server emits sync_state after applying — re-request full state to sync client
+  // Undo/redo: server emits sync_state after applying — re-request full state to sync client.
+  // Mark a force-sync pending so mounted editors accept the reverted content
+  // when it lands; without it their echo guards (focus / recently-typed) reject
+  // an undo outright and the revert never reaches the screen.
   const onSyncState = () => {
+    requestForceSync();
     socket.emit("request_full_state");
   };
   socket.on("sync_state", onSyncState);
