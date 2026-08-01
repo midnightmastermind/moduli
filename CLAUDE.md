@@ -6,6 +6,27 @@
 
 ---
 
+### 2026-08-01 (8) — the `####` header was 11px because of an INLINE style (the 5th time)
+
+Traced by walking the computed chain from the `<select>` upward, which named the culprit in one
+run: the select carried **`style={{ fontSize: 11 }}` inline** in `BoundHeader.jsx`. Its parent span
+measured 13px — so the heading level had been applying correctly the whole time, and every
+`HEADING_SIZES` bump was landing on the right element while an inline style on the CHILD overrode
+it. An inline style beats any stylesheet rule regardless of specificity, so the `font: inherit`
+added earlier never had a chance either.
+
+Removed the inline size (padding kept); `font: inherit` now supplies family/size/weight from the
+heading. Verified: select **11px → 13px**, matching its `####` level and sitting above the 11px
+body text.
+
+**This is the FIFTH recorded instance of the same trap** (AutoMarquee `display:block`,
+ModuleInstance flex-wrap, the empty-pocket height, the instance label group's alignItems, now this).
+The standing rule already in this file earned its keep again: **when a size or layout rule silently
+does nothing, look for an inline style BEFORE anything else** — and note that two of the five were
+found only by walking computed styles up the chain, not by reading source.
+
+---
+
 ### 2026-08-01 (7) — type scale inverted at the bottom; trailing room for the last gap
 
 - **Body text was BIGGER than the deepest heading** (13px body vs a `####` rendering 11), so the
