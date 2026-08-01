@@ -6,6 +6,57 @@
 
 ---
 
+### 2026-08-01 (19) — the Daily Question was never deleted; scrubbing a dangling embed REMOVED THE ONLY THING RENDERING IT
+
+User: "theres stuff written in the journal container, a textblock, and no daily question container"
+→ "right i accidentally deleted the daily question i think so just bring it back."
+
+**Nothing was deleted.** Every day column still holds a Daily Question that its Journal lists as a
+child. A Journal is `kind: "doc"`, so it renders its **textmap**, NOT its `occurrences[]` — and the
+`moduleEmbed` node pointing at the Daily Question was missing. Listed but not embedded = present in
+the data, invisible on screen. Same class as 2026-07-31 (2) ("you got rid of my trackers"), from a
+new direction, and the screenshot matched the DB exactly.
+
+Measured across all four columns before writing anything:
+```
+Jul 28  [moduleEmbed->Daily Question, paragraph]              ✅
+Jul 31  [moduleEmbed->Daily Question, paragraph]              ✅
+Jul 30  [paragraph]                                           ❌
+Aug 1   [instanceTextblock->(the user's writing), paragraph]  ❌
+```
+
+**TWO different causes — confirmed against the pre-migration snapshots, not inferred:**
+- **Jul 30 — `0032` caused it.** That Journal's textmap embedded a DETACHED Daily Question wrapper
+  (`d4mix7d3`) while `occurrences[]` listed a different, healthy one. 0032 deleted the detached
+  wrapper and correctly scrubbed the now-dangling embed — but that embed was the ONLY Daily
+  Question being rendered, and the listed survivor had never been embedded. **The lesson, and it is
+  a sharp one: removing a dangling reference is not automatically safe. If the reference was the
+  only thing rendering a surviving sibling, the scrub IS the regression.** A dangling-ref cleanup
+  should ask what the parent will render afterwards, not just whether the pointer resolves.
+- **Aug 1 — NOT 0032, and the snapshots are what proved it.** The embed was already absent in the
+  13:39:27 snapshot, taken before either 0032 run. Today's Daily Question was created 13:22:03 and
+  linked into `occurrences[]` without ever being embedded.
+
+**Migration `0033`** re-embeds any child CONTAINER a day-column Journal lists but does not reference
+anywhere in its body. Append-only — nothing removed or reordered, the user's writing preserved
+verbatim below the restored question. Idempotent. Verified: dry run named exactly the 2 broken days
+and left the 2 healthy ones alone; after applying, all four match the healthy shape. **pm2
+restarted** — the warm cache serves textmaps, so without it the user reloads into the old body.
+
+**STILL OPEN — the durable half.** Today's column shows the build/merge path that mints a Daily
+Question adds it to `occurrences[]` without writing the parent's `moduleEmbed`, so **tomorrow's
+column will arrive broken the same way**. 0033 repairs data; it does not fix the builder. That is
+the next thing to look at, and the place to start is whatever minted `62f81790` at 13:22:03.
+
+**Probe note, cost one wrong conclusion:** my first tree dump printed `*** MISSING ***` for the
+question wrappers and I nearly believed the grid was full of module-less occurrences — the modules
+exist with an EMPTY-STRING label, and `modById.get(id)?.label || "*** MISSING ***"` renders `""`
+as missing. The integrity check was right and the probe was wrong. **Falsy-coalescing on a label
+is a lie whenever "" is a legal value** — and the standing rule applies to your own probe first:
+check the probe before believing a failure.
+
+---
+
 ### 2026-08-01 (18) — closing out (17): migration `0032` committed, and the recurring `missing-module` debris now has a TOOL
 
 Picked up the previous session's uncommitted work. Two things, both verified against the live grid.
