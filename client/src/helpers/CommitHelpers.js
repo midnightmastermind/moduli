@@ -1,7 +1,7 @@
 // helpers/CommitHelpers.js
 import { operationsBridge } from "../state/bindSocketToStore";
 import { safeEmit } from "./offlineQueue";
-import { beginAction, endAction } from "./actionScope";
+import { beginAction, endAction, withAction } from "./actionScope";
 import { buildParentMap } from "./dragHitTesting";
 import {
   createGridAction,
@@ -148,7 +148,16 @@ export function ensureModuleBindingsForOccurrenceFields({ dispatch, socket, occu
   });
 }
 
-export function createOccurrence({ dispatch, socket, occurrence, emit = true, panelId = null, containerLabel = "", panelLabel = "", fireTrigger = true, insertAtIndex = null }) {
+// `fireTrigger: false` marks DERIVED data (feed copies, op-materialized rows —
+// see feedSync). Those stay out of the undo stack; everything else is a user
+// action and gets one.
+export function createOccurrence(args) {
+  if (!args?.occurrence?.id) return undefined;
+  if (args.fireTrigger === false) return _createOccurrence(args);
+  return withAction("Created item", () => _createOccurrence(args));
+}
+
+function _createOccurrence({ dispatch, socket, occurrence, emit = true, panelId = null, containerLabel = "", panelLabel = "", fireTrigger = true, insertAtIndex = null }) {
   if (!occurrence?.id) return;
   operationsBridge.updateLocalOcc?.(occurrence);
   dispatch?.(createOccurrenceAction(occurrence));
@@ -198,7 +207,21 @@ export function createOccurrence({ dispatch, socket, occurrence, emit = true, pa
   });
 }
 
-export function updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerField = null }) {
+// Every user-caused write has to be undoable. `beginAction` is re-entrant
+// (depth-counted), so a write made INSIDE an already-open action joins it — a
+// drop and its tracker cascade still collapse into one undo step — while a
+// standalone call gets its own. Without this only field edits and drops opened
+// an action; typing, creating and deleting reached the server with no actionId,
+// were recorded as `derived`, and the undo stack skipped them. Measured on the
+// live grid: 33 of 35 transactions were derived, so Ctrl+Z had almost nothing
+// to act on (user: "control z ... not working on docpages").
+export function updateOccurrence(args) {
+  if (!args?.occurrence?.id) return undefined;
+  const label = args.occurrence.textmap !== undefined ? "Edited text" : "Updated item";
+  return withAction(label, () => _updateOccurrence(args));
+}
+
+function _updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerField = null }) {
   if (!occurrence?.id) return;
   // Conflict resolution (#26 cheapest-level): pass the local cache's
   // `updatedAt` so the server can reject this write when another window
@@ -450,7 +473,13 @@ export function updateOccurrenceFilterOverride({ dispatch, socket, id, filterOve
   }
 }
 
-export function deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, emit = true, fireTrigger = true }) {
+export function deleteOccurrence(args) {
+  if (!args?.occurrenceId) return undefined;
+  if (args.fireTrigger === false) return _deleteOccurrence(args);
+  return withAction("Deleted item", () => _deleteOccurrence(args));
+}
+
+function _deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, emit = true, fireTrigger = true }) {
   if (!occurrenceId) return;
   // Snapshot the occurrence BEFORE eviction. Callers that delete via an
   // operation effect (applyOperationEffect → DELETE_ITEM) don't pass
@@ -504,7 +533,13 @@ export function deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, e
 }
 
 // Remove occurrence from grid + clean up parent reference (optimistic)
-export function removeOccurrence({ dispatch, socket, occurrenceId, occurrence, parentOccurrence, grid, emit = true, fireTrigger = true }) {
+export function removeOccurrence(args) {
+  if (!args?.occurrenceId) return undefined;
+  if (args.fireTrigger === false) return _removeOccurrence(args);
+  return withAction("Removed item", () => _removeOccurrence(args));
+}
+
+function _removeOccurrence({ dispatch, socket, occurrenceId, occurrence, parentOccurrence, grid, emit = true, fireTrigger = true }) {
   if (!occurrenceId) return;
   // Capture ancestor chain BEFORE eviction (see deleteOccurrence for rationale).
   const ancestors = operationsBridge.getAncestorChain?.(occurrenceId) || { ids: [], labels: [] };

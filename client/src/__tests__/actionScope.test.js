@@ -74,6 +74,37 @@ describe("actionScope", () => {
     }
   });
 
+  // The bug this pins: the grouping mechanism existed but only setOccurrenceFieldValue
+  // and the drop batch ever opened an action. Typing, creating and deleting reached the
+  // server with NO actionId, were recorded as `derived`, and the undo stack skipped them
+  // — measured on the live grid, 33 of 35 transactions were derived, so Ctrl+Z had
+  // almost nothing to undo. Every ordinary write must carry a stamp.
+  it("ordinary writes carry an action stamp, so they reach the undo stack", async () => {
+    const { updateOccurrence, createOccurrence, deleteOccurrence } =
+      await import("../helpers/CommitHelpers");
+    const socket = fakeSocket();
+    const dispatch = () => {};
+
+    updateOccurrence({ dispatch, socket, occurrence: { id: "o1", textmap: { type: "doc" } } });
+    createOccurrence({ dispatch, socket, occurrence: { id: "o2" } });
+    deleteOccurrence({ dispatch, socket, occurrenceId: "o3" });
+
+    const writes = socket.emit.mock.calls.filter(([evt]) =>
+      ["update_occurrence", "create_occurrence", "delete_occurrence"].includes(evt));
+    expect(writes.length).toBeGreaterThanOrEqual(3);
+    for (const [evt, payload] of writes) {
+      expect(payload.__actionId, `${evt} must carry an action id`).toBeTruthy();
+    }
+  });
+
+  it("derived writes (fireTrigger:false) stay OUT of the undo stack", async () => {
+    const { createOccurrence } = await import("../helpers/CommitHelpers");
+    const socket = fakeSocket();
+    createOccurrence({ dispatch: () => {}, socket, occurrence: { id: "feed1" }, fireTrigger: false });
+    const [, payload] = socket.emit.mock.calls.find(([e]) => e === "create_occurrence") || [];
+    expect(payload?.__actionId).toBeUndefined();
+  });
+
   it("a stray extra endAction cannot leave the scope negative", () => {
     beginAction("x");
     endAction();

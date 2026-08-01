@@ -78,15 +78,31 @@ export function snapshotDoc(doc, precompressedTextmap) {
   return clone;
 }
 
+// Seeding is async, so two concurrent flushes could both await the same lookup
+// and both compute the same "next" — observed on the live grid, where two
+// transactions were written with sequence 1. A duplicated sequence breaks the
+// total order the undo stack sorts on, so a step can be skipped or repeated.
+// The seed promise is cached and awaited by every caller; the increment itself
+// is SYNCHRONOUS after it, so it cannot interleave.
+const seqSeeding = new Map();
+
 async function nextSequence(userId, gridId) {
   const key = `${userId}:${gridId}`;
   if (!seqByGrid.has(key)) {
-    const latest = await Transaction.findOne({ userId, gridId })
-      .sort({ sequence: -1 }).select({ sequence: 1 }).lean();
-    seqByGrid.set(key, latest?.sequence || 0);
+    if (!seqSeeding.has(key)) {
+      seqSeeding.set(key, Transaction.findOne({ userId, gridId })
+        .sort({ sequence: -1 }).select({ sequence: 1 }).lean()
+        .then(latest => {
+          // Another caller may have seeded while we awaited — never regress.
+          if (!seqByGrid.has(key)) seqByGrid.set(key, latest?.sequence || 0);
+          seqSeeding.delete(key);
+        })
+        .catch(() => { seqSeeding.delete(key); seqByGrid.set(key, 0); }));
+    }
+    await seqSeeding.get(key);
   }
-  const next = seqByGrid.get(key) + 1;
-  seqByGrid.set(key, next);
+  const next = (seqByGrid.get(key) || 0) + 1;
+  seqByGrid.set(key, next);   // synchronous — no await between read and write
   return next;
 }
 

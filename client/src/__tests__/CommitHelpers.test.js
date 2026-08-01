@@ -143,7 +143,7 @@ describe("Occurrence commit helpers", () => {
     const { dispatch, socket } = makeMocks();
     const occurrence = { id: "occ1", targetType: "module" };
     createOccurrence({ dispatch, socket, occurrence });
-    expect(socket.emit).toHaveBeenCalledWith("create_occurrence", { occurrence });
+    expect(socket.emit).toHaveBeenCalledWith("create_occurrence", expect.objectContaining({ occurrence }));
   });
 
   // Regression: a copy-drop into a spot in a multi-instance container must land
@@ -156,9 +156,9 @@ describe("Occurrence commit helpers", () => {
     const { dispatch, socket } = makeMocks();
     const occurrence = { id: "occ1", parentId: "cont1", targetType: "module" };
     createOccurrence({ dispatch, socket, occurrence, insertAtIndex: 0 });
-    expect(socket.emit).toHaveBeenCalledWith("create_occurrence", {
+    expect(socket.emit).toHaveBeenCalledWith("create_occurrence", expect.objectContaining({
       occurrence: { ...occurrence, insertAtIndex: 0 },
-    });
+    }));
     // dispatched occurrence stays clean (no insertAtIndex leaks into local state)
     const dispatched = dispatch.mock.calls
       .map((c) => c[0])
@@ -170,20 +170,20 @@ describe("Occurrence commit helpers", () => {
     const { dispatch, socket } = makeMocks();
     const occurrence = { id: "occ2", parentId: "cont1" };
     createOccurrence({ dispatch, socket, occurrence });
-    expect(socket.emit).toHaveBeenCalledWith("create_occurrence", { occurrence });
+    expect(socket.emit).toHaveBeenCalledWith("create_occurrence", expect.objectContaining({ occurrence }));
   });
 
   test("updateOccurrence dispatches and emits update_occurrence", () => {
     const { dispatch, socket } = makeMocks();
     const occurrence = { id: "occ1", fields: {} };
     updateOccurrence({ dispatch, socket, occurrence });
-    expect(socket.emit).toHaveBeenCalledWith("update_occurrence", { occurrence });
+    expect(socket.emit).toHaveBeenCalledWith("update_occurrence", expect.objectContaining({ occurrence }));
   });
 
   test("deleteOccurrence dispatches and emits delete_occurrence", () => {
     const { dispatch, socket } = makeMocks();
     deleteOccurrence({ dispatch, socket, occurrenceId: "occ1" });
-    expect(socket.emit).toHaveBeenCalledWith("delete_occurrence", { occurrenceId: "occ1" });
+    expect(socket.emit).toHaveBeenCalledWith("delete_occurrence", expect.objectContaining({ occurrenceId: "occ1" }));
   });
 
   // Regression: an operation-effect delete (applyOperationEffect → DELETE_ITEM)
@@ -242,7 +242,7 @@ describe("Occurrence commit helpers", () => {
       deleteOccurrence({ dispatch, socket, occurrenceId: "occ1", fireTrigger: false });
       // Deletion still propagated:
       expect(operationsBridge.removeLocalOcc).toHaveBeenCalledWith("occ1");
-      expect(socket.emit).toHaveBeenCalledWith("delete_occurrence", { occurrenceId: "occ1" });
+      expect(socket.emit).toHaveBeenCalledWith("delete_occurrence", expect.objectContaining({ occurrenceId: "occ1" }));
       // But NO trigger fired:
       expect(fireOperations).not.toHaveBeenCalled();
     } finally {
