@@ -71,3 +71,43 @@ describe("menuPosition (anchor-relative placement)", () => {
     expect(pos.top).toBeGreaterThanOrEqual(4);
   });
 });
+
+describe("open-state reporting", () => {
+  // A menu that unmounts while open used to leave its host stuck in the
+  // forced-open state — that is what pinned the blue insert lines on screen.
+  it("reports the close when unmounted while open", async () => {
+    const React = await import("react");
+    const { render, screen, fireEvent, cleanup } = await import("@testing-library/react");
+    const QuickAddMenu = (await import("../ui/QuickAddMenu.jsx")).default;
+    const seen = [];
+    const { unmount } = render(
+      React.createElement(QuickAddMenu, {
+        targetRole: "instance",
+        onSelect: () => {},
+        onCreateNew: () => {},
+        onOpenChange: (v) => seen.push(v),
+      })
+    );
+    fireEvent.click(screen.getByRole("button"));
+    expect(seen).toEqual([true]);
+    unmount();
+    expect(seen).toEqual([true, false]);
+    cleanup();
+  });
+
+  it("stays silent when unmounted while closed", async () => {
+    const React = await import("react");
+    const { render, cleanup } = await import("@testing-library/react");
+    const QuickAddMenu = (await import("../ui/QuickAddMenu.jsx")).default;
+    const seen = [];
+    const { unmount } = render(
+      React.createElement(QuickAddMenu, {
+        targetRole: "instance", onSelect: () => {}, onCreateNew: () => {},
+        onOpenChange: (v) => seen.push(v),
+      })
+    );
+    unmount();
+    expect(seen).toEqual([]);
+    cleanup();
+  });
+});

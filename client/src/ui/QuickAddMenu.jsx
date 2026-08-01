@@ -279,6 +279,19 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     onOpenChange?.(open);
   }, [open, onOpenChange]);
 
+  // …and report the close when the menu is UNMOUNTED while still open. The
+  // transition effect above can't: it only runs while mounted, so a host that
+  // holds a forced-open class never heard the close and kept it forever —
+  // InsertGap's `insert-gap--open` is what pinned those blue insert lines on
+  // screen (user 2026-07-31: "frozen highlight quick add buttons… they get
+  // stuck"). A doc/board list re-render is enough to unmount an open menu, so
+  // this is not a rare path; it just leaves no trace when it happens.
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
+  useEffect(() => () => {
+    if (prevOpenRef.current) onOpenChangeRef.current?.(false);
+  }, []);
+
   // All role-matching modules (existing-matches pool). Skip kinds that aren't
   // placeable in this role's context.
   const matchingModules = useMemo(() => {
