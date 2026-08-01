@@ -6,6 +6,31 @@
 
 ---
 
+### 2026-07-31 (8) — the frozen quick-add lines: a menu that UNMOUNTS while open never reports its close
+
+User, with a screenshot showing five blue insert lines pinned at once: "do you see all the frozen
+highlight quick add buttons. they get stuck".
+
+**`QuickAddMenu.onOpenChange` fired on open/close TRANSITIONS ONLY — which the transition effect
+can only observe WHILE MOUNTED.** Unmount an open menu and the host never hears the close.
+`InsertGap` holds `insert-gap--open` for exactly as long as it believes the menu is open, and that
+class FORCES the blue line visible (it exists so the gap can't collapse out from under an open
+menu). So every menu that got unmounted while open pinned its line permanently — and a doc/board
+list re-render is enough to unmount one, which is why they ACCUMULATE over a session and why
+hovering never reproduces it. The menu now reports `false` from its unmount cleanup.
+
+**Method note, worth keeping:** the `:hover` reveal was ruled OUT by probe first (hover five gaps,
+move away → zero lines visible), and the culprit was then identified from the screenshot's
+GEOMETRY — the bars are ~50% container width, centered, which is the `.insert-gap-line` strip
+(2026-07-24) and not a drag indicator or a doc gap. Measuring what it ISN'T is what made the
+remaining explanation findable without a repro.
+
+**Honest limit:** I never reproduced the original stuck state end to end — I found and closed a
+leak that produces exactly that symptom. If lines still stick, the next thing to check is whether
+`InsertGap`'s host is remounting for another reason, not the menu contract.
+
+---
+
 ### 2026-07-31 (7) — day columns: content height, bare date names, horizontal scroll
 
 - **Full content height** (`0026`): the 420px `childMaxHeight` is cleared, so a column is as tall as
