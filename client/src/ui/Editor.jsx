@@ -213,7 +213,11 @@ const Editor = forwardRef(function Editor({
   editable = true,
   showToolbar = false,
   stickyToolbar = false,
-  placeholder = "Click to edit…",
+  // No placeholder by default (user 2026-08-01: "dont write click to edit") — an
+  // empty doc container should read as empty, not as instructions. Call sites
+  // that WANT prompt text still pass their own (ArtifactContent: "Start
+  // writing…"), so this only drops the generic default.
+  placeholder = "",
   className = "",
   onConvertListToInstances = null,
   onExitBlock = null,
