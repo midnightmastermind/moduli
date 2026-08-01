@@ -207,12 +207,17 @@ const TransactionSchema = new mongoose.Schema(
     actionId: { type: String, default: null, index: true },
 
     // Transaction state for undo/redo chain (like git)
-    // applied = action was performed
-    // undone = action was reversed (soft delete for creates, restore for deletes, move back for moves)
-    // redone = action was re-applied after being undone
+    // applied    = action was performed
+    // undone     = action was reversed (its `before` snapshots are live)
+    // redone     = action was re-applied after being undone
+    // superseded = it was undone, then the user did something NEW, so the redo
+    //              branch it belonged to is dead. Without this state, undo →
+    //              fresh edit → Ctrl+Y replayed a stale `after` snapshot over
+    //              the newer work. Kept (not deleted) so history still shows it;
+    //              neither nextUndoable nor nextRedoable resolves this state.
     state: {
       type: String,
-      enum: ["applied", "undone", "redone"],
+      enum: ["applied", "undone", "redone", "superseded"],
       default: "applied",
     },
 
@@ -221,6 +226,7 @@ const TransactionSchema = new mongoose.Schema(
     undoneBy: { type: String },
     redoneAt: { type: Date },
     redoneBy: { type: String },
+    supersededAt: { type: Date },
 
     // Position in the undo chain (for ordering)
     // Higher = more recent. Used to find "last undoable" transaction

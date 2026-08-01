@@ -25,7 +25,7 @@ import {
   ensureModuleBindingsForOccurrenceFields,
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
-import { beginAction, endAction } from "../helpers/actionScope";
+import { beginAction, endAction, setActionCloseHook } from "../helpers/actionScope";
 import { requestForceSync, commitForceSync } from "../helpers/editorSyncSignal";
 import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers";
 import { migrateFieldOptionsSource, needsMigration } from "./migrateFieldOptionsSource";
@@ -1583,6 +1583,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
   // Drop-batch: collect all top-level op fires during a drop, then flush
   // them after rAF so the browser can paint the committed drop first.
+  // An action scope closing is the signal the server needs to flush its buffer
+  // early; otherwise the transaction only becomes undoable on the 1500ms idle
+  // timer and a quick Ctrl+Z targets the previous one.
+  setActionCloseHook((actionId) => { safeEmit(socket, "close_action", { actionId }); });
+
   operationsBridge.beginDropBatch = () => {
     _dropBatchFires = [];
     // Open the undo action here and hold it across the WHOLE drain below, so
@@ -2102,6 +2107,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     operationsBridge.getAncestorChain = null;
     operationsBridge.applyEffect = null;
     operationsBridge.importText = null;
+    setActionCloseHook(null);
     operationsBridge.beginDropBatch = null;
     operationsBridge.endDropBatch = null;
     _dropBatchFires = null;

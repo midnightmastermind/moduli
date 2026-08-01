@@ -11,14 +11,19 @@ export function getTransactions({ socket, gridId, includeUndone = true, fieldId,
   socket.emit("get_transactions", payload);
 }
 
+// `transactionId` is OPTIONAL and normally omitted: the server then resolves
+// the current top of the undo stack itself. Passing one targets a specific
+// entry — that path exists for the history panel. It must NOT be required, or
+// the keyboard path is forced to send a cached id that goes stale after every
+// write (which is how Ctrl+Z ended up undoing a transaction several steps back).
 export function undoTransaction({ socket, transactionId, gridId }) {
-  if (!socket || !transactionId) return;
-  socket.emit("undo_transaction", { transactionId, gridId });
+  if (!socket) return;
+  socket.emit("undo_transaction", { gridId, ...(transactionId ? { transactionId } : {}) });
 }
 
 export function redoTransaction({ socket, transactionId, gridId }) {
-  if (!socket || !transactionId) return;
-  socket.emit("redo_transaction", { transactionId, gridId });
+  if (!socket) return;
+  socket.emit("redo_transaction", { gridId, ...(transactionId ? { transactionId } : {}) });
 }
 
 export function getUndoState({ socket, gridId }) {

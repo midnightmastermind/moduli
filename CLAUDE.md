@@ -6,6 +6,82 @@
 
 ---
 
+### 2026-08-01 (21) — undo/redo: the SNAPSHOT layer was fine, the STACK was broken (5 defects, all measured)
+
+User: *"review the undo and redo transaction feature, its buggy"* → then the decisive repro:
+*"that works if im already in the textblock but when i type something, click off the textblock,
+and control z, it wont undo the typing."* Plan + full evidence:
+`docs/superpowers/plans/2026-08-01-undo-redo-stack-repair.md`. Pass 1 built; pass 2 (grouping,
+labels, pruning) is scoped and not started.
+
+**Entry (20)'s snapshot design is sound and is NOT what was broken.** Every defect sat one layer
+up: which transaction Ctrl+Z targets, what counts as a step, and what order redo replays in.
+Found by reading the LIVE transaction log, not the code.
+
+1. **Ctrl+Z undid an OLD transaction, not the last one.** `useUndoRedo` cached `lastUndoableId`
+   from `undo_state` and always sent it explicitly; the server honours an explicit id verbatim,
+   so its own `nextUndoable` stack resolution was never reached from the keyboard.
+   `refreshUndoState` ran on mount / gridId / undo result / sync_state — **never on
+   `transaction_created`**. After N edits it still pointed at whatever was newest when the hook
+   last synced, so undo restored a document several steps back while the newer transactions
+   stayed `applied`. Fixed by sending NO id (server resolves the top) + re-syncing on every
+   transaction, debounced 150ms. `undoTransaction`'s own `if (!transactionId) return` guard was
+   the hidden second half — **a test caught that**, not inspection. The explicit-id path stays
+   for the history panel, which legitimately targets one entry.
+2. **No-op writes were undo steps.** The change filter compared whole snapshots and the server
+   bumps `updatedAt` on every write, so nothing was ever filtered. **4 of the last 14 recorded
+   docs differed ONLY by a timestamp** — roughly a third of undo steps did nothing on screen.
+   Now compared with volatile keys (`updatedAt`/`createdAt`/`__v`/`_id`) excluded and top-level
+   keys sorted; snapshots still STORE the timestamps.
+3. **Redo replayed backwards.** `nextRedoable` sorted `sequence: -1`. Undo walks high→low, so the
+   most-recently-undone transaction is the LOWEST-sequenced undone one — redo must sort ASCENDING.
+   Descending re-applied the older `after` snapshot on top of state where the newer one was still
+   reverted.
+4. **The redo branch was never truncated.** Undo → fresh edit → Ctrl+Y replayed a stale `after`
+   over the newer work. New `superseded` transaction state, set when a NON-derived transaction
+   flushes. **Gating on non-derived is load-bearing:** the op sweep that runs right after an undo
+   (sync_state → full_state → onLoad) is derived, and if that killed the branch, redo would be
+   dead the instant you pressed undo.
+5. **`flushAction`/`flushAll` had ZERO call sites** — the 1500ms idle timer was the only flush
+   path, so an undo within 1.5s of an edit targeted the previous transaction and a reload inside
+   that window lost the record entirely (write persisted, unundoable). Client now signals
+   `close_action` when the outermost scope closes; server flushes after a **250ms** grace window
+   — NOT zero, because socket.io preserves message order but each write handler awaits before it
+   reaches `recordDoc`, so the close can be processed before the write it belongs to. `flushAll`
+   on disconnect.
+
+**THE USER'S REPRO, and the bug it exposed that the log could not have.** In-editor Ctrl+Z never
+reaches our code — it is ProseMirror's own history, and `useKeyboardShortcuts` returns on
+`e.defaultPrevented`. Click off and the app stack should take over. It didn't, because
+**`setContent` in the content-sync effect had no `addToHistory: false`** (`Editor.jsx`), so every
+server echo and every `full_state` pushed an entry onto that editor's local undo history. Each
+textblock mounts its OWN nested `<Editor>` inside the parent doc's editor, so clicking off a
+textblock moves focus to the PARENT — which now had history, consumed Mod-Z, called
+`preventDefault`, and blocked app undo entirely. **And what it actually undid was the parent's
+textmap reverting to a previously-synced state, which the debounce then persisted — a silent data
+regression, not just a dead shortcut.** The same file already used
+`tr.setMeta("addToHistory", false)` for its migration transaction; it was simply never applied to
+the sync path. **Lesson: a remote sync is not a local edit. Any setContent driven by the server
+must stay out of the editor's undo history — otherwise "did the editor handle this key?" stops
+being a truthful signal.**
+
+**Verified end-to-end against REAL Mongo on test grid 2** (never poms grid), driving the actual
+socket handlers and asserting by DIFFING persisted state — the discipline entry (20) paid for:
+undo ×3 reverts `2,1,0`, redo ×3 replays `1,2,3` (the old descending sort would have produced
+`3,2,1`, so the assertion discriminates), an `updatedAt`-only write records nothing, and
+undo-then-new-edit supersedes the branch and refuses the redo. Scratch occurrence + its 4
+transactions removed after; test grid 2 back to 0, both protected grids untouched. 1504 client +
+371 server tests, build clean.
+
+**NOT DONE, deliberately:** clearing an editor's local ProseMirror history on a forced sync
+(TipTap v3 exposes no supported reset; the routes are plugin re-registration or importing a
+transitive `prosemirror-history` — not worth shipping unverified inside a correctness pass), and
+pass 2 (one editing burst = one undo step, action labels, pruning the 6256 doc-less legacy
+transactions on a dead grid). **Nothing deployed** — same call as entry (20): undo/redo records a
+transaction on every write to live data.
+
+---
+
 ### 2026-08-01 (20) — undo/redo REBUILT on document snapshots; and text in textblocks is selectable again
 
 Two user asks, planned then built: `docs/superpowers/plans/` equivalent lives at

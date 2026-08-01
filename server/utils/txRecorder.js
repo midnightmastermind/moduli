@@ -25,10 +25,40 @@ import { nanoid } from "nanoid";
 import Transaction from "../models/Transaction.js";
 import { compressTextmap, isCompressed } from "./textmapCompression.js";
 
-// How long a buffer may sit idle before it flushes on its own. The client
-// closes an action explicitly, but a close that never arrives (crash, dropped
-// socket) must not strand a buffer — undo would silently lose the action.
+// How long a buffer may sit idle before it flushes on its own. This is the
+// BACKSTOP for a close that never arrives (crash, dropped socket) — a stranded
+// buffer means undo silently loses the action.
 const IDLE_FLUSH_MS = 1500;
+
+// How long after the client's explicit `close_action` we actually flush.
+// NOT zero, deliberately: socket.io preserves message ORDER, but each write
+// handler awaits (cache load, Mongo round trip) before it reaches recordDoc, so
+// the close handler's body can run BEFORE a preceding write has recorded. A
+// short grace window lets those land in the same transaction. Until this
+// existed, the 1500ms idle timer was the ONLY flush path, so an undo pressed
+// within 1.5s of an edit targeted the PREVIOUS transaction.
+const CLOSE_FLUSH_MS = 250;
+
+// Server-stamped bookkeeping that changes on every single write. A document
+// whose only difference is one of these did not change anything the user can
+// see — and recording it makes Ctrl+Z a visible no-op. Measured on the live
+// grid before this existed: 4 of the last 14 recorded docs differed ONLY by
+// `updatedAt`, so roughly a third of undo steps did nothing on screen.
+const VOLATILE_KEYS = new Set(["updatedAt", "createdAt", "__v", "_id"]);
+
+/**
+ * Comparable form of a snapshot: volatile keys dropped, top-level keys sorted
+ * so key ORDER can't read as a change.
+ */
+function meaningfulJson(doc) {
+  if (doc == null) return "null";
+  const out = {};
+  for (const k of Object.keys(doc).sort()) {
+    if (VOLATILE_KEYS.has(k)) continue;
+    out[k] = doc[k];
+  }
+  return JSON.stringify(out);
+}
 
 // Retention per (user, grid). Matches OperationRunLog's cap in spirit: history
 // is for undo + a readable trail, not an archive.
@@ -163,9 +193,11 @@ export async function flushAction(actionId) {
   if (buf.timer) clearTimeout(buf.timer);
 
   const docs = [...buf.docs.values()].filter(d => {
-    // A write that changed nothing is not an undo step.
+    // A write that changed nothing is not an undo step — and "nothing" has to
+    // ignore the timestamps the server bumps on every write, or every no-op
+    // save becomes a step that visibly does nothing when undone.
     if (d.before === null && d.after === null) return false;
-    return JSON.stringify(d.before) !== JSON.stringify(d.after);
+    return meaningfulJson(d.before) !== meaningfulJson(d.after);
   });
   if (!docs.length) return null;
 
@@ -186,6 +218,11 @@ export async function flushAction(actionId) {
     });
     await tx.save();
     const json = tx.toJSON();
+    // A real user action kills the redo branch. DERIVED writes must NOT — the
+    // op sweep that runs right after an undo (sync_state → full_state → onLoad)
+    // is derived, and if it superseded the branch, redo would be dead the
+    // instant you pressed undo.
+    if (!buf.derived) await supersedeRedoBranch(buf.userId, buf.gridId);
     try { buf.broadcast?.(json); } catch { /* a broadcast failure must not lose the write */ }
     pruneLater(buf.userId, buf.gridId);
     return json;
@@ -194,6 +231,42 @@ export async function flushAction(actionId) {
     console.error("txRecorder flush failed:", err?.message || err);
     return null;
   }
+}
+
+/**
+ * Retire the redo branch: everything currently `undone` for this (user, grid)
+ * can no longer be redone, because the user has since done something new.
+ * Marked rather than deleted so the history panel keeps showing it.
+ */
+async function supersedeRedoBranch(userId, gridId) {
+  try {
+    await Transaction.updateMany(
+      { userId, gridId, state: "undone" },
+      { $set: { state: "superseded", supersededAt: new Date() } },
+    );
+  } catch (err) {
+    // Housekeeping — never fail the user's write over it.
+    console.error("supersedeRedoBranch failed:", err?.message || err);
+  }
+}
+
+/** actionId -> pending close timer (see CLOSE_FLUSH_MS). */
+const pendingClose = new Map();
+
+/**
+ * The client says its action scope closed. Flush soon rather than waiting out
+ * the idle timer, so the transaction is undoable almost immediately.
+ * Safe to call before the buffer exists — the timer is keyed by actionId, and
+ * flushAction on a missing buffer is a no-op.
+ */
+export function closeAction(actionId, delayMs = CLOSE_FLUSH_MS) {
+  if (!actionId) return;
+  const existing = pendingClose.get(actionId);
+  if (existing) clearTimeout(existing);
+  pendingClose.set(actionId, setTimeout(() => {
+    pendingClose.delete(actionId);
+    flushAction(actionId).catch(() => {});
+  }, delayMs));
 }
 
 /** Flush everything (socket disconnect / shutdown) so no action is stranded. */
@@ -230,6 +303,8 @@ function pruneLater(userId, gridId) {
 /** Test seam: drop all in-memory state. */
 export function _resetTxRecorder() {
   for (const b of buffers.values()) if (b.timer) clearTimeout(b.timer);
+  for (const t of pendingClose.values()) clearTimeout(t);
+  pendingClose.clear();
   buffers.clear();
   seqByGrid.clear();
 }

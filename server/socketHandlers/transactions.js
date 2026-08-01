@@ -1,5 +1,6 @@
 // socketHandlers/transactions.js — get_transactions, undo, redo, get_undo_state, get_field_history
 import Transaction from "../models/Transaction.js";
+import { closeAction, flushAll } from "../utils/txRecorder.js";
 
 export function registerTransactionHandlers(socket, {
   io, ensureUserCache, userCacheReady, loadUserIntoCache,
@@ -88,9 +89,14 @@ export function registerTransactionHandlers(socket, {
     return Transaction.findOne({ userId, gridId, state: { $in: ["applied", "redone"] }, ...STACK_FILTER })
       .sort({ sequence: -1 });
   }
+  // ASCENDING, and that is not a typo. Undo walks the stack high→low, so the
+  // most-recently-undone transaction is the LOWEST-sequenced undone one, and
+  // that is what redo must replay first. Sorting descending here re-applied the
+  // older transaction's `after` snapshot on top of state where the newer one
+  // was still reverted.
   async function nextRedoable(gridId) {
     return Transaction.findOne({ userId, gridId, state: "undone", ...STACK_FILTER })
-      .sort({ sequence: -1 });
+      .sort({ sequence: 1 });
   }
 
   socket.on("undo_transaction", async ({ transactionId, gridId } = {}) => {
@@ -163,6 +169,19 @@ export function registerTransactionHandlers(socket, {
       console.error("get_undo_state error:", err);
     }
   });
+
+  // The client's action scope closed (helpers/actionScope.js). Flush its buffer
+  // now instead of waiting out the idle timer, so the transaction is undoable
+  // by the time the user can press Ctrl+Z.
+  socket.on("close_action", ({ actionId } = {}) => {
+    if (!userId || !actionId) return;
+    closeAction(actionId);
+  });
+
+  // A buffer that is still open when the socket goes away would be stranded
+  // until its idle timer — and a reload inside that window lost the record
+  // entirely: the write persisted, unundoable.
+  socket.on("disconnect", () => { flushAll().catch(() => {}); });
 
   socket.on("get_field_history", async ({ fieldId, occurrenceId, limit = 50 } = {}) => {
     try {

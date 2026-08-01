@@ -55,11 +55,23 @@ export function endAction() {
 }
 
 export function forceEndAction() {
+  const closed = currentActionId;
   currentActionId = null;
   currentLabel = null;
   depth = 0;
   if (autoCloseTimer) { clearTimeout(autoCloseTimer); autoCloseTimer = null; }
+  // Tell the server this action is complete so it can flush the buffer instead
+  // of waiting out its 1500ms idle timer. Without this the transaction is not
+  // undoable until 1.5s after the write, so a quick Ctrl+Z targeted the
+  // PREVIOUS one. Never let a hook throw unwind the scope reset above.
+  if (closed && closeHook) {
+    try { closeHook(closed); } catch { /* the scope is already closed; a failed signal only costs latency */ }
+  }
 }
+
+// Wired by bindSocketToStore (the only layer that owns a socket).
+let closeHook = null;
+export function setActionCloseHook(fn) { closeHook = typeof fn === "function" ? fn : null; }
 
 export function getActionId() {
   return currentActionId;
@@ -85,5 +97,6 @@ export function withAction(label, fn) {
 
 /** Test seam. */
 export function _resetActionScope() {
+  closeHook = null;
   forceEndAction();
 }

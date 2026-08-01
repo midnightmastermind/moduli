@@ -10,7 +10,7 @@
 //   * reads are never stamped.
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { safeEmit } from "../helpers/offlineQueue";
-import { beginAction, endAction, getActionId, _resetActionScope } from "../helpers/actionScope";
+import { beginAction, endAction, getActionId, setActionCloseHook, _resetActionScope } from "../helpers/actionScope";
 
 function fakeSocket() {
   return { connected: true, emit: vi.fn() };
@@ -112,5 +112,47 @@ describe("actionScope", () => {
     expect(getActionId()).toBeNull();
     beginAction("y");
     expect(getActionId()).toBeTruthy();
+  });
+});
+
+// The server buffers writes per action and, without a close signal, only
+// flushes on a 1500ms idle timer — so an undo pressed right after an edit
+// targeted the PREVIOUS transaction.
+describe("the action-close signal", () => {
+  it("fires once with the id of the action that just closed", () => {
+    const closed = [];
+    setActionCloseHook(id => closed.push(id));
+
+    const id = beginAction("Changed a value");
+    endAction();
+
+    expect(closed).toEqual([id]);
+  });
+
+  it("fires only when the OUTERMOST scope closes — a nested gesture is still one action", () => {
+    const closed = [];
+    setActionCloseHook(id => closed.push(id));
+
+    const id = beginAction("Moved item");
+    beginAction("Changed a value");   // a cascade write joins the open action
+    endAction();
+    expect(closed).toHaveLength(0);
+    endAction();
+
+    expect(closed).toEqual([id]);
+  });
+
+  it("does not fire when there was no open action", () => {
+    const closed = [];
+    setActionCloseHook(id => closed.push(id));
+    endAction();
+    expect(closed).toHaveLength(0);
+  });
+
+  it("a throwing hook still leaves the scope closed", () => {
+    setActionCloseHook(() => { throw new Error("socket died"); });
+    beginAction("x");
+    expect(() => endAction()).not.toThrow();
+    expect(getActionId()).toBeNull();
   });
 });

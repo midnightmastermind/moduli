@@ -10,6 +10,9 @@ const queue = [];
 const NON_MUTATING = new Set([
   "request_full_state", "request_textmap", "get_transactions", "get_undo_state",
   "get_op_run_logs", "get_field_history", "undo_transaction", "redo_transaction",
+  // Carries its own actionId in the payload; stamping the CURRENT one would be
+  // wrong (the scope it names has just closed).
+  "close_action",
 ]);
 
 // Events where only the latest payload per entity matters (dedup by key)

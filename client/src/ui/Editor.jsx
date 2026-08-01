@@ -1306,7 +1306,26 @@ const Editor = forwardRef(function Editor({
           selBefore: { from, to },
           willRestore: userHasFocusedRef.current && (from > 1 || to > 1),
         });
-        editor.commands.setContent(content, { emitUpdate: false });
+        // `addToHistory: false` — a REMOTE SYNC IS NOT A LOCAL EDIT. Without
+        // it every server echo and every full_state pushed an entry onto this
+        // editor's own ProseMirror undo history, with two consequences:
+        //   1. an editor the user never typed in still had history, so it
+        //      consumed Ctrl+Z and called preventDefault — which is exactly the
+        //      signal useKeyboardShortcuts reads as "the editor handled this".
+        //      App-level undo therefore never ran. That is why typing in a
+        //      textblock, clicking off it, and pressing Ctrl+Z did nothing:
+        //      focus had moved to the PARENT doc editor (each textblock mounts
+        //      its own nested Editor), and the parent ate the key.
+        //   2. what that parent actually undid was its own textmap reverting to
+        //      a previously-synced state — which the debounced save then
+        //      persisted. A silent data regression, not just a dead shortcut.
+        // The escape hatch was already in use for the migration transaction
+        // above (`tr.setMeta("addToHistory", false)`); it just was never
+        // applied to the sync path.
+        editor.chain()
+          .setMeta("addToHistory", false)
+          .setContent(content, { emitUpdate: false })
+          .run();
         // A just-typed textblock whose editor mounted BEFORE its content arrived
         // takes the caret now — content first, then focus, so the character that
         // created it is never dropped (see the onCreate claim above).
