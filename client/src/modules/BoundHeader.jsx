@@ -141,6 +141,9 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
             row, which is the "small next to it". Only the markdown prefix (the
             `#` heading marker) is printed here. */}
         {markdownPrefix ? <span>{markdownPrefix}</span> : null}
+        {/* Full text on hover — see .bound-header-fulltext. Sits OVER the row so
+            the select and everything around it stay exactly where they are. */}
+        {selectedLabel ? <span className="bound-header-fulltext">{selectedLabel}</span> : null}
         <select
           aria-label="bound select"
           title={selectedLabel || undefined}
