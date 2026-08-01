@@ -6,6 +6,32 @@
 
 ---
 
+### 2026-08-01 (5) — it stuck again: the DOC gap is a second, separate implementation
+
+The user's screenshot put the stuck bars inside DOC BODIES (the answer area, the Notes body).
+Those are not `InsertGap` at all — `.doc-insert-gap` is a SEPARATE implementation living in
+`ui/Editor.jsx` (`docGap` state), which happens to paint the same `.insert-gap-line`. So the
+2026-08-01 (4) JS-hover fix, which only covered `.insert-gap`, could not have helped them — and my
+watcher could not even SEE them, because it queried `.insert-gap--open` only.
+
+- `helpers/gapHover.js` gained `watchRegion(el, onLeave)` — the same rect re-test, reusable.
+  `Editor.jsx` clears `docGap` through it instead of trusting `mouseleave`, which cannot fire when
+  the layout shifts under a stationary pointer.
+- The sweep now queries `.insert-gap--open, .insert-gap--hot, .doc-insert-gap` and labels each row
+  `why: DOC gap | menu-open | hover`, plus `pointerInside` — so the next report says which
+  implementation and whether the pointer was even over it.
+
+**NOT VERIFIED.** The probe could not raise a doc gap to test against (it only appears in the
+gutter BETWEEN blocks; `isOverTopBlock` suppresses it over content), so the reflow case was never
+actually exercised for this path — "0 lit" in that run means the probe failed to set up, not that
+the fix works. Treat this as deployed-but-unproven until either the user confirms or a probe lands
+a real doc gap first.
+
+**Standing lesson, now paid for three times:** two different components render the same-looking
+blue line. Before fixing "the highlight", identify WHICH element is lit — the sweep now reports it.
+
+---
+
 ### 2026-08-01 (4) — the stuck highlight was a STALE `:hover`, not a state leak
 
 The user's log settled it: **zero `[gap] OPEN` lines** — no menu ever opened — plus "if i go back
