@@ -4,6 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { disarmDraggableUntilHandle } from "../../helpers/dragSystem";
 import { useGridActions } from "../../GridActionsContext";
 import DocContent from "../../modules/DocContent.jsx";
 import BoundBody from "../../modules/BoundBody.jsx";
@@ -100,7 +101,15 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
         };
       },
     });
-    return cleanup;
+    // Pragmatic just stamped draggable="true" on the wrapper, and Firefox will
+    // not let the user SELECT any text inside a draggable subtree — which is
+    // the whole body of this textblock (user 2026-08-01: "i cant highlight text
+    // at all inside textblocks so i couldnt copy and paste it"). Disarm at rest;
+    // the radial handle re-arms for real drags. This node calls Pragmatic
+    // DIRECTLY rather than through useDragDrop, which is exactly why it never
+    // inherited the disarm that handle-dragged rows already had.
+    const armCleanup = disarmDraggableUntilHandle(el, handleEl);
+    return () => { cleanup(); armCleanup(); };
   }, [instanceId, occurrenceId]);
 
   // Plain Enter at end of content → move parent editor cursor into the next block.

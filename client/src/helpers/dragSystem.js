@@ -360,6 +360,53 @@ function _unregisterDrop(el) {
 // insert or reorder. Keyed by the `.doc-editor` wrapper element; the handler
 // receives ({ source, clientX, clientY }) with source shaped like a Pragmatic
 // drop source ({ data: payload }).
+/**
+ * Make a handle-dragged element SELECTABLE at rest.
+ *
+ * Pragmatic's `draggable()` stamps `draggable="true"` on the element it
+ * registers. **Firefox refuses to place a caret OR make a text selection
+ * anywhere inside an element carrying the draggable attribute** — the whole
+ * subtree reads as "maybe a drag" (the Gecko twin of Chromium's
+ * `-webkit-user-drag` suppression, f2e89136). Symptoms, all reported by the
+ * user in the order they were found: click-to-edit landing at offset 0
+ * (2026-07-13), then "i cant highlight text at all inside textblocks so i
+ * couldnt copy and paste it" (2026-08-01).
+ *
+ * Drag START is already gated to the HANDLE, so the element never needs to
+ * advertise draggable AT REST. Disarm it; the handle's pointerdown re-arms both
+ * the attribute (Firefox) and `-webkit-user-drag` (Chromium) just in time for a
+ * real drag, and pointerup/dragend disarm again.
+ *
+ * Call this after EVERY `draggable()` registration that has a handle —
+ * including direct Pragmatic calls in TipTap NodeViews, which do not go through
+ * `useDragDrop` and so were missing it (that gap is what broke selection in
+ * block textblocks). Re-running on re-registration is required: Pragmatic
+ * re-asserts `draggable=true` and would otherwise leave it stuck on.
+ *
+ * @returns cleanup function
+ */
+export function disarmDraggableUntilHandle(el, handleEl) {
+  if (!el || !handleEl) return () => {};
+  const disarm = () => {
+    el.draggable = false;
+    el.style?.removeProperty?.("-webkit-user-drag");
+  };
+  disarm();
+  const arm = () => {
+    el.draggable = true;
+    el.style?.setProperty?.("-webkit-user-drag", "element");
+    const off = () => {
+      disarm();
+      window.removeEventListener("pointerup", off);
+      window.removeEventListener("dragend", off);
+    };
+    window.addEventListener("pointerup", off);
+    window.addEventListener("dragend", off);
+  };
+  handleEl.addEventListener("pointerdown", arm);
+  return () => handleEl.removeEventListener("pointerdown", arm);
+}
+
 const _docTouchDropZones = new Map();
 
 export function registerDocTouchDrop(el, fn) {
@@ -878,6 +925,15 @@ export function useDragDrop({
             setTimeout(() => dragCtx.handleDragEnd(), 0);
           },
         });
+        // Same text-selection disarm the desktop branch does. This registration
+        // was missing it, so on a touch-primary device with a mouse attached
+        // (tablet + trackpad) every handle-dragged row stayed draggable at rest
+        // and its text could not be selected.
+        if (handleEl) {
+          const armCleanup = disarmDraggableUntilHandle(el, handleEl);
+          const rawMouseCleanup = mouseDragCleanup;
+          mouseDragCleanup = () => { rawMouseCleanup?.(); armCleanup(); };
+        }
       }
 
       // Drop targets still registered via Pragmatic DnD (for desktop fallback)
@@ -1016,37 +1072,10 @@ export function useDragDrop({
       },
     });
 
-    // ── Text-selection fix (2026-07-16) ─────────────────────────────────────
-    // Pragmatic's draggable() stamped draggable="true" on `el`. Firefox
-    // suppresses text selection / caret placement inside a draggable subtree
-    // (Chromium keys off -webkit-user-drag, which we don't set at rest) — so
-    // text hosted by a drag source (a textblock card in a doc, mini-textblocks,
-    // labels) couldn't be highlighted at all (user: "doc stuff isn't text
-    // highlighting"). Drag START is already gated to the HANDLE, so `el` never
-    // needs to advertise draggable AT REST — disarm it; the handle's pointerdown
-    // re-arms it (attribute + -webkit-user-drag) just in time, pointerup/dragend
-    // disarm again. Runs on every (re-)registration so Pragmatic re-asserting
-    // draggable=true can't leave it stuck on. ONLY when a drag handle is used —
-    // handle-less draggables (canvas cards, pool pills) must stay draggable
-    // everywhere. Mirrors the 2026-07-13 inline-chip fix.
-    let armCleanup = () => {};
-    if (handleEl) {
-      const disarm = () => { el.draggable = false; el.style.removeProperty('-webkit-user-drag'); };
-      disarm();
-      const arm = () => {
-        el.draggable = true;
-        el.style.setProperty('-webkit-user-drag', 'element');
-        const off = () => {
-          disarm();
-          window.removeEventListener('pointerup', off);
-          window.removeEventListener('dragend', off);
-        };
-        window.addEventListener('pointerup', off);
-        window.addEventListener('dragend', off);
-      };
-      handleEl.addEventListener('pointerdown', arm);
-      armCleanup = () => handleEl.removeEventListener('pointerdown', arm);
-    }
+    // Text-selection fix — see disarmDraggableUntilHandle. Only when a drag
+    // handle is used; handle-less draggables (canvas cards, pool pills) must
+    // stay draggable everywhere.
+    const armCleanup = handleEl ? disarmDraggableUntilHandle(el, handleEl) : () => {};
 
     const cleanup = combine(
       () => { dragCleanup(); armCleanup(); },
