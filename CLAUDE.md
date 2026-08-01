@@ -46,6 +46,20 @@ fixed            +23       0       0         1
 The remaining +23 is the INTENDED affordance (the innermost editor reveals its own line). `npm run
 build` clean.
 
+**Follow-up polish on that revealed line, same session, all deployed + measured on prod:**
+- **Gap was too tall for an 11px line** — dropped the paragraph's `0.25em` top+bottom margins
+  (= 5.5px, the user's "drop it like 5px"): reveal now adds **+18px**, was +23.
+- **Caret sat flush against the container above** — the line is nudged down with
+  `position: relative; top: 3px` rather than padding/margin, because the ask was explicitly "dont
+  make the gap bigger tho, just shift the text down a little". Relative offset moves the PAINTED
+  box only, so the gap keeps its (now smaller) height. Measured: text sits **3px** below the
+  container above, container growth still exactly +18.
+- **Placeholder text removed** (user: "dont write click to edit") — `Editor.jsx`'s default
+  `placeholder` is now `""` instead of `"Click to edit…"`. Only the generic default is dropped;
+  call sites that deliberately prompt keep theirs (ArtifactContent's "Start writing…"). Verified on
+  prod: zero occurrences of the string anywhere on the page, both remaining `data-placeholder`
+  attributes empty.
+
 **The lesson, and it is the expensive one.** Entry (12) wrote *"idk if its a gap or an empty line"*
 and entry (14) concluded from evidence that it was **not a gap** — both were RIGHT, and the next
 round still went looking at gap/placeholder components. Rounds 4, 5, 9, 12, 15 all failed the same
