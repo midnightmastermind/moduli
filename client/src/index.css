@@ -2162,7 +2162,16 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   align-items: center;
   justify-content: center;
 }
-.container-shell:hover .empty-placeholder-inline,
+/* ONLY the innermost hovered container reveals its own placeholder. This was a
+   plain DESCENDANT selector, so hovering anywhere in a day column lit the
+   placeholder in EVERY empty container nested beneath it — Journal, Daily
+   Question, Notes, Highlights all at once — and they vanished on leaving the
+   column (user 2026-08-01: "it still has those extra lines. they disappear when
+   i hover off of the daypage container. are you sure its not a css issue" — it
+   was). Identical `:not(:has(… :hover))` guard to the one the empty-gap label
+   and the cog handle already use; the fix was applied to those two in July and
+   missed here. */
+.container-shell:hover:not(:has(.container-shell:hover)) .empty-placeholder-inline,
 .empty-placeholder-inline:hover,
 .empty-placeholder-inline:focus-visible {
   opacity: 0.6;
