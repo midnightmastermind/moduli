@@ -105,6 +105,12 @@ export default function PageBoard({
       .map((x) => x.e);
   }, [containersList, hideSet, sortField]);
 
+  // A LONE column fills the panel; the width caps only start mattering once
+  // there are several to fit side by side (user 2026-08-01: "if its 1 daypage
+  // or 1 schedule, it takes up the panel width wise, once we get multiple, we
+  // want to cap it"). Generic to flex-row, so the Schedule behaves the same.
+  const soloColumn = mode === "flex-row" && visibleList.length === 1;
+
   const innerStyle =
     mode === "grid"
       ? {
@@ -118,7 +124,10 @@ export default function PageBoard({
       ? {
           position: "relative", minHeight: "100%", zIndex: 1,
           display: "flex", flexDirection: "row", alignItems: "flex-start",
-          gap: childGap, width: "max-content",
+          gap: childGap,
+          // max-content is what lets several columns overflow into a horizontal
+          // scroll; a single one should instead stretch to the panel.
+          width: soloColumn ? "100%" : "max-content",
         }
       : { position: "relative", minHeight: "100%", zIndex: 1 };
 
@@ -130,7 +139,8 @@ export default function PageBoard({
   const colMinW = Number.isFinite(layout?.childMinWidth) && layout.childMinWidth > 0 ? layout.childMinWidth : 280;
   const colMaxW = Number.isFinite(layout?.childMaxWidth) && layout.childMaxWidth > 0 ? layout.childMaxWidth : 360;
   const childWrapperStyle =
-    mode === "flex-row" ? { flex: "0 0 auto", minWidth: colMinW, maxWidth: colMaxW, ...capStyle }
+    soloColumn ? { flex: "1 1 auto", minWidth: 0, maxWidth: "none", width: "100%", ...capStyle }
+      : mode === "flex-row" ? { flex: "0 0 auto", minWidth: colMinW, maxWidth: colMaxW, ...capStyle }
       : mode === "grid" ? { minWidth: 0, minHeight: 100, ...capStyle }
       : capStyle || undefined;
 
