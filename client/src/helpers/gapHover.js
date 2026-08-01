@@ -19,9 +19,19 @@ let lastX = 0, lastY = 0;
 let installed = false;
 let queued = false;
 
+// A gap's hit box is only a few px tall, so releasing the instant the pointer
+// crosses its edge closes it while the user is still travelling toward the "+".
+// The BOTTOM edge is the worst case — it is the last gap in a container, with
+// nothing below it to re-enter (user 2026-08-01: "put a small gap autoed at the
+// end so the gap doesn't accidentally close too early at the bottom"). Same
+// grace-band idea as the drag autoscroll's 70px overshoot allowance.
+const GRACE = 6;
+const BOTTOM_GRACE = 14;
+
 function inRect(el, x, y) {
   const r = el.getBoundingClientRect();
-  return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  return x >= r.left - GRACE && x <= r.right + GRACE
+      && y >= r.top - GRACE && y <= r.bottom + BOTTOM_GRACE;
 }
 
 /** Drop the claim when the pointer is no longer inside the claiming element. */
@@ -101,8 +111,7 @@ const regions = new Set();
 function checkRegions() {
   for (const r of [...regions]) {
     if (!r.el?.isConnected) { regions.delete(r); r.onLeave(); continue; }
-    const b = r.el.getBoundingClientRect();
-    if (!(lastX >= b.left && lastX <= b.right && lastY >= b.top && lastY <= b.bottom)) {
+    if (!inRect(r.el, lastX, lastY)) {
       regions.delete(r);
       r.onLeave();
     }

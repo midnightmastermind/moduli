@@ -1502,6 +1502,16 @@ body[data-drag-kind="panel"] .container-shell {
 .container-doc {
   cursor: text;
 }
+/* Trailing room at the END of a doc container, so the last insert gap has space
+   to live in instead of sitting flush against the container's bottom edge —
+   where the pointer leaves the box before it reaches the "+" (user 2026-08-01:
+   "put a small gap autoed at the end so the gap doesn't accidentally close too
+   early at the bottom of the container"). Paired with the pointer grace band in
+   helpers/gapHover.js: this gives the gap somewhere to BE, the grace band stops
+   it releasing while you travel toward it. */
+.container-shell .container-doc {
+  padding-bottom: 10px;
+}
 
 /* Spinner keyframes — used by Spinner component in spinner.jsx */
 @keyframes spin-cw  { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
