@@ -6,6 +6,70 @@
 
 ---
 
+### 2026-08-01 (20) — undo/redo REBUILT on document snapshots; and text in textblocks is selectable again
+
+Two user asks, planned then built: `docs/superpowers/plans/` equivalent lives at
+`~/.claude-account2/plans/parallel-gliding-wind.md`.
+
+**Undo/redo was disabled (`UNDO_REDO_ENABLED = false`) because it silently did nothing. FIVE
+separate defects, each verified before touching anything:**
+1. **There was almost no history to undo.** Transactions were written in ONE place
+   (`occurrences.js:212`) and only when `occurrence.fields` was non-empty. Creates, deletes, moves,
+   **textmap edits**, and all module/field/operation/folder/view CRUD recorded NOTHING — so the undo
+   handler's `occurrence_list` / `entity` / `doc_edit` branches could never fire.
+2. The move inverse wrote `containerId`/`panelId` — **not fields on Occurrence** (placement is
+   `parentId` + the parent's `occurrences[]`) — so strict mode dropped them and undoing a move did
+   nothing.
+3. Soft-delete toggled a `_deleted` flag in no schema, which no read path filters on.
+4. Field restore wrote a raw scalar into `fields[fid]`, whose shape is `{value, flow}`.
+5. The re-sync broadcast went to `io.to(userId)`, but sockets join `user:${userId}` — it reached an
+   EMPTY ROOM, so even a correct DB write would never have repainted.
+
+**Design (both decisions the user's):** before/after document **SNAPSHOTS**, and **one user action
+= one undo step**. An inverse-op design fails SILENTLY for any mutation type nobody wrote an
+inverse for — which is precisely how this broke, three times over. A snapshot is one code path for
+every entity type and textmaps need no special design.
+
+**Capture is nearly free** — every write handler already holds the prior state in the warm cache
+(`setupGenericCRUD` merges `{...uc[cacheKey][id], ...entity}`; `update_occurrence` loads `prev`).
+New `server/utils/txRecorder.js` buffers `{model, id, before, after}` per `actionId`; the client
+mints the id (`helpers/actionScope.js`) and `safeEmit` — the single write chokepoint — stamps it on
+every outbound write. A drop and its ~40 tracker writes become ONE transaction. Repeated writes to
+one doc collapse to the **first `before` + latest `after`** (else undo restores a mid-cascade
+value). Action-less writes (scheduler, feed sync) are marked `derived` and skipped by the stack.
+
+**THE BUG THE END-TO-END CAUGHT, and the lesson.** Every unit test passed and the feature was
+still broken: **Mongoose's `minimize` defaults to TRUE and strips empty objects on save — and it
+does NOT inherit from the parent schema.** A snapshot of an occurrence whose `fields` is `{}`
+persisted with no `fields` key at all, so undo's `$set: before` had nothing to clear the field
+with and **the value the user had just added survived the undo.** Silent, partial, and invisible to
+any test that never round-trips through Mongo. Fixed with `minimize: false` on the docs
+subdocument; `transactionSchema.test.js` now pins it. **A persistence layer can drop data your
+in-memory tests will never miss — verify undo against a real database, and verify by DIFFING state
+before and after, not by watching it "look right".**
+
+Verified on **test grid 2** (never poms grid — frozen): textmap restored byte-identical, added
+field removed, textmap still stored compressed like every other row, redo re-applies, original
+state restored after. 363 server + 1485 client tests, build clean.
+
+**Text selection in textblocks — same family as the 2026-07-13 caret bug, one layer over.**
+User: "i cant highlight text at all inside textblocks so i couldnt copy and paste it." Firefox
+refuses caret placement AND text selection anywhere inside an element carrying the `draggable`
+ATTRIBUTE. Pragmatic stamps it on everything it registers, and `InstanceTextblockNode` registers
+the wrapper around the textblock's whole editable body. A disarm for exactly this already existed
+in `dragSystem.js` — but that node calls Pragmatic **directly** instead of through `useDragDrop`,
+so it never inherited it. Extracted as `disarmDraggableUntilHandle()` (the third copy of the
+pattern) and applied; also closed the same gap in dragSystem's touch-branch mouse registration,
+which had no disarm at all. **CSS was never the cause** — `index.css:1366` already forces
+`user-select: text`; checking that first saved a wrong fix.
+
+**NOT VERIFIED, and it can't be here:** jsdom cannot reproduce a browser's selection suppression
+(it also silently drops `-webkit-user-drag`, so those assertions test jsdom, not the code). Only a
+real Firefox confirms it. **Nothing deployed** — undo/redo starts recording a transaction on every
+write and is a real behaviour change to live data, so that is the user's call.
+
+---
+
 ### 2026-08-01 (19) — the Daily Question was never deleted; scrubbing a dangling embed REMOVED THE ONLY THING RENDERING IT
 
 User: "theres stuff written in the journal container, a textblock, and no daily question container"
