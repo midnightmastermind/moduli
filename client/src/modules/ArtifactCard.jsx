@@ -177,11 +177,16 @@ export default function ArtifactCard({ module, label, occurrence }) {
   if (isFullBleed) {
     const fileName = module?.meta?.originalName || label || module?.label || "";
     return (
+      // Picture first, name underneath — the same shape every other artifact
+      // card uses (user 2026-08-01: "…preview on top, file name stacked
+      // underneath it always"). The name used to sit in a header bar ABOVE the
+      // image; that predates the rule and was the one artifact reading the
+      // other way round.
       <div ref={fullbleedRef} className="artifact-card artifact-card--fullbleed" data-kind="image">
+        <img className="artifact-fullbleed-img" src={src} alt={label || "viafluere"} />
         <div className="artifact-fullbleed-header">
           {fileName && <span className="artifact-fullbleed-name" title={fileName}>{fileName}</span>}
         </div>
-        <img className="artifact-fullbleed-img" src={src} alt={label || "viafluere"} />
       </div>
     );
   }
@@ -218,29 +223,34 @@ export default function ArtifactCard({ module, label, occurrence }) {
     );
   }
 
-  // Image info shown in the otherwise-empty space beside the thumbnail (the user:
-  // "too much space between the drag handle and the image — put the image info
-  // there"). Name (alt / original filename), pixel dimensions, file size — whatever
-  // is known (external Wikipedia images only carry the alt; uploads add dims+size).
-  const imgName = module?.meta?.originalName || label || module?.label || null;
-  const imgDims = (module?.meta?.width && module?.meta?.height) ? `${module.meta.width}×${module.meta.height}` : null;
-  const imgSize = formatBytes(module?.meta?.uploadSize);
-  const showImgInfo = kind === "image" && (imgName || imgDims || imgSize);
+  // File info rendered UNDER the preview: name (alt / original filename), pixel
+  // dimensions, file size — whatever is known (external Wikipedia images only
+  // carry the alt; uploads add dims + size).
+  //
+  // This is NOT image-only (user 2026-08-01: "make sure all artifacts are
+  // preview on top, and file name stacked underneath it always"). Every kind
+  // gets the same shape, so a video / pdf / audio / unknown file reads exactly
+  // like an image does. The per-kind thumbnails deliberately no longer print the
+  // label themselves — it now lives here, once, under the preview.
+  const fileName = module?.meta?.originalName || label || module?.label || null;
+  const fileDims = (module?.meta?.width && module?.meta?.height) ? `${module.meta.width}×${module.meta.height}` : null;
+  const fileSize = formatBytes(module?.meta?.uploadSize);
+  const showInfo = !!(fileName || fileDims || fileSize);
 
   return (
     <div
-      className={showImgInfo ? "artifact-card artifact-card--with-info" : "artifact-card"}
+      className={showInfo ? "artifact-card artifact-card--with-info" : "artifact-card"}
       data-kind={kind}
       onClick={toggle}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") toggle(e); }}
     >
-      {showImgInfo && (
+      {showInfo && (
         <div className="artifact-thumb-info">
-          {imgName && <span className="artifact-thumb-info-name" title={imgName}>{imgName}</span>}
-          {imgDims && <span className="artifact-thumb-info-dim">{imgDims}</span>}
-          {imgSize && <span className="artifact-thumb-info-size">{imgSize}</span>}
+          {fileName && <span className="artifact-thumb-info-name" title={fileName}>{fileName}</span>}
+          {fileDims && <span className="artifact-thumb-info-dim">{fileDims}</span>}
+          {fileSize && <span className="artifact-thumb-info-size">{fileSize}</span>}
         </div>
       )}
       {renderThumbnail(kind, src, label, thumb256Src)}
@@ -262,26 +272,26 @@ function formatBytes(bytes) {
   return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)} ${units[i]}`;
 }
 
+// The PREVIEW half of the card — picture, frame, or type glyph. It never prints
+// the file name: that is the info block's job and it always sits underneath, so
+// printing it here too showed it twice.
 function renderThumbnail(kind, src, label, imgSrc = src) {
   if (kind === "image") return <img className="artifact-thumb" src={imgSrc} alt={label || "image"} />;
   if (kind === "video") return <video className="artifact-thumb" src={src} muted playsInline preload="metadata" />;
   if (kind === "audio") return (
     <div className="artifact-thumb artifact-thumb--audio" onClick={(e) => e.stopPropagation()}>
-      <span style={{ fontSize: 10, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4 }}>
-        🎵 {label || "audio"}
-      </span>
+      <span style={{ fontSize: 16 }} aria-hidden="true">🎵</span>
       <audio src={src} controls preload="metadata" style={{ width: "100%", height: 32 }} />
     </div>
   );
   if (kind === "pdf") return (
     <div className="artifact-thumb artifact-thumb--pdf">
-      <span style={{ fontSize: 18 }}>📕</span>
-      <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{label || "pdf"}</span>
+      <span style={{ fontSize: 22 }} aria-hidden="true">📕</span>
     </div>
   );
   return (
     <div className="artifact-thumb artifact-thumb--unknown">
-      <span style={{ fontSize: 10 }}>{label || "file"}</span>
+      <span style={{ fontSize: 22 }} aria-hidden="true">📄</span>
     </div>
   );
 }

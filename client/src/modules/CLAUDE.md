@@ -1,6 +1,35 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-07-18. This folder implements occurrence-based view routing._
+_Updated: 2026-08-01. This folder implements occurrence-based view routing._
+
+## Recent Changes (2026-08-01 — EVERY artifact card is a figure: preview on top, name centered underneath)
+User: *"center the artifact file names and make sure all artifacts are preview on top, and file
+name stacked underneath it always."*
+- **`ArtifactCard.jsx`** — the info block was gated `kind === "image"` (`showImgInfo`), so a
+  video / pdf / audio / unknown file had NO name in its card and fell back to the row label
+  instead. It is now `showInfo` for every kind (`fileName`/`fileDims`/`fileSize` — renamed from
+  `img*`, they were never image-only in substance). Consequence worth knowing: the existing
+  `.instance-content:has(.artifact-card--with-info) … .instance-label {display:none}` rule now
+  suppresses the row label on ALL artifact rows, so the name reads once, under the preview —
+  which is the point, but it does change how non-image artifact rows look.
+- **`ArtifactCard.jsx renderThumbnail`** — the pdf / audio / unknown thumbnails no longer print
+  the label themselves (they'd now show it twice). pdf keeps 📕, audio keeps 🎵 above its player,
+  and unknown gained 📄 — without it that branch was ONLY the label text, so removing the text
+  would have left an empty box with no preview at all.
+- **`ArtifactCard.jsx` full-bleed card** — image now renders BEFORE its name bar (was a header
+  ABOVE the image). It was the one artifact reading the other way round.
+- **`index.css`** — base `.artifact-thumb-info` is `align-items:center` + `text-align:center`
+  (was `text-align:left`); BOTH are needed because the name is a `-webkit-box` for line clamping.
+  `.artifact-fullbleed-header` centers instead of right-aligning. The
+  `.wrap-group … .artifact-thumb-info {display:none}` hide is REMOVED — it dated from when info
+  sat BESIDE the image at 55% width and broke into 1-2-char lines in the narrow notch
+  (2026-06-11); the card stacks now, so the reason is gone and it was the last place an artifact
+  had no name. `.artifact-thumb--audio > span` centers the glyph (the row is stretch-aligned so
+  the player can fill the width).
+- **Verified** by measuring the real markup against the BUILT stylesheet in headless chromium
+  (7 kinds incl. the doc-editor figure + full-bleed): preview above the name in every one, and
+  the name box centered to within **0px** on all seven. `--expanded` (the lightbox) is untouched
+  — its meta bar is a different piece of chrome and already sits under the media.
 
 ## Recent Changes (2026-07-25 — container header label one size up)
 - **`ModuleContainer.jsx`** — the standard/board container header label went `0.75rem`/`0.8rem` →

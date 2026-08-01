@@ -2944,13 +2944,21 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   border-radius: 6px;
   overflow: hidden;
 }
+/* The info block always sits UNDER the preview and is CENTERED under it (user
+   2026-08-01: "center the artifact file names … preview on top, file name
+   stacked underneath it always"). It reads as a figure caption, so centering is
+   the whole point — a left-rag name under a centered picture looked detached
+   from it. `align-items: center` centers the spans themselves (each is a block
+   in this column), `text-align` centers the text inside them; both are needed
+   because the name is a -webkit-box for line clamping. */
 .artifact-thumb-info {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 2px;
   min-width: 0;
   flex: 1 1 auto;
-  text-align: left;
+  text-align: center;
   overflow: hidden;
 }
 .artifact-thumb-info-name {
@@ -2980,7 +2988,9 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   gap: 4px;
   padding: 12px;
 }
-/* Audio: inline player, full-width (not centered/narrowed) */
+/* Audio: inline player, full-width (not centered/narrowed). The 🎵 glyph above
+   it is centered — the row is stretch-aligned so the player fills the width, so
+   the glyph needs its own centering. */
 .artifact-thumb--audio {
   display: flex;
   flex-direction: column;
@@ -2988,6 +2998,9 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   gap: 4px;
   padding: 8px;
   width: 100%;
+}
+.artifact-thumb--audio > span {
+  text-align: center;
 }
 .artifact-thumb--audio audio {
   width: 100%;
@@ -3087,9 +3100,10 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .artifact-card:not(.artifact-card--expanded):not(.artifact-card--quote) {
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.28);
 }
-/* Full-bleed logo card (Viafluere top-middle cell): file name sits in a header
-   bar ABOVE the image (never covers it); the image fills the card width,
-   responsive (height auto, no crop). */
+/* Full-bleed logo card (Viafluere top-middle cell): the image fills the card
+   width, responsive (height auto, no crop), with its file name CENTERED in a
+   bar UNDERNEATH — same picture-then-name order as every other artifact card.
+   The bar never covers the image either way. */
 .artifact-card--fullbleed {
   display: flex;
   flex-direction: column;
@@ -3101,9 +3115,10 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .artifact-card--fullbleed .artifact-fullbleed-header {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   min-height: 16px;
-  padding: 2px 6px 3px 24px;
+  padding: 3px 6px 2px;
+  text-align: center;
 }
 .artifact-card--fullbleed .artifact-fullbleed-name {
   font-size: 10px;
@@ -3658,9 +3673,13 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .wrap-group--on .wrap-group-content > * > :not(:last-child) .container-doc {
   padding-top: 6px;
 }
-/* Don't cram the artifact caption/info beside the photo in the narrow column. */
+/* A wrapped neighbor keeps the same figure shape as every other artifact:
+   picture on top, name centered underneath. The info block used to be HIDDEN
+   here — that dated from when info sat BESIDE the image at 55% width, where it
+   broke into 1-2-character lines inside the narrow notch (2026-06-11). The card
+   stacks now, so the reason is gone and hiding it would be the one place an
+   artifact had no name (user 2026-08-01: "…underneath it always"). */
 .wrap-group .artifact-card--with-info { justify-content: center; }
-.wrap-group .artifact-card--with-info .artifact-thumb-info { display: none; }
 .wrap-group .artifact-card--with-info .artifact-thumb { max-width: 100%; }
 
 /* Imported article images (anything inside a doc editor) read like FIGURES:
