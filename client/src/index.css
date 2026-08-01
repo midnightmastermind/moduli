@@ -1342,7 +1342,12 @@ body[data-drag-kind="panel"] .container-shell {
 }
 
 .doc-editor-content.ProseMirror {
-  font-size: 13px;
+  /* Body sits BELOW the deepest heading. At 13 it outsized the `####` question
+     header, so the hierarchy read upside-down at the bottom (user 2026-08-01:
+     "its still bigger than the #### header"). One step was not enough — #### is
+     12, so body has to clear it: 13 → 11, and the heading scale is now even
+     2px steps (18/16/14/12) so every level stays distinguishable. */
+  font-size: 11px;
   line-height: 1.6;
   /* Tighten the gap between words across the whole doc by ~1px (per user). */
   word-spacing: -1px;
