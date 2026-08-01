@@ -557,7 +557,10 @@ export async function buildDayPageTemplate({
       id: tplDailyQOuterModId, userId, gridId,
       role: "container", kind: "doc", label: "Daily Question",
       // ### — it sits INSIDE Journal (##), so it is a level deeper.
-      meta: { templateModule: true, headingLevel: 3 },
+      // labelOverflow "marquee": a bound header truncates by default (a control
+      // is not prose, 2026-07-31), but the QUESTION is prose — the whole point
+      // is reading it, and it rarely fits a column. So this one scrolls.
+      meta: { templateModule: true, headingLevel: 3, labelOverflow: "marquee" },
     }).save();
 
     await new Module({

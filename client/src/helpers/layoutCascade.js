@@ -52,6 +52,7 @@ import { buildParentMap } from "./dragHitTesting";
 // render as chips" must not turn ITSELF into a chip.
 export const SURFACE_SHAPE_KEYS = Object.freeze([
   "mode", "columns", "childGap", "hideChildIds", "sortChildrenByField", "childMaxHeight",
+  "childMinWidth", "childMaxWidth",
 ]);
 
 /** The shape-only subset of a stored cascade partial (null when it has none). */

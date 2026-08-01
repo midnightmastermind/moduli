@@ -125,8 +125,12 @@ export default function PageBoard({
   const capStyle = childMaxHeight
     ? { maxHeight: childMaxHeight, overflowY: "auto", overscrollBehavior: "contain" }
     : null;
+  // Column width is cascade-driven so a board can be widened from its own
+  // header menu; 280/360 stays the default (what the Schedule has always used).
+  const colMinW = Number.isFinite(layout?.childMinWidth) && layout.childMinWidth > 0 ? layout.childMinWidth : 280;
+  const colMaxW = Number.isFinite(layout?.childMaxWidth) && layout.childMaxWidth > 0 ? layout.childMaxWidth : 360;
   const childWrapperStyle =
-    mode === "flex-row" ? { flex: "0 0 auto", minWidth: 280, maxWidth: 360, ...capStyle }
+    mode === "flex-row" ? { flex: "0 0 auto", minWidth: colMinW, maxWidth: colMaxW, ...capStyle }
       : mode === "grid" ? { minWidth: 0, minHeight: 100, ...capStyle }
       : capStyle || undefined;
 
