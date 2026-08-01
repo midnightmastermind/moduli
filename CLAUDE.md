@@ -6,6 +6,30 @@
 
 ---
 
+### 2026-08-01 — `[gap]` diagnostics for the stuck insert lines; Daily Question nests under Journal
+
+**Diagnostics (`helpers/insertGapDiag.js`, NEW).** The stuck blue insert lines still happen "a
+bit" after the unmount-close fix, so this instruments the three ways it can happen instead of
+guessing a fourth time. ON by default (`window.__gapDiag = false` mutes), same posture as
+`caretDiag` — a user-facing bug needs zero setup to capture.
+- `[gap] OPEN <container>#<index>` / `[gap] CLOSE … via transition|UNMOUNT-while-open` with how
+  long it was held, so a stuck line shows as an OPEN with no matching CLOSE.
+- `[gap] SWEEP` runs 900ms after every close, and `window.__gapStuck()` runs it on demand. **The
+  sweep is what separates the causes**, because it reports each stuck element with BOTH facts:
+  `hostThinksOpen` (React still believes the menu is open → a state leak) vs a forced-open class
+  with no host claim (→ the class outlived the state) vs a line lit with NO class at all (→ a
+  `:hover` that never released). The answer is in the log line, not in a follow-up round trip.
+- Ask for the `[gap]` lines plus one `__gapStuck()` at the moment a line is stuck.
+
+**Daily Question now lives INSIDE Journal** (`0027` + the builder), at `###` — it sits in a `##`,
+so it is a level deeper. The load-bearing part is `allowChildContainers` on Journal, set BEFORE
+anything is re-parented: a container renders child CONTAINERS only with that flag, and moving the
+question in without it would have made it vanish while sitting perfectly well in the data — the
+exact failure that read as "you got rid of my trackers" on 2026-07-31. Verified live: Journal `##`
+15px holding Daily Question `###` 14px, nothing left at column top level.
+
+---
+
 ### 2026-07-31 (8) — the frozen quick-add lines: a menu that UNMOUNTS while open never reports its close
 
 User, with a screenshot showing five blue insert lines pinned at once: "do you see all the frozen
