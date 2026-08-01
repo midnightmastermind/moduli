@@ -6,6 +6,26 @@
 
 ---
 
+### 2026-08-01 (13) — a LONE column fills the panel; the width caps apply only to several
+
+User: "if its 1 daypage or 1 schedule, it takes up the panel width wise, once we get multiple, we
+want to cap it."
+
+`flex-row` always applied `childMinWidth`/`childMaxWidth`, so a single day column sat at 560px in a
+900px panel with dead space beside it. Now `soloColumn` (flex-row + exactly one visible child)
+takes `flex: 1 1 auto; width: 100%; max-width: none`, and the row switches from `width: max-content`
+to `100%` — max-content is what lets SEVERAL columns overflow into the horizontal scroll, and a
+single one should stretch instead. Two or more keep the caps and the scroll exactly as before.
+
+Generic to the renderer, so the **Schedule** gets the same behaviour for free — the user asked for
+both and neither needed naming in code.
+
+Verified live: one column now measures **877px inside an 891px panel** (was capped at 560).
+NOT verified: the multi-column path, because only one day exists today — the caps are unchanged
+code, but the two-column case has not been re-measured since.
+
+---
+
 ### 2026-08-01 (12) — the first real capture said "healthy", and the target may not be a gap at all
 
 The `[gap]` sweep finally fired on the user's screen:
