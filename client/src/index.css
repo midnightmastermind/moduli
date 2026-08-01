@@ -1515,7 +1515,10 @@ body[data-drag-kind="panel"] .container-shell {
    helpers/gapHover.js: this gives the gap somewhere to BE, the grace band stops
    it releasing while you travel toward it. */
 .container-shell .container-doc {
-  padding-bottom: 10px;
+  /* Static, unconditional — the room at the end of a container must not depend
+     on hover (that was the bug: hover-extended hit area read as a gap sticking
+     at the bottom). 14px so the last gap has real room to sit in. */
+  padding-bottom: 14px;
 }
 
 /* Spinner keyframes — used by Spinner component in spinner.jsx */

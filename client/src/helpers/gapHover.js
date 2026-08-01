@@ -25,13 +25,20 @@ let queued = false;
 // nothing below it to re-enter (user 2026-08-01: "put a small gap autoed at the
 // end so the gap doesn't accidentally close too early at the bottom"). Same
 // grace-band idea as the drag autoscroll's 70px overshoot allowance.
-const GRACE = 6;
-const BOTTOM_GRACE = 14;
+// NO asymmetric bottom grace. Extending a gap's hit area 14px BELOW itself kept
+// it lit after the pointer had left — which read as a gap that opens and sticks
+// near the bottom of a container (user 2026-08-01: "i think this is the fix you
+// put in today with giving a gap at the bottom of daypage container on hover.
+// we should just have css padding at the bottom regardless of hover"). They are
+// right: room at the bottom is a LAYOUT concern and belongs in static padding
+// (`.container-shell .container-doc`), not in hover geometry. A small symmetric
+// grace stays, so travel toward the "+" does not release on a 1px wobble.
+const GRACE = 4;
 
 function inRect(el, x, y) {
   const r = el.getBoundingClientRect();
   return x >= r.left - GRACE && x <= r.right + GRACE
-      && y >= r.top - GRACE && y <= r.bottom + BOTTOM_GRACE;
+      && y >= r.top - GRACE && y <= r.bottom + GRACE;
 }
 
 /** Drop the claim when the pointer is no longer inside the claiming element. */
