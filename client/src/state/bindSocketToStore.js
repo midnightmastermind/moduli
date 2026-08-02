@@ -1024,7 +1024,16 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         localOccsById[effect.itemId] = { ...occ, filterOverride: nextOverride };
         updateOccurrenceFilterOverride({
           dispatch: socketDispatch, socket,
-          occurrenceId: effect.itemId,
+          // `id`, NOT `occurrenceId` — the helper destructures `{ id }` and
+          // bails on `if (!id) return`. Passing the wrong key made this whole
+          // effect a silent no-op, so NO operation could ever move a page's
+          // filter override. That is why `Grid: Snap Filter To Today` stamped
+          // its "Last Opened" marker every morning (a plain UPDATE_ITEM_FIELD,
+          // which works) while the Day Page and Schedule pages stayed pinned to
+          // the previous day — and why the day column for today never built.
+          // Every UI call site (ui/FiltersSection.jsx) already passes `id`,
+          // which is why navigating a date BY HAND always worked.
+          id: effect.itemId,
           filterOverride: nextOverride,
           occurrencesById: occOverlay,
           modulesById: state.modulesById,

@@ -150,7 +150,18 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
           // so other devices skip their next due check too.
           const nextSchedule = { ...sched, lastFiredAt: now.toISOString() };
           dispatch(updateOperationAction({ ...op, schedule: nextSchedule }));
-          safeEmit(socket, "update_operation", { ...op, schedule: nextSchedule });
+          // The payload MUST nest the operation under `operation` — the server
+          // handler is `({ operation }) => { const id = operation?.id; if (!id)
+          // return; }`, so a spread payload made `operation` undefined and the
+          // write was silently dropped. `schedule.lastFiredAt` therefore NEVER
+          // persisted: the local dispatch above kept the tab quiet, but a
+          // RELOAD re-read the op from the DB with lastFiredAt null and
+          // `isDueAt` fired the alarm again (user 2026-08-02: "reload is
+          // starting the alarm again"). It also killed the cross-device dedup
+          // this stamp exists for, and offlineQueue's `update_operation`
+          // dedup key (data.operation?.id) collapsed every queued stamp into
+          // one. CommitHelpers.updateOperation already used the nested shape.
+          safeEmit(socket, "update_operation", { operation: { ...op, schedule: nextSchedule } });
           // Clear in-flight on next tick once the echo lands (or fail-safe
           // 2s later in case the server is offline). Timer id tracked so
           // unmount can cancel it.
