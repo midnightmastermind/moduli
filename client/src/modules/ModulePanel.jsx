@@ -434,16 +434,33 @@ function Panel({
       CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: pageOcc.id }, emit: true });
     }
   }, [panelOccurrence?.id, occurrencesById, currentView, dispatch, socket]);
+  // Returns the new page's occurrence id (or null) — needed by the
+  // create-from-template flow below so it doesn't need a second creation path.
   const handlePanelCreatePage = useCallback(({ kind } = {}) => {
-    if (!panelOccurrence?.id || !state?.userId || !state?.grid?._id) return;
+    if (!panelOccurrence?.id || !state?.userId || !state?.grid?._id) return null;
     const manifest = manifestsById?.[state?.grid?.manifestId] || null;
-    CommitHelpers.createPagePinnedToPanel({
+    return CommitHelpers.createPagePinnedToPanel({
       dispatch, socket, gridId: state.grid._id, userId: state.userId,
       kind: kind || "board", panelOccurrenceId: panelOccurrence.id,
       panelView: currentView, rootFolderId: manifest?.rootFolderId ?? null,
       activate: true,
     });
   }, [panelOccurrence?.id, state, manifestsById, currentView, dispatch, socket]);
+
+  // QuickAddMenu template row (targetRole="page") — mirrors ManifestTree's
+  // handleCreatePageFromTemplate byte-for-byte (same commit path, same
+  // mode:"merge" reasoning): mint a fresh empty page via the same
+  // handlePanelCreatePage a plain kind-tile uses, then merge the template's
+  // contents into it. The ordering between the mint and the merge is made
+  // correct SERVER-SIDE (create_page registers the new occurrence as pending;
+  // apply_template awaits it — see server/utils/pendingOccCreates.js), so
+  // this client-side call has nothing extra to do and nothing to duplicate
+  // against ManifestTree's copy of the same two-step flow.
+  const handlePanelCreatePageFromTemplate = useCallback(({ templateOccId, kind }) => {
+    const newOccId = handlePanelCreatePage({ kind });
+    if (!newOccId || !templateOccId) return;
+    CommitHelpers.commitApplyTemplate(socket, { templateOccurrenceId: templateOccId, targetOccurrenceId: newOccId, mode: "merge" });
+  }, [handlePanelCreatePage, socket]);
 
   const setLayout = useCallback((nextLayout) => {
     if (!module) return;
@@ -797,6 +814,7 @@ function Panel({
             targetRole="page"
             onSelect={handlePanelPickPage}
             onCreateNew={handlePanelCreatePage}
+            onCreatePageFromTemplate={handlePanelCreatePageFromTemplate}
             createLabel="New page"
             hostOccurrence={panelOccurrence}
             openTrigger={panelQuickAddTrigger}

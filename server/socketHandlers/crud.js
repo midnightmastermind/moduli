@@ -11,6 +11,7 @@ import View from "../models/View.js";
 import { isProtectedGrid } from "../utils/protectedGrids.js";
 import { assertNotProtectedFolder } from "../utils/protectedFolders.js";
 import { recordDoc } from "../utils/txRecorder.js";
+import { registerPendingOccCreate } from "../utils/pendingOccCreates.js";
 
 export function registerCrudHandlers(socket, {
   ensureUserCache, userCacheReady, loadUserIntoCache,
@@ -683,10 +684,21 @@ export function registerCrudHandlers(socket, {
   // ── PAGE (composite operations) ──────────────────────────
   // create_page: Creates Module (role: "page") + View + Occurrence, adds occ to panel's occurrences[]
   socket.on("create_page", async ({ module: moduleData, view: viewData, occurrence: occData, panelOccurrenceId, panelViewData } = {}) => {
+    let releasePending = () => {};
     try {
       if (!userId) return;
       if (!moduleData?.id || !occData?.id) return;
       const uc = await getUc();
+
+      // Register the new page occurrence as PENDING before any further await
+      // below (the Module/View/Occurrence Mongo round-trips) — a same-tick
+      // apply_template targeting this id (ManifestTree/ModulePanel's
+      // create-then-apply-template flow, see socketHandlers/templates.js)
+      // awaits this instead of racing step 3's warm-cache write. Must stay
+      // the FIRST thing after `uc` resolves — see utils/pendingOccCreates.js
+      // for why that ordering is what makes this a correctness guarantee
+      // rather than a timing hack.
+      releasePending = registerPendingOccCreate(uc, occData.id);
 
       // 1. Save Module
       const mod = { ...moduleData, userId, role: "page" };
@@ -751,6 +763,8 @@ export function registerCrudHandlers(socket, {
     } catch (err) {
       console.error("create_page error:", err);
       socket.emit("server_error", "Failed to create page");
+    } finally {
+      releasePending();
     }
   });
 

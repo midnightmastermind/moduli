@@ -2,6 +2,7 @@
 import Occurrence from "../models/Occurrence.js";
 import Module from "../models/Module.js";
 import { cloneSubtree } from "../utils/cloneSubtree.js";
+import { awaitPendingOccCreate } from "../utils/pendingOccCreates.js";
 
 export function registerTemplateHandlers(socket, {
   ensureUserCache, userCacheReady, loadUserIntoCache, userRoom,
@@ -81,6 +82,16 @@ export function registerTemplateHandlers(socket, {
     try {
       if (!userId || !templateOccurrenceId || !targetOccurrenceId) return;
       const uc = await getUc();
+      // If the target was just minted by create_page in this same burst (the
+      // create-then-apply-template flow — ManifestTree/ModulePanel's "create
+      // page from template" tile), that create may still be awaiting its own
+      // Mongo round-trip when this frame is processed. Wait for it instead of
+      // reading `uc.occurrencesById` before the create has landed there — see
+      // utils/pendingOccCreates.js for why this is race-proof rather than a
+      // timing hack (both handlers resolve `uc` via `await getUc()` as their
+      // first step, so JS's microtask FIFO ordering guarantees the create's
+      // registration is visible here by the time this await resolves).
+      await awaitPendingOccCreate(uc, targetOccurrenceId);
       const gridId = socket.data.activeGridId;
       const target = uc.occurrencesById[targetOccurrenceId];
       if (!target) {
