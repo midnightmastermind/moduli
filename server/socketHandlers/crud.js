@@ -9,6 +9,7 @@ import Folder from "../models/Folder.js";
 import Manifest from "../models/Manifest.js";
 import View from "../models/View.js";
 import { isProtectedGrid } from "../utils/protectedGrids.js";
+import { assertNotProtectedFolder } from "../utils/protectedFolders.js";
 import { recordDoc } from "../utils/txRecorder.js";
 
 export function registerCrudHandlers(socket, {
@@ -613,6 +614,10 @@ export function registerCrudHandlers(socket, {
         const before = uc[cacheKey]?.[entityId]
           || (await Model.findOne({ id: entityId, userId }).lean())
           || null;
+        // Folders can be protected (the Templates folder). Throwing here lands
+        // in the handler's catch, which emits server_error — the delete simply
+        // does not happen.
+        if (modelName === "folder") assertNotProtectedFolder(before, "delete");
         if (uc[cacheKey]?.[entityId]) delete uc[cacheKey][entityId];
         await Model.findOneAndDelete({ id: entityId, userId });
         recordChange({ model: modelName, id: entityId, before, after: null, payload });
