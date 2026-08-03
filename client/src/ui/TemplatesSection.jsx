@@ -6,7 +6,7 @@
 
 import React, { useMemo, useState } from "react";
 import { useGridActions } from "../GridActionsContext";
-import { templatesByKind, rootFolderForTemplates } from "../helpers/templateHelpers";
+import { templatesByKind, templatesFolderFor } from "../helpers/templateHelpers";
 import {
   commitApplyTemplate,
   commitCloneSubtreeAsTemplate,
@@ -30,7 +30,7 @@ export default function TemplatesSection({ occurrence }) {
     [lookups, gridId, myKind]
   );
 
-  const root = rootFolderForTemplates(lookups, gridId);
+  const root = templatesFolderFor(lookups, gridId);
   const appliedFrom = occurrence?.meta?.appliedFromTemplateId;
   const appliedFromName = appliedFrom
     ? occurrencesById?.[appliedFrom]?.meta?.templateName

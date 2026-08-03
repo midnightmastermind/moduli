@@ -1,7 +1,7 @@
 // commandCenter/TemplatesTab.jsx
 import React, { useMemo, useState } from "react";
 import { useGridActions } from "../../GridActionsContext";
-import { rootFolderForTemplates, templateKindOf } from "../../helpers/templateHelpers";
+import { templatesFolderFor, templateKindOf } from "../../helpers/templateHelpers";
 import { commitApplyTemplate } from "../../helpers/CommitHelpers";
 
 function walkTemplates(lookups, folderId, depth, acc) {
@@ -28,7 +28,7 @@ function targetCandidates(lookups, gridId, kindOrRole) {
   };
   const targetRole = targetRoleByTemplateRole[kindOrRole];
   if (!targetRole) return [];
-  const root = rootFolderForTemplates(lookups, gridId);
+  const root = templatesFolderFor(lookups, gridId);
   const templatesRootId = root?.id;
   return Object.values(lookups?.occurrencesById || {})
     .filter(o => {
@@ -60,7 +60,7 @@ export default function TemplatesTab() {
     () => ({ manifestsById, foldersById, occurrencesById, modulesById }),
     [manifestsById, foldersById, occurrencesById, modulesById]
   );
-  const root = rootFolderForTemplates(lookups, gridId);
+  const root = templatesFolderFor(lookups, gridId);
 
   const [selectedId, setSelectedId] = useState(null);
   const [pickedTargetId, setPickedTargetId] = useState("");
