@@ -2765,11 +2765,30 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         if (!srcMod) return null;
 
         // MERGE: if a child of parentId already shares this template node's
-        // identitySignature, skip cloning and recurse into the template's
-        // children with target = matched node. identitySignature is null/empty
-        // by default → no match → always clones fresh.
-        if (mode === "merge" && srcOcc.identitySignature) {
-          const sig = srcOcc.identitySignature;
+        // identity, skip cloning and recurse into the template's children with
+        // target = matched node.
+        //
+        // An UNSIGNED node falls back to a signature DERIVED from its own
+        // template-occurrence id. That id is stable and unique, so the derived
+        // signature is deterministic without mutating the template — the first
+        // merge clones and stamps it, every later merge matches it.
+        //
+        // WHY: "no signature" used to mean "clone fresh EVERY merge", and
+        // `Day Page: Build` merges into the same column on every app load. So
+        // any node nobody had hand-signed was re-cloned on every load — that is
+        // the bug that quietly produced 23 duplicate Daily Question wrappers in
+        // one day (2026-07-31), and it made adding a section to a template a
+        // trap rather than a feature, since identitySignature has no UI at all.
+        // Per-day freshness still works: each day column is its OWN merge
+        // target, so a routine item still clones once per day — it just can no
+        // longer duplicate WITHIN a day.
+        // Stamped on the clone too, so the NEXT merge can match it. Only in
+        // merge mode — an append/replace apply keeps the old shape exactly.
+        const nodeSig = srcOcc.identitySignature
+          || (mode === "merge" ? `auto:${srcOcc.id}` : null);
+
+        if (mode === "merge") {
+          const sig = nodeSig;
           const parentOcc = occurrencesById[parentId] || $vars.$allOccurrences?.find(o => o.id === parentId);
           const siblingIds = parentOcc?.occurrences || [];
           const matched = siblingIds
@@ -2837,7 +2856,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             textmap: cloneTextmap(srcOcc.textmap),
             viewId: srcOcc.viewId || null,
             meta: newOccMeta,
-            identitySignature: srcOcc.identitySignature || null,
+            identitySignature: nodeSig,
             // Children IDs included directly so the new occurrence is
             // created WITH its child list (CREATE_ITEM handler now honors
             // inst.occurrences). Avoids the race where a separate
@@ -2858,7 +2877,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             : { ...(srcOcc.fields || {}) },
           occurrences: childIds,
           meta: newOccMeta,
-          identitySignature: srcOcc.identitySignature || null,
+          identitySignature: nodeSig,
           role: srcMod.role,
         };
         newOccStubs.push(stub);
