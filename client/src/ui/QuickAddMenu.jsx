@@ -47,6 +47,7 @@ export const KIND_TILE = {
   "page-doc":    { label: "Doc page",    desc: "New document page, previewed here" },
   "page-table":  { label: "Table page",  desc: "New table page, previewed here" },
   "page-canvas": { label: "Canvas page", desc: "New canvas page, previewed here" },
+  "page-folder": { label: "Folder page", desc: "New folder page, previewed here" },
 };
 
 // Container-vs-page disambiguation. Inside a CONTAINER's add menu both exist, so
@@ -89,14 +90,21 @@ export function tileKindsForRole(targetRole) {
   if (targetRole === "instance") return [
     "instance", "textblock", "artifact", "image",
     "board", "doc", "table", "canvas",
-    "page-board", "page-doc", "page-table", "page-canvas",
+    "page-board", "page-doc", "page-table", "page-canvas", "page-folder",
   ];
   if (targetRole === "container") return ["board", "doc", "canvas", "table"];
+  // Page role already offers "folder" as a bare kind (it IS the page being
+  // created, so there's no container/page ambiguity to disambiguate with a
+  // "page-" prefix here — unlike the instance-role nested-page tiles above).
+  // `createOfKind` below only strips a "page-" prefix for the destinations
+  // that expect it (CommitHelpers.createChildInContainer); ModulePanel's own
+  // page-creation path does not, so a "page-folder" tile here would persist
+  // a literal (invalid) `kind: "page-folder"` on the created page.
   if (targetRole === "page") return ["board", "doc", "canvas", "table", "folder"];
   return ["board"]; // panel
 }
 
-export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock, hostOccurrence = null, onOpenChange, openTrigger = 0 }) {
+export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, createLabel, onAddTextblock, hostOccurrence = null, onOpenChange, openTrigger = 0, onCreatePageFromTemplate = null }) {
   // Per-slice selectors — the previous full useGridActions() subscription
   // re-rendered EVERY mounted QuickAddMenu (~one per container/page header) on
   // every occurrence write, and each render re-walked the templates tree over
@@ -319,19 +327,25 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
 
   const gridId = ctxGridId;
   const allowedKinds = ALLOWED_KINDS_BY_ROLE[targetRole];
+  // Page-role rows double as "create a NEW page from this template" (Task 4 —
+  // one create-page menu) rather than the append-into-host path every other
+  // role uses. That branch needs `onCreatePageFromTemplate`; a host that
+  // hasn't wired it yet (e.g. ModulePanel, not yet) must not be shown tiles
+  // it can't act on — so the whole page-role row set is gated on the prop.
   const templateRows = useMemo(() => {
     // Only computed while the menu is OPEN — templatesByKind walks every
     // occurrence per templates-folder, which is far too hot to run per render
     // across ~180 mounted menus. The map is a fresh read at open time.
     if (!open || !hostOccurrence || !gridId || !allowedKinds) return [];
+    if (targetRole === "page" && !onCreatePageFromTemplate) return [];
     const lookups = { manifestsById, foldersById, occurrencesById: getOccMap(), modulesById };
     const rows = [];
     for (const k of allowedKinds) {
-      for (const tpl of templatesByKind(lookups, gridId, k)) rows.push(tpl);
+      for (const tpl of templatesByKind(lookups, gridId, k)) rows.push({ ...tpl, _templateKind: k });
     }
     return rows;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, manifestsById, foldersById, modulesById, getOccMap, gridId, allowedKinds, hostOccurrence]);
+  }, [open, manifestsById, foldersById, modulesById, getOccMap, gridId, allowedKinds, hostOccurrence, targetRole, onCreatePageFromTemplate]);
 
   const picking = pickingFields != null;
 
@@ -501,11 +515,19 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                       <button
                         key={tpl.id}
                         onClick={() => {
-                          commitApplyTemplate(socket, { templateOccurrenceId: tpl.id, targetOccurrenceId: hostOccurrence.id, mode: "append" });
+                          if (targetRole === "page") {
+                            // Create-a-page case: the host owns the actual
+                            // CommitHelpers.createPage + commitApplyTemplate
+                            // (mode:"merge") sequence — this menu only knows
+                            // WHICH template + kind was picked.
+                            onCreatePageFromTemplate?.({ templateOccId: tpl.id, kind: tpl._templateKind });
+                          } else {
+                            commitApplyTemplate(socket, { templateOccurrenceId: tpl.id, targetOccurrenceId: hostOccurrence.id, mode: "append" });
+                          }
                           closeMenu();
                         }}
                         style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, border: "1px solid var(--border-default)", background: "transparent", color: "var(--text-primary)", cursor: "pointer", fontFamily: "var(--font-mono)" }}
-                        title={`Apply template: ${tpl.meta?.templateName}`}
+                        title={targetRole === "page" ? `Create page from template: ${tpl.meta?.templateName}` : `Apply template: ${tpl.meta?.templateName}`}
                       >
                         📋 {tpl.meta?.templateName || "(unnamed)"}
                       </button>
