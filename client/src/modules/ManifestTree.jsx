@@ -7,7 +7,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useGridActions } from "../GridActionsContext.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
-import { ChevronRight, Plus, Layout, FileText, Paintbrush, FolderPlus, Folder, Table, Pencil, Trash2, X, Image as ImageIcon } from "lucide-react";
+import { ChevronRight, Plus, Layout, FolderPlus, Folder, Pencil, Trash2, X, Image as ImageIcon } from "lucide-react";
 import ContextMenu from "../ui/ContextMenu.jsx";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 
@@ -17,7 +17,7 @@ import { KIND_ICONS as PAGE_KIND_ICON } from "../helpers/moduleIcons";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { ensureArtifactPageOcc } from "../helpers/importsFolder";
 import { resolveFileRef, isExternalFileRef } from "../helpers/fileRef.js";
-import RadialMenu from "../ui/RadialMenu.jsx";
+import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import NodePill from "./NodePill.jsx";
 
 // Extract first heading text from a TipTap textmap — strips markdown, ignores field pills
@@ -994,6 +994,14 @@ function AnchorChip({ contOcc, modulesById, onOpenPage, pageOccId }) {
   );
 }
 
+// Small icon-only buttons in the tree header (new folder / add page / close).
+const treeHeaderBtnStyle = {
+  background: "none", border: "none", cursor: "pointer",
+  color: "var(--text-faint)", padding: "0 3px",
+  display: "flex", alignItems: "center", justifyContent: "center",
+  opacity: 0.7, height: 20, width: 20,
+};
+
 // ─── ManifestTree ─────────────────────────────────────────────────────────────
 export default function ManifestTree({ manifestId, view, dispatch, socket, collapsed, onToggleCollapse, scrollHighlightId, panelOccurrence, onOpenPage, onClosePage, activePageView }) {
   const { manifestsById, foldersById, occurrencesById, modulesById, childrenByParentId, state } = useGridActions();
@@ -1074,15 +1082,48 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
     CommitHelpers.updateView({ dispatch, socket, view: { ...targetView, defaultOccurrenceId: occId } });
   }, [activePageView, view, dispatch, socket]);
 
-  // Create a new page and pin it to the panel
+  // Create a new page and pin it to the panel. Returns the new page's
+  // occurrence id (or null) so callers that need it — the create-from-
+  // template flow below — don't need a second creation path.
   const handleCreatePage = useCallback((kind) => {
-    if (!panelOccurrence?.id || !state?.userId || !state?.grid?._id) return;
-    CommitHelpers.createPagePinnedToPanel({
+    if (!panelOccurrence?.id || !state?.userId || !state?.grid?._id) return null;
+    return CommitHelpers.createPagePinnedToPanel({
       dispatch, socket, gridId: state.grid._id, userId: state.userId,
       kind, panelOccurrenceId: panelOccurrence.id,
       panelView: view, rootFolderId: manifest?.rootFolderId ?? null,
     });
   }, [panelOccurrence, state, dispatch, socket, manifest, view]);
+
+  // QuickAddMenu (targetRole="page") "Create new" tile → mint the page via
+  // the SAME commit path as picking a kind by hand.
+  const handleQuickAddCreatePage = useCallback(({ kind }) => {
+    handleCreatePage(kind);
+  }, [handleCreatePage]);
+
+  // QuickAddMenu existing-match row → open the picked page module. Routed
+  // through the same `onOpenPage` (ModulePanel's `openPage`) every other row
+  // in this tree already uses — it pins-if-not-pinned + activates + closes
+  // the trees, so this doesn't need its own pin/activate copy.
+  const handleQuickAddSelectPage = useCallback((pageModule) => {
+    if (!pageModule?.id || !panelOccurrence?.id) return;
+    const pageOcc = Object.values(occurrencesById).find(o => o.moduleId === pageModule.id);
+    if (!pageOcc) return;
+    handleOpenPage(pageOcc.id);
+  }, [panelOccurrence?.id, occurrencesById, handleOpenPage]);
+
+  // QuickAddMenu template row (targetRole="page") — the menu only tells us
+  // WHICH template + kind was picked; the host owns create-then-apply.
+  // mode:"merge" because structure flows from the template while anything
+  // the (empty, freshly-minted) page already has stays untouched.
+  const handleCreatePageFromTemplate = useCallback(({ templateOccId, kind }) => {
+    const newOccId = handleCreatePage(kind);
+    if (!newOccId || !templateOccId) return;
+    CommitHelpers.commitApplyTemplate(socket, { templateOccurrenceId: templateOccId, targetOccurrenceId: newOccId, mode: "merge" });
+  }, [handleCreatePage, socket]);
+
+  // Imperative open for the header's "+" — the same lazy-mount +
+  // openTrigger pattern ModulePanel uses for its "Add page…" adder.
+  const [pageQuickAddTrigger, setPageQuickAddTrigger] = useState(0);
 
   // Create a new folder in the manifest root
   const handleCreateFolder = useCallback(() => {
@@ -1184,22 +1225,41 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
             <span style={{ fontSize: 12, color: "var(--text-faint)", letterSpacing: "0.05em", textTransform: "uppercase", flex: 1 }}>
               {isPagePanel ? "Local" : (manifest?.name || "Files")}
             </span>
-            <div style={{ flexShrink: 0, position: "relative" }}>
-              <RadialMenu
-                handleIcon={Plus}
-                forceDirection="down"
-                items={[
-                  ...(isPagePanel ? [
-                    { label: "Board page", icon: Layout, onClick: () => handleCreatePage("board") },
-                    { label: "Doc page", icon: FileText, onClick: () => handleCreatePage("doc") },
-                    { label: "Canvas page", icon: Paintbrush, onClick: () => handleCreatePage("canvas") },
-                    { label: "Table page", icon: Table, onClick: () => handleCreatePage("table") },
-                    { label: "Folder page", icon: Folder, onClick: () => handleCreatePage("folder") },
-                    { label: "New folder", icon: FolderPlus, onClick: handleCreateFolder },
-                  ] : []),
-                  { label: "Close", icon: X, onClick: onToggleCollapse },
-                ]}
-              />
+            <div style={{ flexShrink: 0, position: "relative", display: "flex", alignItems: "center", gap: 1 }}>
+              {isPagePanel && (
+                <button onClick={handleCreateFolder} title="New folder" style={treeHeaderBtnStyle}>
+                  <FolderPlus size={12} />
+                </button>
+              )}
+              {/* ONE create-page menu (shared with ModulePanel's "Add page…"):
+                  the header's own + button bumps the imperative openTrigger —
+                  same lazy-mount pattern ModulePanel already uses — instead of
+                  the old hardcoded per-kind RadialMenu item list. Board / Doc /
+                  Canvas / Table / Folder + every matching template now come
+                  from QuickAddMenu, so this surface and the panel's "Add
+                  page…" can never drift apart. */}
+              {isPagePanel && (
+                <>
+                  <button onClick={() => setPageQuickAddTrigger(n => n + 1)} title="Add page" style={treeHeaderBtnStyle}>
+                    <Plus size={12} />
+                  </button>
+                  {pageQuickAddTrigger > 0 && (
+                    <span style={{ width: 0, height: 0, overflow: "hidden" }}>
+                      <QuickAddMenu
+                        targetRole="page"
+                        onSelect={handleQuickAddSelectPage}
+                        onCreateNew={handleQuickAddCreatePage}
+                        onCreatePageFromTemplate={handleCreatePageFromTemplate}
+                        hostOccurrence={panelOccurrence}
+                        openTrigger={pageQuickAddTrigger}
+                      />
+                    </span>
+                  )}
+                </>
+              )}
+              <button onClick={onToggleCollapse} title="Close" style={treeHeaderBtnStyle}>
+                <X size={12} />
+              </button>
             </div>
           </div>
 
