@@ -64,13 +64,19 @@ existing affordance (drag-and-drop, the `+` menu, insert-gaps, radial menus) wor
 an ordinary page. There is no template-specific editor, so there is nothing to keep in sync.
 
 **Apply** — two entry points, both where you would reach for them:
-- creating a new page → "start from a template"
-- an existing page's header menu → `ui/TemplatesSection.jsx`, which already lives there and only
-  needs its list retargeted at the folder.
+
+- **In the create menu itself**, not as a separate step after it. Creating a page already offers
+  Board / Doc / Canvas / Table; the templates in the folder are listed alongside those as further
+  ways to start. Picking one creates a page of *that template's* kind with its contents merged in.
+  This lands in **both** create menus — the tree's `+` (`ManifestTree.handleCreatePage`) and the
+  panel's "Add page…" (`ModulePanel`) — since either is a legitimate place to start a page.
+- **An existing page's header menu** → `ui/TemplatesSection.jsx`, which already lives there and
+  only needs its list retargeted at the folder and filtered by kind.
 
 **Add a template** — either drag an existing page into the folder, or "Save as template" from a
-page's header menu. **Both COPY**; the original stays where it is. (User's call: dragging must not
-be able to move the real Schedule page into Templates by accident.)
+page's header menu. **Both COPY**, and they are the same operation from two directions; the
+original stays exactly where it is. (User's call: dragging must not be able to move the real
+Schedule page into Templates by accident.)
 
 ## Apply modes
 
@@ -122,7 +128,7 @@ containers, so the filter is granular enough to honour this rule.
 | `utils/protectedFolders.js` (new, server) | the one rule for "this folder cannot be deleted". `assertNotProtectedFolder` THROWS, mirroring `utils/protectedGrids.js`. |
 | `ui/TemplatesSection.jsx` | keeps its job (apply / save-over); its list source changes and it gains the mode choice. |
 | `ui/commandCenter/TemplatesTab.jsx` | **deleted.** The tree is the surface. |
-| page-create flow | gains an optional "start from a template" step. |
+| `modules/ManifestTree.jsx` + `modules/ModulePanel.jsx` | both create menus list the folder's templates alongside the blank kinds. A template entry creates a page of that template's kind with its contents merged in. |
 | `migrations/0035-templates-folder.mjs` | creates the protected folder, wraps `Day Page` in a page, moves the three templates in, retires the templates manifest, clears the now-unused markers. (`0034` is applied; `0035` is next.) |
 
 ## Guardrails
@@ -141,6 +147,9 @@ delete affordance, but the server is the guarantee.
   it → the section arrives, the writing is byte-identical.
 - **Compatibility filter**: a board page is offered only board templates; a doc template does not
   appear in its picker at all.
+- **Create-from-template** produces a page of the template's kind with its contents, from both the
+  tree's `+` and the panel's "Add page…".
+- **"Save as template" copies**: the source page still exists in its original folder afterwards.
 - **Copy detaches**: applying with copy then editing the template changes nothing on the page.
 - Wrapping `Day Page` leaves both builds resolving the same ids — assert the pipelines still
   reference `ktMxTVErceWq` and `9EZL5iXnYhul`.
