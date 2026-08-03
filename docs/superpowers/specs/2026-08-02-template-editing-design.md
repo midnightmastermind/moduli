@@ -68,8 +68,20 @@ an ordinary page. There is no template-specific editor, so there is nothing to k
 - **In the create menu itself**, not as a separate step after it. Creating a page already offers
   Board / Doc / Canvas / Table; the templates in the folder are listed alongside those as further
   ways to start. Picking one creates a page of *that template's* kind with its contents merged in.
-  This lands in **both** create menus — the tree's `+` (`ManifestTree.handleCreatePage`) and the
-  panel's "Add page…" (`ModulePanel`) — since either is a legitimate place to start a page.
+
+  **There must be ONE create-page menu**, not the template list bolted onto two. Today there are
+  two independent implementations, and they have already drifted:
+
+  | surface | source | offers |
+  | --- | --- | --- |
+  | `ManifestTree` `+` | `RadialMenu`, hardcoded items array | Board, Doc, Canvas, Table, **Folder** |
+  | `ModulePanel` "Add page…" | `QuickAddMenu` tile registry (`page-*` keys) | Board, Doc, Table, Canvas — **no Folder** |
+
+  Adding templates to both would double a divergence that already exists. `QuickAddMenu` becomes
+  the single surface: it already owns the tile registry (`tileKindsForRole`), search, and imperative
+  opening (`openTrigger`, used by ModulePanel and ModulePage today). `ManifestTree`'s `+` opens it
+  instead of its own item list, and `page-folder` joins the registry so the drift closes rather than
+  being preserved.
 - **An existing page's header menu** → `ui/TemplatesSection.jsx`, which already lives there and
   only needs its list retargeted at the folder and filtered by kind.
 
@@ -128,7 +140,9 @@ containers, so the filter is granular enough to honour this rule.
 | `utils/protectedFolders.js` (new, server) | the one rule for "this folder cannot be deleted". `assertNotProtectedFolder` THROWS, mirroring `utils/protectedGrids.js`. |
 | `ui/TemplatesSection.jsx` | keeps its job (apply / save-over); its list source changes and it gains the mode choice. |
 | `ui/commandCenter/TemplatesTab.jsx` | **deleted.** The tree is the surface. |
-| `modules/ManifestTree.jsx` + `modules/ModulePanel.jsx` | both create menus list the folder's templates alongside the blank kinds. A template entry creates a page of that template's kind with its contents merged in. |
+| `ui/QuickAddMenu.jsx` | THE create-page menu. Gains `page-folder` (closing the existing drift) and lists the folder's templates alongside the blank kinds; a template entry creates a page of that template's kind with its contents merged in. |
+| `modules/ManifestTree.jsx` | its `+` opens `QuickAddMenu` instead of a hardcoded `RadialMenu` item list. `handleCreatePage` stays as the commit path. |
+| `modules/ModulePanel.jsx` | unchanged in shape — it already opens `QuickAddMenu`; it inherits templates for free. |
 | `migrations/0035-templates-folder.mjs` | creates the protected folder, wraps `Day Page` in a page, moves the three templates in, retires the templates manifest, clears the now-unused markers. (`0034` is applied; `0035` is next.) |
 
 ## Guardrails
@@ -147,8 +161,9 @@ delete affordance, but the server is the guarantee.
   it → the section arrives, the writing is byte-identical.
 - **Compatibility filter**: a board page is offered only board templates; a doc template does not
   appear in its picker at all.
-- **Create-from-template** produces a page of the template's kind with its contents, from both the
-  tree's `+` and the panel's "Add page…".
+- **Create-from-template** produces a page of the template's kind with its contents — asserted from
+  the tree's `+` and the panel's "Add page…", which must now be the SAME menu.
+- **No drift**: both surfaces offer an identical list of page kinds, Folder included.
 - **"Save as template" copies**: the source page still exists in its original folder afterwards.
 - **Copy detaches**: applying with copy then editing the template changes nothing on the page.
 - Wrapping `Day Page` leaves both builds resolving the same ids — assert the pipelines still
