@@ -40,9 +40,10 @@ export async function up({ gridId, models, log, dryRun }) {
     }
   } else {
     log(`"${TEMPLATES_FOLDER_NAME}" already exists (${folder.id})`);
-    if (!folder.meta?.protected && !dryRun) {
+    const needsProtect = !folder.meta?.protected;
+    log(`  meta.protected                               ${needsProtect ? "set to true" : "already true"}`);
+    if (needsProtect && !dryRun) {
       await Folder.updateOne({ id: folder.id }, { $set: { "meta.protected": true } });
-      log("  stamped meta.protected");
     }
   }
 
@@ -56,23 +57,35 @@ export async function up({ gridId, models, log, dryRun }) {
 
   for (const t of templates) {
     const mod = modById[t.moduleId];
-    const label = t.meta?.templateName || mod?.label || "(unnamed)";
-    // Only ROOTS move — a signed child inside a template subtree is not itself
-    // a template, and re-parenting it would tear the subtree apart.
-    const isRoot = !occs.some(o => (o.occurrences || []).includes(t.id));
+    // Module-less occurrences are a documented recurring failure class on
+    // this exact grid (dangling create/disconnect races). Don't guess what
+    // to do with a phantom node — log it and leave it alone.
+    if (!mod) {
+      const dangLabel = t.meta?.templateName || "(unnamed)";
+      log(`  skip occ ${t.id} ("${dangLabel}") — moduleId ${t.moduleId} resolves to no module (dangling); leaving alone`);
+      continue;
+    }
+    const label = t.meta?.templateName || mod.label || "(unnamed)";
+    // The wrapper this migration mints for t (deterministic id, derived from
+    // t.id) is not a "template t is nested inside" — it's t's OWN wrapper,
+    // possibly left behind by a prior run that was interrupted after minting
+    // it but before clearing t's markers. Exclude it by id so a resumed run
+    // still recognizes t as a root instead of skipping it forever.
+    const wrapOccId = `tplwrap-occ-${t.id}`;
+    const isRoot = !occs.some(o => o.id !== wrapOccId && (o.occurrences || []).includes(t.id));
     if (!isRoot) { log(`  skip "${label}" — nested inside another template`); continue; }
 
-    if (mod?.role === "page") {
+    if (mod.role === "page") {
       log(`  "${label}" is already a page → move to ${folder.id}`);
       if (!dryRun) await Occurrence.updateOne({ gridId, id: t.id }, { $set: { parentId: folder.id } });
     } else {
-      log(`  "${label}" is a ${mod?.role} → wrap in a page, then move`);
+      const wrapModId = `tplwrap-mod-${t.id}`;
+      log(`  "${label}" is a ${mod.role} → wrap in a page, then move`);
+      log(`    wrapper module=${wrapModId} occurrence=${wrapOccId}`);
       if (!dryRun) {
-        const wrapModId = `tplwrap-mod-${t.id}`;
-        const wrapOccId = `tplwrap-occ-${t.id}`;
         await Module.findOneAndUpdate({ id: wrapModId }, {
           id: wrapModId, gridId, userId: t.userId, label,
-          role: "page", kind: mod?.kind || "doc", fieldBindings: [], meta: {},
+          role: "page", kind: mod.kind || "doc", fieldBindings: [], meta: {},
         }, { upsert: true });
         await Occurrence.findOneAndUpdate({ id: wrapOccId }, {
           id: wrapOccId, gridId, userId: t.userId, moduleId: wrapModId,
@@ -86,7 +99,7 @@ export async function up({ gridId, models, log, dryRun }) {
     // 3. Markers are no longer how a template is identified.
     if (!dryRun) {
       await Occurrence.updateOne({ gridId, id: t.id }, { $unset: { "meta.templateName": "" } });
-      if (mod) await Module.updateOne({ gridId, id: mod.id }, { $unset: { "meta.templateModule": "" } });
+      await Module.updateOne({ gridId, id: mod.id }, { $unset: { "meta.templateModule": "" } });
     }
   }
 
