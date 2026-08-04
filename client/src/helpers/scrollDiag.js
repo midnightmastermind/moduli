@@ -377,6 +377,17 @@ function armCellSwitchDiag() {
         note: `rail tap → longest main-thread block ${Math.round(maxGap)}ms`,
         maxGapMs: Math.round(maxGap), blockedMs: Math.round(blocked), frames,
         rowsAtStart: document.querySelectorAll(".instance-wrap").length,
+        // The blocking GROWS with every tap (607→404→2593→3992→5758ms measured
+        // 2026-08-04), and a re-render is a FIXED cost — so something is
+        // accumulating. These three separate the candidates:
+        //   animations climbing  → AutoMarquee's `infinite` animations are not
+        //                          being torn down (Gecko handles many badly)
+        //   domNodes climbing    → a mount/unmount leak
+        //   neither              → the work is per-switch and genuinely growing
+        //                          for another reason
+        animations: (() => { try { return document.getAnimations().length; } catch { return -1; } })(),
+        domNodes: document.getElementsByTagName("*").length,
+        editors: document.querySelectorAll(".ProseMirror").length,
         durationMs: Math.round(now - t0),
         ua: navigator.userAgent, dpr: window.devicePixelRatio,
         viewport: `${window.innerWidth}x${window.innerHeight}`,
