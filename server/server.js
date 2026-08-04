@@ -322,7 +322,7 @@ io.on("connection", (socket) => {
     try {
       if (d.kind === "cell-switch") {
         console.log(`📉 [scroll] CELL-SWITCH ${d.verdict} user=${socket.userId} `
-          + `maxBlock=${d.maxGapMs}ms react=${d.reactMs}ms paint=${d.paintMs}ms blocked=${d.blockedMs}ms frames=${d.frames} `
+          + `maxBlock=${d.maxGapMs}ms react=${d.reactMs}ms preReact=${d.preReactMs}ms gridRender=${d.gridRenderMs}ms paint=${d.paintMs}ms blocked=${d.blockedMs}ms frames=${d.frames} `
           + `rows=${d.rowsAtStart} animations=${d.animations} domNodes=${d.domNodes} `
           + `renders=${JSON.stringify(d.renders || {})} ops=${JSON.stringify(d.ops || {})} editors=${d.editors} build=${d.build} ${d.viewport}@${d.dpr}x ua=${(d.ua || "").slice(-30)}`);
         return;

@@ -369,9 +369,24 @@ function renderOverlay() {
 // two — everything before it is React, everything after is layout+paint — and
 // the two need opposite fixes, so guessing between them is not acceptable.
 let _pendingSwitch = null;
+// Grid calls this at the TOP of its render body. Nothing else renders on a tap
+// (renders={all zero}) and no operations run (ops={runs:0}), so if the ~450ms
+// is anywhere in React it is inside Grid's own render — its useMemos recompute
+// over the whole grid state. This measures that directly.
+let _gridRenderStart = null;
+export function markGridRenderStart() {
+  if (_pendingSwitch && _pendingSwitch.commitAt == null) _gridRenderStart = performance.now();
+}
+
 export function markCellSwitchCommit() {
   if (_pendingSwitch && _pendingSwitch.commitAt == null) {
     _pendingSwitch.commitAt = performance.now();
+    // Time spent INSIDE Grid's render body, vs time before React even started.
+    _pendingSwitch.gridRenderMs = _gridRenderStart != null
+      ? Math.round(_pendingSwitch.commitAt - _gridRenderStart) : -1;
+    _pendingSwitch.preReactMs = _gridRenderStart != null
+      ? Math.round(_gridRenderStart - _pendingSwitch.t0) : -1;
+    _gridRenderStart = null;
   }
 }
 
@@ -404,6 +419,10 @@ function armCellSwitchDiag() {
         // The decomposition. reactMs is React building + committing the tree;
         // paintMs is the browser doing layout + paint afterwards.
         reactMs: sw.commitAt != null ? Math.round(sw.commitAt - t0) : -1,
+        // The split that matters now: was the time spent INSIDE Grid's render,
+        // or before React was even entered (i.e. in the tap handler / scheduling)?
+        gridRenderMs: sw.gridRenderMs ?? -1,
+        preReactMs: sw.preReactMs ?? -1,
         paintMs: (sw.commitAt != null && sw.paintAt != null) ? Math.round(sw.paintAt - sw.commitAt) : -1,
         index: 0, arm: "cell-switch", verdict: maxGap > 250 ? "MAIN-THREAD" : "OK",
         note: `rail tap → longest main-thread block ${Math.round(maxGap)}ms`,

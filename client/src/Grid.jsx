@@ -24,7 +24,7 @@ import { GridDataContext } from "./GridDataContext";
 import { useGridActions } from "./GridActionsContext";
 import { GridLiveContext } from "./GridLiveContext";
 import { useActiveCell, useZoomedOut } from "./state/activeCellStore";
-import { markCellSwitchCommit } from "./helpers/scrollDiag";
+import { markCellSwitchCommit, markGridRenderStart } from "./helpers/scrollDiag";
 
 import { DragProvider } from "./helpers/DragProvider";
 import { useDragContext, useDragStateContext, useDragHotContext, useDroppable, DropAccepts } from "./helpers/dragSystem";
@@ -497,6 +497,7 @@ function GridInner() {
     setActiveCell,
     setZoomedOut,
   } = useContext(GridLiveContext);
+  markGridRenderStart();   // top of the render body — see scrollDiag
   // Subscribed here rather than pulled from the context, so a cell change
   // re-renders the grid shell WITHOUT invalidating the context that every
   // memoised panel and page consumes.
