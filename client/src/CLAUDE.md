@@ -258,6 +258,27 @@ baseline                                    41.3ms   77ms       54          10,2
 content-visibility on rows + containers     16.9ms   32ms        1          11,672
 content-visibility on ROWS only (79px)      23.0ms   54ms       22          11,672
 ```
+**2026-08-04 — I MEASURED THE WRONG HALF, and three attempts to measure the right half FAILED.**
+User clarified: the blank things are the **instance ROWS inside** the Routines containers, and
+*"the first time it happens, after that it seems better."* Frame time is not that quantity.
+Three probes, all discarded — recorded so nobody repeats them:
+1. **time-to-content per container** — pass 1 and pass 2 came back IDENTICAL to the row, because
+   ~18 of the tracked containers are *structurally* empty (sub-category shells holding containers,
+   not rows). The metric counted those as "blank" forever, so it could not discriminate.
+2. **row-count-over-time during a wheel scroll** — reported "row count never changed", but
+   `scrollTop` read `1211 → 1211`: **the scroll never happened**, so the conclusion was vacuous.
+   It also tracked only 8 containers / 14 rows out of 149.
+3. Both ran against **test grid 2** with a minted token (the saved e2e auth is a stale test user on
+   localhost, and its grid no longer exists — so the earlier 10,239px figure was a DIFFERENT grid).
+**The likely reason a DOM probe cannot see this at all:** if the rows are in the DOM the whole time
+and the blank is the compositor not having rasterized them, every DOM-based metric will report
+"content present" and find nothing. That is consistent with the 24fps measurement. It is NOT
+established — and headless raster fidelity is not a phone's, so this probably has to be measured on
+the device or with a trace, not with `querySelectorAll`.
+**Caution on the candidate fix:** `content-visibility: auto` skips offscreen rendering, which can
+*itself* cause blank-on-fast-scroll. It is A/B'd for FRAME TIME only. Do not assume it fixes the
+blank; that has never been measured.
+
 Rows+containers is the clear winner (~24fps → ~59fps) and unmounts NOTHING, so refs, drop targets
 and editor state are untouched. **Why it is not shipped:** both variants inflate the scroller from
 10,239 → 11,672px (~14%), and it is NOT a wrong `contain-intrinsic-size` guess — the rows-only run

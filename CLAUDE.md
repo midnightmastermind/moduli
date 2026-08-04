@@ -39,6 +39,23 @@ error (a module present in cache but not Mongo lets its occurrence reference not
   while still-cached ones sailed through.
 - **A/B on the test**: 2 fail without the fix, 3 pass with it.
 
+**PARTIAL RETRACTION, same day.** The phantom is real and the fix is correct hardening — but it is
+**NOT what produced the refs observed on 08-04.** Probing again after deploying it reproduced 15
+fresh dangling refs on test grid 2, and prod logs for those exact ids show `create_occurrence START`
+→ **`DONE`**: they PERSISTED, then were deleted afterwards while the parent kept listing them. So
+the cause is on the DELETE path, not the create path. `delete_occurrence` is not queued, its parent
+cleanup was a whole-document read-modify-write with one await PER PARENT against a single snapshot,
+and a sweep across the two feed pages runs many handlers at once — the stale-second-parent write is
+the candidate. Changed to an atomic `$pull` (`2a269f17`) — but **that is explicitly UNPROVEN**: the
+test does not reproduce the race (it passes against the unfixed code too), so it is hardening, not a
+demonstrated fix. **Do not record this class as solved.**
+
+**Also found, NOT chased:** `sweepOrphans.js` and `gridIntegrity.js` **disagree** — the sweep reports
+zero dangling refs while `checkGrid` reports 2, because those children exist as documents carrying
+`gridId: null` (the 48 the sweep deliberately refuses to touch as possibly mid-flight). A global
+lookup says they exist; a grid-scoped one says they do not. One predicate is wrong. Reconcile them
+before trusting either for this error class.
+
 **A wrong theory, recorded because discarding it was the useful step.** I first blamed a lost update
 in `delete_occurrence`'s parent cleanup (a read-modify-write of the whole document, with concurrent
 deletes). Plausible, and the code really is shaped that way — but the test did NOT reproduce it: the
