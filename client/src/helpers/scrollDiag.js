@@ -46,11 +46,26 @@
 import { socket } from "../socket.js";
 import { safeEmit } from "./offlineQueue.js";
 
-// OPT-IN now (same course as helpers/caretDiag.js once its fix was verified):
-// the mobile Routines scroll is fixed and measured, so this no longer paints an
-// overlay or reports on every scroll. Re-enable with `window.__scrollDiag = true`
-// BEFORE scrolling — the A/B arms and the server reporting still work.
-const on = () => typeof window !== "undefined" && window.__scrollDiag === true;
+// TWO modes, because a phone has no console but also should not have a debug
+// panel thrown over the app it is trying to use:
+//
+//   default on TOUCH devices — measure and report to the server SILENTLY. No
+//     overlay, and no A/B arms (those change what you see, which is fine for a
+//     deliberate experiment and rude in normal use).
+//   `window.__scrollDiag = true` — verbose: overlay + the A/B arms.
+//
+// Desktop stays off entirely; every problem this has found was mobile-only.
+// Opt out with `window.__scrollDiag = false`.
+const isTouchDevice = () => typeof window !== "undefined"
+  && typeof window.matchMedia === "function"
+  && window.matchMedia("(pointer: coarse)").matches;
+
+const on = () => {
+  if (typeof window === "undefined") return false;
+  if (window.__scrollDiag === false) return false;
+  return window.__scrollDiag === true || isTouchDevice();
+};
+const verbose = () => typeof window !== "undefined" && window.__scrollDiag === true;
 
 const MAX_SESSIONS = 4;        // baseline + one per suspect (see ARMS)
 
@@ -158,12 +173,13 @@ function endSession() {
   try { s.po?.disconnect(); } catch { /* ignore */ }
   sessions.push(s);
   // Set up the NEXT arm, or clean up once every suspect has had a turn.
-  if (sessions.length < MAX_SESSIONS) applyArm(sessions.length);
+  if (!verbose()) { document.getElementById("scroll-diag-arm")?.remove(); }
+  else if (sessions.length < MAX_SESSIONS) applyArm(sessions.length);
   else document.getElementById("scroll-diag-arm")?.remove();
 
   // eslint-disable-next-line no-console
   console.log(`[scroll] burst #${s.index} ${s.verdict.code} — ${s.verdict.text}`, s);
-  renderOverlay();
+  if (verbose()) renderOverlay();
 
   // Also REPORT IT. A phone has no console and screenshots keep going astray,
   // so the numbers ride the existing socket to the server, where they land in
@@ -399,5 +415,5 @@ export function armScrollDiag() {
   window.__scrollDiagShow = renderOverlay;
   window.__scrollDiagData = () => sessions;
   // eslint-disable-next-line no-console
-  console.log("[scroll] diagnostic armed — scroll Routines; a summary appears on screen. Mute: window.__scrollDiag = false");
+  if (verbose()) console.log("[scroll] diagnostic armed — scroll Routines; a summary appears on screen. Mute: window.__scrollDiag = false");
 }
