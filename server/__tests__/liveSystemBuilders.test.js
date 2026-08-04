@@ -214,6 +214,18 @@ function collectBareIdLeaks(node, path = "") {
 }
 
 describe("schedule ops", () => {
+  it("RE-LINKS a slot that exists but is missing from the day-col's occurrences[]", () => {
+    // The existence check matches by parentId, which a created-but-unlisted
+    // slot still carries — so the op skipped it and never added it to the
+    // array the renderer reads. That is how a day rendered from 7:00am with
+    // its first 14 slots (and the items inside them) invisible, 2026-08-03.
+    // ADD_CHILD is idempotent, so this is a no-op on a healthy day.
+    const op = makeScheduleBuildScheduleOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS", scheduleFormatFieldId: "SF", goalsPageOccId: "GP", schedulePageOccId: "SP", dayContainerOccId: "DAY" });
+    const json = JSON.stringify(op.pipeline);
+    // The slot-exists ELSE branch must re-assert the parent link.
+    expect(json).toContain('"type":"ADD_CHILD","parentId":"$dayColId","childId":"$slotCopyId"');
+  });
+
   it("Build Schedule op has no hand-typed bare ids — every entity ref goes through a picker / runtime var", () => {
     const op = makeScheduleBuildScheduleOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS", scheduleFormatFieldId: "SF", goalsPageOccId: "GP", schedulePageOccId: "SP", dayContainerOccId: "DAY" });
     // The seed-time picker-direct bindings (INIT_VAR $schedPage expr:

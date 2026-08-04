@@ -1343,7 +1343,28 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                               }}],
                             },
                           ],
-                          else: [],
+                          // The copy already exists — but "exists" is matched by
+                          // parentId, and a slot can carry parentId while being
+                          // ABSENT from the day-col's occurrences[], which is what
+                          // the renderer actually reads. That happens whenever a
+                          // client goes away mid-build: create_occurrence is queued
+                          // server-side and survives, the parent-list write is a
+                          // separate update_occurrence and does not (documented
+                          // 2026-07-29 asymmetry). The result is a day that renders
+                          // from 7:00am because its first 14 slots are created but
+                          // unlisted — with the user's items invisible inside them.
+                          //
+                          // ADD_CHILD is idempotent (it no-ops when the id is
+                          // already in the array), so re-asserting the link costs
+                          // nothing on a healthy day and repairs a partial one on
+                          // the next fire. Without this the op could only self-heal
+                          // a day-col that was entirely EMPTY, never a half-linked
+                          // one — the gap flagged on 2026-07-30 and left open.
+                          else: [
+                            { id: uid(), type: "action", config: {
+                                type: "ADD_CHILD", parentId: "$dayColId", childId: "$slotCopyId",
+                            }},
+                          ],
                         },
                       ],
                     },
