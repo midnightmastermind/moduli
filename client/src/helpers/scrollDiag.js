@@ -331,6 +331,48 @@ function renderOverlay() {
  * Listens in the CAPTURE phase because the scroller is a nested element and
  * scroll events do not bubble.
  */
+/**
+ * Measure a mobile RAIL TAP: how long the main thread is blocked between the
+ * tap and the destination cell actually painting. The slider transform has been
+ * immediate since 2026-07-27 (0.9ms on desktop), so what the user feels as "a
+ * hot second" is the re-render behind it — and a desktop probe cannot feel that.
+ * rAF gaps are the signal here for the same reason they are during a scroll:
+ * rAF runs on the main thread, and it needs no browser API Firefox lacks.
+ */
+function armCellSwitchDiag() {
+  document.addEventListener("pointerup", (e) => {
+    if (!on()) return;
+    if (!e.target?.closest?.(".mobile-rail-btn")) return;
+
+    const t0 = performance.now();
+    let last = t0, maxGap = 0, blocked = 0, frames = 0;
+    const tick = () => {
+      const now = performance.now();
+      const dt = now - last;
+      last = now;
+      frames++;
+      if (dt > maxGap) maxGap = dt;
+      if (dt > 50) blocked += dt;
+      if (now - t0 < 2000) { requestAnimationFrame(tick); return; }
+
+      const payload = {
+        kind: "cell-switch",
+        index: 0, arm: "cell-switch", verdict: maxGap > 250 ? "MAIN-THREAD" : "OK",
+        note: `rail tap → longest main-thread block ${Math.round(maxGap)}ms`,
+        maxGapMs: Math.round(maxGap), blockedMs: Math.round(blocked), frames,
+        rowsAtStart: document.querySelectorAll(".instance-wrap").length,
+        durationMs: Math.round(now - t0),
+        ua: navigator.userAgent, dpr: window.devicePixelRatio,
+        viewport: `${window.innerWidth}x${window.innerHeight}`,
+      };
+      // eslint-disable-next-line no-console
+      console.log(`[scroll] cell-switch — blocked ${payload.maxGapMs}ms`, payload);
+      try { safeEmit(socket, "save_scroll_diag", payload); } catch { /* never break the page */ }
+    };
+    requestAnimationFrame(tick);
+  }, { capture: true, passive: true });
+}
+
 export function armScrollDiag() {
   if (armed || typeof window === "undefined" || !on()) return;
   armed = true;
@@ -353,6 +395,7 @@ export function armScrollDiag() {
 
   window.addEventListener("scroll", onScroll, { capture: true, passive: true });
 
+  armCellSwitchDiag();
   window.__scrollDiagShow = renderOverlay;
   window.__scrollDiagData = () => sessions;
   // eslint-disable-next-line no-console

@@ -22,6 +22,7 @@ import { allPanelOccIds } from "./helpers/bspTree";
 import { GridDataContext } from "./GridDataContext";
 import { useGridActions } from "./GridActionsContext";
 import { GridLiveContext } from "./GridLiveContext";
+import { useActiveCell, useZoomedOut } from "./state/activeCellStore";
 
 import { DragProvider } from "./helpers/DragProvider";
 import { useDragContext, useDragStateContext, useDragHotContext, useDroppable, DropAccepts } from "./helpers/dragSystem";
@@ -491,11 +492,14 @@ function GridInner() {
     isProcessing,
     isTouch,
     isMobileLayout,
-    activeCell,
     setActiveCell,
-    zoomedOut,
     setZoomedOut,
   } = useContext(GridLiveContext);
+  // Subscribed here rather than pulled from the context, so a cell change
+  // re-renders the grid shell WITHOUT invalidating the context that every
+  // memoised panel and page consumes.
+  const activeCell = useActiveCell();
+  const zoomedOut = useZoomedOut();
 
   const grid = state.grid;
   const gridId = grid?._id;

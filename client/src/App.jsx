@@ -14,6 +14,7 @@ import LoginScreen from "./LoginScreen";
 import { GridDataContext } from "./GridDataContext";
 import { GridActionsContext } from "./GridActionsContext";
 import { GridLiveContext } from "./GridLiveContext";
+import { publishActiveCell, publishZoomedOut } from "./state/activeCellStore";
 
 import { useBoardState } from "./state/useBoardState";
 
@@ -861,6 +862,18 @@ export default function App() {
     publishComputedValues(state.computedValues || {});
   }, [state.computedValues]);
 
+  // activeCell / zoomedOut fan out through their own subscription store — NOT
+  // via GridLiveContext. ModulePanel and ModulePage read that context with a
+  // PLAIN useContext, so a new value bypasses their React.memo and re-renders
+  // every panel, page, container and instance row. They only ever read
+  // isMobileLayout / isTouch / fullStateLoaded, which never change — but riding
+  // activeCell alongside them meant one rail tap rebuilt the whole grid, which
+  // is the delay before the destination cell paints (2026-08-04, Samsung A15).
+  // The slider transform was already immediate (2026-07-27, 0.9ms); this is the
+  // half that was left. Same remedy as computedValues directly above.
+  useLayoutEffect(() => { publishActiveCell(activeCell); }, [activeCell]);
+  useLayoutEffect(() => { publishZoomedOut(zoomedOut); }, [zoomedOut]);
+
   // C4: Frequently-changing values in separate context — only consumers
   // that need undo/mobile state subscribe here
   const liveValue = useMemo(
@@ -873,9 +886,9 @@ export default function App() {
       isProcessing,
       isTouch,
       isMobileLayout,
-      activeCell,
+      // activeCell / zoomedOut deliberately NOT here — see the publish above.
+      // The setters are stable useState identities, so they cost nothing.
       setActiveCell,
-      zoomedOut,
       setZoomedOut,
     }),
     [
@@ -887,9 +900,7 @@ export default function App() {
       isProcessing,
       isTouch,
       isMobileLayout,
-      activeCell,
       setActiveCell,
-      zoomedOut,
       setZoomedOut,
     ]
   );

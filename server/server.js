@@ -320,6 +320,12 @@ io.on("connection", (socket) => {
   //   pm2 logs moduli --nostream --lines 500 | grep '\[scroll\]'
   socket.on("save_scroll_diag", (d = {}) => {
     try {
+      if (d.kind === "cell-switch") {
+        console.log(`📉 [scroll] CELL-SWITCH ${d.verdict} user=${socket.userId} `
+          + `maxBlock=${d.maxGapMs}ms blocked=${d.blockedMs}ms frames=${d.frames} `
+          + `rows=${d.rowsAtStart} ${d.viewport}@${d.dpr}x ua=${(d.ua || "").slice(-30)}`);
+        return;
+      }
       console.log(`📉 [scroll] ${d.verdict} burst#${d.index} arm=${d.arm} user=${socket.userId} `
         + `${d.viewport}@${d.dpr}x rows=${d.rowsAtStart} added=${d.rowsAdded} `
         + `unskipped=${d.unskipped} skippedAtStart=${d.skippedAtStart} `
