@@ -563,6 +563,16 @@ export function registerCrudHandlers(socket, {
           if (upsertErr.code === 11000) {
             await Model.findOneAndUpdate({ id }, { $set: next });
           } else {
+            // A create that never reached Mongo must not stay in the warm
+            // cache — the cache outlives the request and is read as truth by
+            // later connections. For a MODULE that is the `missing-module`
+            // integrity error: the module read as present, so its occurrence
+            // was allowed to reference it, and the reference names nothing.
+            // Same reasoning as handleCreateOccurrence; identity-checked so a
+            // newer write for this id is never dropped.
+            if (uc[cacheKey][id] === next) {
+              if (before) uc[cacheKey][id] = before; else delete uc[cacheKey][id];
+            }
             throw upsertErr;
           }
         }
@@ -986,6 +996,10 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
 
   async function handleCreateOccurrence(occurrence, actionId = null) {
     const _id = occurrence?.id || "?";
+    // Declared out here so the outer catch can reach them (see the cache
+    // rollback note where they are assigned).
+    let persisted = false;
+    let rollbackCache = () => {};
     try {
       // Bail on disconnect. Reason: each Build Day run mints fresh UUIDs for its
       // CREATE effects (executor doesn't support deterministic IDs yet). If the
@@ -1048,6 +1062,22 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
         ...(occurrence.dragMode != null && { dragMode: occurrence.dragMode }),
       };
       uc.occurrencesById[id] = occurrenceData;
+      // ── The warm cache must never outlive a create that did not persist ──
+      // The cache is populated HERE, before the write, so in-flight reads in
+      // the same burst can see the new row. But it also SURVIVES a disconnect
+      // (server.js stopped evicting it; it ages out on a 30-minute TTL), and
+      // `update_occurrence` decides whether a parent's occurrences[] entry
+      // names a real child by looking in this very cache. So a create that
+      // bails after this line leaves a phantom that the next connection's
+      // parent-list write launders into a PERSISTED dangling child ref — the
+      // integrity error swept on 2026-07-29, 07-30, 07-31, 08-03 and 08-04
+      // that always came back, because the sweep cleaned the database while
+      // the phantom sat in memory. Roll it back on every path that does not
+      // reach Mongo. The identity check matters: if another handler has since
+      // written this id, that object is real and must not be dropped.
+      rollbackCache = () => {
+        if (uc.occurrencesById[id] === occurrenceData) delete uc.occurrencesById[id];
+      };
       // Second disconnect check — between the start gate and the actual
       // Mongo write. The handler may have been queued behind a slow
       // Mongo round-trip (e.g. `await getUc()` cold-cache load) and the
@@ -1057,7 +1087,7 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
       // `request_full_state` query. Diagnostic baseline: a single
       // in-flight create from a disconnected socket held the pool for
       // 30s while the reload's Grid.findOne sat queued.
-      if (disconnected) { console.log("🟣 create_occurrence ABORT mid-handler (disconnected)", _id); return; }
+      if (disconnected) { rollbackCache(); console.log("🟣 create_occurrence ABORT mid-handler (disconnected)", _id); return; }
       try {
         // AbortSignal cancels the Mongo round-trip if the socket
         // disconnects mid-write. Without this, an in-flight upsert
@@ -1069,7 +1099,10 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
           { upsert: true, signal: abortController.signal }
         );
       } catch (upsertErr) {
-        if (disconnected && (upsertErr?.name === "AbortError" || /aborted/i.test(upsertErr?.message || ""))) return;
+        if (disconnected && (upsertErr?.name === "AbortError" || /aborted/i.test(upsertErr?.message || ""))) {
+          rollbackCache();
+          return;
+        }
         // E11000: an update_occurrence raced ahead and already inserted this id.
         // Fall back to id-only $set so the create still persists its data.
         if (upsertErr.code === 11000) {
@@ -1079,9 +1112,13 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
             { signal: abortController.signal }
           );
         } else {
+          rollbackCache();
           throw upsertErr;
         }
       }
+      // Past this point the row IS in Mongo, so the cache entry is truthful and
+      // must survive even if the parent $push below is cancelled.
+      persisted = true;
       if (disconnected) return; // bail before the parent push too
       // before:null marks a CREATE — undo deletes the document.
       recordChange({ model: "occurrence", id, before: null, after: occurrenceData, actionId, label: "Created item" });
@@ -1124,6 +1161,10 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
     } catch (err) {
       // Expected when disconnect aborts an in-flight write — not an
       // actual error, just the user reloaded mid-write.
+      // `persisted` discriminates WHICH write was cancelled: an aborted parent
+      // $push leaves a real row (keep the cache), an aborted occurrence upsert
+      // leaves nothing (drop it).
+      if (!persisted) rollbackCache();
       if (disconnected && (err?.name === "AbortError" || err?.name === "MongoServerSelectionError" || /aborted/i.test(err?.message || ""))) {
         console.log("🟣 create_occurrence ABORT in-flight (disconnected)", _id);
         return;
