@@ -114,6 +114,10 @@ const CONTEXT_ADD_KINDS = tileKindsForRole("instance").filter(
 import FieldRenderer from "../ui/FieldRenderer.jsx";
 import { resolveEditorBinding } from "../state/editorBindings.js";
 
+// Minimum children before a list opts into the browser off-screen skip.
+// Below this the skip costs more than it saves (see .container-list--long).
+export const LONG_LIST_MIN = 25;
+
 // ============================================================
 // HELPERS
 // ============================================================
@@ -1528,7 +1532,15 @@ function Container({
         /* List Container */
         <div
           ref={listDropRef}
-          className="container-list"
+          /* `--long` gates the off-screen skip (index.css, "#24 perf"). That
+             skip is applied per ROW, so on a page whose containers hold two or
+             three 36-60px rows it can never earn back the layout+paint each
+             flip costs — measured on a Samsung A15 (2026-08-04): 97 tracked
+             rows, 11 un-skipped mid-scroll, 63ms median frames and a burst
+             that moved 0.7px in 3.1s, with ZERO long tasks (so none of it was
+             our JS). Long boards are the case it was written for and keep it.
+             Structural, so it cannot drift as pages change shape. */
+          className={`container-list${items.length >= LONG_LIST_MIN ? " container-list--long" : ""}`}
           style={{
             flex: items.length === 0 ? 1 : "0 0 auto",
             minHeight: items.length === 0 ? 40 : "fit-content",

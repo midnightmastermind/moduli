@@ -235,7 +235,47 @@ exhaustive-deps errors (unrelated to dead code). Run `npm run lint` to see them.
   `/viafluere_sideways.png` was navy-on-transparent and died on dark cards) with an EMPTY alt so
   no caption block renders under the logo. Reseed required (already run on Atlas).
 
-## DOCKET — mobile Routines scroll: MEASURED 2026-08-03, fix candidate not shipped
+## mobile Routines scroll — SOLVED 2026-08-04: the off-screen skip was applied per ROW
+The user's own device settled it. `[scroll]` diagnostic (`helpers/scrollDiag.js`, on by default,
+renders an on-screen panel because a phone has no console) on a **Samsung A15**:
+```
+#1 SKIPPED  97 rows in DOM · 0 ADDED · 11 un-skipped mid-scroll
+            frames: median 63ms, missed 10/13 · long tasks 0 (0ms)
+            scrolled 792px of 9471 in 7675ms
+#2 SKIPPED  97 rows in DOM · 0 ADDED ·  7 un-skipped mid-scroll
+            frames: median 306ms, missed 2/3 · long tasks 0 (0ms)
+            scrolled 0.7px of 9538 in 3111ms      ← ~3fps, i.e. stuck
+```
+**`added to DOM 0` rules out mounting** — the rows were there the whole time. **`long tasks 0`
+rules out our JavaScript.** What remained was `content-visibility: auto`, which `.instance-wrap`
+had carried since the "#24 perf" change *shipped to cut LOAD time* — it defers each row's layout
+and paint to the moment you scroll to it.
+
+**The defect was GRANULARITY, not the idea.** It was on every ROW: 97 tracked elements across ~40
+containers holding two or three **36-60px** rows each. Skipping a 36px row saves almost nothing
+while each flip costs that row a full layout + paint. Now gated to `.container-list--long`
+(`LONG_LIST_MIN = 25`, stamped by `ModuleContainer` from its own child count, so it cannot drift),
+which keeps it for the 100+ children boards it was written for. Seed 60px → **44px**, the midpoint
+of the range actually measured on device.
+
+**Load-time A/B (5 runs each, 390×844, 4× throttle) — the check that decides it**, since load is
+what the optimisation exists for:
+```
+                     time to 20+ rows   first contentful paint   domInteractive
+gated (skip off)          7837ms              1260ms                 241ms
+every row (shipped)       7824ms              1108ms                 225ms
+```
+It buys **~150ms of FCP and nothing on time-to-content** (7.8s either way — that is the op drain,
+not rendering). 150ms once, against multi-second stalls on every first scroll.
+
+**Retracted from the entry below:** "nothing on this surface is virtualized or deferred" was WRONG
+— it was deferred, by our own CSS — and the fix I proposed was to ADD `content-visibility`, i.e.
+more of the cause. The 14% scroller inflation measured then was this seed being wrong, not a bad
+guess at intrinsic size. **Lesson: before proposing an optimisation, grep whether it is already
+there.** Three headless probes also failed to reproduce this (details below); the device did it in
+one scroll.
+
+## DOCKET — mobile Routines scroll: MEASURED 2026-08-03, fix candidate not shipped [SUPERSEDED]
 User: *"slowish when i scroll the first time and shows blank containers waiting for content"* —
 **the ROUTINES page**, not the Schedule (my first probe measured the wrong surface and found zero
 textblocks/preview cards, which is exactly the "verified an absence" trap; the census is what

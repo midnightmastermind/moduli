@@ -940,19 +940,37 @@ select:disabled { cursor: not-allowed; }
      (was 6/5 = 11px, which read as too much space between instances). */
   margin-top: 2px;
   margin-bottom: 2px;
-  /* #24 perf — browser-native off-screen skip. `content-visibility:
-     auto` lets the rendering engine skip layout + paint for items
-     outside the viewport (plus a small reserve area). `contain-
-     intrinsic-size` gives the browser a placeholder height so the
-     scrollbar / page geometry stays stable while items are skipped.
-     Width:auto lets the natural width flow; the height seed (60px)
-     is the typical instance row height — actual rendered items
-     replace this seed without reflowing siblings because they live
-     inside the same flex column. Falls back to no-op on unsupported
-     browsers (Chrome < 85). Works for 100+ board children without
-     a hard render cap. */
+  /* NOTE: the off-screen skip that used to live here is now scoped to
+     `.container-list--long` (below). It was applied to EVERY row, which is
+     the wrong granularity — see the measurement in that rule. */
+}
+
+/* #24 perf — browser-native off-screen skip, LONG LISTS ONLY.
+   `content-visibility: auto` lets the rendering engine skip layout + paint
+   for items outside the viewport (plus a small reserve area), and
+   `contain-intrinsic-size` gives a placeholder height so page geometry stays
+   stable while they are skipped. The `auto` keyword makes the browser
+   remember each row's real size once rendered, which is why a second pass is
+   always cheaper than the first.
+
+   WHY IT IS GATED (measured on a Samsung A15, 2026-08-04, via the on-device
+   `[scroll]` diagnostic): applied per ROW it tracked 97 elements across ~40
+   containers holding two or three 36-60px rows each. Skipping a 36px row
+   saves almost nothing, but every flip costs that row a full layout + paint —
+   11 rows un-skipped mid-scroll, median frame 63ms with 10 of 13 frames
+   missed, and a second burst that moved 0.7px in 3.1s at ~3fps. Long tasks
+   were ZERO throughout, so none of that was JavaScript: it was rendering work
+   this rule had deferred into the scroll. Below ~25 children the optimisation
+   cannot earn back its own bookkeeping.
+
+   The 100+ children boards it was written for still get it, without a hard
+   render cap. The seed is 44px — the midpoint of the 36-60px range actually
+   measured on device (the old 60px over-estimated most rows, so the scroller
+   shrank as they rendered and dragged content under the finger).
+   Falls back to a no-op on unsupported browsers (Chrome < 85). */
+.container-list--long .instance-wrap {
   content-visibility: auto;
-  contain-intrinsic-size: auto 60px;
+  contain-intrinsic-size: auto 44px;
 }
 
 .instance-wrap.is-dragging {
@@ -3394,8 +3412,11 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .wrap-group--on .wrap-group-content > * > :last-child .ProseMirror,
 .wrap-group--on .wrap-group-content > * > :last-child .container-shell { overflow: visible; }
 /* The host chain ALSO establishes formatting contexts that silently block the
-   wrap-under (this is why the L never happened): `.instance-wrap` has
-   `content-visibility:auto` (= layout containment = an independent FC), the
+   wrap-under (this is why the L never happened): `.instance-wrap` can have
+   `content-visibility:auto` (= layout containment = an independent FC) — only
+   inside `.container-list--long` since 2026-08-04, but the `!important` here
+   must stay regardless, because a wrap host inside a long list would still
+   hit it — the
    `.instance-row/content/body` are `display:flex`, and `.textblock-card` is
    `display:flow-root`. Each one makes the host a rectangle that sits BESIDE the
    float instead of letting its line-boxes flow under it. Neutralize the whole
