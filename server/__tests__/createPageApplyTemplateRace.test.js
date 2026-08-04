@@ -37,6 +37,12 @@ vi.mock("../utils/cloneSubtree.js", () => ({
     occurrenceIds: ["cloned-root-1"],
     moduleIds: [],
   })),
+  // mode:"merge" (what the create-page-from-template flow sends) routes here.
+  mergeSubtreeInto: vi.fn(async () => ({
+    occurrenceIds: ["cloned-root-1"],
+    moduleIds: [],
+    updatedParentIds: [],
+  })),
 }));
 
 const { registerCrudHandlers } = await import("../socketHandlers/crud.js");

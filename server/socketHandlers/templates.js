@@ -1,7 +1,14 @@
 // socketHandlers/templates.js — clone_subtree_as_template + apply_template + save_over_template
+//
+// Templates are the children of the one protected "Templates" folder — location
+// is the only marker. There is no templates manifest and no
+// meta.templateName / module.meta.templateModule; a template's NAME is its
+// module label, like any other page. See
+// docs/superpowers/specs/2026-08-02-template-editing-design.md
 import Occurrence from "../models/Occurrence.js";
 import Module from "../models/Module.js";
-import { cloneSubtree } from "../utils/cloneSubtree.js";
+import { cloneSubtree, mergeSubtreeInto } from "../utils/cloneSubtree.js";
+import { resolveTemplatesFolderId } from "../utils/templatesFolder.js";
 import { awaitPendingOccCreate } from "../utils/pendingOccCreates.js";
 
 export function registerTemplateHandlers(socket, {
@@ -14,26 +21,11 @@ export function registerTemplateHandlers(socket, {
     return ensureUserCache(userId, gId);
   };
 
-  // Verify a folder belongs to the templates manifest of the active grid for
-  // this user. Used by clone_subtree_as_template + save_over_template (via the
-  // template root's existing parentId) to refuse cross-user / cross-manifest
-  // template writes. Falls back to the templates manifest root when no
-  // parentFolderId is supplied.
-  function resolveTemplatesParentFolderId(uc, gridId, parentFolderId) {
-    const tplManifest = Object.values(uc.manifestsById || {})
-      .find(m => m.gridId === gridId && m.userId === userId && m.manifestType === "templates");
-    if (!tplManifest) return null;
-    if (!parentFolderId) return tplManifest.rootFolderId;
-    // Walk up the folder chain to ensure parentFolderId is inside the templates
-    // manifest's tree for this user/grid. Caps at depth 16 as a paranoia guard.
-    let cur = uc.foldersById?.[parentFolderId];
-    for (let i = 0; cur && i < 16; i++) {
-      if (cur.userId !== userId || cur.gridId !== gridId) return null;
-      if (cur.id === tplManifest.rootFolderId) return parentFolderId;
-      cur = cur.parentId ? uc.foldersById?.[cur.parentId] : null;
-    }
-    return null;
-  }
+  // Where a template write may land: the protected Templates folder, or a
+  // subfolder of it. Used by clone_subtree_as_template + save_over_template (via
+  // the template root's existing parentId) to refuse writes outside it.
+  const templatesFolderFor = (uc, gridId, parentFolderId) =>
+    resolveTemplatesFolderId(uc, { gridId, userId, parentFolderId });
 
   function broadcastClones(uc, occIds, modIds) {
     for (const mId of modIds) {
@@ -55,16 +47,17 @@ export function registerTemplateHandlers(socket, {
       if (!userId || !sourceOccurrenceId) return;
       const uc = await getUc();
       const gridId = socket.data.activeGridId;
-      const resolvedParent = resolveTemplatesParentFolderId(uc, gridId, parentFolderId);
+      const resolvedParent = templatesFolderFor(uc, gridId, parentFolderId);
       if (!resolvedParent) {
-        socket.emit("server_error", "Invalid template folder");
+        socket.emit("server_error", "Templates folder not found");
         return;
       }
+      // COPY, never move: the source page stays exactly where it is. The name
+      // rides on the clone's module label — templates carry no marker.
       const r = await cloneSubtree({
         rootOccurrenceId: sourceOccurrenceId, userId, gridId, uc,
-        moduleMetaPatch: { templateModule: true },
-        occMetaPatch: { templateName: name },
         newParentId: resolvedParent,
+        rootLabel: name || null,
       });
       if (!r.rootClonedOccurrenceId) {
         socket.emit("server_error", "Template clone failed");
@@ -98,9 +91,33 @@ export function registerTemplateHandlers(socket, {
         socket.emit("server_error", "Apply target not found");
         return;
       }
+      // MERGE applies the template's CONTENTS, matching what is already there by
+      // identitySignature — structure flows in while the user's writing is left
+      // alone, and re-applying tops the page up instead of duplicating it. The
+      // other modes clone the template's wrapper in as a child, which is the
+      // "stamp a copy" behaviour.
+      if (mode === "merge") {
+        const m = await mergeSubtreeInto({
+          templateOccurrenceId, targetOccurrenceId, userId, gridId, uc,
+          occMetaPatch: { appliedFromTemplateId: templateOccurrenceId },
+        });
+        for (const pid of m.updatedParentIds) {
+          const parent = uc.occurrencesById[pid];
+          if (!parent) continue;
+          socket.emit("occurrence_updated", { occurrence: parent });
+          socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: parent });
+        }
+        broadcastClones(uc, m.occurrenceIds, m.moduleIds);
+        socket.emit("template_applied", {
+          rootOccurrenceId: targetOccurrenceId,
+          newOccurrenceIds: m.occurrenceIds,
+          newModuleIds: m.moduleIds,
+        });
+        return;
+      }
+
       const r = await cloneSubtree({
         rootOccurrenceId: templateOccurrenceId, userId, gridId, uc,
-        moduleMetaPatch: { templateModule: false },
         occMetaPatch: { appliedFromTemplateId: templateOccurrenceId },
         newParentId: targetOccurrenceId,
       });
@@ -142,21 +159,22 @@ export function registerTemplateHandlers(socket, {
         return;
       }
 
-      // Refuse if the old template's parent isn't inside this user's templates
-      // manifest (catches cross-user / mis-rooted templates before we delete).
-      const resolvedParent = resolveTemplatesParentFolderId(uc, gridId, oldRoot.parentId);
+      // Refuse if the old template isn't inside the protected Templates folder
+      // (catches cross-user / mis-rooted templates before we delete).
+      const resolvedParent = templatesFolderFor(uc, gridId, oldRoot.parentId);
       if (!resolvedParent) {
-        socket.emit("server_error", "Template is not in the templates manifest");
+        socket.emit("server_error", "Template is not in the Templates folder");
         return;
       }
+      // The template's name is its module label — carry it onto the new copy.
+      const oldName = uc.modulesById[oldRoot.moduleId]?.label || null;
 
       // Clone-first, delete-after. If the clone throws or produces no root,
       // the old template stays intact and the user sees an error toast.
       const r = await cloneSubtree({
         rootOccurrenceId: sourceOccurrenceId, userId, gridId, uc,
-        moduleMetaPatch: { templateModule: true },
-        occMetaPatch: { templateName: oldRoot.meta?.templateName },
         newParentId: resolvedParent,
+        rootLabel: oldName,
       });
       if (!r.rootClonedOccurrenceId) {
         socket.emit("server_error", "Template clone failed; old template left intact");
@@ -195,7 +213,7 @@ export function registerTemplateHandlers(socket, {
       socket.emit("template_saved_over", {
         oldTemplateId: templateOccurrenceId,
         newTemplateId: r.rootClonedOccurrenceId,
-        name: oldRoot.meta?.templateName || null,
+        name: oldName,
       });
     } catch (err) {
       console.error("save_over_template error:", err);
