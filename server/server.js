@@ -320,13 +320,14 @@ io.on("connection", (socket) => {
   //   pm2 logs moduli --nostream --lines 500 | grep '\[scroll\]'
   socket.on("save_scroll_diag", (d = {}) => {
     try {
-      console.log(`📉 [scroll] ${d.verdict} burst#${d.index} user=${socket.userId} `
+      console.log(`📉 [scroll] ${d.verdict} burst#${d.index} arm=${d.arm} user=${socket.userId} `
         + `${d.viewport}@${d.dpr}x rows=${d.rowsAtStart} added=${d.rowsAdded} `
         + `unskipped=${d.unskipped} skippedAtStart=${d.skippedAtStart} `
         + `frameMedian=${d.frameMedian}ms missed=${d.slowFrames} `
         + `longTasks=${d.longTasks}(${d.longTaskMs}ms) `
         + `seed=${d.seedPx} real=${d.realPx} scrolled=${Math.round(d.endTop - d.startTop)}px `
-        + `dur=${d.durationMs}ms ua=${(d.ua || "").slice(-40)}`);
+        + `dur=${d.durationMs}ms longtaskAPI=${d.supportsLongTask} cvEvent=${d.supportsCvEvent} `
+        + `ua=${(d.ua || "").slice(-40)}`);
     } catch { /* a diagnostic must never take the server down */ }
   });
 

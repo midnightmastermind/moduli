@@ -48,7 +48,31 @@ import { safeEmit } from "./offlineQueue.js";
 
 const on = () => typeof window !== "undefined" && window.__scrollDiag !== false;
 
-const MAX_SESSIONS = 3;        // the report is about the first scroll
+const MAX_SESSIONS = 4;        // baseline + one per suspect (see ARMS)
+
+// ── On-device attribution ──────────────────────────────────────────────────
+// Guessing which style is expensive has now cost several rounds, and headless
+// raster does not resemble this hardware. So each successive scroll burst runs
+// with ONE suspect neutralised and reports its own frame median: the arm that
+// drops it is the cause, measured on the device that actually has the problem.
+// Nothing here changes what ships — the overrides live only for the duration
+// of the measurement and are removed after the last burst.
+const ARMS = [
+  { name: "baseline", css: "" },
+  { name: "no-marquee", css: ".auto-marquee-inner{animation:none !important}" },
+  { name: "no-backdrop", css: "*{backdrop-filter:none !important;-webkit-backdrop-filter:none !important}" },
+  { name: "no-shadow", css: ".container-shell,.instance-wrap>.instance-row{box-shadow:none !important}" },
+];
+
+function applyArm(i) {
+  document.getElementById("scroll-diag-arm")?.remove();
+  const css = ARMS[i]?.css;
+  if (!css) return;
+  const el = document.createElement("style");
+  el.id = "scroll-diag-arm";
+  el.textContent = css;
+  document.head.appendChild(el);
+}
 const IDLE_END_MS = 700;       // a burst ends after this much stillness
 const MAX_BURST_MS = 12000;    // hard stop so a long scroll can't record forever
 const SLOW_FRAME_MS = 50;      // a frame this long is a visibly dropped one
@@ -129,6 +153,9 @@ function endSession() {
   try { s.mo?.disconnect(); } catch { /* ignore */ }
   try { s.po?.disconnect(); } catch { /* ignore */ }
   sessions.push(s);
+  // Set up the NEXT arm, or clean up once every suspect has had a turn.
+  if (sessions.length < MAX_SESSIONS) applyArm(sessions.length);
+  else document.getElementById("scroll-diag-arm")?.remove();
 
   // eslint-disable-next-line no-console
   console.log(`[scroll] burst #${s.index} ${s.verdict.code} — ${s.verdict.text}`, s);
@@ -143,6 +170,7 @@ function endSession() {
     safeEmit(socket, "save_scroll_diag", {
       ...rest,
       verdict: verdict.code,
+      arm: s.arm,
       note: verdict.text,
       ua: navigator.userAgent,
       supportsLongTask: SUPPORTS_LONGTASK,
@@ -158,6 +186,7 @@ function startSession(scroller) {
   const index = sessions.length + 1;
   const s = {
     index,
+    arm: ARMS[Math.min(index - 1, ARMS.length - 1)].name,
     t0: performance.now(),
     scroller,
     startTop: scroller.scrollTop,
@@ -267,7 +296,7 @@ function renderOverlay() {
     const seedBad = s.seedPx && s.realPx && Math.abs(s.realPx - s.seedPx) / s.realPx > 0.15;
     return `
       <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.12)">
-        <b style="color:${colour}">#${s.index} ${s.verdict.code}</b>
+        <b style="color:${colour}">#${s.index} ${s.verdict.code}</b> <span style="opacity:.7">[${s.arm}]</span>
         <span style="opacity:.8"> ${s.verdict.text}</span><br>
         rows in DOM at start <b>${s.rowsAtStart}</b> ·
         skipped at start <b style="color:#c9a0ff">${s.skippedAtStart}</b> ·
@@ -287,7 +316,7 @@ function renderOverlay() {
       <span style="opacity:.65">tap to dismiss</span>
     </div>${rows}
     <div style="margin-top:8px;opacity:.6">
-      MOUNT = rows missing · SKIPPED = content-visibility deferred them · PAINT = main thread · RASTER = GPU
+      Scroll again — each pass disables one suspect (marquee / backdrop / shadow).<br>The pass whose frame median drops is the cause. ${sessions.length}/${MAX_SESSIONS} done.
     </div>`;
   box.addEventListener("click", () => box.remove());
   document.body.appendChild(box);
