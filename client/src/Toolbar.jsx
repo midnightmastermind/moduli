@@ -25,6 +25,7 @@ import SelectionStatusBanner from "./ui/SelectionStatusBanner";
 import FilterNavWidget from "./ui/FilterNavWidgets";
 import { useGridActions } from "./GridActionsContext";
 import * as CommitHelpers from "./helpers/CommitHelpers";
+import { useActiveCell, useZoomedOut, setActiveCell, setZoomedOut } from "./state/activeCellStore";
 
 export default function Toolbar({
   gridId,
@@ -44,11 +45,11 @@ export default function Toolbar({
   onLogout,
   // Mobile grid navigation
   isMobileLayout,
-  activeCell,
-  setActiveCell,
-  zoomedOut,
-  setZoomedOut,
 }) {
+  // Subscribed here — App no longer holds navigation state, so a cell change
+  // never re-renders the root (see state/activeCellStore).
+  const activeCell = useActiveCell();
+  const zoomedOut = useZoomedOut();
   const [toolbarVisible, setToolbarVisible] = useState(true);
   const [accountOpen, setAccountOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);

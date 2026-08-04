@@ -38,6 +38,50 @@ function subscribe(fn) {
 /** Publish the active cell. No-ops when unchanged BY VALUE — MobileGridNav
  *  hands a fresh `{row,col}` object on every render, so an identity check
  *  would wake every subscriber on each one. */
+// The store OWNS the value now — App no longer holds it in useState. Keeping it
+// there meant every rail tap re-rendered App by definition, and App is the root:
+// its own render plus the second pass this store triggers in Grid is the ~450ms
+// block measured on 2026-08-04. The render counters read zero only because App
+// and Grid carry none — an absent signal, not a measurement of zero, which is
+// the same mistake the Firefox longtask reading produced earlier that day.
+let _gridId = null;
+
+/** Point the store at a grid and restore that grid's saved cell. Imperative on
+ *  purpose: App must not re-render for navigation state. */
+export function initActiveCellForGrid(gridId, rows = 1, cols = 1) {
+  _gridId = gridId || null;
+  let next = { row: 0, col: 0 };
+  try {
+    const saved = JSON.parse(localStorage.getItem("moduli-activeCell-" + gridId));
+    if (saved && typeof saved.row === "number" && typeof saved.col === "number") {
+      next = { row: Math.min(saved.row, rows - 1), col: Math.min(saved.col, cols - 1) };
+    }
+  } catch { /* corrupt entry — fall back to the origin cell */ }
+  _cell = next;
+  _zoomedOut = false;
+  emit();
+}
+
+/** THE setter. Accepts a value or an updater, like the useState it replaces, so
+ *  call sites (MobileGridNav's back-to-back taps compose via the updater form)
+ *  did not have to change. Persists as a side effect. */
+export function setActiveCell(next) {
+  const value = typeof next === "function" ? next(_cell) : next;
+  if (!value) return;
+  if (_cell.row === value.row && _cell.col === value.col) return;
+  _cell = { row: value.row, col: value.col };
+  if (_gridId) {
+    try { localStorage.setItem("moduli-activeCell-" + _gridId, JSON.stringify(_cell)); }
+    catch { /* private mode / quota — navigation still works */ }
+  }
+  emit();
+}
+
+export function setZoomedOut(next) {
+  const value = typeof next === "function" ? next(_zoomedOut) : next;
+  publishZoomedOut(value);
+}
+
 export function publishActiveCell(cell) {
   const next = cell || { row: 0, col: 0 };
   if (_cell.row === next.row && _cell.col === next.col) return;

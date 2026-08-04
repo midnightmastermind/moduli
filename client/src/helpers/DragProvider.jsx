@@ -31,6 +31,7 @@ import { buildDropContext, buildRawDropEvent, DROP_TARGET_KIND, collectMemberCar
 import { snapshotRenders, diffRenders, snapshotAttrs, diffAttrs } from "./renderProbe";
 import { dragPerf } from "./dragPerf";
 import { computeAutoscroll, autoscrollSpeed, pointerNearRect, canScrollFurther, maxScrollTopFor } from "./autoscrollMath";
+import { getActiveCell, setActiveCell as storeSetActiveCell } from "../state/activeCellStore";
 
 // ============================================================
 // UTILITIES
@@ -186,8 +187,6 @@ export function DragProvider({
   colSizes = [],
   visiblePanels = [],
   onTick,
-  activeCell,
-  setActiveCell,
   isTouch,
   isMobileLayout,
 }) {
@@ -228,8 +227,10 @@ export function DragProvider({
 
   const pointerRef = useRef({ x: 0, y: 0 });
   // B3: Stable ref for values that change but don't need to recreate callbacks
-  const dragConfigRef = useRef({ activeCell, setActiveCell, rows, cols, isTouch, isMobileLayout });
-  dragConfigRef.current = { activeCell, setActiveCell, rows, cols, isTouch, isMobileLayout };
+  // Cell is read from the store at EVENT time, not captured here — drag
+  // edge-nav must not re-register its listeners every time the cell moves.
+  const dragConfigRef = useRef({ rows, cols, isTouch, isMobileLayout });
+  dragConfigRef.current = { rows, cols, isTouch, isMobileLayout };
   const rafRef = useRef(0);
   // Mobile drag-to-edge cell navigation timer
   const dragEdgeTimerRef = useRef(null);
@@ -762,7 +763,8 @@ export function DragProvider({
       // advances. Long enough to feel deliberate (not triggered by accidental
       // edge-grazes during a normal drop) but short enough to feel responsive.
       const dc = dragConfigRef.current;
-      if (dc.isMobileLayout && dc.activeCell && dc.setActiveCell) {
+      const activeCell = getActiveCell();
+      if (dc.isMobileLayout && activeCell) {
         const edgeZone = 60;
         // Time-based continuous nav: while the pointer is held at the edge it
         // advances one panel every EDGE_DWELL_MS. Long enough to move through
@@ -778,10 +780,10 @@ export function DragProvider({
         // a corner only ever moved cardinally and the diagonal buttons had no
         // drag-hover path (user 2026-07-17).
         let dCol = 0, dRow = 0;
-        if (clientX < edgeZone && dc.activeCell.col > 0) dCol = -1;
-        else if (clientX > vw - edgeZone && dc.activeCell.col < dc.cols - 1) dCol = 1;
-        if (clientY < edgeZone + 30 && dc.activeCell.row > 0) dRow = -1;
-        else if (clientY > vh - edgeZone && dc.activeCell.row < dc.rows - 1) dRow = 1;
+        if (clientX < edgeZone && activeCell.col > 0) dCol = -1;
+        else if (clientX > vw - edgeZone && activeCell.col < dc.cols - 1) dCol = 1;
+        if (clientY < edgeZone + 30 && activeCell.row > 0) dRow = -1;
+        else if (clientY > vh - edgeZone && activeCell.row < dc.rows - 1) dRow = 1;
         let dir = null;
         if (dCol || dRow) {
           const parts = [];
@@ -799,7 +801,7 @@ export function DragProvider({
             dragEdgeIndicatorRef.current = el;
           }
           dragEdgeTimerRef.current = setTimeout(() => {
-            dc.setActiveCell(prev => ({
+            storeSetActiveCell(prev => ({
               row: clamp(prev.row + dir.dRow, 0, dc.rows - 1),
               col: clamp(prev.col + dir.dCol, 0, dc.cols - 1),
             }));

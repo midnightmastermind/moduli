@@ -14,7 +14,7 @@ import LoginScreen from "./LoginScreen";
 import { GridDataContext } from "./GridDataContext";
 import { GridActionsContext } from "./GridActionsContext";
 import { GridLiveContext } from "./GridLiveContext";
-import { publishActiveCell, publishZoomedOut } from "./state/activeCellStore";
+import { setActiveCell, setZoomedOut, initActiveCellForGrid, getActiveCell } from "./state/activeCellStore";
 
 import { useBoardState } from "./state/useBoardState";
 
@@ -325,8 +325,10 @@ export default function App() {
       document.removeEventListener("contextmenu", onCtx, true);
     };
   }, []);
-  const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
-  const [zoomedOut, setZoomedOut] = useState(false);
+  // activeCell / zoomedOut live in state/activeCellStore, NOT here. Holding them
+  // in App state meant every rail tap re-rendered the ROOT component by
+  // definition — that is the ~450ms block, and no amount of memoisation below
+  // App can avoid it. Components that need the value subscribe to the store.
   const [gridSwitchRetrying, setGridSwitchRetrying] = useState(false);
 
   // Multi-select state (shift+click selection, bulk actions). Lives at App
@@ -546,28 +548,14 @@ export default function App() {
     return () => clearInterval(id);
   }, [isSwitchingGrid, state.gridId]);
 
-  // Reset activeCell + zoomedOut when grid changes — restore from localStorage if available
+  // Restore this grid's saved cell. Imperative — the store persists on write,
+  // so App neither holds the value nor re-renders when it changes.
   useEffect(() => {
     if (!state.gridId) return;
-    try {
-      const saved = JSON.parse(localStorage.getItem("moduli-activeCell-" + state.gridId));
-      const rows = state.grid?.rows ?? 1;
-      const cols = state.grid?.cols ?? 1;
-      if (saved && typeof saved.row === "number" && typeof saved.col === "number") {
-        setActiveCell({ row: Math.min(saved.row, rows - 1), col: Math.min(saved.col, cols - 1) });
-      } else {
-        setActiveCell({ row: 0, col: 0 });
-      }
-    } catch { setActiveCell({ row: 0, col: 0 }); }
-    setZoomedOut(false);
+    initActiveCellForGrid(state.gridId, state.grid?.rows ?? 1, state.grid?.cols ?? 1);
   }, [state.gridId, state.grid?.rows, state.grid?.cols]);
 
-  // Persist activeCell to localStorage when it changes
-  // Guard: only save when grid is loaded (prevents overwriting saved position with {0,0} during init)
-  useEffect(() => {
-    if (!state.gridId || !state.grid) return;
-    localStorage.setItem("moduli-activeCell-" + state.gridId, JSON.stringify(activeCell));
-  }, [activeCell, state.gridId, state.grid]);
+  // (persistence moved into activeCellStore.setActiveCell)
 
 
   const addNewPanel = useCallback((kind = "board") => {
@@ -871,8 +859,6 @@ export default function App() {
   // is the delay before the destination cell paints (2026-08-04, Samsung A15).
   // The slider transform was already immediate (2026-07-27, 0.9ms); this is the
   // half that was left. Same remedy as computedValues directly above.
-  useLayoutEffect(() => { publishActiveCell(activeCell); }, [activeCell]);
-  useLayoutEffect(() => { publishZoomedOut(zoomedOut); }, [zoomedOut]);
 
   // C4: Frequently-changing values in separate context — only consumers
   // that need undo/mobile state subscribe here
@@ -886,10 +872,9 @@ export default function App() {
       isProcessing,
       isTouch,
       isMobileLayout,
-      // activeCell / zoomedOut deliberately NOT here — see the publish above.
-      // The setters are stable useState identities, so they cost nothing.
-      setActiveCell,
-      setZoomedOut,
+      // activeCell / zoomedOut and their setters all live in
+      // state/activeCellStore now — nothing navigation-related touches this
+      // context, so a cell change cannot invalidate it.
     }),
     [
       state.fullStateLoaded,
@@ -900,8 +885,6 @@ export default function App() {
       isProcessing,
       isTouch,
       isMobileLayout,
-      setActiveCell,
-      setZoomedOut,
     ]
   );
 
@@ -928,10 +911,6 @@ export default function App() {
           userId={state.userId}
           onLogout={() => { socket?.emit("logout"); dispatch(logoutAction()); }}
           isMobileLayout={isMobileLayout}
-          activeCell={activeCell}
-          setActiveCell={setActiveCell}
-          zoomedOut={zoomedOut}
-          setZoomedOut={setZoomedOut}
         />
 
         {/* CommandCenter — keep mounted once opened so slide-up animation works on close */}

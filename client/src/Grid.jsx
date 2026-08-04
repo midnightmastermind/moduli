@@ -23,7 +23,7 @@ import { allPanelOccIds } from "./helpers/bspTree";
 import { GridDataContext } from "./GridDataContext";
 import { useGridActions } from "./GridActionsContext";
 import { GridLiveContext } from "./GridLiveContext";
-import { useActiveCell, useZoomedOut } from "./state/activeCellStore";
+import { useActiveCell, useZoomedOut, setActiveCell, setZoomedOut } from "./state/activeCellStore";
 import { markCellSwitchCommit, markGridRenderStart } from "./helpers/scrollDiag";
 
 import { DragProvider } from "./helpers/DragProvider";
@@ -494,8 +494,6 @@ function GridInner() {
     isProcessing,
     isTouch,
     isMobileLayout,
-    setActiveCell,
-    setZoomedOut,
   } = useContext(GridLiveContext);
   markGridRenderStart();   // top of the render body — see scrollDiag
   // Subscribed here rather than pulled from the context, so a cell change
