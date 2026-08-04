@@ -61,11 +61,13 @@ const isTouchDevice = () => typeof window !== "undefined"
   && typeof window.matchMedia === "function"
   && window.matchMedia("(pointer: coarse)").matches;
 
-const on = () => {
-  if (typeof window === "undefined") return false;
-  if (window.__scrollDiag === false) return false;
-  return window.__scrollDiag === true || isTouchDevice();
-};
+// OFF by default again (2026-08-04). It was default-on for touch while the bug
+// was being chased, and the user reported the app "freezing up like crazy"
+// immediately after — every rail tap arms a 2s rAF loop, so rapid tapping
+// stacks overlapping loops, and a measurement tool that degrades the thing it
+// measures is worse than no tool. Re-enable deliberately with
+// `window.__scrollDiag = true`.
+const on = () => typeof window !== "undefined" && window.__scrollDiag === true;
 const verbose = () => typeof window !== "undefined" && window.__scrollDiag === true;
 
 const MAX_SESSIONS = 4;        // baseline + one per suspect (see ARMS)
@@ -395,6 +397,9 @@ function armCellSwitchDiag() {
     if (!on()) return;
     if (!e.target?.closest?.(".mobile-rail-btn")) return;
 
+    // Never let two measurements overlap — a stacked rAF loop per tap is
+    // exactly how a diagnostic starts causing the jank it is looking for.
+    if (_pendingSwitch && _pendingSwitch.commitAt == null) return;
     const t0 = performance.now();
     _pendingSwitch = { t0, commitAt: null, paintAt: null };
     const rBefore = snapshotRenders();
