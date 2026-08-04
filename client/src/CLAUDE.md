@@ -235,6 +235,41 @@ exhaustive-deps errors (unrelated to dead code). Run `npm run lint` to see them.
   `/viafluere_sideways.png` was navy-on-transparent and died on dark cards) with an EMPTY alt so
   no caption block renders under the logo. Reseed required (already run on Atlas).
 
+## mobile Routines scroll — FIXED + VERIFIED ON DEVICE 2026-08-04 (~40x)
+Two shipped changes, both measured on the reporting device (Samsung A15, **Firefox 153** — this
+user is on Gecko, per 2026-07-13, and it matters):
+```
+before   frameMedian 484ms · 9542px in 14375ms   (worst burst 1439ms, -8px in 24s)
+after    frameMedian  11ms · 10880px in 4135ms
+```
+1. **The off-screen skip was applied per ROW** — details below. Gated to `.container-list--long`.
+2. **A 10px-blur box-shadow on every container AND every row** (~190 blurred shadows per
+   screenful, each blur ~30 PHYSICAL px at 2.9x DPR). Tightened under `pointer: coarse`.
+
+**`cvEvent=true` in the final reports** confirms Firefox DOES fire
+`contentvisibilityautostatechange`, so `unskipped=0` is real evidence the gating took — not the
+absent-API artifact it could have been.
+
+**THE TRAP THAT NEARLY SENT ME THE WRONG WAY, worth the most of anything here.** The diagnostic
+first reported **RASTER**, and I was one step from optimising the GPU. Firefox implements neither
+the **Long Tasks API** nor (at the time I assumed) the content-visibility event — so
+`longTasks=0(0ms)` was an ABSENT SIGNAL, and my verdict logic read it as "main thread idle" and
+fell through to RASTER **by construction**. The honest signal was the opposite: rAF runs ON the
+main thread, so 1439ms rAF gaps proved the main thread was BLOCKED. **An absent signal is not a
+measurement of zero — check `PerformanceObserver.supportedEntryTypes` before believing a zero.**
+The verdict now leads with rAF gaps (universal) and says UNKNOWN rather than inventing a cause.
+
+**The on-device A/B arms (`ARMS` in scrollDiag.js) FAILED to attribute, by my design error:**
+burst #1 fires on the first scroll EVENT, which is the finger settling — baseline captured -42px
+and 0px, so there was nothing to compare against. If reused, start the baseline only once real
+scroll distance has accumulated. It did not matter here (all arms landed at 11-35ms, i.e. nothing
+left to attribute), but it would have mattered if a suspect remained.
+
+**Diagnostic is OPT-IN now** (`window.__scrollDiag = true`), same course as caretDiag once its fix
+was verified. Keep the file — it is the only thing that ever successfully measured this surface,
+after THREE headless probes failed (details below), and its arms are reusable for the next paint
+regression.
+
 ## mobile Routines scroll — SOLVED 2026-08-04: the off-screen skip was applied per ROW
 The user's own device settled it. `[scroll]` diagnostic (`helpers/scrollDiag.js`, on by default,
 renders an on-screen panel because a phone has no console) on a **Samsung A15**:

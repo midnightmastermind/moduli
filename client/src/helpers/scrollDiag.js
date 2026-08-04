@@ -37,16 +37,20 @@
 // cost the last two rounds. B is the leading suspect and is the one no probe
 // so far could even see.
 //
-// ON by default, like helpers/caretDiag.js and helpers/insertGapDiag.js — a
-// user-facing bug needs zero setup to capture. Mute with
-// `window.__scrollDiag = false`. It records the FIRST few scroll bursts only
-// (the report is specifically about the first one) and then stops, so it costs
-// nothing for the rest of the session.
+// OPT-IN (`window.__scrollDiag = true`). It shipped ON while the bug was live —
+// a user-facing bug needs zero setup to capture — and that is how it was found;
+// it is off now that the fix is verified. Keep the file: it is the only thing
+// that has successfully measured this surface, and the arms below are reusable
+// for the next paint regression.
 
 import { socket } from "../socket.js";
 import { safeEmit } from "./offlineQueue.js";
 
-const on = () => typeof window !== "undefined" && window.__scrollDiag !== false;
+// OPT-IN now (same course as helpers/caretDiag.js once its fix was verified):
+// the mobile Routines scroll is fixed and measured, so this no longer paints an
+// overlay or reports on every scroll. Re-enable with `window.__scrollDiag = true`
+// BEFORE scrolling — the A/B arms and the server reporting still work.
+const on = () => typeof window !== "undefined" && window.__scrollDiag === true;
 
 const MAX_SESSIONS = 4;        // baseline + one per suspect (see ARMS)
 
