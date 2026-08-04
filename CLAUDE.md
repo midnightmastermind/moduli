@@ -6,6 +6,53 @@
 
 ---
 
+### 2026-08-04 — the recurring `dangling-child-ref` is ROOT-CAUSED: a phantom in the WARM CACHE
+
+User: *"can you fix the dangly ones"*. They have been swept five times (2026-07-29, 07-30, 07-31,
+08-03, 08-04) and always came back. **They came back because the sweep cleaned MONGO while the
+thing causing them sat in MEMORY.**
+
+`handleCreateOccurrence` writes the new row into `uc.occurrencesById` **before** the disconnect
+check and **before** the upsert. An abrupt disconnect bails the handler — Mongo never gets the row,
+and nothing removes the cache entry. On its own that is harmless. Two other facts weaponise it:
+1. **The warm cache SURVIVES a disconnect** (server.js deliberately stopped evicting it; 30-min
+   TTL), so the next connection reuses it instead of reloading from Mongo.
+2. **`update_occurrence`'s dangling-ref guard decides whether a child id is real by looking in that
+   same cache.**
+
+So the phantom **launders itself**: the guard sees the id, concludes the child exists, and persists
+a parent listing an occurrence that does not. The guard added on 2026-07-29 was right about needing
+the server to settle it — it just trusted a source that could be wrong.
+
+**Fixed** by rolling the cache back on every path that does not reach Mongo, tracking `persisted`
+so an aborted parent `$push` (row IS real → keep) is distinguished from an aborted occurrence
+upsert (row is not → drop). Identity-checked so a newer write for the same id is never dropped.
+The **generic CRUD create has the identical shape**, which is the sibling **`missing-module`**
+error (a module present in cache but not Mongo lets its occurrence reference nothing) — fixed too.
+
+**Evidence, in the order it actually mattered:**
+- **34 of 36 feeds are consistent; only Schedule Table + Schedule Canvas ever break.** Those two are
+  the only feeds whose SOURCES turn over daily, so they are the only ones minting on every load.
+  That 2-vs-34 split is what said "mint path", not "feed engine".
+- **Prod pm2 logs settled it**: `🧹 update_occurrence z9lntG03zNIP: dropped 11 unknown child id(s)`
+  — the guard was firing on exactly those parents, catching phantoms that had already aged out
+  while still-cached ones sailed through.
+- **A/B on the test**: 2 fail without the fix, 3 pass with it.
+
+**A wrong theory, recorded because discarding it was the useful step.** I first blamed a lost update
+in `delete_occurrence`'s parent cleanup (a read-modify-write of the whole document, with concurrent
+deletes). Plausible, and the code really is shaped that way — but the test did NOT reproduce it: the
+cache write sits synchronously between the read and the await, which serializes the handlers. Writing
+the test is what killed the theory; reading the code would have kept it alive.
+
+**And the vacuous-pass trap caught me again, mid-session.** My first end-to-end test PASSED before
+the fix — because the `io` mock had no `sockets.adapter.rooms`, so `update_occurrence` THREW and
+returned early. The assertion was true because the code never ran. **A test that passes before the
+fix exists is not a test.** Always A/B a regression test against the unfixed code — that is the only
+thing that proves it discriminates.
+
+---
+
 ### 2026-08-03 — templates are a FOLDER; and `cloneSubtree` had been dead for a month
 
 Continued account3's subagent-driven run of `docs/superpowers/plans/2026-08-02-templates-folder.md`
