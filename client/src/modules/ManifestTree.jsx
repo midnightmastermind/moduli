@@ -377,6 +377,18 @@ function FolderCoverEditor({ folder, dispatch, socket, position, onClose }) {
   );
 }
 
+/**
+ * Dropping onto the protected Templates folder COPIES; every other folder
+ * MOVES, as it always has. Without this, dragging the real Schedule page in to
+ * "make a template of it" would move it out of Interfaces and break the app.
+ *
+ * Keyed to meta.protected, never the name — a user folder that happens to be
+ * called "Templates" is theirs, and drops into it should still move.
+ */
+export function resolveFolderDrop({ folder } = {}) {
+  return folder?.meta?.protected ? "copy" : "move";
+}
+
 // ─── FolderNode ──────────────────────────────────────────────────────────────
 function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, onSetDefault, defaultOccurrenceId, onOpenPage, onOpenPageAndClose, showAnchors = true }) {
   const { dispatch, socket, state } = useGridActions();
@@ -499,13 +511,31 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
     if (!folderRef.current) return;
     return dropTargetForElements({
       element: folderRef.current,
-      canDrop: ({ source }) => source.data.type === "artifact" && source.data.occurrenceId !== undefined,
+      // Pages drag as type "page" (tree-page), artifacts as "artifact". Both are
+      // droppable into a folder: an artifact re-homes, and a page is how you
+      // make a template of it (the Templates folder copies — resolveFolderDrop).
+      canDrop: ({ source }) =>
+        (source.data.type === "artifact" || source.data.type === "page")
+        && source.data.occurrenceId !== undefined,
       onDragEnter: () => setIsDragOver(true),
       onDragLeave: () => setIsDragOver(false),
       onDrop: ({ source }) => {
         setIsDragOver(false);
         const { occurrenceId } = source.data;
         if (!occurrenceId || !dispatch || !socket) return;
+
+        // The Templates folder takes a COPY — see resolveFolderDrop.
+        if (resolveFolderDrop({ folder }) === "copy") {
+          const label = modulesById?.[occurrencesById?.[occurrenceId]?.moduleId]?.label || "Template";
+          CommitHelpers.commitCloneSubtreeAsTemplate(socket, {
+            sourceOccurrenceId: occurrenceId,
+            name: label,
+            parentFolderId: folder.id,
+          });
+          setOpen(true);
+          return;
+        }
+
         // Append to end of this folder
         const maxOrder = allChildOccs.reduce((m, o) => Math.max(m, o.sortOrder ?? 0), -1);
         CommitHelpers.updateOccurrence({
@@ -516,7 +546,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
         setOpen(true);
       },
     });
-  }, [folder.id, allChildOccs, dispatch, socket]);
+  }, [folder, allChildOccs, dispatch, socket, modulesById, occurrencesById]);
 
   // Rename handler — saves on Enter/blur, cancels on Escape
   const renameInputRef = useRef(null);
