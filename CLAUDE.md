@@ -49,7 +49,17 @@ falsely because the wrapper page and the container inside it are BOTH labelled "
 discriminate by role/id, never by a label that legitimately repeats.
 
 **APPLIED + DEPLOYED (user's call, asked first).** `0035` ran on poms grid, pm2 restarted, master
-fast-forwarded (13 commits) and deployed; prod HEAD verified over SSH at `4f7cd493`.
+fast-forwarded (13 commits) and deployed; prod HEAD verified over SSH at `4f7cd493`. **A second
+deploy at the end of the session carried the rest** — the integrity rule scoping, the ops
+TEMPLATE_PICKER fix, the seed's page-shaped template root, and Build Schedule's slot re-link:
+prod HEAD verified at `e0a353ac`, new bundle served (200), 413 server + 1547 client tests green.
+
+**The deploy probes cost a sweep, again.** Loading prod three times to measure mobile scroll left
+12 dangling child refs on Schedule Table / Schedule Canvas — the documented feedSync class, ids
+timestamped to the probe runs. `sweepOrphans.js --apply` repaired them; poms grid and test grid 2
+end at **0 errors**. `test grid 1`'s 6 `unsigned-template-node` is the frozen archive, still
+deliberately untouched (2026-07-31 (4)). **The standing rule earned its keep for the third time:
+a probe that loads the live grid writes to it — sweep before calling the session done.**
 
 **`0035` MOVED A REAL PAGE AND HAD TO BE REPAIRED — the selector was wrong.** Its filter was
 `occ.meta.templateName || module.meta.templateModule`. **APPLY_TEMPLATE COPIES `templateName` onto
