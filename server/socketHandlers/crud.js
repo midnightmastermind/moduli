@@ -254,15 +254,40 @@ export function registerCrudHandlers(socket, {
         socket.to(userRoom(userId)).emit("occurrence_deleted", { occurrenceId: id });
       }
 
-      // Clean up parent occurrence references
-      for (const occ of Object.values(uc.occurrencesById || {})) {
-        if (!Array.isArray(occ.occurrences)) continue;
-        if (!occ.occurrences.some(id => toDelete.has(id))) continue;
-        const next = { ...occ, occurrences: occ.occurrences.filter(id => !toDelete.has(id)) };
-        recordChange({ model: "occurrence", id: next.id, before: occ, after: next, payload });
-        uc.occurrencesById[next.id] = next;
-        await Occurrence.findOneAndUpdate({ id: next.id, userId }, next, { upsert: true });
-        socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: next });
+      // ── Clean up parent occurrence references, ATOMICALLY ──────────────
+      // `delete_occurrence` is not queued the way create is, so a sweep of N
+      // copies runs N handlers concurrently. This used to read each parent,
+      // filter it, and write the WHOLE document back. The read is a snapshot
+      // taken at loop start, but the write is one `await` per parent — so a
+      // handler touching TWO parents holds a stale reference to the second
+      // one across the first one's round trip. Two handlers then write
+      // conflicting arrays and the later one RESTORES the id the earlier one
+      // removed — an id whose occurrence is already deleted. That is the
+      // dangling child ref, and it is why it only ever appeared on Schedule
+      // Table and Schedule Canvas: they are the only two feeds swept together,
+      // so they are the only pair that can be in one cleanup loop at once.
+      //
+      // `$pull` is applied by Mongo per document at write time, so concurrent
+      // deletes compose instead of clobbering. It is also one round trip
+      // instead of one per parent.
+      const deletedIds = [...toDelete];
+      const affectedParents = Object.values(uc.occurrencesById || {})
+        .filter(o => Array.isArray(o.occurrences) && o.occurrences.some(id => toDelete.has(id)));
+      if (affectedParents.length) {
+        await Occurrence.updateMany(
+          { userId, occurrences: { $in: deletedIds } },
+          { $pull: { occurrences: { $in: deletedIds } } }
+        );
+        for (const occ of affectedParents) {
+          // Re-derive from whatever the cache holds NOW, not from the snapshot
+          // taken before the await — another handler may have written since.
+          // The filter is idempotent, so applying it to current state is safe.
+          const current = uc.occurrencesById[occ.id] || occ;
+          const next = { ...current, occurrences: (current.occurrences || []).filter(id => !toDelete.has(id)) };
+          recordChange({ model: "occurrence", id: next.id, before: current, after: next, payload });
+          uc.occurrencesById[next.id] = next;
+          socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: next });
+        }
       }
 
       // Clean up grid.occurrences if this was a panel occurrence
