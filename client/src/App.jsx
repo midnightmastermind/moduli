@@ -1,5 +1,6 @@
 // App.jsx — STEP 2: commits routed through CommitHelpers / LayoutHelpers
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { armScrollDiag } from "./helpers/scrollDiag.js";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { preventUnhandled } from "@atlaskit/pragmatic-drag-and-drop/prevent-unhandled";
 
@@ -87,6 +88,10 @@ export default function App() {
       }
     }
   }, [rawDispatch]);
+
+  // `[scroll]` diagnostic for the mobile Routines report — arms once, records
+  // the first few scroll bursts, then stops. Mute: window.__scrollDiag = false.
+  useEffect(() => { armScrollDiag(); }, []);
 
   useEffect(() => {
     if (!("BroadcastChannel" in window)) return;

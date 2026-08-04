@@ -1,0 +1,278 @@
+// helpers/scrollDiag.js
+//
+// `[scroll]` diagnostics for the mobile Routines report (user 2026-08-03/04:
+// "its slowish when i scroll the first time and shows blank containers waiting
+//  for content ... after that, it seems better" → clarified: the blank things
+// are the INSTANCE ROWS inside the Routines containers).
+//
+// WHY THIS EXISTS RATHER THAN ANOTHER PROBE. Three headless probes failed to
+// reproduce it (see client/src/CLAUDE.md docket): one metric could not tell a
+// structurally-empty container from one waiting for content, another reported a
+// result from a scroll that never moved, and none of them ran on hardware
+// anything like the reporting device (a Samsung A15). More importantly, if the
+// rows are in the DOM the whole time and the blank is the compositor not having
+// rasterized them, then EVERY DOM-based metric reports "content present" and
+// finds nothing — the measurement has to happen on the device.
+//
+// THE DISCRIMINATOR. Three competing explanations, one number each:
+//
+//   A. MOUNT   — rows are genuinely absent and get added as you scroll.
+//                → MutationObserver sees `.instance-wrap` nodes ADDED.
+//   B. SKIPPED — the rows are in the DOM but the browser deliberately skipped
+//                laying them out, because `.instance-wrap` carries
+//                `content-visibility: auto` (index.css:954, the "#24 perf"
+//                off-screen skip we shipped to cut LOAD time). Scrolling one
+//                into view forces its layout+paint in that frame, which on a
+//                slow device is visible as a row that fills in late — and it
+//                is better the second time because the browser then remembers
+//                the real size (`contain-intrinsic-size: auto 60px`).
+//                → `contentvisibilityautostatechange` fires as you scroll.
+//   C. PAINT   — DOM complete, nothing skipped, main thread simply too busy.
+//                → long tasks dominate the burst.
+//   D. RASTER  — DOM complete, nothing skipped, main thread mostly idle, but
+//                frames still miss. GPU/raster bound.
+//
+// These need completely different fixes (defer mounting / retune the skip /
+// cut main-thread work / cut paint area), so guessing between them is what has
+// cost the last two rounds. B is the leading suspect and is the one no probe
+// so far could even see.
+//
+// ON by default, like helpers/caretDiag.js and helpers/insertGapDiag.js — a
+// user-facing bug needs zero setup to capture. Mute with
+// `window.__scrollDiag = false`. It records the FIRST few scroll bursts only
+// (the report is specifically about the first one) and then stops, so it costs
+// nothing for the rest of the session.
+
+const on = () => typeof window !== "undefined" && window.__scrollDiag !== false;
+
+const MAX_SESSIONS = 3;        // the report is about the first scroll
+const IDLE_END_MS = 700;       // a burst ends after this much stillness
+const MAX_BURST_MS = 12000;    // hard stop so a long scroll can't record forever
+const SLOW_FRAME_MS = 50;      // a frame this long is a visibly dropped one
+
+const sessions = [];
+let active = null;
+let armed = false;
+
+function median(xs) {
+  if (!xs.length) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  return Math.round(s[Math.floor(s.length / 2)]);
+}
+
+function verdictFor(s) {
+  if (s.rowsAdded > 0) {
+    return {
+      code: "MOUNT",
+      text: `${s.rowsAdded} rows entered the DOM DURING the scroll — they really were missing.`,
+    };
+  }
+  // Checked BEFORE the main-thread verdict: the un-skip work IS main-thread
+  // work, so a busy thread here is the symptom, not the cause.
+  if (s.unskipped > 0) {
+    return {
+      code: "SKIPPED",
+      text: `${s.unskipped} rows were un-skipped mid-scroll — content-visibility (index.css:954) `
+        + `deferred their layout to the moment you reached them.`,
+    };
+  }
+  const busy = s.longTaskMs > s.durationMs * 0.3;
+  if (busy) {
+    return {
+      code: "PAINT",
+      text: `DOM was complete; main thread blocked ${s.longTaskMs}ms of ${s.durationMs}ms.`,
+    };
+  }
+  if (s.slowFrames > 0) {
+    return {
+      code: "RASTER",
+      text: `DOM complete and main thread mostly idle, yet ${s.slowFrames} frames missed — GPU/raster bound.`,
+    };
+  }
+  return { code: "CLEAN", text: "Nothing anomalous recorded in this burst." };
+}
+
+function endSession() {
+  if (!active) return;
+  const s = active;
+  active = null;
+  s.durationMs = Math.round(performance.now() - s.t0);
+  s.frameMedian = median(s.frames);
+  s.verdict = verdictFor(s);
+  s.longTaskMs = Math.round(s.longTaskMs);
+  try { s.mo?.disconnect(); } catch { /* ignore */ }
+  try { s.po?.disconnect(); } catch { /* ignore */ }
+  sessions.push(s);
+
+  // eslint-disable-next-line no-console
+  console.log(`[scroll] burst #${s.index} ${s.verdict.code} — ${s.verdict.text}`, s);
+  renderOverlay();
+}
+
+function startSession(scroller) {
+  const index = sessions.length + 1;
+  const s = {
+    index,
+    t0: performance.now(),
+    scroller,
+    startTop: scroller.scrollTop,
+    endTop: scroller.scrollTop,
+    rowsAdded: 0,
+    rowsRemoved: 0,
+    longTasks: 0,
+    longTaskMs: 0,
+    frames: [],
+    slowFrames: 0,
+    rowsAtStart: scroller.querySelectorAll(".instance-wrap").length,
+    scrollHeight: scroller.scrollHeight,
+    clientHeight: scroller.clientHeight,
+    unskipped: 0,
+    skippedAtStart: 0,
+    seedPx: 0,
+    realPx: 0,
+  };
+
+  // B — the decisive one. `contentvisibilityautostatechange` fires whenever the
+  // browser starts or stops skipping an element's contents, so it reports the
+  // deferral directly instead of inferring it. Also record how wrong the
+  // `contain-intrinsic-size` seed is: a seed smaller than the real row height
+  // makes the scroller grow as rows render, which drags the content under the
+  // finger mid-scroll.
+  try {
+    const rows = [...scroller.querySelectorAll(".instance-wrap")];
+    s.seedPx = Math.round(parseFloat(getComputedStyle(rows[0] || document.body).containIntrinsicHeight) || 0);
+    const heights = rows.map(r => r.getBoundingClientRect().height).filter(h => h > 4);
+    s.realPx = median(heights);
+    for (const r of rows) {
+      if (typeof r.checkVisibility === "function"
+        && !r.checkVisibility({ contentVisibilityAuto: true })) s.skippedAtStart++;
+      r.addEventListener("contentvisibilityautostatechange", (ev) => {
+        if (active === s && !ev.skipped) s.unskipped++;
+      });
+    }
+  } catch { /* unsupported browser — verdict falls through to PAINT/RASTER */ }
+
+  // A — did rows actually enter the DOM while scrolling?
+  try {
+    s.mo = new MutationObserver((records) => {
+      for (const r of records) {
+        for (const n of r.addedNodes) {
+          if (n.nodeType !== 1) continue;
+          s.rowsAdded += n.matches?.(".instance-wrap") ? 1 : 0;
+          s.rowsAdded += n.querySelectorAll?.(".instance-wrap").length || 0;
+        }
+        for (const n of r.removedNodes) {
+          if (n.nodeType !== 1) continue;
+          s.rowsRemoved += n.matches?.(".instance-wrap") ? 1 : 0;
+          s.rowsRemoved += n.querySelectorAll?.(".instance-wrap").length || 0;
+        }
+      }
+    });
+    s.mo.observe(scroller, { childList: true, subtree: true });
+  } catch { /* MutationObserver always exists in practice */ }
+
+  // B — was the main thread blocked?
+  try {
+    s.po = new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) { s.longTasks++; s.longTaskMs += e.duration; }
+    });
+    s.po.observe({ entryTypes: ["longtask"] });
+  } catch { /* longtask unsupported on some browsers — verdict falls back */ }
+
+  // C — did frames actually miss?
+  let last = performance.now();
+  const tick = () => {
+    if (active !== s) return;
+    const now = performance.now();
+    const dt = now - last;
+    last = now;
+    s.frames.push(dt);
+    if (dt > SLOW_FRAME_MS) s.slowFrames++;
+    if (now - s.t0 > MAX_BURST_MS) { endSession(); return; }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+
+  active = s;
+  return s;
+}
+
+function renderOverlay() {
+  if (typeof document === "undefined") return;
+  document.getElementById("scroll-diag-overlay")?.remove();
+
+  const box = document.createElement("div");
+  box.id = "scroll-diag-overlay";
+  box.setAttribute("style", [
+    "position:fixed", "left:8px", "right:8px", "bottom:8px", "z-index:2147483647",
+    "background:rgba(12,16,24,0.94)", "color:#e8eefc", "font:11px/1.45 ui-monospace,Menlo,monospace",
+    "padding:10px 12px", "border-radius:10px", "border:1px solid rgba(120,160,255,0.35)",
+    "box-shadow:0 6px 24px rgba(0,0,0,0.5)", "max-height:52vh", "overflow:auto",
+  ].join(";"));
+
+  const rows = sessions.map((s) => {
+    const colour = s.verdict.code === "MOUNT" ? "#ffd479"
+      : s.verdict.code === "SKIPPED" ? "#c9a0ff"
+      : s.verdict.code === "PAINT" ? "#ff9d9d"
+      : s.verdict.code === "RASTER" ? "#9ad0ff" : "#9ae6b4";
+    const seedBad = s.seedPx && s.realPx && Math.abs(s.realPx - s.seedPx) / s.realPx > 0.15;
+    return `
+      <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.12)">
+        <b style="color:${colour}">#${s.index} ${s.verdict.code}</b>
+        <span style="opacity:.8"> ${s.verdict.text}</span><br>
+        rows in DOM at start <b>${s.rowsAtStart}</b> ·
+        skipped at start <b style="color:#c9a0ff">${s.skippedAtStart}</b> ·
+        un-skipped while scrolling <b style="color:${s.unskipped ? "#c9a0ff" : "#9ae6b4"}">${s.unskipped}</b><br>
+        added to DOM <b style="color:${s.rowsAdded ? "#ffd479" : "#9ae6b4"}">${s.rowsAdded}</b> ·
+        removed <b>${s.rowsRemoved}</b> ·
+        seed <b style="color:${seedBad ? "#ffd479" : "#9ae6b4"}">${s.seedPx || "?"}px</b> vs real <b>${s.realPx || "?"}px</b><br>
+        frames: median <b>${s.frameMedian}ms</b>, missed <b>${s.slowFrames}</b>/${s.frames.length} ·
+        long tasks <b>${s.longTasks}</b> (<b>${s.longTaskMs}ms</b>)<br>
+        scrolled <b>${Math.abs(s.endTop - s.startTop)}px</b> of ${s.scrollHeight - s.clientHeight} · ${s.durationMs}ms
+      </div>`;
+  }).join("");
+
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <b>[scroll] Routines diagnostic</b>
+      <span style="opacity:.65">tap to dismiss</span>
+    </div>${rows}
+    <div style="margin-top:8px;opacity:.6">
+      MOUNT = rows missing · SKIPPED = content-visibility deferred them · PAINT = main thread · RASTER = GPU
+    </div>`;
+  box.addEventListener("click", () => box.remove());
+  document.body.appendChild(box);
+}
+
+/**
+ * Arm the diagnostic. Idempotent; safe to call on every mount.
+ * Listens in the CAPTURE phase because the scroller is a nested element and
+ * scroll events do not bubble.
+ */
+export function armScrollDiag() {
+  if (armed || typeof window === "undefined" || !on()) return;
+  armed = true;
+
+  let idleTimer = null;
+
+  const onScroll = (e) => {
+    if (!on() || sessions.length >= MAX_SESSIONS) return;
+    const el = e.target;
+    // Only real content scrollers — ignore tiny menus and the document itself.
+    if (!el || el === document || !el.scrollHeight) return;
+    if (el.scrollHeight - el.clientHeight < 400) return;
+
+    if (!active) startSession(el);
+    if (active && active.scroller === el) active.endTop = el.scrollTop;
+
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(endSession, IDLE_END_MS);
+  };
+
+  window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+
+  window.__scrollDiagShow = renderOverlay;
+  window.__scrollDiagData = () => sessions;
+  // eslint-disable-next-line no-console
+  console.log("[scroll] diagnostic armed — scroll Routines; a summary appears on screen. Mute: window.__scrollDiag = false");
+}
