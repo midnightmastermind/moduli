@@ -48,11 +48,18 @@ export async function up({ gridId, models, log, dryRun }) {
   }
 
   // 2. Everything currently marked as a template, wherever it lives.
+  //
+  // The discriminator is the MODULE's `templateModule` flag ONLY. It must NOT
+  // also accept `occ.meta.templateName`: APPLY_TEMPLATE *copies* templateName
+  // onto every clone, so a real page built FROM a template still carries it —
+  // matching on it swept the user's actual "Project: Moduli v1 Launch" page out
+  // of its Projects folder and into Templates (caught 2026-08-03, restored by
+  // hand). apply_template strips templateModule from what it mints, so the flag
+  // is the honest marker. Same trap recorded in CLAUDE.md 2026-07-31 (2).
   const occs = await Occurrence.find({ gridId }).select("-textmap").lean();
   const mods = await Module.find({ gridId }).lean();
   const modById = Object.fromEntries(mods.map(m => [m.id, m]));
-  const templates = occs.filter(o =>
-    o.meta?.templateName || modById[o.moduleId]?.meta?.templateModule);
+  const templates = occs.filter(o => modById[o.moduleId]?.meta?.templateModule === true);
   log(`${templates.length} template(s) found`);
 
   for (const t of templates) {
