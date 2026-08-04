@@ -6,6 +6,60 @@
 
 ---
 
+### 2026-08-03 — templates are a FOLDER; and `cloneSubtree` had been dead for a month
+
+Continued account3's subagent-driven run of `docs/superpowers/plans/2026-08-02-templates-folder.md`
+(it shipped Tasks 1-5, then hit a session limit and a login expiry). Tasks 6-9 here, plus a
+**Task 5.5 the plan never scoped** — without it 6 and 7 could not work at all.
+
+**`utils/cloneSubtree.js` read `src.targetId`. The schema field is `moduleId`.** The 2026-07-29
+rename dropped `targetId`; **0 of 3926 live occurrences carry it**. So `walk()` bailed on the first
+node and returned a null root — meaning `apply_template`, `clone_subtree_as_template` AND
+`save_over_template` have ALL silently failed since that rename. Every template button in the app
+was dead, including the create-page-from-template flow shipped in Task 4/5 the same day.
+**Why nobody caught it: the test fixture set BOTH `moduleId` and `targetId`, and the whole suite
+was DB-gated (`if (readyState !== 1) return`) so it passed VACUOUSLY with no Mongo running** — the
+1ms runtime was the tell. Persistence is injectable now (`persist`), so the traversal is genuinely
+exercised without a database; 15 tests that actually run.
+
+**The plan assumed a server that didn't exist.** `socketHandlers/templates.js` still required a
+`manifestType:"templates"` manifest — which 0035 retires — so after the migration every save/
+save-over would have answered "Invalid template folder". And `apply_template` only supported
+`append`/`replace`: **`merge` existed ONLY in the pipeline action**, so the plan's
+`DEFAULT_APPLY_MODE = "merge"` would have silently appended. Task 5.5 adds
+`utils/templatesFolder.js` (location is the marker), stops stamping the retired
+`templateName`/`templateModule`, and ports identitySignature merge into `mergeSubtreeInto`
+(unwrap root = contents-not-wrapper, `auto:<id>` signature fallback so an unsigned node still
+matches itself — the rule that stops the 23-duplicate-wrappers bug).
+
+**A template is named by its MODULE LABEL now.** 0035 unsets `meta.templateName`, and both
+`TemplatesSection` and `QuickAddMenu` still read it — every template rendered "(unnamed)".
+`templateLabelOf` is the one source. **Two test fixtures were still encoding the pre-0035 marker
+shape**, which is the same trap as the cloneSubtree one, twice in one session: *a fixture that
+carries both the old and new shape cannot fail when the old shape dies.*
+
+**Verified against a REAL database on test grid 2** (never poms grid), diffing persisted state:
+merge cloned 8 occurrences and PERSISTED them (+8 in Mongo), applied CONTENTS not wrapper (the
+child is `Day Page[container]`, not the page wrapper), a second merge cloned **0** and wrote
+nothing, and save-as-template left the source in place pointing at its own new module. Scratch
+docs removed after; integrity **0 errors**. Both build ops still bind picker-direct
+(`ktMxTVErceWq` / `9EZL5iXnYhul` present and referenced) — which is why wrapping Day Page in a
+page was safe. **Probe lesson, again:** my first "applied contents not wrapper" assertion FAILED
+falsely because the wrapper page and the container inside it are BOTH labelled "Day Page" —
+discriminate by role/id, never by a label that legitimately repeats.
+
+**NOT DONE, deliberately — `0035` is NOT applied to poms grid and nothing is deployed.** The plan's
+own sequencing is migration-then-client, and both are live-data calls for the user. Note the
+client already reads the new location, so until 0035 runs on poms grid its templates list is empty.
+**Open, flagged not fixed:** ~15 modules keep `meta.templateModule` on NESTED template nodes (0035
+only unsets it on roots) and `utils/gridIntegrity.js:141` still uses that marker to identify
+template roots — integrity reports 0 errors today, but the rule is now looking at the wrong nodes.
+The ops editor's `TEMPLATE_PICKER_CONFIG` also still filters on `meta.templateName`, so the
+APPLY_TEMPLATE action's picker lists nothing; fixing it needs `foldersById`+`gridId` threaded into
+the deep prop-drilled picker ctx, which is its own pass.
+
+---
+
 ### 2026-08-01 (21) — undo/redo: the SNAPSHOT layer was fine, the STACK was broken (5 defects, all measured)
 
 User: *"review the undo and redo transaction feature, its buggy"* → then the decisive repro:
