@@ -27,6 +27,22 @@ export function diffRenders(prev) {
   return out;
 }
 
+// ── Operation-run tally ────────────────────────────────────────────────────
+// A rail tap blocks the main thread ~500ms with ZERO component re-renders
+// (measured 2026-08-04), so the work is not rendering. The op drain is the
+// documented ~580ms/124-effect job in this codebase, which makes it the
+// remaining candidate — and this counts it rather than assuming it. Same cost
+// as bumpRender: one increment plus one add.
+let _ops = { runs: 0, ms: 0 };
+export function bumpOpRun(ms) {
+  _ops.runs++;
+  _ops.ms += ms || 0;
+}
+export function snapshotOps() { return { ..._ops }; }
+export function diffOps(prev) {
+  return { runs: _ops.runs - (prev?.runs || 0), ms: Math.round(_ops.ms - (prev?.ms || 0)) };
+}
+
 // ── Render-cause attribution (opt-in: window.__RENDER_ATTR = true) ─────────
 // Answers WHY a memo'd component re-rendered: which prop / subscribed
 // selector output changed identity since its previous render. Each render's

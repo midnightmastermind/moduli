@@ -45,7 +45,7 @@
 
 import { socket } from "../socket.js";
 import { safeEmit } from "./offlineQueue.js";
-import { snapshotRenders, diffRenders } from "./renderProbe";
+import { snapshotRenders, diffRenders, snapshotOps, diffOps } from "./renderProbe";
 
 // TWO modes, because a phone has no console but also should not have a debug
 // panel thrown over the app it is trying to use:
@@ -383,6 +383,7 @@ function armCellSwitchDiag() {
     const t0 = performance.now();
     _pendingSwitch = { t0, commitAt: null, paintAt: null };
     const rBefore = snapshotRenders();
+    const oBefore = snapshotOps();
     const sw = _pendingSwitch;
     let last = t0, maxGap = 0, blocked = 0, frames = 0;
     const tick = () => {
@@ -399,6 +400,7 @@ function armCellSwitchDiag() {
       const payload = {
         kind: "cell-switch",
         renders: diffRenders(rBefore),
+        ops: diffOps(oBefore),
         // The decomposition. reactMs is React building + committing the tree;
         // paintMs is the browser doing layout + paint afterwards.
         reactMs: sw.commitAt != null ? Math.round(sw.commitAt - t0) : -1,

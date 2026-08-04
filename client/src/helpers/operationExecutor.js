@@ -22,6 +22,7 @@ import { getEffectiveFilterForOccurrence, makeEffectiveFilterResolver } from "..
 import { operationsBridge } from "../state/bindSocketToStore";
 import { analyzeAllOperations } from "./operationIntrospection";
 import { applyDisplayRules } from "./displayRules";
+import { bumpOpRun } from "./renderProbe";
 
 // ============================================================
 // RUN LOG — per-operation run history for the editor's log panel
@@ -896,6 +897,17 @@ export function isOpApplyingEffects(opId) {
 }
 
 export function runMatchingOperations(operations, transactionType, transaction, context, { onError, onSuccess } = {}) {
+  // Tallied so a main-thread block can be attributed to the op drain rather
+  // than guessed at (see helpers/renderProbe.js bumpOpRun).
+  const _opT0 = performance.now();
+  try {
+    return _runMatchingOperations(operations, transactionType, transaction, context, { onError, onSuccess });
+  } finally {
+    bumpOpRun(performance.now() - _opT0);
+  }
+}
+
+function _runMatchingOperations(operations, transactionType, transaction, context, { onError, onSuccess } = {}) {
   const updates = [];
   // Priority is per-trigger (1–10, default 5). Pre-match every op so we can sort
   // by the priority of the triggerObject that actually matched — an op with two
