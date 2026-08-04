@@ -235,6 +235,37 @@ exhaustive-deps errors (unrelated to dead code). Run `npm run lint` to see them.
   `/viafluere_sideways.png` was navy-on-transparent and died on dark cards) with an EMPTY alt so
   no caption block renders under the logo. Reseed required (already run on Atlas).
 
+## DOCKET — mobile Routines scroll: MEASURED 2026-08-03, fix candidate not shipped
+User: *"slowish when i scroll the first time and shows blank containers waiting for content"* —
+**the ROUTINES page**, not the Schedule (my first probe measured the wrong surface and found zero
+textblocks/preview cards, which is exactly the "verified an absence" trap; the census is what
+caught it).
+
+Measured on prod, real phone metrics (390×844, `isMobile`, **CPU throttle 4×**):
+```
+Routines page: 40 containers · 159 instance rows · 0 live editors
+scroller 736px tall over 10,239px  →  93% of the content is OFFSCREEN
+baseline scroll-to-bottom: median frame 41.3ms (~24fps), p95 77ms, 54 of 127 frames >50ms
+```
+So it is NOT the TipTap lazy-mount path (`TextblockCard` already defers at a 700px margin, and
+there are no textblocks here) — it is laying out and painting 159 eagerly-mounted rows that are
+almost entirely offscreen. Nothing on this surface is virtualized or deferred.
+
+**Candidate fix, A/B'd on the live DOM via CSSOM (the documented method):**
+```
+                                            median   p95    >50ms frames   scrollerSH
+baseline                                    41.3ms   77ms       54          10,239
+content-visibility on rows + containers     16.9ms   32ms        1          11,672
+content-visibility on ROWS only (79px)      23.0ms   54ms       22          11,672
+```
+Rows+containers is the clear winner (~24fps → ~59fps) and unmounts NOTHING, so refs, drop targets
+and editor state are untouched. **Why it is not shipped:** both variants inflate the scroller from
+10,239 → 11,672px (~14%), and it is NOT a wrong `contain-intrinsic-size` guess — the rows-only run
+used the *measured* 79px median and grew by the identical amount. That is a one-time scroll/layout
+shift, and `content-visibility` on `.container-shell` also has to be proven safe against the things
+this codebase does with rects: `elementFromPoint` drag hit-testing, the wrap-notch clip measurement,
+and sticky headers. Ship it only with those exercised.
+
 ## DOCKET — editor static-until-focus (filed 2026-07-06 perf audit, needs its own session)
 Every doc container / textblock mounts a LIVE TipTap editor eagerly (`TextblockCard.jsx` wraps
 `<Editor>` unconditionally; doc containers same) — an imported Wikipedia page mounts 100+
