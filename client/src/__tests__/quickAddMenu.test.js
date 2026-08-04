@@ -156,13 +156,15 @@ describe("template tiles — create-a-page case (targetRole=\"page\")", () => {
   const foldersById = {
     tf1: { id: "tf1", gridId: "g1", name: "Templates", meta: { protected: true } },
   };
+  // A template is named by its MODULE LABEL — migration 0035 unset
+  // meta.templateName, so a fixture carrying that marker would test a shape
+  // that no longer exists in the data.
   const modulesById = {
-    boardTplMod: { id: "boardTplMod", role: "page", kind: "board" },
+    boardTplMod: { id: "boardTplMod", role: "page", kind: "board", label: "Board Template" },
   };
   const occurrencesById = {
     boardTplOcc: {
-      id: "boardTplOcc", gridId: "g1", moduleId: "boardTplMod", parentId: "tf1",
-      meta: { templateName: "Board Template" },
+      id: "boardTplOcc", gridId: "g1", moduleId: "boardTplMod", parentId: "tf1", meta: {},
     },
   };
   const gridActionsMockState = {

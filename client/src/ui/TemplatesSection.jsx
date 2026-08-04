@@ -6,12 +6,39 @@
 
 import React, { useMemo, useState } from "react";
 import { useGridActions } from "../GridActionsContext";
-import { templatesByKind, templatesFolderFor } from "../helpers/templateHelpers";
+import {
+  templatesByKind, templatesFolderFor, templateKindOf, templateLabelOf,
+} from "../helpers/templateHelpers";
 import {
   commitApplyTemplate,
   commitCloneSubtreeAsTemplate,
   commitSaveOverTemplate,
 } from "../helpers/CommitHelpers";
+
+// Merge, not copy: structure flows from the template while the page keeps
+// everything the user wrote, and re-applying tops it up instead of duplicating.
+// Copy is the deliberate "stamp it once, then it's mine" choice — it clones the
+// template's wrapper in as a child and never syncs again.
+export const DEFAULT_APPLY_MODE = "merge";
+export const APPLY_MODES = [
+  { value: "merge", label: "Merge", hint: "Add what's missing; keep what you wrote" },
+  { value: "append", label: "Copy", hint: "Stamp a detached copy in" },
+];
+
+/**
+ * Only templates whose kind matches the host — see the spec's Compatibility
+ * section. A board page's children are containers and a doc page's body is a
+ * textmap of embeds, so applying one into the other has no sensible meaning;
+ * it is not offered rather than offered and then failing.
+ */
+export function applicableTemplates(lookups, gridId, hostOccurrence) {
+  const kind = templateKindOf(lookups, hostOccurrence);
+  if (!kind) return [];
+  return templatesByKind(lookups, gridId, kind)
+    // A template is an ordinary page, so opening one shows this same section —
+    // never offer it to itself.
+    .filter(t => t.id !== hostOccurrence?.id);
+}
 
 export default function TemplatesSection({ occurrence }) {
   const ctx = useGridActions();
@@ -22,21 +49,19 @@ export default function TemplatesSection({ occurrence }) {
     [manifestsById, foldersById, occurrencesById, modulesById]
   );
 
-  const myModule = modulesById?.[occurrence?.moduleId];
-  const myKind = myModule?.role || myModule?.kind || null;
-
   const templates = useMemo(
-    () => (myKind ? templatesByKind(lookups, gridId, myKind) : []),
-    [lookups, gridId, myKind]
+    () => applicableTemplates(lookups, gridId, occurrence),
+    [lookups, gridId, occurrence]
   );
 
   const root = templatesFolderFor(lookups, gridId);
   const appliedFrom = occurrence?.meta?.appliedFromTemplateId;
   const appliedFromName = appliedFrom
-    ? occurrencesById?.[appliedFrom]?.meta?.templateName
+    ? templateLabelOf(lookups, occurrencesById?.[appliedFrom])
     : null;
 
   const [selectedId, setSelectedId] = useState(null);
+  const [mode, setMode] = useState(DEFAULT_APPLY_MODE);
   const [saveName, setSaveName] = useState("");
 
   const apply = () => {
@@ -44,7 +69,7 @@ export default function TemplatesSection({ occurrence }) {
     commitApplyTemplate(socket, {
       templateOccurrenceId: selectedId,
       targetOccurrenceId: occurrence.id,
-      mode: "append",
+      mode,
     });
   };
   const saveNew = () => {
@@ -71,7 +96,7 @@ export default function TemplatesSection({ occurrence }) {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
         {!root && (
-          <div style={{ fontSize: 11, opacity: 0.5 }}>Templates manifest not yet available.</div>
+          <div style={{ fontSize: 11, opacity: 0.5 }}>No Templates folder on this grid yet.</div>
         )}
         {root && templates.length === 0 && (
           <div style={{ fontSize: 11, opacity: 0.5 }}>No templates for this kind yet.</div>
@@ -84,24 +109,42 @@ export default function TemplatesSection({ occurrence }) {
               checked={selectedId === t.id}
               onChange={() => setSelectedId(t.id)}
             />
-            <span>{t.meta?.templateName || "(unnamed)"}</span>
+            <span>{templateLabelOf(lookups, t)}</span>
           </label>
         ))}
       </div>
 
       {templates.length > 0 && (
-        <button
-          onClick={apply}
-          disabled={!selectedId}
-          style={{
-            fontSize: 11, marginBottom: 8,
-            padding: "3px 10px", borderRadius: 4,
-            border: "1px solid var(--panel-border, #374151)",
-            background: "transparent", color: "inherit",
-            cursor: selectedId ? "pointer" : "not-allowed",
-            opacity: selectedId ? 1 : 0.5,
-          }}
-        >Apply</button>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+          <button
+            onClick={apply}
+            disabled={!selectedId}
+            style={{
+              fontSize: 11,
+              padding: "3px 10px", borderRadius: 4,
+              border: "1px solid var(--panel-border, #374151)",
+              background: "transparent", color: "inherit",
+              cursor: selectedId ? "pointer" : "not-allowed",
+              opacity: selectedId ? 1 : 0.5,
+            }}
+          >Apply</button>
+          <div style={{ display: "flex", gap: 2 }}>
+            {APPLY_MODES.map(m => (
+              <button
+                key={m.value}
+                onClick={() => setMode(m.value)}
+                title={m.hint}
+                style={{
+                  fontSize: 10, padding: "3px 8px", borderRadius: 4,
+                  border: "1px solid var(--panel-border, #374151)",
+                  background: mode === m.value ? "var(--accent-blue-bg, #1e3a5f)" : "transparent",
+                  color: "inherit", cursor: "pointer",
+                  opacity: mode === m.value ? 1 : 0.6,
+                }}
+              >{m.label}</button>
+            ))}
+          </div>
+        </div>
       )}
 
       <div style={{ display: "flex", gap: 4, marginTop: 4 }}>

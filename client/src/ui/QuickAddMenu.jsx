@@ -13,7 +13,7 @@ import { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } fr
 import { createPortal } from "react-dom";
 import { Plus, ChevronLeft, Check, Search } from "lucide-react";
 import { useGridActionsSelector } from "../GridActionsContext";
-import { templatesByKind } from "../helpers/templateHelpers";
+import { templatesByKind, templateLabelOf } from "../helpers/templateHelpers";
 import { commitApplyTemplate } from "../helpers/CommitHelpers";
 import { getModuleTypeBadge } from "../helpers/moduleIcons";
 import { openImagePicker } from "./ImagePickerMenu";
@@ -341,7 +341,12 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     const lookups = { manifestsById, foldersById, occurrencesById: getOccMap(), modulesById };
     const rows = [];
     for (const k of allowedKinds) {
-      for (const tpl of templatesByKind(lookups, gridId, k)) rows.push({ ...tpl, _templateKind: k });
+      for (const tpl of templatesByKind(lookups, gridId, k)) {
+        // Resolve the name HERE, where the lookups are in hand — a template is
+        // named by its module label (0035 unset meta.templateName), and the
+        // spread copy below carries no way to resolve it at render time.
+        rows.push({ ...tpl, _templateKind: k, _templateLabel: templateLabelOf(lookups, tpl) });
+      }
     }
     return rows;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -527,9 +532,9 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                           closeMenu();
                         }}
                         style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, border: "1px solid var(--border-default)", background: "transparent", color: "var(--text-primary)", cursor: "pointer", fontFamily: "var(--font-mono)" }}
-                        title={targetRole === "page" ? `Create page from template: ${tpl.meta?.templateName}` : `Apply template: ${tpl.meta?.templateName}`}
+                        title={targetRole === "page" ? `Create page from template: ${tpl._templateLabel}` : `Apply template: ${tpl._templateLabel}`}
                       >
-                        📋 {tpl.meta?.templateName || "(unnamed)"}
+                        📋 {tpl._templateLabel}
                       </button>
                     ))}
                   </div>

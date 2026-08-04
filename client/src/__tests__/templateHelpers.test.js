@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { templatesFolderFor, templateKindOf, templatesByKind } from "../helpers/templateHelpers";
+import {
+  templatesFolderFor, templateKindOf, templatesByKind, templateLabelOf,
+} from "../helpers/templateHelpers";
 
 const lookups = {
   foldersById: {
@@ -40,5 +42,24 @@ describe("templateHelpers", () => {
 
   it("returns nothing when the folder does not exist", () => {
     expect(templatesByKind({ foldersById: {}, occurrencesById: {}, modulesById: {} }, "g1", "board")).toEqual([]);
+  });
+});
+
+describe("templateLabelOf", () => {
+  // Migration 0035 unsets meta.templateName — a template is named by its module
+  // label like any other page. Reading templateName here would render every
+  // template as "(unnamed)".
+  it("names a template by its module label", () => {
+    expect(templateLabelOf(lookups, lookups.occurrencesById.doc)).toBe("Day Page");
+  });
+
+  it("prefers a per-occurrence label override when one is set", () => {
+    const occ = { id: "x", parentId: "tpl-f", moduleId: "m-doc", label: "Renamed" };
+    expect(templateLabelOf(lookups, occ)).toBe("Renamed");
+  });
+
+  it("falls back to a readable placeholder rather than blank", () => {
+    expect(templateLabelOf(lookups, { id: "y", moduleId: "missing" })).toBe("(unnamed)");
+    expect(templateLabelOf(lookups, null)).toBe("(unnamed)");
   });
 });

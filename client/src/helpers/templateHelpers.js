@@ -20,6 +20,18 @@ export function templateKindOf(lookups, templateOccurrence) {
   return m?.kind || m?.role || null;
 }
 
+/**
+ * A template's display name. It is named by its module label like any other
+ * page — migration 0035 unset `meta.templateName`, so reading that would render
+ * every template as "(unnamed)". A per-occurrence label override still wins,
+ * matching how the renderer names every other occurrence.
+ */
+export function templateLabelOf(lookups, templateOccurrence) {
+  if (!templateOccurrence) return "(unnamed)";
+  const m = lookups?.modulesById?.[templateOccurrence.moduleId];
+  return templateOccurrence.label || m?.label || "(unnamed)";
+}
+
 export function templatesByKind(lookups, gridId, kind) {
   const folder = templatesFolderFor(lookups, gridId);
   if (!folder) return [];
