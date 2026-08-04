@@ -4723,6 +4723,32 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    Desktop (fine pointer) is unaffected.
    ============================================================================= */
 @media (pointer: coarse) {
+  /* ── Cheap shadows on touch devices ────────────────────────────────────
+     Measured on a Samsung A15 / Firefox 153 (2026-08-04, the on-device
+     `[scroll]` diagnostic): frames 1439ms / 484ms apart with NOTHING being
+     added to the DOM and no script running — i.e. the main thread stuck in
+     style/layout/paint. The scroll path carried a 10px-blur box-shadow on
+     every container AND every row: ~190 blurred shadows per screenful, each
+     blur spanning ~30 PHYSICAL pixels at this device's ~2.9x ratio. A blurred
+     box-shadow is one of the most expensive things to rasterise, and Gecko is
+     markedly slower at it than Blink.
+
+     The raised "keycap" look is deliberate (2026-06), so this keeps the depth
+     cue and drops only the expensive part: the wide blur becomes a tight one,
+     and the container keeps its crisp un-blurred 2px offset. Desktop is
+     untouched. */
+  .container-shell {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.07),
+      0 2px 0 rgba(0, 0, 0, 0.26);
+  }
+  .instance-wrap > .instance-row,
+  .dragging .instance-wrap:hover > .instance-row {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.35),
+      0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  }
+
   .module-drag-handle .radial-handle {
     /* Tablets render in DESKTOP layout (landscape), so match desktop EXACTLY
        (user 2026-07-18: "make them the same as on desktop"). Re-assert the 18px

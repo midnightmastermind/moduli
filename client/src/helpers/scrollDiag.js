@@ -53,6 +53,18 @@ const IDLE_END_MS = 700;       // a burst ends after this much stillness
 const MAX_BURST_MS = 12000;    // hard stop so a long scroll can't record forever
 const SLOW_FRAME_MS = 50;      // a frame this long is a visibly dropped one
 
+// Firefox implements NEITHER of these. Without the check, a missing API reads
+// as "zero long tasks" / "zero un-skips" and the verdict silently falls through
+// to RASTER — which is exactly what happened on 2026-08-04 (Firefox 153 on a
+// Samsung A15) and would have sent me optimising the GPU on the strength of an
+// unimplemented API. An absent signal is NOT a measurement of zero.
+const SUPPORTS_LONGTASK = (() => {
+  try { return (PerformanceObserver.supportedEntryTypes || []).includes("longtask"); }
+  catch { return false; }
+})();
+const SUPPORTS_CV_EVENT = typeof document !== "undefined"
+  && "oncontentvisibilityautostatechange" in document.documentElement;
+
 const sessions = [];
 let active = null;
 let armed = false;
@@ -79,8 +91,17 @@ function verdictFor(s) {
         + `deferred their layout to the moment you reached them.`,
     };
   }
-  const busy = s.longTaskMs > s.durationMs * 0.3;
-  if (busy) {
+  // requestAnimationFrame runs ON the main thread, so a long gap between two
+  // callbacks IS main-thread blockage — in every browser, no API required.
+  // This is the signal that survives when longtask is unavailable.
+  if (s.frameMedian > 100) {
+    return {
+      code: "MAIN-THREAD",
+      text: `frames ${s.frameMedian}ms apart with nothing added to the DOM — the main thread `
+        + `was blocked in style/layout/paint${SUPPORTS_LONGTASK ? "" : " (longtask API unavailable here, so JS vs paint is not separable)"}.`,
+    };
+  }
+  if (SUPPORTS_LONGTASK && s.longTaskMs > s.durationMs * 0.3) {
     return {
       code: "PAINT",
       text: `DOM was complete; main thread blocked ${s.longTaskMs}ms of ${s.durationMs}ms.`,
@@ -88,8 +109,10 @@ function verdictFor(s) {
   }
   if (s.slowFrames > 0) {
     return {
-      code: "RASTER",
-      text: `DOM complete and main thread mostly idle, yet ${s.slowFrames} frames missed — GPU/raster bound.`,
+      code: SUPPORTS_LONGTASK ? "RASTER" : "UNKNOWN",
+      text: SUPPORTS_LONGTASK
+        ? `DOM complete and main thread mostly idle, yet ${s.slowFrames} frames missed — GPU/raster bound.`
+        : `${s.slowFrames} frames missed, but this browser reports no long-task data, so the cause is not attributable.`,
     };
   }
   return { code: "CLEAN", text: "Nothing anomalous recorded in this burst." };
@@ -122,6 +145,8 @@ function endSession() {
       verdict: verdict.code,
       note: verdict.text,
       ua: navigator.userAgent,
+      supportsLongTask: SUPPORTS_LONGTASK,
+      supportsCvEvent: SUPPORTS_CV_EVENT,
       dpr: window.devicePixelRatio,
       viewport: `${window.innerWidth}x${window.innerHeight}`,
       path: location.pathname,
@@ -160,7 +185,11 @@ function startSession(scroller) {
   // finger mid-scroll.
   try {
     const rows = [...scroller.querySelectorAll(".instance-wrap")];
-    s.seedPx = Math.round(parseFloat(getComputedStyle(rows[0] || document.body).containIntrinsicHeight) || 0);
+    const cs = getComputedStyle(rows[0] || document.body);
+    // `containIntrinsicHeight` came back empty (seed=0 in the field reports);
+    // read the shorthand and take its last length.
+    const seedRaw = cs.getPropertyValue("contain-intrinsic-size") || "";
+    s.seedPx = Math.round(parseFloat((seedRaw.match(/[\d.]+px/g) || []).pop()) || 0);
     const heights = rows.map(r => r.getBoundingClientRect().height).filter(h => h > 4);
     s.realPx = median(heights);
     for (const r of rows) {
