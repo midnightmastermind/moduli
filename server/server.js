@@ -314,6 +314,22 @@ io.on("connection", (socket) => {
 
   registerAuthHandlers(socket, ctx);
   registerStateHandlers(socket, ctx);
+  // `[scroll]` diagnostic reports (client: helpers/scrollDiag.js). A phone has
+  // no console, so the numbers come here and land in the pm2 log instead of
+  // depending on the user screenshotting an overlay. Read with:
+  //   pm2 logs moduli --nostream --lines 500 | grep '\[scroll\]'
+  socket.on("save_scroll_diag", (d = {}) => {
+    try {
+      console.log(`📉 [scroll] ${d.verdict} burst#${d.index} user=${socket.userId} `
+        + `${d.viewport}@${d.dpr}x rows=${d.rowsAtStart} added=${d.rowsAdded} `
+        + `unskipped=${d.unskipped} skippedAtStart=${d.skippedAtStart} `
+        + `frameMedian=${d.frameMedian}ms missed=${d.slowFrames} `
+        + `longTasks=${d.longTasks}(${d.longTaskMs}ms) `
+        + `seed=${d.seedPx} real=${d.realPx} scrolled=${Math.round(d.endTop - d.startTop)}px `
+        + `dur=${d.durationMs}ms ua=${(d.ua || "").slice(-40)}`);
+    } catch { /* a diagnostic must never take the server down */ }
+  });
+
   registerCrudHandlers(socket, ctx);
   registerOccurrenceHandlers(socket, ctx);
   registerTransactionHandlers(socket, ctx);

@@ -43,6 +43,9 @@
 // (the report is specifically about the first one) and then stops, so it costs
 // nothing for the rest of the session.
 
+import { socket } from "../socket.js";
+import { safeEmit } from "./offlineQueue.js";
+
 const on = () => typeof window !== "undefined" && window.__scrollDiag !== false;
 
 const MAX_SESSIONS = 3;        // the report is about the first scroll
@@ -107,6 +110,23 @@ function endSession() {
   // eslint-disable-next-line no-console
   console.log(`[scroll] burst #${s.index} ${s.verdict.code} — ${s.verdict.text}`, s);
   renderOverlay();
+
+  // Also REPORT IT. A phone has no console and screenshots keep going astray,
+  // so the numbers ride the existing socket to the server, where they land in
+  // the pm2 log. `safeEmit` means a burst captured while offline is queued
+  // rather than lost. Strip the DOM node — it is not serialisable.
+  try {
+    const { scroller, mo, po, frames, verdict, ...rest } = s;
+    safeEmit(socket, "save_scroll_diag", {
+      ...rest,
+      verdict: verdict.code,
+      note: verdict.text,
+      ua: navigator.userAgent,
+      dpr: window.devicePixelRatio,
+      viewport: `${window.innerWidth}x${window.innerHeight}`,
+      path: location.pathname,
+    });
+  } catch { /* reporting must never break the page it is measuring */ }
 }
 
 function startSession(scroller) {
