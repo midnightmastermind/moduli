@@ -48,9 +48,24 @@ page was safe. **Probe lesson, again:** my first "applied contents not wrapper" 
 falsely because the wrapper page and the container inside it are BOTH labelled "Day Page" —
 discriminate by role/id, never by a label that legitimately repeats.
 
-**NOT DONE, deliberately — `0035` is NOT applied to poms grid and nothing is deployed.** The plan's
-own sequencing is migration-then-client, and both are live-data calls for the user. Note the
-client already reads the new location, so until 0035 runs on poms grid its templates list is empty.
+**APPLIED + DEPLOYED (user's call, asked first).** `0035` ran on poms grid, pm2 restarted, master
+fast-forwarded (13 commits) and deployed; prod HEAD verified over SSH at `4f7cd493`.
+
+**`0035` MOVED A REAL PAGE AND HAD TO BE REPAIRED — the selector was wrong.** Its filter was
+`occ.meta.templateName || module.meta.templateModule`. **APPLY_TEMPLATE COPIES `templateName` onto
+every clone**, so `Project: Moduli v1 Launch` — the user's actual project page, `templateModule:
+false` — matched and was swept out of its Projects folder into Templates. Restored by reading the
+old `parentId` out of the runner's own pre-migration snapshot (that auto-snapshot is why this was a
+one-command fix), and the selector now keys on `templateModule === true` ONLY, which apply_template
+strips from what it mints. Re-run is a no-op. **CLAUDE.md 2026-07-31 (2) records this exact trap
+and I walked into it anyway — when a migration selects "things that look like templates", the
+copied marker is not evidence.** Lesson for any future migration: *verify what a selector matched
+against a NAMED expectation before applying, not just the count.*
+
+Also swept 12 pre-existing dangling child refs on Schedule Table / Schedule Canvas (the documented
+feedSync `<epoch-ms>-<rand>` class, timestamped BEFORE the migration — not caused by it). Both
+grids end at **0 integrity errors**.
+
 **Open, flagged not fixed:** ~15 modules keep `meta.templateModule` on NESTED template nodes (0035
 only unsets it on roots) and `utils/gridIntegrity.js:141` still uses that marker to identify
 template roots — integrity reports 0 errors today, but the rule is now looking at the wrong nodes.
