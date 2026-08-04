@@ -390,6 +390,17 @@ function armCellSwitchDiag() {
         editors: document.querySelectorAll(".ProseMirror").length,
         durationMs: Math.round(now - t0),
         ua: navigator.userAgent, dpr: window.devicePixelRatio,
+        // Which BUILD sent this. The hashed chunk name changes every deploy, so
+        // a stale tab is identifiable at a glance instead of looking like a
+        // broken feature — `animations=undefined` on 2026-08-04 was a cached
+        // bundle one deploy behind, not a bug, and it cost a round trip to
+        // establish. This project has been caught by stale tabs before.
+        build: (() => {
+          try {
+            const el = document.querySelector('script[src*="/assets/"]');
+            return (el?.src || "").split("/").pop() || "?";
+          } catch { return "?"; }
+        })(),
         viewport: `${window.innerWidth}x${window.innerHeight}`,
       };
       // eslint-disable-next-line no-console
