@@ -355,12 +355,25 @@ function renderOverlay() {
  * rAF gaps are the signal here for the same reason they are during a scroll:
  * rAF runs on the main thread, and it needs no browser API Firefox lacks.
  */
+// Set by Grid's layout effect, which React runs AFTER it commits the new tree
+// but BEFORE the browser paints. That single point splits the tap's cost in
+// two — everything before it is React, everything after is layout+paint — and
+// the two need opposite fixes, so guessing between them is not acceptable.
+let _pendingSwitch = null;
+export function markCellSwitchCommit() {
+  if (_pendingSwitch && _pendingSwitch.commitAt == null) {
+    _pendingSwitch.commitAt = performance.now();
+  }
+}
+
 function armCellSwitchDiag() {
   document.addEventListener("pointerup", (e) => {
     if (!on()) return;
     if (!e.target?.closest?.(".mobile-rail-btn")) return;
 
     const t0 = performance.now();
+    _pendingSwitch = { t0, commitAt: null, paintAt: null };
+    const sw = _pendingSwitch;
     let last = t0, maxGap = 0, blocked = 0, frames = 0;
     const tick = () => {
       const now = performance.now();
@@ -369,10 +382,16 @@ function armCellSwitchDiag() {
       frames++;
       if (dt > maxGap) maxGap = dt;
       if (dt > 50) blocked += dt;
+      // First frame after React committed = the paint that the user waits for.
+      if (sw.commitAt != null && sw.paintAt == null) sw.paintAt = now;
       if (now - t0 < 2000) { requestAnimationFrame(tick); return; }
 
       const payload = {
         kind: "cell-switch",
+        // The decomposition. reactMs is React building + committing the tree;
+        // paintMs is the browser doing layout + paint afterwards.
+        reactMs: sw.commitAt != null ? Math.round(sw.commitAt - t0) : -1,
+        paintMs: (sw.commitAt != null && sw.paintAt != null) ? Math.round(sw.paintAt - sw.commitAt) : -1,
         index: 0, arm: "cell-switch", verdict: maxGap > 250 ? "MAIN-THREAD" : "OK",
         note: `rail tap → longest main-thread block ${Math.round(maxGap)}ms`,
         maxGapMs: Math.round(maxGap), blockedMs: Math.round(blocked), frames,

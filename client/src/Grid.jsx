@@ -10,6 +10,7 @@ import React, {
   useRef,
   useState,
   useEffect,
+  useLayoutEffect,
   useCallback,
 } from "react";
 
@@ -23,6 +24,7 @@ import { GridDataContext } from "./GridDataContext";
 import { useGridActions } from "./GridActionsContext";
 import { GridLiveContext } from "./GridLiveContext";
 import { useActiveCell, useZoomedOut } from "./state/activeCellStore";
+import { markCellSwitchCommit } from "./helpers/scrollDiag";
 
 import { DragProvider } from "./helpers/DragProvider";
 import { useDragContext, useDragStateContext, useDragHotContext, useDroppable, DropAccepts } from "./helpers/dragSystem";
@@ -500,6 +502,10 @@ function GridInner() {
   // memoised panel and page consumes.
   const activeCell = useActiveCell();
   const zoomedOut = useZoomedOut();
+
+  // Runs after React commits the new cell but before the browser paints, so it
+  // is the dividing line between "React was slow" and "layout/paint was slow".
+  useLayoutEffect(() => { markCellSwitchCommit(); }, [activeCell]);
 
   const grid = state.grid;
   const gridId = grid?._id;
