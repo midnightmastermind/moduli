@@ -4824,7 +4824,7 @@ export async function createLiveData(userId, options = {}) {
   // Separate manifest from the user manifest (createTestGrid pattern).
   // buildTemplatesManifest mints the Templates folder + manifest and returns
   // the root folder id that both template subtrees parent to.
-  const { tplManifestRootFolderId } = await buildTemplatesManifest({ userId, gridId, Folder, Manifest });
+  const { tplManifestRootFolderId } = await buildTemplatesManifest({ userId, gridId, Folder, userRootFolderId: rootFolderId });
 
   // Per-slot routine picks (6 items, no completed/water pre-fills).
   // Slot-label keys are EXACTLY the strings generateTimeSlots() emits:

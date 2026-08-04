@@ -16,6 +16,7 @@ import ActionPicker from "../ui/ActionPicker";
 import { arrayMove } from "../helpers/LayoutHelpers";
 import DrilldownPicker from "../ui/DrilldownPicker";
 import JsonStructureEditor from "../ui/JsonStructureEditor";
+import { useGridActions } from "../GridActionsContext";
 import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig, TEMPLATE_PICKER_CONFIG } from "../ui/categoryRegistry";
 import ConditionGroup from "./ConditionGroup";
 
@@ -346,6 +347,12 @@ const ifStepSt = {
  * - operationsById: all operations (for Run Operation action)
  */
 export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = {}, occurrencesById = {}, fieldsById, operationsById = {} }) {
+  // The template picker resolves templates by LOCATION (children of the
+  // protected Templates folder), so it needs folders + the grid id. Read them
+  // here rather than prop-drilling from OperationsTab through four layers.
+  const { foldersById: ctxFolders, state: ctxState } = useGridActions();
+  const pickerFolders = ctxFolders || {};
+  const pickerGridId = ctxState?.grid?._id || ctxState?.gridId || null;
   const local = pipeline || { sources: [], steps: [] };
 
   // Sources are no longer surfaced in the editor — they're a duplicate of
@@ -372,7 +379,7 @@ export function PipelineEditor({ pipeline, onChange, fields = [], modulesById = 
   // editor just needs to know the names so chips render.
   const localVars = useMemo(() => collectLocalVars(steps), [steps]);
 
-  const sharedProps = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById: mergedFieldsById, operationsById, sources };
+  const sharedProps = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById: mergedFieldsById, operationsById, sources, foldersById: pickerFolders, gridId: pickerGridId };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -477,7 +484,7 @@ function DraggableStepWrapper({ step, depth, steps, onReorder, children }) {
   );
 }
 // ---- Steps List (recursive for nested if/else) ----
-function StepsList({ steps, onChange, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [], depth = 0 }) {
+function StepsList({ steps, onChange, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [], depth = 0, foldersById = {}, gridId = null }) {
   const addAction = () => onChange([...steps, { id: uid(), type: "action", config: { type: "INIT_VAR" } }]);
   const addIf = () => onChange([...steps, {
     id: uid(), type: "if",
@@ -493,7 +500,7 @@ function StepsList({ steps, onChange, fields, varOptions, localVars = [], module
   const updateStep = (id, patch) => onChange(steps.map(s => s.id === id ? { ...s, ...patch } : s));
   const removeStep = (id) => onChange(steps.filter(s => s.id !== id));
 
-  const shared = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById, operationsById, sources };
+  const shared = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById, operationsById, sources, foldersById, gridId };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: depth > 0 ? 8 : 0 }}>
@@ -563,7 +570,7 @@ function ExprInput({ value, onChange, placeholder, width = 120, title }) {
 // "array" mode stores the literal as a JSON-serialized string prefixed with "json:";
 // resolveExpr already passes any non-$/non-literal: string through as-is, so we keep
 // the value shape backwards-compatible by writing JSON for arrays.
-function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], fields = [], fieldsById, modulesById, occurrencesById, inLoop = true, localVars = [] }) {
+function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], fields = [], fieldsById, modulesById, occurrencesById, inLoop = true, localVars = [], foldersById = {}, gridId = null }) {
   const v = String(value ?? "").trim();
   const isJsonValue = v.startsWith("json:");
   const isArrayValue = v.startsWith("json:[");
@@ -580,8 +587,8 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
   const [mode, setMode] = useState(initialMode);
 
   const pickerCtx = useMemo(
-    () => ({ sources, fields, fieldsById, modulesById, occurrencesById, localVars }),
-    [sources, fields, fieldsById, modulesById, occurrencesById, localVars],
+    () => ({ sources, fields, fieldsById, modulesById, occurrencesById, localVars, foldersById, gridId }),
+    [sources, fields, fieldsById, modulesById, occurrencesById, localVars, foldersById, gridId],
   );
 
   const switchMode = (next) => {
@@ -669,11 +676,11 @@ function ExprOrPath({ value, onChange, placeholder, width = 160, sources = [], f
 // paths inside the body are expressed against the per-record shape determined
 // by `overExpr`, so $item never needs to surface in the editor. We still keep
 // `step.as` on the model for the executor.
-function LoopStep({ step, onUpdate, onRemove, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [], dragHandleRef }) {
-  const shared = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById, operationsById, sources };
+function LoopStep({ step, onUpdate, onRemove, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [], dragHandleRef, foldersById = {}, gridId = null }) {
+  const shared = { fields, varOptions, localVars, modulesById, occurrencesById, fieldsById, operationsById, sources, foldersById, gridId };
   const pickerCtx = useMemo(
-    () => ({ sources, fields, fieldsById, modulesById, occurrencesById, localVars }),
-    [sources, fields, fieldsById, modulesById, occurrencesById, localVars],
+    () => ({ sources, fields, fieldsById, modulesById, occurrencesById, localVars, foldersById, gridId }),
+    [sources, fields, fieldsById, modulesById, occurrencesById, localVars, foldersById, gridId],
   );
 
   return (

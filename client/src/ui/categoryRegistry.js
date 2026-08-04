@@ -12,6 +12,7 @@
 // stay in the Fields category alongside the global field templates.
 
 import { Database, Box, Hash, Variable, Sparkles, Zap } from "lucide-react";
+import { templatesFolderFor, templateLabelOf } from "../helpers/templateHelpers";
 
 const OCCURRENCE_COLLECTION_TYPES = new Set([
   "allOccurrences", "allContainers", "allPages", "allInstances", "allTemplates",
@@ -170,7 +171,7 @@ export const CATEGORIES = [
           description: op.description || `Operation${op.enabled === false ? " (disabled)" : ""}`,
           hasChildren: true,
         }))
-        .sort((a, b) => a.title.localeCompare(b.title));
+        .sort((a, b) => String(a.title).localeCompare(String(b.title)));
       return [...builtins, ...opRows];
     },
   },
@@ -294,7 +295,7 @@ export function buildRecordKeyPickerConfig(over, { placeholder } = {}) {
 }
 
 // TEMPLATE_PICKER_CONFIG drives a DrilldownPicker that lists every saved
-// template (occurrence carrying meta.templateName) under one category. Used
+// template (a child of the protected Templates folder) under one category. Used
 // by the APPLY_TEMPLATE action editor so authors can pick a template by name
 // instead of hand-typing its occurrence id. Picking a row commits the
 // template occurrence id as the chosen value. Falls back to a $-prefixed
@@ -306,20 +307,30 @@ export const TEMPLATE_PICKER_CONFIG = {
     {
       id: "templates",
       label: "Saved templates",
-      description: "Pick one of the named templates in the Templates manifest",
+      description: "Pick one of the templates in the Templates folder",
       icon: Sparkles,
       color: "rgba(139,92,246,0.7)",
       resolveItems: (ctx) => {
         const occById = ctx?.occurrencesById || {};
         const modById = ctx?.modulesById || {};
+        // Templates are the children of the protected Templates folder —
+        // location is the marker. This used to filter on meta.templateName,
+        // which migration 0035 unsets, so the picker listed NOTHING.
+        const lookups = {
+          foldersById: ctx?.foldersById || {},
+          occurrencesById: occById,
+          modulesById: modById,
+        };
+        const folder = templatesFolderFor(lookups, ctx?.gridId);
+        if (!folder) return [];
         return Object.values(occById)
-          .filter(o => o?.meta?.templateName)
+          .filter(o => o?.parentId === folder.id)
           .map(o => {
             const mod = modById[o.moduleId];
-            const kind = mod?.role || mod?.kind || "";
+            const kind = mod?.kind || mod?.role || "";
             return {
               value: o.id,
-              title: o.meta.templateName,
+              title: templateLabelOf(lookups, o),
               sub: kind || "template",
               description: kind
                 ? `Template (${kind}) — apply to a matching ${kind} occurrence`

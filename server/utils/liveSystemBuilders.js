@@ -6,6 +6,7 @@
 
 import { uid } from "./operationBuilders.js";
 import { completionGateOrRule } from "./completionGate.js";
+import { TEMPLATES_FOLDER_NAME } from "./protectedFolders.js";
 
 // The day-column's no-time bucket. This ONE constant is both the container's
 // label and its Time Slot identity-marker value — the ops FIND it by the marker,
@@ -52,32 +53,35 @@ export function buildScheduleFilters({ schedFilterId, timeslotFilterId, dateFiel
 }
 
 // ── STEP 7b: Templates manifest ─────────────────────────────────────────────
-// The templates manifest holds the "Daily Routine" template subtree. The
-// APPLY_TEMPLATE action looks up the template occurrence by id from occurrencesById,
-// so we just need the occurrence to exist in the DB with meta.templateName set.
+// Templates live in ONE protected "Templates" FOLDER under the user manifest
+// root — location is the only marker of "this is a template". There is no
+// separate templates manifest and no meta.templateName; see
+// docs/superpowers/specs/2026-08-02-template-editing-design.md and migration
+// 0035, which moves already-seeded grids into this shape. The seed must build
+// the SAME shape the migration produces, or a reseed would put templates
+// somewhere the client no longer looks.
 //
-// Injected params: Folder, Manifest — caller-supplied Mongoose model constructors
-// so this builder stays unit-testable with stubs.
-export async function buildTemplatesManifest({ userId, gridId, Folder, Manifest }) {
+// `meta.protected` is what makes the folder undeletable (utils/protectedFolders.js)
+// and what both ends match on — never the name, since the user may keep their
+// own folder called "Templates" elsewhere.
+//
+// Injected params: Folder — caller-supplied Mongoose model constructor so this
+// builder stays unit-testable with stubs. `userRootFolderId` is the user
+// manifest's root folder (the templates folder's parent).
+export async function buildTemplatesManifest({ userId, gridId, Folder, userRootFolderId }) {
+  if (!userRootFolderId) throw new Error("buildTemplatesManifest needs userRootFolderId");
   const tplManifestRootFolderId = uid();
-  const tplManifestId = uid();
   await new Folder({
     id: tplManifestRootFolderId,
     userId, gridId,
-    name: "Templates",
-    parentId: null,
-    folderType: "templates",
+    name: TEMPLATES_FOLDER_NAME,
+    parentId: userRootFolderId,
+    folderType: "normal",
     sortOrder: 0,
     isExpanded: true,
+    meta: { protected: true },
   }).save();
-  await new Manifest({
-    id: tplManifestId,
-    userId, gridId,
-    name: "Templates",
-    manifestType: "templates",
-    rootFolderId: tplManifestRootFolderId,
-  }).save();
-  return { tplManifestId, tplManifestRootFolderId };
+  return { tplManifestRootFolderId };
 }
 
 // ── "Daily Routine" template — the FULL schedule subtree ─────────────────
@@ -462,7 +466,12 @@ export async function buildDayPageTemplate({
   const tplDayPageRootModId = uid();
   await new Module({
     id: tplDayPageRootModId, userId, gridId,
-    role: "container", kind: "doc", label: "Day Page",
+    // role:"page" so the template OPENS from the tree like any other page —
+    // only pages do. Migration 0035 wraps already-seeded container templates in
+    // a page for the same reason; a fresh seed builds the shape directly.
+    // `Day Page: Build` applies it with unwrapRoot:true, which clones the ROOT'S
+    // CHILDREN (the sections) either way, so the build is unaffected.
+    role: "page", kind: "doc", label: "Day Page",
     fieldBindings: dateFieldId
       ? [{ fieldId: dateFieldId, role: "input", hidden: true, order: 0 }]
       : [],

@@ -9,6 +9,7 @@ import Occurrence from "../models/Occurrence.js";
 import Module from "../models/Module.js";
 import Field from "../models/Field.js";
 import Operation from "../models/Operation.js";
+import Folder from "../models/Folder.js";
 import User from "../models/User.js";
 import { checkGridIntegrity, reportGridIntegrity } from "../utils/gridIntegrity.js";
 
@@ -27,11 +28,12 @@ async function main() {
   let ok = true;
   for (const g of wanted) {
     const gid = g._id.toString();
-    const [occurrences, modules, fields, operations] = await Promise.all([
+    const [occurrences, modules, fields, operations, folders] = await Promise.all([
       Occurrence.find({ gridId: gid }).lean(), Module.find({ gridId: gid }).lean(),
       Field.find({ gridId: gid }).lean(), Operation.find({ gridId: gid }).lean(),
+      Folder.find({ gridId: gid }).lean(),
     ]);
-    ok = reportGridIntegrity(checkGridIntegrity({ grid: g, occurrences, modules, fields, operations }),
+    ok = reportGridIntegrity(checkGridIntegrity({ grid: g, occurrences, modules, fields, operations, folders }),
       { label: `"${g.name || "(unnamed)"}"` }) && ok;
   }
   if (!ok) process.exitCode = 1;

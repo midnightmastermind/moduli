@@ -431,7 +431,7 @@ describe("schedule ops", () => {
 });
 
 describe("buildDayPageTemplate", () => {
-  it("creates a day-COLUMN root: a container that binds Date and is the H1", async () => {
+  it("creates a day-page template root: a PAGE that binds Date and is the H1", async () => {
     const occs = [];
     const mods = [];
     const mkOcc = async (d) => { const id = d.id || `o${occs.length}`; occs.push({ ...d, id }); return id; };
@@ -443,8 +443,11 @@ describe("buildDayPageTemplate", () => {
     const root = occs.find(o => o.id === rootOccId);
     expect(root.meta).toMatchObject({ templateName: "Day Page", templateModule: true });
     const rootMod = mods.find(m => m.id === root.moduleId);
-    // A COLUMN, not a page — the board page holds one per day.
-    expect(rootMod.role).toBe("container");
+    // role:"page" so the template OPENS from the tree (only pages do) — the
+    // shape migration 0035 produces by wrapping. `Day Page: Build` applies it
+    // with unwrapRoot:true, cloning the ROOT'S CHILDREN, so the build is
+    // unaffected by the root's own role.
+    expect(rootMod.role).toBe("page");
     expect(rootMod.kind).toBe("doc");
     // It carries the date, which is what makes it answer the filter cascade.
     expect(rootMod.fieldBindings.some(b => b.fieldId === "DF")).toBe(true);

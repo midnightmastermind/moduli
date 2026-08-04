@@ -9,10 +9,10 @@
 // a live grid to check for drift.
 
 /**
- * @param {{grid, occurrences, modules, fields, operations}} world
+ * @param {{grid, occurrences, modules, fields, operations, folders}} world
  * @returns {Array<{level:"error"|"warn", code:string, message:string, ids?:string[]}>}
  */
-export function checkGridIntegrity({ occurrences = [], modules = [], fields = [], operations = [] } = {}) {
+export function checkGridIntegrity({ occurrences = [], modules = [], fields = [], operations = [], folders = [] } = {}) {
   const findings = [];
   const add = (level, code, message, ids) => findings.push({ level, code, message, ...(ids?.length ? { ids: ids.slice(0, 12) } : {}) });
 
@@ -134,24 +134,44 @@ export function checkGridIntegrity({ occurrences = [], modules = [], fields = []
   //    the invariant is crisp: a clone's children include whatever the user
   //    typed, which has no template counterpart and is rightly unsigned.
   //    The ROOT is exempt — it is matched by the apply target, not by signature.
+  //    A template is identified by LOCATION — a child of the protected
+  //    "Templates" folder. It used to be identified by `module.meta.templateModule`,
+  //    but migration 0035 unsets that on template ROOTS while leaving it on the
+  //    nested nodes, so the marker now points at exactly the wrong occurrences.
+  //    Location is also the rule the app itself uses (helpers/templateHelpers.js
+  //    and utils/templatesFolder.js), so the check and the product agree.
+  const templateFolderIds = new Set(
+    folders.filter(f => f?.meta?.protected && f.name === "Templates").map(f => f.id),
+  );
   const templateRoots = new Set();
   for (const o of occurrences) {
     const from = o.meta?.appliedFromTemplateId;
     if (from) templateRoots.add(from);
-    if (modById.get(o.moduleId)?.meta?.templateModule) templateRoots.add(o.id);
+    if (o.parentId && templateFolderIds.has(o.parentId)) templateRoots.add(o.id);
   }
-  // `templateModule` is stamped on EVERY module in a cloned template, not just
-  // its root, so the inner nodes are candidate roots too — walking each would
-  // report the same node several times. Report per occurrence id instead.
+  // A node can be reachable from several roots (an applied-from id plus its own
+  // folder entry), so report per occurrence id rather than per root.
   const unsignedById = new Map();
   for (const rootId of templateRoots) {
     const root = occById.get(rootId);
     if (!root) continue;
     const seen = new Set([rootId]);
+    // A template whose root is a PAGE is a wrapper — the thing being templated
+    // is what's inside it, and both build ops apply with unwrapRoot:true. So the
+    // wrapper's own child is the effective apply root and is matched the same
+    // way the root is: by the target, not by a signature.
+    const rootIsWrapperPage = modById.get(root.moduleId)?.role === "page";
+    const exemptChildren = rootIsWrapperPage ? new Set(root.occurrences || []) : new Set();
     const walk = (id) => {
       const o = occById.get(id);
       if (!o) return;
-      if (!o.identitySignature && !unsignedById.has(o.id)) {
+      // Only STRUCTURE is checked. An unsigned instance is content that is
+      // meant to clone fresh on every apply (the Schedule template's routine
+      // items land in a NEW day column each day, so they cannot duplicate).
+      // The bug this rule exists for was duplicated CONTAINERS — 23 copies of
+      // the Daily Question wrapper in one day, 2026-07-31.
+      const isStructure = modById.get(o.moduleId)?.role === "container";
+      if (isStructure && !exemptChildren.has(o.id) && !o.identitySignature && !unsignedById.has(o.id)) {
         const label = modById.get(o.moduleId)?.label || "(unlabelled)";
         unsignedById.set(o.id, `${label} in ${modById.get(root.moduleId)?.label || rootId}`);
       }
