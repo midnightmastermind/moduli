@@ -45,6 +45,7 @@
 
 import { socket } from "../socket.js";
 import { safeEmit } from "./offlineQueue.js";
+import { snapshotRenders, diffRenders } from "./renderProbe";
 
 // TWO modes, because a phone has no console but also should not have a debug
 // panel thrown over the app it is trying to use:
@@ -355,6 +356,14 @@ function renderOverlay() {
  * rAF gaps are the signal here for the same reason they are during a scroll:
  * rAF runs on the main thread, and it needs no browser API Firefox lacks.
  */
+// Render attribution reuses helpers/renderProbe.js — `bumpRender` is ALREADY
+// called by ModulePanel / ModulePage / ModuleContainer / ModuleInstance (built
+// for the 2026-07-07 drop frame-1 flush work). React is ~99% of a rail tap
+// (measured 2026-08-04: react=445-508ms, paint=1-6ms), so the question is WHICH
+// components rebuild — and a count near the mounted total means React.memo is
+// being defeated there, while a count near zero means it is holding. Reading
+// that beats reading a props list, which is how several wrong turns started.
+
 // Set by Grid's layout effect, which React runs AFTER it commits the new tree
 // but BEFORE the browser paints. That single point splits the tap's cost in
 // two — everything before it is React, everything after is layout+paint — and
@@ -373,6 +382,7 @@ function armCellSwitchDiag() {
 
     const t0 = performance.now();
     _pendingSwitch = { t0, commitAt: null, paintAt: null };
+    const rBefore = snapshotRenders();
     const sw = _pendingSwitch;
     let last = t0, maxGap = 0, blocked = 0, frames = 0;
     const tick = () => {
@@ -388,6 +398,7 @@ function armCellSwitchDiag() {
 
       const payload = {
         kind: "cell-switch",
+        renders: diffRenders(rBefore),
         // The decomposition. reactMs is React building + committing the tree;
         // paintMs is the browser doing layout + paint afterwards.
         reactMs: sw.commitAt != null ? Math.round(sw.commitAt - t0) : -1,
