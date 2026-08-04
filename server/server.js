@@ -323,7 +323,8 @@ io.on("connection", (socket) => {
       if (d.kind === "cell-switch") {
         console.log(`📉 [scroll] CELL-SWITCH ${d.verdict} user=${socket.userId} `
           + `maxBlock=${d.maxGapMs}ms blocked=${d.blockedMs}ms frames=${d.frames} `
-          + `rows=${d.rowsAtStart} ${d.viewport}@${d.dpr}x ua=${(d.ua || "").slice(-30)}`);
+          + `rows=${d.rowsAtStart} animations=${d.animations} domNodes=${d.domNodes} `
+          + `editors=${d.editors} ${d.viewport}@${d.dpr}x ua=${(d.ua || "").slice(-30)}`);
         return;
       }
       console.log(`📉 [scroll] ${d.verdict} burst#${d.index} arm=${d.arm} user=${socket.userId} `
