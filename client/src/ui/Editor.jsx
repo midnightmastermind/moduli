@@ -86,7 +86,43 @@ import QuickAddMenu from "./QuickAddMenu.jsx";
 import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type, Plus, Shuffle } from "lucide-react";
 import { convertLeafRole } from "../helpers/convertOccurrence";
 import { consumeTextblockFocus } from "../helpers/pendingTextblockFocus";
+import {
+  isProvisionalTextblock, commitProvisionalTextblock, hasProvisionalTextblock,
+  isEmptyTextblockDoc, isTextblockMintSuppressed,
+} from "../helpers/provisionalTextblock";
 import { operationsBridge } from "../state/bindSocketToStore";
+
+// The caret-entry mint must only fire for a caret the USER placed. Every other
+// path that moves a selection — a server echo's setContent, the content-sync
+// effect, a drop's setTextSelection — would otherwise mint a textblock nobody
+// asked for, on a doc nobody is looking at. One shared pair of capture-phase
+// listeners stamps the last real input; a mint is only allowed in its wake.
+let _lastUserInputAt = 0;
+let _userInputListenersOn = false;
+function trackUserInput() {
+  if (_userInputListenersOn || typeof document === "undefined") return;
+  _userInputListenersOn = true;
+  const stamp = () => { _lastUserInputAt = Date.now(); };
+  document.addEventListener("pointerdown", stamp, true);
+  document.addEventListener("keydown", stamp, true);
+}
+const USER_INPUT_WINDOW_MS = 1000;
+function userInputRecently() {
+  return Date.now() - _lastUserInputAt < USER_INPUT_WINDOW_MS;
+}
+
+// The caret sits in an EMPTY top-level line → the {start, size} of the line to
+// replace with a textblock, else null. Depth 1 is what keeps this out of table
+// cells, wrap groups and list items — only a bare line in the doc body qualifies.
+export function emptyLineAtCaret(state) {
+  const sel = state?.selection;
+  if (!sel?.empty) return null;
+  const $from = sel.$from;
+  if ($from.depth !== 1) return null;
+  const parent = $from.parent;
+  if (parent.type.name !== "paragraph" || parent.content.size !== 0) return null;
+  return { start: $from.before(1), size: parent.nodeSize };
+}
 
 // Atomic same-doc move for a TipTap embed node (instanceTextblock,
 // moduleEmbed). Scans the editor's doc for a node whose attrs match
@@ -224,6 +260,13 @@ const Editor = forwardRef(function Editor({
   onExitBlock = null,
   onDeleteBlock = null,
   onAutoCreateTextblock = null,
+  // Caret entered an empty top-level line → mint a textblock there NOW, before
+  // any keystroke (user 2026-08-05). Primary doc editors only; DocContent owns
+  // the mint itself. Null everywhere else, which disables the behaviour.
+  onCaretMintTextblock = null,
+  // This editor's doc went empty and lost focus. Used by a click-minted
+  // textblock to remove itself when the user walks away without typing.
+  onEmptyBlur = null,
   recentAutoCreateRef = null,
   mode = "doc",
   onCellCommitMove = null,
@@ -391,6 +434,40 @@ const Editor = forwardRef(function Editor({
   const onDeleteBlockRef = useRef(onDeleteBlock);
   onExitBlockRef.current = onExitBlock;
   onDeleteBlockRef.current = onDeleteBlock;
+  // Read through refs for the same reason as the two above: useEditor captures
+  // its callbacks once at init, so a prop read directly inside them goes stale.
+  const onCaretMintRef = useRef(onCaretMintTextblock);
+  const onEmptyBlurRef = useRef(onEmptyBlur);
+  onCaretMintRef.current = onCaretMintTextblock;
+  onEmptyBlurRef.current = onEmptyBlur;
+  if (onCaretMintTextblock) trackUserInput();
+
+  // Caret entered an empty line — hand the position to the mint. Guarded so it
+  // can only ever fire for a caret the user just placed with a real gesture, in
+  // a focused editable primary doc editor, outside the post-collapse suppression
+  // window (which is what stops backspacing a block from re-minting it).
+  //
+  // Deferred a tick, and coalesced to one pending check: selection and focus
+  // land in either order (a click moves the selection first, `focus().run()`
+  // after an Enter-exit sets the selection before the DOM focus), so reading
+  // hasFocus() synchronously in whichever hook fired first misses half the
+  // cases. On the next tick both have settled.
+  const mintCheckRef = useRef(0);
+  const maybeMintAtCaret = useCallback((editor) => {
+    if (!onCaretMintRef.current || !editor || editor.isDestroyed) return;
+    if (mintCheckRef.current) return;
+    mintCheckRef.current = setTimeout(() => {
+      mintCheckRef.current = 0;
+      const mint = onCaretMintRef.current;
+      if (!mint || editor.isDestroyed) return;
+      if (!editor.isEditable || !editor.view?.hasFocus?.()) return;
+      if (isTextblockMintSuppressed() || !userInputRecently()) return;
+      const target = emptyLineAtCaret(editor.state);
+      if (!target) return;
+      mint(target.start, target.size);
+    }, 0);
+  }, []);
+  useEffect(() => () => { if (mintCheckRef.current) clearTimeout(mintCheckRef.current); }, []);
 
   // Keep drop-handler refs fresh — the dropTargetForElements effect only re-registers when
   // editor changes, so occurrencesById/dispatch/socket would otherwise be stale closures.
@@ -407,6 +484,26 @@ const Editor = forwardRef(function Editor({
   // ── debounced save ────────────────────────────────────────────
   const persistContent = useCallback((json, immediate = false) => {
     if (!occurrence?.id || !dispatch || !socket) return;
+    // ── provisional textblocks ────────────────────────────────────────────
+    // THIS editor is a click-minted textblock that has no server row yet.
+    // Empty → there is nothing worth a row, and an update_occurrence for an id
+    // the server has never seen is not a save, it is debris. The first real
+    // content is what buys the row (commit emits the create carrying it).
+    if (isProvisionalTextblock(occurrence.id)) {
+      if (isEmptyTextblockDoc(json)) return;
+      commitProvisionalTextblock(occurrence.id, json);
+    }
+    // This editor is the doc that HOSTS one. Holding its textmap back is the
+    // other half of never emitting the block: a tab closed between the click
+    // and the first keystroke would otherwise leave the parent embedding an
+    // occurrence that never gets created — a permanent "—" line. The commit
+    // path writes the parent explicitly, and the discard path changes the doc
+    // (node → empty line), which persists normally on the next tick.
+    if (hasProvisionalTextblock(json)) {
+      if (saveTimeout.current) clearTimeout(saveTimeout.current);
+      setIsSaving(false);
+      return;
+    }
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
     setIsSaving(true);
     const doSave = () => {
@@ -776,11 +873,28 @@ const Editor = forwardRef(function Editor({
         }
       }
     },
+    // Click / arrow into an empty line → that line becomes a textblock now.
+    // Both hooks are needed: a click that MOVES the caret fires selectionUpdate,
+    // while clicking into an editor whose caret is already on the empty line
+    // (a one-line doc, or re-entering where you left) only fires focus.
+    onSelectionUpdate: ({ editor }) => { maybeMintAtCaret(editor); },
+    onFocus: ({ editor }) => { maybeMintAtCaret(editor); },
     onBlur: ({ editor }) => {
       const json = editor.getJSON();
       onBlur?.(json);
       persistContent(json, true);
       setTimeout(() => setShowSuggestion(false), 200);
+      // A click-minted textblock that is still empty when the user moves away
+      // removes itself. Deferred a tick and re-checked: blur also fires when
+      // focus travels to this block's own radial handle or toolbar, and it
+      // comes straight back.
+      if (onEmptyBlurRef.current && isEmptyTextblockDoc(json)) {
+        setTimeout(() => {
+          if (editor.isDestroyed || editor.isFocused) return;
+          if (!isEmptyTextblockDoc(editor.getJSON())) return;
+          onEmptyBlurRef.current?.();
+        }, 0);
+      }
     },
     editorProps: {
       instancesById,

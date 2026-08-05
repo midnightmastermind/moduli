@@ -887,7 +887,7 @@ export function spliceChildIntoParent({ dispatch, socket, parentOccurrence, occu
 // into every call site — is exactly how the drop path and the typed path drifted
 // apart in the first place. Never throws: a create must not fail because the
 // bridge is unwired (unit tests) or the filter is unreadable.
-function parentFilterFields(parentOccurrence) {
+export function parentFilterFields(parentOccurrence) {
   try {
     const ctx = operationsBridge.getFilterContext?.();
     if (!ctx?.state || !parentOccurrence) return null;

@@ -2,6 +2,37 @@
 
 _Updated: 2026-07-24. Check this file before re-reading source._
 
+## Recent Changes (2026-08-05 (3) — provisionalTextblock.js NEW: a textblock that is not on the server yet)
+- **`provisionalTextblock.js` (NEW)** — the registry behind click-to-mint textblocks (user
+  2026-08-05: "all new lines be textblocks if im on it … if i move away from it with it still
+  empty, it disappears"). Clicking an empty line mints the block BEFORE any keystroke, which is
+  what removes the first-save lag — the create no longer races the keypress. The cost is that most
+  of those blocks are abandoned empty, and **deleting a row the server was only just told about is
+  exactly the create/delete asymmetry behind the recurring `dangling-child-ref` class**
+  (`create_occurrence` is QUEUED server-side, `delete_occurrence` is not, so the delete can
+  overtake the create). So a provisional block is **never emitted**: it lives in local state until
+  it earns a row by holding content (`commit`), and abandoning it is a purely local removal
+  (`discard`) that cannot race anything. Exports `registerProvisionalTextblock` /
+  `isProvisionalTextblock` / `commitProvisionalTextblock` (idempotent — the save path calls it on
+  every keystroke) / `discardProvisionalTextblock` / `forgetProvisionalTextblock`,
+  `suppressTextblockMint` + `isTextblockMintSuppressed`, `isEmptyTextblockDoc`,
+  `hasProvisionalTextblock`.
+  - **`suppressTextblockMint` is load-bearing, not polish.** Collapsing a block back to a line
+    (backspace in an empty block, the blur-discard) leaves the caret ON that line — which is
+    exactly what the caret-entry mint watches for, so without a suppression window backspace
+    re-creates the block it just dismissed and becomes a no-op loop. A/B-verified in the browser
+    harness: with the window at 0 the block count goes 2 → 2 across a backspace; at 600ms it goes
+    2 → 1 and stays.
+  - **`isEmptyTextblockDoc` deliberately is NOT "has no characters"** — a doc holding an image, an
+    embed or a list item is kept. The vanish rule is about lines the user never used.
+  - **`hasProvisionalTextblock`** is what keeps the PARENT doc's textmap from being written while
+    it embeds a block with no server row: a tab closed in that window would leave the parent
+    embedding an occurrence that never gets created — a permanent "—" line (the 2026-08-01 (19)
+    listed-but-not-embedded failure from the other direction).
+- **`CommitHelpers.parentFilterFields` is now exported** (was module-private) so the doc mint can
+  stamp the day's date on the block it creates, the same way the + menus do since 91e4a807.
+- 12 tests in `__tests__/provisionalTextblock.test.js`.
+
 ## Recent Changes (2026-07-25 — addNewOption.js NEW: "+ Add new" = select-an-occurrence + field entry)
 - **`addNewOption.js` (NEW)** — the "+ Add new" flow for occurrence dropdowns. A field's
   `meta.optionsSource.addNew` is either `{ parentOccurrenceId }` (legacy single) or

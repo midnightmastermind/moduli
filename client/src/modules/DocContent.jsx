@@ -8,8 +8,9 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import { Lock, Unlock } from "lucide-react";
 import { logCaretInterference } from "../helpers/caretDiag";
 import { requestTextblockFocus, cancelTextblockFocus } from "../helpers/pendingTextblockFocus";
+import { registerProvisionalTextblock, discardProvisionalTextblock } from "../helpers/provisionalTextblock";
 
-export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false, scrollAnchor, onExitBlock, onDeleteBlock, onAutoCreateTextblock }) {
+export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false, scrollAnchor, onExitBlock, onDeleteBlock, onAutoCreateTextblock, onEmptyBlur = null }) {
   const [showLockBtn, setShowLockBtn] = useState(false);
   const wrapRef = useRef(null);
   const editorRef = useRef(null);
@@ -22,6 +23,9 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
   // time gate (~200ms) so deliberate gestures that happen later — Enter,
   // Shift+Enter, click, cursor move — don't fall into the merge path.
   const recentAutoCreateRef = useRef({ occId: null, expireAt: 0 });
+  // The most recent click-minted textblock that has not committed yet, so an
+  // unmount can drop it (see the cleanup effect below).
+  const provisionalOccIdRef = useRef(null);
 
   // Scroll-to-anchor: when scrollAnchor is set, find the element and scroll to it
   useEffect(() => {
@@ -155,6 +159,103 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
     requestAnimationFrame(() => tryFocus());
   }, [occurrence, socket, dispatch]);
 
+  // Click-to-mint: the caret entered an EMPTY top-level line, so that line
+  // becomes a textblock right now — before any keystroke. This is the fix for
+  // the first-textblock save lag (user 2026-08-05): the create no longer races
+  // the first keypress, because by the time a character arrives the sub-editor
+  // already exists and already has the caret.
+  //
+  // The block is minted LOCAL-ONLY (`emit: false`). Most lines you click into
+  // are abandoned empty, and emitting a create for each one would mean deleting
+  // rows the server has only just been told about — the documented
+  // create-is-queued / delete-is-not asymmetry behind the recurring dangling
+  // child refs. It earns its server row on the first character instead
+  // (`commit`), and abandoning it is a purely local removal (`discard`).
+  const handleCaretMintTextblock = useCallback((nodeStart, nodeSize) => {
+    if (!occurrence?.id || !socket || !dispatch) return;
+    const editor = editorRef.current?.editor;
+    if (!editor) return;
+    const schema = editor.state.schema;
+    if (!schema.nodes.instanceTextblock) return;
+    const userId = occurrence.userId;
+    const gridId = occurrence.gridId;
+    if (!userId || !gridId) return;
+
+    const modId = crypto.randomUUID();
+    const occId = crypto.randomUUID();
+    const module = { id: modId, userId, gridId, role: "textblock", kind: "doc", label: "" };
+    // Born carrying the parent's filter values (the day's date). Without them
+    // the block is invisible to the date filter the moment it stops being empty
+    // — the same hole 91e4a807 closed for the + menus.
+    const stamped = CommitHelpers.parentFilterFields(occurrence);
+    const newOccurrence = {
+      id: occId, userId, gridId,
+      moduleId: modId,
+      parentId: occurrence.id,
+      iteration: { mode: "persistent" },
+      textmap: { type: "doc", content: [{ type: "paragraph", content: [] }] },
+      fields: stamped || {},
+    };
+
+    CommitHelpers.createModule({ dispatch, socket, module, emit: false });
+    CommitHelpers.createOccurrence({
+      dispatch, socket, occurrence: newOccurrence, emit: false, fireTrigger: false,
+    });
+
+    // REGISTER BEFORE the transaction. Replacing the line fires the outer
+    // editor's onUpdate synchronously, and that save path asks whether the doc
+    // now embeds a provisional block — an entry added afterwards is too late,
+    // and the parent textmap goes out with an embed the server cannot resolve.
+    registerProvisionalTextblock(occId, {
+      commit: (textmap) => {
+        CommitHelpers.createModule({ dispatch, socket, module, emit: true });
+        CommitHelpers.createOccurrence({
+          dispatch, socket,
+          occurrence: { ...newOccurrence, textmap: textmap || newOccurrence.textmap },
+          emit: true,
+        });
+        // The parent doc held its own textmap back while this block had no
+        // server row (Editor.persistContent). Write it now that the embed
+        // resolves — otherwise the textblock exists but nothing renders it.
+        const ed = editorRef.current?.editor;
+        if (ed && !ed.isDestroyed) {
+          CommitHelpers.updateOccurrence({
+            dispatch, socket,
+            occurrence: { ...occurrence, textmap: ed.getJSON() },
+            emit: true,
+          });
+        }
+      },
+      discard: () => {
+        cancelTextblockFocus(occId);
+        CommitHelpers.removeOccurrence({
+          dispatch, socket, occurrenceId: occId, emit: false, fireTrigger: false,
+        });
+        CommitHelpers.deleteModule({ dispatch, socket, moduleId: modId, emit: false });
+      },
+    });
+
+    const tr = editor.state.tr;
+    tr.setMeta("skipAutoCreate", true);
+    tr.replaceWith(nodeStart, nodeStart + nodeSize, schema.nodes.instanceTextblock.create({
+      instanceId: modId,
+      occurrenceId: occId,
+    }));
+    editor.view.dispatch(tr);
+
+    // The sub-editor claims the caret in its own onCreate — the first frame it
+    // exists. Nothing here polls the DOM for it.
+    provisionalOccIdRef.current = occId;
+    requestTextblockFocus(occId);
+  }, [occurrence, socket, dispatch]);
+
+  // A doc that unmounts still holding an uncommitted block (panel closed, page
+  // switched) drops it. Nothing was emitted, so this is local cleanup only —
+  // without it the empty module + occurrence linger in client state until reload.
+  useEffect(() => () => {
+    if (provisionalOccIdRef.current) discardProvisionalTextblock(provisionalOccIdRef.current);
+  }, []);
+
   const handleToggleLock = (e) => {
     e.stopPropagation();
     if (!occurrence?.id) return;
@@ -208,6 +309,10 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
         onDeleteBlock={onDeleteBlock}
         recentAutoCreateRef={recentAutoCreateRef}
         onAutoCreateTextblock={onExitBlock ? null : (onAutoCreateTextblock || handleAutoCreateTextblock)}
+        // Same gate as auto-create: PRIMARY doc editors only, never a textblock
+        // sub-editor (which is itself the thing being minted) or a table cell.
+        onCaretMintTextblock={onExitBlock ? null : handleCaretMintTextblock}
+        onEmptyBlur={onEmptyBlur}
         enableInsertGaps={!onExitBlock && !onDeleteBlock}
       />
     </div>

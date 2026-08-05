@@ -2,6 +2,20 @@
 
 _Updated: 2026-07-13. Check this file before re-reading source._
 
+## Recent Changes (2026-08-05 (3) — InstanceTextblockNode: empty click-minted blocks remove themselves)
+- **`pills/InstanceTextblockNode.jsx`** — new `handleEmptyBlur` (wired to DocContent's
+  `onEmptyBlur`): the sub-editor lost focus while still empty → replace the node with a plain
+  empty line and drop the data. **Only a PROVISIONAL block vanishes** (`isProvisionalTextblock`) —
+  a textblock the user deliberately created via the + menu or a drop and left empty is theirs to
+  keep. No `.focus()` in that transaction: the user moved away on purpose.
+- **New `dropOccurrenceData`** — one place deciding how a textblock's data goes away:
+  `discardProvisionalTextblock` (local, never emitted) when the block has no server row, else the
+  normal `removeOccurrence` emit. Used by the radial delete, the backspace collapse and the blur
+  removal, so none of them can emit a delete for an id the server has never seen.
+- **`handleNavigateBack(deleteIfEmpty)` calls `suppressTextblockMint()`** before collapsing the
+  block — the caret lands on the restored empty line, which is what the caret-entry mint watches
+  for, so without it backspace re-creates the block it just collapsed (A/B-verified).
+
 ## Recent Changes (2026-07-13 — inline chip caret: Firefox fix (round 2 of f2e89136))
 - **`pills/InstanceTextblockInlineNode.jsx`** — two changes:
   (1) the Pragmatic mount stamps `draggable="true"` on the chip wrapper; it's now DISARMED at

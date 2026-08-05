@@ -2,6 +2,28 @@
 
 _Updated: 2026-08-01. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-08-05 (3) — DocContent: click an empty line, get a textblock)
+- **`DocContent.jsx` `handleCaretMintTextblock` (NEW)** — the mint itself. Creates the
+  textblock module + occurrence **LOCAL-ONLY** (`emit: false`, `fireTrigger: false`), replaces the
+  empty line with an `instanceTextblock` node and requests the caret through the existing
+  `pendingTextblockFocus` claim. The block carries the parent's filter values
+  (`CommitHelpers.parentFilterFields`) so it is visible to the date filter the moment it stops
+  being empty. Registered with `helpers/provisionalTextblock` under two closures:
+  - **`commit(textmap)`** — emits `create_module` + `create_occurrence` with whatever has been
+    typed, then explicitly writes the PARENT doc's textmap (Editor held it back while the block
+    was provisional; without this write the textblock exists but nothing renders it).
+  - **`discard()`** — local `removeOccurrence` + `deleteModule`, no emit. Nothing was ever sent,
+    so there is nothing to race.
+  **Register BEFORE dispatching the replace transaction** — that transaction fires the outer
+  editor's onUpdate synchronously, and the save path asks the registry whether the doc now embeds
+  a provisional block.
+- Passed to Editor as `onCaretMintTextblock`, gated `onExitBlock ? null : …` — the same gate as
+  auto-create, so PRIMARY doc editors only, never a textblock sub-editor or a table cell.
+- An unmount still holding an uncommitted block discards it (local cleanup only; without it the
+  empty module + occurrence linger in client state until reload).
+- The old TYPING path (`handleAutoCreateTextblock` + Editor's merge window) is untouched and still
+  covers paste, fast typing before the mint lands, and programmatic content.
+
 ## Recent Changes (2026-08-01 — EVERY artifact card is a figure: preview on top, name centered underneath)
 User: *"center the artifact file names and make sure all artifacts are preview on top, and file
 name stacked underneath it always."*

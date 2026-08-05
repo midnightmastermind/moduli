@@ -2,6 +2,34 @@
 
 _Updated: 2026-07-20. Check this file before re-reading source._
 
+## Recent Changes (2026-08-05 (3) — Editor: caret-entry mint + provisional-safe saving)
+- **`Editor.jsx` — new `onCaretMintTextblock` / `onEmptyBlur` props.** The caret landing on an
+  EMPTY top-level line hands its position to DocContent, which replaces the line with a textblock
+  right then (user 2026-08-05). Exported pure `emptyLineAtCaret(state)` is the predicate —
+  **`$from.depth !== 1` is what keeps this out of table cells, wrap groups and list items**, and
+  a range selection never qualifies (the user is selecting, not placing a caret). 7 tests in
+  `__tests__/emptyLineAtCaret.test.js` drive it against a real ProseMirror state (no DOM).
+- **Two guards, both from real failures.** (1) A module-level pair of capture-phase
+  `pointerdown`/`keydown` listeners stamps the last real user input; a mint only happens in its
+  wake — otherwise every programmatic selection (a server echo's setContent, the content-sync
+  effect, a drop's setTextSelection) would mint textblocks in docs nobody is looking at.
+  (2) The check is **deferred a tick and coalesced**: selection and focus land in either order (a
+  click moves the selection first; `focus().run()` after a Shift+Enter exit sets the selection
+  BEFORE the DOM focus), so reading `hasFocus()` synchronously in whichever hook fired first
+  misses half the cases — measured: the Shift+Enter-exit line did not mint until this was
+  deferred. Hooked from BOTH `onSelectionUpdate` and `onFocus` for the same reason.
+- **`persistContent` gained the provisional gate.** If THIS editor is a provisional textblock:
+  empty → save nothing (an `update_occurrence` for an id the server has never seen is not a save,
+  it is debris); non-empty → `commitProvisionalTextblock` FIRST, so the create is emitted before
+  the debounced update of the same row. If this editor is the doc that HOSTS one → hold the
+  textmap back entirely. **Order matters and cost a probe round:** DocContent originally
+  registered the block AFTER dispatching the replace transaction, so the outer editor's onUpdate
+  ran before the registry knew, and the parent textmap went out embedding a phantom (measured:
+  2 `update_occurrence` emits before the create; 0 after the fix).
+- **`onBlur`** — an empty doc that lost focus calls `onEmptyBlur` on the next tick, re-checking
+  `!isFocused` and still-empty first (blur also fires when focus travels to the block's own radial
+  handle and comes straight back).
+
 ## Recent Changes (2026-07-25 (2) — dropdown option rows: no "Set image" overlay once an image is set)
 - **`Field.jsx` (`OccurrenceOption`)** — the hover `ImagePlus` overlay on a picker option's media
   slot now renders only while that option has NO image (`onSetImage && !(mediaVal && isImg)`).

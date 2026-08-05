@@ -12,6 +12,9 @@ import RadialMenu from "../../ui/RadialMenu.jsx";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { embedDeleteRegistry } from "../../helpers/embedRegistry.js";
 import { resolveEditorBinding } from "../../state/editorBindings.js";
+import {
+  isProvisionalTextblock, discardProvisionalTextblock, suppressTextblockMint,
+} from "../../helpers/provisionalTextblock.js";
 
 export default function InstanceTextblockNode({ node, editor, getPos, deleteNode }) {
   const { occurrencesById, modulesById, dispatch, socket } = useGridActions() || {};
@@ -178,16 +181,46 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
     }
   }, [editor, getPos, node.nodeSize]);
 
+  // Drop this textblock's data. A block minted by clicking an empty line and
+  // never typed into has no server row (see helpers/provisionalTextblock), so
+  // its removal is local — emitting a delete for an id the server has never
+  // seen is exactly the race that mints dangling child refs.
+  const dropOccurrenceData = useCallback(() => {
+    if (!occurrenceId || !dispatch || !socket) return;
+    if (discardProvisionalTextblock(occurrenceId)) return;
+    CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId, emit: true });
+  }, [occurrenceId, dispatch, socket]);
+
+  // The sub-editor lost focus while still empty. Only a PROVISIONAL block
+  // vanishes: a textblock the user deliberately created (the + menu, a drop)
+  // and left empty is theirs to keep.
+  const handleEmptyBlur = useCallback(() => {
+    if (!editor || !getPos || !occurrenceId) return;
+    if (!isProvisionalTextblock(occurrenceId)) return;
+    let pos;
+    try { pos = getPos(); } catch { return; }
+    if (typeof pos !== "number") return;
+    const paragraph = editor.state.schema.nodes.paragraph?.create();
+    if (!paragraph) return;
+    // The caret may land back on the restored line; without this the mint
+    // fires again on the next selection update and the block never dies.
+    suppressTextblockMint();
+    const tr = editor.state.tr;
+    tr.setMeta("skipAutoCreate", true);
+    tr.replaceWith(pos, pos + node.nodeSize, paragraph);
+    // NO .focus() — the user moved away on purpose.
+    editor.view.dispatch(tr);
+    discardProvisionalTextblock(occurrenceId);
+  }, [editor, getPos, node.nodeSize, occurrenceId]);
+
   // Radial menu delete — removes TipTap node + cleans up occurrence
   const handleDeleteBlock = useCallback(() => {
     if (!editor || !getPos) return;
     const pos = getPos();
     const nodeSize = node.nodeSize;
     editor.chain().focus().deleteRange({ from: pos, to: pos + nodeSize }).run();
-    if (occurrenceId && dispatch && socket) {
-      CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId, emit: true });
-    }
-  }, [editor, getPos, node.nodeSize, occurrenceId, dispatch, socket]);
+    dropOccurrenceData();
+  }, [editor, getPos, node.nodeSize, dropOccurrenceData]);
 
   // Backspace/ArrowLeft/ArrowUp at start of sub-editor.
   // deleteIfEmpty=true (only from Backspace or Shift+Enter): replace textblock with empty paragraph.
@@ -202,15 +235,17 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
       // Gives the user an intermediate "empty line" step before the next backspace.
       const pos = getPos();
       const nodeSize = node.nodeSize;
+      // The caret lands ON that empty line, which is precisely what the
+      // caret-entry mint watches for — without the suppression window
+      // backspace would immediately re-create the block it just collapsed.
+      suppressTextblockMint();
       editor.chain().focus()
         .deleteRange({ from: pos, to: pos + nodeSize })
         .insertContentAt(pos, { type: "paragraph" })
         .setTextSelection(pos + 1)
         .run();
       // Clean up the occurrence from the data model
-      if (occurrenceId && dispatch && socket) {
-        CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId, emit: true });
-      }
+      dropOccurrenceData();
       return;
     }
 
@@ -239,7 +274,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
       // Regular block (paragraph, heading, etc.) — move outer cursor to its end
       editor.chain().setTextSelection(pos - 1).focus().run();
     }
-  }, [editor, getPos, node.nodeSize, occurrenceId, dispatch, socket]);
+  }, [editor, getPos, node.nodeSize, dropOccurrenceData]);
 
   return (
     <NodeViewWrapper as="div" contentEditable={false}>
@@ -290,6 +325,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
                 hideToolbar={true}
                 onExitBlock={handleExitBlock}
                 onDeleteBlock={handleNavigateBack}
+                onEmptyBlur={handleEmptyBlur}
               />
             </BoundBody>
           ) : (
@@ -306,6 +342,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
               hideToolbar={true}
               onExitBlock={handleExitBlock}
               onDeleteBlock={handleNavigateBack}
+              onEmptyBlur={handleEmptyBlur}
             />
           )
         ) : (
