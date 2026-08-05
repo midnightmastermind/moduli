@@ -19,7 +19,7 @@
 // Emits via `onCommit({ kind, value, span, dates, unit })`. The parent (ArrowsWidget)
 // folds that into the persisted filter value shape.
 import React, { useEffect, useRef, useState, useMemo } from "react";
-import { createPortal } from "react-dom";
+import MenuSurface from "./MenuSurface.jsx";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { Calendar, DateObject } from "react-multi-date-picker";
 import DatePanel from "react-multi-date-picker/plugins/date_panel";
@@ -324,16 +324,18 @@ export default function NavPickerPopover({ value, onCommit, constraints, trigger
         <CalendarIcon size={11} />
         <span>{triggerLabel || summary}</span>
       </button>
-      {open && createPortal(
-        <div
-          ref={popoverRef}
+      {open && (
+        <MenuSurface
+          surfaceRef={popoverRef}
           className="filter-daypicker-popover"
-          style={(() => {
+          zIndex={9999}
+          onClose={() => setOpen(false)}
+          position={(() => {
             const r = wrapRef.current?.getBoundingClientRect();
             const EST_W = 400; // calendar + selected-dates panel
             const top = r ? r.bottom + 4 : 8;
             const left = r ? Math.max(6, Math.min(r.left, window.innerWidth - EST_W - 8)) : 8;
-            return { position: "fixed", top, left, zIndex: 9999 };
+            return { top, left };
           })()}
         >
           <Calendar
@@ -353,8 +355,7 @@ export default function NavPickerPopover({ value, onCommit, constraints, trigger
               Up to {maxDays} day{maxDays === 1 ? "" : "s"}
             </div>
           )}
-        </div>,
-        document.body
+        </MenuSurface>
       )}
     </span>
   );

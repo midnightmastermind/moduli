@@ -1,6 +1,6 @@
 // client/src/ui/HeaderDropdown.jsx
 import React, { useEffect, useRef, useState, useLayoutEffect } from "react";
-import { createPortal } from "react-dom";
+import MenuSurface, { isDrawerLayout } from "./MenuSurface.jsx";
 
 const VIEWPORT_MARGIN = 8;
 const DEFAULT_WIDTH = 320;
@@ -31,6 +31,9 @@ export default function HeaderDropdown({ anchorRect, onClose, children }) {
   // panel off-screen, and a near-bottom anchor doesn't get clipped.
   useLayoutEffect(() => {
     if (!anchorRect || !ref.current) return;
+    // The drawer is pinned to the bottom edge — measuring an anchor it does not
+    // use would just thrash state on every open.
+    if (isDrawerLayout()) return;
     const el = ref.current;
     const rect = el.getBoundingClientRect();
     const vw = window.innerWidth;
@@ -64,16 +67,15 @@ export default function HeaderDropdown({ anchorRect, onClose, children }) {
 
   if (!anchorRect) return null;
 
-  return createPortal(
-    <div
-      ref={ref}
+  return (
+    <MenuSurface
+      surfaceRef={ref}
       className="header-dropdown"
-      role="dialog"
+      position={{ top: pos.top, left: pos.left }}
+      zIndex={1000}
+      onClose={onClose}
+      onMouseDown={(e) => e.stopPropagation()}
       style={{
-        position: "fixed",
-        top: pos.top,
-        left: pos.left,
-        zIndex: 1000,
         minWidth: 280,
         maxWidth: 360,
         width: DEFAULT_WIDTH,
@@ -84,10 +86,8 @@ export default function HeaderDropdown({ anchorRect, onClose, children }) {
         borderRadius: 8, padding: 12,
         boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
       }}
-      onMouseDown={(e) => e.stopPropagation()}
     >
       {children}
-    </div>,
-    document.body
+    </MenuSurface>
   );
 }

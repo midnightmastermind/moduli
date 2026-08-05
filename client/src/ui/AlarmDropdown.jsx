@@ -5,7 +5,7 @@
 // (the ring loops until then; see state/alarmRingStore.js). Mirrors the
 // PomodoroTimer toolbar-widget pattern.
 import React, { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
+import MenuSurface from "./MenuSurface.jsx";
 import { AlarmClock, BellRing, Plus, Trash2, Volume2, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useGridActions } from "../GridActionsContext";
@@ -117,14 +117,23 @@ export default function AlarmDropdown() {
         {ringing && <span style={{ position: "absolute", top: 2, right: 2, width: 6, height: 6, borderRadius: "50%", background: "rgb(248,113,113)", boxShadow: "0 0 6px rgba(248,113,113,0.9)" }} />}
       </button>
 
-      {open && createPortal(
-        <div ref={panelRef} style={{
-          position: "fixed", top: panelTop, right: panelRight, zIndex: 2147483000,
-          width: 300, maxWidth: "94vw", maxHeight: "70vh", overflowY: "auto",
-          background: "var(--surface-card)", border: "1px solid var(--input-border)",
-          borderRadius: 8, boxShadow: "0 8px 32px rgba(0,0,0,0.6)", padding: 10,
-          display: "flex", flexDirection: "column", gap: 8, fontFamily: "monospace",
-        }}>
+      {open && (
+        <MenuSurface
+          surfaceRef={panelRef}
+          zIndex={2147483000}
+          onClose={() => setOpen(false)}
+          // Anchored from the RIGHT edge on desktop (it hangs off a toolbar
+          // button), which MenuSurface's top/left position does not express —
+          // so this one keeps `right` in its own style and leaves `left` unset.
+          // The drawer ignores both.
+          position={{ top: panelTop }}
+          style={{
+            right: panelRight,
+            width: 300, maxWidth: "94vw", maxHeight: "70vh", overflowY: "auto",
+            background: "var(--surface-card)", border: "1px solid var(--input-border)",
+            borderRadius: 8, boxShadow: "0 8px 32px rgba(0,0,0,0.6)", padding: 10,
+            display: "flex", flexDirection: "column", gap: 8, fontFamily: "monospace",
+          }}>
           {ringing && (
             <div style={{
               display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8,
@@ -163,8 +172,7 @@ export default function AlarmDropdown() {
           {alarms.map((op) => (
             <AlarmRow key={op.id} op={op} onPatch={(p) => patch(op, p)} onDelete={() => remove(op)} />
           ))}
-        </div>,
-        document.body
+        </MenuSurface>
       )}
     </div>
   );

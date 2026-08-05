@@ -1,6 +1,38 @@
 # client/src/ui — UI Components CLAUDE.md
 
 _Updated: 2026-07-20. Check this file before re-reading source._
+## Recent Changes (2026-08-05 (5) — MenuSurface: every floating menu is a bottom DRAWER on mobile)
+- **`MenuSurface.jsx` (NEW)** — the one way a floating menu presents itself. Desktop: the portal
+  into `document.body` at a fixed anchor that each of these already was. **Mobile: a bottom drawer**
+  — full width, pinned to the bottom edge, sliding up over a backdrop, with a grab bar and a
+  safe-area inset (user 2026-08-05: *"any dropdown menu opened on mobile should slide up as a
+  drawer from the bottom of the screen"*). An anchored dropdown on a phone is cramped, gets clipped
+  by panel overflow, and opens **under the thumb that opened it**.
+- **Routed through it: `ContextMenu`, `QuickAddMenu`, `HeaderDropdown`, `NavPickerPopover`,
+  `AlarmDropdown`** — five copies of `createPortal(<div style={{position:"fixed",top,left,…}}>,
+  document.body)` became one.
+- **What it deliberately does NOT own: the desktop anchor math.** ContextMenu clamps a click point,
+  QuickAddMenu flips above its button (`menuPosition`, unit-tested), HeaderDropdown measures itself
+  and flips, AlarmDropdown anchors from the RIGHT edge. Four real behaviours with their own tests;
+  folding them into one clamp would be a rewrite of four positioning strategies to ship a drawer.
+  Callers pass the position they already compute and the drawer ignores it.
+- **The layout signal is `document.body.dataset.layout`** (App stamps it). A portalled menu reads it
+  directly — several of these are mounted from places that never see the layout prop.
+- **Two things had to be chosen in JS, not CSS, and both are the same trap:**
+  (1) the drawer's sizing is INLINE because the surfaces it wraps set their own `width`/`maxWidth`
+  inline, and a stylesheet rule loses to an inline style every time (recorded five times in
+  CLAUDE.md); (2) ContextMenu's row padding is inline too, so the thumb-sized rows (12px 18px /
+  14px, up from 5px 12px / 11px) are picked in the component. Only the backdrop, the slide-up
+  animation and the grab bar live in `index.css`.
+- **`maxHeight` is computed (`Math.min(vh*0.72, 560)`), not `min(72vh, 560px)`.** A CSS function
+  inside an inline style is dropped WHOLE by an engine that cannot parse it — jsdom does exactly
+  that, and the test caught it. A dropped maxHeight is a full-height sheet with no scroll cap.
+- **Measured in a real browser at both sizes** (harness, no live data): mobile 390×844 → context
+  menu x=0 w=390 bottom=844, content-height 218, radius 14px top only, backdrop 390×844 one z-level
+  below, tap-off dismisses; header dropdown identical at h=109. Desktop 1440×900 → unchanged
+  anchored menus at their computed points, no backdrop, no grab bar. Zero page errors either way.
+- 7 tests in `__tests__/MenuSurface.test.jsx`. **NOT routed: `RadialMenu`** — it is an action arc
+  attached to a drag handle, not a dropdown; making it a sheet is a UX decision, not a port.
 
 ## Recent Changes (2026-08-05 (3) — Editor: caret-entry mint + provisional-safe saving)
 - **`Editor.jsx` — new `onCaretMintTextblock` / `onEmptyBlur` props.** The caret landing on an

@@ -10,7 +10,7 @@
 // as the CategoryPathPicker / value picker. Portal-rendered to avoid layout push.
 
 import { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
+import MenuSurface from "./MenuSurface.jsx";
 import { Plus, ChevronLeft, Check, Search } from "lucide-react";
 import { useGridActionsSelector } from "../GridActionsContext";
 import { templatesByKind, templateLabelOf } from "../helpers/templateHelpers";
@@ -372,18 +372,20 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
       </button>
       <input ref={fileInputRef} type="file" style={{ display: "none" }} onChange={onFilePicked} />
 
-      {open && createPortal(
-        <div
-          ref={menuRef}
+      {open && (
+        <MenuSurface
+          surfaceRef={menuRef}
+          position={{ top: pos.top, left: pos.left }}
+          zIndex={1100}
+          onClose={() => setOpen(false)}
+          onClick={(e) => e.stopPropagation()}
           style={{
-            position: "fixed", top: pos.top, left: pos.left, zIndex: 1100,
             background: "var(--body-bg, #1a1c1e)",
             border: "1px solid var(--border-default)", borderRadius: 6,
             width: 260, maxHeight: 360, overflow: "hidden",
             display: "flex", flexDirection: "column",
             boxShadow: "0 4px 16px rgba(0,0,0,0.4)", fontFamily: "var(--font-mono)",
           }}
-          onClick={(e) => e.stopPropagation()}
         >
           {picking ? (
             // ── Field-picker sub-step (instance create) ──────────────────────
@@ -542,8 +544,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
               )}
             </>
           )}
-        </div>,
-        document.body
+        </MenuSurface>
       )}
     </>
   );

@@ -8,7 +8,7 @@
 // ============================================================
 
 import React, { useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
+import MenuSurface, { isDrawerLayout } from "./MenuSurface.jsx";
 
 // Callers build item arrays with conditional entries, so a filtered-out item
 // can leave a separator with nothing above/below it (renders as a blank row).
@@ -66,19 +66,24 @@ export default function ContextMenu({ ctx, onClose }) {
   const x = Math.min(ctx.x, window.innerWidth - MAX_W - 6);
   const y = Math.min(ctx.y, window.innerHeight - approxH - 6);
 
-  return createPortal(
-    <div
-      ref={ref}
+  // On a phone this opens as a bottom drawer instead (MenuSurface) — the x/y
+  // above is then ignored, which is the point: a right-click menu anchored to a
+  // long-press point is exactly what lands under the thumb that opened it.
+  const drawer = isDrawerLayout();
+
+  return (
+    <MenuSurface
+      surfaceRef={ref}
+      position={{ top: y, left: x }}
+      zIndex={2147483646}
+      onClose={onClose}
+      onContextMenu={(e) => e.preventDefault()}
       style={{
-        position: "fixed",
-        top: y,
-        left: x,
         width: "max-content",
         minWidth: 168,
         maxWidth: MAX_W,
         maxHeight: "70vh",
         overflowY: "auto",
-        zIndex: 2147483646,
         background: "var(--surface-card)",
         border: "1px solid rgba(80,120,180,0.35)",
         borderRadius: 8,
@@ -87,7 +92,6 @@ export default function ContextMenu({ ctx, onClose }) {
         fontFamily: "monospace",
         fontSize: 12,
       }}
-      onContextMenu={(e) => e.preventDefault()}
     >
       {items.map((item, i) => {
         if (item.separator) {
@@ -110,7 +114,7 @@ export default function ContextMenu({ ctx, onClose }) {
               alignItems: "center",
               gap: 8,
               width: "100%",
-              padding: "5px 12px",
+              padding: drawer ? "12px 18px" : "5px 12px",
               background: "none",
               border: "none",
               cursor: item.disabled ? "default" : "pointer",
@@ -120,7 +124,7 @@ export default function ContextMenu({ ctx, onClose }) {
                   ? "var(--text-faint)"
                   : "var(--text-primary)",
               textAlign: "left",
-              fontSize: 11,
+              fontSize: drawer ? 14 : 11,
               fontFamily: "monospace",
               transition: "background 0.1s",
             }}
@@ -134,8 +138,8 @@ export default function ContextMenu({ ctx, onClose }) {
             {Icon && (
               <Icon
                 style={{
-                  width: 12,
-                  height: 12,
+                  width: drawer ? 16 : 12,
+                  height: drawer ? 16 : 12,
                   flexShrink: 0,
                   opacity: item.disabled ? 0.4 : 0.7,
                 }}
@@ -145,7 +149,6 @@ export default function ContextMenu({ ctx, onClose }) {
           </button>
         );
       })}
-    </div>,
-    document.body
+    </MenuSurface>
   );
 }
