@@ -2553,3 +2553,23 @@ entry using the EXISTING user-input picker.
 > "if it looks good, implement. give it a once over on logic"
 
 Delivered as `docs/superpowers/plans/2026-07-25-poms-grid-nine-dimensions.md` (Tasks 1-8).
+
+## 2026-08-05 (2) — new lines are textblocks the moment you click into them
+
+> "for that textblock saving lag issue i talked about (first being created). we should just have
+> all new lines be textblocks if im on it. so empty line and then i click on it, then empty
+> textblock. if i move away from it with it still empty, it disappears. but if not, i can start
+> typing from there."
+
+The fix for the first-textblock save lag is NOT to make the save faster — it is to move the
+create earlier. An empty line in a doc body stays a plain line until the caret enters it;
+entering it mints an EMPTY textblock right then, so the first keystroke lands in a textblock
+that already exists and nothing is racing the keypress. Blur while still empty removes it again,
+so nothing is left behind.
+
+Constraints that fall out of it, recorded before building:
+- The create has to be local-first, or the lag just moves to the click.
+- The remove-on-blur must not delete an id whose create is still in flight (the documented
+  create/parent-list asymmetry) — otherwise it mints dangling child refs.
+- The minted textblock must carry the parent's filter values, or it is invisible to the date
+  filter the moment it stops being empty. That half shipped 2026-08-05 (`91e4a807`).
