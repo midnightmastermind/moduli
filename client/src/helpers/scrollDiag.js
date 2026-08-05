@@ -61,13 +61,18 @@ const isTouchDevice = () => typeof window !== "undefined"
   && typeof window.matchMedia === "function"
   && window.matchMedia("(pointer: coarse)").matches;
 
-// OFF by default again (2026-08-04). It was default-on for touch while the bug
-// was being chased, and the user reported the app "freezing up like crazy"
-// immediately after — every rail tap arms a 2s rAF loop, so rapid tapping
-// stacks overlapping loops, and a measurement tool that degrades the thing it
-// measures is worse than no tool. Re-enable deliberately with
-// `window.__scrollDiag = true`.
-const on = () => typeof window !== "undefined" && window.__scrollDiag === true;
+// Default ON for touch again (2026-08-05, by request), but only after the
+// stacking that caused "freezing up like crazy" was properly closed. The first
+// guard only blocked a new measurement while one was awaiting commit — once
+// committed, a further tap could still start a SECOND 2s rAF loop, so rapid
+// tapping stacked them anyway. `_measuring` below is the real one-at-a-time
+// latch, and the window is shorter. Desktop stays off; opt out with
+// `window.__scrollDiag = false`.
+const on = () => {
+  if (typeof window === "undefined") return false;
+  if (window.__scrollDiag === false) return false;
+  return window.__scrollDiag === true || isTouchDevice();
+};
 const verbose = () => typeof window !== "undefined" && window.__scrollDiag === true;
 
 const MAX_SESSIONS = 4;        // baseline + one per suspect (see ARMS)
@@ -376,6 +381,7 @@ let _pendingSwitch = null;
 // is anywhere in React it is inside Grid's own render — its useMemos recompute
 // over the whole grid state. This measures that directly.
 let _gridRenderStart = null;
+let _measuring = false;
 export function markGridRenderStart() {
   if (_pendingSwitch && _pendingSwitch.commitAt == null) _gridRenderStart = performance.now();
 }
@@ -397,9 +403,11 @@ function armCellSwitchDiag() {
     if (!on()) return;
     if (!e.target?.closest?.(".mobile-rail-btn")) return;
 
-    // Never let two measurements overlap — a stacked rAF loop per tap is
-    // exactly how a diagnostic starts causing the jank it is looking for.
-    if (_pendingSwitch && _pendingSwitch.commitAt == null) return;
+    // Exactly ONE measurement at a time. A stacked rAF loop per tap is how this
+    // tool started causing the jank it was looking for — and a tap is cheap to
+    // skip, since the next one measures the same thing.
+    if (_measuring) return;
+    _measuring = true;
     const t0 = performance.now();
     _pendingSwitch = { t0, commitAt: null, paintAt: null };
     const rBefore = snapshotRenders();
@@ -415,7 +423,8 @@ function armCellSwitchDiag() {
       if (dt > 50) blocked += dt;
       // First frame after React committed = the paint that the user waits for.
       if (sw.commitAt != null && sw.paintAt == null) sw.paintAt = now;
-      if (now - t0 < 2000) { requestAnimationFrame(tick); return; }
+      if (now - t0 < 1200) { requestAnimationFrame(tick); return; }
+      _measuring = false;
 
       const payload = {
         kind: "cell-switch",
