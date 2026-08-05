@@ -1410,6 +1410,19 @@ body[data-drag-kind="panel"] .container-shell {
   word-break: break-word;
 }
 .textblock-card-placeholder > div { text-indent: 1.5em; }
+
+/* Breathing room between the radial drag handle and the prose (user,
+   2026-08-05: "the textblock content is too close to the drag handle, we need
+   left padding on it"). It goes on the CONTENT, not the row: the handle is a
+   fixed-width leading flex item, so padding on the row would push the handle
+   over too and leave the gap unchanged. The placeholder gets the same inset so
+   swapping to the live editor does not shift the text sideways — that pairing
+   is why the placeholder mirrors the editor's metrics in the first place. */
+.textblock-card .doc-editor-content,
+.textblock-card .ProseMirror,
+.textblock-card-placeholder {
+  padding-left: 8px;
+}
 .textblock-card .doc-editor-wrapper,
 .textblock-card .doc-editor-content,
 .textblock-card .ProseMirror {
@@ -2511,6 +2524,27 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   right: 4px; top: 0; bottom: 0; width: 22px;
   border-radius: 5px 0 0 5px; border-right: none;
 }
+
+/* The side rails are 22px wide, inset 4px — well under the ~44px a thumb needs,
+   so aiming for one and missing lands on the CONTENT behind it, which is why
+   pressing near the left edge kept opening an instance's radial menu instead of
+   navigating (user, 2026-08-05: "the left navigator button isnt large enough").
+   Measured first: the drag handle was NOT the culprit — its box is exactly 22x22
+   and matches its button, and a tap 12px to its left already misses it.
+   A transparent pseudo-element widens the HIT area to ~40px while the visible
+   bar stays 22px, so nothing moves on screen. It reaches past the screen edge
+   too, so the 4px inset (which exists to clear the OS gesture zone) is no longer
+   dead space for the tap. */
+.mobile-rail-left::before,
+.mobile-rail-right::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40px;
+}
+.mobile-rail-left::before  { left: -4px; }
+.mobile-rail-right::before { right: -4px; }
 
 /* Up/Down: full viewport width, narrow height */
 .mobile-rail-up {
