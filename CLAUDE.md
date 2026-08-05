@@ -5,6 +5,45 @@
 > **Read [`CLAUDE_CHAT.md`](./CLAUDE_CHAT.md) at session start.** It's the time-ordered log of user direction across sessions. New direction goes there first before acting.
 
 ---
+### 2026-08-05 (3) — every floating menu is a bottom DRAWER on mobile; and a wrong hypothesis killed by measurement
+
+**`ui/MenuSurface.jsx` (NEW) is the one way a floating menu presents itself.** Desktop: the
+portal-at-a-fixed-anchor each of them already was. Mobile: a full-width sheet pinned to the bottom
+edge, sliding up over a backdrop, grab bar and safe-area inset included (user: *"any dropdown menu
+opened on mobile should slide up as a drawer from the bottom of the screen"*). An anchored dropdown
+on a phone is cramped, gets clipped by panel overflow, and **opens under the thumb that opened it**.
+Five copies of `createPortal(<div style={{position:"fixed",top,left,…}}>, document.body)` became
+one: ContextMenu, QuickAddMenu, HeaderDropdown, NavPickerPopover, AlarmDropdown.
+
+**It deliberately does NOT own the desktop anchor math** — four different real behaviours with their
+own tests (click-point clamp, flip-above via the unit-tested `menuPosition`, measure-and-flip,
+right-edge anchoring). Folding them into one clamp would be a rewrite of four positioning strategies
+to ship a drawer; callers pass the position they already compute and the drawer ignores it.
+
+**Two things had to be chosen in JS rather than CSS, both the same trap this file has recorded five
+times:** the drawer's sizing is INLINE (the surfaces it wraps set their own `width`/`maxWidth`
+inline, and a stylesheet rule loses to an inline style every time), and ContextMenu's row padding is
+inline, so the thumb-sized rows are picked in the component. Only the backdrop, the slide-up and the
+grab bar live in CSS. **And `maxHeight` is computed, not `min(72vh, 560px)`** — a CSS function
+inside an inline style is dropped WHOLE by an engine that cannot parse it (jsdom does exactly that;
+the test caught it), and a dropped maxHeight is a full-height sheet with no scroll cap.
+
+Measured in a real browser at both sizes against a harness, no live data: mobile 390×844 → x=0
+w=390 bottom=844, content-height 218, 14px radius on the top corners only, backdrop one z-level
+below, tap-off dismisses. Desktop 1440×900 → unchanged.
+
+**A HYPOTHESIS I WAS SURE OF, AND IT WAS WRONG.** The mini-calendar's remaining desktop failure had
+one suspect left: the picker mounted inside a `HeaderDropdown`. The calendar portals to
+`document.body`, so it is OUTSIDE the dropdown's ref — I expected the dropdown's outside-mousedown
+to close everything the instant you touched a day, which would look exactly like "the calendar
+won't open". **Harnessed it: it does not.** The calendar opens inside the dropdown (66 days) and
+clicking a day closes nothing. So BOTH surfaces are now ruled out by measurement and that bug is
+genuinely unreproduced — it needs the user to say which control they click and what they see.
+*Recorded because the discipline is the whole point: the hypothesis was specific, mechanical, and
+plausible, and it cost one harness run to find out it was fiction.*
+
+---
+
 ### 2026-08-05 (2) — click-to-mint textblocks; the Daily Question fills itself; page clicks stop opening folders
 
 Picked up the previous session's task list (13 items, 7 shipped there). Three more shipped here,
