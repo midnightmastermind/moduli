@@ -6,6 +6,58 @@
 
 ---
 
+### 2026-08-05 — the templates switch stopped stamping DATES; four mobile fixes; and four wrong diagnoses
+
+**The date regression, and it is the templates switch as the user said.** `APPLY_TEMPLATE` stamped
+`defaultFields` only on clones whose role was `"instance"`, or on other roles whose MODULE BOUND the
+field. That rule was written when the Schedule's slots WERE instances. **They are containers now, so
+the gate silently stopped covering the case its own comment described** — and only **1 of 48** slot
+modules still bound the date, so the binding fallback caught almost nothing. Measured: **40 of 50
+children of today's Schedule column had no date at all**.
+
+It is a **DENYLIST** now — everything is stamped except page/panel wrappers, which carry their date
+in `filterOverride`. *Enumerating roles is exactly how this broke*, and the user's framing is the
+rule to keep: **any occurrence can carry fields**, and a textblock added to a day needs the date or
+the filter cannot see it. `0037` backfilled 93 containers so today was correct, not just tomorrow.
+
+**`0038` de-duplicated day columns — and the safety rule caught MY OWN mistake.** poms grid grew a
+SECOND column for 08-04 (same label, date and parent; 4 children vs 8). **The signatures were
+innocent** — template and every column read `daypage:Journal` etc., identical — so the integrity
+message pointed at the wrong layer; the failure is `Day Page: Build`'s COLUMN-level existence check
+missing a column that already exists. **Still unfixed, still recurring.** The repair's first
+`writingScore` counted field VALUES, and the dry run refused to delete anything because every
+container scored 10 — **the date `0037` had just stamped on all of them. The guard fired on its own
+footprint** and would have protected empty clones forever. Narrowed to textmap; 3 empty duplicates
+removed, 2 SKIPPED because they hold writing (both 08-04 columns do — merging those is a human call).
+
+**Four mobile fixes, each a different layer than the one blamed:**
+- **Horizontal scroll** — not the `soloColumn` change. `.panel-scroll` carried `touch-action: pan-y`,
+  and **touch-action composes as the INTERSECTION down the ancestor chain**, so it vetoed horizontal
+  panning before the board's own `overflow-x: auto` ever saw the gesture.
+- **The "drag handle" swallowing left taps** — the handle was INNOCENT: measured 22×22, identical to
+  its button, and a tap 12px left already missed it. The **side rails are 22px inset 4px**, far under
+  a thumb. Hit area widened to ~40px via a transparent pseudo-element; visuals unchanged.
+- **The mini-calendar "not opening" on mobile** — it did not EXIST there. The whole filter nav was
+  gated behind `!isMobileLayout` (probe: 1 trigger desktop, 0 mobile). The desktop half is still
+  unreproduced: under probe the toolbar picker opens fine, 66 days, no errors.
+- **Mobile Routines scroll ~40× faster** — see `client/src/CLAUDE.md`.
+
+**FOUR WRONG DIAGNOSES IN ONE DAY, each killed by measurement.** Recorded because the pattern matters
+more than any of them: a marquee leak that was not leaking (animations flat at 10-11); a **RASTER**
+verdict **my own tool invented from an API Firefox does not implement** (no Long Tasks API → zeros →
+verdict fell through by construction); a DOM-node leak that was a **stale bundle**; and an op drain
+that never ran (`ops={runs:0}`). **An absent signal is not a measurement of zero — check
+`supportedEntryTypes` before believing one.** Every fix that actually worked came from numbers off
+the user's device; every one that came from reading code was wrong. **And twice I nearly rebuilt what
+already existed** (`content-visibility` was already shipped AND was the cause; `renderProbe.js`
+already tallied renders) — the standing "read the folder CLAUDE.md first" rule, paid for twice.
+
+**Also: a diagnostic that degrades what it measures is worse than none.** The `[scroll]` tool armed a
+2s rAF loop per tap with no latch, so rapid tapping stacked loops and the app froze. Fixed with a
+real one-at-a-time latch, and it is opt-in on desktop / silent on touch.
+
+---
+
 ### 2026-08-04 — the recurring `dangling-child-ref` is ROOT-CAUSED: a phantom in the WARM CACHE
 
 User: *"can you fix the dangly ones"*. They have been swept five times (2026-07-29, 07-30, 07-31,
