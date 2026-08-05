@@ -35,7 +35,7 @@ import { analyzeAllOperations } from "../helpers/operationIntrospection";
  * Module-level bridge so CommitHelpers can fire operations immediately
  * after optimistic dispatch (no server round-trip needed).
  */
-export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLocalMod: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, beginDropBatch: null, endDropBatch: null, markDerivedOcc: null };
+export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLocalMod: null, getFilterContext: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, beginDropBatch: null, endDropBatch: null, markDerivedOcc: null };
 
 // Pure decision half of the SET_FILTER effect, so it can be tested without a
 // socket. `filterNavState` drives the nav WIDGET; `grid.activeFilterValues`
@@ -1674,6 +1674,15 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (!Array.isArray(mods)) return null;
     return mods.find(m => m?.id === moduleId) || null;
   };
+  // Read-only snapshot for filter-value stamping on create. Same reason
+  // `getLocalMod` exists: a create path deep inside CommitHelpers has to be able
+  // to answer "what date does this parent impose?" without every call site
+  // threading state through. `localOccsById` is the live overlay, so the
+  // effective-filter walk sees writes that have not round-tripped yet.
+  operationsBridge.getFilterContext = () => ({
+    state: stateRef.current || null,
+    occurrencesById: localOccsById,
+  });
   operationsBridge.getLinkedOccs = (linkedGroupId, excludeId) => {
     if (!linkedGroupId) return [];
     const out = [];

@@ -3,6 +3,7 @@ import { operationsBridge } from "../state/bindSocketToStore";
 import { safeEmit } from "./offlineQueue";
 import { beginAction, endAction, withAction } from "./actionScope";
 import { buildParentMap } from "./dragHitTesting";
+import { computePageFilterFields } from "./filterFieldStamp";
 import {
   createGridAction,
   updateGridAction,
@@ -875,6 +876,33 @@ export function spliceChildIntoParent({ dispatch, socket, parentOccurrence, occu
   return at;
 }
 
+// What the parent's effective filter says a NEW child should carry — the date,
+// in practice. Returns null when there is nothing to stamp.
+//
+// Drops have folded these values into the create since 2026-05-07; the TYPED
+// paths below never did, so a textblock or container made by typing / the +
+// menu was born with no `fields` key at all and the date filter could not see
+// it (user, 2026-08-05: "any occurrence can carry fields"). Resolved through the
+// bridge rather than a parameter because the alternative — threading `state`
+// into every call site — is exactly how the drop path and the typed path drifted
+// apart in the first place. Never throws: a create must not fail because the
+// bridge is unwired (unit tests) or the filter is unreadable.
+function parentFilterFields(parentOccurrence) {
+  try {
+    const ctx = operationsBridge.getFilterContext?.();
+    if (!ctx?.state || !parentOccurrence) return null;
+    const merged = computePageFilterFields({
+      state: ctx.state,
+      occurrencesById: ctx.occurrencesById || {},
+      parentContainerOcc: parentOccurrence,
+      existingFields: {},
+    });
+    return merged && Object.keys(merged).length ? merged : null;
+  } catch {
+    return null;
+  }
+}
+
 export function createTextblockInContainer({
   dispatch, socket, gridId, userId, containerOccurrence, label = "", kind = "doc", index = null,
 }) {
@@ -890,6 +918,7 @@ export function createTextblockInContainer({
     kind,
     label: label || "",
   };
+  const stamped = parentFilterFields(containerOccurrence);
   const occurrence = {
     id: occurrenceId,
     userId,
@@ -897,6 +926,10 @@ export function createTextblockInContainer({
     moduleId,
     parentId: containerOccurrence.id,
     textmap: { type: "doc", content: [] },
+    // Born with the date, not patched afterwards — a follow-up update races the
+    // create's server queue, and the create's own trigger burst would evaluate
+    // against a record that has no date yet.
+    ...(stamped ? { fields: stamped } : {}),
   };
 
   dispatch?.(createModuleAction(module));
@@ -922,12 +955,14 @@ export function createContainerInContainer({
   const occurrenceId = crypto?.randomUUID?.() || `co-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   const module = { id: moduleId, userId, gridId, role: "container", kind, label: label || "" };
+  const stamped = parentFilterFields(containerOccurrence);
   const occurrence = {
     id: occurrenceId, userId, gridId, moduleId,
     parentId: containerOccurrence.id,
     occurrences: [],
     // doc/canvas containers render a textmap; seed an empty one so they mount clean.
     ...((kind === "doc" || kind === "canvas") ? { textmap: { type: "doc", content: [] } } : {}),
+    ...(stamped ? { fields: stamped } : {}),
   };
 
   dispatch?.(createModuleAction(module));
@@ -1144,7 +1179,9 @@ export function createLeafInstanceInParent({
     id: occurrenceId, userId, gridId,
     moduleId,
     parentId: parentOccurrence.id,
-    fields: initialFields,
+    // Caller-supplied values win over the parent's filter stamp — the addNew
+    // flow deliberately copies identity values off the chosen parent.
+    fields: { ...(parentFilterFields(parentOccurrence) || {}), ...initialFields },
   };
 
   dispatch?.(createModuleAction(module));
@@ -1209,7 +1246,7 @@ export function createLeafInstanceAtIndex({
     id: occurrenceId, userId, gridId,
     moduleId,
     parentId: parentOccurrence.id,
-    fields: initialFields,
+    fields: { ...(parentFilterFields(parentOccurrence) || {}), ...initialFields },
   };
   // Through createOccurrence so OccurrenceCreateOp FIRES with panel/container
   // context — the raw dispatch+emit here never fired the create trigger, so
