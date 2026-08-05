@@ -1047,8 +1047,13 @@ describe("APPLY_TEMPLATE", () => {
     expect(instCreate.instance.fields.f_due).toEqual({ value: "2026-05-16", flow: "in" });
 
     // Slot clone (container role) does NOT get defaultFields merged in.
-    expect(slotCreate.instance.fields.f_date).toBeUndefined();
-    expect(slotCreate.instance.fields.f_due).toBeUndefined();
+    // CHANGED 2026-08-05. Slot clones are CONTAINERS and are minted PER DAY, so
+    // they must carry the date: it is what connects their content to the date
+    // filter. 40 of 50 children of the live Schedule column had no date because
+    // the old gate only stamped role:"instance" — a rule written when slots WERE
+    // instances and silently stopped covering them when they became containers.
+    expect(slotCreate.instance.fields.f_date).toEqual({ value: "2026-05-16", flow: "in" });
+    expect(slotCreate.instance.fields.f_due).toEqual({ value: "2026-05-16", flow: "in" });
   });
 
   it("PUSH_TO_ARRAY resolves NESTED leaves, not just top-level ones", () => {
@@ -1075,7 +1080,7 @@ describe("APPLY_TEMPLATE", () => {
     expect($vars.$rows[1]).toEqual({ label: "Drink Water", n: 3 });
   });
 
-  it("defaultFields also stamps container/textblock clones that BIND the field", () => {
+  it("defaultFields stamps every content role — bound or not — but never pages", () => {
     // The Day Page template's Daily Question is a container and its Daily
     // Answer is a textblock; both bind the date field so their header/body
     // links have something to join on. Only the bound key lands — an unbound
@@ -1126,11 +1131,22 @@ describe("APPLY_TEMPLATE", () => {
     expect(byLabel("Daily Question").instance.fields.f_date).toEqual({ value: "2026-07-30", flow: "in" });
     expect(byLabel("Daily Answer").instance.fields.f_date).toEqual({ value: "2026-07-30", flow: "in" });
 
-    // An unbound key never lands, even on a module that binds a DIFFERENT field.
-    expect(byLabel("Daily Question").instance.fields.f_other).toBeUndefined();
+    // CHANGED 2026-08-05: an unbound key DOES land on a content role now. The
+    // operation author chose to put it in defaultFields, and any occurrence can
+    // carry fields — enumerating which roles may is exactly what broke the slots.
+    expect(byLabel("Daily Question").instance.fields.f_other).toEqual({ value: "2026-07-30", flow: "in" });
 
-    // A container binding nothing stays clean — the reason the gate exists.
-    expect(byLabel("Journal").instance.fields.f_date).toBeUndefined();
+    // CHANGED 2026-08-05: a container that binds nothing still gets the date.
+    // The Day Page's Journal / Notes / Highlights used to rely on inheriting it
+    // from the column above; they need their own so the filter can see textblocks
+    // and anything else added to that day (user's call).
+    expect(byLabel("Journal").instance.fields.f_date).toEqual({ value: "2026-07-30", flow: "in" });
+
+    // The one exclusion, pinned so the denylist cannot silently widen: a PAGE
+    // wrapper takes nothing it does not bind. Pages carry their date in
+    // `filterOverride`, so a stray date key there is genuinely dead.
+    const rootCreate = creates.find(c => c.template?.role === "page");
+    if (rootCreate) expect(rootCreate.instance.fields?.f_date).toBeUndefined();
   });
 
   it("appends new container-role stubs into $allContainers, not $allInstances", () => {

@@ -2657,17 +2657,38 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       })();
       const hasDefaultFields = Object.keys(resolvedDefaultFields).length > 0;
 
-      // Which of those keys a given clone actually takes. An instance takes all
-      // of them (the Schedule's slot copies rely on this — they carry date +
-      // scheduleFormat without binding either). Every other role takes only the
-      // keys its module BINDS: the Day Page template's Daily Question is a
-      // container and its Daily Answer a textblock, and both bind the date their
-      // header/body links join on. Blanket-merging instead would put dead keys on
-      // slot/page clones and inflate their fieldBindings via CREATE_ITEM's
-      // auto-attach — which is why this gate exists at all.
+      // Which of those keys a given clone actually takes.
+      //
+      // INSTANCES and CONTAINERS take all of them. The comment here used to say
+      // only instances did, "the Schedule's slot copies rely on this" — true
+      // when slots were instances. They are CONTAINERS now, so the gate quietly
+      // stopped covering the case it was written for: 40 of 50 children of
+      // today's Schedule column had no date, and only ONE slot module out of 48
+      // still bound the field, so the binding fallback caught almost nothing
+      // (measured on poms grid 2026-08-05).
+      //
+      // Per-day copies NEED the value stamped, not inherited: the date is what
+      // connects their content to the filter, and the same applies to the Day
+      // Page's inner containers (user's call, 2026-08-05 — previously they
+      // relied on the cascade from the column above, which left them with no
+      // date of their own). CREATE_ITEM's auto-attach binding the field on the
+      // clone is the desired outcome here, not the pollution the old comment
+      // feared.
+      //
+      // ANY occurrence can carry fields — that is the model, so the rule is a
+      // DENYLIST, not a list of blessed roles. Textblocks and artifacts added to
+      // a day need the date exactly as much as instances and containers do, or
+      // the filter cannot see them (user, 2026-08-05). Enumerating roles is how
+      // this broke in the first place: the list said "instance", slots became
+      // containers, and the case the comment described stopped being covered.
+      //
+      // PAGES and PANELS are the exception, and only because they are the
+      // wrappers that carry their date in `filterOverride` instead — a stray
+      // date key on a page wrapper is genuinely dead.
+      const NO_DEFAULT_STAMP = new Set(["page", "panel"]);
       const defaultFieldsFor = (srcMod) => {
         if (!hasDefaultFields) return {};
-        if (srcMod?.role === "instance") return resolvedDefaultFields;
+        if (!NO_DEFAULT_STAMP.has(srcMod?.role)) return resolvedDefaultFields;
         const bound = Array.isArray(srcMod?.fieldBindings) ? srcMod.fieldBindings : [];
         if (bound.length === 0) return {};
         const boundIds = new Set(bound.map(b => b?.fieldId).filter(Boolean));
