@@ -738,7 +738,17 @@ select:disabled { cursor: not-allowed; }
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  touch-action: pan-y;
+  /* pan-x AND pan-y. touch-action composes as the INTERSECTION down the
+     ancestor chain, so `pan-y` here forbade horizontal panning in everything
+     beneath it — which is why several day-page / schedule columns could not be
+     scrolled sideways on touch even though the board sets its own
+     `overflow-x: auto` (user, 2026-08-05: "multiple daypages wont let me scroll
+     horizontally"). The board's inner scroller was correct all along; this
+     ancestor was vetoing the gesture before it ever reached it.
+     Safe for the mobile cell nav: MobileGridNav's touch listeners are
+     `passive: true` and only act on OVERSCROLL at a boundary, so the columns
+     scroll first and switching cells still happens once they run out. */
+  touch-action: pan-x pan-y;
   min-height: 120px;
   position: relative;
   scrollbar-gutter: stable;
