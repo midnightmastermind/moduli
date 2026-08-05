@@ -349,6 +349,22 @@ describe("schedule ops", () => {
     expect(s).not.toContain('"label","comparator":"IS","right":"$dayPageName"');
   });
 
+  it("looks for an existing column WITHOUT the role filter, so a column whose module is missing is still found", () => {
+    const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: "BOARD", goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL" });
+    const finds = flattenSteps(op.pipeline.steps).filter(x => x.config?.type === "FIND");
+    const existence = finds.find(f =>
+      JSON.stringify(f.config.predicate).includes("SAME_DAY") &&
+      JSON.stringify(f.config.predicate).includes("BOARD"));
+    expect(existence).toBeTruthy();
+    // `$allContainers` filters on `occ.role ?? module.role` — an occurrence has
+    // no role of its own, so a missing module makes the column invisible here
+    // and the op mints a duplicate. parentId IS <board> is already exact.
+    expect(existence.config.over).toBe("$allOccurrences");
+    // and the re-bind after minting must not reintroduce the same dependency
+    const rebind = finds.find(f => JSON.stringify(f.config.predicate).includes('"right":"$colId"'));
+    expect(rebind?.config.over).toBe("$allOccurrences");
+  });
+
   it("tops up an existing column by MERGING the template (so a template edit reaches days that already exist)", () => {
     const op = makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: "BOARD", goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL" });
     const applies = flattenSteps(op.pipeline.steps).filter(x => x.config?.type === "APPLY_TEMPLATE");

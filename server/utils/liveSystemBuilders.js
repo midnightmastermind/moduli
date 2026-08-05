@@ -1647,9 +1647,23 @@ export function makeDayPageBuildOp({
           body: [
             // Existing column for this date? Matched on the DATE FIELD, not on
             // a label — the label is the user's to rename.
+            //
+            // `$allOccurrences`, NOT `$allContainers`: the role-filtered
+            // collections read `occ.role ?? module.role`, and an occurrence
+            // carries no role of its own — so a column whose MODULE is missing
+            // from the client store (the documented `missing-module` class, and
+            // any window where the module broadcast has not landed) resolves to
+            // role null and drops out of `$allContainers` while the occurrence
+            // itself is right there. This FIND then reports "no column for this
+            // date" and the branch below mints a SECOND one. Measured on poms
+            // grid 2026-08-05: two columns for 2026-08-04, minted 14 hours
+            // apart, the second while the first sat in Mongo with the correct
+            // parentId and date. `parentId IS <board>` is already an exact test
+            // — only day columns are parented to the board — so the role filter
+            // bought nothing and cost idempotency.
             { id: uid(), type: "action", config: {
                 type: "FIND",
-                over: "$allContainers",
+                over: "$allOccurrences",
                 predicate: { operator: "AND", rules: [
                   { id: uid(), left: "parentId", comparator: "IS", right: dayPageBoardOccId },
                   { id: uid(), left: `fields.${dateFieldId}.value`, comparator: "SAME_DAY", right: "$day" },
@@ -1682,7 +1696,7 @@ export function makeDayPageBuildOp({
                 // Re-bind the record now that it exists, so the steps below can
                 // write through $col.
                 { id: uid(), type: "action", config: {
-                    type: "FIND", over: "$allContainers",
+                    type: "FIND", over: "$allOccurrences",
                     predicate: { operator: "AND", rules: [
                       { id: uid(), left: "id", comparator: "IS", right: "$colId" },
                     ]},
