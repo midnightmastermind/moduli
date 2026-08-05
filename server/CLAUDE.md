@@ -2,6 +2,39 @@
 
 _Updated: 2026-07-25. Check this file before re-reading source._
 
+## Recent Changes (2026-08-05 (4) — a day's Daily Question fills itself; and the template never carried it)
+- **The ask** (task list): a day should arrive with a question, not a blank picker. Measured on
+  poms grid before touching anything: **14 question containers, 12 of them EMPTY**.
+- **`utils/liveSystemBuilders.js` `makeDayPageBuildOp`** — new optional
+  `journalQuestionFieldId` + `questionPoolModuleId`. Per day it builds, the op finds that day's
+  question container and — **only when it has no question yet** — writes a random one from the
+  "Reflection Questions" container, the SAME pool the field's picker and the 🎲 button draw from.
+  - **At BUILD time, not at render.** A render-time pick reshuffles on every load, and the answer
+    written underneath would end up attached to a question that is no longer there. Built once, it
+    persists on the occurrence. The empty-guard is what makes a second build a no-op.
+  - Found by **`identitySignature`, never by label** — the question container is deliberately
+    label-less (its header IS the selected question), and the signature is what merge already
+    matches on, so it is the one marker guaranteed to survive a clone.
+- **`utils/liveSystemBuilders.js buildDayPageTemplate` — the defect underneath the task.** The
+  template's Daily Question section was `parentId: Journal` and **nothing else**: Journal's
+  `occurrences[]` was `[]` and its textmap was a bare paragraph. Both axes were needed and both
+  were missing — APPLY_TEMPLATE walks `occurrences[]`, so **a freshly seeded grid cloned a day
+  column with NO Daily Question at all**, and Journal is `kind:"doc"` so it renders its TEXTMAP,
+  meaning an unembedded child is invisible even when present (the 2026-08-01 (19) failure from the
+  other direction). Journal now lists AND embeds it, keeping a trailing paragraph to type in.
+  Caught by the behavioral test, not by reading: the live grid's template was already correct
+  (migration `0027` wired it), so only a fresh seed was broken.
+- **`migrations/0040-daily-question-autofill.mjs` (NEW)** — patches the stored op (anchored on the
+  unique `appliedFromTemplateId` UPDATE, which is the last step where `$colId` still names the day
+  just built) and backfills the columns already empty. The TEMPLATE's own container is excluded —
+  a question baked in there would be handed to every future day. **Dry-run on poms grid: 117-question
+  pool, 11 empty containers, each getting a distinct question. NOT APPLIED — poms grid is live data
+  and that is the user's call.**
+- Tests: 5 in `__tests__/dailyQuestionAutofill.test.js` (insertion point, empty-guard, idempotency,
+  no-op without the anchor, and **the migration's output equals the BUILDER's** so a reseed cannot
+  drift from a migrated grid) + 2 in `liveSystemBuilders.test.js`; 3 behavioral (client) that drive
+  the real executor. 431 server tests.
+
 ## Recent Changes (2026-07-28 — poms grid is PROTECTED live data; seed targets "test grid 2")
 - **`utils/protectedGrids.js` (NEW)** — the ONE protected-grid rule. `PROTECTED_GRID_NAMES`
   (`poms grid`, `test grid 1`), `isProtectedGrid` (name OR the rename-proof `meta.protected`

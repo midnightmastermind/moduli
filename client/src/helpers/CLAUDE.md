@@ -2,6 +2,17 @@
 
 _Updated: 2026-07-24. Check this file before re-reading source._
 
+## Recent Changes (2026-08-05 (4) — the in-batch overlay was dropping identitySignature)
+- **`operationExecutor.js` (`applyEffectsToLiveOccs`, CREATE_ITEM)** — the overlay rebuilt a
+  freshly-created occurrence from the effect and carried id/parent/fields/textmap/role/kind/label,
+  but **not `identitySignature`**. APPLY_TEMPLATE stamps a signature on every clone (that is what
+  merge matches on) and the real CREATE_ITEM handler persists it — so anything that looked a
+  just-cloned node up BY SIGNATURE found nothing until the server echo landed, which for a
+  same-batch or same-session lookup is never. Found by the behavioral harness: Day Page: Build's
+  new Daily-Question pass clones the day and then has to find the question container INSIDE it, and
+  it came back empty every time. Same class as the role/kind stamps the branch already carries for
+  the same reason.
+
 ## Recent Changes (2026-08-05 (3) — provisionalTextblock.js NEW: a textblock that is not on the server yet)
 - **`provisionalTextblock.js` (NEW)** — the registry behind click-to-mint textblocks (user
   2026-08-05: "all new lines be textblocks if im on it … if i move away from it with it still

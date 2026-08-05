@@ -1146,6 +1146,15 @@ export function applyEffectsToLiveOccs(liveOccs, effects) {
           kind:  eff.template?.kind  || inst.kind  || null,
           label: eff.template?.label || eff.template?.name || inst.label || null,
           linkedGroupId: inst.linkedGroupId || null,
+          // Same reason as role/kind above, for the OTHER thing a clone is
+          // identified by. APPLY_TEMPLATE stamps `identitySignature` on every
+          // clone (that is what merge matches on), and the real CREATE_ITEM
+          // handler persists it — but this overlay dropped it, so any rule that
+          // looks a freshly-cloned node up BY SIGNATURE found nothing until the
+          // server echo landed. Day Page: Build's own Daily-Question pass is
+          // exactly that shape: clone the day, then find the question container
+          // inside it.
+          identitySignature: inst.identitySignature || null,
         };
         if (inst.parentId && liveOccs[inst.parentId]) {
           const parent = liveOccs[inst.parentId];

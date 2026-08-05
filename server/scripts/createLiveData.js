@@ -8403,6 +8403,10 @@ export async function createLiveData(userId, options = {}) {
     goalsPageOccId, schedulePageOccId: schedPageOccId,
     dayPageTemplateOccId,
     timeslotFieldId, scheduleFormatFieldId,
+    // A day arrives with no question otherwise; the op picks one at BUILD time
+    // so the choice persists instead of reshuffling on every load. Same pool the
+    // field's own picker and the randomize button use.
+    journalQuestionFieldId, questionPoolModuleId: questionsContModId,
   })).save();
   // Body-seeds the Tasks Completed container minted by buildDayPageTemplate.
   // Runs at priority 4 — after Build Day, Stamp, and trackers — so the

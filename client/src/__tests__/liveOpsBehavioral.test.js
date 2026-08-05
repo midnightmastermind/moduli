@@ -272,6 +272,65 @@ describe("onLoad sweep (seed sanity)", () => {
   });
 });
 
+describe("the day's Daily Question is filled at BUILD time (2026-08-05)", () => {
+  const QSIG = "daypage:Daily Question/question";
+  let boardId, colIds, qFid;
+
+  const buildToday = () => {
+    const buildOp = operations.find(o => o.name === "Day Page: Build");
+    expect(buildOp).toBeTruthy();
+    boardId = buildOp.targetOccurrenceId;
+    qFid = fieldIdByName["Daily Question"];
+    const dateFid = fieldIdByName["Date"];
+    const today = todayIso();
+    const selection = { kind: "day", unit: "day", value: today, dates: [today] };
+    occurrencesById[boardId] = { ...occurrencesById[boardId], filterOverride: { [dateFid]: selection } };
+    const anc = ancestorChain(boardId);
+    fire("NavigationOp", {
+      type: "NavigationOp",
+      sourceOccurrenceId: boardId, occurrenceId: boardId,
+      fieldId: dateFid, date: today,
+      activeFilterValues: { [dateFid]: selection },
+      _ancestorIds: anc.ids, _ancestorLabels: anc.labels,
+    });
+    // The day COLUMN's question container — not the template's (which carries
+    // the same signature, being what the clones are matched against).
+    colIds = Object.values(occurrencesById)
+      .filter(o => o.identitySignature === QSIG && ancestorChain(o.id).ids.includes(boardId))
+      .map(o => o.id);
+  };
+
+  it("building a day mints its question container and fills it", () => {
+    buildToday();
+    expect(colIds.length).toBeGreaterThan(0);
+    for (const id of colIds) {
+      const v = occurrencesById[id].fields?.[qFid]?.value;
+      expect(typeof v).toBe("string");
+      expect(v.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("the question came from the reflection-question pool, not an arbitrary string", () => {
+    const libFid = fieldIdByName["Library"];
+    const pool = new Set(Object.values(occurrencesById)
+      .filter(o => o.fields?.[libFid]?.value === "question")
+      .map(o => o.label ?? modulesById[o.moduleId]?.label)
+      .filter(Boolean));
+    expect(pool.size).toBeGreaterThan(1);
+    for (const id of colIds) {
+      expect(pool.has(occurrencesById[id].fields[qFid].value)).toBe(true);
+    }
+  });
+
+  it("a second build does NOT reshuffle it — the day keeps the question its answer belongs to", () => {
+    const before = colIds.map(id => [id, occurrencesById[id].fields[qFid].value]);
+    buildToday();
+    for (const [id, value] of before) {
+      expect(occurrencesById[id].fields[qFid].value).toBe(value);
+    }
+  });
+});
+
 describe("drops (onAdd/onDelete) re-aggregate trackers — 2026-07-07 trigger fix", () => {
   let addedId;
   // Stretch is a ROUTINE, so completing it moves Completed HABITS and must

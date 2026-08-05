@@ -422,6 +422,45 @@ describe("schedule ops", () => {
     expect(build.targetOccurrenceId).toBe("BOARD");
     expect(tc.targetOccurrenceId).toBe("SP");
   });
+  it("Day Page: Build fills an EMPTY Daily Question from the pool — and only an empty one", () => {
+    const op = makeDayPageBuildOp({
+      userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: "BOARD",
+      goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL",
+      journalQuestionFieldId: "JQ", questionPoolModuleId: "POOL",
+    });
+    const steps = flattenSteps(op.pipeline.steps);
+    // Found by identitySignature: the question container is deliberately
+    // label-less (its header IS the question), so a label lookup finds nothing.
+    const find = steps.find(st => st.config?.type === "FIND"
+      && (st.config.predicate?.rules || []).some(r => r.left === "identitySignature"));
+    expect(find).toBeTruthy();
+    expect(find.config.predicate.rules.find(r => r.left === "identitySignature").right)
+      .toBe("daypage:Daily Question/question");
+    expect(find.config.itemIdVar).toBe("$dqId");
+
+    const pick = steps.find(st => st.config?.type === "PICK_RANDOM_FROM_POOL");
+    expect(pick).toBeTruthy();
+    expect(pick.config.poolId).toBe("POOL");
+
+    // The write is GUARDED on the field being empty — re-rolling a day the user
+    // already answered would orphan the answer they wrote for the old question.
+    const guard = steps.find(st => st.type === "if"
+      && (st.condition?.rules || []).some(r => r.left === "$dq.fields.JQ.value" && r.comparator === "IS_EMPTY"));
+    expect(guard).toBeTruthy();
+
+    const write = steps.find(st => st.config?.type === "UPDATE" && st.config.path === "$dq.fields.JQ.value");
+    expect(write).toBeTruthy();
+    expect(write.config.value).toBe("$dailyQuestion");
+  });
+  it("Day Page: Build skips the Daily Question pass entirely without the pool context", () => {
+    const op = makeDayPageBuildOp({
+      userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: "BOARD",
+      goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL",
+    });
+    const s = JSON.stringify(op.pipeline);
+    expect(s).not.toContain("PICK_RANDOM_FROM_POOL");
+    expect(s).not.toContain("daypage:Daily Question/question");
+  });
   it("Day Page: Build refuses to build without a template id", () => {
     expect(() => makeDayPageBuildOp({ userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: "BOARD", goalsPageOccId: "GP", schedulePageOccId: "SP" }))
       .toThrow(/dayPageTemplateOccId required/);

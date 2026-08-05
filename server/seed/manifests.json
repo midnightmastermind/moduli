@@ -1,24 +1,12 @@
 [
   {
-    "_id": "6a6ce957e511c233f4d38948",
-    "id": "Qpsxf_AggxYv",
+    "_id": "6a7388c5861889be4c72e055",
+    "id": "zGJ20geBChho",
     "userId": "{{USER_ID}}",
-    "gridId": "6a6ce944e511c233f4d37d7d",
+    "gridId": "6a7388b1861889be4c72d48a",
     "name": "Files",
-    "rootFolderId": "xbWiA-5SVbIS",
+    "rootFolderId": "C83XZ2kZSBFf",
     "manifestType": "user",
-    "icon": "folder-tree",
-    "sortOrder": 0,
-    "meta": {}
-  },
-  {
-    "_id": "6a6ce966e511c233f4d38f01",
-    "id": "RS5ctj0CrzYF",
-    "userId": "{{USER_ID}}",
-    "gridId": "6a6ce944e511c233f4d37d7d",
-    "name": "Templates",
-    "rootFolderId": "besM2Zppl2bx",
-    "manifestType": "templates",
     "icon": "folder-tree",
     "sortOrder": 0,
     "meta": {}

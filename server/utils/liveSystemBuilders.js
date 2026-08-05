@@ -620,15 +620,29 @@ export async function buildDayPageTemplate({
   });
 
   for (const s of tplWritingSections) {
+    // Journal HOSTS the Daily Question section (2026-08-01). Being its
+    // `parentId` is not enough on either axis, and both were missing:
+    //   - APPLY_TEMPLATE walks `occurrences[]`, so an unlisted child is never
+    //     cloned — a freshly built day arrived with NO Daily Question at all.
+    //   - Journal is kind:"doc", so it renders its TEXTMAP, not its child list.
+    //     An unembedded child is present in the data and invisible on screen —
+    //     the 2026-08-01 (19) failure, from the other direction.
+    const hostsDailyQuestion = wantsDailyQuestion && s.label === "Journal";
     await mkOcc({
       id: s.occId,
       moduleId: s.modId,
       targetId: s.modId, targetType: "module",
       parentId: tplDayPageRootOccId,
       identitySignature: `daypage:${s.label}`,
-      // Blank body — this is where the user writes.
-      textmap: { type: "doc", content: [{ type: "paragraph" }] },
-      occurrences: [],
+      // Blank body — this is where the user writes. The Journal keeps a
+      // trailing paragraph under the embed so there is still somewhere to type.
+      textmap: hostsDailyQuestion
+        ? { type: "doc", content: [
+            { type: "moduleEmbed", attrs: { occurrenceId: tplDailyQOuterOccId } },
+            { type: "paragraph" },
+          ] }
+        : { type: "doc", content: [{ type: "paragraph" }] },
+      occurrences: hostsDailyQuestion ? [tplDailyQOuterOccId] : [],
     });
   }
 
@@ -1581,17 +1595,28 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
 //   new day page as an inactive tab on that panel; hub View.activeOccurrenceId
 //   stays Schedule, so the tab is present but not shown until the user clicks it.
 // dayPagesFolderId — the folder id of the "Day Pages" day-pages folder.
+// The template signs the question container `daypage:Daily Question/question`
+// (see the day-page template builder above) and every clone carries it — that is
+// what merge matches on, so it is also the only reliable way to find a day's
+// question container from an op. Kept next to the op that reads it.
+const DAILY_QUESTION_SIGNATURE = "daypage:Daily Question/question";
+
 export function makeDayPageBuildOp({
   userId, gridId, dateFieldId, dayPageBoardOccId, goalsPageOccId, schedulePageOccId,
   dayPageTemplateOccId,
   // Todo-link context (optional — omit and the op skips the link pass entirely).
   timeslotFieldId = null, scheduleFormatFieldId = null, todoMarkerValue = "Todo",
+  // Daily-Question auto-fill context (optional — omit and the op skips that pass).
+  // `questionPoolModuleId` is the MODULE id of the container whose occurrence
+  // lists the questions (PICK_RANDOM_FROM_POOL resolves the occurrence from it).
+  journalQuestionFieldId = null, questionPoolModuleId = null,
 }) {
   if (!schedulePageOccId) throw new Error("makeDayPageBuildOp: schedulePageOccId required (picker-direct ancestor + page ref)");
   if (!goalsPageOccId)    throw new Error("makeDayPageBuildOp: goalsPageOccId required (picker-direct ancestor)");
   if (!dayPageBoardOccId) throw new Error("makeDayPageBuildOp: dayPageBoardOccId required — the board page the day COLUMNS live on");
   if (!dayPageTemplateOccId) throw new Error("makeDayPageBuildOp: dayPageTemplateOccId required — resolving the template by meta.templateName matches the CLONES too (APPLY_TEMPLATE copies meta), and a multi-match FIND returns an ARRAY that APPLY_TEMPLATE cannot use");
   const wantsTodoLink = !!(timeslotFieldId && scheduleFormatFieldId);
+  const wantsDailyQuestion = !!(journalQuestionFieldId && questionPoolModuleId);
   return {
     id: uid(), userId, gridId, name: "Day Page: Build",
     // The DAY PAGE's own filter drives the build, exactly as Build Schedule
@@ -1726,6 +1751,60 @@ export function makeDayPageBuildOp({
             { id: uid(), type: "action", config: {
                 type: "UPDATE", path: "$col.meta.appliedFromTemplateId", value: "$tplId",
             }},
+
+            // ── the day's Daily Question ────────────────────────────────────
+            // A day arrives with an EMPTY question, so the bound header renders
+            // a picker nobody picked. Fill it here, at BUILD time, rather than
+            // at render: the choice persists on the occurrence, so it does not
+            // reshuffle on every load and the answer stays attached to the
+            // question it was written for.
+            //
+            // Found by identitySignature, not label — the question container is
+            // deliberately label-less (its header IS the selected question), and
+            // the signature is what merge already matches on, so it is the one
+            // marker guaranteed to survive a clone.
+            ...(wantsDailyQuestion ? [
+              { id: uid(), type: "action", config: {
+                  type: "FIND", over: "$allContainers",
+                  predicate: { operator: "AND", rules: [
+                    { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$colId" },
+                    { id: uid(), left: "identitySignature", comparator: "IS", right: DAILY_QUESTION_SIGNATURE },
+                  ]},
+                  itemIdVar: "$dqId", itemVar: "$dq",
+              }},
+              { id: uid(), type: "if",
+                // Only when it has no question yet. Re-rolling a day the user
+                // has already answered would orphan their answer.
+                condition: { operator: "AND", rules: [
+                  { id: uid(), left: "$dqId", comparator: "IS_NOT_EMPTY", right: "" },
+                  { id: uid(), left: `$dq.fields.${journalQuestionFieldId}.value`, comparator: "IS_EMPTY", right: "" },
+                ]},
+                then: [
+                  // The pool is the "Reflection Questions" container — the same
+                  // list the field's own picker and the 🎲 button draw from, so
+                  // there is ONE question pool, not a second copy of it here.
+                  { id: uid(), type: "action", config: {
+                      type: "PICK_RANDOM_FROM_POOL",
+                      poolId: questionPoolModuleId,
+                      varName: "$dailyQuestion",
+                  }},
+                  { id: uid(), type: "if",
+                    condition: { operator: "AND", rules: [
+                      { id: uid(), left: "$dailyQuestion", comparator: "IS_NOT_EMPTY", right: "" },
+                    ]},
+                    then: [
+                      { id: uid(), type: "action", config: {
+                          type: "UPDATE",
+                          path: `$dq.fields.${journalQuestionFieldId}.value`,
+                          value: "$dailyQuestion",
+                      }},
+                    ],
+                    else: [],
+                  },
+                ],
+                else: [],
+              },
+            ] : []),
 
             // ── that day's Todo, multi-parented in ──────────────────────────
             // NOT cloned: it IS the Schedule day-column's own catch-all
