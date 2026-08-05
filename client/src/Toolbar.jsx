@@ -234,7 +234,12 @@ const gridOptions = useMemo(
             tri-state day cycle. onNav writes to grid.activeFilterValues so the
             widget stays the toolbar's source of truth. */}
         <ToolbarFilterDropdown />
-        {!isMobileLayout && activeFilter && primaryNavFieldId && (
+        {/* Mobile gets the date nav too. It used to be desktop-only, which meant
+            a phone had NO way to change the date at all and the mini-calendar
+            simply did not exist there — a probe found 1 trigger on desktop and 0
+            on mobile (2026-08-05). The widget is compact (two arrows + the
+            calendar button) and shrinks, so it fits beside the drawer toggle. */
+        {activeFilter && primaryNavFieldId && (
           <FilterNavWidget
             filter={activeFilter}
             navConfig={null}
