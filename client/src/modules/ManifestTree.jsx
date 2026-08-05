@@ -439,15 +439,6 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
     [allChildOccs, modulesById]
   );
 
-  // The folder-page occurrence (kind="folder") — used for folder-first navigation from PageTreeNode
-  const folderPageOcc = useMemo(() =>
-    allChildOccs.find(occ => {
-      const mod = modulesById?.[occ.moduleId];
-      return mod?.kind === "folder" && mod?.role === "page";
-    }),
-    [allChildOccs, modulesById]
-  );
-
   // Sibling-reorder drop target — accepts other folder drags onto this
   // row's top/bottom edge and rewrites sortOrder so the dropped folder
   // slots above/below this one. Skipped for the manifest root folder
@@ -738,7 +729,6 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
               onOpenPage={onOpenPageAndClose || onOpenPage} occurrencesById={occurrencesById} modulesById={modulesById}
               childrenByParentId={childrenByParentId} onSelect={onSelect} onScrollTo={onScrollTo}
               activeOccurrenceId={activeOccurrenceId}
-              folderPageOccId={folderPageOcc?.id}
               siblingOccs={pageOccs}
               depth={depth + 1} />
           ))}
@@ -755,7 +745,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
 }
 
 // ─── PageTreeNode — pill style page entry + container anchor chips (draggable) ──
-function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurrencesById, modulesById, childrenByParentId, onSelect, onScrollTo, activeOccurrenceId, folderPageOccId, reverseIndent = false, depth = 0, siblingOccs = null }) {
+function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurrencesById, modulesById, childrenByParentId, onSelect, onScrollTo, activeOccurrenceId, reverseIndent = false, depth = 0, siblingOccs = null }) {
   const { dispatch, socket } = useGridActions();
   const pageOcc = occurrencesById?.[pageOccId];
   const pageMod = pageOcc ? modulesById?.[pageOcc.moduleId] : null;
@@ -866,12 +856,16 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurre
           module={pageMod}
           leadingSlot={closeSlot}
           onClick={() => {
-            // Folder-first: open folder page, auto-drilldown to target (shows only that card's thumbnail)
-            if (folderPageOccId && !isActive) {
-              onOpenPage?.(folderPageOccId, { drilldownTarget: pageOccId });
-            } else {
-              onOpenPage?.(pageOccId);
-            }
+            // Clicking a page opens THE PAGE (user 2026-08-05: "folders are
+            // opening before the pages when i click on them in the side bar …
+            // thats too many steps to get to what i want").
+            //
+            // This deliberately retires the folder-first drilldown from
+            // 2026-04-02, which opened the page's FOLDER and then animated into
+            // the card. That was a nice reveal exactly once; every time after,
+            // it is a detour on the way somewhere you already named by clicking
+            // it. The folder is still one click away — its own row opens it.
+            onOpenPage?.(pageOccId);
           }}
           isActive={isActive}
           depth={depth}

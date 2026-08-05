@@ -2,6 +2,18 @@
 
 _Updated: 2026-08-01. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-08-05 (4) — clicking a page in the tree opens the PAGE)
+- **`ManifestTree.jsx` (`PageTreeNode` onClick)** — a page row now calls `onOpenPage(pageOccId)`.
+  It used to open the page's FOLDER and animate a drilldown into the card
+  (`onOpenPage(folderPageOccId, { drilldownTarget: pageOccId })`, the folder-first navigation from
+  2026-04-02). User 2026-08-05: *"folders are opening before the pages when i click on them in the
+  side bar … thats too many steps to get to what i want."* That reveal was worth it exactly once;
+  every time after it is a detour on the way somewhere you already named by clicking it. The folder
+  is still one click away — its own row opens it (`handleFolderClick`, untouched).
+- The `folderPageOcc` memo and the `folderPageOccId` prop it fed are DELETED — that prop was their
+  only consumer. `ModulePanel`'s `openPage(occId, { drilldownTarget })` option survives as an API
+  (nothing passes it now); removing it is a wider cleanup than this change earns.
+
 ## Recent Changes (2026-08-05 (3) — DocContent: click an empty line, get a textblock)
 - **`DocContent.jsx` `handleCaretMintTextblock` (NEW)** — the mint itself. Creates the
   textblock module + occurrence **LOCAL-ONLY** (`emit: false`, `fireTrigger: false`), replaces the
