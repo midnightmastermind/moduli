@@ -207,15 +207,25 @@ export default function MobileGridNav({
   const cell = pendingCellRef.current || activeCell;
   activeCellRef.current = cell;
 
+  const animEndRef = useRef(null);
   const triggerAnimation = useCallback(() => {
     const el = sliderRef.current;
     if (!el) return;
     el.classList.add("animating");
-    const onEnd = () => {
+    // `animating` now also carries will-change (see index.css), so leaving it on
+    // re-creates the permanent composite layer this was meant to remove.
+    // transitionend does NOT fire when the transform is unchanged or the
+    // transition is interrupted, so a timer guarantees the class comes off.
+    const clear = () => {
+      clearTimeout(animEndRef.current);
+      animEndRef.current = null;
       el.classList.remove("animating");
-      el.removeEventListener("transitionend", onEnd);
+      el.removeEventListener("transitionend", clear);
     };
-    el.addEventListener("transitionend", onEnd);
+    clearTimeout(animEndRef.current);
+    el.removeEventListener("transitionend", clear);
+    el.addEventListener("transitionend", clear);
+    animEndRef.current = setTimeout(clear, 200);   // 80ms transition + slack
   }, []);
 
   // The same transform the render computes — see the anchor note down there.

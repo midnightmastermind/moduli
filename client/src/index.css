@@ -2414,9 +2414,32 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   overscroll-behavior-y: auto !important;
 }
 
-/* Inner slider — expanded to full grid size, animated */
-.mobile-grid-slider { will-change: transform; backface-visibility: hidden; }
-.mobile-grid-slider.animating { transition: transform 80ms ease-out; }
+/* Inner slider — expanded to full grid size, animated.
+
+   `will-change: transform` used to sit here PERMANENTLY, and it was the reason
+   a first navigation to any cell dragged on a phone while desktop felt fine
+   (user, 2026-08-05: "especially when navigating for the first time ... on
+   desktop it works a lot better"). Desktop has no slider at all — it lays the
+   panels out in a CSS grid — so the asymmetry was structural, not React.
+
+   A permanent will-change promotes the ENTIRE slider to its own composite
+   layer, and the slider holds every panel: ~15,000 nodes spanning rows x cols
+   viewports. On the reporting device (378x681 at 2.86 DPR) a 3x3 grid is
+   roughly a 19-megapixel texture, ~75MB — far past what a budget GPU keeps
+   resident, so it is tiled and each tile rasterises the first time you navigate
+   into it. Hence slow once per region, fine thereafter.
+
+   Scoped to `.animating` instead: the browser promotes for the 80ms the
+   transform is actually animating and drops the layer afterwards, which is what
+   will-change is documented to be for. MobileGridNav adds the class before
+   setting the transform, so promotion still happens in the same style recalc.
+   `backface-visibility: hidden` was a second promotion hack doing the same
+   thing permanently — it rides along on the same class now. */
+.mobile-grid-slider.animating {
+  transition: transform 80ms ease-out;
+  will-change: transform;
+  backface-visibility: hidden;
+}
 
 /* Rail buttons — full-length edge overlays, inset from OS gesture zones */
 .mobile-rail-btn {
