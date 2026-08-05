@@ -65,6 +65,16 @@ const REPO_ROOT = resolve(__dirname, "../..");
 const APPLY = process.argv.includes("--apply");
 const EMAIL = process.argv.includes("--user")
   ? process.argv[process.argv.indexOf("--user") + 1] : "josh@jpoms.com";
+// Scope the REPAIR passes (dangling child refs, module-less occurrences) to one
+// grid. Without it those passes walk every live grid, so repairing poms grid
+// also rewrites `test grid 1` — the frozen archive — with nothing to stop it.
+// Deliberately NOT an assertNotProtected guard: that rule exists to stop a grid
+// being DELETED, and poms grid is protected yet is swept on purpose. What was
+// missing is operator choice, not protection.
+// Pass 1 (true orphans) is unscoped by design — it only matches documents whose
+// gridId names a grid that no longer exists, and a live grid is never that.
+const GRID_NAME = process.argv.includes("--grid")
+  ? process.argv[process.argv.indexOf("--grid") + 1] : null;
 
 async function main() {
   const uri = process.env.MONGO_URI || process.env.MONGODB_URI;
@@ -77,7 +87,22 @@ async function main() {
 
   const grids = await Grid.find({ userId }).select({ _id: 1, name: 1 }).lean();
   const live = new Set(grids.map(g => g._id.toString()));
-  console.log(`👤 ${EMAIL} — ${grids.length} live grid(s): ${grids.map(g => `"${g.name || "(unnamed)"}"`).join(", ")}\n`);
+  console.log(`👤 ${EMAIL} — ${grids.length} live grid(s): ${grids.map(g => `"${g.name || "(unnamed)"}"`).join(", ")}`);
+
+  // Resolve --grid to an id up front and FAIL if it names nothing — a typo must
+  // not silently widen the sweep back to every grid.
+  let scopeGridId = null;
+  if (GRID_NAME) {
+    const match = grids.find(g => (g.name || "").toLowerCase() === GRID_NAME.toLowerCase());
+    if (!match) {
+      throw new Error(`--grid "${GRID_NAME}" matched no grid. Available: ${grids.map(g => `"${g.name}"`).join(", ")}`);
+    }
+    scopeGridId = match._id.toString();
+  }
+  console.log(GRID_NAME
+    ? `🎯 repair passes scoped to "${GRID_NAME}" — no other grid is written`
+    : `⚠️  repair passes will write EVERY live grid above (pass --grid "<name>" to scope)`);
+  console.log("");
 
   let orphanTotal = 0, nullTotal = 0;
   const plan = [];
@@ -107,6 +132,10 @@ async function main() {
   const danglingFix = [];
   for (const o of allOccs) {
     if (doomedIds.has(String(o._id))) continue;          // being deleted anyway
+    // Only PARENTS in the target grid are repaired. `liveIds` stays global on
+    // purpose, so a child that legitimately lives elsewhere is never counted as
+    // dangling just because the sweep is scoped.
+    if (scopeGridId && String(o.gridId) !== scopeGridId) continue;
     const kids = o.occurrences || [];
     const kept = kids.filter(k => liveIds.has(k));
     if (kept.length !== kids.length) danglingFix.push({ _id: o._id, id: o.id, gridId: o.gridId, before: kids.length, kept });
@@ -144,6 +173,7 @@ async function main() {
   let moduleLessKept = 0;
   for (const o of allOccs) {
     if (doomedIds.has(String(o._id))) continue;          // its whole grid is going
+    if (scopeGridId && String(o.gridId) !== scopeGridId) continue;
     if (!o.gridId || modKeys.has(`${o.gridId}::${o.moduleId}`)) continue;
     const why = [];
     if (hasText(o)) why.push("has writing");
