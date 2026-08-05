@@ -5,6 +5,56 @@
 > **Read [`CLAUDE_CHAT.md`](./CLAUDE_CHAT.md) at session start.** It's the time-ordered log of user direction across sessions. New direction goes there first before acting.
 
 ---
+### 2026-08-05 (2) — click-to-mint textblocks; the Daily Question fills itself; page clicks stop opening folders
+
+Picked up the previous session's task list (13 items, 7 shipped there). Three more shipped here,
+all deployed — prod HEAD `db420ae8`, new bundle served.
+
+**A line you click into becomes a textblock.** User: *"we should just have all new lines be
+textblocks if im on it … if i move away from it with it still empty, it disappears."* The
+first-textblock save lag was never a slow save — it was the create RACING the first keypress, with
+a merge window and a rAF focus poll built to survive that race. Minting on caret ENTRY removes the
+race outright. **The hard part is not the mint, it is that most lines you click into are abandoned
+empty** — and deleting a row the server was only just told about is exactly the
+create-is-queued / delete-is-not asymmetry behind the recurring dangling child refs. So a
+provisional block is **NEVER emitted**: it lives in local state until it earns a row by holding
+content, and abandoning it is a purely local removal that cannot race anything. The parent doc's
+textmap is held back for the same window (a tab closed mid-window would leave the parent embedding
+an occurrence that never gets created — a permanent "—"). **Three guards, each from an observed
+failure, not caution:** register the block BEFORE dispatching the replace transaction (that
+transaction fires onUpdate synchronously — measured 2 stray emits before, 0 after); defer and
+coalesce the caret check (selection and focus land in either order, so reading `hasFocus()` in
+whichever hook fired first misses half the cases — Shift+Enter-exit did not mint until this was
+deferred); and a suppression window after a collapse (A/B: without it backspace re-mints the block
+it just dismissed, 2→2 instead of 2→1). Verified in a browser harness driving the real
+DocContent/Editor/InstanceTextblockNode against a fake store — **no live grid touched** — 8/8 steps
+including zero emits while provisional.
+
+**The Daily Question fills itself — and the template never carried it.** Measured first: **14
+question containers on poms grid, 12 EMPTY**. `Day Page: Build` now writes a random question from
+the pool per day, at BUILD time and only when the field is empty (a render-time pick reshuffles
+every load, and the answer written underneath would end up attached to a question that is no longer
+there). Two defects surfaced on the way, both by measurement: **(1) the day-page TEMPLATE never
+carried the Daily Question at all** — the section was `parentId: Journal` and *nothing else*, so
+APPLY_TEMPLATE (which walks `occurrences[]`) cloned a day with no question container, and Journal
+being `kind:"doc"` meant an unembedded child would have been invisible anyway. Only a FRESH seed was
+broken — the live template was wired by `0027` — which is precisely why nobody had seen it.
+**(2) `applyEffectsToLiveOccs` dropped `identitySignature`**, so any rule looking up a just-cloned
+node by signature found nothing until the server echo landed. `0040` applied to poms grid (11 empty
+containers backfilled, distinct questions); integrity unchanged at the one pre-existing error.
+
+**Clicking a page in the sidebar opens the page.** It used to open the page's FOLDER and animate a
+drilldown into the card — the folder-first navigation from 2026-04-02. That reveal is worth it
+exactly once; every time after it is a detour on the way somewhere you already named by clicking it.
+
+**The audit half of the tree task did NOT match the report.** User: *"tons of pages are in folders
+of the same name where they are the only pages in that folder."* Measured on poms grid: **2**
+(Trackers, Examples), plus 4 folders holding one page under a different name. A migration written
+against the wrong reading would move real pages — `0035` already did that once — so it is waiting on
+a screenshot of the rows actually meant. **Recorded because the discipline is the point: measure the
+claim before writing the fix, even when the claim comes from the person who can see the screen.**
+
+---
 
 ### 2026-08-05 — the templates switch stopped stamping DATES; four mobile fixes; and four wrong diagnoses
 
