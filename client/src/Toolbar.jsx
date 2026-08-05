@@ -238,7 +238,7 @@ const gridOptions = useMemo(
             a phone had NO way to change the date at all and the mini-calendar
             simply did not exist there — a probe found 1 trigger on desktop and 0
             on mobile (2026-08-05). The widget is compact (two arrows + the
-            calendar button) and shrinks, so it fits beside the drawer toggle. */
+            calendar button) and shrinks, so it fits beside the drawer toggle. */}
         {activeFilter && primaryNavFieldId && (
           <FilterNavWidget
             filter={activeFilter}
