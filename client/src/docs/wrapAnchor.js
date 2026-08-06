@@ -54,8 +54,22 @@ export function classifyWrapShape({ anchorIndex, anchorOffset, neighborBottom, h
 // same text that wrapped at medium width flipped to stacked at large width)
 // and let SHRINKING panels stay wrapped down to an unreadable 60px column.
 export const WRAP_MIN_PROSE_W = 160;    // px — a prose column thinner than this is shredded words → stack
-export const WRAP_SLIVER_WRAP = 0.45;   // stacked → wrap when predicted beside-prose ≥ neighborH × this
-export const WRAP_SLIVER_KEEP = 0.35;   // wrapped → stack once it drops below neighborH × this
+// RETIRED 2026-08-06 (user: "why would i want to stack at large sizes"). These
+// scaled the decision by the NEIGHBOUR's height: `predicted = textArea / besideW`
+// falls as the column widens, so the same text beside the same infobox read as a
+// smaller and smaller fraction and the group STACKED as the panel got WIDER.
+// Measured on the Eminem page — one host, one infobox, three widths:
+//     beside 584 → prose 467 → 0.40 → wrapped
+//     beside 1184 → prose 230 → 0.30 → STACKED
+//     beside 2000 → smaller  → lower → STACKED
+// CLAUDE.md 2026-07-11 recorded this same inversion in the rule these replaced
+// ("width-inverted … the same text that wrapped at medium width flipped to
+// stacked at large width"); the sliver rule kept the shape and only shrank the
+// constant, so it inherited the bug. Kept as exports because WrapGroupNode's
+// rendered blank-band guard still names WRAP_SLIVER_KEEP — see the note there.
+export const WRAP_SLIVER_WRAP = 0.45;
+export const WRAP_SLIVER_KEEP = 0.35;
+export const WRAP_REENTER_MARGIN = 20; // px — re-entering a wrap needs a slightly wider column than holding one
 export const WRAP_MIN_BESIDE_H = 44;    // px — under ~2 text lines beside the neighbor always reads broken
 export const WRAP_SHORT_NEIGHBOR_H = 280; // px — a neighbor shorter than ~a paragraph can never leave the
                                           // tall empty band the sliver rule exists for → always wrap
@@ -68,12 +82,18 @@ export const WRAP_SHORT_NEIGHBOR_H = 280; // px — a neighbor shorter than ~a p
 //   prevStacked — current mode, for hysteresis (entry threshold > exit threshold)
 export function decideWrapStack({ textArea, besideW, neighborH, prevStacked = false }) {
   if (!textArea) return true;                      // blank host — nothing to wrap
-  if (besideW < WRAP_MIN_PROSE_W) return true;     // no readable prose column at this width
-  if (neighborH <= WRAP_SHORT_NEIGHBOR_H) return false; // short neighbor: magazine float, always fine
+  // WIDTH decides, and it decides the way round everyone expects: a column wide
+  // enough to read gets a wrap, a column too narrow to read gets a stack.
+  const floor = prevStacked ? WRAP_MIN_PROSE_W + WRAP_REENTER_MARGIN : WRAP_MIN_PROSE_W;
+  if (besideW < floor) return true;                // no readable prose column at this width
+  // A neighbour shorter than about a paragraph cannot leave a big blank band
+  // however little text sits beside it, so one line next to a small image is a
+  // caption, not a broken layout. This exemption is NOT width-scaled, which is
+  // why it survived the policy change.
+  if (neighborH <= WRAP_SHORT_NEIGHBOR_H) return false;
   const predicted = textArea / besideW;            // prose height if laid out in the beside column
-  if (predicted < WRAP_MIN_BESIDE_H) return true;  // under ~2 lines beside the neighbor
-  const frac = prevStacked ? WRAP_SLIVER_WRAP : WRAP_SLIVER_KEEP;
-  return predicted < neighborH * frac;             // only a sliver of the band would hold text
+  if (predicted < WRAP_MIN_BESIDE_H) return true;  // under ~2 lines beside the neighbor — reads broken
+  return false;                                    // there is a readable column with text in it → WRAP
 }
 
 // The neighbor's height AS IT WOULD RENDER WRAPPED — the single number the

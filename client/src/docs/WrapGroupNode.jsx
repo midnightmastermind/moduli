@@ -12,7 +12,7 @@
 // wraps content AFTER it, so the neighbor must precede the host in source order.
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
 import { useRef, useEffect, useCallback, useState } from "react";
-import { hasMidAnchor, classifyWrapShape, decideWrapStack, resolveNeighborHeight, WRAP_SLIVER_KEEP, WRAP_MIN_BESIDE_H, WRAP_SHORT_NEIGHBOR_H, WRAP_MIN_PROSE_W } from "./wrapAnchor";
+import { hasMidAnchor, classifyWrapShape, decideWrapStack, resolveNeighborHeight, WRAP_MIN_BESIDE_H, WRAP_SHORT_NEIGHBOR_H, WRAP_MIN_PROSE_W } from "./wrapAnchor";
 
 const DEFAULT_NW = 300;   // px — default neighbor column width when unset
 const MIN_NW = 120;       // px — splitter clamp floor
@@ -180,7 +180,18 @@ export default function WrapGroupNode({ node, updateAttributes }) {
       stacked: prevUnwrap, measuredW, measuredH,
       wrapWidth: neighborWidth, remembered: wrappedNeighborRef.current,
     });
-    const hostProse = els[els.length - 1].querySelector(".ProseMirror");
+    // The host's text, WHEREVER it is currently rendered. TextblockCard mounts
+    // its TipTap editor lazily (IntersectionObserver, 700px) and paints a plain
+    // `.textblock-card-placeholder` until then — so a host below the fold has
+    // thousands of characters on screen and NO `.ProseMirror` at all. Measured on
+    // the Eminem page: 17 of 18 groups reported textArea 0 with 2580-3826 real
+    // characters in the host, which `decideWrapStack` reads as "blank host —
+    // nothing to wrap" and stacks. That is why nothing below the first screen
+    // ever wrapped, whatever the policy said. The wrap is a fact about the text's
+    // geometry, not about which component happens to be rendering it.
+    const hostEl = els[els.length - 1];
+    const hostProse = hostEl.querySelector(".ProseMirror")
+      || hostEl.querySelector(".textblock-card-placeholder");
     // One fused walk: line-box area (sliver prediction) + how far down the
     // neighbor band [top..bottom] the rendered text reaches (blank-band guard).
     const { area: textArea, bandBottomReach } = measureProseText(hostProse, top, bottom);
@@ -204,7 +215,16 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     // prediction-driven, no flicker) and for short neighbors.
     if (!columnsMode && !nextUnwrap && !prevUnwrap && !shortNeighbor && hostProse) {
       const filledBandH = Math.max(0, bandBottomReach - top);
-      if (filledBandH < Math.max(WRAP_MIN_BESIDE_H, neighborH * WRAP_SLIVER_KEEP)) nextUnwrap = true;
+      // ABSOLUTE, not a fraction of the neighbour. The old
+      // `neighborH * WRAP_SLIVER_KEEP` demanded 265px of rendered text beside a
+      // 757px infobox — which a wide column can never produce, because widening
+      // makes the same prose SHORTER. That is the width inversion the policy
+      // above just dropped, and leaving it here would reimpose it through the
+      // back door: the decision would say wrap and this would immediately stack.
+      // What the guard is actually for is the case its comment describes — the
+      // band renders EMPTY because long words all dropped below the float — so
+      // it asks for what that case lacks: about two lines of text in the band.
+      if (filledBandH < WRAP_MIN_BESIDE_H) nextUnwrap = true;
     }
     if (nextUnwrap !== prevUnwrap) { autoUnwrapRef.current = nextUnwrap; setAutoUnwrap(nextUnwrap); }
     // Stacked layout needs no seam / notch measurement — bail early.

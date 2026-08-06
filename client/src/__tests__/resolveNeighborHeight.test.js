@@ -32,29 +32,23 @@ describe("resolveNeighborHeight", () => {
     expect(757 / projected).toBeGreaterThan(4);
   });
 
-  it("THE OSCILLATION: the projection makes the two states disagree, the memory makes them agree", () => {
-    const textArea = 272910; // measured, identical in both states (layout-invariant)
-    const besideW = 2144;
-
-    // BEFORE — each state feeds decideWrapStack a different neighbour height.
-    const hStackedOld = resolveNeighborHeight({ stacked: true, ...STACKED, wrapWidth: WRAP_W });
-    const hWrapped = resolveNeighborHeight({ stacked: false, ...WRAPPED, wrapWidth: WRAP_W });
-    expect(hStackedOld).toBeLessThan(WRAP_SHORT_NEIGHBOR_H);  // "short neighbour" → exempt → wrap
-    expect(hWrapped).toBeGreaterThan(WRAP_SHORT_NEIGHBOR_H);  // not short → sliver policy → stack
-    const fromStacked = decideWrapStack({ textArea, besideW, neighborH: hStackedOld, prevStacked: true });
-    const fromWrapped = decideWrapStack({ textArea, besideW, neighborH: hWrapped, prevStacked: false });
-    expect(fromStacked).toBe(false); // stacked says: WRAP
-    expect(fromWrapped).toBe(true);  // wrapped says: STACK  → the loop
-    expect(fromStacked).not.toBe(fromWrapped);
-
-    // AFTER — the remembered wrapped height is used in both states, so the
-    // decision is a fixed point and the group settles.
-    const hStackedNew = resolveNeighborHeight({
-      stacked: true, ...STACKED, wrapWidth: WRAP_W,
-      remembered: { wrapWidth: WRAP_W, height: 757 },
-    });
-    expect(decideWrapStack({ textArea, besideW, neighborH: hStackedNew, prevStacked: true }))
-      .toBe(decideWrapStack({ textArea, besideW, neighborH: hWrapped, prevStacked: false }));
+  it("the two states now AGREE even when fed the old wrong height — the loop is structurally gone", () => {
+    // Two fixes landed on this: the height is measured honestly (below), and the
+    // policy stopped scaling the decision by the neighbour's height at all
+    // (2026-08-06). Either one alone stops the flip; together the disagreement
+    // cannot be expressed. Fed the projected 152 AND the real 757, the decision
+    // is the same — which is what "cannot oscillate" means here.
+    const textArea = 272910, besideW = 2144;
+    const hProjected = resolveNeighborHeight({ stacked: true, ...STACKED, wrapWidth: WRAP_W });
+    const hReal = resolveNeighborHeight({ stacked: false, ...WRAPPED, wrapWidth: WRAP_W });
+    expect(Math.round(hProjected)).toBe(152);
+    expect(hReal).toBe(757);
+    expect(hProjected).toBeLessThan(WRAP_SHORT_NEIGHBOR_H);     // took the short-neighbour exemption
+    expect(hReal).toBeGreaterThan(WRAP_SHORT_NEIGHBOR_H);       // did not
+    expect(decideWrapStack({ textArea, besideW, neighborH: hProjected, prevStacked: true }))
+      .toBe(decideWrapStack({ textArea, besideW, neighborH: hReal, prevStacked: false }));
+    // …and both say WRAP, which is the answer the user wants at this width.
+    expect(decideWrapStack({ textArea, besideW, neighborH: hReal, prevStacked: false })).toBe(false);
   });
 
   it("a memory taken at a DIFFERENT float width is discarded", () => {

@@ -1,6 +1,40 @@
 # client/src/docs — Docs CLAUDE.md
 
-_Updated: 2026-07-13. Check this file before re-reading source._
+_Updated: 2026-07-13. Check this file before re-reading source._## Recent Changes (2026-08-06 — wrapping was measuring a host that had not mounted; and the policy was width-inverted)
+User, after the oscillation fix: *"now its not wrapping at all"*, then *"why would i want to stack at
+large sizes"*. Both were right, and they were **two separate bugs** — measured per group on the
+Eminem page, not reasoned about.
+
+- **THE DOMINANT ONE: the host's text was invisible to the measurement.** `TextblockCard` mounts its
+  TipTap editor LAZILY (IntersectionObserver, 700px) and paints a plain
+  `.textblock-card-placeholder` until then, but `measure()` looked for `.ProseMirror` only. So every
+  host below the first screen returned `hostProse = null` → `textArea 0` → `decideWrapStack`'s
+  "blank host — nothing to wrap" → **STACK, permanently**. Measured: **17 of 18 groups reported
+  textArea 0 while holding 2580-3826 real characters**; the one that wrapped was the only one in the
+  viewport at load. The wrap is a fact about the text's geometry, not about which component is
+  rendering it, so the lookup now falls back to the placeholder.
+- **THE SECOND ONE: `decideWrapStack` was width-inverted.** It compared the predicted beside-prose
+  height against a FRACTION of the neighbour's height — and `predicted = textArea / besideW` FALLS as
+  the column widens, so the same text beside the same infobox stacked as the panel got WIDER. Real
+  numbers, one host, one infobox: beside 584 → 467px → 0.40 → wrapped; beside 1184 → 230px → 0.30 →
+  stacked; beside 2000 → stacked. **CLAUDE.md 2026-07-11 recorded this exact inversion in the rule
+  the sliver policy replaced** — the replacement kept the shape and only shrank the constant, so it
+  inherited the bug. Now WIDTH decides, the way round everyone expects: a column wide enough to read
+  wraps, a narrower one stacks (`WRAP_MIN_PROSE_W` + a 20px re-entry margin), plus the two
+  non-proportional rules that were never the problem — a blank host stacks, and under ~2 lines of
+  prose beside the neighbour stacks. `WRAP_SLIVER_*` are retired (kept as exports, documented).
+- The rendered blank-band guard in `WrapGroupNode` carried the SAME inversion
+  (`neighborH * WRAP_SLIVER_KEEP` demanded 265px of text beside a 757px infobox, which a wide column
+  can never produce) and would have reimposed it through the back door — it is absolute now
+  (`WRAP_MIN_BESIDE_H`), which is what its own comment always described.
+- **Result on the page, measured: 2 of 18 groups wrapped → 16 of 18**, identical at 2560/2200/1900/
+  1600/1300/1000, all 18 at 800, and **0 wrap-class mutations in 3 idle seconds** at every width (the
+  oscillation stays fixed). The 2 that still stack have a 182-character host — under two lines beside
+  their neighbour, which is the rule working. Narrow viewports (500/390) still stack most groups.
+- **A NOTE ON THE INVARIANT NOW PINNED IN TESTS:** `wrapAnchor.test.js` sweeps the beside column from
+  the readable floor to 2600px for five neighbour heights and fails if a group that wrapped ever
+  stacks again. That property — *wider is never more stacked* — is what both of these bugs violated.
+
 ## Recent Changes (2026-08-05 (6) — the wrap group OSCILLATED: a neighbour height projected from the wrong layout)
 - **User: the Eminem page "starts flipping out … it doesn't know if the image should be full screen
   or wrap, it keeps switching between the two, rapidly."** Measured on the live page in Firefox:

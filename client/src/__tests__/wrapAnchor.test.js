@@ -53,56 +53,61 @@ describe("classifyWrapShape", () => {
 // ── decideWrapStack (2026-07-11 sliver policy) ────────────────────────────────
 import { decideWrapStack, WRAP_MIN_PROSE_W } from "../docs/wrapAnchor";
 
-describe("decideWrapStack — stack only when the beside band is blank or a sliver", () => {
+describe("decideWrapStack — WIDTH decides: a readable column wraps, a narrow one stacks", () => {
+  // POLICY CHANGED 2026-08-06, user: "why would i want to stack at large sizes".
+  // The old rule compared the predicted beside-prose height against a FRACTION of
+  // the neighbour's height. `predicted = textArea / besideW` falls as the column
+  // widens, so widening the panel made the same text look like a smaller sliver
+  // and STACKED it — measured on the Eminem page: beside 584 → 0.40 wrapped,
+  // beside 1184 → 0.30 stacked, beside 2000 → stacked. Backwards.
   const tallNbr = 620; // Wikipedia-infobox-ish
 
   it("blank host always stacks", () => {
     expect(decideWrapStack({ textArea: 0, besideW: 400, neighborH: 143 })).toBe(true);
   });
 
-  it("narrow prose column stacks (readable floor 160px — was 60)", () => {
+  it("narrow prose column stacks (readable floor 160px)", () => {
     expect(decideWrapStack({ textArea: 27520, besideW: 159, neighborH: 143 })).toBe(true);
-    expect(decideWrapStack({ textArea: 27520, besideW: 84, neighborH: 143 })).toBe(true); // old rule kept this wrapped
+    expect(decideWrapStack({ textArea: 27520, besideW: 84, neighborH: 143 })).toBe(true);
   });
 
-  it("short neighbor (≤280px) wraps at ANY width with any text", () => {
+  it("short neighbor wraps at any readable width", () => {
     expect(decideWrapStack({ textArea: 27520, besideW: 900, neighborH: 143 })).toBe(false);
     expect(decideWrapStack({ textArea: 2000, besideW: 322, neighborH: 280 })).toBe(false);
   });
 
-  it("LONG text beside a tall neighbor keeps wrapping at LARGE widths (the old 100% fill rule stacked here)", () => {
-    // Eminem-style: textArea 200k → predicted 400px at besideW 500 = 65% of a 620px infobox.
-    // Old rule: 400 < 620 → stacked. New rule: 65% ≥ 35% → WRAP.
-    expect(decideWrapStack({ textArea: 200000, besideW: 500, neighborH: tallNbr })).toBe(false);
+  it("THE REGRESSION: a tall neighbour no longer stacks a readable column", () => {
+    // The real numbers off the Eminem page. Every one of these stacked under the
+    // sliver rule; all three are a wide, readable column with text in it.
+    expect(decideWrapStack({ textArea: 272910, besideW: 1184, neighborH: 757 })).toBe(false);
+    expect(decideWrapStack({ textArea: 272910, besideW: 2000, neighborH: 757 })).toBe(false);
+    expect(decideWrapStack({ textArea: 27520, besideW: 322, neighborH: tallNbr })).toBe(false);
   });
 
-  it("a SLIVER of text beside a tall neighbor stacks (the 2026-07-09 'half text / empty band')", () => {
-    // Seeded-description-sized text: predicted 85px = 14% of the 620px infobox.
-    expect(decideWrapStack({ textArea: 27520, besideW: 322, neighborH: tallNbr })).toBe(true);
-  });
-
-  it("under ~2 lines beside the neighbor stacks regardless of ratio", () => {
-    // predicted 40px < WRAP_MIN_BESIDE_H even though 40 ≥ 35% of a 110px... (neighbor >280 required)
-    expect(decideWrapStack({ textArea: 16000, besideW: 400, neighborH: 300 })).toBe(true);
-  });
-
-  it("hysteresis: entry (stacked→wrap) needs a higher fill than staying wrapped", () => {
-    // predicted = 120k/500 = 240 → 38.7% of 620: keeps a wrap (≥35%) but does NOT enter one (<45%).
-    const args = { textArea: 120000, besideW: 500, neighborH: tallNbr };
-    expect(decideWrapStack({ ...args, prevStacked: false })).toBe(false); // stays wrapped
-    expect(decideWrapStack({ ...args, prevStacked: true })).toBe(true);   // stays stacked
-  });
-
-  it("widening NEVER flips a wrapped long-text group to stacked before the sliver point", () => {
-    // Sweep besideW upward with long text: once wrapped, it stays wrapped until the
-    // beside prose genuinely thins to a sliver — monotone, no mid-band stack window.
-    const textArea = 200000, neighborH = tallNbr;
-    let stacked = false, everRewrapAfterStack = false;
-    for (let besideW = WRAP_MIN_PROSE_W; besideW <= 1400; besideW += 50) {
-      const next = decideWrapStack({ textArea, besideW, neighborH, prevStacked: stacked });
-      if (stacked && !next) everRewrapAfterStack = true;
-      stacked = next;
+  it("WIDER IS NEVER MORE STACKED — the property the old rule violated", () => {
+    // Sweep the column from the readable floor outward. Once it wraps it must
+    // never stack again, for any neighbour height. This is the invariant that
+    // failed before: the same content flipped to stacked as the panel grew.
+    for (const neighborH of [143, 300, 620, 757, 1156]) {
+      let sawWrap = false;
+      for (let besideW = WRAP_MIN_PROSE_W; besideW <= 2600; besideW += 40) {
+        const stacked = decideWrapStack({ textArea: 272910, besideW, neighborH, prevStacked: !sawWrap });
+        if (!stacked) sawWrap = true;
+        else if (sawWrap) throw new Error(`stacked again at besideW=${besideW}, neighborH=${neighborH}`);
+      }
+      expect(sawWrap).toBe(true);
     }
-    expect(everRewrapAfterStack).toBe(false); // once it thins to a sliver it stays stacked, no oscillation
+  });
+
+  it("under ~2 lines beside the neighbor still stacks — it reads broken either way", () => {
+    // Tiny host, very wide column: 16000/2000 = 8px of prose beside the float.
+    expect(decideWrapStack({ textArea: 16000, besideW: 2000, neighborH: 300 })).toBe(true);
+  });
+
+  it("hysteresis on the WIDTH so the boundary cannot flap", () => {
+    const args = { textArea: 200000, neighborH: tallNbr };
+    expect(decideWrapStack({ ...args, besideW: 170, prevStacked: false })).toBe(false); // holds a wrap
+    expect(decideWrapStack({ ...args, besideW: 170, prevStacked: true })).toBe(true);   // but will not enter one
+    expect(decideWrapStack({ ...args, besideW: 181, prevStacked: true })).toBe(false);  // clear of the margin → enters
   });
 });
