@@ -17,6 +17,7 @@ import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
 import { useComputedValueWithFallback } from "../state/computedValuesStore";
 import { resolveOptions } from "../helpers/optionsResolver";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
+import { planPrefill, prefillFieldsPatch } from "../helpers/prefillFromPick";
 
 function FieldRenderer({
   field,
@@ -186,17 +187,38 @@ function FieldRenderer({
     if (!occurrence?.id || !field?.id || !inputEnabled) return;
     const flow = flowOverride || currentFlow || field?.meta?.flow || "in";
     // Build full updated occurrence so localOccsById has the new value before executor runs
-    const fullUpdatedOcc = {
-      ...occurrence,
-      fields: { ...(occurrence.fields || {}), [field.id]: { value: newValue, flow } },
-    };
+    const nextFields = { ...(occurrence.fields || {}), [field.id]: { value: newValue, flow } };
+
+    // PREFILL: picking an occurrence fills the fields that pick implies —
+    // an ingredient brings its macros, a meal brings its ingredients AND their
+    // summed macros (helpers/prefillFromPick owns the decision; the config is
+    // per-field data). The fills are merged into THIS write rather than sent
+    // after it: the target is the occurrence being edited, so a pick and its
+    // fills are one socket write, one server round-trip, and — because
+    // `withAction` groups a single call — ONE undo step. That grouping is not
+    // cosmetic here: a pick always overwrites, so undo is the only way back to
+    // a value it replaced.
+    const { writes } = planPrefill({
+      field,
+      value: newValue,
+      target: { ...occurrence, fields: nextFields },
+      ctx: { occurrencesById: getOccMap(), modulesById, fieldsById },
+    });
+    if (writes.length) Object.assign(nextFields, prefillFieldsPatch(writes));
+
+    const fullUpdatedOcc = { ...occurrence, fields: nextFields };
     CommitHelpers.updateOccurrence({
       dispatch, socket,
       occurrence: fullUpdatedOcc,
       emit: true,
-      triggerField: { fieldId: field.id, value: newValue, instanceId: occurrence.moduleId },
+      // One trigger per field the write actually changed — a filled Protein has
+      // to move the day's Protein tracker exactly as a typed one does.
+      triggerField: [
+        { fieldId: field.id, value: newValue, instanceId: occurrence.moduleId },
+        ...writes.map(w => ({ fieldId: w.fieldId, value: w.value, instanceId: occurrence.moduleId })),
+      ],
     });
-  }, [occurrence, field?.id, currentFlow, field?.meta?.flow, inputEnabled, dispatch, socket]);
+  }, [occurrence, field, currentFlow, inputEnabled, dispatch, socket, getOccMap, modulesById, fieldsById]);
 
   const handleFlowChange = useCallback((newFlow) => {
     if (!occurrence?.id || !field?.id || !inputEnabled) return;

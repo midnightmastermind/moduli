@@ -1,6 +1,32 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-07-24. Check this file before re-reading source._
+## Recent Changes (2026-08-06 — prefillFromPick.js NEW: a dropdown pick fills the fields it implies)
+- **`prefillFromPick.js` (NEW)** — user 2026-08-06: *"if i select that as the ingrediant, it would
+  prefill the nutrition on eat … if i select meal, it would fill the ingrediants dropdown with all
+  the ingrediants involved and the nutrition."* Config is per-FIELD data
+  (`field.meta.prefill = { enabled, map:[{from,to,combine}], chain }`); nothing in the code knows what
+  "nutrition" is. `planPrefill` is pure — no React, no writes — and returns the writes a pick implies.
+- **THE POLICY, settled with the user, and it is what keeps this small:**
+  *(1)* **a pick ALWAYS overwrites** (*"i can overwrite it but it will be overwritten if i make the
+  selection again"*) — so there is no provenance to store and the field shape stays `{value, flow}`;
+  *(2)* **no visual marker** — a filled value is an ordinary value; *(3)* **only fields the TARGET
+  MODULE already binds are filled** — prefill fills what is there, it never changes what a thing IS
+  (unlike a drop, which does add bindings).
+- **Chaining is recursion over the same function**, using the FILLED field's own config: Meal fills
+  Ingredients (`combine: "union"`), and because the Ingredient field already knows how to sum macros,
+  one hop further fills them. Configuring Ingredient→macros once therefore serves both a direct
+  ingredient pick and a meal that names ingredients. Depth cap (`chain`) + a claimed-field Set, so a
+  cycle terminates and a field is written at most once (first/shallowest write wins).
+- **Combine reducers SKIP non-numerics rather than coercing to 0** — a text ingredient must not drag
+  a protein total down. `sum/avg/min/max/concat/union/replace`; `union` is what fills one dropdown
+  from another.
+- **`CommitHelpers.updateOccurrence` `triggerField` now accepts an ARRAY.** A pick and its fills are
+  ONE socket write (the target is the occurrence being edited), but each changed field still fires
+  its own MeasureOp — a tracker subscribes to a FIELD, so a filled Protein has to move the day's
+  Protein exactly as a typed one would. A single object behaves byte-identically.
+- 21 tests in `__tests__/prefillFromPick.test.js` (+3 in CommitHelpers). A/B-verified: removing the
+  binding guard or the non-numeric skip fails them.
 
 ## Recent Changes (2026-08-05 (4) — the in-batch overlay was dropping identitySignature)
 - **`operationExecutor.js` (`applyEffectsToLiveOccs`, CREATE_ITEM)** — the overlay rebuilt a

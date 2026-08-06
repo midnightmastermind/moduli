@@ -31,6 +31,72 @@ function makeMocks() {
   };
 }
 
+// ─── ONE WRITE, SEVERAL TRIGGERS ───────────────────────────────────────────
+// A dropdown pick that prefills the values it implies is ONE socket write
+// carrying the pick and its fills (helpers/prefillFromPick). Each changed field
+// still has to fire its own MeasureOp, because a tracker subscribes to a FIELD —
+// a filled Protein must move the day's Protein exactly as a typed one does.
+describe("updateOccurrence triggerField", () => {
+  test("an ARRAY fires one MeasureOp per field, on a single write", () => {
+    const { dispatch, socket } = makeMocks();
+    const fired = [];
+    const prevFire = operationsBridge.fireOperations;
+    operationsBridge.fireOperations = (type, tx) => fired.push({ type, tx });
+    try {
+      updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: "o1", moduleId: "m1", fields: { fA: { value: 1 }, fB: { value: 2 } } },
+        emit: true,
+        triggerField: [
+          { fieldId: "fA", value: 1, instanceId: "m1" },
+          { fieldId: "fB", value: 2, instanceId: "m1" },
+        ],
+      });
+    } finally { operationsBridge.fireOperations = prevFire; }
+
+    // ONE write…
+    const writes = socket.emit.mock.calls.filter(c => c[0] === "update_occurrence");
+    expect(writes.length).toBe(1);
+    // …and one MeasureOp per field.
+    expect(fired.length).toBe(2);
+    expect(fired.map(f => Object.keys(f.tx.fields)[0])).toEqual(["fA", "fB"]);
+    expect(fired.every(f => f.type === "MeasureOp")).toBe(true);
+  });
+
+  test("a single object still fires exactly one — the old shape is untouched", () => {
+    const { dispatch, socket } = makeMocks();
+    const fired = [];
+    const prevFire = operationsBridge.fireOperations;
+    operationsBridge.fireOperations = (type, tx) => fired.push({ type, tx });
+    try {
+      updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: "o1", moduleId: "m1", fields: { fA: { value: 1 } } },
+        emit: true,
+        triggerField: { fieldId: "fA", value: 1, instanceId: "m1" },
+      });
+    } finally { operationsBridge.fireOperations = prevFire; }
+    expect(fired.length).toBe(1);
+    expect(Object.keys(fired[0].tx.fields)).toEqual(["fA"]);
+  });
+
+  test("an entry with no fieldId is skipped rather than firing an empty MeasureOp", () => {
+    const { dispatch, socket } = makeMocks();
+    const fired = [];
+    const prevFire = operationsBridge.fireOperations;
+    operationsBridge.fireOperations = (type, tx) => fired.push({ type, tx });
+    try {
+      updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: "o1", moduleId: "m1", fields: {} },
+        emit: true,
+        triggerField: [{ fieldId: "fA", value: 1 }, { value: 9 }, null],
+      });
+    } finally { operationsBridge.fireOperations = prevFire; }
+    expect(fired.length).toBe(1);
+  });
+});
+
 // ─── GRID ──────────────────────────────────────────────────────────────────
 describe("Grid commit helpers", () => {
   test("createGrid dispatches and emits create_grid", () => {

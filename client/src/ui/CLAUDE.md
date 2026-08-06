@@ -1,6 +1,25 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-07-20. Check this file before re-reading source._
+_Updated: 2026-07-20. Check this file before re-reading source._## Recent Changes (2026-08-06 — FieldRenderer: a pick carries its prefills in the SAME write)
+- **`FieldRenderer.jsx handleCommit`** — after a pick commits, `planPrefill`
+  (`helpers/prefillFromPick`) computes the values that pick implies and they are merged into the
+  SAME `updateOccurrence`. Not a follow-up write: the target IS the occurrence being edited, so the
+  pick and its fills are one socket write, one server round-trip, and — because `withAction` groups a
+  single call — ONE undo step. **That grouping is load-bearing, not cosmetic:** a pick always
+  overwrites, so undo is the only way back to a value it replaced (there is deliberately no marker
+  on a filled value).
+- `triggerField` is passed as an ARRAY — one MeasureOp per field the write actually changed.
+- **`commandCenter/PrefillEditor.jsx` (NEW)** — the config UI, mounted in `FieldsTab` for
+  `type: "occurrence"` fields only (a select of plain strings has nothing to pull from). Rows are
+  "read THIS on what I picked → write THAT on what I'm editing", a combine per row, and a hop count.
+  The copy states the two rules that surprise people: only fields the occurrence already carries get
+  filled, and a pick overwrites what you typed.
+- **A component test for this was written and DELETED.** Driving the occurrence dropdown through
+  Radix's popover in jsdom would not open reliably (it passed, then failed identically three runs
+  later with no code change). The same call this repo already made about ProseMirror in jsdom. The
+  wiring is covered by `prefillFromPick` (the decision) + `CommitHelpers` (one write, N triggers);
+  the UI path wants a browser, not jsdom.
+
 ## Recent Changes (2026-08-05 (5) — MenuSurface: every floating menu is a bottom DRAWER on mobile)
 - **`MenuSurface.jsx` (NEW)** — the one way a floating menu presents itself. Desktop: the portal
   into `document.body` at a fixed anchor that each of these already was. **Mobile: a bottom drawer**

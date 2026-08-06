@@ -1,6 +1,19 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-07-25. Check this file before re-reading source._
+_Updated: 2026-07-25. Check this file before re-reading source._## Recent Changes (2026-08-06 — prefill configured on poms grid; 0042)
+- **`migrations/0042-nutrition-prefill.mjs`** turns on the first real prefill as DATA on two fields:
+  `Ingredient` → the four macro INPUT fields (`combine: "sum"`), and `Meal` → the Ingredient dropdown
+  (`combine: "union"`, `chain: 1`) so a meal fills its ingredients and one hop further their summed
+  macros.
+- **Measured on the grid before writing:** Eat binds Meal, Ingredient, Calories, Protein, Carbs,
+  Fats (prefill only fills what the target already binds, so all four qualify); **6 meals already
+  name their ingredients**, so the Meal hop works immediately; and **0 ingredient occurrences carry
+  macro values yet** — until nutrition is entered on an ingredient once, the macro half fills nothing,
+  by design (prefill never overwrites with empty).
+- **The macros written are the INPUT fields, never their display twins.** A tracker summing the day's
+  protein and a prefill summing a meal's protein are different numbers that share a name; the
+  migration discriminates on `displayEnabled` rather than trusting the first name match.
+
 ## Recent Changes (2026-08-06 — the infobox "empty spot": a comma from an EMPTY <li>)
 - **User, on the imported Eminem page:** *"can you see why eminem's spouses section in the infoblock
   for that page created an empty spot before kimberly. its just a comma"*. It read

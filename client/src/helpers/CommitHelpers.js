@@ -300,14 +300,25 @@ function _updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerF
     // Update local cache with the new occurrence so the executor sees the correct value
     operationsBridge.updateLocalOcc?.(occurrence);
     const tfAncestors = operationsBridge.getAncestorChain?.(occurrence.id) || { ids: [], labels: [] };
-    operationsBridge.fireOperations?.("MeasureOp", {
-      type: "MeasureOp",
-      occurrenceId: occurrence.id,
-      instanceId: triggerField.instanceId,
-      fields: { [triggerField.fieldId]: triggerField.value },
-      _ancestorIds: tfAncestors.ids,
-      _ancestorLabels: tfAncestors.labels,
-    });
+    // ONE write can change SEVERAL fields — a dropdown pick that prefills the
+    // values it implies (helpers/prefillFromPick) is one socket write carrying
+    // the pick and its fills. Each changed field still fires its own MeasureOp,
+    // because a tracker subscribes to a FIELD: filling Protein has to move the
+    // day's Protein exactly as typing it would. Passing an array is the only way
+    // to say that without a second write path. A single object still works and
+    // behaves byte-identically.
+    const triggers = Array.isArray(triggerField) ? triggerField : [triggerField];
+    for (const tf of triggers) {
+      if (!tf?.fieldId) continue;
+      operationsBridge.fireOperations?.("MeasureOp", {
+        type: "MeasureOp",
+        occurrenceId: occurrence.id,
+        instanceId: tf.instanceId,
+        fields: { [tf.fieldId]: tf.value },
+        _ancestorIds: tfAncestors.ids,
+        _ancestorLabels: tfAncestors.labels,
+      });
+    }
   }
 }
 

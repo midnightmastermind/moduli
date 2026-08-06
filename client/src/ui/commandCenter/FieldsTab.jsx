@@ -10,6 +10,7 @@ import { useGridActions } from "../../GridActionsContext";
 import { uid } from "../../uid";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import SelectOptionsSourceEditor from "./SelectOptionsSourceEditor";
+import PrefillEditor from "./PrefillEditor";
 
 // Shared style helpers
 const labelStyle = {
@@ -467,6 +468,18 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
             source={local.meta?.optionsSource || { mode: "manual", values: [] }}
             fieldType={local.type}
             onChange={(next) => setLocal(p => ({ ...p, meta: { ...(p.meta || {}), optionsSource: next } }))}
+          />
+        </div>
+      )}
+
+      {/* Prefill — occurrence fields only: a pick copies values onto what you're editing */}
+      {local.type === "occurrence" && (
+        <div>
+          <span style={labelStyle}>When something is picked</span>
+          <PrefillEditor
+            prefill={local.meta?.prefill}
+            fields={Object.values(fieldsById || {})}
+            onChange={(next) => setLocal(p => ({ ...p, meta: { ...(p.meta || {}), prefill: next } }))}
           />
         </div>
       )}
