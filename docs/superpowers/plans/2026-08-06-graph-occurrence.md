@@ -194,21 +194,46 @@ Client tests `npm --prefix ./client run test`; server `npm --prefix ./server run
 
 ---
 
-### Task 1: SPIKE — prove the two things the design rests on
+### Task 1: SPIKE — prove the two things the design rests on ✅ DONE 2026-08-06
 
-**Nothing else starts until this reports.** Both answers change the plan if they come back wrong.
+**Both assumptions HELD. The plan proceeds unchanged.** Measured in real Chromium against
+`echarts@6.1.0`, not read from docs.
 
-- [ ] **Step 1:** Temporary harness (`client/_echarts.{html,jsx}`, deleted after). Render a
-      three-level sunburst, click a leaf in a real browser, and **print the click payload**.
-      **Assert the ancestor chain is present** — if a click cannot tell you which branch a leaf
-      belongs to, the feeling wheel needs a different library and this plan changes.
-- [ ] **Step 2:** Add `echarts`, import ONLY `SunburstChart + PieChart + BarChart + LineChart` plus
-      the core, build, and **record the real chunk size**. Compare against the documented chunk
-      sanity check (tiptap 435 / highlight 969 / CommandCenter 204 / PagePreviewApp 929).
-- [ ] **Step 3:** Confirm a lazy dynamic import lands `echarts` in its OWN chunk, not the App chunk.
+- [x] **Step 1: does a sunburst click carry the ancestor path?** YES. Clicking the "Content" leaf of
+      a three-level wheel returned:
+      ```
+      name         : "Content"
+      treePathInfo : [{name:""}, {name:"Happy"}, {name:"Content"}]   ← root + ancestors + self
+      occurrenceId : "occ-content"     ← OUR OWN payload, carried on p.data
+      value        : 1 · componentType: "series"
+      ```
+      **Two things this settles.** The ancestor chain is there, so a feeling-wheel click knows
+      `Happy › Content`. And an arbitrary key we attach to a datum survives onto the click event —
+      so a click resolves back to an occurrence id DIRECTLY, with no index-to-occurrence lookup
+      table to keep in sync. Task 3's "every datum carries its occurrenceId" is therefore trivial.
 
-**Verification:** the click payload and the chunk sizes pasted into this task's notes. A number, not
-an impression.
+- [x] **Step 2: what does it actually cost?** (esbuild, bundled + minified + gzipped)
+      ```
+      sunburst ONLY                      158 kB gzip
+      sunburst + pie + bar + line        197 kB gzip     (+39 kB for three more chart types)
+      full echarts dist                  360 kB gzip
+      ```
+      **The research's "~100 kB" was optimistic — the real floor is 158 kB.** But the shape of the
+      number is what matters: **the CORE is the price of admission and extra chart types are
+      nearly free.** Paying 158 kB to get one chart and then +13 kB each for the rest is a good
+      trade for "it should do a whole lot of other graphs". In family with this app's existing
+      lazy chunks (tiptap 137 · pdf 122 · CommandCenter 50 · highlight 312), and it is LAZY — a
+      grid with no graph on screen never downloads it.
+
+- [ ] **Step 3:** Confirm the lazy dynamic import lands `echarts` in its OWN chunk, not the App
+      chunk. **Deferred to Task 4**, where the real `EChart.jsx` import exists to measure; the
+      standalone probe cannot prove Vite's chunking for a module nothing imports yet.
+
+**PROBE LESSON, recorded because it is this file's own rule.** The first run reported **0 clicks
+and no page errors** — which looks like "sunburst clicks don't work". It was the probe: I loaded
+`echarts.common.js`, which does not ship the sunburst series at all. The fix was to make the probe
+prove the chart had RENDERED (count painted canvas pixels: 346,876) before believing any zero.
+*A probe that reports zero is a claim about the probe until you have seen it report non-zero.*
 
 ---
 
