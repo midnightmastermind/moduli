@@ -119,9 +119,26 @@ encoding: {
   category: null | fieldId,   // null = the occurrence's LABEL (the common case)
   value:    fieldId,          // the number the slice is sized by
   series:   fieldId | null,   // optional split into multiple series
-  children: "occurrences",    // sunburst/treemap: nest by the occurrence tree
+  children: "occurrences",    // nest by the occurrence TREE
+  parent:   fieldId | null,   // …or nest by a PARENT REFERENCE FIELD
+  level:    fieldId | null,   // optional: which ring a row declares itself on
 }
 ```
+
+**TWO WAYS TO GET A HIERARCHY — and the field-driven one is what boards want** (user, 2026-08-06:
+*"we can use fields to drive it. like what level is what … its a 3 layered wheel of feelings"*).
+
+`children: "occurrences"` nests by the occurrence tree — natural when the rows are already
+containers holding containers. **`parent: <fieldId>`** instead builds the tree from a field on each
+row pointing at its parent occurrence, which is what lets the hierarchy live on a **FLAT BOARD**:
+every feeling a sibling occurrence tagged by fields, exactly like the other 34 boards on this grid,
+with the wheel's 3 layers editable in the app rather than dragged into a nesting.
+
+`level` is REPORTED, not used: `depth` comes from the tree and is what the chart renders, so a
+level field is for validation and editors — a disagreement between the two is a data problem worth
+being able to see. Shipped and tested (10 cases), including a row whose parent is off-graph
+(becomes a root, so a graph can show one branch of a bigger board) and a cycle typed in by hand
+(draws nothing but SAYS so, rather than being silently empty).
 
 Picked with the existing `DrilldownPicker`, so the graph editor is field-picking — a control this
 app already has — rather than a bespoke query builder.
@@ -396,9 +413,17 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
         existing bindings, but the ids never round-trip, so the highlight cannot be derived from
         the field and the two must be kept in sync separately — the "two truths" this plan has
         avoided everywhere else.
-      Recommend **(a)**; it needs the user's yes because it touches a live field bound in 16 places.
+      **DECIDED 2026-08-06: (a).** The user picked it. So `Mood` becomes an occurrence dropdown
+      over the Feelings board, and the wheel's click, the field's value and the graph's highlight
+      are all the same occurrence ids — one truth, no translation.
 
-- [ ] **Step 1c: DECIDE (a) vs (b) above before seeding anything.**
+- [x] **Step 1c: DECIDED — (a).**
+- [ ] **Step 1d: carry out (a) as a migration.** Repoint `Mood` (`EeAlDE38uQE-`) from
+      `optionsSource: manual` (47 flat strings) to an occurrence find over the Feelings board.
+      Safe because ZERO occurrences carry a value — assert that again in the dry run rather than
+      trusting this note. Re-check the Moods tracker + the 16 bound modules (Express, Check In,
+      Vent, 13× Journal) still read sensibly, and keep the 47 old strings recorded in the
+      migration header so nothing is silently lost.
 
 - [ ] **Step 1b:** Seed an **Emotions board** — the standard wheel's 6-to-8 primaries, each holding
       its secondaries, each holding tertiaries. Occurrences nested in containers; that nesting IS

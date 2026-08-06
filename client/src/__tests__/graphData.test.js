@@ -152,6 +152,117 @@ describe("buildGraphData — nesting (what makes a feeling wheel possible)", () 
   });
 });
 
+describe("buildGraphData — hierarchy from FIELDS (a flat board)", () => {
+  // User 2026-08-06: "we can use fields to drive it. like what level is what.
+  // since we should have some sort of hiarchy in the feelings board … its a
+  // 3 layered wheel of feelings."
+  //
+  // This is what lets the Feelings board be FLAT — every feeling a sibling
+  // occurrence tagged by fields, exactly like every other board on this grid —
+  // while still drawing as a 3-ring wheel. The structure becomes data you edit
+  // in the app instead of a nesting you have to drag.
+  const F_PARENT = "f-parent";
+  const F_LEVEL = "f-level";
+
+  // A flat board: all rows are siblings; the tree lives in a field.
+  function flatWheel() {
+    const rows = [
+      ["angry", "Angry", null, "core"],
+      ["frustrated", "Frustrated", "angry", "secondary"],
+      ["annoyed", "Annoyed", "frustrated", "tertiary"],
+      ["happy", "Happy", null, "core"],
+      ["content", "Content", "happy", "secondary"],
+    ];
+    const kids = rows.map(([id, label, parent, lvl]) =>
+      child(id, label, {
+        [F_VALUE]: { value: 1 },
+        [F_LEVEL]: { value: lvl },
+        ...(parent ? { [F_PARENT]: { value: parent } } : {}),
+      })
+    );
+    return kids;
+  }
+  const flatGraph = (enc = {}) =>
+    graph({ value: F_VALUE, parent: F_PARENT, ...enc }, ["angry", "frustrated", "annoyed", "happy", "content"]);
+
+  it("builds the tree from a PARENT FIELD, not from nesting", () => {
+    const { nodes } = buildGraphData(flatGraph(), ctxOf(flatWheel()));
+    expect(nodes.map(n => n.name)).toEqual(["Angry", "Happy"]);          // only roots at top
+    expect(nodes[0].children[0].name).toBe("Frustrated");
+    expect(nodes[0].children[0].children[0].name).toBe("Annoyed");
+    expect(nodes[1].children[0].name).toBe("Content");
+  });
+
+  it("derives DEPTH from the tree, so a sunburst gets its 3 rings", () => {
+    const { nodes } = buildGraphData(flatGraph(), ctxOf(flatWheel()));
+    expect(nodes[0].depth).toBe(0);
+    expect(nodes[0].children[0].depth).toBe(1);
+    expect(nodes[0].children[0].children[0].depth).toBe(2);
+  });
+
+  it("reports the row's own LEVEL field alongside the derived depth", () => {
+    // Reported, not used: depth is what the chart renders, so a disagreement
+    // between the two is a data problem worth being able to SEE.
+    const { nodes } = buildGraphData(flatGraph({ level: F_LEVEL }), ctxOf(flatWheel()));
+    expect(nodes[0].level).toBe("core");
+    expect(nodes[0].children[0].level).toBe("secondary");
+    expect(nodes[0].children[0].children[0].level).toBe("tertiary");
+  });
+
+  it("keeps every occurrence reachable — 5 flat rows become 5 nodes in the tree", () => {
+    const { nodes } = buildGraphData(flatGraph(), ctxOf(flatWheel()));
+    const count = (ns) => ns.reduce((a, n) => a + 1 + count(n.children), 0);
+    expect(count(nodes)).toBe(5);
+  });
+
+  it("treats a row whose parent is NOT on this graph as a root", () => {
+    // So a graph can show one branch of a bigger board without its rows
+    // silently vanishing under an absent parent.
+    const kids = flatWheel();
+    const g = graph({ value: F_VALUE, parent: F_PARENT }, ["frustrated", "annoyed"]); // "angry" excluded
+    const { nodes } = buildGraphData(g, ctxOf(kids));
+    expect(nodes.map(n => n.name)).toEqual(["Frustrated"]);
+    expect(nodes[0].children[0].name).toBe("Annoyed");
+  });
+
+  it("accepts a parent stored as a ONE-ELEMENT ARRAY (multi-select dropdown shape)", () => {
+    const kids = [
+      child("a", "Angry", { [F_VALUE]: { value: 1 } }),
+      child("b", "Frustrated", { [F_VALUE]: { value: 1 }, [F_PARENT]: { value: ["a"] } }),
+    ];
+    const g = graph({ value: F_VALUE, parent: F_PARENT }, ["a", "b"]);
+    const { nodes } = buildGraphData(g, ctxOf(kids));
+    expect(nodes[0].children[0].name).toBe("Frustrated");
+  });
+
+  it("survives a CYCLE typed into the parent field by hand", () => {
+    const kids = [
+      child("a", "A", { [F_VALUE]: { value: 1 }, [F_PARENT]: { value: "b" } }),
+      child("b", "B", { [F_VALUE]: { value: 1 }, [F_PARENT]: { value: "a" } }),
+    ];
+    const g = graph({ value: F_VALUE, parent: F_PARENT }, ["a", "b"]);
+    const { nodes, warnings } = buildGraphData(g, ctxOf(kids));
+    // no root exists, so nothing draws — but it must SAY so, not just be empty
+    expect(nodes).toEqual([]);
+    expect(warnings.some(w => /no root/i.test(w.why))).toBe(true);
+  });
+
+  it("ignores a row that names ITSELF as parent", () => {
+    const kids = [child("a", "A", { [F_VALUE]: { value: 1 }, [F_PARENT]: { value: "a" } })];
+    const g = graph({ value: F_VALUE, parent: F_PARENT }, ["a"]);
+    const { nodes } = buildGraphData(g, ctxOf(kids));
+    expect(nodes.map(n => n.name)).toEqual(["A"]);
+  });
+
+  it("still supports occurrence-tree nesting — the parent field is an ALTERNATIVE", () => {
+    const inner = child("c1", "Inner", { [F_VALUE]: { value: 1 } });
+    const outer = child("a1", "Outer", {}, ["c1"]);
+    const g = graph({ value: F_VALUE, children: "occurrences" }, ["a1"]);
+    const { nodes } = buildGraphData(g, ctxOf([outer, inner]));
+    expect(nodes[0].children[0].name).toBe("Inner");
+  });
+});
+
 describe("buildGraphData — robustness", () => {
   it("skips child ids that resolve to nothing rather than emitting holes", () => {
     const kids = [child("a", "A", { [F_VALUE]: { value: 1 } })];
