@@ -33,6 +33,23 @@ describe("buildEChartsOption — chart types", () => {
     expect(s.data[0].children[0].children[0].name).toBe("Annoyed");
   });
 
+  it("DISABLES ECharts' node navigation — a click selects, it must not re-root", () => {
+    // Regression, found only by a browser harness (2026-08-06): the sunburst
+    // default is nodeClick "rootToNode", so ONE click on a leaf replaced the
+    // entire wheel with that node. For a feeling wheel that is fatal — picking
+    // an emotion would zoom the chart away instead of recording a mood.
+    // Verified in a real browser after the fix: the wheel stays intact
+    // (180,919 → 180,900 painted px) and our own onSelect still fires with the
+    // full ancestor path, because the click EVENT is a separate channel.
+    const { option } = buildEChartsOption({ type: "sunburst" }, NESTED);
+    expect(seriesOf(option)[0].nodeClick).toBe(false);
+  });
+
+  it("focuses the ancestor branch on hover/select, so a pick reads as a pick", () => {
+    const { option } = buildEChartsOption({ type: "sunburst" }, NESTED);
+    expect(seriesOf(option)[0].emphasis).toMatchObject({ focus: "ancestor" });
+  });
+
   it("builds a PIE", () => {
     const { option } = buildEChartsOption({ type: "pie" }, NODES);
     const s = seriesOf(option)[0];

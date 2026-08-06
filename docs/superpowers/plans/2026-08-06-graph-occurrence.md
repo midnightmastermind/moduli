@@ -297,11 +297,41 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
       `ContainerKindSelector` + `QuickAddMenu`; `"graph"` added to the server Module kind enum.
 - [ ] **Step 4:** Tests against fixtures: renders one datum per child, a dropped occurrence appears
       in both panes, an empty graph shows an empty state rather than a broken chart.
-- [ ] **Step 5: STILL OPEN — the browser harness.** Everything above is verified by jsdom tests and
-      the build ONLY. **The graph has never been drawn on screen.** Measure at 1600 / 900 / 390:
-      chart and board both readable, nothing overflows horizontally, and a sunburst is actually
-      TAPPABLE at 390 (see Risks — if it is not, the mobile answer is ECharts' native drill-down,
-      which changes what a click MEANS and must be decided there, not in passing).
+- [x] **Step 5: BROWSER HARNESS — DONE 2026-08-06, and it caught a fatal defect.**
+
+      Measured with a real 3-level feeling wheel (6 primaries → 14 secondaries → 26 tertiaries):
+      ```
+      width  chart   board   stacked  paintedPx  docOverflowX  ringWidth  errors
+      1600   1289    287     no       170,083    0             77px       0
+       900    604    272     no       170,064    0             77px       0
+       390    374    374     YES      85,658     0             55px       0
+      ```
+      Chart and board both readable at every width, the 390 media query stacks the board under the
+      chart, and **nothing overflows horizontally anywhere**. Screenshot confirms a correct,
+      fully-labelled wheel.
+
+      **THE MOBILE RISK IS RESOLVED — no drill-down needed.** Rings are **55px** at 390, above the
+      40px thumb target this repo already uses for hit areas. (Tangential arc at the outer ring is
+      ~40px with 26 leaves; a much denser wheel would shrink that, so re-measure if the emotion set
+      grows a lot.)
+
+      **THE DEFECT, and no unit test could ever have found it.** ECharts' sunburst defaults to
+      `nodeClick: "rootToNode"` — a click RE-ROOTS the chart to the clicked node. Measured: one
+      click on "Astonished" replaced the entire wheel with that single node and a grey back-button.
+      For a feeling wheel that is fatal: picking an emotion would zoom the wheel away instead of
+      recording a mood. It is the library's internal default, invisible to jsdom and to every
+      assertion about our own option object. **It took a screenshot.**
+
+      Fixed with `nodeClick: false`, then re-measured to prove BOTH halves:
+      the wheel stays intact after a click (180,919 → 180,900 painted px — the −19 is the hover
+      highlight), and **our own `onSelect` still fires** with the full payload
+      `{occurrenceId:"occ-free", path:["Happy","Content","Free"]}`. Disabling nodeClick removes only
+      ECharts' NAVIGATION; the click event is a separate channel that stays ours. A pick now lights
+      its whole ancestor branch (`emphasis: focus "ancestor"`), which is the right feel for
+      choosing an emotion. Two regression tests pin both settings.
+
+- [ ] **Step 5b: re-measure once the real emotion set is seeded** — the harness used a
+      representative wheel, not the final one.
 - [ ] **Step 6: STILL OPEN — the feed-vs-drag collision.** A feed sweeps children it did not mint,
       so hand-dragging into a FED graph may be undone on the next sync. Decide it: either the
       source board refuses hand-drops on a fed graph, or the feed leaves non-copies alone. Left
@@ -323,7 +353,21 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
 
 ### Task 7: The feeling wheel, as DATA
 
-- [ ] **Step 1:** Seed an **Emotions board** — the standard wheel's 6-to-8 primaries, each holding
+- [ ] **Step 1 (user, 2026-08-06): the wheel pulls from a BOARD IN THE LIBRARY.**
+      > *"the feelings circle should pull from a board in library of feelings. look up the super
+      > detailed feelings wheel to see it"*
+
+      So the emotions live in the **Library** folder as a board of their own, like every other
+      option board on this grid — NOT as children invented for the graph. The Feeling Wheel graph
+      then FEEDS from that board, which is the query path already built. Two consequences worth
+      stating: the emotion set is editable in the app like any other board, and the same emotions
+      are reusable by anything else (a Mood dropdown, a tracker) because they are ordinary
+      occurrences.
+
+      **RESEARCH REQUIRED before seeding:** use the *detailed* feelings wheel, not the 6×2 sketch
+      the harness used. Look up the full three-level wheel and seed the real set.
+
+- [ ] **Step 1b:** Seed an **Emotions board** — the standard wheel's 6-to-8 primaries, each holding
       its secondaries, each holding tertiaries. Occurrences nested in containers; that nesting IS
       the wheel's levels.
 - [ ] **Step 2:** Seed a **Feeling Wheel** graph occurrence: `type:"sunburst"`, a feed over the

@@ -112,6 +112,19 @@ export function buildEChartsOption(spec, data, theme) {
           data: nodes.map(toDatum),
           label: { rotate: "radial", color: t.text, fontSize: 11, minAngle: 8 },
           emphasis: { focus: "ancestor" },
+          // A CLICK SELECTS. It must not NAVIGATE.
+          //
+          // ECharts' sunburst defaults to `nodeClick: "rootToNode"` — clicking a
+          // node re-roots the chart to it. Measured in a browser harness
+          // (2026-08-06): one click on "Astonished" replaced the entire wheel
+          // with that single node and a grey back-button. For a feeling wheel
+          // that is fatal — picking an emotion would zoom the chart instead of
+          // recording a mood, and the wheel you picked from would be gone.
+          //
+          // No unit test could have caught this: it is the library's internal
+          // default, invisible to jsdom and to every assertion about our own
+          // option object. It took a screenshot.
+          nodeClick: false,
         }],
       },
       warnings,
