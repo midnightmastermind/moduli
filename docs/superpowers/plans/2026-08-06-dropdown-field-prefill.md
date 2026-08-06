@@ -216,6 +216,41 @@ Client tests `npm --prefix ./client run test`; server `npm --prefix ./server run
 
 ---
 
+### Task 6: DECIDE whether `sum` should apply FLOW (opened 2026-08-06, NOT started)
+
+**User asked: "is [the prefilled adding-up] based on the fields flow right"** — read the shipped
+code, and the honest answer is **no. Flow is CARRIED, not APPLIED.**
+
+- `COMBINERS.sum` is a plain arithmetic sum of the raw values:
+  `n.reduce((a, b) => a + b, 0)`. **Flow is never consulted in the arithmetic.**
+- Flow is then stamped on the RESULT, taken from the first contributor that has one:
+  `flow: flowSlot?.flow || "in"` (its comment says "so an 'out' amount stays an out" — which is
+  true of the label it writes, not of the sum it wrote).
+
+**Why that is inconsistent with the rest of the app.** Operation aggregation treats flow as
+DIRECTION — `"out"` values are NEGATED, which is the whole reason one `amount` field can serve both
+income and expenses (root `CLAUDE.md`, "Field Values and Flow"). Prefill sums magnitudes instead.
+Concretely: sources at `+10 (in)` and `10 (out)` prefill **20**, not 0, and the write inherits
+`"in"` purely because it came first.
+
+**It does not bite today**, which is why it was never caught: the configured case is macros, and
+macros are all `"in"`. It goes wrong the first time a prefilled field has mixed-flow sources —
+money being the obvious one.
+
+- [ ] **Decide (user's call — (a) is not backward-compatible):**
+      **(a)** make `sum` flow-aware (negate `"out"`), matching operation aggregation — the
+      consistent answer, but it silently changes the meaning of any future mixed-flow config;
+      **(b)** leave `sum` alone and add a `sumSigned` combine, so existing config keeps its meaning
+      and money opts in explicitly — the safe answer;
+      **(c)** leave as-is and document that prefill sums MAGNITUDES, so a mixed-flow map is a
+      configuration mistake rather than a code bug.
+- [ ] Whichever is chosen, add a test with MIXED-FLOW sources — there is currently none, which is
+      exactly why the gap survived review.
+- [ ] If the behaviour changes, re-check migration `0042`'s configured maps (Ingredient → macros,
+      Meal → Ingredients) — all `"in"` today, so no data moves, but assert that rather than assume.
+
+---
+
 ## Risks
 
 - **A pick that writes many fields writes many rows.** Batch into one `updateOccurrence` per target
