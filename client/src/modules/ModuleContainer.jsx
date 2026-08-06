@@ -37,6 +37,7 @@ import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
 import FeedSection from "../ui/FeedSection";
+import GraphSection from "../ui/GraphSection";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
@@ -1673,6 +1674,7 @@ function Container({
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
           <FiltersSection occurrence={containerOccurrence} />
           <FeedSection occurrence={containerOccurrence} />
+          <GraphSection occurrence={containerOccurrence} />
           <SortSection occurrence={containerOccurrence} />
           <FieldVisibilitySection occurrence={containerOccurrence} />
           <ViewModeSection occurrence={containerOccurrence} />

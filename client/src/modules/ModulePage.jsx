@@ -17,6 +17,7 @@ import { bumpRender } from "../helpers/renderProbe";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
 import FeedSection from "../ui/FeedSection";
+import GraphSection from "../ui/GraphSection";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import ViewModeSection from "../ui/ViewModeSection";
@@ -762,6 +763,7 @@ function Page({
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
           <FiltersSection occurrence={occurrence} />
           <FeedSection occurrence={occurrence} />
+          <GraphSection occurrence={occurrence} />
           <SortSection occurrence={occurrence} />
           <FieldVisibilitySection occurrence={occurrence} />
           <ViewModeSection occurrence={occurrence} />

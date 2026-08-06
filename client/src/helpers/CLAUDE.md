@@ -1256,3 +1256,23 @@ occurrence dropdown — found while verifying the ImagePickerMenu e2e:
   `assertNotProtected`.
 - A stored view is CLAMPED, never trusted (`meta.graph` is user-editable data), matching the
   unknown-chart-type fallback: a bad zoom degrades to a legal one instead of blanking the surface.
+
+## Recent Changes (2026-08-06 (3) — graphData: a fed hierarchy, and the guard that protects it)
+- **`graphData.js` — a row is addressable by the occurrence it STANDS FOR, not only by its own id.**
+  A feed materializes each match as a COPY with a NEW id carrying `meta.feedSourceId`, and the
+  copy's parent-reference field still names the SOURCE it was copied from. Without an alias every
+  fed row looks parentless: measured on the real 128-emotion wheel, the 3-ring sunburst came back
+  as **50 flat roots at depth 1**. `memberIdFor` maps both keys; own ids register FIRST and are
+  never overwritten, so a hand-dragged row wins a collision with some copy's source id (the two
+  kinds of row coexist — feedSync only sweeps what it minted). The root filter resolves through the
+  SAME map as the child index, or a fed row would be neither a root nor anyone's child and would
+  vanish from the chart.
+- **`limit: 0` on a feed means FIFTY.** `resolveFeedItems` reads `Number(feed.limit) > 0 ? … : 50`,
+  so a graph feeding a whole board silently draws a third of itself. There is no "unlimited"
+  sentinel; set an explicit cap above the board.
+- **`__tests__/noDomainKnowledge.test.js` gained a GRAPH case** — the graph surface must not contain
+  "emotion" / "feeling" / "mood". **The patterns are plain SUBSTRINGS, deliberately not `\b`-anchored:
+  a word boundary does not fire inside an identifier (`_` and camelCase are word characters), so
+  `EMOTION_RINGS` slipped straight through the first version.** Verified by planting exactly that
+  constant. "wheel" is NOT banned — it is a real input device (`WheelEvent`, `wheelFactor`) and the
+  rule only ever matched the zoom gesture code; a guard that cries wolf gets weakened later.

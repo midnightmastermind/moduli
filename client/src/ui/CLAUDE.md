@@ -1775,3 +1775,23 @@ registered them). See client/src/CLAUDE.md.
 - 8 gesture tests in `__tests__/EChart.test.jsx` (jsdom has no `PointerEvent`; the suite shims one
   off `MouseEvent`). They pin the WIRING — which gesture reaches which call, and that a drag cannot
   masquerade as a click — never the picture.
+
+## Recent Changes (2026-08-06 (3) — GraphSection: the chart is edited as DATA)
+- **`GraphSection.jsx` (NEW)** — HeaderDropdown section beside `<FeedSection>`, mounted in
+  `ModuleContainer` + `ModulePage`. A feed decides WHICH occurrences are a graph's rows; this
+  decides how they are DRAWN: chart type, the encoding (label / value / split-by, plus nesting,
+  parent-field and level for the chart types that can draw a hierarchy), and hardcoded literals.
+  **This is what makes the emotions wheel data rather than code** — a chart of anything else is the
+  same container with different values picked here.
+- **It MERGES into the existing meta, never replaces it.** `meta.graph.highlight` is written by an
+  OPERATION (that is how a picked slice stays lit), so a whole-meta write from this form would drop
+  it — and anything else the occurrence carries — the first time someone changed the chart type.
+  The test for that is A/B'd: removing the merge fails it.
+- **A LIVE READOUT, not a preview.** The header reports what the CURRENT spec actually produces
+  (roots / rows reached / depth / every `buildGraphData` warning), from the same function the chart
+  draws with. An encoding can be wrong in a way that still renders a chart — just the wrong one —
+  and that is invisible without this.
+- **Parent-field options are filtered to OCCURRENCE-typed fields.** A parent reference names another
+  row; a number field cannot, and offering one lets an author build a hierarchy that silently
+  resolves to nothing.
+- 7 tests in `__tests__/GraphSection.test.jsx`.
