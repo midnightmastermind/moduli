@@ -45,6 +45,18 @@ describe("buildEChartsOption — chart types", () => {
     expect(seriesOf(option)[0].nodeClick).toBe(false);
   });
 
+  it("labels the OUTER RING of a real wheel — minAngle must not blank it", () => {
+    // Regression, and the second defect a screenshot caught that no metric
+    // could (2026-08-06). `label.minAngle` HIDES the label of any slice
+    // narrower than N degrees. It was 8; the real 128-node emotions wheel has
+    // 80 tertiary leaves at 360/80 = 4.5° each, so all 80 were blanked and the
+    // whole outer ring rendered with no text — while roots, warnings and
+    // painted pixels all still read fine. The bound below is that arc.
+    const OUTER_LEAVES = 80;
+    const { option } = buildEChartsOption({ type: "sunburst" }, NESTED);
+    expect(seriesOf(option)[0].label.minAngle).toBeLessThan(360 / OUTER_LEAVES);
+  });
+
   it("focuses the ancestor branch on hover/select, so a pick reads as a pick", () => {
     const { option } = buildEChartsOption({ type: "sunburst" }, NESTED);
     expect(seriesOf(option)[0].emphasis).toMatchObject({ focus: "ancestor" });

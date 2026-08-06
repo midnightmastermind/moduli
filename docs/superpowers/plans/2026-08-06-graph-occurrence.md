@@ -347,8 +347,37 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
       its whole ancestor branch (`emphasis: focus "ancestor"`), which is the right feel for
       choosing an emotion. Two regression tests pin both settings.
 
-- [ ] **Step 5b: re-measure once the real emotion set is seeded** — the harness used a
-      representative wheel, not the final one.
+- [x] **Step 5b: re-measured against the REAL 128-node wheel (2026-08-06).** It found a second
+      defect no metric could see, and one open product decision.
+
+      ```
+      width  roots  warnings  painted   ring   outer-arc   labels
+      1400     8       0      540,668   138px    33px      all 128 readable
+       900     8       0      327,500   107px    25px      all 128 readable
+       390     8       0      102,152    60px    14px      outer ring COLLIDES
+      ```
+
+      **THE DEFECT: the entire outer ring rendered with NO TEXT.** `label.minAngle` hides a label
+      whose slice is narrower than N degrees, and it was set to 8 — but 80 tertiary leaves are 4.5°
+      each, so all 80 were blanked. A wheel you cannot read is a wheel you cannot pick from, and
+      every number still said fine (8 roots, 0 warnings, 540k painted px). Caught by a screenshot,
+      like the `nodeClick` bug before it. Fixed with `minAngle: 1` + `overflow: "truncate"`; 1
+      rather than 0 so a genuinely degenerate sliver may still drop its label instead of scribbling
+      over its neighbours.
+
+      **THE OPEN DECISION — this wheel is not usable at 390.** Ring DEPTH is fine (60px, above the
+      40px thumb target), but the outer ARC is 14px, so labels collide and a specific tertiary is
+      not tappable. The earlier "mobile risk resolved" finding was measured against a 26-leaf
+      stand-in and does NOT carry to 80 leaves. Options, none of them picked:
+      - **(a) A 2-ring wheel on the day page** (core + secondary, 40 leaves ≈ 28px arc) and the
+        full 3-ring wheel on a bigger surface. Costs nothing in code — `encoding` is data, so this
+        is two graph occurrences with different config.
+      - **(b) Native drill-down on mobile only** — changes what a click MEANS, which is the thing
+        `nodeClick: false` was set to prevent. Would need the select-vs-navigate split made
+        explicit.
+      - **(c) Pinch/scroll the chart on mobile**, keeping all 3 rings.
+      Recommend **(a)**: it is configuration, not code, and it keeps a click meaning one thing
+      everywhere.
 - [ ] **Step 6: STILL OPEN — the feed-vs-drag collision.** A feed sweeps children it did not mint,
       so hand-dragging into a FED graph may be undone on the next sync. Decide it: either the
       source board refuses hand-drops on a fed graph, or the feed leaves non-copies alone. Left

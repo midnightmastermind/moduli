@@ -137,7 +137,17 @@ export function buildEChartsOption(spec, data, theme) {
           type: def.id,
           radius: [0, "92%"],
           data: nodes.map((n) => toDatum(n, hi)),
-          label: { rotate: "radial", color: t.text, fontSize: 11, minAngle: 8 },
+          // `minAngle` HIDES a label whose slice is narrower than N degrees, and
+          // it defaults high enough to blank an entire ring. Measured on the
+          // real 128-node emotions wheel (2026-08-06): 80 tertiary leaves are
+          // 4.5° each, so at minAngle 8 the whole outer ring rendered with NO
+          // TEXT — a wheel you cannot read is a wheel you cannot pick from, and
+          // every metric (8 roots, 0 warnings, 540k painted px) still said it
+          // was fine. Caught by a screenshot.
+          //
+          // 1 rather than 0: a genuinely degenerate sliver should still be
+          // allowed to drop its label rather than scribble over its neighbours.
+          label: { rotate: "radial", color: t.text, fontSize: 10, minAngle: 1, overflow: "truncate" },
           emphasis: { focus: "ancestor" },
           // A CLICK SELECTS. It must not NAVIGATE.
           //
