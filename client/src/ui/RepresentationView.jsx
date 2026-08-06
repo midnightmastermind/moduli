@@ -30,8 +30,8 @@ import { createPortal } from "react-dom";
 import { useGridActions } from "../GridActionsContext";
 import { getModuleTypeIcon, getModuleTypeColor } from "../helpers/moduleIcons";
 import { resolveLabelTokens } from "../helpers/labelTokens";
-import { resolveFileRef } from "../helpers/fileRef";
 import { resolveEffectiveLayout } from "../helpers/layoutCascade";
+import { primaryMediaOf } from "../helpers/occurrenceMedia";
 // Static import — ModuleInstance is statically imported elsewhere
 // (ModuleContainer, ContainerTable, PageCanvas, ModuleEmbedNode), so
 // the earlier dynamic-import-for-lazy-load was useless: Vite couldn't
@@ -100,17 +100,10 @@ export default function RepresentationView({
       }).filter(Boolean)
     : [];
 
-  // Resolve media (poster) — first role:"media" binding on the module's
-  // fieldBindings, then the occurrence's value for that field. Same shape
-  // ArtifactCard / ModuleInstance use.
-  const mediaSrc = (() => {
-    const bindings = Array.isArray(module?.fieldBindings) ? module.fieldBindings : [];
-    const b = bindings.find(x => x.role === "media");
-    if (!b) return null;
-    const v = occurrence?.fields?.[b.fieldId]?.value;
-    if (!v) return null;
-    return resolveFileRef(v);
-  })();
+  // Resolve the poster through helpers/occurrenceMedia — the media value is an
+  // artifact OCCURRENCE ID, so the thumbnail is the artifact's own fileRef.
+  // Every thumbnail site reads through that one resolver (2026-08-06).
+  const mediaSrc = primaryMediaOf(occurrence, { occurrencesById, modulesById, fieldsById })?.src || null;
 
   // Optional ancestor breadcrumb — walks `parentId` two levels up. Kept
   // shallow on purpose; the value-builder card spec calls for deeper

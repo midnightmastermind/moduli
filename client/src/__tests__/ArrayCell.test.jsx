@@ -10,11 +10,19 @@ vi.mock("../helpers/jumpToOccurrence", () => ({ jumpToOccurrence: vi.fn() }));
 
 import { ArrayCell } from "../ui/Field";
 
+// The media-role value is an artifact OCCURRENCE ID (2026-08-06) — a poster is
+// a real artifact now, not a string on a field. `helpers/occurrenceMedia` is the
+// one resolver, and it returns null for a legacy string rather than passing it
+// through, so this fixture carries the artifact the id points at.
 const maps = {
   occurrencesById: {
-    occ1: { id: "occ1", moduleId: "m1", label: "Inception", fields: { fRating: { value: 5 }, fPoster: { value: "user/poster.png" }, fTags: { value: ["a", "b"] } } },
+    occ1: { id: "occ1", moduleId: "m1", label: "Inception", fields: { fRating: { value: 5 }, fPoster: { value: "art1" }, fTags: { value: ["a", "b"] } } },
+    art1: { id: "art1", moduleId: "mArt", fields: {} },
   },
-  modulesById: { m1: { id: "m1", label: "Inception", fieldBindings: [{ fieldId: "fPoster", role: "media" }] } },
+  modulesById: {
+    m1: { id: "m1", label: "Inception", fieldBindings: [{ fieldId: "fPoster", role: "media" }] },
+    mArt: { id: "mArt", role: "artifact", kind: "image", fileRef: "user/poster.png", label: "poster.png" },
+  },
   fieldsById: { fRating: { id: "fRating", name: "Rating" } },
 };
 

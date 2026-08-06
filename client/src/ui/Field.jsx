@@ -41,6 +41,8 @@ import {
 import { setOccurrenceFieldValue, updateModule, updateField } from "../helpers/CommitHelpers";
 import { normalizeAddNewTargets, targetOptionsForAddNew, createOptionUnderParent, promptEntryFields } from "../helpers/addNewOption";
 import { openImagePicker } from "./ImagePickerMenu";
+import { openArtifactSpread } from "./ArtifactSpreadHost";
+import { primaryMediaOf } from "../helpers/occurrenceMedia";
 import { resolveFileRef } from "../helpers/fileRef";
 import RepresentationView from "./RepresentationView";
 import AutoMarquee from "./AutoMarquee";
@@ -456,9 +458,14 @@ function resolveOccCard(occId, { occurrencesById, modulesById, fieldsById }, chi
   if (!occ) return null;
   const mod = modulesById?.[occ.moduleId] || null;
   const bindings = Array.isArray(mod?.fieldBindings) ? mod.fieldBindings : [];
-  const mediaB = bindings.find(b => b.role === "media");
   const showMedia = chipDisplay ? chipDisplay.showMedia !== false : true;
-  const mediaVal = (showMedia && mediaB) ? (occ.fields?.[mediaB.fieldId]?.value ?? null) : null;
+  // Resolved through occurrenceMedia: the media value is an artifact occurrence
+  // id, so a chip's poster is the artifact's fileRef rather than a raw string.
+  // This is the highest-traffic reader of that value — every option row of
+  // every occurrence dropdown — so it goes through the one resolver too.
+  const mediaVal = showMedia
+    ? (primaryMediaOf(occ, { occurrencesById, modulesById, fieldsById })?.src ?? null)
+    : null;
   const showLabel = chipDisplay ? chipDisplay.showLabel !== false : true;
 
   let fieldVals;
@@ -1020,7 +1027,9 @@ function Field({
     // the normal field path so onChange trackers fire like any edit.
     const isMediaBinding = binding?.role === "media";
     if (compact && isMediaBinding && type === "text" && !isClickEditing) {
-      const src = typeof localValue === "string" && localValue ? resolveFileRef(localValue) : null;
+      // The value is an artifact OCCURRENCE ID now, not a URL string — resolved
+      // through the one resolver every thumbnail site reads (2026-08-06).
+      const src = primaryMediaOf(hostOccurrence, occMaps)?.src || null;
       const hostLabel = modulesById?.[hostOccurrence?.moduleId]?.label
         || hostOccurrence?.label || "";
       return (
@@ -1028,11 +1037,13 @@ function Field({
           onClick={(e) => {
             e.stopPropagation();
             if (disabled) return;
-            openImagePicker({
-              query: hostLabel,
-              title: `Set image — ${hostLabel || name}`,
-              onPick: (url) => { handleChange(url); onCommit?.(url); },
-            });
+            // Clicking the face opens the SPREAD — every file this occurrence
+            // has, with adding one available in there. The pill deliberately
+            // stopped being an entry point to the picker so there is exactly
+            // one way to attach.
+            if (hostOccurrence?.id) {
+              openArtifactSpread(hostOccurrence.id, e.currentTarget.getBoundingClientRect());
+            }
           }}
           className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full border transition-all
             ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
@@ -1359,20 +1370,20 @@ function Field({
       // owns, so a raw text box is the wrong control (profile pics / image
       // fields edited in forms had no search until 2026-07-11).
       if (binding?.role === "media") {
-        const src = typeof localValue === "string" && localValue ? resolveFileRef(localValue) : null;
+        // Same merge as the compact pill: the value is an artifact occurrence
+        // id, and clicking opens the spread rather than the picker.
+        const src = primaryMediaOf(hostOccurrence, occMaps)?.src || null;
         const hostLabel = modulesById?.[hostOccurrence?.moduleId]?.label
           || hostOccurrence?.label || "";
         return (
           <div className="field-input field-input-media" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             {showLabel && <span style={inputLabelStyle}>{name}</span>}
             <button type="button" disabled={disabled}
-              onClick={() => {
+              onClick={(e) => {
                 if (disabled) return;
-                openImagePicker({
-                  query: hostLabel,
-                  title: `Set image — ${hostLabel || name}`,
-                  onPick: (url) => { handleChange(url); onCommit?.(url); },
-                });
+                if (hostOccurrence?.id) {
+                  openArtifactSpread(hostOccurrence.id, e.currentTarget.getBoundingClientRect());
+                }
               }}
               className={`inline-flex items-center gap-2 px-2 py-1 text-xs rounded border transition-all self-start
                 ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
@@ -1382,7 +1393,7 @@ function Field({
               {src
                 ? <img src={src} alt="" style={{ width: 24, height: 32, objectFit: "cover", borderRadius: 3 }} />
                 : <ImagePlus style={{ width: 14, height: 14, opacity: 0.7 }} />}
-              <span>{src ? "Change image…" : "Set image…"}</span>
+              <span>{src ? "Files…" : "Add a file…"}</span>
             </button>
           </div>
         );

@@ -43,6 +43,7 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import { getEffectiveFieldVisibilityForOccurrence, fieldPassesVisibility } from "../state/selectors";
 import { consumeLabelEdit } from "../helpers/pendingLabelEdit.js";
+import { primaryMediaOf } from "../helpers/occurrenceMedia";
 import { useComputedValue } from "../state/computedValuesStore";
 
 // Operation display widget — its own component so the per-key
@@ -385,11 +386,14 @@ function InstanceInner({
   // the label instead of the full-width block below. Board option occurrences
   // set it — a poster-sized block per option made the boards unreadable.
   const mediaInline = !!(occurrence?.meta?.mediaInline ?? instance?.meta?.mediaInline);
-  // mediaValue is either a local upload (fileRef → /uploads/<…>) or an
-  // absolute URL (http(s):// or data:) — seeded posters are absolute.
-  const mediaSrc = typeof mediaValue === "string"
-    ? (/^(https?:\/\/|data:)/.test(mediaValue) ? mediaValue : `/uploads/${mediaValue}`)
-    : null;
+  // The media value is an artifact OCCURRENCE ID now, resolved through the one
+  // resolver every thumbnail site reads (2026-08-06). It handles the local vs
+  // absolute fileRef split that used to be re-derived here.
+  const primaryMedia = primaryMediaOf(occurrence, {
+    occurrencesById: getOccMap(), modulesById, fieldsById,
+  });
+  const mediaSrc = primaryMedia?.src || null;
+  const mediaKind = primaryMedia?.kind || null;
 
   const mediaDropRef = useRef(null);
 
@@ -440,18 +444,15 @@ function InstanceInner({
     });
   }, [showMedia, mediaBinding, occurrence?.id, occurrence?.fields, resolveArtifactFileRef, dispatch, socket]);
 
-  // Pick a renderer from the file extension (same kinds ArtifactCard uses).
+  // Pick a renderer. The artifact module already carries a `kind` (mimeToKind
+  // decided it at upload), so this reads that instead of re-sniffing an
+  // extension off a URL — one fewer place that has to know what a .m4v is.
   const mediaTag = useMemo(() => {
-    if (!mediaValue || typeof mediaValue !== "string") return null;
-    // Strip query string + fragment before sniffing extension so URLs like
-    // https://image.tmdb.org/.../poster.jpg?token=abc still classify right.
-    const cleaned = mediaValue.split(/[?#]/)[0];
-    const ext = cleaned.split(".").pop()?.toLowerCase() || "";
-    if (["png", "jpg", "jpeg", "gif", "webp", "svg", "avif"].includes(ext)) return "img";
-    if (["mp4", "webm", "mov", "m4v"].includes(ext)) return "video";
-    if (["mp3", "wav", "ogg", "m4a", "flac"].includes(ext)) return "audio";
-    return "img"; // best-effort default
-  }, [mediaValue]);
+    if (!mediaSrc) return null;
+    if (mediaKind === "video") return "video";
+    if (mediaKind === "audio") return "audio";
+    return "img"; // image / pdf-thumb / best-effort default
+  }, [mediaSrc, mediaKind]);
 
   // A row carrying an inline thumbnail anchors its handle + label to the TOP of
   // that picture instead of centring on it (user 2026-07-31: "keep the text on
@@ -826,31 +827,27 @@ function InstanceInner({
             the label instead (board options — a poster-sized block per option
             made the boards unreadable). */}
         {showMedia && !mediaInline && (() => {
-          // mediaValue can be either a local upload (fileRef → /uploads/<…>)
-          // or an absolute URL (http(s):// or data:) — e.g. seeded library
-          // poster URLs from openlibrary / wikimedia. Detect-and-use-as-is
-          // when absolute; prefix /uploads/ otherwise.
-          const isAbsolute =
-            typeof mediaValue === "string" &&
-            /^(https?:\/\/|data:)/.test(mediaValue);
-          const src = isAbsolute ? mediaValue : `/uploads/${mediaValue}`;
+          // Resolved once, above, through helpers/occurrenceMedia — the
+          // local-vs-absolute fileRef split lives in resolveFileRef now rather
+          // than being re-derived at every render site.
+          const src = mediaSrc;
           return (
             <div
               ref={mediaDropRef}
-              className={"instance-media" + (mediaDragOver ? " instance-media-dragover" : "") + (mediaValue ? "" : " instance-media-empty")}
+              className={"instance-media" + (mediaDragOver ? " instance-media-dragover" : "") + (src ? "" : " instance-media-empty")}
               style={{ flex: "1 1 100%", minWidth: 0 }}
-              title={mediaValue ? (mediaBinding?.field?.name || "Media") : "Drop an artifact here"}
+              title={src ? (mediaBinding?.field?.name || "Media") : "Drop an artifact here"}
             >
-              {mediaValue && mediaTag === "img" && (
+              {src && mediaTag === "img" && (
                 <img className="instance-media-el" src={src} alt={mediaBinding?.field?.name || label || "media"} />
               )}
-              {mediaValue && mediaTag === "video" && (
+              {src && mediaTag === "video" && (
                 <video className="instance-media-el" src={src} controls playsInline preload="metadata" />
               )}
-              {mediaValue && mediaTag === "audio" && (
+              {src && mediaTag === "audio" && (
                 <audio className="instance-media-el" src={src} controls style={{ width: "100%" }} />
               )}
-              {!mediaValue && (
+              {!src && (
                 <span className="instance-media-placeholder">Drop media here</span>
               )}
             </div>
