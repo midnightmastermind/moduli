@@ -38,6 +38,13 @@ export const EVENT_TYPES = [
   { value: "onLoad",         label: "On Load",          desc: "Fires once when the grid loads",                                      transactionType: null },
   { value: "onButton",       label: "On Button",        desc: "Fires when the operation trigger button is pressed",                 transactionType: "ButtonOp" },
   { value: "onNodeInput",    label: "On Node Input",    desc: "Fires when a local field input on the operation node changes or Run is clicked", transactionType: "NodeInputOp" },
+  // A part of a GRAPH was clicked. `$trigger` carries `occurrenceId` (the
+  // occurrence behind the datum, null for a hardcoded literal), `path` (the
+  // ancestor chain — for a sunburst that is Angry › Frustrated › Annoyed),
+  // `value`, `seriesName` and `containerId`. This is what lets a chart DO
+  // something without the renderer knowing what it means: selecting an emotion
+  // records a mood because an OPERATION says so, not because the graph does.
+  { value: "onGraphSelect",  label: "On Graph Select",  desc: "Fires when a part of a graph is clicked (a slice, segment or point)", transactionType: "GraphSelectOp" },
   { value: "onModuleUpdate", label: "On Module Update", desc: "Fires when a module template changes",                                transactionType: "ModuleOp" },
   { value: "onWebhook",      label: "On Webhook",       desc: "Fires via HTTP POST to the webhook URL",                              transactionType: "WebhookOp" },
   { value: "onSchedule",     label: "On Schedule",      desc: "Fires at a specific time (cron)",                                     transactionType: "ScheduleOp" },

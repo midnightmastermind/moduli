@@ -3,7 +3,10 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or
 > superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
 >
-> **STATUS: NOT STARTED.** Sequenced after `2026-08-06-artifact-spread-viewer.md`.
+> **STATUS: Tasks 1-6 DONE (2026-08-06). Tasks 7-9 remain.** The spike held, the data model,
+> option builder, wrapper, surface and trigger are built and tested. **Never rendered in a real
+> browser** — jsdom cannot prove a chart draws, so the picture is still unverified. Nothing
+> deployed.
 
 **User direction (2026-08-06):**
 > "add a graph occurance in (works same way as table in what occurances it can be). i want the
@@ -237,7 +240,7 @@ prove the chart had RENDERED (count painted canvas pixels: 346,876) before belie
 
 ---
 
-### Task 2: `graphData.js` — the data model, pure
+### Task 2: `graphData.js` — the data model, pure ✅ DONE (17 tests)
 
 **Files:** create `client/src/helpers/graphData.js`; test `client/src/__tests__/graphData.test.js`.
 
@@ -255,7 +258,7 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
 
 ---
 
-### Task 3: `graphOption.js` — spec + data → an ECharts option
+### Task 3: `graphOption.js` — spec + data → an ECharts option ✅ DONE (15 tests)
 
 **Files:** create `client/src/helpers/graphOption.js`; test `client/src/__tests__/graphOption.test.js`.
 
@@ -269,7 +272,7 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
 
 ---
 
-### Task 4: `EChart.jsx` — the wrapper
+### Task 4: `EChart.jsx` — the wrapper ✅ DONE (10 tests)
 
 - [ ] **Step 1:** Lazy `import("echarts/core")` + only the used series/components. Init on a ref,
       `setOption(option, { notMerge: true })` on change, `dispose()` on unmount (a leaked ECharts
@@ -283,7 +286,7 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
 
 ---
 
-### Task 5: `ContainerGraph.jsx` — chart + source board
+### Task 5: `ContainerGraph.jsx` — chart + source board ✅ MOSTLY DONE (9 tests)
 
 - [ ] **Step 1:** Two panes — `<EChart>` and, beside it, the graph's own children rendered by the
       EXISTING container renderer as the source board. **Do not build a list.** Collapsible; stacks
@@ -294,12 +297,19 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
       `ContainerKindSelector` + `QuickAddMenu`; `"graph"` added to the server Module kind enum.
 - [ ] **Step 4:** Tests against fixtures: renders one datum per child, a dropped occurrence appears
       in both panes, an empty graph shows an empty state rather than a broken chart.
-- [ ] **Step 5:** Browser harness at 1600 / 900 / 390 wide — chart and board both readable, nothing
-      overflows horizontally. Screenshot into the task notes.
+- [ ] **Step 5: STILL OPEN — the browser harness.** Everything above is verified by jsdom tests and
+      the build ONLY. **The graph has never been drawn on screen.** Measure at 1600 / 900 / 390:
+      chart and board both readable, nothing overflows horizontally, and a sunburst is actually
+      TAPPABLE at 390 (see Risks — if it is not, the mobile answer is ECharts' native drill-down,
+      which changes what a click MEANS and must be decided there, not in passing).
+- [ ] **Step 6: STILL OPEN — the feed-vs-drag collision.** A feed sweeps children it did not mint,
+      so hand-dragging into a FED graph may be undone on the next sync. Decide it: either the
+      source board refuses hand-drops on a fed graph, or the feed leaves non-copies alone. Left
+      unspecified it becomes "my drag disappeared".
 
 ---
 
-### Task 6: Selection fires an operation
+### Task 6: Selection fires an operation ✅ DONE (5 tests)
 
 - [ ] **Step 1:** Register `onGraphSelect` in `helpers/triggerTypes.js` and surface it in the
       operations editor's trigger picker.
@@ -344,6 +354,8 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
 
 - [ ] Update `client/src/modules/CLAUDE.md`, `client/src/ui/CLAUDE.md`, `client/src/helpers/CLAUDE.md`,
       `server/CLAUDE.md`; root `CLAUDE.md` session entry.
+- [ ] Add a `noDomainKnowledge.test.js` case for the graph surface (Risks names it; the renderer
+      must never learn what an emotion is).
 - [ ] Full suite + build with the chunk sanity check; deploy; verify prod HEAD over SSH.
 
 ---
