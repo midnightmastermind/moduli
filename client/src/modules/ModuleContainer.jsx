@@ -96,6 +96,7 @@ import { CanvasDrawSection } from "./CanvasContent.jsx";
 import { DocEditorShell } from "./DocContent.jsx";
 import ContainerPool from "./containers/ContainerPool.jsx";
 import ContainerTable from "./containers/ContainerTable.jsx";
+import ContainerGraph from "./containers/ContainerGraph.jsx";
 import { FilterOverridePopup } from "./containerPopups.jsx";
 import ModuleInstance from "./ModuleInstance.jsx";
 import InsertGap from "../ui/InsertGap.jsx";
@@ -690,6 +691,7 @@ function Container({
   const isPoolContainer = containerViewType === "pool" || (!containerViewType && module?.kind === "pool");
   const isCanvasContainer = containerViewType === "canvas" || (!containerViewType && module?.kind === "canvas");
   const isTableContainer = containerViewType === "table" || (!containerViewType && module?.kind === "table");
+  const isGraphContainer = containerViewType === "graph" || (!containerViewType && module?.kind === "graph");
 
   // Block-wrap host generalization (project_block_wrap_redesign): a kind:"doc"
   // container can host a wrapGroup just like a textblock. When it does, the wrap CSS
@@ -1528,8 +1530,11 @@ function Container({
             </div>
           </div>
         );
-      })() : (
-        /* List Container */
+      })() : (() => {
+        /* List Container. Built as a local so the GRAPH surface can reuse it
+           verbatim as its source board — the graph's rows ARE these children,
+           so the board is this list, not a second implementation of it. */
+        const childList = (
         <div
           ref={listDropRef}
           /* `--long` gates the off-screen skip (index.css, "#24 perf"). That
@@ -1628,7 +1633,16 @@ function Container({
             )}
           </div>
         </div>
-      ))}
+        );
+        return isGraphContainer ? (
+          <ContainerGraph
+            occurrence={containerOccurrence}
+            dispatch={dispatch}
+            socket={socket}
+            renderSourceBoard={() => childList}
+          />
+        ) : childList;
+      })())}
 
       {/* Gap hitbox */}
       <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: gapPx, marginBottom: -gapPx, pointerEvents: "auto", zIndex: 2 }} />

@@ -5188,3 +5188,90 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   border: none;
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GRAPH CONTAINER — a chart, and beside it the SOURCE BOARD of the occurrences
+   it is made of. Those are the same set: a graph's data rows ARE its child
+   occurrences, so the board is the container's own row list (rendered by
+   ModuleContainer, not re-implemented here) and the chart is a second view.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.container-graph {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  min-height: 220px;
+  flex: 1;
+}
+.container-graph-chart {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;          /* a flex child must be allowed to shrink or the
+                            board gets squeezed off the end */
+  display: flex;
+  flex-direction: column;
+}
+.echart,
+.container-graph-canvas { flex: 1 1 auto; min-height: 200px; width: 100%; }
+
+.container-graph-board {
+  flex: 0 0 clamp(180px, 30%, 280px);
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-left: 1px solid var(--border-subtle);
+  padding-left: 6px;
+}
+
+.container-graph-board-toggle {
+  position: absolute;
+  top: 2px; right: 2px;
+  z-index: 2;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  background: var(--input-bg);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.container-graph-board-toggle:hover { color: var(--text-primary); }
+
+.container-graph--unconfigured,
+.container-graph-empty {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  flex: 1; min-height: 120px; padding: 20px;
+  font-size: 11px; color: var(--text-faint); text-align: center;
+}
+
+/* Surfaced rather than swallowed — "this row contributed nothing" is exactly
+   the kind of thing that is invisible in a chart. */
+.container-graph-warnings {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  font-size: 9px;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-faint);
+  cursor: help;
+}
+
+.echart-failed {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 120px; font-size: 11px; color: var(--text-faint);
+}
+.echart-failed button {
+  padding: 2px 8px; border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  background: transparent; color: var(--text-muted); cursor: pointer;
+}
+
+/* Narrow panels and phones: the board goes UNDER the chart rather than
+   fighting it for width. */
+@media (max-width: 620px) {
+  .container-graph { flex-direction: column; }
+  .container-graph-board {
+    flex: 0 0 auto; max-height: 200px;
+    border-left: none; border-top: 1px solid var(--border-subtle);
+    padding-left: 0; padding-top: 6px;
+  }
+}
