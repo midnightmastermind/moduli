@@ -69,12 +69,25 @@ export function buildRecordSelectionPipeline({ graphOccId, moodFieldId, dateFiel
   return {
     sources: [],
     steps: [
-      // The picked emotion. Everything below is a no-op without it.
+      // EVERY var is declared before use. A FIND that matches nothing does not
+      // bind its itemVar at all, and referencing an unbound var THROWS
+      // ("$moodHost not bound in current pipeline context") — so the guard that
+      // is supposed to handle "no host found" never gets to run. Declaring up
+      // front turns every miss into a value the guards can test.
       { id: uuid(), type: "action", actionType: "INIT_VAR",
         config: { name: "$picked", expr: "$trigger.occurrenceId" } },
+      { id: uuid(), type: "action", actionType: "INIT_VAR", config: { name: "$graph", expr: "literal:" } },
+      { id: uuid(), type: "action", actionType: "INIT_VAR", config: { name: "$day", expr: "literal:" } },
+      { id: uuid(), type: "action", actionType: "INIT_VAR", config: { name: "$moodHost", expr: "literal:" } },
+      { id: uuid(), type: "action", actionType: "INIT_VAR", config: { name: "$moods", expr: "json:[]" } },
 
       { id: uuid(), type: "if",
-        predicate: { conjunction: "AND", rules: [
+        // `condition` + `operator` — an IF step reads step.condition, and an
+        // unrecognised key falls back to an EMPTY AND, which evaluates TRUE.
+        // So a mis-keyed guard does not fail closed, it runs the branch
+        // unconditionally; measured, both guards here were inert and the
+        // pipeline threw on an unbound var instead of no-oping.
+        condition: { operator: "AND", rules: [
           { left: "$picked", comparator: "IS_NOT_EMPTY", right: null },
         ]},
         then: [
@@ -106,7 +119,7 @@ export function buildRecordSelectionPipeline({ graphOccId, moodFieldId, dateFiel
             } },
 
           { id: uuid(), type: "if",
-            predicate: { conjunction: "AND", rules: [
+            condition: { operator: "AND", rules: [
               { left: "$moodHost", comparator: "IS_NOT_EMPTY", right: null },
             ]},
             then: [
@@ -235,6 +248,15 @@ export async function up({ gridId, models, log, dryRun }) {
       if (!dryRun) await Occurrence.updateOne({ gridId, id: occ.id }, { $set: { "feed.limit": 1000 } });
     }
     if (existingOp) {
+      // Same find-then-patch reason as the feed limit: an earlier run of this
+      // file created the op with NO `triggerTypes`, which makes it fire only on
+      // LOAD — the click did nothing. Repair rather than leave it inert.
+      if (!Array.isArray(existingOp.triggerTypes) || !existingOp.triggerTypes.includes("onGraphSelect")) {
+        log(`operation is missing triggerTypes (${JSON.stringify(existingOp.triggerTypes)}) — it would fire only on load; repairing`);
+        if (!dryRun) {
+          await Operation.updateOne({ gridId, id: existingOp.id }, { $set: { triggerTypes: ["onGraphSelect"] } });
+        }
+      }
       log("Emotions Wheel and its operation already exist — nothing further to do");
       return;
     }
@@ -300,6 +322,13 @@ export async function up({ gridId, models, log, dryRun }) {
       description: "A click on the Emotions Wheel records that emotion onto the day's Mood and lights the slice.",
       enabled: true, priority: 3,
       targetOccurrenceId: graphOccId,
+      // BOTH are required, and the omission fails SILENTLY. `triggerObjects`
+      // says WHICH graph; `triggerTypes` says the op fires on events at all —
+      // with it absent, computeTriggerMatch takes the legacy no-config path and
+      // the op only ever fires on LOAD (`transactionType == null`), so a click
+      // matched nothing. Measured: the pipeline produced both writes when run
+      // directly, and zero when fired through runMatchingOperations.
+      triggerTypes: ["onGraphSelect"],
       // SCOPED TO THIS GRAPH, via the machinery that already exists.
       // `subjectType:"module"` + `subjectRole:"container"` makes
       // matchSubjectFilter compare `transaction.containerId` to targetId — and
