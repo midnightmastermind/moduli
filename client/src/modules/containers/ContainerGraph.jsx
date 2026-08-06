@@ -22,10 +22,11 @@
 // is data plus one operation, and `noDomainKnowledge.test.js` guards that.
 // ============================================================
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { BarChart3, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { BarChart3, PanelRightClose, PanelRightOpen, Minimize2 } from "lucide-react";
 import EChart, { readChartTheme } from "../../ui/EChart";
 import { buildGraphData } from "../../helpers/graphData";
 import { buildEChartsOption } from "../../helpers/graphOption";
+import { DEFAULT_VIEW, isDefaultView } from "../../helpers/graphView";
 import { useGridActionsSelector } from "../../GridActionsContext";
 import { runMatchingOperations } from "../../helpers/operationExecutor";
 
@@ -39,6 +40,14 @@ export default function ContainerGraph({ occurrence, dispatch, socket, renderSou
   const [boardOpen, setBoardOpen] = useState(true);
   const hostRef = useRef(null);
 
+  // ZOOM IS VIEW STATE, NOT DOCUMENT STATE — deliberately local and unsaved.
+  // The graph fills its container (user, 2026-08-06: "the graph should be the
+  // size of the container … and have it be zoomable"), and zoom is how you
+  // reach a 14px slice on a phone. Persisting it would mean everyone opening
+  // the day page inherits wherever the last person left the wheel; a graph
+  // should open showing the whole thing.
+  const [view, setView] = useState(DEFAULT_VIEW);
+
   const spec = occurrence?.meta?.graph || null;
 
   // Rebuilt when the graph's own children change — the chart is a view of the
@@ -49,8 +58,8 @@ export default function ContainerGraph({ occurrence, dispatch, socket, renderSou
   );
 
   const { option } = useMemo(
-    () => buildEChartsOption(spec, nodes, readChartTheme(hostRef.current)),
-    [spec, nodes]
+    () => buildEChartsOption(spec, nodes, readChartTheme(hostRef.current), view),
+    [spec, nodes, view]
   );
 
   // A selection fires the ordinary trigger path, so an operation decides what a
@@ -99,7 +108,26 @@ export default function ContainerGraph({ occurrence, dispatch, socket, renderSou
             Nothing to chart yet — drop an occurrence in, or give this graph a feed.
           </div>
         ) : (
-          <EChart option={option} onSelect={handleSelect} className="container-graph-canvas" />
+          <EChart
+            option={option}
+            onSelect={handleSelect}
+            className="container-graph-canvas"
+            view={view}
+            onViewChange={setView}
+          />
+        )}
+        {!isDefaultView(view) && (
+          // Only while zoomed: a chart at rest should carry no chrome, and a
+          // zoomed one must never be a state you cannot get out of.
+          <button
+            type="button"
+            className="container-graph-reset"
+            onClick={() => setView(DEFAULT_VIEW)}
+            title="Fit the whole chart (or double-click it)"
+          >
+            <Minimize2 style={{ width: 12, height: 12 }} />
+            <span>{view.zoom.toFixed(1)}×</span>
+          </button>
         )}
         {warnings.length > 0 && (
           // Surfaced rather than swallowed: "this row contributed nothing" is

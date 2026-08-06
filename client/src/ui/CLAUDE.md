@@ -1752,3 +1752,26 @@ registered them). See client/src/CLAUDE.md.
   state) — the gap's onOpenChange only clears after a real open→close (`gapMenuWasOpenRef`).
   The gap overlay render gate dropped `gapsOn &&` (hover can only set docGap under gapsOn;
   the menu path works in every editor). E2E-verified headless (menu → gap persists → palette).
+
+## Recent Changes (2026-08-06 (2) — EChart: gestures, and the capture bug that ate every click)
+- **`EChart.jsx`** — new `view` / `onViewChange` props. This file owns the host element so it reads
+  the gestures (wheel about the pointer, drag-pan, two-finger pinch, double-click reset) and turns
+  each into a call into the pure `helpers/graphView`; **no zoom arithmetic lives here.** The wheel
+  listener is registered by hand rather than as an `onWheel` prop because React attaches wheel
+  PASSIVELY — an onWheel prop cannot `preventDefault`, so the page would scroll under the chart.
+- **A DRAG MUST NOT COUNT AS A CLICK.** ECharts fires its own `click` on mouseup no matter how far
+  the pointer travelled, so panning across the wheel would ALSO record whatever slice you released
+  over — an emotion the user never picked. Travel past 5px arms `suppressClickRef`; the click
+  handler spends it instead of selecting.
+- **THE BUG A BROWSER FOUND AND 99 UNIT TESTS DID NOT — `setPointerCapture` on POINTERDOWN.**
+  Capturing a pointer also RETARGETS the compatibility mouse events it generates, so the following
+  mouseup and click went to this host `div` instead of the CANVAS underneath and **ECharts never
+  saw the click: a stationary click on the wheel selected nothing, at every width.** jsdom's
+  `setPointerCapture` is a stub, so no unit test can reproduce it. Capture is now taken only once a
+  drag exceeds the slop — a click stays a click, a drag still gets what capture is for. Browser
+  A/B: selections `0 → 0` before, `0 → 1` after. **Third defect on this surface caught by a real
+  browser (after `nodeClick` and `label.minAngle`); the pattern is not a coincidence — a chart is a
+  canvas, and almost nothing about it is observable from the DOM.**
+- 8 gesture tests in `__tests__/EChart.test.jsx` (jsdom has no `PointerEvent`; the suite shims one
+  off `MouseEvent`). They pin the WIRING — which gesture reaches which call, and that a drag cannot
+  masquerade as a click — never the picture.

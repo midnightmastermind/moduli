@@ -365,19 +365,53 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
       rather than 0 so a genuinely degenerate sliver may still drop its label instead of scribbling
       over its neighbours.
 
-      **THE OPEN DECISION — this wheel is not usable at 390.** Ring DEPTH is fine (60px, above the
-      40px thumb target), but the outer ARC is 14px, so labels collide and a specific tertiary is
-      not tappable. The earlier "mobile risk resolved" finding was measured against a 26-leaf
-      stand-in and does NOT carry to 80 leaves. Options, none of them picked:
-      - **(a) A 2-ring wheel on the day page** (core + secondary, 40 leaves ≈ 28px arc) and the
-        full 3-ring wheel on a bigger surface. Costs nothing in code — `encoding` is data, so this
-        is two graph occurrences with different config.
-      - **(b) Native drill-down on mobile only** — changes what a click MEANS, which is the thing
-        `nodeClick: false` was set to prevent. Would need the select-vs-navigate split made
-        explicit.
-      - **(c) Pinch/scroll the chart on mobile**, keeping all 3 rings.
-      Recommend **(a)**: it is configuration, not code, and it keeps a click meaning one thing
-      everywhere.
+      **THE MOBILE DECISION — SETTLED BY THE USER (2026-08-06), and it is (c):**
+      > *"the graph should be the size of the container (so the size of the page), and have it be
+      > zoomable"*
+
+      So there is ONE wheel everywhere — no reduced 2-ring variant, no drill-down. The surface
+      fills its container and zoom does the rest, which keeps a click meaning exactly one thing at
+      every width (the property `nodeClick: false` exists to protect). Built in Step 5c.
+
+- [x] **Step 5c: zoom + pan, and the third defect a browser caught.**
+
+      **`helpers/graphView.js` (NEW, pure, 17 tests)** owns the whole model as
+      `{ zoom, cx, cy }` where cx/cy are the series centre in PERCENT. That coordinate choice is
+      what keeps zoom out of the layout: ECharts already resolves a radial series' percent
+      `radius`/`center` against the host box, so scaling the radius and moving the centre zooms and
+      pans WITHOUT any file in this feature knowing the container's size. `zoomAt` holds the point
+      under the pointer fixed (`c' = p - (p - c)·z'/z`); the pan clamp is derived from the radius,
+      so at zoom 1 the range collapses to exactly [50,50] and an unzoomed chart cannot be dragged
+      off centre — "panning requires zoom" falls out of the geometry instead of a flag.
+
+      `EChart.jsx` reads the gestures (wheel about the pointer, drag-pan, two-finger pinch,
+      double-click reset) and computes none of the arithmetic. `ContainerGraph` holds the view as
+      LOCAL state — deliberately not persisted, so a graph always opens showing the whole thing
+      rather than wherever the last person left it — and shows a reset pill only while zoomed.
+      `.container-graph` carries `min-height: min(70vh, 620px)` because `flex: 1` fills only when
+      the parent is a definite-height flex column (a page is; a plain board container is not).
+
+      **THE DEFECT, and it is the third on this surface that only a real browser could show:**
+      taking `setPointerCapture` on POINTERDOWN retargets the compatibility mouse events the
+      pointer generates — so the following mouseup and click went to the host `div` instead of the
+      CANVAS underneath, and **ECharts never saw the click. A stationary click on the wheel
+      selected NOTHING, at every width, while all 99 unit tests passed** (jsdom's
+      `setPointerCapture` is a stub, so it cannot reproduce this). Fixed by deferring the capture
+      until a drag actually exceeds the slop — a click stays a click, and a drag still gets the
+      thing capture is for. A/B in the browser: selections `0 → 0` before, `0 → 1` after.
+
+      Measured in a real browser against the REAL 128-node wheel, three widths:
+      ```
+      width  outer arc @rest  @1.78×   anchor holds  click picks   drag picks   dbl-click resets
+      1400        32.5px      57.8px       YES       Stressed          no             YES
+       900        25.3px      45.0px       YES       Stressed          no             YES
+       390        14.1px      25.1px       YES       Stressed          no             YES
+      ```
+      Anchor colour identical to the byte before and after zooming at all three widths (sampled
+      with the pointer parked off the wheel, so hover emphasis cannot fake it). A click reports the
+      full ancestor path (`Anticipation > Stressed`) and the occurrence id. **A 390px phone needs
+      2.8× zoom to make a tertiary a 40px thumb target — well inside MAX_ZOOM 12**, which is what
+      makes (c) sufficient on its own. 0 page errors at every width.
 - [ ] **Step 6: STILL OPEN — the feed-vs-drag collision.** A feed sweeps children it did not mint,
       so hand-dragging into a FED graph may be undone on the next sync. Decide it: either the
       source board refuses hand-drops on a fed graph, or the feed leaves non-copies alone. Left

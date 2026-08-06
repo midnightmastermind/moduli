@@ -1237,3 +1237,22 @@ occurrence dropdown — found while verifying the ImagePickerMenu e2e:
   field with a value". One change covers feeds, FIND predicates, grid filters, and table column
   filters (evalRuleAgainstRecord routes through evalRule). Tests: 5 in
   operationActions.unified.test.js + 3 feed-level in feedSync.test.js.
+
+## Recent Changes (2026-08-06 (2) — graphView.js NEW: the graph fills its container and zooms)
+- **`graphView.js` (NEW, pure, 17 tests)** — user 2026-08-06: *"the graph should be the size of the
+  container (so the size of the page), and have it be zoomable."* View state is
+  `{ zoom, cx, cy }` where **cx/cy are the series centre in PERCENT**, and that coordinate choice is
+  the whole reason zoom costs nothing: ECharts already resolves a radial series' percent
+  `radius`/`center` against the host box, so scaling the radius and moving the centre zooms and pans
+  **without any file here knowing the container's size**. `graphOption` just multiplies the radius
+  and writes the centre; `EChart` reads gestures; neither computes any of it.
+- **`zoomAt` holds the point under the pointer FIXED** (`c' = p - (p - c)·z'/z`) — anything else
+  zooms toward the middle of the box, which feels like the chart running from your cursor. It uses
+  the RATIO ACTUALLY APPLIED, not the requested factor, so at the zoom clamp the chart does not
+  slide sideways while the zoom stands still.
+- **The pan clamp is DERIVED FROM THE RADIUS** (`46 × (zoom-1)`), so at zoom 1 the range collapses
+  to exactly `[50,50]`: an unzoomed chart cannot be dragged off centre. "Panning requires zoom"
+  falls out of the geometry rather than a boolean someone forgets to check — the same posture as
+  `assertNotProtected`.
+- A stored view is CLAMPED, never trusted (`meta.graph` is user-editable data), matching the
+  unknown-chart-type fallback: a bad zoom degrades to a legal one instead of blanking the surface.

@@ -17,7 +17,14 @@
 // Colors come from the CALLER, not from here: the wrapper reads the app's CSS
 // custom properties once and passes them in, so charts follow the theme instead
 // of shipping their own palette.
+//
+// ZOOM IS TWO NUMBERS ON THE SERIES, and that is the whole reason it costs
+// almost nothing: ECharts resolves a radial series' percent `radius` and
+// `center` against the host box itself, so scaling the radius and moving the
+// centre zooms and pans the chart WITHOUT this file (or the view state) ever
+// knowing the container's size. See helpers/graphView for the arithmetic.
 // ============================================================
+import { clampView, DEFAULT_VIEW } from "./graphView";
 
 export const CHART_TYPES = [
   { id: "sunburst", label: "Sunburst", nested: true, desc: "Multi-level rings — a wheel you can click into" },
@@ -106,10 +113,17 @@ function splitSeries(nodes) {
   return [...keyed.entries()];
 }
 
-export function buildEChartsOption(spec, data, theme) {
+export function buildEChartsOption(spec, data, theme, view) {
   const warnings = [];
   const t = { ...DEFAULT_THEME, ...(theme || {}) };
   const nodes = Array.isArray(data) ? data : [];
+
+  // A stored view is user data like everything else in `meta.graph`, so it is
+  // CLAMPED rather than trusted — a bad zoom degrades to a legal one instead of
+  // rendering a chart nobody can find.
+  const v = view ? clampView(view) : DEFAULT_VIEW;
+  const scaled = (pct) => `${pct * v.zoom}%`;
+  const center = [`${v.cx}%`, `${v.cy}%`];
 
   const hi = highlightSet(spec);
 
@@ -135,7 +149,8 @@ export function buildEChartsOption(spec, data, theme) {
         tooltip: { trigger: "item", confine: true },
         series: [{
           type: def.id,
-          radius: [0, "92%"],
+          radius: [0, scaled(92)],
+          center,
           data: nodes.map((n) => toDatum(n, hi)),
           // `minAngle` HIDES a label whose slice is narrower than N degrees, and
           // it defaults high enough to blank an entire ring. Measured on the
@@ -177,7 +192,9 @@ export function buildEChartsOption(spec, data, theme) {
         tooltip: { trigger: "item", confine: true },
         series: [{
           type: "pie",
-          radius: ["38%", "72%"], // a donut reads better at panel sizes than a full disc
+          // a donut reads better at panel sizes than a full disc
+          radius: [scaled(38), scaled(72)],
+          center,
           data: flat.map((n) => toDatum(n, hi)),
           label: { color: t.text, fontSize: 11 },
         }],

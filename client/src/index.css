@@ -5195,13 +5195,20 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    occurrences, so the board is the container's own row list (rendered by
    ModuleContainer, not re-implemented here) and the chart is a second view.
    ═══════════════════════════════════════════════════════════════════════════ */
+/* THE GRAPH IS THE SIZE OF ITS CONTAINER (user, 2026-08-06: "the graph should
+   be the size of the container (so the size of the page), and have it be
+   zoomable"). `flex: 1` only fills when the parent is a definite-height flex
+   column, which a page IS but a plain board container is NOT — so the surface
+   also carries its own floor in viewport units. Without it a graph on a
+   height-less parent collapses to the min-height and the wheel renders as a
+   coaster. */
 .container-graph {
   position: relative;
   display: flex;
   align-items: stretch;
   gap: 8px;
-  min-height: 220px;
-  flex: 1;
+  min-height: min(70vh, 620px);
+  flex: 1 1 auto;
 }
 .container-graph-chart {
   position: relative;
@@ -5213,6 +5220,28 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 }
 .echart,
 .container-graph-canvas { flex: 1 1 auto; min-height: 200px; width: 100%; }
+
+/* `pan-y` rather than `none`: the chart claims horizontal drags and pinches
+   (so one finger pans it and two zoom it) while a vertical swipe still scrolls
+   the page underneath. `none` would make a graph a dead zone you cannot scroll
+   past on a phone — the wheel is meant to sit on a day page, not own it. */
+.container-graph-canvas { touch-action: pan-y; }
+
+.container-graph-reset {
+  position: absolute;
+  bottom: 6px; left: 6px;
+  z-index: 2;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--input-bg);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  cursor: pointer;
+}
+.container-graph-reset:hover { color: var(--text-primary); }
 
 .container-graph-board {
   flex: 0 0 clamp(180px, 30%, 280px);

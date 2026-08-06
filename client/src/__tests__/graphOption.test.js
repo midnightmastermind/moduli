@@ -62,6 +62,40 @@ describe("buildEChartsOption — chart types", () => {
     expect(seriesOf(option)[0].emphasis).toMatchObject({ focus: "ancestor" });
   });
 
+  it("applies the VIEW to a sunburst — radius scales, centre moves", () => {
+    // The graph fills its container and is zoomed rather than shrunk to fit a
+    // phone (user, 2026-08-06). ECharts resolves percent radius/centre against
+    // the host box itself, so the whole zoom model is two numbers on the series
+    // and this file never learns the container's size.
+    const { option } = buildEChartsOption({ type: "sunburst" }, NESTED, null, { zoom: 2, cx: 30, cy: 70 });
+    const s = seriesOf(option)[0];
+    expect(s.radius).toEqual([0, "184%"]);      // 92 × 2
+    expect(s.center).toEqual(["30%", "70%"]);
+  });
+
+  it("leaves an unzoomed chart exactly where it was", () => {
+    // No view (the common case) must be byte-identical to the default view, or
+    // every chart with no stored zoom would render subtly differently.
+    const plain = seriesOf(buildEChartsOption({ type: "sunburst" }, NESTED).option)[0];
+    const unit = seriesOf(buildEChartsOption({ type: "sunburst" }, NESTED, null, { zoom: 1, cx: 50, cy: 50 }).option)[0];
+    expect(plain.radius).toEqual(unit.radius);
+    expect(plain.center).toEqual(unit.center);
+  });
+
+  it("clamps a stored view that is out of range instead of trusting it", () => {
+    // `meta.graph` is user-editable data; a bad zoom must degrade, not blank
+    // the surface — the same posture as the unknown-chart-type fallback.
+    const { option } = buildEChartsOption({ type: "sunburst" }, NESTED, null, { zoom: 9999, cx: -500, cy: 0 });
+    const s = seriesOf(option)[0];
+    expect(s.radius[1]).toBe(`${92 * 12}%`);
+    expect(s.center[0]).toBe("-456%");          // 50 - 46*(12-1)
+  });
+
+  it("zooms a PIE too — it is the same radial surface", () => {
+    const { option } = buildEChartsOption({ type: "pie" }, NODES, null, { zoom: 2, cx: 50, cy: 50 });
+    expect(seriesOf(option)[0].radius).toEqual(["76%", "144%"]);
+  });
+
   it("builds a PIE", () => {
     const { option } = buildEChartsOption({ type: "pie" }, NODES);
     const s = seriesOf(option)[0];
