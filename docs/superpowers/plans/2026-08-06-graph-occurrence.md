@@ -372,10 +372,28 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
       the wheel's levels.
 - [ ] **Step 2:** Seed a **Feeling Wheel** graph occurrence: `type:"sunburst"`, a feed over the
       Emotions board, `encoding.children:"occurrences"`. Place it on the day-page template.
-- [ ] **Step 3:** Seed **`Mood: Record Selection`** — `onGraphSelect`, scoped to that graph, writing
-      `$trigger.occurrenceId` to the day column's Mood field. Verify the existing Moods tracker
-      picks the value up; if it reads a different shape, reconcile HERE rather than teaching the
-      graph about moods.
+- [ ] **Step 3:** Seed **`Mood: Record Selection`** — `onGraphSelect`, scoped to that graph.
+
+      **The division of labour, stated by the user (2026-08-06) and now the rule:**
+      > *"we just need it to record the click and the info with it cause the operation is handling
+      > what happens with it … the system shouldnt know its a feelings wheel … we control what it
+      > does through the operation."*
+
+      The graph reports; the op decides. Two things this op does:
+      1. **ADD the feeling to the day's Mood dropdown** — which is a MULTISELECT, so the write is a
+         union into the existing array (`$trigger.occurrenceId` appended), not a replace. Several
+         feelings in a day is the normal case, and re-picking the same one must not duplicate it.
+      2. **WRITE THE HIGHLIGHT BACK** — `meta.graph.highlight` on the graph occurrence, so the
+         picked feeling stays lit. Shipped and tested (`graphOption.highlightSet`): the graph
+         renders whatever ids that list names, at any depth, on any chart type, and decides nothing
+         itself. Keeping the highlight op-written is precisely what stops the renderer needing to
+         know what a feeling is.
+
+      Cheapest correct form of both: the highlight list and the Mood value hold the SAME ids, so
+      the op can write one from the other rather than maintaining two truths.
+
+      Verify the existing Moods tracker picks the value up; if it reads a different shape,
+      reconcile HERE rather than teaching the graph about moods.
 - [ ] **Step 4:** Migration `00NN` carries all of it to `poms grid`. Idempotent, find-then-patch.
       **Dry run and report what it matched against a NAMED expectation before applying** — count
       alone is what let `0035` move a real page.

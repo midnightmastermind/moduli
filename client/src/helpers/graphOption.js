@@ -40,15 +40,40 @@ const DEFAULT_THEME = {
 
 // Strip the internal node shape down to what ECharts wants, keeping the one
 // key that makes a click actionable. Recursive so nesting survives.
-function toDatum(node) {
+//
+// `highlight` is a Set of occurrence ids an OPERATION has marked. The graph
+// renders it; it never decides it. That is what keeps "the picked feeling stays
+// lit" from meaning the renderer knows what a feeling is — an op writes
+// `meta.graph.highlight` through the ordinary UPDATE path, exactly as it would
+// write any other field, and the chart just draws what it is told.
+function toDatum(node, highlight) {
   const d = {
     name: node.name,
     // Our own passenger — see the header.
     occurrenceId: node.occurrenceId ?? null,
   };
   if (node.value !== undefined) d.value = node.value;
-  if (Array.isArray(node.children) && node.children.length) d.children = node.children.map(toDatum);
+  if (highlight && node.occurrenceId && highlight.has(node.occurrenceId)) {
+    d.selected = true;
+    // Lift it out of the palette so a marked slice reads as marked at a glance,
+    // and keep the label legible against the brighter fill.
+    d.itemStyle = { borderWidth: 2, borderColor: "#fff", opacity: 1 };
+    d.label = { fontWeight: 700 };
+  }
+  if (Array.isArray(node.children) && node.children.length) {
+    d.children = node.children.map((c) => toDatum(c, highlight));
+  }
   return d;
+}
+
+// An operation writes `meta.graph.highlight` as a list of occurrence ids (or a
+// single id). Normalized here so callers never have to care which shape it is.
+export function highlightSet(spec) {
+  const h = spec?.highlight;
+  if (!h) return null;
+  const ids = Array.isArray(h) ? h : [h];
+  const clean = ids.filter((x) => typeof x === "string" && x);
+  return clean.length ? new Set(clean) : null;
 }
 
 // Flatten for chart types that have no concept of nesting, so a nested data set
@@ -86,6 +111,8 @@ export function buildEChartsOption(spec, data, theme) {
   const t = { ...DEFAULT_THEME, ...(theme || {}) };
   const nodes = Array.isArray(data) ? data : [];
 
+  const hi = highlightSet(spec);
+
   const wanted = spec?.type || FALLBACK_TYPE;
   let def = BY_ID.get(wanted);
   if (!def) {
@@ -109,7 +136,7 @@ export function buildEChartsOption(spec, data, theme) {
         series: [{
           type: def.id,
           radius: [0, "92%"],
-          data: nodes.map(toDatum),
+          data: nodes.map((n) => toDatum(n, hi)),
           label: { rotate: "radial", color: t.text, fontSize: 11, minAngle: 8 },
           emphasis: { focus: "ancestor" },
           // A CLICK SELECTS. It must not NAVIGATE.
@@ -141,7 +168,7 @@ export function buildEChartsOption(spec, data, theme) {
         series: [{
           type: "pie",
           radius: ["38%", "72%"], // a donut reads better at panel sizes than a full disc
-          data: flat.map(toDatum),
+          data: flat.map((n) => toDatum(n, hi)),
           label: { color: t.text, fontSize: 11 },
         }],
       },
@@ -171,7 +198,7 @@ export function buildEChartsOption(spec, data, theme) {
       series: groups.map(([seriesName, ns]) => ({
         type: def.id,
         name: seriesName ?? undefined,
-        data: ns.map(toDatum),
+        data: ns.map((n) => toDatum(n, hi)),
         ...(def.id === "line" ? { smooth: true, symbolSize: 6 } : { barMaxWidth: 42 }),
       })),
     },

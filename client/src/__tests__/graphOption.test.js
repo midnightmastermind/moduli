@@ -101,6 +101,56 @@ describe("buildEChartsOption — every datum resolves back to an occurrence", ()
   });
 });
 
+describe("buildEChartsOption — the OPERATION controls the highlight", () => {
+  // User 2026-08-06: "we should be able to highlight that portion of the graph
+  // with the operation too … cause the system shouldnt know its a feelings
+  // wheel … we control what it does through the operation".
+  //
+  // So highlight is DATA an op writes to `meta.graph.highlight` through the
+  // ordinary UPDATE path. The graph renders it and never decides it — which is
+  // what keeps "the picked feeling stays lit" from meaning the renderer knows
+  // what a feeling is.
+  it("marks the occurrences an op named, and only those", () => {
+    const { option } = buildEChartsOption({ type: "pie", highlight: ["occ-a"] }, NODES);
+    const [a, b] = seriesOf(option)[0].data;
+    expect(a.selected).toBe(true);
+    expect(b.selected).toBeUndefined();
+  });
+
+  it("marks at ANY DEPTH of a nested chart — a tertiary emotion is markable", () => {
+    const { option } = buildEChartsOption({ type: "sunburst", highlight: ["occ-c"] }, NESTED);
+    const root = seriesOf(option)[0].data[0];
+    expect(root.selected).toBeUndefined();
+    expect(root.children[0].children[0].selected).toBe(true);
+  });
+
+  it("accepts several ids — a multiselect mood can light more than one", () => {
+    const { option } = buildEChartsOption({ type: "pie", highlight: ["occ-a", "occ-b"] }, NODES);
+    expect(seriesOf(option)[0].data.every(d => d.selected === true)).toBe(true);
+  });
+
+  it("accepts a BARE id, not just a list", () => {
+    const { option } = buildEChartsOption({ type: "pie", highlight: "occ-b" }, NODES);
+    expect(seriesOf(option)[0].data[1].selected).toBe(true);
+  });
+
+  it("marks nothing when no op has written a highlight", () => {
+    const { option } = buildEChartsOption({ type: "pie" }, NODES);
+    expect(seriesOf(option)[0].data.some(d => d.selected)).toBe(false);
+  });
+
+  it("ignores a highlight naming something not on the chart, without throwing", () => {
+    const { option } = buildEChartsOption({ type: "pie", highlight: ["nope", null, 7] }, NODES);
+    expect(seriesOf(option)[0].data.some(d => d.selected)).toBe(false);
+  });
+
+  it("works on BAR too — highlight is not a sunburst feature", () => {
+    const { option } = buildEChartsOption({ type: "bar", highlight: ["occ-b"] }, NODES);
+    const data = seriesOf(option)[0].data;
+    expect(data.find(d => d.occurrenceId === "occ-b").selected).toBe(true);
+  });
+});
+
 describe("buildEChartsOption — series splitting", () => {
   it("splits into one ECharts series per series value", () => {
     const nodes = [
