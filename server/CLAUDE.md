@@ -2241,3 +2241,28 @@ wsl -d Ubuntu-24.04 -e bash -c "cd ~/dndtest2/server && ~/.nvm/versions/node/v22
   that can only build is a migration that needs a follow-up script nobody remembers.
 - Behavioural coverage is client-side (`__tests__/moodRecordSelection.test.js`) and drives the
   migration's OWN exported `buildRecordSelectionPipeline`, so the test cannot drift from what ships.
+
+## Recent Changes (2026-08-06 (3) — 0047: the ingredients get their nutrition)
+- **`migrations/0047-ingredient-macros.mjs`** — 0042 wired `Ingredient → macros (sum)` and
+  `Meal → Ingredient (union, chain 1)`, and both hops worked while filling NOTHING: measured on poms
+  grid, **15 real ingredients, 0 carrying a protein value**. Prefill never overwrites with empty by
+  design, so the missing piece was never code — it was the data.
+- **TWO problems, and only one is obvious.** The values are the visible half. The other:
+  **an ingredient module did not BIND the macro fields at all** ("Chicken Breast" bound
+  boardCategory and two others, no macro), so there was no control to type a calorie count into.
+  Stamping values without binding leaves numbers only an operation can see. The migration does both.
+- **The macros written are the INPUT fields, never their display twins** — this grid has two fields
+  called "Protein" that mean opposite things, so the discriminator is `displayEnabled` (the same
+  trap 0042 recorded). Matching by name alone would write a day's total onto an ingredient.
+- **Feed copies are never touched** (15 of the 30 tagged occurrences): feedSync re-mints them from
+  the source, so a write there is a write to something about to be overwritten.
+- **Overwrites nothing** — a macro already present is the user's. Re-runnable as ingredients are
+  added; it only fills blanks, and it NAMES any ingredient it has no data for rather than skipping
+  silently.
+- **Verified against LIVE data through the real `planPrefill`**, not the migration's own log:
+  ```
+  Ingredient = Chicken Breast            → 165cal 31p 0c 3.6f
+  Ingredient = Chicken Breast + Rice     → 371cal 35.3p 45c 4f      (summed)
+  Meal = Chicken and Rice                → fills Ingredients, then the same macros
+  Meal = Salmon and Vegetables (4 items) → 462cal 24.9p 29.6c 27f
+  ```
