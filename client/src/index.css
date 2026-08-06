@@ -5055,3 +5055,136 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .bound-header-select > .bound-binding-badge {
   flex: 0 0 auto;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ARTIFACT SPREAD — the overlay an occurrence's files spread out onto.
+   Clicking an occurrence's main artifact (its face) opens every artifact it
+   has, large, on one surface.
+
+   THIS OWNS THE SHELL ONLY. The tiles inside are laid out by the app's own
+   board/canvas container renderer (ui/ArtifactSpreadHost.jsx mounts it), so
+   there are no tile, grid or drag rules here — those already exist and adding
+   a second set is how two renderers drift apart.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.artifact-spread-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(2px);
+  animation: menu-backdrop-in 140ms ease-out;
+}
+
+.artifact-spread {
+  position: fixed;
+  z-index: 1301;
+  top: 50%;
+  left: 50%;
+  width: min(1180px, 92vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--panel-bg, #14161a);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  /* Opens out of the thumbnail that was clicked. The origin is handed in as
+     custom properties because it is the only part that varies per open —
+     the keyframe itself stays here rather than being rebuilt inline. */
+  transform-origin: var(--spread-origin-x, 50%) var(--spread-origin-y, 50%);
+  animation: artifact-spread-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  translate: -50% -50%;
+}
+
+@keyframes artifact-spread-in {
+  from { opacity: 0; scale: 0.86; }
+  to   { opacity: 1; scale: 1; }
+}
+
+.artifact-spread-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.02);
+  flex: 0 0 auto;
+}
+.artifact-spread-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary, #e6e8ea);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.artifact-spread-count,
+.artifact-spread-hint {
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.artifact-spread-hint { margin-left: auto; }
+
+.artifact-spread-mode,
+.artifact-spread-add,
+.artifact-spread-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+  flex: 0 0 auto;
+}
+.artifact-spread-mode:hover,
+.artifact-spread-add:hover,
+.artifact-spread-close:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-primary, #e6e8ea);
+}
+
+.artifact-spread-body {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 12px;
+  /* The canvas arrangement scrolls its own world; the board wraps. Neither
+     should chain a rubber-band out to the page behind the overlay. */
+  overscroll-behavior: contain;
+}
+
+.artifact-spread-empty {
+  padding: 32px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* Shift is held: the next drag is LEAVING for the grid, so the overlay gets
+   out of the way. Ghosted rather than unmounted — unmounting mid-drag would
+   destroy the element the drag system is carrying. */
+.artifact-spread--armed { opacity: 0.22; }
+.artifact-spread--armed .artifact-spread-backdrop,
+.artifact-spread--armed + .artifact-spread-backdrop { opacity: 0; }
+.artifact-spread--armed .artifact-spread-body { pointer-events: auto; }
+
+/* Mobile: a full-screen sheet, one column, safe-area inset — the drawer
+   conventions from MenuSurface, not its code (a spread is not a menu). */
+.artifact-spread--mobile {
+  top: 0;
+  left: 0;
+  translate: none;
+  width: 100vw;
+  max-height: 100vh;
+  height: 100dvh;
+  border-radius: 0;
+  border: none;
+  padding-bottom: env(safe-area-inset-bottom);
+}

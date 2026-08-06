@@ -121,6 +121,64 @@ Client tests `npm --prefix ./client run test`; server `npm --prefix ./server run
    conversion, for a case nobody has asked for yet). The `kind:"display"` page path still exists and
    can be offered from the spread's own menu later.
 
+### Decisions (settled 2026-08-06, SECOND round — during execution)
+
+The user steered the surface substantially while Task 2 was being built. These supersede the
+"Architecture" section above where they disagree.
+
+5. **A `Files` field and artifacts INSIDE an occurrence COEXIST — they are not alternatives.**
+   > *"the files field is just part of what you can attach to that occurance but the inside of it
+   > can still have artifact occurances"*
+
+   Decision 1 rejected *attachment by parenting*; it did not say a container cannot hold artifacts.
+   So `filesOf` returns the **UNION** of the Files picks and the occurrence's own artifact children,
+   tagging each with `source: "field" | "child"`. That tag is load-bearing: a child's order lives in
+   `occurrences[]` and its canvas position on its own meta, while an attachment's order lives in the
+   Files array — and an attachment's position *cannot* live on the artifact, because a reference is
+   shared by every occurrence that picked it.
+   *(Task 1 Step 1's "artifact children" clause was originally read as a leftover from the rejected
+   design. It was not — it was this union. Corrected.)*
+
+6. **The spread REUSES the existing board and canvas renderers. It does not implement arrangement.**
+   > *"so we can just reuse board or canvas on an overlaid surface"*
+
+   Measured, not assumed: `Container` already accepts an `occurrenceOverride`, and `CanvasContent`
+   takes `containerOccurrence` + `itemsWithOccurrences` as plain props. Both are drivable from an
+   overlay. Grid arrangement = the board renderer; free arrangement = the canvas renderer. **No
+   second reorder, drag, or positioning implementation is written.**
+
+7. **The spread is backed by a real page that EXISTS ONLY IN THE OVERLAY.**
+   > *"these pages would exist only in this overlay"*
+
+   This is what makes reuse work: board and canvas persist order and x/y to a real occurrence, so
+   the spread page is real — minted lazily on first open, `meta.spreadFor = <ownerOccId>`, id stored
+   on the owner's `meta.spreadPageId`. It is **never pinned to a panel and never listed in a
+   manifest tree**, so it is reachable only by opening the spread. No synthetic-occurrence hack, and
+   nothing to clean up in the sidebar.
+   - Attached (Files-field) artifacts are **multi-parented** into that page — the established
+     pattern here (the Schedule's shared slots, Todo on the day page). They stay owned wherever they
+     live; the spread page merely lists them.
+   - Consequence, accepted: a shared artifact's canvas x/y is shared between the spreads that list
+     it, exactly as a multi-parented occurrence on two canvases behaves today.
+
+8. **Every tile is the artifact occurrence itself, interactive — not a thumbnail.**
+   > *"a board of artifact occurances (the ones that let you interact so not just the thumbnail)"*
+
+   Falls out of reuse: the board/canvas renderers already draw real occurrences.
+
+9. **Drag inside the overlay arranges; SHIFT-drag leaves it.**
+   > *"dragging then can be reorder for the grid or just moving on the surface"* /
+   > *"holding shift and dragging it will let me drag it something on the grid (surface disappears)"*
+
+   Plain drag is whatever the underlying renderer already does (board reorder / canvas move).
+   Shift-drag is the ordinary app drag out onto the grid, with the overlay ghosting itself for the
+   duration of the gesture so the drop lands on what is behind it, then closing.
+
+10. **The trigger is unchanged:** clicking an occurrence's **main artifact (its face)** opens the
+    spread for that occurrence.
+
+---
+
 ### Task 1: `occurrenceMedia.js` — one resolver, in front of everything
 
 **Files:** create `client/src/helpers/occurrenceMedia.js`; test

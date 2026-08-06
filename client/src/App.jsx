@@ -29,6 +29,7 @@ import RubberBandSelector from "./ui/RubberBandSelector";
 import { Spinner } from "./components/ui/spinner";
 import UserInputModal from "./ui/UserInputModal";
 import { ImagePickerHost } from "./ui/ImagePickerMenu";
+import { ArtifactSpreadHost } from "./ui/ArtifactSpreadHost";
 import { SelectionContext, useSelectionProvider } from "./state/SelectionContext";
 import { publishComputedValues } from "./state/computedValuesStore";
 
@@ -1016,6 +1017,12 @@ export default function App() {
             viewer) open it imperatively via openImagePicker() so it
             survives their popovers unmounting. */}
         <ImagePickerHost />
+
+        {/* Artifact spread — the overlay an occurrence's files spread out
+            onto, opened from its main artifact. Single global host for the
+            same reason the picker has one: the thumbnails that open it live
+            in rows and popovers that unmount on the click. */}
+        <ArtifactSpreadHost />
       </SelectionContext.Provider>
       </GridDataContext.Provider>
       </GridLiveContext.Provider>
