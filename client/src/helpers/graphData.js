@@ -115,18 +115,38 @@ export function buildGraphData(graphOcc, ctx) {
 
   const memberIds = Array.isArray(graphOcc.occurrences) ? graphOcc.occurrences : [];
 
+  // A ROW IS ADDRESSABLE BY THE OCCURRENCE IT STANDS FOR, not only by its own
+  // id — which is what makes a FEED and a parent-field hierarchy compose.
+  //
+  // A feed materializes each match as a COPY: new occurrence id, carrying
+  // `meta.feedSourceId`, with the source's field values copied verbatim. So a
+  // copy's parent-reference field still names the SOURCE it was copied from,
+  // never the sibling copy now standing in for it. Without this alias every fed
+  // row looks parentless: measured on the real Emotions Wheel (2026-08-06), the
+  // 3-ring 128-emotion wheel came back as 50 flat roots at depth 1.
+  //
+  // Own ids are registered FIRST and never overwritten by an alias, so a
+  // hand-dragged row always wins a collision with some copy's source id — the
+  // two kinds of row coexist on one graph, since feedSync only ever sweeps what
+  // it minted.
+  const memberIdFor = new Map();
+  for (const id of memberIds) memberIdFor.set(id, id);
+  for (const id of memberIds) {
+    const src = occurrencesById[id]?.meta?.feedSourceId;
+    if (src && !memberIdFor.has(src)) memberIdFor.set(src, id);
+  }
+
   // Child index for parent-field mode, built once rather than scanned per node.
   const kidsOf = new Map();
   if (parent) {
-    const onGraph = new Set(memberIds);
     for (const id of memberIds) {
       const occ = occurrencesById[id];
       if (!occ) continue;
-      const p = parentOf(occ);
       // A parent that is not itself on this graph makes the row a ROOT — that is
       // what lets a graph show one branch of a bigger board without its rows
       // silently vanishing under an absent parent.
-      if (p && p !== id && onGraph.has(p)) {
+      const p = memberIdFor.get(parentOf(occ));
+      if (p && p !== id) {
         if (!kidsOf.has(p)) kidsOf.set(p, []);
         kidsOf.get(p).push(id);
       }
@@ -177,8 +197,11 @@ export function buildGraphData(graphOcc, ctx) {
     ? memberIds.filter((id) => {
         const occ = occurrencesById[id];
         if (!occ) return true;               // let build() report it as missing
-        const p = parentOf(occ);
-        return !p || p === id || !memberIds.includes(p);
+        // Resolved through the SAME alias map the child index uses — the two
+        // must agree, or a fed row would be neither a root nor anyone's child
+        // and would vanish from the chart entirely.
+        const p = memberIdFor.get(parentOf(occ));
+        return !p || p === id;
       })
     : memberIds;
 

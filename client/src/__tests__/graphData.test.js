@@ -293,3 +293,42 @@ describe("buildGraphData — robustness", () => {
     expect(buildGraphData(undefined, undefined).nodes).toEqual([]);
   });
 });
+
+describe("buildGraphData — a FED hierarchy (copies keep pointing at their sources)", () => {
+  const F_PARENT = "f-parent";
+
+  // A feed materializes each match as a COPY: a new occurrence id, carrying
+  // `meta.feedSourceId` and the source's field values verbatim. So a copy's
+  // parent-reference field still names the SOURCE it was copied from, never the
+  // sibling copy that now stands in for it.
+  const copy = (srcId, label, parentSrcId) => ({
+    id: `copy-${srcId}`, moduleId: `m-${srcId}`, label, occurrences: [],
+    meta: { feedSourceId: srcId },
+    fields: parentSrcId ? { [F_PARENT]: { value: parentSrcId } } : {},
+  });
+
+  it("builds the tree even though every parent ref names a SOURCE id", () => {
+    // Measured on the real Emotions Wheel (2026-08-06): without this the wheel
+    // came back as 50 flat roots at depth 1 instead of 8 roots and 3 rings —
+    // the feed and the parent-field hierarchy did not compose at all.
+    const kids = [copy("s-mad", "Mad", null), copy("s-hurt", "Hurt", "s-mad"), copy("s-let", "Let down", "s-hurt")];
+    const g = graph({ parent: F_PARENT }, kids.map((k) => k.id));
+    const { nodes, warnings } = buildGraphData(g, ctxOf([g, ...kids]));
+    expect(warnings).toEqual([]);
+    expect(nodes.map((n) => n.name)).toEqual(["Mad"]);
+    expect(nodes[0].children[0].name).toBe("Hurt");
+    expect(nodes[0].children[0].children[0].name).toBe("Let down");
+  });
+
+  it("a row's OWN id still wins over an alias", () => {
+    // Hand-dragged rows and fed copies coexist on one graph (feedSync only
+    // sweeps what it minted), so the two id spaces have to be resolved in a
+    // fixed order or a collision would silently re-parent someone's drag.
+    const hand = child("s-mad", "Mad (hand-placed)");
+    const fed = copy("s-hurt", "Hurt", "s-mad");
+    const g = graph({ parent: F_PARENT }, [hand.id, fed.id]);
+    const { nodes } = buildGraphData(g, ctxOf([g, hand, fed]));
+    expect(nodes.map((n) => n.name)).toEqual(["Mad (hand-placed)"]);
+    expect(nodes[0].children.map((c) => c.name)).toEqual(["Hurt"]);
+  });
+});
