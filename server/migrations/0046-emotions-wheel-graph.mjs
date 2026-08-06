@@ -185,7 +185,7 @@ export function buildEmotionsFeed({ boardCategoryFieldId, scopeOccId }) {
 }
 
 export async function up({ gridId, models, log, dryRun }) {
-  const { Occurrence, Module, Field, Operation, Grid } = models;
+  const { Occurrence, Module, Field, Operation, Grid, Folder } = models;
 
   // ── Resolve everything by NAME, and report against a NAMED expectation ────
   // Counting alone is what let 0035 move a real page.
@@ -268,13 +268,64 @@ export async function up({ gridId, models, log, dryRun }) {
   // it is recording). Resolved as the template whose MODULE still carries
   // meta.templateModule — apply_template STRIPS that from what it mints, so it
   // cannot resolve to a clone. That exact trap is recorded twice in CLAUDE.md.
-  const dayTemplateMod = await Module.findOne({
-    gridId, "meta.templateModule": true, label: /day page/i,
-  }).lean();
-  if (!dayTemplateMod) { log("no Day Page TEMPLATE module (meta.templateModule) — refusing to guess a home"); return; }
-  const dayTemplateOcc = await Occurrence.findOne({ gridId, moduleId: dayTemplateMod.id }).lean();
-  if (!dayTemplateOcc) { log(`Day Page template module ${dayTemplateMod.id} has no occurrence`); return; }
-  log(`day template  : "${dayTemplateMod.label}" occ ${dayTemplateOcc.id} (${(dayTemplateOcc.occurrences || []).length} children)`);
+  // LOCATION IS THE MARKER, not `meta.templateModule` — that flag was RETIRED by
+  // 0035, which moved templates into the protected "Templates" folder and stopped
+  // stamping it. Resolving by the flag worked on a freshly seeded grid and found
+  // NOTHING on poms grid, which is the live one this is for. Same family as the
+  // trap CLAUDE.md records twice: a marker on a template is not evidence — here
+  // because it no longer exists at all.
+  //
+  // The flag is kept as a FALLBACK so a grid that predates 0035 still resolves.
+  // THE PROTECTED one, by `meta.protected` — NOT by the name. poms grid has
+  // THREE folders called "Templates" (a protected one plus two ordinary
+  // category folders), and matching on the name found an empty one and reported
+  // "no Day Page template". `protectedFolders.js` warns about exactly this in
+  // its own header: "the user may have their own folder called Templates".
+  const templatesFolders = await Folder.find({ gridId, name: "Templates" }).lean();
+  const templatesFolder = templatesFolders.find((f) => f?.meta?.protected) || null;
+  log(`folders named "Templates": ${templatesFolders.length} — protected: ${templatesFolder?.id ?? "none"}`);
+
+  let dayTemplateOcc = null;
+  let dayTemplateMod = null;
+
+  if (templatesFolder) {
+    const inFolder = await Occurrence.find({ gridId, parentId: templatesFolder.id }).lean();
+    const mods = await Module.find({ gridId, id: { $in: inFolder.map((o) => o.moduleId) } }).lean();
+    const modById = new Map(mods.map((m) => [m.id, m]));
+    const hit = inFolder.find((o) => /day page/i.test(modById.get(o.moduleId)?.label || o.label || ""));
+    log(`Templates folder: ${inFolder.length} template(s) — Day Page ${hit ? `found (${hit.id})` : "NOT found"}`);
+
+    if (hit) {
+      dayTemplateOcc = hit;
+      dayTemplateMod = modById.get(hit.moduleId) || null;
+      // 0035 WRAPPED each template root in a PAGE, and apply-template clones the
+      // wrapper's CONTENTS, not the wrapper (recorded 2026-08-03). So the day
+      // COLUMN — what every day is cloned from, and where the wheel belongs — is
+      // the container inside it, never the page.
+      if (dayTemplateMod?.role === "page") {
+        const childId = (hit.occurrences || [])[0];
+        const child = childId ? await Occurrence.findOne({ gridId, id: childId }).lean() : null;
+        const childMod = child ? await Module.findOne({ gridId, id: child.moduleId }).lean() : null;
+        if (child && childMod?.role === "container") {
+          log(`template root is a PAGE wrapper — descending to its container "${childMod.label}" (${child.id})`);
+          dayTemplateOcc = child;
+          dayTemplateMod = childMod;
+        } else {
+          log(`template root is a page but its child is ${childMod?.role ?? "missing"} — refusing to guess`);
+          return;
+        }
+      }
+    }
+  } else {
+    log("no PROTECTED Templates folder (grid predates 0035) — falling back to the retired meta.templateModule marker");
+  }
+
+  if (!dayTemplateOcc) {
+    dayTemplateMod = await Module.findOne({ gridId, "meta.templateModule": true, label: /day page/i }).lean();
+    if (dayTemplateMod) dayTemplateOcc = await Occurrence.findOne({ gridId, moduleId: dayTemplateMod.id }).lean();
+  }
+  if (!dayTemplateOcc) { log("no Day Page template found by LOCATION or by marker — refusing to guess a home"); return; }
+  log(`day template  : "${dayTemplateMod?.label ?? "(unlabelled)"}" occ ${dayTemplateOcc.id} (${(dayTemplateOcc.occurrences || []).length} children)`);
 
   if (dryRun) { log("dry run — no writes"); return; }
 
