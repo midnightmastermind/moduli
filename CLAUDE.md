@@ -5,6 +5,46 @@
 > **Read [`CLAUDE_CHAT.md`](./CLAUDE_CHAT.md) at session start.** It's the time-ordered log of user direction across sessions. New direction goes there first before acting.
 
 ---
+### 2026-08-05 (4) — the wrap group OSCILLATED: a height projected from the wrong layout
+
+User: the Eminem page *"starts flipping out … it doesn't know if the image should be full screen or
+wrap, it keeps switching between the two, rapidly."* **Measured on the live page in Firefox: 46-64
+wrap-class mutations per THREE IDLE SECONDS** (~20 flips/sec) at every wide width — nothing
+happening on screen but the layout thrashing.
+
+**ROOT CAUSE: `measure()` fed the stack/wrap decision a DIFFERENT neighbour height in each state, so
+the two states disagreed forever.** Wrapped, the neighbour floats at `neighborWidth` and its height
+is measured directly. Stacked, it renders FULL WIDTH, and the code projected the wrapped height by
+inverse scale. That assumes height falls as width falls — true for a fixed-ASPECT box like a lone
+image, **false for the Wikipedia lead aside, which is an image over an INFOBOX TABLE, and a table
+gets TALLER as it narrows.** Stacked read 2482×1182 → projected **152** at the 320px float; the real
+wrapped height was **757**. Five times out — and it changed the ANSWER: 152 is under
+`WRAP_SHORT_NEIGHBOR_H`, so the group took the short-neighbour exemption and wrapped; at 757 the
+sliver policy stacked it again; each flip re-fired the ResizeObserver. **17ms apart, forever.**
+
+**Hysteresis could not have saved this, which is the lesson.** `decideWrapStack` carries a 35%/45%
+band precisely to stop flapping — but hysteresis compares ONE signal against two thresholds, and
+here the signal itself swung 152 ↔ 757 depending on which state was measuring it. *When a control
+loop oscillates, check whether the two states are even measuring the same thing before tuning the
+thresholds.* Fixed by remembering the height last measured WHILE WRAPPED and reusing it while
+stacked — the float's width does not change with the group's, so that height is a fact about the
+neighbour, not about the current layout.
+
+**Four probe rounds, three of them wrong, all my own fault — recorded because the pattern repeats.**
+(1) Cleared the diagnostic log AFTER the resize, so the decisions I was hunting were wiped before I
+counted; (2) took the "mark" 150ms after the resize — same bug, second form; (3) swept only
+1600→640 and concluded "no oscillation" when the trigger was WIDER than my viewport. Each looked
+like a clean negative result. **A probe that reports zero is a claim about the probe until you have
+seen it report non-zero.** The final A/B used a DOM MutationObserver with no instrumentation inside
+the loop at all: 46/56/64 → 0/0/0.
+
+**Behaviour note, not a regression:** the lead aside now settles STACKED at wide widths. That is the
+sliver policy's own call (prose predicted 127px beside a 757px infobox = 17%, well under the 35%
+threshold); before the fix it was flickering and the "wrapped" frames were half of a flip. Wanting
+it wrapped there is a `WRAP_SLIVER_*` conversation, not this bug.
+
+---
+
 ### 2026-08-05 (3) — every floating menu is a bottom DRAWER on mobile; and a wrong hypothesis killed by measurement
 
 **`ui/MenuSurface.jsx` (NEW) is the one way a floating menu presents itself.** Desktop: the
