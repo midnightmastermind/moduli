@@ -3,8 +3,8 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or
 > superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
 >
-> **STATUS: NOT STARTED. The three questions in "Decisions the user still owns" must be answered
-> before Task 3 — one of them (overwrite policy) changes the data shape.**
+> **STATUS: NOT STARTED. All open questions were answered 2026-08-06 — see "Decisions (settled)".
+> Nothing is blocked.**
 
 **User direction (2026-08-06):**
 > "prefil fields if we have a dropdown field we are selecting thats pointed to another occurance. so
@@ -67,8 +67,10 @@ field.meta.prefill = {
 
 1. **One decision function, pure.** `helpers/prefillFromPick.js` exports
    `planPrefill({ field, picked, target, ctx, depth })` returning a list of
-   `{ fieldId, value, sources }` — no writes, no React, fully unit-testable. This is where combine,
-   chaining and the overwrite policy live.
+   `{ fieldId, value, sources }` — no writes, no React, fully unit-testable. This is where combine
+   and chaining live. **There is no overwrite policy to encode: a pick always writes** (settled
+   below), so nothing has to be remembered about where a value came from — which is what keeps the
+   stored field shape `{value, flow}` exactly as it is today.
 2. **One commit point.** `Field.jsx`'s existing `handleChange` is the single place a pick is stored
    (single-select and multi-select both land there). After the pick commits, run the plan and write
    the results through `CommitHelpers.updateOccurrence` with a `triggerField` per write — so
@@ -84,7 +86,12 @@ field.meta.prefill = {
    non-numerics rather than coercing them to 0.
 5. **Off is a first-class state**, at three levels: the field's `prefill.enabled`, a per-occurrence
    `meta.prefill: false` escape hatch, and a per-write undo (the write is one action, so Ctrl+Z
-   reverts the pick and its fills together — `withAction` already groups them).
+   reverts the pick and its fills together — `withAction` already groups them). Undo matters more
+   than usual here: with always-overwrite it is the only way back to a hand-corrected value that a
+   re-pick just replaced.
+6. **Only fields that are BOTH mapped and already bound on the target are written** (settled below).
+   Prefill never attaches a field to an occurrence — a pick fills what is there, it does not change
+   what the thing IS.
 
 ## Tech Stack
 
@@ -110,33 +117,29 @@ Client tests `npm --prefix ./client run test`; server `npm --prefix ./server run
 | `client/src/helpers/prefillFromPick.js` (new) | THE decision: `planPrefill`, the combine reducers, the chain walk, the overwrite policy. Pure. |
 | `client/src/ui/Field.jsx` | After a pick commits, run the plan and apply it. The only commit point. |
 | `client/src/ui/commandCenter/FieldsTab.jsx` | The prefill editor: enable, the `from → to` rows, combine per row, chain depth. Sits beside `SelectOptionsSourceEditor` (occurrence-type fields only). |
-| `client/src/ui/FieldRenderer.jsx` | Renders the "prefilled" affordance on a value that came from a pick (see decision 2). |
 | `server/models/Field.js` | Nothing — `meta` is already `Mixed`. **Confirm before assuming.** |
 | `server/migrations/00NN-seed-prefill-configs.mjs` (new) | Configures the first real cases (Ingredient → macros; Meal → Ingredients + macros) on poms grid. |
 
 ---
 
-## Decisions the user still owns
+## Decisions (settled 2026-08-06)
 
-1. **What happens to a value you already typed?** Options:
-   *(a)* **Fill only EMPTY fields** — safest, but a corrected pick never refreshes the numbers.
-   *(b)* **Always overwrite** — predictable, but silently destroys a hand-correction.
-   *(c)* **Tag prefilled values** (`fields[fid].prefilledFrom = <source field id>`) and overwrite only
-   those; a hand-edit clears the tag and the value is then yours forever.
-   **Recommend (c)** — it is the only one that answers "weight is dynamic every day" without a
-   special case, and it is what makes the affordance in decision 2 possible. It adds a key to the
-   field value shape, which is why it must be settled before Task 3.
-2. **How does a prefilled value LOOK?** The user: *"idk how to do this yet visually."* Options, not
-   exclusive: a small Σ/link glyph on the pill; a muted tint until touched; the contributing
-   breakdown on hover ("12g protein = Chicken 8 + Rice 4"). **Recommend the glyph + hover
-   breakdown** — the breakdown is the honest answer to "where did 12 come from", and the tint alone
-   is easy to mistake for disabled.
-3. **Does a pick fill fields the target module does not bind?** If Eat has no Carbs binding, does
-   prefill create one? `ensureModuleBindingsForOccurrenceFields` already does exactly this for
-   drops. **Recommend yes, binding hidden** — otherwise the value is stored and invisible, which is
-   the failure mode this codebase has hit repeatedly.
-
----
+1. **A pick always overwrites.** User: *"it overwrites, i can edit it, if i change it and select it
+   again, it overwrites it. so i can overwrite it but it will be overwritten if i make the selection
+   again."* You can hand-correct any prefilled value; re-picking that dropdown replaces it. The
+   rejected alternatives were fill-only-empty (a corrected pick would leave stale numbers behind) and
+   tagging prefilled values so a hand-edit wins permanently (would have added a key to every stored
+   field value). **This is the simplifying decision of the plan** — no provenance to store, no
+   special cases, and re-picking is a deliberate act so nothing is lost silently by accident.
+2. **No visual marker.** A prefilled value looks exactly like a typed one. Considered and declined:
+   a glyph with a hover breakdown, a muted tint, an inline source line. **Known cost, accepted:**
+   after a re-pick you cannot tell from the row that a number you had corrected has been replaced.
+   The FieldsTab preview (Task 4) is where the arithmetic stays visible.
+3. **Only fields that are already bound on the target get filled.** User: *"only fill fields it has,
+   and selected as a prefill."* Two conditions, both required: the field appears in the prefill
+   `map`, AND the target module already binds it. Prefill never adds a field to an occurrence —
+   unlike a drop, which does. So configuring the map is not enough on its own; the receiving module
+   must carry the field, which keeps "what this thing is" under your control.
 
 ### Task 1: `prefillFromPick.js` — the pure decision
 
@@ -151,7 +154,8 @@ Client tests `npm --prefix ./client run test`; server `npm --prefix ./server run
         Meal → Ingredients)
       - `prefill.enabled: false` → empty plan
       - a mapped field whose picked value is empty → no write (do not overwrite with nothing)
-      - overwrite policy per decision 1
+      - **a mapped field the TARGET MODULE does not bind → skipped** (decision 3)
+      - **a field the target already has a value in → written anyway** (decision 1: a pick wins)
 - [ ] **Step 2: Implement.** `planPrefill` returns `{ writes: [{fieldId, value, flow, sources}] }`.
       Sources are kept so the UI can explain the number.
 - [ ] **Step 3: Verify.** Tests green; A/B one guard (flip the enabled check) to prove they
@@ -175,16 +179,15 @@ Client tests `npm --prefix ./client run test`; server `npm --prefix ./server run
 
 ### Task 3: Wire it to the pick
 
-**Blocked on decisions 1-3.**
-
-**Files:** `Field.jsx`, `FieldRenderer.jsx`.
+**Files:** `Field.jsx`.
 
 - [ ] **Step 1:** After the pick commits in `handleChange`, build the plan and apply each write via
       `CommitHelpers.updateOccurrence({ …, triggerField })`. All of it inside ONE action scope so
       undo reverts the pick and the fills together.
-- [ ] **Step 2:** Render the prefilled affordance (decision 2).
-- [ ] **Step 3:** jsdom test: picking an option writes the mapped fields; a second pick refreshes
-      them; a hand-edit then a third pick leaves the hand-edited one alone (decision 1c).
+- [ ] **Step 2:** Nothing to render (decision 2) — the value is an ordinary value. Confirm no
+      `FieldRenderer` change is needed rather than assuming it.
+- [ ] **Step 3:** jsdom test: picking an option writes the mapped fields; hand-editing one then
+      re-picking OVERWRITES it (decision 1); a mapped field the module does not bind is untouched.
 - [ ] **Step 4:** Behavioral test in `liveOpsBehavioral` — the fills fire the normal trigger burst,
       so a prefilled Protein moves the day's Protein tracker exactly as typing it would. **This is
       the test that proves prefill did not invent a second write path.**
@@ -226,4 +229,6 @@ Client tests `npm --prefix ./client run test`; server `npm --prefix ./server run
   distinction, so do not undo it here.
 - **The undo grouping is easy to get wrong.** The 2026-08-01 stack repair made one user action one
   step; a prefill that opens its own action scope would put the pick and the fills in separate undo
-  steps and the user would undo half a change.
+  steps and the user would undo half a change. With always-overwrite and no visual marker, undo is
+  also the ONLY recovery path for a hand-corrected value a re-pick replaced — so this is not
+  cosmetic.

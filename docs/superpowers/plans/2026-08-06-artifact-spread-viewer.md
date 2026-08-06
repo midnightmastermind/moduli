@@ -3,8 +3,8 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or
 > superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
 >
-> **STATUS: NOT STARTED. Three questions in "Decisions the user still owns" must be answered
-> before Task 3.** Tasks 1-2 are safe to start regardless.
+> **STATUS: NOT STARTED. All open questions were answered 2026-08-06 — see "Decisions (settled)".
+> Nothing is blocked.**
 
 **User direction (2026-08-06):**
 > "combine profile pictures on instances and artifacts, making an artifact viewer that combines
@@ -63,9 +63,11 @@ real to open.
 3. **One add path.** The add tile routes to the existing `openImagePicker` (search / upload / URL)
    and `helpers/artifactUpload.js` (`createArtifactPlaceholders` + `uploadArtifactPlaceholders`) so
    upload progress, the batched toast and placement all behave as they do everywhere else.
-4. **Opened from the thumbnail.** Clicking an instance's image opens the spread for that occurrence.
-   The lightbox behaviour `ArtifactCard --expanded` currently owns stays for a bare artifact with no
-   siblings; with siblings, the spread wins.
+4. **Opened from the thumbnail, as an OVERLAY** (settled). Clicking an instance's image opens the
+   spread for that occurrence — animating out of the thumbnail's own rect, which is the "opening a
+   folder in Iron Man" read. Escape and the backdrop close it; nothing is persisted, so there is no
+   page to clean up. The lightbox behaviour `ArtifactCard --expanded` currently owns stays for a bare
+   artifact with no siblings; with siblings, the spread wins.
 
 ## Tech Stack
 
@@ -101,28 +103,23 @@ Client tests `npm --prefix ./client run test`; server `npm --prefix ./server run
 
 ---
 
-## Decisions the user still owns
+## Decisions (settled 2026-08-06)
 
-These change the shape of the work; Task 3 should not start until they are answered.
-
-1. **~~Where do an occurrence's artifacts live?~~ ANSWERED 2026-08-06: a `Files` field,
-   multi-select, whose options are artifact occurrences.** Folded into the architecture above.
-2. **Is the profile picture a distinguished slot, or just the first entry in `Files`?**
-   *(a)* Keep the `role:"media"` binding as an explicit pointer to the primary — chips stay
-   deterministic, "make this the face" is a real action. *(b)* Drop it; the card shows the first
-   image-kind entry in `Files` and the face changes when the order does. **Recommend (a)**, and the
-   plan is written for it — but (b) is one field fewer and is a live option.
-3. **Is the spread an OVERLAY or a real page?** An overlay animates from the thumbnail (the Iron Man
-   read) and needs no data. A `kind:"display"` page (via `ensureArtifactPageOcc`) is pinnable,
-   droppable and survives reload, but reintroduces the extra click this app has been trimming.
-   **Recommend overlay, with "open as page" in its own menu** — the page path already exists.
-4. **Is `Files` ONE shared field or one per module?** One shared "Files" field bound wherever
-   attachments are wanted is the pattern the grid already uses for Tags/Media, keeps the
-   unique-field-name rule, and lets a single dropdown predicate list every artifact. Per-module
-   fields would allow per-module scoping of WHICH artifacts are offered. **Recommend one shared
-   field**; scope with the predicate later if it ever matters.
-
----
+1. **Attachments are a `Files` field — multi-select, options are artifact occurrences.** Folded into
+   the architecture above. Rejected: artifacts as `occurrences[]` children of the instance.
+2. **`Files` is ONE shared field**, bound wherever attachments are wanted — the pattern Tags already
+   uses, one dropdown listing every artifact, and it keeps the unique-field-name rule. Rejected:
+   per-module Files fields, and a per-binding filter (no per-binding config exists yet; add it later
+   if a dropdown ever needs narrowing).
+3. **The picture is one you MARK as the face.** The `role:"media"` binding stays as an explicit
+   pointer to the primary entry, so "make this the face" is a real action and dropdown chips always
+   resolve the same image. Rejected: "first image in Files", where the face changes whenever the
+   order does.
+4. **The spread is an OVERLAY over the app**, animating open from the thumbnail you clicked, Escape
+   to close, nothing stored. Rejected: opening as a real page (adds back the click just removed from
+   the sidebar), and the hybrid where dragging it out converts it to a page (two surfaces plus a
+   conversion, for a case nobody has asked for yet). The `kind:"display"` page path still exists and
+   can be offered from the spread's own menu later.
 
 ### Task 1: `occurrenceMedia.js` — one resolver, in front of everything
 
@@ -180,8 +177,6 @@ the app's panel grid.
 ---
 
 ### Task 3: Open it from the thumbnail
-
-**Blocked on decisions 2-4.**
 
 **Files:** `Field.jsx` (media pill), `ModuleInstance.jsx` (media block), `RepresentationView.jsx`.
 

@@ -2618,3 +2618,14 @@ the occurrence being edited, as a stored value you can hand-correct.
 **Open questions carried in each plan rather than guessed at** — chiefly: does a pick overwrite a
 value you typed (recommendation: tag prefilled values so a hand-edit wins forever), and how a
 prefilled number shows where it came from (the user: *"idk how to do this yet visually"*).
+
+**Answered the same day (user asked to be given selectable questions rather than recommendations):**
+- **Prefill overwrites, always.** *"i can overwrite it but it will be overwritten if i make the
+  selection again."* No provenance stored, no tagging — the simplifying decision of that plan.
+- **No visual marker on a prefilled value.** Accepted cost: after a re-pick you cannot tell from the
+  row that a corrected number was replaced. Undo is the recovery path, which is why the one-action
+  grouping is load-bearing rather than cosmetic.
+- **Prefill only fills fields the target ALREADY binds** (and that are in the map) — it never
+  attaches a field, unlike a drop.
+- **The spread is an overlay**, not a page. **`Files` is one shared field.** **The profile picture is
+  one you mark as the face**, not "first in the list".
