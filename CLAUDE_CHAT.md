@@ -2573,3 +2573,48 @@ Constraints that fall out of it, recorded before building:
   create/parent-list asymmetry) — otherwise it mints dangling child refs.
 - The minted textblock must carry the parent's filter values, or it is invisible to the date
   filter the moment it stops being empty. That half shipped 2026-08-05 (`91e4a807`).
+
+## 2026-08-06 — two plans: the artifact spread viewer, and prefill-from-a-pick
+
+> "after this i need 2 plans, one to combine profile pictures on instances and artifacts, making an
+> artifact viewer that combines upload and multi view of many diff artifacts. so when i click on a
+> instances image, it opens up with a bunch of diff images and artifacts. like opening a folder in
+> iron man, it spreads out the info. id just like it to show 4 spots to start and pretty large kinda
+> grid (the shape of it, not our other grid definition)."
+
+> "the artifact viewer plan would allow multiple files attached to an instance"
+> "maybe we should have a files field with multi select."
+
+> "and also another plan to prefil fields if we have a dropdown field we are selecting thats pointed
+> to another occurance. so for example, the ingrediants of food would have nutritional field and if i
+> select that as the ingrediant, it would prefill the nutrition on eat. i need this chainable and
+> using our current system if we have support for this. like if i select meal, it would fill the
+> ingrediants dropdown with all the ingrediants involved and the nutrition. this would be so i can
+> set things that have similar fields. this is something that can be turned off (no prefill). i think
+> we have a chaining thing that is similar to this with the dropdowns. i guess fitness ones wouldnt
+> have this for now cause weight is dynamic everyday. but the setting should let me select what
+> fields to prefill using that dropdown selection. also we need a way to be able to choose if we want
+> a combine of fields. like if i have multiple ingrediants selected in a meal, i could prefill the
+> nutrition info in that occurance, via adding up the nutrition value of each ingrediant. idk how to
+> do this yet visually. but mark down these two plans"
+
+Written, NOT started:
+- `docs/superpowers/plans/2026-08-06-artifact-spread-viewer.md`
+- `docs/superpowers/plans/2026-08-06-dropdown-field-prefill.md`
+
+**The user's own steer settled the hard question in plan 1.** A `Files` field (multi-select,
+options = artifact occurrences) beats making artifacts CHILDREN of an instance: attachment becomes an
+ordinary occurrence dropdown, so it reuses MultiSelectWithAdd / optionsResolver / resolveOccCard,
+the same artifact can hang off several occurrences by reference, and nothing new goes through
+ancestry walks or the delete cascade. The profile picture becomes the primary entry of `Files`.
+
+**Plan 2's "chaining thing that is similar" is real**: `addNewOption.buildStampFields` already copies
+the chosen parent's predicate-field values onto a newly created option — the same idea aimed the
+other way (down to a new thing, not across to the one you are editing), and
+`collectPredicateFieldIds` is reusable. The SUMMING half also exists in op-land (the Meal Nutrition
+tracker loops a pick array and accumulates macros). What is missing is doing it at pick time, onto
+the occurrence being edited, as a stored value you can hand-correct.
+
+**Open questions carried in each plan rather than guessed at** — chiefly: does a pick overwrite a
+value you typed (recommendation: tag prefilled values so a hand-edit wins forever), and how a
+prefilled number shows where it came from (the user: *"idk how to do this yet visually"*).
