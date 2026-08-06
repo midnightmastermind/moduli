@@ -1,6 +1,10 @@
 # Staged loading — grid shape first, per-panel spinners, one circular loader
 
-> **STATUS: PLANNED, NOT STARTED.** Task 1 is a MEASUREMENT and it must run before any of the
+> **STATUS: Task 1 MEASURED 2026-08-06 (results below). The plan's own "discard the mounting half
+> if the numbers disagree" clause did NOT fire — rendering dominates the op sweep by roughly 3:1,
+> so Tasks 2-4 are aimed at the right layer.**
+>
+> Task 1 is a MEASUREMENT and it must run before any of the
 > rest. This file deliberately stops short of implementation for a reason recorded repeatedly in
 > `CLAUDE.md`: on this codebase, *every performance fix that actually worked came from numbers off
 > a real device, and every one that came from reading code was wrong* (2026-08-05: four wrong
@@ -61,6 +65,60 @@ anyone builds chrome around it.
 (`bindSocketToStore` `endDropBatch` already has the per-op macrotask pattern to copy) and the
 spinners are cosmetic. If committing the tree dominates, staged mounting is the work. **The plan
 below assumes the second and must be discarded if Task 1 says otherwise.**
+
+### RESULTS — 2026-08-06, test grid 2, local server, `_loadsplit.mjs`
+
+Instrument: `client/src/helpers/loadDiag.js` (opt-in, `window.__loadDiag = true`), extending the
+`markFS` timer that `onFullState` already had. Marks: dispatch start/end, panel commit (per panel),
+grid commit, page/container first RENDER and first COMMIT, op sweep start/end, effects end, and
+first paint after the grid commit (double rAF). Long tasks via `PerformanceObserver`, reported as
+`supported:false` rather than `0` where the entry type does not exist.
+
+Everything below is ms **from `full_state` arrival**. Medians of 3 runs (2 when throttled).
+
+| | 1440×900, CPU 1× | 1440×900, CPU 4× | 390×844, CPU 4× |
+| --- | --- | --- | --- |
+| (a) reducer dispatch | **0.1** | **1.1** | **0.7** |
+| panel chrome committed | 125 | 504 | 425 |
+| content first RENDERS | 148 | 627 | 532 |
+| (b) content COMMITTED (131 containers, 26 pages) | **1415** | **6676** | **7058** |
+| (c) op sweep | **552** | **2247** | **2061** |
+| (c2) applying op effects | 70 | 312 | 346 |
+| (d) editor mounts | **0 — none on this grid** | 0 | 0 |
+| 20+ instance rows in the DOM | 1532 | 7589 | 8109 |
+| **first PAINT** | **2542** | **11784** | **11966** |
+| main thread blocked, total | 3688 | 14960 | 13101 |
+
+**The four numbers, and what they say.**
+
+1. **The reducer is free.** 0.1ms at 1×. `FULL_STATE` is not a cost and never was.
+2. **Rendering the content tree is the cost.** Containers start rendering at 148ms and do not
+   finish committing until 1415ms — **~1265ms of React render work in ONE unbroken task** (the long
+   task at t=99 runs 1503ms). Throttled 4×, that same span is **~6000ms**, which is exactly the
+   docket's unexplained "7.8s to 20+ rows": rows land at 7589ms, and the op sweep has not even
+   started yet.
+3. **The op sweep is real but SECOND** — 552ms / 2247ms, roughly a third of the render cost, and it
+   runs AFTER the rows exist. **This retires the plan's leading hypothesis.** Slicing the drain
+   would shorten the tail, not the wait people describe.
+4. **Editor mounts are UNMEASURED, not zero.** Test grid 2's initial view mounts no TipTap at all.
+   The "editor static-until-focus" docket entry is about imported articles on **poms grid**, which
+   this probe deliberately does not load. Do not read the 0 as evidence.
+
+**The finding that shapes Tasks 2-3, and it is not the one the plan expected.** The panel CHROME
+already commits early and on its own — 125ms at 1×, 504ms at 4× — a full second (six seconds
+throttled) before its content. So "the grid shape paints first" is *almost already true*, and the
+reason nobody sees it is the last row of the table: **the first paint is at 2.5s / 11.8s**, because
+React keeps rendering the content in the SAME task and the browser never gets a frame. The work is
+therefore **yielding between the chrome commit and the content mount** so the shape can actually
+paint, then mounting content progressively — not inventing a staging that does not exist.
+
+**Probe caveats, recorded so the next reading is not over-confident:**
+- **0 → ~88ms (321ms at 4×) elapses BEFORE the dispatch**, inside `onFullState` — the field
+  migration pass plus `console.log("[socket] full_state received:", payload)`. A console.log of a
+  ~2MB object is cheap with no client attached and expensive with CDP attached, which a Playwright
+  probe always is. Treat that leading segment as **probe-inflated**, not as a user cost.
+- Local server, one machine, headless Chromium. The 4× column is the one to compare against the
+  device numbers in `client/src/CLAUDE.md`, and it lines up with them.
 
 ---
 

@@ -3,7 +3,7 @@
 // Outside shell: drag handle + radial menu + page name (like a doc).
 // Inside: routes to content based on page kind (board, canvas, doc, display).
 
-import React, { useRef, useMemo, useState, useCallback, useContext } from "react";
+import React, { useRef, useMemo, useState, useCallback, useLayoutEffect, useContext } from "react";
 import { toast } from "../state/notificationStore";
 import RadialMenu from "../ui/RadialMenu";
 import ContextMenu from "../ui/ContextMenu";
@@ -14,6 +14,7 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { Trash2, FileText, ClipboardPaste, Rss, Plus, X } from "lucide-react";
 import HeaderChevron from "../ui/HeaderChevron";
 import { bumpRender } from "../helpers/renderProbe";
+import { markLoadOnce } from "../helpers/loadDiag";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
 import FeedSection from "../ui/FeedSection";
@@ -80,6 +81,8 @@ function Page({
   onClosePage = null,
 }) {
   bumpRender("page");
+  markLoadOnce("page:render", "page:render:first");
+  useLayoutEffect(() => { markLoadOnce(`page:${occurrence?.id}`, "page:commit"); });
   // Occurrence-derived maps (occurrencesById / childrenByParentId) rebuild on
   // every write — pages subscribe only to their OWN slices (direct children,
   // ancestor chain, folder children, grid) and read the maps at compute /

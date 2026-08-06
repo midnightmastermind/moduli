@@ -3,7 +3,7 @@
 // Renders a container header and its instances.
 // Handles doc containers, focused instance view, list view, sorting.
 
-import React, { useRef, useMemo, useState, useReducer, useCallback, useEffect, useContext } from "react";
+import React, { useRef, useMemo, useState, useReducer, useCallback, useEffect, useLayoutEffect, useContext } from "react";
 import { createPortal } from "react-dom";
 import RadialMenu from "../ui/RadialMenu";
 import { toast } from "../state/notificationStore";
@@ -13,6 +13,7 @@ import ContainerForm from "../ui/ContainerForm";
 import TransactionHistory from "../ui/TransactionHistory";
 import { Popover, PopoverContent, PopoverAnchor } from "@/components/ui/popover";
 import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
+import { markLoadOnce } from "../helpers/loadDiag";
 
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
 import { SelectionContext } from "../state/SelectionContext";
@@ -193,6 +194,13 @@ function Container({
   embedSourceType = null,
 }) {
   bumpRender("container");
+  // RENDER-phase mark (body, not effect): with the commit mark below it, the
+  // pair says whether a gap is React rendering the tree or something else
+  // blocking between commits.
+  markLoadOnce("container:render", "container:render:first");
+  // Load-path split (helpers/loadDiag.js): the CONTENT tree, which is what the
+  // staged-loading plan proposes to defer behind the panel chrome.
+  useLayoutEffect(() => { markLoadOnce(`container:${module?.id}`, "container:commit"); });
   // Per-slice selectors — only re-render when an actually-read slice's identity
   // changes (was a single useGridActions() that re-rendered on every actionsValue
   // rebuild — i.e. on every filter change anywhere on the grid).

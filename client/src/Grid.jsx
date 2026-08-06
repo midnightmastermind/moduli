@@ -25,6 +25,7 @@ import { useGridActions } from "./GridActionsContext";
 import { GridLiveContext } from "./GridLiveContext";
 import { useActiveCell, useZoomedOut, setActiveCell, setZoomedOut } from "./state/activeCellStore";
 import { markCellSwitchCommit, markGridRenderStart } from "./helpers/scrollDiag";
+import { markLoadOnce } from "./helpers/loadDiag";
 
 import { DragProvider } from "./helpers/DragProvider";
 import { useDragContext, useDragStateContext, useDragHotContext, useDroppable, DropAccepts } from "./helpers/dragSystem";
@@ -505,6 +506,17 @@ function GridInner() {
   // Runs after React commits the new cell but before the browser paints, so it
   // is the dividing line between "React was slow" and "layout/paint was slow".
   useLayoutEffect(() => { markCellSwitchCommit(); }, [activeCell]);
+
+  // Load-path split (see helpers/loadDiag.js): the first commit of the grid
+  // shell, which is what `App.jsx`'s `state.grid?._id` gate is waiting on.
+  useLayoutEffect(() => {
+    markLoadOnce("grid", "grid:commit");
+    // rAF fires BEFORE the next paint, the nested one AFTER it — the same
+    // idiom the op sweep uses to defer past first paint. So this is the moment
+    // the user could first see anything, as opposed to the moment React
+    // finished committing.
+    requestAnimationFrame(() => requestAnimationFrame(() => markLoadOnce("paint", "paint:first")));
+  });
 
   const grid = state.grid;
   const gridId = grid?._id;

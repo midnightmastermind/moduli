@@ -3,7 +3,7 @@
 // Renders a panel shell with its containers.
 // Handles panel-specific UI: iteration nav, fullscreen, resize, stacking, copy/split/delete.
 
-import React, { useRef, useMemo, useState, useCallback, useEffect, useContext } from "react";
+import React, { useRef, useMemo, useState, useCallback, useEffect, useLayoutEffect, useContext } from "react";
 import ResizeHandle from "../ResizeHandle";
 import RadialMenu from "../ui/RadialMenu";
 import ContainerKindSelector from "../ui/ContainerKindSelector";
@@ -11,6 +11,7 @@ import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
 import { resolveStyleCascade, styleToCSS } from "../helpers/StyleHelpers";
 import { bumpRender } from "../helpers/renderProbe";
+import { markLoadOnce, markLoad } from "../helpers/loadDiag";
 
 import Artifact from "./ArtifactContent";
 import ManifestTree from "./ManifestTree";
@@ -290,6 +291,11 @@ function Panel({
   mosaic = false,
 }) {
   bumpRender("panel");
+  // Load-path split (helpers/loadDiag.js): first commit of THIS panel — its
+  // chrome and its content mount together today, which is exactly what the
+  // staged-loading plan proposes to separate. Keyed by module id so a panel
+  // counts once no matter how many times it re-renders during the op drain.
+  useLayoutEffect(() => { markLoadOnce(`panel:${module?.id}`, "panel:commit", { id: module?.id }); });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [kindSelectorOpen, setKindSelectorOpen] = useState(false);

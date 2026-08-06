@@ -27,6 +27,7 @@ import {
 import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
 import { beginAction, endAction, setActionCloseHook } from "../helpers/actionScope";
 import { requestForceSync, commitForceSync } from "../helpers/editorSyncSignal";
+import { startLoadDiag, markLoad, timeLoad } from "../helpers/loadDiag";
 import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers";
 import { migrateFieldOptionsSource, needsMigration } from "./migrateFieldOptionsSource";
 import { analyzeAllOperations } from "../helpers/operationIntrospection";
@@ -128,6 +129,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // ======================================================
   function onFullState(payload = {}) {
     const tFS0 = performance.now();
+    startLoadDiag();
     const markFS = (label) => console.log(`[full_state-client] +${Math.round(performance.now() - tFS0)}ms ${label}`);
     console.log("[socket] full_state received:", payload);
 
@@ -144,7 +146,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     });
     payload = { ...payload, fields: migratedFields };
 
-    socketDispatch({ type: ActionTypes.FULL_STATE, payload });
+    timeLoad("dispatch", () => socketDispatch({ type: ActionTypes.FULL_STATE, payload }));
 
     // The replacement state is in the store now, so a pending undo force-sync
     // can be released: mounted editors re-render with the reverted content AND
@@ -178,7 +180,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         if (f.id && f.showNav) navMap[f.id] = resolveDefault(f.defaultNavValue);
       }
     }
-    dispatch(initFilterNavAction(navMap));
+    timeLoad("filterNav", () => dispatch(initFilterNavAction(navMap)));
 
     // Bootstrap grid.activeFilterValues for nav-driven conditions on the
     // active named filter. The seed leaves activeFilterValues:{} so the
@@ -251,9 +253,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // Without this overlay, the onLoad fire below reads stale occurrences
       // and re-creates the same items the NavigationOp pass already created.
       const overlay = Object.assign({}, occurrencesById, localOccsById);
+      markLoad("ops:start", { ops: operations.length });
       const allUpdates = runMatchingOperations(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById: overlay, modulesById },
         makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById, occurrencesById: Object.assign({}, occurrencesById, localOccsById), modulesById })));
       const tOps1 = performance.now();
+      markLoad("ops:end", { ms: +(tOps1 - tOps0).toFixed(1) });
       const displayUpdates = allUpdates.filter(u => !u._effect);
       const effects = allUpdates.filter(u => u._effect);
       console.log(`[full_state-client] runMatchingOperations: ${Math.round(tOps1 - tOps0)}ms — ${operations.length} ops, ${effects.length} effects, ${displayUpdates.length} display updates`);
@@ -263,6 +267,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       for (const eff of effects) {
         applyOperationEffect(eff, hydratedState);
       }
+      markLoad("effects:end", { count: effects.length, ms: +(performance.now() - tOps1).toFixed(1) });
       console.log(`[full_state-client] applied effects in ${Math.round(performance.now() - tOps1)}ms`);
       // Flush any mutations queued while offline — replayed on top of fresh server state
       flushOfflineQueue(socket);

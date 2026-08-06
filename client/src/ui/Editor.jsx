@@ -86,6 +86,7 @@ import QuickAddMenu from "./QuickAddMenu.jsx";
 import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type, Plus, Shuffle } from "lucide-react";
 import { convertLeafRole } from "../helpers/convertOccurrence";
 import { consumeTextblockFocus } from "../helpers/pendingTextblockFocus";
+import { markLoad } from "../helpers/loadDiag";
 import {
   isProvisionalTextblock, commitProvisionalTextblock, hasProvisionalTextblock,
   isEmptyTextblockDoc, isTextblockMintSuppressed,
@@ -1100,6 +1101,12 @@ const Editor = forwardRef(function Editor({
       },
     },
   });
+
+  // Load-path split (helpers/loadDiag.js): every doc container and textblock
+  // mounts a LIVE ProseMirror instance eagerly — the "editor static-until-focus"
+  // docket entry. Counting them and timing the last one is what says whether
+  // editor mounts are a real slice of the load or a docket theory.
+  useEffect(() => { if (editor) markLoad("editor:mount"); }, [editor]);
 
   // Sync editable prop → TipTap after initialization (useEditor doesn't auto-sync)
   useEffect(() => {
