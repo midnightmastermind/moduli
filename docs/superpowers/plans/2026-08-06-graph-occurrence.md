@@ -3,10 +3,15 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or
 > superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
 >
-> **STATUS: Tasks 1-6 DONE (2026-08-06). Tasks 7-9 remain.** The spike held, the data model,
-> option builder, wrapper, surface and trigger are built and tested. **Never rendered in a real
-> browser** — jsdom cannot prove a chart draws, so the picture is still unverified. Nothing
-> deployed.
+> **STATUS: Tasks 1-9 DONE except the deploy (2026-08-06).** The wheel draws from the Emotions
+> board, fills its container, zooms, and a click records a mood and lights the slice — all verified
+> in a REAL BROWSER against the real 128-node data, not just in jsdom. Applied to **test grid 2
+> only**; poms grid is live data and that is the user's call, as is the deploy.
+>
+> **The browser is what found the defects.** Every one of the four that no assertion could see came
+> from a screenshot or a real gesture: `nodeClick` re-rooting the wheel, `label.minAngle` blanking
+> all 80 outer labels, `setPointerCapture` eating every click, and the feed drawing 50 of 128. A
+> chart is a canvas — almost nothing about it is observable from the DOM.
 
 **User direction (2026-08-06):**
 > "add a graph occurance in (works same way as table in what occurances it can be). i want the
@@ -450,7 +455,7 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
 
 ---
 
-### Task 7: The feeling wheel, as DATA
+### Task 7: The feeling wheel, as DATA ✅ DONE (migration 0046)
 
 - [ ] **Step 1 (user, 2026-08-06): the wheel pulls from a BOARD IN THE LIBRARY.**
       > *"the feelings circle should pull from a board in library of feelings. look up the super
@@ -542,13 +547,18 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
 
 ---
 
-### Task 8: `GraphSection.jsx` — editing the chart in-app
+### Task 8: `GraphSection.jsx` — editing the chart in-app ✅ DONE (7 tests)
 
-- [ ] **Step 1:** Header-menu section beside `<FeedSection>`: chart type, encoding pickers
-      (`DrilldownPicker` for the field ids), literal rows, legend/label toggles.
-- [ ] **Step 2:** Writes `meta.graph` through `updateOccurrence` like every other header editor.
-- [ ] **Step 3:** Tests: changing the type re-renders as the new type; changing the value field
-      changes the numbers.
+- [x] **Step 1:** Shipped. Plain `<select>`s rather than `DrilldownPicker` — every choice here is a
+      flat pick from one list (a chart type, a field id), and the picker's whole value is drilling a
+      PATH. Legend/label toggles were dropped: nothing asked for them and every knob is a thing to
+      keep working.
+- [x] **Step 2:** Writes through `updateOccurrence` — **merged into the existing meta, never
+      replacing it.** `meta.graph.highlight` is op-written, so a whole-meta write would drop it on
+      the next edit. That test is A/B'd: removing the merge fails it and nothing else.
+- [x] **Step 3:** 7 tests. Plus a LIVE READOUT in the header (roots / rows / depth / warnings, from
+      the same `buildGraphData` the chart uses) — an encoding can be wrong in a way that still
+      renders a chart, just the wrong one, and that is invisible without it.
 
 ---
 
@@ -556,8 +566,13 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
 
 - [ ] Update `client/src/modules/CLAUDE.md`, `client/src/ui/CLAUDE.md`, `client/src/helpers/CLAUDE.md`,
       `server/CLAUDE.md`; root `CLAUDE.md` session entry.
-- [ ] Add a `noDomainKnowledge.test.js` case for the graph surface (Risks names it; the renderer
-      must never learn what an emotion is).
+- [x] `noDomainKnowledge.test.js` case for the graph surface — DONE, and it taught two things by
+      being attacked rather than trusted. The patterns are plain SUBSTRINGS, deliberately not
+      `\b`-anchored: a word boundary does not fire inside an identifier (`_` and camelCase are word
+      characters), so a planted `EMOTION_RINGS` slipped through the first version while the test
+      reported green. And "wheel" is NOT banned — it matched `WheelEvent`/`wheelFactor`, so the
+      false positive was removed rather than allowlisted, because a guard that cries wolf is one
+      someone weakens later.
 - [ ] Full suite + build with the chunk sanity check; deploy; verify prod HEAD over SSH.
 
 ---

@@ -1279,3 +1279,17 @@ The new system links views to occurrences (`occurrence.viewId → View`) instead
   throttle headless. The known heavy path is the eager-TipTap mount storm on BIG imported docs —
   that's the standing "editor static-until-focus" docket (client/src/CLAUDE.md), still deferred
   to its own session.
+
+## Recent Changes (2026-08-06 (2) — ContainerGraph: fills its container, zooms, and hosts the wheel)
+- **`containers/ContainerGraph.jsx`** — holds the zoom/pan view as LOCAL state and passes it to both
+  `buildEChartsOption` and `<EChart>`. **Deliberately unpersisted:** a graph should open showing the
+  whole thing, not wherever the last person left it. A reset pill renders only while zoomed (a chart
+  at rest carries no chrome, and a zoomed one must never be a state you cannot get out of).
+- **`index.css .container-graph`** carries `min-height: min(70vh, 620px)` as well as `flex: 1`.
+  `flex` only fills when the parent is a definite-height flex column — a page IS one, a plain board
+  container is NOT, and without the floor a graph there collapses to a coaster.
+- **`touch-action: pan-y`** on the canvas, not `none`: the chart claims horizontal drags and pinches
+  while a vertical swipe still scrolls the page underneath. `none` would make a graph a dead zone
+  you cannot scroll past on a phone — the wheel is meant to sit on a day page, not own it.
+- **`ModuleContainer` + `ModulePage` mount `<GraphSection>`** beside `<FeedSection>` in their
+  HeaderDropdowns (see ui/CLAUDE.md).

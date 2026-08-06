@@ -2212,3 +2212,32 @@ wsl -d Ubuntu-24.04 -e bash -c "cd ~/dndtest2/server && ~/.nvm/versions/node/v22
   condition `Tags CONTAINS <tag>` collects tagged occurrences onto another page (evalRule is
   array-aware as of the same session). Reseeded + E2E-verified (tagged textblock → feed copy
   materialized under the collector page; probe writes swept).
+
+## Recent Changes (2026-08-06 (2) — 0046: the Emotions Wheel graph + the op that records a mood)
+- **`migrations/0046-emotions-wheel-graph.mjs`** completes the wheel: a `kind:"graph"` container fed
+  from the Emotions board (0044) plus `Mood: Record Selection`, which unions the clicked emotion into
+  the day's Mood (0045 made that field point at the board) and writes the same ids to
+  `meta.graph.highlight`. The graph knows nothing about emotions — a feed on the `emotion` tag,
+  `encoding.parent`, `encoding.level`, and that is the whole configuration.
+- **FIVE defects, every one of them silent, and each found by a different check:**
+  1. **`limit: 0` on a feed means FIFTY** (`resolveFeedItems` reads `> 0 ? … : 50`) — the wheel drew
+     50 of its 128 emotions. Found by driving the PERSISTED grid through the real feed resolver.
+  2. **A feed and a parent-field hierarchy did not compose** — copies get new ids while the parent
+     field still names the source, so the 3-ring wheel came back as 50 flat roots. Fixed in
+     `graphData` (client), so it holds for any fed graph.
+  3. **`subjectType:"occurrence"` is not a case `matchSubjectFilter` knows**, so it falls through to
+     "match anything" and the op would have fired for EVERY graph on the grid. Scoped with
+     `subjectType:"module"` + `subjectRole:"container"`, which compares `transaction.containerId` —
+     what ContainerGraph actually reports.
+  4. **No `triggerTypes` → the op fires only on LOAD.** `triggerObjects` says which graph;
+     `triggerTypes` says it responds to events at all. Absent, `computeTriggerMatch` takes the legacy
+     no-config path and a click matches nothing.
+  5. **An `if` step reads `step.condition`, not `step.predicate`** — and an unrecognised key falls
+     back to an EMPTY AND, which evaluates TRUE. A mis-keyed guard does not fail closed; it runs its
+     branch unconditionally. (Also: a FIND that matches nothing does not bind its `itemVar`, and
+     referencing an unbound var THROWS — so declare every var before use.)
+- **The migration FIND-THEN-PATCHES rather than early-returning** when the graph/op already exist:
+  defects 1 and 4 shipped to test grid 2 in an earlier run, and re-running repairs them. A migration
+  that can only build is a migration that needs a follow-up script nobody remembers.
+- Behavioural coverage is client-side (`__tests__/moodRecordSelection.test.js`) and drives the
+  migration's OWN exported `buildRecordSelectionPipeline`, so the test cannot drift from what ships.

@@ -5,6 +5,62 @@
 > **Read [`CLAUDE_CHAT.md`](./CLAUDE_CHAT.md) at session start.** It's the time-ordered log of user direction across sessions. New direction goes there first before acting.
 
 ---
+### 2026-08-06 (3) — the graph occurrence is FINISHED: a wheel you can zoom, click, and edit as data
+
+Picked up the previous account's run of `docs/superpowers/plans/2026-08-06-graph-occurrence.md`
+(Tasks 1-6 shipped there, plus migrations 0044/0045). Tasks 7-9 here. **Applied to test grid 2
+only — poms grid and the deploy are the user's call.**
+
+**FIVE defects shipped-and-caught in one session, and NOT ONE was visible to a unit test.** They
+are worth listing together because the pattern is the point: a chart is a CANVAS, and almost
+nothing about it is observable from the DOM.
+- **`label.minAngle: 8` blanked all 80 outer labels.** 80 tertiary leaves are 4.5° each, so the
+  whole outer ring rendered as unlabelled colour — while every metric said fine (8 roots, 0
+  warnings, 540k painted pixels). Caught by a SCREENSHOT.
+- **`setPointerCapture` on pointerdown ate every click.** Capturing a pointer retargets the
+  compatibility mouse events it generates, so mouseup/click went to the wrapper `div` instead of
+  the canvas and **ECharts never saw the click — a stationary click selected NOTHING, at every
+  width, with 99 unit tests green** (jsdom stubs `setPointerCapture`). Capture now waits until a
+  drag exceeds the slop.
+- **A feed and a parent-field hierarchy did not compose.** A feed materializes each match as a COPY
+  with a NEW id, and the copy's parent field still names the SOURCE — so every fed row looked
+  parentless and the 3-ring wheel drew as **50 flat roots at depth 1**. Found by driving the
+  PERSISTED grid through the real feed resolver and the real `buildGraphData`.
+- **`limit: 0` on a feed means FIFTY** (`resolveFeedItems` reads `> 0 ? … : 50`) — the wheel
+  silently drew a third of itself.
+- **The op never fired.** `triggerObjects` says WHICH graph; `triggerTypes` says it responds to
+  events at all — absent, `computeTriggerMatch` takes the legacy no-config path and only fires on
+  LOAD. Plus: **an `if` step reads `step.condition`, not `step.predicate`, and an unrecognised key
+  falls back to an EMPTY AND, which evaluates TRUE** — a mis-keyed guard does not fail closed, it
+  runs its branch unconditionally.
+
+**The user corrected a risk I had inherited, and they were right.** The plan carried a
+"feed-vs-drag collision" in two places and I put it to them twice as a decision. *"i thought you
+could have feed items and other occurances."* One grep settled it: `feedSync` only ever collects
+children carrying `meta.feedSourceId`, so a hand-placed child cannot be swept — and a test has
+pinned that since July. **A risk written from reading a DESIGN is a hypothesis, not a finding**,
+and carrying one as an open question costs real time.
+
+**Zoom, because the user chose one wheel over two.** *"the graph should be the size of the
+container (so the size of the page), and have it be zoomable."* The whole view model is
+`{ zoom, cx, cy }` with the centre in PERCENT — ECharts already resolves percent radius/centre
+against the host box, so zoom and pan never need the container's size. `zoomAt` holds the point
+under the pointer fixed, and the pan clamp is derived from the radius so at zoom 1 the range
+collapses to exactly [50,50]: "panning requires zoom" falls out of the geometry rather than a flag.
+Measured in a browser at 1400/900/390: anchor colour identical to the byte before and after
+zooming, a click reports the full ancestor path, a drag never selects. A 390px phone needs 2.8×
+to make a tertiary a 40px thumb target — inside the 12× cap, which is what makes one wheel enough.
+
+**A guard nobody has watched FAIL is a guess.** The new `noDomainKnowledge` case for the graph
+surface passed immediately — then a planted `EMOTION_RINGS` constant slipped straight through it,
+because `\b` does not fire inside an identifier (`_` and camelCase are word characters). Substrings
+now. And "wheel" was REMOVED from the banned list: it only ever matched `WheelEvent`/`wheelFactor`,
+and a guard that cries wolf is one someone weakens later.
+
+1763 client + 467 server tests, build clean, test grid 2 at 0 integrity errors.
+
+---
+
 ### 2026-08-05 (4) — the wrap group OSCILLATED: a height projected from the wrong layout
 
 User: the Eminem page *"starts flipping out … it doesn't know if the image should be full screen or
