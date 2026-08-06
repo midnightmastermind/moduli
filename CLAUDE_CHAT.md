@@ -2629,3 +2629,41 @@ prefilled number shows where it came from (the user: *"idk how to do this yet vi
   attaches a field, unlike a drop.
 - **The spread is an overlay**, not a page. **`Files` is one shared field.** **The profile picture is
   one you mark as the face**, not "first in the list".
+
+## 2026-08-06 (2) — the artifact spread gets built, and a graph occurrence is planned
+
+Picked up the previous account's work: of the three 2026-08-06 plans, prefill had shipped, the
+artifact spread was untouched, and the intake audit was sequenced last. Built the artifact spread.
+
+**The user redesigned Task 2 while it was being built, in six messages.** Recorded in the plan as
+decisions 5-10, because each one removed code rather than adding it:
+> "the files field is just part of what you can attach to that occurance but the inside of it can
+> still have artifact occurances" — attachment and children COEXIST; `filesOf` returns the union.
+> "so we can just reuse board or canvas on an overlaid surface" — measured and true: `Container`
+> already takes an `occurrenceOverride` and already dispatches board vs canvas on `kind`.
+> "these pages would exist only in this overlay" — which is what makes that reuse work: board and
+> canvas persist arrangement, so the overlay is backed by a real page that is listed nowhere.
+> "dragging then can be reorder for the grid or just moving on the surface" / "holding shift and
+> dragging it will let me drag it something on the grid (surface disappears)".
+
+A hand-rolled grid/free surface with its own reorder and drag was written and then DELETED in favour
+of the existing renderers. The user was right and it was the second time this file has recorded
+nearly rebuilding something that already existed.
+
+**Then: a graph occurrence.** Plan at `docs/superpowers/plans/2026-08-06-graph-occurrence.md`.
+> "add a graph occurance in (works same way as table in what occurances it can be) … clickable. so
+> i can select diff parts of the graph. then we connect it to operations. the goal is to create a
+> feeling wheel of emotions and when i select an emotion, it records the mood."
+> "either use a query like we have for other things (a feed) or let me drag occurances to it … we
+> should have a sidebar next to the graph with all the occurances involved in the graph, its a
+> board of the draggable occurances. we can also do hardcoded values if needed"
+
+Researched: **Apache ECharts**, because its whole chart is one serializable `option` object — the
+only candidate whose config can live in `meta` and be edited by our own pickers. The plan's first
+task is a SPIKE that measures the two things it rests on (does a sunburst click carry the ancestor
+path; what does a tree-shaken import actually cost) before anything is built on them.
+
+**The idea that collapses three data sources into one:** a graph's data rows are its CHILD
+OCCURRENCES. A feed already materializes matches as children; dragging already adds children; only
+literals are new. And the feeling wheel needs no graph-specific code — the emotion hierarchy is
+occurrences nested in containers, and clicking fires an ordinary operation.
