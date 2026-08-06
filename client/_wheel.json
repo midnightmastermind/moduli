@@ -1,0 +1,122 @@
+{
+  "Sad": {
+    "Hurt": [
+      "Distant"
+    ],
+    "Lonely": [
+      "Isolated"
+    ],
+    "Bored": [
+      "Apathetic"
+    ],
+    "Tired": [
+      "Sleepy"
+    ],
+    "Guilty": [
+      "Remorseful"
+    ],
+    "Ashamed": [
+      "Stupid"
+    ],
+    "Depressed": [
+      "Inferior"
+    ]
+  },
+  "Mad": {
+    "Hostile": [
+      "Sarcastic"
+    ],
+    "Angry": [
+      "Frustrated"
+    ],
+    "Selfish": [
+      "Jealous"
+    ],
+    "Hateful": [
+      "Irritated"
+    ],
+    "Critical": [
+      "Skeptical"
+    ],
+    "Confused": [
+      "Bewildered"
+    ]
+  },
+  "Scared": {
+    "Rejected": [
+      "Discouraged"
+    ],
+    "Helpless": [
+      "Insignificant"
+    ],
+    "Submissive": [
+      "Inadequate"
+    ],
+    "Insecure": [
+      "Embarrassed"
+    ],
+    "Anxious": [
+      "Overwhelmed"
+    ]
+  },
+  "Joyful": {
+    "Excited": [
+      "Daring"
+    ],
+    "Sensuous": [
+      "Fascinating"
+    ],
+    "Energetic": [
+      "Stimulating"
+    ],
+    "Cheerful": [
+      "Amused"
+    ]
+  },
+  "Powerful": {
+    "Creative": [
+      "Playful"
+    ],
+    "Hopeful": [
+      "Optimistic"
+    ],
+    "Aware": [
+      "Surprised"
+    ],
+    "Proud": [
+      "Successful"
+    ],
+    "Respected": [
+      "Worthwhile"
+    ],
+    "Appreciated": [
+      "Valuable"
+    ]
+  },
+  "Peaceful": {
+    "Faithful": [
+      "Confident"
+    ],
+    "Important": [
+      "Discerning"
+    ],
+    "Loving": [
+      "Serene"
+    ],
+    "Trusting": [
+      "Secure"
+    ],
+    "Nurturing": [
+      "Thankful"
+    ],
+    "Content": [
+      "Relaxed"
+    ],
+    "Thoughtful": [
+      "Pensive"
+    ],
+    "Intimate": [
+      "Responsive"
+    ]
+  }
+}

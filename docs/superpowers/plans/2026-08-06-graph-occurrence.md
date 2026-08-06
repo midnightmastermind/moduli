@@ -364,8 +364,41 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
       are reusable by anything else (a Mood dropdown, a tracker) because they are ordinary
       occurrences.
 
-      **RESEARCH REQUIRED before seeding:** use the *detailed* feelings wheel, not the 6×2 sketch
-      the harness used. Look up the full three-level wheel and seed the real set.
+      **RESEARCH DONE (2026-08-06) — `server/seed/feelingWheel.js`.** The full Willcox Feeling
+      Wheel (1982): **6 core → 36 secondary → 36 tertiary = 72 feelings**, matching the source's
+      own description. DERIVED from the published PDF rather than typed from memory, by two
+      independent readings: core→secondary from the text's reading order (6 clean groups of 6),
+      secondary→tertiary from the LABEL GEOMETRY (radius + angle around the diagram centroid, with
+      ring boundaries MEASURED from the radius gaps — 40.3 after the 6th label, 34.2 after the
+      42nd — giving exactly 6/36/36 with every secondary holding one tertiary and zero anomalies).
+      Cross-checked against the PDF's own worked example ("guilty" → core "sad", outer
+      "remorseful"), which the derivation reproduced independently. 10 tests pin it.
+
+      **THE MOOD FIELD ALREADY EXISTS, and this is the decision Task 7 turns on.** Measured on
+      poms grid:
+      ```
+      Mood   type=select  multiSelect=TRUE  optionsSource=manual  47 flat options
+             bound by 16 modules (Express, Check In, Vent, 13× Journal)
+             occurrences carrying a value: ZERO
+      ```
+      Its 47 options are a FLAT list (Joyful, Happy, Content, … Focused) — no hierarchy, so a wheel
+      cannot be built from it, and its values are plain strings, so a graph click (which carries an
+      occurrence id) cannot be written into it as-is.
+
+      **That zero is what makes the choice cheap: converting the field loses no data.** Two ways:
+      - **(a) Convert `Mood` to an OCCURRENCE dropdown over the Feelings board.** Consistent with
+        how this grid already works — 34 other boards are the source of truth for their dropdowns
+        via `boardCategory`, and it is the only option where the wheel's click, the field's value
+        and the graph's highlight are all THE SAME occurrence ids, so the op writes one from the
+        other with no translation. Cost: 16 modules' binding meaning changes (string → id), and
+        the Moods tracker must be re-checked.
+      - **(b) Keep the manual select and have the op write the feeling's LABEL.** No change to
+        existing bindings, but the ids never round-trip, so the highlight cannot be derived from
+        the field and the two must be kept in sync separately — the "two truths" this plan has
+        avoided everywhere else.
+      Recommend **(a)**; it needs the user's yes because it touches a live field bound in 16 places.
+
+- [ ] **Step 1c: DECIDE (a) vs (b) above before seeding anything.**
 
 - [ ] **Step 1b:** Seed an **Emotions board** — the standard wheel's 6-to-8 primaries, each holding
       its secondaries, each holding tertiaries. Occurrences nested in containers; that nesting IS
