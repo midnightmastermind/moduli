@@ -1276,3 +1276,16 @@ occurrence dropdown — found while verifying the ImagePickerMenu e2e:
   `EMOTION_RINGS` slipped straight through the first version.** Verified by planting exactly that
   constant. "wheel" is NOT banned — it is a real input device (`WheelEvent`, `wheelFactor`) and the
   rule only ever matched the zoom gesture code; a guard that cries wolf gets weakened later.
+
+## Recent Changes (2026-08-06 (4) — prefill `sum` and FLOW: opt-in, per row)
+- **The question** (task list): should `combine: "sum"` honour a value's `flow`, where `"out"` means
+  the number is negative in every other aggregation on this grid?
+- **DECIDED FROM DATA, not taste.** Measured on poms grid before choosing: the macro fields prefill
+  actually targets (Calories / Protein / Carbs / Fats, wired by 0042) carry **`flowToggle: false`
+  and every stored value is `flow: "replace"`** — flow is meaningless there and there is no UI to
+  set it. **`Amount` is the exact opposite**: `flowToggle: true`, 24 values split **out:16 / in:5 /
+  replace:3**. Summing money without direction would be plainly wrong; negating macros would be
+  noise. So neither "always" nor "never" is correct, and it is CONFIGURATION.
+- **`flowAware: true` per map row, default OFF** — so the shipped nutrition prefill behaves
+  byte-identically and nothing had to be re-migrated. `out` NEGATES, the same convention every
+  aggregation here already uses. 2 tests, the opt-in one A/B'd (defeating the flag fails it).

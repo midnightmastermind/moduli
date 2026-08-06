@@ -198,3 +198,43 @@ describe("COMBINERS", () => {
     expect(COMBINERS.replace([7, 9])).toBe(7);
   });
 });
+
+describe("planPrefill — flow-aware combining (opt-in, per row)", () => {
+  // DECIDED 2026-08-06 from DATA, not taste. Measured on poms grid: the macro
+  // fields this feature targets carry `flowToggle: false` and every stored value
+  // is `flow: "replace"` — flow is meaningless there. `Amount` is the opposite:
+  // flowToggle true, 24 values split out:16 / in:5 / replace:3. So neither
+  // "always honour flow" nor "never" is right, and it becomes per-row config.
+  const F_PICK = "f-pick";
+  const F_AMT = "f-amt";
+  const build = (flowAware) => {
+    const fById = {
+      [F_PICK]: { id: F_PICK, type: "occurrence", meta: { multiSelect: true, prefill: {
+        enabled: true,
+        map: [{ from: F_AMT, to: F_AMT, combine: "sum", ...(flowAware ? { flowAware: true } : {}) }],
+      } } },
+      [F_AMT]: { id: F_AMT, type: "number", name: "Amount" },
+    };
+    const oById = {
+      "src-in":  occ("src-in",  "m-src", { [F_AMT]: { value: 100, flow: "in" } }),
+      "src-out": occ("src-out", "m-src", { [F_AMT]: { value: 30, flow: "out" } }),
+      tgt: occ("tgt", "m-tgt", {}),
+    };
+    const mById = {
+      "m-src": { id: "m-src", role: "instance" },
+      "m-tgt": { id: "m-tgt", role: "instance", fieldBindings: [{ fieldId: F_PICK }, { fieldId: F_AMT }] },
+    };
+    return planPrefill({
+      field: fById[F_PICK], value: ["src-in", "src-out"], target: oById.tgt,
+      ctx: { occurrencesById: oById, modulesById: mById, fieldsById: fById },
+    });
+  };
+
+  it("IGNORES flow by default — today's behaviour, byte-identical", () => {
+    expect(byId(build(false).writes)[F_AMT]).toBe(130);
+  });
+
+  it("NEGATES an `out` value when the row opts in", () => {
+    expect(byId(build(true).writes)[F_AMT]).toBe(70);   // 100 - 30
+  });
+});

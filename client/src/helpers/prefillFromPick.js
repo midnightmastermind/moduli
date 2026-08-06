@@ -102,9 +102,27 @@ export function planPrefill({ field, value, target, ctx }) {
       // Decision 2: fill only what the target already carries.
       if (!bound.has(to)) continue;
 
-      const raw = picked
-        .map((occ) => occ.fields?.[from])
+      const slots = picked.map((occ) => occ.fields?.[from]);
+      const raw = slots
         .map((slot) => (slot && typeof slot === "object" && "value" in slot ? slot.value : slot))
+        // FLOW-AWARE COMBINING IS OPT-IN, PER ROW (`flowAware: true`), and OFF by
+        // default — measured on poms grid before choosing: the macro fields this
+        // feature actually targets carry `flowToggle: false` and every stored
+        // value is `flow: "replace"`, so flow is meaningless there and honouring
+        // it unconditionally would be noise. `Amount` is the opposite —
+        // `flowToggle: true`, 24 values split out:16 / in:5 / replace:3 — so
+        // summing money without direction would be plainly wrong.
+        //
+        // Neither "always" nor "never" is right, so it is configuration. Default
+        // off means the shipped nutrition prefill (0042) behaves byte-identically.
+        // `out` NEGATES, which is the same convention every aggregation on this
+        // grid already uses.
+        .map((v, i) => {
+          if (!entry.flowAware) return v;
+          const flow = slots[i] && typeof slots[i] === "object" ? slots[i].flow : null;
+          const n = Number(v);
+          return (flow === "out" && Number.isFinite(n)) ? -n : v;
+        })
         .filter((v) => v != null && v !== "" && !(Array.isArray(v) && v.length === 0));
       if (raw.length === 0) continue;   // nothing to say — never overwrite with empty
 
