@@ -1,6 +1,37 @@
 # client/src/docs — Docs CLAUDE.md
 
 _Updated: 2026-07-13. Check this file before re-reading source._
+## Recent Changes (2026-08-05 (6) — the wrap group OSCILLATED: a neighbour height projected from the wrong layout)
+- **User: the Eminem page "starts flipping out … it doesn't know if the image should be full screen
+  or wrap, it keeps switching between the two, rapidly."** Measured on the live page in Firefox:
+  **46-64 wrap-class mutations per 3 IDLE seconds** (~20 flips/sec) at every wide width.
+- **ROOT CAUSE — `WrapGroupNode.measure()` fed the decision a different neighbour height in each
+  state, so the two states disagreed forever.** While WRAPPED the neighbour floats at
+  `neighborWidth`, so its height is measured directly. While STACKED it renders FULL WIDTH, and the
+  code projected the wrapped height by inverse scale (`measuredH * neighborWidth / measuredW`).
+  That assumes height falls as width falls — true for a fixed-ASPECT box like a lone image, FALSE
+  for the Wikipedia lead aside, which is an image stacked over an INFOBOX TABLE. **A table gets
+  TALLER as it narrows.** Numbers off the page: stacked read 2482×1182 → projected **152** at the
+  320px float; the real wrapped height was **757**. Five times out.
+- That gap changed the ANSWER, not just the precision: 152 is under `WRAP_SHORT_NEIGHBOR_H` (280),
+  so the group took the short-neighbour exemption and wrapped; at 757 the sliver policy stacked it
+  again; the flip re-fired the ResizeObserver → wrap/stack/wrap **17ms apart**, forever.
+  `decideWrapStack`'s hysteresis could not damp it — hysteresis compares ONE signal against two
+  thresholds, and here the signal itself swung 152 ↔ 757 between the states.
+- **FIX — `wrapAnchor.resolveNeighborHeight` (NEW, pure).** Remember the height last measured WHILE
+  WRAPPED and reuse it while stacked. The float's width does not change with the group's, so that
+  height is a fact about the neighbour, not about the current layout. The projection survives only
+  to bootstrap a group that has never been wrapped, and the memory is discarded when the seam is
+  dragged to a new float width. The remembering side is guarded on `|measuredW - neighborWidth| ≤ 2`
+  so a mid-transition read (neighbour still full width, class already flipped) is never stored.
+- **A/B, DOM-level (MutationObserver, no instrumentation in the loop): 46/56/64 flips → 0/0/0** at
+  2560/2000/1600. 6 tests in `__tests__/resolveNeighborHeight.test.js` pin the real numbers,
+  including the disagreement itself (stacked-height says WRAP, wrapped-height says STACK).
+- **Behaviour note, not a regression:** at wide widths this page's lead aside now settles STACKED.
+  That is the sliver policy's own call (prose predicted 127px beside a 757px infobox = 17%, well
+  under the 35% wrap threshold) — before the fix it was flickering, and the "wrapped" frames were
+  one half of the flip. If it should wrap there instead, that is a `WRAP_SLIVER_*` threshold
+  conversation, not this bug.
 
 ## Recent Changes (2026-08-05 (3) — InstanceTextblockNode: empty click-minted blocks remove themselves)
 - **`pills/InstanceTextblockNode.jsx`** — new `handleEmptyBlur` (wired to DocContent's

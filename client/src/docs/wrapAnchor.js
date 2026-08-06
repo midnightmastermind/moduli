@@ -75,3 +75,37 @@ export function decideWrapStack({ textArea, besideW, neighborH, prevStacked = fa
   const frac = prevStacked ? WRAP_SLIVER_WRAP : WRAP_SLIVER_KEEP;
   return predicted < neighborH * frac;             // only a sliver of the band would hold text
 }
+
+// The neighbor's height AS IT WOULD RENDER WRAPPED — the single number the
+// stack/wrap decision turns on.
+//
+// It has to be the same number in both states or the group oscillates. Measuring
+// it while WRAPPED is direct: the neighbor floats at exactly `wrapWidth`, so its
+// height is the real one. While STACKED it renders FULL WIDTH, and the height at
+// full width is not the height at `wrapWidth`.
+//
+// The old code projected it by inverse scale (`measuredH * wrapWidth /
+// measuredW`), which assumes height falls as width falls — true only for a fixed
+// ASPECT box like a lone image. The Wikipedia lead aside is an image stacked over
+// an INFOBOX TABLE, and a table gets TALLER as it narrows: measured on the Eminem
+// page at a 2482px group, stacked read 2482×1182 → projected 152 at a 320px
+// float, while the real wrapped height was 757. Five times out.
+//
+// That gap is not a rounding error, it changes the ANSWER: 152 is under
+// WRAP_SHORT_NEIGHBOR_H so the group took the short-neighbor exemption and
+// wrapped; at 757 the sliver policy immediately stacked it again; and the flip
+// re-fired the ResizeObserver — wrap/stack/wrap ~17ms apart, forever.
+//
+// So: remember the last height measured while WRAPPED and reuse it while
+// stacked. The float's width does not change with the group's, so that height
+// stays valid — it is a fact about the neighbor, not about the current layout.
+// The projection survives only as the bootstrap for a group that has never been
+// wrapped, and the memory is discarded when the float is resized to a new width.
+export function resolveNeighborHeight({ stacked, measuredW, measuredH, wrapWidth, remembered = null }) {
+  if (!stacked) return measuredH;
+  if (remembered && remembered.wrapWidth === wrapWidth && remembered.height > 0) {
+    return remembered.height;
+  }
+  const scale = measuredW > 0 ? wrapWidth / measuredW : 1;
+  return measuredH * scale;
+}

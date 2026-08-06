@@ -12,7 +12,7 @@
 // wraps content AFTER it, so the neighbor must precede the host in source order.
 import { NodeViewWrapper, NodeViewContent } from "@tiptap/react";
 import { useRef, useEffect, useCallback, useState } from "react";
-import { hasMidAnchor, classifyWrapShape, decideWrapStack, WRAP_SLIVER_KEEP, WRAP_MIN_BESIDE_H, WRAP_SHORT_NEIGHBOR_H, WRAP_MIN_PROSE_W } from "./wrapAnchor";
+import { hasMidAnchor, classifyWrapShape, decideWrapStack, resolveNeighborHeight, WRAP_SLIVER_KEEP, WRAP_MIN_BESIDE_H, WRAP_SHORT_NEIGHBOR_H, WRAP_MIN_PROSE_W } from "./wrapAnchor";
 
 const DEFAULT_NW = 300;   // px — default neighbor column width when unset
 const MIN_NW = 120;       // px — splitter clamp floor
@@ -116,6 +116,12 @@ export default function WrapGroupNode({ node, updateAttributes }) {
   // current value without being re-created (it isn't a measure dep).
   const [autoUnwrap, setAutoUnwrap] = useState(false);
   const autoUnwrapRef = useRef(false);
+  // The neighbor's height as last measured WHILE WRAPPED, with the float width
+  // it was measured at. This is what stops the group oscillating: the stacked
+  // state cannot see that height (the neighbor renders full width there) and the
+  // projection it used instead disagreed with it badly enough to flip the
+  // decision. See resolveNeighborHeight in docs/wrapAnchor.js.
+  const wrappedNeighborRef = useRef(null);
 
   // Measure the floated neighbor stack ONLY to place the draggable resize seam. The
   // wrap itself is pure CSS now: the neighbor floats, and the host (a normal in-flow
@@ -161,9 +167,19 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     // to the wrap width while stacked — for an image the height scales with the width.
     const measuredW = right - left;
     const measuredH = bottom - top;
-    const scale = (prevUnwrap && measuredW > 0) ? (neighborWidth / measuredW) : 1;
     const neighborW = prevUnwrap ? neighborWidth : measuredW;
-    const neighborH = prevUnwrap ? measuredH * scale : measuredH;
+    // While WRAPPED the neighbor floats at exactly `neighborWidth`, so this
+    // measurement is the real wrapped height — remember it for the stacked pass,
+    // which cannot measure it. Guarded on a sane box so a mid-transition read
+    // (the neighbor still full width while the class has already flipped) is not
+    // remembered as the wrapped height.
+    if (!prevUnwrap && measuredH > 0 && Math.abs(measuredW - neighborWidth) <= 2) {
+      wrappedNeighborRef.current = { wrapWidth: neighborWidth, height: measuredH };
+    }
+    const neighborH = resolveNeighborHeight({
+      stacked: prevUnwrap, measuredW, measuredH,
+      wrapWidth: neighborWidth, remembered: wrappedNeighborRef.current,
+    });
     const hostProse = els[els.length - 1].querySelector(".ProseMirror");
     // One fused walk: line-box area (sliver prediction) + how far down the
     // neighbor band [top..bottom] the rendered text reaches (blank-band guard).
