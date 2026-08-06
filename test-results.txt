@@ -1,16 +1,473 @@
 
-> dndkittest2@0.1.0 test
-> NODE_OPTIONS=--max-old-space-size=4096 vitest run
+> server@1.0.0 test
+> vitest run --reporter=verbose
 
 
- RUN  v4.1.8 /home/joshpoms/moduli/client
+ RUN  v4.1.8 /home/joshpoms/moduli/server
 
-Browserslist: browsers data (caniuse-lite) is 6 months old. Please run:
-  npx update-browserslist-db@latest
-  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — article-like grouped rich textblocks > a [text](url) link in prose becomes an inline link mini-textblock (chip) embedded via instanceTextblockInline 9ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — article-like grouped rich textblocks > a blank-label link derives its chip label from the URL slug (no empty mini-textblocks) 2ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — article-like grouped rich textblocks > a list is ONE textblock (bulletList) whose items are inline mini-textblocks 2ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — article-like grouped rich textblocks > an image ![alt](src) becomes an artifact 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — article-like grouped rich textblocks > a blockquote becomes a kind:'quote' artifact with quote + attribution on meta 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — article-like grouped rich textblocks > a quote following prose is embedded INSIDE that lead-up textblock (its own artifact, nested) 2ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — article-like grouped rich textblocks > a bullet list mints one inline mini-textblock per item inside one list textblock 2ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — article-like grouped rich textblocks > a LINK bullet renders its chip directly in the list item (not flattened away in a mini-textblock) 2ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — article-like grouped rich textblocks > heading + its section nests as containers (Rule Set A) 2ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — article-like grouped rich textblocks > section containers carry cascading heading levels (article H1 → H2 → H3) 2ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — article-like grouped rich textblocks > every section is a kind:doc container whose textmap embeds its children 3ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — image markdown becomes artifact module > mints role:artifact kind:image with fileRef:<src> for block-level images 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — image markdown becomes artifact module > multiple images each get their own artifact module 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — image markdown becomes artifact module > alt-less image is allowed (label '') 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — image markdown becomes artifact module > inline image inside a paragraph splits into TipTap image blocks (NOT artifact module) 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — image markdown becomes artifact module > inline image at the start of a paragraph drops the empty leading paragraph 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — image markdown becomes artifact module > two inline images in the same paragraph yield two image blocks 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — image markdown becomes artifact module > artifact occurrence has the container as its parent in the tree 2ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — html-fenced block becomes htmlPreview textblock > mints textblock with meta.htmlPreview and TipTap codeBlock content 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — html-fenced block becomes htmlPreview textblock > non-html fenced blocks (```js, ```python, etc.) stay as plain codeBlock without htmlPreview meta 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — pipe-table markdown promotes to kind:table container > mints a role:container kind:table module with columns + rowCount + cells 2ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — pipe-table markdown promotes to kind:table container > alignment-marker separator row is recognized (`| :--- | ---: | :---: |`) 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — pipe-table markdown promotes to kind:table container > escaped pipe `\|` inside a cell is preserved as a literal 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — pipe-table markdown promotes to kind:table container > a `|` line WITHOUT a separator row falls through to paragraph (not promoted) 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — pipe-table markdown promotes to kind:table container > empty cells become a paragraph-only doc (preserves table shape) 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — plain text (degenerate markdown) round-trips cleanly > a single-paragraph plain text input becomes one textblock under the root container 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — plain text (degenerate markdown) round-trips cleanly > consecutive paragraphs MERGE into ONE textblock (3 paragraphs → 1 textblock, 3 paragraph nodes) 0ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — plain text (degenerate markdown) round-trips cleanly > a list JOINS the running prose chunk (one block, so bullets indent under their intro) 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — 2026-06-09 import fixes (links/See-also/denylist/block-wrap) > an emphasis-wrapped link *[text](url)* still resolves to a link chip (not literal text) 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — 2026-06-09 import fixes (links/See-also/denylist/block-wrap) > bullet-list links (e.g. 'See also') become inline link chips, not link marks 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — 2026-06-09 import fixes (links/See-also/denylist/block-wrap) > citation/nav cruft sections (References / Notes / External links) are dropped; 'See also' is kept 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — 2026-06-09 import fixes (links/See-also/denylist/block-wrap) > heading labels are stripped of inline markdown emphasis (no literal *) 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — 2026-06-09 import fixes (links/See-also/denylist/block-wrap) > a block image folds into a wrapGroup with the following prose textblock (host); image-only section stays full-width 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — 2026-06-09 import fixes (links/See-also/denylist/block-wrap) > multiple block images before one paragraph all stack as neighbors of a single host 3ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — 2026-06-09 import fixes (links/See-also/denylist/block-wrap) > a block image with NO following prose host falls back to a full-width standalone embed 1ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — 2026-06-09 lead aside (main image + infobox table) > the lead aside (image over infobox) pairs with the first textblock in a neighbor-first wrapGroup 3ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — 2026-06-09 lead aside (main image + infobox table) > with NO sub-container, the aside still pairs with the first textblock in a neighbor-first wrapGroup 2ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — 2026-06-09 lead aside (main image + infobox table) > the aside is a STRUCTURAL child of the root (in occurrences[], not just the textmap) so a tree-walk reaches it 2ms
+ ✓ __tests__/markdownImporter.test.js > markdownToModuli — 2026-06-09 lead aside (main image + infobox table) > a plain lead image with NO infobox table pairs with the prose in a neighbor-first wrapGroup 1ms
+ ✓ __tests__/extractInfobox.test.js > extractInfobox > an EMPTY <li> contributes no comma — the user's 'empty spot before Kimberly' 18ms
+ ✓ __tests__/extractInfobox.test.js > extractInfobox > strips the template's zero-width characters, which survive whitespace collapsing 6ms
+ ✓ __tests__/extractInfobox.test.js > extractInfobox > a REAL list still gets its commas — the separator is not simply removed 4ms
+ ✓ __tests__/extractInfobox.test.js > extractInfobox > a list whose items are blank collapses to nothing rather than to punctuation 2ms
+ ✓ __tests__/extractInfobox.test.js > extractInfobox > <br> separated values still read as · and keep their order 3ms
+ ✓ __tests__/deleteOccurrenceParentRace.test.js > delete_occurrence — concurrent sweeps must not resurrect each other's child ids > sweeping copies across TWO parents at once leaves no id behind 26ms
+ ✓ __tests__/deleteOccurrenceParentRace.test.js > delete_occurrence — concurrent sweeps must not resurrect each other's child ids > children the sweep did NOT touch stay listed 18ms
+ ✓ __tests__/deleteOccurrenceParentRace.test.js > delete_occurrence — concurrent sweeps must not resurrect each other's child ids > the warm cache agrees with the database afterwards 23ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeDayPageBuildTasksCompletedOp — inclusive scope guard (cascade fix) > computes a $isSourceChange flag set on bulk fires (no trigger occurrence) 3ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeDayPageBuildTasksCompletedOp — inclusive scope guard (cascade fix) > sets $isSourceChange when the trigger occurrence is under the Schedule page 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeDayPageBuildTasksCompletedOp — inclusive scope guard (cascade fix) > gates the rebuild on $isSourceChange IS 1 (so non-source CRUD echoes no-op) 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeDayPageBuildTasksCompletedOp — inclusive scope guard (cascade fix) > excludes habits when a habit marker field is passed 2ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeDayPageBuildTasksCompletedOp — inclusive scope guard (cascade fix) > omits the habit rule entirely when no marker field is passed 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeDayPageBuildTasksCompletedOp — inclusive scope guard (cascade fix) > links completed tasks as children instead of writing a textmap 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeDayPageBuildTasksCompletedOp — inclusive scope guard (cascade fix) > sweeps stale children with REMOVE_CHILD and never REMOVE_OCCURRENCE 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeDayPageBuildTasksCompletedOp — inclusive scope guard (cascade fix) > keeps a child only when it still satisfies the add predicate 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > buildGridDoc > creates a Daily namedFilter on dateFieldId with empty activeFilterValues 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > buildScheduleFilters > returns a date filter + a timeslot select filter 2ms
+ ✓ __tests__/liveSystemBuilders.test.js > buildDailyRoutineTemplate > emits one slot template occ per timeSlot with identitySignature and routine children 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > buildScheduleTemplatePage > seeds a Schedule Template page under libraryTemplatesFolderId with a Day container holding Due + slots 2ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > RE-LINKS a slot that exists but is missing from the day-col's occurrences[] 2ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > Build Schedule op has no hand-typed bare ids — every entity ref goes through a picker / runtime var 2ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > Build Day op (test grid) is priority-1, onLoad+onFilterChange, references date/due/timeslot fields 2ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > Build Schedule op (live data) loops over $activePeriodDates and COPY_LINKs the Day container per day 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > Build Schedule sets targetOccurrenceId to the Schedule page so $activePeriodDates resolves from the page's effective filter (uniform with grid/page switches) 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > Build Schedule builds day-cols hybrid: CREATE day-col + shallow COPY_LINK slots + APPLY_TEMPLATE per-day instances with date stamps 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > Stamp op writes the timeslot field on onCreate under the hub panel 0ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > Stamp op GATES the timeslot write on the destination being a slot, and clears it otherwise 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > Stamp op without a scheduleFormat field keeps the ungated stamp (test grid stays byte-identical) 0ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > Day Page: Build is named correctly, priority-5 (after the schedule build), embeds the folder + hub params 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > builds one COLUMN per active date, not one page per day 0ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > looks for an existing column WITHOUT the role filter, so a column whose module is missing is still found 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > tops up an existing column by MERGING the template (so a template edit reaches days that already exist) 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > stamps appliedFromTemplateId so the column can be saved back over the template 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > rebuilds the column body from its OWN children — no hardcoded section list 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > Day Page: Build binds its template by id — NEVER by meta.templateName 0ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > both day-page ops take their date from the executor's normalized vars, never the raw period object 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > Day Page: Build fills an EMPTY Daily Question from the pool — and only an empty one 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > Day Page: Build skips the Daily Question pass entirely without the pool context 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > Day Page: Build refuses to build without a template id 2ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > Day Page: Build links the day-column's Todo container in — and skips it without the field ids 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > schedule ops > Clear Date on Move-Out is onMove and clears date + timeslot fields 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > buildDayPageTemplate > creates a day-page template root: a PAGE that binds Date and is the H1 2ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeTrackerOp > sum: scopes to Schedule, finds goal by label, ADD_TO_VARs the source field, UPDATEs goal field 2ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeTrackerOp > countTrue: increments by 1 on completed items, no source field needed 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeTrackerOp > all timeFilter: omits the $goalDate SAME_DAY gate 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeTrackerOp > multiSum: sums each of sourceFieldIds 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeTrackerOp > net: two loops (income + spent), negates via MULTIPLY_VAR expr:-1, references both INC and SPN, no broken literal 2ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeTrackerOp > last: pipeline contains SET_VAR, does NOT contain ADD_TO_VAR, references sourceFieldId 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeTrackerOp > flow:out sum — serialized pipeline contains flow comparator rule 0ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeTrackerOp > guard: net without incomeFieldId + spentFieldId throws 0ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeTrackerOp > accountRef trackers ALSO scope to the schedule page (toolkit items never count) 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeTrackerOp > completion gate is the OR-form: completed IS true OR the module never BINDS Completed 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeTrackerOp > countTrue stays STRICT: completed IS true only (no unbound fallback) 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeTrackerOp > net loops gate on completion (a transaction moves the balance only once completed) 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeTrackerOp > supportsReplace: base scan reads flow:replace entries; value loops skip them + only count on/after the base date 2ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeTrackerOp > completionRate: MULTIPLY_VAR uses expr:100 (not by:100), DIV_VAR uses by:"$tot" 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > trackers fire on instance drops + carry no task-concept rules (2026-07-07 fixes) > makeTrackerOp triggers include instance-role onAdd + onDelete (drops must re-aggregate) 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > trackers fire on instance drops + carry no task-concept rules (2026-07-07 fixes) > makeTrackerOp accepts no isTaskFieldId and emits no is-task rule 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > trackers fire on instance drops + carry no task-concept rules (2026-07-07 fixes) > makeTrackerOp presenceFieldId gates the loop on field presence (data-driven discriminator) 0ms
+ ✓ __tests__/liveSystemBuilders.test.js > trackers fire on instance drops + carry no task-concept rules (2026-07-07 fixes) > makeDayPageBuildTasksCompletedOp emits no is-task rule 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > trackers fire on instance drops + carry no task-concept rules (2026-07-07 fixes) > buildDailyRoutineTemplate ignores isTaskFieldId (no task-marker stamping) 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeAlarmOp schedule-insert steps > with sched, appends the Schedule day-col + slot resolution + de-dup CREATE (timeslot field) 2ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeAlarmOp schedule-insert steps > off-slot minutes (e.g. :15) still stamp the exact timeslot label and skip the slot FIND 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeAlarmOp schedule-insert steps > without a destination page id, the schedule steps are skipped entirely 0ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeAlarmOp schedule-insert steps > without sched, the pipeline is a bare NOTIFY 0ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeMediaHistoryOp > binds the goal and schedule page picker-direct, never by label 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeMediaHistoryOp > scopes the source loop to the Schedule page and excludes feed copies 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeMediaHistoryOp > names every loop variable from the prefix by default 0ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeMediaHistoryOp > honours explicit var names — that is what made the extraction byte-exact 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeMediaHistoryOp > places row extras in the requested SLOT so key order is preserved 1ms
+ ✓ __tests__/liveSystemBuilders.test.js > makeMediaHistoryOp > emits the full trigger surface, including the onChange field 1ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — default (Wikipedia-summary) behavior > strips images by default 8ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — default (Wikipedia-summary) behavior > strips tables by default 3ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — default (Wikipedia-summary) behavior > strips figures by default 1ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — default (Wikipedia-summary) behavior > strips infobox / navbox / references via class 1ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — default (Wikipedia-summary) behavior > emits heading + paragraph + list markdown 1ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — default (Wikipedia-summary) behavior > preserves inline marks + external links, resolves wiki-internal links to absolute URLs 1ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — default (Wikipedia-summary) behavior > intra-page #anchors and unknown relatives drop to plain text 1ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — default (Wikipedia-summary) behavior > prepends fallbackTitle as H1 only when no leading heading exists 1ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — keepImages option (drag-to-import path) > emits `![alt](src)` for bare <img> 1ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — keepImages option (drag-to-import path) > emits image markdown with empty alt when alt attr is missing 1ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — keepImages option (drag-to-import path) > drops <img> when src attr is missing (no broken markdown) 1ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — keepFigures option > preserves figure as image + italic caption 1ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — keepFigures option > preserves caption-only figure (no img) as italic paragraph 0ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — keepTables option > wraps tables in a ```html fenced block (Phase A fast path) 1ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — keepTables option > does not strip tags INSIDE the fenced block (table HTML stays intact) 0ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — combined options (Wikipedia drop smoke) > keeps images + tables + figures together for a mini-Wikipedia-shape document 1ms
+ ✓ __tests__/htmlToMarkdown.test.js > htmlToMarkdown — stripClasses customization > custom stripClasses overrides default Wikipedia boilerplate list 1ms
+ ✓ __tests__/htmlToMarkdown.test.js > wikiHtmlToMarkdown — content tables become pipe tables (not raw <table> DOM) > converts a .wikitable (with <caption>) to a GFM pipe table, never raw HTML 33ms
+stdout | __tests__/createAbortCachePhantom.test.js > a create that never reaches the database must leave nothing in the warm cache > disconnecting mid-create leaves no phantom behind
+🟣 create_occurrence START 1785806660311-phantom socket: socket-1
 
- Test Files  109 passed (109)
-      Tests  1586 passed (1586)
-   Start at  06:56:28
-   Duration  40.12s (transform 27.68s, setup 19.63s, import 76.88s, tests 62.97s, environment 206.59s)
+stdout | __tests__/createAbortCachePhantom.test.js > a create that never reaches the database must leave nothing in the warm cache > the phantom cannot launder a dangling ref through a LATER connection
+🟣 create_occurrence START 1785806660311-phantom socket: socket-1
+
+ ✓ __tests__/backupRestore.test.js > slugify / stampNow > slugs a grid name into a safe directory component 4ms
+ ✓ __tests__/backupRestore.test.js > slugify / stampNow > produces a filesystem-safe timestamp (no colons or dots) 1ms
+ ✓ __tests__/backupRestore.test.js > readBackup integrity gate > reads a consistent backup 4ms
+ ✓ __tests__/backupRestore.test.js > readBackup integrity gate > REFUSES a backup whose file is shorter than the manifest claims 4ms
+ ✓ __tests__/backupRestore.test.js > readBackup integrity gate > refuses a directory that is not a backup at all 3ms
+ ✓ __tests__/backupRestore.test.js > contentHash > is insensitive to document ORDER (insertion order must not matter) 12ms
+ ✓ __tests__/backupRestore.test.js > contentHash > is insensitive to KEY order within a document 2ms
+ ✓ __tests__/backupRestore.test.js > contentHash > CHANGES when any value changes — the point of the check 2ms
+ ✓ __tests__/backupRestore.test.js > contentHash > CHANGES when a nested field is dropped (the failure counts alone would miss) 1ms
+ ✓ __tests__/backupRestore.test.js > contentHash > normalises Dates to the strings they serialise as, so DB and file compare equal 1ms
+ ✓ __tests__/backupRestore.test.js > listBackups > returns nothing for a missing directory 1ms
+ ✓ __tests__/backupRestore.test.js > listBackups > lists backups newest-first and skips directories with no manifest 7ms
+ ✓ __tests__/backupRestore.test.js > pruneBackups retention > keeps the newest N unlabelled snapshots and deletes the rest 6ms
+ ✓ __tests__/backupRestore.test.js > pruneBackups retention > NEVER prunes a labelled snapshot — the point of taking one is that it stays 5ms
+ ✓ __tests__/backupRestore.test.js > pruneBackups retention > is a no-op when there is nothing to prune 1ms
+stdout | __tests__/createAbortCachePhantom.test.js > a create that never reaches the database must leave nothing in the warm cache > the phantom cannot launder a dangling ref through a LATER connection
+🧹 update_occurrence feed-page: dropped 1 unknown child id(s)
+
+ ✓ __tests__/gridIntegrity.test.js > dangling child refs > flags a parent listing a child that does not exist 3ms
+ ✓ __tests__/gridIntegrity.test.js > dangling child refs > is quiet when every child resolves 1ms
+ ✓ __tests__/gridIntegrity.test.js > missing module > flags an occurrence whose module is gone 0ms
+ ✓ __tests__/gridIntegrity.test.js > contended presentation targets > flags two enabled ops writing the same ownStyle target 1ms
+ ✓ __tests__/gridIntegrity.test.js > contended presentation targets > normalises the loop variable — $slot and $s are the same target 0ms
+ ✓ __tests__/gridIntegrity.test.js > contended presentation targets > ignores a DISABLED op — it isn't contending with anything 0ms
+ ✓ __tests__/gridIntegrity.test.js > contended presentation targets > does NOT flag several ops writing the same FIELD — that is normal 0ms
+ ✓ __tests__/gridIntegrity.test.js > unused fields > flags a field nothing binds, values, or references 0ms
+ ✓ __tests__/gridIntegrity.test.js > unused fields > counts a field as used when only an OPERATION mentions it 1ms
+ ✓ __tests__/gridIntegrity.test.js > unused fields > counts a field as used when only an occurrence VALUES it 1ms
+ ✓ __tests__/gridIntegrity.test.js > duplicate names > WARNS on duplicate field names — they are labels, not identity 1ms
+ ✓ __tests__/gridIntegrity.test.js > duplicate names > flags duplicate operation names — RUN_OPERATION resolves by name 0ms
+ ✓ __tests__/gridIntegrity.test.js > unfireable operations > warns about an enabled op with no trigger and no schedule 0ms
+ ✓ __tests__/gridIntegrity.test.js > unfireable operations > does not warn when a schedule supplies the fire 0ms
+ ✓ __tests__/gridIntegrity.test.js > reportGridIntegrity > returns true (and says so) for a clean grid 1ms
+ ✓ __tests__/gridIntegrity.test.js > reportGridIntegrity > returns FALSE when there is any error, but true when only warnings 0ms
+ ✓ __tests__/gridIntegrity.test.js > inert kind on leaf roles > flags an instance carrying a kind — the icon resolver prefers kind over role 0ms
+ ✓ __tests__/gridIntegrity.test.js > inert kind on leaf roles > leaves the roles where kind is MEANINGFUL alone 0ms
+ ✓ __tests__/gridIntegrity.test.js > inert kind on leaf roles > is quiet when a leaf carries no kind at all 0ms
+ ✓ __tests__/gridIntegrity.test.js > unsigned nodes inside a template > flags a template child that carries no identitySignature 1ms
+ ✓ __tests__/gridIntegrity.test.js > unsigned nodes inside a template > follows the whole subtree — an unsigned GRANDchild duplicates too 0ms
+ ✓ __tests__/gridIntegrity.test.js > unsigned nodes inside a template > is quiet when every node below the root is signed 1ms
+ ✓ __tests__/gridIntegrity.test.js > unsigned nodes inside a template > checks STRUCTURE only — an unsigned instance is meant to clone fresh 0ms
+ ✓ __tests__/gridIntegrity.test.js > unsigned nodes inside a template > exempts a wrapper PAGE's child — it is the effective apply root 0ms
+ ✓ __tests__/gridIntegrity.test.js > unsigned nodes inside a template > keys off LOCATION, not the retired templateModule marker 2ms
+ ✓ __tests__/gridIntegrity.test.js > unsigned nodes inside a template > exempts the ROOT — it is matched by the apply target, not by a signature 0ms
+ ✓ __tests__/gridIntegrity.test.js > unsigned nodes inside a template > reports a node ONCE even when reachable from several roots 0ms
+ ✓ __tests__/gridIntegrity.test.js > unsigned nodes inside a template > checks templates reached only through a clone's appliedFromTemplateId 0ms
+ ✓ __tests__/gridIntegrity.test.js > duplicate sections on a template-applied page > flags the same section twice under one applied page 0ms
+ ✓ __tests__/gridIntegrity.test.js > duplicate sections on a template-applied page > does not count a container MULTI-PARENTED in from somewhere else 0ms
+ ✓ __tests__/gridIntegrity.test.js > duplicate sections on a template-applied page > is quiet on a page that was never applied from a template 0ms
+stdout | __tests__/createAbortCachePhantom.test.js > a create that never reaches the database must leave nothing in the warm cache > a create that DOES persist is cached and linked normally
+🟣 create_occurrence START 1785806660311-phantom socket: socket-1
+
+ ✓ __tests__/runMigrations.test.js > loadMigrations > returns nothing for a missing directory 6ms
+ ✓ __tests__/runMigrations.test.js > loadMigrations > loads NNNN-named files in id order regardless of directory order 40ms
+ ✓ __tests__/runMigrations.test.js > loadMigrations > ignores files that are not migrations (README, drafts, .js) 15ms
+stdout | __tests__/createAbortCachePhantom.test.js > a create that never reaches the database must leave nothing in the warm cache > a create that DOES persist is cached and linked normally
+🟣 create_occurrence DONE 1785806660311-phantom
+
+ ✓ __tests__/createAbortCachePhantom.test.js > a create that never reaches the database must leave nothing in the warm cache > disconnecting mid-create leaves no phantom behind 20ms
+ ✓ __tests__/createAbortCachePhantom.test.js > a create that never reaches the database must leave nothing in the warm cache > the phantom cannot launder a dangling ref through a LATER connection 24ms
+ ✓ __tests__/createAbortCachePhantom.test.js > a create that never reaches the database must leave nothing in the warm cache > a create that DOES persist is cached and linked normally 22ms
+ ✓ __tests__/txRecorder.test.js > snapshotDoc > strips _id/__v so a restore's $set is not rejected by Mongo 5ms
+ ✓ __tests__/txRecorder.test.js > snapshotDoc > compresses a raw textmap and round-trips it losslessly 5ms
+ ✓ __tests__/txRecorder.test.js > snapshotDoc > leaves an already-compressed textmap alone (no double-compression) 1ms
+ ✓ __tests__/txRecorder.test.js > snapshotDoc > deep-copies, so later mutation of the source cannot corrupt the snapshot 0ms
+ ✓ __tests__/txRecorder.test.js > snapshotDoc > returns null for a missing document (the create/delete sentinel) 0ms
+ ✓ __tests__/txRecorder.test.js > grouping a user action with its cascade > collapses repeated writes: first before, latest after 3ms
+ ✓ __tests__/txRecorder.test.js > grouping a user action with its cascade > puts every document touched by one action in ONE transaction 1ms
+ ✓ __tests__/txRecorder.test.js > grouping a user action with its cascade > drops writes that changed nothing — not an undo step 0ms
+ ✓ __tests__/txRecorder.test.js > grouping a user action with its cascade > a write that only bumped updatedAt is NOT an undo step 1ms
+ ✓ __tests__/txRecorder.test.js > grouping a user action with its cascade > but a real change alongside a bumped updatedAt still records 1ms
+ ✓ __tests__/txRecorder.test.js > grouping a user action with its cascade > key ORDER alone is not a change 1ms
+ ✓ __tests__/txRecorder.test.js > grouping a user action with its cascade > marks an action-less write derived so the undo stack skips it 1ms
+ ✓ __tests__/txRecorder.test.js > grouping a user action with its cascade > records a create as before:null and a delete as after:null 4ms
+ ✓ __tests__/txRecorder.test.js > grouping a user action with its cascade > assigns increasing sequence numbers — the undo stack needs a total order 1ms
+ ✓ __tests__/txRecorder.test.js > grouping a user action with its cascade > flushing an unknown action is a no-op 1ms
+ ✓ __tests__/txRecorder.test.js > the redo branch > a new user action supersedes everything currently undone 2ms
+ ✓ __tests__/txRecorder.test.js > the redo branch > a DERIVED write leaves the redo branch alone 1ms
+ ✓ __tests__/txRecorder.test.js > closeAction > flushes well before the 1500ms idle timer, so a quick Ctrl+Z sees it 6ms
+ ✓ __tests__/txRecorder.test.js > closeAction > a write that lands during the grace window still joins the same transaction 2ms
+ ✓ __tests__/txRecorder.test.js > closeAction > closing an unknown action never throws 1ms
+ ✓ __tests__/occurrenceSchema.test.js > Occurrence schema validation > valid occurrence passes validation 11ms
+ ✓ __tests__/occurrenceSchema.test.js > Occurrence schema validation > moduleId is required — missing moduleId fails 3ms
+ ✓ __tests__/occurrenceSchema.test.js > Occurrence schema validation > filterOverride defaults to null 1ms
+ ✓ __tests__/occurrenceSchema.test.js > Occurrence schema validation > hidden defaults to false 1ms
+ ✓ __tests__/occurrenceSchema.test.js > Occurrence schema validation > fields defaults to empty object 2ms
+ ✓ __tests__/occurrenceSchema.test.js > Occurrence schema validation > linkedGroupId defaults to null 1ms
+ ✓ __tests__/occurrenceSchema.test.js > Occurrence schema validation > gridId is required — missing gridId fails 2ms
+ ✓ __tests__/occurrenceSchema.test.js > Occurrence schema validation > accepts filterNavConfig 2ms
+ ✓ __tests__/occurrenceSchema.test.js > Occurrence schema validation > meta accepts appliedFromTemplateId 1ms
+ ✓ __tests__/moduleSchema.test.js > Module schema validation > valid module passes validation (no role/kind required) 16ms
+ ✓ __tests__/moduleSchema.test.js > Module schema validation > role is optional — module saves without role 2ms
+ ✓ __tests__/moduleSchema.test.js > Module schema validation > role accepts any string value (no enum enforcement) 2ms
+ ✓ __tests__/moduleSchema.test.js > Module schema validation > kind is optional — module saves without kind 2ms
+ ✓ __tests__/moduleSchema.test.js > Module schema validation > label defaults to empty string 1ms
+ ✓ __tests__/moduleSchema.test.js > Module schema validation > fieldBindings defaults to empty array 2ms
+ ✓ __tests__/moduleSchema.test.js > Module schema validation > behaviorMode defaults to inherit 1ms
+ ✓ __tests__/moduleSchema.test.js > Module schema validation > behaviorMode enum enforced — invalid value fails 2ms
+ ✓ __tests__/moduleSchema.test.js > Module schema validation > behavior.sortable defaults to true 2ms
+ ✓ __tests__/moduleSchema.test.js > Module schema validation > behavior.draggable defaults to true 1ms
+ ✓ __tests__/moduleSchema.test.js > Module schema validation > behavior.droppable defaults to true 1ms
+ ✓ __tests__/moduleSchema.test.js > Module schema validation > meta.templateModule stores a boolean flag 2ms
+ ✓ __tests__/fieldSchema.test.js > Field schema validation > valid field passes validation 10ms
+ ✓ __tests__/fieldSchema.test.js > Field schema validation > type enum is enforced — invalid type fails 3ms
+ ✓ __tests__/fieldSchema.test.js > Field schema validation > all valid type values pass 9ms
+ ✓ __tests__/fieldSchema.test.js > Field schema validation > name is required — missing name fails 1ms
+ ✓ __tests__/fieldSchema.test.js > Field schema validation > userId is required — missing userId fails 1ms
+ ✓ __tests__/fieldSchema.test.js > Field schema validation > inputEnabled defaults to true 1ms
+ ✓ __tests__/fieldSchema.test.js > Field schema validation > displayEnabled defaults to false 1ms
+ ✓ __tests__/fieldSchema.test.js > Field schema validation > displayConfig is Mixed — preserves arbitrary keys (targetOp/startValue/columns) 2ms
+ ✓ __tests__/fieldSchema.test.js > Field schema validation > folderId defaults to null 1ms
+ ✓ __tests__/assistantAgent.test.js > buildOllamaRequestBody (Fix #1 — context window) > requests an explicit num_ctx so Ollama doesn't default to ~4096 4ms
+ ✓ __tests__/assistantAgent.test.js > buildOllamaRequestBody (Fix #1 — context window) > caps output tokens and keeps the model resident 1ms
+ ✓ __tests__/assistantAgent.test.js > buildOllamaRequestBody (Fix #1 — context window) > defaults stream:false and maps tools to the OpenAI function shape 1ms
+ ✓ __tests__/assistantAgent.test.js > buildOllamaRequestBody (Fix #1 — context window) > opts into streaming when stream:true (live token narration) 0ms
+ ✓ __tests__/assistantAgent.test.js > buildOllamaRequestBody (Fix #1 — context window) > defaults num_ctx when not passed 1ms
+ ✓ __tests__/assistantAgent.test.js > buildDestinationsHint (Fix #2 — named places: folders/pages/containers) > lists folders with their id as parentId 1ms
+ ✓ __tests__/assistantAgent.test.js > buildDestinationsHint (Fix #2 — named places: folders/pages/containers) > includes pages and containers (with a parent breadcrumb) so you can place anywhere 0ms
+ ✓ __tests__/assistantAgent.test.js > buildDestinationsHint (Fix #2 — named places: folders/pages/containers) > collapses duplicate label@parent container lines 1ms
+ ✓ __tests__/assistantAgent.test.js > buildDestinationsHint (Fix #2 — named places: folders/pages/containers) > returns empty string when there is nothing to list 1ms
+ ✓ __tests__/assistantAgent.test.js > buildDestinationsHint (Fix #2 — named places: folders/pages/containers) > caps at the limit and notes there are more 1ms
+ ✓ __tests__/assistantAgent.test.js > extractDestinations (join state → named places) > derives pages and containers by joining occurrence.moduleId → module 1ms
+ ✓ __tests__/assistantAgent.test.js > extractDestinations (join state → named places) > resolves a container's parent via the occurrences[] reverse map and via folders 0ms
+ ✓ __tests__/assistantAgent.test.js > extractDestinations (join state → named places) > filters malformed folders and is shape-safe on empty input 1ms
+ ✓ __tests__/assistantAgent.test.js > selectToolsForBackend (Fix #3 — curated offline toolset) > narrows the catalog to the core allowlist for ollama 3ms
+ ✓ __tests__/assistantAgent.test.js > selectToolsForBackend (Fix #3 — curated offline toolset) > returns the full catalog for non-ollama backends 1ms
+ ✓ __tests__/assistantAgent.test.js > selectToolsForBackend (Fix #3 — curated offline toolset) > honors an explicit allowlist 1ms
+ ✓ __tests__/assistantAgent.test.js > selectToolsForBackend (Fix #3 — curated offline toolset) > falls back to the full catalog when the allowlist matches nothing 0ms
+ ✓ __tests__/assistantAgent.test.js > summarizeGridState (Fix #4 — bounded snapshot) > returns counts instead of dumping every occurrence 1ms
+ ✓ __tests__/assistantAgent.test.js > summarizeGridState (Fix #4 — bounded snapshot) > derives pages by joining occurrence.moduleId → page-role module 1ms
+ ✓ __tests__/assistantAgent.test.js > summarizeGridState (Fix #4 — bounded snapshot) > projects folders/fields/operations to id+name and trims the grid object 1ms
+ ✓ __tests__/assistantAgent.test.js > summarizeGridState (Fix #4 — bounded snapshot) > is null/shape-safe on empty input 0ms
+ ✓ __tests__/assistantAgent.test.js > parseContentToolCall (recover content-channel tool calls) > recovers the exact blob qwen emitted in the smoke test 1ms
+ ✓ __tests__/assistantAgent.test.js > parseContentToolCall (recover content-channel tool calls) > handles a ```json fenced block with surrounding prose 1ms
+ ✓ __tests__/assistantAgent.test.js > parseContentToolCall (recover content-channel tool calls) > parses arguments delivered as a JSON string 0ms
+ ✓ __tests__/assistantAgent.test.js > parseContentToolCall (recover content-channel tool calls) > unwraps OpenAI-style tool_calls and function envelopes 0ms
+ ✓ __tests__/assistantAgent.test.js > parseContentToolCall (recover content-channel tool calls) > does NOT match unknown tool names (guards against random prose JSON) 0ms
+ ✓ __tests__/assistantAgent.test.js > parseContentToolCall (recover content-channel tool calls) > returns null for plain prose / empty / non-string 0ms
+ ✓ __tests__/assistantAgent.test.js > parseContentToolCall (recover content-channel tool calls) > recovers without a name guard when toolNames is omitted 0ms
+ ✓ __tests__/assistantAgent.test.js > buildSystemPrompt (location injection) > appends the current location id when context is provided 1ms
+ ✓ __tests__/assistantAgent.test.js > buildSystemPrompt (location injection) > returns the base prompt unchanged when no context 0ms
+ ✓ __tests__/assistantAgent.test.js > assistantConfirm (a confirmed import never runs as a dry run) > forces dryRun:false on an import tool even when the model passed dryRun:true 2ms
+ ✓ __tests__/assistantAgent.test.js > assistantConfirm (a confirmed import never runs as a dry run) > leaves a non-dry-run import untouched 1ms
+ ✓ __tests__/operationSchema.test.js > Operation schema validation > valid operation passes validation 11ms
+ ✓ __tests__/operationSchema.test.js > Operation schema validation > triggerType enum enforced — valid values pass 5ms
+ ✓ __tests__/operationSchema.test.js > Operation schema validation > triggerType accepts any string — open enum (generalized trigger system) 5ms
+ ✓ __tests__/operationSchema.test.js > Operation schema validation > triggerType defaults to manual 1ms
+ ✓ __tests__/operationSchema.test.js > Operation schema validation > enabled defaults to true 1ms
+ ✓ __tests__/operationSchema.test.js > Operation schema validation > targetFieldId is optional — null passes 1ms
+ ✓ __tests__/operationSchema.test.js > Operation schema validation > pipeline is Mixed — any shape passes 1ms
+ ✓ __tests__/operationSchema.test.js > Operation schema validation > name defaults to Untitled Operation 1ms
+ ✓ __tests__/operationSchema.test.js > Operation.priority round-trips > keeps an explicit priority through validation 1ms
+ ✓ __tests__/operationSchema.test.js > Operation.priority round-trips > defaults to null when unset (the executor's ?? 5 fallback owns the default) 1ms
+ ✓ __tests__/runMigrations.test.js > loadMigrations > rejects a migration missing its id or up() 42ms
+ ✓ __tests__/runMigrations.test.js > loadMigrations > rejects DUPLICATE ids — two files claiming the same id would break the applied-list 92ms
+ ✓ __tests__/runMigrations.test.js > loadMigrations > defaults describe when a migration omits it 19ms
+ ✓ __tests__/runMigrations.test.js > pendingFor > returns everything when nothing has been applied 2ms
+ ✓ __tests__/runMigrations.test.js > pendingFor > skips already-applied ids — this is what makes a re-run a no-op 2ms
+ ✓ __tests__/runMigrations.test.js > pendingFor > returns nothing when all are applied 3ms
+ ✓ __tests__/runMigrations.test.js > pendingFor > --only narrows to a single migration 1ms
+ ✓ __tests__/runMigrations.test.js > pendingFor > --only still respects the applied list without --force 1ms
+ ✓ __tests__/runMigrations.test.js > pendingFor > --force re-runs an applied migration 1ms
+ ✓ __tests__/runMigrations.test.js > pendingFor > tolerates a missing applied list (a grid that has never been migrated) 1ms
+ ✓ __tests__/gridFilterTrigger.test.js > ensureGridFilterTrigger > adds a grid onFilterChange trigger to a filterNav-only op 5ms
+ ✓ __tests__/gridFilterTrigger.test.js > ensureGridFilterTrigger > covers an Accounts-scoped op (Net Worth) too 1ms
+ ✓ __tests__/gridFilterTrigger.test.js > ensureGridFilterTrigger > is idempotent — an op that already has the grid trigger is untouched 1ms
+ ✓ __tests__/gridFilterTrigger.test.js > ensureGridFilterTrigger > leaves non-filter ops alone (no filterNav trigger → no grid trigger added) 1ms
+ ✓ __tests__/gridFilterTrigger.test.js > ensureGridFilterTrigger > matches the filterNav priority when appending 0ms
+ ✓ __tests__/occurrenceHelpers.test.js > getOccurrencesForGrid > returns only occurrences matching gridId 3ms
+ ✓ __tests__/occurrenceHelpers.test.js > getOccurrencesForGrid > returns empty array when no occurrences match 1ms
+ ✓ __tests__/occurrenceHelpers.test.js > getOccurrencesForGrid > returns all when all occurrences match 0ms
+ ✓ __tests__/occurrenceHelpers.test.js > getOccurrencesForGrid > returns empty array when occurrencesById is empty 0ms
+ ✓ __tests__/occurrenceHelpers.test.js > getOccurrencesForGrid > returns empty array when occurrencesById is undefined 0ms
+ ✓ __tests__/occurrenceHelpers.test.js > getOccurrencesForGrid > uses strict equality — similar but not equal gridId does not match 0ms
+ ✓ __tests__/occurrenceHelpers.test.js > autofillOccurrence > fills module field from occurrence.moduleId 2ms
+ ✓ __tests__/occurrenceHelpers.test.js > autofillOccurrence > adds container alias when role is container 0ms
+ ✓ __tests__/occurrenceHelpers.test.js > autofillOccurrence > adds instance alias when role is instance 1ms
+ ✓ __tests__/occurrenceHelpers.test.js > autofillOccurrence > returns occurrence unchanged when null 1ms
+ ✓ __tests__/occurrenceHelpers.test.js > autofillOccurrence > returns occurrence unchanged when uc is null 1ms
+ ✓ __tests__/occurrenceHelpers.test.js > autofillOccurrence > leaves module undefined when moduleId not in cache 0ms
+ ✓ __tests__/occurrenceHelpers.test.js > autofillOccurrences > returns empty array for non-array input 2ms
+ ✓ __tests__/occurrenceHelpers.test.js > autofillOccurrences > maps over all occurrences 1ms
+ ✓ __tests__/occurrenceHelpers.test.js > createOccurrenceData > returns object with all required fields 1ms
+ ✓ __tests__/occurrenceHelpers.test.js > createOccurrenceData > defaults filterOverride to null and hidden to false 0ms
+ ✓ __tests__/occurrenceHelpers.test.js > createOccurrenceData > includes placement when provided 0ms
+ ✓ __tests__/occurrenceHelpers.test.js > createOccurrenceData > omits placement when not provided 0ms
+ ✓ __tests__/protectedGrids.test.js > the protected list > holds the live grid and the frozen old one 4ms
+ ✓ __tests__/protectedGrids.test.js > the protected list > does NOT hold the seed's target — that one is meant to be overwritten 1ms
+ ✓ __tests__/protectedGrids.test.js > the protected list > is frozen, so nothing can push onto it at runtime 0ms
+ ✓ __tests__/protectedGrids.test.js > isProtectedGridName > matches case-insensitively and ignores surrounding space 0ms
+ ✓ __tests__/protectedGrids.test.js > isProtectedGridName > does not match a near-miss name 0ms
+ ✓ __tests__/protectedGrids.test.js > isProtectedGrid > protects by name 0ms
+ ✓ __tests__/protectedGrids.test.js > isProtectedGrid > protects by the meta stamp even when the grid was RENAMED 0ms
+ ✓ __tests__/protectedGrids.test.js > isProtectedGrid > leaves an ordinary grid alone 0ms
+ ✓ __tests__/protectedGrids.test.js > assertNotProtected > THROWS rather than returning false — a boolean someone forgets to check is not a guard 1ms
+ ✓ __tests__/protectedGrids.test.js > assertNotProtected > names the alternative in the message so the reader knows what to do instead 1ms
+ ✓ __tests__/protectedGrids.test.js > assertNotProtected > is a no-op for an unprotected grid 0ms
+ ✓ __tests__/protectedGrids.test.js > partitionProtected > splits a grid list into safe and protected 1ms
+ ✓ __tests__/protectedGrids.test.js > withProtectedExcluded > passes the filter straight through when nothing is protected 0ms
+ ✓ __tests__/protectedGrids.test.js > withProtectedExcluded > ANDs a gridId exclusion onto the base filter 1ms
+ ✓ __tests__/protectedGrids.test.js > withProtectedExcluded > preserves a compound base filter instead of overwriting its keys 0ms
+ ✓ __tests__/templatesFolder.test.js > findTemplatesFolder > finds the protected Templates folder 3ms
+ ✓ __tests__/templatesFolder.test.js > findTemplatesFolder > does NOT match a user folder that merely shares the name 0ms
+ ✓ __tests__/templatesFolder.test.js > findTemplatesFolder > is scoped to the grid AND the user 0ms
+ ✓ __tests__/templatesFolder.test.js > findTemplatesFolder > returns null on an empty cache instead of throwing 0ms
+ ✓ __tests__/templatesFolder.test.js > resolveTemplatesFolderId > defaults to the Templates folder when no parent is supplied 0ms
+ ✓ __tests__/templatesFolder.test.js > resolveTemplatesFolderId > accepts a SUBFOLDER inside the Templates folder 0ms
+ ✓ __tests__/templatesFolder.test.js > resolveTemplatesFolderId > REFUSES a folder outside the Templates folder 0ms
+ ✓ __tests__/templatesFolder.test.js > resolveTemplatesFolderId > refuses a folder belonging to another user even if it chains upward 0ms
+ ✓ __tests__/templatesFolder.test.js > resolveTemplatesFolderId > returns null when the Templates folder does not exist yet 0ms
+ ✓ __tests__/templatesFolder.test.js > resolveTemplatesFolderId > does not hang on a folder cycle 0ms
+ ✓ __tests__/dailyQuestionAutofill.test.js > 0040 — Daily Question fill insertion > inserts the fill immediately after the template-route stamp, inside the day loop 4ms
+ ✓ __tests__/dailyQuestionAutofill.test.js > 0040 — Daily Question fill insertion > only writes when the question is EMPTY 1ms
+ ✓ __tests__/dailyQuestionAutofill.test.js > 0040 — Daily Question fill insertion > is idempotent — a pipeline that already fills is left alone 1ms
+ ✓ __tests__/dailyQuestionAutofill.test.js > 0040 — Daily Question fill insertion > no-ops on a pipeline with no template-route stamp rather than guessing 1ms
+ ✓ __tests__/dailyQuestionAutofill.test.js > 0040 — Daily Question fill insertion > the migration and the BUILDER produce the same pass — a reseed cannot drift from a migrated grid 3ms
+ ✓ __tests__/relinkDayColumn.test.js > slotMinutes > parses 12-hour slot labels 4ms
+ ✓ __tests__/relinkDayColumn.test.js > slotMinutes > returns null for anything that is not a slot label 1ms
+ ✓ __tests__/relinkDayColumn.test.js > orderDayColumnChildren > puts the heads first, then slots in CLOCK order 1ms
+ ✓ __tests__/relinkDayColumn.test.js > orderDayColumnChildren > sorts 12am/12pm correctly rather than lexically 0ms
+ ✓ __tests__/relinkDayColumn.test.js > orderDayColumnChildren > keeps unknown children (user content) rather than dropping them 1ms
+ ✓ __tests__/relinkDayColumn.test.js > patchRelinkIntoPipeline > adds ADD_CHILD to the slot-exists branch 2ms
+ ✓ __tests__/relinkDayColumn.test.js > patchRelinkIntoPipeline > is idempotent — a second run patches nothing 1ms
+ ✓ __tests__/relinkDayColumn.test.js > patchRelinkIntoPipeline > leaves unrelated IF branches alone 0ms
+ ✓ __tests__/relinkDayColumn.test.js > patchRelinkIntoPipeline > preserves an existing else branch instead of replacing it 1ms
+ ✓ __tests__/relinkDayColumn.test.js > patchRelinkIntoPipeline > no-ops on an empty pipeline 0ms
+ ✓ __tests__/importRelink.test.js > importRelink — wikiTitleFromHref > extracts the article title from a wiki href, ignoring anchors/queries 4ms
+ ✓ __tests__/importRelink.test.js > importRelink — relinkTextmap > converts an imported article's link mark into a docLink node 2ms
+ ✓ __tests__/importRelink.test.js > importRelink — relinkTextmap > leaves links to NON-imported articles as external link marks 1ms
+ ✓ __tests__/importRelink.test.js > importRelink — relinkTextmap > matches case-insensitively and recurses into bulletList items 1ms
+ ✓ __tests__/importRelink.test.js > importRelink — relinkTextmap > no-ops with an empty map or non-object textmap 1ms
+ ✓ __tests__/importRelink.test.js > importRelink — relinkOccurrences > returns only the occurrences whose textmap changed 1ms
+ ✓ __tests__/createPageApplyTemplateRace.test.js > create_page -> apply_template ordering (Task 5 review Finding 1) > apply_template applies onto the just-created page instead of racing its Mongo writes 39ms
+ ✓ __tests__/gridHelpers.test.js > selectGrid > no gridId + existing grids → use first existing 3ms
+ ✓ __tests__/gridHelpers.test.js > selectGrid > no gridId + no grids → create 0ms
+ ✓ __tests__/gridHelpers.test.js > selectGrid > no gridId + undefined → use first existing 0ms
+ ✓ __tests__/gridHelpers.test.js > selectGrid > valid gridId + exists → use it 1ms
+ ✓ __tests__/gridHelpers.test.js > selectGrid > stale gridId + existing grids → fallback to first 1ms
+ ✓ __tests__/gridHelpers.test.js > selectGrid > stale gridId + no grids → create 0ms
+ ✓ __tests__/gridHelpers.test.js > selectGrid > single grid + exact match → use it 0ms
+ ✓ __tests__/gridHelpers.test.js > selectGrid > empty string requestedId treated as falsy → use first 0ms
+ ✓ __tests__/periodAllPolicy.test.js > periodAllPolicy — period-all transform on a date-gated tracker > the untransformed tracker HAS the $trigger.date/$today fallbacks and a bare DATE_IN_PERIOD gate 9ms
+ ✓ __tests__/periodAllPolicy.test.js > periodAllPolicy — period-all transform on a date-gated tracker > drops the $goalPeriod fallbacks so an empty page filter stays EMPTY 1ms
+ ✓ __tests__/periodAllPolicy.test.js > periodAllPolicy — period-all transform on a date-gated tracker > wraps every DATE_IN_PERIOD $goalPeriod rule in an OR with $goalPeriod IS_EMPTY 2ms
+ ✓ __tests__/periodAllPolicy.test.js > periodAllPolicy — period-all transform on a date-gated tracker > is idempotent — a second pass changes nothing 1ms
+ ✓ __tests__/periodAllPolicy.test.js > periodAllPolicy — period-all transform on a date-gated tracker > leaves a lifetime tracker (timeFilter:'all', no $goalPeriod) untouched 1ms
+ ✓ __tests__/dayColumnLookup.test.js > 0039 — day column lookup drops the role filter > rewrites the existence check and the post-mint re-bind 2ms
+ ✓ __tests__/dayColumnLookup.test.js > 0039 — day column lookup drops the role filter > leaves every OTHER container FIND alone 0ms
+ ✓ __tests__/dayColumnLookup.test.js > 0039 — day column lookup drops the role filter > is idempotent — a second run changes nothing 0ms
+ ✓ __tests__/dayColumnLookup.test.js > 0039 — day column lookup drops the role filter > is a no-op against the CURRENT builder output (the builder already ships the fix) 1ms
+ ✓ __tests__/protectedFolders.test.js > protected folders > recognises the Templates folder by its protected flag 2ms
+ ✓ __tests__/protectedFolders.test.js > protected folders > does NOT protect a user folder that merely shares the name 0ms
+ ✓ __tests__/protectedFolders.test.js > protected folders > THROWS rather than returning false — a boolean someone forgets to check is not a guard 1ms
+ ✓ __tests__/protectedFolders.test.js > protected folders > lets an ordinary folder through 1ms
+ ✓ __tests__/cloneSubtree.test.js > cloneSubtree > clones a 2-level tree from the real `moduleId` shape 4ms
+ ✓ __tests__/cloneSubtree.test.js > cloneSubtree > persists every cloned node 1ms
+ ✓ __tests__/cloneSubtree.test.js > cloneSubtree > applies rootLabel to the root clone's module only 0ms
+ ✓ __tests__/cloneSubtree.test.js > cloneSubtree > applies occMetaPatch to the root occurrence only 0ms
+ ✓ __tests__/cloneSubtree.test.js > cloneSubtree > returns a null root when the source occurrence is missing 0ms
+ ✓ __tests__/cloneSubtree.test.js > cloneSubtree > returns a null root when the source module is missing (dangling occurrence) 0ms
+ ✓ __tests__/cloneSubtree.test.js > signatureOf > prefers an explicit identitySignature 0ms
+ ✓ __tests__/cloneSubtree.test.js > signatureOf > falls back to auto:<id> so an unsigned node still matches itself later 0ms
+ ✓ __tests__/cloneSubtree.test.js > mergeSubtreeInto > clones only the sections the target does not already have 1ms
+ ✓ __tests__/cloneSubtree.test.js > mergeSubtreeInto > leaves the user's own content untouched 1ms
+ ✓ __tests__/cloneSubtree.test.js > mergeSubtreeInto > applies CONTENTS, not the template's wrapper 1ms
+ ✓ __tests__/cloneSubtree.test.js > mergeSubtreeInto > is idempotent — a second merge adds nothing 1ms
+ ✓ __tests__/cloneSubtree.test.js > mergeSubtreeInto > merges UNSIGNED template nodes without duplicating them on re-apply 1ms
+ ✓ __tests__/cloneSubtree.test.js > mergeSubtreeInto > recurses so a section the template GAINED arrives inside a matched section 1ms
+ ✓ __tests__/cloneSubtree.test.js > mergeSubtreeInto > no-ops when the template or target is missing 1ms
+ ✓ __tests__/templatesManifest.test.js > ensureTemplatesManifest > creates manifest + root folder when missing 1ms
+ ✓ __tests__/templatesManifest.test.js > ensureTemplatesManifest > is idempotent 0ms
+ ✓ __tests__/transactionSchema.test.js > Transaction schema — undo/redo invariants > declares the snapshot fields undo restores from 2ms
+ ✓ __tests__/transactionSchema.test.js > Transaction schema — undo/redo invariants > keeps EMPTY OBJECTS in snapshots (minimize:false on the docs subdocument) 0ms
+ ✓ __tests__/transactionSchema.test.js > Transaction schema — undo/redo invariants > stores before/after as Mixed so any entity shape round-trips 0ms
+ ✓ __tests__/transactionSchema.test.js > Transaction schema — undo/redo invariants > indexes the stack query by sequence, not timestamp 1ms
+ ✓ __tests__/wikipediaLinks.test.js > wikipediaTools.links — outbound article titles > extracts real article titles; filters namespaces, self-links, dups; caps at max 4ms
+ ✓ __tests__/wikipediaLinks.test.js > wikipediaTools.links — outbound article titles > caps the result at `max` 0ms
+ ✓ __tests__/wikipediaLinks.test.js > wikipediaTools.links — outbound article titles > returns null for a 404 article 0ms
+stdout | __tests__/protectedGridsIntegration.test.js
+[dotenv@17.3.1] injecting env (9) from .env -- tip: ⚡️ secrets for agents: https://dotenvx.com/as2
+
+ ✓ __tests__/protectedGridsIntegration.test.js > dropExistingLiveGrid refuses protected grids > refuses "poms grid" before it even queries 5ms
+ ✓ __tests__/protectedGridsIntegration.test.js > dropExistingLiveGrid refuses protected grids > refuses "test grid 1" before it even queries 0ms
+ ✓ __tests__/protectedGridsIntegration.test.js > dropExistingLiveGrid refuses protected grids > refuses "POMS GRID" before it even queries 0ms
+ ✓ __tests__/protectedGridsIntegration.test.js > dropExistingLiveGrid refuses protected grids > refuses "  poms grid  " before it even queries 0ms
+ ✓ __tests__/protectedGridsIntegration.test.js > dropExistingLiveGrid refuses protected grids > refuses a RENAMED grid that still carries the meta.protected stamp 1ms
+ ✓ __tests__/protectedGridsIntegration.test.js > dropExistingLiveGrid refuses protected grids > still drops an ordinary grid — the guard must not break the seed 2ms
+ ✓ __tests__/protectedGridsIntegration.test.js > dropExistingLiveGrid refuses protected grids > is a no-op when the grid does not exist 0ms
+stderr | __tests__/createLiveData.test.js
+MongoDB not reachable — createLiveData tests skipped
+
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > skips gracefully if DB not available 2ms
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > grid.name === 'Poms' 0ms
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > no operation has a step with config.type === 'AGGREGATE' (deep walk) 0ms
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > no operation pipeline JSON contains the string 'AGGREGATE' 0ms
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > Canvas: Build uses the inclusive scope guard ($isSourceChange + ancestor scope) 0ms
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > People Table: Build uses the inclusive scope guard ($isSourceChange + ancestor scope) 0ms
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > Table: Build is period-aware (DATE_IN_PERIOD $schedPeriod, no SAME_DAY $schedDate) 0ms
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > Canvas: Build is period-aware (DATE_IN_PERIOD $schedPeriod, no SAME_DAY $schedDate) 0ms
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > Canvas: Build stamps preview nodes + builds the mindmap edge chain 0ms
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > Schedule: Mark Passed Slots is time-based and writes ownStyle via TIME_BEFORE/DATE_BEFORE 0ms
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > no container module at grid scope has meta.scheduleSlot === true 0ms
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > any scheduleSlot module that exists carries meta.templateModule === true 0ms
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > notebook hub View.activeOccurrenceId points to the Schedule page occurrence 0ms
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > exactly one 'Schedule Template' page exists with a Day container as its child 0ms
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > exactly one occurrence with meta.templateName === 'Day Page' exists 0ms
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > at least 19 tracker operations exist in the Trackers folder 0ms
+ ✓ __tests__/createLiveData.test.js > createLiveData — structural assertions > the 4 named shared schedule/day-page ops exist 0ms
+stderr | __tests__/createDefaultUserData.test.js
+MongoDB not reachable — createDefaultUserData tests skipped
+
+ ✓ __tests__/createDefaultUserData.test.js > createDefaultUserData — panel shape > skips if DB not available 1ms
+ ✓ __tests__/createDefaultUserData.test.js > createDefaultUserData — panel shape > creates exactly 5 panel modules 0ms
+ ✓ __tests__/createDefaultUserData.test.js > createDefaultUserData — panel shape > grid occurrences has exactly 5 panel occurrences 0ms
+ ✓ __tests__/createDefaultUserData.test.js > createDefaultUserData — panel shape > centerHub panel occurrence is at col:1 spanning 2 rows 0ms
+ ✓ __tests__/createDefaultUserData.test.js > createDefaultUserData — panel shape > centerHub panel occurrence has exactly 3 child page occurrences 0ms
+ ✓ __tests__/createDefaultUserData.test.js > createDefaultUserData — panel shape > the 3 centerHub page modules have correct labels 0ms
+ ✓ __tests__/createDefaultUserData.test.js > createDefaultUserData — panel shape > the 3 centerHub page modules have correct kinds 0ms
+ ✓ __tests__/createDefaultUserData.test.js > createDefaultUserData — panel shape > the 3 page modules have role: page 0ms
+ ✓ __tests__/createDefaultUserData.test.js > createDefaultUserData — panel shape > centerHub has a viewId pointing to a View 0ms
+ ✓ __tests__/createDefaultUserData.test.js > createDefaultUserData — panel shape > centerHub view activeOccurrenceId points to the Schedule page occurrence 0ms
+ ✓ __tests__/createDefaultUserData.test.js > createDefaultUserData — panel shape > centerHub has filterOverride set for date 0ms
+ ✓ __tests__/createDefaultUserData.test.js > createDefaultUserData — manifest / folder shape > no folder with folderType 'global' exists 0ms
+ ✓ __tests__/createDefaultUserData.test.js > createDefaultUserData — manifest / folder shape > user manifest root folder exists and is type 'normal' 0ms
+ ✓ __tests__/createDefaultUserData.test.js > createDefaultUserData — manifest / folder shape > page occurrences use the manifest root folder as parentId 0ms
+
+ Test Files  34 passed (34)
+      Tests  436 passed (436)
+   Start at  07:09:57
+   Duration  2.76s (transform 4.34s, setup 0ms, import 11.09s, tests 8.37s, environment 5ms)
 

@@ -1,6 +1,29 @@
 # server — Server CLAUDE.md
 
 _Updated: 2026-07-25. Check this file before re-reading source._
+## Recent Changes (2026-08-06 — the infobox "empty spot": a comma from an EMPTY <li>)
+- **User, on the imported Eminem page:** *"can you see why eminem's spouses section in the infoblock
+  for that page created an empty spot before kimberly. its just a comma"*. It read
+  `, Kimberly Anne Scott ​ ​(m. 1999; div. 2001)​ , ​ ​(m. 2006; div. 2006)​`.
+- **ROOT CAUSE, from the real markup rather than a guess.** Wikipedia's `{{marriage}}` template puts
+  the names and dates in sibling `<div>`s and emits **EMPTY `<li>` elements purely as anchors for
+  TemplateStyles** (`<ul><li><link rel="mw-deduplicated-inline-style"></li></ul>`).
+  `extractInfobox` appended `", "` to EVERY `<li>` to separate list items — so each empty one landed
+  a bare comma where a name should be: one before "Kimberly", one between the two marriages.
+- **A second artifact in the same cell:** the template's zero-width characters (U+200B…U+FEFF). They
+  are invisible but are NOT whitespace, so they survived every `\s+` collapse and rendered as
+  unexplained gaps inside the value.
+- **`services/wikipediaTools.js extractInfobox`** now appends the separator only to an `<li>` that
+  actually has text, strips zero-width characters, and drops a LEADING `,`/`·` as well as a trailing
+  one. Verified against the LIVE article through the real function: Spouses reads
+  `Kimberly Anne Scott (m. 1999; div. 2001) (m. 2006; div. 2006)`, every other row keeps its real
+  commas (`Slim Shady, Evil, M&M, MC Double M`), and 0 of 13 rows carry a zero-width char or a
+  stray comma. 5 tests in `__tests__/extractInfobox.test.js` drive the captured markup;
+  A/B-verified (restoring the unguarded append fails the first one).
+- **`migrations/0041-clean-imported-infobox-cells.mjs` (NEW)** — the importer fix only helps FUTURE
+  imports, so this repairs what is already on the page: it re-cleans any table cell carrying those
+  artifacts. Scope measured before writing — **exactly ONE cell across all three grids**. Applied to
+  poms grid; integrity unchanged (the one pre-existing 08-04 duplicate-Journal error).
 
 ## Recent Changes (2026-08-05 (4) — a day's Daily Question fills itself; and the template never carried it)
 - **The ask** (task list): a day should arrive with a question, not a blank picker. Measured on

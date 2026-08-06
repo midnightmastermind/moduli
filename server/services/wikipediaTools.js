@@ -150,6 +150,11 @@ export function wikiHtmlToMarkdown(html, title = "") {
 // + a value cell becomes one { label, value } row; `<br>` and list items are turned
 // into readable separators (cheerio's .text() otherwise concatenates them). The
 // importer renders these as a kind:"table" container (see markdownImporter).
+// Zero-width space / non-joiner / joiner / BOM. Wikipedia's infobox templates use
+// them for line-break control; they are invisible but NOT whitespace, so they
+// survive every `\s+` normalisation and end up as odd gaps in the imported text.
+const ZERO_WIDTH = /[\u200B-\u200D\uFEFF]/g;
+
 export function extractInfobox(html) {
   if (!html) return null;
   const $ = cheerioLoad(html);
@@ -167,12 +172,26 @@ export function extractInfobox(html) {
     const td = $tr.children("td").first();
     if (!th.length || !td.length) return;
     $(td).find("br").replaceWith(" · ");
-    $(td).find("li").each((_, li) => $(li).append(", "));
+    // Separate list ITEMS with commas — but only items that actually say
+    // something. Wikipedia's {{marriage}} template emits EMPTY <li>s purely as
+    // anchors for TemplateStyles (`<ul><li><link rel="mw-deduplicated-inline-
+    // style"></li></ul>`), so appending to every <li> put a bare comma where a
+    // name should be: Eminem's Spouses read ", Kimberly Anne Scott (m. 1999…)"
+    // with an empty slot in front, and another comma between the two marriages.
+    $(td).find("li").each((_, li) => {
+      if ($(li).text().replace(ZERO_WIDTH, "").trim()) $(li).append(", ");
+    });
     const label = ($(th).text() || "").replace(/\s+/g, " ").trim();
     const value = ($(td).text() || "")
+      // Zero-width characters are load-bearing for the template's spacing and
+      // pure noise in plain text — they survive `\s+` collapsing (they are not
+      // whitespace) and render as unexplained gaps inside the value.
+      .replace(ZERO_WIDTH, "")
       .replace(/\s+/g, " ")
       .replace(/\s*·\s*/g, " · ")
       .replace(/,\s*,/g, ", ")
+      .replace(/\(\s+/g, "(")
+      .replace(/^[,·]\s*/, "")
       .replace(/[,·]\s*$/g, "")
       .trim();
     if (label && value && label.length <= 40) rows.push({ label, value });
