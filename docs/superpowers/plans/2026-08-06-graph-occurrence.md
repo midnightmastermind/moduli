@@ -412,10 +412,29 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
       full ancestor path (`Anticipation > Stressed`) and the occurrence id. **A 390px phone needs
       2.8× zoom to make a tertiary a 40px thumb target — well inside MAX_ZOOM 12**, which is what
       makes (c) sufficient on its own. 0 page errors at every width.
-- [ ] **Step 6: STILL OPEN — the feed-vs-drag collision.** A feed sweeps children it did not mint,
-      so hand-dragging into a FED graph may be undone on the next sync. Decide it: either the
-      source board refuses hand-drops on a fed graph, or the feed leaves non-copies alone. Left
-      unspecified it becomes "my drag disappeared".
+- [x] **Step 6: THE FEED-VS-DRAG COLLISION DOES NOT EXIST. Retracted — it was never measured.**
+
+      The user said it directly: *"i thought you could have feed items and other occurances."* They
+      are right, and the risk this plan carried in two places was fiction written from a suspicion
+      about `feedSync` rather than a reading of it.
+
+      `feedSync.js:69` only ever COLLECTS children that carry `meta.feedSourceId`
+      (`if (!o?.meta?.feedSourceId || o.parentId !== feedOcc.id) continue;`), so a hand-placed
+      child never enters the candidate set the sweep works from — it cannot be swept. The file's
+      own header has said so since it was written (*"the ONLY marker the sweep trusts (hand-placed
+      children are never touched)"*), and `feedSync.test.js` has pinned it since 2026-07-07:
+      *"sweeps copies whose source stopped matching — but never hand-placed children"*, asserting
+      `deletes === ["copyGone"]` with the hand-placed sibling left alone. Re-run to confirm rather
+      than trusting the comment: **16/16 green.**
+
+      So feed and drag COMPOSE, which is what the architecture claimed all along — a graph's rows
+      are its children, and it does not care where a child came from. No decision was needed and no
+      code changes.
+
+      **The lesson is one this repo keeps paying for: a risk written from reading a design is a
+      HYPOTHESIS, and carrying it as an open question costs real time.** It sat in this plan through
+      two sessions and was raised to the user twice as a decision they had to make. One grep and
+      one test run ended it.
 
 ---
 
@@ -554,9 +573,10 @@ where each node is `{ id, occurrenceId | null, name, value, children[], depth }`
   Task 5 before promising the day-page use case on mobile; the fallback is a drill-down (tap a
   primary → its secondaries fill the wheel), which ECharts supports natively but which changes what
   a click MEANS — decide it there, not in passing.
-- **Feed + graph both maintain children.** A feed sweeps children it did not mint. Hand-dragging an
-  occurrence into a fed graph may therefore be undone on the next sync. **Decide in Task 5:** either
-  the source board refuses hand-drops on a fed graph, or the feed learns to leave non-copies alone.
-  Do not leave it unspecified — it is the kind of gap that turns into "my drag disappeared".
+- ~~**Feed + graph both maintain children.**~~ **RETRACTED 2026-08-06 — this risk was never real.**
+  `feedSync` only sweeps children carrying `meta.feedSourceId`, so a hand-dragged row cannot be
+  touched; feed and drag compose. Measured (grep + the existing `feedSync` test, 16/16), see Task 5
+  Step 6. It was written from a suspicion about the engine rather than a reading of it, and cost two
+  sessions and two questions put to the user.
 - **`echarts` is a new runtime dependency**, the first charting library in the app. Keep it behind
   `EChart.jsx` so swapping it later touches one file.
