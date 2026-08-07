@@ -20,15 +20,33 @@ _Updated: 2026-08-07. Check this file before re-reading source._
 - **Verified after applying to test grid 2:** 188 in Images, the 5 Examples untouched, and a scan of
   EVERY textmap shows **every artifact embed still resolves** (embeds resolve by occurrence id, so a
   re-home cannot break them). 571 server tests; integrity unchanged on all three grids.
-- **NOT APPLIED TO poms grid, and the reason is the finding.** Splitting its 223 movable files by
-  whether anything can reach them: **16 embedded in a doc textmap · 0 listed by a parent · 213
-  unreachable.** Only 16 are files the user can see; the rest render nowhere — the documented
-  import/probe orphan class (2026-07-15 swept 1,769 once already). **Filing those 213 would not give
-  files a home, it would publish dead rows into the user's file library and make the Files folder
-  useless on the day it opens.** That is a product call — file them, sweep them (`sweepOrphans.js`
-  dumps to `backups/orphans/` first), or leave them — so it is the user's, not this migration's.
-  test grid 2's 188 are the same class, which is why its Files/Images now reads as a junk drawer:
-  it is the preview of what poms grid would look like.
+- **A CLAIM I MADE HERE WAS WRONG, and the user caught it — recorded because the mistake is
+  reusable.** I first reported poms grid's split as "16 embedded · 213 UNREACHABLE dead rows" and
+  held the migration back on that basis. User: *"theres way more than 16. we have the instance
+  pictures too dont we and also wtf are those 213, those are probably ones to be connected back
+  in."* Correct on every count. The defect was in my REACHABILITY DEFINITION: the scan looked for
+  textmap embeds and `occurrences[]` membership and called everything else unreachable — **it never
+  looked at FIELD VALUES, which is exactly where an instance picture lives.** Re-measured:
+  ```
+  embedded in a doc textmap     10
+  referenced by a FIELD value  213   ← Poster + Files fields on the library items
+  unreachable                    0
+  ```
+  They are movie posters and book covers (Inception → its poster, The Matrix → its poster, …):
+  live, visible, in-use files whose occurrences simply never had a folder — the exact condition
+  this migration exists to fix. **All 223 filed on poms grid.**
+- **THE REUSABLE LESSON:** an occurrence can be reached by a textmap embed, a parent's
+  `occurrences[]`, **or a field value** — and a scan that knows about two of the three will
+  confidently mislabel the third as dead. *"Nothing references these" is a claim about the PROBE
+  until every way a reference can be expressed has been checked.* Same family as the 2026-08-04
+  absent-signal trap, one level up.
+- **Verified after applying to poms grid**, because the previous claim had been wrong: **all 426
+  `Poster`/`Files` references still resolve** to a real module, every target still carries a
+  `fileRef`, and all 426 are now homed in a folder. Artifacts now sit 223 in Images · 5 in Examples
+  · 6 nowhere (the quotes, correctly skipped). 0 integrity errors.
+- **Bears on Task 4b:** a shared **`Files` field already exists on poms grid** and already holds 213
+  artifact references. Step 1 of 4b ("seed the shared Files field") may be largely done — measure
+  before building it.
 
 ## Recent Changes (2026-08-07 (7) — uploads HOME in Files; and 7 cache mirrors were silently dead)
 - **`server.js homeFolderForUpload` (NEW)** — Task 4 Step 3. `/api/artifacts/upload` and

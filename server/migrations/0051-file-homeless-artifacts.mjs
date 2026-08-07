@@ -41,29 +41,35 @@
 // a textmap `moduleEmbed` resolves its occurrence by id, so every embed keeps
 // rendering exactly as before.
 //
-// ── APPLIED TO test grid 2 ONLY, AND THE REASON IS A MEASUREMENT ───────────
+// ── EVERY ONE OF THESE IS A REAL FILE. A RETRACTED CLAIM, RECORDED. ────────
 //
-// Splitting poms grid's 223 movable files by whether anything can REACH them:
+// The first version of this header said 213 of poms grid's 223 were
+// "unreachable dead rows" and held the migration back on that basis. **That was
+// WRONG**, and the user caught it: *"theres way more than 16. we have the
+// instance pictures too dont we and also wtf are those 213, those are probably
+// ones to be connected back in."*
 //
-//     embedded in a doc textmap   16
-//     listed by a parent           0
-//     unreachable                213
+// The error was in the REACHABILITY DEFINITION, not the data. The scan looked
+// for textmap embeds and `occurrences[]` membership and called everything else
+// unreachable — **it never looked at FIELD VALUES, which is exactly where an
+// instance picture lives.** Re-measured properly:
 //
-// Only 16 are files the user can actually see. The other 213 render nowhere —
-// no parentId, no embed, listed by nobody. They are the documented import/probe
-// orphan class (server/CLAUDE.md 2026-07-15 swept 1,769 of them once already).
+//     embedded in a doc textmap        10
+//     referenced by a FIELD value     213
+//     unreachable                       0
 //
-// **Filing those 213 would not give files a home; it would publish dead rows
-// into the user's file library and make the Files folder useless on the day it
-// opens.** That is a product decision, not a data-integrity one, so this
-// migration is deliberately NOT applied to poms grid: the choice between
-// filing them, sweeping them (`sweepOrphans.js`, which dumps to
-// `backups/orphans/` first), or leaving them is the user's.
+// The 213 are movie posters and book covers, held by the `Poster` and `Files`
+// fields on the library items themselves (Inception → Inception poster, The
+// Matrix → The Matrix poster, …). They are live, visible, in-use files whose
+// occurrences simply never had a folder — which is the precise condition this
+// migration exists to fix. So all 223 are filed, and Files opens as a real
+// library of every file on the grid.
 //
-// test grid 2 is the seed's own target and disposable, so it took the migration
-// as-is — and note its 188 are almost entirely the same unreachable class, which
-// is exactly why its Files/Images now reads as a junk drawer. That is the
-// preview of what poms grid would look like.
+// **The lesson is the one this repo keeps paying for: a probe that reports
+// "nothing references these" is a claim about the PROBE until you have checked
+// every way a reference can be expressed.** An occurrence here can be reached by
+// a textmap embed, a parent's `occurrences[]`, OR a field value — and a scan
+// that knows about two of the three will confidently mislabel the third.
 //
 // IDEMPOTENT: a moved file now HAS a parentId, so a re-run matches nothing.
 // Reversible: every moved row's prior parentId was null.
