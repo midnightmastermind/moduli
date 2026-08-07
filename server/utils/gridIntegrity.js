@@ -29,10 +29,41 @@ export function checkGridIntegrity({ occurrences = [], modules = [], fields = []
   if (dangling.length) add("error", "dangling-child-ref",
     `${dangling.length} child id(s) in occurrences[] point at documents that do not exist`, dangling);
 
-  // 2. Occurrences whose module is missing — renders as nothing, forever.
-  const noModule = occurrences.filter(o => !modById.has(o.moduleId)).map(o => o.id);
-  if (noModule.length) add("error", "missing-module",
-    `${noModule.length} occurrence(s) reference a module that does not exist`, noModule);
+  // 2. Occurrences that cannot render because their template is unreachable.
+  //
+  //    SPLIT INTO TWO CODES 2026-08-07, because they were being reported as one
+  //    and the single message was wrong for most of what it matched. Measured on
+  //    test grid 2: 22 flagged, and **21 of them carried no `moduleId` at all** —
+  //    "references a module that does not exist" describes a pointer, and there
+  //    was no pointer. The two have different causes and different remedies:
+  //
+  //      module-less-occurrence — no moduleId. The occurrence's own create
+  //        landed while its MODULE's did not (the documented create/disconnect
+  //        asymmetry, one level up). Nothing to repair TO; the row is garbage.
+  //
+  //      missing-module — moduleId names a module absent from THIS GRID. The
+  //        module document may still exist globally (measured: one, carrying
+  //        `gridId: undefined`). Grid-scoped is deliberate and matches what the
+  //        client is sent: a module outside this grid is not in `full_state`, so
+  //        the occurrence renders as nothing either way.
+  //
+  //    WHY THIS DISAGREES WITH `sweepOrphans`, and why neither is broken (the
+  //    2026-08-04 "one predicate is wrong" note, settled): the two answer
+  //    DIFFERENT questions. This asks "would it render?" — no, so it is an
+  //    error. The sweep asks "is it safe to delete?" and refuses anything
+  //    holding content, which those 21 do (children + textmaps). A reported row
+  //    the sweep declines is the system working, not a contradiction — the sweep
+  //    is a safety predicate, not a completeness one.
+  const moduleLess = [];
+  const missingModule = [];
+  for (const o of occurrences) {
+    if (!o.moduleId) moduleLess.push(o.id);
+    else if (!modById.has(o.moduleId)) missingModule.push(o.id);
+  }
+  if (moduleLess.length) add("error", "module-less-occurrence",
+    `${moduleLess.length} occurrence(s) carry no moduleId at all — nothing to render, and nothing to repair to`, moduleLess);
+  if (missingModule.length) add("error", "missing-module",
+    `${missingModule.length} occurrence(s) reference a module that does not exist on this grid`, missingModule);
 
   // 3. Two ENABLED operations writing the same PRESENTATION target
   //    (`ownStyle.*` or `label`). Scoped deliberately: several ops writing the

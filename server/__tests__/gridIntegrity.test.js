@@ -38,6 +38,35 @@ describe("missing module", () => {
     const f = checkGridIntegrity({ modules: [], occurrences: [occ("o1", "nope")] });
     expect(f.find(x => x.code === "missing-module").level).toBe("error");
   });
+
+  // The split, added 2026-08-07. These were reported as ONE code, and on test
+  // grid 2 twenty-one of the twenty-two matches carried no moduleId at all —
+  // so the message ("references a module that does not exist") described a
+  // pointer that was not there. Different cause, different remedy, so the two
+  // must not share a code.
+  it("reports a moduleId-less occurrence under its OWN code, not missing-module", () => {
+    const f = checkGridIntegrity({ modules: [], occurrences: [occ("o1", null)] });
+    expect(codes(f)).toContain("module-less-occurrence");
+    expect(codes(f)).not.toContain("missing-module");
+    expect(f.find(x => x.code === "module-less-occurrence").level).toBe("error");
+  });
+
+  it("keeps the two codes separate when BOTH shapes are present", () => {
+    const f = checkGridIntegrity({
+      modules: [mod("m1")],
+      occurrences: [occ("ok", "m1"), occ("bad", "gone"), occ("none", null), occ("none2", undefined)],
+    });
+    const ml = f.find(x => x.code === "module-less-occurrence");
+    const mm = f.find(x => x.code === "missing-module");
+    expect(ml.ids).toEqual(["none", "none2"]);
+    expect(mm.ids).toEqual(["bad"]);
+  });
+
+  it("a healthy grid reports neither", () => {
+    const f = checkGridIntegrity({ modules: [mod("m1")], occurrences: [occ("o1", "m1")] });
+    expect(codes(f)).not.toContain("missing-module");
+    expect(codes(f)).not.toContain("module-less-occurrence");
+  });
 });
 
 describe("contended presentation targets", () => {

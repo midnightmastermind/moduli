@@ -32,6 +32,22 @@
 // reads store textmap COMPRESSED, so scanning the raw value reports "no text"
 // for everything and would happily delete a journal entry.
 //
+// ── THIS SWEEP LEGITIMATELY REPORTS FEWER ROWS THAN `checkGrid`. DO NOT
+//    "FIX" THAT BY LOOSENING THE PREDICATE. ──────────────────────────────────
+// Settled 2026-08-07, after the 2026-08-04 note filed it as "one predicate is
+// wrong". Neither is wrong — they answer different questions. `gridIntegrity`
+// asks "would this render?"; this asks "is this safe to delete?". A row that
+// cannot render but holds content is correctly an ERROR there and correctly
+// DECLINED here.
+//
+// Measured on test grid 2: 22 flagged, 21 of them carrying children AND a
+// textmap, all unreachable, all created by that day's probe runs. The sweep
+// removed 1 and declined 21 — working as designed. Deleting a subtree because
+// its root lost a pointer is precisely the trade that damaged real data in
+// `0035` and was nearly repeated in `0038`; the guard is the point.
+// test grid 2 is the seed's own target, so a RESEED is the clean way to clear
+// that class. On a protected grid it is a human call.
+//
 // Usage:
 //   node --env-file=server/.env server/scripts/sweepOrphans.js            # dry run
 //   node --env-file=server/.env server/scripts/sweepOrphans.js --apply
