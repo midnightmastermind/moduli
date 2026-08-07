@@ -19,7 +19,7 @@
 //   - buildLayoutCascadeContext       parent-chain bucketer
 //   - resolveEffectiveLayout          one-call convenience: built default + cascade
 
-import { buildParentMap } from "./dragHitTesting";
+import { buildParentMap, cachedParentMap } from "./dragHitTesting";
 
 // ── Per-kind defaults ─────────────────────────────────────────────────────
 // Special hardcoded rules (page-in-container forced representation,
@@ -312,7 +312,12 @@ export function buildLayoutCascadeContext({ leafOccurrence, occurrencesById, mod
   // Back-compat alias for the Slice 5 wiring that reads ctx.instanceOcc:
   ctx.instanceOcc = leafOccurrence;
 
-  const parentByChildId = buildParentMap(occurrencesById);
+  // Memoised per occurrence-map identity — ModuleContainer builds this ctx in
+  // its own useMemo, so an unmemoised build is one full-grid scan per
+  // container (62ms of the 2026-08-07 date-navigation profile). Callers here
+  // are all render-path and are handed the immutable store map; the operation
+  // executor mutates its overlay in place and does NOT use this function.
+  const parentByChildId = cachedParentMap(occurrencesById);
   let cur = leafOccurrence;
   let safety = 32;
   const seen = new Set();

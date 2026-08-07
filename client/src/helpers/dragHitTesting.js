@@ -69,6 +69,39 @@ export function buildParentMap(occurrencesById) {
 }
 
 // ------------------------------------------------------------
+// cachedParentMap
+// ------------------------------------------------------------
+// buildParentMap is O(all occurrences) and was measured at 618ms of SELF
+// time — 12% of active CPU — during ONE date navigation (2026-08-07 profile),
+// spread across four callers that each rebuilt the same index inside their own
+// useMemo. This memoises it per occurrence-map OBJECT IDENTITY.
+//
+// A WeakMap is the shape on purpose: the store swaps `occurrencesById` on
+// every write (App.jsx memoises it on `state.occurrences`, and the reducer
+// returns a new array per write), so a new map object IS the invalidation
+// signal and a stale entry cannot be produced. Nothing here keys on a count,
+// a length, or any other derived scalar — a stale parent map makes
+// `_ancestors` wrong, and a wrong `_ancestors` silently resolves every
+// ancestor-scoped dropdown to ZERO options (the 2026-07-07 bug).
+//
+// DELIBERATELY NOT applied inside buildParentMap itself. The operation
+// executor MUTATES its overlay map in place — CREATE appends the new child to
+// the parent's `occurrences[]` so a RUN_OPERATION-recursed pipeline can see
+// the linkage (helpers/CLAUDE.md, 2026-05-05) — so caching by identity there
+// would resurrect that bug. The executor keeps calling buildParentMap; only
+// render-path callers, which are handed the immutable store map, use this.
+const _parentMapCache = new WeakMap();
+
+export function cachedParentMap(occurrencesById) {
+  if (!occurrencesById || typeof occurrencesById !== "object") return Object.create(null);
+  const hit = _parentMapCache.get(occurrencesById);
+  if (hit) return hit;
+  const map = buildParentMap(occurrencesById);
+  _parentMapCache.set(occurrencesById, map);
+  return map;
+}
+
+// ------------------------------------------------------------
 // walkHoveredOccurrence
 // ------------------------------------------------------------
 // Walk elementsFromPoint and return the innermost ancestor that

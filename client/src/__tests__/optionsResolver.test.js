@@ -438,4 +438,94 @@ describe("resolveOptions — ancestor-scoped predicates (2026-07-07 regression)"
     const { options } = resolveOptions(bare, ctx);
     expect(options.map(o => o.value).sort()).toEqual(["acct1", "acct2"]);
   });
+
+  // ── Cache staleness (2026-08-07) ──────────────────────────────────────
+  // buildCollection is memoised per `occurrencesById` OBJECT IDENTITY so a
+  // render pass builds the parent map + enriched records once instead of once
+  // per resolveOptions call. The failure mode that memoisation can introduce
+  // is SILENT: a stale parent map makes `_ancestors` wrong, and a wrong
+  // `_ancestors` makes every ancestor-scoped dropdown resolve to ZERO options
+  // — the 2026-07-07 bug, which nobody notices for days.
+  //
+  // These cases are the guard. Each one moves the tree WITHOUT changing the
+  // occurrence COUNT, so a cache keyed on a derived scalar (a length, a count
+  // — exactly what FieldRenderer's `occSetKey` dep is) cannot pass them.
+  describe("cache invalidation", () => {
+    it("a NEW map object with a re-parented record re-resolves (count unchanged)", () => {
+      const before = resolveOptions(field, ctx);
+      expect(before.options.map(o => o.value).sort()).toEqual(["acct1", "acct2"]);
+
+      // Same ids, same count — acct2 moves OUT of the ancestor, `other` moves IN.
+      const moved = {
+        ...ctx,
+        occurrencesById: {
+          lib: { id: "lib", moduleId: "libMod", occurrences: ["acct1", "other"] },
+          acct1: { id: "acct1", moduleId: "acctMod1", parentId: "lib" },
+          acct2: { id: "acct2", moduleId: "acctMod2" },
+          other: { id: "other", moduleId: "otherMod" },
+        },
+      };
+      expect(Object.keys(moved.occurrencesById).length)
+        .toBe(Object.keys(ctx.occurrencesById).length);
+
+      const after = resolveOptions(field, moved);
+      expect(after.options.map(o => o.value).sort()).toEqual(["acct1", "other"]);
+    });
+
+    it("a NEW map object with an ADDED record under the ancestor re-resolves", () => {
+      resolveOptions(field, ctx); // prime
+      const grown = {
+        ...ctx,
+        occurrencesById: {
+          ...ctx.occurrencesById,
+          lib: { id: "lib", moduleId: "libMod", occurrences: ["acct1", "acct2", "acct3"] },
+          acct3: { id: "acct3", moduleId: "acctMod3", parentId: "lib" },
+        },
+        modulesById: {
+          ...ctx.modulesById,
+          acctMod3: { id: "acctMod3", role: "instance", label: "Brokerage" },
+        },
+      };
+      const { options } = resolveOptions(field, grown);
+      expect(options.map(o => o.value).sort()).toEqual(["acct1", "acct2", "acct3"]);
+    });
+
+    it("a renamed MODULE re-resolves even when the occurrence map is identical", () => {
+      // Records carry the module's label, so the cache cannot key on the
+      // occurrence map alone.
+      resolveOptions(field, ctx); // prime
+      const renamed = {
+        ...ctx,
+        modulesById: { ...ctx.modulesById, acctMod1: { id: "acctMod1", role: "instance", label: "Chequing" } },
+      };
+      const { options } = resolveOptions(field, renamed);
+      expect(options.find(o => o.value === "acct1")?.label).toBe("Chequing");
+    });
+
+    it("repeated calls on the SAME maps stay correct (the cached path)", () => {
+      const a = resolveOptions(field, ctx);
+      const b = resolveOptions(field, ctx);
+      const c = resolveOptions(field, ctx);
+      for (const r of [a, b, c]) {
+        expect(r.options.map(o => o.value).sort()).toEqual(["acct1", "acct2"]);
+      }
+    });
+
+    it("role-filtered collections do not leak into each other", () => {
+      const containersField = JSON.parse(JSON.stringify(field));
+      containersField.meta.optionsSource.over = "$allContainers";
+      containersField.meta.optionsSource.predicate.rules = [];
+      const instancesField = JSON.parse(JSON.stringify(field));
+      instancesField.meta.optionsSource.predicate.rules = [];
+
+      const containers = resolveOptions(containersField, ctx);
+      const instances = resolveOptions(instancesField, ctx);
+      expect(containers.options.map(o => o.value)).toEqual(["lib"]);
+      expect(instances.options.map(o => o.value).sort()).toEqual(["acct1", "acct2", "other"]);
+      // …and again, from the cache, in the other order.
+      expect(resolveOptions(instancesField, ctx).options.map(o => o.value).sort())
+        .toEqual(["acct1", "acct2", "other"]);
+      expect(resolveOptions(containersField, ctx).options.map(o => o.value)).toEqual(["lib"]);
+    });
+  });
 });

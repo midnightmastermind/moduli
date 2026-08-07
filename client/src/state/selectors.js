@@ -1,7 +1,7 @@
 // state/selectors.js
 // Selectors for working with occurrences and entities in the state
 import { evalRule, evalGroup, evalRuleAgainstRecord } from "../helpers/operationActions";
-import { buildParentMap } from "../helpers/dragHitTesting";
+import { buildParentMap, cachedParentMap } from "../helpers/dragHitTesting";
 
 /**
  * The single authoritative "who is this occurrence's parent" answer.
@@ -309,7 +309,12 @@ export function getEffectiveFilterForOccurrence(occ, { grid, occurrencesById, pa
   // Parent linkage is authoritative via parent.occurrences[] (see
   // getParentOccurrence). Use the one shared reverse-map builder; callers
   // walking many occurrences pass a prebuilt map to avoid O(N²).
-  const pbc = parentByChildId || buildParentMap(occurrencesById || {});
+  // The fallback is MEMOISED per occurrence-map identity (cachedParentMap):
+  // this is a per-component useMemo in ModuleContainer/HeaderChevron, so a
+  // render pass rebuilt the same full-grid index once per container (144ms
+  // of the 2026-08-07 date-navigation profile). The executor passes an
+  // explicit map and never reaches this line.
+  const pbc = parentByChildId || cachedParentMap(occurrencesById || {});
   const chain = [];
   let cur = occ;
   const guard = new Set();
@@ -364,7 +369,10 @@ export function getEffectiveFilterForOccurrence(occ, { grid, occurrencesById, pa
 // Returns { mode: "show"|"hide", fieldIds: string[] } or null.
 export function getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById, parentByChildId } = {}) {
   if (!occ) return null;
-  const pbc = parentByChildId || buildParentMap(occurrencesById || {});
+  // Memoised fallback — ModuleInstance calls this per row inside its own
+  // useMemo, so an unmemoised build is one full-grid scan per instance
+  // (142ms of the 2026-08-07 date-navigation profile). See cachedParentMap.
+  const pbc = parentByChildId || cachedParentMap(occurrencesById || {});
   let cur = occ;
   const guard = new Set();
   while (cur && !guard.has(cur.id)) {

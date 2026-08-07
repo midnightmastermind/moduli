@@ -1,5 +1,5 @@
 import { evalGroupAgainstRecord, resolveRecordPath } from "./operationActions";
-import { buildParentMap } from "./dragHitTesting";
+import { cachedParentMap } from "./dragHitTesting";
 
 const COLLECTION_KEYS = {
   $allOccurrences: "all",
@@ -12,18 +12,36 @@ const COLLECTION_KEYS = {
   $allFields: "fields",
 };
 
-function buildCollection(over, ctx) {
-  const { occurrencesById = {}, modulesById = {}, fieldsById = {} } = ctx;
-  const filter = COLLECTION_KEYS[over];
-  if (filter === undefined) return [];
-  if (filter === "templates") return Object.values(modulesById);
-  if (filter === "fields") return Object.values(fieldsById);
+// ── Enriched-collection cache ───────────────────────────────────────────────
+// `buildCollection` spreads EVERY occurrence into an enriched record and walks
+// each one's ancestor chain. On the measured grid that is 4122 records, and
+// FieldRenderer calls it once per select/occurrence field per render — 1381ms
+// (27% of active CPU) for ONE date navigation (2026-08-07 profile). The work
+// is identical for every field in the pass, so it is done once here.
+//
+// Keyed on the OBJECT IDENTITY of both maps the records are derived from: the
+// occurrence map (ids, parents, fields) and the module map (label/name/role/
+// kind/meta fall back to the module). A rename swaps `modulesById` without
+// touching `occurrencesById`, so keying on the occurrence map alone would
+// serve stale labels. Nested WeakMaps mean an entry is collected as soon as
+// either map is replaced — and since the store replaces both on every write,
+// a new object IS the invalidation. NOTHING keys on a count or a length.
+const _collectionCache = new WeakMap(); // occurrencesById → modulesById → { all, byRole }
+
+function enrichedRecords(occurrencesById, modulesById) {
+  let byModules = _collectionCache.get(occurrencesById);
+  if (!byModules) {
+    byModules = new WeakMap();
+    _collectionCache.set(occurrencesById, byModules);
+  }
+  const hit = byModules.get(modulesById);
+  if (hit) return hit;
 
   // Ancestor chains for HAS_ANCESTOR predicates (e.g. the Account picker's
   // `_ancestors HAS_ANCESTOR <library container>`). The executor enriches
   // its $allItems this way; the resolver never did, so every ancestor-scoped
   // optionsSource silently resolved to zero options (2026-07-07 audit).
-  const parentByChildId = buildParentMap(occurrencesById);
+  const parentByChildId = cachedParentMap(occurrencesById);
   const ancestorsFor = (id) => {
     const out = [];
     let cursor = id;
@@ -37,7 +55,7 @@ function buildCollection(over, ctx) {
     return out;
   };
 
-  const records = Object.values(occurrencesById).map(occ => {
+  const all = Object.values(occurrencesById).map(occ => {
     const tpl = occ.moduleId ? modulesById[occ.moduleId] : null;
     return {
       ...occ,
@@ -50,8 +68,27 @@ function buildCollection(over, ctx) {
       _ancestors: ancestorsFor(occ.id),
     };
   });
-  if (filter === "all") return records;
-  return records.filter(r => r.role === filter);
+
+  const entry = { all, byRole: new Map() };
+  byModules.set(modulesById, entry);
+  return entry;
+}
+
+function buildCollection(over, ctx) {
+  const { occurrencesById = {}, modulesById = {}, fieldsById = {} } = ctx;
+  const filter = COLLECTION_KEYS[over];
+  if (filter === undefined) return [];
+  if (filter === "templates") return Object.values(modulesById);
+  if (filter === "fields") return Object.values(fieldsById);
+
+  const entry = enrichedRecords(occurrencesById, modulesById);
+  if (filter === "all") return entry.all;
+  let slice = entry.byRole.get(filter);
+  if (!slice) {
+    slice = entry.all.filter(r => r.role === filter);
+    entry.byRole.set(filter, slice);
+  }
+  return slice;
 }
 
 export function resolveOptions(field, ctx, ownerOccurrence = null) {
