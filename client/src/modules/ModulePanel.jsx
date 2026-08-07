@@ -344,7 +344,7 @@ function Panel({
     ? Math.abs((module?.row ?? 0) - (stagingCell?.row ?? 0)) * 100
       + Math.abs((module?.col ?? 0) - (stagingCell?.col ?? 0))
     : (module?.row ?? 0) * 100 + (module?.col ?? 0);
-  const [contentReady, showContentSpinner] = useStagedContent(`panel:${module?.id}`, stagePriority);
+  const contentReady = useStagedContent(`panel:${module?.id}`, stagePriority);
   useEffect(() => { if (contentReady) markLoad("panel:content-ready", { id: module?.id }); }, [contentReady, module?.id]);
   // Stable handler context (stack helpers) + the small reactive drag-state
   // context. Panels are few (~dozens), so a reactive subscription here is the
@@ -853,9 +853,13 @@ function Panel({
       {(() => {
         const resolvedView = resolvedViewId ? viewsById[resolvedViewId] : null;
         const viewType = resolvedView?.viewType;
+        // The loader is rendered in the SAME commit as the panel chrome, so it
+        // is on screen the moment the shape is. `.staged-hold-spinner` keeps it
+        // invisible for the first 150ms in CSS — a delay that survives a blocked
+        // main thread, which a JS timer does not.
         const stagedHold = (
           <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            {showContentSpinner && <Spinner size="sm" />}
+            <Spinner size="sm" className="staged-hold-spinner" />
           </div>
         );
 

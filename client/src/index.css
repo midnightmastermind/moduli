@@ -1564,6 +1564,21 @@ body[data-drag-kind="panel"] .container-shell {
 
 /* Spinner keyframes — used by Spinner component in spinner.jsx */
 @keyframes spin-cw  { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* Staged content hold — the loader a panel shows while its body waits its turn
+   (helpers/stagedMount.js).
+
+   THE DELAY IS CSS AND THAT IS THE FIX, not a style choice. It was a 150ms JS
+   timer flipping React state, and a timer cannot fire while the main thread is
+   busy — which during load it is, for seconds. Measured on the deployed build:
+   at 2.6s the five panel frames were on screen with their headers and COMPLETELY
+   EMPTY bodies, because the "show the spinner now" state update was still queued
+   behind the op sweep and the content render. A CSS animation needs no main
+   thread: `both` fill keeps it invisible for the delay, then it fades in, on the
+   compositor, whatever JavaScript is doing. A panel that becomes ready inside
+   the delay still never flashes one — it unmounts before the animation starts. */
+@keyframes staged-hold-in { from { opacity: 0; } to { opacity: 1; } }
+.staged-hold-spinner { animation: staged-hold-in 160ms ease-out 150ms both; }
 @keyframes spin-ccw { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
 
 /* Marquee loop for transaction notification chips — translates the

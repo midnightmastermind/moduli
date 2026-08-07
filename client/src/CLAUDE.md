@@ -2,6 +2,25 @@
 
 _Updated: 2026-07-24. Check this file before re-reading source._
 
+## Recent Changes (2026-08-07 (2) — the per-panel loaders never showed: a JS timer on a busy thread)
+- **User, on the deployed build:** *"the grid loads and is empty for a few seconds before the loads
+  come up for the panels."* **Reproduced by screencast:** at **2.6s** the five panel frames were on
+  screen with their headers and **completely empty bodies, no loaders** — and no repainted frame
+  between 1.0s and 2.6s.
+- **Cause: my own `useStagedContent` gated the loader behind a 150ms `setTimeout` + a React state
+  flip.** A timer cannot fire while the main thread is busy, and during load it is busy for seconds
+  (op sweep, then the content render). So the "show the loader now" update sat queued behind exactly
+  the work the loader exists to cover. The no-flash rule was right; implementing it in JS was not.
+- **Fix: the loader renders in the SAME commit as the panel chrome, and its delay is CSS** —
+  `.staged-hold-spinner` runs `staged-hold-in 160ms ease-out 150ms both`, so `both` fill keeps it
+  invisible for 150ms and then fades it in **on the compositor**, whatever JavaScript is doing. A
+  panel ready inside the delay still never flashes one: it unmounts before the animation starts.
+- `useStagedContent` returns a plain `ready` boolean now (no second element, no timer), and a test
+  asserts the hook schedules **no 150ms timer** — the regression, stated as a contract.
+- **The general lesson, and this file has now paid for it twice in two days:** anything that must be
+  VISIBLE while the main thread is blocked has to be CSS. JS timers, state flips and rAF callbacks
+  all queue behind the work you are trying to paint over.
+
 ## Recent Changes (2026-08-07 — click-to-mint textblock: 1121ms → 30ms)
 - **`helpers/afterPaint.js` (NEW)** + **`provisionalTextblock.getProvisionalOccurrence` (NEW)** — the
   mint inserts the node, the browser paints, and the store writes follow in the next task; the node
