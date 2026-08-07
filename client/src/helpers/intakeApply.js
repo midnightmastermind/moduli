@@ -29,6 +29,7 @@
 import { INTAKE_SHAPES, allIntakeShapeIds } from "./intake";
 import { createArtifactPlaceholders, uploadArtifactPlaceholders } from "./artifactUpload";
 import { convertLinkToPage } from "./linkToPage";
+import { withAction } from "./actionScope";
 
 const S = INTAKE_SHAPES;
 
@@ -116,12 +117,26 @@ export function applyIntakeShape(shapeId, ctx = {}) {
   const route = INTAKE_ROUTES[shapeId];
   if (!route) {
     // Loud, not silent: an unrouted shape reaching here means the sheet offered
-    // something `filterToImplemented` should have removed.
+    // something `filterToImplemented` should have removed. NOTE the scope is not
+    // opened until after this guard — an unrouted shape writes nothing, so an
+    // action with no writes in it would be an empty undo step.
     console.warn(`[intake] no route for shape "${shapeId}" — nothing was written`);
     return { ok: false, shapeId, reason: "no-route" };
   }
-  route.run(ctx);
-  return { ok: true, shapeId };
+  // ── ONE ACTION SCOPE PER INTAKE (Task 3 Step 2) ──────────────────────────
+  // An intake mints modules, occurrences, a parent-list update, and then an
+  // upload. Unscoped, each is its own undo step and Ctrl+Z becomes useless —
+  // the exact failure `helpers/actionScope.js` exists for. This is the one
+  // chokepoint every intake write passes through, so it is the only place the
+  // scope has to be opened.
+  //
+  // `withAction` closes it in a `finally`, which matters more than it looks: a
+  // leaked scope silently swallows every LATER write into a stale action, so a
+  // throw here would make undo revert far too much rather than too little.
+  return withAction(`Intake: ${shapeId}`, () => {
+    route.run(ctx);
+    return { ok: true, shapeId };
+  });
 }
 
 // ── Routes ──────────────────────────────────────────────────────────────────
@@ -131,9 +146,14 @@ export function applyIntakeShape(shapeId, ctx = {}) {
 function runArtifacts(ctx) {
   const { files = [], gridId, userId, dispatch, socket,
     occExtra = null, persist = null, containerOccurrenceId = null,
-    onPlaceholders = null } = ctx;
+    onPlaceholders = null, destinationOccurrence = null } = ctx;
   if (!files.length) return;
-  const placeholders = createArtifactPlaceholders(files, { gridId, userId, dispatch, occExtra });
+  const placeholders = createArtifactPlaceholders(files, {
+    gridId, userId, dispatch, occExtra,
+    // Step 3: what intake mints carries its destination's filter values, or a
+    // file dropped on today's column is invisible to today's filter.
+    parentOccurrence: destinationOccurrence,
+  });
   // The caller wires the new ids into their destination BETWEEN mint and
   // upload — that placement is genuinely the drop handler's business (which
   // container's occurrences[], a canvas page, an artifact panel's active

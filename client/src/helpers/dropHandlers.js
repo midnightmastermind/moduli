@@ -1572,6 +1572,10 @@ export function handleFileDrop(dropContext, ctx) {
   const intakeCtx = {
     files, gridId: fileGridId, userId: fileUserId, dispatch, socket,
     occExtra, onPlaceholders,
+    // The destination whose filter values the new artifact must carry (Step 3).
+    // A canvas drop has no container, so the PAGE is the destination there —
+    // it is the occurrence the filter cascade resolves through either way.
+    destinationOccurrence: finalContainerOcc || (canvasPos ? pageOcc : null) || null,
     containerOccurrenceId: finalContainerOcc?.id || null,
     persist: (p) => finalContainerOcc
       ? { parentId: finalContainerOcc.id }

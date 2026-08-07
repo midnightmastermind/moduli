@@ -2306,6 +2306,10 @@ const Editor = forwardRef(function Editor({
         files: Array.from(files), gridId, userId, dispatch, socket,
         occExtra: () => (occurrence?.id ? { parentId: occurrence.id } : {}),
         persist: () => (occurrence?.id ? { parentId: occurrence.id } : null),
+        // The doc this body belongs to IS the destination — a file dropped into
+        // today's Journal must carry today's date or the filter cannot see it
+        // once it stops being an embed (Task 3 Step 3).
+        destinationOccurrence: occurrence || null,
         // Inserting one moduleEmbed per file at the drop position is the DOC's
         // placement — the same seam the board arm uses for its container
         // wiring. The router mints and uploads; where the thing lands is ours.

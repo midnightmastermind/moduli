@@ -480,9 +480,34 @@ branch.
 
       Probe debris swept afterwards (1 module, 3 occurrences, dumped to `backups/orphans/` first);
       all three grids back to their documented pre-existing baselines.
-- [ ] **Step 2:** One action scope per intake (verify: one undo step reverts the whole thing).
-- [ ] **Step 3:** Everything intake mints carries `parentFilterFields` from its destination — a
-      file dropped on today's column must be visible in today's column.
+- [x] **Step 2 ✅ DONE 2026-08-07** — `applyIntakeShape` runs its route inside ONE `withAction`
+      scope, so an intake's module creates, occurrence creates, parent-list update and upload are
+      a single undo step. `applyIntakeShape` is the one chokepoint every intake write passes
+      through, so it is the only place the scope has to open.
+
+      Two things asserted rather than assumed: the write must see an **open** action (asserting
+      "an action existed at some point" would pass even if the scope opened and closed before the
+      route ran), and a **throwing** route must leave no scope open — a leaked scope silently
+      swallows every LATER write into a stale action, so undo would revert far too much rather
+      than too little. An unrouted shape opens no scope at all: it writes nothing, and an empty
+      undo step is worse than none.
+- [x] **Step 3 ✅ DONE 2026-08-07** — `createArtifactPlaceholders` takes a `parentOccurrence` and
+      stamps `CommitHelpers.parentFilterFields` into the new occurrence's `fields`. Threaded from
+      both arms: the board arm passes the destination container, or the PAGE on a canvas drop
+      (a canvas has no container, and the page is what the filter cascade resolves through
+      either way); the doc arm passes the doc occurrence.
+
+      **This was a real gap, not a tidy-up.** The typed paths have stamped the parent's filter
+      values since 2026-08-05 ("any occurrence can carry fields"); the ARTIFACT path set
+      `fields: {}`, so a file dropped on today's column was born with no date and the date filter
+      could not see it — present in the data, rendering nowhere, which is indistinguishable from
+      a lost upload. Caller-supplied `fields` win over the stamp, matching
+      `createLeafInstanceInParent`'s convention. Resolved once per drop, not per file.
+
+      **8 tests (`__tests__/intakeScopeAndFilter.test.js`), A/B'd against the unfixed code: 4
+      fail** — including the "one action id" case, which was VACUOUS as first written (two
+      `null`s also form a set of size 1, so it passed against the unfixed code until a
+      `toBeTruthy` was added first). 1880 client tests, build clean.
 - [ ] **Step 4: ★ Paste.** Route Ctrl+V through the same classifier on boards, canvases and empty
       cells. Inside a doc, ProseMirror keeps its own paste handling for plain text.
 

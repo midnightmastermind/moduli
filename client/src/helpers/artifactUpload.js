@@ -28,9 +28,25 @@ function makeUUID() {
 }
 
 // Build + locally dispatch one placeholder artifact module + occurrence per
-// file. `occExtra(index) → { parentId?, meta? }` lets the caller stamp
+// file. `occExtra(index) → { parentId?, meta?, fields? }` lets the caller stamp
 // placement onto the occurrence up-front (canvas x/y, container parentId).
-export function createArtifactPlaceholders(files, { gridId, userId, dispatch, occExtra = null }) {
+//
+// `parentOccurrence` is the destination, and it is what makes a dropped file
+// VISIBLE. An occurrence born with no `fields` carries no date, and a date
+// filter cannot see it — so a file dropped on today's column exists in the data
+// and renders nowhere, which is indistinguishable from a lost upload. The typed
+// paths (+ menu, InsertGap, textblock mint) have stamped the parent's filter
+// values since 2026-08-05; the ARTIFACT path never did. Caller-supplied
+// `extra.fields` win, matching `createLeafInstanceInParent`'s convention — the
+// caller knows something the filter does not.
+export function createArtifactPlaceholders(files, {
+  gridId, userId, dispatch, occExtra = null, parentOccurrence = null,
+}) {
+  // Resolved ONCE per drop, not per file: it reads the filter context through
+  // the bridge, and every file in one drop lands at the same destination.
+  // `parentFilterFields` never throws — a create must not fail because the
+  // bridge is unwired (unit tests) or the filter is unreadable.
+  const stamped = parentOccurrence ? CommitHelpers.parentFilterFields(parentOccurrence) : null;
   const placeholders = files.map((file, i) => {
     const moduleId = makeUUID();
     const occurrenceId = makeUUID();
@@ -52,7 +68,7 @@ export function createArtifactPlaceholders(files, { gridId, userId, dispatch, oc
       occurrence: {
         id: occurrenceId, userId, gridId, moduleId,
         ...(extra.parentId ? { parentId: extra.parentId } : {}),
-        fields: {},
+        fields: { ...(stamped || {}), ...(extra.fields || {}) },
         meta: extra.meta || {},
       },
     };
