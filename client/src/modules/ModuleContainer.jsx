@@ -1611,6 +1611,14 @@ function Container({
                     panel={panel}
                     container={module}
                     containerOccurrence={containerOccurrence}
+                    // A GRAPH's members are DATA, not placements (user,
+                    // 2026-08-07: "even if its dragged in, it shouldnt be a
+                    // draggable occurance once dropped … we can delete them but
+                    // not drag them from inside the graph"). Dragging IN still
+                    // works — that is the container's own drop target, which
+                    // wraps this list — and delete still works, since that is
+                    // the context menu, not the drag system.
+                    dragOutDisabled={isGraphContainer}
                     dispatch={dispatch}
                     socket={socket}
                     allowedEdges={containerAllowedEdges}

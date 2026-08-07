@@ -903,6 +903,17 @@ function ModuleInstance({
   dispatch,
   socket,
   allowedEdges = ["top", "bottom"],
+  // A GRAPH's members are DATA, not placements (user, 2026-08-07: "even if its
+  // dragged in, it shouldnt be a draggable occurance once dropped … we can
+  // delete them but not drag them from inside the graph").
+  //
+  // This gates the ROW's own drag/drop registration ONLY. What it deliberately
+  // does NOT touch: the container's drop target (so dragging IN still works —
+  // it wraps this list), the context menu and the radial menu (so Remove and
+  // Settings still work — the radial is a MENU that happens to also be the drag
+  // handle, so suppressing it to kill the drag would cost the row its actions),
+  // and field editing.
+  dragOutDisabled = false,
   onInstanceFocus,
   embedRadialItems = null,
   embedOnDelete = null,
@@ -1089,6 +1100,7 @@ function ModuleInstance({
     accepts: DropAccepts.INSTANCE,
     allowedEdges,
     dragHandleRef: handleRef,
+    disabled: dragOutDisabled,
   });
 
   const toggleDoc = () => setShowDoc(v => !v);
