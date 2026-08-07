@@ -1763,9 +1763,25 @@ export function makeDayPageBuildOp({
             // deliberately label-less (its header IS the selected question), and
             // the signature is what merge already matches on, so it is the one
             // marker guaranteed to survive a clone.
+            //
+            // `$allOccurrences`, NOT `$allContainers`, for the same reason the
+            // column lookup above dropped the role filter (migration 0039): the
+            // role-filtered collections read `occ.role ?? module.role`, and an
+            // occurrence carries no role of its own — so a question container
+            // whose MODULE is absent from the client store resolves to role null
+            // and drops out of `$allContainers` while the occurrence sits right
+            // there. This FIND then binds nothing, the `$dqId IS_NOT_EMPTY` gate
+            // below fails, and the day's question is silently never filled —
+            // which is exactly the "14 question containers, 12 EMPTY" state
+            // measured on poms grid on 2026-08-05.
+            //
+            // The predicate is already exact — an identitySignature scoped to
+            // one column — so the role filter bought nothing and cost the fill.
+            // poms grid has run this shape since 0039 (whose selector matched
+            // this FIND too; see that file's header) with no ill effect.
             ...(wantsDailyQuestion ? [
               { id: uid(), type: "action", config: {
-                  type: "FIND", over: "$allContainers",
+                  type: "FIND", over: "$allOccurrences",
                   predicate: { operator: "AND", rules: [
                     { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$colId" },
                     { id: uid(), left: "identitySignature", comparator: "IS", right: DAILY_QUESTION_SIGNATURE },

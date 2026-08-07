@@ -44,8 +44,21 @@ export function insertQuestionFill(pipeline, { questionFieldId, poolModuleId, ui
   if (JSON.stringify(pipeline || {}).includes("PICK_RANDOM_FROM_POOL")) return false;
 
   const steps = [
+    // `$allOccurrences`, NOT `$allContainers` (corrected 2026-08-07). The
+    // role-filtered collections read `occ.role ?? module.role`, and an occurrence
+    // carries no role of its own — so a question container whose MODULE is absent
+    // from the client store drops out while the occurrence sits right there, the
+    // `$dqId IS_NOT_EMPTY` gate below fails, and the day's question is silently
+    // never filled. Same defect 0039 fixed for the column lookup.
+    //
+    // poms grid ALREADY reads `$allOccurrences` here: 0039 ran after this
+    // migration and its `"right":"$colId"` selector matched this FIND too (see
+    // that file's header). So this correction makes the migration agree with what
+    // the live grid actually runs AND with the builder — a re-run is a no-op, and
+    // `dailyQuestionAutofill.test.js` pins the two outputs as identical so a
+    // reseeded grid cannot drift from a migrated one.
     { id: uid(), type: "action", config: {
-        type: "FIND", over: "$allContainers",
+        type: "FIND", over: "$allOccurrences",
         predicate: { operator: "AND", rules: [
           { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$colId" },
           { id: uid(), left: "identitySignature", comparator: "IS", right: QUESTION_SIGNATURE },

@@ -27,6 +27,29 @@
 // produces this shape directly. DATA IS NOT TOUCHED — the duplicate columns that
 // already exist are 0038's business, and the two it refused to merge both hold
 // writing, which is a human decision.
+//
+// ── CORRECTION, recorded 2026-08-07: THIS MIGRATION PATCHED THREE, NOT TWO ───
+// `isRebind` tests `pred.includes('"right":"$colId"')`, and the Daily Question
+// lookup ALSO carries `$colId` — as an ANCESTOR SCOPE (`_ancestors HAS_ANCESTOR
+// $colId`), not as an id lookup. So it matched, and poms grid's stored DQ FIND
+// reads `$allOccurrences` while the same FIND on a freshly seeded grid read
+// `$allContainers`. Measured 2026-08-07: poms grid 3 FINDs on $allOccurrences,
+// test grid 2 only 2.
+//
+// The over-match was BENIGN — in fact correct, for the same reason the two
+// intended ones were: that predicate is an identitySignature scoped to one
+// column, so the role filter bought nothing and cost the question fill. The
+// BUILDER has been brought in line (2026-08-07) rather than this selector
+// tightened, so a fresh seed now emits $allOccurrences there directly and this
+// migration is a no-op on that FIND. THIS FILE IS DELIBERATELY LEFT AS IT RAN:
+// a migration's ledger has to describe what actually executed, and 0039 has
+// been applied to poms grid.
+//
+// The lesson is the 0035 one from a new direction: a selector that matches "the
+// thing that mentions $colId" matches every USE of $colId, not just the one the
+// author had in mind. `dayColumnLookup.test.js` asserted "and nothing else"
+// while its fixture omitted the only FIND that over-matches — which is how this
+// stayed invisible. That case is in the fixture now.
 export const id = "0039-day-column-lookup-drops-role-filter";
 export const describe =
   "Day Page: Build looks for an existing day column in $allOccurrences instead of $allContainers, so a " +

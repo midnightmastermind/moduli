@@ -35,6 +35,18 @@ function legacyPipeline() {
             { left: "fields.SF.value", comparator: "IS", right: "day-col" },
           ]},
         }},
+        // The Daily Question lookup. It uses $colId as an ANCESTOR SCOPE, not
+        // as an id lookup — and `isRebind` only tests for the STRING
+        // `"right":"$colId"`, so this matches too. Its absence from this
+        // fixture is exactly why "and nothing else" read as true for two days
+        // while the migration was patching three.
+        { type: "action", config: {
+          type: "FIND", over: "$allContainers",
+          predicate: { operator: "AND", rules: [
+            { left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$colId" },
+            { left: "identitySignature", comparator: "IS", right: "daypage:Daily Question/question" },
+          ]},
+        }},
       ]},
     ],
   };
@@ -43,10 +55,21 @@ function legacyPipeline() {
 describe("0039 — day column lookup drops the role filter", () => {
   it("rewrites the existence check and the post-mint re-bind", () => {
     const p = legacyPipeline();
-    expect(patchColumnLookups(p, BOARD)).toBe(2);
     const loop = p.steps[0];
+    patchColumnLookups(p, BOARD);
     expect(loop.body[0].config.over).toBe("$allOccurrences");
     expect(loop.body[1].then[0].config.over).toBe("$allOccurrences");
+  });
+
+  // Pinned as what it ACTUALLY does, not what its header claimed. The Daily
+  // Question FIND mentions $colId, so the `"right":"$colId"` string test matches
+  // it. Recorded rather than tightened: 0039 has already run against poms grid,
+  // and a migration file has to describe what executed. The BUILDER now emits
+  // $allOccurrences there directly, so this over-match is a no-op on a fresh seed.
+  it("ALSO rewrites the Daily Question lookup — it mentions $colId (3, not 2)", () => {
+    const p = legacyPipeline();
+    expect(patchColumnLookups(p, BOARD)).toBe(3);
+    expect(p.steps[0].body[3].config.over).toBe("$allOccurrences");
   });
 
   it("leaves every OTHER container FIND alone", () => {
@@ -67,5 +90,42 @@ describe("0039 — day column lookup drops the role filter", () => {
       goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL",
     });
     expect(patchColumnLookups(op.pipeline, BOARD)).toBe(0);
+  });
+
+  // The regression this pair actually protects: a Daily Question FIND on the
+  // role-filtered collection binds nothing when the container's MODULE is
+  // missing from the store, the `$dqId IS_NOT_EMPTY` gate fails, and the day's
+  // question is silently never filled — the "14 containers, 12 EMPTY" state
+  // measured on poms grid. Asserting it straight from the builder means a
+  // reseeded grid cannot regress to the shape poms grid was migrated out of.
+  it("the builder's Daily Question lookup is NOT role-filtered", () => {
+    const op = makeDayPageBuildOp({
+      userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: BOARD,
+      goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL",
+      journalQuestionFieldId: "JQ", questionPoolModuleId: "POOL",
+    });
+    const finds = [];
+    const walk = (steps) => {
+      for (const s of steps || []) {
+        if (s?.config?.type === "FIND") finds.push(s.config);
+        walk(s?.body); walk(s?.then); walk(s?.else);
+      }
+    };
+    walk(op.pipeline.steps);
+    const dq = finds.find(f =>
+      JSON.stringify(f.predicate || {}).includes("daypage:Daily Question/question"));
+    expect(dq, "the Daily Question FIND should exist when the op is built with question context").toBeTruthy();
+    expect(dq.over).toBe("$allOccurrences");
+  });
+
+  // And with no question context the FIND must not be emitted at all — the op
+  // is built both ways (grids without a question pool), so "it is absent" and
+  // "it is wrong" must stay distinguishable.
+  it("emits no Daily Question lookup when the op is built without question context", () => {
+    const op = makeDayPageBuildOp({
+      userId: "u", gridId: "g", dateFieldId: "DF", dayPageBoardOccId: BOARD,
+      goalsPageOccId: "GP", schedulePageOccId: "SP", dayPageTemplateOccId: "TPL",
+    });
+    expect(JSON.stringify(op.pipeline)).not.toContain("daypage:Daily Question/question");
   });
 });
