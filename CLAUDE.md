@@ -5,6 +5,34 @@
 > **Read [`CLAUDE_CHAT.md`](./CLAUDE_CHAT.md) at session start.** It's the time-ordered log of user direction across sessions. New direction goes there first before acting.
 
 ---
+### 2026-08-07 (3) — I TOOK PROD DOWN FOR ~3 MINUTES: the deploy said ✅ and there was no `dist`
+
+A deploy reported `✅ Deployed.`, prod HEAD matched local exactly — **and the site was 502**. The
+server was online and crash-free; it simply had no `client/dist/index.html` to serve
+(`ENOENT` in the pm2 log). Rebuilding on the server and restarting pm2 restored it; the second
+deploy of the same commit worked fine.
+
+**WHY the first build produced no dist is UNKNOWN, and that is my fault twice over:** I piped the
+deploy output through `tail -2`, so the build's own log — the only place the answer could have been
+— is gone. Do not pipe a deploy to `tail` (the 2026-07-11 entry says exactly this about `set -e`
+and masked pipe exits, and I did the modern version of it anyway).
+
+**THE VERIFICATION LESSON, which the existing rule did not cover.** The standing rule is *verify
+prod HEAD over SSH, not script output* — and I did, and **HEAD matched while prod was down**. HEAD
+proves the code arrived; it says nothing about whether the app is being served. **Verify the SITE:
+`curl` the index for a 200 AND the hashed bundle it references for a 200.** A missing `dist` passes
+every git-level check there is.
+
+**Found while reading the pm2 log during the outage, and unrelated to it:**
+`update_occurrence` was throwing `TypeError: Assignment to constant variable` **repeatedly** —
+`occurrence` was destructured `const` and reassigned in the field-conflict branch, so any two writes
+racing on one field **dropped the whole write**, silently, with nothing surfaced to the user. One
+word. It had been live since the undo/redo work landed; no unit test exercises that path and a
+single-window session rarely produces a clash, so the server's own stderr was the only witness.
+**An outage is a good time to read the error log you would not otherwise have opened.**
+
+---
+
 ### 2026-08-07 (2) — "the schedule isnt being created when i navigate": the window that navigates was the ONLY one that never fired the op
 
 User, on the deployed build. **Two separate faults, and the first thing worth recording is that
