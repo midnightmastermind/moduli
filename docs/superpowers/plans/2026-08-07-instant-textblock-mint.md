@@ -191,6 +191,43 @@ embedding an occurrence the server will never see.
 the store writes, the caret still lands in the new block, and typing five characters still goes into
 it (they are the same assertions as Task 5).
 
+### TASK 2 SHIPPED — 2026-08-07. Measured on the same probe, same page, same machine.
+
+```
+                                   before        after
+mint:go → block on screen         ~1000ms      →   30ms
+the block is EDITABLE             ~1000ms      →   same frame as the block
+editor.view.dispatch(tr)           1121.6ms    →   10–35ms
+the two store writes             in the click  →   after the paint (0.2 / 0.9ms)
+```
+
+**Two changes, and the second is what made it *usable* instantly rather than just visible.**
+
+1. **`helpers/afterPaint.js` (NEW)** — rAF **then a macrotask**. `handleCaretMintTextblock` inserts
+   the node, and the store writes go in the task after the browser paints. Cancelled on unmount and
+   on a second mint, and it re-checks `isProvisionalTextblock` before writing, so a block abandoned
+   in that window never mints an occurrence nothing renders.
+2. **`getProvisionalOccurrence`** — the registry now carries the occurrence OBJECT, and the node
+   view reads the store *then* the registry. Without this the block appeared in 30ms and sat
+   un-editable until the deferred write's re-render finished — **measured at 1223ms**, i.e. the
+   original wait, just moved. With it, the block renders from the same object the write will carry,
+   so `block:in-dom` and `subeditor:in-dom` land in the SAME frame.
+
+The empty-shell render state from the original Task 2 is still in `InstanceTextblockNode` for the
+frame where neither source has the occurrence, but in practice the registry answers first — it is
+now a fallback, not the normal path.
+
+**Verified, not assumed:** typing "hello" straight after the click leaves focus inside the textblock
+and the block reads "hello" (the risk this change created and the reason that assertion is in the
+probe); CLICK 2 still reaches `mint:go` and mints at the new line (the 2026-08-06 fix, unregressed);
+1796 client tests; `sweepOrphans --grid "test grid 2" --apply` reports nothing to sweep and
+`checkGrid --all` is unchanged on all three grids.
+
+**What is NOT fixed, and it is the same thing every time:** the store write still provokes a ~1s
+app-wide re-render. It no longer sits between the user and their block, but it is still there, and
+it is the documented frame-1 storm (`client/src/CLAUDE.md` docket). Anything else that writes an
+occurrence still pays it.
+
 ---
 
 ### Task 2: the block PAINTS before its editor exists

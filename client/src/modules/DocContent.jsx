@@ -8,8 +8,9 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import { Lock, Unlock } from "lucide-react";
 import { logCaretInterference } from "../helpers/caretDiag";
 import { requestTextblockFocus, cancelTextblockFocus } from "../helpers/pendingTextblockFocus";
-import { registerProvisionalTextblock, discardProvisionalTextblock } from "../helpers/provisionalTextblock";
+import { registerProvisionalTextblock, discardProvisionalTextblock, isProvisionalTextblock } from "../helpers/provisionalTextblock";
 import { mintMark, mintStep } from "../helpers/mintDiag";
+import { afterPaint } from "../helpers/afterPaint";
 
 export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false, scrollAnchor, onExitBlock, onDeleteBlock, onAutoCreateTextblock, onEmptyBlur = null }) {
   const [showLockBtn, setShowLockBtn] = useState(false);
@@ -27,6 +28,10 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
   // The most recent click-minted textblock that has not committed yet, so an
   // unmount can drop it (see the cleanup effect below).
   const provisionalOccIdRef = useRef(null);
+  // The deferred store writes for a just-minted block. Held so an unmount (or a
+  // second mint) can cancel them — a write that lands after the tree is gone
+  // mints an occurrence nothing renders.
+  const mintWritesRef = useRef(null);
 
   // Scroll-to-anchor: when scrollAnchor is set, find the element and scroll to it
   useEffect(() => {
@@ -198,16 +203,14 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       fields: stamped || {},
     };
 
-    mintStep("createModule", () => CommitHelpers.createModule({ dispatch, socket, module, emit: false }));
-    mintStep("createOccurrence", () => CommitHelpers.createOccurrence({
-      dispatch, socket, occurrence: newOccurrence, emit: false, fireTrigger: false,
-    }));
-
     // REGISTER BEFORE the transaction. Replacing the line fires the outer
     // editor's onUpdate synchronously, and that save path asks whether the doc
     // now embeds a provisional block — an entry added afterwards is too late,
     // and the parent textmap goes out with an embed the server cannot resolve.
     registerProvisionalTextblock(occId, {
+      // Carried so the node view can render (and be typed into) before the
+      // store write lands — see getProvisionalOccurrence.
+      occurrence: newOccurrence,
       commit: (textmap) => {
         CommitHelpers.createModule({ dispatch, socket, module, emit: true });
         CommitHelpers.createOccurrence({
@@ -242,18 +245,41 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       instanceId: modId,
       occurrenceId: occId,
     }));
-    mintStep("replaceLine+mountSubEditor", () => editor.view.dispatch(tr));
+    mintStep("replaceLine", () => editor.view.dispatch(tr));
 
     // The sub-editor claims the caret in its own onCreate — the first frame it
     // exists. Nothing here polls the DOM for it.
     provisionalOccIdRef.current = occId;
     requestTextblockFocus(occId);
+
+    // ── THE STORE WRITES GO IN A LATER TASK, AND THAT ORDERING IS THE FIX ──
+    // Measured (2026-08-07, docs/superpowers/plans/2026-08-07-instant-textblock-mint.md):
+    // the transaction above costs **10ms**; the same click cost **1121ms** when
+    // these two writes ran first. They EXECUTE in 0.9ms — what costs is the
+    // app-wide re-render they provoke, and while it is in this task the browser
+    // cannot paint the block the user just clicked for. So: insert, paint, then
+    // write. Until they land the node view renders an empty shell (it knows the
+    // id is provisional), so nothing flashes and nothing moves.
+    mintWritesRef.current?.cancel?.();
+    const cancel = afterPaint(() => {
+      mintWritesRef.current = null;
+      // The block may already be gone — abandoned, undone, the panel closed —
+      // in which case the registry no longer holds it and writing would mint
+      // an occurrence nothing renders.
+      if (!isProvisionalTextblock(occId)) return;
+      mintStep("createModule", () => CommitHelpers.createModule({ dispatch, socket, module, emit: false }));
+      mintStep("createOccurrence", () => CommitHelpers.createOccurrence({
+        dispatch, socket, occurrence: newOccurrence, emit: false, fireTrigger: false,
+      }));
+    });
+    mintWritesRef.current = { cancel };
   }, [occurrence, socket, dispatch]);
 
   // A doc that unmounts still holding an uncommitted block (panel closed, page
   // switched) drops it. Nothing was emitted, so this is local cleanup only —
   // without it the empty module + occurrence linger in client state until reload.
   useEffect(() => () => {
+    mintWritesRef.current?.cancel?.();
     if (provisionalOccIdRef.current) discardProvisionalTextblock(provisionalOccIdRef.current);
   }, []);
 

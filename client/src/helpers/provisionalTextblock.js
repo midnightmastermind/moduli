@@ -42,6 +42,21 @@ export function registerProvisionalTextblock(occurrenceId, handlers) {
   pending.set(occurrenceId, handlers);
 }
 
+/**
+ * The occurrence OBJECT for a block that has been minted but whose store write
+ * has not landed yet.
+ *
+ * The mint deliberately inserts the node BEFORE writing to the store — the
+ * insert costs 10ms and the write provokes an app-wide re-render that costs a
+ * second (measured 2026-08-07). Without this the node view would have nothing
+ * to render for that whole second and the block would sit there un-editable.
+ * With it, the block renders from the same object the write will carry, so it
+ * is typeable in the frame it appears and the store write becomes invisible.
+ */
+export function getProvisionalOccurrence(occurrenceId) {
+  return pending.get(occurrenceId)?.occurrence || null;
+}
+
 export function isProvisionalTextblock(occurrenceId) {
   return !!occurrenceId && pending.has(occurrenceId);
 }

@@ -1,6 +1,21 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-07-24. Check this file before re-reading source._
+## Recent Changes (2026-08-07 — afterPaint.js NEW: the textblock mint is instant)
+- **`afterPaint.js` (NEW)** — `afterPaint(fn)` runs work in the first task AFTER a paint (rAF **then**
+  a macrotask; a rAF callback alone still runs before that frame's paint). Returns a cancel.
+- **Why it exists, measured:** clicking an empty line cost **1121ms**, and an A/B put the blame in a
+  place nobody suspected — `editor.view.dispatch(tr)` inserting the block is **10ms**; the other
+  1111ms was the app-wide re-render provoked by `createModule` + `createOccurrence`, which *execute*
+  in 0.9ms and shared the task. Deferring them past the paint puts the block on screen in ~30ms.
+- **`provisionalTextblock.getProvisionalOccurrence` (NEW)** is the other half. Deferring the write
+  alone left the block visible but **un-editable for 1223ms** — the original wait, moved. The
+  registry now carries the occurrence OBJECT and the node view reads store-then-registry, so the
+  block renders from the same object the write will carry and is typeable in the frame it appears.
+- **The guard that keeps this honest:** the deferred write re-checks `isProvisionalTextblock` and is
+  cancelled on unmount, so a block abandoned inside that window never mints an occurrence nothing
+  renders — the create/delete asymmetry this file has been bitten by repeatedly.
+
 ## Recent Changes (2026-08-06 (5) — loadDiag.js + stagedMount.js: the load path, measured then staged)
 - **`loadDiag.js` (NEW, opt-in `window.__loadDiag`)** — splits the wall clock from `full_state` to a
   usable UI four ways (reducer / React / op sweep / editor mounts). It EXTENDS `onFullState`'s

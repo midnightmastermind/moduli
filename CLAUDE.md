@@ -5,6 +5,52 @@
 > **Read [`CLAUDE_CHAT.md`](./CLAUDE_CHAT.md) at session start.** It's the time-ordered log of user direction across sessions. New direction goes there first before acting.
 
 ---
+### 2026-08-07 — the textblock mint is INSTANT: 1121ms → 30ms, and it was never the editor
+
+Continued the audit from 2026-08-06 (5) as a plan
+(`docs/superpowers/plans/2026-08-07-instant-textblock-mint.md`). **The plan's own two candidate
+causes were both wrong, and the measurement killed them before a line was written for either.**
+
+**Task 1 marked the editor lifecycle and the outer `onUpdate` span, then read the clock:**
+```
+createModule / createOccurrence     0.9ms    ← execute in under a millisecond
+editor.view.dispatch(tr)         1121.6ms    ← the whole wait
+   ~1010ms  before any node view exists
+   editor:create x2 @ 1117.8               ← React committed at the END
+   onUpdate start→end  0.1ms
+7 editors created, 0 DESTROYED
+```
+- **`0 destroyed`** → nothing was being remounted → the "sibling insert remounts every block" task was
+  **dropped**.
+- **The new editor is created in the last ~100ms** → the "trim the sub-editor's extensions" task was
+  **dropped** (it would have chased a tenth of the cost while risking stored nodes being dropped from
+  a changed schema).
+- **The save path is 0.1ms.**
+
+**The A/B that named it — same click, store writes skipped: `1121.6ms → 9.8ms`.** The insert costs
+**10ms**. The other 1111 is the app-wide re-render those two writes provoke, sharing the task — and
+the browser cannot paint until the task ends. **The fix was ORDER, not weight.**
+
+**Shipped:** `helpers/afterPaint.js` (rAF **then** a macrotask — a rAF callback still runs before the
+paint, the same trap the staged-loading work hit the day before) defers the writes past the paint;
+and `getProvisionalOccurrence` lets the node view render from the object the write will carry.
+**That second half is what made it usable rather than merely visible:** deferring alone put the block
+on screen in 30ms and left it **un-editable for 1223ms** — the original wait, moved.
+
+```
+mint:go → block on screen      ~1000ms → 30ms
+the block is EDITABLE          ~1000ms → the SAME frame as the block
+```
+
+**Verified rather than assumed:** typing straight after the click leaves focus in the textblock and
+the text lands there (the risk this change created); the 2026-08-06 second-click fix is unregressed;
+1796 client tests; nothing to sweep and `checkGrid --all` unchanged on all three grids.
+
+**Still open, unchanged:** the store write's ~1s app-wide re-render. It no longer stands between the
+user and their block, but every occurrence write still pays it — the frame-1 storm docket.
+
+---
+
 ### 2026-08-06 (5) — the click-to-mint textblock, AUDITED: 1s of it is mounting a ProseMirror
 
 User: *"why creating a textblock via clicking an empty line takes so long. it should be instant and

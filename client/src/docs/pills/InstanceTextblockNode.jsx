@@ -14,13 +14,17 @@ import { embedDeleteRegistry } from "../../helpers/embedRegistry.js";
 import { resolveEditorBinding } from "../../state/editorBindings.js";
 import {
   isProvisionalTextblock, discardProvisionalTextblock, suppressTextblockMint,
+  getProvisionalOccurrence,
 } from "../../helpers/provisionalTextblock.js";
 
 export default function InstanceTextblockNode({ node, editor, getPos, deleteNode }) {
   const { occurrencesById, modulesById, dispatch, socket } = useGridActions() || {};
 
   const { instanceId, occurrenceId } = node.attrs;
-  const occurrence = occurrencesById?.[occurrenceId] || null;
+  // The store first, then the provisional registry: a block minted a moment ago
+  // is renderable from the object its own store write will carry, so it is
+  // typeable in the frame it appears instead of a second later.
+  const occurrence = occurrencesById?.[occurrenceId] || getProvisionalOccurrence(occurrenceId) || null;
   const instance = modulesById?.[instanceId] || null;
   const wrapperRef = useRef(null);
   const handleRef = useRef(null);
@@ -346,6 +350,15 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
               onEmptyBlur={handleEmptyBlur}
             />
           )
+        ) : isProvisionalTextblock(occurrenceId) ? (
+          // Minted a frame ago; its occurrence has not reached the store yet.
+          // The insert is deliberately ahead of the store writes so the block
+          // paints where the click was (10ms vs 1121ms — measured), which means
+          // this state exists for about one frame. It must be an empty box the
+          // right height, NOT the "—" below: a dash that appears and vanishes
+          // reads as a glitch, and a box that grows reads as the layout moving
+          // under the pointer.
+          <div style={{ minHeight: 22, padding: "4px 8px" }} aria-hidden="true" />
         ) : (
           <span style={{ opacity: 0.25, fontSize: 11, padding: "4px 8px", display: "block" }}>—</span>
         )}
