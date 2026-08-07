@@ -16,6 +16,7 @@ import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-d
 import { KIND_ICONS as PAGE_KIND_ICON } from "../helpers/moduleIcons";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { ensureArtifactPageOcc } from "../helpers/importsFolder";
+import { isProtectedFolder } from "../helpers/protectedFolders";
 import { resolveFileRef, isExternalFileRef } from "../helpers/fileRef.js";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import NodePill from "./NodePill.jsx";
@@ -557,6 +558,13 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
   // Delete handler — deletes folder and reparents children to parent folder
   const handleDelete = useCallback(() => {
     if (!dispatch || !socket) return;
+    // A protected folder (Templates / Files / Imports) is refused server-side.
+    // Bail BEFORE the reparent loop below: that loop persists immediately, so
+    // running it and then losing the delete leaves the folder alive with its
+    // contents scattered into the root — worse than no guard at all. The menu
+    // item is hidden too; this is the second half of that pair, because the
+    // handler is reachable from anywhere the item is rendered.
+    if (isProtectedFolder(folder)) return;
     // Reparent child occurrences to the folder's parent
     for (const occ of allChildOccs) {
       CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occ.id, parentId: folder.parentId }, emit: true });
@@ -700,8 +708,10 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
             { label: "Rename", icon: Pencil, onClick: () => { setRenameValue(folder.name); setIsRenaming(true); } },
             { label: "Set cover…", icon: ImageIcon, onClick: () => setCoverEditor({ x: ctxMenu.x, y: ctxMenu.y }) },
             ...(folder.meta?.cover ? [{ label: "Clear cover", icon: X, onClick: () => CommitHelpers.updateFolder({ dispatch, socket, folder: { id: folder.id, meta: { ...(folder.meta || {}), cover: null } }, emit: true }) }] : []),
-            { separator: true },
-            { label: "Delete folder", icon: Trash2, danger: true, onClick: handleDelete },
+            ...(isProtectedFolder(folder) ? [] : [
+              { separator: true },
+              { label: "Delete folder", icon: Trash2, danger: true, onClick: handleDelete },
+            ]),
           ] }}
           onClose={() => setCtxMenu(null)}
         />

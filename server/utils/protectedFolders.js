@@ -16,6 +16,13 @@ export const TEMPLATES_FOLDER_NAME = "Templates";
 // See docs/superpowers/plans/2026-08-06-intake-links-and-artifacts.md, Task 4.
 export const FILES_FOLDER_NAME = "Files";
 
+// Where IMPORTED content lands (assistant Wikipedia/markdown imports, a page
+// dragged in from a browser tab). Same argument as the other two: it is
+// structural, the app puts things there without asking, and a user who deletes
+// it gets a tree whose next import silently re-mints it — so it is not theirs
+// to delete. Minted by the client's helpers/importsFolder.js and by 0050.
+export const IMPORTS_FOLDER_NAME = "Imports";
+
 export function isProtectedFolder(folder) {
   return !!folder?.meta?.protected;
 }

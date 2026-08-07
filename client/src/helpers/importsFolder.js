@@ -7,6 +7,7 @@
 // and the Root tree lists pages under their folder — so landing under "Imports"
 // makes every import show up grouped instead of as a loose root page.
 import * as CommitHelpers from "./CommitHelpers";
+import { IMPORTS_FOLDER_NAME } from "./protectedFolders";
 
 // Find (or lazily create) the "Imports" folder under the grid manifest's root
 // folder, AND ensure it has a folder-page occurrence so it surfaces as a CARD
@@ -29,14 +30,30 @@ export function ensureImportsFolderAndPage({ grid, manifests, folders, occurrenc
   const manifest = grid?.manifestId ? (manifests || []).find((m) => m && m.id === grid.manifestId) : null;
   const rootFolderId = manifest?.rootFolderId || null;
   const existing = (folders || []).find(
-    (f) => f && f.name === "Imports" && f.parentId === rootFolderId &&
+    (f) => f && f.name === IMPORTS_FOLDER_NAME && f.parentId === rootFolderId &&
            (!gridId || !f.gridId || f.gridId === gridId)
   );
   const folderId = existing?.id || crypto.randomUUID();
   if (!existing) {
     CommitHelpers.createFolder({
       dispatch, socket,
-      folder: { id: folderId, name: "Imports", parentId: rootFolderId, gridId, userId, folderType: "normal" },
+      folder: {
+        id: folderId, name: IMPORTS_FOLDER_NAME, parentId: rootFolderId, gridId, userId,
+        folderType: "normal",
+        // Structural, like Templates and Files: the app files things here without
+        // asking, so it is not the user's to delete. `meta.protected` is the ONLY
+        // marker — the name is not evidence (2026-08-03: a selector that matched
+        // "things that look like templates" moved a real page).
+        meta: { protected: true },
+      },
+    });
+  } else if (!existing.meta?.protected) {
+    // Self-heal a folder minted before protection existed, so the guard covers
+    // every grid without waiting on the migration. Merge — a folder carries
+    // more than this flag (meta.cover, at least).
+    CommitHelpers.updateFolder({
+      dispatch, socket,
+      folder: { id: folderId, meta: { ...(existing.meta || {}), protected: true } },
     });
   }
   const folderPageOccId = ensureFolderPageOcc({ folderId, label: "Imports", gridId, occurrencesById, dispatch, socket, userId });

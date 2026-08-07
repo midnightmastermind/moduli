@@ -1,6 +1,42 @@
 # server — Server CLAUDE.md
 
 _Updated: 2026-08-07. Check this file before re-reading source._
+## Recent Changes (2026-08-07 (6) — the Files folder EXISTS; and Imports joins the protected set)
+- **`migrations/0049-files-folder.mjs`** — the data half of Task 4. Mints the protected **Files**
+  folder + its four subfolders (Images / Video / Audio / Documents) under the user manifest's root.
+  Until it ran, `findFilesFolder` returned null and every caller correctly refused to write, so the
+  17-test rule in `utils/filesFolder.js` was unusable by anything.
+  - **Verified through the REAL rule rather than by reading the DB shape**, because the rule is what
+    had to change behaviour: **15/15** — `resolveFilesFolderId` now lands image/video/audio in their
+    subfolder, pdf/code/markdown in Documents, an unknown kind in Documents, still **REFUSES (null,
+    not a guess)** a parent outside Files, and honours an explicit in-Files parent verbatim.
+  - **Idempotent, proven by re-running:** second pass created 0, found 4.
+  - **It files NO existing artifacts** — that is Step 4, it MOVES user data, and it gets its own dry
+    run reported against a NAMED expectation (the 0035 lesson). This one only CREATES, so there is
+    nothing it can move wrongly.
+  - **CORRECTION to that commit's own message:** it says "applied to test grid 2 only". Wrong —
+    poms grid's Files folders are timestamped 15:11 today, i.e. a run that predates this session.
+    Both grids have it. Harmless (creation-only + idempotent), but the ledger is the record.
+- **`migrations/0050-protect-imports-folder.mjs` + `IMPORTS_FOLDER_NAME`** — user's ask: *"make
+  imports be a protected folder too in root"*. Imports belongs with Templates and Files because
+  they share one property — **the app files things there without asking**, and the next import
+  re-mints it anyway (`ensureImportsFolderAndPage` is find-or-create), so deleting it is destructive
+  AND not durable. Find-or-create + stamp; **both branches were exercised by the dry run** (test
+  grid 2 had none → CREATE, poms grid had a real one → STAMP), which is the measurement.
+  `$set: {"meta.protected": true}` rather than writing `meta` whole — the folder may carry
+  `meta.cover`.
+- **THE HALF-APPLIED DELETE THIS HAD TO FIX FIRST, and it applied to Templates and Files ALREADY.**
+  `ManifestTree`'s folder delete REPARENTS every child out to the folder's parent and *then* emits
+  the delete. `assertNotProtectedFolder` throws inside `delete_folder`, so the refusal used to leave
+  the folder alive with its contents **scattered into the root** — a guard that converts a clean
+  destructive action into a half-applied one is worse than no guard. Closed for all three by the
+  client half (`client/src/helpers/protectedFolders.js`).
+- **Verified through the server's own guard, not by reading `meta.protected` back**: 8/8 —
+  Imports/Files/Templates on both grids report `protected=true deleteRefused=true`, **and an
+  ordinary folder ("Tasks") is NOT refused**. A rule nobody has watched decline is a guess.
+- 559 server tests. poms grid at **0 integrity errors** (0048's merge cleared the last one).
+  test grid 2's 22 errors are the documented date-nav probe debris, pre-existing and untouched here.
+
 ## Recent Changes (2026-08-07 (5) — importRelink: the chip half, which is the half that reaches today's imports)
 - **`services/importRelink.js` — `collectLinkChips` / `relinkLinkChips` (NEW, 19 tests).** THE GAP:
   `relinkTextmap` rewrites inline link MARKS, but since 2026-06-06 the importer emits each prose

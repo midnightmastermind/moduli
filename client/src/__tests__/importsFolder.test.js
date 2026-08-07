@@ -4,6 +4,7 @@ import { ensureImportsFolder, ensureImportsFolderAndPage, createImportsDocPage, 
 
 vi.mock("../helpers/CommitHelpers", () => ({
   createFolder: vi.fn(),
+  updateFolder: vi.fn(),
   createPage: vi.fn(),
   createModule: vi.fn(),
   createOccurrence: vi.fn(),
@@ -48,6 +49,37 @@ describe("ensureImportsFolder", () => {
     expect(folder.parentId).toBe("root-1");
     expect(folder.gridId).toBe("grid-1");
     expect(folder.id).toBe(id);
+  });
+
+  // Imports is structural — the app files things there without asking, and the
+  // next import re-mints it anyway, so deleting it is destructive AND not
+  // durable. `meta.protected` is what `assertNotProtectedFolder` reads.
+  it("mints the Imports folder PROTECTED", () => {
+    ensureImportsFolder({ ...baseArgs, folders: [] });
+    expect(CommitHelpers.createFolder.mock.calls[0][0].folder.meta).toEqual({ protected: true });
+  });
+
+  it("self-heals a folder minted before protection existed", () => {
+    const folders = [{ id: "imp-1", name: "Imports", parentId: "root-1", gridId: "grid-1" }];
+    ensureImportsFolder({ ...baseArgs, folders });
+    expect(CommitHelpers.createFolder).not.toHaveBeenCalled();
+    expect(CommitHelpers.updateFolder.mock.calls[0][0].folder)
+      .toMatchObject({ id: "imp-1", meta: { protected: true } });
+  });
+
+  // MERGE, never replace: the folder carries more than this flag (meta.cover).
+  it("preserves the rest of meta when stamping protection", () => {
+    const folders = [{ id: "imp-1", name: "Imports", parentId: "root-1", gridId: "grid-1", meta: { cover: "x.png" } }];
+    ensureImportsFolder({ ...baseArgs, folders });
+    expect(CommitHelpers.updateFolder.mock.calls[0][0].folder.meta)
+      .toEqual({ cover: "x.png", protected: true });
+  });
+
+  it("writes nothing when the folder is already protected", () => {
+    const folders = [{ id: "imp-1", name: "Imports", parentId: "root-1", gridId: "grid-1", meta: { protected: true } }];
+    ensureImportsFolder({ ...baseArgs, folders });
+    expect(CommitHelpers.createFolder).not.toHaveBeenCalled();
+    expect(CommitHelpers.updateFolder).not.toHaveBeenCalled();
   });
 
   it("does not reuse an Imports folder from a different grid", () => {

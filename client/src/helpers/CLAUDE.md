@@ -1,6 +1,31 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-07. Check this file before re-reading source._
+## Recent Changes (2026-08-07 (6) — protectedFolders.js NEW: the UI must stop OFFERING a refused delete)
+- **`protectedFolders.js` (NEW)** — client twin of `server/utils/protectedFolders.js` (**keep in
+  sync**, same relationship `alarmOps` has with `makeAlarmOp`). One predicate, `isProtectedFolder`
+  = `!!folder?.meta?.protected`, plus the three names. The server owns ENFORCEMENT; this exists so
+  the UI can stop offering a delete the server is going to refuse.
+- **WHY THAT MATTERS MORE THAN IT LOOKS, and it was already broken for Templates and Files.**
+  `ManifestTree`'s folder delete **REPARENTS every child out to the folder's parent BEFORE** it
+  emits the delete. `assertNotProtectedFolder` throws inside `delete_folder`, so the refusal left
+  the folder alive with its **contents scattered into the root** — persisted, surviving a reload.
+  **A protected folder whose delete is still on the menu is worse than one with no protection at
+  all:** the guard converts a clean destructive action into a half-applied one. Fixed in both
+  halves — the menu item is hidden AND `handleDelete` bails before the reparent loop, because the
+  handler is reachable from anywhere the item is rendered.
+- **`importsFolder.js`** — mints Imports with `meta: { protected: true }` (user 2026-08-07: *"make
+  imports be a protected folder too in root"*) and **self-heals** a folder minted before protection
+  existed, so the guard covers every grid without waiting on migration `0050`. The stamp **MERGES**
+  `meta` — a folder carries more than this flag (`meta.cover`). The `"Imports"` literal is now the
+  shared constant.
+- **The marker is `meta.protected`, NEVER the name** — a user may have their own folder called
+  Imports and it is theirs to delete (0035's lesson: a selector matching "things that look like
+  templates" moved the user's real project page).
+- 4 tests in `__tests__/importsFolder.test.js`; **A/B'd against the unprotected source — 3 of the 4
+  fail there.** The fourth ("writes nothing when already protected") is an assertion of ABSENCE and
+  passes vacuously; its discriminating sibling is the self-heal case. 1958 client tests, build clean.
+
 ## Recent Changes (2026-08-07 (5) — intake Task 5: the .md/.csv shapes and the link chip)
 - **`csvToTable.js` (NEW, pure, 26 tests)** — a dropped `.csv`/`.tsv` becomes a real
   `kind:"table"` container by being converted to a **markdown pipe table** and sent through the
