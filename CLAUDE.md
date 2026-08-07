@@ -5,6 +5,65 @@
 > **Read [`CLAUDE_CHAT.md`](./CLAUDE_CHAT.md) at session start.** It's the time-ordered log of user direction across sessions. New direction goes there first before acting.
 
 ---
+### 2026-08-06 (4) — staged loading: the shape paints in 0.2s, and the docket's load theory was WRONG
+
+User task list: *"Staged loading: grid shape first, per-panel spinners, one circular loader."* Plan +
+every number: `docs/superpowers/plans/2026-08-06-staged-loading.md`. Measured on **test grid 2**, not
+poms grid.
+
+**MEASURED FIRST, and the measurement retired the standing theory.** The docket had assumed the
+on-load OP SWEEP dominated the load (556ms, 58 ops) and that "7.8s to content" was the drain. It is
+not. Split four ways from `full_state` arrival at 1× / 4× CPU:
+
+```
+reducer dispatch      0.1ms  /    1ms      ← free, and always was
+content RENDER      1265ms  / 6000ms      ← the cost, one unbroken task
+op sweep             552ms  / 2247ms      ← a third of it, and it runs AFTER the rows exist
+editor mounts        none on this grid    ← UNMEASURED, not zero (poms grid is where they live)
+```
+
+**The finding the plan did not expect: the grid shape was never missing.** Panel CHROME already
+commits on its own at 125ms (504ms throttled) — a full second, six throttled, before its content.
+Nobody sees it because **the first paint was at 2.5s / 11.8s**: React keeps rendering in the same
+task and the browser is never handed a frame. So the work was YIELDING, not inventing staging.
+
+**Three defects on the way, each caught by a different instrument, and the probe was wrong first.**
+- **A rAF is not a paint.** Releasing content on a double `requestAnimationFrame` renders it in the
+  very frame meant to paint the chrome — a CDP screencast showed **zero painted frames between 2.0s
+  and 9.7s**. `setTimeout(…, 0)` after the rAF was still not enough: on a saturated main thread
+  Chrome runs a due timer rather than painting. It takes a real idle window (50ms).
+- **The sweep jumped the queue.** Once the paint was fixed, the sweep ran before any content, so the
+  shape sat empty for its whole 3.8s and first rows went from 8.1s → 11.7s. It now waits for the
+  NEAREST panel's content (`whenStagedFirstRelease`).
+- **THE PROBE ITSELF LIED, and this is the reusable lesson.** The first screenshot probe sampled with
+  `page.screenshot()` + `page.evaluate()` at fixed offsets and reported the whole throttled load
+  finishing in 1.5s — contradicting the marks by six seconds. **Both APIs wait on the renderer**, so
+  a blocked main thread delays the sample past the thing it is sampling. Only `Page.startScreencast`
+  — frames pushed as the compositor produces them — can see a mid-load frame. *A probe that samples
+  through the main thread cannot measure a blocked main thread.*
+
+**Result, same instrument before/after:**
+```
+                          desktop 1x        phone 390px 4x
+first PAINT            2542 → 199ms        11966 → 737ms
+20+ rows in the DOM    1532 → 1373ms        8109 → 7181ms
+main thread blocked    3688 → 2935ms       13101 → 15327ms   ← the honest cost
+```
+Paint 12.8× / 16× earlier, content slightly EARLIER too; the price is ~2.2s more total blocked time
+on a throttled phone from the extra render passes. **Looked at, not just asserted:** at 3s and 5s the
+staged build shows the toolbar, the panel and its header, the rails and one small loader; the
+unstaged build shows a full-screen spinner and nothing else.
+
+**Two things kept the instrument honest.** `loadDiag`'s state lives on `window`, not module scope —
+rollup emits the helper into more than one chunk, and the first version reported **0 editor mounts on
+a grid with 241 rows** because `Editor.jsx`'s copy had never been started. And staging is OFF unless
+`App.jsx` switches it on, so a unit test still renders panel content synchronously.
+
+1775 client tests, build clean. Probe debris swept (41 `missing-module` on test grid 2 → 2, the two
+the sweep refuses because they have children); poms grid and test grid 1 untouched.
+
+---
+
 ### 2026-08-06 (3) — the graph occurrence is FINISHED: a wheel you can zoom, click, and edit as data
 
 Picked up the previous account's run of `docs/superpowers/plans/2026-08-06-graph-occurrence.md`

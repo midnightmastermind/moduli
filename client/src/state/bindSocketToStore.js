@@ -28,6 +28,7 @@ import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
 import { beginAction, endAction, setActionCloseHook } from "../helpers/actionScope";
 import { requestForceSync, commitForceSync } from "../helpers/editorSyncSignal";
 import { startLoadDiag, markLoad, timeLoad } from "../helpers/loadDiag";
+import { whenStagedFirstRelease } from "../helpers/stagedMount";
 import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers";
 import { migrateFieldOptionsSource, needsMigration } from "./migrateFieldOptionsSource";
 import { analyzeAllOperations } from "../helpers/operationIntrospection";
@@ -242,9 +243,13 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     }
     const hydratedState = { ...stateRef.current, ...payload, occurrencesById, operations, fields: payload.fields || [] };
 
-    // Defer operation execution until after the first paint so the grid renders immediately.
-    // requestAnimationFrame fires before next paint, the nested rAF fires AFTER paint.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
+    // Defer operation execution until after the first paint so the grid renders
+    // immediately. rAF then a MACROTASK: a rAF callback still runs before that
+    // frame's paint, so a nested rAF only guarantees "a frame later", not "after
+    // the pixels landed" — and with the sweep costing 0.5s (2.5s throttled) that
+    // difference is the whole wait. Measured with a CDP screencast: the chrome
+    // was committed and unpainted for 7.7s because this ran first.
+    whenStagedFirstRelease(() => requestAnimationFrame(() => setTimeout(() => {
       const tOps0 = performance.now();
       // Overlay localOccsById on top of the payload snapshot. Between full_state
       // dispatch and this deferred callback, React's filterNavState useEffect
@@ -273,7 +278,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       flushOfflineQueue(socket);
       // Materialize feeds once the load sweep's creates have settled.
       scheduleFeedSync(400);
-    }));
+    }, 50)));
   }
 
   socket.on("full_state", onFullState);

@@ -2,6 +2,15 @@
 
 _Updated: 2026-07-06. Check this file before re-reading source._
 
+## Recent Changes (2026-08-06 — onFullState: the op sweep waits for the first panel's content)
+- **`bindSocketToStore.js`** — the on-load sweep's deferral changed from a nested
+  `requestAnimationFrame` to `whenStagedFirstRelease(() => rAF → setTimeout(…, 50))`. Two measured
+  reasons: a rAF callback runs BEFORE that frame's paint (so "deferred past first paint" was not
+  true — the chrome stayed unpainted for seconds while the sweep ran), and running the sweep before
+  ANY content leaves the freshly-painted shape empty for its whole 0.5s / 3.8s. Also marks
+  `dispatch` / `filterNav` / `ops` / `effects` for `helpers/loadDiag.js` (inert unless
+  `window.__loadDiag`).
+
 ## Recent Changes (2026-07-08 — feed resolver + sync scheduler; delete snapshot)
 - **`selectors.js`** — `resolveFeedItems(feedOcc, {occurrencesById, modulesById})`: the feed query
   (roles + scope HAS_ANCESTOR + filter-menu conditions via evalRuleAgainstRecord; skips feed

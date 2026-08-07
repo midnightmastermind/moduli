@@ -2,6 +2,19 @@
 
 _Updated: 2026-08-01. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-08-06 (5) — ModulePanel: chrome renders now, the BODY is staged)
+- **`ModulePanel.jsx`** — the panel's chrome (header, page name, tree toggles, drag handle, border)
+  renders immediately; only its BODY waits for `useStagedContent("panel:<id>")`. The gate is
+  per-branch (page / artifact-tree / display), NOT around the whole CONTENT block — the first
+  version wrapped everything and the mid-load screenshot showed a panel with no header, which is the
+  opposite of "the grid shape paints first".
+- While waiting it renders ONE circular loader — the same `Spinner`, at `size="sm"` — and **nothing
+  at all for the first 150ms**, so a panel that lands quickly never flashes one.
+- Priority is nearest-first: on mobile the distance from the ACTIVE CELL (`useActiveCell`), on
+  desktop reading order. Engine + the two defects it took to get right: `helpers/CLAUDE.md`.
+- `ModuleContainer` / `ModulePage` gained first-render and first-commit marks for the load
+  instrument (inert unless `window.__loadDiag`).
+
 ## Recent Changes (2026-08-05 (4) — clicking a page in the tree opens the PAGE)
 - **`ManifestTree.jsx` (`PageTreeNode` onClick)** — a page row now calls `onOpenPage(pageOccId)`.
   It used to open the page's FOLDER and animate a drilldown into the card

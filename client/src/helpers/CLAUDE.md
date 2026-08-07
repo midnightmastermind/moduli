@@ -1,6 +1,33 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-07-24. Check this file before re-reading source._
+## Recent Changes (2026-08-06 (5) — loadDiag.js + stagedMount.js: the load path, measured then staged)
+- **`loadDiag.js` (NEW, opt-in `window.__loadDiag`)** — splits the wall clock from `full_state` to a
+  usable UI four ways (reducer / React / op sweep / editor mounts). It EXTENDS `onFullState`'s
+  existing `markFS` timer rather than adding a second clock. **Its state lives on `window`, not in
+  module scope, and that is load-bearing:** rollup emits this helper into more than one chunk, and
+  the first version reported **0 editor mounts on a grid with 241 rows** because `Editor.jsx`'s copy
+  had never been started. Long tasks report `supported:false` rather than `0` where the entry type
+  does not exist (the 2026-08-04 absent-signal trap).
+- **What it found** (full table in `docs/superpowers/plans/2026-08-06-staged-loading.md`): the
+  reducer is FREE (0.1ms); rendering the content tree is **~1.3s / ~6s throttled** in one unbroken
+  task; the op sweep is a third of that and runs AFTER the rows exist. **The docket's assumption
+  that the op drain dominated the load is retired.**
+- **`stagedMount.js` (NEW)** — releases surfaces to mount their content one per frame, nearest-first
+  (active cell on mobile, reading order on desktop). OFF by default; `App.jsx` enables it at
+  runtime, so unit tests render content synchronously. Two things are not style:
+  - **`requestAnimationFrame(() => setTimeout(pump, 50))`.** A rAF callback runs BEFORE that frame's
+    paint, so releasing inside one makes React render content in the frame that was meant to paint
+    the chrome — a CDP screencast caught exactly that: **no paint at all between 2.0s and 9.7s**.
+    `setTimeout(…, 0)` was still not enough on a saturated thread; it takes a real idle window.
+  - **`whenStagedFirstRelease`** — the on-load op sweep waits for the NEAREST panel's content. Run
+    the sweep first and the shape sits empty for its whole 3.8s (throttled), pushing first rows from
+    8.1s to 11.7s.
+- **`bindSocketToStore`'s sweep deferral** moved from a nested rAF to `rAF → setTimeout(…, 50)`
+  behind that gate, for the same reason.
+- Measured after: first paint **2542 → 199ms** (desktop 1×) and **11966 → 737ms** (390px, 4×), with
+  content arriving slightly EARLIER on both. 10 tests across `stagedMount` / `useStagedContent`.
+
 ## Recent Changes (2026-08-06 — prefillFromPick.js NEW: a dropdown pick fills the fields it implies)
 - **`prefillFromPick.js` (NEW)** — user 2026-08-06: *"if i select that as the ingrediant, it would
   prefill the nutrition on eat … if i select meal, it would fill the ingrediants dropdown with all

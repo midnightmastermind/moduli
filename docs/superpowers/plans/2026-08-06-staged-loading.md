@@ -144,6 +144,34 @@ paint, then mounting content progressively — not inventing a staging that does
       appears and vanishes reads as jank, not progress — gate on a delay, and prove it with a
       throttled capture, not by looking at it once on a fast machine.
 
+### BUILT — 2026-08-06. What Tasks 2/3 actually became, and the two defects on the way
+
+**`helpers/stagedMount.js` (NEW)** hands out permission to mount content, one surface per frame, in
+priority order — nearest-first (the ACTIVE CELL on mobile, reading order on desktop).
+`hooks/useStagedContent.js` is the React seam; `ModulePanel` renders its chrome and header
+immediately and gates only its BODY. It is OFF by default and switched on by `App.jsx` at runtime,
+so a unit test that renders a panel still gets its content synchronously.
+
+**DEFECT 1 — a rAF is not a paint, and a screencast is what proved it.** The first version released
+on a double `requestAnimationFrame`. rAF callbacks run BEFORE that frame's paint, so React rendered
+the content in the very frame that was meant to paint the chrome. Measured with a CDP screencast at
+390px / 4x: **the browser painted NOTHING between 2.0s and 9.7s** — the chrome was committed the
+whole time and never reached the screen. `setTimeout(…, 0)` after the rAF was still not enough: on a
+saturated main thread Chrome runs a due timer rather than painting. It takes a real idle window
+(`PAINT_GAP_MS = 50`), and the same fix had to be applied to the on-load op sweep's own deferral.
+
+**DEFECT 2 — the sweep was jumping the queue.** With the paint fixed, the op sweep (0.5s; **3.8s**
+throttled) ran before any content, so the shape sat empty for the whole of it and the first rows
+landed at **11.7s** against 8.1s unstaged. The sweep now waits for `whenStagedFirstRelease` — the
+NEAREST panel's content goes first, then the sweep pays for the rest.
+
+**AND THE PROBE ITSELF WAS WRONG FIRST.** The original screenshot probe sampled with
+`page.screenshot()` + `page.evaluate()` at fixed offsets and reported the whole throttled load
+finishing in 1.5s — contradicting the marks by 6 seconds. Both of those APIs **wait on the
+renderer**, so a blocked main thread delays the sample past the thing it is sampling. Only
+`Page.startScreencast`, which pushes frames as the compositor produces them, can see a mid-load
+frame. *A probe that samples through the main thread cannot measure a blocked main thread.*
+
 ## Task 4: verify it did not make things worse
 
 - [ ] **Step 1:** re-run Task 1's instrument and compare the same four numbers. Staged mounting adds
@@ -152,6 +180,36 @@ paint, then mounting content progressively — not inventing a staging that does
 - [ ] **Step 2:** a screenshot at 390px mid-load. Every load-path defect on this surface has been
       caught by looking, not by asserting.
 - [ ] **Step 3:** sweep any probe debris and re-check `checkGrid --all` before calling it done.
+
+### VERIFIED — 2026-08-06 (same instrument, same grid, same machine)
+
+| ms from `full_state` | 1440×900 1× before → after | 390×844 4× before → after |
+| --- | --- | --- |
+| panel chrome committed | 125 → 137 | 425 → 494 |
+| **first PAINT** | 2542 → **199** | 11966 → **737** |
+| first content committed | 1415 → 1261 | 7058 → 5298 |
+| 20+ rows in the DOM | 1532 → **1373** | 8109 → **7181** |
+| op sweep finished | 2192 → 2066 | 10478 → 10711 |
+| main thread blocked, total | 3688 → 2935 | 13101 → 15327 |
+
+**The headline is the paint: 12.8× earlier on desktop, 16× on a throttled phone** — and content is
+not the price, it arrives slightly EARLIER on both. The one honest cost is at the bottom: staged
+mounting adds render passes, so total blocked time on the throttled phone rises ~2.2s. That buys a
+screen that shows the app's shape from 0.7s instead of a spinner until 12s.
+
+**Looked at, not just asserted** (`_loadshots.mjs`, CDP screencast, 390×844 4×): at 3s and 5s the
+staged build shows the toolbar with its date nav, the panel and its "Routines" header, the Schedule
+rail and the Tasks bar, with ONE small loader in the body; the unstaged build shows the full-screen
+spinner and nothing else. Frames are painted continuously throughout — no dead window.
+
+**Spinner flash** is prevented by construction rather than by looking: the loader is gated on a
+150ms wait (`useStagedContent`), and with staging off the hook reports ready on its FIRST render, so
+a surface that never waits renders no waiting state at all. Two tests pin both halves.
+
+**Probe debris swept:** the ~20 loads left 41 `missing-module` occurrences on test grid 2 (the
+documented abrupt-disconnect class). `sweepOrphans --grid "test grid 2" --apply` removed 39; the 2
+it kept HAVE CHILDREN, which its conservative predicate refuses to touch. poms grid and test grid 1
+end exactly as they started (their single errors are the pre-existing ones recorded on 08-05).
 
 ---
 

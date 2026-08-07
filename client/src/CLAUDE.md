@@ -2,6 +2,18 @@
 
 _Updated: 2026-07-24. Check this file before re-reading source._
 
+## Recent Changes (2026-08-06 (5) — staged loading: the shape paints first)
+- **`helpers/loadDiag.js` (NEW, `window.__loadDiag`)** — the load-path instrument; **`helpers/
+  stagedMount.js` + `hooks/useStagedContent.js` (NEW)** — content mounts one panel per frame,
+  nearest-first, behind the panel's own chrome, with one small `Spinner` after a 150ms wait.
+  `App.jsx` switches staging on at runtime (`window.__noStaging` is the A/B off switch).
+- **first paint 2542 → 199ms (desktop 1×) and 11966 → 737ms (390px 4×)**, content slightly earlier
+  too; total blocked time on the throttled phone rises ~2.2s, which is the honest price of the extra
+  render passes. Numbers, defects and screenshots: the plan file + helpers/ and modules/ CLAUDE.md.
+- **Probe lesson worth more than the fix:** `page.screenshot()` and `page.evaluate()` both WAIT ON
+  THE RENDERER, so they cannot sample a blocked main thread — the first probe reported a 1.5s load
+  that the marks put at 7s. Use `Page.startScreencast` (frames pushed as the compositor makes them).
+
 ## Recent Changes (2026-07-27 (2) — instance rows: the field pills sit on the label's centreline)
 - **`index.css` `.instance-content`** — the handle and label were already pixel-aligned (measured
   Δ 0.0), but the field pills sat **3px low** in every row: `.instance-content` is
@@ -373,7 +385,17 @@ Pragmatic targets, wrap morphs) — a static render must keep drops + wraps work
 its own headless-verified session. Would also shrink the frame-1 flush (fewer live editors
 re-measuring during drops).
 
-## DOCKET — on-load op sweep slicing (still open)
+## DOCKET — on-load op sweep slicing [RE-SCOPED 2026-08-06: it is NOT the load headline]
+The 2026-08-06 load measurement (`helpers/loadDiag.js`, full table in
+`docs/superpowers/plans/2026-08-06-staged-loading.md`) split the wall clock from `full_state` to a
+usable UI and the sweep came SECOND, not first: **rendering the content tree costs ~1265ms (~6000ms
+at 4x) in one unbroken task, the sweep 552ms / 2247ms** — and the sweep runs after the rows exist.
+The long-standing "7.8s to 20+ rows, and row-skipping made no difference, so it must be the op
+drain" reading was wrong: it was 6s of React render. Slicing the drain is still worth doing (it is
+the biggest remaining single block, and it now runs while the user is looking at a painted shape),
+but it is a tail fix, not the load fix. Original entry:
+
+
 `bindSocketToStore.js` onFullState defers the sweep past first paint (good) but then runs all ops
 in ONE synchronous `runMatchingOperations` block — measured 556ms on the live grid (58 ops fired;
 Build Schedule 114ms, Table: Build 56ms). Slicing per-op across macrotasks (the endDropBatch

@@ -12,6 +12,9 @@ import { useLongPress } from "../hooks/useLongPress";
 import { resolveStyleCascade, styleToCSS } from "../helpers/StyleHelpers";
 import { bumpRender } from "../helpers/renderProbe";
 import { markLoadOnce, markLoad } from "../helpers/loadDiag";
+import { useStagedContent } from "../hooks/useStagedContent";
+import { useActiveCell } from "../state/activeCellStore";
+import { Spinner } from "@/components/ui/spinner";
 
 import Artifact from "./ArtifactContent";
 import ManifestTree from "./ManifestTree";
@@ -329,6 +332,20 @@ function Panel({
   const foldersById = useGridActionsSelector(s => s.foldersById);
   const { state } = useContext(GridDataContext);
   const { isMobileLayout, isTouch } = useContext(GridLiveContext);
+
+  // ── Staged content (docs/superpowers/plans/2026-08-06-staged-loading.md) ──
+  // The panel's CHROME renders immediately; its CONTENT waits for a frame so the
+  // shape can paint first. Order is nearest-first: on mobile that means the cell
+  // you are actually looking at (MobileGridNav already knows which one), on
+  // desktop it is reading order, which is the closest thing to "nearest the
+  // viewport" a grid layout gives us.
+  const stagingCell = useActiveCell();
+  const stagePriority = isMobileLayout
+    ? Math.abs((module?.row ?? 0) - (stagingCell?.row ?? 0)) * 100
+      + Math.abs((module?.col ?? 0) - (stagingCell?.col ?? 0))
+    : (module?.row ?? 0) * 100 + (module?.col ?? 0);
+  const [contentReady, showContentSpinner] = useStagedContent(`panel:${module?.id}`, stagePriority);
+  useEffect(() => { if (contentReady) markLoad("panel:content-ready", { id: module?.id }); }, [contentReady, module?.id]);
   // Stable handler context (stack helpers) + the small reactive drag-state
   // context. Panels are few (~dozens), so a reactive subscription here is the
   // sanctioned pattern (see dragSystem.js DragStateContext).
@@ -828,10 +845,19 @@ function Panel({
         </span>
       )}
 
-      {/* CONTENT */}
+      {/* CONTENT — staged per panel (helpers/stagedMount.js). The panel's own
+          chrome (header, page name, tree toggles) renders immediately; only the
+          BODY waits its turn, and while it waits it holds ONE circular loader —
+          the same `Spinner` used everywhere else, smaller. Nothing is shown for
+          the first 150ms, so a panel that lands quickly never flashes it. */}
       {(() => {
         const resolvedView = resolvedViewId ? viewsById[resolvedViewId] : null;
         const viewType = resolvedView?.viewType;
+        const stagedHold = (
+          <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {showContentSpinner && <Spinner size="sm" />}
+          </div>
+        );
 
         // Page panel — dual sidebar (root tree left, panel-local right)
         if (pagesList.length > 0) {
@@ -1086,7 +1112,7 @@ function Panel({
                 )}
                 {/* Page content — flex-grows between sidebars */}
                 <div style={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-                  {pageContent}
+                  {contentReady ? pageContent : stagedHold}
                 </div>
                 {/* Root tree sidebar — RIGHT, pushes content on desktop, overlays on mobile */}
                 {rootTreeOpen && (
@@ -1159,6 +1185,7 @@ function Panel({
           }
 
           const activeOccView = activeOcc?.viewId ? viewsById[activeOcc.viewId] : null;
+          if (!contentReady) return stagedHold;
           return (
             <TreePanelContent
               resolvedView={resolvedView}
@@ -1177,6 +1204,7 @@ function Panel({
           const activeOccView = activeOcc?.viewId ? viewsById?.[activeOcc.viewId] : null;
           const effectiveViewType = activeOccView?.viewType ?? viewType;
           const effectiveArtifactType = activeOccView?.artifactType ?? resolvedView?.artifactType ?? null;
+          if (!contentReady) return stagedHold;
           return (
             <div style={{ flex: 1, minHeight: 0, overflow: "hidden", position: "relative" }}>
               <Artifact

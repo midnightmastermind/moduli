@@ -41,6 +41,7 @@ import { useTheme } from "./helpers/useTheme";
 import { useMobileDetect } from "./hooks/useMobileDetect";
 import { useLayoutRuleMode } from "./hooks/useLayoutRuleMode";
 import { installMobileInputAutoScroll } from "./hooks/useMobileKeyboard";
+import { enableStagedMount } from "./helpers/stagedMount";
 
 import * as CommitHelpers from "./helpers/CommitHelpers";
 import * as LayoutHelpers from "./helpers/LayoutHelpers";
@@ -293,6 +294,12 @@ export default function App() {
   // keyboard. Idempotent + safely no-ops on desktop / unsupported
   // browsers (the helper guards on visualViewport availability).
   useEffect(() => { installMobileInputAutoScroll(); }, []);
+  // Panel content mounts one panel per frame instead of all at once (see
+  // helpers/stagedMount.js). Enabled HERE rather than at import time so a unit
+  // test that renders a panel still gets its content synchronously.
+  // `window.__noStaging = true` (set before load) turns it off — the A/B switch
+  // the staged-loading measurements are taken against.
+  useEffect(() => { if (!window.__noStaging) enableStagedMount(); }, []);
 
   // Suppress the native `contextmenu` (right-click menu) when it isn't a real
   // desktop right-click: a TOUCH/PEN long-press fires contextmenu ~0.5s in — but
