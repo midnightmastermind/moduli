@@ -328,11 +328,17 @@ document". Intake decides *shape*, not meaning.
 
 ## Open questions — ASK, do not assume
 
-Carried from the superseded plan, still unanswered:
+Carried from the superseded plan.
 
-1. **When does Jonah offer to follow links?** After every import, or only when asked?
-2. **How many links?** Top N by position, prose-only, or a tick-list?
-3. **Depth** — one hop, or follow the followed?
+1. **When does Jonah offer to follow links?** After every import, or only when asked? — OPEN.
+2. **How many links?** ~~Top N by position, prose-only, or a tick-list?~~
+   **ANSWERED 2026-08-07 (user): "task 6 is all links to other pages."** Not a top-N and not a
+   tick-list — the scope is EVERY link that points at another page. So the harvest does not rank
+   or sample; it collects the lot and the only filtering is "is this a page link at all". That
+   also settles the relink half: a chip is rewritten whenever its URL matches a page that exists
+   in-app, with no cap.
+3. **Depth** — one hop, or follow the followed? — OPEN. (Note: with (2) settled as *all* links,
+   depth is the only thing left bounding the size of a harvest, so it matters more than it did.)
 
 ---
 
@@ -362,24 +368,50 @@ field. Nothing here reads live data — the caller resolves `isOptionBoard` / `f
 - [ ] **Step 3:** Assert every shape name maps to a real branch in Task 3's router (a shape with
       no implementation is worse than no shape).
 
-### Task 2: The sheet
+### Task 2: The sheet ✅ DONE 2026-08-07 (14 tests)
 
 **Files:** `client/src/ui/IntakeSheet.jsx`; test `__tests__/intakeSheet.test.jsx`.
 
-- [ ] Tiles from `classifyIntake`; the pre-selected tile is focused on open so **Enter commits**.
-- [ ] Escape cancels **and commits nothing** — assert zero writes, not just a closed sheet.
-- [ ] One sheet per gesture: a 9-file drop asks once and reports "9 files" in the header.
+- [x] Tiles from `classifyIntake`; the pre-selected tile is focused on open so **Enter commits**.
+      Focus is the whole mechanism — the browser's own activation handles Enter and Space, so
+      there is no key handling to get wrong.
+- [x] Escape cancels **and commits nothing** — asserted as **zero calls to `onPick`**, not "the
+      sheet closed". A sheet that closes AND writes is the exact bug this plan exists to prevent,
+      and only the write assertion tells them apart. Escape is bound at the DOCUMENT (capture), so
+      there is no focus-dependent dead spot where it silently does nothing. Backdrop tap is
+      covered the same way.
+- [x] One sheet per gesture: a 9-file drop asks once and reports "9 files" in the header.
 - [ ] Measure in a real browser at 390×844 and 1440×900 — drawer vs anchored, per `MenuSurface`.
+      **NOT DONE.** The tests assert the drawer CLASS flips off `document.body.dataset.layout`, and
+      MenuSurface's own geometry was measured in a browser on 2026-08-05 — but this sheet's own
+      sizing at both widths has not been looked at.
+
+**Contract that makes the plan's promise structural:** this file is pure UI. It takes a
+classification and returns a shape id through `onPick`; every write lives in the router. That is
+what makes "Escape commits nothing" true by construction rather than by remembering to guard each
+branch.
 
 ### Task 3: The router — behaviour-preserving first
 
 **Files:** `client/src/helpers/intakeApply.js`; `dropHandlers.js`; `Editor.jsx`.
 
-- [ ] **Step 1:** Implement ONLY today's shapes, wired to the sheet with today's outcome
-      pre-selected. **The pass condition is that nothing changes yet**: drop a file on a container,
-      a page gap, a canvas, a doc, an empty cell → Enter → byte-identical persisted state to
-      before. That is what proves the decision layer is transparent before any new shape rides on
-      it.
+- [~] **Step 1: HALF DONE 2026-08-07 (13 tests).** `intakeApply.js` exists with the decision layer
+      and the two behaviour-preserving routes (artifact-per-file → `artifactUpload`; doc page →
+      `import_text`). **`dropHandlers.js` / `Editor.jsx` are NOT yet rewired**, so nothing opens
+      the sheet in the app yet — the router is complete and tested, but inert. That wiring plus the
+      byte-identical drop verification is the rest of this step.
+
+      **What Step 1 added beyond "route the shapes" — THE COVERAGE CONTRACT.** Task 1's second rule
+      ("a shape offered and not implemented is worse than one not offered") needs an enforcement
+      point, or the sheet will happily show "Canvas with it" and do nothing when picked. So the
+      router declares `IMPLEMENTED_SHAPE_IDS`, callers run the classification through
+      `filterToImplemented` before opening the sheet, and `assertShapeCoverage` reports three
+      buckets — implemented, not-yet, and **orphanRoutes** (a route whose shape id no longer
+      exists, i.e. a rename that would otherwise rot silently). The filter re-points the
+      preselection when the preselected shape is one of the unimplemented ones — which is exactly
+      the link case today, since `link-chip` is the classifier's pick and Task 5 owns it — and it
+      **never returns zero shapes**, falling back to the artifact route, which is itself asserted
+      to be implemented so the escape hatch cannot become its own dead end.
 - [ ] **Step 2:** One action scope per intake (verify: one undo step reverts the whole thing).
 - [ ] **Step 3:** Everything intake mints carries `parentFilterFields` from its destination — a
       file dropped on today's column must be visible in today's column.
