@@ -405,11 +405,26 @@ branch.
 
 **Files:** `client/src/helpers/intakeApply.js`; `dropHandlers.js`; `Editor.jsx`.
 
-- [~] **Step 1: HALF DONE 2026-08-07 (13 tests).** `intakeApply.js` exists with the decision layer
-      and the two behaviour-preserving routes (artifact-per-file → `artifactUpload`; doc page →
-      `import_text`). **`dropHandlers.js` / `Editor.jsx` are NOT yet rewired**, so nothing opens
-      the sheet in the app yet — the router is complete and tested, but inert. That wiring plus the
-      byte-identical drop verification is the rest of this step.
+- [~] **Step 1: FILE DROPS ASK 2026-08-07 (22 tests).** `intakeApply.js` holds the decision layer
+      and the behaviour-preserving routes; `<IntakeSheetHost>` is mounted in `App.jsx`; and
+      `handleFileDrop` now classifies → filters → **asks** → applies.
+      **STILL NOT WIRED: `handleExternalDrop` (text / HTML / link drops) and `Editor.jsx`'s doc
+      arm** — those two still decide silently.
+
+      **The ask happens BEFORE any write, and that is the design, not an ordering accident.** The
+      old handler minted placeholders and then uploaded; the sheet now opens with nothing minted,
+      so Escape cannot leave debris — asserted as "cancel ⇒ zero dispatches, zero emits, zero
+      uploads" rather than as a closed sheet.
+
+      **Placement stayed with the drop handler.** Which container's `occurrences[]`, a canvas page,
+      an artifact panel's active view — that is genuinely this handler's business, and a copy of it
+      inside the router would drift. `runArtifacts` calls an `onPlaceholders` hook between minting
+      and uploading instead.
+
+      **A missing host FALLS BACK to today's behaviour** rather than dropping the file on the floor
+      (a preview iframe or a test harness has no host). That is also why the pre-existing
+      `handleFileDrop` suite still passes untouched — it exercises the fallback, which is exactly
+      the byte-identical path this step promised.
 
       **What Step 1 added beyond "route the shapes" — THE COVERAGE CONTRACT.** Task 1's second rule
       ("a shape offered and not implemented is worse than one not offered") needs an enforcement

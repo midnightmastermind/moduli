@@ -19,8 +19,54 @@
 // which is what makes "Escape commits nothing" true by construction rather than
 // by remembering to guard each branch.
 
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MenuSurface from "./MenuSurface";
+
+// ── Imperative controller ────────────────────────────────────────────────
+// The callers are DROP HANDLERS — plain functions in `helpers/`, not
+// components — so they have nowhere to render a sheet. One <IntakeSheetHost>
+// is mounted in App and `openIntakeSheet({ classification, position, onPick,
+// onCancel })` drives it. Same shape as ImagePickerHost, and for the same
+// reason: the surface must outlive whatever triggered it.
+let _intakeHost = null;
+export function registerIntakeSheetHost(fn) {
+  _intakeHost = fn;
+  return () => { if (_intakeHost === fn) _intakeHost = null; };
+}
+
+/**
+ * Ask the user what a payload should become.
+ *
+ * If no host is mounted the request is REFUSED rather than silently dropped —
+ * a drop that asks nothing and writes nothing looks identical to a broken
+ * drop, so the caller is told and can fall back.
+ * @returns {boolean} whether the sheet opened
+ */
+export function openIntakeSheet(request) {
+  if (!_intakeHost) {
+    console.warn("[intake] no host mounted — is <IntakeSheetHost/> in App?");
+    return false;
+  }
+  _intakeHost(request);
+  return true;
+}
+
+export function IntakeSheetHost() {
+  const [req, setReq] = useState(null);
+  useEffect(() => registerIntakeSheetHost((r) => setReq(r || null)), []);
+  if (!req?.classification) return null;
+  // Each outcome closes the sheet FIRST, then runs the caller's callback, so a
+  // slow write (a fetch, an upload) never leaves the sheet sitting open over
+  // the work it started.
+  return (
+    <IntakeSheet
+      classification={req.classification}
+      position={req.position || null}
+      onPick={(shapeId) => { setReq(null); req.onPick?.(shapeId); }}
+      onCancel={() => { setReq(null); req.onCancel?.(); }}
+    />
+  );
+}
 
 /**
  * One line naming what is being brought in, for the sheet header.

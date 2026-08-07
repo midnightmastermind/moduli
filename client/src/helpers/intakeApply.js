@@ -118,9 +118,16 @@ export function applyIntakeShape(shapeId, ctx = {}) {
 // upload. Both halves come straight from `handleFileDrop`.
 function runArtifacts(ctx) {
   const { files = [], gridId, userId, dispatch, socket,
-    occExtra = null, persist = null, containerOccurrenceId = null } = ctx;
+    occExtra = null, persist = null, containerOccurrenceId = null,
+    onPlaceholders = null } = ctx;
   if (!files.length) return;
   const placeholders = createArtifactPlaceholders(files, { gridId, userId, dispatch, occExtra });
+  // The caller wires the new ids into their destination BETWEEN mint and
+  // upload — that placement is genuinely the drop handler's business (which
+  // container's occurrences[], a canvas page, an artifact panel's active
+  // view), and duplicating it here would give intake a second, drifting copy
+  // of rules that already exist.
+  onPlaceholders?.(placeholders);
   uploadArtifactPlaceholders(placeholders, {
     gridId, userId, dispatch, socket, containerOccurrenceId, persist,
   });

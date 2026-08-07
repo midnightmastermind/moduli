@@ -91,7 +91,9 @@ import { pushTxNotification } from "../state/notificationStore";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { embedDeleteRegistry } from "./embedRegistry";
 import { buildReverseMap, findGridPanelOcc } from "./occurrenceHelpers";
-import { createArtifactPlaceholders, uploadArtifactPlaceholders } from "./artifactUpload";
+import { classifyIntake } from "./intake";
+import { applyIntakeShape, filterToImplemented } from "./intakeApply";
+import { openIntakeSheet } from "../ui/IntakeSheet";
 import { snapPanelToEdge } from "./gridSnap";
 import { toast } from "../state/notificationStore";
 import { jumpToOccurrence } from "./jumpToOccurrence";
@@ -1542,39 +1544,66 @@ export function handleFileDrop(dropContext, ctx) {
       ? { parentId: pageOccId, meta: { x: canvasPos.x + i * 24, y: canvasPos.y + i * 24 } }
       : {};
 
-  const placeholders = createArtifactPlaceholders(files, {
-    gridId: fileGridId, userId: fileUserId, dispatch, occExtra,
-  });
-  const allOccIds = placeholders.map(p => p.occurrenceId);
+  // Wiring the new ids into the destination is THIS handler's business — which
+  // container's occurrences[], a canvas page, or an artifact panel's active
+  // view. The router calls it between minting and uploading.
+  const onPlaceholders = (placeholders) => {
+    const allOccIds = placeholders.map(p => p.occurrenceId);
+    if (finalContainerOcc) {
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: finalContainerOcc.id, occurrences: [...(finalContainerOcc.occurrences || []), ...allOccIds] },
+        emit: true,
+      });
+    } else if (canvasPos && pageOcc) {
+      CommitHelpers.updateOccurrence({
+        dispatch, socket,
+        occurrence: { id: pageOcc.id, occurrences: [...(pageOcc.occurrences || []), ...allOccIds] },
+        emit: true,
+      });
+    } else if (isExistingArtifactPanel && capturedPanelView) {
+      // A file dropped ON an artifact/tree panel just swaps its active view to
+      // the (last) upload — no new panel.
+      const lastOccId = allOccIds[allOccIds.length - 1];
+      CommitHelpers.updateView({ dispatch, socket, view: { ...capturedPanelView, activeOccurrenceId: lastOccId } });
+    }
+  };
 
-  // ── Wire placeholders into the destination ────────────────────────
-  if (finalContainerOcc) {
-    CommitHelpers.updateOccurrence({
-      dispatch, socket,
-      occurrence: { id: finalContainerOcc.id, occurrences: [...(finalContainerOcc.occurrences || []), ...allOccIds] },
-      emit: true,
-    });
-  } else if (canvasPos && pageOcc) {
-    CommitHelpers.updateOccurrence({
-      dispatch, socket,
-      occurrence: { id: pageOcc.id, occurrences: [...(pageOcc.occurrences || []), ...allOccIds] },
-      emit: true,
-    });
-  } else if (isExistingArtifactPanel && capturedPanelView) {
-    // A file dropped ON an artifact/tree panel just swaps its active view to
-    // the (last) upload — no new panel.
-    const lastOccId = allOccIds[allOccIds.length - 1];
-    CommitHelpers.updateView({ dispatch, socket, view: { ...capturedPanelView, activeOccurrenceId: lastOccId } });
-  }
-
-  // ── Upload (progress + toast + placement re-persist) ──────────────
-  uploadArtifactPlaceholders(placeholders, {
-    gridId: fileGridId, userId: fileUserId, dispatch, socket,
+  const intakeCtx = {
+    files, gridId: fileGridId, userId: fileUserId, dispatch, socket,
+    occExtra, onPlaceholders,
     containerOccurrenceId: finalContainerOcc?.id || null,
     persist: (p) => finalContainerOcc
       ? { parentId: finalContainerOcc.id }
       : (canvasPos ? { parentId: pageOccId, meta: p.occurrence.meta } : null),
+  };
+
+  // ── ASK what this should become ───────────────────────────────────
+  // The audit's first finding was that nothing asks: the same file dropped
+  // two feet apart became two different things and the user was never told
+  // why. The pre-selected shape is TODAY'S behaviour, so Enter reproduces
+  // exactly what this handler used to do on its own.
+  const classification = filterToImplemented(
+    classifyIntake({ files }, {
+      kind: canvasPos ? "canvas" : (finalContainerOcc ? "board" : null),
+      occurrenceId: finalContainerOcc?.id || null,
+      canDraw: !!canvasPos,
+    }),
+  );
+
+  const opened = openIntakeSheet({
+    classification,
+    position: { top: y + 8, left: x + 8 },
+    onPick: (shapeId) => applyIntakeShape(shapeId, intakeCtx),
+    // Cancel writes NOTHING. The placeholders have not been minted yet —
+    // that is the whole reason the ask happens BEFORE any write rather than
+    // after, so "Escape" cannot leave debris behind.
+    onCancel: () => {},
   });
+
+  // No host mounted (a preview iframe, a test harness) — fall back to today's
+  // behaviour rather than silently dropping the file on the floor.
+  if (!opened) applyIntakeShape(classification.preselected, intakeCtx);
 
   clearSession();
 }

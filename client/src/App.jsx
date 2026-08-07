@@ -29,6 +29,7 @@ import RubberBandSelector from "./ui/RubberBandSelector";
 import { Spinner } from "./components/ui/spinner";
 import UserInputModal from "./ui/UserInputModal";
 import { ImagePickerHost } from "./ui/ImagePickerMenu";
+import { IntakeSheetHost } from "./ui/IntakeSheet";
 import { ArtifactSpreadHost } from "./ui/ArtifactSpreadHost";
 import { SelectionContext, useSelectionProvider } from "./state/SelectionContext";
 import { publishComputedValues } from "./state/computedValuesStore";
@@ -1024,6 +1025,9 @@ export default function App() {
             viewer) open it imperatively via openImagePicker() so it
             survives their popovers unmounting. */}
         <ImagePickerHost />
+        {/* Asks what a dropped/pasted payload should become. One host, because
+            the callers are drop HANDLERS with nowhere to render a sheet. */}
+        <IntakeSheetHost />
 
         {/* Artifact spread — the overlay an occurrence's files spread out
             onto, opened from its main artifact. Single global host for the
