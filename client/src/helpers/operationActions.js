@@ -2863,8 +2863,32 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         occRemap.set(srcOccId, cloneOccId);
         if (srcModId) modRemap.set(srcModId, cloneModId);
 
+        // ── A FED CHILD IS NOT CLONED — IT IS RE-MATERIALIZED ─────────────────
+        // User's call, 2026-08-07: a graph's membership comes from its FEED, not
+        // from hand-dragged occurrences. So a child carrying `meta.feedSourceId`
+        // is DERIVED data — feedSync minted it from the owner's `feed` config —
+        // and copying it into the clone duplicates a query result instead of
+        // re-running the query.
+        //
+        // Measured before changing anything (2026-08-07): test grid 2's Day Page
+        // template has 136 descendants and **128 of them are feed copies** under
+        // the Emotions Wheel, so APPLY_TEMPLATE cloned the whole 128-row wheel
+        // into EVERY day column. That is why a test-grid-2 day column is 136
+        // nodes and a poms grid one is 7-11.
+        //
+        // THIS ONLY WORKS BECAUSE THE CLONE CARRIES `feed` (see the instance
+        // payload below). Skipping fed children WITHOUT that would leave every
+        // cloned graph permanently empty — the two halves are one change, and
+        // shipping half of it is strictly worse than shipping neither.
+        //
+        // A hand-placed child is untouched: feedSync only ever collects children
+        // carrying `meta.feedSourceId` (pinned by a test since July), so the two
+        // kinds coexist and only the derived one is skipped here.
         const childIds = [];
         for (const childOccId of (srcOcc.occurrences || [])) {
+          const childSrc = occurrencesById[childOccId]
+            || $vars.$allOccurrences?.find(o => o.id === childOccId);
+          if (childSrc?.meta?.feedSourceId) continue;
           const childCloneId = clone(childOccId, cloneOccId, false);
           if (childCloneId) childIds.push(childCloneId);
         }
@@ -2894,6 +2918,13 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             textmap: cloneTextmap(srcOcc.textmap),
             viewId: srcOcc.viewId || null,
             meta: newOccMeta,
+            // The OTHER half of skipping fed children above: the clone inherits
+            // the pull-query, so feedSync re-materializes the rows against the
+            // clone's own effective filter instead of inheriting a snapshot of
+            // the template's. Without this, a cloned graph would be empty
+            // forever. `feed` is plain config on the occurrence, so carrying it
+            // is a copy, not a new mechanism.
+            ...(srcOcc.feed ? { feed: srcOcc.feed } : {}),
             identitySignature: nodeSig,
             // Children IDs included directly so the new occurrence is
             // created WITH its child list (CREATE_ITEM handler now honors
