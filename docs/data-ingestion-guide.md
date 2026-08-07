@@ -4,11 +4,11 @@
 Moduli as occurrences + field values, plus how to hand-enter the 5 things that have no source,
 plus a brainstorm of what else is worth pulling.
 
-**Status:** §0–§3 describe code that exists and is tested (`server/__tests__/apiIngest.test.js`,
-18 tests). The `/ingest` endpoint and three write-path fixes it depends on were built 2026-08-07
-while writing this guide — **not yet deployed**. §4 per-source routes are researched
-recommendations; each names what to verify on your own account before building it. §7 is
-speculative on purpose.
+**Status:** §0–§3 describe code that is **live in production** as of 2026-08-07 (prod HEAD
+`49f1428e`), covered by 18 tests in `server/__tests__/apiIngest.test.js`. The `/ingest` endpoint and
+the three write-path fixes it depends on were built while writing this guide. §4 per-source routes
+are researched recommendations; each names what to verify on your own account before building it.
+§7 is speculative on purpose.
 
 ---
 

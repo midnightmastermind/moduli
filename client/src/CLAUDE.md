@@ -475,13 +475,43 @@ which buckets each render by WHICH input changed, run over a date navigation ins
 call count per action type into `window.__reducerMs`. Inert when off.
 
 **Still worth doing regardless of the above:**
-2. **`Day Page: Build` produces 141 of those 319 effects on a SCHEDULE navigation.** 62ms to compute,
-   then 141 writes nobody asked for. Short-circuit it when its own date has not moved — note this is
-   a seeded OP pipeline, so it is a migration, not a code change.
+2. ~~**`Day Page: Build` produces 141 of those 319 effects on a SCHEDULE navigation.**~~ **DONE
+   2026-08-07** — and the docket's own guess at the fix was WRONG: it predicted "a seeded OP
+   pipeline, so it is a migration, not a code change." It was neither. The op was not rewriting
+   anything; APPLY_TEMPLATE's auto-signature fallback only ran in MERGE mode, so a column built
+   through the APPEND branch carried unsigned clones and the next merge re-cloned the whole subtree
+   (helpers/CLAUDE.md 2026-08-07 (3)). One line in `operationActions.js` — shared client code, so it
+   shipped with the bundle and needed no migration.
+   **Measured before/after, same probe (`_dpnav.mjs`), test grid 2, navigating to a day that already
+   exists:**
+   ```
+                                      before          after
+   Day Page: Build                141fx / 132fx      3fx      CREATE_ITEM 128 → 0
+   NavigationOp total effects          309            180      (target was ~178)
+   op sweep                        1322-1515ms    1519-1671ms
+   click → settled                    1560ms      1772-1902ms
+   ```
+   **The effect count halved and the WALL TIME did not improve** — say so plainly. What was removed
+   was 128 duplicate writes, not the thing the user waits on. The remaining cost is item 3 below
+   plus `Schedule: Build Schedule`, which is **61fx / ~190-250ms / CREATE_ITEM=57 on EVERY
+   navigation** whether the day exists or not. (The after-runs also sat on a bigger grid — test grid
+   2 grew 4.1k → 7.3k occurrences across the day's probe runs, which inflates the sweep.)
+   **One-time cost, by design:** a column built BEFORE this fix holds unsigned clones, so its first
+   post-fix visit still re-clones once (measured: Aug 27 subtree 136 → 265), and every visit after
+   that is 0. Verified by revisiting: second visit 3fx / 0 creates. On test grid 2 that is 6 of 25
+   columns; **poms grid is unaffected** — its day columns are 7-11 nodes and carry no unsigned
+   subtree.
 3. **49 ops are evaluated when about three are date-dependent** (776ms). Cheapest per-op work, but
-   the widest blast radius to change.
+   the widest blast radius to change. **This is now the top remaining lever** — with item 2 done,
+   the sweep and Build Schedule are what a date change actually costs.
 
-NOT started.
+**FOUND WHILE MEASURING, NOT FIXED — test grid 2's Day Page template carries the whole Emotions
+Wheel.** Its template root has **136 descendants of which 128 are UNSIGNED, and they are emotions**
+(Enthusiastic, Contempt, Overwhelmed, …) — the 128-row wheel from migration `0046` (2026-08-06) is
+reachable through the template's `occurrences[]`, so APPLY_TEMPLATE clones all of it into every day
+column. That is why a test-grid-2 day column is 136 nodes while a poms grid one is 7-11. The
+signature fix stops it being cloned TWICE; it does not stop it being cloned at all. Worth deciding
+whether a fed graph belongs inside a template subtree before that shape reaches poms grid.
 
 ### ATTRIBUTION (2026-08-07)
 
