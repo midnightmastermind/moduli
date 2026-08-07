@@ -326,19 +326,29 @@ document". Intake decides *shape*, not meaning.
 
 ---
 
-## Open questions — ASK, do not assume
+## Open questions — RESOLVED 2026-08-07 by dropping the feature that raised them
 
-Carried from the superseded plan.
+All three questions existed only because Task 6 was a BULK harvest ("import this page and the
+pages it links to"). The user retired that idea:
 
-1. **When does Jonah offer to follow links?** After every import, or only when asked? — OPEN.
-2. **How many links?** ~~Top N by position, prose-only, or a tick-list?~~
-   **ANSWERED 2026-08-07 (user): "task 6 is all links to other pages."** Not a top-N and not a
-   tick-list — the scope is EVERY link that points at another page. So the harvest does not rank
-   or sample; it collects the lot and the only filtering is "is this a page link at all". That
-   also settles the relink half: a chip is rewritten whenever its URL matches a page that exists
-   in-app, with no cap.
-3. **Depth** — one hop, or follow the followed? — OPEN. (Note: with (2) settled as *all* links,
-   depth is the only thing left bounding the size of a harvest, so it matters more than it did.)
+> *"we should avoid the all link thing, but if i rightclick on an external link in our system, we
+> should have a convert to page"*
+
+**So link-following is now PULL, not push: one link, on demand, from its own right-click menu.**
+That is strictly better and not just smaller:
+
+- **Nothing is unbounded.** A harvest of "all links" off a Wikipedia article is hundreds of pages
+  and a second hop is thousands — which is why depth was the only thing keeping it finite. One
+  link converted by hand cannot run away.
+- **No guessing which links matter.** Ranking (top-N, prose-only, a tick-list) was an attempt to
+  infer intent from position. The right-click IS the intent, stated exactly.
+- **It composes with what already exists.** `import_html` already builds the whole tree from a
+  URL; the only missing piece was ever a route from a link to it.
+
+~~1. When does Jonah offer to follow links?~~ **MOOT** — he doesn't offer; the user asks, per link.
+~~2. How many links?~~ **MOOT** — one, the one right-clicked.
+~~3. Depth?~~ **MOOT** — one page. Converting a link on the *resulting* page is another deliberate
+act, which is depth-as-many-hops-as-you-want without a setting.
 
 ---
 

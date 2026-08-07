@@ -47,6 +47,13 @@ const SELF_BASE_URL =
   process.env.ASSISTANT_BASE_URL || `http://127.0.0.1:${process.env.PORT || 5000}`;
 
 const uid = () => crypto.randomUUID();
+
+// Name an imported page from its own <title> when the caller didn't supply one,
+// so a converted link reads as the article rather than as its URL.
+function deriveTitleFromHtml(html) {
+  const m = /<title[^>]*>([\s\S]{1,300}?)<\/title>/i.exec(String(html || ""));
+  return m ? m[1].replace(/\s+/g, " ").trim() : "";
+}
 const err = (res, status, code, message, details) =>
   res.status(status).json({ error: code, message, ...(details ? { details } : {}) });
 
@@ -1077,6 +1084,62 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         return acc;
       }, {});
       res.json({ ok: results.every(r => r.ok), source, summary, results });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ── POST /import/url — fetch a page and import it ─────────────────────
+  //
+  // The capability behind "convert this link to a page" (user, 2026-08-07:
+  // *"if i rightclick on an external link in our system, we should have a
+  // convert to page"*). Every other import route takes content you ALREADY
+  // have — `/import/html` wants the html, `/research/wikipedia/import` wants a
+  // title — so a link in the grid had no route to the thing it points at.
+  //
+  // This is deliberately PULL, one link at a time. It replaces the bulk
+  // "follow every link" harvest that the plan originally carried: a harvest of
+  // a Wikipedia article's links is hundreds of pages and a second hop is
+  // thousands, whereas a right-click cannot run away.
+  //
+  // The fetch is guarded — see utils/safeFetchUrl.js. The server can reach
+  // things the user cannot (the database host, an admin port, the cloud
+  // metadata endpoint), so the URL is validated before any request goes out.
+  router.post("/import/url", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { fetchPageHtml } = await import("../utils/safeFetchUrl.js");
+      const { htmlToMarkdown } = await import("../services/wikipediaTools.js");
+      const { markdownToModuli } = await import("../services/markdownImporter.js");
+      const { gridId, url, parentId = null, title = "", dryRun = false } = req.body || {};
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      if (!url) return err(res, 400, "validation_error", "url required");
+
+      const fetched = await fetchPageHtml(url);
+      // 400, not 500: a refused or unreachable URL is the caller's input being
+      // wrong, and the reason is safe to hand back so the UI can say WHY.
+      if (!fetched.ok) return err(res, 400, "fetch_failed", fetched.reason);
+
+      const markdown = htmlToMarkdown(fetched.html, title, {
+        keepImages: true, keepTables: true, keepFigures: true,
+      });
+      const result = await markdownToModuli({
+        gridId, parentId, userId: req.userId, markdown, dryRun,
+        title: title || deriveTitleFromHtml(fetched.html) || fetched.url,
+      });
+
+      if (!dryRun) {
+        const { persistImportResult } = await import("../utils/persistImport.js");
+        await persistImportResult({ result, userId: req.userId, uc: await getUserCache(req.userId, gridId) });
+        for (const m of result.modules) io.to(userRoom(req.userId)).emit("module_created", { module: m });
+        for (const o of result.occurrences) io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: o });
+      }
+
+      res.json({
+        ...result,
+        sourceUrl: fetched.url,
+        // A dry run plans the tree but persists nothing, so it must NOT hand
+        // back a root id — the 2026-06-12 "empty embed" bug was exactly that.
+        rootOccurrenceId: dryRun ? null : result.rootOccurrenceId,
+        dryRun,
+      });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 

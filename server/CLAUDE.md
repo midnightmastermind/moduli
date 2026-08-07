@@ -1,6 +1,36 @@
 # server — Server CLAUDE.md
 
 _Updated: 2026-07-25. Check this file before re-reading source._
+## Recent Changes (2026-08-07 (3) — POST /import/url: the capability behind "convert this link to a page")
+- **User, 2026-08-07:** *"we should avoid the all link thing, but if i rightclick on an external
+  link in our system, we should have a convert to page."* That retires the bulk link-harvest the
+  intake plan carried (and MOOTS its three open questions — a right-click is the intent, stated
+  exactly, and one page at a time cannot run away the way "all links, one hop" does at hundreds
+  of pages).
+- **The capability was missing, not just the menu item.** Every existing import route takes content
+  you ALREADY have — `/import/html` wants the html, `/research/wikipedia/import` wants a title — so
+  a link sitting in the grid had no route to the thing it points at. `POST /api/v1/import/url`
+  fetches, converts (`htmlToMarkdown` → `markdownToModuli`), persists and broadcasts, reusing every
+  existing piece.
+- **`utils/safeFetchUrl.js` (NEW) — the guard, and the reason this is not a two-line route.**
+  Making the server fetch a user-supplied URL is textbook SSRF: the server sits inside the network
+  and can reach what the user cannot — the Mongo host, an admin port, and **169.254.169.254**, the
+  cloud metadata endpoint that hands out credentials. So: an ALLOWLIST of scheme (http/https only)
+  plus a DENYLIST of destination (loopback, RFC1918, CGNAT, link-local, IPv6 unique-local, the
+  IPv4-mapped-IPv6 spelling of loopback, and `.internal`/`.local` suffixes).
+  - **`redirect: "manual"`** — a 302 into `127.0.0.1` would walk straight around the check that
+    just passed, so a redirect is REFUSED rather than followed.
+  - Body capped (5MB) and timed out (20s); a non-HTML content-type is refused rather than imported.
+  - **KNOWN LIMIT, recorded rather than hidden:** this validates the URL given. A public hostname
+    that RESOLVES to a private address is not caught — closing that needs resolve-then-pin-the-
+    socket, which Node's fetch does not expose.
+- **A dry run returns `rootOccurrenceId: null`** — the 2026-06-12 "empty embed" bug was a dry run
+  handing back a planned root that nothing had persisted.
+- 17 tests in `__tests__/safeFetchUrl.test.js`, weighted to the DENY side because a hole here is
+  silent and remote. The load-bearing one asserts the guard runs BEFORE the request: fetching the
+  metadata endpoint must leave the injected `fetch` **uncalled**. Also pinned: 172.15 / 172.32 /
+  193.168 are NOT blocked, so an off-by-one that blocks real sites fails the suite. 502 server tests.
+
 ## Recent Changes (2026-08-07 (2) — external-data INGEST: three write-path defects, and the endpoint that needs no tab)
 
 Found while designing external-data ingestion (`docs/data-ingestion-guide.md`). All three made a
