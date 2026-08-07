@@ -35,6 +35,8 @@ export default function ArtifactCard({ module, label, occurrence }) {
   const dispatch = useGridActionsSelector(s => s.dispatch);
   const socket = useGridActionsSelector(s => s.socket);
   const getOcc = useGridActionsSelector(s => s.getOcc || ((oid) => (oid ? s.occurrencesById?.[oid] || null : null)));
+  // Only used by the delete path, to tell a PLACEMENT from the file itself.
+  const foldersById = useGridActionsSelector(s => s.foldersById);
   const fileRef = module?.fileRef;
   const kind = module?.kind;
   const status = module?.meta?.uploadStatus;
@@ -92,8 +94,22 @@ export default function ArtifactCard({ module, label, occurrence }) {
       try { ctrl.abort(); } catch { /* ignore */ }
     }
     if (!occId || !dispatch || !socket) return;
-    // Detach from parent container's occurrences[] (if known via the registry).
     const parentOccId = ctrl?.containerOccurrenceId;
+
+    // ── IS THIS A PLACEMENT, OR THE FILE? ────────────────────────────────
+    // An occurrence whose `parentId` names a FOLDER is HOMED in the tree; the
+    // container we are deleting from is a PLACEMENT of it. So removing it here
+    // must unlink that one parent and leave the row — and the file behind it —
+    // alone. This is deliberately stated in terms of folders rather than "Files"
+    // so the client needs no twin of the server's protected-folder rule; the
+    // server (utils/filesFolder.js `classifyFileDelete`) is the enforcement.
+    //
+    // NOT hypothetical: the imported Eminem images are homed in Files/Images and
+    // listed by their section container, so before this branch existed, removing
+    // one from the page deleted the file out of Files with it.
+    const homedInFolder = !!(occurrence?.parentId && foldersById?.[occurrence.parentId]);
+    const isPlacement = homedInFolder && parentOccId && parentOccId !== occurrence.parentId;
+
     const parentOcc = parentOccId ? getOcc(parentOccId) : null;
     if (parentOcc) {
       CommitHelpers.updateOccurrence({
@@ -105,11 +121,22 @@ export default function ArtifactCard({ module, label, occurrence }) {
         emit: true,
       });
     }
-    CommitHelpers.deleteOccurrence({ dispatch, socket, occurrenceId: occId, occurrence, emit: true });
+
+    // A placement removal is DONE at this point: the parent no longer lists the
+    // occurrence, and the row itself must survive in local state or the file
+    // disappears from the Files tree until a reload. Emitting a delete here
+    // would be the half-applied destructive action the protected-folder work
+    // already paid for once.
+    if (isPlacement) return;
+
+    CommitHelpers.deleteOccurrence({
+      dispatch, socket, occurrenceId: occId, occurrence, emit: true,
+      fromParentId: parentOccId || null,
+    });
     if (module?.id) {
       CommitHelpers.deleteModule({ dispatch, socket, moduleId: module.id, emit: true });
     }
-  }, [occurrence, module, dispatch, socket, getOcc]);
+  }, [occurrence, module, dispatch, socket, getOcc, foldersById]);
 
   if (status === "pending") {
     const rawProgress = typeof module?.meta?.uploadProgress === "number" ? module.meta.uploadProgress : 0;

@@ -72,6 +72,63 @@ export function placementSemanticForKind(kind) {
   return kind === "markdown" ? "multiparent" : "copy";
 }
 
+/**
+ * The Files folder AND its subfolders, as a Set of ids — what "is this homed in
+ * Files?" is asked against. Empty Set on a grid that never ran the migration,
+ * which is what makes `classifyFileDelete` degrade to the old behaviour there.
+ */
+export function filesFolderIdSet(uc, { gridId, userId }) {
+  const root = findFilesFolder(uc, { gridId, userId });
+  if (!root) return new Set();
+  const ids = new Set([root.id]);
+  for (const f of Object.values(uc?.foldersById || {})) {
+    if (f && f.gridId === gridId && f.userId === userId && f.parentId === root.id) ids.add(f.id);
+  }
+  return ids;
+}
+
+/**
+ * Placement-delete vs file-delete (plan Task 4 Step 5).
+ *
+ * "Remove this from my day page" and "delete this file" are the same gesture on
+ * the same row, and only the CONTEXT tells them apart. So the caller must say
+ * WHERE the delete came from; this decides what that means.
+ *
+ *   • Homed in Files, deleted from some OTHER parent  → **unlink** that one
+ *     parent. The file stays in Files, and every other placement is untouched.
+ *   • Homed in Files, deleted from inside Files (or with no context at all)
+ *     → **delete-file**: the row goes, and `sweepModuleId` names the module
+ *     whose remaining occurrences — the copy placements — go with it.
+ *   • Not homed in Files → **delete-occurrence**, byte-identical to the
+ *     behaviour before this rule existed.
+ *
+ * **A missing `fromParentId` deliberately means "the file", not "unlink".** A
+ * caller that cannot say where it is deleting from has not told us it meant a
+ * placement, and silently unlinking from nowhere would leave the user's delete
+ * looking like it did nothing.
+ *
+ * **A grid with no Files folder degrades to the old behaviour** rather than
+ * failing — the same posture `resolveFilesFolderId` takes. "No Files folder" is
+ * not "the wrong folder".
+ *
+ * Pure: the caller resolves `filesFolderIds` (the Files folder plus its
+ * subfolders) and applies the result.
+ */
+export function classifyFileDelete({ occurrence, fromParentId = null, filesFolderIds }) {
+  const ordinary = { action: "delete-occurrence", parentId: null, sweepModuleId: null };
+  if (!occurrence) return ordinary;
+
+  const inFiles = filesFolderIds?.has?.(occurrence.parentId);
+  if (!inFiles) return ordinary;
+
+  // Deleting from a parent that is not the file's own home is a PLACEMENT.
+  if (fromParentId && fromParentId !== occurrence.parentId) {
+    return { action: "unlink", parentId: fromParentId, sweepModuleId: null };
+  }
+
+  return { action: "delete-file", parentId: null, sweepModuleId: occurrence.moduleId || null };
+}
+
 /** The protected Files folder for this user+grid, or null. */
 export function findFilesFolder(uc, { gridId, userId }) {
   return Object.values(uc?.foldersById || {}).find(

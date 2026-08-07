@@ -527,7 +527,7 @@ export function deleteOccurrence(args) {
   return withAction("Deleted item", () => _deleteOccurrence(args));
 }
 
-function _deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, emit = true, fireTrigger = true }) {
+function _deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, emit = true, fireTrigger = true, fromParentId = null }) {
   if (!occurrenceId) return;
   // Snapshot the occurrence BEFORE eviction. Callers that delete via an
   // operation effect (applyOperationEffect → DELETE_ITEM) don't pass
@@ -544,7 +544,13 @@ function _deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, emit = 
   // Evict from local cache BEFORE dispatch so fireOperations sees updated state
   operationsBridge.removeLocalOcc?.(occurrenceId);
   dispatch?.(deleteOccurrenceAction(occurrenceId));
-  if (shouldEmit(emit)) safeEmit(socket, "delete_occurrence", { occurrenceId });
+  // `fromParentId` says WHERE the delete came from. For an artifact homed in the
+  // protected Files folder the server reads it as "remove this PLACEMENT" and
+  // unlinks that one parent instead of destroying the file (server/utils/
+  // filesFolder.js `classifyFileDelete`). Omitting it means "the file itself" —
+  // the conservative reading, and byte-identical to the old behaviour for any
+  // occurrence not homed in Files.
+  if (shouldEmit(emit)) safeEmit(socket, "delete_occurrence", { occurrenceId, fromParentId });
   // CYCLE BREAKER (2026-05-25) — when `fireTrigger` is false the caller is an
   // operation effect deleting DERIVED data (a mirror op's row/card copy, via
   // applyOperationEffect → DELETE_ITEM / REMOVE_OCCURRENCE). Such deletions

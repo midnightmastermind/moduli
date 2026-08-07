@@ -10,6 +10,7 @@ import Manifest from "../models/Manifest.js";
 import View from "../models/View.js";
 import { isProtectedGrid } from "../utils/protectedGrids.js";
 import { assertNotProtectedFolder } from "../utils/protectedFolders.js";
+import { classifyFileDelete, filesFolderIdSet } from "../utils/filesFolder.js";
 import { recordDoc } from "../utils/txRecorder.js";
 import { registerPendingOccCreate } from "../utils/pendingOccCreates.js";
 
@@ -210,10 +211,61 @@ export function registerCrudHandlers(socket, {
   setupOccurrencesCRUD(socket, userId, getUc, { userRoom, createOccurrenceData });
 
   socket.on("delete_occurrence", async (payload = {}) => {
-    const { occurrenceId } = payload;
+    const { occurrenceId, fromParentId = null } = payload;
     try {
       if (!userId || !occurrenceId) return;
       const uc = await getUc();
+
+      // ── PLACEMENT-DELETE vs FILE-DELETE (plan Task 4 Step 5) ────────────
+      // "Remove this from my day page" and "delete this file" are the same
+      // gesture on the same row; only `fromParentId` tells them apart. The rule
+      // itself lives in utils/filesFolder.js so a call site cannot disagree
+      // with it — see that module's header for the per-kind reasoning.
+      //
+      // This is NOT hypothetical: ten imported Eminem images on poms grid are
+      // homed in Files/Images (by migration 0051) AND listed by their section
+      // container, so before this branch existed, deleting one off the page
+      // took the file with it.
+      const doomedOcc = uc.occurrencesById?.[occurrenceId] || null;
+      const gridIdForFiles = doomedOcc?.gridId || socket.data.activeGridId;
+      const verdict = classifyFileDelete({
+        occurrence: doomedOcc,
+        fromParentId,
+        filesFolderIds: filesFolderIdSet(uc, { gridId: gridIdForFiles, userId }),
+      });
+
+      if (verdict.action === "unlink") {
+        // Atomic $pull — never a read-modify-write. A sweep of N placements
+        // runs N handlers concurrently, and a whole-array write is exactly how
+        // the 2026-08-04 dangling-child-ref class was produced.
+        const updatedParent = await Occurrence.findOneAndUpdate(
+          { id: verdict.parentId, userId },
+          { $pull: { occurrences: occurrenceId } },
+          { returnDocument: "after" }
+        );
+        if (updatedParent) {
+          const parentObj = typeof updatedParent.toObject === "function"
+            ? updatedParent.toObject() : updatedParent;
+          const before = uc.occurrencesById[verdict.parentId] || null;
+          uc.occurrencesById[verdict.parentId] = parentObj;
+          recordChange({ model: "occurrence", id: parentObj.id, before, after: parentObj, payload, label: "Removed from here" });
+          socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: parentObj });
+          socket.emit("occurrence_updated", { occurrence: parentObj });
+        }
+        return; // the FILE stays in Files, and every other placement is untouched
+      }
+
+      // A file delete removes the copy placements too — "deleting it in Files
+      // removes it everywhere" is only true if the copies go with it. Scoped to
+      // the same grid so one grid's delete can never reach another's.
+      const alsoDelete = verdict.sweepModuleId
+        ? Object.values(uc.occurrencesById || {})
+            .filter(o => o
+              && o.id !== occurrenceId
+              && o.moduleId === verdict.sweepModuleId
+              && o.gridId === doomedOcc?.gridId)
+            .map(o => o.id)
+        : [];
 
       // Recursively collect all descendant occurrence IDs.
       // Only cascade through children whose canonical parentId matches the
@@ -234,6 +286,7 @@ export function registerCrudHandlers(socket, {
         }
       }
       collectDescendants(occurrenceId);
+      for (const id of alsoDelete) collectDescendants(id);
 
       // Delete all collected occurrences from cache + DB. Every one is
       // snapshotted BEFORE deletion — a cascade delete of a 50-node subtree
