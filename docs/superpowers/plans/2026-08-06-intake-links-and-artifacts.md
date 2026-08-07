@@ -445,6 +445,41 @@ branch.
       the link case today, since `link-chip` is the classifier's pick and Task 5 owns it — and it
       **never returns zero shapes**, falling back to the artifact route, which is itself asserted
       to be implemented so the escape hatch cannot become its own dead end.
+
+      **VERIFIED IN A REAL BROWSER 2026-08-07** (`_intakeverify.mjs`, test grid 2, Chromium
+      1440×900 then 390×844). This is the step's own pass condition, which the unit suites
+      structurally cannot cover — they mount the host directly and never exercise the wiring.
+
+      | arm | result |
+      | --- | --- |
+      | file drop on a container row | **asks** — sheet opens, "Image" preselected AND focused |
+      | Escape | **writes nothing** — rows 58 → 58, asserted on the write, not on the sheet closing |
+      | Enter | **commits the preselected shape** — rows 58 → 59, sheet closes, no page errors |
+      | file drop into a doc body | **asks** (commit `2cb549aa`) |
+      | HTML / long-text drop on a container | **asks**, "Doc page" preselected (commit `d210c308`) |
+      | sheet at 390×844 | **full-width bottom drawer** — drawer `x0 y683 390×161`, bottom = 844 |
+      | link drop | **UNVERIFIED — see below** |
+
+      "Enter commits the preselected shape" IS the byte-identical claim: the fallback arm (no host
+      mounted) calls `applyIntakeShape(classification.preselected, ctx)` with the same ctx, so the
+      two are the same call. The equivalence is what makes it checkable at all.
+
+      **The link arm could NOT be judged, and the probe proves that rather than assuming it.** A
+      SHORT PLAIN TEXT drop — the legacy branch, code this work never touched — also writes nothing
+      under a synthetic drop. So the branch they share is unreachable this way and "the link did not
+      ask" is a claim about the probe. Reported UNVERIFIED, never FAIL. Checking it needs a hand
+      drop from a real OS drag.
+
+      **Three probe traps paid for, recorded in the probe's own header:** (1) dropping at the
+      CENTRE of a 13950px-tall container resolves to y≈7000, off screen, on an SVG header icon —
+      it reported FAIL on paths that work; (2) `DragProvider` resolves the hovered container from
+      `pointerRef`, updated by pointer MOVEMENT, not from the drag event's own coordinates, so a
+      synthetic drag that never moves the pointer leaves `containerId` null; (3) the drawer's
+      bottom inset is `paddingBottom: max(12px, env(safe-area-inset-bottom))`, so measuring the
+      inner dialog reads 12px short of the edge — measure the drawer.
+
+      Probe debris swept afterwards (1 module, 3 occurrences, dumped to `backups/orphans/` first);
+      all three grids back to their documented pre-existing baselines.
 - [ ] **Step 2:** One action scope per intake (verify: one undo step reverts the whole thing).
 - [ ] **Step 3:** Everything intake mints carries `parentFilterFields` from its destination — a
       file dropped on today's column must be visible in today's column.
