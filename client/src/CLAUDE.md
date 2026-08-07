@@ -461,7 +461,11 @@ than argued about, and each would have been days of work:
    and was reverted — correctly, because it was buying 24ms with a class of silent emptiness.
 3. ~~`Schedule: Build Schedule` is slow~~ — it is **137ms**, 4% of the wait.
 
-**What is left is REACT RENDERING: ~2s of the 3s, in one task after the effects land.** That is the
+**What is left is REACT RENDERING: ~2s of the 3s, in one task after the effects land.**
+[**RETRACTED by the ATTRIBUTION section below — React reconcile+commit is 628ms; the 2s is
+per-render recomputation, mostly `resolveOptions`.** The elimination above was sound; the
+conclusion drawn from it assumed "not the reducer, not the ops → therefore React", and a CPU
+profile says the remaining time is app code running INSIDE render, not React itself.] That is the
 frame-1 storm the drop path fought on 2026-07-07 (which cut it 1750ms → 1066ms and left ~54 container
 renders unattributed), reached from a new direction. The next move is that docket's own unfinished
 step: **component-level attribution** — `renderProbe`'s `useRenderAttribution` under `__RENDER_ATTR`,
@@ -478,6 +482,105 @@ call count per action type into `window.__reducerMs`. Inert when off.
    the widest blast radius to change.
 
 NOT started.
+
+### ATTRIBUTION (2026-08-07)
+
+Ran `renderProbe`'s `useRenderAttribution` under `__RENDER_ATTR` over a date navigation, then a CDP
+CPU profile of the same gesture. Test grid 2, unthrottled desktop 1440×900, local build.
+**`__RENDER_ATTR` is set in an init script BEFORE app JS runs** — the hook records nothing on a
+component's FIRST render, so with the flag flipped at the click every component that renders once
+during the navigation would be invisible. Counters zeroed at the click after a 14s settle; the
+console buffer carries timestamps, and they confirm the second sweep does not exist: `[op-timing]
+null total=814ms` lands at **+2.2s** (page load) and `[op-timing] NavigationOp total=711ms` at
+**+24.7s** (the click was at +20.2s).
+
+**1. Render counts, one navigation — byte-identical across two runs:**
+```
+panel 30 · container 306 · instance 452 · page 62 · field 534      = 1384 renders
+mounted after:  5 panels · 100 containers · 272 instance rows · 26 pages · 464 field pills
+renders per mounted component:  panel 6.0 · container 3.06 · instance 1.66 · page 2.38 · field 1.15
+first renders (mounts, unbucketable): container 60 · instance 134 · field 282
+```
+The navigation legitimately creates a day column: 144 CREATE_MODULE + 194 CREATE_OCCURRENCE, DOM
+containers 49 → 100.
+
+**2. Attribution buckets.**
+```
+[container] 246 bucketed · 183 = (none)  ← 74% of bucketed, 60% of ALL container renders
+      23  s_ctxGrid
+      17  s_ctxGrid+s_fieldsById+s_instancesById+s_leafModulesById+s_modulesById+s_viewsById
+       9  s_instancesById+s_leafModulesById+s_modulesById
+     183  (none) @<label>, spread over 106 buckets — 133 in the #1500ms bin (inside the big task)
+[instance] 318 bucketed · 0 = (none) · only 4 buckets
+     134  p_toggleDoc                      ← one unstable callback prop, alone
+      92  s_ctxGrid+s_fieldsById+s_instancesById+s_modulesById
+      46  s_ctxGrid
+      46  p_containerOccurrence+p_toggleDoc+s_ancestorChain+s_instancesById+s_modulesById
+[field] 252 bucketed · 0 = (none) · only 3 buckets
+     112  p_context+p_state+s_fieldsById+s_foldersById+s_modulesById+s_occSetKey
+      70  p_context+p_state
+      70  s_modulesById+s_occSetKey
+```
+**`field-late`'s 252 `(none)` are NOT phantoms** — it is a second hook in the SAME component, and
+those are the same 252 renders the early `field` hook already attributed to real input changes. Only
+the primary hook's `(none)` counts.
+
+**3. Preview cards A/B (`window.__NO_PREVIEWS`) — 20% of the renders, 0% of the time.**
+```
+                renders (p/c/i/pg/f)              blocked   big task
+default    30 · 306 · 452 · 62 · 534 = 1384       3226ms     2146ms
+NO_PREVIEWS 30 · 272 · 360 · 20 · 422 = 1104      3247ms     2172ms
+```
+Removing 280 renders moved the wall clock by nothing. That is the same shape as the 2026-07-06
+computedValues A/B, and it is what said render COUNT is the wrong currency here.
+
+**4. CDP CPU profile (0.2ms sampling, 9s from the click), source-mapped, each sample counted once
+by its outermost matching work item. THIS IS THE ANSWER:**
+```
+active CPU 5092ms   (idle 4446ms of the 9538ms window; profiler overhead puts blocked at 3972ms
+                     vs 3226/3247ms unprofiled)
+  1471ms  28.9%  (program)/GC/native
+  1381ms  27.1%  resolveOptions  ← dropdown option resolution inside FieldRenderer's useMemo
+   851ms  16.7%  op sweep (runMatchingOperations/executePipeline)
+   628ms  12.3%  React render + commit (react-dom)
+   202ms   4.0%  getEffectiveFieldVisibilityForOccurrence   (ModuleInstance.jsx:289 memo)
+   198ms   3.9%  getEffectiveFilterForOccurrence            (ModuleContainer:667 / HeaderChevron:96)
+   138ms   2.7%  buildLayoutCascadeContext                  (ModuleContainer.jsx:625 memo)
+   136ms   2.7%  AutoMarquee measure
+    70ms   1.4%  reducer
+```
+`buildParentMap` (`helpers/dragHitTesting.js:62`) is **618ms of SELF time — 12% of active CPU in one
+function**, charged to four different callers: getEffectiveFieldVisibilityForOccurrence 142ms,
+`optionsResolver.buildCollection` 127ms, buildLayoutCascadeContext 62ms,
+getEffectiveFilterForOccurrence 144ms. It rebuilds an occurrence→parent index over the WHOLE grid
+per call, and the grid is **4122 occurrences / 4324 modules / 167 fields (57 with an optionsSource,
+44 of them find-mode)**.
+
+**VERDICT: (a) — a large number of components each rendering once or twice. And the docket's premise
+is RETRACTED: the ~2s is not React rendering.** React reconcile+commit is **628ms**, and there are
+~1.5 renders per mounted component with no component rendering many times. What costs is what each
+render RECOMPUTES: `buildCollection` spreads all 4122 occurrences into enriched records with a fresh
+`buildParentMap` and a per-record ancestor walk, once **per resolveOptions call** — and
+FieldRenderer's memo dep `occSetKey` is the occurrence COUNT, which the navigation's 194 creates
+move once, invalidating every select/occurrence field's options memo at the same moment. The
+phantom-render signal is real but small and is not the headline: 183 `(none)` container renders =
+13% of all renders, in the cheapest-to-render of the three attributed kinds.
+
+**Fix direction (NOT started): share the derived indexes across a render pass instead of rebuilding
+them per memo.** One `buildParentMap` + one enriched `$allOccurrences` collection per occurrences-map
+identity would take the top two items (1381 + most of the 618 self ms) down toward one pass.
+**Risk, and it is the sharp one:** this is a correctness-sensitive cache. A stale parent map makes
+`_ancestors` wrong, and a wrong `_ancestors` makes every ancestor-scoped dropdown silently resolve
+to ZERO options — the exact bug `optionsResolver` was fixed for on 2026-07-07. Key strictly on the
+`occurrencesById` object identity (every write swaps it), and A/B an ancestor-scoped dropdown
+(the Account picker) before and after, because that failure mode is silent.
+
+**Probe files (repo root, `_*.mjs`, gitignored):** `_dateattr.mjs` (render counts + buckets +
+`--no-previews` arm), `_dateprof.mjs` (CDP profile), `_profmap.mjs` / `_profcallers.mjs` /
+`_profincl.mjs` (source-map + caller-chain + inclusive-time aggregation over the .cpuprofile).
+The attribution run needs a temporary `window.__renderProbe = {snapshotRenders, diffRenders,
+snapshotAttrs, diffAttrs}` export in `renderProbe.js` — those functions are module-private and only
+DragProvider reads them, so a non-drop interaction cannot see them. Added, measured, reverted.
 
 ## DOCKET — on-load op sweep slicing [RE-SCOPED 2026-08-06: it is NOT the load headline]
 The 2026-08-06 load measurement (`helpers/loadDiag.js`, full table in
