@@ -420,6 +420,34 @@ Pragmatic targets, wrap morphs) — a static render must keep drops + wraps work
 its own headless-verified session. Would also shrink the frame-1 flush (fewer live editors
 re-measuring during drops).
 
+## DOCKET — DATE NAVIGATION costs ~1.6s (measured 2026-08-07), and the build op is 9% of it
+User: *"what takes the schedule creation so dang long. it takes like 3 seconds after changing the
+filter to a diff day."* Measured on test grid 2, unthrottled desktop, click → the new day column in
+the DOM: **1616ms** (a slower machine and poms grid's larger data explain the user's 3s).
+
+```
+click → column in the DOM            1616ms
+long tasks: 210ms · 753ms · 2098ms ·  58ms · 107ms
+```
+
+**Where it goes — and `Schedule: Build Schedule` is NOT the problem (104–149ms of it):**
+1. **TWO full op sweeps run per navigation** — `[op-timing] null total=732ms ops=52` and then
+   `[op-timing] NavigationOp total=662ms ops=49`. **~1.4s of op execution to rebuild one day**, and
+   both sweeps evaluate every op on the grid when only about three are date-dependent. The
+   `cascadeFiredOps` dedup (2026-05-26) covers ops matching many transactions in ONE cascade; it
+   does not cover two separate fires.
+2. **~250 effects are applied**, each dispatching into the store — that is the documented frame-1
+   re-render storm, and it is the **2098ms long task** that starts at t=984 and runs past the moment
+   the column appears.
+3. **`Day Page: Build` emits 132–141 effects on every date change** (38–42ms to compute, then a
+   write per effect). It is the biggest effect producer in the sweep and nobody asked it to rebuild
+   on a Schedule navigation.
+
+**Levers, cheapest first:** batch the two sweeps into one (they are the same navigation);
+short-circuit `Day Page: Build` when its own date has not changed; and apply op effects as one
+batched store write rather than ~250 individual dispatches — the same storm the drop path fought in
+2026-07-07. NOT started.
+
 ## DOCKET — on-load op sweep slicing [RE-SCOPED 2026-08-06: it is NOT the load headline]
 The 2026-08-06 load measurement (`helpers/loadDiag.js`, full table in
 `docs/superpowers/plans/2026-08-06-staged-loading.md`) split the wall clock from `full_state` to a
