@@ -1003,7 +1003,15 @@ function _runMatchingOperations(operations, transactionType, transaction, contex
       // Invalidate the shared $allItems read-model cache ONLY when the op actually
       // changed the occurrence overlay — so idempotent no-op re-fires and
       // display-only trackers (the bulk of the onLoad sweep) reuse it.
-      if (applyEffectsToLiveOccs(liveOccs, results)) liveCtx._allItemsCache = null;
+      if (applyEffectsToLiveOccs(liveOccs, results)) {
+        // Value-only writes refresh the touched entries; anything that can move
+        // structure discards the read model. See _VALUE_ONLY_EFFECTS.
+        const structural = results.some(
+          r => r?._effect && _LIVEOCCS_MUTATING.has(r._effect) && !_VALUE_ONLY_EFFECTS.has(r._effect),
+        );
+        if (structural) liveCtx._allItemsCache = null;
+        else patchAllItemsCache(liveCtx, liveOccs, results);
+      }
       // Tag each effect with its source op so the fire layer can mark the op
       // "applying" while the effect is applied (self-trigger guard above).
       for (const r of results) {
@@ -1112,6 +1120,46 @@ const _LIVEOCCS_MUTATING = new Set([
   "CREATE_ITEM", "DELETE_ITEM", "REMOVE_OCCURRENCE", "LINK_OCCURRENCE_TO_PARENT",
   "UPDATE_ITEM_FIELD", "UPDATE_ITEM_META", "UPDATE_ITEM_PARENT", "UPDATE_ITEM_TEXTMAP",
 ]);
+
+// A field write changes a VALUE on an occurrence that already exists. It cannot
+// change the set of occurrences, anyone's parentage, or any role/kind/label — so
+// the enriched $allItems read model stays structurally valid and only the one
+// entry is stale. Every other mutating effect can move structure, so those still
+// discard the whole cache.
+//
+// WHY THIS MATTERS: a date navigation fires ~45 trackers and every one of them
+// writes UPDATE_ITEM_FIELD, so the blanket invalidation rebuilt the enriched
+// collection once PER TRACKER. Measured on test grid 2 (7295 occurrences):
+// **44 full rebuilds for a single date change**, each one re-walking every
+// occurrence's ancestor chain and effective filter.
+const _VALUE_ONLY_EFFECTS = new Set(["UPDATE_ITEM_FIELD"]);
+
+/**
+ * Refresh the cached $allItems entries touched by value-only effects.
+ * Falls back to discarding the cache whenever it cannot prove the patch is
+ * complete (no index, unknown id, occurrence missing) — a stale read model is
+ * far worse than a rebuild, and this is the kind of cache whose failure mode is
+ * silent wrong answers rather than a crash.
+ */
+export function patchAllItemsCache(context, liveOccs, effects) {
+  const index = context?._allItemsIndex;
+  const enrich = context?._allItemsEnrich;
+  if (!index || typeof enrich !== "function") { if (context) context._allItemsCache = null; return; }
+  for (const eff of effects) {
+    if (!eff?._effect || !_VALUE_ONLY_EFFECTS.has(eff._effect)) continue;
+    const id = eff.itemId;
+    const item = id ? index.get(id) : null;
+    const occ = id ? liveOccs[id] : null;
+    if (!item || !occ) { context._allItemsCache = null; return; }
+    const next = enrich(occ);
+    // Mutated IN PLACE, deliberately: the role slices ($allInstances,
+    // $allContainers …) built by earlier pipelines hold these very objects, so
+    // replacing the array entry would leave those slices pointing at the stale
+    // copy. Identity is preserved; only the contents move.
+    for (const k of Object.keys(item)) if (!(k in next)) delete item[k];
+    Object.assign(item, next);
+  }
+}
 
 // Returns true if any effect mutated `liveOccs` (so callers can invalidate caches
 // derived from it).
@@ -1288,7 +1336,7 @@ export function executePipeline(operation, context, transaction, extraVars, exte
   let allItems = _canCache ? context._allItemsCache : null;
   if (!allItems) {
   const effFilterFor = makeEffectiveFilterResolver({ grid: state?.grid, occurrencesById, parentByChildId });
-  allItems = Object.values(occurrencesById).map(occ => {
+  const enrichOne = (occ) => {
     const tpl = occ.moduleId ? templateById[occ.moduleId] : null;
     const effFilter = effFilterFor(occ);
     // Task #60 — autoStampFromFilter: when a field's meta opts in and the
@@ -1339,8 +1387,15 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       _boundFieldIds: boundFieldIdsFor(tpl),
       _effectiveFilter: effFilter,
     };
-  });
-    if (_canCache) context._allItemsCache = allItems;
+  };
+  allItems = Object.values(occurrencesById).map(enrichOne);
+    if (_canCache) {
+      context._allItemsCache = allItems;
+      // Kept beside the cache so a VALUE-ONLY write can refresh one entry
+      // instead of discarding the whole read model — see patchAllItemsCache.
+      context._allItemsEnrich = enrichOne;
+      context._allItemsIndex = new Map(allItems.map(it => [it.id, it]));
+    }
   }
 
   // ---- Build $vars ----

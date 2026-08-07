@@ -501,9 +501,20 @@ call count per action type into `window.__reducerMs`. Inert when off.
    that is 0. Verified by revisiting: second visit 3fx / 0 creates. On test grid 2 that is 6 of 25
    columns; **poms grid is unaffected** — its day columns are 7-11 nodes and carry no unsigned
    subtree.
-3. **49 ops are evaluated when about three are date-dependent** (776ms). Cheapest per-op work, but
-   the widest blast radius to change. **This is now the top remaining lever** — with item 2 done,
-   the sweep and Build Schedule are what a date change actually costs.
+3. **49 ops are evaluated when about three are date-dependent** (776ms). **PARTLY ADDRESSED
+   2026-08-07** — but NOT by evaluating fewer ops. The 49 trackers are legitimately date-dependent
+   (a date change really does change every aggregate), so the fix was making each one cheaper: the
+   shared `$allItems` read model was being discarded by every tracker's own field write and rebuilt
+   **44 times per navigation**. It now refreshes the one stale entry instead (helpers/CLAUDE.md
+   2026-08-07 (4)). Sweep **1598 → 1112ms**, wall **1815 → 1342ms**, rebuilds **44 → 3**.
+   **Still open at the op level:** all 49 still run. Whether ~45 trackers must recompute on every
+   date change is a product question, not a perf one.
+4. **`Schedule: Build Schedule` = 61 effects / ~210-250ms / CREATE_ITEM=57 on EVERY navigation.**
+   **Investigated 2026-08-07 and it is NOT a duplication bug** — measured: exactly 1 schedule
+   day-col exists, 50 children, **0 duplicate slot children**. The op deletes the previous day
+   column and rebuilds it for the new date (`DELETE_ITEM=1` in the same effect line), which is the
+   design. Making it cheaper means keeping day columns across navigations rather than rebuilding —
+   a design change, not a bug fix. This is now the largest single op on a date change.
 
 **FOUND WHILE MEASURING, NOT FIXED — test grid 2's Day Page template carries the whole Emotions
 Wheel.** Its template root has **136 descendants of which 128 are UNSIGNED, and they are emotions**

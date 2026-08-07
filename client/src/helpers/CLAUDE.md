@@ -1,6 +1,41 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-07-24. Check this file before re-reading source._
+## Recent Changes (2026-08-07 (4) — a field write no longer discards the $allItems read model)
+- **`operationExecutor.js`** — the enriched `$allItems` collection is cached per sweep and was
+  DISCARDED whenever an op touched the occurrence overlay. `UPDATE_ITEM_FIELD` counted, and **a date
+  navigation fires ~45 trackers that each write one** — so the collection was rebuilt once per
+  tracker, each rebuild re-walking every occurrence's ancestor chain and effective filter.
+  **Measured, not guessed: 44 full rebuilds for a single date change** on test grid 2 (7295
+  occurrences), via a temporary `window.__aiBuilds` counter (since removed).
+- **The insight is narrow and is what makes this safe:** a field write changes a VALUE on an
+  occurrence that already exists. It cannot change the set of occurrences, anyone's parentage, or a
+  role/kind/label — so the read model stays structurally valid and exactly one entry is stale.
+  `patchAllItemsCache` refreshes that entry through the SAME enrichment closure that built it
+  (`_allItemsEnrich`, stashed beside the cache with an id→item index). Every other mutating effect
+  still discards the whole thing.
+- **The entry is mutated IN PLACE, deliberately.** The role slices (`$allInstances`,
+  `$allContainers` …) built by earlier pipelines hold those very objects, so replacing the array
+  entry would leave the slices pointing at the stale copy — a silent wrong-number bug, not a crash.
+  Identity is preserved; only contents move.
+- **It fails CLOSED**: no index, an unknown id, or an occurrence missing from the overlay discards
+  the cache rather than patching half of it. A stale read model is far worse than a rebuild.
+- **Result — two runs each, same probe (`_aiprobe.mjs`), test grid 2:**
+  ```
+                              before        after
+  $allItems rebuilds / nav       44           3
+  op sweep (op-timing)        1598ms       1112ms   (existing day)
+                              1515ms        964ms   (fresh day build)
+  click → settled             1815ms       1342ms   (existing day)
+                              1560ms       1229ms   (fresh day build)
+  ```
+  **~30-36% off a date change, and unlike the signature fix this one moved the WALL CLOCK**, because
+  it removed work the user was actually waiting on rather than duplicate writes.
+- Tests: 7 in `__tests__/allItemsCachePatch.test.js` pinning the refresh, **object identity** (the
+  role-slice staleness trap), stale-key removal, and all three fail-closed paths. The 465-test
+  executor + behavioral suites — which assert real tracker VALUES through the real pipeline — are
+  the correctness net for the patch itself.
+
 ## Recent Changes (2026-08-07 (3) — APPLY_TEMPLATE signs non-root clones in EVERY mode)
 - **`operationActions.js` (APPLY_TEMPLATE `clone`)** — the 2026-07-31 auto-signature fallback
   (`auto:<templateOccId>` for an unsigned node) only ran in MERGE mode. **`Day Page: Build` uses
