@@ -111,3 +111,56 @@ describe("dropping a link ASKS", () => {
     warn.mockRestore();
   });
 });
+
+// The HTML / long-text branch asks too. Today's outcome (the whole tree via
+// import_text) stays pre-selected, so Enter reproduces exactly what this
+// branch did on its own — the ask only decides WHETHER to run it.
+describe("dropping HTML / long text ASKS", () => {
+  function htmlCtx(html) {
+    const containerMod = { id: "cm", role: "container", kind: "board", label: "Notes" };
+    return {
+      dropContext: {
+        payload: { payloadType: DragType.TEXT, data: { text: "" } },
+        target: { occurrenceId: "co", moduleId: "cm" },
+        pointer: { x: 10, y: 20 },
+        position: { edge: null, insertIndex: -1 },
+        dataTransfer: { getData: (t) => (t === "text/html" ? html : "") },
+      },
+      ctx: {
+        dispatch: vi.fn(),
+        socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() },
+        state: { gridId: "g1", userId: "u1", grid: { _id: "g1" }, modulesById: { cm: containerMod }, viewsById: {} },
+        occurrencesById: { co: { id: "co", moduleId: "cm", occurrences: [] } },
+        baseContainers: [containerMod],
+        clearSession: vi.fn(),
+        getCellFromPoint: () => null,
+      },
+    };
+  }
+  const HTML = "<h1>Title</h1><p>Body text that is long enough to import.</p>";
+
+  it("opens the sheet and pre-selects the doc page (today's outcome)", () => {
+    const { dropContext, ctx } = htmlCtx(HTML);
+    handleExternalDrop(dropContext, ctx);
+    expect(requests).toHaveLength(1);
+    expect(requests[0].classification.preselected).toBe(INTAKE_SHAPES.TEXT_DOC_PAGE.id);
+  });
+
+  it("writes nothing until picked, and nothing at all on cancel", () => {
+    const { dropContext, ctx } = htmlCtx(HTML);
+    handleExternalDrop(dropContext, ctx);
+    expect(ctx.socket.emit).not.toHaveBeenCalled();
+    requests[0].onCancel();
+    expect(ctx.socket.emit).not.toHaveBeenCalled();
+  });
+
+  it("picking it runs the SAME import_text the branch used to run inline", () => {
+    const { dropContext, ctx } = htmlCtx(HTML);
+    handleExternalDrop(dropContext, ctx);
+    requests[0].onPick(INTAKE_SHAPES.TEXT_DOC_PAGE.id);
+    const call = ctx.socket.emit.mock.calls.find(c => c[0] === "import_text");
+    expect(call).toBeTruthy();
+    expect(call[1]).toMatchObject({ gridId: "g1", format: "html", parentId: "co" });
+    expect(call[1].content).toContain("Title");
+  });
+});

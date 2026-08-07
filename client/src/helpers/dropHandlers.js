@@ -1751,6 +1751,20 @@ export function handleExternalDrop(dropContext, ctx) {
   if (wantsImport && socket?.emit) {
     const dest = resolveImportParent();
     if (dest) {
+      // ── The HTML / long-text drop asks too ────────────────────────
+      // Today's outcome (the whole tree, wrapped as a doc page) is the
+      // pre-selected shape, so Enter reproduces exactly what this branch did
+      // on its own. `runImport` below IS that behaviour, unchanged — the ask
+      // just decides whether to run it.
+      const textClassification = filterToImplemented(
+        classifyIntake(
+          wantsImport.format === "html"
+            ? { html: wantsImport.content }
+            : { text: wantsImport.content },
+          { kind: containerId ? "board" : null, occurrenceId: dest.parentId || null },
+        ),
+      );
+      const runImport = () => {
       const requestId = makeUUID();
       // Loading toast — swapped to success/fail on import_text_result
       // (server acks with the matching requestId). 30s upper cap in
@@ -1801,6 +1815,23 @@ export function handleExternalDrop(dropContext, ctx) {
         title: dest.title,
         requestId,
       });
+      };
+
+      const textCtx = {
+        payload: textClassification.payload,
+        destination: { parentId: dest.parentId },
+        gridId, socket,
+        // Today's whole-tree import, unchanged. Only the DECISION to run it
+        // moved; the write itself is the same code that was inline here.
+        onImportText: runImport,
+      };
+      const opened = openIntakeSheet({
+        classification: textClassification,
+        position: { top: (pointer?.y ?? 0) + 8, left: (pointer?.x ?? 0) + 8 },
+        onPick: (shapeId) => { applyIntakeShape(shapeId, textCtx); clearSession(); },
+        onCancel: () => clearSession(),
+      });
+      if (!opened) { applyIntakeShape(textClassification.preselected, textCtx); clearSession(); }
       return;
     }
     // No usable drop destination — fall through to legacy below.

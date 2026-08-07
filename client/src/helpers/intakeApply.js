@@ -159,8 +159,15 @@ function runImportUrl(ctx) {
 
 // Today's text/HTML path: hand the content to the server importer, which builds
 // the container/textblock tree and broadcasts it back.
+//
+// When the caller supplies `onImportText` it owns the write — the drop handler
+// already resolves a destination TITLE, wraps a homeless import in an Imports
+// doc page, and reports per-entity stats in its toast. None of that is intake's
+// business, and a second copy here would drift. Same seam as `onPlaceholders`
+// and `onLegacyLink`.
 function runImportText(ctx) {
-  const { payload = {}, gridId, socket, destination = {}, onImportResult = null } = ctx;
+  const { payload = {}, gridId, socket, destination = {}, onImportResult = null, onImportText = null } = ctx;
+  if (onImportText) { onImportText(); return; }
   if (!socket) return;
   const content = payload.html || payload.text || "";
   if (!content.trim()) return;
