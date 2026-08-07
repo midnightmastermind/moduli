@@ -154,10 +154,42 @@ click itself.
 BEFORE the writes that re-render the app, not after. Task 2 stands (paint first), with one change:
 it must also defer `createModule`/`createOccurrence` past the insert.
 
-**Next measurement, before writing that:** confirm the attribution by minting with the two writes
-temporarily commented out. If the dispatch drops from ~1120ms to ~100ms, the diagnosis holds and
-Task 2 is a reordering. If it does not, the ~1010ms is ProseMirror's own view update and the fix is
-elsewhere again — record that instead of proceeding.
+**A/B RUN, 2026-08-07 — CONFIRMED, and it is not close:**
+
+```
+with the two store writes   editor.view.dispatch(tr)   1121.6ms
+without them (A/B)          editor.view.dispatch(tr)      9.8ms
+```
+
+**The insert itself costs 10ms.** Everything else is the app-wide re-render the two writes provoke,
+landing in the same task. The writes are unavoidable — the block needs a module and an occurrence —
+but they do not have to be in the same TASK as the insert, and the browser cannot paint until that
+task ends.
+
+### Task 2 (REVISED by the measurement): insert, PAINT, then write
+
+The original Task 2 deferred the editor mount. That is now known to be ~100ms of a 1121ms problem.
+The real ordering is:
+
+1. `editor.view.dispatch(tr)` — the block node lands in the doc (**10ms**).
+2. The browser paints. The block is where the user clicked.
+3. **Next frame:** `createModule` + `createOccurrence` — the node view re-renders with its real
+   occurrence, mounts its editor, and `consumeTextblockFocus` claims the caret.
+
+**The one thing this must not do is flash.** Between (1) and (3) the node view has an
+`occurrenceId` the store does not know yet, and today that branch renders a muted `—`. It must
+render an empty block shell instead — same box, same height, no text — so the block APPEARS at step
+2 and simply becomes editable at step 3. `InstanceTextblockNode` already has the branch
+(`occurrence ? … : <span>—</span>`); it needs a third state for "provisional, not yet in the store".
+
+**Do not move the `registerProvisionalTextblock` call.** It must still happen BEFORE the transaction
+— the outer editor's `onUpdate` fires synchronously inside it and asks the registry whether the doc
+now embeds a provisional block (2026-08-05). Registering after would let the parent textmap go out
+embedding an occurrence the server will never see.
+
+**Verify with the same probe:** `mint:go → block:in-dom` under 100ms, `block:in-dom` strictly before
+the store writes, the caret still lands in the new block, and typing five characters still goes into
+it (they are the same assertions as Task 5).
 
 ---
 
