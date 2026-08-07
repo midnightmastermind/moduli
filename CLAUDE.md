@@ -69,10 +69,30 @@ bottom))` makes the inner dialog measure 12px short of the edge, so measure the 
 **vacuous** — two `null`s also form a set of size 1, so it passed against the unfixed code until a
 `toBeTruthy` went in front of it. Every new test here was A/B'd against the unfixed source.
 
-Four deploys, each verified the 2026-08-07 (3) way — prod HEAD over SSH, index 200, the hashed
-bundle it references 200, and the served bundle's sha256 against the local build. 1880 client + 513
+Five deploys, each verified the 2026-08-07 (3) way — prod HEAD over SSH, index 200, the hashed
+bundle it references 200, and the served bundle's sha256 against the local build. 1880 client + 523
 server tests. Probe debris swept (1 module, 3 occurrences, dumped first); all three grids back to
 their documented baselines.
+
+**`0048` MERGED THE LAST DUPLICATE DAY COLUMNS — and 0038 had been wrong about why it couldn't.**
+User's call: *"merge"*. 0038 skipped this pair judging that both columns "hold writing"; re-measured
+at FULL DEPTH through `decompressTextmap`, **both subtrees are empty — 20 nodes, 0 characters**. The
+only non-date values are three Daily Questions written by `Day Page: Build`/`0040`'s backfill, and
+every Daily Answer is blank. **0038's guard scored the app's own footprint as the user's writing —
+the identical failure its own header records about its FIRST attempt, which counted field values and
+fired on `0037`'s date stamp.** Twice, in one migration's history, by the same mistake: *a
+writing-guard has to distinguish what the USER typed from what the app wrote, or it refuses
+forever.* The new guard is text-only and fails CLOSED. poms grid is now at **0 errors** — the
+dropped column also carried the last `duplicate-template-section`.
+
+**A DEPLOY VERIFICATION READ 502 AND THE SITE WAS FINE — the false alarm is worth recording,
+because it is indistinguishable at a glance from the real outage.** `curl` immediately after
+`deploy.sh` returns can land inside the pm2 restart window: nginx has no upstream yet and answers
+502 for the app route while still serving the hashed bundle straight off disk (bundle 200 + index
+502 is the tell). Diagnosed rather than assumed — `dist/index.html` was present and freshly built,
+`localhost:5000` answered 200 on the box, and the ENOENT in the pm2 error log was **78 minutes
+stale**, from a different window. **Verify with a short retry, and check the error log's TIMESTAMP
+before believing it is yours.**
 
 ---
 ### 2026-08-07 (3) — I TOOK PROD DOWN FOR ~3 MINUTES: the deploy said ✅ and there was no `dist`
