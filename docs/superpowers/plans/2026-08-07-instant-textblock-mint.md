@@ -118,6 +118,47 @@ git add client/src/ui/Editor.jsx docs/superpowers/plans/2026-08-07-instant-textb
 git commit -m "perf(mint): measure the editor lifecycle inside the mint dispatch"
 ```
 
+### RESULTS — Task 1, 2026-08-07 (test grid 2, Day Page, local server, unthrottled)
+
+```
+click → mint:go            ~100ms     the decision, unchanged
+createModule                 0.2ms    \ the store writes EXECUTE in under a
+createOccurrence             0.7ms    /  millisecond — they are not the cost
+editor.view.dispatch(tr)  1121.6ms    ← the whole wait
+   ├─ ~1010ms  ...before any node view exists
+   ├─ editor:create ×2 @ 1117.8       ← React committed here
+   └─ onUpdate:start→end  0.1ms @ 1229.4
+editors during the mint:  7 created, 0 DESTROYED
+```
+
+**Both hypotheses in Task 1 are wrong, and the numbers say so plainly.**
+
+- **It is not N remounts.** `0 destroyed` — nothing on the page was torn down. Task 3's premise
+  (ProseMirror recreating existing node views) does not hold. **Task 3 is dropped.**
+- **It is not the new editor's mount either.** The editor is created at 1117.8, i.e. at the END of a
+  1121ms span. The mount is the last ~100ms, not the first 1010. **Task 4 is dropped** — trimming
+  the extension set would have aimed at ~10% of the cost, for a schema change that risks dropping
+  stored nodes.
+- **And it is not the save path.** `onUpdate` runs synchronously inside the transaction, as
+  documented — and measures **0.1ms**.
+
+**What is left, and it is the one thing that was never suspected: the two store writes.** They
+*execute* in 0.9ms, but `createModule` + `createOccurrence` dispatch into the store, and this app's
+documented behaviour is that any occurrence write re-renders a large part of the tree (the frame-1
+drop storm: 54 containers / hundreds of fields even after the 2026-07-07 fixes). That render lands
+in the SAME task as the ProseMirror dispatch that follows it, so the click pays for both. The four
+`editor:create` marks at t=0/31/58/105 — before the mint even decided — are the same effect from the
+click itself.
+
+**Therefore the fix is ORDER, not weight:** the transaction that puts the block on screen must run
+BEFORE the writes that re-render the app, not after. Task 2 stands (paint first), with one change:
+it must also defer `createModule`/`createOccurrence` past the insert.
+
+**Next measurement, before writing that:** confirm the attribution by minting with the two writes
+temporarily commented out. If the dispatch drops from ~1120ms to ~100ms, the diagnosis holds and
+Task 2 is a reordering. If it does not, the ~1010ms is ProseMirror's own view update and the fix is
+elsewhere again — record that instead of proceeding.
+
 ---
 
 ### Task 2: the block PAINTS before its editor exists
@@ -280,7 +321,9 @@ git commit -m "perf(mint): the block paints before its editor mounts"
 
 ---
 
-### Task 3: a sibling insert must not remount every other block
+### Task 3: a sibling insert must not remount every other block — DROPPED 2026-08-07
+
+Task 1 measured `0 destroyed`: nothing is being remounted. Premise false; do not build this.
 
 **GATED on Task 1 reporting `created ≈ N`.** If Task 1 reported one create, skip to Task 4 and note
 here why it was skipped.
@@ -400,7 +443,10 @@ git commit -m "perf(mint): reuse textblock node views instead of remounting ever
 
 ---
 
-### Task 4: a lighter editor for textblock bodies
+### Task 4: a lighter editor for textblock bodies — DROPPED 2026-08-07
+
+Task 1 put the editor's creation at the END of the 1121ms span (~100ms of it). Trimming extensions
+would chase a tenth of the cost while risking stored nodes being dropped from a changed schema.
 
 **GATED on Tasks 2–3 not reaching the 100ms target**, or on Task 1 reporting that ONE mount is
 expensive. If the target is already met, skip this task and record that — an unnecessary change to

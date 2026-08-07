@@ -615,6 +615,12 @@ const Editor = forwardRef(function Editor({
       }
     },
     onUpdate: ({ editor, transaction }) => {
+      // [mint] — this handler runs SYNCHRONOUSLY inside the transaction that
+      // replaces a line with a textblock, so anything expensive in here is paid
+      // by the click. Marking its span is what separates "mounting the editor is
+      // slow" from "reacting to the insert is slow".
+      mintMark("onUpdate:start");
+      try {
       // Mark as locally modified — suppress server echoes for 1.5s so stale
       // echoes (e.g. from before auto-create) can't reset the doc after the
       // sub-editor takes focus and hasFocus becomes false on the outer editor.
@@ -890,6 +896,7 @@ const Editor = forwardRef(function Editor({
           }
         }
       }
+      } finally { mintMark("onUpdate:end"); }
     },
     // Click / arrow into an empty line → that line becomes a textblock now.
     // Both hooks are needed: a click that MOVES the caret fires selectionUpdate,
@@ -1124,6 +1131,15 @@ const Editor = forwardRef(function Editor({
   // docket entry. Counting them and timing the last one is what says whether
   // editor mounts are a real slice of the load or a docket theory.
   useEffect(() => { if (editor) markLoad("editor:mount"); }, [editor]);
+
+  // [mint] lifecycle — counting CREATE vs DESTROY inside a single mint is what
+  // separates "one expensive mount" from "everything on the page remounted".
+  // Inert unless `window.__mintDiag`.
+  useEffect(() => {
+    if (!editor) return;
+    mintMark("editor:create", { occId: (occurrence?.id || "").slice(0, 8) });
+    return () => mintMark("editor:destroy", { occId: (occurrence?.id || "").slice(0, 8) });
+  }, [editor, occurrence?.id]);
 
   // Sync editable prop → TipTap after initialization (useEditor doesn't auto-sync)
   useEffect(() => {
