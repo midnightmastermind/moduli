@@ -5,6 +5,58 @@
 > **Read [`CLAUDE_CHAT.md`](./CLAUDE_CHAT.md) at session start.** It's the time-ordered log of user direction across sessions. New direction goes there first before acting.
 
 ---
+### 2026-08-06 (5) — the click-to-mint textblock, AUDITED: 1s of it is mounting a ProseMirror
+
+User: *"why creating a textblock via clicking an empty line takes so long. it should be instant and
+if i click on a diff empty line it should create it there as well. right now, it just makes the
+first one disappear"* → *"really audit what takes so long for it."*
+
+**MEASURED on the real app (test grid 2, Day Page), never read off the code.** New opt-in
+`[mint]` marks (`helpers/mintDiag.js`) name every step of the path on one clock:
+
+```
+   0ms   click
+  16     pointerdown            ← the browser's own handling
+  26     mint check scheduled
+  99     mint:go                ← the decision is fast
+ 100     createModule            0.2ms
+ 101     createOccurrence        0.7ms   ← the store writes are NOT the cost
+1084     replaceLine+mountSubEditor   982.8ms   ← THIS is the cost
+1085     block in the DOM
+```
+
+**The two store writes cost 0.9ms combined.** The entire wait is ONE synchronous
+`editor.view.dispatch` that replaces the line and, inside the host doc's re-render, mounts a fresh
+live TipTap instance for the new block. On this page (34 textblocks, each already carrying its own
+ProseMirror) it measures **250ms–1016ms** depending on what else the thread is doing. **That is the
+"editor static-until-focus" docket item, arriving from a new direction** — the cost is not the mint,
+it is that every textblock is a live editor. Fixing it is that docket entry's own session; nothing
+in the mint path can shorten it.
+
+**THREE defects found on the way. Two are fixed; both were invisible without the marks.**
+1. **The suppression window was BLANKET.** Abandoning the first block arms a 600ms no-mint window
+   so backspace cannot re-create the block it just collapsed — but it also swallowed the mint at
+   the line you just clicked (`[mint] skip why:suppressed`, measured). That is exactly the reported
+   "it just makes the first one disappear". Suppression is **per-LINE** now: scoped to the position
+   it was armed for, so backspace is still safe and a different line mints immediately.
+2. **The deferred check outlived its own gesture.** With (1) fixed the second click STILL skipped —
+   `why: no-recent-input`. The mint check is deferred and coalesced, and minting the *previous*
+   block blocks the thread for ~1s, so the check ran after the 1s user-input window had closed.
+   `userInputRecently` now measures from **when the question was asked**, not when it is answered.
+3. **NOT FIXED, and named:** the ~1s sub-editor mount above.
+
+Verified by re-running the same probe: the second click now reaches `mint:go` and lands a block at
+the new line (it never did before). 1791 client tests.
+
+**Probe lesson, and it cost four attempts.** Every DOM-sampling approach failed in a way that LOOKED
+like an answer: no doc editors on the default page; an "empty trailing line" that is `height:0`
+until hovered; a doc whose blocks are all node views with no empty paragraph at all; and a
+`page.evaluate` count that reported the state whenever the blocked main thread got round to it. The
+measurement only worked once the probe **made an empty line the way a user does** (Enter, then click
+away) and read the app's own marks instead of the DOM.
+
+---
+
 ### 2026-08-06 (4) — staged loading: the shape paints in 0.2s, and the docket's load theory was WRONG
 
 User task list: *"Staged loading: grid shape first, per-panel spinners, one circular loader."* Plan +

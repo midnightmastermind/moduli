@@ -203,8 +203,9 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
     const paragraph = editor.state.schema.nodes.paragraph?.create();
     if (!paragraph) return;
     // The caret may land back on the restored line; without this the mint
-    // fires again on the next selection update and the block never dies.
-    suppressTextblockMint();
+    // fires again on the next selection update and the block never dies. Scoped
+    // to THIS line so clicking a different empty line still mints there.
+    suppressTextblockMint(pos);
     const tr = editor.state.tr;
     tr.setMeta("skipAutoCreate", true);
     tr.replaceWith(pos, pos + node.nodeSize, paragraph);
@@ -238,7 +239,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
       // The caret lands ON that empty line, which is precisely what the
       // caret-entry mint watches for — without the suppression window
       // backspace would immediately re-create the block it just collapsed.
-      suppressTextblockMint();
+      suppressTextblockMint(pos);
       editor.chain().focus()
         .deleteRange({ from: pos, to: pos + nodeSize })
         .insertContentAt(pos, { type: "paragraph" })

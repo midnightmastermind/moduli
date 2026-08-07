@@ -9,6 +9,7 @@ import { Lock, Unlock } from "lucide-react";
 import { logCaretInterference } from "../helpers/caretDiag";
 import { requestTextblockFocus, cancelTextblockFocus } from "../helpers/pendingTextblockFocus";
 import { registerProvisionalTextblock, discardProvisionalTextblock } from "../helpers/provisionalTextblock";
+import { mintMark, mintStep } from "../helpers/mintDiag";
 
 export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false, scrollAnchor, onExitBlock, onDeleteBlock, onAutoCreateTextblock, onEmptyBlur = null }) {
   const [showLockBtn, setShowLockBtn] = useState(false);
@@ -90,7 +91,7 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       instanceId: modId,
       occurrenceId: occId,
     }));
-    editor.view.dispatch(tr);
+    mintStep("replaceLineWithBlock", () => editor.view.dispatch(tr));
 
     // Mark this occurrence as the active focus-race target. The merge
     // pre-pass uses `occId` to fold continuation keystrokes into the right
@@ -197,10 +198,10 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       fields: stamped || {},
     };
 
-    CommitHelpers.createModule({ dispatch, socket, module, emit: false });
-    CommitHelpers.createOccurrence({
+    mintStep("createModule", () => CommitHelpers.createModule({ dispatch, socket, module, emit: false }));
+    mintStep("createOccurrence", () => CommitHelpers.createOccurrence({
       dispatch, socket, occurrence: newOccurrence, emit: false, fireTrigger: false,
-    });
+    }));
 
     // REGISTER BEFORE the transaction. Replacing the line fires the outer
     // editor's onUpdate synchronously, and that save path asks whether the doc
@@ -241,7 +242,7 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       instanceId: modId,
       occurrenceId: occId,
     }));
-    editor.view.dispatch(tr);
+    mintStep("replaceLine+mountSubEditor", () => editor.view.dispatch(tr));
 
     // The sub-editor claims the caret in its own onCreate — the first frame it
     // exists. Nothing here polls the DOM for it.

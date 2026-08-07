@@ -87,6 +87,7 @@ import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box,
 import { convertLeafRole } from "../helpers/convertOccurrence";
 import { consumeTextblockFocus } from "../helpers/pendingTextblockFocus";
 import { markLoad } from "../helpers/loadDiag";
+import { mintMark } from "../helpers/mintDiag";
 import {
   isProvisionalTextblock, commitProvisionalTextblock, hasProvisionalTextblock,
   isEmptyTextblockDoc, isTextblockMintSuppressed,
@@ -108,8 +109,17 @@ function trackUserInput() {
   document.addEventListener("keydown", stamp, true);
 }
 const USER_INPUT_WINDOW_MS = 1000;
-function userInputRecently() {
-  return Date.now() - _lastUserInputAt < USER_INPUT_WINDOW_MS;
+/**
+ * Was there a real gesture behind this? `at` is WHEN THE QUESTION WAS ASKED, not
+ * when it is being answered, and that distinction is a fix, not a nicety: the
+ * check is deferred and coalesced, and minting the previous block can block the
+ * main thread for ~1s (measured), so a check scheduled by a real click ran after
+ * the window had closed and skipped with `no-recent-input` — the second click
+ * produced nothing. Measuring from the scheduling instant makes the answer
+ * independent of how busy the thread was in between.
+ */
+function userInputRecently(at = Date.now()) {
+  return at - _lastUserInputAt < USER_INPUT_WINDOW_MS;
 }
 
 // The caret sits in an EMPTY top-level line → the {start, size} of the line to
@@ -456,16 +466,23 @@ const Editor = forwardRef(function Editor({
   const mintCheckRef = useRef(0);
   const maybeMintAtCaret = useCallback((editor) => {
     if (!onCaretMintRef.current || !editor || editor.isDestroyed) return;
-    if (mintCheckRef.current) return;
+    if (mintCheckRef.current) { mintMark("mint:check-coalesced"); return; }
+    mintMark("mint:check-scheduled");
+    const askedAt = Date.now();
     mintCheckRef.current = setTimeout(() => {
       mintCheckRef.current = 0;
       const mint = onCaretMintRef.current;
       if (!mint || editor.isDestroyed) return;
-      if (!editor.isEditable || !editor.view?.hasFocus?.()) return;
-      if (isTextblockMintSuppressed() || !userInputRecently()) return;
+      if (!editor.isEditable || !editor.view?.hasFocus?.()) { mintMark("mint:skip", { why: "no-focus" }); return; }
+      if (!userInputRecently(askedAt)) { mintMark("mint:skip", { why: "no-recent-input" }); return; }
       const target = emptyLineAtCaret(editor.state);
-      if (!target) return;
+      if (!target) { mintMark("mint:skip", { why: "not-an-empty-line" }); return; }
+      // Suppression is checked with the TARGET LINE in hand: a collapse only
+      // blocks a re-mint at the line it collapsed, never at a different one.
+      if (isTextblockMintSuppressed(target.start)) { mintMark("mint:skip", { why: "suppressed" }); return; }
+      mintMark("mint:go");
       mint(target.start, target.size);
+      mintMark("mint:returned");
     }, 0);
   }, []);
   useEffect(() => () => { if (mintCheckRef.current) clearTimeout(mintCheckRef.current); }, []);

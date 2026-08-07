@@ -27,6 +27,15 @@ const pending = new Map();
 // re-creates the block the user just dismissed — backspace becomes a no-op loop.
 const MINT_SUPPRESS_MS = 600;
 let suppressUntil = 0;
+// …but it must be suppressed AT THAT LINE ONLY. A blanket time window also ate
+// the mint at a DIFFERENT line, which is exactly the reported bug (2026-08-06,
+// user): "if i click on a diff empty line it should create it there as well.
+// right now, it just makes the first one disappear" — clicking away abandons the
+// first block (correct) and the same gesture arms the window, so the new line's
+// mint was skipped (`[mint] skip why:suppressed`, measured). Scoped by position,
+// backspace still cannot re-mint the block it just collapsed, and a click
+// anywhere else mints immediately.
+let suppressPos = null;
 
 export function registerProvisionalTextblock(occurrenceId, handlers) {
   if (!occurrenceId || !handlers) return;
@@ -63,18 +72,27 @@ export function forgetProvisionalTextblock(occurrenceId) {
   return pending.delete(occurrenceId);
 }
 
-export function suppressTextblockMint(ms = MINT_SUPPRESS_MS) {
+/**
+ * @param {number|null} pos  the doc position of the line being restored. Null
+ *                           suppresses everywhere (the old blanket behaviour),
+ *                           kept for callers that genuinely cannot say where.
+ */
+export function suppressTextblockMint(pos = null, ms = MINT_SUPPRESS_MS) {
   suppressUntil = Date.now() + ms;
+  suppressPos = pos;
 }
 
-export function isTextblockMintSuppressed(now = Date.now()) {
-  return now < suppressUntil;
+export function isTextblockMintSuppressed(pos = null, now = Date.now()) {
+  if (now >= suppressUntil) return false;
+  if (suppressPos == null) return true;      // blanket window
+  return pos == null || pos === suppressPos; // only the line we just collapsed
 }
 
 // TEST ONLY — the registry is module state shared by every doc editor.
 export function _resetProvisionalTextblocks() {
   pending.clear();
   suppressUntil = 0;
+  suppressPos = null;
 }
 
 // A TipTap doc holding nothing the user would miss: no text, no non-paragraph

@@ -71,10 +71,27 @@ describe("provisional registry", () => {
 describe("mint suppression", () => {
   test("suppresses for the requested window, then releases", () => {
     const t0 = Date.now();
-    expect(isTextblockMintSuppressed(t0)).toBe(false);
-    suppressTextblockMint(600);
-    expect(isTextblockMintSuppressed(t0 + 100)).toBe(true);
-    expect(isTextblockMintSuppressed(t0 + 700)).toBe(false);
+    expect(isTextblockMintSuppressed(null, t0)).toBe(false);
+    suppressTextblockMint(null, 600);
+    expect(isTextblockMintSuppressed(null, t0 + 100)).toBe(true);
+    expect(isTextblockMintSuppressed(null, t0 + 700)).toBe(false);
+  });
+
+  // The reported bug (2026-08-06): clicking a DIFFERENT empty line right after
+  // abandoning one produced nothing — the collapse armed a blanket window and
+  // the new line's mint was skipped. Suppression is per-LINE now.
+  test("suppresses ONLY the line it was armed for", () => {
+    const t0 = Date.now();
+    suppressTextblockMint(42, 600);
+    expect(isTextblockMintSuppressed(42, t0 + 100)).toBe(true);   // the collapsed line
+    expect(isTextblockMintSuppressed(99, t0 + 100)).toBe(false);  // a different line
+    expect(isTextblockMintSuppressed(42, t0 + 700)).toBe(false);  // window elapsed
+  });
+
+  test("a caller that cannot say WHERE still suppresses everywhere", () => {
+    const t0 = Date.now();
+    suppressTextblockMint(null, 600);
+    expect(isTextblockMintSuppressed(99, t0 + 100)).toBe(true);
   });
 });
 
