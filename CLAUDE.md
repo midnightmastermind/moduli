@@ -85,6 +85,24 @@ writing-guard has to distinguish what the USER typed from what the app wrote, or
 forever.* The new guard is text-only and fails CLOSED. poms grid is now at **0 errors** — the
 dropped column also carried the last `duplicate-template-section`.
 
+**CTRL+V NOW GOES THROUGH THE INTAKE CLASSIFIER — and the obvious veto was WRONG in a way only a
+browser could show.** User: *"yes use control v"*. The rule that decides whether a paste is ours
+carries all the risk: it is a document-level listener on a key pressed constantly, so the failure
+mode is broken typing, not a missing feature. The first rule — `closest(".ProseMirror, .doc-editor")`
+— made **all three probe cases bail**, because a doc container renders its body as a ProseMirror and
+embeds occurrence cards as NODE VIEWS, so most of the visible grid sits inside an editor's subtree.
+`_pastemap.mjs` measured the split across the viewport: **808 points plain chrome · 78 node-view
+cards inside an editor · 34 genuinely editable text**. So the rule is **"editable text", not "inside
+an editor"** — walk up, take the NEAREST explicit `contenteditable` answer, which ProseMirror
+already sets to `false` on an atom node view. *When a veto rejects everything, question the
+predicate, not the feature.*
+
+**And the probe mislabeled its own targets, twice.** Its first two runs disagreed with each other
+because "row" and "doc body" were guessed by selector: one point was editable text and the other a
+node view, exactly backwards from their names. The probe now CLASSIFIES each point with the same
+walk the code uses, so it cannot mislabel again. Third time this session a probe had to be fixed
+before its failure meant anything.
+
 **A DEPLOY VERIFICATION READ 502 AND THE SITE WAS FINE — the false alarm is worth recording,
 because it is indistinguishable at a glance from the real outage.** `curl` immediately after
 `deploy.sh` returns can land inside the pm2 restart window: nginx has no upstream yet and answers
