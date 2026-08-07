@@ -96,17 +96,62 @@ describe("fetchPageHtml", () => {
     expect(fetchImpl).not.toHaveBeenCalled();   // the assertion that matters
   });
 
-  it("does not FOLLOW a redirect — that would walk around the check", async () => {
-    const fetchImpl = vi.fn(async () => ({
-      ok: false, status: 302,
-      headers: { get: (k) => (k.toLowerCase() === "location" ? "http://127.0.0.1/" : null) },
-      text: async () => "",
-    }));
+  // Redirects are followed BY HAND. Letting fetch follow them lands wherever
+  // the chain ends; refusing them outright breaks real links (measured: MDN
+  // 301s, and HTTP→HTTPS redirects are everywhere). Each hop is re-validated.
+  const redirectTo = (loc, status = 302) => ({
+    ok: false, status,
+    headers: { get: (k) => (k.toLowerCase() === "location" ? loc : null) },
+    text: async () => "",
+  });
+
+  it("never delegates redirect-following to fetch", async () => {
+    const fetchImpl = vi.fn(async () => okRes("<p>ok</p>"));
+    await fetchPageHtml("https://example.com", { fetchImpl });
+    expect(fetchImpl.mock.calls[0][1].redirect).toBe("manual");
+  });
+
+  it("FOLLOWS a redirect to a public destination", async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(redirectTo("https://example.com/final", 301))
+      .mockResolvedValueOnce(okRes("<h1>Final</h1>"));
+    const r = await fetchPageHtml("https://example.com/start", { fetchImpl });
+    expect(r.ok).toBe(true);
+    expect(r.html).toBe("<h1>Final</h1>");
+    expect(r.url).toBe("https://example.com/final");   // reports where it ended
+  });
+
+  it("resolves a RELATIVE Location (the MDN case)", async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(redirectTo("/en-US/docs/Reference/404", 301))
+      .mockResolvedValueOnce(okRes("<h1>404</h1>"));
+    const r = await fetchPageHtml("https://developer.mozilla.org/en-US/docs/Status/404", { fetchImpl });
+    expect(r.ok).toBe(true);
+    expect(r.url).toBe("https://developer.mozilla.org/en-US/docs/Reference/404");
+  });
+
+  it("RE-VALIDATES each hop — a redirect into the private range is refused", async () => {
+    // The attack this whole loop exists to stop.
+    const fetchImpl = vi.fn().mockResolvedValueOnce(redirectTo("http://169.254.169.254/latest/meta-data/"));
     const r = await fetchPageHtml("https://example.com", { fetchImpl });
     expect(r.ok).toBe(false);
-    expect(r.reason).toMatch(/redirect/i);
-    // And it asked for manual redirect handling rather than trusting the default.
-    expect(fetchImpl.mock.calls[0][1].redirect).toBe("manual");
+    expect(r.reason).toMatch(/private|loopback/);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);   // never dialled the metadata host
+  });
+
+  it("stops a redirect loop", async () => {
+    const fetchImpl = vi.fn(async () => redirectTo("https://example.com/loop"));
+    const r = await fetchPageHtml("https://example.com/loop", { fetchImpl, maxRedirects: 3 });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/too many redirects/);
+    expect(fetchImpl).toHaveBeenCalledTimes(4);   // initial + 3 hops, then stop
+  });
+
+  it("refuses a redirect with no Location", async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: false, status: 302, headers: { get: () => null }, text: async () => "" }));
+    const r = await fetchPageHtml("https://example.com", { fetchImpl });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/no Location/);
   });
 
   it("refuses a non-page content type", async () => {

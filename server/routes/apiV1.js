@@ -1106,8 +1106,9 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   router.post("/import/url", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const { fetchPageHtml } = await import("../utils/safeFetchUrl.js");
-      const { htmlToMarkdown } = await import("../services/wikipediaTools.js");
+      const { wikiHtmlToMarkdown } = await import("../services/wikipediaTools.js");
       const { markdownToModuli } = await import("../services/markdownImporter.js");
+      const { extractMainContent } = await import("../utils/mainContent.js");
       const { gridId, url, parentId = null, title = "", dryRun = false } = req.body || {};
       if (!gridId) return err(res, 400, "validation_error", "gridId required");
       if (!url) return err(res, 400, "validation_error", "url required");
@@ -1117,9 +1118,10 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
       // wrong, and the reason is safe to hand back so the UI can say WHY.
       if (!fetched.ok) return err(res, 400, "fetch_failed", fetched.reason);
 
-      const markdown = htmlToMarkdown(fetched.html, title, {
-        keepImages: true, keepTables: true, keepFigures: true,
-      });
+      // Narrow to the article before converting — a raw page imports its
+      // nav chrome as prose (measured on Wikipedia).
+      const { html: mainHtml } = extractMainContent(fetched.html);
+      const markdown = wikiHtmlToMarkdown(mainHtml, title);
       const result = await markdownToModuli({
         gridId, parentId, userId: req.userId, markdown, dryRun,
         title: title || deriveTitleFromHtml(fetched.html) || fetched.url,

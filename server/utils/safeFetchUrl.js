@@ -72,45 +72,68 @@ export function validateFetchUrl(raw) {
 
 /**
  * Fetch a page's HTML with the guard applied.
+ *
+ * REDIRECTS ARE FOLLOWED BY HAND, and that is the whole point of this loop.
+ * Letting `fetch` follow them lands us wherever the chain ends — a 302 into
+ * 127.0.0.1 walks straight through the check we just did. Refusing them
+ * outright is no good either: measured against real links, MDN alone 301s
+ * (`/Status/404` → `/Reference/Status/404`), and HTTP→HTTPS plus trailing-slash
+ * redirects are everywhere. So each hop is resolved, RE-VALIDATED through the
+ * same guard, and re-fetched, with a cap so a redirect loop terminates.
+ *
  * Caps the body so a huge or endless response cannot exhaust memory.
  */
-export async function fetchPageHtml(raw, { timeoutMs = 20000, maxBytes = 5 * 1024 * 1024, fetchImpl } = {}) {
-  const v = validateFetchUrl(raw);
-  if (!v.ok) return { ok: false, reason: v.reason };
-
+export async function fetchPageHtml(raw, {
+  timeoutMs = 20000, maxBytes = 5 * 1024 * 1024, maxRedirects = 5, fetchImpl,
+} = {}) {
   const doFetch = fetchImpl || globalThis.fetch;
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const res = await doFetch(v.url.toString(), {
-      signal: ac.signal,
-      // Never follow automatically — a 302 into 127.0.0.1 would walk straight
-      // through the check we just did.
-      redirect: "manual",
-      headers: {
-        // Some sites serve a stub to unknown agents; this is the same posture
-        // services/wikipediaTools.js already takes.
-        "User-Agent": "Mozilla/5.0 (compatible; Moduli/1.0; +https://viafluere.com)",
-        Accept: "text/html,application/xhtml+xml",
-      },
-    });
+    let current = raw;
+    for (let hop = 0; hop <= maxRedirects; hop++) {
+      // EVERY hop goes through the guard, not just the first — that is what
+      // makes following a redirect safe.
+      const v = validateFetchUrl(current);
+      if (!v.ok) {
+        return { ok: false, reason: hop === 0 ? v.reason : `redirect ${hop} → ${v.reason}` };
+      }
 
-    if (res.status >= 300 && res.status < 400) {
-      const to = res.headers?.get?.("location");
-      return { ok: false, reason: `redirected (${res.status})${to ? ` to ${to}` : ""} — re-run with the final URL` };
-    }
-    if (!res.ok) return { ok: false, reason: `fetch failed (${res.status})` };
+      const res = await doFetch(v.url.toString(), {
+        signal: ac.signal,
+        redirect: "manual",
+        headers: {
+          // Some sites serve a stub to unknown agents; this is the same posture
+          // services/wikipediaTools.js already takes.
+          "User-Agent": "Mozilla/5.0 (compatible; Moduli/1.0; +https://viafluere.com)",
+          Accept: "text/html,application/xhtml+xml",
+        },
+      });
 
-    const type = res.headers?.get?.("content-type") || "";
-    if (type && !/text\/html|application\/xhtml|text\/plain/i.test(type)) {
-      return { ok: false, reason: `not a web page (content-type: ${type})` };
-    }
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers?.get?.("location");
+        if (!loc) return { ok: false, reason: `redirected (${res.status}) with no Location` };
+        // Resolve relative Locations ("/en-US/docs/…") against the current URL.
+        current = new URL(loc, v.url).toString();
+        continue;
+      }
 
-    const html = await res.text();
-    if (html.length > maxBytes) {
-      return { ok: false, reason: `page too large (${html.length} bytes, cap ${maxBytes})` };
+      if (!res.ok) return { ok: false, reason: `fetch failed (${res.status})` };
+
+      const type = res.headers?.get?.("content-type") || "";
+      if (type && !/text\/html|application\/xhtml|text\/plain/i.test(type)) {
+        return { ok: false, reason: `not a web page (content-type: ${type})` };
+      }
+
+      const html = await res.text();
+      if (html.length > maxBytes) {
+        return { ok: false, reason: `page too large (${html.length} bytes, cap ${maxBytes})` };
+      }
+      // The FINAL url is returned, not the one asked for — it is what the
+      // content actually came from.
+      return { ok: true, html, url: v.url.toString() };
     }
-    return { ok: true, html, url: v.url.toString() };
+    return { ok: false, reason: `too many redirects (${maxRedirects})` };
   } catch (e) {
     if (e?.name === "AbortError") return { ok: false, reason: `timed out after ${timeoutMs}ms` };
     return { ok: false, reason: e?.message || "fetch failed" };

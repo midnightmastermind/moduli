@@ -25,8 +25,10 @@ import {
   PopoverContent,
   PopoverAnchor,
 } from "@/components/ui/popover";
-import { Link2, Unlink, Settings, Copy, Move, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type } from "lucide-react";
+import { Link2, Unlink, Settings, Copy, Move, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type, FileDown } from "lucide-react";
 import { convertLeafRole, CONVERTIBLE_LEAF_ROLES } from "../helpers/convertOccurrence";
+import { canConvertLinkToPage, resolveExternalLink, convertLinkToPage } from "../helpers/linkToPage";
+import { toast } from "sonner";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   useDragDrop,
@@ -1035,6 +1037,32 @@ function ModuleInstance({
             onClick: () => convertLeafRole({ dispatch, socket, occurrence, module, targetRole: r }),
           }))
         : []),
+      // "Convert to page" — fetch what an EXTERNAL link points at and build
+      // the whole tree from it (user, 2026-08-07). Offered only on a link that
+      // points outward: an in-app link already goes somewhere in the grid, so
+      // converting it would duplicate a page that exists.
+      canConvertLinkToPage(occurrence, module) && {
+        label: "Convert to page",
+        icon: FileDown,
+        onClick: async () => {
+          const url = resolveExternalLink(occurrence, module);
+          const gridId = occurrence?.gridId;
+          if (!url || !gridId) return;
+          // A fetch + full import is seconds, not milliseconds — say so, and
+          // resolve the SAME toast so the user is never left guessing.
+          const toastId = toast.loading(`Importing ${url}…`);
+          const res = await convertLinkToPage({ socket, gridId, url });
+          if (res?.ok) {
+            toast.success("Page imported", { id: toastId });
+            // Land the user on what they just made.
+            if (res.rootOccurrenceId) jumpToOccurrence(res.rootOccurrenceId);
+          } else {
+            // The server's reason is specific ("not a web page", "timed out",
+            // "redirected") — pass it through rather than a generic failure.
+            toast.error(`Couldn't import: ${res?.error || "unknown error"}`, { id: toastId });
+          }
+        },
+      },
       {
         label: "Remove from container", icon: Trash2, danger: true,
         onClick: () => {
