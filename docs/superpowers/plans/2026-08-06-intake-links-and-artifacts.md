@@ -336,7 +336,18 @@ Carried from the superseded plan, still unanswered:
 
 ---
 
-### Task 1: The classifier (pure, no UI, no writes)
+### Task 1: The classifier (pure, no UI, no writes) ✅ DONE 2026-08-06 (14 tests)
+
+`client/src/helpers/intake.js` — `normalizeIntakePayload` (files > bare urls > html > text, and a
+list of bare URLs is a LINK payload while prose *containing* one is TEXT) and
+`classifyIntake(payload, destination)`. Two invariants are the point and both are pinned by tests:
+**never zero shapes** (an unrecognised payload still gets exactly one — today's behaviour), and
+**every emitted id is declared in `INTAKE_SHAPES`**, which is the contract Task 3's router is
+asserted against. Destination-gated shapes only appear where they can land: the canvas pair on a
+canvas, `board-option` on an option board, `attach`/`field-value` on an occurrence that has the
+field. Nothing here reads live data — the caller resolves `isOptionBoard` / `filesFieldId` /
+`linkFieldId` and passes them in.
+
 
 **Files:** `client/src/helpers/intake.js`; test `__tests__/intake.test.js`.
 
