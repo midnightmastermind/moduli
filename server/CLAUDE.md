@@ -1,6 +1,35 @@
 # server — Server CLAUDE.md
 
 _Updated: 2026-08-07. Check this file before re-reading source._
+## Recent Changes (2026-08-07 (8) — 0051 files the homeless; and 213 of poms grid's "files" are dead rows)
+- **`migrations/0051-file-homeless-artifacts.mjs`** — Task 4 Step 4. Moves an artifact occurrence
+  into `Files/<kind>` **only when it has no `parentId` AND its module has a `fileRef`**.
+- **The predicate was MEASURED before it was written**, and it is narrower than "file the
+  artifacts" for two reasons the census found:
+  - **No `fileRef` → skip.** `kind:"quote"` artifacts are imported pull-quotes carrying
+    `meta.quote`, with no file behind them. **A thing with no file is not a FILE**; filing 6 of them
+    would put imported prose in the user's Documents folder.
+  - **Already has a `parentId` → skip, NAMED not counted.** On both grids those are the same five
+    seeded Examples (Blue Marble, Pillars of Creation, Earthrise, W3C dummy.pdf, Big Buck Bunny).
+    A folder the user chose outranks this rule — moving them would be 0035's mistake exactly.
+- **The one destructive shape is provably absent:** an artifact whose ONLY link is a NON-folder
+  `parentId` would be *removed* from the container that renders it by a move. **Zero such artifacts
+  on any of the three grids**, and the predicate excludes anything with a parentId anyway.
+- **Refuses outright on a grid with no Files folder** (test grid 1) rather than inventing one —
+  half-filing is worse than not filing.
+- **Verified after applying to test grid 2:** 188 in Images, the 5 Examples untouched, and a scan of
+  EVERY textmap shows **every artifact embed still resolves** (embeds resolve by occurrence id, so a
+  re-home cannot break them). 571 server tests; integrity unchanged on all three grids.
+- **NOT APPLIED TO poms grid, and the reason is the finding.** Splitting its 223 movable files by
+  whether anything can reach them: **16 embedded in a doc textmap · 0 listed by a parent · 213
+  unreachable.** Only 16 are files the user can see; the rest render nowhere — the documented
+  import/probe orphan class (2026-07-15 swept 1,769 once already). **Filing those 213 would not give
+  files a home, it would publish dead rows into the user's file library and make the Files folder
+  useless on the day it opens.** That is a product call — file them, sweep them (`sweepOrphans.js`
+  dumps to `backups/orphans/` first), or leave them — so it is the user's, not this migration's.
+  test grid 2's 188 are the same class, which is why its Files/Images now reads as a junk drawer:
+  it is the preview of what poms grid would look like.
+
 ## Recent Changes (2026-08-07 (7) — uploads HOME in Files; and 7 cache mirrors were silently dead)
 - **`server.js homeFolderForUpload` (NEW)** — Task 4 Step 3. `/api/artifacts/upload` and
   `/api/connections/:id/import` set `parentId` to **Files/&lt;kind&gt;** instead of
