@@ -125,3 +125,21 @@ describe("resolveFilesFolderId", () => {
     expect(resolveFilesFolderId(uc, { gridId: G, userId: U, parentFolderId: "a" })).toBeNull();
   });
 });
+
+// ── The client twin, pinned from this side too ─────────────────────────────
+//
+// `client/src/helpers/mainFile.js` carries a copy of this rule so a DROP can
+// decide which placement to make without a round trip. This module stays the
+// authority because it also enforces the DELETE side (`classifyFileDelete`), and
+// the two halves have to agree about what a placement is: if they drift, a
+// markdown file dropped on a page gets copied by the client while the server
+// still treats it as one shared row, and a delete then means different things at
+// each end. Both suites assert the same table so either one catches the drift.
+describe("placementSemanticForKind — the table the client twin must match", () => {
+  it("markdown is the ONLY multiparent kind", () => {
+    expect(placementSemanticForKind("markdown")).toBe("multiparent");
+    for (const k of ["image", "video", "audio", "pdf", "code", "quote", undefined, null]) {
+      expect(placementSemanticForKind(k)).toBe("copy");
+    }
+  });
+});

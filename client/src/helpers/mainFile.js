@@ -37,6 +37,30 @@
 // Pure: no React, no store, no writes. Callers persist the returned wrapper.
 // ============================================================
 
+/**
+ * "copy" (a new occurrence per placement) or "multiparent" (one occurrence
+ * listed by several parents).
+ *
+ * ── CLIENT TWIN OF `server/utils/filesFolder.js placementSemanticForKind`.
+ *    KEEP IN SYNC — same relationship `helpers/alarmOps` has with the server's
+ *    `makeAlarmOp`. The server holds the authoritative rule because it also
+ *    enforces the delete side of it; this exists so a DROP can decide without a
+ *    round trip.
+ *
+ * MEDIA → COPY. One module (one fileRef, one deduped blob), N occurrences; each
+ * placement moves, styles and deletes independently.
+ *
+ * MARKDOWN → MULTIPARENT. **`textmap` lives on the OCCURRENCE**, so two
+ * occurrences of one markdown module carry two INDEPENDENT BODIES — you would
+ * edit the copy on your day page and the one in Files would still show the old
+ * text, with nothing to explain why. `CommitHelpers.createPageInContainer`
+ * carries this warning verbatim; the Schedule's shared slots are the same
+ * pattern working correctly.
+ */
+export function placementSemanticForKind(kind) {
+  return kind === "markdown" ? "multiparent" : "copy";
+}
+
 /** The array of attached artifact occurrence ids, from either shape. */
 function valueArray(fieldValue) {
   if (Array.isArray(fieldValue)) return fieldValue;

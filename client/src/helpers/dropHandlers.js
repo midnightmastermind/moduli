@@ -95,6 +95,7 @@ import { classifyIntake, isUrlish } from "./intake";
 import { applyIntakeShape, filterToImplemented } from "./intakeApply";
 import { openIntakeSheet } from "../ui/IntakeSheet";
 import { snapPanelToEdge } from "./gridSnap";
+import { placementSemanticForKind } from "./mainFile";
 import { toast } from "../state/notificationStore";
 import { jumpToOccurrence } from "./jumpToOccurrence";
 import { createImportsDocPage } from "./importsFolder";
@@ -2141,7 +2142,24 @@ export function handleArtifactDrop(dropContext, ctx) {
   const { payload, target, position, dataTransfer } = dropContext;
   const { containerId, containerOccurrenceId, panelId, dropTarget } = dropView(dropContext, ctx);
 
-  // Drop on container → copy instance
+  // Drop on container → LAND A PLACEMENT (plan Task 4 Step 6).
+  //
+  // Dragging a file OUT of Files places it somewhere; it does not move it out of
+  // Files and does not upload anything. WHICH placement is per-kind, and the
+  // rule is `placementSemanticForKind` — the client twin of the server's, so a
+  // drop can decide without a round trip:
+  //
+  //   MEDIA    → COPY: a new occurrence of the same module. Each placement moves,
+  //              styles and deletes on its own; the bytes are single-sourced by
+  //              the sha256 dedup that already exists.
+  //   MARKDOWN → MULTIPARENT: the SAME occurrence, listed by one more parent.
+  //              `textmap` lives on the occurrence, so copying would give the
+  //              placement its own independent body — you would edit it here and
+  //              the copy in Files would still show the old text.
+  //
+  // This is the other half of Step 5: until now nothing in the app created a
+  // SECOND placement, so the copy-vs-file delete distinction had no way to be
+  // exercised end to end.
   if (containerId) {
     const artifactOcc = occurrencesById[payload.occurrenceId];
     const artifactModule = artifactOcc ? (state?.modules || []).find(m => m.id === artifactOcc.moduleId) : null;
@@ -2150,11 +2168,24 @@ export function handleArtifactDrop(dropContext, ctx) {
       const toCOcc = (containerOccurrenceId && occurrencesById[containerOccurrenceId])
         || (toC ? Object.values(occurrencesById).find(o => o.moduleId === toC.id) : null);
       if (toCOcc) {
-        LayoutHelpers.copyInstanceToContainer({
-          dispatch, socket, sourceInstanceId: artifactModule.id,
-          toContainer: { ...toC, _occurrence: toCOcc }, userId: state?.userId,
-          gridId: state?.gridId || state?.grid?._id, emit: true,
-        });
+        const semantic = placementSemanticForKind(artifactModule.kind);
+        const alreadyListed = (toCOcc.occurrences || []).includes(artifactOcc.id);
+        if (semantic === "multiparent") {
+          // Idempotent: dropping the same markdown file on the same container
+          // twice must not list it twice. A duplicate id in `occurrences[]`
+          // renders the body twice and makes the array's own order ambiguous.
+          if (!alreadyListed) {
+            CommitHelpers.spliceChildIntoParent({
+              dispatch, socket, parentOccurrence: toCOcc, occurrenceId: artifactOcc.id,
+            });
+          }
+        } else {
+          LayoutHelpers.copyInstanceToContainer({
+            dispatch, socket, sourceInstanceId: artifactModule.id,
+            toContainer: { ...toC, _occurrence: toCOcc }, userId: state?.userId,
+            gridId: state?.gridId || state?.grid?._id, emit: true,
+          });
+        }
       }
     }
     clearSession();
