@@ -866,8 +866,20 @@ async function getUserCache(userId, gridId) {
   return ensureUserCache(userId, gridId);
 }
 
+// Non-loading peek at the warm cache. `full_state` is served ENTIRELY from
+// this cache (socketHandlers/state.js), and it survives 30 minutes — so a REST
+// write that reaches only Mongo is invisible on the next page load, and the
+// socket write path (which merges over the cached copy) can resurrect the stale
+// row on top of it. The REST routes mirror every write into the cache, but must
+// NOT pay a cold full-grid load to do it: when the cache is cold there is
+// nothing stale to correct, because the next load reads Mongo anyway.
+function peekUserCache(userId, gridId) {
+  return userCacheReady(userId, gridId) ? ensureUserCache(userId, gridId) : null;
+}
+
 app.use("/api/v1", makeApiV1Router({
   getUserCache,
+  peekUserCache,
   io,
   userRoom,
   opRunBridge,
@@ -1052,8 +1064,30 @@ app.post(
       try { body = req.body && req.body.length > 0 ? JSON.parse(req.body.toString("utf8")) : {}; } catch { body = {}; }
 
       const syntheticTx = { type: "WebhookOp", operationId, timestamp: new Date().toISOString(), ...body };
-      io.to(userRoom(op.userId)).emit("trigger_operation", { operationId, transactionType: "WebhookOp", transaction: syntheticTx });
-      res.json({ ok: true, operationId });
+
+      // A webhook fires the operation on a CONNECTED CLIENT — the executor that
+      // can CREATE/FIND/UPDATE occurrences is client-side (the server-side one
+      // in services/serverExecutor.js handles only CALL_API / INIT_VAR /
+      // SHOW_VALUE / IF / LOOP). With no tab open the emit reaches an empty room
+      // and the payload is silently dropped. Reporting `ok: true` for that was a
+      // lie that made a dead pipe look healthy, so say what actually happened.
+      // For unattended data intake use POST /api/v1/ingest, which writes
+      // server-side and needs no client at all.
+      const room = io.sockets.adapter.rooms.get(userRoom(op.userId));
+      const delivered = !!(room && room.size > 0);
+      if (delivered) {
+        io.to(userRoom(op.userId)).emit("trigger_operation", { operationId, transactionType: "WebhookOp", transaction: syntheticTx });
+      } else {
+        console.warn(`⚠️  webhook ${operationId}: no connected client — operation NOT run, payload dropped`);
+      }
+      res.json({
+        ok: true,
+        operationId,
+        delivered,
+        ...(delivered ? {} : {
+          warning: "No Moduli client connected — the operation did not run and this payload was dropped. Webhook-triggered operations need an open tab; use POST /api/v1/ingest for unattended writes.",
+        }),
+      });
     } catch (err) { res.status(500).json({ error: err.message }); }
   }
 );

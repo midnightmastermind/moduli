@@ -106,3 +106,127 @@ describe("merge auto-signs unsigned template nodes", () => {
     expect(new Set(sigs).size).toBe(2);
   });
 });
+
+// ── BUILD-then-MERGE (2026-08-07) ──────────────────────────────────────────
+//
+// The auto-sign above only ever ran in MERGE mode, and `Day Page: Build` uses
+// BOTH branches: a brand-new column is cloned through the DEFAULT (append)
+// branch via `rootParent`, and existing columns are topped up through MERGE.
+// So a fresh column's clones carried `identitySignature: null` while the very
+// next merge computed `auto:<templateChildId>` and matched nothing — it
+// re-cloned the WHOLE subtree once, permanently doubling every day column.
+// Measured on a date navigation: 128 CREATE_ITEM on the first merge after a
+// fresh build, 0 on every merge after that.
+//
+// The fix signs non-root clones in EVERY mode. These tests drive the real
+// two-step sequence, because neither step is wrong on its own — only the
+// handoff between them was.
+const FOLDER = "day-pages-folder";
+
+// Fold CREATE_ITEM effects back into the world, the way the reducer does, so
+// step 2 sees what step 1 actually built.
+function applyCreates(w, created) {
+  for (const c of created) {
+    w.modulesById[c.template.id] = { ...c.template };
+    w.occurrencesById[c.instance.id] = {
+      ...c.instance,
+      moduleId: c.instance.templateId,
+      occurrences: c.instance.occurrences || [],
+    };
+  }
+  return created.map(c => c.instance.id);
+}
+
+// `Day Page: Build`'s MINT branch — clone the whole template under a folder.
+function applyBuild({ occurrencesById, modulesById }) {
+  const $vars = {
+    $allOccurrences: Object.values(occurrencesById),
+    $allItems: Object.values(occurrencesById),
+    $tplId: TPL_ROOT,
+    $folderId: FOLDER,
+  };
+  const updates = executeActionItem(
+    "APPLY_TEMPLATE",
+    { templateRef: "$tplId", rootParent: "$folderId", rootLabel: "Day Page - 2026-08-07" },
+    $vars,
+    { occurrencesById, modulesById, fieldsById: {} },
+  ) || [];
+  return updates.filter(u => u._effect === "CREATE_ITEM");
+}
+
+function mergeInto({ occurrencesById, modulesById }, targetId) {
+  const $vars = {
+    $allOccurrences: Object.values(occurrencesById),
+    $allItems: Object.values(occurrencesById),
+    $tplId: TPL_ROOT,
+    $colId: targetId,
+  };
+  const updates = executeActionItem(
+    "APPLY_TEMPLATE",
+    { templateRef: "$tplId", targetOccurrenceVar: "$colId", mode: "merge", unwrapRoot: true },
+    $vars,
+    { occurrencesById, modulesById, fieldsById: {} },
+  ) || [];
+  return updates.filter(u => u._effect === "CREATE_ITEM");
+}
+
+describe("a column BUILT by append is not re-cloned by the next merge", () => {
+  it("build then merge creates NOTHING the second time", () => {
+    const w = world();
+    w.occurrencesById[FOLDER] = { id: FOLDER, moduleId: "m-folder", occurrences: [] };
+    w.modulesById["m-folder"] = { id: "m-folder", role: "container", kind: "doc", label: "Day Pages", fieldBindings: [] };
+
+    // Step 1 — the mint branch clones root + section.
+    const built = applyBuild(w);
+    expect(built).toHaveLength(2);
+    const ids = applyCreates(w, built);
+    const columnId = ids.find(id => w.occurrencesById[id].parentId === FOLDER);
+    expect(columnId).toBeTruthy();
+
+    // Step 2 — the top-up branch merges the SAME template into that column.
+    // THE ASSERTION: it must recognise what step 1 built.
+    expect(mergeInto(w, columnId)).toHaveLength(0);
+  });
+
+  it("the built section carries the derived signature the merge looks for", () => {
+    const w = world();
+    w.occurrencesById[FOLDER] = { id: FOLDER, moduleId: "m-folder", occurrences: [] };
+    w.modulesById["m-folder"] = { id: "m-folder", role: "container", kind: "doc", label: "Day Pages", fieldBindings: [] };
+
+    const built = applyBuild(w);
+    const section = built.find(c => c.instance.parentId !== FOLDER);
+    expect(section.instance.identitySignature).toBe(`auto:${TPL_SECTION}`);
+  });
+
+  it("a NON-merge root stays unsigned — every day column would otherwise share one signature", () => {
+    const w = world();
+    w.occurrencesById[FOLDER] = { id: FOLDER, moduleId: "m-folder", occurrences: [] };
+    w.modulesById["m-folder"] = { id: "m-folder", role: "container", kind: "doc", label: "Day Pages", fieldBindings: [] };
+
+    const built = applyBuild(w);
+    const root = built.find(c => c.instance.parentId === FOLDER);
+    // The root's identity belongs to whatever placed it (a dated column), not
+    // to the template — the same reason gridIntegrity exempts a template root.
+    expect(root.instance.identitySignature).toBeNull();
+  });
+
+  it("a MERGE root is still signed — that path matches against the target's siblings", () => {
+    const w = world();
+    // No unwrapRoot: the root itself is matched against the target's children.
+    const $vars = {
+      $allOccurrences: Object.values(w.occurrencesById),
+      $allItems: Object.values(w.occurrencesById),
+      $tplId: TPL_ROOT,
+      $colId: TARGET,
+    };
+    const created = (executeActionItem(
+      "APPLY_TEMPLATE",
+      { templateRef: "$tplId", targetOccurrenceVar: "$colId", mode: "merge" },
+      $vars,
+      { occurrencesById: w.occurrencesById, modulesById: w.modulesById, fieldsById: {} },
+    ) || []).filter(u => u._effect === "CREATE_ITEM");
+
+    const root = created.find(c => c.instance.parentId === TARGET);
+    expect(root.instance.identitySignature).toBe(`auto:${TPL_ROOT}`);
+  });
+});

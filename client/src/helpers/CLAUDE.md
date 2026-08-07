@@ -1,6 +1,35 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-07-24. Check this file before re-reading source._
+## Recent Changes (2026-08-07 (3) — APPLY_TEMPLATE signs non-root clones in EVERY mode)
+- **`operationActions.js` (APPLY_TEMPLATE `clone`)** — the 2026-07-31 auto-signature fallback
+  (`auto:<templateOccId>` for an unsigned node) only ran in MERGE mode. **`Day Page: Build` uses
+  BOTH branches**: a brand-new column is cloned through the DEFAULT (append) branch via
+  `rootParent`, existing columns are topped up through MERGE. So a fresh column's clones carried
+  `identitySignature: null`, the very next merge computed `auto:<templateChildId>`, matched nothing,
+  and re-cloned the WHOLE unsigned subtree once — **permanently doubling the column**. Measured on a
+  date navigation: **128 CREATE_ITEM on the first merge after a fresh build, 0 on every merge after
+  that.** Now `(mode === "merge" || !isRoot)`.
+- **A NON-merge ROOT is still deliberately left unsigned**, and that exemption is load-bearing: a
+  merge root is matched against the TARGET'S SIBLINGS so it has always needed the derived signature,
+  but a non-merge root is a standalone subtree the caller placed itself (`rootParent`) — signing it
+  would give **every day column built from one template the SAME signature** as a sibling of the
+  board. Same reasoning as `gridIntegrity`'s `unsigned-template-node` rule exempting a root.
+- **NO MIGRATION, and that was measured rather than assumed.** The fix is shared CLIENT code, so it
+  ships with the bundle — there is no stored pipeline to carry. And `checkGrid --all` says poms grid
+  holds **no damage of this class**: its one `duplicate-template-section` is the known pre-existing
+  `Aug 4 › Journal×2` (two columns that both hold writing — a human call since 2026-08-05), not
+  fresh doubling. **Why poms grid escaped:** migrations `0022`/`0023` hand-signed its template
+  sections AND their children, so `srcOcc.identitySignature` is truthy there and the fallback never
+  applies. The bug only bites UNSIGNED template nodes — i.e. a freshly seeded grid. So this is
+  preventive for poms grid and corrective for new seeds.
+- **Tests: 4 added to `__tests__/applyTemplateAutoSign.test.js`** (9 total). They drive the real
+  TWO-STEP sequence — build via `rootParent`, fold the CREATE_ITEMs back into the world, then merge
+  the same template into what was built — because **neither step is wrong on its own; only the
+  handoff between them was**, and a single-step test cannot see that. A/B'd against the unfixed
+  line: the 2 discriminating cases fail. The other 2 pin the root exemption in BOTH directions, so
+  "simplifying" the condition to always-sign fails them too.
+
 ## Recent Changes (2026-08-07 — afterPaint.js NEW: the textblock mint is instant)
 - **`afterPaint.js` (NEW)** — `afterPaint(fn)` runs work in the first task AFTER a paint (rAF **then**
   a macrotask; a rAF callback alone still runs before that frame's paint). Returns a cancel.

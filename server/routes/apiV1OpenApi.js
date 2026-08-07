@@ -196,6 +196,53 @@ export function buildOpenApiDoc() {
           responses: { 200: { description: "OK" } },
         },
       },
+      "/ingest": {
+        post: {
+          tags: ["Ingest"],
+          summary: "Idempotent external-data intake (single record or batch)",
+          description:
+            "The endpoint external producers should call. Deduplicates on (source, externalId), "
+            + "links the new occurrence into its parent's occurrences[] so it actually renders, "
+            + "mirrors into the warm cache so it is visible on the next load, and find-or-mints the "
+            + "type module by label. Writes server-side — unlike /api/webhooks/{operationId}, it does "
+            + "NOT need a connected browser tab.",
+          security: SECURITY,
+          requestBody: { required: true, content: { "application/json": { schema: {
+            type: "object",
+            required: ["gridId", "source"],
+            properties: {
+              gridId: { type: "string" },
+              source: { type: "string", description: "Producer name, e.g. \"raindrop\", \"plex\". Namespaces externalId." },
+              externalId: { type: "string", description: "Single-record form. Unique within source." },
+              records: {
+                type: "array",
+                description: "Batch form (max 200). Each record may override any body-level default.",
+                items: {
+                  type: "object",
+                  required: ["externalId"],
+                  properties: {
+                    externalId: { type: "string" },
+                    label: { type: "string" },
+                    fields: { type: "object", description: "{ [fieldId]: { value, flow? } }" },
+                    meta: { type: "object" },
+                    index: { type: "integer", description: "Position within the parent's occurrences[]" },
+                  },
+                },
+              },
+              moduleId: { type: "string", description: "The type. Mutually exclusive with moduleLabel." },
+              moduleLabel: { type: "string", description: "Find-or-mint the type module by label." },
+              moduleRole: { type: "string", default: "instance" },
+              moduleKind: { type: "string" },
+              parentId: { type: "string", description: "Where rows land. Validated — an unknown id fails the record rather than creating an orphan." },
+              onExisting: { type: "string", enum: ["skip", "update", "replace"], default: "skip" },
+            },
+          } } } },
+          responses: {
+            200: { description: "Per-record outcomes: { ok, source, summary: {created,updated,skipped,error}, results[] }" },
+            400: { description: "Missing gridId/source, or batch over the 200-record cap" },
+          },
+        },
+      },
       "/secrets": {
         get: { tags: ["Secrets"], summary: "List secret keys (values never returned)", security: SECURITY, responses: { 200: { description: "OK" } } },
         post: {

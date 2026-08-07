@@ -2803,10 +2803,27 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         // Per-day freshness still works: each day column is its OWN merge
         // target, so a routine item still clones once per day — it just can no
         // longer duplicate WITHIN a day.
-        // Stamped on the clone too, so the NEXT merge can match it. Only in
-        // merge mode — an append/replace apply keeps the old shape exactly.
+        // Stamped on the clone too, so the NEXT merge can match it — and it is
+        // stamped in EVERY mode, not only merge. That distinction cost 128
+        // duplicate occurrences per day column (2026-08-07): `Day Page: Build`
+        // clones a brand-new column through the DEFAULT (append) branch and
+        // tops up existing ones through the MERGE branch, so a fresh column's
+        // unsigned clones carried `identitySignature: null` while the very next
+        // merge computed `auto:<templateChildId>` and matched nothing — it
+        // re-cloned the WHOLE unsigned subtree once, permanently doubling it.
+        // Measured on a date navigation: 128 CREATE_ITEM on the first merge
+        // after a fresh build, 0 on every merge after that.
+        //
+        // The one node still left unsigned is a NON-merge ROOT. A merge root is
+        // matched against the target's siblings, so it has always needed the
+        // derived signature and keeps it. A non-merge root is a standalone
+        // subtree the caller placed itself (`rootParent`) — its identity belongs
+        // to whatever applied it, which is the same reason gridIntegrity's
+        // `unsigned-template-node` rule exempts a root, and signing it would give
+        // every day column built from one template the SAME signature as a
+        // sibling of the board.
         const nodeSig = srcOcc.identitySignature
-          || (mode === "merge" ? `auto:${srcOcc.id}` : null);
+          || ((mode === "merge" || !isRoot) ? `auto:${srcOcc.id}` : null);
 
         if (mode === "merge") {
           const sig = nodeSig;

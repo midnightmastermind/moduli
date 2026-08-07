@@ -1,6 +1,51 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-07-25. Check this file before re-reading source._## Recent Changes (2026-08-06 — prefill configured on poms grid; 0042)
+_Updated: 2026-07-25. Check this file before re-reading source._
+## Recent Changes (2026-08-07 (2) — external-data INGEST: three write-path defects, and the endpoint that needs no tab)
+
+Found while designing external-data ingestion (`docs/data-ingestion-guide.md`). All three made a
+REST-written row look stored while being absent, invisible, or duplicated.
+
+- **`POST /api/v1/occurrences` set `parentId` and stopped.** Every renderer reads the PARENT's
+  `occurrences[]`, not the child's `parentId` — so a REST-created row existed in Mongo and rendered
+  nowhere. The documented created-but-unlinked class, reachable from a brand-new direction: not a
+  disconnect race this time, just a route that never did the second write. New `linkIntoParent` /
+  `unlinkFromParent` helpers ($push/$pull with an `occurrences: {$ne: id}` guard — never a
+  whole-array write, so concurrent ingests cannot clobber each other's appends) are now wired into
+  create, delete, AND a `parentId` PATCH (which is a MOVE: re-parent + unlink old + link new).
+- **REST writes never touched the WARM CACHE, and `request_full_state` is served entirely from it**
+  (`socketHandlers/state.js` reads `uc.occurrencesById` etc., cache TTL 30 min). So a REST-created
+  row was invisible until the cache aged out — **and worse**, the socket write path merges over
+  `uc[bucket][id]`, so a later in-app edit could republish the stale copy on top of the import.
+  `utils/persistImport.js` already mirrored for the import routes; the CRUD routes never did.
+  New `mirrorToCache` / `evictFromCache` on occurrence, module and field writes.
+  **Mirrors only when the cache is ALREADY warm** — new `peekUserCache` dep (server.js) instead of
+  `getUserCache`, because a cold cache holds nothing stale and a full-grid load per write would be
+  cost with no correctness gain.
+- **`POST /api/v1/ingest` (NEW) — the endpoint external producers should call.** Idempotent on
+  `(source, externalId)` with a deterministic occurrence id derived from that pair (two independent
+  guards: the id makes a concurrent double-POST collide on the primary key rather than race the
+  lookup); links into the parent; mirrors into the cache; find-or-mints the type module from
+  `moduleLabel` ONCE per batch. Single record or `records[]` (cap 200), `onExisting:
+  skip|update|replace`. A bad `parentId` FAILS the record — an unparented occurrence is exactly how
+  data goes missing here. New sparse index `{userId, gridId, meta.source, meta.externalId}`.
+- **WHY a new endpoint rather than webhook→operation:** `/api/webhooks/:operationId` only emits
+  `trigger_operation` to the user's socket room, and the executor that can CREATE is CLIENT-side
+  (`services/serverExecutor.js` handles only INIT_VAR/SET_VAR/IF/LOOP/CALL_API/SHOW_VALUE). **With
+  no tab open the payload is silently dropped** — and it answered `ok: true`, which made a dead pipe
+  look healthy. It now reports `delivered: false` + a warning and logs it. Teaching the server
+  executor CREATE/FIND was the considered alternative and was rejected: it would create a second
+  executor that must stay in sync with the client one, and this repo has repeatedly been bitten by
+  drifted twins.
+- **Tests: `__tests__/apiIngest.test.js` (18).** They drive the REAL router via `router.handle`
+  (the same in-process dispatch `/batch` uses) with the models mocked — no database.
+  **A/B'd against the unfixed code: 15 of 18 fail.** The 3 that pass there are assertions-of-ABSENCE
+  passing vacuously against a 404'ing route; each has a discriminating sibling that fails.
+  The suite also caught a real inconsistency mid-build: body-level `parentId`/`moduleLabel` fell
+  through to each record but `moduleId` did not, so the batch form errored on every row.
+- 485 server tests. `/ingest` added to `routes/apiV1OpenApi.js`. **NOT DEPLOYED** — user's call.
+
+## Recent Changes (2026-08-06 — prefill configured on poms grid; 0042)
 
 ## Recent Changes (2026-08-07 — update_occurrence threw on EVERY field conflict, and dropped the write)
 - **`socketHandlers/occurrences.js`** — `occurrence` was destructured as a **`const`** (line 40) and

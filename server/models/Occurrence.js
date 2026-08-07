@@ -140,6 +140,17 @@ OccurrenceSchema.index({ moduleId: 1, gridId: 1 });
 // Diagnostic baseline: Atlas Serverless ran this query in 9.3s for 615
 // docs against single-field indexes only.
 OccurrenceSchema.index({ userId: 1, gridId: 1 });
+// Ingest dedupe. POST /api/v1/ingest resolves "have I already stored this
+// external record?" as `{ userId, gridId, meta.source, meta.externalId }` on
+// EVERY incoming record, so a backfill runs one lookup per row. Sparse because
+// only ingested occurrences carry these keys — hand-made rows must not bloat
+// the index. NOT unique: uniqueness is enforced by the deterministic
+// occurrence id (see ingestOccId), which fails a concurrent double-write on
+// the primary key instead of racing this lookup.
+OccurrenceSchema.index(
+  { userId: 1, gridId: 1, "meta.source": 1, "meta.externalId": 1 },
+  { sparse: true },
+);
 
 OccurrenceSchema.set("toJSON", {
   versionKey: false,

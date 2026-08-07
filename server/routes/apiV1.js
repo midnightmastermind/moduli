@@ -71,7 +71,18 @@ function paginate(items, { limit, cursor }) {
   return { items: slice, nextCursor, total: items.length };
 }
 
-export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
+// Which warm-cache bucket each model lives in (see mirrorToCache below).
+const CACHE_BUCKET = {
+  occurrence: "occurrencesById",
+  module: "modulesById",
+  field: "fieldsById",
+  view: "viewsById",
+  folder: "foldersById",
+  manifest: "manifestsById",
+  operation: "operationsById",
+};
+
+export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opRunBridge }) {
   const router = express.Router();
 
   // Per-token rate limit (600 req/min) + Idempotency-Key support.
@@ -80,6 +91,84 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
   const limiter = rateLimit();
   const idem = idempotency();
   const authAndLimit = (opts) => [apiAuth(opts), limiter, idem];
+
+  // ====================================================================
+  // WRITE-PATH INVARIANTS
+  //
+  // Two things every REST write must do that a bare Mongo write does not.
+  // Both were missing until 2026-08-07, which is why REST-created rows
+  // could be invisible in the app.
+  // ====================================================================
+
+  // (1) MIRROR INTO THE WARM CACHE.
+  // `request_full_state` is served entirely from the per-(user,grid) warm
+  // cache, which lives for 30 minutes — so a row written only to Mongo does
+  // not appear on the next page load, and worse, the socket write path merges
+  // over `uc[bucket][id]`, so a later in-app edit republishes the stale copy
+  // on top of the REST write. utils/persistImport.js already mirrors for the
+  // import routes; this is the same discipline for CRUD.
+  //
+  // Only mirrors when the cache is ALREADY warm: a cold cache holds nothing
+  // stale (the next load reads Mongo), so paying a full-grid load per write
+  // would be cost with no correctness gain.
+  const mirrorToCache = (userId, gridId, model, doc) => {
+    if (!doc?.id || !gridId) return;
+    const uc = peekUserCache?.(userId, gridId);
+    if (!uc) return;
+    const bucket = CACHE_BUCKET[model];
+    if (bucket && uc[bucket]) uc[bucket][doc.id] = doc;
+  };
+
+  const evictFromCache = (userId, gridId, model, id) => {
+    if (!id || !gridId) return;
+    const uc = peekUserCache?.(userId, gridId);
+    if (!uc) return;
+    const bucket = CACHE_BUCKET[model];
+    if (bucket && uc[bucket]) delete uc[bucket][id];
+  };
+
+  // (2) MAINTAIN THE PARENT'S RENDER LIST.
+  // `parentId` alone does NOT make a child appear — every renderer reads the
+  // parent's `occurrences[]` array. A create that sets parentId and stops is
+  // the documented "created-but-unlinked" bug: present in the database,
+  // invisible on screen, forever.
+  //
+  // Always $push / $pull, never a whole-array write: two concurrent ingests
+  // into one board would otherwise clobber each other's appends. The
+  // `$ne: childId` guard makes the link idempotent, so a retried request is a
+  // no-op rather than a duplicate entry. Mirrors socketHandlers/crud.js
+  // handleCreateOccurrence, except the broadcast goes to the WHOLE room —
+  // there is no originating socket to exclude on an HTTP write.
+  const linkIntoParent = async ({ userId, parentId, childId, index }) => {
+    if (!parentId || !childId) return null;
+    const update = Number.isInteger(index)
+      ? { $push: { occurrences: { $each: [childId], $position: index } } }
+      : { $push: { occurrences: childId } };
+    const parent = await Occurrence.findOneAndUpdate(
+      { id: parentId, userId, occurrences: { $ne: childId } },
+      update,
+      { returnDocument: "after", lean: true },
+    );
+    if (parent) {
+      mirrorToCache(userId, parent.gridId, "occurrence", parent);
+      io.to(userRoom(userId)).emit("occurrence_updated", { occurrence: parent });
+    }
+    return parent;
+  };
+
+  const unlinkFromParent = async ({ userId, parentId, childId }) => {
+    if (!parentId || !childId) return null;
+    const parent = await Occurrence.findOneAndUpdate(
+      { id: parentId, userId, occurrences: childId },
+      { $pull: { occurrences: childId } },
+      { returnDocument: "after", lean: true },
+    );
+    if (parent) {
+      mirrorToCache(userId, parent.gridId, "occurrence", parent);
+      io.to(userRoom(userId)).emit("occurrence_updated", { occurrence: parent });
+    }
+    return parent;
+  };
 
   // ====================================================================
   // GRIDS
@@ -319,8 +408,10 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
         userId: req.userId,
         label: body.label ?? "",
       });
-      io.to(userRoom(req.userId)).emit("module_created", { module: doc.toObject() });
-      res.status(201).json({ module: doc.toObject() });
+      const modObj = doc.toObject();
+      mirrorToCache(req.userId, modObj.gridId, "module", modObj);
+      io.to(userRoom(req.userId)).emit("module_created", { module: modObj });
+      res.status(201).json({ module: modObj });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
@@ -333,6 +424,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
         { returnDocument: "after", lean: true },
       );
       if (!next) return err(res, 404, "not_found", "Module not found");
+      mirrorToCache(req.userId, next.gridId, "module", next);
       io.to(userRoom(req.userId)).emit("module_updated", { module: next });
       res.json({ module: next });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -342,6 +434,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     try {
       const doomed = await Module.findOneAndDelete({ id: req.params.id, userId: req.userId });
       if (!doomed) return err(res, 404, "not_found", "Module not found");
+      evictFromCache(req.userId, doomed.gridId, "module", req.params.id);
       io.to(userRoom(req.userId)).emit("module_deleted", { moduleId: req.params.id });
       res.json({ ok: true });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -378,27 +471,50 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       if (!body.gridId) return err(res, 400, "validation_error", "gridId required");
       if (!body.moduleId) return err(res, 400, "validation_error", "moduleId required");
       const id = body.id || uid();
+      const { insertAtIndex, ...rest } = body;
       const doc = await Occurrence.create({
-        ...body,
+        ...rest,
         id,
         userId: req.userId,
         fields: body.fields || {},
       });
-      io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: doc.toObject() });
-      res.status(201).json({ occurrence: doc.toObject() });
+      const obj = doc.toObject();
+      mirrorToCache(req.userId, obj.gridId, "occurrence", obj);
+      io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: obj });
+      // Without this the row is invisible: renderers read the parent's
+      // occurrences[], not the child's parentId. See linkIntoParent.
+      const parent = await linkIntoParent({
+        userId: req.userId, parentId: obj.parentId, childId: id, index: insertAtIndex,
+      });
+      res.status(201).json({ occurrence: obj, linkedToParent: !!parent });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
   router.patch("/occurrences/:id", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const patch = req.body || {};
+      // A parentId change is a MOVE, and a move is three writes: re-parent,
+      // unlink from the old render list, link into the new one. Patching
+      // parentId alone leaves the row rendered in its old home and absent from
+      // its new one — the gap the assistant's move_occurrence tool was added to
+      // close on 2026-07-18.
+      const prev = ("parentId" in patch)
+        ? await Occurrence.findOne({ id: req.params.id, userId: req.userId }).lean()
+        : null;
       const next = await Occurrence.findOneAndUpdate(
         { id: req.params.id, userId: req.userId },
         { $set: patch },
         { returnDocument: "after", lean: true },
       );
       if (!next) return err(res, 404, "not_found", "Occurrence not found");
+      mirrorToCache(req.userId, next.gridId, "occurrence", next);
       io.to(userRoom(req.userId)).emit("occurrence_updated", { occurrence: next });
+      if (prev && prev.parentId !== next.parentId) {
+        await unlinkFromParent({ userId: req.userId, parentId: prev.parentId, childId: next.id });
+        await linkIntoParent({
+          userId: req.userId, parentId: next.parentId, childId: next.id, index: patch.insertAtIndex,
+        });
+      }
       res.json({ occurrence: next });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
@@ -407,7 +523,13 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     try {
       const doomed = await Occurrence.findOneAndDelete({ id: req.params.id, userId: req.userId });
       if (!doomed) return err(res, 404, "not_found", "Occurrence not found");
+      evictFromCache(req.userId, doomed.gridId, "occurrence", req.params.id);
       io.to(userRoom(req.userId)).emit("occurrence_deleted", { occurrenceId: req.params.id });
+      // Leaving the id in the parent's occurrences[] produces a dangling child
+      // ref — the integrity error swept five times in July/August 2026.
+      await unlinkFromParent({ userId: req.userId, parentId: doomed.parentId, childId: req.params.id });
+      // NOTE: non-cascading, unlike the socket handler — children of a deleted
+      // parent keep their rows. Delete leaves first, or use the socket path.
       res.json({ ok: true });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
@@ -425,6 +547,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       occ.fields = nextFields;
       occ.markModified("fields");
       await occ.save();
+      mirrorToCache(req.userId, occ.gridId, "occurrence", occ.toObject());
       io.to(userRoom(req.userId)).emit("occurrence_updated", {
         occurrence: { id: occ.id, fields: nextFields },
       });
@@ -454,6 +577,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       occ.fields = next;
       occ.markModified("fields");
       await occ.save();
+      mirrorToCache(req.userId, occ.gridId, "occurrence", occ.toObject());
       io.to(userRoom(req.userId)).emit("occurrence_updated", {
         occurrence: { id: occ.id, fields: next },
       });
@@ -495,6 +619,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
         occ.fields = next;
         occ.markModified("fields");
         await occ.save();
+        mirrorToCache(req.userId, occ.gridId, "occurrence", occ.toObject());
         io.to(userRoom(req.userId)).emit("occurrence_updated", {
           occurrence: { id: occ.id, fields: next },
         });
@@ -530,8 +655,10 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
       if (!body.name) return err(res, 400, "validation_error", "name required");
       const id = body.id || uid();
       const doc = await Field.create({ ...body, id, userId: req.userId });
-      io.to(userRoom(req.userId)).emit("field_created", { field: doc.toObject() });
-      res.status(201).json({ field: doc.toObject() });
+      const fieldObj = doc.toObject();
+      mirrorToCache(req.userId, fieldObj.gridId, "field", fieldObj);
+      io.to(userRoom(req.userId)).emit("field_created", { field: fieldObj });
+      res.status(201).json({ field: fieldObj });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
@@ -543,6 +670,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
         { returnDocument: "after", lean: true },
       );
       if (!next) return err(res, 404, "not_found", "Field not found");
+      mirrorToCache(req.userId, next.gridId, "field", next);
       io.to(userRoom(req.userId)).emit("field_updated", { field: next });
       res.json({ field: next });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -552,6 +680,7 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
     try {
       const doomed = await Field.findOneAndDelete({ id: req.params.id, userId: req.userId });
       if (!doomed) return err(res, 404, "not_found", "Field not found");
+      evictFromCache(req.userId, doomed.gridId, "field", req.params.id);
       io.to(userRoom(req.userId)).emit("field_deleted", { fieldId: req.params.id });
       res.json({ ok: true });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -755,6 +884,199 @@ export function makeApiV1Router({ getUserCache, io, userRoom, opRunBridge }) {
         results.push(subResult);
       }
       res.json({ results });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ====================================================================
+  // INGEST — idempotent external-data intake
+  //
+  // The one endpoint external producers (IFTTT relays, backfill scripts,
+  // Plex webhooks, bank importers) should call. It exists because the
+  // webhook→operation path CANNOT do this: /api/webhooks/:operationId only
+  // emits to the user's socket room, and the executor able to create an
+  // occurrence is client-side — so with no tab open the payload is dropped.
+  // This route writes server-side and needs no client.
+  //
+  // What it guarantees, none of which a raw POST /occurrences gives you:
+  //   1. IDEMPOTENT on (source, externalId). Re-running a backfill, or a
+  //      producer retrying a timed-out POST, will not duplicate a row.
+  //   2. LINKED into the parent's occurrences[], so the row actually renders.
+  //   3. MIRRORED into the warm cache, so it is visible on the next load
+  //      rather than up to 30 minutes later.
+  //   4. Find-or-mint of the type MODULE by label, so a new source needs no
+  //      manual setup before its first record.
+  //
+  // Single record: POST { gridId, source, externalId, ... }
+  // Batch:         POST { gridId, source, records: [ {...}, {...} ] }
+  // ====================================================================
+
+  const INGEST_MAX_RECORDS = 200;
+
+  // Deterministic occurrence id from (source, externalId). Two independent
+  // dedupe guards are deliberate: this id makes a concurrent double-POST
+  // collide on the unique index instead of racing the lookup below, and the
+  // meta query catches rows whose id was assigned before this convention.
+  const ingestOccId = (source, externalId) =>
+    `ing-${String(source).replace(/[^a-z0-9]+/gi, "").slice(0, 12)}-${
+      crypto.createHash("sha1").update(`${source}::${externalId}`).digest("hex").slice(0, 20)}`;
+
+  router.post("/ingest", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const body = req.body || {};
+      const { gridId, source } = body;
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      if (!source) return err(res, 400, "validation_error", "source required (e.g. \"raindrop\", \"plex\")");
+
+      const records = Array.isArray(body.records) ? body.records : [body];
+      if (!records.length) return err(res, 400, "validation_error", "no records");
+      if (records.length > INGEST_MAX_RECORDS) {
+        return err(res, 400, "validation_error", `Too many records (${records.length}); max ${INGEST_MAX_RECORDS} per request`);
+      }
+
+      // Resolve each distinct module ONCE for the whole batch — a 200-record
+      // backfill of one type should not do 200 identical module lookups.
+      const moduleCache = new Map();
+      const resolveModule = async (rec) => {
+        // Body-level values are defaults for every record in the batch — the
+        // common case is one type for the whole payload. Same fall-through as
+        // parentId / onExisting below.
+        const explicitId = rec.moduleId || body.moduleId;
+        if (explicitId) {
+          const key = `id:${explicitId}`;
+          if (!moduleCache.has(key)) {
+            moduleCache.set(key, await Module.findOne({ id: explicitId, userId: req.userId }).lean());
+          }
+          return moduleCache.get(key);
+        }
+        const label = rec.moduleLabel || body.moduleLabel;
+        if (!label) return null;
+        const role = rec.moduleRole || body.moduleRole || "instance";
+        const key = `label:${role}:${label}`;
+        if (moduleCache.has(key)) return moduleCache.get(key);
+        let mod = await Module.findOne({ userId: req.userId, gridId, label, role }).lean();
+        if (!mod) {
+          const created = await Module.create({
+            id: uid(), userId: req.userId, gridId, label, role,
+            ...(rec.moduleKind || body.moduleKind ? { kind: rec.moduleKind || body.moduleKind } : {}),
+            meta: { ingestSource: source },
+          });
+          mod = created.toObject();
+          mirrorToCache(req.userId, gridId, "module", mod);
+          io.to(userRoom(req.userId)).emit("module_created", { module: mod });
+        }
+        moduleCache.set(key, mod);
+        return mod;
+      };
+
+      // Validate parents once per distinct id. A bad parentId is precisely how
+      // rows end up in the database and invisible on screen, so it FAILS the
+      // record rather than silently creating an unparented occurrence.
+      const parentCache = new Map();
+      const parentExists = async (parentId) => {
+        if (!parentCache.has(parentId)) {
+          parentCache.set(parentId, !!await Occurrence.exists({ id: parentId, userId: req.userId }));
+        }
+        return parentCache.get(parentId);
+      };
+
+      const results = [];
+      for (const rec of records) {
+        const externalId = rec.externalId;
+        if (!externalId) {
+          results.push({ ok: false, status: "error", error: "externalId required" });
+          continue;
+        }
+        try {
+          const parentId = rec.parentId ?? body.parentId ?? null;
+          if (parentId && !await parentExists(parentId)) {
+            results.push({ ok: false, externalId, status: "error", error: `parentId ${parentId} not found` });
+            continue;
+          }
+
+          const existing = await Occurrence.findOne({
+            userId: req.userId, gridId,
+            "meta.source": source, "meta.externalId": externalId,
+          }).lean();
+
+          const onExisting = rec.onExisting || body.onExisting || "skip";
+
+          if (existing) {
+            if (onExisting === "skip") {
+              results.push({ ok: true, externalId, status: "skipped", occurrenceId: existing.id });
+              continue;
+            }
+            // "update" merges the incoming fields over what is there;
+            // "replace" takes the incoming set as authoritative. Neither
+            // touches parentId — a row you have since moved by hand stays
+            // where you put it.
+            const nextFields = onExisting === "replace"
+              ? (rec.fields || {})
+              : { ...(existing.fields || {}), ...(rec.fields || {}) };
+            const updated = await Occurrence.findOneAndUpdate(
+              { id: existing.id, userId: req.userId },
+              {
+                $set: {
+                  fields: nextFields,
+                  ...(rec.label !== undefined ? { label: rec.label } : {}),
+                  meta: {
+                    ...(existing.meta || {}), ...(rec.meta || {}),
+                    source, externalId, ingestedAt: new Date().toISOString(),
+                  },
+                },
+              },
+              { returnDocument: "after", lean: true },
+            );
+            mirrorToCache(req.userId, gridId, "occurrence", updated);
+            io.to(userRoom(req.userId)).emit("occurrence_updated", { occurrence: updated });
+            results.push({ ok: true, externalId, status: "updated", occurrenceId: updated.id });
+            continue;
+          }
+
+          const mod = await resolveModule(rec);
+          if (!mod) {
+            results.push({ ok: false, externalId, status: "error", error: "moduleId or moduleLabel required (module not found)" });
+            continue;
+          }
+
+          const id = rec.id || ingestOccId(source, externalId);
+          const doc = await Occurrence.create({
+            id, userId: req.userId, gridId,
+            moduleId: mod.id,
+            ...(parentId ? { parentId } : {}),
+            label: rec.label ?? null,
+            fields: rec.fields || {},
+            meta: {
+              ...(rec.meta || {}),
+              source, externalId, ingestedAt: new Date().toISOString(),
+            },
+          });
+          const obj = doc.toObject();
+          mirrorToCache(req.userId, gridId, "occurrence", obj);
+          io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: obj });
+          const parent = await linkIntoParent({
+            userId: req.userId, parentId, childId: id, index: rec.index,
+          });
+          results.push({
+            ok: true, externalId, status: "created", occurrenceId: id,
+            linkedToParent: !!parent,
+          });
+        } catch (recErr) {
+          // A duplicate key here means a concurrent request for the same
+          // (source, externalId) won the race — which is the correct outcome,
+          // not an error: exactly one row exists.
+          if (recErr?.code === 11000) {
+            results.push({ ok: true, externalId, status: "skipped", note: "concurrent duplicate" });
+          } else {
+            results.push({ ok: false, externalId, status: "error", error: recErr.message });
+          }
+        }
+      }
+
+      const summary = results.reduce((acc, r) => {
+        acc[r.status] = (acc[r.status] || 0) + 1;
+        return acc;
+      }, {});
+      res.json({ ok: results.every(r => r.ok), source, summary, results });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });
 
