@@ -81,7 +81,9 @@ import DocToolbar from "../docs/DocToolbar";
 import ContextMenu from "./ContextMenu";
 import { useGridActionsSelector } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { createArtifactPlaceholders, uploadArtifactPlaceholders } from "../helpers/artifactUpload";
+import { classifyIntake } from "../helpers/intake";
+import { applyIntakeShape, filterToImplemented } from "../helpers/intakeApply";
+import { openIntakeSheet } from "./IntakeSheet";
 import QuickAddMenu from "./QuickAddMenu.jsx";
 import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type, Plus, Shuffle } from "lucide-react";
 import { convertLeafRole } from "../helpers/convertOccurrence";
@@ -2294,20 +2296,42 @@ const Editor = forwardRef(function Editor({
       const gridId = occurrence?.gridId || ctxGrid?._id || ctxGrid?.id || ctxGrid?.gridId || null;
       const userId = occurrence?.userId || ctxUserId || null;
       if (!gridId || !userId) return;
+      // Resolved NOW, from the drop event — the sheet opens afterwards and the
+      // event is long gone by the time a shape is picked.
       const pos = resolveInsertPos(e, true);
-      const placeholders = createArtifactPlaceholders(Array.from(files), {
-        gridId, userId, dispatch,
+      const dropX = e.clientX ?? 0;
+      const dropY = e.clientY ?? 0;
+
+      const intakeCtx = {
+        files: Array.from(files), gridId, userId, dispatch, socket,
         occExtra: () => (occurrence?.id ? { parentId: occurrence.id } : {}),
-      });
-      // Insert one moduleEmbed per uploaded file at the drop position.
-      editor.chain().focus().insertContentAt(
-        pos,
-        placeholders.map(p => ({ type: "moduleEmbed", attrs: { occurrenceId: p.occurrenceId } })),
-      ).run();
-      uploadArtifactPlaceholders(placeholders, {
-        gridId, userId, dispatch, socket,
         persist: () => (occurrence?.id ? { parentId: occurrence.id } : null),
+        // Inserting one moduleEmbed per file at the drop position is the DOC's
+        // placement — the same seam the board arm uses for its container
+        // wiring. The router mints and uploads; where the thing lands is ours.
+        onPlaceholders: (placeholders) => {
+          editor.chain().focus().insertContentAt(
+            pos,
+            placeholders.map(p => ({ type: "moduleEmbed", attrs: { occurrenceId: p.occurrenceId } })),
+          ).run();
+        },
+      };
+
+      const classification = filterToImplemented(
+        classifyIntake({ files: Array.from(files) }, {
+          kind: "doc",                       // no canvas shapes inside a doc body
+          occurrenceId: occurrence?.id || null,
+        }),
+      );
+      const opened = openIntakeSheet({
+        classification,
+        position: { top: dropY + 8, left: dropX + 8 },
+        onPick: (shapeId) => applyIntakeShape(shapeId, intakeCtx),
+        onCancel: () => {},
       });
+      // A doc rendered inside a preview iframe has no host — keep today's
+      // behaviour rather than swallowing the drop.
+      if (!opened) applyIntakeShape(classification.preselected, intakeCtx);
       return;
     }
 

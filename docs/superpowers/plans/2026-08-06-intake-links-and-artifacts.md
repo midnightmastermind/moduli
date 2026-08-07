@@ -405,11 +405,19 @@ branch.
 
 **Files:** `client/src/helpers/intakeApply.js`; `dropHandlers.js`; `Editor.jsx`.
 
-- [~] **Step 1: FILE DROPS ASK 2026-08-07 (22 tests).** `intakeApply.js` holds the decision layer
+- [x] **Step 1: DONE 2026-08-07 (25 tests).** `intakeApply.js` holds the decision layer
       and the behaviour-preserving routes; `<IntakeSheetHost>` is mounted in `App.jsx`; and
       `handleFileDrop` now classifies → filters → **asks** → applies.
-      **STILL NOT WIRED: `handleExternalDrop` (text / HTML / link drops) and `Editor.jsx`'s doc
-      arm** — those two still decide silently.
+      All four intake paths ask: file drops, link drops, HTML/long-text drops, and the doc arm.
+      **A link drop is the audit's headline case** — it became a card labelled with the raw URL,
+      silently, though the importer could already build the page from it. "Import the page" is a
+      real option there now because `import_url` landed the same day.
+
+      **`LINK_INSTANCE` was ADDED to the classifier**, which looks backwards given the audit calls
+      today's link behaviour the thing to replace. Without it `filterToImplemented` would fall back
+      to the ARTIFACT shape for a link — not what happens today, and a silent behaviour change
+      disguised as a refactor. A decision layer that cannot reproduce what the app already does is
+      not behaviour-preserving.
 
       **The ask happens BEFORE any write, and that is the design, not an ordering accident.** The
       old handler minted placeholders and then uploaded; the sheet now opens with nothing minted,
