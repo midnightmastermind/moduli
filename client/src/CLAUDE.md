@@ -420,33 +420,40 @@ Pragmatic targets, wrap morphs) — a static render must keep drops + wraps work
 its own headless-verified session. Would also shrink the frame-1 flush (fewer live editors
 re-measuring during drops).
 
-## DOCKET — DATE NAVIGATION costs ~1.6s (measured 2026-08-07), and the build op is 9% of it
+## DOCKET — DATE NAVIGATION costs ~1.6s (measured 2026-08-07); the build op is 9% and the EFFECTS are the rest
 User: *"what takes the schedule creation so dang long. it takes like 3 seconds after changing the
 filter to a diff day."* Measured on test grid 2, unthrottled desktop, click → the new day column in
 the DOM: **1616ms** (a slower machine and poms grid's larger data explain the user's 3s).
 
 ```
-click → column in the DOM            1616ms
-long tasks: 210ms · 753ms · 2098ms ·  58ms · 107ms
+click → column in the DOM             1616ms
+[op-timing] NavigationOp  total=776ms  ops=49      ← ONE sweep, 49 ops evaluated
+     137ms   61fx   Schedule: Build Schedule       ← the build itself: 9%
+      62ms  141fx   Day Page: Build
+[op-fire-done] NavigationOp 885ms  total=319 effects
+long tasks: 210 · 753 · 2098 · 58 · 107 ms         ← the 2098 starts at t=984
 ```
 
-**Where it goes — and `Schedule: Build Schedule` is NOT the problem (104–149ms of it):**
-1. **TWO full op sweeps run per navigation** — `[op-timing] null total=732ms ops=52` and then
-   `[op-timing] NavigationOp total=662ms ops=49`. **~1.4s of op execution to rebuild one day**, and
-   both sweeps evaluate every op on the grid when only about three are date-dependent. The
-   `cascadeFiredOps` dedup (2026-05-26) covers ops matching many transactions in ONE cascade; it
-   does not cover two separate fires.
-2. **~250 effects are applied**, each dispatching into the store — that is the documented frame-1
-   re-render storm, and it is the **2098ms long task** that starts at t=984 and runs past the moment
-   the column appears.
-3. **`Day Page: Build` emits 132–141 effects on every date change** (38–42ms to compute, then a
-   write per effect). It is the biggest effect producer in the sweep and nobody asked it to rebuild
-   on a Schedule navigation.
+**RETRACTED, and worth keeping as the reason to distrust a probe first.** An earlier reading of this
+claimed **two** full sweeps per navigation (`[op-timing] null` + `NavigationOp`, "~1.4s of op
+execution"). That was a PROBE ARTIFACT: the probe never cleared its console buffer before clicking,
+so the `null` sweep it attributed to the navigation was the on-LOAD sweep from 14 seconds earlier.
+Re-run with the buffer cleared at the click: **one sweep, 776ms**. The retracted claim would have
+sent the next session hunting a duplicate fire that does not exist.
 
-**Levers, cheapest first:** batch the two sweeps into one (they are the same navigation);
-short-circuit `Day Page: Build` when its own date has not changed; and apply op effects as one
-batched store write rather than ~250 individual dispatches — the same storm the drop path fought in
-2026-07-07. NOT started.
+**So the real split is: ~0.8s deciding, ~0.9s+ writing, ~0.14s actually building the schedule.**
+
+**Levers, in order:**
+1. **319 effects are applied as individual store dispatches** — that is the 2098ms long task and the
+   biggest single win. Same frame-1 storm the drop path fought on 2026-07-07, from a new direction.
+   A batched apply (one dispatch, one render) is the fix.
+2. **`Day Page: Build` produces 141 of those 319 effects on a SCHEDULE navigation.** 62ms to compute,
+   then 141 writes nobody asked for. Short-circuit it when its own date has not moved — note this is
+   a seeded OP pipeline, so it is a migration, not a code change.
+3. **49 ops are evaluated when about three are date-dependent** (776ms). Cheapest per-op work, but
+   the widest blast radius to change.
+
+NOT started.
 
 ## DOCKET — on-load op sweep slicing [RE-SCOPED 2026-08-06: it is NOT the load headline]
 The 2026-08-06 load measurement (`helpers/loadDiag.js`, full table in
