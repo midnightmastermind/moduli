@@ -45,7 +45,8 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import { getEffectiveFieldVisibilityForOccurrence, fieldPassesVisibility } from "../state/selectors";
 import { consumeLabelEdit } from "../helpers/pendingLabelEdit.js";
-import { primaryMediaOf } from "../helpers/occurrenceMedia";
+import { primaryMediaOf, filesFieldIdFor } from "../helpers/occurrenceMedia";
+import { setMainFile } from "../helpers/mainFile";
 import { useComputedValue } from "../state/computedValuesStore";
 
 // Operation display widget — its own component so the per-key
@@ -381,9 +382,13 @@ function InstanceInner({
 
   // board/list by default — never under a textblock/artifact card. Table cells
   // can opt back in via the column's showMedia toggle (CellEmbedContext.showMedia).
-  const showMedia = !renderBody && !!mediaBinding && (
-    !cellEmbedCtx?.__inCell || !!cellEmbedCtx?.showMedia
-  );
+  //
+  // A FILES binding alone is enough. The face can live on either field now, and
+  // gating on the media binding would leave a row that binds only Files with no
+  // drop target and nowhere to show the picture it is perfectly able to hold.
+  const showMedia = !renderBody
+    && (!!mediaBinding || !!filesFieldIdFor(instance))
+    && (!cellEmbedCtx?.__inCell || !!cellEmbedCtx?.showMedia);
   // Opt-in compact media (2026-07-25, per user): a SMALL thumbnail inline with
   // the label instead of the full-width block below. Board option occurrences
   // set it — a poster-sized block per option made the boards unreadable.
@@ -399,28 +404,50 @@ function InstanceInner({
 
   const mediaDropRef = useRef(null);
 
-  // Resolve a dropped artifact's file path. Supports ManifestTree's
-  // { type:"artifact", occurrenceId } payload and the CC/pool
-  // { type:"module", role:"artifact", id, data } payload.
-  const resolveArtifactFileRef = useCallback((sourceData) => {
+  // The Files field — where `main` (the face) lives. An occurrence can bind it
+  // without binding a media field at all, which is why the media block's gate
+  // below accepts either.
+  const filesFieldId = useMemo(() => filesFieldIdFor(instance), [instance]);
+
+  // Resolve a dropped artifact to its OCCURRENCE ID.
+  //
+  // THIS USED TO RETURN `mod.fileRef`, A STRING, AND THAT WAS A LIVE BUG. Since
+  // 2026-08-06 a media/files value is an occurrence id naming a role:"artifact"
+  // occurrence, and `helpers/occurrenceMedia` deliberately has NO fallback for
+  // legacy strings — so a dropped artifact wrote a value the resolver refuses,
+  // and the picture never appeared. Shipped and inert, found by reading the
+  // write path while extending it.
+  //
+  // The Command Center payload carries a MODULE, not an occurrence, so it has to
+  // be resolved back to one; a module with no occurrence on this grid is refused
+  // rather than written as an id that names nothing.
+  const resolveArtifactOccId = useCallback((sourceData) => {
     const d = sourceData || {};
-    let mod = null;
     if (d.type === "artifact" && d.occurrenceId) {
       const occ = getOcc(d.occurrenceId);
-      mod = occ ? (modulesById?.[occ.moduleId]) : null;
-    } else if (d.type === "module" && d.role === "artifact") {
-      mod = d.data || modulesById?.[d.id];
+      const mod = occ ? modulesById?.[occ.moduleId] : null;
+      return mod?.role === "artifact" ? occ.id : null;
     }
-    return mod?.fileRef || null;
-  }, [getOcc, modulesById]);
+    if (d.type === "module" && d.role === "artifact") {
+      const modId = d.data?.id || d.id;
+      if (!modId) return null;
+      const occ = Object.values(getOccMap() || {}).find(o => o?.moduleId === modId);
+      return occ?.id || null;
+    }
+    return null;
+  }, [getOcc, getOccMap, modulesById]);
 
   const [mediaDragOver, setMediaDragOver] = useState(false);
 
   useEffect(() => {
     const el = mediaDropRef.current;
-    if (!el || !showMedia || !mediaBinding || !occurrence?.id) return;
+    if (!el || !showMedia || !occurrence?.id) return;
+    if (!filesFieldId && !mediaBinding) return;
     return dropTargetForElements({
       element: el,
+      // ARTIFACTS ONLY (user 2026-08-07). Everything else must produce no
+      // affordance at all, not a rejected one — canDrop false means Pragmatic
+      // never fires onDragEnter, so the zone stays dark for a row being dragged.
       canDrop: ({ source }) => {
         const d = source.data || {};
         return d.type === "artifact" || (d.type === "module" && d.role === "artifact");
@@ -429,22 +456,29 @@ function InstanceInner({
       onDragLeave: () => setMediaDragOver(false),
       onDrop: ({ source }) => {
         setMediaDragOver(false);
-        const fileRef = resolveArtifactFileRef(source.data);
-        if (!fileRef) return;
-        const fid = mediaBinding.binding.fieldId;
+        const artifactOccId = resolveArtifactOccId(source.data);
+        if (!artifactOccId) return;
+        const prevFields = occurrence.fields || {};
+
+        // Prefer the FILES field: dropping on the face area means "this is the
+        // face", and setMainFile attaches it in the same write, so the file is
+        // both the main AND an attachment (the main ∈ value invariant). Falls
+        // back to the media binding for a row that has no Files field yet.
+        const next = filesFieldId
+          ? { [filesFieldId]: setMainFile(prevFields[filesFieldId], artifactOccId) }
+          : {
+            [mediaBinding.binding.fieldId]: {
+              value: artifactOccId, flow: "in", timestamp: new Date().toISOString(),
+            },
+          };
+
         CommitHelpers.updateOccurrence({
           dispatch, socket, emit: true,
-          occurrence: {
-            id: occurrence.id,
-            fields: {
-              ...(occurrence.fields || {}),
-              [fid]: { value: fileRef, flow: "in", timestamp: new Date().toISOString() },
-            },
-          },
+          occurrence: { id: occurrence.id, fields: { ...prevFields, ...next } },
         });
       },
     });
-  }, [showMedia, mediaBinding, occurrence?.id, occurrence?.fields, resolveArtifactFileRef, dispatch, socket]);
+  }, [showMedia, mediaBinding, filesFieldId, occurrence?.id, occurrence?.fields, resolveArtifactOccId, dispatch, socket]);
 
   // Pick a renderer. The artifact module already carries a `kind` (mimeToKind
   // decided it at upload), so this reads that instead of re-sniffing an
@@ -836,7 +870,17 @@ function InstanceInner({
           return (
             <div
               ref={mediaDropRef}
-              className={"instance-media" + (mediaDragOver ? " instance-media-dragover" : "") + (src ? "" : " instance-media-empty")}
+              // TWO drag affordances, because the gesture means two different
+              // things (user 2026-08-07). With nothing here, dragging an
+              // artifact over shows a LINE marking where it would land. With a
+              // picture already here, it shows a ring AROUND that picture —
+              // because the drop REPLACES the face, and a line would read as
+              // "adds another".
+              className={
+                "instance-media"
+                + (src ? "" : " instance-media-empty")
+                + (mediaDragOver ? (src ? " instance-media-dragover-filled" : " instance-media-dragover-empty") : "")
+              }
               style={{ flex: "1 1 100%", minWidth: 0 }}
               title={src ? (mediaBinding?.field?.name || "Media") : "Drop an artifact here"}
             >
