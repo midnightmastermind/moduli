@@ -35,6 +35,7 @@
 // lives here now, once.
 // ============================================================
 import { resolveFileRef } from "./fileRef";
+import { resolveMainFile } from "./mainFile";
 
 function bindingsOf(module) {
   return Array.isArray(module?.fieldBindings) ? module.fieldBindings : [];
@@ -90,10 +91,31 @@ function resolveArtifact(id, ctx) {
 }
 
 // The entry marked as the face: `{ occ, module, kind, src, label }` or null.
+//
+// ── RESOLUTION ORDER, AND WHY THE FALLBACK IS LOAD-BEARING ─────────────────
+// 1. `main` on the FILES field — the face the user picked (Task 4b).
+// 2. the `role:"media"` binding — how a face was expressed before `main`.
+//
+// This is ADDITIVE, and measurably so: on 2026-08-07 both live grids held 213
+// occurrences with a Files value and **zero** with a `main`, so today every
+// lookup falls through to step 2 and behaves byte-identically. Step 1 lights up
+// only as faces get marked.
+//
+// The order cannot be reversed. Person and movie rows carry BOTH a media
+// binding and a Files field, so preferring the binding would make marking a new
+// face silently do nothing — the change would look shipped and be inert.
+//
+// `resolveMainFile` refuses a main that is not attached, and `resolveArtifact`
+// refuses an id that is not a real artifact, so a broken step 1 falls through to
+// step 2 rather than resolving to a hole.
 export function primaryMediaOf(occ, ctx) {
   const module = ctx?.modulesById?.[occ?.moduleId];
-  const fid = mediaFieldIdFor(module);
-  const [id] = idsFrom(rawValue(occ, fid));
+
+  const mainId = resolveMainFile(occ?.fields?.[filesFieldIdFor(module)]);
+  const fromMain = mainId ? resolveArtifact(mainId, ctx) : null;
+  if (fromMain) return fromMain;
+
+  const [id] = idsFrom(rawValue(occ, mediaFieldIdFor(module)));
   return id ? resolveArtifact(id, ctx) : null;
 }
 

@@ -179,3 +179,83 @@ describe("filesOf", () => {
     expect(filesOf(null, ctxOf())).toEqual([]);
   });
 });
+
+// ── Task 4b: `main` on the Files field wins over the media binding ──────────
+//
+// MEASURED BEFORE WRITING (2026-08-07): both live grids hold 213 occurrences
+// with a Files value and ZERO with a `main`, so this is purely additive today —
+// every real row still resolves through the media binding. These pin the order
+// so it cannot be reversed, and pin the fallback so 213 live posters keep
+// rendering.
+describe("primaryMediaOf — main on Files beats the media binding", () => {
+  it("prefers the file marked as main", () => {
+    const face = artifact("art-main", "user/2026-08/face.jpg");
+    const poster = artifact("art-poster", "user/2026-08/poster.jpg");
+    const o = owner({
+      [F_MEDIA]: { value: "art-poster" },
+      [F_FILES]: { value: ["art-poster", "art-main"], main: "art-main" },
+    });
+    const got = primaryMediaOf(o.occ, ctxOf({
+      occurrences: [o.occ, face.occ, poster.occ],
+      modules: [o.module, face.module, poster.module],
+    }));
+    expect(got?.occ.id).toBe("art-main");
+  });
+
+  it("REGRESSION: with no main, the media binding still resolves", () => {
+    // The 213-row case. If this ever fails, every poster on the grid went blank.
+    const poster = artifact("art-poster", "user/2026-08/poster.jpg");
+    const o = owner({
+      [F_MEDIA]: { value: "art-poster" },
+      [F_FILES]: { value: ["art-poster"] },
+    });
+    const got = primaryMediaOf(o.occ, ctxOf({
+      occurrences: [o.occ, poster.occ],
+      modules: [o.module, poster.module],
+    }));
+    expect(got?.occ.id).toBe("art-poster");
+  });
+
+  it("falls back when main names a file that is not attached", () => {
+    // The invariant is broken in the data. Rather than resolve to a hole, the
+    // lookup must behave as though no main were set.
+    const poster = artifact("art-poster", "user/2026-08/poster.jpg");
+    const o = owner({
+      [F_MEDIA]: { value: "art-poster" },
+      [F_FILES]: { value: ["art-poster"], main: "art-gone" },
+    });
+    const got = primaryMediaOf(o.occ, ctxOf({
+      occurrences: [o.occ, poster.occ],
+      modules: [o.module, poster.module],
+    }));
+    expect(got?.occ.id).toBe("art-poster");
+  });
+
+  it("falls back when main names something that is not an artifact", () => {
+    const poster = artifact("art-poster", "user/2026-08/poster.jpg");
+    const notArt = {
+      module: { id: "m-plain", role: "instance", label: "Plain" },
+      occ: { id: "plain-1", moduleId: "m-plain", fields: {} },
+    };
+    const o = owner({
+      [F_MEDIA]: { value: "art-poster" },
+      [F_FILES]: { value: ["art-poster", "plain-1"], main: "plain-1" },
+    });
+    const got = primaryMediaOf(o.occ, ctxOf({
+      occurrences: [o.occ, poster.occ, notArt.occ],
+      modules: [o.module, poster.module, notArt.module],
+    }));
+    expect(got?.occ.id).toBe("art-poster");
+  });
+
+  it("resolves a main even when there is no media binding at all", () => {
+    const face = artifact("art-main", "user/2026-08/face.jpg");
+    const o = owner({ [F_FILES]: { value: ["art-main"], main: "art-main" } }, { files: true });
+    o.module.fieldBindings = [{ fieldId: F_FILES, role: "files" }];
+    const got = primaryMediaOf(o.occ, ctxOf({
+      occurrences: [o.occ, face.occ],
+      modules: [o.module, face.module],
+    }));
+    expect(got?.occ.id).toBe("art-main");
+  });
+});
