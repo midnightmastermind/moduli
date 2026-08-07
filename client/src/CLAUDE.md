@@ -443,10 +443,20 @@ sent the next session hunting a duplicate fire that does not exist.
 
 **So the real split is: ~0.8s deciding, ~0.9s+ writing, ~0.14s actually building the schedule.**
 
-**Levers, in order:**
-1. **319 effects are applied as individual store dispatches** — that is the 2098ms long task and the
-   biggest single win. Same frame-1 storm the drop path fought on 2026-07-07, from a new direction.
-   A batched apply (one dispatch, one render) is the fix.
+**Levers, in order — the first one is VOID; read this before starting:**
+1. ~~**Batch the 319 effect dispatches into one**~~ — **NOT A LEVER.** `main.jsx` mounts with
+   `ReactDOM.createRoot`, so React 18 already auto-batches every dispatch inside that task: the 319
+   writes are ALREADY one render. The 2098ms is therefore REDUCER work plus a single large render,
+   not 319 renders. Anyone implementing "batching" here would ship a no-op.
+1b. **The reducer cost is real and unmeasured: `deriveRoleArrays` is a FULL SCAN of every module,
+   run on every module create/update** (`masterReducer.js`, 5 call sites). One date navigation emits
+   57 CREATE_ITEMs; on a 2600-module grid that is ~150k iterations plus six array rebuilds per
+   create, inside the blocking task. **ATTEMPTED AND REVERTED 2026-08-07:** an incremental
+   append-to-one-bucket path is easy to write and broke 6 masterReducer tests, because the full
+   derivation SELF-HEALS role arrays for any state that arrives without them (tests, partial
+   hydration, SET_MODULES paths) and an incremental path cannot. A correct version has to either
+   guarantee the arrays are always in sync or detect when they are not — decide that first, and
+   measure the reducer's actual share of the 2098ms before spending the effort.
 2. **`Day Page: Build` produces 141 of those 319 effects on a SCHEDULE navigation.** 62ms to compute,
    then 141 writes nobody asked for. Short-circuit it when its own date has not moved — note this is
    a seeded OP pipeline, so it is a migration, not a code change.
