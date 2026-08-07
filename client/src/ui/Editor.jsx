@@ -2306,7 +2306,13 @@ const Editor = forwardRef(function Editor({
       const intakeCtx = {
         files: Array.from(files), gridId, userId, dispatch, socket,
         occExtra: () => (occurrence?.id ? { parentId: occurrence.id } : {}),
-        persist: () => (occurrence?.id ? { parentId: occurrence.id } : null),
+        // No parentId — same rule as the board arm (helpers/dropHandlers.js):
+        // an uploaded artifact's parentId is its HOME in Files, stamped
+        // server-side. A doc's placement is the `moduleEmbed` inserted below,
+        // which resolves the occurrence by id, so the embed renders either way —
+        // and the file now has a real home instead of being reachable only
+        // through this doc's textmap.
+        persist: () => null,
         // The doc this body belongs to IS the destination — a file dropped into
         // today's Journal must carry today's date or the filter cannot see it
         // once it stops being an embed (Task 3 Step 3).

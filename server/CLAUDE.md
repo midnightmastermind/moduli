@@ -1,6 +1,43 @@
 # server — Server CLAUDE.md
 
 _Updated: 2026-08-07. Check this file before re-reading source._
+## Recent Changes (2026-08-07 (7) — uploads HOME in Files; and 7 cache mirrors were silently dead)
+- **`server.js homeFolderForUpload` (NEW)** — Task 4 Step 3. `/api/artifacts/upload` and
+  `/api/connections/:id/import` set `parentId` to **Files/&lt;kind&gt;** instead of
+  `parentFolderId || null`, so an artifact with no chosen folder finally has a home instead of
+  being listed by nothing (the gap the whole Files folder exists to close).
+- **An EXPLICIT `parentFolderId` always wins, and that is NOT `resolveFilesFolderId`'s containment
+  check.** That guard exists to stop a FILE OPERATION writing outside Files; applying it here would
+  refuse an upload because the user picked their own folder — the guard firing on the wrong thing.
+  Only a folder-less upload is routed.
+- **No Files folder (a grid that never ran 0049) → null**, which is byte-identical to the behaviour
+  uploads had before. "No folder" is not "the wrong folder", so it degrades to the status quo
+  rather than failing the upload.
+- **`routeCache` — SEVEN CACHE MIRRORS WERE NO-OPS, provable by construction.** The warm cache is
+  keyed `${userId}:${gridId}` at every assignment site (`gridCacheKey` in `ensureUserCache`, the
+  only writer), but these routes read **`cacheByUser[userId]`** — a key that is never written, so
+  `if (cache)` was false every single time. `request_full_state` is served ENTIRELY from that cache
+  (30-min TTL), so an uploaded artifact reached Mongo and the socket broadcast but **not** the
+  cache: a reload inside the TTL served a grid with the file missing, and the socket write path
+  merges over `uc[bucket][id]`, so a later edit could republish the stale copy over it. Same class
+  as the 2026-08-07 (2) REST-write finding, which fixed `/api/v1` and never reached these routes.
+  Mirrors only when the cache is already warm (`peekUserCache`) — the documented posture.
+- **A blanket rename would have shipped a ReferenceError**, and checking scope caught it:
+  `/api/storage-settings` has no `gridId` in its body, so that one site reads the manifest's own
+  `gridId`. Exactly the 2026-08-01 `watchRegion is not defined` lesson.
+- **Verified by driving the REAL route** (probe server on :5099 so the running dev server on :5000
+  was never disturbed), against test grid 2: image → **Images**, `.txt` → **Documents**, an explicit
+  folder ("Tasks") → **honoured verbatim**. Those first two values are impossible under
+  `parentFolderId || null`, so the table is its own A/B. The probe swept its 3 artifacts (rows,
+  modules and the files on disk) — integrity counts unchanged on all three grids afterwards.
+- 12 tests in `__tests__/uploadHomesInFiles.test.js` pin the DECISION (the part with branches)
+  against the real `resolveFilesFolderId`, including the discriminating sibling that proves the
+  fallbacks are not a rubber stamp: another user's folder still resolves to null. 571 server tests.
+- **NOT done, and it is the next question rather than an oversight:** a SECOND placement of the same
+  file (drag out of Files) is Step 6, and that is where `placementSemanticForKind`'s copy-vs-
+  multiparent split actually bites — at upload time there is exactly one placement, so the two
+  semantics are indistinguishable.
+
 ## Recent Changes (2026-08-07 (6) — the Files folder EXISTS; and Imports joins the protected set)
 - **`migrations/0049-files-folder.mjs`** — the data half of Task 4. Mints the protected **Files**
   folder + its four subfolders (Images / Video / Audio / Documents) under the user manifest's root.

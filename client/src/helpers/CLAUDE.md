@@ -1,6 +1,26 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-07. Check this file before re-reading source._
+## Recent Changes (2026-08-07 (7) — the upload `persist` stops clobbering the file's home)
+- **`dropHandlers.js` + `ui/Editor.jsx` — `persist` no longer stamps `parentId`.** The server now
+  homes an uploaded artifact in **Files/&lt;kind&gt;** (`homeFolderForUpload`), and `persist` ran
+  right after the upload to patch `parentId` back to the drop destination — so **leaving it alone
+  would have made the entire Files-folder rule INERT**, the file landing wherever the pointer was,
+  exactly as before. That is the 2026-08-01 (16) "my fix was inert" failure, seen coming this time
+  instead of after.
+- **The split is: `parentId` = the file's HOME (Files); the destination's `occurrences[]` entry =
+  its PLACEMENT.** `onPlaceholders` already wrote that entry for all three destination kinds, so
+  nothing had to be added — only the overwrite removed. A doc's placement is its `moduleEmbed`,
+  which resolves by occurrence id, so it renders either way.
+- **Two things FALL OUT of the split rather than needing to be built:**
+  - `delete_occurrence`'s cascade only recurses where `child.parentId === id`, so deleting the
+    CONTAINER now unlinks the file instead of destroying it — Step 5's "removing a placement leaves
+    the file in Files", for free.
+  - the filter cascade is untouched: it walks the `occurrences[]` reverse map, **not** `parentId`
+    (containers and pages do not even carry one — memory `effective-filter-ancestor-walk`).
+- Canvas still persists `meta` — that is where x/y lives; only the parentId stamp went.
+- 1958 client tests, build clean (tiptap 435 / highlight 969 / CommandCenter 204 / PagePreview 981).
+
 ## Recent Changes (2026-08-07 (6) — protectedFolders.js NEW: the UI must stop OFFERING a refused delete)
 - **`protectedFolders.js` (NEW)** — client twin of `server/utils/protectedFolders.js` (**keep in
   sync**, same relationship `alarmOps` has with `makeAlarmOp`). One predicate, `isProtectedFolder`

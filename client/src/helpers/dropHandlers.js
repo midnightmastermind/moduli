@@ -1577,9 +1577,21 @@ export function handleFileDrop(dropContext, ctx) {
     // it is the occurrence the filter cascade resolves through either way.
     destinationOccurrence: finalContainerOcc || (canvasPos ? pageOcc : null) || null,
     containerOccurrenceId: finalContainerOcc?.id || null,
-    persist: (p) => finalContainerOcc
-      ? { parentId: finalContainerOcc.id }
-      : (canvasPos ? { parentId: pageOccId, meta: p.occurrence.meta } : null),
+    // NOTE the absent `parentId`. An uploaded artifact's parentId is its HOME in
+    // the Files folder, stamped server-side (`homeFolderForUpload`); its presence
+    // HERE is the destination's `occurrences[]` entry, written by `onPlaceholders`
+    // above. Re-stamping parentId to the container would clobber the home and
+    // make the whole Files-folder rule inert — the file would once again live
+    // wherever the pointer happened to be.
+    //
+    // Two things fall out of that split rather than needing to be built:
+    //   • `delete_occurrence`'s cascade only recurses where `child.parentId ===
+    //     id`, so deleting the CONTAINER unlinks the file instead of destroying
+    //     it — Step 5's "removing a placement leaves the file in Files".
+    //   • the filter cascade is unaffected: it walks the `occurrences[]` reverse
+    //     map, not parentId (which containers and pages do not even carry).
+    // Canvas still persists `meta` — that is where x/y lives.
+    persist: (p) => (canvasPos && !finalContainerOcc ? { meta: p.occurrence.meta } : null),
     // The .md / .csv shapes hand the file's CONTENT to the server importer
     // instead of uploading it, so their outcome arrives asynchronously and has
     // to be reported. A failure here is not hypothetical — an unreadable file

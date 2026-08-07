@@ -34,6 +34,7 @@ import Transaction from "./models/Transaction.js";
 import Manifest from "./models/Manifest.js";
 import View from "./models/View.js";
 import Folder from "./models/Folder.js";
+import { resolveFilesFolderId } from "./utils/filesFolder.js";
 import Operation from "./models/Operation.js";
 
 // ========================================================
@@ -527,6 +528,55 @@ function extractImageMetadata(filePath, mimeType) {
   }
 }
 
+// ── The warm cache these routes mirror into, and the folder an upload homes in ──
+//
+// `routeCache` exists because the mirrors below were SILENTLY DEAD. The cache is
+// keyed `${userId}:${gridId}` everywhere it is written (`gridCacheKey`, the only
+// assignment site), but these routes read `cacheByUser[userId]` — a key that is
+// never written, so `if (cache)` was false every time. `request_full_state` is
+// served ENTIRELY from that cache (socketHandlers/state.js, 30-min TTL), so an
+// uploaded artifact reached Mongo and the socket broadcast but NOT the cache:
+// reloading inside the TTL served a grid with the file missing, and the socket
+// write path merges over `uc[bucket][id]`, so a later edit could republish the
+// stale copy on top of it. Same class as the 2026-08-07 REST-write finding,
+// which fixed /api/v1 and never reached these routes.
+//
+// Mirrors only when the cache is ALREADY warm (peek, never load): a cold cache
+// holds nothing stale to correct, and a full-grid load per upload is cost with
+// no correctness gain.
+function routeCache(userId, gridId) {
+  return gridId ? peekUserCache(userId, gridId) : null;
+}
+
+// Folders for the Files-folder resolution. Prefers the warm cache but FALLS BACK
+// to a scoped Mongo read — where an upload lands must not depend on whether a
+// cache happens to be warm.
+async function filesCtxFor(userId, gridId) {
+  const uc = routeCache(userId, gridId);
+  if (uc?.foldersById && Object.keys(uc.foldersById).length) return uc;
+  const folders = await Folder.find({ userId, gridId }).lean();
+  return { foldersById: Object.fromEntries(folders.map((f) => [f.id, f])) };
+}
+
+// Where this upload's occurrence lives in the tree.
+//
+// An EXPLICIT `parentFolderId` always wins — the user picked that folder and it
+// is not this rule's business to second-guess it. Only an upload with no chosen
+// folder homes into Files/<kind>. That is deliberately NOT
+// `resolveFilesFolderId`'s containment check: that guard exists to stop a FILE
+// OPERATION writing outside Files, and refusing an upload because the user
+// picked their own folder would be the guard firing on the wrong thing.
+//
+// Returns null when the grid has not run migration 0049 — which is exactly the
+// behaviour uploads had before this existed (`parentId: null`), so a grid
+// without the folder degrades to the status quo rather than failing the upload.
+async function homeFolderForUpload({ userId, gridId, parentFolderId, kind }) {
+  if (parentFolderId) return parentFolderId;
+  if (!gridId) return null;
+  const ctx = await filesCtxFor(userId, gridId);
+  return resolveFilesFolderId(ctx, { gridId, userId, kind }) || null;
+}
+
 app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
   try {
     const { userId, gridId, parentFolderId, manifestId } = req.body;
@@ -561,7 +611,7 @@ app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
       const placeholderMod = await Module.findOne({ id: moduleId, userId });
       if (placeholderMod) {
         await Module.deleteOne({ id: moduleId });
-        const cache = cacheByUser[userId];
+        const cache = routeCache(userId, gridId);
         if (cache) delete cache.modulesById[moduleId];
         io.to(userRoom(userId)).emit("module_deleted", moduleId);
       }
@@ -573,7 +623,11 @@ app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
         : {
             id: occurrenceId, userId, gridId: gridId || null,
             moduleId: dedupCandidate.id,
-            parentId: parentFolderId || null,
+            // Kind comes from the module we deduped ONTO — the bytes are the
+            // same file, so it belongs in the same subfolder as the original.
+            parentId: await homeFolderForUpload({
+              userId, gridId, parentFolderId, kind: dedupCandidate.kind,
+            }),
             textmap: null,
           };
       if (!existingOcc) {
@@ -589,7 +643,7 @@ app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
       await Occurrence.findOneAndUpdate({ id: occurrenceId }, occDoc, { upsert: true });
 
       const occObj = await Occurrence.findOne({ id: occurrenceId }).lean();
-      const cache = cacheByUser[userId];
+      const cache = routeCache(userId, gridId);
       if (cache) cache.occurrencesById[occObj.id] = occObj;
       if (existingOcc) {
         io.to(userRoom(userId)).emit("occurrence_updated", occObj);
@@ -673,7 +727,7 @@ app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
       : {
           id: occurrenceId, userId, gridId: gridId || null,
           moduleId,
-          parentId: parentFolderId || null,
+          parentId: await homeFolderForUpload({ userId, gridId, parentFolderId, kind }),
           textmap: kind === "markdown" ? { type: "doc", content: [] } : null,
         };
     if (!existingOcc) {
@@ -690,7 +744,7 @@ app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
         manifestView.activeOccurrenceId = occurrenceId;
         await manifestView.save();
         const vc = { ...manifestView.toObject(), id: manifestView.id };
-        const cache = cacheByUser[userId];
+        const cache = routeCache(userId, gridId);
         if (cache) cache.viewsById[vc.id] = vc;
         io.to(userRoom(userId)).emit("view_updated", vc);
       }
@@ -698,7 +752,7 @@ app.post("/api/artifacts/upload", upload.single("file"), async (req, res) => {
 
     const modObj = await Module.findOne({ id: moduleId }).lean();
     const occObj = await Occurrence.findOne({ id: occurrenceId }).lean();
-    const cache = cacheByUser[userId];
+    const cache = routeCache(userId, gridId);
     if (cache) {
       cache.modulesById[modObj.id] = modObj;
       cache.occurrencesById[occObj.id] = occObj;
@@ -732,7 +786,11 @@ app.post("/api/storage-settings", async (req, res) => {
     const manifest = await Manifest.findOneAndUpdate({ id: manifestId }, { $set: { "meta.storageSettings": settings } }, { returnDocument: 'after' });
     if (!manifest) return res.status(404).json({ error: "Manifest not found" });
     const obj = manifest.toObject();
-    const cache = cacheByUser[userId];
+    // This route has no gridId in its body — the manifest carries its own, and
+    // the cache is keyed by (user, grid). (A blanket rename here would have been
+    // a ReferenceError; the 2026-08-01 "I shipped `watchRegion is not defined`"
+    // lesson is that every edit of this shape needs its scope checked.)
+    const cache = routeCache(userId, obj.gridId);
     if (cache) cache.manifestsById[obj.id] = obj;
     io.to(userRoom(userId)).emit("manifest_updated", obj);
     res.json({ manifest: obj });
@@ -821,7 +879,10 @@ app.post("/api/connections/:id/import", async (req, res) => {
     const occDoc = {
       id: occurrenceId, userId, gridId: gridId || null,
       moduleId,
-      parentId: parentFolderId || null,
+      // Same rule as /api/artifacts/upload — a connection import is an upload
+      // that happened to come from disk, so it homes in Files/<kind> unless the
+      // caller picked a folder.
+      parentId: await homeFolderForUpload({ userId, gridId, parentFolderId, kind }),
       viewId: viewIdNew,
       textmap: kind === "markdown" ? { type: "doc", content: [] } : null,
     };
@@ -833,7 +894,7 @@ app.post("/api/connections/:id/import", async (req, res) => {
         manifestView.activeOccurrenceId = occurrenceId;
         await manifestView.save();
         const vc = { ...manifestView.toObject(), id: manifestView.id };
-        const cache = cacheByUser[userId];
+        const cache = routeCache(userId, gridId);
         if (cache) cache.viewsById[vc.id] = vc;
         io.to(userRoom(userId)).emit("view_updated", vc);
       }
@@ -841,7 +902,7 @@ app.post("/api/connections/:id/import", async (req, res) => {
 
     const modObj = await Module.findOne({ id: moduleId }).lean();
     const occObj = await Occurrence.findOne({ id: occurrenceId }).lean();
-    const cache = cacheByUser[userId];
+    const cache = routeCache(userId, gridId);
     if (cache) {
       cache.modulesById[modObj.id] = modObj;
       cache.occurrencesById[occObj.id] = occObj;
