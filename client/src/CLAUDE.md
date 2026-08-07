@@ -575,9 +575,105 @@ to ZERO options — the exact bug `optionsResolver` was fixed for on 2026-07-07.
 `occurrencesById` object identity (every write swaps it), and A/B an ancestor-scoped dropdown
 (the Account picker) before and after, because that failure mode is silent.
 
+### FIXED (2026-08-07) — the derived indexes are built once per pass
+
+`helpers/dragHitTesting.cachedParentMap` (NEW) + an enriched-collection cache in
+`helpers/optionsResolver`. Both memoise on the **object identity** of the maps they derive from,
+via WeakMaps: the store swaps `occurrencesById` on every write (`App.jsx` memoises it on
+`state.occurrences`, and the reducer returns a new array per write), so a new object IS the
+invalidation and a stale entry cannot be constructed. `optionsResolver` keys on
+`(occurrencesById, modulesById)` — a module rename swaps only the second, and records carry the
+module's label. Role slices (`$allInstances` …) derive lazily off the same entry.
+
+**Three render-path fallbacks now share the cached map** — `getEffectiveFilterForOccurrence`,
+`getEffectiveFieldVisibilityForOccurrence`, `buildLayoutCascadeContext`. Those are exactly the
+callers the profile charged; every other `buildParentMap` call site was left alone.
+
+**`buildParentMap` ITSELF IS DELIBERATELY UNTOUCHED, and this is the load-bearing decision.** The
+operation executor MUTATES its overlay map in place — `CREATE` appends the new child to the
+parent's `occurrences[]` so a `RUN_OPERATION`-recursed pipeline can see the linkage (2026-05-05,
+helpers/CLAUDE.md). Caching by identity inside `buildParentMap` would hand a nested pipeline the
+pre-CREATE map and resurrect that bug. The executor keeps calling the uncached builder and passes
+an explicit `parentByChildId` to the selectors, so it never reaches the memoised fallback.
+
+**A/B, same machine, interleaved (old build 3 runs, then new build 3 runs back-to-back — the grid
+grows by one day column per navigation, so running them adjacent is the only fair comparison; the
+new arm therefore ran on MORE data):**
+```
+                   blocked total (3 runs)        the big render task
+old   5174 · 5031 · 5348   median 5174      3382 · 3274 · 3423   median 3382
+new   3229 · 3393 · 3753   median 3393      1617 · 1698 · 1808   median 1698
+```
+**Blocked total −34%, the render task −50%.** These absolute numbers are HIGHER than the
+attribution entry's 3068–3247ms because test grid 2 grew from 4122 to ~4600 occurrences across the
+day's probe runs — compare the two arms with each other, not with the earlier section.
+
+**Fresh CPU profile on the new build, same method:**
+```
+                                   before    after
+active CPU                         5092ms   4980ms   (bigger grid)
+resolveOptions                     1381ms   1018ms
+React render + commit               628ms    604ms
+getEffectiveFieldVisibility…        202ms      1ms
+getEffectiveFilterForOccurrence     198ms      2ms
+buildLayoutCascadeContext           138ms      0ms
+buildParentMap (SELF, all callers)  618ms     18ms   ← 97% gone, out of the top 40
+```
+
+**THE WIN IS SMALLER THAN THE PROFILE PREDICTED, and the reason is worth recording.**
+`resolveOptions` went 1381 → 1018ms, not to ~0. The caller chain says why: the residual is
+`optionsResolver.js`'s **predicate filter**, not the collection build —
+`records.filter(r => evalGroupAgainstRecord(...))` at 386ms self, plus `evalRule` 166ms and
+`resolveExpr` 214ms flowing out of it, all charged to `FieldRenderer.jsx:65`. That is ~766ms of the
+1018ms bucket. **What was shared between fields (the parent map + the 4122 enriched records) is now
+built once; what is per-field (each field's own predicate, evaluated against every record) is
+untouched, because it is genuinely different work per field.** Removing it needs a different
+change — narrowing the candidate pool before the scan, or memoising per (field, maps) pair — and
+is not what this fix was scoped to.
+
+**The op sweep reads HIGHER after (851 → 1203ms).** That is the grid growing across the day's runs,
+not a regression: the unprofiled A/B shows the sweep task at 1305–1498ms old vs 1428–1675ms new
+while total blocked time fell by a third, and nothing in this change touches the executor.
+
+**Verified in a real browser, because the 2026-07-07 entry records unit tests passing while every
+ancestor-scoped dropdown resolved to zero.** `_dropdowncheck.mjs` drives the REAL resolver against
+the REAL live maps on test grid 2 and asserts a NON-EMPTY option list before AND after a date
+navigation — the moment a wrongly-keyed cache would be stale:
+```
+                    before nav        after nav
+Account                  47                47
+Bill                     11                11
+Subscription              3                 3
+all find-mode fields   44/44 non-empty   44/44 non-empty
+occurrences             4250              4443     ← the map genuinely changed
+```
+
+**The regression tests were A/B'd against the failure mode, not just written.** Re-keying the
+collection cache on `Object.keys(occurrencesById).length` — the same shape as FieldRenderer's
+`occSetKey` dep, which is part of what caused this — fails **7** tests: the 5 new
+cache-invalidation cases AND the two original 2026-07-07 ancestor-scope regressions. The new cases
+move the tree (re-parent, add) without changing the occurrence count precisely so a
+derived-scalar key cannot pass them. 1801 client tests.
+
+**Probe debris, reported not hidden.** Each date navigation on this build leaks ONE occurrence with
+no `moduleId`, referenced by no parent — the documented create/disconnect asymmetry, because the
+probe closes the browser ~12s after clicking, mid-burst. test grid 2 now carries 21 of them (1 from
+2026-08-06, 20 from today's runs) and `checkGrid` reports them as `missing-module`.
+**`sweepOrphans --apply` removed only 1**: its predicate is empty AND unreachable, and these carry
+children, so it declines them by design. **This is the `sweepOrphans` / `gridIntegrity` disagreement
+filed on 2026-08-04, now with a sharper diagnosis — the occurrences have NO `moduleId` at all
+(not a `moduleId` naming a missing module), and no parent lists them.** They appeared in BOTH A/B
+arms at the same rate (11:59–12:02 old build, 12:03–12:06 new), so they are the probe, not this
+change. Not hand-deleted: each carries an 8-node subtree and a bespoke "does this hold writing"
+predicate is exactly what damaged data in `0035` and nearly did in `0038`. test grid 2 is the
+seed's own target, so a reseed clears them — the user's call, not mine.
+
 **Probe files (repo root, `_*.mjs`, gitignored):** `_dateattr.mjs` (render counts + buckets +
 `--no-previews` arm), `_dateprof.mjs` (CDP profile), `_profmap.mjs` / `_profcallers.mjs` /
-`_profincl.mjs` (source-map + caller-chain + inclusive-time aggregation over the .cpuprofile).
+`_profincl.mjs` (source-map + caller-chain + inclusive-time aggregation over the .cpuprofile),
+`_dropdowncheck.mjs` (the ancestor-scoped dropdown check; needs a temporary
+`window.__optProbe = { resolveOptions }` export in `optionsResolver.js` — added, measured, reverted).
+`_dateprof.mjs --noprof` gives blocked time with no profiler overhead, which is the arm to A/B on.
 The attribution run needs a temporary `window.__renderProbe = {snapshotRenders, diffRenders,
 snapshotAttrs, diffAttrs}` export in `renderProbe.js` — those functions are module-private and only
 DragProvider reads them, so a non-drop interaction cannot see them. Added, measured, reverted.
