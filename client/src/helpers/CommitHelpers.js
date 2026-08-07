@@ -57,6 +57,42 @@ export function updateGrid({ dispatch, socket, gridId, grid, emit = true }) {
   dispatch?.(updateGridAction({ gridId, grid }));
 
   if (shouldEmit(emit)) safeEmit(socket, "update_grid", { gridId, grid });
+
+  // A grid filter change has to fire NavigationOp HERE, on the window that made
+  // it. `bindSocketToStore.onGridUpdated` already fires it — but only for OTHER
+  // windows, because the server broadcasts grid_updated with
+  // `socket.to(userRoom)`, which excludes the sender. So the one window that
+  // actually navigated was the only one that never ran the ops, and
+  // `Schedule: Build Schedule` never built the day you navigated to (user,
+  // 2026-08-07: "schedule isnt being created when i navigate to that page").
+  // Reloading appeared to fix it because the onLoad sweep builds it.
+  // Same shape as the echo handler, so both paths agree.
+  if (grid.activeFilterValues !== undefined) fireGridFilterNavigation(grid.activeFilterValues);
+}
+
+/**
+ * Fire NavigationOp for a change to the grid's active filter values.
+ * Mirrors `onGridUpdated`'s branch exactly — the `date` it carries is the first
+ * date-shaped value in the map, which is what the schedule/day-page build ops
+ * read as `$trigger.date`.
+ */
+function fireGridFilterNavigation(activeFilterValues) {
+  const values = activeFilterValues || {};
+  const date = Object.values(values).find(
+    (v) => typeof v === "string" && !Number.isNaN(Date.parse(v))
+  ) || (typeof values?.value === "string" ? values.value : null);
+  // Deferred one task: the executor resolves `$schedPage._effectiveFilter` from
+  // `stateRef.current`, which React has not committed yet at this point in the
+  // write. Firing synchronously makes the ops read the PREVIOUS date — the same
+  // ordering trap `updateOccurrenceFilterOverride` documents (2026-04-30), where
+  // a stale snapshot made the build run for the day you just left.
+  setTimeout(() => {
+    operationsBridge.fireOperations?.("NavigationOp", {
+      type: "NavigationOp",
+      activeFilterValues: values,
+      date,
+    });
+  }, 0);
 }
 
 export function deleteGrid({ dispatch, socket, gridId, emit = true }) {

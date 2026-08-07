@@ -5,6 +5,44 @@
 > **Read [`CLAUDE_CHAT.md`](./CLAUDE_CHAT.md) at session start.** It's the time-ordered log of user direction across sessions. New direction goes there first before acting.
 
 ---
+### 2026-08-07 (2) — "the schedule isnt being created when i navigate": the window that navigates was the ONLY one that never fired the op
+
+User, on the deployed build. **Two separate faults, and the first thing worth recording is that
+neither was caused by this session's changes** — the A/B settled it in one run: the failure
+reproduces identically with `window.__noStaging = true`, so staged loading is not implicated.
+
+**FAULT 1 — the day column was never built on navigation.** Console during a date change:
+**no ops fired at all.** The only NavigationOp fire for a grid-filter change lives in
+`bindSocketToStore.onGridUpdated`, which runs on the SERVER ECHO — and the server broadcasts
+`grid_updated` with `socket.to(userRoom())`, which **excludes the sender**. So every other window
+would build the day; the window that actually navigated was the one that never did. Reloading
+appeared to fix it because the onLoad sweep builds it, which is exactly why this reads as "it
+doesn't create the schedule" rather than "an op is missing".
+`CommitHelpers.updateGrid` now fires it whenever the patch carries `activeFilterValues` — the same
+shape the echo handler uses, so both paths agree.
+
+**FAULT 2, found because fixing 1 was not enough — the op fired and built NOTHING**
+(`UPDATE_ITEM_META=1 UPDATE_ITEM_FIELD=2`, no CREATE). The executor resolves
+`$schedPage._effectiveFilter` from `stateRef.current`, which **React has not committed yet** at that
+point in the write, so the ops ran against the date the user had just LEFT and the target day
+already existed → no-op. Deferring the fire by one task fixes it: same navigation now reports
+**`CREATE_ITEM=57`** and the column renders live. This is the same ordering trap
+`updateOccurrenceFilterOverride` documents from 2026-04-30 (it calls `updateLocalOcc` BEFORE firing
+for exactly this reason) — the grid-level path never got the equivalent.
+
+**Also repaired, and NOT the same bug:** poms grid's Schedule page occurrence had
+`occurrences: []` while the Aug 6 day column sat there with `parentId` pointing AT the page and 51
+children of its own — the documented created-but-unlinked class, from the parent's side. The page
+renders `occurrences[]`, so it showed nothing. Relinked from `parentId` (dumped to
+`backups/orphans/` first) and pm2 restarted, since the warm cache is authoritative for reads.
+**What emptied it is still unknown** — a load does NOT reproduce it (verified: the list survives a
+reload), and there is no transaction log because undo/redo was never deployed. If it recurs, that
+is a separate hunt.
+
+1796 client + 467 server tests.
+
+---
+
 ### 2026-08-07 — the textblock mint is INSTANT: 1121ms → 30ms, and it was never the editor
 
 Continued the audit from 2026-08-06 (5) as a plan
