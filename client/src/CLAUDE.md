@@ -2,6 +2,22 @@
 
 _Updated: 2026-07-24. Check this file before re-reading source._
 
+## Recent Changes (2026-08-07 — click-to-mint textblock: 1121ms → 30ms)
+- **`helpers/afterPaint.js` (NEW)** + **`provisionalTextblock.getProvisionalOccurrence` (NEW)** — the
+  mint inserts the node, the browser paints, and the store writes follow in the next task; the node
+  view renders from the registry's occurrence object meanwhile, so the block is TYPEABLE in the frame
+  it appears. Medians of 3 runs, Day Page: `mint:go → usable block` **30 / 30 / 37ms** (was ~1000),
+  `editor.view.dispatch(tr)` **26–35ms** (was 1121.6).
+- **What the measurement overturned** (details in
+  `docs/superpowers/plans/2026-08-07-instant-textblock-mint.md`): it was never the editor mount
+  (created in the LAST ~100ms), never a remount storm (`0 destroyed`), and never the save path
+  (0.1ms). An A/B with the two store writes skipped went **1121.6ms → 9.8ms** — the insert is 10ms
+  and the rest was the app-wide re-render sharing the task.
+- **UNMEASURED, and say so:** the big-doc case. `_mintprobe.mjs` can only mint where it can find an
+  empty top-level paragraph, and an imported doc like "Uses" is all node views — there is no empty
+  line to click. The numbers above are a small doc container (a day-page Journal). If the insert
+  scales with doc size, a 34-block doc will be slower than 30ms and nobody has checked.
+
 ## Recent Changes (2026-08-06 (5) — staged loading: the shape paints first)
 - **`helpers/loadDiag.js` (NEW, `window.__loadDiag`)** — the load-path instrument; **`helpers/
   stagedMount.js` + `hooks/useStagedContent.js` (NEW)** — content mounts one panel per frame,

@@ -1,6 +1,17 @@
 # client/src/docs — Docs CLAUDE.md
 
 _Updated: 2026-07-13. Check this file before re-reading source._## Recent Changes (2026-08-06 — wrapping was measuring a host that had not mounted; and the policy was width-inverted)
+
+## Recent Changes (2026-08-07 — InstanceTextblockNode renders before its occurrence is in the store)
+- **`pills/InstanceTextblockNode.jsx`** — `occurrence` now resolves **store first, then
+  `getProvisionalOccurrence(occurrenceId)`**. A block minted by clicking an empty line has its node
+  inserted BEFORE its store write (the write provokes a ~1s app-wide re-render; the insert costs
+  10ms — measured 2026-08-07), so without this the block would appear instantly and sit un-editable
+  for **1223ms**. Reading the registry lets it render from the same object the write will carry.
+- A third render branch covers the frame where neither source has it: an **empty box of the right
+  height**, not the muted `—`. A dash that appears and vanishes reads as a glitch, and a box that
+  grows reads as the layout moving under the pointer. In practice the registry answers first, so
+  this is a fallback rather than the normal path.
 User, after the oscillation fix: *"now its not wrapping at all"*, then *"why would i want to stack at
 large sizes"*. Both were right, and they were **two separate bugs** — measured per group on the
 Eminem page, not reasoned about.
