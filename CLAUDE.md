@@ -5,6 +5,76 @@
 > **Read [`CLAUDE_CHAT.md`](./CLAUDE_CHAT.md) at session start.** It's the time-ordered log of user direction across sessions. New direction goes there first before acting.
 
 ---
+
+### 2026-08-07 (4) — TWO TASKS WERE ALREADY FIXED, and measuring said so before I wrote any code
+
+Carried over the 17-item task list from the other account and worked it. **The most useful thing
+this session did was retire two tasks whose premises were stale** — both would have been days of
+work aimed at bugs that no longer exist.
+
+**Task "Day Page: Build still mints duplicate day columns, RECURRING":**
+```
+poms grid    10 columns,  9 distinct dates, 1 duplicate
+test grid 2  25 columns, 25 distinct dates, 0 duplicates
+```
+and the duplicate pair was created **08-04T11:56 and 08-05T02:04 — both BEFORE migration 0039
+landed on 08-05**. Every day since got exactly one column, and test grid 2 takes the heaviest probe
+navigation of any grid with zero duplicates. **A recurring bug is a claim about TIMESTAMPS; date the
+damage before believing it still recurs.** The two Aug 4 columns both hold writing, which is why
+0038 refused to merge them — a human call, still open, still not a bug.
+
+**Task "sweepOrphans vs gridIntegrity — one predicate is wrong":** neither is. They answer different
+questions — one asks *would this render?*, the other *is this safe to delete?* A row that cannot
+render but holds content is correctly an error in one and correctly declined in the other. What WAS
+wrong was the message: 22 flagged, and **21 of them carried no `moduleId` at all**, so "references a
+module that does not exist" described a pointer that was not there. Split into
+`module-less-occurrence` and `missing-module`. `sweepOrphans` now carries an explicit **do not
+loosen this predicate** — deleting a subtree because its root lost a pointer is the trade that
+damaged real data in `0035`.
+
+**What the measuring DID find, in the same op:** the Daily Question lookup still used
+`$allContainers` in the builder and in `0040`. Same defect `0039` fixed one FIND over, and its
+failure is silent — a question container whose module is missing drops out of the role-filtered
+collection, the `$dqId IS_NOT_EMPTY` gate fails, and the day's question is never filled ("14
+containers, 12 EMPTY"). **No migration was needed, and that is the interesting part: `0039`'s
+selector had already patched it.** `isRebind` tests for the string `"right":"$colId"`, and the
+Daily Question FIND uses `$colId` as an ANCESTOR SCOPE — so it matched, and 0039 patched **three,
+not the two its header claimed**. Benign, even correct. Recorded in that file rather than tightened,
+because a migration's ledger has to describe what executed. **The 0035 lesson from a new direction:
+a selector matching "the thing that mentions `$colId`" matches every USE of it.** The test asserting
+"and nothing else" had a fixture that omitted the only FIND that over-matches — which is how it
+stayed invisible.
+
+**Intake Task 3 Steps 2-3 shipped.** One `withAction` scope per intake (four writes → one undo
+step), and `createArtifactPlaceholders` now stamps the destination's filter fields — it set
+`fields: {}`, so a file dropped on today's column was born with no date, invisible to the filter,
+indistinguishable from a lost upload.
+
+**The intake drops are VERIFIED IN A BROWSER at last** — the plan's own pass condition, which the
+unit suites structurally cannot cover (they mount the sheet host directly and never exercise the
+wiring). File drop asks with the right shape preselected AND focused; Escape writes nothing (58 →
+58, asserted on the write); Enter commits (58 → 59); doc-body and HTML/long-text arms both ask; the
+sheet is a full-width bottom drawer at 390px. **The link arm is reported UNVERIFIED, never FAIL** —
+a short plain-text drop, the LEGACY branch this work never touched, also writes nothing under a
+synthetic drop, so the branch they share is unreachable that way and a zero there is a claim about
+the probe.
+
+**THREE PROBE TRAPS, all mine, recorded in `_intakeverify.mjs`'s header:** dropping at the CENTRE of
+a 13950px-tall container resolves to y≈7000, off screen, on an SVG header icon — it reported FAIL on
+three paths that work; `DragProvider` resolves the hovered container from a `pointerRef` that a
+synthetic drag never moves; and the drawer's own `padding-bottom: max(12px, env(safe-area-inset-
+bottom))` makes the inner dialog measure 12px short of the edge, so measure the DRAWER.
+
+**And the test A/B caught one of my own:** "groups every write under a SINGLE action id" was
+**vacuous** — two `null`s also form a set of size 1, so it passed against the unfixed code until a
+`toBeTruthy` went in front of it. Every new test here was A/B'd against the unfixed source.
+
+Four deploys, each verified the 2026-08-07 (3) way — prod HEAD over SSH, index 200, the hashed
+bundle it references 200, and the served bundle's sha256 against the local build. 1880 client + 513
+server tests. Probe debris swept (1 module, 3 occurrences, dumped first); all three grids back to
+their documented baselines.
+
+---
 ### 2026-08-07 (3) — I TOOK PROD DOWN FOR ~3 MINUTES: the deploy said ✅ and there was no `dist`
 
 A deploy reported `✅ Deployed.`, prod HEAD matched local exactly — **and the site was 502**. The
