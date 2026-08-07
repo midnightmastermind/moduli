@@ -1395,15 +1395,41 @@ export function DragProvider({
 // the drop will route through the import pipeline rather than minting a
 // single instance. position:fixed + pointer-events:none so it never
 // intercepts the drop event itself.
-function ExternalImportPreview({ x, y, format, destination }) {
-  const action = format === "file" ? "Upload file"
-    : format === "html" ? "Convert HTML → modules"
-    : "Convert text → modules";
+/**
+ * What the drag pill says — pure, so it can be tested without a drag.
+ *
+ * ── WHY THE WORDING CHANGED (intake audit, finding 1) ──────────────────────
+ *
+ * The pill used to read "Convert HTML → modules": it ANNOUNCED a decision the
+ * app had already made and offered no choice. That was the audit's headline
+ * complaint — the same file dropped two feet apart became two different things
+ * and the user was never told why.
+ *
+ * Intake asks now, so the old wording is actively wrong: it names an outcome
+ * that is merely PRE-SELECTED. The pill states the destination (which IS known
+ * at dragover) and that a choice is coming.
+ *
+ * **It deliberately does not name the shape.** `dataTransfer.files` is
+ * unreadable during dragover — browsers expose only `types` until the drop — so
+ * at this moment we know a file is coming but not whether it is a `.csv`, a
+ * `.md` or a photo, and those take different shapes. Naming one would be a
+ * guess presented as fact, which is the thing being fixed. The sheet names it a
+ * few milliseconds later, from the real payload.
+ */
+export function importPreviewLabel(format, destination) {
+  const action = format === "file" ? "Drop file"
+    : format === "html" ? "Drop content"
+    : "Drop text";
   const dest = destination
     ? (destination.kind === "cell"
         ? "→ new panel in this cell"
         : `→ into ${destination.label}`)
     : null;
+  return { action, dest, hint: "you'll pick what it becomes" };
+}
+
+function ExternalImportPreview({ x, y, format, destination }) {
+  const { action, dest, hint } = importPreviewLabel(format, destination);
   return (
     <div
       style={{
@@ -1431,6 +1457,7 @@ function ExternalImportPreview({ x, y, format, destination }) {
       {dest && (
         <span style={{ opacity: 0.7, fontWeight: 400 }}>{dest}</span>
       )}
+      <span style={{ opacity: 0.55, fontWeight: 400, fontStyle: "italic" }}>· {hint}</span>
     </div>
   );
 }

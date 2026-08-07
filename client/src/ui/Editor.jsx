@@ -84,6 +84,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import { classifyIntake } from "../helpers/intake";
 import { applyIntakeShape, filterToImplemented } from "../helpers/intakeApply";
 import { openIntakeSheet } from "./IntakeSheet";
+import { toast } from "sonner";
 import QuickAddMenu from "./QuickAddMenu.jsx";
 import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type, Plus, Shuffle } from "lucide-react";
 import { convertLeafRole } from "../helpers/convertOccurrence";
@@ -2317,6 +2318,21 @@ const Editor = forwardRef(function Editor({
           editor.chain().focus().insertContentAt(
             pos,
             placeholders.map(p => ({ type: "moduleEmbed", attrs: { occurrenceId: p.occurrenceId } })),
+          ).run();
+        },
+        // ── The .md / .csv shapes need the SAME placement seam ──────────
+        // The server appends an imported root to its parent's `occurrences[]`
+        // and nothing else. A doc container renders its TEXTMAP, so a tree
+        // imported into one would be present in the data and INVISIBLE on
+        // screen — the listed-but-not-embedded class this repo has repaired
+        // twice (CLAUDE.md 2026-08-01 (19)). Embedding it here is what makes
+        // these shapes legal inside a doc body at all.
+        onImportResult: (res) => {
+          if (!res?.ok) { toast.error(`Import failed: ${res?.error || "unknown error"}`); return; }
+          if (!res.rootOccurrenceId) return;
+          editor.chain().focus().insertContentAt(
+            pos,
+            { type: "moduleEmbed", attrs: { occurrenceId: res.rootOccurrenceId } },
           ).run();
         },
       };

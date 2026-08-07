@@ -10,6 +10,12 @@ the three write-path fixes it depends on were built while writing this guide. §
 are researched recommendations; each names what to verify on your own account before building it.
 §7 is speculative on purpose.
 
+**Revised 2026-08-07** to make phone-side capture a first-class route rather than an aside.
+Facebook, Instagram and SMS have no usable API between them; **Tasker reading the notification
+stream is their live path**, and it also reaches a dozen things — call log, geofences, NFC tags,
+app usage — that no cloud service can see. See §3 *Which producer for which source*, §4
+*Notification capture*, and the friend-export parse under *People profiles*.
+
 ---
 
 ## 0. Use `POST /api/v1/ingest`
@@ -241,6 +247,56 @@ Either way the relay stays trivial now, because dedupe, parent linking, and modu
 server-side in `/ingest` rather than in every producer. Its only job is authentication and mapping
 this source's payload shape onto `{ externalId, label, fields }`.
 
+### Getting Tasker to talk to the API
+
+Tasker (Android) posts JSON directly — no relay, no Pro tier, no header restriction. One `HTTP
+Request` action is the whole integration:
+
+```
+Action: HTTP Request
+  Method:  POST
+  URL:     https://viafluere.com/api/v1/ingest
+  Headers: Authorization: Bearer %MOD_TOKEN
+           Content-Type: application/json
+  Body:    {"gridId":"%MOD_GRID","source":"tasker-sms","externalId":"%eid",
+            "moduleLabel":"Message","parentId":"%MOD_MSG_PARENT",
+            "label":"%SMSRF","fields":{"<bodyFieldId>":{"value":"%SMSRB"}}}
+  Timeout: 30
+```
+
+Put `%MOD_TOKEN`, `%MOD_GRID` and the parent ids in **global variables** (set once in a
+`Tasker Start` profile or by hand), never inline in each task — you will have a dozen of these and
+rotating a token should be one edit.
+
+Three things that are not optional:
+
+- **Retry on failure.** Tasker fires whether or not the phone has signal. Wrap the HTTP Request in
+  an `If %http_response_code !~ 2*` → `Wait 30` → retry, or queue to a file and drain on
+  connectivity. `/ingest` is idempotent on `(source, externalId)`, so a retry is free **provided
+  the id is stable** — see below.
+- **A stable `externalId`, derived deterministically.** This is where a notification pipe goes
+  wrong. A push notification carries no id you can trust, so you build one and it must come out the
+  same on a retry: `sha1(package + title + text + yyyy-mm-dd-hh-mm)`. Minute granularity is the
+  right trade — it collapses the retry and the duplicate re-post of the same alert, while two
+  genuinely different messages in the same minute differ in `text`.
+- **One `source` per producer**, not one for all of Tasker. `tasker-sms`, `tasker-ig-dm`,
+  `tasker-fb-friend-request`. Dedupe is scoped to `(source, externalId)`, and you will eventually
+  want to replay or purge exactly one of these.
+
+### Which producer for which source
+
+The line is **where the data actually lives**, and it decides itself:
+
+| The data lives… | Use | Because |
+|---|---|---|
+| In a cloud service with a trigger | **IFTTT** (or a direct API poll) | Nothing phone-side is involved; it fires with your phone off. Spotify, YouTube, Google Calendar, GitHub, weather, RSS. |
+| Only on the phone | **Tasker** | There is no API to poll. Notifications, SMS, call log, app usage, screen/Bluetooth/NFC/wifi context, battery, steps. |
+| In a service whose IFTTT trigger was retired | **Tasker** | Android SMS and Facebook personal profiles both died this way. The phone still sees them. |
+| In a service with a real API and no urgency | **a poller on the droplet** | No third party, no per-applet limits, full control over what becomes an occurrence. Raindrop, Spotify, YouTube RSS. |
+
+**Prefer a poller over IFTTT where both work.** IFTTT is a dependency that can retire a service
+under you — it has, twice, on sources in this document.
+
 ---
 
 ## 4. Source by source
@@ -249,14 +305,15 @@ Verdict legend: **✅ solid** · **⚠️ workable with effort** · **❌ no liv
 
 | Source | Live | Backfill | Verdict |
 |---|---|---|---|
-| SMS / text | Phone automation → relay | SMS Backup & Restore XML | ⚠️ |
+| SMS / text | **Tasker** SMS trigger → `/ingest` | SMS Backup & Restore XML | ✅ |
 | Email | Gmail API or forward-to-relay | Google Takeout (mbox) | ✅ |
-| FB Messenger | none | Facebook DYI export (JSON) | ❌ |
-| Instagram DMs | none | Instagram data download | ❌ |
+| FB Messenger | **Tasker** notification capture | Facebook DYI export (JSON) | ⚠️ |
+| Instagram DMs | **Tasker** notification capture | Instagram data download | ⚠️ |
+| FB / IG friend requests | **Tasker** notification capture | — (accepted ones land in the friends export) | ⚠️ |
 | Spotify (plays) | Web API poll / IFTTT | Extended streaming history export | ✅ |
 | YouTube | RSS per channel / IFTTT | Takeout (watch + like history) | ✅ |
-| Facebook (social) | none (personal profiles) | DYI export | ❌ |
-| People profiles | none | FB friends + IG following JSON | ❌ |
+| Facebook (social) | none via API; **Tasker** for anything that notifies | DYI export | ⚠️ |
+| People profiles | none | FB friends + IG following JSON | ✅ |
 | Banks (UWCU, Landmark) | SimpleFIN / Plaid | OFX/QFX/CSV download | ⚠️ |
 | Grocery (Woodman's) | none | — (Moduli is the source of truth) | ❌ |
 | Plex | Plex Pass webhooks | Tautulli history export | ✅ |
@@ -266,14 +323,25 @@ Verdict legend: **✅ solid** · **⚠️ workable with effort** · **❌ no liv
 
 ### Messages
 
-**SMS/text.** IFTTT's Android SMS trigger was retired years ago; don't plan around it. The working
-route is a phone-side automation app — **MacroDroid** or **Tasker** on Android — with an
-"SMS received" trigger and an HTTP POST action pointed at your relay. That's genuinely live and
-gives you sender, body, and timestamp. For history, **SMS Backup & Restore** exports XML you can
-parse in one pass.
+**SMS/text.** IFTTT's Android SMS trigger was retired years ago; don't plan around it. **Tasker**
+is the route, and it needs no notification listener — Tasker has a first-class `Received Text`
+event giving you `%SMSRF` (sender), `%SMSRB` (body), `%SMSRD`/`%SMSRT` (date/time) directly. That
+is cleaner than reading the SMS notification, so read the event, not the notification.
+
+```
+Profile: Event → Phone → Received Text (Type: SMS)
+Task:    Variable Set  %eid  to  %SMSRF-%SMSRD-%SMSRT   (then hash it if you prefer)
+         HTTP Request  → /api/v1/ingest   (source: "tasker-sms")
+```
+
+For history, **SMS Backup & Restore** exports XML you can parse in one pass — one `<sms>` element
+per message with `address`, `date` (epoch ms), `type` (1 = received, 2 = sent) and `body`. Use
+`address + date` as the `externalId` so the backfill and the live pipe converge on the same rows
+instead of duplicating the overlap.
 
 *Privacy note:* this puts message bodies in your database. Consider ingesting metadata only
-(sender, timestamp, length) unless you specifically want searchable content.
+(sender, timestamp, length) unless you specifically want searchable content — and note that the
+decision is per-source, so you can keep SMS bodies and drop DM bodies, or the reverse.
 
 **Email.** Two good options. The lightweight one: a Gmail filter that forwards matching mail to a
 dedicated address your relay reads (or IFTTT's Email service trigger address). The robust one: a
@@ -285,16 +353,23 @@ confirmations, bills, shipping notices — and let those become typed occurrence
 the ingestion path for MyChart appointments and utility bills below.
 
 **Facebook Messenger and Instagram DMs.** No API exists for personal message access on either
-platform, and none is coming. **Backfill only**, via the official data exports (Facebook: Settings →
-Your Facebook Information → Download Your Information, choose JSON; Instagram: Download Your
-Information). Both produce per-thread JSON. Treat these as a one-time archive import, not a pipe.
+platform, and none is coming — so the *content* is backfill only, via the official data exports
+(Facebook: Settings → Your Facebook Information → Download Your Information, choose JSON;
+Instagram: Download Your Information). Both produce per-thread JSON: a one-time archive import.
+
+**But the event is live, via the notification.** A new DM raises a push notification that names the
+sender and carries a preview of the body, and Tasker can read it. That is enough for "who
+contacted me and when", which is the thing a Social/Connection tracker actually wants — the full
+thread text is the archive's job. See **Notification capture** below; it is the same mechanism that
+covers friend requests, and it is the only live path either platform has.
 
 ### Socials
 
-Worth naming the mismatch up front: **none of these platforms expose "notifications."** What you
-can get are *events* — a track you saved, a video you liked, a video a subscription posted. If what
-you want is genuinely the notification stream, the only route is phone-side notification capture
-(MacroDroid's "notification received" trigger), which works but is noisy.
+Worth naming the mismatch up front: **none of these platforms expose "notifications" over an API.**
+What their APIs give you are *events* — a track you saved, a video you liked, a video a
+subscription posted. The notification stream itself only exists on the phone, so that is where you
+take it from. **This is a real route, not a fallback** — for Facebook and Instagram it is the only
+live route there is, and it is what the next section is about.
 
 **Spotify.** Solid. The Web API's `/me/player/recently-played` returns your last 50 plays (24h
 window), and `/me/tracks` returns saved tracks. Poll every 30 minutes with a refresh token. IFTTT's
@@ -309,17 +384,150 @@ API key, no quota, no IFTTT. For your own activity (likes, watch history), IFTTT
 has triggers, and Google Takeout has the full history.
 
 **Facebook.** Personal profile triggers were removed from IFTTT in 2018 when Facebook locked down
-its Graph API; only Pages work now. If you don't run a Page, there is no live path. Backfill only.
+its Graph API; only Pages work now. If you don't run a Page there is no *API* path — the live path
+is the phone.
+
+### Notification capture (Tasker) — the live route for FB, IG and anything else with no API
+
+This is the one route that reaches sources nothing else can. The phone already receives an event
+for every new message, friend request, mention and reaction; a notification listener reads it, and
+Tasker POSTs it to `/ingest`. **Cost: it is noisy, and the noise is the whole engineering problem.**
+Solve it once here rather than per-profile.
+
+**Use AutoNotification** (Tasker plugin) rather than Tasker's built-in notification event — it
+exposes the fields you need (`%antitle`, `%antext`, `%anapp`, `%anpackage`, `%ansubtext`) and, more
+importantly, filters *before* the task runs, so a hundred junk notifications a day never wake a
+task. **Verify the variable names on your version before writing five profiles against them.**
+
+**Step 0, before writing any profile: capture what actually arrives.** Make one throwaway profile
+that logs every notification from the four packages to a file for a day. FB and Instagram reword
+their notification strings regularly, and matching on a string you guessed instead of one you
+observed is how this pipe silently stops. This is the same rule the rest of this repo runs on —
+measure the claim before writing the fix.
+
+The packages:
+
+| Source | Package |
+|---|---|
+| Facebook | `com.facebook.katana` |
+| Messenger | `com.facebook.orca` |
+| Instagram | `com.instagram.android` |
+| Google Messages (SMS) | `com.google.android.apps.messaging` |
+
+#### The four filters that make it usable
+
+Apply all of them. Each one exists because of a specific way the stream lies to you:
+
+1. **Drop group summaries.** Android posts a *summary* notification alongside the individual ones
+   ("3 new messages"). Ingest it and you get a phantom row whose "sender" is a count. Filter on
+   the group-summary flag — AutoNotification can exclude these directly.
+2. **Drop `ongoing` notifications.** Foreground services (uploads, calls, media) post persistent
+   rows that re-fire on every update. Nothing ongoing is an event.
+3. **Package allowlist, then title/text discriminator.** `com.facebook.katana` posts friend
+   requests, likes, comments, memories, birthday reminders, and "you have new notifications"
+   digests through the same channel. The package narrows it to Facebook; only the text tells you
+   *which*. Match on the observed phrasing from step 0 — a friend request reads
+   `"<Name> sent you a friend request"`; the digest form (`"You have N new notifications"`) is the
+   one to reject, because it carries no name and would ingest as an unnamed person.
+4. **Deduplicate at the id, not the filter.** An app may re-post the same notification when you
+   glance at it. The derived `externalId` (§3, `sha1(package + title + text + minute)`) makes that
+   a no-op at `/ingest` rather than something the profile has to reason about. This is why the id
+   derivation is not optional.
+
+#### Friend requests and messages are two different things
+
+They arrive through the same listener and they must not land in the same place:
+
+- **A friend request is person-shaped.** The only payload is a name, and what you want from it is
+  a People row (or a link to the one that exists). Send it with `moduleLabel: "Friend Request"`
+  into its own container, carrying the name and the platform — then let an in-app operation decide
+  whether it matches someone in People. **Do not have Tasker create the person.** The phone cannot
+  tell "Mike Anderson" from the Mike Anderson you already have, and a producer that mints People
+  rows will fill that board with near-duplicates within a month.
+- **A message is a contact event on a person who may already exist.** `moduleLabel: "Message"`,
+  fields for platform, sender name, timestamp, and body-or-not per your privacy call. Same rule:
+  the sender is a *string* at ingest time; resolving it to a People occurrence is the app's job,
+  where the dropdown and the existing occurrence-matching already live.
+
+**Where unresolved ones go.** Both cases produce rows naming a person Moduli may not know. `/ingest`
+fails a record with a bad `parentId` rather than creating an orphan, so give each source a real
+container that exists — an **Inbox** container is the right destination for anything unmatched
+(§7 argues for one generally; this is the source that makes it necessary rather than nice).
+
+#### What else Tasker reaches that IFTTT cannot
+
+Worth knowing while you are already in there — all of these are phone-only, so there is no other
+route to them at all:
+
+- **Call log** — inbound/outbound/missed, with number and duration. This is the honest input for a
+  Phone Calls / Connection tracker, which is currently hand-entered.
+- **App usage / screen time**, and **screen on-off events** — real numbers for a focus or
+  screen-time tracker instead of a guess.
+- **Location arrive/leave** by geofence, wifi SSID, or Bluetooth connect. "Arrived at gym" is a
+  workout occurrence with no button pressed; "car Bluetooth connected" is a commute.
+- **NFC tags** — the cheapest possible physical button. A tag on the fridge logs water; a tag by
+  the door logs a walk. This is the one that makes hand-entry disappear.
+- **Battery, charging state, step count**, and any sensor the phone exposes.
+- **Media playing** — what is on right now, including apps with no API at all.
+
+Each is the same `HTTP Request` action with a different trigger; the endpoint does not change.
 
 ### People profiles
 
 No API on either platform. Your Facebook DYI export includes a friends list; Instagram's export
-includes following/followers. Both are flat JSON — easy to map onto the **existing People board**
+includes following/followers. Both are flat JSON — they map onto the **existing People board**
 (`boardCategory: "person"`), which already exists in the seed with 10 person occurrences and is
 already bound by the Meet/Visit/Host actions and the Event board's People field.
 
+**Where the files are.** Request JSON, not HTML, from both.
+
+| Platform | Path in the export | Shape |
+|---|---|---|
+| Facebook | `friends_and_followers/your_friends.json` (older exports: `friends/friends.json`) | `{ "friends_v2": [ { "name": "...", "timestamp": 1590000000 } ] }` |
+| Instagram | `followers_and_following/following.json` | `{ "relationships_following": [ { "string_list_data": [ { "value": "<handle>", "href": "...", "timestamp": … } ] } ] }` |
+| Instagram | `followers_and_following/followers_1.json` (may be `_1`, `_2`, … — glob it) | same `string_list_data` shape, top-level array |
+
+**The trap: Facebook's JSON is mojibake, and it is not your parser's fault.** The export writes
+UTF-8 bytes escaped as if they were latin-1, so `José` arrives as `JosÃ©` and every emoji arrives
+as three garbage characters. Import it raw and a few percent of your roster is permanently wrong
+in a way that is tedious to find later. Repair each string on the way in:
+
+```js
+const fixMojibake = (s) =>
+  Buffer.from(s, "latin1").toString("utf8");   // "JosÃ©" -> "José"
+```
+
+Apply it to names only, verify on a name you know has an accent, and **do not** apply it to
+Instagram's export — Instagram encodes correctly, and running the repair over clean UTF-8 corrupts
+it. One of the two needs it; check both against a known name before the full run.
+
+**Ingesting the roster.** One `/ingest` batch per platform (200 records max per call, so chunk it):
+
+```json
+{ "gridId": "…", "source": "facebook-friends", "parentId": "<People board occ id>",
+  "moduleLabel": "Person", "onExisting": "skip",
+  "records": [
+    { "externalId": "fb:jose-garcia", "label": "José García",
+      "fields": { "<platformFieldId>": { "value": "Facebook" } } }
+  ] }
+```
+
+- **`externalId`**: use the platform's own id where the export gives you one; otherwise a
+  normalized name (`fb:` + lowercased, accent-stripped, hyphenated). It only has to be stable
+  across *your own* re-runs, which is what makes `onExisting: "skip"` correct — re-export in six
+  months and only the new friends land.
+- **A person on both platforms is two source rows and should be one People occurrence.** Dedupe by
+  name in the app after both imports, not in the importer — Instagram gives you a *handle*, not a
+  name, so the two sides frequently cannot be matched automatically. Import both, merge by hand
+  for the people you actually track.
+- **Several hundred rows is a migration-sized write.** Dry-run it: parse, print the count and the
+  first and last twenty names, and check that against what you expect to see before pointing it at
+  `poms grid`. The 0035 lesson applies here exactly — a selector or parse that "looks right" at
+  the count level has moved real data before in this repo.
+
 Photos and richer profile detail are manual. This is a one-time import that gives you the roster;
-you enrich the people you actually track.
+you enrich the people you actually track. Friend *requests* arriving live (above) land against this
+same board, which is what makes the roster worth having early.
 
 ### Bank accounts (UWCU, Landmark)
 
@@ -524,6 +732,12 @@ the screen disagrees. Look at the screen.
 
 Ordered by value-per-hour-of-work.
 
+**Tasker re-prices several of these.** Anything below that reads as "moderate effort" because it
+needs a phone-side exporter is now a trigger and one HTTP action: steps, screen time, location
+arrive/leave, media playing, call log. Once the notification pipe exists, the marginal cost of the
+next phone-sourced thing is about ten minutes — so weigh these by *whether you want the number*,
+not by effort.
+
 ### Tier 1 — high value, low effort, and you already have the trackers
 
 - **Calendar (Google/Apple).** The universal appointment spine. One integration serves MyChart,
@@ -589,12 +803,24 @@ Ordered by value-per-hour-of-work.
    18 tests in `server/__tests__/apiIngest.test.js`. Every source is now a mapping config rather
    than a bespoke script. **Deploy this before building any pipe on top of it.**
 2. **Raindrop**, end to end, as the proving ground. Clean API, low stakes, fast feedback.
-3. **Calendar**, which unlocks MyChart and everything future.
-4. **Banks**, via CSV first — highest value, and the modeling is already built.
-5. **Plex**, via native webhooks — nearly free once the relay exists.
-6. **Spotify**, plus request the extended history export *today* so it's ready when you are.
-7. **Data Health tiles**, before you have enough pipes to lose track of one.
-8. Everything else as the appetite strikes.
+3. **Tasker → SMS**, as the phone-side proving ground. It uses the `Received Text` event rather
+   than a notification listener, so it exercises the token, the retry, and the `externalId`
+   derivation with none of the notification noise in the way. Get this one right and every other
+   Tasker profile is a copy of it.
+4. **The Inbox container**, before the notification pipes — it is where anything unresolved lands,
+   and building it after means the first week of friend requests has nowhere to go.
+5. **Tasker → notification capture** for FB / IG / Messenger. Spend the first day only *logging*
+   what arrives (step 0 above); write the filters against what you observed.
+6. **The friend-export import**, once People is where you want it. It is a one-shot, it takes an
+   hour, and it makes every message and friend-request row that follows resolvable to a person.
+7. **Calendar**, which unlocks MyChart and everything future.
+8. **Banks**, via CSV first — highest value, and the modeling is already built.
+9. **Plex**, via native webhooks — nearly free once the relay exists.
+10. **Spotify**, plus request the extended history export *today* so it's ready when you are.
+11. **Data Health tiles**, before you have enough pipes to lose track of one. A notification pipe
+    dies silently the first time Android revokes the listener permission after an update, and this
+    is the only thing that will tell you.
+12. Everything else as the appetite strikes.
 
 Requests to fire off now, since they take days to arrive: **Spotify extended streaming history**,
 **Facebook DYI export**, **Instagram data download**, **Google Takeout**.

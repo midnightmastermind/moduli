@@ -1580,6 +1580,21 @@ export function handleFileDrop(dropContext, ctx) {
     persist: (p) => finalContainerOcc
       ? { parentId: finalContainerOcc.id }
       : (canvasPos ? { parentId: pageOccId, meta: p.occurrence.meta } : null),
+    // The .md / .csv shapes hand the file's CONTENT to the server importer
+    // instead of uploading it, so their outcome arrives asynchronously and has
+    // to be reported. A failure here is not hypothetical — an unreadable file
+    // or a one-column CSV both land here, and both must say so rather than
+    // leaving the user looking at a drop that appeared to do nothing.
+    onImportResult: (res) => {
+      if (!res?.ok) { toast.error(`Import failed: ${res?.error || "unknown error"}`); return; }
+      const s = res.stats || {};
+      const bits = [];
+      if (s.containers) bits.push(`${s.containers} container${s.containers === 1 ? "" : "s"}`);
+      if (s.instances) bits.push(`${s.instances} item${s.instances === 1 ? "" : "s"}`);
+      if (s.textblocks) bits.push(`${s.textblocks} text block${s.textblocks === 1 ? "" : "s"}`);
+      toast.success(`Imported (${bits.join(" · ") || "no content"})`);
+      if (res.rootOccurrenceId) setTimeout(() => jumpToOccurrence(res.rootOccurrenceId), 200);
+    },
   };
 
   // ── ASK what this should become ───────────────────────────────────
@@ -1733,6 +1748,12 @@ export function handleExternalDrop(dropContext, ctx) {
       payload: classification.payload,
       destination: { parentId: containerOcc?.id || null },
       gridId, socket, onLegacyLink: runLegacyLink,
+      // The chip shape mints a real occurrence at the drop point, so it needs
+      // the same destination + index the legacy card path resolves.
+      userId: state?.userId, dispatch,
+      destinationOccurrence: containerOcc || null,
+      insertIndex: dropTarget.context?.insertAt
+        ?? resolveNearestIndex(containerOcc, occurrencesById, y),
       onImportResult: (res) => {
         if (res?.ok) {
           toast.success("Page imported");

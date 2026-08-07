@@ -47,8 +47,11 @@ describe("coverage contract", () => {
     // Step 1 is behaviour-preserving: only today's shapes are wired. This is a
     // deliberate, recorded gap — Task 5 lands the rest.
     expect(notImplemented).toContain(INTAKE_SHAPES.IMAGE_CANVAS.id);
-    expect(notImplemented).toContain(INTAKE_SHAPES.LINK_CHIP.id);
+    expect(notImplemented).toContain(INTAKE_SHAPES.LINK_BOOKMARK.id);
     expect(implemented).toContain(INTAKE_SHAPES.FILE_ARTIFACT.id);
+    // Landed in Task 5: the link chip and the two file-content shapes.
+    expect(implemented).toContain(INTAKE_SHAPES.LINK_CHIP.id);
+    expect(implemented).toContain(INTAKE_SHAPES.FILE_MARKDOWN_IMPORT.id);
   });
 });
 
@@ -149,5 +152,178 @@ describe("applyIntakeShape — routes reach the EXISTING helpers unchanged", () 
     expect(createArtifactPlaceholders).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+// ── Task 5 ★: the file-CONTENT shapes ───────────────────────────────────────
+//
+// These are the only routes that read the dropped file, which makes them the
+// only asynchronous ones. What is worth pinning here is not the conversion
+// (csvToTable owns that, with its own tests) but the three things the ROUTER is
+// responsible for: it emits with the right format and parent, it names the root
+// after the FILE, and it reports every failure instead of going quiet.
+describe("file-content shapes (.md / .csv)", () => {
+  const fileOf = (name, text) => ({ name, text: () => Promise.resolve(text) });
+  const socketOf = () => ({ emit: vi.fn(), on: vi.fn(), off: vi.fn() });
+
+  it("a .md file is imported as markdown, rooted at the destination", async () => {
+    const socket = socketOf();
+    await applyIntakeShape(INTAKE_SHAPES.FILE_MARKDOWN_IMPORT.id, {
+      files: [fileOf("Weekly plan.md", "# Heading\n\nSome prose.")],
+      gridId: "g1", socket, destinationOccurrence: { id: "cont-9" },
+    }).run;
+    await Promise.resolve(); await Promise.resolve();
+    expect(socket.emit).toHaveBeenCalledTimes(1);
+    const [event, body] = socket.emit.mock.calls[0];
+    expect(event).toBe("import_text");
+    expect(body).toMatchObject({ gridId: "g1", format: "markdown", parentId: "cont-9" });
+    expect(body.content).toContain("# Heading");
+    // The root is named after the FILE, not after its first heading — otherwise
+    // a dropped file arrives under a name that has nothing to do with it.
+    expect(body.title).toBe("Weekly plan");
+  });
+
+  it("a .csv file is converted to a pipe table before it is sent", async () => {
+    const socket = socketOf();
+    applyIntakeShape(INTAKE_SHAPES.FILE_CSV_TABLE.id, {
+      files: [fileOf("rows.csv", "name,qty\nApples,3")],
+      gridId: "g1", socket, destination: { parentId: "p1" },
+    });
+    await Promise.resolve(); await Promise.resolve();
+    const [, body] = socket.emit.mock.calls[0];
+    // markdown, not "csv" — the server has no CSV path; buildTable reads a pipe
+    // table, and that is deliberately the whole conversion (see csvToTable.js).
+    expect(body.format).toBe("markdown");
+    expect(body.content).toBe("| name | qty |\n| --- | --- |\n| Apples | 3 |");
+  });
+
+  it("a one-column CSV FAILS OUT LOUD instead of importing as prose", async () => {
+    const socket = socketOf();
+    const onImportResult = vi.fn();
+    applyIntakeShape(INTAKE_SHAPES.FILE_CSV_TABLE.id, {
+      files: [fileOf("list.csv", "just\none\ntwo")],
+      gridId: "g1", socket, onImportResult,
+    });
+    await Promise.resolve(); await Promise.resolve();
+    expect(socket.emit).not.toHaveBeenCalled();
+    expect(onImportResult).toHaveBeenCalledWith(
+      expect.objectContaining({ ok: false, error: expect.stringContaining("at least 2") }),
+    );
+  });
+
+  it("an empty .md writes nothing and reports it", async () => {
+    const socket = socketOf();
+    const onImportResult = vi.fn();
+    applyIntakeShape(INTAKE_SHAPES.FILE_MARKDOWN_IMPORT.id, {
+      files: [fileOf("blank.md", "   \n\n")], gridId: "g1", socket, onImportResult,
+    });
+    await Promise.resolve(); await Promise.resolve();
+    expect(socket.emit).not.toHaveBeenCalled();
+    expect(onImportResult).toHaveBeenCalledWith(expect.objectContaining({ ok: false }));
+  });
+
+  it("an unreadable file reports rather than throwing into the drop handler", async () => {
+    const socket = socketOf();
+    const onImportResult = vi.fn();
+    applyIntakeShape(INTAKE_SHAPES.FILE_MARKDOWN_IMPORT.id, {
+      files: [{ name: "x.md", text: () => Promise.reject(new Error("boom")) }],
+      gridId: "g1", socket, onImportResult,
+    });
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    expect(socket.emit).not.toHaveBeenCalled();
+    expect(onImportResult).toHaveBeenCalledWith(
+      expect.objectContaining({ ok: false, error: expect.stringContaining("x.md") }),
+    );
+  });
+
+  it("both shapes are now OFFERED — the sheet no longer hides them", () => {
+    // The classifier has always emitted these; until the router carried them,
+    // filterToImplemented stripped them back out.
+    const md = filterToImplemented(classifyIntake({ files: [{ name: "notes.md" }] }, {}));
+    expect(md.shapes.map((s) => s.id)).toContain(INTAKE_SHAPES.FILE_MARKDOWN_IMPORT.id);
+    expect(md.preselected).toBe(INTAKE_SHAPES.FILE_MARKDOWN_IMPORT.id);
+    const csv = filterToImplemented(classifyIntake({ files: [{ name: "rows.csv" }] }, {}));
+    expect(csv.shapes.map((s) => s.id)).toContain(INTAKE_SHAPES.FILE_CSV_TABLE.id);
+  });
+});
+
+// ── Task 5: the link chip ───────────────────────────────────────────────────
+//
+// The audit's headline finding was that a dropped link became a card labelled
+// with the raw URL. What matters here is not that SOMETHING is minted, but that
+// what's minted is the SAME thing an imported page's prose links are — carrying
+// `meta.link`, so Task 6's relink can find it and the two can never diverge.
+describe("the link-chip shape", () => {
+  const mkCtx = (over = {}) => ({
+    payload: { kind: "link", urls: ["https://en.wikipedia.org/wiki/The_Eminem_Show"] },
+    destinationOccurrence: { id: "cont-1", gridId: "g1" },
+    gridId: "g1", userId: "u1", dispatch: vi.fn(), socket: { emit: vi.fn() },
+    ...over,
+  });
+
+  it("mints a textblock carrying meta.link, not a card labelled with the URL", () => {
+    const ctx = mkCtx();
+    applyIntakeShape(INTAKE_SHAPES.LINK_CHIP.id, ctx);
+    const mods = ctx.dispatch.mock.calls
+      .map(([a]) => a?.payload?.module).filter(Boolean);
+    expect(mods.length).toBeGreaterThan(0);
+    const mod = mods.find((m) => m.role === "textblock");
+    expect(mod.meta).toEqual({ link: { kind: "url", url: "https://en.wikipedia.org/wiki/The_Eminem_Show" } });
+    expect(mod.label).toBe("The Eminem Show");
+  });
+
+  it("mints one chip PER url — a block of links is one payload, not one link", () => {
+    const ctx = mkCtx({ payload: { kind: "link", urls: ["https://a.com/one", "https://b.com/two"] } });
+    applyIntakeShape(INTAKE_SHAPES.LINK_CHIP.id, ctx);
+    const mods = ctx.dispatch.mock.calls
+      .map(([a]) => a?.payload?.module).filter((m) => m?.role === "textblock");
+    expect(mods.map((m) => m.label)).toEqual(["one", "two"]);
+  });
+
+  it("writes NOTHING when there is no destination to write into", () => {
+    const ctx = mkCtx({ destinationOccurrence: null });
+    applyIntakeShape(INTAKE_SHAPES.LINK_CHIP.id, ctx);
+    expect(ctx.dispatch).not.toHaveBeenCalled();
+  });
+
+  it("hands what it minted back so a doc can embed it", () => {
+    const onLinkChips = vi.fn();
+    applyIntakeShape(INTAKE_SHAPES.LINK_CHIP.id, mkCtx({ onLinkChips }));
+    expect(onLinkChips).toHaveBeenCalledWith([expect.objectContaining({ occurrenceId: expect.any(String) })]);
+  });
+});
+
+// Several links dropped together: ONE container of chips, not N loose rows.
+describe("the link-container shape", () => {
+  const ctx = () => ({
+    payload: { kind: "link", urls: ["https://a.com/one", "https://b.com/two"] },
+    destinationOccurrence: { id: "cont-1", gridId: "g1" },
+    gridId: "g1", userId: "u1", dispatch: vi.fn(), socket: { emit: vi.fn() },
+  });
+
+  it("mints ONE container and puts every chip inside it", () => {
+    const c = ctx();
+    applyIntakeShape(INTAKE_SHAPES.LINK_CONTAINER.id, c);
+    const mods = c.dispatch.mock.calls.map(([a]) => a?.payload?.module).filter(Boolean);
+    const containers = mods.filter((m) => m.role === "container");
+    const chips = mods.filter((m) => m.role === "textblock");
+    expect(containers).toHaveLength(1);
+    expect(chips.map((m) => m.label)).toEqual(["one", "two"]);
+    // and the chips carry the link, same as a lone chip drop
+    expect(chips[0].meta.link).toEqual({ kind: "url", url: "https://a.com/one" });
+  });
+
+  it("names the container by how many links it holds", () => {
+    const c = ctx();
+    applyIntakeShape(INTAKE_SHAPES.LINK_CONTAINER.id, c);
+    const cont = c.dispatch.mock.calls.map(([a]) => a?.payload?.module).find((m) => m?.role === "container");
+    expect(cont.label).toBe("2 links");
+  });
+
+  it("writes NOTHING with no destination", () => {
+    const c = ctx();
+    c.destinationOccurrence = null;
+    applyIntakeShape(INTAKE_SHAPES.LINK_CONTAINER.id, c);
+    expect(c.dispatch).not.toHaveBeenCalled();
   });
 });

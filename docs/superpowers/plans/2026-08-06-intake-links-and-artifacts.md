@@ -556,12 +556,23 @@ branch.
 
 **Files:** `server/utils/filesFolder.js`, `protectedFolders.js`, migration, client twin.
 
-- [ ] **Step 1:** Server rule + tests, mirroring `templatesFolder.js` (including its guard: the
-      resolve returns null rather than writing somewhere else). Subfolders derived from
-      `mimeToKind` → Images / Video / Audio / Documents.
-- [ ] **Step 2: Decide the placement semantic per kind** (see the caveat above): copy-per-placement
-      for media, and a deliberate call for textmap-bearing (`markdown`) artifacts. **Write the
-      decision down in the module header** — the next person will hit this.
+- [x] **Step 1 ✅ DONE 2026-08-07 (17 tests).** `server/utils/filesFolder.js` mirrors
+      `templatesFolder.js` field for field, including the guard that matters: `resolveFilesFolderId`
+      returns **null rather than guessing** when a named folder sits outside Files, belongs to
+      another user, or the folder does not exist yet. A file written to the wrong folder is data
+      loss that presents as a missing file. Subfolders derive from the SAME `mimeToKind` the upload
+      path already uses — `code` and `markdown` both land in Documents, because splitting a `.md`
+      note from a `.js` file is a distinction no user would predict. A/B'd: weakening the
+      containment check to "accept any named folder" fails 3 tests, including the cycle guard.
+- [x] **Step 2 ✅ DECIDED 2026-08-07 — and it is per-KIND, written into the module header.**
+      `placementSemanticForKind` is the single source so a caller cannot quietly disagree:
+      - **MEDIA (image/video/audio/pdf/code) → COPY PER PLACEMENT.** One module, N occurrences; the
+        bytes are single-sourced by the sha256 dedup that already exists.
+      - **MARKDOWN → ONE OCCURRENCE, MULTI-PARENTED.** `textmap` lives on the OCCURRENCE, so two
+        occurrences of one markdown module carry two INDEPENDENT BODIES — you would edit the copy on
+        your day page and the one in Files would still show the old text, with nothing to explain
+        why. `CommitHelpers.createPageInContainer` already carries this warning verbatim, and the
+        Schedule's shared slots are the same pattern working correctly.
 - [ ] **Step 3:** Uploads home into the right subfolder AND place at the drop destination. Assert
       both edges in a real-DB test on **test grid 2**.
 - [ ] **Step 4:** Migration files existing artifacts. **Dry run first, report per grid and per
@@ -593,9 +604,19 @@ here, that plan consumes it.**
 
 Links and images first — they are the user's ask and they unlock the most.
 
-- [ ] **Link → chip / bookmark / page.** The page shape routes to `import_html`; the chip reuses
-      `buildInlineLink`'s shape exactly (do not mint a second link representation). The page shape
-      must fail **visibly** on a paywall or SPA and offer the chip instead of minting an empty page.
+- [x] **Link → chip ✅ DONE 2026-08-07 (11 + 4 tests).** `helpers/linkOccurrence.js` is the CLIENT
+      TWIN of the importer's `buildInlineLink` — same `meta.link` on both halves, same body text,
+      so a dropped link and an imported page's prose link are the same thing (which is what makes
+      Task 6's relink able to find both). **Twins must be kept in sync.** Two things the build
+      corrected: the non-inline kind is `"doc"`, not an invented `"block"` (`TextblockCard`
+      switches on `kind === "inline"`); and the shape helper mints NO ids or parentage — it routes
+      through `createTextblockInContainer` so the chip is born with the destination's filter
+      values, which a parallel mint path would have skipped.
+      **The preselection flipped**: a dropped link now defaults to the chip, with the plain card
+      still one keystroke away. `linkDropAsks.test.js` pinned the transitional
+      "preselect today's card" state and named this task as what changes it.
+- [ ] **Link → bookmark card / page.** The page shape routes to `import_html` and must fail
+      **visibly** on a paywall or SPA, offering the chip instead of minting an empty page.
 - [ ] **Image → canvas.** New canvas carrying the image; the drop point becomes its origin.
 - [ ] **Image → outline.** `imageTrace.js` pure first (tested on a synthetic bitmap: a black
       rectangle traces to 4 edges), then applied as strokes on their own layer with the photo
@@ -604,10 +625,23 @@ Links and images first — they are the user's ask and they unlock the most.
 - [ ] **Image → attach to this occurrence.** Append to its Files field; offer "and make it the
       main picture" in the same step. Only shown when the destination occurrence binds a Files
       field. **Depends on Task 4b.**
+- [x] **Many LINKS → one container ✅ DONE 2026-08-07 (3 tests).** A COMPOSITION, not a new path:
+      mint the container, then run the chip route into it. The classifier already pre-selected this
+      for a multi-link payload; `filterToImplemented` was re-pointing it at the plain chip.
+      `createContainerInContainer` flips the parent's `allowChildContainers` — without which the
+      renderer shows nothing (the 2026-07-31 "you got rid of my trackers" failure: data present,
+      flag missing, blank screen). The chips are NOT pre-stamped with the date: the container
+      carries it and they resolve through the cascade, per the standing rule.
 - [ ] **Many files → container / folder page.**
-- [ ] ★ **`.md` → import tree** and ★ **`.csv` → table container.** Both are routes to existing
-      code (`import_markdown`, `buildTable`); do these before the harder ones — they are the
-      cheapest real wins in the plan.
+- [x] ★ **`.md` → import tree** and ★ **`.csv` → table container ✅ DONE 2026-08-07 (26 + 6 tests).**
+      Both route through the existing `import_text` importer; the CSV becomes a markdown pipe table
+      first (`helpers/csvToTable.js`), because `buildTable` already mints the real `kind:"table"`
+      container from one. **The constraint that is not obvious:** `parseBlocks` only detects a table
+      whose separator has TWO column groups, so a single-column CSV cannot be one — it fails out
+      loud instead of silently importing as prose.
+      **The doc arm had to embed the imported root**, or the tree would be listed in the parent's
+      `occurrences[]` and invisible (a doc renders its textmap) — the 2026-08-01 (19) failure class.
+      Root containers are named after the FILE, not their first heading or first column.
 - [ ] ★ **Board option** (link dropped on an option board) via `addNewOption.js`.
 - [ ] ★ **Photo → checklist** and ★ **text → checklist**: OCR/split into instances binding
       Completed.
@@ -622,13 +656,56 @@ chip on the Eminem page still opens Wikipedia. `TextblockCard` already renders
 `meta.link.kind === "occurrence"` as an in-app jump, so the target shape exists; only the
 conversion is missing.
 
-- [ ] **Step 1:** `collectLinkChips` / `relinkLinkChips` — pure, tested. A chip whose URL matches an
-      imported title is rewritten to `{kind:"occurrence", occId}`; an unimported one stays
-      **byte-identical**; an already-converted chip is skipped. URL forms (`/wiki/X`, `#anchor`,
-      underscores, percent-encoding) resolve to one title. **Exact matches only — a wrong
-      resolution sends a link to the wrong page, which is worse than leaving it on the web.**
-- [ ] **Step 2:** Report against REAL data (read-only): how many chips on the existing Eminem
-      import would resolve today.
+- [x] **Step 1 ✅ DONE 2026-08-07 (19 tests).** `collectLinkChips` / `relinkLinkChips` in
+      `services/importRelink.js` — the chip half beside the existing mark half. Every URL form
+      converges on one title (absolute, any language subdomain, site-relative `/wiki/X`, `#anchor`,
+      `?query`, underscores, percent-encoding); `wikiTitleFromHref` was widened to accept the
+      relative form older imports carry.
+      **Exact matches only, A/B-verified:** replacing the lookup with a prefix fallback — the
+      "looks reasonable" version — fails the discriminating test, because `Dr._Dre_discography` is
+      a different article and resolving it to Dr. Dre sends the reader somewhere they never asked
+      to go.
+      Three refusals are pinned as tests: an unimported chip is ABSENT from the result (so a caller
+      cannot rewrite it to a byte-identical value and bump `updatedAt`), an already-converted chip
+      is skipped (second run is a no-op, a hand-repointed link is never clobbered), and a chip that
+      resolves to ITSELF is refused — that is a loop, not a link. `meta` is MERGED, never replaced.
+- [x] **Step 2 ✅ MEASURED 2026-08-07 — AND THE ANSWER IS: DO NOT RUN THE MIGRATION.**
+      Read-only against poms grid (2622 occurrences):
+      ```
+      link chips total     709   (all 709 wiki-shaped, 0 non-wiki)
+      candidate targets    247   (162 ambiguous labels skipped)
+      WOULD RELINK          10   ← 1.4%
+      would stay external  699
+      ```
+      **All 10 are FALSE POSITIVES.** Resolved each to its root: `Shady Records` and `Shade 45` are
+      `kind:"doc"` containers at **depth 2 inside the Eminem page** — SECTION HEADINGS, not imported
+      articles — and the third is `Eminem → Eminem`, the page linking to itself. Relinking those
+      would send a reader who clicked "Shady Records" to a heading inside the Eminem article
+      instead of out to the real one: exactly the "a wrong resolution is worse than leaving it on
+      the web" failure the Step 1 helper refuses by design.
+      **Root cause: only ONE article has ever been imported.** The relink feature exists for BATCH
+      imports where several articles cross-link; with a single import there is nothing to link to.
+      **The migration is not worth running and should not be, until a batch import happens.**
+      **A defect this exposed in the REPORT itself:** keying the title map on every container/page
+      label is far too loose — 162 labels were already ambiguous. A correct migration must key on
+      IMPORT ROOTS only (depth 0), never on any container that happens to share a name.
+      **RE-RUN WITH THE CORRECT SELECTOR (dry run, 2026-08-07):**
+      ```
+      import roots      80    link chips 709
+      WOULD RELINK       1    ← and it is  "Eminem" -> Eminem
+      stay external    708
+      ```
+      **So the migration is a verified NO-OP and no file was written for it.** Its single write
+      would repoint a link inside the Eminem page at the Eminem page — a jump to the top of what
+      you are already reading. Not harmful; not worth a permanent entry in the migration ledger.
+      **★ THE BETTER WIN, user-confirmed 2026-08-07 — relink AT CONVERT TIME, not by migration.**
+      When a chip is turned into a page by right-click "Convert to page", BOTH ENDS ARE KNOWN AT
+      THAT MOMENT: the chip being converted and the page just minted. Repointing it there needs no
+      title matching, no selector, and no pass over existing data — the entire class of false
+      positive measured above cannot occur. Since the bulk harvest was retired in favour of
+      one-at-a-time conversion, this is the shape that actually fits how the user works.
+      **The precondition for the MIGRATION is a BATCH import.** Re-run this dry run after one; until then there is
+      nothing for the relink to do, and the Step 1 helpers are ready and tested for when there is.
 - [ ] **Step 3:** Harvest tool + confirm card + relink in the batch's tail. **Blocked on the three
       open questions.** Keep the 15-title cap and show the count.
 - [ ] **Step 4:** Migration for pages already imported — dry run and report before applying; this
@@ -637,8 +714,77 @@ conversion is missing.
 ### Task 7: Close the audit's loose ends
 
 - [ ] Empty-cell file drop uses the same Imports/Files treatment as text (finding 4).
-- [ ] The drag preview pill states the shape that will be used *and* that it can be changed.
+- [x] **The drag preview pill ✅ DONE 2026-08-07 (5 tests).** It used to read "Convert HTML →
+      modules" — announcing a decision already made, which is finding 1 verbatim. It now names the
+      DESTINATION (known at dragover) plus "you'll pick what it becomes".
+      **It deliberately does NOT name the shape:** `dataTransfer.files` is unreadable during
+      dragover (browsers expose only `types` until the drop), so we know a file is coming but not
+      whether it is a `.csv`, a `.md` or a photo — and those take different shapes now. Naming one
+      would be a guess presented as fact, which is the thing being fixed. `importPreviewLabel` is
+      exported and pure so the wording is testable without a drag.
 - [ ] Command Center Files tab reads the Files folder instead of scraping `modulesById` (finding 3).
+
+### Task 8: The OTHER intake — phone-side producers in the ingestion guide
+
+**User direction (2026-08-07):**
+> "add a task in there to update the intake guide to keep in mind ifttt, tasker, and push
+> notifications. im gonna use tasker to grab alot of data from push notifications. specifically i
+> want to get new friend requests and new messages from facebook and instagram and sms. and send it
+> to the app that way. im also downloading the facebook and instagram friend data so i can add those
+> to People library so im gonna need that in the guide to parse through it. keep tasker in mind for
+> other things that we cant do with ifttt"
+
+**Why this belongs in this plan and not beside it.** Tasks 1-7 answer *what we ask when something
+arrives by hand* — a drag, a paste, a drop. This is the same question for things that arrive with
+**nobody at the keyboard**: a producer POSTs to `/api/v1/ingest` and the row appears. The two halves
+share exactly one rule and it is the important one — **an occurrence that lands without being
+linked into its parent's `occurrences[]` is invisible**, which is what `/ingest` was built to
+guarantee and what every intake shape here has to honour too. Different surface, one invariant.
+
+**What it changes about the guide, which currently says the opposite.** `docs/data-ingestion-guide.md`
+§4 marks Facebook, Instagram and personal socials **❌ no live path — backfill only**, and files
+phone-side notification capture as a one-line aside ("works but is noisy"). For the three sources
+with no API at all — FB, IG, SMS — the user's route *is* the live path, and noise is a filter
+problem rather than a blocker. The verdicts change, so the routes have to be written properly
+rather than mentioned.
+
+- [ ] **Step 1: A first-class Tasker section**, not an aside. `AutoNotification`/notification-listener
+      trigger → `HTTP Request` action → `/api/v1/ingest`, with the profile shape written out per
+      source (Facebook, Instagram, Messenger, SMS). **The `externalId` choice is the load-bearing
+      part** and must be stated per source: a notification carries no stable id, so it has to be
+      derived (`sha1(package + title + text + minute)` or similar) or the same alert re-POSTed on a
+      retry mints a duplicate. `/ingest`'s dedupe is only as good as the key it is given.
+- [ ] **Step 2: Name the noise, with the filter.** A notification listener sees *everything* —
+      group summaries ("3 new notifications"), ongoing/foreground-service rows, updates that
+      re-fire the same alert, and the app's own "you have a new message" digest. List the
+      discriminators (`isGroupSummary`, `ongoing`, package allowlist, title regex) as the profile
+      condition, not as a caveat after the fact.
+- [ ] **Step 3: Friend requests vs messages are two different occurrence types.** A friend request
+      is a *person-shaped* event (it should be able to become a People row); a message is a
+      *contact* event on a person who may already exist. Say which module each maps to and which
+      fields, and state what happens when the person is unknown — the guide's own rule is that a
+      bad `parentId` fails the record rather than creating an orphan.
+- [ ] **Step 4: A Tasker-vs-IFTTT decision rule**, so the next source picks itself. The line is
+      *where the data lives*: IFTTT for anything already in a cloud service with a trigger
+      (Spotify, YouTube, Google Calendar, GitHub, weather, location); **Tasker for anything that
+      only ever exists on the phone** — notifications, SMS, call log, screen state, app usage,
+      Bluetooth/NFC/wifi context, battery, step count, and every "IFTTT retired that trigger" case.
+      Include the Tasker-only capabilities worth pulling that no IFTTT service can reach.
+- [ ] **Step 5: The friend-export parse, specified.** Facebook DYI (JSON) → `friends_and_followers/
+      friends.json`; Instagram → `followers_and_following/following.json` + `followers_1.json`.
+      **Both are mojibake by default** — Facebook's JSON export double-encodes UTF-8 (`Ã©`
+      for `é`), so a name has to be latin-1 → utf-8 repaired or every accented person imports
+      wrong. Map onto the EXISTING People board (`boardCategory: "person"`), one `/ingest` batch,
+      `externalId` = the platform's own id where present else a normalized name, `onExisting:"skip"`
+      so a second run after adding friends is additive. **Dry-run and report the count against a
+      named expectation before writing to poms grid** — the standing migration rule applies to an
+      import of several hundred rows just as much as to a migration.
+- [ ] **Step 6:** Update the §4 verdict table (FB/IG/SMS ❌→⚠️ live-via-Tasker), the §0 "what NOT to
+      use" note if a notification producer changes it, and the §8 build order.
+
+**Not in scope here:** building the Tasker profiles (they live on the phone) or a relay. The
+endpoint already exists and is deployed; this task makes the guide correct and specific enough to
+follow without re-deriving any of it.
 
 ---
 

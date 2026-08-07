@@ -11,7 +11,10 @@
 // that were NOT imported stay as ordinary external link marks.
 // ============================================================
 
-const WIKI_HREF_RX = /^https?:\/\/en\.wikipedia\.org\/wiki\/([^#?]+)/i;
+// Absolute (any language subdomain) OR the site-relative form older imports carry.
+// The `[^#?]+` stops at an anchor or query, so `/wiki/Dr._Dre#Career` and
+// `/wiki/Dr._Dre?action=raw` both resolve to the same title — one page, one link.
+const WIKI_HREF_RX = /^(?:https?:\/\/[a-z0-9-]+\.wikipedia\.org)?\/wiki\/([^#?]+)/i;
 
 // "https://en.wikipedia.org/wiki/Dr._Dre#Career" → "Dr. Dre" (null if not a wiki href).
 export function wikiTitleFromHref(href) {
@@ -69,4 +72,84 @@ export function relinkOccurrences(occurrences, titleToOccId) {
     if (changed) out.push({ id: occ.id, textmap });
   }
   return out;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// LINK CHIPS — the half that reaches TODAY'S imports (Task 6)
+// ════════════════════════════════════════════════════════════════════════════
+//
+// `relinkTextmap` above rewrites inline link MARKS. Since 2026-06-06 the
+// importer no longer emits those for prose: each link is its own
+// `role:"textblock" kind:"inline"` OCCURRENCE carrying `meta.link`, embedded via
+// an `instanceTextblockInline` node (see markdownImporter.buildInlineLink). So
+// **the mark-based relink never touches anything imported today** — which is why
+// every chip on the existing Eminem page still opens wikipedia.org.
+//
+// The target shape already exists: `TextblockCard` renders
+// `meta.link.kind === "occurrence"` as an in-app jump. Only the conversion was
+// missing, and it is a change to the OCCURRENCE, not to any textmap.
+//
+// ── THE RULE THAT MATTERS: EXACT MATCHES ONLY ───────────────────────────────
+//
+// A chip is rewritten only when its URL resolves to a title that is a KEY in the
+// map. No fuzzy matching, no prefix matching, no "closest article". **A wrong
+// resolution sends the reader to the wrong page, which is worse than leaving the
+// link on the web** — the failure is silent and looks like the app lying.
+
+const isUrlChipLink = (link) => !!link && link.kind === "url" && typeof link.url === "string";
+
+/**
+ * The link chips among a set of occurrences — those carrying a `meta.link`
+ * that still points OUT at a URL.
+ *
+ * An already-converted chip (`kind: "occurrence"`) is deliberately excluded, so
+ * running this twice is a no-op and a hand-repointed link is never clobbered.
+ */
+export function collectLinkChips(occurrences) {
+  const out = [];
+  for (const occ of occurrences || []) {
+    const link = occ?.meta?.link;
+    if (!isUrlChipLink(link)) continue;
+    out.push({ id: occ.id, url: link.url, title: wikiTitleFromHref(link.url) });
+  }
+  return out;
+}
+
+/**
+ * Which chips should become in-app jumps, and what their new `meta.link` is.
+ *
+ * Returns only the occurrences that CHANGE — an unimported chip is absent from
+ * the result entirely, so a caller that persists this list cannot accidentally
+ * rewrite one to a byte-identical value and bump its `updatedAt`.
+ *
+ * @param {Array} occurrences  raw occurrences (the chips are found among them)
+ * @param {Map|Object} titleToOccId  article title → the occurrence to jump to
+ * @returns {{ changes: Array<{id, meta}>, matched: number, unmatched: number,
+ *             skippedNonWiki: number }}
+ */
+export function relinkLinkChips(occurrences, titleToOccId) {
+  const map = titleToOccId instanceof Map
+    ? new Map([...titleToOccId].map(([k, v]) => [norm(k), v]))
+    : new Map(Object.entries(titleToOccId || {}).map(([k, v]) => [norm(k), v]));
+
+  const byId = new Map((occurrences || []).filter(o => o?.id).map(o => [o.id, o]));
+  const changes = [];
+  let matched = 0, unmatched = 0, skippedNonWiki = 0;
+
+  for (const chip of collectLinkChips(occurrences)) {
+    if (!chip.title) { skippedNonWiki += 1; continue; }
+    const occId = map.get(norm(chip.title));
+    // A chip that resolves to ITSELF is not a link, it is a loop.
+    if (!occId || occId === chip.id) { unmatched += 1; continue; }
+
+    matched += 1;
+    const occ = byId.get(chip.id);
+    changes.push({
+      id: chip.id,
+      // MERGED, never replaced: `meta` also carries whatever else the chip was
+      // minted with, and a whole-meta write would drop it.
+      meta: { ...(occ?.meta || {}), link: { kind: "occurrence", occId } },
+    });
+  }
+  return { changes, matched, unmatched, skippedNonWiki };
 }

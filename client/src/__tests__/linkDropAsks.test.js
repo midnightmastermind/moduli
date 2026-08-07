@@ -60,12 +60,16 @@ describe("dropping a link ASKS", () => {
     expect(ids).toContain(INTAKE_SHAPES.LINK_PAGE.id);
   });
 
-  it("pre-selects TODAY'S behaviour — the good shape is opt-IN, not a surprise", () => {
-    // The classifier's ideal pick is the chip, which Task 5 owns; until then
-    // the filter re-points to the plain card so nothing changes by default.
+  it("pre-selects the CHIP — the audit's headline finding, answered", () => {
+    // Was LINK_INSTANCE while the chip was unimplemented (filterToImplemented
+    // re-pointed the classifier's ideal pick at the only wired shape). Task 5
+    // landed the chip, so the classifier's own preselection now stands: a
+    // dropped link becomes a clickable chip, not a card labelled with a URL.
+    // The plain card is still OFFERED — it is one keystroke away, not gone.
     const { dropContext, ctx } = makeCtx("https://example.com");
     handleExternalDrop(dropContext, ctx);
-    expect(requests[0].classification.preselected).toBe(INTAKE_SHAPES.LINK_INSTANCE.id);
+    expect(requests[0].classification.preselected).toBe(INTAKE_SHAPES.LINK_CHIP.id);
+    expect(requests[0].classification.shapes.map(s => s.id)).toContain(INTAKE_SHAPES.LINK_INSTANCE.id);
   });
 
   it("WRITES NOTHING until a shape is picked", () => {
@@ -102,12 +106,17 @@ describe("dropping a link ASKS", () => {
     expect(ctx.clearSession).toHaveBeenCalled();
   });
 
-  it("with no host, falls back to today's card", () => {
+  it("with no host, still WRITES — the preselected shape runs rather than the drop vanishing", () => {
+    // A preview iframe / test harness has no sheet host. The drop must not be
+    // swallowed; it commits the preselected shape, which is now the chip.
     unregister?.(); unregister = null;
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { dropContext, ctx } = makeCtx("https://example.com/y");
     handleExternalDrop(dropContext, ctx);
-    expect(createSpy).toHaveBeenCalledTimes(1);
+    const mods = ctx.dispatch.mock.calls
+      .map(([a]) => a?.payload?.module).filter((m) => m?.role === "textblock");
+    expect(mods).toHaveLength(1);
+    expect(mods[0].meta).toEqual({ link: { kind: "url", url: "https://example.com/y" } });
     warn.mockRestore();
   });
 });

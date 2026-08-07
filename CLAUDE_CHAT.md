@@ -2667,3 +2667,23 @@ path; what does a tree-shaken import actually cost) before anything is built on 
 OCCURRENCES. A feed already materializes matches as children; dragging already adds children; only
 literals are new. And the feeling wheel needs no graph-specific code — the emotion hierarchy is
 occurrences nested in containers, and clicking fires an ordinary operation.
+
+## 2026-08-07 — Tasker, push notifications, and the friend exports
+
+> "please continue the tasks my other claude account was working on. and add a task in there to
+> update the intake guide to keep in mind ifttt, tasker, and push notifications. im gonna use
+> tasker to grab alot of data from push notifications. specifically i want to get new friend
+> requests and new messages from facebook and instagram and sms. and send it to the app that way.
+> im also downloading the facebook and instagram friend data so i can add those to People library
+> so im gonna need that in the guide to parse through it. keep tasker in mind for other things
+> that we cant do with ifttt"
+
+This reverses the guide's own posture on two sources. §4 currently marks Facebook and Instagram
+**❌ backfill only** and files phone-side notification capture as a one-line aside ("works but is
+noisy"). The user's route makes it the PRIMARY live path for the three sources with no API at all —
+FB, IG and SMS — and the noise is a filtering problem, not a blocker.
+
+The friend exports are the other half: FB's `friends.json` and IG's `followers`/`following` JSON
+become the People library roster, which is a parse the guide names but never specifies.
+
+Tasker sits above IFTTT wherever the data never leaves the phone.

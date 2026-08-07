@@ -6,6 +6,76 @@
 
 ---
 
+### 2026-08-07 (5) — the queue lives in the CHAT LOGS, not the repo; and three intake shapes land
+
+**The most useful thing this session did was find the actual task list.** Asked to continue the
+other account's work, I rebuilt it from the repo — plan checkboxes, CLAUDE.md — and got a SUBSET.
+The user: *"i think there was more tasks too"* → *"check the chat logs"*. The working queue lives
+in `~/.claude*/projects/-home-joshpoms-moduli/*.jsonl`, reconstructable from `TaskCreate` /
+`TaskUpdate` tool_use entries. **Plan-file checkboxes go stale and CLAUDE.md is a narrative, not a
+queue.** Recovered 12 open items (Files folder, Files field, relink chips, audit loose ends,
+artifact spread, snap-filter range, graph labels on a phone, date-nav cost, the external pipes).
+Saved as memory `feedback-check-account-chat-logs`, per the user's ask. **Reconcile the recovered
+list against the repo** — several entries were still `pending` in the log and already retired here.
+
+**TASKER IS THE LIVE PATH FOR THE SOURCES THAT HAVE NO API, and the guide said the opposite.**
+User: *"im gonna use tasker to grab alot of data from push notifications … new friend requests and
+new messages from facebook and instagram and sms."* `docs/data-ingestion-guide.md` marked FB/IG
+**❌ backfill only** and filed phone-side notification capture as a one-line aside ("noisy").
+Rewritten (600 → 826 lines): a first-class Tasker section with the profile shape per source, a
+**"which producer for which source"** rule (*where does the data live* — cloud → IFTTT, phone-only
+→ Tasker, retired trigger → Tasker), and the four filters that make a notification listener usable
+(group summaries, `ongoing`, package+text discriminators, and the derived `externalId`).
+- **The `externalId` is the load-bearing part.** A notification carries no stable id, so it must be
+  derived deterministically (`sha1(package + title + text + minute)`) or a retry mints a duplicate.
+  `/ingest`'s dedupe is only as good as the key it is given.
+- **A friend request and a message are different occurrences, and Tasker must not create the
+  person.** The phone cannot tell one "Mike Anderson" from another; a producer that mints People
+  rows fills that board with near-duplicates in a month. Resolution is the app's job.
+- **The friend-export parse, specified — with the trap.** Facebook's DYI JSON **double-encodes
+  UTF-8** (`JosÃ©`), so names need a latin-1→utf-8 repair; Instagram's export does NOT, and running
+  the repair over it corrupts clean text. One needs it, one doesn't — check both against a known
+  accented name before the full run.
+- **Step 0 of the build order is: log what actually arrives for a day before writing any filter.**
+  FB and IG reword notification strings regularly; matching a string you guessed is how the pipe
+  dies silently.
+
+**THREE INTAKE SHAPES SHIPPED — `.md` → tree, `.csv` → table, link → chip.** All three route to
+code that already existed; the plan's point is that intake was a decision layer, not a second
+implementation.
+- **The CSV becomes a MARKDOWN PIPE TABLE first**, because `buildTable` already mints the real
+  `kind:"table"` container from one. **The constraint nobody would guess:** `parseBlocks` only
+  detects a table whose separator has TWO column groups, so a **single-column CSV cannot be a
+  table** — it now fails out loud instead of silently importing as prose.
+- **The doc arm had to EMBED the imported root.** The server appends an import to its parent's
+  `occurrences[]` and nothing else; a doc renders its TEXTMAP, so a tree imported into one would be
+  present in the data and invisible on screen — the 2026-08-01 (19) listed-but-not-embedded class,
+  arrived at from a new direction and caught before shipping rather than after.
+- **The link chip is the CLIENT TWIN of the importer's `buildInlineLink`** — same `meta.link` on
+  both halves, so a dropped link and an imported page's prose link are the same thing (which is
+  what will let Task 6's relink find both). **Two errors the build caught:** the first draft
+  invented `kind: "block"` (the app's non-inline textblock kind is `"doc"` — it would have rendered
+  fine right up until something read the kind), and the first `deriveLinkLabel` returned
+  `"www.example.com"` for a bare domain because it matched a "last path segment" against the whole
+  URL, host included.
+- **The shape helper deliberately mints NO ids and no parentage** — the write goes through
+  `createTextblockInContainer`, which stamps the destination's filter values. A parallel mint path
+  would have produced a link invisible to the date filter, the exact class fixed for artifacts the
+  day before.
+
+**A BEHAVIOUR FLIP, and a test had pinned the old state on purpose.** A dropped link now
+pre-selects the CHIP rather than the raw-URL card. `linkDropAsks.test.js` asserted the card, and
+its own comment named Task 5 as what would change it — the classifier always preferred the chip;
+`filterToImplemented` was re-pointing it while the chip had no route. The plain card is still
+offered, one keystroke away. **Verified the no-host fallback still WRITES** (a preview iframe has
+no sheet host) — it mints a chip with the right `meta.link` rather than the drop vanishing.
+
+1946 client tests, build clean with the chunk sanity check holding. **Both new suites A/B'd against
+the unfixed source** — removing the two file routes fails 6 tests; the link tests fail against the
+invented `"block"` kind. Nothing deployed and no migration: all of it is shared client code.
+
+---
+
 ### 2026-08-07 (4) — TWO TASKS WERE ALREADY FIXED, and measuring said so before I wrote any code
 
 Carried over the 17-item task list from the other account and worked it. **The most useful thing

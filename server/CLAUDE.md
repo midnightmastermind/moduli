@@ -1,6 +1,63 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-07-25. Check this file before re-reading source._
+_Updated: 2026-08-07. Check this file before re-reading source._
+## Recent Changes (2026-08-07 (5) — importRelink: the chip half, which is the half that reaches today's imports)
+- **`services/importRelink.js` — `collectLinkChips` / `relinkLinkChips` (NEW, 19 tests).** THE GAP:
+  `relinkTextmap` rewrites inline link MARKS, but since 2026-06-06 the importer emits each prose
+  link as its own `role:"textblock" kind:"inline"` OCCURRENCE carrying `meta.link` — so **the
+  mark-based relink never touched anything imported today**, which is why every chip on the existing
+  Eminem page still opens wikipedia.org. The target shape already existed (`TextblockCard` renders
+  `meta.link.kind === "occurrence"` as an in-app jump); only the conversion was missing, and it is a
+  change to the OCCURRENCE, not to any textmap.
+- **`wikiHrefRx` widened** to accept the site-relative `/wiki/X` older imports carry and any language
+  subdomain. Anchors and queries were already stripped, so `#Career` and `?action=raw` converge on
+  one title — one page, one link.
+- **EXACT MATCHES ONLY, and it is A/B-verified.** Replacing the lookup with a prefix fallback (the
+  "looks reasonable" version) fails the discriminating test: `Dr._Dre_discography` is a DIFFERENT
+  article, and resolving it to Dr. Dre sends the reader somewhere they never asked to go — a silent
+  failure that looks like the app lying. No fuzzy matching, no closest-article.
+- **Three refusals, each pinned:** an unimported chip is ABSENT from the result (a caller cannot
+  rewrite it to a byte-identical value and bump `updatedAt`); an already-converted chip is skipped,
+  so a second run is a no-op and a hand-repointed link is never clobbered; a chip resolving to
+  ITSELF is refused. `meta` is MERGED, never replaced — a chip carries more than its link.
+- **Steps 2-4 are NOT done:** the read-only report against the real Eminem import (how many chips
+  would resolve today), the harvest/confirm surface, and the migration for pages already imported.
+  All three need a database, and the migration changes where the user's existing links GO — dry run
+  and report before applying.
+- 559 server tests.
+
+## Recent Changes (2026-08-07 (4) — utils/filesFolder.js: where FILES live, and the per-kind placement rule)
+- **`utils/filesFolder.js` (NEW, 17 tests)** — the Files folder rule, mirroring
+  `utils/templatesFolder.js` field for field. Artifacts had no home: the BYTES were in good shape
+  (`uploads/user/YYYY-MM/`, sha256-deduped, thumbnailed) while the artifact OCCURRENCE landed
+  wherever the pointer was and was listed by nothing — which is why Command Center's Files tab
+  scrapes `modulesById`. Templates solved exactly this in migration 0035; `FILES_FOLDER_NAME` is
+  now beside `TEMPLATES_FOLDER_NAME` in `protectedFolders.js`.
+- **The guard is the point, and it is the same one templates carry:** `resolveFilesFolderId`
+  returns **null rather than guessing** — a folder outside Files, another user's folder, a cyclic
+  chain, or a grid that has not run the migration all resolve to null so the caller surfaces an
+  error. **A file written to the wrong folder is data loss that presents as a missing file.**
+  A/B'd: replacing the containment walk with "accept any named folder" fails 3 tests.
+- **Subfolders derive from the upload path's OWN `mimeToKind`**, not a second classification —
+  Images / Video / Audio / Documents, with `code` and `markdown` both landing in Documents
+  (splitting a `.md` note from a `.js` file is a distinction no user would predict). An unknown
+  kind goes to Documents rather than inventing a folder.
+- **THE PLACEMENT SEMANTIC IS PER-KIND, and `placementSemanticForKind` is the single source so a
+  call site cannot quietly disagree:**
+  - **MEDIA → COPY PER PLACEMENT.** One module (one `fileRef`, one deduped blob), N occurrences.
+    Each placement moves, styles and deletes independently.
+  - **MARKDOWN → ONE OCCURRENCE, MULTI-PARENTED.** `textmap` lives on the OCCURRENCE, so two
+    occurrences of one markdown module would carry two INDEPENDENT BODIES — you would edit the copy
+    on your day page and the one in Files would still show the old text, with nothing to explain
+    why. `CommitHelpers.createPageInContainer` carries this warning verbatim; the Schedule's shared
+    slots are the same pattern working correctly.
+- **Steps 3-6 of the plan are NOT done** (uploads homing into the subfolder, the migration filing
+  existing artifacts, placement-delete vs file-delete, drag-out of Files). Those need a real
+  database and a dry run against **poms grid**, which is protected live data — the 0035 lesson (a
+  selector that "looks like templates" moved the user's real project page) says that is its own
+  session, with the dry run reported against a NAMED expectation rather than a count.
+- 540 server tests.
+
 ## Recent Changes (2026-08-07 (3) — POST /import/url: the capability behind "convert this link to a page")
 - **User, 2026-08-07:** *"we should avoid the all link thing, but if i rightclick on an external
   link in our system, we should have a convert to page."* That retires the bulk link-harvest the

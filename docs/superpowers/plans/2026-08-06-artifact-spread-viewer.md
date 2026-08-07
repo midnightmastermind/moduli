@@ -3,8 +3,25 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development or
 > superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
 >
-> **STATUS: NOT STARTED. All open questions were answered 2026-08-06 — see "Decisions (settled)".
-> Nothing is blocked.**
+> **STATUS — CORRECTED 2026-08-07 BY MEASUREMENT. The "NOT STARTED" this header carried was
+> WRONG: Tasks 1-3 are shipped and tested.** Verified by reading the tree, not the checkboxes:
+>
+> | Task | State |
+> | --- | --- |
+> | 1. `occurrenceMedia.js` — one resolver | **DONE** — `mediaFieldIdFor` / `filesFieldIdFor` / `primaryMediaOf` / `filesOf` (132 lines) |
+> | 2. `ArtifactSpread` — the surface | **DONE** — `ui/ArtifactSpread.jsx` + `ui/ArtifactSpreadHost.jsx` (369 lines), host mounted at `App.jsx:1041` |
+> | 3. Open it from the thumbnail | **DONE** — two call sites in `ui/Field.jsx` (1045, 1385), each passing the origin rect |
+> | 4. The migration — strings become artifacts | **NOT DONE** — needs a database + a dry run |
+> | 5. Seed + docs | **NOT DONE** |
+>
+> **28 tests** across `__tests__/ArtifactSpread.test.jsx` + `__tests__/occurrenceMedia.test.js`, all
+> passing.
+>
+> **THIS IS THE SECOND PLAN IN TWO DAYS WHOSE HEADER LIED IN THIS DIRECTION** — the prefill plan
+> claimed not-started while its migrations had already been applied. A plan header is written once,
+> at planning time, and nothing updates it when work lands; the checkboxes drift the same way.
+> **Measure the tree before believing a status line** — the same rule this repo already applies to
+> a recurring bug ("date the damage before believing it still recurs").
 
 **User direction (2026-08-06):**
 > "combine profile pictures on instances and artifacts, making an artifact viewer that combines

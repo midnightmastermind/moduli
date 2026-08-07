@@ -952,6 +952,11 @@ export function parentFilterFields(parentOccurrence) {
 
 export function createTextblockInContainer({
   dispatch, socket, gridId, userId, containerOccurrence, label = "", kind = "doc", index = null,
+  // A textblock that IS something more specific (today: a link chip — see
+  // helpers/linkOccurrence.js) carries that in `meta` and arrives with a body.
+  // Routed through here rather than minted alongside so the filter-field stamp
+  // below applies to it too.
+  meta = null, textmap = null,
 }) {
   if (!gridId || !userId || !containerOccurrence) return null;
   const moduleId = crypto?.randomUUID?.() || `tb-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -964,6 +969,7 @@ export function createTextblockInContainer({
     role: "textblock",
     kind,
     label: label || "",
+    ...(meta ? { meta } : {}),
   };
   const stamped = parentFilterFields(containerOccurrence);
   const occurrence = {
@@ -972,7 +978,8 @@ export function createTextblockInContainer({
     gridId,
     moduleId,
     parentId: containerOccurrence.id,
-    textmap: { type: "doc", content: [] },
+    textmap: textmap || { type: "doc", content: [] },
+    ...(meta ? { meta } : {}),
     // Born with the date, not patched afterwards — a follow-up update races the
     // create's server queue, and the create's own trigger burst would evaluate
     // against a record that has no date yet.

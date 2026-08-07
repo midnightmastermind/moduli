@@ -1,6 +1,49 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-07-24. Check this file before re-reading source._
+_Updated: 2026-08-07. Check this file before re-reading source._
+## Recent Changes (2026-08-07 (5) — intake Task 5: the .md/.csv shapes and the link chip)
+- **`csvToTable.js` (NEW, pure, 26 tests)** — a dropped `.csv`/`.tsv` becomes a real
+  `kind:"table"` container by being converted to a **markdown pipe table** and sent through the
+  existing `import_text` importer. `buildTable` (server) already mints the table from one, so there
+  is no second table builder to keep in sync. RFC-4180 parse (quoted fields, embedded delimiters and
+  newlines, `""` escapes, BOM), and the delimiter is picked by PARSING with each candidate and
+  taking the one that yields a consistent rectangle — counting raw characters mis-reads any file
+  whose prose contains commas.
+  - **The non-obvious constraint:** `parseBlocks` only recognises a table whose separator line has
+    **two** column groups (`(…)+` requires a repetition), so a **single-column CSV cannot be a
+    table**. `csvToMarkdownTable` returns `{ok:false, reason:"too-few-columns"}` rather than
+    emitting one that would silently import as prose.
+  - A quote only OPENS a field at the field START; otherwise a stray `6" pipe` swallows the file.
+- **`linkOccurrence.js` (NEW, pure, 11 tests)** — the **client twin of the importer's
+  `buildInlineLink`** (`server/services/markdownImporter.js`). Same `meta.link` on BOTH the module
+  and the occurrence, same body text — so a dropped link and an imported page's prose link are the
+  SAME thing, which is what lets Task 6's relink find both. **Keep the twins in sync** (same
+  relationship as `alarmOps` ↔ `makeAlarmOp`).
+  - **The non-inline kind is `"doc"`, not `"block"`.** `TextblockCard` switches on
+    `kind === "inline"`; `"block"` is a value this app uses nowhere. The first draft invented it —
+    it would have rendered fine right up until something read the kind.
+  - **It mints NO ids and no parentage**, deliberately: the write goes through
+    `CommitHelpers.createTextblockInContainer`, which stamps the destination's filter values. A
+    parallel mint path would have produced a link that is invisible to the date filter — the class
+    fixed for artifacts one day earlier.
+  - `deriveLinkLabel` strips scheme+host BEFORE looking for a path segment. Matching "last segment"
+    against the whole URL returns the HOST on a bare domain (`https://www.example.com` →
+    "www.example.com"), which reads as a bug. A test caught it.
+- **`intakeApply.js`** — three new routes (`FILE_MARKDOWN_IMPORT`, `FILE_CSV_TABLE`, `LINK_CHIP`).
+  The two file routes are the only ASYNC ones (they read the file); they own their own emit rather
+  than going through the caller's `onImportText` seam, which carries already-resolved text. **Every
+  failure reports through `onImportResult`** — an unreadable file, an empty file and a one-column
+  CSV all say so, because the shape promised something specific.
+- **`CommitHelpers.createTextblockInContainer`** gained optional `meta` / `textmap` so a textblock
+  that IS something more specific routes through the one mint path (and its filter stamp).
+- **A BEHAVIOUR FLIP, recorded because a test pinned the old state on purpose:** a dropped link now
+  pre-selects the **chip** instead of the plain URL-labelled card. `linkDropAsks.test.js` asserted
+  the card and its own comment named Task 5 as what changes it — the classifier always preferred
+  the chip; `filterToImplemented` was re-pointing it while the chip had no route. The plain card is
+  still offered, one keystroke away.
+- 1946 client tests, build clean. **Both new suites A/B'd against the unfixed source** — removing
+  the routes fails 6, and the link tests fail against the invented `"block"` kind.
+
 ## Recent Changes (2026-08-07 (4) — a field write no longer discards the $allItems read model)
 - **`operationExecutor.js`** — the enriched `$allItems` collection is cached per sweep and was
   DISCARDED whenever an op touched the occurrence overlay. `UPDATE_ITEM_FIELD` counted, and **a date

@@ -30,6 +30,9 @@ import { INTAKE_SHAPES, allIntakeShapeIds } from "./intake";
 import { createArtifactPlaceholders, uploadArtifactPlaceholders } from "./artifactUpload";
 import { convertLinkToPage } from "./linkToPage";
 import { withAction } from "./actionScope";
+import { csvToMarkdownTable } from "./csvToTable";
+import { linkChipShape } from "./linkOccurrence";
+import { createTextblockInContainer, createContainerInContainer } from "./CommitHelpers";
 
 const S = INTAKE_SHAPES;
 
@@ -53,6 +56,13 @@ export const INTAKE_ROUTES = {
   // ── Text / HTML ──────────────────────────────────────────────────────────
   [S.TEXT_DOC_PAGE.id]: { run: runImportText, note: "import_text → a doc page (today's behaviour)" },
 
+  // ── A dropped FILE whose contents we can read (Task 5) ───────────────────
+  // The audit's finding: `import_markdown` has existed for months and a
+  // dropped .md file has never reached it. Both of these are routes to code
+  // that is already in production — the file just has to be read first.
+  [S.FILE_MARKDOWN_IMPORT.id]: { run: runMarkdownFileImport, note: "read the .md and build the container/textblock tree" },
+  [S.FILE_CSV_TABLE.id]: { run: runCsvFileImport, note: "read the .csv and build a table container" },
+
   // ── Links ────────────────────────────────────────────────────────────────
   // Today's outcome: a card whose label is the raw URL. The write itself
   // belongs to the caller (it mints an instance into a specific container at a
@@ -63,6 +73,11 @@ export const INTAKE_ROUTES = {
   // This is the same capability behind the right-click "Convert to page",
   // reached from a drop instead of a menu.
   [S.LINK_PAGE.id]: { run: runImportUrl, note: "fetch the link and build the page" },
+  // Task 5: a real link chip — the shape the importer already builds for every
+  // prose link, so one drop and one imported page produce the SAME thing.
+  [S.LINK_CHIP.id]: { run: runLinkChip, note: "a clickable chip carrying the link" },
+  // Several links at once: one container holding a chip each.
+  [S.LINK_CONTAINER.id]: { run: runLinkContainer, note: "one container holding every link" },
 };
 
 /** Ids the router can actually carry out right now. */
@@ -175,6 +190,196 @@ function runImportUrl(ctx) {
   if (!socket || !url) return;
   convertLinkToPage({ socket, gridId, url, parentId: destination.parentId ?? null })
     .then((res) => onImportResult?.(res));
+}
+
+// The audit's headline finding, answered: a dropped link became a card labelled
+// with the raw URL. It becomes a real chip now — clickable, and carrying
+// `meta.link` so Task 6's relink can find it and so it is indistinguishable
+// from the chips an imported page is already made of.
+//
+// The write goes through `createTextblockInContainer` rather than minting here,
+// which is what gets the chip the destination's filter values (a link dropped
+// on today's column must carry today's date or the filter cannot see it).
+function runLinkChip(ctx) {
+  const {
+    payload = {}, destinationOccurrence = null, gridId, userId, dispatch, socket,
+    insertIndex = null, inline = false, onLinkChips = null,
+  } = ctx;
+  const urls = payload.urls || [];
+  if (!urls.length || !destinationOccurrence) return;
+
+  // Several links dropped at once become several chips — the classifier already
+  // treats a block of URLs as ONE link payload, so the router must not assume
+  // there is exactly one.
+  const minted = [];
+  for (const url of urls) {
+    const shape = linkChipShape({ url, inline });
+    const res = createTextblockInContainer({
+      dispatch, socket, gridId, userId,
+      containerOccurrence: destinationOccurrence,
+      index: insertIndex,
+      kind: shape.kind, label: shape.label, meta: shape.meta, textmap: shape.textmap,
+    });
+    if (res) minted.push(res);
+  }
+  // Same seam as `onPlaceholders`: the doc arm embeds what was minted at the
+  // drop position, because a doc renders its textmap and would otherwise show
+  // nothing.
+  onLinkChips?.(minted);
+}
+
+// Several links dropped together become ONE container of chips rather than N
+// loose rows — the classifier already pre-selects this for a multi-link payload,
+// which until now `filterToImplemented` re-pointed at the plain chip.
+//
+// It is a COMPOSITION of two things that already exist: mint the container, then
+// run the chip route into it. No second link representation, no second mint path
+// — and `createContainerInContainer` flips the parent's `allowChildContainers`,
+// without which the renderer shows nothing (the 2026-07-31 "you got rid of my
+// trackers" failure: data present, flag missing, nothing on screen).
+function runLinkContainer(ctx) {
+  const {
+    payload = {}, destinationOccurrence = null, gridId, userId, dispatch, socket,
+    insertIndex = null,
+  } = ctx;
+  const urls = payload.urls || [];
+  if (!urls.length || !destinationOccurrence) return;
+
+  const made = createContainerInContainer({
+    dispatch, socket, gridId, userId,
+    containerOccurrence: destinationOccurrence,
+    kind: "board",
+    label: `${urls.length} links`,
+    index: insertIndex,
+  });
+  if (!made?.occurrenceId) return;
+
+  // The chips go in the NEW container. It is a shim rather than the real
+  // occurrence because the mint helper does not hand one back — and that is
+  // fine here: the container already carries the destination's filter values,
+  // so its children resolve through the cascade rather than being pre-stamped
+  // (the standing "trust the filter cascade" rule).
+  runLinkChip({
+    ...ctx,
+    insertIndex: null,
+    destinationOccurrence: { id: made.occurrenceId, gridId, userId, occurrences: [] },
+  });
+}
+
+// ── FILE-CONTENT ROUTES ─────────────────────────────────────────────────────
+//
+// These two are the only routes that have to READ the dropped file before they
+// can decide anything, which makes them the only asynchronous ones. Three
+// consequences worth stating rather than discovering:
+//
+// 1. **They do not go through `onImportText`.** That caller-owned seam carries
+//    the TEXT arm's already-resolved content; a file's content does not exist
+//    yet when the sheet is answered. These own their own emit.
+// 2. **The action scope does not span them, and does not need to.** The entire
+//    write is one `import_text` emit — a raw `socket.emit`, not a `safeEmit` —
+//    so it carries no `__actionId` either way, exactly like `runImportText`
+//    above. The server mints the tree and broadcasts it; there is no client
+//    write to group.
+// 3. **Every failure reports through `onImportResult`.** A file that cannot be
+//    read, is empty, or cannot legally become a table must say so — the shape
+//    promised something specific, and silence would leave the user believing a
+//    drop had landed.
+
+/** `File.text()` where it exists, `FileReader` where it does not. */
+function readFileText(file) {
+  if (!file) return Promise.reject(new Error("no file"));
+  if (typeof file.text === "function") return Promise.resolve(file.text());
+  return new Promise((resolve, reject) => {
+    if (typeof FileReader === "undefined") { reject(new Error("cannot read file")); return; }
+    const fr = new FileReader();
+    fr.onload = () => resolve(String(fr.result ?? ""));
+    fr.onerror = () => reject(fr.error || new Error("read failed"));
+    fr.readAsText(file);
+  });
+}
+
+/**
+ * Send content to the server importer and correlate its ack.
+ *
+ * `title` names the ROOT container, which is what makes a dropped file arrive
+ * under its own filename rather than under whatever its first heading — or, for
+ * a CSV, its first COLUMN — happens to be called.
+ */
+function emitImportText(ctx, { content, format, title }) {
+  const { gridId, socket, destination = {}, destinationOccurrence = null, onImportResult = null } = ctx;
+  if (!socket?.emit) return;
+  const requestId = `intake-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  if (onImportResult) {
+    const onResult = (res) => {
+      if (res?.requestId && res.requestId !== requestId) return;
+      socket.off?.("import_text_result", onResult);
+      onImportResult(res);
+    };
+    socket.on?.("import_text_result", onResult);
+  }
+  socket.emit("import_text", {
+    requestId,
+    gridId,
+    // A file drop resolves its destination as an OCCURRENCE (the container it
+    // landed in); the text arm resolves a `destination.parentId`. Accept both
+    // so one emit serves every caller.
+    parentId: destination.parentId ?? destinationOccurrence?.id ?? null,
+    content,
+    format,
+    title,
+  });
+}
+
+/** Shared shell: read the one file, convert it, emit — reporting every failure. */
+function runFileImport(ctx, { convert, format }) {
+  const { files = [], onImportResult = null } = ctx;
+  const file = files[0];
+  const fail = (error) => onImportResult?.({ ok: false, error });
+  if (!file) { fail("no file to read"); return; }
+
+  return readFileText(file)
+    .then((text) => {
+      const out = convert(text, file);
+      if (!out.ok) { fail(out.error); return; }
+      emitImportText(ctx, { content: out.content, format, title: out.title });
+    })
+    .catch((err) => fail(`could not read ${file.name || "the file"}: ${err?.message || err}`));
+}
+
+// `.md` → the container/textblock tree. The importer's markdown path is
+// unchanged; this only closes the gap between a dropped file and it.
+function runMarkdownFileImport(ctx) {
+  return runFileImport(ctx, {
+    format: "markdown",
+    convert: (text, file) => {
+      if (!String(text || "").trim()) return { ok: false, error: `${file.name || "the file"} is empty` };
+      return { ok: true, content: text, title: baseName(file.name) };
+    },
+  });
+}
+
+// `.csv` / `.tsv` → a real table container, via the markdown pipe table the
+// importer already knows how to build (see helpers/csvToTable.js for why).
+function runCsvFileImport(ctx) {
+  return runFileImport(ctx, {
+    format: "markdown",
+    convert: (text, file) => {
+      const res = csvToMarkdownTable(text, file.name || "");
+      if (res.ok) return { ok: true, content: res.markdown, title: baseName(file.name) };
+      // Named, not generic: "it didn't work" leaves the user with no next move,
+      // and both of these have one (drop it as a File instead).
+      if (res.reason === "empty") return { ok: false, error: `${file.name || "the file"} has no rows` };
+      return {
+        ok: false,
+        error: `${file.name || "That file"} has only ${res.columns || 1} column — a table needs at least 2. Drop it again and choose “File”.`,
+      };
+    },
+  });
+}
+
+/** "Weekly plan.csv" → "Weekly plan" — the root container's name. */
+function baseName(name) {
+  return String(name || "").replace(/\.[^./\\]+$/, "").trim() || "Imported";
 }
 
 // Today's text/HTML path: hand the content to the server importer, which builds
