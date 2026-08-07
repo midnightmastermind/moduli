@@ -28,6 +28,7 @@
 
 import { INTAKE_SHAPES, allIntakeShapeIds } from "./intake";
 import { createArtifactPlaceholders, uploadArtifactPlaceholders } from "./artifactUpload";
+import { convertLinkToPage } from "./linkToPage";
 
 const S = INTAKE_SHAPES;
 
@@ -50,6 +51,17 @@ export const INTAKE_ROUTES = {
 
   // ── Text / HTML ──────────────────────────────────────────────────────────
   [S.TEXT_DOC_PAGE.id]: { run: runImportText, note: "import_text → a doc page (today's behaviour)" },
+
+  // ── Links ────────────────────────────────────────────────────────────────
+  // Today's outcome: a card whose label is the raw URL. The write itself
+  // belongs to the caller (it mints an instance into a specific container at a
+  // specific index), so the route carries the decision and the caller carries
+  // the placement — same seam as `onPlaceholders`.
+  [S.LINK_INSTANCE.id]: { run: (ctx) => ctx.onLegacyLink?.(), note: "a card labelled with the link (today's behaviour)" },
+  // Newly possible: `import_url` fetches the page and builds the whole tree.
+  // This is the same capability behind the right-click "Convert to page",
+  // reached from a drop instead of a menu.
+  [S.LINK_PAGE.id]: { run: runImportUrl, note: "fetch the link and build the page" },
 };
 
 /** Ids the router can actually carry out right now. */
@@ -131,6 +143,18 @@ function runArtifacts(ctx) {
   uploadArtifactPlaceholders(placeholders, {
     gridId, userId, dispatch, socket, containerOccurrenceId, persist,
   });
+}
+
+// Fetch what the link points at and build the page from it. The URL is NOT
+// validated here — the SERVER holds the guard (utils/safeFetchUrl.js), because
+// the server is the thing with network reach and a client-side check would be
+// advisory at best.
+function runImportUrl(ctx) {
+  const { payload = {}, destination = {}, gridId, socket, onImportResult = null } = ctx;
+  const url = payload.urls?.[0];
+  if (!socket || !url) return;
+  convertLinkToPage({ socket, gridId, url, parentId: destination.parentId ?? null })
+    .then((res) => onImportResult?.(res));
 }
 
 // Today's text/HTML path: hand the content to the server importer, which builds

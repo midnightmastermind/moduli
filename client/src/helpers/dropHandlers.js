@@ -91,7 +91,7 @@ import { pushTxNotification } from "../state/notificationStore";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { embedDeleteRegistry } from "./embedRegistry";
 import { buildReverseMap, findGridPanelOcc } from "./occurrenceHelpers";
-import { classifyIntake } from "./intake";
+import { classifyIntake, isUrlish } from "./intake";
 import { applyIntakeShape, filterToImplemented } from "./intakeApply";
 import { openIntakeSheet } from "../ui/IntakeSheet";
 import { snapPanelToEdge } from "./gridSnap";
@@ -1687,6 +1687,67 @@ export function handleExternalDrop(dropContext, ctx) {
     return null;
   }
 
+  // ── Legacy link/text write, as a closure ──────────────────────────
+  // Today's outcome for a short text / URL drop: an instance whose LABEL is
+  // the raw value. The audit calls this out as the thing to replace, but a
+  // decision layer that cannot reproduce what the app already does is not
+  // behaviour-preserving — so it stays, as a named shape the sheet offers,
+  // until Task 5's chip/bookmark/board-option land.
+  const runLegacyLink = () => {
+    const container = baseContainers.find(c => c.id === containerId);
+    if (!container) { clearSession(); return; }
+    const containerOcc = Object.values(occurrencesById).find(o => o.moduleId === container.id);
+
+    let label = "Untitled";
+    if (payload.payloadType === DragType.TEXT) label = (payload.data?.text || "").slice(0, 80) || "Text";
+    else if (payload.payloadType === DragType.URL) label = payload.data?.url || "Link";
+
+    let toIndex = dropTarget.context?.insertAt ?? null;
+    if (toIndex === null) toIndex = resolveNearestIndex(containerOcc, occurrencesById, y);
+
+    LayoutHelpers.createInstanceInContainer({
+      dispatch, socket, gridId, container, containerOccurrence: containerOcc || null,
+      instance: { id: makeUUID(), label }, userId: state?.userId, index: toIndex, emit: true,
+    });
+  };
+
+  // ── A LINK drop asks ──────────────────────────────────────────────
+  // This is the audit's headline finding: a dropped link became a card
+  // labelled with the raw URL, silently, even though the importer could have
+  // built the whole page from it. Now it asks — and "Import the page" is a
+  // real option here because `import_url` exists (2026-08-07).
+  const droppedUrl = payload?.payloadType === DragType.URL
+    ? (payload?.data?.url || "")
+    : (isUrlish(textFromDt) ? textFromDt.trim() : "");
+  if (droppedUrl && containerId) {
+    const container = baseContainers.find(c => c.id === containerId);
+    const containerOcc = container ? Object.values(occurrencesById).find(o => o.moduleId === container.id) : null;
+    const classification = filterToImplemented(
+      classifyIntake({ url: droppedUrl }, { kind: "board", occurrenceId: containerOcc?.id || null }),
+    );
+    const linkCtx = {
+      payload: classification.payload,
+      destination: { parentId: containerOcc?.id || null },
+      gridId, socket, onLegacyLink: runLegacyLink,
+      onImportResult: (res) => {
+        if (res?.ok) {
+          toast.success("Page imported");
+          if (res.rootOccurrenceId) setTimeout(() => jumpToOccurrence(res.rootOccurrenceId), 200);
+        } else {
+          toast.error(`Couldn't import: ${res?.error || "unknown error"}`);
+        }
+      },
+    };
+    const opened = openIntakeSheet({
+      classification,
+      position: { top: (pointer?.y ?? 0) + 8, left: (pointer?.x ?? 0) + 8 },
+      onPick: (shapeId) => { applyIntakeShape(shapeId, linkCtx); clearSession(); },
+      onCancel: () => clearSession(),
+    });
+    if (!opened) { applyIntakeShape(classification.preselected, linkCtx); clearSession(); }
+    return;
+  }
+
   if (wantsImport && socket?.emit) {
     const dest = resolveImportParent();
     if (dest) {
@@ -1745,23 +1806,8 @@ export function handleExternalDrop(dropContext, ctx) {
     // No usable drop destination — fall through to legacy below.
   }
 
-  // ── Legacy fallback — short text / URL drops on a container become
-  //    a single instance using the dropped value as the label. ──────
-  const container = baseContainers.find(c => c.id === containerId);
-  if (!container) { clearSession(); return; }
-  const containerOcc = Object.values(occurrencesById).find(o => o.moduleId === container.id);
-
-  let label = "Untitled";
-  if (payload.payloadType === DragType.TEXT) label = (payload.data?.text || "").slice(0, 80) || "Text";
-  else if (payload.payloadType === DragType.URL) label = payload.data?.url || "Link";
-
-  let toIndex = dropTarget.context?.insertAt ?? null;
-  if (toIndex === null) toIndex = resolveNearestIndex(containerOcc, occurrencesById, y);
-
-  LayoutHelpers.createInstanceInContainer({
-    dispatch, socket, gridId, container, containerOccurrence: containerOcc || null,
-    instance: { id: makeUUID(), label }, userId: state?.userId, index: toIndex, emit: true,
-  });
+  // Short text with no usable import destination — today's behaviour.
+  runLegacyLink();
 }
 
 // ============================================================

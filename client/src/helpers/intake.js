@@ -32,6 +32,12 @@
  */
 export const INTAKE_SHAPES = {
   // link
+  // Today's behaviour, named so the sheet can offer it while Task 5's better
+  // shapes land. The audit calls this out as the thing to replace — a card
+  // whose label is a raw URL — but a decision layer that cannot reproduce
+  // what the app already does is not behaviour-preserving, so it is a real
+  // shape with a real route rather than an unnamed fallback.
+  LINK_INSTANCE: { id: "link-instance", label: "Plain item", hint: "A card labelled with the link (today's behaviour)" },
   LINK_CHIP: { id: "link-chip", label: "Link chip", hint: "An inline chip you can click" },
   LINK_BOOKMARK: { id: "link-bookmark", label: "Bookmark card", hint: "Title and favicon, with room for a note" },
   LINK_PAGE: { id: "link-page", label: "Import the page", hint: "Fetch it and build the whole tree" },
@@ -141,6 +147,7 @@ export function classifyIntake(payload = {}, destination = {}) {
 
   if (p.kind === "link") {
     const many = (p.urls?.length || 0) > 1;
+    add(S.LINK_INSTANCE);
     add(S.LINK_CHIP);
     add(S.LINK_BOOKMARK);
     add(S.LINK_PAGE);
