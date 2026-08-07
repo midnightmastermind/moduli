@@ -30,7 +30,30 @@ function deriveRoleArrays(modules = []) {
   return { panels, containers, instances, pages, artifacts, textblocks };
 }
 
+/**
+ * `[reducer]` timing — OFF unless `window.__reducerDiag === true`.
+ *
+ * A date navigation applies ~319 op effects inside one blocking task, and
+ * `createRoot` means React already batches them into ONE render — so the ~2s is
+ * reducer work plus that render, in an unknown split. This measures the reducer
+ * half so the next optimisation is aimed rather than guessed (the suspect being
+ * `deriveRoleArrays`, a full scan of every module on every module action).
+ */
 export function masterReducer(state, action) {
+    if (typeof window === "undefined" || window.__reducerDiag !== true) {
+        return reduce(state, action);
+    }
+    const t = performance.now();
+    const out = reduce(state, action);
+    const ms = performance.now() - t;
+    const tally = (window.__reducerMs = window.__reducerMs || {});
+    const row = (tally[action?.type || "?"] = tally[action?.type || "?"] || { n: 0, ms: 0 });
+    row.n += 1;
+    row.ms += ms;
+    return out;
+}
+
+function reduce(state, action) {
     // DIAG (window.__RENDER_ATTR): tally every action so the drop probe can
     // attribute render storms to the dispatches that caused them.
     if (typeof window !== "undefined" && window.__RENDER_ATTR === true && action?.type) {
