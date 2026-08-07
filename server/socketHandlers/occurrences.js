@@ -37,7 +37,13 @@ export function registerOccurrenceHandlers(socket, {
   });
 
   socket.on("update_occurrence", async (payload = {}) => {
-    const { occurrence, expectedUpdatedAt, expectedFieldUpdatedAt } = payload;
+    // `occurrence` is REASSIGNED below (the field-conflict path rewrites the
+    // patch to drop conflicted fields), so it cannot be a const — as a const it
+    // threw `TypeError: Assignment to constant variable` and the whole write was
+    // dropped, silently, every time two writes raced on the same field. Found in
+    // the prod pm2 log 2026-08-07, firing repeatedly.
+    const { expectedUpdatedAt, expectedFieldUpdatedAt } = payload;
+    let { occurrence } = payload;
     try {
       if (!userId) return;
       const uc = await getUc();

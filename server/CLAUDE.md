@@ -1,6 +1,17 @@
 # server — Server CLAUDE.md
 
 _Updated: 2026-07-25. Check this file before re-reading source._## Recent Changes (2026-08-06 — prefill configured on poms grid; 0042)
+
+## Recent Changes (2026-08-07 — update_occurrence threw on EVERY field conflict, and dropped the write)
+- **`socketHandlers/occurrences.js`** — `occurrence` was destructured as a **`const`** (line 40) and
+  then **reassigned** in the field-conflict branch (`occurrence = { ...occurrence, fields:
+  filteredFields }`). So the moment two writes raced on the same field, the handler threw
+  `TypeError: Assignment to constant variable` and **the entire write was dropped** — no persist, no
+  broadcast, no error surfaced to the user. Found in the prod pm2 error log 2026-08-07, where it was
+  repeating steadily. Fix is `let { occurrence } = payload`.
+- **How it hid:** the conflict path only runs when `expectedFieldUpdatedAt` reports a clash, which
+  the unit tests never exercise and a single-window session rarely produces. The only place it was
+  visible was the server's own stderr.
 - **`migrations/0042-nutrition-prefill.mjs`** turns on the first real prefill as DATA on two fields:
   `Ingredient` → the four macro INPUT fields (`combine: "sum"`), and `Meal` → the Ingredient dropdown
   (`combine: "union"`, `chain: 1`) so a meal fills its ingredients and one hop further their summed
