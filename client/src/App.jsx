@@ -30,6 +30,7 @@ import { Spinner } from "./components/ui/spinner";
 import UserInputModal from "./ui/UserInputModal";
 import { ImagePickerHost } from "./ui/ImagePickerMenu";
 import { IntakeSheetHost } from "./ui/IntakeSheet";
+import IntakePasteHost from "./ui/IntakePasteHost";
 import { ArtifactSpreadHost } from "./ui/ArtifactSpreadHost";
 import { SelectionContext, useSelectionProvider } from "./state/SelectionContext";
 import { publishComputedValues } from "./state/computedValuesStore";
@@ -1028,6 +1029,10 @@ export default function App() {
         {/* Asks what a dropped/pasted payload should become. One host, because
             the callers are drop HANDLERS with nowhere to render a sheet. */}
         <IntakeSheetHost />
+        {/* Ctrl+V through the same classifier a drop uses. Its own host because
+            a paste has no drop target — no pointer, and none of the five
+            per-surface handlers is focused when the key is pressed. */}
+        <IntakePasteHost />
 
         {/* Artifact spread — the overlay an occurrence's files spread out
             onto, opened from its main artifact. Single global host for the

@@ -508,8 +508,49 @@ branch.
       fail** — including the "one action id" case, which was VACUOUS as first written (two
       `null`s also form a set of size 1, so it passed against the unfixed code until a
       `toBeTruthy` was added first). 1880 client tests, build clean.
-- [ ] **Step 4: ★ Paste.** Route Ctrl+V through the same classifier on boards, canvases and empty
-      cells. Inside a doc, ProseMirror keeps its own paste handling for plain text.
+- [x] **Step 4: ★ Paste — ✅ DONE 2026-08-07.** `helpers/intakePaste.js` (pure) +
+      `ui/IntakePasteHost.jsx`, mounted in App. Ctrl+V reads the clipboard into the same payload
+      shape a drop produces, runs the same `classifyIntake` → `filterToImplemented` →
+      `IntakeSheet` → `applyIntakeShape` chain, and inherits Step 2's action scope, so a paste is
+      one undo step. User approved the shape: *"yes use control v"*.
+
+      **Destination reuses `ClipboardDropOverlay`'s resolution verbatim** — `elementsFromPoint`
+      against the last pointer position, container beating page. Deliberately not a second model:
+      two different answers to "where does this land?" is how the drop path and the typed path
+      drifted apart before.
+
+      **THE VETO IS THE HALF THAT MATTERS, and the obvious version of it was WRONG.** This puts a
+      document-level listener on a key the user presses constantly, so the failure mode is broken
+      typing, not a missing feature. The first rule was `closest(".ProseMirror, .doc-editor")` —
+      and the browser rejected it immediately: **all three probe cases bailed as
+      `editable-target`.** A doc container renders its body as a ProseMirror and embeds occurrence
+      cards as NODE VIEWS, so most of the visible grid is inside an editor's DOM subtree.
+
+      `_pastemap.mjs` measured the real split across the viewport:
+      ```
+      808 points  plain grid chrome, outside any ProseMirror   -> ours
+       78 points  node view INSIDE a ProseMirror (a card)      -> ours
+       34 points  genuinely editable text                      -> ProseMirror's
+      ```
+      So the rule is **"editable text", not "inside an editor"**: walk up and take the NEAREST
+      explicit `contenteditable` answer. ProseMirror already marks an atom node view `false`
+      inside an otherwise editable doc, so it draws the line for us.
+
+      **Verified in a browser, 5/5** — and the probe's targets are now CLASSIFIED by that same
+      walk rather than guessed. Its first two runs disagreed with each other because "row" and
+      "doc body" were mislabeled: one point was editable text, the other a node view, exactly
+      backwards. Same class as the drop probe's off-screen trap.
+      ```
+      file paste on grid chrome        -> asks
+      Escape                           -> writes nothing (rows 53 -> 53)
+      paste in editable text           -> left to ProseMirror, not preventDefault'd
+      paste on a node-view card        -> asks
+      empty clipboard                  -> asks nothing
+      ```
+      13 unit tests, including the node-view case that killed the first rule and editable text
+      nested back inside a node view (a textblock card — nearest answer wins). Opt-in
+      `window.__pasteDiag` names every early return, because a silent bail is indistinguishable
+      from "no listener" — which cost one probe round.
 
 ### Task 4: The Files folder
 
