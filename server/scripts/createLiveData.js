@@ -5275,12 +5275,47 @@ export async function createLiveData(userId, options = {}) {
   const toolkitPageOccId = routinesPageOccId;
 
   // ── Tasks page (2026-07-25) — 9 EMPTY dimension containers ────────────────
+  //
+  // …plus a COMPLETED container LAST (2026-08-08, user: "if i finish a todo, it
+  // gets put in a completed container at the bottom of the tasks page"). It is
+  // a FEED, not an op that moves rows: a feed self-heals every sync and cannot
+  // lose the user's row, whereas a move is a destructive write that un-ticking
+  // would have to undo. The completed todo therefore appears in BOTH its own
+  // container and here; the copy is copy-linked, so un-ticking either clears
+  // both and the copy disappears on the next sync.
+  //
+  // `scope` is load-bearing — without it the feed pulls EVERY completed
+  // instance on the grid (every Routines action, every schedule row) instead of
+  // this page's todos. A/B'd: removing it fails the discriminating test.
+  // `limit` is explicit because `limit: 0` means FIFTY (resolveFeedItems reads
+  // `> 0 ? … : 50`), the trap that silently drew a third of the emotions wheel.
+  //
+  // The APPOINTMENT half of the user's ask ("include appointments there too
+  // after the date passes") is NOT here: a feed condition cannot express
+  // "before today" — `evalRule` is called with an EMPTY `$vars`, and the
+  // owner-filter fallback is dead on this page because it carries
+  // `filterOverride: {}`. See migration 0056's header.
   const tasksPageModId = uid(); const tasksPageOccId = uid();
+  const completedContModId = uid(); const completedContOccId = uid();
   await new Module({ id: tasksPageModId, userId, gridId, role: "page", kind: "board", label: "Tasks" }).save();
+  await new Module({ id: completedContModId, userId, gridId, role: "container", kind: "board", label: "Completed" }).save();
+  await mkOcc({
+    id: completedContOccId, moduleId: completedContModId,
+    parentId: tasksPageOccId,
+    iteration: { mode: "persistent" }, fields: {},
+    feed: {
+      enabled: true,
+      conditions: [{ fieldId: fields.completed.id, comparator: "IS", value: true }],
+      roles: ["instance"],
+      scope: tasksPageOccId,
+      sort: null,
+      limit: 300,
+    },
+  });
   await mkOcc({
     id: tasksPageOccId, moduleId: tasksPageModId,
     parentId: tasksFolderId, sortOrder: 1,
-    occurrences: Object.values(taskContOccIds),
+    occurrences: [...Object.values(taskContOccIds), completedContOccId],
     iteration: { mode: "persistent" }, fields: {},
     filterOverride: {}, filterNavConfig: { filter_daily: { visible: false } },
   });
