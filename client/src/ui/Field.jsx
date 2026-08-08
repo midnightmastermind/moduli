@@ -408,6 +408,58 @@ export function isOverdueDate(value) {
   return diff !== null && diff < 0;
 }
 
+/**
+ * The affix picker — a divided segment fused into the pill, the same idiom as
+ * FlowToggle (leading) and RandomizeSegment (trailing). A third pattern for
+ * "small chooser attached to a value" would just be a third thing to keep
+ * aligned.
+ *
+ * `side` places the divider on the correct edge so prefix and postfix each read
+ * as part of the same control rather than a button parked next to it.
+ *
+ * Sizing is INLINE because the pills it sits in set their own metrics inline,
+ * and an inline style beats any stylesheet rule regardless of specificity —
+ * recorded five times in CLAUDE.md.
+ */
+function AffixSegment({ value, options, onPick, side = "postfix", compact = false, disabled = false }) {
+  const [open, setOpen] = useState(false);
+  if (!options?.length) return null;
+  const label = value === "" || value == null ? "—" : value;
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          title={`Unit: ${value || "none"} — click to change`}
+          className={`inline-flex items-center justify-center flex-shrink-0 ${compact ? "px-1" : "px-1.5"}
+            ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:bg-white/10"}`}
+          style={{
+            [side === "prefix" ? "borderRight" : "borderLeft"]: "1px solid rgba(255,255,255,0.18)",
+            color: "var(--text-muted)",
+            fontSize: compact ? 10 : 11,
+            lineHeight: 1,
+            minWidth: compact ? 14 : 18,
+          }}
+        >
+          {label}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-28 p-1" align="start" side="bottom">
+        {options.map((opt) => (
+          <button key={opt || "__none__"} type="button"
+            onClick={() => { onPick?.(opt); setOpen(false); }}
+            className={`w-full flex items-center px-2 py-1.5 rounded-sm text-xs transition-colors
+              ${value === opt ? "bg-accent text-accent-foreground" : "hover:bg-muted"}`}
+          >
+            {opt === "" ? <span className="opacity-60">none</span> : opt}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function valueSignColor(value, type) {
   // A DATE is not "filled or empty", it is early or late — and the generic
   // string fallthrough below painted every date green, so an overdue Due date
@@ -660,6 +712,11 @@ export function ArrayCell({ value, maps }) {
  * Props (display):
  * - field, binding, value, target, state, context
  * - compact, hideName, hidePrefix, hidePostfix
+ * - affixPrefix / affixPostfix — the affix THIS ROW shows (resolved upstream by
+ *   helpers/fieldAffix: the row's pick, else the field default). Falls back to
+ *   `meta.prefix` when not supplied, so every existing call site is unchanged.
+ * - affixPrefixMenu / affixPostfixMenu + onAffixChange — present only when the
+ *   field offers a choice; that is what makes the picker segment render.
  *
  * Props (input, all optional — omit for display-only):
  * - flow, onCommit, onChange, onFlowChange
@@ -673,6 +730,11 @@ function Field({
   hideName = false,
   hidePrefix = false,
   hidePostfix = false,
+  affixPrefix = null,
+  affixPostfix = null,
+  affixPrefixMenu = [],
+  affixPostfixMenu = [],
+  onAffixChange = null,
   // Host occurrence — used by button-type fields so the click handler
   // can pass `$trigger.occurrenceId` to the fired operation. Optional
   // for other field types.
@@ -999,8 +1061,13 @@ function Field({
   if (!field) return null;
 
   const { type, name, unit, meta } = field;
-  const prefix = hidePrefix ? "" : (meta?.prefix || "");
-  const postfix = hidePostfix ? "" : (meta?.postfix || "");
+  // `affixPrefix` is already row-resolved (pick -> field default) by
+  // FieldRenderer; the `?? meta.prefix` keeps every other call site — forms,
+  // previews, tests that render <Field> directly — byte-identical.
+  const prefix = hidePrefix ? "" : (affixPrefix ?? meta?.prefix ?? "");
+  const postfix = hidePostfix ? "" : (affixPostfix ?? meta?.postfix ?? "");
+  const canPickPrefix = !!onAffixChange && affixPrefixMenu.length > 0 && !hidePrefix;
+  const canPickPostfix = !!onAffixChange && affixPostfixMenu.length > 0 && !hidePostfix;
   const showLabel = !compact && !hideName && binding?.display?.showLabel !== false;
   const showUnit = unit && binding?.display?.showUnit !== false;
 
@@ -1122,11 +1189,27 @@ function Field({
       // Attached like the randomizer segment: ONE pill, toggle divided off the
       // left, and the WHOLE pill tinted by the flow (green/blue/red).
       const flowPillTint = showFlowToggle ? (FLOW_TINTS[flow] || FLOW_TINTS.in) : null;
-      const withFlowToggle = (inner) => !showFlowToggle ? inner : (
+      // The affix picker rides INSIDE the same pill as the flow toggle. When
+      // the field offers a choice but no flow toggle, the pill still has to
+      // exist to hold the divider — hence the `|| canPickAffix` arm.
+      const canPickAffix = canPickPrefix || canPickPostfix;
+      const withFlowToggle = (inner) => (!showFlowToggle && !canPickAffix) ? inner : (
         <span className={`inline-flex items-stretch rounded-full border overflow-hidden ${disabled ? "opacity-50" : ""}`}
-          style={{ background: flowPillTint.bg, borderColor: flowPillTint.border, color: flowPillTint.text }}>
-          <FlowToggle flow={flow || "in"} onChange={onFlowChange} compact disabled={disabled} segment />
+          style={showFlowToggle
+            ? { background: flowPillTint.bg, borderColor: flowPillTint.border, color: flowPillTint.text }
+            : { borderColor: "rgba(255,255,255,0.18)" }}>
+          {showFlowToggle && (
+            <FlowToggle flow={flow || "in"} onChange={onFlowChange} compact disabled={disabled} segment />
+          )}
+          {canPickPrefix && (
+            <AffixSegment value={prefix} options={affixPrefixMenu} side="prefix"
+              onPick={(v) => onAffixChange("prefix", v)} compact disabled={disabled} />
+          )}
           {inner}
+          {canPickPostfix && (
+            <AffixSegment value={postfix} options={affixPostfixMenu} side="postfix"
+              onPick={(v) => onAffixChange("postfix", v)} compact disabled={disabled} />
+          )}
         </span>
       );
       // Empty-input display: number/duration → 0, text/notes → "—".
@@ -1400,6 +1483,10 @@ function Field({
             <div className={`flex items-stretch rounded border overflow-hidden ${compact ? "h-6" : "h-7"}`}
               style={{ background: fullFlowTint.bg, borderColor: fullFlowTint.border, color: fullFlowTint.text }}>
               <FlowToggle flow={flow || "in"} onChange={onFlowChange} compact={compact} disabled={disabled} segment />
+              {canPickPrefix && (
+                <AffixSegment value={prefix} options={affixPrefixMenu} side="prefix"
+                  onPick={(v) => onAffixChange("prefix", v)} compact={compact} disabled={disabled} />
+              )}
               <Input type="number" value={localValue ?? ""} disabled={disabled}
                 placeholder="0"
                 className={`border-0 rounded-none bg-transparent ${compact ? "h-6 text-xs w-16" : "h-7 text-sm"}`}
@@ -1407,6 +1494,10 @@ function Field({
                 onChange={e => handleChange(e.target.value === "" ? null : Number(e.target.value))}
                 onBlur={handleCommit} onKeyDown={handleKeyDown}
                 min={meta?.min} max={meta?.max} step={meta?.step} />
+              {canPickPostfix && (
+                <AffixSegment value={postfix} options={affixPostfixMenu} side="postfix"
+                  onPick={(v) => onAffixChange("postfix", v)} compact={compact} disabled={disabled} />
+              )}
             </div>
             {showUnit && <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{unit}</span>}
           </div>

@@ -219,6 +219,58 @@ export function FieldPill({ field, selected, onClick, compact = false }) {
 // ============================================================
 // FIELD DETAIL (native inputs for dark-panel aesthetic)
 // ============================================================
+// ── AffixEditor — the fixed prefix/postfix AND the per-row option lists ──────
+//
+// User 2026-08-08: "a dropdown for pfefix and postfix so i can do $ for money
+// or like kg ml g any for amount of ingrediants."
+//
+// The DEFAULT is what every row shows until it picks; the OPTIONS are what a
+// row may pick from. Leave options empty and the field behaves exactly as it
+// always has — one fixed affix, no picker.
+//
+// **A unit list does NOT belong on a field that money trackers sum.** Measured
+// on poms grid: `Amount` is bound by 27 modules and read by 8 operations
+// (Spent, Checking Balance, Monthly Bills…). The affix is presentation only, so
+// "300 g" would still add 300 to the spending total. Currency options there are
+// safe; grams want their own field.
+function AffixEditor({ local, setLocal }) {
+  const setMeta = (patch) => setLocal(p => ({ ...p, meta: { ...(p.meta || {}), ...patch } }));
+  const listToText = (a) => (Array.isArray(a) ? a.join(", ") : "");
+  const textToList = (t) => t.split(",").map(x => x.trim()).filter(Boolean);
+  const row = (which, label, placeholder) => (
+    <div style={{ display: "flex", gap: 6, alignItems: "flex-end" }}>
+      <div style={{ flex: "0 0 60px" }}>
+        <span style={labelStyle}>{label}</span>
+        <input
+          value={local.meta?.[which] || ""}
+          onChange={(e) => setMeta({ [which]: e.target.value })}
+          style={{ ...inputStyle, width: 60 }}
+          placeholder={placeholder}
+        />
+      </div>
+      <div style={{ flex: 1 }}>
+        <span style={labelStyle}>{label} choices (comma separated — leave empty for none)</span>
+        <input
+          value={listToText(local.meta?.[`${which}Options`])}
+          onChange={(e) => setMeta({ [`${which}Options`]: textToList(e.target.value) })}
+          style={{ ...inputStyle, width: "100%" }}
+          placeholder={which === "postfix" ? "kg, g, ml, L" : "$, \u20ac, \u00a3"}
+        />
+      </div>
+    </div>
+  );
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", marginTop: 4 }}>
+      {row("prefix", "Prefix", "$")}
+      {row("postfix", "Postfix", "kg")}
+      <span style={{ fontSize: 9.5, color: "var(--text-faint)" }}>
+        Choices let each row pick its own label. The number itself never changes —
+        so don\u2019t put units on a field that gets summed as money.
+      </span>
+    </div>
+  );
+}
+
 export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
   const { modulesById, fieldsById } = useGridActions();
   const [local, setLocal] = useState(field);
@@ -292,6 +344,9 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
               placeholder="e.g. kg"
             />
           </div>
+        )}
+        {(local.type === "number" || local.type === "duration") && (
+          <AffixEditor local={local} setLocal={setLocal} />
         )}
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <span style={labelStyle}>Enabled</span>

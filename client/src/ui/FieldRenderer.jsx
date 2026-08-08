@@ -18,6 +18,7 @@ import { useComputedValueWithFallback } from "../state/computedValuesStore";
 import { resolveOptions } from "../helpers/optionsResolver";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
 import { planPrefill, prefillFieldsPatch } from "../helpers/prefillFromPick";
+import { resolveAffix, affixMenu, withAffix } from "../helpers/fieldAffix";
 
 function FieldRenderer({
   field,
@@ -107,9 +108,14 @@ function FieldRenderer({
     });
     return eff?.[field.id] ?? null;
   });
-  const { value: inputValue, flow: currentFlow, hideName, hidePrefix, hidePostfix } = useMemo(() => {
+  const { value: inputValue, flow: currentFlow, hideName, hidePrefix, hidePostfix,
+          pickedPrefix, pickedPostfix, affixPrefixMenu, affixPostfixMenu } = useMemo(() => {
     if (!occurrence?.fields || !field?.id) {
-      return { value: undefined, flow: "in", hideName: false, hidePrefix: false, hidePostfix: false };
+      return { value: undefined, flow: "in", hideName: false, hidePrefix: false, hidePostfix: false,
+               pickedPrefix: resolveAffix(field, null, "prefix"),
+               pickedPostfix: resolveAffix(field, null, "postfix"),
+               affixPrefixMenu: affixMenu(field, null, "prefix"),
+               affixPostfixMenu: affixMenu(field, null, "postfix") };
     }
     const stored = occurrence.fields[field.id];
     let value, flow = "in";
@@ -132,8 +138,15 @@ function FieldRenderer({
       hideName: stored?.hideName === true,
       hidePrefix: stored?.hidePrefix === true,
       hidePostfix: stored?.hidePostfix === true,
+      // The affix this ROW shows, and the menu it can pick from. Both resolve
+      // through helpers/fieldAffix so "" stays a meaningful pick (a row saying
+      // "no unit") rather than falling back to the field default.
+      pickedPrefix: resolveAffix(field, stored, "prefix"),
+      pickedPostfix: resolveAffix(field, stored, "postfix"),
+      affixPrefixMenu: affixMenu(field, stored, "prefix"),
+      affixPostfixMenu: affixMenu(field, stored, "postfix"),
     };
-  }, [occurrence, autoStampFromFilter, field?.id, field?.meta?.flow]);
+  }, [occurrence, autoStampFromFilter, field, field?.id, field?.meta?.flow]);
 
   // Computed result from operation executor — per-key subscription: this
   // component re-renders ONLY when its own entry changes, not on every
@@ -224,9 +237,25 @@ function FieldRenderer({
     if (!occurrence?.id || !field?.id || !inputEnabled) return;
     const stored = occurrence.fields?.[field.id];
     const currentValue = stored && typeof stored === "object" && "value" in stored ? stored.value : stored;
+    // SPREAD the stored object. Rebuilding it as { value, flow } silently
+    // dropped hideName / hidePrefix / hidePostfix — and now the affix picks
+    // too. Any writer of ONE per-row key has to preserve the others.
+    const base = stored && typeof stored === "object" ? stored : {};
     CommitHelpers.updateOccurrence({
       dispatch, socket,
-      occurrence: { id: occurrence.id, fields: { ...((occurrence.fields) || {}), [field.id]: { value: currentValue, flow: newFlow } } },
+      occurrence: { id: occurrence.id, fields: { ...((occurrence.fields) || {}), [field.id]: { ...base, value: currentValue, flow: newFlow } } },
+      emit: true,
+    });
+  }, [occurrence, field?.id, inputEnabled, dispatch, socket]);
+
+  // Picking this ROW's prefix/postfix. Presentation only — the stored value is
+  // untouched, so nothing that aggregates this field is affected.
+  const handleAffixChange = useCallback((which, next) => {
+    if (!occurrence?.id || !field?.id || !inputEnabled) return;
+    const stored = occurrence.fields?.[field.id];
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: occurrence.id, fields: { ...((occurrence.fields) || {}), [field.id]: withAffix(stored, which, next) } },
       emit: true,
     });
   }, [occurrence, field?.id, inputEnabled, dispatch, socket]);
@@ -349,6 +378,11 @@ function FieldRenderer({
           hideName={hideName}
           hidePrefix={hidePrefix}
           hidePostfix={hidePostfix}
+          affixPrefix={pickedPrefix}
+          affixPostfix={pickedPostfix}
+          affixPrefixMenu={affixPrefixMenu}
+          affixPostfixMenu={affixPostfixMenu}
+          onAffixChange={handleAffixChange}
         />
       )}
       <div style={{ display: "inline-flex", alignItems: "stretch", gap: 0 }}>
@@ -364,6 +398,11 @@ function FieldRenderer({
           hideName={hideName}
           hidePrefix={hidePrefix}
           hidePostfix={hidePostfix}
+          affixPrefix={pickedPrefix}
+          affixPostfix={pickedPostfix}
+          affixPrefixMenu={affixPrefixMenu}
+          affixPostfixMenu={affixPostfixMenu}
+          onAffixChange={handleAffixChange}
           // Both select AND occurrence fields render the randomize dice INSIDE
           // the pill border (Field owns it). canRandomize is only ever true for
           // those two types, so there's no longer an appended side-segment.
