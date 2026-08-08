@@ -6,6 +6,82 @@
 
 ---
 
+### 2026-08-08 (3) — the handoff named the WRONG FUNCTION, and the real blocker was never filed
+
+Carried the other two accounts' queue over — the working queue is in the jsonl `TaskCreate`/
+`TaskUpdate` entries **and in `~/.claude*/tasks/<session>/N.json`**, which is the authoritative
+rolled-up form and is far cheaper to read than replaying the log. account3 hit its session limit on
+the FIRST read of its own task #14; account2 hit its monthly spend limit seconds later. 14 items, 5
+completed there, 9 carried here.
+
+**THE HANDOFF NOTE POINTED AT THE WRONG FUNCTION, and it had the risk backwards.** It said feed
+conditions are evaluated by `isOccurrenceVisible` (selectors.js:568) and warned in bold that the fix
+sits on the **hot render path** where "a mistake breaks 37 boards at once". It does not. Feed
+CONDITIONS are evaluated in **`resolveFeedItems` (selectors.js:462)**; `isOccurrenceVisible` is a
+SECOND, later stage that applies the owner's date filter to the matches (`feedSync.js:55-56`). The
+note's individual facts were all true — empty `$vars`, the dead `filterOverride: {}` fallback — they
+were just attached to the wrong half. The fix landed in the resolver, which runs from the debounced
+feedSync and the editor's match count, **not per render**. *A handoff's diagnosis is a claim; check
+which function actually does the thing before inheriting its risk assessment.*
+
+**ADDITIVE BY MEASUREMENT, then PROVEN BY A/B.** Before writing anything: **71 feed conditions across
+the three grids, 35 plain strings + 1 boolean per grid, and NOT ONE beginning with `$`** — so a
+resolver gated on a leading `$` cannot change any existing feed. Then proven rather than argued:
+drove the REAL `resolveFeedItems` over LIVE data on both code versions — **77 feeds, 208 rows,
+byte-identical row sets**.
+
+**Rules are now built ONCE per pass, and that is correctness before it is speed:** a sync straddling
+midnight must not classify two rows against two different "todays".
+
+**It fails CLOSED, and the A/B says which direction matters.** An unknown token passes through
+verbatim → the comparator gets an unparseable date → `DATE_BEFORE` answers false. Resolving an
+unknown token to `null` instead reads as *"no filter set"* downstream and would match **everything**;
+that variant fails its test. Also A/B'd: `$today → null` fails the presence test while the two
+absence tests still pass — **those two do not discriminate on their own**, said plainly rather than
+counted as coverage (the 2026-08-01 (16) trap).
+
+**AND THE REAL BLOCKER WAS NEVER IN THE TASK.** The token was the filed obstacle; it does not finish
+the user's ask. **`resolveFeedItems` ANDs every condition**, so adding `Date DATE_BEFORE $today` to
+the Completed container yields "completed AND past", not "completed OR past" — and the correct
+predicate is NESTED (`Completed IS true OR (past AND is-an-appointment)`), because an unqualified
+date rule sweeps every past-dated row on the page. `evalGroupAgainstRecord` already does AND/OR and
+nesting; what is missing is that feeds flatten to a list and `FeedSection` can only edit a flat one.
+Filed with three options rather than guessed at — one container needs real predicate groups; two
+containers need nothing.
+
+**A one-line UI hint, because a token nobody can find is not shipped.** The value coercion already
+left a `"$"` string intact, so `$today` was reachable and undiscoverable — the 2026-08-01 (16)
+"my fix was inert" failure seen from the other side.
+
+**`0059` — the psych appointment, and THREE THINGS WERE ASKED RATHER THAN GUESSED.** User, mid-turn:
+*"i have a psych appointment with Angela at sixteenth street clinic at 9am."* The message carries a
+time but **no day**; the duration is unstated; and a psych visit is arguably `Doctor` **and** arguably
+`Therapy`, with Keith already occupying Therapy. Inventing any of the three on a real medical
+calendar is the class of error `0052` (phone numbers) and `0054` (addresses) exist to prevent, so the
+user picked: **Aug 11, 30 minutes, and a NEW `Psych` type.**
+- **The two dropdown options are OCCURRENCES, not strings** — both fields resolve by find over
+  `$allInstances` on a board-category tag. **Nothing in the migration hardcodes the tag, its value,
+  or a board id**: all three are read out of the FIELD's own stored predicate and `addNew` config.
+- **The tag value's ARRAY shape is copied from an exemplar read at use time**, because `CONTAINS`
+  matches a scalar too — the wrong shape would resolve fine in the dropdown and be wrong for anything
+  reading the field as a list. Reading the exemplar *at use time* is `0054`'s own defect avoided.
+- **The clinic gets NO ADDRESS.** Sixteenth Street has several Milwaukee sites, and a plausible
+  address on a medical appointment is indistinguishable from one the user entered.
+- **Verified by reading the RESULT back, not the log:** 7 fields dereferencing to the right labels,
+  the row LISTED by its parent, the shared Appointment template (what the placement op matches on),
+  and both new options **resolving through their dropdown's real predicate** — 8 types, 9 locations.
+  Force re-run skips all three. Seed half added; a reseeded test grid 2 produces the identical lists.
+
+601 server + 2122 client tests (the 3 `liveOpsBehavioral` Daily-Question failures are pre-existing —
+**A/B'd against stashed source, identical 3**). Build clean, chunk sanity holding. poms grid **0
+errors**; test grid 1's 1 error is the frozen archive, still deliberately untouched.
+
+**NOT VERIFIED, and it is the honest gap:** no feed on any grid uses `$today` yet, so the token has
+never resolved in a browser — only against live data through the real resolver. And the appointment
+has not been watched land in its 9:00am slot; that happens when the user navigates to Aug 11.
+
+---
+
 ### 2026-08-08 (2) — an ADDRESS field type; the design shrank three times, and THREE tasks were retired by measuring
 
 Carried the other account's queue over (14 items; it shipped #1/#3 then hit its spend limit one grep

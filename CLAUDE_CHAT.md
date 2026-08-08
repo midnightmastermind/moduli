@@ -2687,3 +2687,31 @@ The friend exports are the other half: FB's `friends.json` and IG's `followers`/
 become the People library roster, which is a parse the guide names but never specifies.
 
 Tasker sits above IFTTT wherever the data never leaves the phone.
+
+## 2026-08-08 — the psych appointment, and three things I refused to guess
+
+> "add in too that i have a psych appointment with Angela at sixteenth street clinic at 9am"
+
+Sent mid-turn while the feed-token work was finishing. The message carries a **time but no day**,
+no duration, and a type that the existing options genuinely do not cover — a psych visit is
+arguably `Doctor` and arguably `Therapy`, and Keith's sessions already occupy Therapy.
+
+Guessing any of the three would be invention on a real medical calendar, which is the class of
+error `0052` (phone numbers) and `0055` (the peer support group's blank type) exist to prevent. So
+they were put to the user as questions rather than assumptions:
+
+- **Date** → Tue, Aug 11
+- **Duration** → 30 minutes (covers the 9:00am slot only — `slotSpan`'s half-open interval)
+- **Type** → *add a new `Psych` option*, rather than bending it into Doctor or Therapy
+
+Shipped as `0059` plus the matching seed change, so a reseeded grid and the live grid carry the
+same option lists. **Sixteenth Street Clinic is seeded with its NAME ONLY** — Sixteenth Street has
+several Milwaukee sites, and 0054's rule is that a plausible address on a medical appointment is
+indistinguishable from one the user entered. The address field is bound and empty; the picker's
+search box fills it.
+
+**Still open from the same thread:** appointments do not yet move to the Tasks page's Completed
+container once their date passes. The `$today` token that was believed to be the blocker shipped
+today, but the real obstacle is that feed conditions are **ANDed** — one container holding both
+completed todos and past appointments needs OR/nested predicate groups, which feeds do not have.
+Three options are filed rather than chosen.

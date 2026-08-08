@@ -1,6 +1,22 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-08-07. Check this file before re-reading source._
+_Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-08 — feedTokens.js NEW: a feed condition can say `$today`)
+- **`feedTokens.js` (NEW, pure, 11 tests)** — `resolveFeedConditionValue(value, now?)`. A feed
+  condition's value reaches `evalRuleAgainstRecord` with an **EMPTY `$vars`**, so `$today` resolved
+  to nothing and "before today" was inexpressible on any feed. A literal date is correct for exactly
+  one day. Reuses `dueSpan.dayKey` — LOCAL parts, never `toISOString`.
+- **The vocabulary is deliberately CLOSED (one token).** Threading the executor's real `$vars` in
+  would let any feed condition reach `$allItems` on a path that runs over every occurrence on the
+  grid; this is a lookup table instead.
+- **FAILS CLOSED.** An unknown token is returned **verbatim**, so it reaches the comparator as an
+  unparseable date and `DATE_BEFORE` answers false. Resolving it to `null` instead reads as *"no
+  filter set"* downstream and would match **EVERYTHING** — A/B'd, that variant fails its test.
+- **Wired in `state/selectors.resolveFeedItems`, NOT `isOccurrenceVisible`** — see state/CLAUDE.md;
+  the inherited handoff note named the wrong function and inherited the wrong risk with it.
+- **Additive by measurement:** 71 live feed conditions, 0 begin with `$`; A/B over live data gave
+  byte-identical row sets for all 77 feeds.
+
 ## Recent Changes (2026-08-07 (8) — mainFile / boardOption / convertRelink / checklistFromText / ocr)
 - **`mainFile.js` (NEW, 19 tests)** — `main` on the Files field: WHICH attachment is the face.
   `setMainFile` / `attachFile` / `removeFile` / `clearMainFile` / `resolveMainFile`, plus the CLIENT

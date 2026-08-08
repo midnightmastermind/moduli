@@ -1,6 +1,26 @@
 # client/src/state — State CLAUDE.md
 
-_Updated: 2026-07-06. Check this file before re-reading source._
+_Updated: 2026-08-08. Check this file before re-reading source._
+
+## Recent Changes (2026-08-08 — resolveFeedItems: rules built once per pass, and `$today`)
+- **`selectors.js` (`resolveFeedItems`)** — condition rules are now built **once per pass** instead
+  of once per occurrence, and each value goes through `helpers/feedTokens.resolveFeedConditionValue`.
+  Building once is **correctness before speed**: a value may name a date token, and a sync straddling
+  midnight must not classify two rows against two different "todays". It also lifts the rule
+  construction out of a loop over every occurrence on the grid.
+- **THE TWO FUNCTIONS ARE EASY TO CONFUSE AND A HANDOFF GOT IT WRONG.** Feed **conditions** are
+  evaluated HERE, at `resolveFeedItems` (`evalRuleAgainstRecord(rule, record, {})`).
+  **`isOccurrenceVisible` is a SECOND, later stage** — `feedSync.js:55-56` runs it over the matches
+  to apply the OWNER's effective date filter (grid named-filter + local filters). Only
+  `isOccurrenceVisible` is on the hot render path (`ModuleContainer:682`, `ModulePage:299`);
+  `resolveFeedItems` runs from the debounced feedSync and `FeedSection`'s match count. A note that
+  says "feed conditions are on the hot path" has conflated the two.
+- The `cond.value`-empty → owner's-effective-filter fallback (selectors.js ~546) belongs to
+  `isOccurrenceVisible` and is **DEAD on a page carrying `filterOverride: {}`** (the
+  opt-out-of-date-filtering marker): the cascade deletes the date key, `rightVal` lands `undefined`,
+  and the condition is SKIPPED — i.e. it matches everything. That is why the token exists.
+- **Feed conditions are ANDed** (`for (const rule of preparedRules) … break`). There is no OR and no
+  nesting, even though `evalGroupAgainstRecord` supports both — see the open task on predicate groups.
 
 ## Recent Changes (2026-08-06 — onFullState: the op sweep waits for the first panel's content)
 - **`bindSocketToStore.js`** — the on-load sweep's deferral changed from a nested
