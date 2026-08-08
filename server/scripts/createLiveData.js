@@ -5342,10 +5342,23 @@ export async function createLiveData(userId, options = {}) {
   // `> 0 ? … : 50`), the trap that silently drew a third of the emotions wheel.
   //
   // The APPOINTMENT half of the user's ask ("include appointments there too
-  // after the date passes") is NOT here: a feed condition cannot express
-  // "before today" — `evalRule` is called with an EMPTY `$vars`, and the
-  // owner-filter fallback is dead on this page because it carries
-  // `filterOverride: {}`. See migration 0056's header.
+  // after the date passes") LANDED 2026-08-08 and is the OR arm below. It took
+  // two things feeds did not have: a `$today` token (a condition is evaluated
+  // with an EMPTY `$vars`, and this page's `filterOverride: {}` kills the
+  // owner-filter fallback), and `conditionOperator` + nested groups, because a
+  // flat list ANDs and the two reasons to be in this container are unrelated.
+  //
+  // The second arm is a GROUP, not a bare date rule, and that nesting is the
+  // point: `Date DATE_BEFORE $today` on its own would sweep every past-dated
+  // row on the page. `Time Slot IS_NOT_EMPTY` narrows it to things that were
+  // SCHEDULED at a time — which today is exactly the appointments.
+  //
+  // It is a PROXY for "is an appointment", stated plainly: the precise test is
+  // the module (what `Schedule: Place Dated Work` matches on), and a feed
+  // condition's left side is always `fields.<id>.value`, so it cannot say that.
+  // A due-dated task carries `Due`, never `Date` + `Time Slot`, so the proxy is
+  // exact on today's data; if it ever needs to be exact by construction, that
+  // is a module-matching leaf, not a different predicate.
   const tasksPageModId = uid(); const tasksPageOccId = uid();
   const completedContModId = uid(); const completedContOccId = uid();
   await new Module({ id: tasksPageModId, userId, gridId, role: "page", kind: "board", label: "Tasks" }).save();
@@ -5356,7 +5369,14 @@ export async function createLiveData(userId, options = {}) {
     iteration: { mode: "persistent" }, fields: {},
     feed: {
       enabled: true,
-      conditions: [{ fieldId: fields.completed.id, comparator: "IS", value: true }],
+      conditionOperator: "OR",
+      conditions: [
+        { id: "completed-todo", fieldId: fields.completed.id, comparator: "IS", value: true },
+        { id: "past-appointment", operator: "AND", conditions: [
+          { id: "date-passed", fieldId: dateFieldId, comparator: "DATE_BEFORE", value: "$today" },
+          { id: "was-scheduled", fieldId: timeslotFieldId, comparator: "IS_NOT_EMPTY", value: "" },
+        ] },
+      ],
       roles: ["instance"],
       scope: tasksPageOccId,
       sort: null,

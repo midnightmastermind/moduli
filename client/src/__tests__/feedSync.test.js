@@ -339,3 +339,81 @@ describe("resolveFeedItems — $today in a condition value", () => {
     expect(ids).toEqual(["past"]);
   });
 });
+
+// ── OR / nested groups in a feed (2026-08-08) ─────────────────────────────
+//
+// The Completed container has to hold two unrelated things: todos you ticked,
+// and appointments whose date has passed. That is an OR, and the second arm is
+// itself an AND (a date rule alone would sweep every past-dated row).
+describe("resolveFeedItems — conditionOperator and nested groups", () => {
+  const F_SLOT = "fidSlot";
+  const D = (offset) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  function world2() {
+    const modulesById = {
+      mPage: { id: "mPage", role: "page", kind: "board", label: "Tasks" },
+      mMirror: { id: "mMirror", role: "page", kind: "board", label: "Completed" },
+      mRow: { id: "mRow", role: "instance", kind: "board", label: "Row" },
+    };
+    const F = (fields) => ({ moduleId: "mRow", fields });
+    const occurrencesById = {
+      tasks: { id: "tasks", moduleId: "mPage", occurrences: ["done", "pastAppt", "futureAppt", "plainPast", "idle"] },
+      done: { id: "done", ...F({ [F_DONE]: { value: true } }) },
+      pastAppt: { id: "pastAppt", ...F({ [F_DONE]: { value: false }, [F_DATE]: { value: D(-1) }, [F_SLOT]: { value: "9:00am" } }) },
+      futureAppt: { id: "futureAppt", ...F({ [F_DONE]: { value: false }, [F_DATE]: { value: D(1) }, [F_SLOT]: { value: "9:00am" } }) },
+      // Past-dated but NOT a scheduled event. Only the nested AND excludes it —
+      // a flat "date before today" rule would sweep it in.
+      plainPast: { id: "plainPast", ...F({ [F_DONE]: { value: false }, [F_DATE]: { value: D(-1) } }) },
+      idle: { id: "idle", ...F({ [F_DONE]: { value: false } }) },
+      mirror: { id: "mirror", moduleId: "mMirror", occurrences: [], feed: null },
+    };
+    return { modulesById, occurrencesById };
+  }
+
+  const COMPLETED_FEED = {
+    enabled: true, roles: ["instance"], scope: "tasks", limit: 300,
+    conditionOperator: "OR",
+    conditions: [
+      { id: "c1", fieldId: F_DONE, comparator: "IS", value: true },
+      { id: "g1", operator: "AND", conditions: [
+        { id: "c2", fieldId: F_DATE, comparator: "DATE_BEFORE", value: "$today" },
+        { id: "c3", fieldId: F_SLOT, comparator: "IS_NOT_EMPTY", value: "" },
+      ] },
+    ],
+  };
+
+  it("pulls the union of a ticked todo and a past scheduled event", () => {
+    const { modulesById, occurrencesById } = world2();
+    const feedOcc = { ...occurrencesById.mirror, feed: COMPLETED_FEED };
+    const ids = resolveFeedItems(feedOcc, { occurrencesById, modulesById }).map(i => i.occurrence.id).sort();
+    expect(ids).toEqual(["done", "pastAppt"]);
+  });
+
+  it("the nested AND is what excludes a past row that was never scheduled", () => {
+    const { modulesById, occurrencesById } = world2();
+    const feedOcc = { ...occurrencesById.mirror, feed: COMPLETED_FEED };
+    const ids = resolveFeedItems(feedOcc, { occurrencesById, modulesById }).map(i => i.occurrence.id);
+    expect(ids).not.toContain("plainPast");
+    expect(ids).not.toContain("futureAppt");
+    expect(ids).not.toContain("idle");
+  });
+
+  // The back-compat guarantee, stated as a test: every live feed omits
+  // conditionOperator and must keep ANDing.
+  it("a flat list with no operator still ANDs", () => {
+    const { modulesById, occurrencesById } = world2();
+    const feedOcc = { ...occurrencesById.mirror, feed: {
+      enabled: true, roles: ["instance"], scope: "tasks",
+      conditions: [
+        { id: "c1", fieldId: F_DONE, comparator: "IS", value: false },
+        { id: "c2", fieldId: F_SLOT, comparator: "IS_NOT_EMPTY", value: "" },
+      ],
+    } };
+    const ids = resolveFeedItems(feedOcc, { occurrencesById, modulesById }).map(i => i.occurrence.id).sort();
+    expect(ids).toEqual(["futureAppt", "pastAppt"]);
+  });
+});

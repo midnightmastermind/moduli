@@ -1,8 +1,8 @@
 // state/selectors.js
 // Selectors for working with occurrences and entities in the state
-import { evalRule, evalGroup, evalRuleAgainstRecord } from "../helpers/operationActions";
+import { evalRule, evalGroup, evalRuleAgainstRecord, evalGroupAgainstRecord } from "../helpers/operationActions";
 import { buildParentMap, cachedParentMap } from "../helpers/dragHitTesting";
-import { resolveFeedConditionValue } from "../helpers/feedTokens";
+import { buildFeedPredicate } from "../helpers/feedPredicate";
 
 /**
  * The single authoritative "who is this occurrence's parent" answer.
@@ -425,7 +425,6 @@ export function resolveFeedItems(feedOcc, { occurrencesById, modulesById } = {})
   if (!feed?.enabled || !occurrencesById) return [];
   const roles = Array.isArray(feed.roles) && feed.roles.length ? feed.roles : ["instance"];
   const limit = Number(feed.limit) > 0 ? Number(feed.limit) : 50;
-  const conditions = Array.isArray(feed.conditions) ? feed.conditions : [];
 
   const pbc = buildParentMap(occurrencesById);
   const ancestorsOf = (id) => {
@@ -446,19 +445,15 @@ export function resolveFeedItems(feedOcc, { occurrencesById, modulesById } = {})
   // occurrence's own children (per user: own children stay visible).
   const ownChain = new Set([feedOcc.id, ...ancestorsOf(feedOcc.id)]);
 
-  // Rules are built ONCE per pass, not once per occurrence. Two reasons, and
-  // the first is correctness: a condition's value may name a date token
+  // The predicate is built ONCE per pass, not once per occurrence. Two reasons,
+  // and the first is correctness: a condition's value may name a date token
   // (`$today`), and a pass that straddles midnight must not classify two rows
-  // against two different "todays". The second is that this lifts the rule
+  // against two different "todays". The second is that this lifts the tree
   // construction out of a loop over every occurrence on the grid.
-  const conditionNow = new Date();
-  const preparedRules = conditions
-    .filter((c) => c?.fieldId)
-    .map((c) => ({
-      left: `fields.${c.fieldId}.value`,
-      comparator: c.comparator || "IS",
-      right: resolveFeedConditionValue(c.value, conditionNow),
-    }));
+  //
+  // `null` = nothing usable to match on, so every candidate passes — which is
+  // what the old inline loop did when it skipped every condition.
+  const predicate = buildFeedPredicate(feed, { now: new Date() });
 
   const out = [];
   for (const occ of Object.values(occurrencesById)) {
@@ -470,11 +465,8 @@ export function resolveFeedItems(feedOcc, { occurrencesById, modulesById } = {})
     const ancestors = ancestorsOf(occ.id);
     if (ancestors.includes(feedOcc.id)) continue; // already an owned descendant
     if (feed.scope && !ancestors.includes(feed.scope)) continue;
-    let match = true;
-    for (const rule of preparedRules) {
-      if (!evalRuleAgainstRecord(rule, { ...occ, _ancestors: ancestors }, {})) { match = false; break; }
-    }
-    if (!match) continue;
+    // AND/OR + nesting, via the evaluator that has always supported both.
+    if (predicate && !evalGroupAgainstRecord(predicate, { ...occ, _ancestors: ancestors }, {})) continue;
     out.push({ occurrence: occ, module: mod || null });
   }
 

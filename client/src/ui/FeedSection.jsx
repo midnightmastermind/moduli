@@ -17,6 +17,148 @@ const uid = () => `feedc-${Math.random().toString(36).slice(2, 9)}`;
 
 const ROLE_OPTIONS = ["instance", "textblock", "artifact", "container"];
 
+// How deep the EDITOR lets you nest. `helpers/feedPredicate` tolerates more and
+// refuses beyond its own cap; this is the smaller, friendlier limit — two levels
+// covers "either of these, or both of those" and anything past it is unreadable
+// in a dropdown this size.
+const MAX_UI_DEPTH = 2;
+
+const isGroup = (entry) => Array.isArray(entry?.conditions);
+const newLeaf = () => ({ id: uid(), fieldId: "", comparator: "IS", value: "" });
+const newGroup = () => ({ id: uid(), operator: "AND", conditions: [newLeaf()] });
+
+// The stored value keeps the coercion the flat editor always had: "true"/"false"
+// become booleans, numeric strings become numbers, everything else stays a
+// string — which is what leaves a "$today" token intact.
+const coerce = (raw) => (raw === "true" ? true : raw === "false" ? false
+  : raw !== "" && !isNaN(Number(raw)) ? Number(raw) : raw);
+
+// AND/OR, said in words. "match all / match any" reads correctly to someone who
+// has never written a predicate; AND/OR does not.
+function OperatorToggle({ operator, onChange }) {
+  const isOr = String(operator).toUpperCase() === "OR";
+  return (
+    <button
+      onClick={() => onChange(isOr ? "AND" : "OR")}
+      title={isOr ? "ANY one of these is enough" : "EVERY one of these must hold"}
+      style={{
+        background: isOr ? "rgba(250,204,96,0.18)" : "rgba(96,165,250,0.14)",
+        color: isOr ? "rgb(250,224,160)" : "rgb(186,214,255)",
+        border: "1px solid var(--border-subtle)", borderRadius: 4,
+        fontSize: 9, fontFamily: "var(--font-mono)", padding: "1px 6px", cursor: "pointer",
+      }}
+    >
+      match {isOr ? "any" : "all"}
+    </button>
+  );
+}
+
+function AddButton({ onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 4,
+        background: "none", border: "1px dashed var(--border-subtle)", borderRadius: 4,
+        color: "var(--text-muted)", fontSize: 10, fontFamily: "var(--font-mono)",
+        padding: "2px 8px", cursor: "pointer",
+      }}
+    >
+      <Plus size={10} /> {children}
+    </button>
+  );
+}
+
+// One level of the tree. Recursive, so a group renders the same control set as
+// the top level — there is no second implementation to drift.
+function ConditionList({ entries, operator, onEntries, onOperator, fields, depth = 0 }) {
+  const replaceAt = (i, v) => onEntries(entries.map((e, j) => (j === i ? v : e)));
+  const removeAt = (i) => onEntries(entries.filter((_, j) => j !== i));
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {entries.length > 1 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <OperatorToggle operator={operator} onChange={onOperator} />
+          <span style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
+            of the {entries.length} below
+          </span>
+        </div>
+      )}
+
+      {entries.map((entry, i) => isGroup(entry) ? (
+        <div
+          key={entry.id || i}
+          style={{
+            display: "flex", gap: 6, alignItems: "flex-start",
+            borderLeft: "2px solid var(--border-subtle)", paddingLeft: 8,
+          }}
+        >
+          <div style={{ flex: 1 }}>
+            <ConditionList
+              entries={entry.conditions || []}
+              operator={entry.operator}
+              onEntries={(next) => replaceAt(i, { ...entry, conditions: next })}
+              onOperator={(op) => replaceAt(i, { ...entry, operator: op })}
+              fields={fields}
+              depth={depth + 1}
+            />
+          </div>
+          <button
+            onClick={() => removeAt(i)}
+            title="Remove group"
+            style={{ background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", padding: 2 }}
+          >
+            <X size={11} />
+          </button>
+        </div>
+      ) : (
+        <div key={entry.id || i} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <select
+            value={entry.fieldId || ""}
+            onChange={(e) => replaceAt(i, { ...entry, fieldId: e.target.value })}
+            style={{ ...inputStyle, flex: 2 }}
+          >
+            <option value="">field…</option>
+            {fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+          <select
+            value={entry.comparator || "IS"}
+            onChange={(e) => replaceAt(i, { ...entry, comparator: e.target.value })}
+            style={{ ...inputStyle, flex: 2 }}
+          >
+            {COMPARATOR_OPTIONS.map(op => (
+              <option key={op.value || op} value={op.value || op}>{op.label || op.value || op}</option>
+            ))}
+          </select>
+          {!UNARY_COMPARATORS?.has?.(entry.comparator) && (
+            <input
+              value={entry.value ?? ""}
+              placeholder="value"
+              onChange={(e) => replaceAt(i, { ...entry, value: coerce(e.target.value) })}
+              style={{ ...inputStyle, flex: 2 }}
+            />
+          )}
+          <button
+            onClick={() => removeAt(i)}
+            title="Remove condition"
+            style={{ background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", padding: 2 }}
+          >
+            <X size={11} />
+          </button>
+        </div>
+      ))}
+
+      <div style={{ display: "flex", gap: 6 }}>
+        <AddButton onClick={() => onEntries([...entries, newLeaf()])}>condition</AddButton>
+        {depth < MAX_UI_DEPTH && (
+          <AddButton onClick={() => onEntries([...entries, newGroup()])}>group</AddButton>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const inputStyle = {
   width: "100%", boxSizing: "border-box",
   background: "var(--input-bg, rgba(0,0,0,0.25))",
@@ -103,72 +245,16 @@ export default function FeedSection({ occurrence }) {
 
       {feed?.enabled && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {/* Conditions */}
-          {(feed.conditions || []).map((c, i) => {
-            const unary = UNARY_COMPARATORS?.has?.(c.comparator);
-            return (
-              <div key={c.id || i} style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                <select
-                  value={c.fieldId || ""}
-                  onChange={(e) => {
-                    const conditions = [...feed.conditions];
-                    conditions[i] = { ...c, fieldId: e.target.value };
-                    patch({ conditions });
-                  }}
-                  style={{ ...inputStyle, flex: 2 }}
-                >
-                  <option value="">field…</option>
-                  {fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                </select>
-                <select
-                  value={c.comparator || "IS"}
-                  onChange={(e) => {
-                    const conditions = [...feed.conditions];
-                    conditions[i] = { ...c, comparator: e.target.value };
-                    patch({ conditions });
-                  }}
-                  style={{ ...inputStyle, flex: 2 }}
-                >
-                  {COMPARATOR_OPTIONS.map(op => (
-                    <option key={op.value || op} value={op.value || op}>{op.label || op.value || op}</option>
-                  ))}
-                </select>
-                {!unary && (
-                  <input
-                    value={c.value ?? ""}
-                    placeholder="value"
-                    onChange={(e) => {
-                      const conditions = [...feed.conditions];
-                      const raw = e.target.value;
-                      const coerced = raw === "true" ? true : raw === "false" ? false
-                        : raw !== "" && !isNaN(Number(raw)) ? Number(raw) : raw;
-                      conditions[i] = { ...c, value: coerced };
-                      patch({ conditions });
-                    }}
-                    style={{ ...inputStyle, flex: 2 }}
-                  />
-                )}
-                <button
-                  onClick={() => patch({ conditions: feed.conditions.filter((_, j) => j !== i) })}
-                  title="Remove condition"
-                  style={{ background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", padding: 2 }}
-                >
-                  <X size={11} />
-                </button>
-              </div>
-            );
-          })}
-          <button
-            onClick={() => patch({ conditions: [...(feed.conditions || []), { id: uid(), fieldId: "", comparator: "IS", value: "" }] })}
-            style={{
-              display: "flex", alignItems: "center", gap: 4, alignSelf: "flex-start",
-              background: "none", border: "1px dashed var(--border-subtle)", borderRadius: 4,
-              color: "var(--text-muted)", fontSize: 10, fontFamily: "var(--font-mono)",
-              padding: "2px 8px", cursor: "pointer",
-            }}
-          >
-            <Plus size={10} /> condition
-          </button>
+          {/* Conditions — one recursive control set, so a nested group offers
+              exactly what the top level does. `conditionOperator` is absent on
+              every feed authored before 2026-08-08 and reads as AND. */}
+          <ConditionList
+            entries={feed.conditions || []}
+            operator={feed.conditionOperator}
+            onEntries={(conditions) => patch({ conditions })}
+            onOperator={(conditionOperator) => patch({ conditionOperator })}
+            fields={fields}
+          />
           {/* The token is stored verbatim (the value coercion leaves a "$" string
               alone) and resolved at match time by helpers/feedTokens. Without this
               line it works but nobody would ever guess it exists. */}
