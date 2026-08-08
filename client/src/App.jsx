@@ -29,6 +29,7 @@ import RubberBandSelector from "./ui/RubberBandSelector";
 import { Spinner } from "./components/ui/spinner";
 import UserInputModal from "./ui/UserInputModal";
 import { ImagePickerHost } from "./ui/ImagePickerMenu";
+import { AddressPickerHost } from "./ui/AddressPickerMenu";
 import { IntakeSheetHost } from "./ui/IntakeSheet";
 import IntakePasteHost from "./ui/IntakePasteHost";
 import { ArtifactSpreadHost } from "./ui/ArtifactSpreadHost";
@@ -1026,6 +1027,10 @@ export default function App() {
             viewer) open it imperatively via openImagePicker() so it
             survives their popovers unmounting. */}
         <ImagePickerHost />
+        {/* The `address` field type's map search — same single-host reason as
+            the image picker: it is opened from inside field popovers that
+            unmount the moment focus leaves them. */}
+        <AddressPickerHost />
         {/* Asks what a dropped/pasted payload should become. One host, because
             the callers are drop HANDLERS with nowhere to render a sheet. */}
         <IntakeSheetHost />

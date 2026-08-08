@@ -47,6 +47,50 @@ export function buildLocationMeta({ label, address = "", lat, lon, osmId = null 
   };
 }
 
+/**
+ * Normalize whatever an `address` field holds into `{ label, address, lat, lon }`.
+ *
+ * TWO SHAPES ARE VALID AND BOTH STAY VALID:
+ *   • a plain STRING — what every address on this grid was before the type
+ *     existed (12 People modules bind the field; 10 carry real street
+ *     addresses). Those are still perfectly good addresses; they just have no
+ *     coordinates. Migrating them by geocoding would be guessing at the user's
+ *     data, so they are read as-is and only change if someone re-picks one.
+ *   • an OBJECT from the picker, carrying coordinates as well.
+ *
+ * Returns null for empty, so a caller can render a placeholder without having
+ * to know which shape it was handed.
+ */
+export function readAddress(value) {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "string") {
+    const address = value.trim();
+    return address ? { label: "", address, lat: null, lon: null, osmId: null } : null;
+  }
+  if (typeof value !== "object") return null;
+  const address = String(value.address || "").trim();
+  const label = String(value.label || "").trim();
+  if (!address && !label) return null;
+  return {
+    label,
+    address,
+    lat: num(value.lat),
+    lon: num(value.lon),
+    osmId: value.osmId || null,
+  };
+}
+
+/**
+ * The one-line form for a row or a dropdown option. Prefers the name when the
+ * place has one ("Dewey Center"), since that is what a person would say; falls
+ * back to the street address.
+ */
+export function addressSummary(value) {
+  const a = readAddress(value);
+  if (!a) return "";
+  return a.label || a.address;
+}
+
 /** Read a location off an occurrence, falling back to its module. */
 export function locationOf(occurrence, module) {
   const fromOcc = occurrence?.meta?.location;

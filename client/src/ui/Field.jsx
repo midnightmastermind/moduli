@@ -22,7 +22,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { X, Plus, Check, ChevronDown, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Equal, Shuffle, Link2, Pause, Play, Square, Star, Minus, AlertCircle, AlertTriangle, ImagePlus } from "lucide-react";
+import { X, Plus, Check, ChevronDown, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Equal, Shuffle, Link2, Pause, Play, Square, Star, Minus, AlertCircle, AlertTriangle, ImagePlus, MapPin } from "lucide-react";
 
 // Icon-name → lucide component lookup for display rules.
 // Authored values are short names (e.g. "ArrowUp", "Pause"); resolved
@@ -41,6 +41,8 @@ import {
 import { setOccurrenceFieldValue, updateModule, updateField } from "../helpers/CommitHelpers";
 import { normalizeAddNewTargets, targetOptionsForAddNew, createOptionUnderParent, promptEntryFields } from "../helpers/addNewOption";
 import { openImagePicker } from "./ImagePickerMenu";
+import { openAddressPicker } from "./AddressPickerMenu";
+import { readAddress, addressSummary, mapLinkFor } from "../helpers/geocode";
 import { openArtifactSpread } from "./ArtifactSpreadHost";
 import { primaryMediaOf } from "../helpers/occurrenceMedia";
 import { resolveFileRef } from "../helpers/fileRef";
@@ -1410,6 +1412,57 @@ function Field({
       );
     }
 
+    // An ADDRESS is a searchable thing, so its editor is the map picker rather
+    // than a text box. Same control at both densities — an address is never
+    // short enough for a compact inline input to be the right shape, and the
+    // picker is where the coordinates come from.
+    if (type === "address") {
+      const addr = readAddress(localValue);
+      return (
+        <div className="field-input field-input-address" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          {showLabel && <span style={inputLabelStyle}>{name}</span>}
+          <button type="button" disabled={disabled}
+            onClick={() => {
+              if (disabled) return;
+              openAddressPicker({
+                title: name || "Set address",
+                // Seed the search from the row's own name — looking up "Dewey
+                // Center" is nearly always what you meant when you clicked the
+                // address field on a row called Dewey Center.
+                query: addr?.label
+                  || modulesById?.[hostOccurrence?.moduleId]?.label
+                  || hostOccurrence?.label
+                  || "",
+                value: addr,
+                onPick: (loc) => { handleChange(loc); handleCommit(loc); },
+              });
+            }}
+            className={`inline-flex items-start gap-2 px-2 py-1 text-xs rounded border transition-all self-start text-left
+              ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
+            style={{
+              background: "rgba(var(--occ-pill) / 0.1)",
+              borderColor: "rgba(var(--occ-pill) / 0.25)",
+              color: "var(--occ-pill-text)",
+              maxWidth: "100%",
+            }}
+            title={addr ? [addr.label, addr.address].filter(Boolean).join(" — ") : "Search for an address"}
+          >
+            <MapPin style={{ width: 13, height: 13, opacity: 0.7, flexShrink: 0, marginTop: 1 }} />
+            {addr ? (
+              <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                {addr.label && <span style={{ fontWeight: 600 }}>{addr.label}</span>}
+                {addr.address && (
+                  <span style={{ opacity: 0.75, fontSize: 10.5 }}>{addr.address}</span>
+                )}
+              </span>
+            ) : (
+              <span style={{ opacity: 0.75 }}>Set an address…</span>
+            )}
+          </button>
+        </div>
+      );
+    }
+
     if (type === "markdown") {
       return (
         <div className="field-input field-input-markdown" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -1724,6 +1777,9 @@ function Field({
         return Number.isInteger(num) ? num.toString() : num.toFixed(precision);
       }
       case "boolean": return rawDisplayValue ? "Yes" : "No";
+      // Reads whichever shape the value is in — a bare string (every address
+      // written before this type existed) or the picker's object.
+      case "address": return addressSummary(rawDisplayValue) || (compact ? "-" : "—");
       case "date": {
         if (!rawDisplayValue) return "—";
         try {
