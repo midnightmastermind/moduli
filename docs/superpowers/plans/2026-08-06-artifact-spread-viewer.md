@@ -11,8 +11,18 @@
 > | 1. `occurrenceMedia.js` — one resolver | **DONE** — `mediaFieldIdFor` / `filesFieldIdFor` / `primaryMediaOf` / `filesOf` (132 lines) |
 > | 2. `ArtifactSpread` — the surface | **DONE** — `ui/ArtifactSpread.jsx` + `ui/ArtifactSpreadHost.jsx` (369 lines), host mounted at `App.jsx:1041` |
 > | 3. Open it from the thumbnail | **DONE** — two call sites in `ui/Field.jsx` (1045, 1385), each passing the origin rect |
-> | 4. The migration — strings become artifacts | **NOT DONE** — needs a database + a dry run |
-> | 5. Seed + docs | **NOT DONE** |
+> | 4. The migration — strings become artifacts | **DONE** — `server/migrations/0043-media-fields-to-artifacts.mjs`, applied to poms grid (215/215 media values resolve, 0 legacy strings) |
+> | 5. Seed + docs | **DONE 2026-08-08** — the seed now CALLS 0043 rather than reimplementing it |
+>
+> **UPDATED AGAIN 2026-08-08, and the update is the interesting part.** Tasks 4 and 5 were both
+> already carried as open work, and 4 turned out to be shipped and applied months of sessions ago —
+> the THIRD time a status line in this repo has been wrong in this direction. But measuring did not
+> just retire work here, it **found a live defect**: a FRESHLY SEEDED grid resolved **0 of 187**
+> media values, had **no Files field** and **no `role:"files"` bindings**, because 0043 only ever
+> ran against `poms grid`. `primaryMediaOf` deliberately has no legacy-string fallback, so every
+> poster, cover and avatar on a new grid rendered nothing and the spread had nothing to open.
+> The seed now calls `0043.up()` directly — same code, so the two cannot drift — and a reseed goes
+> **0/187 → 187/187**.
 >
 > **28 tests** across `__tests__/ArtifactSpread.test.jsx` + `__tests__/occurrenceMedia.test.js`, all
 > passing.

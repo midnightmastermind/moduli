@@ -9396,6 +9396,42 @@ async function main() {
       console.warn("⚠️  Could not ensure a stable assistant API token:", e.message);
     }
 
+    // ── Media strings become real ARTIFACTS (2026-08-08) ────────────────────
+    //
+    // A media-role field's value has to be an ARTIFACT OCCURRENCE ID, not a URL
+    // string: `helpers/occurrenceMedia.primaryMediaOf` deliberately has NO
+    // legacy-string fallback ("a passthrough would render an unmigrated grid
+    // correctly and hide the fact that it was never migrated"), and every
+    // thumbnail site on the client goes through it.
+    //
+    // MEASURED BEFORE WRITING THIS, and it is why this is not cosmetic:
+    //
+    //                          poms grid (migrated)   a FRESH SEED
+    //   media values resolving      215 / 215          **0 / 187**
+    //   Files field                 present            **MISSING**
+    //   modules binding files       192                **0**
+    //
+    // So a freshly seeded grid rendered NO posters, NO covers and NO avatars
+    // anywhere, and the artifact spread had nothing to open. The seed and the
+    // live grid had silently diverged on the whole media model.
+    //
+    // THIS CALLS THE MIGRATION ITSELF rather than reimplementing it. `0043` is
+    // idempotent by construction (it skips a value that already names an
+    // artifact, set-unions the Files entry, and only binds a module that lacks
+    // the binding), so the seed and a migrated grid cannot drift — they are the
+    // same code. It also creates the Files field when absent, which on a fresh
+    // grid it always is.
+    {
+      const { up: convertMediaToArtifacts } = await import("../migrations/0043-media-fields-to-artifacts.mjs");
+      console.log("\n🖼️  Converting media strings → artifacts (migration 0043, shared with the live grid)…");
+      await convertMediaToArtifacts({
+        gridId: result.gridId,
+        models: { Occurrence, Module, Field, Grid },
+        log: (m) => console.log(`   ${m}`),
+        dryRun: false,
+      });
+    }
+
     // ── Snapshot to server/seed/*.json (skipped with --no-export) ──
     // The on-disk seed acts as the canonical fixture for fast restores
     // via `reloadLiveData.js`. Default = always export so the JSON

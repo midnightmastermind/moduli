@@ -6,6 +6,55 @@
 
 ---
 
+### 2026-08-08 (5) — measuring a "build this" task retired it AND found a live defect the queue never mentioned
+
+Two queue items — "Build the artifact spread viewer" and "Media prefill Tasks 4-5" — turned out to
+be **the same remaining work** (only one plan mentions `planMediaConversion`), and most of it was
+already shipped. Measured the tree instead of the status lines, per that plan's own rule:
+
+```
+occurrenceMedia.js 154 lines · ArtifactSpread.jsx 159 · ArtifactSpreadHost.jsx 210
+host mounted in App.jsx · 3 openArtifactSpread call sites in Field.jsx · 33 tests green
+migration 0043-media-fields-to-artifacts.mjs  EXISTS, 11 tests, APPLIED to poms grid
+```
+**Task 4 was done and applied; the plan header already said so** (it had been corrected on
+2026-08-07). That is the third status line in this repo wrong in this direction.
+
+**BUT MEASURING DID NOT JUST RETIRE WORK — IT FOUND A LIVE DEFECT NOBODY HAD FILED.** `0043` had
+only ever run against `poms grid`, and `primaryMediaOf` deliberately carries **no legacy-string
+fallback** (its own header: *"a passthrough would render an unmigrated grid correctly and hide the
+fact that it was never migrated"*). Every thumbnail site — Field's media pill, `resolveOccCard`,
+`ModuleInstance`, `RepresentationView` — goes through it. So:
+
+```
+                             poms grid (migrated)     a FRESHLY SEEDED GRID
+media values resolving            215 / 215                 0 / 187
+Files field                       present                   MISSING
+modules binding role:"files"      192                       0
+```
+
+**A fresh grid rendered NO posters, NO covers and NO avatars anywhere, and the artifact spread had
+nothing to open.** Proven by driving the REAL `primaryMediaOf` over both grids' live data, not by
+reading the seed.
+
+**THE FIX IS THE SEED CALLING THE MIGRATION, not a second implementation.** `createLiveData.js` now
+invokes `0043.up()` before its export. It is idempotent by construction — skips a value already
+naming an artifact, set-unions the Files entry, binds only a module that lacks the binding — and it
+creates the Files field when absent, which on a fresh grid it always is. **Because the seed IS the
+migration, the two cannot drift**, which is the rule this repo keeps paying for when the halves are
+written separately. Reseed: `0/187 → 187/187`, Files field created, 187 modules bound; poms grid
+untouched at 215/215.
+
+Server-only change, so **no deploy** (the same call `cc66d2cf` made). 601 server tests; poms grid
+and test grid 2 at 0 integrity errors.
+
+**The lesson, and it is the opposite of the usual one:** the standing rule is *measure before
+building, because the premise may be stale*. Here the premise was stale AND the measurement exposed
+something worse than the task described. **Retiring a task is not the end of the measurement — ask
+what the same probe says about the surfaces the task did not name.**
+
+---
+
 ### 2026-08-08 (4) — feeds get OR and NESTED GROUPS, and the evaluator already knew how
 
 User picked the faithful option over the cheap one: **one Completed container holding both kinds**,

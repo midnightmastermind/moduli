@@ -1,6 +1,30 @@
 # server — Server CLAUDE.md
 
 _Updated: 2026-08-07. Check this file before re-reading source._
+
+## Recent Changes (2026-08-08 — the SEED now mints media artifacts, by calling migration 0043)
+- **`scripts/createLiveData.js`** — right before the seed export, the run now calls
+  `migrations/0043-media-fields-to-artifacts.mjs`'s own `up()`. **It calls the migration rather than
+  reimplementing it**, so a reseeded grid and a migrated grid cannot drift — they are the same code.
+  0043 is idempotent by construction (skips a value already naming an artifact, set-unions the Files
+  entry, only binds a module that lacks the binding) and creates the Files field when absent, which
+  on a fresh grid it always is.
+- **WHY, MEASURED — this was a live defect, not tidiness.** `helpers/occurrenceMedia.primaryMediaOf`
+  deliberately has **no legacy-string fallback** ("a passthrough would render an unmigrated grid
+  correctly and hide the fact that it was never migrated"), and every thumbnail site on the client
+  goes through it. 0043 had only ever run against `poms grid`:
+  ```
+                            poms grid (migrated)     a FRESH SEED
+  media values resolving         215 / 215            0 / 187      <- every poster invisible
+  Files field                    present              MISSING
+  modules binding role:"files"   192                  0
+  ```
+  So a new grid rendered no posters, covers or avatars anywhere, and the artifact spread had nothing
+  to open. After: **187 / 187**, Files field created, 187 modules bound; poms grid unchanged at
+  215/215.
+- Verified by driving the REAL `primaryMediaOf` over both grids' live data before and after — not by
+  reading the seed. Integrity unchanged (poms 0 errors, test grid 2 0 errors).
+
 ## Recent Changes (2026-08-07 (9) — a placement delete is not a file delete; and 0052 adds two real people)
 - **`utils/filesFolder.js` — `classifyFileDelete` + `filesFolderIdSet` (8 tests, A/B'd).** "Remove
   this from my day page" and "delete this file" are the SAME gesture on the same row; only
