@@ -379,7 +379,44 @@ function useLiveFieldValue(field) {
 //   green → positive numeric, or any non-empty value (filled)
 // Fields that DO have a target use the target-met / target-not-met
 // colors instead (see targetMet checks at the call sites).
-function valueSignColor(value) {
+/**
+ * Whole days from today to `value` — negative when it has passed. Null when the
+ * value is not a date.
+ *
+ * ONE definition, because the same arithmetic was written three times in this
+ * file (the input's relative badge, the display string, and now the colour) and
+ * a fourth copy is how they start disagreeing.
+ *
+ * A `YYYY-MM-DD` string is parsed as LOCAL midnight. `new Date("2026-08-11")`
+ * is parsed as UTC and lands a day early anywhere west of Greenwich — this
+ * codebase has lost a day to that repeatedly.
+ */
+export function dayDiffFromToday(value) {
+  if (!value) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const d = (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value))
+    ? new Date(value + "T00:00:00")
+    : new Date(value);
+  if (isNaN(d.getTime())) return null;
+  d.setHours(0, 0, 0, 0);
+  return Math.round((d - today) / (1000 * 60 * 60 * 24));
+}
+
+/** A date that has already gone by. Today is NOT overdue — you still have it. */
+export function isOverdueDate(value) {
+  const diff = dayDiffFromToday(value);
+  return diff !== null && diff < 0;
+}
+
+export function valueSignColor(value, type) {
+  // A DATE is not "filled or empty", it is early or late — and the generic
+  // string fallthrough below painted every date green, so an overdue Due date
+  // read as healthy. User 2026-08-08: "the due field should be colored red if
+  // the date passed."
+  if (type === "date") {
+    if (value == null || value === "") return "var(--accent-blue-text, #bfdbfe)";
+    return isOverdueDate(value) ? "var(--danger-text)" : "var(--accent-green-text)";
+  }
   if (value == null || value === "" || value === 0) {
     return "var(--accent-blue-text, #bfdbfe)";
   }
@@ -397,7 +434,18 @@ function valueSignColor(value) {
 
 // Same scheme as valueSignColor but tuned for translucent pill
 // backgrounds (used by the compact display variant).
-function valueSignPillTint(value) {
+function valueSignPillTint(value, type) {
+  // Mirrors valueSignColor's date branch — the compact pill is the SAME signal
+  // at a different density, and letting the two disagree is how a date reads
+  // red in one place and green in the other.
+  if (type === "date") {
+    if (value == null || value === "") {
+      return { bg: "rgba(var(--signal-zero) / 0.18)", border: "rgba(var(--signal-zero) / 0.35)" };
+    }
+    return isOverdueDate(value)
+      ? { bg: "rgba(var(--signal-neg) / 0.2)", border: "rgba(var(--signal-neg) / 0.35)" }
+      : { bg: "rgba(var(--signal-pos) / 0.2)", border: "rgba(var(--signal-pos) / 0.35)" };
+  }
   if (value == null || value === "" || value === 0) {
     return { bg: "rgba(var(--signal-zero) / 0.18)", border: "rgba(var(--signal-zero) / 0.35)" };
   }
@@ -1092,8 +1140,8 @@ function Field({
             ? { bg: "rgba(34,197,94,0.2)",  border: "rgba(34,197,94,0.35)",  text: "rgb(134,239,172)" }
             : { bg: "rgba(248,113,113,0.2)", border: "rgba(248,113,113,0.35)", text: "rgb(252,165,165)" })
         : (() => {
-            const t = valueSignPillTint(localValue);
-            return { ...t, text: valueSignColor(localValue) };
+            const t = valueSignPillTint(localValue, type);
+            return { ...t, text: valueSignColor(localValue, type) };
           })();
 
       if (isClickEditing) {
@@ -1603,14 +1651,8 @@ function Field({
 
     if (type === "date") {
       const relativeDateLabel = useMemo(() => {
-        if (!localValue) return null;
-        const today = new Date(); today.setHours(0, 0, 0, 0);
-        // Parse YYYY-MM-DD as local midnight (UTC parse drifts a day west of UTC).
-        const d = (typeof localValue === "string" && /^\d{4}-\d{2}-\d{2}$/.test(localValue))
-          ? new Date(localValue + "T00:00:00")
-          : new Date(localValue);
-        d.setHours(0, 0, 0, 0);
-        const diff = Math.round((d - today) / (1000 * 60 * 60 * 24));
+        const diff = dayDiffFromToday(localValue);
+        if (diff === null) return null;
         if (diff === 0) return { text: "today", color: "#22c55e" };
         if (diff === 1) return { text: "tomorrow", color: "#22c55e" };
         if (diff > 0) return { text: `in ${diff} days`, color: diff <= 7 ? "#f59e0b" : "#64748b" };
@@ -1783,15 +1825,12 @@ function Field({
       case "date": {
         if (!rawDisplayValue) return "—";
         try {
-          // Parse YYYY-MM-DD as local midnight (UTC parse drifts a day west of UTC).
           const parseLocalDay = (v) => {
             if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(v + "T00:00:00");
             return new Date(v);
           };
           const date = parseLocalDay(rawDisplayValue);
-          const today = new Date(); today.setHours(0, 0, 0, 0);
-          const d = parseLocalDay(rawDisplayValue); d.setHours(0, 0, 0, 0);
-          const diff = Math.round((d - today) / (1000 * 60 * 60 * 24));
+          const diff = dayDiffFromToday(rawDisplayValue);   // one definition
           const dateStr = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
           if (diff === 0) return `${dateStr} · today`;
           if (diff === 1) return `${dateStr} · tomorrow`;
@@ -1874,7 +1913,7 @@ function Field({
     ? displayRule.color
     : hasTarget
     ? (targetMet ? "var(--accent-green-text)" : "var(--danger-text)")
-    : valueSignColor(rawDisplayValue);
+    : valueSignColor(rawDisplayValue, type);
   const RuleIconNC = displayRule?.icon ? RULE_ICONS[displayRule.icon] : null;
   const ruleSuffixNC = displayRule?.suffix || null;
   const ruleDisplayNC = displayRule?.replaceValue != null
@@ -1907,10 +1946,10 @@ function Field({
       pillBorder = targetMet ? "rgba(34,197,94,0.35)" : "rgba(248,113,113,0.35)";
       pillText   = targetMet ? "var(--accent-green-text)" : "var(--danger-text)";
     } else {
-      const tint = valueSignPillTint(rawDisplayValue);
+      const tint = valueSignPillTint(rawDisplayValue, type);
       pillColor  = tint.bg;
       pillBorder = tint.border;
-      pillText   = valueSignColor(rawDisplayValue);
+      pillText   = valueSignColor(rawDisplayValue, type);
     }
     const RuleIcon = displayRule?.icon ? RULE_ICONS[displayRule.icon] : null;
     const ruleSuffix = displayRule?.suffix || null;
