@@ -24,6 +24,8 @@
 
 import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
 import { applyUpdate, substituteTextmapTokens } from "./applyUpdate";
+import { slotsCovered } from "./slotSpan";
+import { isDueOn } from "./dueSpan";
 import { resolveOptions } from "./optionsResolver";
 import { toast } from "../state/notificationStore";
 import { startAlarmRing } from "../state/alarmRingStore";
@@ -2275,6 +2277,56 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         context.occurrencesById[parentId] = { ...context.occurrencesById[parentId], occurrences: next };
       }
       updates.push({ _effect: "UPDATE_OCCURRENCE", occurrence: { id: parentId, occurrences: next } });
+      break;
+    }
+
+    // ---- SLOTS_COVERED / IS_DUE_ON: the two placement DECISIONS, as actions ----
+    //
+    // Both are thin wrappers over pure, separately-tested helpers
+    // (`slotSpan.js` / `dueSpan.js`). They exist as ACTIONS rather than as
+    // predicate rules for one reason: the rules would have to re-express the
+    // decision in JSON, and a stored pipeline that re-implements a tested
+    // helper is two sources of truth that drift the first time either changes.
+    // The pipeline asks the question; the helper owns the answer.
+    //
+    // Neither writes anything. They bind a var, and the pipeline decides what
+    // to do with it — placement stays the caller's, which is what lets the same
+    // answer drive an ADD_CHILD today and something else later.
+
+    // cfg: { start, duration, slotLabels, to? }
+    //   start       — the appointment's Time Slot value ("2:00pm")
+    //   duration    — its Duration, in minutes
+    //   slotLabels  — the day's OWN slot labels, in order
+    //   to          — var receiving the covered labels (default $slotsCovered)
+    //
+    // The labels come from the caller rather than being generated here for the
+    // same reason `slotsCovered` takes them: regenerating the day would be a
+    // second definition of it that could disagree with the one the grid uses.
+    case "SLOTS_COVERED": {
+      const start = resolveExpr(cfg.start, $vars);
+      const duration = resolveExpr(cfg.duration, $vars);
+      const labels = resolveExpr(cfg.slotLabels, $vars);
+      $vars[cfg.to || "$slotsCovered"] = slotsCovered(
+        start,
+        duration,
+        Array.isArray(labels) ? labels : [],
+      );
+      break;
+    }
+
+    // cfg: { due, completedOn?, from?, day, to? }
+    //   to — var receiving the BOOLEAN (default $isDue)
+    //
+    // A boolean rather than a day list because the caller is already looping
+    // days (it has to be — each day column is built separately), so asking per
+    // day keeps the pipeline's shape and the helper's shape the same.
+    case "IS_DUE_ON": {
+      const task = {
+        due: resolveExpr(cfg.due, $vars),
+        completedOn: cfg.completedOn ? resolveExpr(cfg.completedOn, $vars) : null,
+        from: cfg.from ? resolveExpr(cfg.from, $vars) : null,
+      };
+      $vars[cfg.to || "$isDue"] = isDueOn(task, resolveExpr(cfg.day, $vars));
       break;
     }
 

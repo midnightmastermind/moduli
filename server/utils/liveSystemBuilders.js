@@ -3390,3 +3390,371 @@ export function makeDayPageBuildTasksCompletedOp({
   };
 }
 
+
+// ============================================================================
+// makeStampCompletedOnOp — record the DAY a thing was completed
+// ============================================================================
+//
+// The Due rework needs one fact nothing on this grid records: WHEN something
+// was completed. `Completed` is a boolean, and `Date` is the day an occurrence
+// sits on in the Schedule, which is not the same thing (a task due Friday can
+// be ticked on Wednesday).
+//
+// The schema's `occurrence.iteration.completedOn` looks like the natural home
+// and is DELIBERATELY not used: measured 2026-08-08, nothing in the app has
+// ever written it — `CalculationHelpers` reads it for the vestigial "untilDone"
+// mode and no code path populates it. A mechanism nobody has exercised is a
+// guess, so this writes an ordinary field instead, which every existing
+// comparator, filter and tracker already understands.
+//
+// Clearing on un-tick is half the feature: un-ticking a task has to bring it
+// back to tomorrow's Due container, and it can only do that if the stamp goes
+// away with it.
+export function makeStampCompletedOnOp({ userId, gridId, completedFieldId, completedOnFieldId }) {
+  if (!completedFieldId)   throw new Error("makeStampCompletedOnOp: completedFieldId required");
+  if (!completedOnFieldId) throw new Error("makeStampCompletedOnOp: completedOnFieldId required");
+  return {
+    id: uid(), userId, gridId, name: "Schedule: Stamp Completed On",
+    description: "When Completed goes true, stamp today's date on the occurrence's Completed On field; clear it when Completed goes false. This is the only record of WHEN something was done, and the Due placement reads it.",
+    // Priority 0 — ahead of the trackers (3) and the placement op (2), because
+    // both read the stamp this writes. A placement running first would decide
+    // against a value one tick stale.
+    triggerTypes: ["onChange"],
+    triggerObjects: [
+      { eventType: "onChange", subjectType: "field", targetId: completedFieldId, priority: 0 },
+    ],
+    enabled: true,
+    pipeline: {
+      steps: [
+        // The RECORD, not the id: UPDATE routes a `$var.fields.…` path through
+        // the bound occurrence and throws "not a record (no .id)" when handed a
+        // bare id string. `$trigger.occurrence` is the executor's enriched
+        // occurrence for the row that changed.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$occ", expr: "$trigger.occurrence" } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$occ.id", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [
+            { id: uid(), type: "if",
+              // `$trigger.value` is the value that was just written. Truthy =
+              // ticked. Compared against the boolean rather than IS_NOT_EMPTY
+              // because `false` is not empty — IS_NOT_EMPTY would stamp on the
+              // un-tick too, which is exactly backwards.
+              condition: { operator: "AND", rules: [{ id: uid(), left: "$trigger.value", comparator: "IS", right: true }] },
+              then: [
+                { id: uid(), type: "action", config: {
+                  type: "UPDATE",
+                  path: `$occ.fields.${completedOnFieldId}.value`,
+                  value: "$today",
+                } },
+              ],
+              else: [
+                { id: uid(), type: "action", config: {
+                  type: "UPDATE",
+                  path: `$occ.fields.${completedOnFieldId}.value`,
+                  value: null,
+                } },
+              ],
+            },
+          ],
+          else: [],
+        },
+      ],
+    },
+  };
+}
+
+// ============================================================================
+// makeSchedulePlaceDatedWorkOp — appointments into the slots they span,
+//                                due-dated tasks into each day's Due container
+// ============================================================================
+//
+// USER, 2026-08-07, in two sentences that turn out to be one problem:
+//   "just put them in where they are supposed to go in the timeslot cause we
+//    have times to put it in. make sure they are in every timeslot its alloted
+//    for."
+//   "stuff with a due date should be put in the Due slot, everyday until its
+//    due (so copied), if its completed and on the schedule, we can stop
+//    displaying it the next day."
+//
+// ── ONE OP, TWO PHASES, AND WHY NOT TWO OPS ────────────────────────────────
+//
+// Both phases need the same three lookups per day — the day column, its slot
+// containers, its Due container — and both must run after Build Schedule has
+// minted them. Splitting them doubles the day-column FIND on a surface where a
+// date change already costs ~1.3s (client/src/CLAUDE.md's date-navigation
+// docket). They stay separate PHASES, with their own sweeps, so neither can
+// reach into the other's placements.
+//
+// ── MULTI-PARENT, NEVER COPIES ─────────────────────────────────────────────
+//
+// Both phases place ONE occurrence into several parents (ADD_CHILD appends to
+// the parent's `occurrences[]` and never touches `child.parentId`). The user
+// said "so copied" about the Due case, and a copy is the wrong shape for what
+// they asked for in the same breath: a copy per day forks completion state, so
+// ticking Monday's copy leaves Tuesday's unticked and "we stop displaying it"
+// can never be true. Multi-parenting is the Schedule's own existing pattern
+// (its shared slots, the day page's Todo) and makes one tick complete it
+// everywhere. The same holds for an appointment across the slots it spans.
+//
+// ── THE DECISIONS LIVE IN TESTED HELPERS, NOT IN THIS JSON ─────────────────
+//
+// `SLOTS_COVERED` and `IS_DUE_ON` call `client/src/helpers/slotSpan.js` and
+// `dueSpan.js`. Re-expressing either as predicate rules would put the same
+// decision in two places, and the JSON copy is the one nobody tests.
+//
+// ── EVERY PHASE SWEEPS WHAT IT NO LONGER CLAIMS ────────────────────────────
+//
+// Placement alone leaves ghosts: move an appointment from 2pm to 4pm and the
+// 2pm slot keeps listing it forever. Each phase records the placements it made
+// this run into a claim list, then unlinks anything of its OWN kind that is not
+// on it. The keep-test IS the placement decision, so the two cannot drift —
+// the pattern `Day Page: Build Tasks Completed` already uses.
+//
+// The sweeps are deliberately NARROW. Phase 1 only ever unlinks occurrences of
+// the Appointment template; phase 2 only ever unlinks children that carry a due
+// date. Anything else a user or another op put in a slot or in Due — a Pay Bill
+// copy, a dragged task — is not this op's to remove. REMOVE_CHILD unlinks and
+// never deletes, which matters because these rows are multi-parented: reaching
+// for REMOVE_OCCURRENCE here would delete the user's appointment outright.
+export function makeSchedulePlaceDatedWorkOp({
+  userId, gridId,
+  dateFieldId, timeslotFieldId, durationFieldId, dueFieldId, completedOnFieldId,
+  scheduleFormatFieldId, schedulePageOccId, appointmentTemplateId,
+}) {
+  const need = { dateFieldId, timeslotFieldId, durationFieldId, dueFieldId, completedOnFieldId, scheduleFormatFieldId, schedulePageOccId, appointmentTemplateId };
+  for (const [k, v] of Object.entries(need)) {
+    if (!v) throw new Error(`makeSchedulePlaceDatedWorkOp: ${k} required`);
+  }
+  const P = 2; // after Build Schedule (1), before the trackers (3)
+  const f = (fid) => `fields.${fid}.value`;
+
+  return {
+    id: uid(), userId, gridId, name: "Schedule: Place Dated Work",
+    description: "Multi-parent each appointment into every half-hour slot it spans, and each due-dated task into the Due container of every day it is still outstanding. Sweeps its own stale placements. Idempotent.",
+    // Same wiring as Build Schedule: the built-in date vars resolve through the
+    // SCHEDULE PAGE's filter cascade, so an on-page date switch (which never
+    // touches the grid filter) is seen.
+    targetOccurrenceId: schedulePageOccId,
+    triggerTypes: ["onLoad", "onFilterChange", "onChange"],
+    triggerObjects: [
+      { eventType: "onLoad",         subjectType: "grid",      targetId: "", priority: P },
+      { eventType: "onFilterChange", subjectType: "grid",      targetId: "", priority: P },
+      { eventType: "onFilterChange", subjectType: "filterNav", targetId: "", priority: P },
+      // Editing any of these must move the row NOW, not on the next reload.
+      // Field-scoped rather than a blanket onChange: a grid-wide onChange
+      // would re-run this whole op on every keystroke anywhere.
+      { eventType: "onChange", subjectType: "field", targetId: timeslotFieldId,    priority: P },
+      { eventType: "onChange", subjectType: "field", targetId: durationFieldId,    priority: P },
+      { eventType: "onChange", subjectType: "field", targetId: dueFieldId,         priority: P },
+      { eventType: "onChange", subjectType: "field", targetId: completedOnFieldId, priority: P },
+    ],
+    enabled: true,
+    pipeline: {
+      steps: [
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedulePageOccId}` } },
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPageId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [{
+            id: uid(), type: "loop", overExpr: "$activePeriodDates", as: "$day",
+            body: [
+              // The day column. Build Schedule owns creating it; if it has not
+              // run yet for this date we BAIL rather than mint one — two ops
+              // creating the same column is the duplicate-day-column class this
+              // grid has already been repaired for twice.
+              { id: uid(), type: "action", config: {
+                type: "FIND", over: "$allContainers",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "_ancestors",                comparator: "HAS_ANCESTOR", right: "$schedPageId" },
+                  { id: uid(), left: f(scheduleFormatFieldId),    comparator: "IS",           right: "day-col" },
+                  { id: uid(), left: f(dateFieldId),              comparator: "SAME_DAY",     right: "$day" },
+                ]},
+                itemIdVar: "$dayColId",
+              }},
+              { id: uid(), type: "if",
+                condition: { operator: "AND", rules: [{ id: uid(), left: "$dayColId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                then: [
+                  // ── PHASE 1: appointments cover every slot they span ──────
+                  //
+                  // The slot LABELS are collected from the day's own slot
+                  // containers rather than regenerated. Regenerating the day
+                  // would be a second definition of it that could disagree
+                  // with the one the grid actually renders.
+                  { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$slotLabels", expr: "json:[]" } },
+                  { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$claimed",    expr: "json:[]" } },
+                  {
+                    id: uid(), type: "loop", overExpr: "$allContainers", as: "$slot",
+                    body: [{
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [
+                        { id: uid(), left: "$slot._ancestors",                    comparator: "HAS_ANCESTOR", right: "$dayColId" },
+                        { id: uid(), left: `$slot.${f(scheduleFormatFieldId)}`,   comparator: "IS",           right: "slot" },
+                        { id: uid(), left: `$slot.${f(timeslotFieldId)}`,         comparator: "IS_NOT_EMPTY", right: "" },
+                      ]},
+                      then: [{ id: uid(), type: "action", config: {
+                        type: "PUSH_TO_VAR", name: "$slotLabels", expr: `$slot.${f(timeslotFieldId)}`,
+                      } }],
+                      else: [],
+                    }],
+                  },
+                  {
+                    id: uid(), type: "loop", overExpr: "$allInstances", as: "$appt",
+                    body: [{
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [
+                        { id: uid(), left: "$appt.templateId",              comparator: "IS",         right: appointmentTemplateId },
+                        { id: uid(), left: `$appt.${f(dateFieldId)}`,       comparator: "SAME_DAY",   right: "$day" },
+                        { id: uid(), left: `$appt.${f(timeslotFieldId)}`,   comparator: "IS_NOT_EMPTY", right: "" },
+                        // A feed copy carries its source's fields, so without
+                        // this an appointment materialized onto the
+                        // Appointments board would be placed a second time.
+                        { id: uid(), left: "$appt.meta.feedSourceId",       comparator: "IS_EMPTY",   right: "" },
+                      ]},
+                      then: [
+                        { id: uid(), type: "action", config: {
+                          type: "SLOTS_COVERED",
+                          start: `$appt.${f(timeslotFieldId)}`,
+                          duration: `$appt.${f(durationFieldId)}`,
+                          slotLabels: "$slotLabels",
+                          to: "$covered",
+                        } },
+                        {
+                          id: uid(), type: "loop", overExpr: "$covered", as: "$lbl",
+                          body: [
+                            { id: uid(), type: "action", config: {
+                              type: "FIND", over: "$allContainers",
+                              predicate: { operator: "AND", rules: [
+                                { id: uid(), left: "_ancestors",             comparator: "HAS_ANCESTOR", right: "$dayColId" },
+                                { id: uid(), left: f(scheduleFormatFieldId), comparator: "IS",           right: "slot" },
+                                { id: uid(), left: f(timeslotFieldId),       comparator: "IS",           right: "$lbl" },
+                              ]},
+                              itemIdVar: "$slotId",
+                            }},
+                            { id: uid(), type: "if",
+                              condition: { operator: "AND", rules: [{ id: uid(), left: "$slotId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                              then: [
+                                { id: uid(), type: "action", config: { type: "ADD_CHILD", parentId: "$slotId", childId: "$appt.id" } },
+                                // The claim is what the sweep below tests
+                                // against, so the keep-test and the placement
+                                // are literally the same decision.
+                                { id: uid(), type: "action", config: { type: "PUSH_TO_VAR", name: "$claimed", expr: "${$slotId}|${$appt.id}" } },
+                              ],
+                              else: [],
+                            },
+                          ],
+                        },
+                      ],
+                      else: [],
+                    }],
+                  },
+                  // Phase 1 sweep — unlink APPOINTMENTS ONLY from slots that
+                  // no longer claim them.
+                  {
+                    id: uid(), type: "loop", overExpr: "$allInstances", as: "$placed",
+                    body: [{
+                      id: uid(), type: "if",
+                      condition: { operator: "AND", rules: [
+                        { id: uid(), left: "$placed.templateId",   comparator: "IS",           right: appointmentTemplateId },
+                        { id: uid(), left: "$placed._ancestors",   comparator: "HAS_ANCESTOR", right: "$dayColId" },
+                      ]},
+                      then: [{
+                        id: uid(), type: "loop", overExpr: "$allContainers", as: "$sweepSlot",
+                        body: [{
+                          id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [
+                            { id: uid(), left: "$sweepSlot._ancestors",                  comparator: "HAS_ANCESTOR", right: "$dayColId" },
+                            { id: uid(), left: `$sweepSlot.${f(scheduleFormatFieldId)}`, comparator: "IS",           right: "slot" },
+                            { id: uid(), left: "$sweepSlot.occurrences",                 comparator: "CONTAINS",     right: "$placed.id" },
+                            { id: uid(), left: "$claimed",                               comparator: "NOT_CONTAINS", right: "${$sweepSlot.id}|${$placed.id}" },
+                          ]},
+                          then: [{ id: uid(), type: "action", config: { type: "REMOVE_CHILD", parentId: "$sweepSlot.id", childId: "$placed.id" } }],
+                          else: [],
+                        }],
+                      }],
+                      else: [],
+                    }],
+                  },
+
+                  // ── PHASE 2: due-dated work in this day's Due container ───
+                  //
+                  // The Due container is found by its FIELD-BASED IDENTITY
+                  // MARKER (Time Slot == "Due"), never by label. Matching the
+                  // label cost three repair passes on 2026-07-30 and the
+                  // marker is what `Schedule: Build Schedule` itself uses.
+                  { id: uid(), type: "action", config: {
+                    type: "FIND", over: "$allContainers",
+                    predicate: { operator: "AND", rules: [
+                      { id: uid(), left: "_ancestors",          comparator: "HAS_ANCESTOR", right: "$dayColId" },
+                      { id: uid(), left: f(timeslotFieldId),    comparator: "IS",           right: "Due" },
+                    ]},
+                    itemIdVar: "$dueId",
+                  }},
+                  { id: uid(), type: "if",
+                    condition: { operator: "AND", rules: [{ id: uid(), left: "$dueId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                    then: [
+                      { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dueClaimed", expr: "json:[]" } },
+                      {
+                        id: uid(), type: "loop", overExpr: "$allInstances", as: "$task",
+                        body: [{
+                          id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [
+                            { id: uid(), left: `$task.${f(dueFieldId)}`,  comparator: "IS_NOT_EMPTY", right: "" },
+                            { id: uid(), left: "$task.meta.feedSourceId", comparator: "IS_EMPTY",     right: "" },
+                          ]},
+                          then: [
+                            { id: uid(), type: "action", config: {
+                              type: "IS_DUE_ON",
+                              due: `$task.${f(dueFieldId)}`,
+                              completedOn: `$task.${f(completedOnFieldId)}`,
+                              // The task's own scheduled date is the only
+                              // lower bound this grid records. Absent, there is
+                              // none — an outstanding task shows on any built
+                              // day, which is bounded in practice because a Due
+                              // container only exists on days the Schedule has
+                              // actually built.
+                              from: `$task.${f(dateFieldId)}`,
+                              day: "$day",
+                              to: "$isDue",
+                            } },
+                            { id: uid(), type: "if",
+                              condition: { operator: "AND", rules: [{ id: uid(), left: "$isDue", comparator: "IS", right: true }] },
+                              then: [
+                                { id: uid(), type: "action", config: { type: "ADD_CHILD", parentId: "$dueId", childId: "$task.id" } },
+                                { id: uid(), type: "action", config: { type: "PUSH_TO_VAR", name: "$dueClaimed", expr: "$task.id" } },
+                              ],
+                              else: [],
+                            },
+                          ],
+                          else: [],
+                        }],
+                      },
+                      // Phase 2 sweep — unlink only children that CARRY A DUE
+                      // DATE and are no longer claimed. A Pay Bill copy or a
+                      // hand-dragged row in Due has no due date and is left
+                      // exactly where the user put it.
+                      {
+                        id: uid(), type: "loop", overExpr: "$allInstances", as: "$dueKid",
+                        body: [{
+                          id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [
+                            { id: uid(), left: `$dueKid.${f(dueFieldId)}`, comparator: "IS_NOT_EMPTY", right: "" },
+                            { id: uid(), left: "$dueClaimed",              comparator: "NOT_CONTAINS", right: "$dueKid.id" },
+                          ]},
+                          then: [{ id: uid(), type: "action", config: { type: "REMOVE_CHILD", parentId: "$dueId", childId: "$dueKid.id" } }],
+                          else: [],
+                        }],
+                      },
+                    ],
+                    else: [],
+                  },
+                ],
+                else: [],
+              },
+            ],
+          }],
+          else: [],
+        },
+      ],
+    },
+  };
+}
