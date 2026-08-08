@@ -2,6 +2,18 @@
 
 _Updated: 2026-08-08. Check this file before re-reading source._
 
+## Recent Changes (2026-08-08 (2) — EChart reports its measured box)
+- **`EChart.jsx`** — new optional `onBox({width,height})`, fired from its OWN `ResizeObserver`.
+  `ContainerGraph` holds it in state and passes it to `buildEChartsOption`, which needs pixels to
+  size the sunburst's label threshold (a percent radius tells you nothing about arc length).
+- **Deliberately a SEPARATE observer from the ECharts resize one**, for two reasons: that one only
+  exists after the dynamic import resolves, and the FIRST option is built while the chunk is still
+  in flight; and this must report a size even if ECharts never loads.
+- **The 1px dedupe is load-bearing, not a micro-optimisation** — the box feeds an option, which
+  re-renders, which re-measures. Without it that is a render loop.
+- `ContainerGraph`'s own `hostRef` is the OUTER wrapper (it includes the source board), so it is the
+  wrong box; EChart owns the chart element and is the only honest reporter of its size.
+
 ## Recent Changes (2026-08-08 — FeedSection: the predicate editor is RECURSIVE)
 - **`FeedSection.jsx`** — the flat condition list became one recursive `ConditionList`, so a nested
   group offers exactly the controls the top level does and there is **no second implementation to

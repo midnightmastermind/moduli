@@ -113,7 +113,47 @@ function splitSeries(nodes) {
   return [...keyed.entries()];
 }
 
-export function buildEChartsOption(spec, data, theme, view) {
+// The sunburst's outer radius, as a percent of the host box. ONE source, so the
+// drawn radius and the label-threshold maths can never disagree.
+export const NESTED_RADIUS_PCT = 92;
+
+// Radial sunburst labels: the font size, and how much ARC one needs to be
+// readable. A `rotate: "radial"` label runs ALONG the radius, so what has to fit
+// inside the slice's arc is its THICKNESS — the font size — plus room to
+// breathe. Expressed as a multiple of the font size so the two cannot drift.
+export const LABEL_FONT_PX = 10;
+export const LABEL_MIN_ARC_PX = LABEL_FONT_PX * 1.8;
+
+// `minAngle` applies to the WHOLE series, so an unclamped threshold on a tiny
+// box would blank the 8 primary slices (45° each) as well — which is the
+// 2026-08-06 failure exactly ("a wheel you cannot read is a wheel you cannot
+// pick from"). 30 keeps the primary ring labelled at every size.
+const MAX_MIN_ANGLE_DEG = 30;
+
+/**
+ * The `minAngle` below which a radial label would collide with its neighbours.
+ *
+ *   arc = 2·π·r · (deg/360)   →   deg = minArcPx · 360 / (2·π·r)
+ *
+ * `r` is in PIXELS, which is why the host box has to be threaded in at all: the
+ * series radius is a PERCENT and ECharts resolves it against min(w, h) / 2.
+ * Deriving from pixels rather than a fixed number is what makes this
+ * viewport-aware AND makes ZOOM REVEAL LABELS — on a phone that is the only way
+ * the 4.5° outer ring is ever readable.
+ *
+ * @returns {number|null} degrees, or null when the box is unknown — the caller
+ *   then keeps its fixed default rather than guessing.
+ */
+export function radialLabelMinAngle({ boxPx, radiusPct, zoom = 1, minArcPx = LABEL_MIN_ARC_PX } = {}) {
+  const box = Math.min(Number(boxPx?.width) || 0, Number(boxPx?.height) || 0);
+  const pct = Number(radiusPct) || 0;
+  if (!(box > 0) || !(pct > 0)) return null;
+  const r = (pct / 100) * (Number(zoom) || 1) * (box / 2);
+  if (!(r > 0)) return null;
+  return Math.min((minArcPx * 360) / (2 * Math.PI * r), MAX_MIN_ANGLE_DEG);
+}
+
+export function buildEChartsOption(spec, data, theme, view, boxPx) {
   const warnings = [];
   const t = { ...DEFAULT_THEME, ...(theme || {}) };
   const nodes = Array.isArray(data) ? data : [];
@@ -149,7 +189,7 @@ export function buildEChartsOption(spec, data, theme, view) {
         tooltip: { trigger: "item", confine: true },
         series: [{
           type: def.id,
-          radius: [0, scaled(92)],
+          radius: [0, scaled(NESTED_RADIUS_PCT)],
           center,
           data: nodes.map((n) => toDatum(n, hi)),
           // `minAngle` HIDES a label whose slice is narrower than N degrees, and
@@ -160,9 +200,19 @@ export function buildEChartsOption(spec, data, theme, view) {
           // every metric (8 roots, 0 warnings, 540k painted px) still said it
           // was fine. Caught by a screenshot.
           //
-          // 1 rather than 0: a genuinely degenerate sliver should still be
-          // allowed to drop its label rather than scribble over its neighbours.
-          label: { rotate: "radial", color: t.text, fontSize: 10, minAngle: 1, overflow: "truncate" },
+          // A FIXED NUMBER CANNOT BE RIGHT, which is what both 8 and 1 were.
+          // The same 4.5° slice is ~14px of arc on a 390px phone, ~40px on a
+          // desktop and ~170px at 4x zoom — so the threshold is derived from a
+          // readable ARC LENGTH IN PIXELS (2026-08-08). Viewport-aware by
+          // construction, and it makes ZOOMING REVEAL LABELS, which on a phone
+          // is the only way the outer ring is ever readable.
+          //
+          // Falls back to the old fixed 1 when the host box is unknown, so a
+          // caller that passes no box gets exactly the previous chart.
+          label: {
+            rotate: "radial", color: t.text, fontSize: LABEL_FONT_PX, overflow: "truncate",
+            minAngle: radialLabelMinAngle({ boxPx, radiusPct: NESTED_RADIUS_PCT, zoom: v.zoom }) ?? 1,
+          },
           emphasis: { focus: "ancestor" },
           // A CLICK SELECTS. It must not NAVIGATE.
           //

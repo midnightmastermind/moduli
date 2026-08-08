@@ -97,7 +97,7 @@ const PAN_SLOP_PX = 5;
 
 export default function EChart({
   option, onSelect, className = "", style = null,
-  view = null, onViewChange = null,
+  view = null, onViewChange = null, onBox = null,
 }) {
   const hostRef = useRef(null);
   const chartRef = useRef(null);
@@ -122,6 +122,36 @@ export default function EChart({
   // until the option happened to change. (Caught by the test, not by reading.)
   const optionRef = useRef(option);
   optionRef.current = option;
+
+  const onBoxRef = useRef(onBox);
+  onBoxRef.current = onBox;
+
+  // Report the host's MEASURED box so the caller can compute option values that
+  // are only expressible in pixels — the sunburst's label threshold, which has
+  // to know how long a slice's arc actually is (helpers/graphOption).
+  //
+  // Deliberately a SEPARATE observer from the ECharts one above, for two
+  // reasons: that one only exists after the dynamic import resolves, and the
+  // FIRST option is built while the chunk is still in flight; and this must
+  // report a size even if ECharts never loads at all.
+  //
+  // THE 1px DEDUPE IS LOAD-BEARING, not a micro-optimisation: the box feeds an
+  // option, which re-renders, which re-measures. Without it that is a loop.
+  useEffect(() => {
+    const el = hostRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    let last = null;
+    const read = () => {
+      const r = el.getBoundingClientRect();
+      if (last && Math.abs(last.width - r.width) < 1 && Math.abs(last.height - r.height) < 1) return;
+      last = { width: r.width, height: r.height };
+      onBoxRef.current?.(last);
+    };
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     let disposed = false;

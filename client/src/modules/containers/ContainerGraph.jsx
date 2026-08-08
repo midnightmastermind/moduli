@@ -57,9 +57,18 @@ export default function ContainerGraph({ occurrence, dispatch, socket, renderSou
     [occurrence, getOccMap, modulesById, fieldsById]
   );
 
+  // The chart's MEASURED box, reported by EChart (which owns that element —
+  // hostRef here is the outer wrapper and includes the source board).
+  // `buildEChartsOption` needs it because the sunburst's label threshold is only
+  // expressible in pixels: a 4.5° slice is ~14px of arc on a phone and ~170px
+  // zoomed in, and a fixed `minAngle` is wrong at one of those sizes whichever
+  // number you pick. Null until first measure — the option then keeps its old
+  // fixed default, so the first paint is never worse than before.
+  const [boxPx, setBoxPx] = useState(null);
+
   const { option } = useMemo(
-    () => buildEChartsOption(spec, nodes, readChartTheme(hostRef.current), view),
-    [spec, nodes, view]
+    () => buildEChartsOption(spec, nodes, readChartTheme(hostRef.current), view, boxPx),
+    [spec, nodes, view, boxPx]
   );
 
   // A selection fires the ordinary trigger path, so an operation decides what a
@@ -114,6 +123,7 @@ export default function ContainerGraph({ occurrence, dispatch, socket, renderSou
             className="container-graph-canvas"
             view={view}
             onViewChange={setView}
+            onBox={setBoxPx}
           />
         )}
         {!isDefaultView(view) && (

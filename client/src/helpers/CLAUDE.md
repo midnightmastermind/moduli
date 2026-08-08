@@ -1,6 +1,30 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-08 (3) — graphOption: the sunburst's label threshold is derived from PIXELS)
+- **`graphOption.radialLabelMinAngle` (NEW, pure, 8 tests)** + `NESTED_RADIUS_PCT` / `LABEL_FONT_PX`
+  / `LABEL_MIN_ARC_PX`. `buildEChartsOption` takes a 5th arg, the host's measured `boxPx`.
+- **A FIXED `minAngle` CANNOT BE RIGHT, which is what both 8 and 1 were.** The emotions wheel's 80
+  tertiary leaves are 4.5° each: ~14px of arc on a 390px phone, ~40px on a desktop, ~170px zoomed.
+  `minAngle: 8` blanked the whole outer ring (2026-08-06); `minAngle: 1` let 80 labels collide into
+  an unreadable mass. Now `deg = minArcPx·360 / (2·π·r)`, with `r` in PIXELS — which is the only
+  reason the box has to be threaded in at all, since the series radius is a PERCENT that ECharts
+  resolves against `min(w,h)/2`.
+- **A `rotate: "radial"` label runs ALONG the radius, so what must fit the arc is its THICKNESS** —
+  the font size. Hence `LABEL_MIN_ARC_PX = LABEL_FONT_PX * 1.8`, expressed as a multiple so the two
+  cannot drift.
+- **It makes ZOOM REVEAL LABELS**, which is the composition a constant could never have: on a phone
+  the outer ring is unlabelled at rest and readable the moment you zoom in.
+- **Clamped to 30°** so it can never blank the 8 primary slices (45°) — the 2026-08-06 failure as a
+  guard. **Returns `null` when the box is unknown** and the caller keeps its old fixed 1, so any
+  caller that passes no box renders exactly the previous chart.
+- **VERIFIED BY SCREENSHOT, per that task's own standing order** ("a chart is a canvas"). Real
+  option → real ECharts → Chromium, four arms at 390px and 1400×900: before = unreadable mass;
+  after zoom 1 = clean outer ring with inner rings still labelled; after zoom 2 + PAN = every
+  tertiary label readable; desktop = fully labelled, unregressed. **The zoom-4 arm proved nothing
+  at first** — a centred zoom pushes the outer ring outside the box entirely, so the panned arm is
+  the one that actually demonstrates the claim.
+
 ## Recent Changes (2026-08-08 (2) — feedPredicate.js NEW: feeds get OR and nested groups)
 - **`feedPredicate.js` (NEW, pure, 13 tests)** — `buildFeedPredicate(feed, { now })` turns a feed's
   conditions into the group tree `evalGroupAgainstRecord` already understands. **That evaluator was
