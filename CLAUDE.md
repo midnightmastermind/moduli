@@ -6,6 +6,51 @@
 
 ---
 
+### 2026-08-08 (6) — a fixed number was wrong at BOTH values; and a probe arm that proved nothing
+
+The emotions wheel's outer ring, on a phone. `label.minAngle` had been **8** (which blanked all 80
+outer labels — the 2026-08-06 disaster) and then **1** (which let them collide into an unreadable
+mass). **Both were wrong, and no third constant would have been right:** the same 4.5° slice is
+~14px of arc on a 390px phone, ~40px on a desktop and ~170px zoomed in.
+
+So the threshold is derived from a readable ARC LENGTH IN PIXELS —
+`deg = minArcPx·360 / (2·π·r)`. **`r` in PIXELS is the whole reason the host box had to be threaded
+in at all**: the series radius is a PERCENT and ECharts resolves it against `min(w,h)/2`, so the
+option object alone can never know how long an arc is. And because a `rotate: "radial"` label runs
+ALONG the radius, what has to fit inside the arc is its **THICKNESS** — the font size — hence
+`LABEL_MIN_ARC_PX = LABEL_FONT_PX * 1.8`, a multiple so the two cannot drift.
+
+**The payoff is a composition a constant could never have: ZOOMING NOW REVEALS LABELS.** On a phone
+the outer ring is unlabelled at rest and readable the moment you zoom in — which is what makes
+hiding acceptable rather than a repeat of the blanked-ring bug. Clamped to 30° so the 8 primary
+slices (45°) can never be blanked, and it returns `null` when the box is unknown so any caller
+passing none renders exactly the previous chart.
+
+**`EChart` reports its own box** (`onBox`, from a SEPARATE ResizeObserver — the ECharts one only
+exists after the dynamic import resolves, and the first option is built while the chunk is in
+flight). **The 1px dedupe is load-bearing:** box → option → render → measure is a loop without it.
+`ContainerGraph`'s own `hostRef` is the OUTER wrapper and includes the source board, so it is the
+wrong box entirely.
+
+**VERIFIED BY SCREENSHOT, because that docket entry says to and because a chart is a canvas.** Real
+option → real ECharts → Chromium, four arms:
+```
+before  390px, minAngle 1     outer ring an unreadable mass of overlapping text
+after   390px, zoom 1         outer ring clean colour; primary + secondary still labelled
+after   390px, zoom 2 + PAN   every tertiary label readable, cleanly separated
+after   1400x900 desktop      fully labelled — unregressed
+```
+**AND ONE ARM PROVED NOTHING, which is the reusable part.** The first "zoomed" arm was zoom 4
+CENTRED — at that scale the outer ring is outside the 390px box entirely, so the shot showed only
+the primary ring and said nothing at all about labels. A zoom that moves the thing you are
+measuring off screen is not a measurement of it. The PANNED arm is the one that demonstrates the
+claim.
+
+2156 client tests (same 3 pre-existing `liveOpsBehavioral` failures). Deployed; prod HEAD
+`3ca32154`, served chunks sha256-identical to the local build.
+
+---
+
 ### 2026-08-08 (5) — measuring a "build this" task retired it AND found a live defect the queue never mentioned
 
 Two queue items — "Build the artifact spread viewer" and "Media prefill Tasks 4-5" — turned out to
