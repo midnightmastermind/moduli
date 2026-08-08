@@ -28,6 +28,7 @@ import {
 import { Link2, Unlink, Settings, Copy, Move, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type, FileDown } from "lucide-react";
 import { convertLeafRole, CONVERTIBLE_LEAF_ROLES } from "../helpers/convertOccurrence";
 import { canConvertLinkToPage, resolveExternalLink, convertLinkToPage } from "../helpers/linkToPage";
+import { planConvertRelink } from "../helpers/convertRelink";
 import { toast } from "sonner";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
@@ -1108,7 +1109,41 @@ function ModuleInstance({
           const toastId = toast.loading(`Importing ${url}…`);
           const res = await convertLinkToPage({ socket, gridId, url });
           if (res?.ok) {
-            toast.success("Page imported", { id: toastId });
+            // RELINK EVERY OTHER CHIP POINTING AT THIS URL (plan Task 6).
+            //
+            // This is the moment the whole relink feature is worth doing: both
+            // ends are in hand, so the match is URL equality against a URL the
+            // user personally acted on. The MIGRATION alternative was measured
+            // against poms grid and refused — with the correct selector it
+            // would have relinked exactly one chip, `Eminem -> Eminem`, and the
+            // looser selector's 10 candidates were all false positives (section
+            // HEADINGS matched by label). None of that guessing exists here.
+            //
+            // Chips inside the new page are skipped by planConvertRelink — an
+            // imported article usually links to itself, and repointing those
+            // makes a jump to the top of what you are already reading.
+            let relinked = 0;
+            if (res.rootOccurrenceId) {
+              const writes = planConvertRelink({
+                url,
+                rootOccurrenceId: res.rootOccurrenceId,
+                occurrencesById: getOccMap(),
+                modulesById,
+              });
+              for (const w of writes) {
+                CommitHelpers.updateOccurrence({
+                  dispatch, socket, emit: true,
+                  occurrence: { id: w.occurrenceId, meta: w.meta },
+                });
+              }
+              relinked = writes.length;
+            }
+            toast.success(
+              relinked
+                ? `Page imported — ${relinked} link${relinked === 1 ? "" : "s"} now open it in-app`
+                : "Page imported",
+              { id: toastId },
+            );
             // Land the user on what they just made.
             if (res.rootOccurrenceId) jumpToOccurrence(res.rootOccurrenceId);
           } else {
@@ -1127,7 +1162,7 @@ function ModuleInstance({
       },
     ].filter(Boolean);
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
-  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket, selection, getOccMap, getParentId]);
+  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket, selection, getOccMap, getParentId, modulesById]);
 
   // Touch: long-press opens the same menu (right-click has no touch equivalent).
   const instanceLongPress = useLongPress(({ x, y }) =>
