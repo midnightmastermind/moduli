@@ -32,7 +32,8 @@ import { convertLinkToPage } from "./linkToPage";
 import { withAction } from "./actionScope";
 import { csvToMarkdownTable } from "./csvToTable";
 import { linkChipShape } from "./linkOccurrence";
-import { createTextblockInContainer, createContainerInContainer } from "./CommitHelpers";
+import { createTextblockInContainer, createContainerInContainer, createLeafInstanceInParent } from "./CommitHelpers";
+import { optionBoardStampFields } from "./boardOption";
 
 const S = INTAKE_SHAPES;
 
@@ -78,6 +79,10 @@ export const INTAKE_ROUTES = {
   [S.LINK_CHIP.id]: { run: runLinkChip, note: "a clickable chip carrying the link" },
   // Several links at once: one container holding a chip each.
   [S.LINK_CONTAINER.id]: { run: runLinkContainer, note: "one container holding every link" },
+  // A real, tagged option on an option board — the shape the plan calls the one
+  // worth fighting for. Offered only when the destination IS an option board,
+  // which `helpers/boardOption` derives from the board's own feed.
+  [S.LINK_BOARD_OPTION.id]: { run: runLinkBoardOption, note: "a tagged option this board's dropdowns can see" },
 };
 
 /** Ids the router can actually carry out right now. */
@@ -226,6 +231,52 @@ function runLinkChip(ctx) {
   // drop position, because a doc renders its textmap and would otherwise show
   // nothing.
   onLinkChips?.(minted);
+}
+
+// ── LINK → BOARD OPTION ────────────────────────────────────────────────────
+//
+// The grid has 34 option boards whose whole purpose is to be the pool behind a
+// dropdown. Landing an untagged card on one produces something that LOOKS right
+// and is invisible to every dropdown — so this mints a real OPTION: an instance
+// carrying the board's own identity tag, which is exactly what a seeded option
+// carries.
+//
+// The tag comes from `optionBoardStampFields`, which reads the BOARD's feed and
+// the board's own value for it. Nothing here knows the word "boardCategory", or
+// "movie", or which field is the tag — the same no-domain-knowledge line the
+// renderer holds, and the reason this works on all 34 boards without a list.
+//
+// The link is kept on the option's `meta.link` so the source is still reachable,
+// and so a later "Convert to page" on it can relink the way any other chip does.
+function runLinkBoardOption(ctx) {
+  const {
+    payload = {}, destinationOccurrence = null, gridId, userId, dispatch, socket,
+    onIntakeResult = null,
+  } = ctx;
+  const urls = payload.urls || [];
+  const stamp = optionBoardStampFields(destinationOccurrence);
+  if (!urls.length || !destinationOccurrence || !stamp) {
+    // Reported, not swallowed: the shape promised something specific, and a
+    // silent no-op here is indistinguishable from "the drop did nothing".
+    onIntakeResult?.({ ok: false, error: "this board does not define what its options are" });
+    return;
+  }
+
+  const minted = [];
+  for (const url of urls) {
+    const shape = linkChipShape({ url, inline: false });
+    const res = createLeafInstanceInParent({
+      dispatch, socket, gridId, userId,
+      parentOccurrence: destinationOccurrence,
+      label: shape.label,
+      initialFields: stamp,
+      // The identity tag binds HIDDEN — it is what makes the option findable,
+      // never something to read on the card. Same treatment addNewOption gives it.
+      fieldBindings: Object.keys(stamp).map((fid, i) => ({ fieldId: fid, role: "input", order: i, hidden: true })),
+    });
+    if (res) minted.push(res);
+  }
+  onIntakeResult?.({ ok: true, count: minted.length });
 }
 
 // Several links dropped together become ONE container of chips rather than N

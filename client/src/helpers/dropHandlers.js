@@ -96,6 +96,7 @@ import { applyIntakeShape, filterToImplemented } from "./intakeApply";
 import { openIntakeSheet } from "../ui/IntakeSheet";
 import { snapPanelToEdge } from "./gridSnap";
 import { placementSemanticForKind } from "./mainFile";
+import { isOptionBoard } from "./boardOption";
 import { toast } from "../state/notificationStore";
 import { jumpToOccurrence } from "./jumpToOccurrence";
 import { createImportsDocPage } from "./importsFolder";
@@ -1754,8 +1755,15 @@ export function handleExternalDrop(dropContext, ctx) {
   if (droppedUrl && containerId) {
     const container = baseContainers.find(c => c.id === containerId);
     const containerOcc = container ? Object.values(occurrencesById).find(o => o.moduleId === container.id) : null;
+    // `isOptionBoard` is what lights up the BOARD OPTION shape. It is derived
+    // from the board's own feed (helpers/boardOption) rather than a list of
+    // board ids, so all 34 option boards get it and an ordinary board does not.
     const classification = filterToImplemented(
-      classifyIntake({ url: droppedUrl }, { kind: "board", occurrenceId: containerOcc?.id || null }),
+      classifyIntake({ url: droppedUrl }, {
+        kind: "board",
+        occurrenceId: containerOcc?.id || null,
+        isOptionBoard: isOptionBoard(containerOcc),
+      }),
     );
     const linkCtx = {
       payload: classification.payload,
