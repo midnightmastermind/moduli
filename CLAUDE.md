@@ -6,6 +6,82 @@
 
 ---
 
+### 2026-08-08 (2) — an ADDRESS field type; the design shrank three times, and THREE tasks were retired by measuring
+
+Carried the other account's queue over (14 items; it shipped #1/#3 then hit its spend limit one grep
+into the Location work). Shipped **`address` as a first-class field type** with a map search, plus
+migration `0054`. Deployed twice, verified both times; poms grid at **0 errors**.
+
+**THE USER RESHAPED THIS SIX TIMES MID-BUILD AND EVERY TURN MADE IT SMALLER.** Recorded because the
+reflex is to defend the bigger design:
+- *"location should be a location type field"* → then *"address field type i mean too"* → the
+  searchable thing is the ADDRESS, so that is the type; **Location needs no type at all**, it stays
+  the occurrence dropdown `Place` already was.
+- *"make location an artifact type too"* → then *"i feel like mixing it into files is dirty"*.
+  **They were right, and it dodged a bug I had already measured:** an artifact is `role:"artifact"`,
+  the dropdown resolves options over `$allInstances`, and that slice is **role-filtered
+  (`operationExecutor.js:1543`)** — every Location dropdown would have silently resolved to ZERO
+  options.
+- *"we dont need an image for it"* → deleted `slippyMap.js` + a `sharp` tile compositor, already
+  written and tested.
+- *"i will navigate to the board … and prefill the address there"* → deleted the whole add-new
+  integration. The last piece of scope removed itself.
+
+**A FALLBACK CHAIN THAT COULD NEVER FIRE, and only the real API showed it.** I wrote Photon-primary
+/ Nominatim-fallback. **Photon returns eight hits for essentially any query**, so the Nominatim
+branch was unreachable dead code. Probing the user's own places:
+```
+Froedtert                       photon OK    nominatim OK
+2010 W Wisconsin Ave Milwaukee  photon MISS  nominatim OK    <- exact house
+Dewey Center Milwaukee          photon MISS  nominatim MISS  <- in neither
+```
+**"Returns results" is not "returns the right results."** Now both run in PARALLEL and merge, ranked
+by whether the query starts with a house number. Per-provider rate limits, not one shared queue —
+Nominatim's policy is a hard 1/sec and sharing it made every lookup a 2.2s wait for no reason.
+
+**AND THE LIVE ENDPOINT CAUGHT WHAT 17 TESTS DID NOT.** Curling prod after deploying:
+`W/282412131` (Photon) and `way/282412131` (Nominatim) — **the same building, two spellings**, so
+the cross-provider dedupe never fired and every shared result appeared twice. The tests only ever
+compared identical id strings. *Probe the deployed thing, not just the built thing.*
+
+**DEWEY CENTER IS IN NEITHER GEOCODER, so hand entry is a TAB, not a fallback.** A search box that
+cannot express "I know where this is, the database doesn't" makes that place unenterable — and it is
+one of the addresses the user actually needs. **`0054` therefore seeds Dewey Center and Froedtert
+with NAMES ONLY.** Froedtert Hospital *does* resolve, but the appointment is a peer support group
+and Froedtert has several campuses: **a plausible address on a medical appointment is
+indistinguishable from one the user entered and could send them to the wrong building.** Same rule
+`0052` applied to phone numbers.
+
+**THREE TASKS RETIRED BY MEASURING RATHER THAN BUILT** — the (4)/(6) discipline again:
+- **"what fields get shown in the dropdown … like in the settings for that field"** — already
+  exists. `optionsSource.chipDisplay` (2026-05-19), editable per field in the Command Center,
+  ordered by explicit `fieldIds`. `0054` only turns it on.
+- The **mini-map image** and the **add-new map flow**, both deleted by the user's own reframing
+  after being built.
+
+**VERIFYING CAUGHT A DEFECT IN MY OWN MIGRATION.** Step 8 copied the exemplar's `fieldBindings`
+**read before step 6 bound Address**, so the two new locations went in unable to hold the one thing
+they exist for — the `0047` trap exactly. **The log even said it** (*"copying the shape of Farmers
+Market — 2 bindings"*) and reading it would not have caught it; reading the RESULT back did. The
+re-run self-healed both, which is also the idempotency proof.
+
+**Existing string addresses are left ALONE, deliberately.** 12 People modules bind the field and 10
+hold real street addresses; `readAddress` accepts both the bare string and the picker's object.
+Geocoding them to "upgrade" them would be rewriting the user's own data on a guess.
+
+Verified the 2026-08-07 (3) way: prod HEAD over SSH, index 200, bundles 200, sha256 byte-identical,
+and the feature present in the SERVED chunk — **with `images/search` as the control, because the
+address code lands in `PagePreviewApp` and a grep of `App.js` would have read as a missing
+feature** (and because minification renames functions, so only STRING literals are greppable).
+Rehearsed on test grid 2, force-re-run, then RESEEDED to prove a fresh seed and a migrated grid
+produce the same shape. 601 server + 2081 client tests (3 pre-existing `liveOpsBehavioral` failures,
+unrelated — they reproduce on unmodified source).
+
+**NOT VERIFIED, and it is the honest gap:** no address has been picked in a real browser. The
+picker is only reachable from an address-typed field, which only exists as of this migration.
+
+---
+
 ### 2026-08-08 — appointments span their slots, due work repeats until done; and the PROBE was wrong again
 
 Picked up the previous session's interrupted sentence (*"I'll take the seed builder first"*). It had
