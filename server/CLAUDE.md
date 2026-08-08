@@ -1,6 +1,52 @@
 # server — Server CLAUDE.md
 
 _Updated: 2026-08-07. Check this file before re-reading source._
+## Recent Changes (2026-08-07 (9) — a placement delete is not a file delete; and 0052 adds two real people)
+- **`utils/filesFolder.js` — `classifyFileDelete` + `filesFolderIdSet` (8 tests, A/B'd).** "Remove
+  this from my day page" and "delete this file" are the SAME gesture on the same row; only
+  `fromParentId` tells them apart. Homed in Files + deleted from another parent → **unlink** that
+  one parent (atomic `$pull`, never a read-modify-write). Deleted from inside Files, or with no
+  context → **delete-file**, and `sweepModuleId` takes the copy placements with it.
+- **THE CENSUS RESHAPED THE RULE, and the shape it found is LIVE.** Measured before writing:
+  ```
+  poms grid  234 artifacts · 223 homed in Files · 10 ALSO listed by a doc container
+             0 markdown artifacts · 0 artifact modules with >1 occurrence
+  ```
+  Those 10 are the imported **Eminem images** — `0051` gave them a Files home while their section
+  container already listed them — so **deleting one off the page deleted the file out of Files.**
+  And they are `image`, whose semantic is COPY, living in the MULTIPARENT shape: **the discriminator
+  therefore cannot be the kind. It is where the delete came from.**
+- **A missing `fromParentId` means "the file", not "unlink"** — a caller that cannot say where it is
+  deleting from has not told us it meant a placement, and silently unlinking from nowhere makes the
+  delete look like it did nothing. **A grid with no Files folder degrades to the old behaviour**
+  rather than failing — the posture `resolveFilesFolderId` already takes.
+- **The client half matters as much** (`ArtifactCard`): a placement removal stops at the parent-array
+  update instead of dispatching the delete, or the file vanishes from the Files tree until reload —
+  the half-applied destructive action the protected-folder work already paid for once. It states the
+  rule in terms of FOLDERS so there is no twin of the server's protected-folder rule to keep in sync.
+- **`placementSemanticForKind` now has a CLIENT TWIN** (`client/src/helpers/mainFile.js`) so a DROP
+  can decide without a round trip. This module keeps the authority because it also enforces the
+  delete side; **both suites assert the same table** so either catches drift.
+- **`migrations/0052-add-keith-and-angela.mjs`** — two real people on the People board, per the
+  user's ask alongside their real appointments.
+  - **The shape is DERIVED, not enumerated.** A person binds 24 fields; listing those ids would bake
+    today's schema into a file that runs tomorrow. It copies an existing person's `fieldBindings`
+    verbatim and identifies each field it writes **by the VALUE that field holds on that exemplar**
+    (the name field is the one holding the exemplar's own label; the library tag the one holding
+    `"person"`). A rename cannot break it.
+  - **That design came from the DRY RUN FAILING.** The first draft guessed `"Person Name"`; the field
+    is called `"Name"`, and it refused rather than writing a nameless person. Failing closed is the
+    point — guessing at all was the mistake.
+  - **IT INVENTS NOTHING.** The seeded people carry emails, phones, addresses, birthdays. Keith and
+    Angela get FOUR fields — name, the two identity tags, one note each — and the other 20 bound and
+    EMPTY. **A plausible-looking phone number in a real contact list is indistinguishable from one
+    the user entered, will be trusted, and is false.**
+  - Idempotent, and the name match is scoped to the People board's own children: "Angela" could
+    legitimately label something else on the grid, and a global match would silently decide she
+    already existed (0035's selector class).
+  - Dry run reported against a NAMED expectation before applying. After: 10 people → 12, both with
+    24 bindings and both listed by the board. poms grid **0 integrity errors**.
+
 ## Recent Changes (2026-08-07 (8) — 0051 files the homeless; and 213 of poms grid's "files" are dead rows)
 - **`migrations/0051-file-homeless-artifacts.mjs`** — Task 4 Step 4. Moves an artifact occurrence
   into `Files/<kind>` **only when it has no `parentId` AND its module has a `fileRef`**.

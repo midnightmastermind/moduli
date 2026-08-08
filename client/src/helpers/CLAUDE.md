@@ -1,6 +1,62 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-07. Check this file before re-reading source._
+## Recent Changes (2026-08-07 (8) — mainFile / boardOption / convertRelink / checklistFromText / ocr)
+- **`mainFile.js` (NEW, 19 tests)** — `main` on the Files field: WHICH attachment is the face.
+  `setMainFile` / `attachFile` / `removeFile` / `clearMainFile` / `resolveMainFile`, plus the CLIENT
+  TWIN of `placementSemanticForKind` (**keep in sync with `server/utils/filesFolder.js`** — both
+  suites assert the same table so either catches drift).
+  - **The invariant is `main ∈ value`, enforced HERE because the UI is not the only writer** — a
+    drop, a delete and a migration all touch this value. `resolveMainFile` REFUSES a main that is
+    not attached rather than returning it, so broken data falls back instead of resolving to a hole.
+  - **`setMainFile` ATTACHES a file that is not there yet.** Dropping on the face area means "this
+    is the face"; the only two ways to keep the invariant are refuse or attach, and refusing makes
+    the gesture silently do nothing.
+  - **`attachFile` is the one that is safe to repeat: the FIRST attachment becomes the face, later
+    ones never steal it.** Silently replacing a picture the user picked, as a side effect of
+    attaching a second file, is what makes a feature untrustworthy.
+- **`occurrenceMedia.primaryMediaOf` prefers `main`, falls back to the `role:"media"` binding.**
+  ADDITIVE BY MEASUREMENT: 213 occurrences carry a Files value and **zero** carry a main, so every
+  lookup falls through today. **The order cannot be reversed** — rows carry BOTH, so preferring the
+  binding would make marking a face silently do nothing. A/B'd: reversing fails exactly the
+  discriminating test while the 213-row regression still passes.
+- **`boardOption.js` (NEW, 12 tests)** — `optionBoardStampFields` / `isOptionBoard`. What makes a
+  board an OPTION board is DERIVED, not listed: measured 37 feeds on poms grid, and every option
+  board both declares what it collects (feed condition) and carries that value itself, so the BOARD
+  OCCURRENCE is the source of truth. **34 of 37 — matching the documented count — with nothing
+  knowing "boardCategory".** Refuses a feed whose field the board does NOT hold (that describes a
+  VIEW; minting there makes a row the feed cannot see). Stamps the board's OWN value (`["x"]`), not
+  the condition's scalar (`"x"`) — the shapes differ and CONTAINS matches both, so the wrong one
+  works until something reads the field expecting an array.
+- **`convertRelink.js` (NEW, 12 tests)** — after "Convert to page", other chips on the same URL
+  become in-app jumps. **This replaced the MIGRATION, which was measured and refused:** 709 chips →
+  10 would relink → all 10 false positives (section HEADINGS matched by label); corrected selector →
+  1, and it is `Eminem → Eminem`. Title matching is a guess; at convert time both ends are in hand.
+  **The self-loop refusal survives** — an article links to itself, and those chips are inside the
+  new page (skipped by `occurrences[]` AND `parentId`). `sameLinkTarget` drops the FRAGMENT but
+  KEEPS the query (`?page=2` can be a different document).
+- **`checklistFromText.js` (NEW, 13 tests)** — text/OCR → one item per line. **`split("\n")` is not
+  the feature**: a photo of handwriting returns items AND debris. A series of refusals (bullets in
+  four characters, checkbox glyphs, stray marks, single stray characters, a 100 cap), and it
+  deliberately does NOT dedupe, merge wrapped lines, or drop the header — **dropping debris is safe,
+  rewriting content is not.** `skipped`/`truncated` are RETURNED so the caller can say so.
+- **`ocr.js` (NEW)** — `runOcr` extracted from `ArtifactContent` so intake reaches the SAME runner.
+  Returns plain text only; what it becomes stays the caller's call, which is what let a second
+  caller exist without a second OCR path. **Verified still LAZY** — own chunk, 0 refs from main.
+- **`intakeApply.js`** — new routes: `LINK_BOARD_OPTION`, `IMAGE_ATTACH`, `IMAGE_OCR_LIST`,
+  `TEXT_CHECKLIST`. **`artifactUpload.uploadArtifactPlaceholders` gained `onUploaded`** — `persist`
+  can only patch the ARTIFACT's own occurrence, and attaching writes a reference from somewhere
+  ELSE. Fires on success only: a reference to a failed upload is a pointer to a row that does not
+  exist.
+- **`dropHandlers.handleArtifactDrop` honours `placementSemanticForKind`** — media copies, markdown
+  MULTI-PARENTS (textmap lives on the occurrence, so a copy forks the body). The multiparent path is
+  idempotent; the copy path deliberately is not (two copies of a photo on one page is legitimate).
+  **This is the other half of the placement-delete rule — until it existed nothing created a SECOND
+  placement, so the delete distinction could not be exercised end to end.**
+- **TWO PROBE TRAPS, both mine, both would have read as "the code does nothing":** `vi.spyOn` on an
+  ESM namespace import does not intercept, and a drop fixture fed `dropTarget` when `dropView` reads
+  `target` + `state.modulesById` (it reported ZERO emissions). **Assert on the writes that LEAVE.**
+
 ## Recent Changes (2026-08-07 (7) — the upload `persist` stops clobbering the file's home)
 - **`dropHandlers.js` + `ui/Editor.jsx` — `persist` no longer stamps `parentId`.** The server now
   homes an uploaded artifact in **Files/&lt;kind&gt;** (`homeFolderForUpload`), and `persist` ran

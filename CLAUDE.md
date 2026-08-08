@@ -6,6 +6,91 @@
 
 ---
 
+### 2026-08-07 (6) — the Files folder gets its RULES; and THREE things were already done
+
+Picked up the other account's queue from the chat logs again (12 open items, recovered the same
+way as (5) — `TaskCreate`/`TaskUpdate` in `~/.claude*/projects/-home-joshpoms-moduli/*.jsonl`).
+**Deployed twice, verified both times**; poms grid at 0 integrity errors.
+
+**A CENSUS CONTRADICTED THE PLAN BEFORE ANY CODE WAS WRITTEN, and reshaped the rule.** Task 4
+Step 5 says placement-delete is decided PER KIND (media copies, markdown multi-parents). Measured:
+```
+poms grid  234 artifacts · 223 homed in Files · 10 ALSO listed by a doc container
+           0 markdown artifacts · 0 artifact modules with >1 occurrence
+```
+Those 10 are the imported **Eminem images** — `0051` gave them a Files home while their section
+container already listed them. **So deleting one off the page deleted the file out of Files**, on
+live data, today. And they are `image` (copy semantic) living in the multiparent shape, which means
+**the discriminator cannot be the kind — it is WHERE THE DELETE CAME FROM.** `classifyFileDelete`
+takes `fromParentId`; a missing one means "the file", because a caller that cannot say where it is
+deleting from has not told us it meant a placement.
+
+**THREE TASKS WERE RETIRED BY MEASURING RATHER THAN BUILT.** Same discipline as (4)'s two:
+- **The link-relink MIGRATION.** Step 2 had already measured it: 709 chips → 10 would relink →
+  **all 10 FALSE POSITIVES** (`Shady Records` and `Shade 45` are section HEADINGS at depth 2 inside
+  the Eminem page). With the corrected selector it drops to ONE — `Eminem → Eminem`, a jump to the
+  top of the page you are reading. **Title matching is a guess, and on real data it was wrong every
+  time.** Built the thing with nothing to guess instead: relink AT CONVERT TIME, where both ends are
+  in hand and the match is URL equality against a URL the user personally acted on.
+- **Intake finding 4** ("an empty-cell FILE drop is filed nowhere while TEXT gets a folder"). True
+  when written, false now — `homeFolderForUpload` files it in `Files/<kind>`, and
+  `handleFileDrop`'s `persist` returns null on that branch so the client cannot re-stamp over it.
+  What still differs is CORRECT: an import is a document, a file is a file.
+- **Files field Step 1** — already existed on both grids, bound by ~188 modules.
+
+**TWO LIVE BUGS FOUND BY READING A WRITE PATH WHILE EXTENDING IT, both silent:**
+1. **The media drop had been INERT.** It resolved a dragged artifact to `mod.fileRef` — a STRING —
+   and wrote that into a field whose resolver accepts only occurrence ids and deliberately has no
+   legacy-string fallback. So dropping an artifact on a row wrote a value the resolver refuses and
+   the picture never appeared.
+2. **`showMedia` gated on the media binding**, so a row binding only `Files` had no drop target and
+   nowhere to show a picture it was perfectly able to hold.
+
+**`main` ON THE FILES FIELD — additive by measurement.** 213 occurrences carry a Files value and
+**zero** carry a `main`, so `primaryMediaOf` preferring it changes nothing today and lights up as
+faces get marked. **The order cannot be reversed** (rows carry BOTH a Poster binding and Files, so
+preferring the binding would make marking a face silently do nothing) — A/B'd: reversing fails
+exactly the discriminating test while the 213-row regression still passes.
+`attachFile` encodes the one decision that matters: **the FIRST attachment becomes the face, later
+ones never steal it.**
+
+**LOOKING AT IT CAUGHT WHAT THE NUMBERS DID NOT — again.** The main-picture drag affordances
+measured correct (`::after` 3px line / 2px ring) and the SCREENSHOT showed the line drawn straight
+through "Drop media here", and the ring around the BOX rather than the picture (the box is
+full-width, the picture is centred and narrower). Both fixed. **The probe ALSO reported
+`position: static` and no `::after` on its first run — a STALE BUNDLE**, because `dist` predated the
+CSS edit. A zero there would have been a claim about the probe.
+
+**A SURFACE WAS DELETED RATHER THAN IMPROVED.** User: *"we should remove the files tab if we have a
+folder now for them."* The audit's own words are that the tab scrapes `modulesById` **because there
+is no folder to read** — there is one now, so a flat tab is a second surface for one concept, and
+the one that cannot say where anything lives. The half-built "teach it to read the folder" helper
+went with it rather than sitting caller-less. **Checked before deleting that its upload was not the
+only upload** (QuickAdd's artifact tile, `artifactUpload`, ConnectionsTab).
+
+**Also shipped:** dragging out of Files lands a placement per kind (the other half of Step 5 —
+until it existed nothing created a SECOND placement, so the delete distinction could not be
+exercised); a link dropped on an option board mints a real tagged option, with the identity DERIVED
+from the board's own feed (34 of 37 feeds, matching the documented count, with nothing knowing the
+word "boardCategory"); a photo of a list becomes a checklist, where the SPLIT is the feature and
+each refusal is a test (it deliberately does not dedupe, merge wrapped lines, or drop the header —
+dropping debris is safe, rewriting is not); and **Keith and Angela** on the People board via `0052`,
+which **invents nothing** about them — 4 fields written, the other 20 bound and empty, because a
+plausible-looking phone number in a real contact list is indistinguishable from one you entered.
+
+**Two probe traps, both mine, both would have read as "the code does nothing":** `vi.spyOn` on an
+ESM namespace import does not intercept; and a drop fixture fed `dropTarget` when `dropView` reads
+`target` + `state.modulesById`, reporting zero emissions. Assert on **the writes that leave**, not
+on which helper was called.
+
+**NOT VERIFIED, and stated plainly:** no drag/drop path shipped today has been exercised by a real
+drag. The decisions are A/B'd and were driven against LIVE data (213 posters still resolve, 34 of 37
+feeds are option boards, the invariant holds on a real row), but drag MECHANICS are untested —
+`DragProvider` resolves the hovered container from a `pointerRef` a synthetic drag never moves, so a
+green synthetic result would be a claim about the probe.
+
+---
+
 ### 2026-08-07 (5) — the queue lives in the CHAT LOGS, not the repo; and three intake shapes land
 
 **The most useful thing this session did was find the actual task list.** Asked to continue the
