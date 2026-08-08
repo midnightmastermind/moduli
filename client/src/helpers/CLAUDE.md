@@ -1,6 +1,27 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-08 (2) — feedPredicate.js NEW: feeds get OR and nested groups)
+- **`feedPredicate.js` (NEW, pure, 13 tests)** — `buildFeedPredicate(feed, { now })` turns a feed's
+  conditions into the group tree `evalGroupAgainstRecord` already understands. **That evaluator was
+  never the gap** — it has done AND/OR and nesting since 2026-05-03 and finds a sub-group via
+  `Array.isArray(entry.rules)`. What was missing was a feed shape that could express one.
+  ```
+  feed.conditionOperator : "AND" | "OR"        ABSENT MEANS AND
+  Entry = { id, fieldId, comparator, value }         // leaf
+        | { id, operator, conditions: Entry[] }      // group
+  ```
+  A group is recognised by carrying `conditions` (so a leaf can never be mistaken for one); the
+  OUTPUT uses `rules`, the key the evaluator looks for.
+- **Three drop rules, each reproducing the old inline loop in `resolveFeedItems`:** a leaf with no
+  `fieldId` is inert (`+ condition` mints exactly that); **a group with no usable children is
+  DROPPED — an empty AND evaluates TRUE, so inside an OR it would match EVERYTHING**; past the depth
+  cap it degrades to "unconfigured" rather than walking an unbounded tree on the sync path.
+- `now` is resolved ONCE for the whole tree — a sync straddling midnight must not evaluate two rows
+  against two different "todays".
+- **Back-compat proven, not argued:** the real resolver over live data on both code versions gave
+  byte-identical row sets for all 77 enabled feeds (208 rows).
+
 ## Recent Changes (2026-08-08 — feedTokens.js NEW: a feed condition can say `$today`)
 - **`feedTokens.js` (NEW, pure, 11 tests)** — `resolveFeedConditionValue(value, now?)`. A feed
   condition's value reaches `evalRuleAgainstRecord` with an **EMPTY `$vars`**, so `$today` resolved

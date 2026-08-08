@@ -6,6 +6,84 @@
 
 ---
 
+### 2026-08-08 (4) — feeds get OR and NESTED GROUPS, and the evaluator already knew how
+
+User picked the faithful option over the cheap one: **one Completed container holding both kinds**,
+not a second container. Shipped `feed.conditionOperator` + nested condition groups, migration `0060`,
+the seed half, and a recursive editor. **Deployed and verified**; poms grid at 0 errors.
+
+**THE EVALUATOR WAS NEVER THE GAP, and finding that out is what kept this small.**
+`evalGroupAgainstRecord` has handled AND/OR and arbitrary nesting since 2026-05-03, and detects a
+sub-group by `Array.isArray(entry.rules)`. What was missing was a feed SHAPE that could express one —
+so the work is a translator (`helpers/feedPredicate.js`, pure, 13 tests) plus an editor, and
+`resolveFeedItems` got *shorter*: its hand-rolled rule loop became one `evalGroupAgainstRecord` call.
+
+```
+feed.conditionOperator : "AND" | "OR"        ABSENT MEANS AND
+Entry = { id, fieldId, comparator, value }         // leaf
+      | { id, operator, conditions: Entry[] }      // group
+```
+A group is recognised by carrying `conditions`, so a leaf can never be mistaken for one; the OUTPUT
+uses `rules`, because that is the key the evaluator looks for.
+
+**BACK-COMPAT WAS THE ENTIRE RISK AND IS PROVEN RATHER THAN ARGUED.** 77 enabled feeds across three
+grids, all flat AND lists. Drove the REAL resolver over LIVE data on both code versions —
+**77 feeds, 208 rows, byte-identical**. (Same probe as (3); it paid for itself twice.)
+
+**THREE DROP RULES, each reproducing the old inline loop, each with a reason it matters:**
+- a leaf with no `fieldId` stays inert — `+ condition` mints exactly that, so a half-configured row
+  must not empty the feed;
+- **a group with no usable children is DROPPED, because an empty AND evaluates TRUE** and inside an
+  OR would make the whole feed match EVERYTHING;
+- past the depth cap it degrades to "unconfigured" rather than walking an unbounded tree on the sync
+  path.
+
+**`0060` — the predicate, and the proxy it rests on, stated plainly:**
+```
+Completed IS true   OR   ( Date DATE_BEFORE $today  AND  Time Slot IS_NOT_EMPTY )
+```
+The second arm is a GROUP and **the nesting is the point** — a bare date rule would sweep every
+past-dated row on the page. But `Time Slot IS_NOT_EMPTY` is a **PROXY for "is an appointment"**: the
+precise test is the MODULE (what `Schedule: Place Dated Work` matches on), and a feed condition's
+left is always `fields.<id>.value`. Measured exact on real data before choosing it — of 100 dated
+occurrences, 96 are not appointments and **0 of those are in Tasks-page scope**; due tasks carry
+`Due`, never `Date` + `Time Slot`. If it ever needs to be exact by construction that is a
+module-matching leaf (`resolveRecordPath` already resolves `moduleId`), not a different predicate.
+
+**VERIFIED BY DRIVING THE STORED PREDICATE THROUGH TIME, on real rows:**
+```
+as of 2026-08-08   []                                            ← nothing past, nothing ticked
+        08-11      [Therapy with Keith]                          ← the Aug 10 one
+        08-12      [+ Psych appointment with Angela]
+        08-14      [+ Peer Support Group - Froedtert]
+        08-20      [all four]
+```
+The two due-dated tasks never appear. **Honest limit: on today's data they are excluded because they
+carry no `Date` at all, so it is the UNIT TEST — a past-dated row that was never scheduled — that
+proves the nested AND constrains, not this probe.**
+
+**The editor is ONE RECURSIVE control set**, so a nested group offers exactly what the top level does
+and there is no second implementation to drift. The operator reads **"match all / match any"**, which
+is correct to someone who has never written a predicate; AND/OR is not. 10 component tests, **A/B'd —
+a no-op operator write and a zero depth cap each fail exactly one test**.
+
+**A TEST BUG WORTH KEEPING: React does not fire `onChange` when the value is unchanged.** The first
+version of the `$today` round-trip test re-typed the value that was already there, so the mock was
+never called and the assertion **threw instead of failing** — a green-looking path that proved
+nothing. Change the value, or you are testing the framework's dedupe.
+
+**And the deploy probe lied first, exactly as documented.** My chunk regex matched
+`PagePreviewApp-…` as `App-…` and reported the feature absent — **the CONTROL string came back 0
+too, which is the tell.** Correct answer: all three chunks sha256-identical to the local build, and
+`conditionOperator`/`$today`/`match any` present in the SERVED `PagePreviewApp` chunk (feed and
+selector code lands there, so grepping App.js reads as a missing feature — the same trap the
+2026-08-08 (2) entry records).
+
+2148 client + 601 server tests (the same 3 pre-existing `liveOpsBehavioral` failures). Prod HEAD
+`c90b4178`, index 200, bundles 200.
+
+---
+
 ### 2026-08-08 (3) — the handoff named the WRONG FUNCTION, and the real blocker was never filed
 
 Carried the other two accounts' queue over — the working queue is in the jsonl `TaskCreate`/

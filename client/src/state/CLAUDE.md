@@ -19,8 +19,11 @@ _Updated: 2026-08-08. Check this file before re-reading source._
   `isOccurrenceVisible` and is **DEAD on a page carrying `filterOverride: {}`** (the
   opt-out-of-date-filtering marker): the cascade deletes the date key, `rightVal` lands `undefined`,
   and the condition is SKIPPED — i.e. it matches everything. That is why the token exists.
-- **Feed conditions are ANDed** (`for (const rule of preparedRules) … break`). There is no OR and no
-  nesting, even though `evalGroupAgainstRecord` supports both — see the open task on predicate groups.
+- **Feed conditions support OR and NESTING as of 2026-08-08.** `resolveFeedItems` no longer loops
+  rules itself: it builds one tree via `helpers/feedPredicate.buildFeedPredicate` and evaluates it
+  with `evalGroupAgainstRecord`. `feed.conditionOperator` is `"AND"` when absent, which is every feed
+  authored before that date. A `null` predicate means "nothing usable to match on" and every
+  candidate passes — the same reading the old loop gave when it skipped every condition.
 
 ## Recent Changes (2026-08-06 — onFullState: the op sweep waits for the first panel's content)
 - **`bindSocketToStore.js`** — the on-load sweep's deferral changed from a nested

@@ -1,6 +1,25 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-07-20. Check this file before re-reading source._## Recent Changes (2026-08-06 — FieldRenderer: a pick carries its prefills in the SAME write)
+_Updated: 2026-08-08. Check this file before re-reading source._
+
+## Recent Changes (2026-08-08 — FeedSection: the predicate editor is RECURSIVE)
+- **`FeedSection.jsx`** — the flat condition list became one recursive `ConditionList`, so a nested
+  group offers exactly the controls the top level does and there is **no second implementation to
+  drift**. New `OperatorToggle` writes `feed.conditionOperator`; `+ group` appends a group already
+  seeded with one condition, so a group is never born empty (an empty AND evaluates TRUE, which
+  inside an OR would match everything).
+- **The operator reads "match all / match any", not AND/OR** — correct to someone who has never
+  written a predicate. It is hidden when there is only one condition, where the choice is noise.
+- The value coercion is unchanged and now lives in one `coerce()` — "true"/"false" become booleans,
+  numeric strings become numbers, and everything else stays a string, which is what leaves a
+  `$today` token intact. A one-line hint under the list says so, because a token nobody can find is
+  not shipped.
+- Editor nesting is capped at 2 (`MAX_UI_DEPTH`); `helpers/feedPredicate` tolerates more and refuses
+  beyond its own cap.
+- 10 tests in `__tests__/FeedSection.test.jsx`, **A/B'd** — a no-op operator write and a zero depth
+  cap each fail exactly one. **Trap recorded there: React does not fire `onChange` when the value is
+  unchanged**, so re-typing the value already in the box leaves the mock empty and the assertion
+  THROWS rather than failing.## Recent Changes (2026-08-06 — FieldRenderer: a pick carries its prefills in the SAME write)
 - **`FieldRenderer.jsx handleCommit`** — after a pick commits, `planPrefill`
   (`helpers/prefillFromPick`) computes the values that pick implies and they are merged into the
   SAME `updateOccurrence`. Not a follow-up write: the target IS the occurrence being edited, so the
