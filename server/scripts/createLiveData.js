@@ -53,6 +53,8 @@ import {
   makeProjectCreateOp,
   makeProjectStatusRouterOp,
   makeDayPageBuildTasksCompletedOp,
+  makeStampCompletedOnOp,
+  makeSchedulePlaceDatedWorkOp,
   makeStampDateTimeSlotOp,
   makeClearDateOnMoveOutOp,
   makeTrackerOp,
@@ -281,6 +283,11 @@ export async function createLiveData(userId, options = {}) {
   // format based on $activePeriodCount; PageBoard reads this field to
   // pick the layout.
   const scheduleFormatFieldId = uid();
+  // The day a thing was completed. Written only by "Schedule: Stamp Completed
+  // On"; read by "Schedule: Place Dated Work" to decide when a due task stops
+  // appearing. Pre-generated here because the two ops and the field definition
+  // all need to agree on one id.
+  const completedOnFieldId = uid();
   // Marker for "first load of the day": the day the grid was last opened. An
   // onLoad op compares it to today, snaps the filter forward when it differs,
   // then stamps it. Lives on a hidden occurrence — there is no op action that
@@ -865,6 +872,24 @@ export async function createLiveData(userId, options = {}) {
       name: "Due",
       type: "date",
       inputEnabled: true,
+      displayEnabled: false,
+      meta: {},
+      folderId: fieldCategoryIds.scheduling,
+    },
+    // completedOn: the DAY something was completed, stamped by
+    // "Schedule: Stamp Completed On" when Completed flips true and cleared when
+    // it flips false. `Completed` is a boolean and `Date` is the day an
+    // occurrence sits on in the Schedule — neither answers "when was this
+    // done", and the Due placement needs exactly that to stop showing a task
+    // the day after you finish it.
+    //
+    // Read-only in the UI (inputEnabled: false): a hand-edited completion date
+    // would disagree with the checkbox that is supposed to own it.
+    completedOn: {
+      id: completedOnFieldId,
+      name: "Completed On",
+      type: "date",
+      inputEnabled: false,
       displayEnabled: false,
       meta: {},
       folderId: fieldCategoryIds.scheduling,
@@ -2556,7 +2581,13 @@ export async function createLiveData(userId, options = {}) {
     // the obligations/admin dimension — rather than Social, so the Social
     // dimension keeps reading as chosen contact. Trackers aggregate by FIELD,
     // not by container, so the dimension is purely where you go to find it.
-    appointment: act("Appointment", [bfd(fields.appointmentType.id), bfd(fields.place.id), bfd(peopleAssignedFieldId), bfd(fields.duration.id)]),
+    // Time Slot is bound VISIBLY here and nowhere else in this catalog: for
+    // every other action the slot is implied by where you dragged it, but an
+    // appointment has a start time you were TOLD ("Therapy at 2:00pm"), and it
+    // is the input "Schedule: Place Dated Work" reads to decide which slots the
+    // appointment covers. Paired with Duration, which is already bound — start
+    // plus length IS the span, so there is no end-time field to drift from it.
+    appointment: act("Appointment", [bfd(fields.appointmentType.id), bfd(fields.timeslot.id), bfd(fields.duration.id), bfd(fields.place.id), bfd(peopleAssignedFieldId)]),
 
     // === FINANCIAL === (Pay Bill / Cancel Subscription re-home here as peers;
     // Track is the universal money occurrence — the flow toggle decides
@@ -8392,6 +8423,21 @@ export async function createLiveData(userId, options = {}) {
   // page (seeded above via buildScheduleTemplatePage). The op COPY_LINKs
   // it into the Schedule page per active day — picker-direct, no FIND.
   await new Operation(makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId, completedTrackerName: "Completed Tasks", waterTrackerName: "Water", goalsPageOccId, schedulePageOccId: schedPageOccId, dayContainerOccId })).save();
+  // Records WHEN something was completed (priority 0 — the placement op below
+  // reads what this writes, so it has to settle first).
+  await new Operation(makeStampCompletedOnOp({ userId, gridId, completedFieldId, completedOnFieldId })).save();
+  // Places an appointment in every slot it spans and a due-dated task in every
+  // day it is still outstanding. Priority 2 — strictly AFTER Build Schedule (1)
+  // mints the day column, its Due container and its 48 slots; this op finds
+  // them and BAILS rather than creating one, so two ops can never both mint a
+  // day column (the duplicate-column class this grid has been repaired for).
+  await new Operation(makeSchedulePlaceDatedWorkOp({
+    userId, gridId,
+    dateFieldId, timeslotFieldId, durationFieldId: fields.duration.id,
+    dueFieldId, completedOnFieldId, scheduleFormatFieldId,
+    schedulePageOccId: schedPageOccId,
+    appointmentTemplateId: actionInstances.appointment.id,
+  })).save();
   // Extend Stamp Date & Time Slot to also stamp lastSeen on every dropped occurrence.
   // dayPageTemplateOccId is picker-direct: resolving the template by
   // meta.templateName matches every CLONE too (APPLY_TEMPLATE copies meta), and
