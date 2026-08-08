@@ -1014,6 +1014,29 @@ app.get("/api/images/search", async (req, res) => {
   }
 });
 
+// ─── Address lookup ───────────────────────────────────────────────────────
+// Backs the `address` FIELD TYPE's search box — wherever an address is edited
+// (a Location option on the Locations board, a person's home address), not
+// anything Location-specific. Queries Photon (place/venue names) and Nominatim
+// (street addresses) in parallel and merges; see server/utils/geocode.js for
+// why a fallback chain could not work. Both keyless, both rate-limited and
+// User-Agent'd as their usage policies require.
+app.get("/api/addresses/search", async (req, res) => {
+  const q = String(req.query.q || "").trim();
+  if (!q) return res.status(400).json({ error: "q required" });
+  const near = {
+    lat: req.query.lat !== undefined ? Number(req.query.lat) : undefined,
+    lon: req.query.lon !== undefined ? Number(req.query.lon) : undefined,
+  };
+  try {
+    const { searchPlaces } = await import("./utils/geocode.js");
+    const { results, source } = await searchPlaces(q, near);
+    res.json({ results, source });
+  } catch (e) {
+    res.status(502).json({ error: "geocode_unavailable", message: e.message });
+  }
+});
+
 // Bare image upload — stores the file under uploads/user/YYYY-MM/ and returns
 // its URL. Mints NO module/occurrence (unlike /api/artifacts/upload): the
 // ImagePickerMenu uses this when the picked image becomes a FIELD VALUE

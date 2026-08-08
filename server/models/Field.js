@@ -18,7 +18,14 @@ const FieldSchema = new mongoose.Schema(
     type: {
       type: String,
       required: true,
-      enum: ["number", "text", "boolean", "select", "date", "rating", "duration", "occurrence", "markdown", "button"],
+      // "address" holds a postal address PLUS the coordinates and mini-map its
+      // geocoder search resolved. It is a distinct type rather than a text
+      // field with a meta flag so "this input gets a map search" is something
+      // the system can introspect — the same reason every other input variant
+      // is a type. "Location" itself needs no type: it is an ordinary
+      // `occurrence` dropdown into the Locations container whose OPTIONS each
+      // carry an address-typed field.
+      enum: ["number", "text", "boolean", "select", "date", "rating", "duration", "occurrence", "markdown", "button", "address"],
       default: "text"
     },
 
