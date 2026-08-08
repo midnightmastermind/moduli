@@ -1101,6 +1101,41 @@ export async function createLiveData(userId, options = {}) {
       displayEnabled: false,
       meta: { prefix: "$", postfix: "", increment: 10, flow: "in" },
     },
+    // ── Grocery / pantry (2026-08-08) ───────────────────────────────────────
+    // How much of a thing, and what it costs. Bound on every ingredient/grocery
+    // board option (derived from the tag in the option loop below).
+    //
+    // Quantity carries a per-row UNIT LIST rather than one fixed postfix, so a
+    // single field covers g / kg / ml / L / oz / lb / count (user 2026-08-08:
+    // "kg ml g any for amount of ingrediants"). No default unit — one would
+    // show on every item that has not chosen, which reads as a claim.
+    //
+    // **`Amount` was NOT reused, and must not be**: 27 modules bind it and 8
+    // operations sum it, so "300 g" would add 300 to the spending total.
+    //
+    // **Price is a fixed `$` with NO currency options, deliberately.** The affix
+    // is presentation only, so offering £ alongside $ on a field that gets
+    // totalled would let them add together into a meaningless number. Units on
+    // Quantity are safe because nothing sums Quantity across items.
+    //
+    // Price is a SHELF PRICE, not a transaction — no money tracker reads it, or
+    // every shop would be counted twice (Buy/Spend already carry Amount).
+    quantity: {
+      id: uid(),
+      name: "Quantity",
+      type: "number",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: { postfixOptions: ["g", "kg", "ml", "L", "oz", "lb", "count"], increment: 1, min: 0 },
+    },
+    price: {
+      id: uid(),
+      name: "Price",
+      type: "number",
+      inputEnabled: true,
+      displayEnabled: false,
+      meta: { prefix: "$", increment: 1, min: 0 },
+    },
     calories: {
       id: uid(),
       name: "Calories",
@@ -4752,6 +4787,16 @@ export async function createLiveData(userId, options = {}) {
           // "media" is what the occurrence-dropdown chips + option rows render
           // as a thumbnail. Hidden as an inline input; the media block shows it.
           { fieldId: posterUrlFieldId, role: "media", order: 98, hidden: true },
+          // Anything that is an ingredient or a grocery carries a quantity and
+          // a price. DERIVED from the option's own tags, not a list of labels —
+          // the boards gain items, and a hardcoded list goes stale the first
+          // time one is added. Mirrors migration 0058 exactly.
+          ...(((o.tags || [def.tag]).some(t => t === "ingredient" || t === "grocery"))
+            ? [
+                { fieldId: fields.quantity.id, role: "input", order: 90 },
+                { fieldId: fields.price.id,    role: "input", order: 91 },
+              ]
+            : []),
           ...(o.bindings || []),
         ],
       }).save();
