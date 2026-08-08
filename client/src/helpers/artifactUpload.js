@@ -91,6 +91,13 @@ export function createArtifactPlaceholders(files, {
 //     re-persisted here once the row exists server-side.
 export function uploadArtifactPlaceholders(placeholders, {
   gridId, userId, dispatch, socket, containerOccurrenceId = null, persist = null,
+  // Fires once per SUCCESSFUL upload, after the artifact's own row is settled.
+  // `persist` can only patch the artifact occurrence itself; this is for callers
+  // that must reference the finished artifact from somewhere ELSE (intake's
+  // "attach to this occurrence" writes its id into another row's Files field).
+  // It runs on success only — a reference to an upload that failed would be a
+  // pointer to a row that does not exist.
+  onUploaded = null,
 }) {
   const total = placeholders.length;
   const toastId = total > 1 ? toast.loading(`Uploading ${total} files…`) : null;
@@ -144,6 +151,7 @@ export function uploadArtifactPlaceholders(placeholders, {
           });
         }
         uploaded++;
+        onUploaded?.(p);
       })
       .catch(err => {
         if (err?.name === "AbortError") { cancelled++; return; }

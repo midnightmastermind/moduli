@@ -89,6 +89,26 @@ export function setMainFile(fieldValue, occId) {
   return { ...wrapperOf(fieldValue), value, main: occId };
 }
 
+/**
+ * Attach a file WITHOUT stealing the face — unless there is no face yet.
+ *
+ * "Attach to this occurrence" and "make this its picture" are different
+ * intentions and the rule has to serve both without asking:
+ *   • nothing is the face yet → the first attachment becomes it, because an
+ *     occurrence with one picture and no face is a face nobody chose.
+ *   • a face already exists → it is KEPT. Silently replacing a picture the user
+ *     picked, as a side effect of attaching a second file, is the kind of
+ *     destructive surprise that makes a feature untrustworthy.
+ * Marking a later attachment as the face is an explicit act — setMainFile.
+ */
+export function attachFile(fieldValue, occId) {
+  if (!occId) return fieldValue;
+  if (!resolveMainFile(fieldValue)) return setMainFile(fieldValue, occId);
+  const current = valueArray(fieldValue);
+  if (current.includes(occId)) return fieldValue;
+  return { ...wrapperOf(fieldValue), value: [...current, occId] };
+}
+
 /** Drop the face marker, leaving every attachment in place. */
 export function clearMainFile(fieldValue) {
   const { main: _main, ...rest } = wrapperOf(fieldValue);

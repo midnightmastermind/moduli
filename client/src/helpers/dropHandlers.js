@@ -97,6 +97,7 @@ import { openIntakeSheet } from "../ui/IntakeSheet";
 import { snapPanelToEdge } from "./gridSnap";
 import { placementSemanticForKind } from "./mainFile";
 import { isOptionBoard } from "./boardOption";
+import { filesFieldIdFor } from "./occurrenceMedia";
 import { toast } from "../state/notificationStore";
 import { jumpToOccurrence } from "./jumpToOccurrence";
 import { createImportsDocPage } from "./importsFolder";
@@ -1579,6 +1580,13 @@ export function handleFileDrop(dropContext, ctx) {
     // it is the occurrence the filter cascade resolves through either way.
     destinationOccurrence: finalContainerOcc || (canvasPos ? pageOcc : null) || null,
     containerOccurrenceId: finalContainerOcc?.id || null,
+    // IMAGE_ATTACH needs to know WHICH field to append to; the classifier used
+    // the same resolution to decide whether to offer the shape at all.
+    destination: {
+      filesFieldId: filesFieldIdFor(
+        finalContainerOcc ? state?.modulesById?.[finalContainerOcc.moduleId] : null,
+      ),
+    },
     // NOTE the absent `parentId`. An uploaded artifact's parentId is its HOME in
     // the Files folder, stamped server-side (`homeFolderForUpload`); its presence
     // HERE is the destination's `occurrences[]` entry, written by `onPlaceholders`
@@ -1621,6 +1629,12 @@ export function handleFileDrop(dropContext, ctx) {
       kind: canvasPos ? "canvas" : (finalContainerOcc ? "board" : null),
       occurrenceId: finalContainerOcc?.id || null,
       canDraw: !!canvasPos,
+      // Lights up IMAGE_ATTACH — "put this ON that thing" rather than beside it.
+      // Offered only where there is somewhere to attach TO, so a destination
+      // with no Files field never sees a tile that could not do anything.
+      filesFieldId: filesFieldIdFor(
+        finalContainerOcc ? state?.modulesById?.[finalContainerOcc.moduleId] : null,
+      ),
     }),
   );
 

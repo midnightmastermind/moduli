@@ -34,6 +34,8 @@ import { csvToMarkdownTable } from "./csvToTable";
 import { linkChipShape } from "./linkOccurrence";
 import { createTextblockInContainer, createContainerInContainer, createLeafInstanceInParent } from "./CommitHelpers";
 import { optionBoardStampFields } from "./boardOption";
+import { attachFile } from "./mainFile";
+import * as CommitHelpers from "./CommitHelpers";
 
 const S = INTAKE_SHAPES;
 
@@ -83,6 +85,9 @@ export const INTAKE_ROUTES = {
   // worth fighting for. Offered only when the destination IS an option board,
   // which `helpers/boardOption` derives from the board's own feed.
   [S.LINK_BOARD_OPTION.id]: { run: runLinkBoardOption, note: "a tagged option this board's dropdowns can see" },
+  // Attach an image to the occurrence it was dropped ON, rather than adding a
+  // sibling next to it. Offered only where there is a Files field to attach to.
+  [S.IMAGE_ATTACH.id]: { run: runImageAttach, note: "append to this occurrence's Files, as its face if it has none" },
 };
 
 /** Ids the router can actually carry out right now. */
@@ -183,6 +188,58 @@ function runArtifacts(ctx) {
   uploadArtifactPlaceholders(placeholders, {
     gridId, userId, dispatch, socket, containerOccurrenceId, persist,
   });
+}
+
+// ── IMAGE → ATTACH TO THIS OCCURRENCE ──────────────────────────────────────
+//
+// The same upload as any other image; what differs is WHERE the result is
+// referenced. Instead of becoming a sibling row, the artifact is appended to
+// the target occurrence's Files field — so a photo dropped on "Inception"
+// belongs to Inception rather than sitting beside it.
+//
+// The Files write happens AFTER the upload resolves, because the artifact's
+// occurrence id is the value being stored and a placeholder that never uploads
+// would leave a reference to a row that does not exist — the dangling-reference
+// class this repo keeps paying for.
+//
+// `attachFile` (not setMainFile) is what makes this safe to use repeatedly: the
+// FIRST attachment becomes the face, and every one after it is added without
+// stealing a face the user chose.
+function runImageAttach(ctx) {
+  const {
+    files = [], gridId, userId, dispatch, socket,
+    destinationOccurrence = null, destination = {},
+    occExtra = null, persist = null, containerOccurrenceId = null,
+    onPlaceholders = null, onIntakeResult = null,
+  } = ctx;
+  const filesFieldId = destination.filesFieldId || null;
+  if (!files.length || !destinationOccurrence || !filesFieldId) {
+    onIntakeResult?.({ ok: false, error: "nothing here to attach it to" });
+    return;
+  }
+
+  const placeholders = createArtifactPlaceholders(files, {
+    gridId, userId, dispatch, occExtra, parentOccurrence: destinationOccurrence,
+  });
+  onPlaceholders?.(placeholders);
+
+  uploadArtifactPlaceholders(placeholders, {
+    gridId, userId, dispatch, socket, containerOccurrenceId, persist,
+    onUploaded: (p) => {
+      if (!p?.occurrenceId) return;
+      // Re-read the field from the occurrence each time rather than batching:
+      // several files attach in sequence and each must build on the previous
+      // write, not on the value as it was when the drop started.
+      const prev = destinationOccurrence.fields?.[filesFieldId];
+      const next = attachFile(prev, p.occurrenceId);
+      destinationOccurrence.fields = { ...(destinationOccurrence.fields || {}), [filesFieldId]: next };
+      CommitHelpers.updateOccurrence({
+        dispatch, socket, emit: true,
+        occurrence: { id: destinationOccurrence.id, fields: destinationOccurrence.fields },
+      });
+    },
+  });
+  onIntakeResult?.({ ok: true, count: placeholders.length });
 }
 
 // Fetch what the link points at and build the page from it. The URL is NOT

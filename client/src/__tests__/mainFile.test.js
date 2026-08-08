@@ -15,7 +15,7 @@
 // value. So it is enforced by the only functions allowed to write it.
 
 import { describe, it, expect } from "vitest";
-import { setMainFile, clearMainFile, removeFile, resolveMainFile } from "../helpers/mainFile.js";
+import { setMainFile, clearMainFile, removeFile, resolveMainFile, attachFile } from "../helpers/mainFile.js";
 
 const fv = (value, main) => ({ value, flow: "replace", ...(main ? { main } : {}) });
 
@@ -109,5 +109,38 @@ describe("clearMainFile", () => {
     const got = clearMainFile(fv(["a", "b"], "b"));
     expect(got.main).toBeUndefined();
     expect(got.value).toEqual(["a", "b"]);
+  });
+});
+
+describe("attachFile — attaching must not steal a face the user chose", () => {
+  it("the FIRST attachment becomes the face — a lone picture with no face is a face nobody chose", () => {
+    const got = attachFile(undefined, "a");
+    expect(got.value).toEqual(["a"]);
+    expect(got.main).toBe("a");
+  });
+
+  it("KEEPS an existing face when a second file is attached", () => {
+    // The discriminating case. Silently replacing a picture the user picked, as
+    // a side effect of attaching something else, is the kind of destructive
+    // surprise that makes a feature untrustworthy.
+    const got = attachFile(fv(["a"], "a"), "b");
+    expect(got.value).toEqual(["a", "b"]);
+    expect(got.main).toBe("a");
+  });
+
+  it("does not duplicate an already-attached file", () => {
+    const before = fv(["a", "b"], "a");
+    expect(attachFile(before, "b")).toEqual(before);
+  });
+
+  it("adopts a face when files exist but none is marked", () => {
+    // 213 live rows are in exactly this state: a Files value, no main.
+    const got = attachFile(fv(["a"]), "b");
+    expect(got.main).toBe("b");
+  });
+
+  it("refuses an empty id", () => {
+    const before = fv(["a"], "a");
+    expect(attachFile(before, "")).toEqual(before);
   });
 });
