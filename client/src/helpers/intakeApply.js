@@ -32,7 +32,7 @@ import { convertLinkToPage } from "./linkToPage";
 import { withAction } from "./actionScope";
 import { csvToMarkdownTable } from "./csvToTable";
 import { linkChipShape } from "./linkOccurrence";
-import { createTextblockInContainer, createContainerInContainer, createLeafInstanceInParent } from "./CommitHelpers";
+import { createTextblockInContainer, createContainerInContainer, createLeafInstanceInParent, spliceChildIntoParent } from "./CommitHelpers";
 import { optionBoardStampFields } from "./boardOption";
 import { attachFile } from "./mainFile";
 import { splitToChecklistItems, MAX_CHECKLIST_ITEMS } from "./checklistFromText";
@@ -95,6 +95,15 @@ export const INTAKE_ROUTES = {
   [S.IMAGE_OCR_LIST.id]: { run: runImageOcrList, note: "OCR the photo, one item per line" },
   // The same split, for text that is already text.
   [S.TEXT_CHECKLIST.id]: { run: runTextChecklist, note: "one item per line" },
+  // The words, verbatim, as ONE textblock. The classifier already preselects
+  // this for a drop inside a doc body; until it had a route
+  // `filterToImplemented` silently re-pointed that at TEXT_DOC_PAGE, so pasting
+  // a paragraph into a doc offered to build a whole page.
+  [S.TEXT_TEXTBLOCK.id]: { run: runTextTextblock, note: "one textblock holding the text verbatim" },
+  // N files dropped at once become ONE container holding them — the file twin
+  // of LINK_CONTAINER, and the difference from FILES_SIBLINGS is only where
+  // they land.
+  [S.FILES_CONTAINER.id]: { run: runFilesContainer, note: "one container holding every file" },
 };
 
 /** Ids the router can actually carry out right now. */
@@ -441,6 +450,106 @@ function runLinkBoardOption(ctx) {
 // — and `createContainerInContainer` flips the parent's `allowChildContainers`,
 // without which the renderer shows nothing (the 2026-07-31 "you got rid of my
 // trackers" failure: data present, flag missing, nothing on screen).
+// The dropped text as ONE textblock, unedited.
+//
+// "Verbatim" is the whole promise of this shape, so the only transformation is
+// the one that would otherwise LOSE information: a blank line separates
+// paragraphs in every text format a human pastes, and collapsing them into one
+// paragraph is lossy. Single newlines are left inside their paragraph rather
+// than becoming paragraphs of their own — a wrapped line is not a new one.
+export function textToParagraphs(text) {
+  return String(text || "")
+    .replace(/\r\n?/g, "\n")
+    .split(/\n[ \t]*\n+/)
+    .map((p) => p.replace(/^\n+|\n+$/g, ""))
+    .filter((p) => p.trim() !== "");
+}
+
+// A label so the block is findable in the tree and by occurrence search — the
+// body is the content, but an unlabelled row reads as empty everywhere else.
+function firstLineLabel(text, max = 60) {
+  const line = String(text || "").trim().split("\n")[0].trim();
+  return line.length > max ? `${line.slice(0, max - 1)}…` : line;
+}
+
+function runTextTextblock(ctx) {
+  const {
+    payload = {}, destinationOccurrence = null, gridId, userId, dispatch, socket,
+    insertIndex = null, onLinkChips = null,
+  } = ctx;
+  const paragraphs = textToParagraphs(payload.text ?? payload.html ?? "");
+  if (!paragraphs.length || !destinationOccurrence) return;
+
+  const res = createTextblockInContainer({
+    dispatch, socket, gridId, userId,
+    containerOccurrence: destinationOccurrence,
+    index: insertIndex,
+    // "doc" is the app's non-inline textblock kind. `"block"` is a value this
+    // app uses NOWHERE and would render fine right up until something read it.
+    kind: "doc",
+    label: firstLineLabel(payload.text ?? ""),
+    textmap: {
+      type: "doc",
+      content: paragraphs.map((p) => ({ type: "paragraph", content: [{ type: "text", text: p }] })),
+    },
+  });
+  // Same seam the chip route uses: a doc renders its TEXTMAP, so the doc arm
+  // has to embed what was minted or the block is present in the data and
+  // invisible on screen.
+  if (res) onLinkChips?.([res]);
+}
+
+// Every dropped file into ONE new container.
+//
+// The only structural difference from `runArtifacts` is the parent, and that is
+// exactly why it does NOT call the caller's `onPlaceholders`: that seam wires
+// the new ids into the DESTINATION, which for this shape would scatter the
+// files beside the container instead of inside it. The splice is done here,
+// against the container this route just minted.
+function runFilesContainer(ctx) {
+  const {
+    files = [], destinationOccurrence = null, gridId, userId, dispatch, socket,
+    insertIndex = null, occExtra = null, persist = null,
+  } = ctx;
+  if (!files.length || !destinationOccurrence) return;
+
+  const made = createContainerInContainer({
+    dispatch, socket, gridId, userId,
+    containerOccurrence: destinationOccurrence,
+    kind: "board",
+    label: `${files.length} file${files.length === 1 ? "" : "s"}`,
+    index: insertIndex,
+  });
+  // No home means nowhere to put them. Uploading anyway would land the files
+  // loose at the destination — which is the OTHER shape, not this one.
+  if (!made?.occurrenceId) return;
+
+  // A shim rather than the real occurrence (the mint helper hands back ids
+  // only). It carries the container's own id so the artifacts are stamped with
+  // ITS filter values, and an empty `occurrences` so the splice below starts
+  // from a known list.
+  const container = { id: made.occurrenceId, gridId, userId, occurrences: [] };
+
+  const placeholders = createArtifactPlaceholders(files, {
+    gridId, userId, dispatch, occExtra, parentOccurrence: container,
+  });
+  let i = 0;
+  for (const p of placeholders) {
+    spliceChildIntoParent({
+      dispatch, socket,
+      // Accumulated, not re-read: each splice writes the whole array, so a
+      // stale snapshot per file would clobber the previous one and only the
+      // last file would remain. The same accumulation `feedSync` needs.
+      parentOccurrence: { ...container, occurrences: placeholders.slice(0, i).map((x) => x.occurrenceId) },
+      occurrenceId: p.occurrenceId,
+    });
+    i += 1;
+  }
+  uploadArtifactPlaceholders(placeholders, {
+    gridId, userId, dispatch, socket, containerOccurrenceId: made.occurrenceId, persist,
+  });
+}
+
 function runLinkContainer(ctx) {
   const {
     payload = {}, destinationOccurrence = null, gridId, userId, dispatch, socket,

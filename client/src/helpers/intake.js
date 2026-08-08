@@ -165,8 +165,17 @@ export function classifyIntake(payload = {}, destination = {}) {
 
     if (files.length > 1) {
       add(S.FILES_SIBLINGS);
-      add(S.FILES_CONTAINER);
-      add(S.FILES_FOLDER_PAGE);
+      // NOT inside a doc body. A doc renders its TEXTMAP, so a container minted
+      // into one would be listed in `occurrences[]` and invisible on screen —
+      // the "listed but not embedded" class (2026-08-01 (19)). The artifact
+      // shapes are fine there because the doc arm inserts a `moduleEmbed` per
+      // file via `onPlaceholders`; there is no equivalent seam for a container,
+      // and offering a shape that mints something you cannot see is worse than
+      // not offering it. Same reasoning as the canvas shapes being doc-gated.
+      if (!inDoc) {
+        add(S.FILES_CONTAINER);
+        add(S.FILES_FOLDER_PAGE);
+      }
       preselected = S.FILES_SIBLINGS.id;
       // A set of images can still become one canvas or be attached in bulk.
       if (p.allImages && onCanvas) add(S.IMAGE_CANVAS);

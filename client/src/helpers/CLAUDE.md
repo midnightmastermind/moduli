@@ -1,6 +1,37 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-08 (4) — intake: `text-textblock` and `files-container`; coverage 14 → 16 of 24)
+- **`intakeApply.runTextTextblock`** — the dropped/pasted text as ONE textblock, unedited. Exported
+  pure `textToParagraphs` splits on BLANK LINES only: that is the one transformation that would
+  otherwise lose information, while a single newline is a wrapped line, not a new paragraph.
+  `kind: "doc"` — `"block"` is a value this app uses nowhere.
+- **IT FIXES A LIVE WRONG DEFAULT.** The classifier already preselected `TEXT_TEXTBLOCK` for text
+  dropped inside a doc body ("inside a doc the page wrapper has nowhere to go — the words do"), but
+  with no route `filterToImplemented` silently re-pointed it at `TEXT_DOC_PAGE`. Pasting a paragraph
+  into a doc offered to build a whole page. Same shape as the link-chip preselection bug recorded on
+  2026-08-07 (5); the test asserts the preselection now SURVIVES the filter.
+- **`intakeApply.runFilesContainer`** — N files become ONE container holding them. The file twin of
+  `runLinkContainer`, and the only structural difference from `runArtifacts` is the parent — which
+  is exactly why it does **not** call the caller's `onPlaceholders`: that seam wires new ids into
+  the DESTINATION, which would scatter the files beside the container instead of inside it. It
+  splices into the container it just minted, **accumulating** the child list (each splice writes the
+  whole array, so a stale snapshot per file would leave only the last one — the accumulation
+  `feedSync` needs, for the same reason).
+- **THE CALL SITE IS WHAT WOULD HAVE MADE THIS INERT.** `dropHandlers`' text ctx passed no
+  `destinationOccurrence`, `dispatch` or `userId` — the text path only ever emitted an import, so a
+  minting route would have bailed silently and the tile would have done nothing. Checked before
+  believing the unit tests; the file ctx and both other call sites already carried them.
+- **`intake.js` gates `FILES_CONTAINER`/`FILES_FOLDER_PAGE` OUT of a doc body.** A doc renders its
+  TEXTMAP, so a container minted into one is listed in `occurrences[]` and invisible — the
+  "listed but not embedded" class. The artifact shapes are fine there because the doc arm embeds a
+  `moduleEmbed` per file via `onPlaceholders`; **no call site wires the equivalent seam for a
+  container**, so offering it would mint something the user cannot see.
+- Coverage now **16 implemented / 8 open / 0 orphans**. Still open: `file-ocr-text`,
+  `files-folder-page`, `image-canvas`, `image-outline`, `link-bookmark`, `link-field-value`,
+  `link-follow`, `text-container-tree`. (`link-page` and `link-container` were already shipped —
+  the task list was stale about both.)
+
 ## Recent Changes (2026-08-08 (3) — graphOption: the sunburst's label threshold is derived from PIXELS)
 - **`graphOption.radialLabelMinAngle` (NEW, pure, 8 tests)** + `NESTED_RADIUS_PCT` / `LABEL_FONT_PX`
   / `LABEL_MIN_ARC_PX`. `buildEChartsOption` takes a 5th arg, the host's measured `boxPx`.

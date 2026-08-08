@@ -1881,6 +1881,13 @@ export function handleExternalDrop(dropContext, ctx) {
         payload: textClassification.payload,
         destination: { parentId: dest.parentId },
         gridId, socket,
+        // TEXT_TEXTBLOCK writes an occurrence rather than emitting an import, so
+        // it needs the same three things every minting route does. Without them
+        // it silently bails and the shape is a tile that does nothing — the
+        // exact "offered but not implemented" failure the coverage contract
+        // exists to prevent.
+        dispatch, userId: state?.userId,
+        destinationOccurrence: state?.occurrencesById?.[dest.parentId] || null,
         // Today's whole-tree import, unchanged. Only the DECISION to run it
         // moved; the write itself is the same code that was inline here.
         onImportText: runImport,
