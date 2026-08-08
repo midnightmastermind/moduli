@@ -6,6 +6,53 @@
 
 ---
 
+### 2026-08-08 (7) — two intake shapes, and the CALL SITE that would have made them inert
+
+Coverage measured with `assertShapeCoverage()` rather than read off the task list — which was stale
+again: **`link-page` and `link-container` were already shipped.** 14 implemented / 10 open / 0
+orphans before; **16 / 8 / 0** after.
+
+**`text-textblock` FIXED A LIVE WRONG DEFAULT rather than adding a feature.** The classifier has
+always preselected it for text dropped inside a doc body (*"inside a doc the page wrapper has
+nowhere to go — the words do"*), but with no route `filterToImplemented` silently re-pointed that at
+`text-doc-page`. **Pasting a paragraph into a doc offered to build a whole page.** Identical shape to
+the link-chip preselection bug in 2026-08-07 (5): a classifier decision quietly overruled by a
+missing route. The test asserts the preselection now SURVIVES the filter, and fails without it.
+
+`textToParagraphs` splits on BLANK LINES only — the one transformation that would otherwise be
+lossy, while a single newline is a wrapped line rather than a new paragraph. `kind: "doc"`, because
+`"block"` is a value this app uses nowhere (the same trap that entry records).
+
+**`files-container`** is the file twin of `runLinkContainer`. The only structural difference from
+`runArtifacts` is the PARENT — which is exactly why it must **not** call the caller's
+`onPlaceholders`: that seam wires new ids into the DESTINATION, so reusing it would scatter the
+files *beside* the container instead of inside it. The splice **accumulates** the child list, since
+each splice writes the whole array and a stale snapshot per file would leave only the last one —
+the same accumulation `feedSync` needs, for the same reason.
+
+**THE CALL SITE IS WHAT WOULD HAVE MADE THIS INERT, and only checking found it.**
+`dropHandlers`' text ctx passed no `destinationOccurrence`, `dispatch` or `userId` — the text path
+had only ever *emitted an import*, so a route that MINTS would have bailed silently and the tile
+would have done nothing. Every unit test passed either way. The file ctx and the other two call
+sites already carried them; only the text one did not.
+
+**A shape that mints something invisible is worse than no shape.** `FILES_CONTAINER` /
+`FILES_FOLDER_PAGE` are gated OUT of a doc body: a doc renders its TEXTMAP, so a container minted
+into one is listed in `occurrences[]` and invisible — the "listed but not embedded" class. The
+artifact shapes are fine there because the doc arm embeds a `moduleEmbed` per file via
+`onPlaceholders`; **no call site wires the equivalent seam for a container**, so the honest move was
+to gate rather than to ship it and hope.
+
+**And my own test was wrong before the code was.** The first preselection test invented an `inDoc`
+flag; it is derived from `destination.kind === "doc"`. It failed against correct code — check the
+probe before believing the failure, for the Nth time.
+
+2168 client tests (same 3 pre-existing). Deployed; served intake chunk carries both new shape ids,
+with `link-chip` as the control (the App chunk reads 0 for the control too — the tell that it is the
+wrong chunk).
+
+---
+
 ### 2026-08-08 (6) — a fixed number was wrong at BOTH values; and a probe arm that proved nothing
 
 The emotions wheel's outer ring, on a phone. `label.minAngle` had been **8** (which blanked all 80
