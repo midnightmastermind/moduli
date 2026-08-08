@@ -206,11 +206,20 @@ export function classifyIntake(payload = {}, destination = {}) {
     }
   } else if (p.kind === "html" || p.kind === "text") {
     add(S.TEXT_DOC_PAGE);
-    add(S.TEXT_CONTAINER_TREE);
+    // NOT without a destination. The importer's root is a CONTAINER, so with no
+    // parent to list it and no page embedding it, it is minted and unreachable
+    // — the same "listed by nobody" gate FILES_CONTAINER takes inside a doc.
+    // The page shape is what covers that case: a page has a home of its own.
+    if (onOccurrence) add(S.TEXT_CONTAINER_TREE);
     add(S.TEXT_TEXTBLOCK);
     add(S.TEXT_CHECKLIST);
     // Inside a doc body the page wrapper has nowhere to go — the words do.
-    preselected = inDoc ? S.TEXT_TEXTBLOCK.id : S.TEXT_DOC_PAGE.id;
+    // Otherwise the default is whichever shape reproduces today's outcome for
+    // this destination: the tree lands in place when there is one, and gets
+    // wrapped in a page when there is not (the empty-cell drop). Both shapes
+    // are real writes now, so the preselection is the whole back-compat story.
+    if (inDoc) preselected = S.TEXT_TEXTBLOCK.id;
+    else preselected = onOccurrence ? S.TEXT_CONTAINER_TREE.id : S.TEXT_DOC_PAGE.id;
   }
 
   // Rule 1: never zero. An unrecognised payload still becomes what it becomes

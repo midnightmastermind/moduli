@@ -1888,9 +1888,31 @@ export function handleExternalDrop(dropContext, ctx) {
         // exists to prevent.
         dispatch, userId: state?.userId,
         destinationOccurrence: state?.occurrencesById?.[dest.parentId] || null,
-        // Today's whole-tree import, unchanged. Only the DECISION to run it
-        // moved; the write itself is the same code that was inline here.
+        // TEXT_DOC_PAGE mints a page THROUGH `createPageInContainer`, whose
+        // `allowChildContainers` flip rewrites the parent module's whole `meta`.
+        // Without the module here that write would clobber every other key on
+        // it — so this is load-bearing, not a convenience.
+        destinationModule: (() => {
+          const occ = state?.occurrencesById?.[dest.parentId];
+          return occ ? (state?.modulesById?.[occ.moduleId] || null) : null;
+        })(),
+        // Today's whole-tree import, unchanged, and now reached only where it
+        // is the ONLY thing that can work: a HOMELESS import (empty-cell drop),
+        // where the panel this wraps into was minted seconds ago by
+        // `resolveImportParent` and only this closure knows about it.
         onImportText: runImport,
+        // …which means the shapes that own their own write need their own
+        // reporting. `runImport`'s toast is inside the closure above, so a
+        // shape that bypasses it would otherwise land in silence.
+        onImportResult: (res) => {
+          if (res?.ok) {
+            toast.success("Imported");
+            const land = res.pageOccurrenceId || res.rootOccurrenceId;
+            if (land) setTimeout(() => jumpToOccurrence(land), 200);
+          } else {
+            toast.error(`Import failed: ${res?.error || "unknown error"}`);
+          }
+        },
       };
       const opened = openIntakeSheet({
         classification: textClassification,

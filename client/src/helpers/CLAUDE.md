@@ -1,6 +1,52 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-08 (5) — the two text-tree shapes were the SAME WRITE; coverage 16 → 17 of 24)
+- **MEASURED BEFORE WRITING ANYTHING, and the measurement is the whole entry.** `markdownToModuli`
+  always returns a `role:"container" kind:"doc"` ROOT (`buildContainer(tree, …, true)`) — the
+  importer has never minted a page. The only page wrapper in the text path is
+  `createImportsDocPage`, which the drop handler calls for a HOMELESS import so the root is
+  reachable at all:
+  ```
+  destination is a container/page   the tree lands in place, NO page
+  no destination (empty cell)       panel + Imports doc page, wrapper
+  ```
+  So **`text-doc-page` WAS `text-container-tree` in two of three destinations**, and its "wrapped in
+  a page" hint was true only for the third. Shipping the second tile as a route to the same write
+  would have been a dead tile with a different label on it — worse than the gap it closed.
+- **`runTextContainerTree` (NEW)** — the tree in place. Today's outcome, byte-identical, and now the
+  PRESELECTED default so Enter still does exactly what it did. **Deliberately does NOT go through
+  `onImportText`**: that seam carries the caller's whole text behaviour including the homeless wrap,
+  so routing through it would make the two shapes indistinguishable again.
+- **`runTextDocPage`** — the tree behind ONE page card you drill into (a page nested in a container
+  renders as a representation chip, which is the point: 40 imported sections stop spilling across
+  the board). **HOMELESS STAYS THE CALLER'S** — with no destination it still calls `onImportText`,
+  because the drop handler is the only layer that knows it just minted a panel to pin to.
+- **ORDER MATTERS: the import runs DETACHED (`parentId: null`) and the page is minted only after the
+  ack**, so the page is created in one shot already embedding a root id that EXISTS. Minting first
+  would leave an empty page behind every time an import failed — a test pins that.
+- **It EMBEDS, not just lists.** A doc page renders its TEXTMAP; writing `occurrences: [root]` and
+  stopping there is the listed-but-not-embedded failure this repo has repaired twice.
+- **`createPageInContainer` is reused rather than re-implemented** — it splices, stamps the
+  `dragInView: "representation"` override, and flips the parent's `allowChildContainers`.
+  **`containerModule` MUST be passed:** that flip writes the module's WHOLE `meta`, so omitting it
+  writes `{allowChildContainers:true}` over every other key. A latent hazard for any caller that
+  forgets; the test asserts an unrelated meta key survives, and it fails without the argument.
+- **`intake.js` gates `TEXT_CONTAINER_TREE` OUT when there is no destination** — a container root
+  with no parent is listed by nobody and embedded in nothing, the same "mints something invisible"
+  gate `FILES_CONTAINER` takes inside a doc. Preselection follows the destination: tree in place
+  when there is one, page when homeless — i.e. whichever shape reproduces today's outcome. **The
+  preselection is the entire back-compat story now that both shapes are real writes.**
+- **THE CALL SITES, checked before believing the unit tests** (the trap the last entry recorded):
+  `dropHandlers`' text ctx gained `destinationModule` (the clobber above) and `onImportResult` —
+  `runImport`'s toast lives inside its own closure, so a shape that bypasses it would have landed in
+  SILENCE. `IntakePasteHost` gained both plus a toast; its text path had no failure reporting at all,
+  and with no destination it emitted an import whose root nothing referenced — an invisible paste,
+  now gated.
+- 11 tests across `intake` / `intakeApply` / `linkDropAsks`, **A/B'd**: dropping `containerModule`,
+  importing at the destination instead of detached, and ungating the container tree each fail
+  exactly one. `linkDropAsks`' preselect test was updated with the reason — same OUTCOME, new id.
+
 ## Recent Changes (2026-08-08 (4) — intake: `text-textblock` and `files-container`; coverage 14 → 16 of 24)
 - **`intakeApply.runTextTextblock`** — the dropped/pasted text as ONE textblock, unedited. Exported
   pure `textToParagraphs` splits on BLANK LINES only: that is the one transformation that would

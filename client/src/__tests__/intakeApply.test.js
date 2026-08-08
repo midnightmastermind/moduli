@@ -125,9 +125,9 @@ describe("applyIntakeShape — routes reach the EXISTING helpers unchanged", () 
     expect(uploadArtifactPlaceholders).not.toHaveBeenCalled();
   });
 
-  it("the doc-page shape emits import_text with the destination parent", () => {
+  it("the container-tree shape emits import_text with the destination parent", () => {
     const socket = { emit: vi.fn(), on: vi.fn(), off: vi.fn() };
-    applyIntakeShape(INTAKE_SHAPES.TEXT_DOC_PAGE.id, {
+    applyIntakeShape(INTAKE_SHAPES.TEXT_CONTAINER_TREE.id, {
       payload: { kind: "html", html: "<h1>Hi</h1><p>there</p>" },
       destination: { parentId: "page-1" },
       gridId: "g1", socket,
@@ -139,10 +139,112 @@ describe("applyIntakeShape — routes reach the EXISTING helpers unchanged", () 
     expect(body.content).toContain("Hi");
   });
 
+  it("the container-tree shape refuses when there is nowhere to put the tree", () => {
+    const socket = { emit: vi.fn(), on: vi.fn(), off: vi.fn() };
+    const onImportResult = vi.fn();
+    applyIntakeShape(INTAKE_SHAPES.TEXT_CONTAINER_TREE.id, {
+      payload: { kind: "text", text: "a paragraph long enough to import" },
+      destination: { parentId: null }, gridId: "g1", socket, onImportResult,
+    });
+    expect(socket.emit).not.toHaveBeenCalled();
+    expect(onImportResult).toHaveBeenCalledWith(expect.objectContaining({ ok: false }));
+  });
+
   it("the doc-page shape writes nothing for empty content", () => {
     const socket = { emit: vi.fn(), on: vi.fn(), off: vi.fn() };
     applyIntakeShape(INTAKE_SHAPES.TEXT_DOC_PAGE.id, { payload: { kind: "text", text: "   " }, socket });
     expect(socket.emit).not.toHaveBeenCalled();
+  });
+
+  // The pair only earns two tiles if they write DIFFERENT things. Asserted on
+  // the writes that LEAVE rather than on which helper ran, because the whole
+  // failure this shape exists to avoid — a root listed but never embedded — is
+  // invisible from the call side.
+  describe("the doc-page shape wraps the tree in a page", () => {
+    function run() {
+      const emitted = [];
+      const socket = {
+        connected: true,
+        emit: vi.fn((event, data) => emitted.push({ event, data })),
+        on: vi.fn(), off: vi.fn(),
+      };
+      const destinationOccurrence = { id: "c1", moduleId: "cm", occurrences: [] };
+      applyIntakeShape(INTAKE_SHAPES.TEXT_DOC_PAGE.id, {
+        payload: { kind: "html", html: "<h1>Hi</h1><p>there</p>", text: "Hi\nthere" },
+        destination: { parentId: "c1" },
+        destinationOccurrence,
+        destinationModule: { id: "cm", meta: { cover: "keep-me" } },
+        gridId: "g1", userId: "u1", dispatch: vi.fn(), socket,
+      });
+      // The server's ack is what the page mint waits on.
+      const ack = socket.on.mock.calls.find(([ev]) => ev === "import_text_result")?.[1];
+      ack?.({ ok: true, rootOccurrenceId: "root-1" });
+      return { emitted, socket };
+    }
+
+    it("imports DETACHED, so the root has exactly one home", () => {
+      const { emitted } = run();
+      const imp = emitted.find((e) => e.event === "import_text");
+      expect(imp.data.parentId).toBeNull();
+    });
+
+    it("mints a doc page and EMBEDS the root in it, not just lists it", () => {
+      const { emitted } = run();
+      const page = emitted.find((e) => e.event === "create_module" && e.data.module?.role === "page");
+      expect(page?.data.module.kind).toBe("doc");
+
+      const patch = emitted
+        .filter((e) => e.event === "update_occurrence" && e.data.occurrence?.textmap)
+        .pop();
+      expect(patch, "the page was never given a body").toBeTruthy();
+      expect(patch.data.occurrence.occurrences).toEqual(["root-1"]);
+      // Listed AND embedded — a doc renders its textmap, so the second half is
+      // the one that makes the import visible.
+      expect(patch.data.occurrence.textmap.content[0]).toMatchObject({
+        type: "moduleEmbed", attrs: { occurrenceId: "root-1" },
+      });
+    });
+
+    it("keeps the parent module's other meta when it flips allowChildContainers", () => {
+      const { emitted } = run();
+      const modPatch = emitted.find(
+        (e) => e.event === "update_module" && e.data.module?.meta?.allowChildContainers,
+      );
+      expect(modPatch?.data.module.meta.cover).toBe("keep-me");
+    });
+
+    it("mints NOTHING when the import fails", () => {
+      const emitted = [];
+      const socket = {
+        connected: true,
+        emit: vi.fn((event, data) => emitted.push({ event, data })),
+        on: vi.fn(), off: vi.fn(),
+      };
+      applyIntakeShape(INTAKE_SHAPES.TEXT_DOC_PAGE.id, {
+        payload: { kind: "text", text: "a paragraph long enough to import" },
+        destination: { parentId: "c1" },
+        destinationOccurrence: { id: "c1", moduleId: "cm", occurrences: [] },
+        destinationModule: { id: "cm", meta: {} },
+        gridId: "g1", userId: "u1", dispatch: vi.fn(), socket,
+      });
+      const ack = socket.on.mock.calls.find(([ev]) => ev === "import_text_result")?.[1];
+      ack?.({ ok: false, error: "boom" });
+      expect(emitted.some((e) => e.event === "create_module")).toBe(false);
+    });
+
+    // The empty-cell drop mints a panel seconds before this runs and only the
+    // drop handler knows about it — so that case stays the caller's.
+    it("hands a HOMELESS import back to the caller's seam", () => {
+      const socket = { connected: true, emit: vi.fn(), on: vi.fn(), off: vi.fn() };
+      const onImportText = vi.fn();
+      applyIntakeShape(INTAKE_SHAPES.TEXT_DOC_PAGE.id, {
+        payload: { kind: "text", text: "a paragraph long enough to import" },
+        destination: { parentId: null }, destinationOccurrence: null,
+        gridId: "g1", userId: "u1", dispatch: vi.fn(), socket, onImportText,
+      });
+      expect(onImportText).toHaveBeenCalledTimes(1);
+      expect(socket.emit).not.toHaveBeenCalled();
+    });
   });
 
   it("an unrouted shape writes NOTHING and says so", () => {

@@ -65,12 +65,32 @@ describe("classifyIntake", () => {
 
   it("HTML offers the tree shapes; inside a doc the words win over the page wrapper", () => {
     const html = "<h2>Heading</h2><p>Some prose that is long enough to matter.</p>";
-    const onBoard = classifyIntake({ html }, { kind: "board" });
-    expect(onBoard.preselected).toBe(S.TEXT_DOC_PAGE.id);
+    const onBoard = classifyIntake({ html }, { kind: "board", occurrenceId: "c1" });
     expect(ids(onBoard)).toEqual(expect.arrayContaining([
       S.TEXT_DOC_PAGE.id, S.TEXT_CONTAINER_TREE.id, S.TEXT_TEXTBLOCK.id, S.TEXT_CHECKLIST.id,
     ]));
     expect(classifyIntake({ html }, { kind: "doc" }).preselected).toBe(S.TEXT_TEXTBLOCK.id);
+  });
+
+  // The default is the shape that reproduces what the drop ALREADY did at this
+  // destination, because both text-tree shapes are real writes now: the tree
+  // lands in place when there is somewhere to land, and only the homeless
+  // (empty-cell) import gets wrapped in a page.
+  it("the text default follows the destination: tree in place, page when homeless", () => {
+    const html = "<h2>Heading</h2><p>Some prose that is long enough to matter.</p>";
+    expect(classifyIntake({ html }, { kind: "board", occurrenceId: "c1" }).preselected)
+      .toBe(S.TEXT_CONTAINER_TREE.id);
+    expect(classifyIntake({ html }, { kind: null, occurrenceId: null }).preselected)
+      .toBe(S.TEXT_DOC_PAGE.id);
+  });
+
+  // A container root with no parent is listed by nobody and embedded in
+  // nothing — offering it would mint something invisible.
+  it("the container tree is NOT offered when there is nowhere to put it", () => {
+    const html = "<h2>Heading</h2><p>Some prose that is long enough to matter.</p>";
+    const homeless = classifyIntake({ html }, { kind: null, occurrenceId: null });
+    expect(ids(homeless)).not.toContain(S.TEXT_CONTAINER_TREE.id);
+    expect(ids(homeless)).toContain(S.TEXT_DOC_PAGE.id);
   });
 
   it("a .md file routes to the importer — the audit gap — and a .csv to a table", () => {

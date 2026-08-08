@@ -32,7 +32,7 @@ import { convertLinkToPage } from "./linkToPage";
 import { withAction } from "./actionScope";
 import { csvToMarkdownTable } from "./csvToTable";
 import { linkChipShape } from "./linkOccurrence";
-import { createTextblockInContainer, createContainerInContainer, createLeafInstanceInParent, spliceChildIntoParent } from "./CommitHelpers";
+import { createTextblockInContainer, createContainerInContainer, createLeafInstanceInParent, spliceChildIntoParent, createPageInContainer, updateOccurrence } from "./CommitHelpers";
 import { optionBoardStampFields } from "./boardOption";
 import { attachFile } from "./mainFile";
 import { splitToChecklistItems, MAX_CHECKLIST_ITEMS } from "./checklistFromText";
@@ -59,7 +59,10 @@ export const INTAKE_ROUTES = {
   [S.FILES_SIBLINGS.id]: { run: runArtifacts, note: "one artifact per file (today's behaviour)" },
 
   // ── Text / HTML ──────────────────────────────────────────────────────────
-  [S.TEXT_DOC_PAGE.id]: { run: runImportText, note: "import_text → a doc page (today's behaviour)" },
+  // Two shapes, and until now they were the same write — see the block comment
+  // above `runTextContainerTree` for the measurement that showed it.
+  [S.TEXT_CONTAINER_TREE.id]: { run: runTextContainerTree, note: "the imported tree, in place (today's behaviour)" },
+  [S.TEXT_DOC_PAGE.id]: { run: runTextDocPage, note: "the imported tree behind one page card" },
 
   // ── A dropped FILE whose contents we can read (Task 5) ───────────────────
   // The audit's finding: `import_markdown` has existed for months and a
@@ -618,7 +621,7 @@ function readFileText(file) {
  * under its own filename rather than under whatever its first heading — or, for
  * a CSV, its first COLUMN — happens to be called.
  */
-function emitImportText(ctx, { content, format, title }) {
+function emitImportText(ctx, { content, format, title, parentId }) {
   const { gridId, socket, destination = {}, destinationOccurrence = null, onImportResult = null } = ctx;
   if (!socket?.emit) return;
   const requestId = `intake-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -635,8 +638,13 @@ function emitImportText(ctx, { content, format, title }) {
     gridId,
     // A file drop resolves its destination as an OCCURRENCE (the container it
     // landed in); the text arm resolves a `destination.parentId`. Accept both
-    // so one emit serves every caller.
-    parentId: destination.parentId ?? destinationOccurrence?.id ?? null,
+    // so one emit serves every caller. An EXPLICIT `parentId` overrides both —
+    // `null` is a real answer there (the doc-page shape imports DETACHED and
+    // re-homes the root under the page it then mints), so the check is
+    // `undefined`, not falsiness.
+    parentId: parentId !== undefined
+      ? parentId
+      : (destination.parentId ?? destinationOccurrence?.id ?? null),
     content,
     format,
     title,
@@ -703,26 +711,125 @@ function baseName(name) {
 // doc page, and reports per-entity stats in its toast. None of that is intake's
 // business, and a second copy here would drift. Same seam as `onPlaceholders`
 // and `onLegacyLink`.
-function runImportText(ctx) {
-  const { payload = {}, gridId, socket, destination = {}, onImportResult = null, onImportText = null } = ctx;
-  if (onImportText) { onImportText(); return; }
-  if (!socket) return;
+// ── THE TWO TEXT-TREE SHAPES, AND WHY THEY WERE THE SAME THING ──────────────
+//
+// MEASURED BEFORE ANYTHING WAS WRITTEN, because the two shapes' own hints
+// promised a difference the code did not have. `markdownToModuli` always
+// returns a `role:"container" kind:"doc"` ROOT (`buildContainer(tree, …, true)`)
+// — it has never minted a page. The ONLY page wrapper in the whole text path is
+// `createImportsDocPage`, which the drop handler calls for a HOMELESS import
+// (an empty-cell drop) so the root is reachable at all. So:
+//
+//   destination is a container/page  →  the tree lands in place, NO page
+//   no destination (empty cell)      →  panel + Imports doc page, wrapper
+//
+// i.e. `text-doc-page` was `text-container-tree` in two of three destinations,
+// and its "wrapped in a page" hint was true only for the third. Shipping the
+// second tile as a copy of the first would have been a dead tile with a
+// different label on it.
+//
+// So the pair is made honest from BOTH ends:
+//   TEXT_CONTAINER_TREE  the tree in place — today's outcome, byte-identical,
+//                        and now the PRESELECTED default so Enter still does
+//                        exactly what it did.
+//   TEXT_DOC_PAGE        the tree behind ONE page card you drill into. A page
+//                        nested in a container renders as a representation chip
+//                        (the layout cascade forces it), which is the whole
+//                        point: 40 imported sections stop spilling across the
+//                        board.
+//
+// The homeless case is untouched — `onImportText` still owns it, because the
+// drop handler is the only layer that knows it just minted a panel to pin to.
+
+/**
+ * The imported tree, in place at the destination.
+ *
+ * Deliberately does NOT go through `onImportText`: that seam carries the
+ * caller's WHOLE text behaviour including the homeless wrap, so routing this
+ * through it would make the two text shapes indistinguishable again — the
+ * thing this pair exists to fix.
+ */
+function runTextContainerTree(ctx) {
+  const { payload = {}, destination = {}, destinationOccurrence = null, onImportResult = null } = ctx;
   const content = payload.html || payload.text || "";
   if (!content.trim()) return;
-  const requestId = `intake-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  if (onImportResult) {
-    const onResult = (res) => {
-      if (res?.requestId && res.requestId !== requestId) return;
-      socket.off?.("import_text_result", onResult);
-      onImportResult(res);
-    };
-    socket.on?.("import_text_result", onResult);
+  const parentId = destination.parentId ?? destinationOccurrence?.id ?? null;
+  // Fails CLOSED and says so. A container root with no parent is listed by
+  // nobody and embedded in nothing — the "mints something invisible" class.
+  // The classifier gates this shape out when there is no destination, so
+  // reaching here means a caller passed a context the sheet was not offered on.
+  if (!parentId) { onImportResult?.({ ok: false, error: "nowhere to put the imported tree" }); return; }
+  emitImportText(ctx, { content, format: payload.html ? "html" : "text", parentId });
+}
+
+/**
+ * The imported tree, wrapped in a doc page at the destination.
+ *
+ * HOMELESS STAYS THE CALLER'S: when there is no destination occurrence the
+ * drop handler's `onImportText` runs unchanged — it mints the panel, imports
+ * detached and wraps the root in an Imports doc page pinned to that panel.
+ * None of that is intake's business and a second copy here would drift (the
+ * same seam rule `onPlaceholders` and `onLegacyLink` follow).
+ *
+ * With a destination it owns the write, in this order and for this reason:
+ * the import runs DETACHED (`parentId: null`) and the page is minted only
+ * after the ack, so the page can be created in one shot already embedding a
+ * root id that exists. Minting the page first would leave an empty page behind
+ * whenever an import fails.
+ */
+function runTextDocPage(ctx) {
+  const {
+    payload = {}, destination = {}, destinationOccurrence = null, destinationModule = null,
+    gridId, userId, dispatch, socket, insertIndex = null,
+    onImportResult = null, onImportText = null,
+  } = ctx;
+  const content = payload.html || payload.text || "";
+  if (!content.trim()) return;
+
+  const canWrap = !!(destinationOccurrence && dispatch && gridId && userId);
+  if (!canWrap) {
+    if (onImportText) { onImportText(); return; }
+    // No caller seam and nothing to wrap into. Say so rather than emitting an
+    // import whose root nothing would reference.
+    onImportResult?.({ ok: false, error: "nowhere to put the page" });
+    return;
   }
-  socket.emit("import_text", {
-    requestId,
-    gridId,
-    parentId: destination.parentId ?? null,
-    content,
-    format: payload.html ? "html" : "text",
-  });
+  if (!socket?.emit) return;
+
+  const label = destination.title || firstLineLabel(payload.text ?? "") || "Imported";
+
+  emitImportText(
+    { ...ctx, onImportResult: (res) => {
+      if (!res?.ok || !res.rootOccurrenceId) { onImportResult?.(res || { ok: false, error: "import failed" }); return; }
+      // `createPageInContainer` is the shipped mint (2026-07-29): it splices the
+      // page into the destination, stamps the `dragInView: "representation"`
+      // override, and flips the parent's `allowChildContainers` so a non-leaf
+      // child renders at all. Reused rather than re-implemented — and
+      // `containerModule` is passed because that flip writes the module's whole
+      // `meta`, so omitting it would clobber every other key on it.
+      const made = createPageInContainer({
+        dispatch, socket, gridId, userId,
+        containerOccurrence: destinationOccurrence,
+        containerModule: destinationModule,
+        kind: "doc",
+        label,
+        index: insertIndex,
+      });
+      if (!made?.occurrenceId) { onImportResult?.({ ok: false, error: "could not create the page" }); return; }
+      // A doc page renders its TEXTMAP. Listing the root in `occurrences[]` and
+      // stopping there is the listed-but-not-embedded failure this repo has
+      // repaired twice — so both are written, in one patch.
+      updateOccurrence({
+        dispatch, socket,
+        occurrence: {
+          id: made.occurrenceId,
+          occurrences: [res.rootOccurrenceId],
+          textmap: { type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: res.rootOccurrenceId } }] },
+        },
+        emit: true,
+      });
+      onImportResult?.({ ...res, pageOccurrenceId: made.occurrenceId });
+    } },
+    { content, format: payload.html ? "html" : "text", parentId: null },
+  );
 }

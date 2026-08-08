@@ -6,6 +6,73 @@
 
 ---
 
+### 2026-08-08 (8) — the two text-tree shapes were the SAME WRITE, and the hint said otherwise
+
+Picked up the other accounts' queue (5 open items; three need the user — a phone, credentials,
+export requests). The previous session hit its limit **one command into `text-container-tree`**, so
+that is where this one started. Coverage measured with `assertShapeCoverage()`, not read off the
+list: **16 implemented / 8 open / 0 orphans before, 17 / 7 / 0 after.**
+
+**THE MEASUREMENT IS THE ENTRY.** `markdownToModuli` always returns a `role:"container" kind:"doc"`
+ROOT — **the importer has never minted a page.** The only page wrapper in the whole text path is
+`createImportsDocPage`, which the drop handler calls for a HOMELESS import so the root is reachable
+at all:
+```
+destination is a container/page   the tree lands in place, NO page
+no destination (empty cell)       panel + Imports doc page, wrapper
+```
+So **`text-doc-page` WAS `text-container-tree` in two of three destinations**, and its own hint
+("the imported tree, wrapped in a page") was true only for the third. Routing the second tile to
+that same write would have shipped **a dead tile with a different label on it** — worse than the gap
+it closed, and invisible to any test that only asks "did a route run".
+
+**So the pair was made honest from BOTH ends, and BACK-COMPAT IS THE PRESELECTION.**
+`text-container-tree` is the tree in place — today's outcome, byte-identical — and is now the
+default, so Enter still does exactly what it did. `text-doc-page` earns its name: the tree behind
+ONE page card you drill into (a page nested in a container renders as a representation chip, which
+is the point — 40 imported sections stop spilling across the board). The homeless case is untouched:
+`onImportText` still owns it, because the drop handler is the only layer that knows it just minted
+a panel to pin to.
+
+**ORDER, and it is not a style choice:** the import runs **DETACHED** and the page is minted only
+after the ack, so the page is created in one shot already embedding a root id that exists. Minting
+first leaves an empty page behind every time an import fails. And it **EMBEDS** rather than only
+listing — a doc renders its TEXTMAP, so `occurrences: [root]` alone is the listed-but-not-embedded
+class this repo has repaired twice.
+
+**A LATENT CLOBBER, found by reusing shipped code rather than re-writing it.**
+`createPageInContainer` flips the parent's `allowChildContainers` by writing the module's **WHOLE
+`meta`** — so a caller that omits `containerModule` silently overwrites every other key on it. The
+shipped caller passes it; nothing enforced that. The new route passes it, and the test asserts an
+unrelated meta key SURVIVES: remove the argument and it fails.
+
+**THE CALL SITES ARE WHAT WOULD HAVE MADE THIS HALF-INERT — the same check the last entry demanded.**
+`dropHandlers`' text ctx needed `destinationModule` (the clobber) and `onImportResult`: `runImport`'s
+toast lives inside its own closure, so a shape that bypasses it lands in **silence**. `IntakePasteHost`
+needed both plus a toast — its text path had **no failure reporting at all**, and with no destination
+it emitted an import whose root nothing referenced. **That invisible-paste bug is fixed as a
+side-effect of the gate**, not by a separate patch.
+
+**Gated, for the reason `FILES_CONTAINER` is gated inside a doc:** `TEXT_CONTAINER_TREE` is not
+offered without a destination — a container root with no parent is listed by nobody and embedded in
+nothing. A shape that mints something invisible is worse than no shape.
+
+**Every new test A/B'd against the unfixed behaviour**: dropping `containerModule`, importing at the
+destination instead of detached, and ungating the container tree each fail **exactly one** test.
+Three existing tests pinned the old shape and each was updated with the reason — `linkDropAsks`'
+preselect assertion is the same OUTCOME under a new id.
+
+2179 client tests, **the same 3 pre-existing `liveOpsBehavioral` failures — A/B'd against stashed
+source, identical 3.** Build clean, chunk sanity holding (tiptap 435 / highlight 969 /
+CommandCenter 202 / PagePreviewApp 1007).
+
+**NOT VERIFIED, and it is the honest gap: the page-wrap path has never run in a browser.** The
+writes it leaves are asserted (detached import, page minted, root embedded, meta preserved, nothing
+minted on failure), and the DEFAULT outcome is unchanged by construction — but nobody has watched a
+dropped article become a drillable card. **Not deployed** for that reason.
+
+---
+
 ### 2026-08-08 (7) — two intake shapes, and the CALL SITE that would have made them inert
 
 Coverage measured with `assertShapeCoverage()` rather than read off the task list — which was stale

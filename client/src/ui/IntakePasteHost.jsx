@@ -27,6 +27,7 @@
 // ProseMirror's own paste handling by design: it understands its own schema, and
 // routing it through intake would be a second, drifting copy of that.
 import { useEffect } from "react";
+import { toast } from "sonner";
 import { useGridActions } from "../GridActionsContext";
 import { classifyIntake } from "../helpers/intake";
 import { applyIntakeShape, filterToImplemented } from "../helpers/intakeApply";
@@ -101,6 +102,16 @@ export default function IntakePasteHost() {
         dispatch: ctx?.dispatch, socket: ctx?.socket,
         destination: { parentId: dest?.occId || null },
         destinationOccurrence: destOcc,
+        // Needed by TEXT_DOC_PAGE: the page mint flips the parent module's
+        // `allowChildContainers`, writing its whole `meta` — passing the module
+        // is what stops that write clobbering the rest of it.
+        destinationModule: destOcc ? (ctx?.getModMap?.()?.[destOcc.moduleId] || null) : null,
+        // A pasted import owns its own write (there is no `onImportText` here),
+        // so without this a failed import is completely silent.
+        onImportResult: (res) => {
+          if (res?.ok) toast.success("Imported");
+          else if (res) toast.error(`Import failed: ${res.error || "unknown error"}`);
+        },
         occExtra: () => (dest?.occId ? { parentId: dest.occId } : {}),
         persist: () => (dest?.occId ? { parentId: dest.occId } : null),
         containerOccurrenceId: dest?.kind === "container" ? dest.occId : null,

@@ -148,11 +148,15 @@ describe("dropping HTML / long text ASKS", () => {
   }
   const HTML = "<h1>Title</h1><p>Body text that is long enough to import.</p>";
 
-  it("opens the sheet and pre-selects the doc page (today's outcome)", () => {
+  // Still today's OUTCOME — the tree lands in the container it was dropped on.
+  // The preselected shape id changed because that outcome now has its own name:
+  // `text-doc-page` used to produce this and is, as of this change, the one that
+  // actually wraps the tree in a page (see helpers/intakeApply).
+  it("opens the sheet and pre-selects the tree in place (today's outcome)", () => {
     const { dropContext, ctx } = htmlCtx(HTML);
     handleExternalDrop(dropContext, ctx);
     expect(requests).toHaveLength(1);
-    expect(requests[0].classification.preselected).toBe(INTAKE_SHAPES.TEXT_DOC_PAGE.id);
+    expect(requests[0].classification.preselected).toBe(INTAKE_SHAPES.TEXT_CONTAINER_TREE.id);
   });
 
   it("writes nothing until picked, and nothing at all on cancel", () => {
