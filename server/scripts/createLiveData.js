@@ -766,7 +766,10 @@ export async function createLiveData(userId, options = {}) {
     ["wishListItem",   "Wish List Item",   ["wishlist"],                                                                false],
     ["savingsGoalPick","Savings Goal",     ["savingsGoal", "wishlist"],                                                 false],
     ["charity",        "Charity",          ["charity"],                                                                 false],
-    ["place",          "Place",            ["place"],                                                                   false],
+    // The KEY stays "place" (it is referenced by ~15 call sites and the board
+    // tag); only the user-facing NAME changed. Migration 0054 does the same on
+    // the live grid, so a reseeded and a migrated grid agree.
+    ["place",          "Location",         ["place"],                                                                   false],
     ["eventPick",      "Event",            ["event"],                                                                   false],
     ["appointmentType","Appointment Type", ["appointment"],                                                             false],
     ["giftIdea",       "Gift Idea",        ["gift"],                                                                    false],
@@ -793,6 +796,17 @@ export async function createLiveData(userId, options = {}) {
       meta: { multiSelect, optionsSource: boardFindSource(tags) },
     };
   }
+  // A Location's ADDRESS shows in the dropdown rows, under its name (user
+  // 2026-08-08: "we should have in a dropdown of occurances, what fields get
+  // shown in the dropdown … like in the settings for that field"). The
+  // mechanism already existed — `optionsSource.chipDisplay`, editable per field
+  // in the Command Center — so this only turns it on. `showMedia: false`
+  // because a place has no picture and the empty slot would indent every row.
+  boardDropdownFields.place.meta.optionsSource.chipDisplay = {
+    fieldIds: [personAddressFieldId],
+    showLabel: true,
+    showMedia: false,
+  };
 
   const fields = {
     // ── OPTION-BOARD FIELDS (2026-07-25) ─────────────────────────────────────
@@ -1533,8 +1547,12 @@ export async function createLiveData(userId, options = {}) {
       inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: {}, displayConfig: {},
     },
+    // The shared ADDRESS field — bound by every person AND every Location
+    // option. `type: "address"` is what gives it the map-search editor; a
+    // plain string value stays valid (the client reads both shapes), so the
+    // seeded people's street addresses below need no special handling.
     personAddress: {
-      id: personAddressFieldId, name: "Address", type: "text",
+      id: personAddressFieldId, name: "Address", type: "address",
       inputEnabled: true, displayEnabled: false, // input-only: both flags render the value TWICE
       meta: { multiline: true }, displayConfig: {},
     },
@@ -4631,9 +4649,25 @@ export async function createLiveData(userId, options = {}) {
     // ── Social ──
     { key: "person", tag: "person", label: "People", group: "social", options: [],
       reuseOccIds: peopleSeed.map(p => p.occId) },
-    { key: "place", tag: "place", label: "Places", group: "social", options: [
-      opt("Coffee Shop"), opt("City Park"), opt("Gym"), opt("Mom's House"), opt("Downtown Library"), opt("Farmers Market"),
-    ]},
+    // LOCATIONS — every option binds the shared Address field, which is
+    // `type: "address"` and therefore carries the map-search editor. Binding is
+    // the half that is easy to miss and impossible to work around: without it
+    // there is no control to put an address into, and a value written by
+    // anything else would be invisible (the trap 0047 recorded for macros).
+    //
+    // "Dewey Center" and "Froedtert" are the user's real places and are seeded
+    // with their NAMES ONLY. I probed both geocoders: Dewey Center is in
+    // neither, and while Froedtert Hospital resolves, the user's appointment is
+    // a peer support group and Froedtert has several campuses. A plausible
+    // address on a medical appointment reads exactly like one the user entered
+    // and could send them to the wrong building — so it stays empty, and the
+    // search box fills it in two clicks. Same rule 0052 applied to phone numbers.
+    { key: "place", tag: "place", label: "Locations", group: "social", options: [
+      "Coffee Shop", "City Park", "Gym", "Mom's House", "Downtown Library",
+      "Farmers Market", "Dewey Center", "Froedtert",
+    ].map(label => opt(label, {
+      bindings: [{ fieldId: personAddressFieldId, role: "input", order: 1 }],
+    }))},
     { key: "event", tag: "event", label: "Events", group: "social", options: [
       ["Game Night", ["Ben Chen", "Jack Brennan"], "Mom's House"],
       ["Book Club", ["Chloe Patel", "Grace Okonkwo"], "Downtown Library"],

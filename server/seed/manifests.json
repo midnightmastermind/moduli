@@ -1,11 +1,11 @@
 [
   {
-    "_id": "6a76ae7c21393f82ccf1076b",
-    "id": "FKb6nezSEPtp",
+    "_id": "6a7727eb2a85677875e1ea73",
+    "id": "qtFpEOqqWMn5",
     "userId": "{{USER_ID}}",
-    "gridId": "6a76ae6621393f82ccf0fb9e",
+    "gridId": "6a7727d52a85677875e1dea6",
     "name": "Files",
-    "rootFolderId": "RPKawh4dGK2v",
+    "rootFolderId": "5PN3CiAe6wjf",
     "manifestType": "user",
     "icon": "folder-tree",
     "sortOrder": 0,
