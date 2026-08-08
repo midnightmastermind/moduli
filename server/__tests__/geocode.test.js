@@ -10,7 +10,7 @@
 // precisely what this module exists to absorb.
 import { describe, it, expect } from "vitest";
 import {
-  splitDisplayName, isValidLatLon, looksLikeStreetAddress, mergeRanked,
+  splitDisplayName, isValidLatLon, looksLikeStreetAddress, mergeRanked, normalizeOsmId,
 } from "../utils/geocode.js";
 
 describe("choosing which provider leads", () => {
@@ -54,6 +54,17 @@ describe("merging two providers' results", () => {
     // Both geocoders read the same database, so overlap is the norm, and a
     // duplicated row in a picker looks like two different places.
     const merged = mergeRanked([hit("Froedtert", "way/123")], [hit("Froedtert Hospital", "way/123")]);
+    expect(merged).toHaveLength(1);
+  });
+
+  it("collapses across the providers' DIFFERENT id spellings", () => {
+    // The real shape, from probing the live endpoint: Photon returns
+    // "W/282412131" and Nominatim "way/282412131" for the same building.
+    // Comparing raw strings let every shared result through twice.
+    const merged = mergeRanked(
+      [hit("Froedtert Hospital", "W/282412131")],
+      [hit("Froedtert Hospital", "way/282412131")],
+    );
     expect(merged).toHaveLength(1);
   });
 
@@ -146,5 +157,25 @@ describe("coordinate validation", () => {
     expect(isValidLatLon(90, 180)).toBe(true);
     expect(isValidLatLon(-90, -180)).toBe(true);
     expect(isValidLatLon(0, 0)).toBe(true);
+  });
+});
+
+describe("normalizing OSM ids across providers", () => {
+  it("folds every spelling of the same object to one key", () => {
+    expect(normalizeOsmId("W/282412131")).toBe(normalizeOsmId("way/282412131"));
+    expect(normalizeOsmId("N/12")).toBe(normalizeOsmId("node/12"));
+    expect(normalizeOsmId("R/9")).toBe(normalizeOsmId("relation/9"));
+  });
+
+  it("keeps DIFFERENT objects distinct — including same number, different type", () => {
+    // way/5 and node/5 are unrelated things that happen to share a number.
+    expect(normalizeOsmId("way/5")).not.toBe(normalizeOsmId("node/5"));
+    expect(normalizeOsmId("way/5")).not.toBe(normalizeOsmId("way/6"));
+  });
+
+  it("passes an unrecognised id through instead of dropping it", () => {
+    expect(normalizeOsmId("something-else")).toBe("something-else");
+    expect(normalizeOsmId(null)).toBe(null);
+    expect(normalizeOsmId("")).toBe(null);
   });
 });

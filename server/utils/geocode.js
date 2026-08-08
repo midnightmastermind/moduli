@@ -166,13 +166,31 @@ function fromNominatimHit(hit) {
   };
 }
 
+/**
+ * The two providers spell the same OSM object differently — Photon says
+ * `W/282412131`, Nominatim says `way/282412131`. Both name the identical
+ * building. Without normalizing, every result the two agree on appears TWICE
+ * in the picker, which reads as two different places.
+ *
+ * Caught by probing the LIVE endpoint after deploying, not by the unit tests —
+ * they only ever compared identical id strings.
+ */
+export function normalizeOsmId(osmId) {
+  if (!osmId) return null;
+  const s = String(osmId).trim();
+  const m = /^(node|way|relation|[nwr])[/:]?(\d+)$/i.exec(s);
+  if (!m) return s.toLowerCase();
+  return `${m[1][0].toLowerCase()}/${m[2]}`;
+}
+
 /** Drop unusable rows and collapse duplicates the two providers both return. */
 function dedupe(rows) {
   const out = [];
   const seen = new Set();
   for (const hit of rows) {
     if (!hit) continue;
-    const key = hit.osmId || `${hit.label.toLowerCase()}@${hit.lat},${hit.lon}`;
+    const key = normalizeOsmId(hit.osmId)
+      || `${hit.label.toLowerCase()}@${hit.lat},${hit.lon}`;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(hit);
@@ -232,7 +250,10 @@ export function mergeRanked(primary, secondary, limit = 10) {
   const seen = new Set();
   const push = (hit) => {
     if (!hit || out.length >= limit) return;
-    const key = hit.osmId || `${hit.label.toLowerCase()}@${hit.lat},${hit.lon}`;
+    // Normalized, because this is the merge across the TWO providers — the
+    // exact place their differing id spellings collide.
+    const key = normalizeOsmId(hit.osmId)
+      || `${hit.label.toLowerCase()}@${hit.lat},${hit.lon}`;
     if (seen.has(key)) return;
     seen.add(key);
     out.push(hit);
