@@ -4699,7 +4699,7 @@ export async function createLiveData(userId, options = {}) {
     // search box fills it in two clicks. Same rule 0052 applied to phone numbers.
     { key: "place", tag: "place", label: "Locations", group: "social", options: [
       "Coffee Shop", "City Park", "Gym", "Mom's House", "Downtown Library",
-      "Farmers Market", "Dewey Center", "Froedtert",
+      "Farmers Market", "Dewey Center", "Froedtert", "Sixteenth Street Clinic",
     ].map(label => opt(label, {
       bindings: [{ fieldId: personAddressFieldId, role: "input", order: 1 }],
     }))},
@@ -4727,6 +4727,12 @@ export async function createLiveData(userId, options = {}) {
     { key: "appointment", tag: "appointment", label: "Appointments", group: "social", options: [
       opt("Doctor"), opt("Dentist"), opt("Therapy"), opt("Optometrist"),
       opt("Haircut"), opt("Car Service"), opt("Vet"),
+      // "Psych" is the user's own call (2026-08-08), asked rather than guessed:
+      // a psych appointment is arguably Doctor AND arguably Therapy, and Keith's
+      // sessions already occupy Therapy. A wrong type here feeds every
+      // type-scoped tracker, which is why 0055 left the peer support group blank
+      // instead of picking the nearest-looking option.
+      opt("Psych"),
     ]},
     { key: "leisure", tag: "leisure", label: "Leisure", group: "social", options: [
       opt("Chess"), opt("Video Games"), opt("Hot Bath"), opt("Puzzle"), opt("Movie Night"), opt("Hammock Time"),
