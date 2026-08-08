@@ -255,3 +255,87 @@ describe("syncFeed (materializer)", () => {
     expect(deletes).toEqual(["copyGone"]);
   });
 });
+
+// ── $today in a feed condition (2026-08-08) ────────────────────────────────
+//
+// User, 2026-08-07: "include appointments there too after the date passes for
+// it." An appointment stops being upcoming when its DATE HAS PASSED, not when
+// it is completed — one you attended and one you missed both stop being
+// upcoming. That needs `Date DATE_BEFORE <today>` on a feed, and until now the
+// right-hand side had no way to say "today": conditions are evaluated with an
+// EMPTY $vars, and a literal date is correct for exactly one day.
+//
+// The token is resolved ONCE PER SYNC, not per occurrence, so a pass that
+// straddles midnight cannot classify two rows against two different "todays".
+describe("resolveFeedItems — $today in a condition value", () => {
+  const D = (offsetDays) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    // LOCAL parts — the same rule the resolver follows.
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+
+  function datedWorld() {
+    const modulesById = {
+      mPage: { id: "mPage", role: "page", kind: "board", label: "Tasks" },
+      mMirror: { id: "mMirror", role: "page", kind: "board", label: "Completed" },
+      mAppt: { id: "mAppt", role: "instance", kind: "board", label: "Appointment" },
+    };
+    const occurrencesById = {
+      tasks: { id: "tasks", moduleId: "mPage", occurrences: ["past", "today", "future", "undated"] },
+      past: { id: "past", moduleId: "mAppt", fields: { [F_DATE]: { value: D(-1) } } },
+      today: { id: "today", moduleId: "mAppt", fields: { [F_DATE]: { value: D(0) } } },
+      future: { id: "future", moduleId: "mAppt", fields: { [F_DATE]: { value: D(1) } } },
+      undated: { id: "undated", moduleId: "mAppt", fields: {} },
+      mirror: { id: "mirror", moduleId: "mMirror", occurrences: [], feed: null },
+    };
+    return { modulesById, occurrencesById };
+  }
+
+  it("pulls only occurrences whose date has PASSED", () => {
+    const { modulesById, occurrencesById } = datedWorld();
+    const feedOcc = { ...occurrencesById.mirror, feed: {
+      enabled: true, roles: ["instance"], scope: "tasks",
+      conditions: [{ id: "c1", fieldId: F_DATE, comparator: "DATE_BEFORE", value: "$today" }],
+    } };
+    const ids = resolveFeedItems(feedOcc, { occurrencesById, modulesById }).map(i => i.occurrence.id);
+    expect(ids).toEqual(["past"]);
+  });
+
+  it("does NOT match today itself — an appointment today is still upcoming", () => {
+    const { modulesById, occurrencesById } = datedWorld();
+    const feedOcc = { ...occurrencesById.mirror, feed: {
+      enabled: true, roles: ["instance"], scope: "tasks",
+      conditions: [{ id: "c1", fieldId: F_DATE, comparator: "DATE_BEFORE", value: "$today" }],
+    } };
+    const ids = resolveFeedItems(feedOcc, { occurrencesById, modulesById }).map(i => i.occurrence.id);
+    expect(ids).not.toContain("today");
+    expect(ids).not.toContain("future");
+  });
+
+  // The failure mode this replaces: an unresolved right-hand side made the
+  // condition match EVERYTHING. Proving the undated row is excluded proves the
+  // condition is genuinely being evaluated rather than skipped.
+  it("excludes an occurrence with no date rather than matching everything", () => {
+    const { modulesById, occurrencesById } = datedWorld();
+    const feedOcc = { ...occurrencesById.mirror, feed: {
+      enabled: true, roles: ["instance"], scope: "tasks",
+      conditions: [{ id: "c1", fieldId: F_DATE, comparator: "DATE_BEFORE", value: "$today" }],
+    } };
+    const ids = resolveFeedItems(feedOcc, { occurrencesById, modulesById }).map(i => i.occurrence.id);
+    expect(ids).not.toContain("undated");
+  });
+
+  // The safety property, asserted rather than assumed: 71 live feed conditions
+  // carry plain strings and one boolean, and none may change meaning.
+  it("leaves a plain-string condition untouched", () => {
+    const { modulesById, occurrencesById } = datedWorld();
+    occurrencesById.past.fields.tag = { value: ["grocery"] };
+    const feedOcc = { ...occurrencesById.mirror, feed: {
+      enabled: true, roles: ["instance"], scope: "tasks",
+      conditions: [{ id: "c1", fieldId: "tag", comparator: "CONTAINS", value: "grocery" }],
+    } };
+    const ids = resolveFeedItems(feedOcc, { occurrencesById, modulesById }).map(i => i.occurrence.id);
+    expect(ids).toEqual(["past"]);
+  });
+});

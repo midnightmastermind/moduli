@@ -169,6 +169,12 @@ export default function FeedSection({ occurrence }) {
           >
             <Plus size={10} /> condition
           </button>
+          {/* The token is stored verbatim (the value coercion leaves a "$" string
+              alone) and resolved at match time by helpers/feedTokens. Without this
+              line it works but nobody would ever guess it exists. */}
+          <span style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
+            date comparators accept <code>$today</code> as a value
+          </span>
 
           {/* Roles */}
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>

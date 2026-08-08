@@ -2,6 +2,7 @@
 // Selectors for working with occurrences and entities in the state
 import { evalRule, evalGroup, evalRuleAgainstRecord } from "../helpers/operationActions";
 import { buildParentMap, cachedParentMap } from "../helpers/dragHitTesting";
+import { resolveFeedConditionValue } from "../helpers/feedTokens";
 
 /**
  * The single authoritative "who is this occurrence's parent" answer.
@@ -445,6 +446,20 @@ export function resolveFeedItems(feedOcc, { occurrencesById, modulesById } = {})
   // occurrence's own children (per user: own children stay visible).
   const ownChain = new Set([feedOcc.id, ...ancestorsOf(feedOcc.id)]);
 
+  // Rules are built ONCE per pass, not once per occurrence. Two reasons, and
+  // the first is correctness: a condition's value may name a date token
+  // (`$today`), and a pass that straddles midnight must not classify two rows
+  // against two different "todays". The second is that this lifts the rule
+  // construction out of a loop over every occurrence on the grid.
+  const conditionNow = new Date();
+  const preparedRules = conditions
+    .filter((c) => c?.fieldId)
+    .map((c) => ({
+      left: `fields.${c.fieldId}.value`,
+      comparator: c.comparator || "IS",
+      right: resolveFeedConditionValue(c.value, conditionNow),
+    }));
+
   const out = [];
   for (const occ of Object.values(occurrencesById)) {
     if (!occ?.id || ownChain.has(occ.id)) continue;
@@ -456,9 +471,7 @@ export function resolveFeedItems(feedOcc, { occurrencesById, modulesById } = {})
     if (ancestors.includes(feedOcc.id)) continue; // already an owned descendant
     if (feed.scope && !ancestors.includes(feed.scope)) continue;
     let match = true;
-    for (const c of conditions) {
-      if (!c?.fieldId) continue;
-      const rule = { left: `fields.${c.fieldId}.value`, comparator: c.comparator || "IS", right: c.value };
+    for (const rule of preparedRules) {
       if (!evalRuleAgainstRecord(rule, { ...occ, _ancestors: ancestors }, {})) { match = false; break; }
     }
     if (!match) continue;
