@@ -6,6 +6,86 @@
 
 ---
 
+### 2026-08-08 — appointments span their slots, due work repeats until done; and the PROBE was wrong again
+
+Picked up the previous session's interrupted sentence (*"I'll take the seed builder first"*). It had
+shipped the two pure decision layers — `slotSpan.js`, `dueSpan.js` — and stopped before anything
+consumed them. Shipped the consumer: **`Schedule: Place Dated Work`** (one op, two phases) plus
+**`Schedule: Stamp Completed On`**, wired into the seed, migrated to poms grid as `0053`, deployed
+and verified.
+
+**A CENSUS CONTRADICTED THE DOCS BEFORE ANY CODE WAS WRITTEN — twice.**
+```
+poms grid   Due containers 2, each listed by exactly ONE parent   ← PER-DAY, not shared
+            96 slots, each listedBy 1                             ← per-day copies too
+            occurrences carrying a due DATE: 0                    ← clean slate
+            Appointment binds: Completed, Type, Place, People, Duration, Date(h), Habit(h)
+```
+CLAUDE.md's 2026-05-21 entry says Build Schedule *"multi-parents the SHARED Due"*. It does not any
+more — Due and all 48 slots are per-day copies, which is what makes "a task in every day's Due" a
+real placement problem rather than something that falls out for free. **And the Appointment action
+carried NO start time at all** — so "Therapy at 2:00pm" had nowhere to put the 2:00pm and the whole
+spanning feature had no input. Binding `Time Slot` was step one, and only the census found it.
+
+**MULTI-PARENT, NOT COPIES — and the user's own word was the wrong one.** They said *"so copied"*.
+A copy per day forks completion state, so ticking Monday's copy leaves Tuesday's unticked and *"if
+its completed we can stop displaying it"* can never be true. ADD_CHILD appends to a parent's
+`occurrences[]` without touching `child.parentId`, which is the Schedule's own existing pattern.
+
+**THE DECISIONS STAYED IN THE TESTED HELPERS.** Two new pipeline actions — `SLOTS_COVERED` and
+`IS_DUE_ON` — are thin wrappers over `slotSpan.js` / `dueSpan.js`. The alternative was re-expressing
+both rules as predicate JSON, which is two sources of truth where the JSON copy is the one nobody
+tests. The Due rule *is* expressible with existing comparators; that is exactly why it was tempting.
+
+**EVERY PHASE SWEEPS WHAT IT NO LONGER CLAIMS, using its own placement as the keep-test** so the two
+cannot drift. Both sweeps are deliberately NARROW — phase 1 only unlinks Appointment occurrences,
+phase 2 only children carrying a due date — so a Pay Bill copy or a hand-dragged row survives.
+REMOVE_CHILD unlinks and never deletes, which matters because these rows are multi-parented.
+
+**THE OP WAS DRIVEN THROUGH THE REAL EXECUTOR, NOT ASSERTED AS SHAPE — and that is what caught
+everything.** This repo's builder tests assert pipeline structure, and structure has repeatedly been
+right while behaviour was wrong. 15 behavioral cases against a hand-built Schedule found two things
+reading the JSON never would: **`UPDATE` needs a var bound to a RECORD with `.id`, not an id string**
+(it throws *"not a record"*), and my own probe had **`executePipeline(operation, CONTEXT,
+TRANSACTION)` backwards** — which emptied `$allItems` and failed 8 tests in a way indistinguishable
+from a broken op. *Check the probe before believing the failure*, for the Nth time.
+
+**TWO A/Bs, AND ONE OF THEM CAUGHT A VACUOUS TEST.** Disabling the phase-1 sweep fails exactly one
+test. Disabling the phase-2 sweep failed NOTHING: the "swept the day after" case asserts the task is
+absent from tomorrow, and it was never placed there to begin with. Rewritten to place it first, then
+stop it being due. **An assertion of absence proves nothing until you have proven the thing can be
+present** — the same trap 2026-08-01 (16) records, arrived at from a new direction. (Two other tests,
+both "writes no effects", are honestly vacuous and kept only as contract pins.)
+
+**`0053` IS PURELY ADDITIVE, AND THAT IS THE DESIGN.** One field, two ops, one binding — it moves no
+occurrence and rewrites no value, so unlike every migration that has damaged this grid there is no
+selector that can match the wrong thing. Both halves import the SAME builders the seed uses, so a
+reseeded grid and a migrated grid cannot drift. **Fields resolve by name AND TYPE because this grid
+has TWO fields called "Due"** — a display-only number tile (`bKIKDURV5WTU`) and the real date
+(`GVKdfbbkUEwW`); name alone picks whichever Mongo returns first. Dry run reported against a NAMED
+expectation and every value matched what had been measured independently beforehand.
+
+**Checked the one thing that could have lost data before applying:** poms grid's single Appointment
+occurrence is the CATALOG SOURCE in Routines/Planning, not under a day column, so the phase-1
+sweep's `HAS_ANCESTOR $dayColId` guard skips it.
+
+**I APPLIED THE MIGRATION BEFORE DEPLOYING THE CLIENT — the wrong order, stated plainly.** The two
+new actions are CLIENT code, so for a few minutes prod had ops naming actions its bundle did not
+know. It degrades to a no-op (the switch falls through, the var never binds, the LOOP coerces to
+`[]`) and was provably inert on today's data — 0 due-dated occurrences, the one appointment outside
+any day column — but that was luck, not design. **Builder → client deploy → migration is the order.**
+
+**NOT VERIFIED, and it is the honest gap:** no real appointment has ever been placed by this op. It
+is inert on poms grid until task #4 enters the user's actual data, which is what will exercise it.
+
+Deploy verified the 2026-08-07 (3) way: prod HEAD over SSH, index 200, both referenced bundles 200,
+sha256 byte-identical, and both new action names present in the SERVED bundle — with `REMOVE_CHILD`
+as the control, since they land in a chunk named `PagePreviewApp` and "not in App.js" would otherwise
+have read as a missing feature. 2084 client + 580 server tests; all three grids at their documented
+baselines (test grid 2's reseed also cleared its 22 date-nav probe-debris rows).
+
+---
+
 ### 2026-08-07 (6) — the Files folder gets its RULES; and THREE things were already done
 
 Picked up the other account's queue from the chat logs again (12 open items, recovered the same
