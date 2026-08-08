@@ -4,6 +4,7 @@
 // viewType: "artifact" + artifactType: "image"|"pdf"|"audio"|"video" → file renderer
 // viewType: "code" → syntax-highlighted code block (fetches raw file content)
 // view: passed from Panel — used to trigger scrollAnchor scroll in the editor
+import { runOcr } from "../helpers/ocr";
 import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { useGridActions } from "../GridActionsContext.js";
 import Editor from "../ui/Editor.jsx";
@@ -388,24 +389,6 @@ function CodeViewer({ fileRef, label, originalName, size }) {
       </div>
     </div>
   );
-}
-
-// Lazy OCR runner. tesseract.js is ~3.5MB so it's dynamic-imported on first
-// click — initial bundle stays unaffected for users who never hit the button.
-// Returns recognized plain text (collapsed to single newlines, trimmed).
-async function runOcr(imageUrl, onProgress) {
-  const mod = await import("tesseract.js");
-  const createWorker = mod.createWorker || mod.default?.createWorker;
-  if (!createWorker) throw new Error("tesseract.js loaded without createWorker");
-  const worker = await createWorker("eng", undefined, {
-    logger: (m) => onProgress?.(m),
-  });
-  try {
-    const { data } = await worker.recognize(imageUrl);
-    return (data?.text || "").trim();
-  } finally {
-    await worker.terminate();
-  }
 }
 
 // OCR button rendered next to the image's download badge. On click:

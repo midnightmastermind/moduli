@@ -35,6 +35,8 @@ import { linkChipShape } from "./linkOccurrence";
 import { createTextblockInContainer, createContainerInContainer, createLeafInstanceInParent } from "./CommitHelpers";
 import { optionBoardStampFields } from "./boardOption";
 import { attachFile } from "./mainFile";
+import { splitToChecklistItems, MAX_CHECKLIST_ITEMS } from "./checklistFromText";
+import { runOcr } from "./ocr";
 import * as CommitHelpers from "./CommitHelpers";
 
 const S = INTAKE_SHAPES;
@@ -88,6 +90,11 @@ export const INTAKE_ROUTES = {
   // Attach an image to the occurrence it was dropped ON, rather than adding a
   // sibling next to it. Offered only where there is a Files field to attach to.
   [S.IMAGE_ATTACH.id]: { run: runImageAttach, note: "append to this occurrence's Files, as its face if it has none" },
+  // A photo of a handwritten list becomes a working checklist. The plan's other
+  // headline; OCR already existed, only the split and the route were missing.
+  [S.IMAGE_OCR_LIST.id]: { run: runImageOcrList, note: "OCR the photo, one item per line" },
+  // The same split, for text that is already text.
+  [S.TEXT_CHECKLIST.id]: { run: runTextChecklist, note: "one item per line" },
 };
 
 /** Ids the router can actually carry out right now. */
@@ -240,6 +247,95 @@ function runImageAttach(ctx) {
     },
   });
   onIntakeResult?.({ ok: true, count: placeholders.length });
+}
+
+// ── TEXT / PHOTO → CHECKLIST ───────────────────────────────────────────────
+//
+// One instance per line. The split lives in `helpers/checklistFromText` and is
+// a series of refusals (bullets, checkbox glyphs, stray marks, single stray
+// characters, a cap) — because minting a row per RAW line off a photo produces a
+// checklist the user has to clean by hand, which is worse than the single
+// textblock they got before.
+//
+// `skipped` and `truncated` are REPORTED, never swallowed: a silent drop of half
+// a shopping list is how someone stops trusting the feature.
+function mintChecklist(items, ctx) {
+  const { destinationOccurrence, gridId, userId, dispatch, socket } = ctx;
+  const minted = [];
+  for (const item of items) {
+    const res = createLeafInstanceInParent({
+      dispatch, socket, gridId, userId,
+      parentOccurrence: destinationOccurrence,
+      label: item.label,
+    });
+    if (res) minted.push(res);
+  }
+  return minted;
+}
+
+function reportChecklist(res, minted, onIntakeResult) {
+  const notes = [];
+  if (res.skipped) notes.push(`${res.skipped} unreadable line${res.skipped === 1 ? "" : "s"} skipped`);
+  if (res.truncated) notes.push(`stopped at ${MAX_CHECKLIST_ITEMS}`);
+  onIntakeResult?.({ ok: true, count: minted.length, note: notes.join(" · ") || undefined });
+}
+
+function runTextChecklist(ctx) {
+  const { payload = {}, destinationOccurrence = null, onIntakeResult = null } = ctx;
+  const text = payload.text || "";
+  if (!text || !destinationOccurrence) {
+    onIntakeResult?.({ ok: false, error: "nothing to make a list from" });
+    return;
+  }
+  const res = splitToChecklistItems(text);
+  if (!res.items.length) {
+    onIntakeResult?.({ ok: false, error: "no readable lines in that text" });
+    return;
+  }
+  reportChecklist(res, mintChecklist(res.items, ctx), onIntakeResult);
+}
+
+// The photo arm. OCR is SLOW (seconds, and it lazy-loads a 3.5MB worker), so
+// this is the one route that must report progress and cannot be fire-and-forget.
+// The image is uploaded as an artifact FIRST and kept — the photo is evidence,
+// and throwing it away after reading it would be the destructive shortcut.
+function runImageOcrList(ctx) {
+  const {
+    files = [], gridId, userId, dispatch, socket,
+    destinationOccurrence = null, occExtra = null, persist = null,
+    containerOccurrenceId = null, onPlaceholders = null, onIntakeResult = null,
+  } = ctx;
+  const file = files[0];
+  if (!file || !destinationOccurrence) {
+    onIntakeResult?.({ ok: false, error: "nothing to read" });
+    return;
+  }
+
+  const placeholders = createArtifactPlaceholders([file], {
+    gridId, userId, dispatch, occExtra, parentOccurrence: destinationOccurrence,
+  });
+  onPlaceholders?.(placeholders);
+  uploadArtifactPlaceholders(placeholders, {
+    gridId, userId, dispatch, socket, containerOccurrenceId, persist,
+  });
+
+  // Read from the local file rather than waiting for the upload: the bytes are
+  // already in hand, and coupling OCR to a network round trip would make a slow
+  // thing slower and fail for two unrelated reasons.
+  const url = URL.createObjectURL(file);
+  runOcr(url)
+    .then((text) => {
+      const res = splitToChecklistItems(text);
+      if (!res.items.length) {
+        onIntakeResult?.({ ok: false, error: "could not read any lines from that image" });
+        return;
+      }
+      reportChecklist(res, mintChecklist(res.items, ctx), onIntakeResult);
+    })
+    .catch((err) => {
+      onIntakeResult?.({ ok: false, error: `OCR failed: ${err?.message || "unknown"}` });
+    })
+    .finally(() => URL.revokeObjectURL(url));
 }
 
 // Fetch what the link points at and build the page from it. The URL is NOT
