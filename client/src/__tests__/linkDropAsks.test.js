@@ -230,3 +230,41 @@ describe("a link dropped on a ROW can fill one of its fields", () => {
     expect(ids).not.toContain(INTAKE_SHAPES.LINK_FIELD_VALUE.id);
   });
 });
+
+// ── "…and follow its links" ─────────────────────────────────────────────────
+//
+// The last of the 24 shapes. Two things are worth pinning HERE rather than in
+// the route's own suite: that the classifier's gates see the real destination,
+// and that this call site hands the route the folder tree it needs. The route
+// fails closed without it, so a missing ctx value is a shape that silently
+// does nothing — the failure this file's siblings keep catching.
+describe("dropping a link offers to FOLLOW its links", () => {
+  it("offers the shape for a single link on a board", () => {
+    const { dropContext, ctx } = makeCtx("https://en.wikipedia.org/wiki/Eminem");
+    handleExternalDrop(dropContext, ctx);
+    const ids = requests[0].classification.shapes.map((s) => s.id);
+    expect(ids).toContain(INTAKE_SHAPES.LINK_FOLLOW.id);
+  });
+
+  it("is NOT offered inside a DOC body — it mints a page card a doc cannot show", () => {
+    // The destination kind has to be REPORTED for this gate to exist at all;
+    // it was hardcoded "board" here, exactly as it was on the paste host.
+    const { dropContext, ctx } = makeCtx("https://example.com/article");
+    ctx.baseContainers[0].kind = "doc";
+    ctx.state.modulesById.containerMod.kind = "doc";
+    handleExternalDrop(dropContext, ctx);
+    const ids = requests[0].classification.shapes.map((s) => s.id);
+    expect(ids).not.toContain(INTAKE_SHAPES.LINK_FOLLOW.id);
+  });
+
+  it("picking it REACHES THE CRAWL — i.e. this call site passed the folder tree", () => {
+    // Without grid/manifests/folders/occurrencesById the route bails BEFORE
+    // harvesting, so a crawl that happened is the proof the ctx was complete.
+    const { dropContext, ctx } = makeCtx("https://example.com/hub");
+    handleExternalDrop(dropContext, ctx);
+    requests[0].onPick(INTAKE_SHAPES.LINK_FOLLOW.id);
+    const crawl = ctx.socket.emit.mock.calls.find(([ev]) => ev === "link_harvest");
+    expect(crawl, "no crawl left the client — the ctx is missing the folder tree").toBeTruthy();
+    expect(crawl[1].url).toBe("https://example.com/hub");
+  });
+});

@@ -1,6 +1,30 @@
 # client/src/ui — UI Components CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-09 (2) — `ConfirmListHost`: "which of these?", for a list that did not exist yet)
+- **`ConfirmListHost.jsx` (NEW)** — a multi-select confirmation over a list the app just discovered.
+  Built for `link-follow` (tick the pages worth importing, import nothing until approved) and kept
+  generic, because nothing about it is about links: a list, some of it ticked, and a button that
+  says how many. Same imperative-host pattern as `openIntakeSheet` / `openImagePicker`; one
+  `<ConfirmListHost/>` in App.
+- **WHY NOT A SECOND STEP INSIDE `IntakeSheet`**, which is where a follow-up question normally
+  lives: the list does not exist until a page has been fetched and read, and the sheet's contract is
+  that it is pure UI which never writes and is cheap to dismiss — `IntakeSheetHost` deliberately
+  closes it BEFORE running the caller's callback so a slow write is never left underneath it. Also
+  Escape from the sheet's step 2 goes BACK, and backing out of an in-flight crawl is a state nobody
+  needs to get right.
+- **`openConfirmList` REFUSES with no host and the caller must honour it.** The action behind this
+  surface is heavy, so "no way to ask" has to mean "do not do it" — never "do it all anyway". An
+  empty list is refused too, rather than opening a dialog with nothing in it.
+- **Everything starts TICKED, and that does not contradict the sheet's "there shouldn't be a
+  default" rule.** That rule is about the app answering *what should this become* for you. Here the
+  outcome is already chosen — the user asked to follow the links — and this is a SCOPE control.
+  Starting empty would make the confirm button dead on arrival and demand twenty clicks to do the
+  thing they just asked for. The count lives on the button, so the size of what is about to happen
+  is stated before it happens.
+- Renders through `MenuSurface`, so it is an anchored menu on desktop and a bottom drawer on a phone
+  by construction. Escape is bound at the document (no focus-dependent dead spot), confirm returns
+  the ticked ids **in the list's original order**, and a zero selection cannot commit. 10 tests.
 
 ## Recent Changes (2026-08-08 (2) — EChart reports its measured box)
 - **`EChart.jsx`** — new optional `onBox({width,height})`, fired from its OWN `ResizeObserver`.

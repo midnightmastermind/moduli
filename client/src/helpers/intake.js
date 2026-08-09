@@ -180,7 +180,15 @@ export function classifyIntake(payload = {}, destination = {}) {
         },
       });
     }
-    add(S.LINK_FOLLOW);
+    // ONE link's links. Withheld in two places, both for reasons the other
+    // shapes already established:
+    //   • SEVERAL links dropped at once — this crawls `urls[0]`, so offering it
+    //     for a set would quietly follow one of them and ignore the rest.
+    //   • inside a DOC BODY — it mints a folder PAGE and splices it into the
+    //     destination, and a doc renders its textmap, so that card is listed and
+    //     invisible. The same gate FILES_FOLDER_PAGE and the canvas shapes take.
+    //     (Dropped anywhere else the pages are still reachable under Imports.)
+    if (!many && !inDoc) add(S.LINK_FOLLOW);
     fallback = many ? S.LINK_CONTAINER.id : S.LINK_CHIP.id;
   } else if (p.kind === "file" || p.kind === "files") {
     const files = p.files || [];

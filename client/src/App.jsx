@@ -31,6 +31,7 @@ import UserInputModal from "./ui/UserInputModal";
 import { ImagePickerHost } from "./ui/ImagePickerMenu";
 import { AddressPickerHost } from "./ui/AddressPickerMenu";
 import { IntakeSheetHost } from "./ui/IntakeSheet";
+import { ConfirmListHost } from "./ui/ConfirmListHost";
 import IntakePasteHost from "./ui/IntakePasteHost";
 import { ArtifactSpreadHost } from "./ui/ArtifactSpreadHost";
 import { SelectionContext, useSelectionProvider } from "./state/SelectionContext";
@@ -1034,6 +1035,11 @@ export default function App() {
         {/* Asks what a dropped/pasted payload should become. One host, because
             the callers are drop HANDLERS with nowhere to render a sheet. */}
         <IntakeSheetHost />
+        {/* "Which of these?" — the tick-list an intake route opens once it has
+            found something to ask about (following a link's links). Separate
+            from the sheet because its list does not exist until a fetch has
+            come back, and the sheet is closed before its callback runs. */}
+        <ConfirmListHost />
         {/* Ctrl+V through the same classifier a drop uses. Its own host because
             a paste has no drop target — no pointer, and none of the five
             per-surface handlers is focused when the key is pressed. */}

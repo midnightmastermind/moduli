@@ -46,30 +46,73 @@ export function canConvertLinkToPage(occurrence, module) {
  * @returns {Promise<{ok:boolean, rootOccurrenceId?:string, error?:string}>}
  */
 export function convertLinkToPage({ socket, gridId, url, parentId = null, title = "", timeoutMs = 45000 }) {
+  if (!socket || !gridId || !url) {
+    return Promise.resolve({ ok: false, error: "missing socket, gridId or url" });
+  }
+  // Fetch + import of a large page is slow, so the cap is generous — but it
+  // MUST exist, or a server that never answers leaves the caller's spinner
+  // running forever.
+  return askServer({
+    socket, timeoutMs, prefix: "link2page",
+    event: "import_url", resultEvent: "import_url_result",
+    payload: (requestId) => ({ requestId, gridId, url, parentId, title }),
+  });
+}
+
+/**
+ * The pages a link POINTS AT — the crawl behind "…and follow its links".
+ *
+ * Read-only: this imports nothing. It exists so the user can be shown the list
+ * and tick what they want BEFORE anything is written (user decision D5), which
+ * is the whole difference between this and calling `convertLinkToPage` in a
+ * loop and hoping.
+ *
+ * `gridId` is deliberately NOT required — the server neither reads nor writes
+ * the grid to answer this.
+ *
+ * @returns {Promise<{ok:boolean, url?:string, links?:Array<{url:string,label:string}>,
+ *                    truncated?:boolean, total?:number, error?:string}>}
+ */
+export function harvestLinks({ socket, url, max = null, timeoutMs = 45000 }) {
+  if (!socket || !url) {
+    return Promise.resolve({ ok: false, error: "missing socket or url" });
+  }
+  return askServer({
+    socket, timeoutMs, prefix: "harvest",
+    event: "link_harvest", resultEvent: "link_harvest_result",
+    payload: (requestId) => ({ requestId, url, ...(max ? { max } : {}) }),
+  });
+}
+
+/**
+ * One request/response round trip over the socket, correlated by requestId.
+ *
+ * Shared because getting this wrong is silent in the same two ways every time:
+ * an uncorrelated listener answers to SOMEONE ELSE'S response (several of these
+ * can be in flight — the follow-links route runs one import per page), and a
+ * missing timeout leaves the caller waiting forever on a server that never
+ * replies. Both are handled once here rather than per call.
+ */
+function askServer({ socket, event, resultEvent, payload, timeoutMs, prefix }) {
   return new Promise((resolve) => {
-    if (!socket || !gridId || !url) {
-      resolve({ ok: false, error: "missing socket, gridId or url" });
-      return;
-    }
-    const requestId = `link2page-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const requestId = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     let settled = false;
     const finish = (out) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      socket.off?.("import_url_result", onResult);
+      socket.off?.(resultEvent, onResult);
       resolve(out);
     };
     const onResult = (res) => {
-      // Several converts can be in flight; only answer to ours.
       if (res?.requestId && res.requestId !== requestId) return;
       finish(res || { ok: false, error: "no response" });
     };
-    // Fetch + import of a large page is slow, so the cap is generous — but it
-    // MUST exist, or a server that never answers leaves the caller's spinner
-    // running forever.
-    const timer = setTimeout(() => finish({ ok: false, error: `timed out after ${timeoutMs}ms` }), timeoutMs);
-    socket.on?.("import_url_result", onResult);
-    socket.emit("import_url", { requestId, gridId, url, parentId, title });
+    const timer = setTimeout(
+      () => finish({ ok: false, error: `timed out after ${timeoutMs}ms` }),
+      timeoutMs,
+    );
+    socket.on?.(resultEvent, onResult);
+    socket.emit(event, payload(requestId));
   });
 }

@@ -80,13 +80,14 @@ describe("coverage contract", () => {
     }
   });
 
-  it("names the shapes NOT yet implemented, so the gap is known rather than silent", () => {
+  it("every declared shape is now routed — the coverage contract is CLOSED", () => {
     const { implemented, notImplemented } = assertShapeCoverage();
     expect(implemented.length + notImplemented.length).toBe(allIntakeShapeIds().length);
-    // The one shape still unwired, and it is a KNOWN gap rather than a silent
-    // one: LINK_FOLLOW needs an async, multi-select second question the sheet
-    // does not have yet.
-    expect(notImplemented).toContain(INTAKE_SHAPES.LINK_FOLLOW.id);
+    // 24 of 24 as of 2026-08-09. This assertion is the thing that keeps it
+    // that way: a shape added to `intake.js` without a route fails here rather
+    // than becoming a tile the sheet silently drops.
+    expect(notImplemented).toEqual([]);
+    expect(implemented).toContain(INTAKE_SHAPES.LINK_FOLLOW.id);
     expect(implemented).toContain(INTAKE_SHAPES.FILE_ARTIFACT.id);
     // Landed in Task 5: the link chip and the two file-content shapes.
     expect(implemented).toContain(INTAKE_SHAPES.LINK_CHIP.id);
@@ -97,14 +98,17 @@ describe("coverage contract", () => {
 
 describe("filterToImplemented — the sheet never shows a dead tile", () => {
   it("drops shapes the router cannot carry out", () => {
-    // A link on a plain board offers chip / container / page / FOLLOW, and
-    // LINK_FOLLOW is the one still unwired.
-    const c = classifyIntake({ url: "https://example.com/a" }, { kind: "board", occurrenceId: null });
-    expect(c.shapes.map((s) => s.id)).toContain(INTAKE_SHAPES.LINK_FOLLOW.id);
-
+    // Every DECLARED shape is routed now (24 of 24), so the filter is driven
+    // with a synthetic one. The behaviour still has to hold the day a shape is
+    // declared ahead of its route — which is the whole point of the filter.
+    const c = {
+      payload: { kind: "link", urls: ["https://example.com/a"] },
+      shapes: [INTAKE_SHAPES.LINK_CHIP, { id: "not-a-real-shape", label: "Nope" }],
+      fallback: INTAKE_SHAPES.LINK_CHIP.id,
+    };
     const f = filterToImplemented(c);
     expect(f.shapes.every((s) => IMPLEMENTED_SHAPE_IDS.includes(s.id))).toBe(true);
-    expect(f.shapes.map((s) => s.id)).not.toContain(INTAKE_SHAPES.LINK_FOLLOW.id);
+    expect(f.shapes.map((s) => s.id)).toEqual([INTAKE_SHAPES.LINK_CHIP.id]);
   });
 
   it("keeps the fallback when it survived", () => {
@@ -113,7 +117,9 @@ describe("filterToImplemented — the sheet never shows a dead tile", () => {
   });
 
   it("re-points the fallback when it did NOT survive", () => {
-    // A link's fallback is the chip, which Step 1 does not implement.
+    // The fallback is re-pointed only when it did not survive the filter; a
+    // link's chip fallback does survive, so this asserts the invariant that
+    // the fallback is always one of the shapes on offer.
     const c = classifyIntake({ url: "https://example.com" });
     expect(c.fallback).toBe(INTAKE_SHAPES.LINK_CHIP.id);
 
@@ -390,7 +396,9 @@ describe("applyIntakeShape — routes reach the EXISTING helpers unchanged", () 
 
   it("an unrouted shape writes NOTHING and says so", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const r = applyIntakeShape(INTAKE_SHAPES.LINK_FOLLOW.id, ctx());
+    // A shape id with no route — every declared shape has one now, so this
+    // pins the router's refusal itself rather than any particular gap.
+    const r = applyIntakeShape("not-a-real-shape", ctx());
     expect(r).toMatchObject({ ok: false, reason: "no-route" });
     expect(createArtifactPlaceholders).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalled();

@@ -1,6 +1,44 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-09 (8) — `link-follow`: the last shape; coverage 24 of 24)
+- **`intakeApply.runLinkFollow` + `importLinksIntoFolder`** — one hop, any domain, CONFIRM FIRST.
+  The crawl runs, the user ticks a list, and only then does each approved link become a full
+  imported page, all filed into ONE new folder under Imports.
+- **IT DOES NOT USE THE SHEET'S FOLLOW-UP MECHANISM, and the reason is the sheet's own contract.**
+  `IntakeSheet` is pure UI that "never writes at all", and `IntakeSheetHost` CLOSES it before
+  running the callback so a slow write is never left sitting under an open sheet. A crawl of an
+  arbitrary page is that slow write. So the route opens a separate `ui/ConfirmListHost` — which is
+  also what the decision's own note pointed at ("reuse the shape of the `wikipedia_import_batch`
+  confirm card"). Side benefit that decided it: a loader threaded into the sheet needs wiring at
+  FIVE call sites; a route-driven surface needs one mount in App.
+- **"Nowhere to ask" means DO NOT DO IT.** Every other shape falls back to today's behaviour when
+  there is no host; here the confirmation IS the feature, so the route refuses and says so.
+  Importing twenty pages because a preview iframe had no host is the outcome this shape prevents.
+  A/B'd: making it import them all fails exactly that test.
+- **SEQUENTIAL, not a volley** — one fetch and one page-build at a time. Parallel would hammer a
+  stranger's site and stack N imports on the server to save a wait the toast already narrates per
+  page. The test measures concurrency rather than the shape of the code.
+- **Homed by `parentId`** — a folder page renders `childrenByParentId`, the constraint that decided
+  `files-folder-page`, and `markdownToModuli` sets the import root's parentId from what it is
+  handed. One argument does it.
+- **Reports the TALLY.** Twelve fetches against twelve sites means partial is the normal case:
+  "Imported 9 pages · 3 could not be read". A/B'd both ways (dropped note; all-failed reported as
+  a failure, never "imported 0").
+- **`linkToPage.harvestLinks` (NEW)** + a private `askServer` both wrappers now share. The
+  correlation and the timeout are the two things that are silent when wrong — an uncorrelated
+  listener answers to someone else's response (this route has a crawl and N imports in flight), and
+  a missing timeout hangs the caller on a server that never replies.
+- **`intake.js` gates it out of a doc body AND off a multi-link drop:** it crawls `urls[0]`, so
+  offering it for a set would quietly follow one and ignore the rest; and it mints a folder PAGE,
+  which a doc lists and cannot render (the gate `FILES_FOLDER_PAGE` and the canvas shapes take).
+- **THE CALL SITE HAD THE SAME DEFECT AS THE PASTE HOST.** `dropHandlers`' link branch hardcoded
+  `kind: "board"`, so **every doc-body gate was inert for a dropped link** — the identical defect
+  found on `IntakePasteHost` the day before. It reports the container's real kind now, and
+  `linkCtx` gained the four folder-tree values (`grid`/`manifests`/`folders`/`occurrencesById`)
+  the route fails closed without. Both A/B'd: each mutation fails exactly one test.
+- Coverage measured from the router's own tables: **24 routed / 24 declared / 0 orphans**, and the
+  coverage test now asserts `notImplemented` is EMPTY rather than naming the gap.
 ## Recent Changes (2026-08-09 (7) — `image-outline`: real Canny, and looking found what tests could not)
 - **`imageOutline.js` (NEW, pure + a thin browser half, 14 tests)** — a photo becomes a LINE
   DRAWING. ONE tile that asks colouring-page vs blueprint AFTERWARDS (user: two settings of one

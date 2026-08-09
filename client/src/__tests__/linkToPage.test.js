@@ -4,7 +4,7 @@
 // link already goes somewhere in the grid — converting it would duplicate a
 // page that exists.
 import { describe, it, expect, vi } from "vitest";
-import { resolveExternalLink, canConvertLinkToPage, convertLinkToPage } from "../helpers/linkToPage.js";
+import { resolveExternalLink, canConvertLinkToPage, convertLinkToPage, harvestLinks } from "../helpers/linkToPage.js";
 
 const occWith = (link) => ({ id: "o1", meta: link ? { link } : {} });
 
@@ -107,6 +107,71 @@ describe("convertLinkToPage", () => {
     await expect(convertLinkToPage({ gridId: "g1", url: "https://x.com" })).resolves.toMatchObject({ ok: false });
     const socket = mkSocket();
     await expect(convertLinkToPage({ socket, url: "https://x.com" })).resolves.toMatchObject({ ok: false });
+    expect(socket.emit).not.toHaveBeenCalled();
+  });
+});
+
+describe("harvestLinks", () => {
+  const mkSocket = () => {
+    const handlers = {};
+    return {
+      emit: vi.fn(),
+      on: vi.fn((ev, fn) => { handlers[ev] = fn; }),
+      off: vi.fn(() => { delete handlers.link_harvest_result; }),
+      _fire: (payload) => handlers.link_harvest_result?.(payload),
+    };
+  };
+
+  it("emits link_harvest and resolves with the list", async () => {
+    const socket = mkSocket();
+    const p = harvestLinks({ socket, url: "https://example.com" });
+    const [event, body] = socket.emit.mock.calls[0];
+    expect(event).toBe("link_harvest");
+    expect(body).toMatchObject({ url: "https://example.com" });
+
+    socket._fire({ requestId: body.requestId, ok: true, links: [{ url: "https://a", label: "A" }] });
+    await expect(p).resolves.toMatchObject({ ok: true, links: [{ url: "https://a", label: "A" }] });
+  });
+
+  it("does NOT require a gridId — the server reads no grid to answer", async () => {
+    const socket = mkSocket();
+    harvestLinks({ socket, url: "https://example.com" });
+    expect(socket.emit).toHaveBeenCalled();
+  });
+
+  it("ignores a result meant for a DIFFERENT harvest", async () => {
+    // The follow-links route can have a harvest and several imports in flight
+    // at once; answering to the wrong one imports the wrong pages.
+    const socket = mkSocket();
+    const p = harvestLinks({ socket, url: "https://example.com" });
+    const { requestId } = socket.emit.mock.calls[0][1];
+    socket._fire({ requestId: "someone-else", ok: true, links: [{ url: "https://wrong" }] });
+    socket._fire({ requestId, ok: true, links: [{ url: "https://mine" }] });
+    await expect(p).resolves.toMatchObject({ links: [{ url: "https://mine" }] });
+  });
+
+  it("passes the server's REASON through", async () => {
+    const socket = mkSocket();
+    const p = harvestLinks({ socket, url: "https://example.com" });
+    const { requestId } = socket.emit.mock.calls[0][1];
+    socket._fire({ requestId, ok: false, error: "timed out after 20000ms" });
+    await expect(p).resolves.toMatchObject({ ok: false, error: /timed out/ });
+  });
+
+  it("times out rather than hanging the confirm list forever", async () => {
+    vi.useFakeTimers();
+    const socket = mkSocket();
+    const p = harvestLinks({ socket, url: "https://example.com", timeoutMs: 100 });
+    vi.advanceTimersByTime(101);
+    await expect(p).resolves.toMatchObject({ ok: false, error: /timed out/ });
+    expect(socket.off).toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("refuses to emit without a socket or url", async () => {
+    await expect(harvestLinks({ url: "https://x.com" })).resolves.toMatchObject({ ok: false });
+    const socket = mkSocket();
+    await expect(harvestLinks({ socket })).resolves.toMatchObject({ ok: false });
     expect(socket.emit).not.toHaveBeenCalled();
   });
 });

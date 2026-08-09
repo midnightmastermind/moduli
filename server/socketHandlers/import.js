@@ -35,6 +35,7 @@ import { persistImportResult } from "../utils/persistImport.js";
 import { fetchPageHtml } from "../utils/safeFetchUrl.js";
 import { fetchLinkPreview } from "../utils/linkPreview.js";
 import { extractMainContent } from "../utils/mainContent.js";
+import { extractLinks } from "../utils/harvestLinks.js";
 
 // Name the page from its own <title> when the caller didn't supply one, so a
 // converted link reads as the article rather than as its URL.
@@ -132,6 +133,45 @@ export function registerImportHandlers(socket, {
     if (!socket.userId) return reply({ ok: false, error: "unauthenticated" });
     if (typeof url !== "string" || !url.trim()) return reply({ ok: false, error: "url required" });
     reply(await fetchLinkPreview(url, { fetchPageHtml }));
+  });
+
+  // WHAT a page points at, without importing any of it. Backs the intake shape
+  // "…and follow its links" (user decision D5): the crawl runs first, the user
+  // ticks the pages worth keeping, and only then does anything get imported.
+  //
+  // Read-only like `link_preview` — nothing minted, nothing to broadcast, no
+  // cache to keep in step. The guarded fetch is the same one `import_url` uses;
+  // the URL comes from a drop, so the server is the only place the check means
+  // anything.
+  //
+  // The links are read from the MAIN CONTENT, not the raw page: a site's nav
+  // and footer links belong to the site, not to the article you dropped, and on
+  // a typical page they outnumber the real ones several times over.
+  socket.on("link_harvest", async (payload = {}, ack) => {
+    const { url, max, requestId = null } = payload;
+    const reply = (out) => {
+      if (typeof ack === "function") ack(out);
+      socket.emit("link_harvest_result", { requestId, ...out });
+    };
+    try {
+      if (!socket.userId) return reply({ ok: false, error: "unauthenticated" });
+      if (typeof url !== "string" || !url.trim()) return reply({ ok: false, error: "url required" });
+
+      const fetched = await fetchPageHtml(url);
+      // The guard's own words, so the UI can say WHY ("not a web page",
+      // "timed out") rather than a generic failure.
+      if (!fetched.ok) return reply({ ok: false, error: fetched.reason });
+
+      const { html: mainHtml } = extractMainContent(fetched.html);
+      // `fetched.url` is the FINAL url after redirects — relative hrefs and the
+      // exclude-itself test both have to resolve against where we ended up.
+      const opts = Number.isFinite(max) && max > 0 ? { max } : {};
+      const { links, truncated, total } = extractLinks(mainHtml, fetched.url, opts);
+      reply({ ok: true, url: fetched.url, links, truncated, total });
+    } catch (err) {
+      console.error("link_harvest error:", err);
+      reply({ ok: false, error: err?.message || "internal error" });
+    }
   });
 
   socket.on("import_url", async (payload = {}, ack) => {

@@ -1790,7 +1790,12 @@ export function handleExternalDrop(dropContext, ctx) {
     const linkFieldsById = Object.fromEntries((state?.fields || []).map((f) => [f.id, f]));
     const classification = filterToImplemented(
       classifyIntake({ url: droppedUrl }, {
-        kind: "board",
+        // REPORT THE REAL KIND. This was hardcoded "board", which made every
+        // doc-body gate in the classifier inert on this path — the identical
+        // defect found on the PASTE host (2026-08-09 (5)), where three
+        // carefully-written gates were being bypassed by one destination
+        // field. A gate is only as good as the value the caller reports.
+        kind: container?.kind === "doc" ? "doc" : "board",
         occurrenceId: containerOcc?.id || null,
         isOptionBoard: isOptionBoard(containerOcc),
         // Lights up LINK_FIELD_VALUE, and supplies its second question. A LIST,
@@ -1812,6 +1817,15 @@ export function handleExternalDrop(dropContext, ctx) {
       destinationOccurrence: containerOcc || null,
       // LINK_BOOKMARK resolves its fields by name AND type from this.
       fieldsById: linkFieldsById,
+      // LINK_FOLLOW files every page it imports into one new folder under
+      // Imports, so it needs the folder tree — the same four resolved values
+      // FILES_FOLDER_PAGE takes, never `state`. The route fails closed and
+      // SAYS SO without them, which is what stops this call site silently
+      // getting a shape that does nothing.
+      grid: state?.grid || null,
+      manifests: state?.manifests || null,
+      folders: state?.folders || null,
+      occurrencesById,
       insertIndex: dropTarget.context?.insertAt
         ?? resolveNearestIndex(containerOcc, occurrencesById, y),
       onImportResult: (res) => {

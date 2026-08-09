@@ -28,7 +28,8 @@
 
 import { INTAKE_SHAPES, allIntakeShapeIds } from "./intake";
 import { createArtifactPlaceholders, uploadArtifactPlaceholders } from "./artifactUpload";
-import { convertLinkToPage } from "./linkToPage";
+import { convertLinkToPage, harvestLinks } from "./linkToPage";
+import { openConfirmList } from "../ui/ConfirmListHost";
 import { withAction } from "./actionScope";
 import { csvToMarkdownTable } from "./csvToTable";
 import { linkChipShape } from "./linkOccurrence";
@@ -85,6 +86,9 @@ export const INTAKE_ROUTES = {
   // This is the same capability behind the right-click "Convert to page",
   // reached from a drop instead of a menu.
   [S.LINK_PAGE.id]: { run: runImportUrl, note: "fetch the link and build the page" },
+  // One hop further: the pages THIS page points at, listed for approval and
+  // imported into one folder. The last of the 24 shapes.
+  [S.LINK_FOLLOW.id]: { run: runLinkFollow, note: "pick from the pages it links to, import them into one folder" },
   // Task 5: a real link chip — the shape the importer already builds for every
   // prose link, so one drop and one imported page produce the SAME thing.
   [S.LINK_CHIP.id]: { run: runLinkChip, note: "a clickable chip carrying the link" },
@@ -720,6 +724,164 @@ function runImportUrl(ctx) {
   if (!socket || !url) return;
   convertLinkToPage({ socket, gridId, url, parentId: destination.parentId ?? null })
     .then((res) => onImportResult?.(res));
+}
+
+// ── LINK → THE PAGES IT POINTS AT ───────────────────────────────────────────
+//
+// "…and follow its links" (user decision D5, 2026-08-09): ONE HOP, any domain,
+// CONFIRM FIRST — per-page checkboxes and a count, and NOTHING is imported
+// until the user approves. Each ticked link becomes a full imported page, the
+// same write "Import the page" makes, and they all land in ONE new folder.
+//
+// It is slow BY DESIGN: one fetch and one whole-page import per link, run
+// SEQUENTIALLY. Firing them in parallel would hammer a stranger's site and
+// stack N page-builds on the server at once, to save a wait the toast is
+// already narrating.
+//
+// THREE THINGS IT REFUSES, each because the alternative is worse than not
+// running:
+//   • no folder tree in the ctx → refuse. The pages would scatter with no page
+//     to find them on (`files-folder-page`'s rule, same reason).
+//   • no confirm surface mounted → refuse, and SAY SO. Importing twenty pages
+//     because there was nowhere to ask is the one outcome this shape exists to
+//     prevent.
+//   • the page links to nothing importable → say that, rather than minting an
+//     empty folder that looks like a failed import.
+function runLinkFollow(ctx) {
+  const {
+    payload = {}, gridId, userId, dispatch, socket,
+    destinationOccurrence = null,
+    grid = null, manifests = null, folders = null, occurrencesById = null,
+  } = ctx;
+  const sourceUrl = payload.urls?.[0];
+  if (!socket || !sourceUrl) return undefined;
+  if (!grid || !occurrencesById) {
+    notifyIntake(ctx, { ok: false, error: "cannot reach the folder tree from here" });
+    return undefined;
+  }
+
+  const token = startIntake(ctx, "Reading the page…");
+  return harvestLinks({ socket, url: sourceUrl }).then((res) => {
+    if (!res?.ok) {
+      notifyIntake(ctx, { ok: false, error: res?.error || "could not read that page" }, token);
+      return;
+    }
+    const links = res.links || [];
+    if (!links.length) {
+      notifyIntake(ctx, { ok: false, error: "that page links to nothing importable" }, token);
+      return;
+    }
+
+    // Hand the conversation over: nothing is happening while the user reads the
+    // list, so a spinner left running would be a lie about what the app is
+    // doing. The import gets its own toast when it actually starts.
+    if (token) toast.dismiss(token);
+
+    const opened = openConfirmList({
+      title: "Import which pages?",
+      subtitle: res.truncated
+        ? `${links.length} of ${res.total} links on ${hostOf(res.url || sourceUrl)}`
+        : `${links.length} link${links.length === 1 ? "" : "s"} on ${hostOf(res.url || sourceUrl)}`,
+      items: links.map((l) => ({ id: l.url, label: l.label, sub: l.url })),
+      confirmLabel: "Import",
+      onConfirm: (urls) => importLinksIntoFolder(ctx, {
+        urls, sourceUrl: res.url || sourceUrl,
+        gridId, userId, dispatch, socket,
+        destinationOccurrence, grid, manifests, folders, occurrencesById,
+      }),
+      onCancel: () => {},
+    });
+    // No host (a preview iframe, a harness). Do NOT fall through to importing
+    // them all — the confirmation IS the feature.
+    if (!opened) {
+      notifyIntake(ctx, { ok: false, error: "nowhere to confirm the list — nothing was imported" });
+    }
+  });
+}
+
+/** "https://en.wikipedia.org/wiki/X" → "en.wikipedia.org". */
+function hostOf(url) {
+  try { return new URL(url).hostname; } catch { return String(url || "").slice(0, 40); }
+}
+
+/**
+ * Mint the folder, then import each approved page into it, one at a time.
+ *
+ * The pages are homed by `parentId` — a folder page renders what is PARENTED to
+ * it (`childrenByParentId`), which is the same constraint that decided
+ * `files-folder-page`, and `markdownToModuli` sets the import root's parentId
+ * from the `parentId` it is handed.
+ *
+ * Reports the tally rather than the last outcome: with a dozen fetches against
+ * a dozen different sites, some failing is the normal case, and "imported 9 of
+ * 12" is the honest answer where either "done" or "failed" would be a lie.
+ */
+function importLinksIntoFolder(ctx, {
+  urls, sourceUrl, gridId, userId, dispatch, socket,
+  destinationOccurrence, grid, manifests, folders, occurrencesById,
+}) {
+  const { folderId: importsId } = ensureImportsFolderAndPage({
+    grid, manifests, folders, occurrencesById, dispatch, socket, userId,
+  });
+  const folderId = crypto?.randomUUID?.() || `fld-${Date.now()}`;
+  const label = describeLinkSet(sourceUrl, urls.length);
+  CommitHelpers.createFolder({
+    dispatch, socket,
+    folder: { id: folderId, name: label, parentId: importsId, gridId, userId, folderType: "normal" },
+  });
+  // NOT protected — Imports itself is structural, this one is the user's.
+
+  const pageOccId = ensureFolderPageOcc({
+    folderId, label, gridId, occurrencesById, dispatch, socket, userId,
+  });
+  // Home in the new folder, placement where the drop happened — the same split
+  // uploads use, so the page is findable in the tree AND visible where you
+  // asked for it.
+  if (pageOccId && destinationOccurrence) {
+    spliceChildIntoParent({
+      dispatch, socket, parentOccurrence: destinationOccurrence, occurrenceId: pageOccId, index: null,
+    });
+  }
+
+  const token = startIntake(ctx, `Importing 1 of ${urls.length}…`);
+  const failures = [];
+  // SEQUENTIAL, on purpose (see the route's header). Reduce rather than
+  // Promise.all so each fetch waits for the last.
+  return urls.reduce(
+    (chain, url, i) => chain.then(async () => {
+      progressIntake(token, `Importing ${i + 1} of ${urls.length}…`);
+      const res = await convertLinkToPage({ socket, gridId, url, parentId: folderId });
+      if (!res?.ok) failures.push({ url, error: res?.error || "failed" });
+    }),
+    Promise.resolve(),
+  ).then(() => {
+    const done = urls.length - failures.length;
+    if (!done) {
+      notifyIntake(ctx, {
+        ok: false,
+        error: `None of the ${urls.length} pages could be imported (${failures[0]?.error || "unknown"})`,
+      }, token);
+      return;
+    }
+    notifyIntake(ctx, {
+      ok: true,
+      count: done,
+      message: `Imported ${done} page${done === 1 ? "" : "s"} into “${label}”`,
+      // Named, not swallowed: a partial import that reports plain success hides
+      // the pages that are missing.
+      note: failures.length ? `${failures.length} could not be read` : undefined,
+    }, token);
+  });
+}
+
+/** "en.wikipedia.org — 6 pages (2026-08-09)". Dumb on purpose: the user chose
+ *  auto-naming over a prompt, which only works if a wrong-ish name is cheap to
+ *  fix — and the folder is theirs to rename. */
+export function describeLinkSet(sourceUrl, count, now = new Date()) {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${hostOf(sourceUrl)} — ${count} page${count === 1 ? "" : "s"} (${y}-${m}-${d})`;
 }
 
 // The audit's headline finding, answered: a dropped link became a card labelled
