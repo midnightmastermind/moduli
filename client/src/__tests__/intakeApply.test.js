@@ -26,6 +26,19 @@ vi.mock("../helpers/artifactUpload", () => ({
 const runOcr = vi.fn(async () => "");
 vi.mock("../helpers/ocr", () => ({ runOcr: (...a) => runOcr(...a) }));
 
+// The tracer needs a real canvas, which jsdom does not have. Its pixel math is
+// pure and covered end-to-end in imageOutline.test.js (plus a real photo
+// rendered and looked at); what the ROUTE owes is which mode it asks for and
+// what it does with the result.
+const traceImageFile = vi.fn(async (file, mode) => ({
+  file: new File(["png"], `traced-${mode}.png`, { type: "image/png" }),
+  inkRatio: 0.05, width: 10, height: 10,
+}));
+vi.mock("../helpers/imageOutline", async (orig) => ({
+  ...(await orig()),
+  traceImageFile: (...a) => traceImageFile(...a),
+}));
+
 // pdf.js needs a real canvas, which jsdom does not have. The route's contract
 // is what it does with the pages, not the rasterising — that lives in
 // helpers/pdfPages and is exercised in a browser, not here.
@@ -70,9 +83,10 @@ describe("coverage contract", () => {
   it("names the shapes NOT yet implemented, so the gap is known rather than silent", () => {
     const { implemented, notImplemented } = assertShapeCoverage();
     expect(implemented.length + notImplemented.length).toBe(allIntakeShapeIds().length);
-    // Step 1 is behaviour-preserving: only today's shapes are wired. This is a
-    // deliberate, recorded gap — Task 5 lands the rest.
-    expect(notImplemented).toContain(INTAKE_SHAPES.IMAGE_OUTLINE.id);
+    // The one shape still unwired, and it is a KNOWN gap rather than a silent
+    // one: LINK_FOLLOW needs an async, multi-select second question the sheet
+    // does not have yet.
+    expect(notImplemented).toContain(INTAKE_SHAPES.LINK_FOLLOW.id);
     expect(implemented).toContain(INTAKE_SHAPES.FILE_ARTIFACT.id);
     // Landed in Task 5: the link chip and the two file-content shapes.
     expect(implemented).toContain(INTAKE_SHAPES.LINK_CHIP.id);
@@ -83,14 +97,14 @@ describe("coverage contract", () => {
 
 describe("filterToImplemented — the sheet never shows a dead tile", () => {
   it("drops shapes the router cannot carry out", () => {
-    // A png offers artifact + canvas + outline; the OUTLINE is the one still
-    // unwired (the canvas shape landed 2026-08-09).
-    const c = classifyIntake({ files: [{ name: "a.png", type: "image/png" }] }, { kind: "canvas" });
-    expect(c.shapes.map((s) => s.id)).toContain(INTAKE_SHAPES.IMAGE_OUTLINE.id);
+    // A link on a plain board offers chip / container / page / FOLLOW, and
+    // LINK_FOLLOW is the one still unwired.
+    const c = classifyIntake({ url: "https://example.com/a" }, { kind: "board", occurrenceId: null });
+    expect(c.shapes.map((s) => s.id)).toContain(INTAKE_SHAPES.LINK_FOLLOW.id);
 
     const f = filterToImplemented(c);
     expect(f.shapes.every((s) => IMPLEMENTED_SHAPE_IDS.includes(s.id))).toBe(true);
-    expect(f.shapes.map((s) => s.id)).not.toContain(INTAKE_SHAPES.IMAGE_OUTLINE.id);
+    expect(f.shapes.map((s) => s.id)).not.toContain(INTAKE_SHAPES.LINK_FOLLOW.id);
   });
 
   it("keeps the fallback when it survived", () => {
@@ -376,7 +390,7 @@ describe("applyIntakeShape — routes reach the EXISTING helpers unchanged", () 
 
   it("an unrouted shape writes NOTHING and says so", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const r = applyIntakeShape(INTAKE_SHAPES.IMAGE_OUTLINE.id, ctx());
+    const r = applyIntakeShape(INTAKE_SHAPES.LINK_FOLLOW.id, ctx());
     expect(r).toMatchObject({ ok: false, reason: "no-route" });
     expect(createArtifactPlaceholders).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalled();
@@ -984,5 +998,86 @@ describe("the bookmark shape mints a record, then fills it from the lookup", () 
     // Nothing was patched onto a record we know nothing new about.
     const patched = emitted.filter((e) => e.event === "update_occurrence" && e.data.occurrence.fields);
     expect(patched).toHaveLength(0);
+  });
+});
+
+// ── IMAGE → OUTLINE ─────────────────────────────────────────────────────────
+//
+// ONE tile that asks colouring-page vs blueprint afterwards, and the PHOTO
+// STAYS. "Trace only" is about the output image — white ground, black lines —
+// not about discarding the source, which would make this the only intake shape
+// that destroys what you gave it.
+describe("the outline shape traces the image and keeps it", () => {
+  const photo = new File(["x"], "cat.jpg", { type: "image/jpeg" });
+
+  async function run(answer, { trace } = {}) {
+    createArtifactPlaceholders.mockClear();
+    uploadArtifactPlaceholders.mockClear();
+    traceImageFile.mockClear();
+    if (trace) traceImageFile.mockImplementationOnce(trace);
+    const onIntakeResult = vi.fn();
+    const onPlaceholders = vi.fn();
+    await applyIntakeShape(INTAKE_SHAPES.IMAGE_OUTLINE.id, {
+      files: [photo],
+      destinationOccurrence: { id: "c1", moduleId: "cm", occurrences: [] },
+      gridId: "g1", userId: "u1", dispatch: vi.fn(),
+      socket: { connected: true, emit: vi.fn(), on: vi.fn(), off: vi.fn() },
+      onIntakeResult, onPlaceholders,
+    }, answer);
+    return { onIntakeResult, onPlaceholders };
+  }
+
+  it("creates BOTH the photo and the outline", async () => {
+    await run("coloring");
+    expect(createArtifactPlaceholders).toHaveBeenCalledTimes(2);
+    const [firstBatch] = createArtifactPlaceholders.mock.calls[0];
+    const [secondBatch] = createArtifactPlaceholders.mock.calls[1];
+    expect(firstBatch[0].name, "the source photo was not kept").toBe("cat.jpg");
+    expect(secondBatch[0].name).toContain("traced-coloring");
+    expect(uploadArtifactPlaceholders).toHaveBeenCalledTimes(2);
+  });
+
+  it("traces in the mode the user picked", async () => {
+    await run("blueprint");
+    expect(traceImageFile).toHaveBeenCalledWith(photo, "blueprint");
+  });
+
+  it("falls back to a real mode when no answer arrived", async () => {
+    // The no-host fallback path reaches a route with no answer.
+    await run(undefined);
+    expect(traceImageFile).toHaveBeenCalledWith(photo, "coloring");
+  });
+
+  it("ignores an answer that is not a mode rather than tracing with nothing", async () => {
+    await run("not-a-mode");
+    expect(traceImageFile).toHaveBeenCalledWith(photo, "coloring");
+  });
+
+  it("KEEPS THE PHOTO when the tracer fails — a trace failure is not a lost drop", async () => {
+    const { onIntakeResult } = await run("coloring", {
+      trace: async () => { throw new Error("decode failed"); },
+    });
+    expect(createArtifactPlaceholders).toHaveBeenCalledTimes(1);
+    expect(createArtifactPlaceholders.mock.calls[0][0][0].name).toBe("cat.jpg");
+    expect(uploadArtifactPlaceholders).toHaveBeenCalledTimes(1);
+    expect(onIntakeResult).toHaveBeenCalledWith(expect.objectContaining({ ok: false }));
+  });
+
+  it("says so when the trace came back nearly blank", async () => {
+    const { onIntakeResult } = await run("coloring", {
+      trace: async () => ({ file: new File(["p"], "t.png", { type: "image/png" }), inkRatio: 0.0001, width: 4, height: 4 }),
+    });
+    expect(onIntakeResult).toHaveBeenCalledWith(
+      expect.objectContaining({ ok: true, note: expect.stringContaining("almost nothing") }),
+    );
+  });
+
+  it("says so when the trace came back as a solid block", async () => {
+    const { onIntakeResult } = await run("blueprint", {
+      trace: async () => ({ file: new File(["p"], "t.png", { type: "image/png" }), inkRatio: 0.8, width: 4, height: 4 }),
+    });
+    expect(onIntakeResult).toHaveBeenCalledWith(
+      expect.objectContaining({ ok: true, note: expect.stringContaining("very busy") }),
+    );
   });
 });

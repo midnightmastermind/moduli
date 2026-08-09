@@ -21,6 +21,7 @@ import { handleFileDrop } from "../helpers/dropHandlers";
 import { registerIntakeSheetHost } from "../ui/IntakeSheet";
 import * as UploadHelpers from "../helpers/uploadWithProgress";
 import { INTAKE_SHAPES } from "../helpers/intake";
+import { IMPLEMENTED_SHAPE_IDS } from "../helpers/intakeApply";
 
 const file = (name, type = "image/png") => ({ name, type, size: 10 });
 
@@ -89,12 +90,17 @@ describe("a file drop ASKS before it writes", () => {
   it("only offers shapes the router can carry out", () => {
     const { dropContext, ctx } = makeCtx([file("a.png")]);
     handleFileDrop(dropContext, ctx);
-    // A tile that does nothing is worse than no tile, so the sheet only ever
-    // sees shapes the router can carry out. `image-outline` is the one still
-    // unwired here; `image-canvas` landed 2026-08-09 and SHOULD now appear.
+    // A tile that does nothing is worse than no tile. Every file shape is now
+    // routed, so the assertion is the INVARIANT rather than a named gap: the
+    // sheet is only ever handed shapes the router can carry out.
     const ids = requests[0].classification.shapes.map(s => s.id);
-    expect(ids).not.toContain(INTAKE_SHAPES.IMAGE_OUTLINE.id);
+    expect(ids.length).toBeGreaterThan(0);
+    expect(ids.every(id => IMPLEMENTED_SHAPE_IDS.includes(id))).toBe(true);
     expect(ids).toContain(INTAKE_SHAPES.IMAGE_CANVAS.id);
+    expect(ids).toContain(INTAKE_SHAPES.IMAGE_OUTLINE.id);
+    // And the outline asks its second question rather than guessing a look.
+    const outline = requests[0].classification.shapes.find(s => s.id === INTAKE_SHAPES.IMAGE_OUTLINE.id);
+    expect(outline.followUp?.options.map(o => o.value)).toEqual(["coloring", "blueprint"]);
   });
 
   it("WRITES NOTHING until a shape is picked", () => {

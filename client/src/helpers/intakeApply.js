@@ -39,6 +39,7 @@ import { ensureImportsFolderAndPage, ensureFolderPageOcc } from "./importsFolder
 import { splitToChecklistItems, MAX_CHECKLIST_ITEMS } from "./checklistFromText";
 import { runOcr } from "./ocr";
 import { isPdfFile, eachPdfPageImage } from "./pdfPages";
+import { traceImageFile, OUTLINE_MODES, DEFAULT_OUTLINE_MODE } from "./imageOutline";
 import { toast } from "../state/notificationStore";
 import * as CommitHelpers from "./CommitHelpers";
 
@@ -128,6 +129,11 @@ export const INTAKE_ROUTES = {
   // A NEW canvas page with the image already on it. Offered anywhere now, not
   // only on a canvas — it mints the surface rather than needing one.
   [S.IMAGE_CANVAS.id]: { run: runImageCanvas, note: "a new canvas page holding the image" },
+  // A traced version of the photo, beside the photo. ONE tile that asks
+  // colouring-page vs blueprint afterwards — they are two settings of one
+  // idea, not two things to choose between before you have decided you want
+  // an outline.
+  [S.IMAGE_OUTLINE.id]: { run: runImageOutline, note: "a line drawing of the image, next to it" },
 };
 
 /** Ids the router can actually carry out right now. */
@@ -934,6 +940,78 @@ function runImageCanvas(ctx) {
     message: files.length === 1 ? "Canvas created" : `Canvas created with ${files.length} images`,
     pageOccurrenceId: made.occurrenceId,
   });
+}
+
+// ── IMAGE → OUTLINE ────────────────────────────────────────────────────────
+//
+// A dropped photo also gets a traced version of itself.
+//
+// ── ONE TILE, THEN A QUESTION (the user's call) ────────────────────────────
+//
+// Colouring page and blueprint are two settings of one idea, not two things a
+// person is choosing between at drop time — so the sheet offers ONE tile and
+// asks which afterwards, the same two-step LINK_FIELD_VALUE uses. Two tiles
+// would put a decision in front of someone who has not yet decided they want
+// an outline at all.
+//
+// ── THE PHOTO STAYS ("trace only") ─────────────────────────────────────────
+//
+// The drop produces BOTH: the artifact it would have produced anyway, and the
+// outline beside it. "Trace only" is about the OUTPUT IMAGE — white ground,
+// black lines, no photo showing through it — not about discarding the
+// original. Throwing the source away would make this the one intake shape that
+// destroys what you gave it.
+//
+// ── IT TRACES THE LOCAL BYTES, NOT THE UPLOADED URL ────────────────────────
+//
+// The File is already in hand. Waiting for the upload to land and then fetching
+// it back would make a slow thing slower and give it a second, unrelated way to
+// fail — the same reasoning the OCR arm records.
+async function runImageOutline(ctx) {
+  const {
+    files = [], gridId, userId, dispatch, socket,
+    destinationOccurrence = null, answer = null, persist = null, onPlaceholders = null,
+  } = ctx;
+  const source = files.find((f) => (f?.type || "").startsWith("image/"));
+  if (!source || !destinationOccurrence) {
+    notifyIntake(ctx, { ok: false, error: "nothing to trace" });
+    return;
+  }
+  const mode = OUTLINE_MODES[answer] ? answer : DEFAULT_OUTLINE_MODE;
+
+  // The photo first and unconditionally, so a tracer failure still leaves the
+  // drop having done the ordinary thing rather than nothing at all.
+  const placeholders = createArtifactPlaceholders(files, {
+    gridId, userId, dispatch,
+    parentOccurrence: destinationOccurrence,
+  });
+  onPlaceholders?.(placeholders);
+  uploadArtifactPlaceholders(placeholders, { gridId, userId, dispatch, socket, persist });
+
+  const token = startIntake(ctx, `Tracing the ${mode === "coloring" ? "colouring page" : "blueprint"}…`);
+  let traced;
+  try {
+    traced = await traceImageFile(source, mode);
+  } catch (err) {
+    notifyIntake(ctx, { ok: false, error: `Could not trace that image: ${err?.message || "unknown error"}` }, token);
+    return;
+  }
+
+  const outlinePlaceholders = createArtifactPlaceholders([traced.file], {
+    gridId, userId, dispatch,
+    parentOccurrence: destinationOccurrence,
+  });
+  onPlaceholders?.(outlinePlaceholders);
+  uploadArtifactPlaceholders(outlinePlaceholders, { gridId, userId, dispatch, socket, persist });
+
+  // Report the ink. A blank trace and a solid one are both failures the user
+  // should be TOLD about rather than left to discover by opening the file —
+  // and neither throws, so nothing else would surface them.
+  const pct = traced.inkRatio * 100;
+  const note = pct < 0.2 ? "almost nothing to trace — try the blueprint setting"
+    : pct > 35 ? "very busy — try the colouring setting"
+      : null;
+  notifyIntake(ctx, { ok: true, message: "Outline added beside the image", note }, token);
 }
 
 /**

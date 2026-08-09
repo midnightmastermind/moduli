@@ -214,7 +214,23 @@ export function classifyIntake(payload = {}, destination = {}) {
       // minted into one is listed in `occurrences[]` and invisible, and no
       // caller wires an embed seam for a page. Same gate FILES_CONTAINER takes,
       // for the same reason.
-      if (!inDoc) { add(S.IMAGE_CANVAS); add(S.IMAGE_OUTLINE); }
+      if (!inDoc) {
+        add(S.IMAGE_CANVAS);
+        // ONE tile, then a question. Colouring page and blueprint are two
+        // settings of the same idea, so putting both on the sheet asks the
+        // user to pick a look before they have decided they want an outline.
+        add({
+          ...S.IMAGE_OUTLINE,
+          followUp: {
+            kind: "choose-one",
+            title: "What kind of outline?",
+            options: [
+              { value: "coloring", label: "Colouring page", hint: "Bolder, simpler lines" },
+              { value: "blueprint", label: "Blueprint", hint: "Finer, keeps the detail" },
+            ],
+          },
+        });
+      }
       if (onOccurrence && d.filesFieldId) add(S.IMAGE_ATTACH);
       // The same OCR, two different outcomes, and the sheet is what picks:
       // one item per line (a photo of a LIST) vs the prose kept whole beside
