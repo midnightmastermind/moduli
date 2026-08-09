@@ -2,6 +2,36 @@
 
 _Updated: 2026-08-07. Check this file before re-reading source._
 
+## Recent Changes (2026-08-09 — `linkPreview.js` + `0061`: what a link calls itself)
+- **`utils/linkPreview.js` (NEW)** — `fetchLinkPreview(url)` → `{ ok, url, title, favicon }`. The
+  bookmark intake shape needs a link's `<title>` and icon to mint a record; fetching the whole page
+  and building a tree (`import_url`) is a much heavier answer to a different question.
+- **Server-side because it fetches a USER-SUPPLIED URL** — it goes through the same guarded
+  `fetchPageHtml` as `import_url`, which validates EVERY redirect hop. A client-side check would be
+  advisory at best; the server is the thing with network reach.
+- **It never throws for a missing piece.** No `<title>` falls back to the host, no declared icon
+  falls back to `/favicon.ico`; the only failure is "could not reach it at all". A bookmark with no
+  title is still a bookmark.
+- **Icon preference is by USEFULNESS AS A FACE, not by what the spec calls canonical:** an
+  `apple-touch-icon` is a real bitmap at a usable size while `rel="icon"` is often a 16px `.ico`
+  that looks like grit at card size. Declared `sizes` are honoured, so a page offering several gets
+  its biggest. `rel` and `href` are read with INDEPENDENT regexes — HTML attribute order is not
+  guaranteed.
+- **`socketHandlers/import.js` — new `link_preview` handler.** Read-only, so unlike the import
+  handlers there is nothing to broadcast and no cache to keep in step.
+- **`migrations/0061-bookmark-fields.mjs`** — creates `Title` and `URL` (text) and REUSES the
+  existing `Notes` and `Poster`. **Measured on poms grid before writing:** both names free, `Notes`
+  already input-enabled and **bound by ZERO modules**, all 207 media-role bindings on `Poster`. A
+  second `Notes` would break the unique-field-names rule AND duplicate a field already sitting
+  unused. Refuses rather than minting a duplicate name when a same-named field of another type
+  exists.
+- **The SEED calls the migration** (the `0043` pattern), so a reseeded grid and a migrated grid
+  cannot drift — they are the same code, and it is idempotent by construction.
+- **Verified by driving the ROUTE'S OWN resolver over live data**, not by reading the log: all four
+  fields resolve, 207/207 media bindings still on Poster, and the 5 duplicate names are the
+  documented pre-existing seed issue (2026-08-01 (18)) with Title/URL in neither. poms grid **0
+  errors**.
+
 ## Recent Changes (2026-08-08 — the SEED now mints media artifacts, by calling migration 0043)
 - **`scripts/createLiveData.js`** — right before the seed export, the run now calls
   `migrations/0043-media-fields-to-artifacts.mjs`'s own `up()`. **It calls the migration rather than

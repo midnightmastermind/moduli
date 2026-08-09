@@ -1,6 +1,72 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-09 (7) — `image-outline`: real Canny, and looking found what tests could not)
+- **`imageOutline.js` (NEW, pure + a thin browser half, 14 tests)** — a photo becomes a LINE
+  DRAWING. ONE tile that asks colouring-page vs blueprint AFTERWARDS (user: two settings of one
+  idea, not two things to pick between before you have decided you want an outline), and **the
+  photo STAYS** — "trace only" is about the output image, not about discarding the source.
+- **WHY IT IS CANNY AND NOT A THRESHOLD.** Blur → Sobel → keep everything over a cutoff was written
+  first and produced **SOLID BLOBS, twice**: a Sobel magnitude is high across the whole SHOULDER of
+  an edge, so anything soft merges into filled regions. **Non-maximum suppression** (keep only the
+  local peak ALONG the gradient) is what turns a ramp into a line; **hysteresis** is what stops a
+  single cutoff either dropping faint contour continuations or admitting every speck of noise.
+- **THE LOW THRESHOLD IS A RATIO OF `high`, NOT ITS OWN PERCENTILE — and only LOOKING found it.**
+  A percentile rank assumes a broad gradient spread, which a PHOTO has and **LINE ART does not**:
+  on a clean ring (one uniform stroke) an independent 68th-percentile cut chopped the contour into
+  dashes at arbitrary angles. Measured: **0.24% ink in fragments → 0.97% in continuous arcs** with
+  `low = 0.4 * high`, while two real photos moved by almost nothing (2.2→2.4%, 7.9→7.5%). Someone
+  drops a screenshot as readily as a photo; only the ratio survives both.
+- **The first colouring preset was wrong in a way no metric showed:** σ2.6 / 0.93 / 0.74 produced
+  clean lines that **dropped the subject** and came out **dashed**. A broken outline is worse than a
+  sparse one — you cannot fill a region whose border has gaps.
+- **NOT tuned further against the synthetic ring**, and that restraint is the point: its remaining
+  gaps are diagonals where anti-aliasing genuinely halves the gradient, and chasing them barely
+  moved the ring (0.97→1.05%) while making both photos twice as busy.
+- **Two guards, each from an observed failure:** suppression compares **asymmetrically** (`>` one
+  side, `>=` the other) or a constant-gradient PLATEAU passes everywhere and the whole slope inks;
+  and **no surviving gradient means trace NOTHING** — a flat image otherwise sets both thresholds to
+  0, `mag >= 0` is true for every pixel, and the output is a **solid black rectangle**.
+- **The pixel math is pure typed arrays, no canvas** — jsdom has none, and this is the half where
+  being wrong is invisible until someone looks. **The canvas half was verified in a REAL BROWSER**
+  against a real TRANSPARENT png: 2.2KB image/png, size preserved, **zero transparent pixels and
+  zero greys** (the white underlay exists because a transparent source otherwise composites over
+  black and comes back framed in garbage), 25-112ms, no page errors.
+- **TWO OF MY OWN PROBES PROVED NOTHING FIRST.** A **linear ramp** is degenerate — no crest at all,
+  so it says nothing about suppression; a blurred step is what a soft edge actually looks like. And
+  a **uniform bar** does not discriminate the low threshold, because an independent percentile keeps
+  all of it too — the bar now FADES along its length so its ridge varies 5×, and the mutation then
+  fails at 21 of 60 columns. *Verify a mutation is OBSERVABLE, not merely applied.*
+
+## Recent Changes (2026-08-09 (6) — `link-bookmark`: a link becomes a RECORD, and the face must be an artifact)
+- **`intakeApply.runLinkBookmark` + `bookmarkFieldIds`** — user's choice over a chip: *"A real
+  record with fields."* Title / URL / Notes with the site's favicon as its face — filterable,
+  feedable, visible in a dropdown, none of which a textblock chip is.
+- **IT MINTS FIRST AND FILLS SECOND.** The title and favicon come from fetching an ARBITRARY HOST —
+  seconds, or never. Blocking the mint on that makes the drop look like it did nothing, and a dead
+  host would leave nothing at all. The record appears immediately with the URL and a derived label;
+  the lookup patches it when it lands. A bookmark with no title is still a bookmark.
+- **THE FACE MUST BE AN ARTIFACT OCCURRENCE ID.** `primaryMediaOf` deliberately has **no
+  legacy-string fallback**, so a favicon URL written straight into the media field resolves to
+  NOTHING — the change would look shipped and be inert. The favicon is minted as a remote-ref image
+  artifact and the field holds its id.
+- **The favicon is parented to the bookmark AND listed in its `occurrences[]`.** Both halves matter:
+  the delete cascade walks the **child LIST** (`collectDescendants`), so a favicon that is only
+  parented is ORPHANED the moment the bookmark is deleted. An instance does not render its children,
+  so it stays out of the row while appearing in the bookmark's own file spread.
+- **Fields resolve by NAME AND TYPE.** Measured on poms grid first: `Title`/`URL` free, `Notes`
+  already existing input-enabled and **bound by zero modules**, all 207 media bindings on `Poster`.
+  So migration `0061` creates TWO and reuses two, and **the seed CALLS the migration** so a reseeded
+  grid and a migrated grid cannot drift.
+- **`server/utils/linkPreview.js` (NEW)** — `<title>` plus the best icon a page declares, resolved
+  absolute, preferring a real bitmap over a 16px `.ico` and falling back to `/favicon.ico`. Never
+  throws for a missing piece; the only failure is "could not reach it". Server-side because it
+  fetches a user-supplied URL — same guarded `fetchPageHtml` as `import_url`, which checks EVERY
+  redirect hop.
+- **TWO A/Bs PROVED NOTHING FIRST, and the fixture was the reason both times:** the same-named decoy
+  was listed AFTER the real field (so a name-only match still found the right one), and
+  `occurrences: null` is coerced to `[]` by the splice helper (so the mutation was a no-op).
+
 ## Recent Changes (2026-08-09 (5) — `image-canvas`, and a LIVE invisible-write bug on the paste path)
 - **`image-canvas` is offered ANYWHERE now, not only on a canvas** (user, 2026-08-09). The shape
   MINTS the surface, so requiring one to exist first meant building the thing before you could use
