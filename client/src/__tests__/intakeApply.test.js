@@ -72,7 +72,7 @@ describe("coverage contract", () => {
     expect(implemented.length + notImplemented.length).toBe(allIntakeShapeIds().length);
     // Step 1 is behaviour-preserving: only today's shapes are wired. This is a
     // deliberate, recorded gap — Task 5 lands the rest.
-    expect(notImplemented).toContain(INTAKE_SHAPES.IMAGE_CANVAS.id);
+    expect(notImplemented).toContain(INTAKE_SHAPES.IMAGE_OUTLINE.id);
     expect(notImplemented).toContain(INTAKE_SHAPES.LINK_BOOKMARK.id);
     expect(implemented).toContain(INTAKE_SHAPES.FILE_ARTIFACT.id);
     // Landed in Task 5: the link chip and the two file-content shapes.
@@ -83,13 +83,14 @@ describe("coverage contract", () => {
 
 describe("filterToImplemented — the sheet never shows a dead tile", () => {
   it("drops shapes the router cannot carry out", () => {
-    // A png on a canvas offers artifact + canvas + outline; only artifact is wired.
+    // A png offers artifact + canvas + outline; the OUTLINE is the one still
+    // unwired (the canvas shape landed 2026-08-09).
     const c = classifyIntake({ files: [{ name: "a.png", type: "image/png" }] }, { kind: "canvas" });
-    expect(c.shapes.map((s) => s.id)).toContain(INTAKE_SHAPES.IMAGE_CANVAS.id);
+    expect(c.shapes.map((s) => s.id)).toContain(INTAKE_SHAPES.IMAGE_OUTLINE.id);
 
     const f = filterToImplemented(c);
     expect(f.shapes.every((s) => IMPLEMENTED_SHAPE_IDS.includes(s.id))).toBe(true);
-    expect(f.shapes.map((s) => s.id)).not.toContain(INTAKE_SHAPES.IMAGE_CANVAS.id);
+    expect(f.shapes.map((s) => s.id)).not.toContain(INTAKE_SHAPES.IMAGE_OUTLINE.id);
   });
 
   it("keeps the fallback when it survived", () => {
@@ -375,7 +376,7 @@ describe("applyIntakeShape — routes reach the EXISTING helpers unchanged", () 
 
   it("an unrouted shape writes NOTHING and says so", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const r = applyIntakeShape(INTAKE_SHAPES.IMAGE_CANVAS.id, ctx());
+    const r = applyIntakeShape(INTAKE_SHAPES.IMAGE_OUTLINE.id, ctx());
     expect(r).toMatchObject({ ok: false, reason: "no-route" });
     expect(createArtifactPlaceholders).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalled();
@@ -781,5 +782,64 @@ describe("the OCR shape reads a PDF page by page", () => {
     expect(res.error).toMatch(/PDF/);
     expect(res.error).toMatch(/still added/);
     expect(createArtifactPlaceholders).toHaveBeenCalledTimes(1);
+  });
+});
+
+// A canvas page reads its `occurrences[]` and dispatches by ROLE (PageCanvas),
+// so the artifacts belong in the page's child list — and unlike the folder-page
+// shape, their HOME can stay in Files.
+describe("the canvas shape mints a canvas with the image already on it", () => {
+  function run(files) {
+    const emitted = [];
+    const socket = {
+      connected: true,
+      emit: vi.fn((event, data) => emitted.push({ event, data })),
+      on: vi.fn(), off: vi.fn(),
+    };
+    createArtifactPlaceholders.mockImplementation((fs) =>
+      fs.map((f, i) => ({ moduleId: `m${i}`, occurrenceId: `o${i}`, file: f })));
+    applyIntakeShape(INTAKE_SHAPES.IMAGE_CANVAS.id, {
+      files, gridId: "g1", userId: "u1", dispatch: vi.fn(), socket,
+      destinationOccurrence: { id: "c1", moduleId: "cm", occurrences: [] },
+      destinationModule: { id: "cm", meta: {} },
+      onIntakeResult: vi.fn(),
+    });
+    return { emitted, socket };
+  }
+  const png = (n) => ({ name: `${n}.png`, type: "image/png" });
+
+  it("creates a CANVAS page, not a board or a doc", () => {
+    const { emitted } = run([png("a")]);
+    const page = emitted.find((e) => e.event === "create_module" && e.data.module?.role === "page");
+    expect(page?.data.module.kind).toBe("canvas");
+  });
+
+  it("puts every image in the canvas page's child list", () => {
+    const { emitted } = run([png("a"), png("b"), png("c")]);
+    const pageOcc = emitted.find((e) => e.event === "create_occurrence" && e.data.occurrence?.moduleId)
+      && emitted.find((e) => e.event === "create_module" && e.data.module?.role === "page");
+    expect(pageOcc).toBeTruthy();
+    // The LAST write wins, and it must carry all three — each splice writes the
+    // whole array, so a stale snapshot per file leaves only the last image.
+    const last = emitted.filter((e) => e.event === "update_occurrence" && e.data.occurrence?.occurrences).pop();
+    expect(last.data.occurrence.occurrences).toEqual(["o0", "o1", "o2"]);
+  });
+
+  it("leaves the files in Files — it does NOT re-home them", () => {
+    run([png("a")]);
+    // The folder-page shape has to move files house; this one does not, because
+    // a canvas page reads occurrences[] rather than parentId.
+    expect(uploadArtifactPlaceholders.mock.calls[0][1].parentFolderId).toBeUndefined();
+  });
+
+  it("fails CLOSED with nowhere to put the canvas", () => {
+    const onIntakeResult = vi.fn();
+    const socket = { connected: true, emit: vi.fn(), on: vi.fn(), off: vi.fn() };
+    applyIntakeShape(INTAKE_SHAPES.IMAGE_CANVAS.id, {
+      files: [png("a")], gridId: "g1", userId: "u1", dispatch: vi.fn(), socket,
+      destinationOccurrence: null, onIntakeResult,
+    });
+    expect(socket.emit).not.toHaveBeenCalled();
+    expect(onIntakeResult).toHaveBeenCalledWith(expect.objectContaining({ ok: false }));
   });
 });

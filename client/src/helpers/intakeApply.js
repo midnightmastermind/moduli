@@ -121,6 +121,9 @@ export const INTAKE_ROUTES = {
   // files are HOMED in that folder rather than in Files — a folder page renders
   // what is parented to it, so anything else leaves the page empty.
   [S.FILES_FOLDER_PAGE.id]: { run: runFilesFolderPage, note: "a per-drop folder under Imports, as a page of cards" },
+  // A NEW canvas page with the image already on it. Offered anywhere now, not
+  // only on a canvas — it mints the surface rather than needing one.
+  [S.IMAGE_CANVAS.id]: { run: runImageCanvas, note: "a new canvas page holding the image" },
 };
 
 /** Ids the router can actually carry out right now. */
@@ -712,6 +715,72 @@ function mintTextblockFromText(text, ctx, { index } = {}) {
 function runTextTextblock(ctx) {
   const { payload = {} } = ctx;
   mintTextblockFromText(payload.text ?? payload.html ?? "", ctx);
+}
+
+// An image (or a set of them) on a NEW canvas page, ready to draw over.
+//
+// ── OFFERED ANYWHERE NOW, WHICH IS THE WHOLE POINT ──────────────────────────
+// This used to require the destination to ALREADY be a canvas, which meant
+// building the surface before you could use the shape that builds it (user,
+// 2026-08-09). It mints the canvas itself.
+//
+// ── A CANVAS PAGE READS ITS `occurrences[]`, NOT `parentId` ─────────────────
+// Checked before building, because the equivalent question decided
+// `files-folder-page` the other way: `PageCanvas` maps over
+// `occurrence.occurrences`, resolves each module, and dispatches by ROLE —
+// artifact → `ArtifactCard`. So the artifacts belong in the page's child list
+// and their HOME can stay in Files, unlike the folder-page shape where the
+// folder IS the home. Position comes from `occ.meta.x/y`, with a stacking
+// fallback for anything that has none, so a fresh drop needs no coordinates.
+function runImageCanvas(ctx) {
+  const {
+    files = [], gridId, userId, dispatch, socket,
+    destinationOccurrence = null, destinationModule = null,
+    insertIndex = null, persist = null,
+  } = ctx;
+  if (!files.length) return;
+  if (!destinationOccurrence || !dispatch || !gridId || !userId) {
+    notifyIntake(ctx, { ok: false, error: "nowhere to put the canvas" });
+    return;
+  }
+
+  const label = files.length === 1
+    ? (baseName(files[0].name) || "Canvas")
+    : describeFileSet(files);
+  const made = createPageInContainer({
+    dispatch, socket, gridId, userId,
+    containerOccurrence: destinationOccurrence,
+    containerModule: destinationModule,
+    kind: "canvas",
+    label,
+    index: insertIndex,
+  });
+  if (!made?.occurrenceId) { notifyIntake(ctx, { ok: false, error: "could not create the canvas" }); return; }
+
+  // The canvas page is the PARENT for placement; the files keep their normal
+  // home in Files (no `parentFolderId`), so this shape does not move anything
+  // out of the Files folder the way the folder-page shape has to.
+  const placeholders = createArtifactPlaceholders(files, {
+    gridId, userId, dispatch,
+    parentOccurrence: { id: made.occurrenceId, gridId, userId, occurrences: [] },
+  });
+  // Accumulated, not per-file: each splice writes the WHOLE array, so a stale
+  // snapshot per file would leave only the last one on the canvas.
+  const onCanvasIds = [];
+  for (const p of placeholders) {
+    onCanvasIds.push(p.occurrenceId);
+    updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: made.occurrenceId, occurrences: [...onCanvasIds] },
+      emit: true,
+    });
+  }
+  uploadArtifactPlaceholders(placeholders, { gridId, userId, dispatch, socket, persist });
+  notifyIntake(ctx, {
+    ok: true,
+    message: files.length === 1 ? "Canvas created" : `Canvas created with ${files.length} images`,
+    pageOccurrenceId: made.occurrenceId,
+  });
 }
 
 /**

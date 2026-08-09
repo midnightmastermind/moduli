@@ -1,6 +1,34 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-09 (5) — `image-canvas`, and a LIVE invisible-write bug on the paste path)
+- **`image-canvas` is offered ANYWHERE now, not only on a canvas** (user, 2026-08-09). The shape
+  MINTS the surface, so requiring one to exist first meant building the thing before you could use
+  the shape that builds it. The `onCanvas` gate and the `canDraw` destination field are DELETED —
+  nothing read them afterwards.
+- **CHECKED BEFORE BUILDING, because the same question decided `files-folder-page` the OTHER way:**
+  `PageCanvas` maps over `occurrence.occurrences`, resolves each module and dispatches by ROLE
+  (artifact → `ArtifactCard`), positioning by `occ.meta.x/y` with a stacking fallback. So the
+  artifacts go in the page's CHILD LIST and their home can stay in Files — unlike the folder page,
+  which renders by `parentId` and therefore had to move the files house.
+- **The child list is written ACCUMULATED**, not per file: each splice writes the whole array, so a
+  stale snapshot per file leaves only the last image on the canvas. Same reason `runFilesContainer`
+  and `feedSync` accumulate. A/B'd.
+- **Withheld inside a doc body** — a doc renders its TEXTMAP, so a page minted into one is listed
+  and invisible, and no caller wires an embed seam for a page. Same gate FILES_CONTAINER takes.
+- **A LIVE BUG FOUND WHILE CHECKING THAT GATE: `IntakePasteHost` never reported `"doc"`.** It
+  mapped every container to `"board"`, so **every doc-body gate in the classifier was inert on the
+  paste path** — FILES_CONTAINER, FILES_FOLDER_PAGE and now the canvas shapes were all being
+  offered inside a doc, where each mints something invisible. Fixed: the host resolves the
+  destination module and reports `"doc"` when its kind is doc.
+- **STILL BROKEN, and recorded rather than hidden:** even with correct gating, `TEXT_TEXTBLOCK` is
+  the doc fallback and `createTextblockInContainer` ONLY splices into `occurrences[]` — it does not
+  embed. The doc DROP path fixes this with `onLinkChips` (Editor inserts a `moduleEmbed`); the
+  PASTE host has no editor to insert into, so **text pasted onto a doc container is still listed
+  but not embedded.** Fixing it needs an embed seam the paste host does not have. Filed.
+- 8 tests. A/B'd: re-requiring a canvas, dropping the doc gate, and writing the child list per-file
+  each fail exactly one. Coverage **20 → 21 of 24**.
+
 ## Recent Changes (2026-08-09 (4) — a PDF can be OCR'd now: `pdfPages.js`, every page)
 - **`pdfPages.js` (NEW)** — `eachPdfPageImage(file, onPage, { scale, maxPages })` + `isPdfFile`.
   tesseract cannot read a PDF (measured 08-08); pdf.js already rasterises pages for the artifact

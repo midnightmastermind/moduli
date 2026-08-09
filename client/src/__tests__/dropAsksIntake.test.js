@@ -89,11 +89,12 @@ describe("a file drop ASKS before it writes", () => {
   it("only offers shapes the router can carry out", () => {
     const { dropContext, ctx } = makeCtx([file("a.png")]);
     handleFileDrop(dropContext, ctx);
-    // The canvas/outline shapes exist in the classifier but Step 1 does not
-    // implement them — a tile that does nothing is worse than no tile.
+    // A tile that does nothing is worse than no tile, so the sheet only ever
+    // sees shapes the router can carry out. `image-outline` is the one still
+    // unwired here; `image-canvas` landed 2026-08-09 and SHOULD now appear.
     const ids = requests[0].classification.shapes.map(s => s.id);
-    expect(ids).not.toContain(INTAKE_SHAPES.IMAGE_CANVAS.id);
     expect(ids).not.toContain(INTAKE_SHAPES.IMAGE_OUTLINE.id);
+    expect(ids).toContain(INTAKE_SHAPES.IMAGE_CANVAS.id);
   });
 
   it("WRITES NOTHING until a shape is picked", () => {

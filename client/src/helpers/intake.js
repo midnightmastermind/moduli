@@ -142,13 +142,11 @@ function extractUrls(text) {
  *                               A LIST, not one id: there is no link field TYPE
  *                               to detect, so the user picks (see that file).
  *   filesFieldId: string|null  — its Files field
- *   canDraw:      boolean      — a surface that can host a canvas (default: kind === "canvas")
  * }
  */
 export function classifyIntake(payload = {}, destination = {}) {
   const p = payload && payload.kind ? payload : normalizeIntakePayload(payload);
   const d = destination || {};
-  const onCanvas = d.canDraw ?? d.kind === "canvas";
   const inDoc = d.kind === "doc";
   const onOccurrence = !!d.occurrenceId;
 
@@ -203,14 +201,20 @@ export function classifyIntake(payload = {}, destination = {}) {
       }
       fallback = S.FILES_SIBLINGS.id;
       // A set of images can still become one canvas or be attached in bulk.
-      if (p.allImages && onCanvas) add(S.IMAGE_CANVAS);
+      if (p.allImages && !inDoc) add(S.IMAGE_CANVAS);
       if (p.allImages && onOccurrence && d.filesFieldId) add(S.IMAGE_ATTACH);
     } else if (one && isImageFile(one)) {
       add(S.IMAGE_ARTIFACT);
-      // The canvas pair is the creative core — but only where a canvas can
-      // live. Offering "make a canvas" inside a doc body would be a shape with
-      // nowhere to go.
-      if (onCanvas) { add(S.IMAGE_CANVAS); add(S.IMAGE_OUTLINE); }
+      // OFFERED ANYWHERE, not only on a canvas (user, 2026-08-09) — both of
+      // these MINT a canvas page rather than needing one to already exist, so
+      // requiring a canvas made you build the surface before you could use the
+      // shape that builds it.
+      //
+      // Still withheld inside a DOC BODY: a doc renders its TEXTMAP, so a page
+      // minted into one is listed in `occurrences[]` and invisible, and no
+      // caller wires an embed seam for a page. Same gate FILES_CONTAINER takes,
+      // for the same reason.
+      if (!inDoc) { add(S.IMAGE_CANVAS); add(S.IMAGE_OUTLINE); }
       if (onOccurrence && d.filesFieldId) add(S.IMAGE_ATTACH);
       // The same OCR, two different outcomes, and the sheet is what picks:
       // one item per line (a photo of a LIST) vs the prose kept whole beside

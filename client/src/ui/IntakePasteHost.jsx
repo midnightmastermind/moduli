@@ -88,10 +88,19 @@ export default function IntakePasteHost() {
       const occurrencesById = ctx?.getOccMap?.() || {};
       const destOcc = dest?.occId ? occurrencesById[dest.occId] : null;
 
+      // A DOC container must report "doc", not "board". Every doc-body gate in
+      // the classifier keys off that — FILES_CONTAINER, FILES_FOLDER_PAGE and
+      // the canvas shapes are all withheld inside a doc because a doc renders
+      // its TEXTMAP, so anything merely listed in `occurrences[]` is invisible.
+      // Reporting "board" made all of those gates inert on the paste path.
+      const destMod = destOcc ? (ctx?.getModMap?.()?.[destOcc.moduleId] || null) : null;
+      const destKind = dest?.kind !== "container" ? null
+        : destMod?.kind === "doc" ? "doc" : "board";
+
       const classification = filterToImplemented(
         classifyIntake(
           { files: payload.files, text: payload.text, html: payload.html, url: payload.url },
-          { kind: dest?.kind === "container" ? "board" : null, occurrenceId: dest?.occId || null },
+          { kind: destKind, occurrenceId: dest?.occId || null },
         ),
       );
 

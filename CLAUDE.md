@@ -6,6 +6,45 @@
 
 ---
 
+### 2026-08-09 (6) — `image-canvas` mints its own surface; and every doc gate was inert on PASTE
+
+Coverage **20 → 21 of 24**. Three left.
+
+**The shape MINTS the canvas**, so requiring the destination to already be one meant building the
+surface before you could use the shape that builds it. The `onCanvas` gate is gone, along with the
+`canDraw` field nothing else read.
+
+**Checked before building, because the same question decided `files-folder-page` the OTHER way.**
+`PageCanvas` reads `occurrence.occurrences` and dispatches by role; the folder page reads
+`parentId`. So the canvas shape puts the artifacts in the page's CHILD LIST and leaves their home in
+Files, where the folder-page shape had to move the files house. Two surfaces, two different answers,
+and the only way to know which is which is to read the renderer.
+
+**AND CHECKING THE DOC GATE FOUND A LIVE BUG IN SHIPPED CODE.** `IntakePasteHost` mapped every
+container to `"board"` and never reported `"doc"` — so **every doc-body gate in the classifier was
+inert on the paste path.** `FILES_CONTAINER`, `FILES_FOLDER_PAGE` and now the canvas shapes were all
+being offered inside a doc, where each mints something the doc will never render. Three gates
+written carefully over three days, all bypassed by one destination field. *A gate is only as good as
+the value the caller reports — the fifth call-site defect this week, and the first one that silently
+disabled work already done.*
+
+**One thing is still broken and is filed rather than hidden:** `createTextblockInContainer` only
+splices into `occurrences[]`. The doc DROP path embeds via `onLinkChips`; the paste host has no
+editor to insert into, so **text pasted onto a doc container is listed but not embedded** — present
+in the data, invisible on screen. Fixing it needs a seam the paste host does not have, so it is
+written down instead of guessed at.
+
+A/B'd: re-requiring a canvas, dropping the doc gate, and writing the child list per file each fail
+exactly one test.
+
+**And four tests asserted `image-canvas` was unimplemented** — true until it wasn't. The full-suite
+count went 3 failures → 4, which is the only reason the fourth was caught: three of them lived in
+files I had already run, the fourth did not. **Read the failure COUNT, not "roughly the same".**
+
+2229 client tests (the same 3 pre-existing `liveOpsBehavioral` failures). Build clean.
+
+---
+
 ### 2026-08-09 (5) — the user was right: a board page CAN hold artifacts, and one surface disagreed
 
 User, correcting a note I had written: ***"a board page can hold artifacts. as occurances in the

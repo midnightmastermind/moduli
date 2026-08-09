@@ -1642,7 +1642,6 @@ export function handleFileDrop(dropContext, ctx) {
     classifyIntake({ files }, {
       kind: canvasPos ? "canvas" : (finalContainerOcc ? "board" : null),
       occurrenceId: finalContainerOcc?.id || null,
-      canDraw: !!canvasPos,
       // Lights up IMAGE_ATTACH — "put this ON that thing" rather than beside it.
       // Offered only where there is somewhere to attach TO, so a destination
       // with no Files field never sees a tile that could not do anything.

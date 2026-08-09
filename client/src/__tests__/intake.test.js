@@ -215,3 +215,34 @@ describe("a shape can ask a second question", () => {
     expect(S.LINK_FIELD_VALUE.followUp).toBeUndefined();
   });
 });
+
+// The canvas shapes MINT the surface, so requiring one to exist first meant
+// building the thing before you could use the shape that builds it.
+describe("the canvas shapes are offered anywhere except a doc body", () => {
+  const png = { files: [file("shot.png", "image/png")] };
+
+  it("offers them on an ordinary board, with no canvas in sight", () => {
+    const r = classifyIntake(png, { kind: "board", occurrenceId: "c1" });
+    expect(ids(r)).toContain(S.IMAGE_CANVAS.id);
+    expect(ids(r)).toContain(S.IMAGE_OUTLINE.id);
+  });
+
+  it("still offers them ON a canvas", () => {
+    const r = classifyIntake(png, { kind: "canvas", occurrenceId: "c1" });
+    expect(ids(r)).toContain(S.IMAGE_CANVAS.id);
+  });
+
+  // A doc renders its TEXTMAP, so a page minted into one is listed in
+  // occurrences[] and invisible, and no caller wires an embed seam for a page.
+  it("withholds them inside a doc body", () => {
+    const r = classifyIntake(png, { kind: "doc", occurrenceId: "c1" });
+    expect(ids(r)).not.toContain(S.IMAGE_CANVAS.id);
+    expect(ids(r)).not.toContain(S.IMAGE_OUTLINE.id);
+  });
+
+  it("offers ONE canvas for a set of images, and not in a doc", () => {
+    const many = { files: [file("a.png", "image/png"), file("b.png", "image/png")] };
+    expect(ids(classifyIntake(many, { kind: "board", occurrenceId: "c1" }))).toContain(S.IMAGE_CANVAS.id);
+    expect(ids(classifyIntake(many, { kind: "doc", occurrenceId: "c1" }))).not.toContain(S.IMAGE_CANVAS.id);
+  });
+});
