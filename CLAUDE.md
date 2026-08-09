@@ -6,6 +6,40 @@
 
 ---
 
+### 2026-08-09 (3) — a folder page shows what is PARENTED to it, so the files had to move house
+
+Coverage **19 → 20 of 24**. Four shapes left.
+
+**THE CONSTRAINT THAT DECIDED THE WHOLE SHAPE, found by reading before building.** A folder page
+renders `childrenByParentId[folderId]`, and that index is built purely from `parentId`. An uploaded
+file is normally homed under `Files/<kind>`. **So grouping a drop into a folder while leaving the
+files in Files produces an EMPTY page** — the listed-but-not-embedded class, third time this week.
+
+**The obvious alternative was checked and rejected before it was built:** a board page renders
+CONTAINERS (`visibleList.map(({ container }) => …)`), so leaf artifacts as direct children of one
+render nothing at all.
+
+**So the files are homed in the new folder — and that trade was MEASURED rather than argued.** Of
+234 artifacts on poms grid: **223 in `Root/Files/Images`, 5 in `Root/Examples`**. A file homed
+outside Files is existing seeded behaviour, not an invariant being broken. That was worth checking,
+because the Files TAB was deleted in favour of the folder (2026-08-07 (6)) — which makes Files look
+canonical when it is really just the default.
+
+The server already had the seam: `homeFolderForUpload` documents that *"an EXPLICIT parentFolderId
+always wins — the user picked that folder"*. The CLIENT upload simply never passed one. Left null
+it still files under `Files/<kind>`, so every existing caller is byte-identical.
+
+**Home and placement are separate, as they have been since 2026-08-07 (7):** the page's home is the
+new folder (so it is findable in the tree under Imports), its placement is the container you dropped
+on (so the drop is visible where you made it).
+
+**A/B'd:** homing the files in Files, rooting the folder outside Imports, and dropping the
+fail-closed guard each fail exactly one test.
+
+2211 client tests (the same 3 pre-existing `liveOpsBehavioral` failures). Build clean.
+
+---
+
 ### 2026-08-09 (2) — "which field?" is unanswerable, so the app stopped trying to answer it
 
 Coverage **18 → 19 of 24**. The second-question step in the sheet, plus the first shape that needs

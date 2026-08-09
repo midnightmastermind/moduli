@@ -102,6 +102,11 @@ export default function IntakePasteHost() {
         dispatch: ctx?.dispatch, socket: ctx?.socket,
         destination: { parentId: dest?.occId || null },
         destinationOccurrence: destOcc,
+        // FILES_FOLDER_PAGE needs the folder tree (see the drop handler).
+        grid: state?.grid || null,
+        manifests: state?.manifests || null,
+        folders: state?.folders || null,
+        occurrencesById,
         // Needed by TEXT_DOC_PAGE: the page mint flips the parent module's
         // `allowChildContainers`, writing its whole `meta` — passing the module
         // is what stops that write clobbering the rest of it.

@@ -1588,6 +1588,15 @@ export function handleFileDrop(dropContext, ctx) {
         finalContainerOcc ? state?.modulesById?.[finalContainerOcc.moduleId] : null,
       ),
     },
+    // FILES_FOLDER_PAGE mints a folder under Imports and a page for it, so it
+    // needs the folder tree. Passed as the four values the folder helpers take
+    // rather than the whole store — the router gets resolved values, never
+    // `state`. The route fails closed and SAYS SO if these are absent, which is
+    // what stops a caller silently getting a half-shape.
+    grid: state?.grid || null,
+    manifests: state?.manifests || null,
+    folders: state?.folders || null,
+    occurrencesById,
     // NOTE the absent `parentId`. An uploaded artifact's parentId is its HOME in
     // the Files folder, stamped server-side (`homeFolderForUpload`); its presence
     // HERE is the destination's `occurrences[]` entry, written by `onPlaceholders`

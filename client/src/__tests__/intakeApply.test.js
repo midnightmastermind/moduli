@@ -593,3 +593,92 @@ describe("the link-field shape writes the URL into the CHOSEN field", () => {
     expect(onIntakeResult).toHaveBeenCalledWith(expect.objectContaining({ ok: false }));
   });
 });
+
+// ── FILES → A FOLDER PAGE ───────────────────────────────────────────────────
+// The load-bearing fact: a folder page renders `childrenByParentId[folderId]`,
+// so the files must be HOMED in the new folder. Home them in Files (the normal
+// default) and the page you just made is empty.
+describe("the folder-page shape files a drop into its own folder", () => {
+  const files = [
+    { name: "a.png", type: "image/png" },
+    { name: "b.png", type: "image/png" },
+    { name: "c.png", type: "image/png" },
+  ];
+  function run(extra = {}) {
+    const emitted = [];
+    const socket = {
+      connected: true,
+      emit: vi.fn((event, data) => emitted.push({ event, data })),
+      on: vi.fn(), off: vi.fn(),
+    };
+    const ctx = {
+      files, gridId: "g1", userId: "u1", dispatch: vi.fn(), socket,
+      destinationOccurrence: { id: "c1", moduleId: "cm", occurrences: [] },
+      grid: { _id: "g1", manifestId: "man1" },
+      manifests: [{ id: "man1", rootFolderId: "root" }],
+      folders: [{ id: "root", name: "Root", parentId: null }],
+      occurrencesById: {},
+      onIntakeResult: vi.fn(),
+      ...extra,
+    };
+    applyIntakeShape(INTAKE_SHAPES.FILES_FOLDER_PAGE.id, ctx);
+    return { emitted, ctx };
+  }
+
+  it("mints an Imports folder and a per-drop folder inside it", () => {
+    const { emitted } = run();
+    const created = emitted.filter((e) => e.event === "create_folder").map((e) => e.data.folder);
+    const imports = created.find((f) => f.name === "Imports");
+    expect(imports, "no Imports folder").toBeTruthy();
+    const drop = created.find((f) => f.name !== "Imports");
+    expect(drop, "no per-drop folder").toBeTruthy();
+    expect(drop.parentId).toBe(imports.id);
+    // Named from the files, per the user's "no prompt at drop time".
+    expect(drop.name).toMatch(/^3 images \(\d{4}-\d{2}-\d{2}\)$/);
+  });
+
+  it("HOMES the files in that folder — otherwise the page renders empty", () => {
+    const { emitted } = run();
+    const drop = emitted.filter((e) => e.event === "create_folder")
+      .map((e) => e.data.folder).find((f) => f.name !== "Imports");
+    expect(uploadArtifactPlaceholders).toHaveBeenCalledTimes(1);
+    expect(uploadArtifactPlaceholders.mock.calls[0][1].parentFolderId).toBe(drop.id);
+  });
+
+  it("does NOT scatter the files beside the page", () => {
+    const { ctx } = run();
+    // `onPlaceholders` wires ids into the DESTINATION; using it here would put
+    // the files next to the page instead of inside the folder.
+    expect(createArtifactPlaceholders).toHaveBeenCalledTimes(1);
+    expect(ctx.onPlaceholders).toBeUndefined();
+  });
+
+  it("places the page where the drop happened", () => {
+    const { emitted } = run();
+    const splice = emitted.filter((e) => e.event === "update_occurrence")
+      .map((e) => e.data.occurrence).find((o) => o.id === "c1");
+    expect(splice, "the page was never placed at the destination").toBeTruthy();
+    expect(splice.occurrences).toHaveLength(1);
+  });
+
+  it("fails CLOSED when it cannot reach the folder tree", () => {
+    const onIntakeResult = vi.fn();
+    const { emitted } = run({ grid: null, onIntakeResult });
+    expect(emitted.some((e) => e.event === "create_folder")).toBe(false);
+    expect(uploadArtifactPlaceholders).not.toHaveBeenCalled();
+    expect(onIntakeResult).toHaveBeenCalledWith(expect.objectContaining({ ok: false }));
+  });
+});
+
+describe("describeFileSet", () => {
+  const at = new Date(2026, 7, 9);
+  it("names the kind when they agree, and counts", async () => {
+    const { describeFileSet } = await import("../helpers/intakeApply.js");
+    expect(describeFileSet([{ type: "image/png" }, { type: "image/jpeg" }], at)).toBe("2 images (2026-08-09)");
+    expect(describeFileSet([{ type: "video/mp4" }], at)).toBe("1 video (2026-08-09)");
+  });
+  it("falls back to 'files' for a mixed drop", async () => {
+    const { describeFileSet } = await import("../helpers/intakeApply.js");
+    expect(describeFileSet([{ type: "image/png" }, { type: "application/pdf" }], at)).toBe("2 files (2026-08-09)");
+  });
+});

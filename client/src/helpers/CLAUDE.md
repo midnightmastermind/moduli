@@ -1,6 +1,36 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-09 (3) — `files-folder-page`: the files MOVE HOUSE, and that was checked)
+- **A folder page renders `childrenByParentId[folderId]`** — the occurrences whose `parentId` IS that
+  folder. `childrenByParentId` is built purely from `parentId` (App.jsx), and an uploaded file is
+  normally homed under `Files/<kind>`. **So grouping a drop into a folder and leaving the files in
+  Files produces an EMPTY page** — the listed-but-not-embedded class for the third time this week.
+- **THE FILES ARE THEREFORE HOMED IN THE NEW FOLDER**, via an explicit `parentFolderId` the server
+  already honours (`homeFolderForUpload`: *"An EXPLICIT parentFolderId always wins"*). `artifactUpload`
+  gained that pass-through; left null it still files under `Files/<kind>`, so every other caller is
+  byte-identical.
+- **THAT TRADE WAS MEASURED, NOT ASSUMED.** Of 234 artifacts on poms grid: **223 homed in
+  `Root/Files/Images`, 5 in `Root/Examples`**, 6 with no parent. A file homed outside Files is
+  existing seeded behaviour, not an invariant this breaks. Worth checking because the Files TAB was
+  deleted in favour of the folder (2026-08-07 (6)), which makes it look canonical.
+- **A board page was the obvious alternative and does NOT work:** `PageBoard` maps
+  `visibleList.map(({ container }) => …)` — it renders CONTAINERS, so leaf artifacts as direct
+  children of a board page render nothing. Checked before building, not after.
+- **`runFilesFolderPage`** — Imports folder → a new per-drop folder inside it → its folder-page
+  occurrence → the page spliced into the DESTINATION (home = the folder, placement = where you
+  dropped, the same split uploads use) → the files uploaded with `parentFolderId`. Deliberately no
+  `onPlaceholders`: that seam wires ids into the destination and would scatter the files beside the
+  page, exactly as it would for `runFilesContainer`.
+- **The per-drop folder is NOT `meta.protected`** — Imports is structural and the app files things
+  there unasked, but this one is the user's to rename or delete.
+- **`describeFileSet`** names it "3 images (2026-08-09)". Deliberately dumb, because the user chose
+  auto-naming over a prompt — which only works if a wrong-ish name is cheap to fix.
+- **Fails CLOSED without the folder tree** and says so; both call sites now pass
+  `grid`/`manifests`/`folders`/`occurrencesById` (resolved values, never `state`).
+- 7 tests, **A/B'd**: homing the files in Files, rooting the folder outside Imports, and dropping the
+  fail-closed guard each fail exactly one. Coverage **19 → 20 of 24**.
+
 ## Recent Changes (2026-08-09 (2) — a shape can ask a SECOND question; `link-field-value` lands)
 - **`intakeFields.js` (NEW, pure)** — `linkTargetFieldsFor(module, fieldsById)`. Which fields could a
   dropped URL go into?

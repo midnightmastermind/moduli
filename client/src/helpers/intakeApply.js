@@ -35,6 +35,7 @@ import { linkChipShape } from "./linkOccurrence";
 import { createTextblockInContainer, createContainerInContainer, createLeafInstanceInParent, spliceChildIntoParent, createPageInContainer, updateOccurrence } from "./CommitHelpers";
 import { optionBoardStampFields } from "./boardOption";
 import { attachFile } from "./mainFile";
+import { ensureImportsFolderAndPage, ensureFolderPageOcc } from "./importsFolder";
 import { splitToChecklistItems, MAX_CHECKLIST_ITEMS } from "./checklistFromText";
 import { runOcr } from "./ocr";
 import { toast } from "../state/notificationStore";
@@ -115,6 +116,10 @@ export const INTAKE_ROUTES = {
   // of LINK_CONTAINER, and the difference from FILES_SIBLINGS is only where
   // they land.
   [S.FILES_CONTAINER.id]: { run: runFilesContainer, note: "one container holding every file" },
+  // Each drop its own folder under Imports, surfaced as a page of cards. The
+  // files are HOMED in that folder rather than in Files — a folder page renders
+  // what is parented to it, so anything else leaves the page empty.
+  [S.FILES_FOLDER_PAGE.id]: { run: runFilesFolderPage, note: "a per-drop folder under Imports, as a page of cards" },
 };
 
 /** Ids the router can actually carry out right now. */
@@ -665,6 +670,92 @@ function mintTextblockFromText(text, ctx, { index } = {}) {
 function runTextTextblock(ctx) {
   const { payload = {} } = ctx;
   mintTextblockFromText(payload.text ?? payload.html ?? "", ctx);
+}
+
+/**
+ * Name a per-drop folder from the files themselves — "3 images (2026-08-09)".
+ *
+ * Deliberately dumb and deliberately RENAMEABLE: the user's call was to name it
+ * automatically rather than be prompted on every drop, which only works if a
+ * wrong-ish name is cheap to fix afterwards. Exported for its test.
+ */
+export function describeFileSet(files = [], now = new Date()) {
+  const n = files.length;
+  const kinds = new Set(files.map((f) => (f?.type || "").split("/")[0] || "file"));
+  const noun = kinds.size === 1 ? [...kinds][0] : "file";
+  const word = noun === "image" ? "image" : noun === "video" ? "video" : noun === "audio" ? "audio" : "file";
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${n} ${word}${n === 1 ? "" : "s"} (${y}-${m}-${d})`;
+}
+
+// Every dropped file into its own FOLDER, surfaced as a page of cards.
+//
+// ── WHY THE FILES MOVE HOUSE, WHICH LOOKS WRONG UNTIL YOU CHECK ─────────────
+// A folder page renders `childrenByParentId[folderId]` — the occurrences whose
+// `parentId` IS that folder. An uploaded file is normally homed under
+// `Files/<kind>`, so grouping a drop into a folder and leaving the files in
+// Files would produce an EMPTY page: the listed-but-not-embedded class, again.
+// So this shape passes an explicit `parentFolderId`, which the server already
+// honours ("the user picked that folder and it wins").
+//
+// That is a real trade — those files are no longer in Files — and it was
+// checked rather than assumed: of 234 artifacts on poms grid, 223 are homed in
+// `Root/Files/Images` but 5 live in `Root/Examples`. A file homed outside Files
+// is existing, seeded behaviour, not a new invariant being broken.
+//
+// The folder lives under Imports and the PAGE is placed where you dropped, so
+// the drop is visible in situ and still findable in the tree afterwards (user,
+// 2026-08-09: a new folder per drop, auto-named, renameable — no prompt).
+function runFilesFolderPage(ctx) {
+  const {
+    files = [], gridId, userId, dispatch, socket,
+    destinationOccurrence = null, occExtra = null,
+    grid = null, manifests = null, folders = null, occurrencesById = null,
+  } = ctx;
+  if (!files.length) return;
+  // Fails CLOSED and says which half is missing. Without the tree context there
+  // is nowhere to put the folder, and minting the files anyway would scatter
+  // them with no page to find them on.
+  if (!grid || !occurrencesById) {
+    notifyIntake(ctx, { ok: false, error: "cannot reach the folder tree from here" });
+    return;
+  }
+
+  const { folderId: importsId } = ensureImportsFolderAndPage({
+    grid, manifests, folders, occurrencesById, dispatch, socket, userId,
+  });
+  const folderId = crypto?.randomUUID?.() || `fld-${Date.now()}`;
+  const label = describeFileSet(files);
+  CommitHelpers.createFolder({
+    dispatch, socket,
+    folder: { id: folderId, name: label, parentId: importsId, gridId, userId, folderType: "normal" },
+  });
+  // NOT protected: this one IS the user's, unlike Imports itself.
+
+  const pageOccId = ensureFolderPageOcc({
+    folderId, label, gridId, occurrencesById, dispatch, socket, userId,
+  });
+  // Placement: the page shows up where the drop happened. Its HOME is the new
+  // folder (ensureFolderPageOcc parents it there), so both are true at once —
+  // the same home/placement split uploads use.
+  if (pageOccId && destinationOccurrence) {
+    spliceChildIntoParent({
+      dispatch, socket, parentOccurrence: destinationOccurrence, occurrenceId: pageOccId, index: null,
+    });
+  }
+
+  const placeholders = createArtifactPlaceholders(files, {
+    gridId, userId, dispatch, occExtra, parentOccurrence: destinationOccurrence,
+  });
+  // NOTE: no `onPlaceholders`. That seam wires new ids into the DESTINATION,
+  // which would scatter the files beside the page instead of inside it — the
+  // same reason `runFilesContainer` skips it.
+  uploadArtifactPlaceholders(placeholders, {
+    gridId, userId, dispatch, socket, parentFolderId: folderId,
+  });
+  notifyIntake(ctx, { ok: true, message: `Filed ${files.length} into “${label}”` });
 }
 
 // Every dropped file into ONE new container.

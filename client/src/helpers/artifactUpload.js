@@ -98,6 +98,13 @@ export function uploadArtifactPlaceholders(placeholders, {
   // It runs on success only — a reference to an upload that failed would be a
   // pointer to a row that does not exist.
   onUploaded = null,
+  // Where the file LIVES afterwards. Left null the server files it under
+  // `Files/<kind>` (`homeFolderForUpload`), which is the right default and what
+  // every caller wanted until now. An explicit folder always wins server-side —
+  // intake's "folder page" shape needs it, because a folder page renders the
+  // occurrences whose `parentId` IS that folder, so a file homed in Files would
+  // leave the page it was just grouped into empty.
+  parentFolderId = null,
 }) {
   const total = placeholders.length;
   const toastId = total > 1 ? toast.loading(`Uploading ${total} files…`) : null;
@@ -110,6 +117,7 @@ export function uploadArtifactPlaceholders(placeholders, {
     formData.append("gridId", gridId);
     formData.append("moduleId", p.moduleId);
     formData.append("occurrenceId", p.occurrenceId);
+    if (parentFolderId) formData.append("parentFolderId", parentFolderId);
 
     const controller = new AbortController();
     let lastProgress = 0;
