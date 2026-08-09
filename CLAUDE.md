@@ -6,6 +6,162 @@
 
 ---
 
+### 2026-08-09 (8) — the date-nav task: HALF OF IT WAS ALREADY TRUE, and "49 ops" never meant 49 ops ran
+
+D7: *"daycol should only show up on the schedule or daypage and should be always based on the filter
+applied on it."* Two questions had to be measured before touching an op, and both answers changed
+the work.
+
+**(b) "Do day columns exist anywhere other than Schedule and the Day Page board?" — NO, on all three
+grids.** Zero strays. There is nothing to clean up and no migration for that half; it is retired by
+measurement rather than built. (First attempt measured the wrong thing — counting only
+`Schedule Format = day-col` misses the Day Page board's columns entirely, since that field is a
+Schedule concept. A census that answers half the question confidently is worse than none.)
+
+**(a) "Which ops actually fire on each navigation?" — ANSWERED WITHOUT A BROWSER**, by driving the
+REAL `computeTriggerMatch` over the LIVE op data (dumped read-only, replayed against synthetic
+NavigationOps of the exact shape `updateOccurrenceFilterOverride` fires):
+```
+poms grid, 67 enabled ops        ops MATCHED by one navigation
+toolbar / grid filter                   48
+Schedule page nav                        6      ← incl. Day Page: Build
+Day Page board nav                       4
+Trackers page nav                       44      ← incl. BOTH build ops
+onLoad sweep                            53
+```
+**So the docket's "49 ops are evaluated when about three are date-dependent" is about MATCH-CHECKING,
+not execution — a page-local Schedule nav has only ever RUN six ops.** Worth stating plainly,
+because the phrasing has been read as "49 pipelines execute" for two sessions.
+
+**AND THE FOREIGN RUNS COULD NEVER HAVE CHANGED ANYTHING, which is what made the fix safe rather than
+a trade.** Each build op takes its dates from `$activePeriodDates`, which the executor resolves from
+`operation.targetOccurrenceId` — its OWN page (Build Schedule → the Schedule page, Day Page: Build →
+the board). So a Trackers navigation rebuilt the Schedule *for the Schedule's own, unchanged dates*:
+a per-day FIND, an APPLY_TEMPLATE merge and two extra passes, to conclude nothing changed.
+
+**The one behaviour that DID depend on the coupling turns out not to apply here.** 2026-05-15 records
+the user confirming "a Goals nav seeds the Schedule for that day" — but that belonged to
+`makeScheduleBuildDayOp`, whose `$schedDate` chain prefers `$trigger.date`. That op is not on poms
+grid; `makeScheduleBuildScheduleOp` never had the behaviour to lose. *An old user decision has to be
+checked against the op that actually runs today before it is treated as a constraint.*
+
+**Shipped:** both source guards now pass only the toolbar/onLoad case and the op's OWN page, the
+`$goalsPage` var they left dead is gone, and the seed's two call sites stop passing it. Migration
+**`0062`** carries it to the stored pipelines — **DRY RUN ONLY, reported against a named expectation**
+(Build Schedule drops `$goalsPage.id`; Day Page: Build drops `$schedPage.id` + `$goalsPage.id`; both
+drop the dead var; 2 ops). **NOT APPLIED — poms grid is live data and that is the user's call.**
+
+**WHAT THIS DOES NOT DO, said plainly: it does not reduce the ops-MATCHED count.** The guard is
+inside the pipeline, so a Trackers nav still matches 44 ops — two of them now exit at their first
+step instead of running a template merge. Tightening the TRIGGER instead would need `ancestorLabel`,
+which matches on a label the user is free to rename; the id-based guard is rename-proof, which is why
+it stays where it is.
+
+**And the dominant cost is untouched, because it is a product question rather than a perf one:** of
+the 44 ops on a Trackers nav, ~42 are trackers, and they are legitimately date-dependent. Whether
+they must all recompute on every date change is the docket's own open question and needs the user.
+
+**NOT MEASURED: wall clock in a browser.** The before/after `[op-timing]` numbers the task asks for
+were not taken — every claim here is from the real matcher over real data and a dry run, which is
+what made the change safe, but the size of the win is unquantified and I am not claiming one.
+
+7 migration tests (idempotency, surgical scope, a nested guard, and the discriminating case: a var
+still read elsewhere is KEPT) + 3 builder tests, A/B'd — re-coupling the goals page fails 2. 619
+server tests, 2289 client (the same 3 pre-existing `liveOpsBehavioral` failures).
+
+**Honest coverage gap:** the guard change is pinned structurally, not behaviorally — the behavioral
+harness boots from the EXPORTED seed JSON, which still carries the old ops until a reseed.
+
+**The two other unscoped ops, both settled in the same pass:**
+
+- **`Schedule: Place Dated Work` had NO source guard at all** and fired on every page's navigation.
+  It now carries one, and — because `evalGroup` handles nested groups — it is nested INSIDE the
+  existing `$schedPageId IS_NOT_EMPTY` precondition rather than wrapped around it: adding one rule
+  to a condition that already exists is a far smaller edit to a STORED pipeline than re-nesting its
+  steps. **That means the migration has to ADD, not just drop** — the builder change alone would be
+  inert on an already-seeded grid, which is the "shipped and does nothing" class this repo keeps
+  paying for. `addGuard` fails CLOSED with a reason when it cannot find the precondition to attach
+  to, and the two halves are pinned against each other (a test asserts `tightenOp` can still read
+  what `addGuard` writes, or a later pass would silently miss it).
+- **`Days Until Due` is LEFT ALONE, and the measurement is why.** It writes
+  **2 values on poms grid** (2 of 2637 occurrences carry a Due date; 20 on test grid 1, 0 on test
+  grid 2), so there is nothing to save. And its output is `dueDate − today` — it depends on the WALL
+  CLOCK, not on any page's filter, so the nav trigger is the one thing that re-derives a stale
+  countdown for a tab left open past midnight. Scoping it would remove a small real benefit to save
+  nothing. *Retiring a fix by measuring it is the outcome, not a failure to do the work.*
+
+`0062` therefore reports **3 ops**: two tightened, one guarded for the first time.
+
+---
+
+### 2026-08-09 (7) — the last shape lands: coverage is **24 of 24**, and the drop path had the SAME inert gate
+
+`link-follow` — "…and follow its links". Coverage measured with the router's own tables rather than
+read off the list: **24 routed / 24 declared / 0 orphans.** The coverage test now asserts
+`notImplemented` is EMPTY, so the contract is closed rather than merely satisfied today.
+
+**THE SPEC SAID "A SECOND FOLLOW-UP KIND IN THE SHEET", AND THE SHEET IS THE WRONG PLACE.** The
+task note predicted an async multi-select step inside `IntakeSheet`. Two of the sheet's own
+properties say otherwise: its contract is that it is pure UI which *"never writes at all"*, and
+`IntakeSheetHost` deliberately CLOSES the sheet before running the caller's callback so *"a slow
+write never leaves the sheet sitting open over the work it started"*. A crawl of an arbitrary page
+is exactly that slow write — and Escape from step 2 goes BACK, so backing out mid-fetch is a state
+nobody needs to get right. So the shape is picked, the sheet closes, and the ROUTE runs the crawl
+and opens a separate `ConfirmListHost` — which is what D5's own note ("reuse the shape of
+AssistantDrawer's `wikipedia_import_batch` confirm card") was pointing at all along.
+
+**AND THAT CHOICE COST NOTHING AT THE CALL SITES, which was the other half of the reasoning.** A
+loader threaded into the sheet would have needed wiring at five call sites — the class of gap that
+has been the real defect four sessions running. A route-driven surface needs ONE mount, in App.
+
+**THE CONFIRM IS THE FEATURE, so "nowhere to ask" means DO NOT DO IT.** `openConfirmList` returns
+false with no host (a preview iframe, a harness) and the route REFUSES and says so. The fallback
+every other shape takes — do today's thing rather than swallow the drop — is exactly wrong here:
+importing twenty pages because there was nowhere to ask is the one outcome this shape exists to
+prevent. A/B'd — making it import them all fails that test.
+
+**THE SAME INERT-GATE DEFECT AS THE PASTE HOST, on the DROP path this time.** While gating the new
+shape out of doc bodies I checked what the caller reports, and `handleExternalDrop`'s link branch
+hardcoded `kind: "board"` — so **every doc-body gate in the classifier was inert for a dropped
+link**, precisely the defect found on `IntakePasteHost` yesterday (2026-08-09 (5)). It reports the
+container's real kind now. *Second time in two days, second call site: a gate is only as good as the
+value the caller reports, and the only way to know is to read the caller.*
+
+**Sequential by design, and that is load-bearing rather than lazy.** One fetch and one whole-page
+import per link, in a chain — a parallel volley would hammer a stranger's site and stack N
+page-builds on the server at once, to save a wait the toast is already narrating page by page. The
+test measures concurrency (`maxInFlight === 1`) rather than asserting the shape of the code.
+
+**Homed by `parentId`, because a folder page renders what is PARENTED to it** — the constraint that
+decided `files-folder-page`, reached from the link side. `markdownToModuli` already sets the import
+root's parentId from what it is handed, so one argument does it.
+
+**It reports the TALLY, not the last outcome.** A dozen fetches against a dozen sites means some
+failing is the normal case: "Imported 9 pages · 3 could not be read" is honest where either "done"
+or "failed" is a lie. A/B'd — dropping the note fails a test, and a run where everything failed is
+reported as a failure rather than "imported 0".
+
+**Server half:** `utils/harvestLinks.js` (pure, 15 tests) + a read-only `link_harvest` socket
+handler behind the same guarded fetch `import_url` uses. Links are read from the MAIN CONTENT, not
+the raw page — a site's nav and footer links belong to the site, not to the article you dropped,
+and they outnumber the real ones several times over.
+
+**Four A/Bs on the route, four on the call site + gate — each fails exactly one test.** 616 server
+tests, 2289 client (**the same 3 pre-existing `liveOpsBehavioral` failures — A/B'd against stashed
+source this session, identical 3**). Build clean, chunk sanity holding.
+
+**NOT VERIFIED, and it is the honest gap: no link has been followed in a browser.** Every write is
+asserted and every refusal is A/B'd, but nobody has dropped a link, watched a real page get crawled,
+ticked a list and seen the pages arrive. **Not deployed** for that reason.
+
+**Also filed, unchanged:** text pasted onto a doc container is still listed-but-not-embedded
+(`createTextblockInContainer` only splices; the paste host has no editor to insert into). And
+`TEXT_DOC_PAGE` remains offered inside a doc, where the page it mints is invisible — the same class
+this session gated `link-follow` out of, left alone because fixing it properly means an embed seam
+for pages rather than a fourth gate.
+
+---
+
 ### 2026-08-09 (6) — `image-canvas` mints its own surface; and every doc gate was inert on PASTE
 
 Coverage **20 → 21 of 24**. Three left.
