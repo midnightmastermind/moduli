@@ -111,6 +111,10 @@ export default function IntakePasteHost() {
         dispatch: ctx?.dispatch, socket: ctx?.socket,
         destination: { parentId: dest?.occId || null },
         destinationOccurrence: destOcc,
+        // LINK_BOOKMARK resolves Title/URL/Notes/Poster by name AND type.
+        // Without it the route refuses rather than minting a labelled row that
+        // delivers none of what the shape promised.
+        fieldsById: ctx?.fieldsById || {},
         // FILES_FOLDER_PAGE needs the folder tree (see the drop handler).
         grid: state?.grid || null,
         manifests: state?.manifests || null,

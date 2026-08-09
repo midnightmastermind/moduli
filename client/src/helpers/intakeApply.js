@@ -97,6 +97,10 @@ export const INTAKE_ROUTES = {
   // The FIRST shape that asks a second question — which field — because there
   // is no link field type to detect (see helpers/intakeFields.js).
   [S.LINK_FIELD_VALUE.id]: { run: runLinkFieldValue, note: "write the link into a field on this occurrence" },
+  // A real RECORD — Title / URL / Notes with the site's favicon as its face —
+  // rather than a chip. Mints immediately and fills from the server-side
+  // lookup when it lands, because that lookup fetches an arbitrary host.
+  [S.LINK_BOOKMARK.id]: { run: runLinkBookmark, note: "a record with Title, URL, Notes and the favicon" },
   // Attach an image to the occurrence it was dropped ON, rather than adding a
   // sibling next to it. Offered only where there is a Files field to attach to.
   [S.IMAGE_ATTACH.id]: { run: runImageAttach, note: "append to this occurrence's Files, as its face if it has none" },
@@ -549,6 +553,155 @@ function runLinkFieldValue(ctx) {
     triggerField: { fieldId: answer, value: url, instanceId: destinationOccurrence.id },
   });
   notifyIntake(ctx, { ok: true, message: "Link saved to the field" });
+}
+
+// ── LINK → BOOKMARK ────────────────────────────────────────────────────────
+//
+// User, 2026-08-09, choosing between a chip and a record: "A real record with
+// fields." So a dropped link becomes an ordinary occurrence carrying Title, URL
+// and Notes, with the site's favicon as its face — filterable, feedable, and
+// visible in a dropdown, none of which a textblock chip is.
+//
+// ── IT MINTS FIRST AND FILLS SECOND, AND THAT IS THE DESIGN ────────────────
+//
+// The title and favicon come from FETCHING AN ARBITRARY HOST — seconds, or
+// never. Blocking the mint on that makes the drop look like it did nothing, and
+// a failed lookup would leave nothing at all. So the record appears immediately
+// carrying the URL and a label derived from it (the same `linkChipShape` label
+// a chip gets), and the lookup PATCHES it when it lands. A bookmark with no
+// title is still a bookmark — `server/utils/linkPreview.js` holds the same line.
+//
+// ── THE FACE IS AN ARTIFACT, NOT A URL ─────────────────────────────────────
+//
+// `primaryMediaOf` deliberately has NO legacy-string fallback ("a passthrough
+// would render an unmigrated grid correctly and hide the fact that it was never
+// migrated"), so a favicon URL written straight into the media field resolves to
+// NOTHING. The favicon is minted as a real `role:"artifact" kind:"image"`
+// occurrence — the remote-ref shape the importer already uses for Wikipedia
+// images — and the field holds ITS id.
+//
+// It is parented to the BOOKMARK and spliced into the bookmark's own
+// `occurrences[]`. Both halves matter: `parentId` alone is not enough, because
+// the delete cascade walks the child LIST, so a favicon that is only parented
+// would be orphaned the moment the bookmark is deleted. An instance does not
+// render its children, so it stays invisible in the row while showing up in the
+// bookmark's own file spread — which is where a file belonging to it belongs.
+const BOOKMARK_FIELD_SPEC = [
+  { key: "title", name: "Title", type: "text" },
+  { key: "url", name: "URL", type: "text" },
+  { key: "notes", name: "Notes", type: "text" },
+];
+
+/**
+ * Resolve the bookmark fields by NAME AND TYPE.
+ *
+ * Name alone is not enough: this grid has two fields called "Due" (a display
+ * number and a real date), which is exactly why migration `0055` and every one
+ * since discriminates on both. Exported for the test.
+ */
+export function bookmarkFieldIds(fieldsById = {}) {
+  const all = Object.values(fieldsById || {});
+  const pick = (name, type) => all.find(
+    (f) => String(f?.name || "").trim().toLowerCase() === name.toLowerCase() && f?.type === type,
+  )?.id || null;
+
+  const out = {};
+  for (const spec of BOOKMARK_FIELD_SPEC) out[spec.key] = pick(spec.name, spec.type);
+  // The media field is the grid's existing face field — 207 bindings point at
+  // "Poster", so a second one would be a duplicate name AND a second meaning.
+  out.poster = pick("Poster", "text");
+  return out;
+}
+
+function runLinkBookmark(ctx) {
+  const {
+    payload = {}, destinationOccurrence = null, gridId, userId, dispatch, socket,
+    fieldsById = {}, insertIndex = null,
+  } = ctx;
+  const url = payload.urls?.[0];
+  if (!url || !destinationOccurrence) {
+    notifyIntake(ctx, { ok: false, error: "nowhere to put the bookmark" });
+    return;
+  }
+
+  const ids = bookmarkFieldIds(fieldsById);
+  // Title and URL are what make this a RECORD rather than a card. Without them
+  // the shape would mint a labelled row and quietly deliver none of what it
+  // promised, so it refuses and names the missing half.
+  if (!ids.title || !ids.url) {
+    notifyIntake(ctx, { ok: false, error: "this grid has no Title/URL fields — run migration 0061" });
+    return;
+  }
+
+  // Bind everything the grid HAS: Notes and Poster are optional, and a grid
+  // missing one still gets a working bookmark with one fewer value.
+  const bindings = [];
+  const order = (i) => ({ order: i });
+  if (ids.title) bindings.push({ fieldId: ids.title, role: "input", ...order(0) });
+  if (ids.url) bindings.push({ fieldId: ids.url, role: "input", ...order(1) });
+  if (ids.notes) bindings.push({ fieldId: ids.notes, role: "input", ...order(2) });
+  // `role:"media"` is what `primaryMediaOf` looks for, and HIDDEN because the
+  // face renders as the row's thumbnail — never as a field to read.
+  if (ids.poster) bindings.push({ fieldId: ids.poster, role: "media", hidden: true, ...order(3) });
+
+  const label = linkChipShape({ url, inline: false }).label;
+  // The fields as minted. Kept so the patch below can rebuild the whole map
+  // without re-reading: the server merges an occurrence patch at the TOP level,
+  // so `fields` replaces wholesale, and this route is the only writer of this
+  // occurrence's fields in the window between the mint and the patch (the
+  // favicon splice writes `occurrences[]`, not `fields`).
+  const seeded = {
+    [ids.title]: { value: label, flow: "in" },
+    [ids.url]: { value: url, flow: "in" },
+  };
+  // APPENDS — `createLeafInstanceInParent` has no index parameter, the same as
+  // the board-option route. Honest append beats a drop-index argument that is
+  // silently ignored.
+  const minted = createLeafInstanceInParent({
+    dispatch, socket, gridId, userId,
+    parentOccurrence: destinationOccurrence,
+    label,
+    initialFields: seeded,
+    fieldBindings: bindings,
+  });
+  if (!minted) { notifyIntake(ctx, { ok: false, error: "could not create the bookmark" }); return; }
+
+  // The record exists — say so now. The lookup that follows only improves it.
+  const token = startIntake(ctx, "Looking up the link…");
+  notifyIntake(ctx, { ok: true, message: "Bookmark added" }, token);
+
+  if (typeof socket?.emit !== "function") return;
+  socket.emit("link_preview", { url }, (res) => {
+    if (!res?.ok) return; // The bookmark stands on its own; a failed lookup is not a failed drop.
+    const patch = {};
+    if (res.title && res.title !== label) patch[ids.title] = { value: res.title, flow: "in" };
+    // The FINAL url after redirects — the one that was actually reached.
+    if (res.url && res.url !== url) patch[ids.url] = { value: res.url, flow: "in" };
+
+    if (res.favicon && ids.poster) {
+      const art = CommitHelpers.addImageArtifactFromUrl({
+        dispatch, socket, gridId, userId,
+        // The bookmark is the favicon's home AND its lister, so the delete
+        // cascade takes it along.
+        containerOccurrence: { id: minted.occurrenceId, occurrences: [] },
+        url: res.favicon,
+        label: res.title || label,
+      });
+      if (art?.occurrenceId) patch[ids.poster] = { value: art.occurrenceId, flow: "in" };
+    }
+
+    if (!Object.keys(patch).length) return;
+    updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: minted.occurrenceId, fields: { ...seeded, ...patch } },
+      emit: true,
+    });
+    // The label follows the real title — an occurrence's label is what the tree,
+    // search and every chip render.
+    if (patch[ids.title]) {
+      updateOccurrence({ dispatch, socket, occurrence: { id: minted.occurrenceId, label: res.title }, emit: true });
+    }
+  });
 }
 
 // Fetch what the link points at and build the page from it. The URL is NOT

@@ -9432,6 +9432,25 @@ async function main() {
       });
     }
 
+    // ── The bookmark fields (migration 0061, shared with the live grid) ──
+    //
+    // A dropped link can become a real record — Title / URL / Notes with the
+    // favicon as its face — and that needs two fields the seed has never had.
+    // Called rather than reimplemented, for the same reason 0043 is above: a
+    // reseeded grid and a migrated grid are then the SAME CODE and cannot
+    // drift. It only ever CREATES, and matches by name AND type, so a second
+    // run is a no-op.
+    {
+      const { up: addBookmarkFields } = await import("../migrations/0061-bookmark-fields.mjs");
+      console.log("\n🔖 Bookmark fields (migration 0061, shared with the live grid)…");
+      await addBookmarkFields({
+        gridId: result.gridId,
+        models: { Field },
+        log: (m) => console.log(`   ${m}`),
+        dryRun: false,
+      });
+    }
+
     // ── Snapshot to server/seed/*.json (skipped with --no-export) ──
     // The on-disk seed acts as the canonical fixture for fast restores
     // via `reloadLiveData.js`. Default = always export so the JSON

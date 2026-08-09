@@ -1785,6 +1785,9 @@ export function handleExternalDrop(dropContext, ctx) {
     // `isOptionBoard` is what lights up the BOARD OPTION shape. It is derived
     // from the board's own feed (helpers/boardOption) rather than a list of
     // board ids, so all 34 option boards get it and an ordinary board does not.
+    // Shared by the LINK_FIELD_VALUE question and the BOOKMARK route, which
+    // resolves Title/URL/Notes/Poster by name AND type.
+    const linkFieldsById = Object.fromEntries((state?.fields || []).map((f) => [f.id, f]));
     const classification = filterToImplemented(
       classifyIntake({ url: droppedUrl }, {
         kind: "board",
@@ -1795,7 +1798,7 @@ export function handleExternalDrop(dropContext, ctx) {
         // (helpers/intakeFields.js has the measurement).
         linkFields: linkTargetFieldsFor(
           containerOcc ? state?.modulesById?.[containerOcc.moduleId] : null,
-          Object.fromEntries((state?.fields || []).map((f) => [f.id, f])),
+          linkFieldsById,
         ),
       }),
     );
@@ -1807,6 +1810,8 @@ export function handleExternalDrop(dropContext, ctx) {
       // the same destination + index the legacy card path resolves.
       userId: state?.userId, dispatch,
       destinationOccurrence: containerOcc || null,
+      // LINK_BOOKMARK resolves its fields by name AND type from this.
+      fieldsById: linkFieldsById,
       insertIndex: dropTarget.context?.insertAt
         ?? resolveNearestIndex(containerOcc, occurrencesById, y),
       onImportResult: (res) => {

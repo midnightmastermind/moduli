@@ -33,6 +33,7 @@ import { htmlToMarkdown, wikiHtmlToMarkdown } from "../services/wikipediaTools.j
 import { markdownToModuli } from "../services/markdownImporter.js";
 import { persistImportResult } from "../utils/persistImport.js";
 import { fetchPageHtml } from "../utils/safeFetchUrl.js";
+import { fetchLinkPreview } from "../utils/linkPreview.js";
 import { extractMainContent } from "../utils/mainContent.js";
 
 // Name the page from its own <title> when the caller didn't supply one, so a
@@ -113,6 +114,24 @@ export function registerImportHandlers(socket, {
       console.error("import_text error:", err);
       reply({ ok: false, error: err?.message || "internal error" });
     }
+  });
+
+  // What a link calls itself — its <title> and favicon — WITHOUT importing it.
+  // The bookmark intake shape needs those to mint a record; fetching the whole
+  // page and building a tree (import_url, below) is a different, much heavier
+  // answer to a different question.
+  //
+  // Read-only: it creates nothing, so unlike the import handlers there is
+  // nothing to broadcast and no cache to keep in step.
+  socket.on("link_preview", async (payload = {}, ack) => {
+    const { url, requestId = null } = payload;
+    const reply = (out) => {
+      if (typeof ack === "function") ack(out);
+      socket.emit("link_preview_result", { requestId, ...out });
+    };
+    if (!socket.userId) return reply({ ok: false, error: "unauthenticated" });
+    if (typeof url !== "string" || !url.trim()) return reply({ ok: false, error: "url required" });
+    reply(await fetchLinkPreview(url, { fetchPageHtml }));
   });
 
   socket.on("import_url", async (payload = {}, ack) => {

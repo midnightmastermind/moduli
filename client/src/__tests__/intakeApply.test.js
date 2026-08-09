@@ -73,11 +73,11 @@ describe("coverage contract", () => {
     // Step 1 is behaviour-preserving: only today's shapes are wired. This is a
     // deliberate, recorded gap — Task 5 lands the rest.
     expect(notImplemented).toContain(INTAKE_SHAPES.IMAGE_OUTLINE.id);
-    expect(notImplemented).toContain(INTAKE_SHAPES.LINK_BOOKMARK.id);
     expect(implemented).toContain(INTAKE_SHAPES.FILE_ARTIFACT.id);
     // Landed in Task 5: the link chip and the two file-content shapes.
     expect(implemented).toContain(INTAKE_SHAPES.LINK_CHIP.id);
     expect(implemented).toContain(INTAKE_SHAPES.FILE_MARKDOWN_IMPORT.id);
+    expect(implemented).toContain(INTAKE_SHAPES.LINK_BOOKMARK.id);
   });
 });
 
@@ -841,5 +841,148 @@ describe("the canvas shape mints a canvas with the image already on it", () => {
     });
     expect(socket.emit).not.toHaveBeenCalled();
     expect(onIntakeResult).toHaveBeenCalledWith(expect.objectContaining({ ok: false }));
+  });
+});
+
+// ── LINK → BOOKMARK ─────────────────────────────────────────────────────────
+//
+// The user's choice over a chip: "A real record with fields." Two things carry
+// the risk and neither is the happy path:
+//
+//   1. THE RECORD EXISTS BEFORE THE LOOKUP DOES. The title/favicon come from
+//      fetching an arbitrary host — seconds, or never. If the mint waited on
+//      that, a slow or dead host would make the drop look like it did nothing.
+//   2. THE FACE MUST BE AN ARTIFACT ID. `primaryMediaOf` has no legacy-string
+//      fallback, so a favicon URL written straight into the media field
+//      resolves to nothing and the bookmark renders faceless — a change that
+//      looks shipped and is inert.
+describe("the bookmark shape mints a record, then fills it from the lookup", () => {
+  const FIELDS = {
+    // The decoy comes FIRST on purpose: same NAME, wrong TYPE. A name-only
+    // match takes whichever the map yields first, so a decoy listed after the
+    // real field makes the mutation a no-op and the test proves nothing — the
+    // trap two fields called "Due" already set on this grid.
+    "f-title-num": { id: "f-title-num", name: "Title", type: "number" },
+    "f-title": { id: "f-title", name: "Title", type: "text" },
+    "f-url": { id: "f-url", name: "URL", type: "text" },
+    "f-notes": { id: "f-notes", name: "Notes", type: "text" },
+    "f-poster": { id: "f-poster", name: "Poster", type: "text" },
+  };
+
+  function run({ fieldsById = FIELDS, preview = undefined } = {}) {
+    const emitted = [];
+    let ackFn = null;
+    const socket = {
+      connected: true,
+      emit: vi.fn((event, data, ack) => {
+        emitted.push({ event, data });
+        if (event === "link_preview") ackFn = ack;
+      }),
+      on: vi.fn(), off: vi.fn(),
+    };
+    const onIntakeResult = vi.fn();
+    applyIntakeShape(INTAKE_SHAPES.LINK_BOOKMARK.id, {
+      payload: { kind: "link", urls: ["https://example.com/some/page"] },
+      destinationOccurrence: { id: "c1", moduleId: "cm", occurrences: [] },
+      gridId: "g1", userId: "u1", dispatch: vi.fn(), socket,
+      fieldsById, onIntakeResult,
+    });
+    // Deliver the server's answer only when the test asks for one, so the
+    // "before the lookup" assertions are about a genuinely pending lookup.
+    if (preview !== undefined) ackFn?.(preview);
+    return { emitted, socket, onIntakeResult };
+  }
+
+  const newOcc = (emitted) => emitted.find((e) => e.event === "create_occurrence")?.data.occurrence;
+  const newMod = (emitted) => emitted.find((e) => e.event === "create_module")?.data.module;
+
+  it("mints the record with the URL BEFORE the lookup answers", () => {
+    const { emitted, onIntakeResult } = run();
+    const occ = newOcc(emitted);
+    expect(occ, "no record was created").toBeTruthy();
+    expect(occ.fields["f-url"]).toEqual({ value: "https://example.com/some/page", flow: "in" });
+    // Reported as done already — the lookup only improves it.
+    expect(onIntakeResult).toHaveBeenCalledWith(expect.objectContaining({ ok: true }));
+  });
+
+  it("resolves its fields by name AND TYPE, never name alone", () => {
+    const { emitted } = run();
+    const mod = newMod(emitted);
+    const bound = (mod.fieldBindings || []).map((b) => b.fieldId);
+    expect(bound).toContain("f-title");
+    expect(bound, "matched a same-named field of the wrong type").not.toContain("f-title-num");
+  });
+
+  it("binds Poster as the media role, hidden", () => {
+    const { emitted } = run();
+    const poster = (newMod(emitted).fieldBindings || []).find((b) => b.fieldId === "f-poster");
+    expect(poster).toMatchObject({ role: "media", hidden: true });
+  });
+
+  it("REFUSES rather than minting a row that delivers nothing when the fields are absent", () => {
+    const { emitted, onIntakeResult } = run({ fieldsById: { "f-notes": FIELDS["f-notes"] } });
+    expect(emitted.filter((e) => e.event === "create_occurrence")).toHaveLength(0);
+    expect(onIntakeResult).toHaveBeenCalledWith(expect.objectContaining({ ok: false }));
+  });
+
+  it("writes the favicon as an ARTIFACT OCCURRENCE ID, not a URL", () => {
+    const { emitted } = run({
+      preview: { ok: true, url: "https://example.com/some/page", title: "A Page", favicon: "https://example.com/icon.png" },
+    });
+    const artifact = emitted
+      .filter((e) => e.event === "create_module")
+      .map((e) => e.data.module)
+      .find((m) => m.role === "artifact");
+    expect(artifact, "no favicon artifact was minted").toBeTruthy();
+    expect(artifact.fileRef).toBe("https://example.com/icon.png");
+
+    const artOcc = emitted
+      .filter((e) => e.event === "create_occurrence")
+      .map((e) => e.data.occurrence)
+      .find((o) => o.moduleId === artifact.id);
+    // The LAST write is the label; the field patch is the one carrying fields.
+    const patch = emitted
+      .filter((e) => e.event === "update_occurrence" && e.data.occurrence.fields)
+      .at(-1).data.occurrence;
+    expect(patch.fields["f-poster"]).toEqual({ value: artOcc.id, flow: "in" });
+  });
+
+  it("lists the favicon in the bookmark's own children so the delete cascade takes it", () => {
+    const { emitted } = run({
+      preview: { ok: true, url: "https://example.com/some/page", title: "A Page", favicon: "https://example.com/icon.png" },
+    });
+    const bookmarkId = newOcc(emitted).id;
+    const artOcc = emitted
+      .filter((e) => e.event === "create_occurrence")
+      .map((e) => e.data.occurrence)
+      .find((o) => o.parentId === bookmarkId);
+    expect(artOcc, "the favicon is not parented to the bookmark").toBeTruthy();
+    // parentId alone is NOT enough — collectDescendants walks the child LIST.
+    const listWrite = emitted
+      .filter((e) => e.event === "update_occurrence" && e.data.occurrence.id === bookmarkId)
+      .map((e) => e.data.occurrence)
+      .find((o) => Array.isArray(o.occurrences));
+    expect(listWrite?.occurrences, "the favicon would be orphaned on delete").toContain(artOcc.id);
+  });
+
+  it("takes the real title over the URL-derived label", () => {
+    const { emitted } = run({
+      preview: { ok: true, url: "https://example.com/some/page", title: "A Page", favicon: "" },
+    });
+    const patches = emitted
+      .filter((e) => e.event === "update_occurrence")
+      .map((e) => e.data.occurrence);
+    expect(patches.find((p) => p.fields)?.fields["f-title"]).toEqual({ value: "A Page", flow: "in" });
+    // The LABEL follows too — it is what the tree, search and every chip render.
+    expect(patches.some((p) => p.label === "A Page")).toBe(true);
+  });
+
+  it("keeps the bookmark when the lookup FAILS — a dead host is not a failed drop", () => {
+    const { emitted, onIntakeResult } = run({ preview: { ok: false, error: "could not reach that link" } });
+    expect(newOcc(emitted)).toBeTruthy();
+    expect(onIntakeResult).not.toHaveBeenCalledWith(expect.objectContaining({ ok: false }));
+    // Nothing was patched onto a record we know nothing new about.
+    const patched = emitted.filter((e) => e.event === "update_occurrence" && e.data.occurrence.fields);
+    expect(patched).toHaveLength(0);
   });
 });
