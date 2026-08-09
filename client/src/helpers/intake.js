@@ -76,7 +76,6 @@ const S = INTAKE_SHAPES;
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|avif|bmp|svg|heic|heif|tiff?)$/i;
 const MARKDOWN_EXT = /\.(md|markdown|mdx)$/i;
 const TABLE_EXT = /\.(csv|tsv)$/i;
-const OCR_EXT = /\.(pdf)$/i;
 
 /** Normalize the many shapes a drop/paste/QuickAdd can arrive in into one. */
 export function normalizeIntakePayload(raw = {}) {
@@ -187,7 +186,12 @@ export function classifyIntake(payload = {}, destination = {}) {
       // nowhere to go.
       if (onCanvas) { add(S.IMAGE_CANVAS); add(S.IMAGE_OUTLINE); }
       if (onOccurrence && d.filesFieldId) add(S.IMAGE_ATTACH);
+      // The same OCR, two different outcomes, and the sheet is what picks:
+      // one item per line (a photo of a LIST) vs the prose kept whole beside
+      // the picture (a photo of a PAGE — a receipt, a whiteboard, a letter),
+      // where splitting on newlines is the wrong answer.
       add(S.IMAGE_OCR_LIST);
+      add(S.FILE_OCR_TEXT);
       preselected = S.IMAGE_ARTIFACT.id;
     } else if (one && MARKDOWN_EXT.test(one.name)) {
       // The audit gap: `import_markdown` has existed for months and a dropped
@@ -200,8 +204,17 @@ export function classifyIntake(payload = {}, destination = {}) {
       add(S.FILE_ARTIFACT);
       preselected = S.FILE_CSV_TABLE.id;
     } else {
+      // NO OCR SHAPE HERE, and the reason is measured rather than assumed.
+      // `FILE_OCR_TEXT` used to be offered for `.pdf` and NOTHING else — but
+      // `helpers/ocr.runOcr` is tesseract.js, and tesseract cannot read a PDF:
+      // handing it one fails with "Error attempting to read image." So the
+      // shape was pointed at the one file type its own runner refuses, and
+      // building the route as specified would have shipped a tile that always
+      // fails. It is offered on IMAGES now, where the runner demonstrably
+      // works. A PDF needs a raster step first (pdf.js is already a dependency
+      // — render page 1 to a canvas, OCR that); until that exists, not
+      // offering it is the honest answer.
       add(S.FILE_ARTIFACT);
-      if (one && OCR_EXT.test(one.name)) add(S.FILE_OCR_TEXT);
       preselected = S.FILE_ARTIFACT.id;
     }
   } else if (p.kind === "html" || p.kind === "text") {

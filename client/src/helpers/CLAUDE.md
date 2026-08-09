@@ -1,6 +1,46 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-08 (6) — the OCR shape was gated to the ONE format OCR cannot read)
+- **`file-ocr-text` was offered for `.pdf` AND NOTHING ELSE** (`OCR_EXT = /\.(pdf)$/i`), and
+  `helpers/ocr.runOcr` is tesseract.js — **which cannot read a PDF.** Measured directly against a
+  generated one-page PDF before writing the route: `Error attempting to read image.` (and in Node it
+  surfaces from the worker's error channel, not as a rejected promise). Building the shape as
+  specified would have shipped a tile that always fails. **The classifier offers it on IMAGES now**,
+  where the runner demonstrably works; a PDF needs a raster step first (pdf.js is already a
+  dependency — render page 1 to a canvas), and until that exists not offering it is the honest
+  answer.
+- **`runFileOcrText` — the same OCR as `IMAGE_OCR_LIST`, the other outcome.** Which one is right is
+  a fact about the PHOTO, not the file: a photo of a LIST wants one item per line; a photo of a PAGE
+  (receipt, whiteboard, letter) wants the text kept whole, because splitting a paragraph on its
+  newlines turns one sentence into six checklist items. The sheet asks instead of guessing.
+- **The picture is KEPT**, exactly as the checklist arm keeps it — the photo is the evidence, and
+  discarding it once the text is out is the destructive shortcut. Artifact first, OCR after, and the
+  local bytes are read rather than the uploaded URL (already in hand; coupling OCR to a network
+  round trip makes a slow thing slower and gives it a second unrelated way to fail).
+- **`mintTextblockFromText` extracted** so `runTextTextblock` and the OCR arm share ONE textblock
+  mint — they differ only in where the text came from, which is not a reason for two
+  implementations. Still routed through `createTextblockInContainer` for the destination's filter
+  stamp.
+- **A LIVE DEFECT THE CALL-SITE CHECK FOUND, in a shape that shipped a day ago: NOTHING passed
+  `onIntakeResult`.** Grep across every caller returned zero. So the shipped `IMAGE_OCR_LIST`
+  reported **nothing at all** — not a failure, not "read nothing", not success — and OCR is seconds
+  long behind a 3.5MB lazy import, so silence is indistinguishable from a drop that did nothing.
+  Wired at all three call sites (`dropHandlers` file ctx, `Editor` doc arm, `IntakePasteHost`),
+  including `res.note` (lines the split REFUSED, the 100-item cap) which the shape returns
+  deliberately and which was being dropped.
+- **Reports the PARTIAL outcome honestly:** unreadable text says *"the file was still added"* rather
+  than a blanket failure over a successful upload.
+- 4 tests, A/B'd: re-gating OCR to PDFs fails the classifier test; splitting the text per line fails
+  the prose test. **The first version of that prose test did NOT discriminate** — the mutation I
+  A/B'd with was a no-op on the fixture. Fixed by putting a SINGLE newline in the OCR output (a
+  wrapped line, which must stay one paragraph); the checklist behaviour then fails it.
+- **PROBE TRAP:** `URL.createObjectURL` rejects a `{name,type}` stub, so the first fixture threw in a
+  way that read exactly like a broken route. The tests use a real `File`.
+- **STILL MISSING, said plainly:** there is no PROGRESS signal. `onIntakeResult` fires at the END, so
+  the seconds of OCR are still unnarrated; `runOcr` takes an `onProgress` the intake path does not
+  thread. A loading toast wants a `onIntakeStart` seam.
+
 ## Recent Changes (2026-08-08 (5) — the two text-tree shapes were the SAME WRITE; coverage 16 → 17 of 24)
 - **MEASURED BEFORE WRITING ANYTHING, and the measurement is the whole entry.** `markdownToModuli`
   always returns a `role:"container" kind:"doc"` ROOT (`buildContainer(tree, …, true)`) — the

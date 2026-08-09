@@ -6,6 +6,54 @@
 
 ---
 
+### 2026-08-08 (9) — the OCR shape was pointed at the ONE format OCR cannot read
+
+Coverage **17 → 18 of 24**. Deployed and verified.
+
+**THE PREMISE WAS FALSE, AND ONE PROBE SETTLED IT.** `file-ocr-text` was offered for `.pdf` **and
+nothing else** (`OCR_EXT = /\.(pdf)$/i`) — while `helpers/ocr.runOcr` is tesseract.js, **which
+cannot read a PDF.** Generated a one-page PDF and handed it straight to the real runner:
+`Error attempting to read image.` So the shape was aimed at the single file type its own runner
+refuses, and building the route as written would have shipped **a tile that always fails**. It is
+offered on IMAGES now, where the runner demonstrably works. A PDF needs a raster step first (pdf.js
+is already a dependency); until that exists, not offering it is the honest answer. *Two sessions
+running, the task list's "closest to done" item turned out to rest on something untrue — measure the
+premise, not just the code.*
+
+**IT IS A REAL SECOND SHAPE, not a duplicate of the checklist one.** Same OCR, and which outcome you
+want is a fact about the PHOTO rather than the file: a photo of a LIST wants one item per line; a
+photo of a PAGE — receipt, whiteboard, letter — wants the text kept whole, because splitting a
+paragraph on its newlines turns one sentence into six checklist items. The sheet asks. The picture
+is KEPT either way: the photo is the evidence, and discarding it once the text is out is the
+destructive shortcut.
+
+**AND THE CALL-SITE CHECK FOUND A LIVE DEFECT IN A SHAPE THAT SHIPPED THE DAY BEFORE.** Grepping for
+`onIntakeResult` across every caller returned **zero**. So the shipped photo-to-checklist shape has
+been reporting **nothing at all** — not a failure, not "read nothing", not success — and OCR is
+seconds long behind a 3.5MB lazy import, so silence is indistinguishable from a drop that did
+nothing. Wired at all three call sites, including the `note` (lines the split refused, the 100-item
+cap) that the shape returns deliberately and that was being thrown away. **The third session in a
+row where checking the call site — not the unit tests — is what found the real problem.**
+
+**MY OWN TEST DID NOT DISCRIMINATE AT FIRST, and the A/B is the only reason I know.** The
+"keeps the prose whole" test passed against a mutation that split per line — because the mutation
+was a no-op on the fixture I chose. Fixed by putting a SINGLE newline in the OCR output (a wrapped
+line, which must stay one paragraph); the checklist behaviour then fails it. Re-A/B'd: re-gating OCR
+to PDFs fails the classifier test, splitting per line fails the prose test, one each.
+
+**Probe trap, mine:** `URL.createObjectURL` rejects a `{name,type}` stub, so the first fixture threw
+in a way that read exactly like a broken route. Check the probe before believing the failure — for
+the Nth time.
+
+**STILL MISSING, said plainly:** there is no PROGRESS signal. `onIntakeResult` fires at the END, so
+the seconds of OCR are still unnarrated; `runOcr` accepts an `onProgress` the intake path never
+threads. A loading toast needs an `onIntakeStart` seam.
+
+2183 client tests (the same 3 pre-existing `liveOpsBehavioral` failures — A/B'd against stashed
+source this session, identical 3). Build clean, chunk sanity holding.
+
+---
+
 ### 2026-08-08 (8) — the two text-tree shapes were the SAME WRITE, and the hint said otherwise
 
 Picked up the other accounts' queue (5 open items; three need the user — a phone, credentials,

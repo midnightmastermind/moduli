@@ -96,6 +96,9 @@ export const INTAKE_ROUTES = {
   // A photo of a handwritten list becomes a working checklist. The plan's other
   // headline; OCR already existed, only the split and the route were missing.
   [S.IMAGE_OCR_LIST.id]: { run: runImageOcrList, note: "OCR the photo, one item per line" },
+  // The same OCR, kept as prose instead of split into items — and offered on
+  // IMAGES, not PDFs, because tesseract cannot read a PDF (measured).
+  [S.FILE_OCR_TEXT.id]: { run: runFileOcrText, note: "keep the picture and add its text as one textblock" },
   // The same split, for text that is already text.
   [S.TEXT_CHECKLIST.id]: { run: runTextChecklist, note: "one item per line" },
   // The words, verbatim, as ONE textblock. The classifier already preselects
@@ -350,6 +353,65 @@ function runImageOcrList(ctx) {
     .finally(() => URL.revokeObjectURL(url));
 }
 
+// The other half of the photo arm: keep the picture AND its words, as prose.
+//
+// SAME OCR, DIFFERENT OUTCOME — and which one you want is a fact about the
+// photo, not about the file. A photo of a LIST wants one item per line
+// (`IMAGE_OCR_LIST`); a photo of a PAGE — a receipt, a whiteboard, a letter —
+// wants the text kept whole, because splitting a paragraph on its newlines is
+// how you turn one sentence into six checklist items. The sheet asks rather
+// than guessing, which is the entire point of the intake layer.
+//
+// THIS SHAPE USED TO BE OFFERED ONLY FOR `.pdf`, AND THAT COULD NEVER HAVE
+// WORKED: `runOcr` is tesseract.js, and tesseract cannot read a PDF — it fails
+// with "Error attempting to read image." Measured directly against a real
+// one-page PDF before this route was written, which is why the classifier now
+// offers it on IMAGES instead. See `helpers/intake.js` for the gate.
+function runFileOcrText(ctx) {
+  const {
+    files = [], gridId, userId, dispatch, socket,
+    destinationOccurrence = null, occExtra = null, persist = null,
+    containerOccurrenceId = null, onPlaceholders = null, onIntakeResult = null,
+  } = ctx;
+  const file = files[0];
+  if (!file || !destinationOccurrence) {
+    onIntakeResult?.({ ok: false, error: "nothing to read" });
+    return;
+  }
+
+  // The picture is kept, exactly as the checklist arm keeps it: the photo is
+  // the evidence, and discarding it once the text is out is the destructive
+  // shortcut. The artifact goes in FIRST so the row exists while OCR runs.
+  const placeholders = createArtifactPlaceholders([file], {
+    gridId, userId, dispatch, occExtra, parentOccurrence: destinationOccurrence,
+  });
+  onPlaceholders?.(placeholders);
+  uploadArtifactPlaceholders(placeholders, {
+    gridId, userId, dispatch, socket, containerOccurrenceId, persist,
+  });
+
+  // Read the LOCAL bytes rather than waiting on the upload — they are already
+  // in hand, and coupling OCR to a network round trip makes a slow thing slower
+  // and gives it a second, unrelated way to fail.
+  const url = URL.createObjectURL(file);
+  return runOcr(url)
+    .then((text) => {
+      if (!String(text || "").trim()) {
+        // The artifact still landed — say what did and did not happen rather
+        // than reporting a blanket failure over a successful upload.
+        onIntakeResult?.({ ok: false, error: "could not read any text from that image — the file was still added" });
+        return;
+      }
+      const res = mintTextblockFromText(text, ctx);
+      if (!res) { onIntakeResult?.({ ok: false, error: "could not create the textblock" }); return; }
+      onIntakeResult?.({ ok: true, textblockOccurrenceId: res.occurrenceId, chars: text.length });
+    })
+    .catch((err) => {
+      onIntakeResult?.({ ok: false, error: `OCR failed: ${err?.message || "unknown"}` });
+    })
+    .finally(() => URL.revokeObjectURL(url));
+}
+
 // Fetch what the link points at and build the page from it. The URL is NOT
 // validated here — the SERVER holds the guard (utils/safeFetchUrl.js), because
 // the server is the thing with network reach and a client-side check would be
@@ -475,22 +537,31 @@ function firstLineLabel(text, max = 60) {
   return line.length > max ? `${line.slice(0, max - 1)}…` : line;
 }
 
-function runTextTextblock(ctx) {
+/**
+ * Text → ONE textblock at the destination. Shared by the paste/drop arm and the
+ * OCR arm so there is a single textblock mint; the two differ only in where the
+ * text came from, which is not a reason for two implementations.
+ *
+ * Goes through `createTextblockInContainer` rather than minting here — that is
+ * what stamps the destination's filter values, so a block dropped on today's
+ * column carries today's date and the filter can see it.
+ */
+function mintTextblockFromText(text, ctx, { index } = {}) {
   const {
-    payload = {}, destinationOccurrence = null, gridId, userId, dispatch, socket,
+    destinationOccurrence = null, gridId, userId, dispatch, socket,
     insertIndex = null, onLinkChips = null,
   } = ctx;
-  const paragraphs = textToParagraphs(payload.text ?? payload.html ?? "");
-  if (!paragraphs.length || !destinationOccurrence) return;
+  const paragraphs = textToParagraphs(text);
+  if (!paragraphs.length || !destinationOccurrence) return null;
 
   const res = createTextblockInContainer({
     dispatch, socket, gridId, userId,
     containerOccurrence: destinationOccurrence,
-    index: insertIndex,
+    index: index !== undefined ? index : insertIndex,
     // "doc" is the app's non-inline textblock kind. `"block"` is a value this
     // app uses NOWHERE and would render fine right up until something read it.
     kind: "doc",
-    label: firstLineLabel(payload.text ?? ""),
+    label: firstLineLabel(text),
     textmap: {
       type: "doc",
       content: paragraphs.map((p) => ({ type: "paragraph", content: [{ type: "text", text: p }] })),
@@ -500,6 +571,12 @@ function runTextTextblock(ctx) {
   // has to embed what was minted or the block is present in the data and
   // invisible on screen.
   if (res) onLinkChips?.([res]);
+  return res;
+}
+
+function runTextTextblock(ctx) {
+  const { payload = {} } = ctx;
+  mintTextblockFromText(payload.text ?? payload.html ?? "", ctx);
 }
 
 // Every dropped file into ONE new container.

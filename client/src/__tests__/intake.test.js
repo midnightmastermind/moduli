@@ -93,6 +93,22 @@ describe("classifyIntake", () => {
     expect(ids(homeless)).toContain(S.TEXT_DOC_PAGE.id);
   });
 
+  // MEASURED, not assumed: `runOcr` is tesseract.js, and tesseract cannot read
+  // a PDF ("Error attempting to read image."). The shape used to be offered on
+  // `.pdf` and nothing else — i.e. pointed at the one file type its own runner
+  // refuses. Offering it there again would be a tile that always fails.
+  it("the OCR shape is offered on IMAGES, never on a PDF", () => {
+    const img = classifyIntake({ files: [file("receipt.jpg", "image/jpeg")] }, { kind: "board", occurrenceId: "c1" });
+    expect(ids(img)).toContain(S.FILE_OCR_TEXT.id);
+    // Both OCR outcomes are offered — prose vs one item per line — because
+    // which one is right is a fact about the photo, not the file.
+    expect(ids(img)).toContain(S.IMAGE_OCR_LIST.id);
+
+    const pdf = classifyIntake({ files: [file("scan.pdf", "application/pdf")] }, { kind: "board", occurrenceId: "c1" });
+    expect(ids(pdf)).not.toContain(S.FILE_OCR_TEXT.id);
+    expect(pdf.preselected).toBe(S.FILE_ARTIFACT.id);
+  });
+
   it("a .md file routes to the importer — the audit gap — and a .csv to a table", () => {
     const md = classifyIntake({ files: [file("notes.md", "text/markdown")] }, { kind: "board" });
     expect(md.preselected).toBe(S.FILE_MARKDOWN_IMPORT.id);

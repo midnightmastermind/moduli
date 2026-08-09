@@ -112,6 +112,16 @@ export default function IntakePasteHost() {
           if (res?.ok) toast.success("Imported");
           else if (res) toast.error(`Import failed: ${res.error || "unknown error"}`);
         },
+        // Same gap as the two drop sites: without this the OCR shapes report
+        // nothing at all, and OCR is the slowest thing intake can do.
+        onIntakeResult: (res) => {
+          if (res?.ok) {
+            const what = res.count ? `Read ${res.count} item${res.count === 1 ? "" : "s"}` : "Read the text";
+            toast.success(res.note ? `${what} · ${res.note}` : what);
+          } else if (res) {
+            toast.error(res.error || "Could not read that");
+          }
+        },
         occExtra: () => (dest?.occId ? { parentId: dest.occId } : {}),
         persist: () => (dest?.occId ? { parentId: dest.occId } : null),
         containerOccurrenceId: dest?.kind === "container" ? dest.occId : null,

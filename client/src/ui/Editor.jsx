@@ -2341,6 +2341,18 @@ const Editor = forwardRef(function Editor({
             { type: "moduleEmbed", attrs: { occurrenceId: res.rootOccurrenceId } },
           ).run();
         },
+        // The OCR shapes' only reporting channel — nothing passed it before, so
+        // a photo-to-checklist drop inside a doc reported nothing whatever the
+        // outcome. OCR is seconds long, so silence reads as "the drop did
+        // nothing".
+        onIntakeResult: (res) => {
+          if (res?.ok) {
+            const what = res.count ? `Read ${res.count} item${res.count === 1 ? "" : "s"}` : "Read the text";
+            toast.success(res.note ? `${what} · ${res.note}` : what);
+          } else if (res) {
+            toast.error(res.error || "Could not read that");
+          }
+        },
       };
 
       const classification = filterToImplemented(

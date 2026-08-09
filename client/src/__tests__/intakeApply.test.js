@@ -21,6 +21,11 @@ vi.mock("../helpers/artifactUpload", () => ({
   uploadArtifactPlaceholders: (...a) => uploadArtifactPlaceholders(...a),
 }));
 
+// tesseract is a 3.5MB lazy import and OCR is seconds of real work — the route's
+// contract is what it does with the text, not the reading.
+const runOcr = vi.fn(async () => "");
+vi.mock("../helpers/ocr", () => ({ runOcr: (...a) => runOcr(...a) }));
+
 const {
   applyIntakeShape, filterToImplemented, assertShapeCoverage,
   IMPLEMENTED_SHAPE_IDS, INTAKE_ROUTES,
@@ -244,6 +249,80 @@ describe("applyIntakeShape — routes reach the EXISTING helpers unchanged", () 
       });
       expect(onImportText).toHaveBeenCalledTimes(1);
       expect(socket.emit).not.toHaveBeenCalled();
+    });
+  });
+
+  // The picture is evidence — reading it must not consume it. And the text is
+  // kept WHOLE here; splitting it per line is the other shape.
+  describe("the file-OCR shape keeps the picture AND adds its text", () => {
+    function ocrCtx(emitted) {
+      const socket = {
+        connected: true,
+        emit: vi.fn((event, data) => emitted.push({ event, data })),
+        on: vi.fn(), off: vi.fn(),
+      };
+      const done = {};
+      done.promise = new Promise((r) => { done.resolve = r; });
+      return {
+        // A REAL File: the route calls `URL.createObjectURL`, which rejects a
+        // plain `{name,type}` stub. (My first fixture was one, and the throw
+        // read exactly like a broken route.)
+        files: [new File(["photo-bytes"], "receipt.jpg", { type: "image/jpeg" })],
+        gridId: "g1", userId: "u1", dispatch: vi.fn(), socket,
+        destinationOccurrence: { id: "c1", moduleId: "cm", occurrences: [] },
+        onIntakeResult: (r) => done.resolve(r),
+        _done: done.promise,
+      };
+    }
+
+    it("uploads the image and mints ONE textblock holding the prose", async () => {
+      // The SINGLE newline is the discriminator: OCR wraps long lines, so a
+      // lone newline is a wrapped line, not a new paragraph. The checklist
+      // shape would make three items out of this; prose makes two paragraphs.
+      runOcr.mockResolvedValueOnce("Whole Foods\nMarket St\n\nTotal 42.10");
+      const emitted = [];
+      const ctx = ocrCtx(emitted);
+      applyIntakeShape(INTAKE_SHAPES.FILE_OCR_TEXT.id, ctx);
+      const res = await ctx._done;
+
+      expect(createArtifactPlaceholders, "the photo was not kept").toHaveBeenCalledTimes(1);
+      expect(uploadArtifactPlaceholders).toHaveBeenCalledTimes(1);
+      expect(res.ok).toBe(true);
+
+      const blocks = emitted.filter(
+        (e) => e.event === "create_occurrence" && e.data.occurrence?.textmap,
+      );
+      expect(blocks, "expected exactly one textblock").toHaveLength(1);
+      // Two paragraphs, split on the BLANK line only — not one per newline,
+      // which is what the checklist shape does and what this one must not.
+      const paras = blocks[0].data.occurrence.textmap.content;
+      expect(paras).toHaveLength(2);
+      expect(paras[0].content[0].text).toBe("Whole Foods\nMarket St");
+      expect(paras[1].content[0].text).toBe("Total 42.10");
+    });
+
+    it("reports unreadable text WITHOUT claiming the upload failed", async () => {
+      runOcr.mockResolvedValueOnce("   ");
+      const emitted = [];
+      const ctx = ocrCtx(emitted);
+      applyIntakeShape(INTAKE_SHAPES.FILE_OCR_TEXT.id, ctx);
+      const res = await ctx._done;
+
+      expect(res.ok).toBe(false);
+      // The artifact DID land — a blanket "failed" would be a lie about it.
+      expect(createArtifactPlaceholders).toHaveBeenCalledTimes(1);
+      expect(res.error).toMatch(/still added/i);
+      expect(emitted.some((e) => e.event === "create_occurrence" && e.data.occurrence?.textmap)).toBe(false);
+    });
+
+    it("surfaces an OCR failure instead of swallowing it", async () => {
+      runOcr.mockRejectedValueOnce(new Error("worker died"));
+      const emitted = [];
+      const ctx = ocrCtx(emitted);
+      applyIntakeShape(INTAKE_SHAPES.FILE_OCR_TEXT.id, ctx);
+      const res = await ctx._done;
+      expect(res).toMatchObject({ ok: false });
+      expect(res.error).toMatch(/worker died/);
     });
   });
 
