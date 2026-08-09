@@ -1139,9 +1139,12 @@ export function makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId
 // Idempotency: per-day FIND checks gate creation; APPLY_TEMPLATE's identitySig
 // merge skips already-cloned slots; ADD_CHILD's includes-check skips duplicate
 // multi-parent refs.
-export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId = null, completedTrackerName = "Tracker: Tasks Completed", waterTrackerName = "Tracker: Water Today", goalsPageOccId, schedulePageOccId, dayContainerOccId }) {
+// NOTE: `goalsPageOccId` was removed 2026-08-09 — it only ever fed the source
+// guard, and gating on it made a Goals/Trackers navigation rebuild the Schedule
+// for the Schedule's own unchanged dates. Callers may still pass it; it is
+// ignored.
+export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId = null, completedTrackerName = "Tracker: Tasks Completed", waterTrackerName = "Tracker: Water Today", schedulePageOccId, dayContainerOccId }) {
   if (!schedulePageOccId) throw new Error("makeScheduleBuildScheduleOp: schedulePageOccId required (picker-direct ancestor + page ref)");
-  if (!goalsPageOccId)    throw new Error("makeScheduleBuildScheduleOp: goalsPageOccId required (picker-direct ancestor)");
   if (!dayContainerOccId) throw new Error("makeScheduleBuildScheduleOp: dayContainerOccId required (Day container occurrence id from the seeded Schedule Template page)");
   if (!scheduleFormatFieldId) throw new Error("makeScheduleBuildScheduleOp: scheduleFormatFieldId required (used to tag day-col containers)");
   return {
@@ -1168,26 +1171,39 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
         // Picker-direct refs — seed-time IDs, rename-stable.
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedulePageOccId}` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalsPage",   expr: `$allItemsById.${goalsPageOccId}` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayCont",     expr: `$allItemsById.${dayContainerOccId}` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$dayContId",   expr: "$dayCont.id" } },
 
-        // Source-only guard: fire ONCE per filter change. Lets through
+        // Source-only guard: fire ONCE per filter change, and only for THIS
+        // page's filter. Lets through
         //   (a) grid-subject triggers — no sourceOccurrenceId — toolbar +
         //       onLoad
-        //   (b) the Schedule/Goals page's OWN filter change — sourceOccurrenceId
-        //       matches one of the seeded pages
+        //   (b) the SCHEDULE page's own filter change
         // Does NOT pass descendant-cascade NavigationOps (where source is a
         // day-col / slot / instance). `updateOccurrenceFilterOverride` fires
         // one NavigationOp per inheriting descendant; without this tightening
         // every descendant would re-fire the build (50+ no-op runs per click
         // that still re-emit UPDATE_ITEM_META / RUN_OPERATION tails, choking
         // the createQueue).
+        //
+        // THE GOALS PAGE USED TO PASS THIS GUARD, AND IT WAS PROVABLY
+        // OUTCOME-NEUTRAL WORK (2026-08-09, user decision D7: "daycol should
+        // only show up on the schedule or daypage and should be always based
+        // on the filter applied on it"). This op's dates come from
+        // `$activePeriodDates`, which the executor resolves from
+        // `targetOccurrenceId` — the SCHEDULE page — so a Goals/Trackers
+        // navigation could only ever rebuild the Schedule for its OWN,
+        // UNCHANGED dates. Measured on the live grid: a Trackers nav matched
+        // 44 ops, four of them foreign build ops doing exactly that.
+        //
+        // (The 2026-05-15 "a Goals nav seeds the Schedule for that day"
+        // decision belonged to `makeScheduleBuildDayOp`, whose `$schedDate`
+        // chain prefers `$trigger.date`. It never applied to this builder,
+        // which is why removing the coupling changes no outcome here.)
         { id: uid(), type: "if",
           condition: { operator: "OR", rules: [
             { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS_EMPTY", right: "" },
             { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS",       right: "$schedPage.id" },
-            { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS",       right: "$goalsPage.id" },
           ]},
           then: [
             { id: uid(), type: "if",
@@ -1602,7 +1618,7 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
 const DAILY_QUESTION_SIGNATURE = "daypage:Daily Question/question";
 
 export function makeDayPageBuildOp({
-  userId, gridId, dateFieldId, dayPageBoardOccId, goalsPageOccId, schedulePageOccId,
+  userId, gridId, dateFieldId, dayPageBoardOccId, schedulePageOccId,
   dayPageTemplateOccId,
   // Todo-link context (optional — omit and the op skips the link pass entirely).
   timeslotFieldId = null, scheduleFormatFieldId = null, todoMarkerValue = "Todo",
@@ -1612,7 +1628,6 @@ export function makeDayPageBuildOp({
   journalQuestionFieldId = null, questionPoolModuleId = null,
 }) {
   if (!schedulePageOccId) throw new Error("makeDayPageBuildOp: schedulePageOccId required (picker-direct ancestor + page ref)");
-  if (!goalsPageOccId)    throw new Error("makeDayPageBuildOp: goalsPageOccId required (picker-direct ancestor)");
   if (!dayPageBoardOccId) throw new Error("makeDayPageBuildOp: dayPageBoardOccId required — the board page the day COLUMNS live on");
   if (!dayPageTemplateOccId) throw new Error("makeDayPageBuildOp: dayPageTemplateOccId required — resolving the template by meta.templateName matches the CLONES too (APPLY_TEMPLATE copies meta), and a multi-match FIND returns an ARRAY that APPLY_TEMPLATE cannot use");
   const wantsTodoLink = !!(timeslotFieldId && scheduleFormatFieldId);
@@ -1639,7 +1654,6 @@ export function makeDayPageBuildOp({
       steps: [
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedulePageOccId}` }},
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" }},
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalsPage",   expr: `$allItemsById.${goalsPageOccId}` }},
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$board",       expr: `$allItemsById.${dayPageBoardOccId}` }},
         // The template, bound picker-direct by id. This CANNOT go back to
         // `FIND meta.templateName IS "Day Page"`: APPLY_TEMPLATE copies meta
@@ -1649,13 +1663,22 @@ export function makeDayPageBuildOp({
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$tpl",   expr: `$allItemsById.${dayPageTemplateOccId}` }},
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$tplId", expr: "$tpl.id" }},
 
-        // Source-only guard — fires once per filter change. Descendant-cascade
-        // NavigationOps are skipped.
+        // Source-only guard — fires once per filter change, and only for THIS
+        // board's filter. Descendant-cascade NavigationOps are skipped.
+        //
+        // THE SCHEDULE AND GOALS PAGES USED TO PASS THIS GUARD, and it was
+        // provably outcome-neutral work (2026-08-09, user decision D7: a day
+        // column follows "the filter applied on it"). This op's dates come
+        // from `$activePeriodDates`, which the executor resolves from
+        // `targetOccurrenceId` — the DAY PAGE BOARD — so a Schedule or
+        // Trackers navigation could only ever rebuild the board for its OWN,
+        // UNCHANGED dates: a template merge and two extra passes to conclude
+        // nothing changed. Measured on the live grid before removing it: a
+        // Schedule nav matched 6 ops and this was one of them; a Trackers nav
+        // matched 44 and this was one of those too.
         { id: uid(), type: "if",
           condition: { operator: "OR", rules: [
             { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS_EMPTY", right: "" },
-            { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS",       right: "$schedPage.id" },
-            { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS",       right: "$goalsPage.id" },
             { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS",       right: "$board.id" },
           ]},
           then: [
@@ -3554,7 +3577,21 @@ export function makeSchedulePlaceDatedWorkOp({
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage",   expr: `$allItemsById.${schedulePageOccId}` } },
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPageId", expr: "$schedPage.id" } },
         { id: uid(), type: "if",
-          condition: { operator: "AND", rules: [{ id: uid(), left: "$schedPageId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          // Source-only guard: this op's dates come from `$activePeriodDates`,
+          // which the executor resolves from `targetOccurrenceId` — the SCHEDULE
+          // page. A navigation sourced from ANY OTHER page could therefore only
+          // re-place the Schedule's own, unchanged dates (user decision D7,
+          // 2026-08-09). The toolbar/onLoad case carries no source and still
+          // passes. Nested rather than a separate wrapping `if` because
+          // `evalGroup` handles nested groups and the precondition belongs
+          // together; the guard is found by rule, not by nesting depth.
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: "$schedPageId", comparator: "IS_NOT_EMPTY", right: "" },
+            { id: uid(), operator: "OR", rules: [
+              { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS_EMPTY", right: "" },
+              { id: uid(), left: "$trigger.sourceOccurrenceId", comparator: "IS",       right: "$schedPage.id" },
+            ]},
+          ]},
           then: [{
             id: uid(), type: "loop", overExpr: "$activePeriodDates", as: "$day",
             body: [

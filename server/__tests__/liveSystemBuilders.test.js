@@ -1,6 +1,6 @@
 // server/__tests__/liveSystemBuilders.test.js
 import { describe, it, expect } from "vitest";
-import { buildGridDoc, buildScheduleFilters, buildDailyRoutineTemplate, buildDayPageTemplate, makeScheduleBuildDayOp, makeScheduleBuildScheduleOp, makeDayPageBuildOp, makeStampDateTimeSlotOp, makeClearDateOnMoveOutOp, makeTrackerOp, makeDayPageBuildTasksCompletedOp, makeMediaHistoryOp } from "../utils/liveSystemBuilders.js";
+import { buildGridDoc, buildScheduleFilters, buildDailyRoutineTemplate, buildDayPageTemplate, makeScheduleBuildDayOp, makeScheduleBuildScheduleOp, makeDayPageBuildOp, makeStampDateTimeSlotOp, makeClearDateOnMoveOutOp, makeTrackerOp, makeDayPageBuildTasksCompletedOp, makeMediaHistoryOp, makeSchedulePlaceDatedWorkOp } from "../utils/liveSystemBuilders.js";
 
 // Recursively flatten a pipeline's steps (then/else/body branches included).
 function flattenSteps(steps) {
@@ -898,5 +898,94 @@ describe("makeMediaHistoryOp", () => {
     expect(op.triggerObjects[0]).toMatchObject({ eventType: "onChange", targetId: "fPick" });
     // The drift this extraction removes: all three now get the same surface.
     expect(op.triggerObjects).toHaveLength(7);
+  });
+});
+
+// ── D7: a build op responds to ITS OWN page's filter ────────────────────────
+//
+// User, 2026-08-09: "daycol should only show up on the schedule or daypage and
+// should be always based on the filter applied on it."
+//
+// Both build ops resolve their dates from `$activePeriodDates`, which the
+// executor reads off `targetOccurrenceId` — the op's own page. So a navigation
+// sourced from a DIFFERENT page could only ever rebuild that page for its own
+// unchanged dates: work with no possible outcome. These pin the guard so the
+// coupling cannot come back by accident.
+describe("build ops are scoped to their own page (D7)", () => {
+  const findSourceGuard = (op) => {
+    const walk = (steps) => {
+      for (const st of steps || []) {
+        const rules = st?.condition?.rules || [];
+        if (rules.some((r) => r.left === "$trigger.sourceOccurrenceId")) return st;
+        const inner = walk(st?.then) || walk(st?.else) || walk(st?.body);
+        if (inner) return inner;
+      }
+      return null;
+    };
+    return walk(op.pipeline.steps);
+  };
+  const rightsOf = (guard) => guard.condition.rules
+    .filter((r) => r.left === "$trigger.sourceOccurrenceId")
+    .map((r) => `${r.comparator}:${r.right}`);
+
+  it("Schedule: Build Schedule passes only the toolbar and the SCHEDULE page", () => {
+    const op = makeScheduleBuildScheduleOp({
+      userId: "u1", gridId: "g1", dateFieldId: "f-date", dueFieldId: "f-due",
+      timeslotFieldId: "f-slot", scheduleFormatFieldId: "f-fmt",
+      schedulePageOccId: "sched-1", dayContainerOccId: "daycont-1",
+    });
+    expect(op.targetOccurrenceId).toBe("sched-1");
+    expect(rightsOf(findSourceGuard(op)).sort())
+      .toEqual(["IS:$schedPage.id", "IS_EMPTY:"].sort());
+  });
+
+  it("Day Page: Build passes only the toolbar and the DAY PAGE BOARD", () => {
+    const op = makeDayPageBuildOp({
+      userId: "u1", gridId: "g1", dateFieldId: "f-date",
+      dayPageBoardOccId: "board-1", schedulePageOccId: "sched-1",
+      dayPageTemplateOccId: "tpl-1",
+    });
+    expect(op.targetOccurrenceId).toBe("board-1");
+    expect(rightsOf(findSourceGuard(op)).sort())
+      .toEqual(["IS:$board.id", "IS_EMPTY:"].sort());
+  });
+
+  it("Schedule: Place Dated Work passes only the toolbar and the SCHEDULE page", () => {
+    // Its guard is NESTED inside the precondition rather than a wrapping `if`
+    // (evalGroup handles nested groups), so the flattener has to look deeper —
+    // a top-level-only assertion would pass vacuously here.
+    const op = makeSchedulePlaceDatedWorkOp({
+      userId: "u1", gridId: "g1", dateFieldId: "f-date", timeslotFieldId: "f-slot",
+      durationFieldId: "f-dur", dueFieldId: "f-due", completedOnFieldId: "f-done",
+      scheduleFormatFieldId: "f-fmt", schedulePageOccId: "sched-1", appointmentTemplateId: "appt-1",
+    });
+    expect(op.targetOccurrenceId).toBe("sched-1");
+    const flat = [];
+    const walk = (steps) => { for (const st of steps || []) {
+      const dig = (grp) => { for (const r of grp?.rules || []) {
+        if (Array.isArray(r.rules)) dig(r);
+        else if (r.left === "$trigger.sourceOccurrenceId") flat.push(`${r.comparator}:${r.right}`);
+      } };
+      dig(st?.condition); walk(st?.then); walk(st?.else); walk(st?.body);
+    } };
+    walk(op.pipeline.steps);
+    expect(flat.sort()).toEqual(["IS:$schedPage.id", "IS_EMPTY:"].sort());
+  });
+
+  it("neither op still resolves the goals page — the var is gone, not just unused", () => {
+    // A dead INIT_VAR would leave the coupling one edit away from returning.
+    const json = JSON.stringify([
+      makeScheduleBuildScheduleOp({
+        userId: "u1", gridId: "g1", dateFieldId: "f-date", dueFieldId: "f-due",
+        timeslotFieldId: "f-slot", scheduleFormatFieldId: "f-fmt",
+        schedulePageOccId: "sched-1", dayContainerOccId: "daycont-1",
+      }),
+      makeDayPageBuildOp({
+        userId: "u1", gridId: "g1", dateFieldId: "f-date",
+        dayPageBoardOccId: "board-1", schedulePageOccId: "sched-1",
+        dayPageTemplateOccId: "tpl-1",
+      }),
+    ]);
+    expect(json).not.toContain("$goalsPage");
   });
 });

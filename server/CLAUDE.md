@@ -2,6 +2,66 @@
 
 _Updated: 2026-08-07. Check this file before re-reading source._
 
+## Recent Changes (2026-08-09 (3) — build ops are scoped to their OWN page; `0062`)
+- **`utils/liveSystemBuilders.js`** — the source guards on `makeScheduleBuildScheduleOp` and
+  `makeDayPageBuildOp` now pass only the toolbar/onLoad case (`sourceOccurrenceId IS_EMPTY`) and the
+  op's OWN page. The Goals/Trackers page no longer passes either; the Schedule page no longer passes
+  the Day Page one. `goalsPageOccId` is gone from both (it only ever fed the guard) along with the
+  `$goalsPage` INIT_VAR and the seed's two call-site args.
+- **WHY IT IS SAFE, and it is the measurement rather than the argument:** each op's dates come from
+  `$activePeriodDates`, which the executor resolves from `targetOccurrenceId` — the op's own page. A
+  navigation sourced from a DIFFERENT page could therefore only rebuild that page for its own
+  UNCHANGED dates. Measured by driving the real `computeTriggerMatch` over live op data: a Trackers
+  nav matched **44** ops, four of them foreign build ops doing exactly that; a Schedule nav matched
+  6, one of them `Day Page: Build`.
+- **The 2026-05-15 "a Goals nav seeds the Schedule for that day" decision does NOT apply here** — it
+  belonged to `makeScheduleBuildDayOp`, whose `$schedDate` chain prefers `$trigger.date`. That op is
+  not on poms grid. *Check an old decision against the op that actually runs before treating it as a
+  constraint.*
+- **`migrations/0062-scope-build-ops-to-their-own-page.mjs`** carries it to the stored pipelines.
+  Surgical and idempotent: it drops only `$trigger.sourceOccurrenceId` rules naming a foreign page,
+  then removes an INIT_VAR **only if nothing else in the pipeline still reads it** — `$schedPage`
+  survives in `Day Page: Build` because the todo pass reads it, and a test pins exactly that.
+  **DRY RUN ONLY** — reported against a named expectation (2 ops, the exact rules above);
+  **not applied**, poms grid is live data.
+- **It does NOT reduce the ops-MATCHED count** — the guard is in the pipeline, so a foreign nav still
+  matches and now exits at step one. Scoping the TRIGGER would need `ancestorLabel`, which matches a
+  renameable label; the id-based guard is rename-proof.
+- **`Schedule: Place Dated Work` had no guard at all** and now has one, NESTED inside its existing
+  `$schedPageId IS_NOT_EMPTY` precondition (`evalGroup` handles nested groups). So the migration has
+  an **add** path as well as a drop path — the builder change alone would be inert on an
+  already-seeded grid. `addGuard` fails closed with a reason when it cannot find the precondition,
+  and a test pins that `tightenOp` can still READ what `addGuard` writes.
+- **`Days Until Due` is deliberately untouched**, measured: it writes **2 values on poms grid** (2 of
+  2637 occurrences carry a Due date), and its output is `dueDate − today` — wall clock, not any
+  page's filter. Its nav trigger is the only thing that re-derives a stale countdown for a tab left
+  open past midnight. Nothing to save, small real benefit to lose.
+- 12 migration tests + 4 builder tests. A/B'd: re-coupling the goals page fails 2, deleting the new
+  Place Dated Work guard fails 1.
+
+## Recent Changes (2026-08-09 (2) — `harvestLinks.js` + `link_harvest`: what a page points AT)
+- **`utils/harvestLinks.js` (NEW, pure, 15 tests)** — `extractLinks(html, baseUrl)` → the distinct
+  pages a page links out to. Backs the `link-follow` intake shape (one hop, any domain, confirm
+  first). Pure so the DECISION — which links are worth offering — is testable without a network.
+- **THE LINKS ARE READ FROM THE MAIN CONTENT, not the raw page.** A site's nav and footer links
+  belong to the site, not to the article you dropped, and on a typical page they outnumber the real
+  ones several times over. Same `extractMainContent` narrowing `import_url` already does, and for
+  the same reason it was added there (a raw page imports its nav chrome as prose).
+- **Three refusals, each because the alternative wastes a fetch on something that cannot become a
+  page:** non-http(s) schemes; the page ITSELF (bare `#anchor`s and the source URL — on a long
+  article the table of contents is dozens of them); and a path ending in an extension that is never
+  a web page. The extension list is deliberately short and reads the PATH only — a
+  `?download=x.zip` query says nothing about what the page is, and an extensionless URL is always
+  kept. The bias is `mainContent`'s: keep too much rather than lose a real link.
+- **The QUERY is kept when deduping, the fragment dropped** — `?page=2` is a different document.
+  Same rule `helpers/convertRelink.sameLinkTarget` holds.
+- **Capped (100) and the cap is REPORTED** (`total` is the pre-cap count), so the UI can say how
+  many were dropped rather than showing a short list that looks complete.
+- **`socketHandlers/import.js` — new `link_harvest` handler.** Read-only like `link_preview`:
+  nothing minted, nothing to broadcast, no cache to keep in step. Same guarded `fetchPageHtml`,
+  which validates every redirect hop — the URL comes from a drop, and the server is the only place
+  the check means anything.
+
 ## Recent Changes (2026-08-09 — `linkPreview.js` + `0061`: what a link calls itself)
 - **`utils/linkPreview.js` (NEW)** — `fetchLinkPreview(url)` → `{ ok, url, title, favicon }`. The
   bookmark intake shape needs a link's `<title>` and icon to mint a record; fetching the whole page

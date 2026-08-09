@@ -8562,7 +8562,7 @@ export async function createLiveData(userId, options = {}) {
   // dayContainerOccId is the Day container inside the Schedule Template
   // page (seeded above via buildScheduleTemplatePage). The op COPY_LINKs
   // it into the Schedule page per active day — picker-direct, no FIND.
-  await new Operation(makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId, completedTrackerName: "Completed Tasks", waterTrackerName: "Water", goalsPageOccId, schedulePageOccId: schedPageOccId, dayContainerOccId })).save();
+  await new Operation(makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId, completedTrackerName: "Completed Tasks", waterTrackerName: "Water", schedulePageOccId: schedPageOccId, dayContainerOccId })).save();
   // Records WHEN something was completed (priority 0 — the placement op below
   // reads what this writes, so it has to settle first).
   await new Operation(makeStampCompletedOnOp({ userId, gridId, completedFieldId, completedOnFieldId })).save();
@@ -8586,7 +8586,7 @@ export async function createLiveData(userId, options = {}) {
   // multi-parent that day's Todo container in from the Schedule day-column.
   await new Operation(makeDayPageBuildOp({
     userId, gridId, dateFieldId, dayPageBoardOccId,
-    goalsPageOccId, schedulePageOccId: schedPageOccId,
+    schedulePageOccId: schedPageOccId,
     dayPageTemplateOccId,
     timeslotFieldId, scheduleFormatFieldId,
     // A day arrives with no question otherwise; the op picks one at BUILD time
