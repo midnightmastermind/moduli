@@ -1,6 +1,36 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-09 (4) — a PDF can be OCR'd now: `pdfPages.js`, every page)
+- **`pdfPages.js` (NEW)** — `eachPdfPageImage(file, onPage, { scale, maxPages })` + `isPdfFile`.
+  tesseract cannot read a PDF (measured 08-08); pdf.js already rasterises pages for the artifact
+  VIEWER, so the missing piece was never the OCR engine — it was turning a page into something the
+  engine can see.
+- **ONE PAGE AT A TIME, and the callback is AWAITED.** Collecting page images into an array first
+  would hold a whole document in memory at OCR resolution, and the caller has to report progress per
+  page anyway — an array cannot do that. Each canvas is zeroed before the next is drawn.
+- **`PDF_OCR_SCALE = 2.5` is an OCR decision, not a display one.** pdf.js scale 1 is 72 DPI, which
+  tesseract reads badly; 2.5 is ~180 DPI. **Do not share the viewer's 1.2** — a human reading a page
+  and an OCR engine reading it want different things.
+- **`maxPages = 50`, REPORTED not silent.** The user chose every page over first-page-only, so this
+  is a floor under a pathological document rather than a policy; it surfaces as
+  `note: "first 50 of 120 pages"`, the same contract `splitToChecklistItems` has with its item cap.
+- **`runFileOcrText` splits into `readImage` / `readPdf`.** Pages are joined with a BLANK line so
+  `textToParagraphs` keeps them apart — a single newline runs the last line of one page into the
+  first line of the next (A/B'd; that mutation fails the test).
+- **`progressIntake(token, msg)` (NEW)** — updates the running toast by id. This is where it earns
+  its keep: one OCR pass PER PAGE means a ten-page scan is minutes, and an indefinite "Reading…" for
+  that long is indistinguishable from a hang.
+- **`intake.js` offers `FILE_OCR_TEXT` on PDFs again**, alongside `File` — a PDF you only want to
+  keep is the common case, and the sheet asks. Non-image non-PDF files still get no OCR tile.
+- **pdfjs stays LAZY:** `pdfPages` statically exports `isPdfFile` but `await import("pdfjs-dist")`
+  inside. The intake chunk grew 1.5 kB, not 400.
+- 7 tests (pdfjs mocked — jsdom has no canvas, and the rasterising is browser work). **A/B'd:**
+  first-page-only and single-newline joining each fail one; so does pulling OCR off PDFs.
+  **A/B TOOLING TRAP:** one mutation silently did not apply (shell escaping) and the A/B read as
+  "the test does not discriminate". Verify the mutation landed before believing an A/B — the same
+  rule as checking a probe before believing a failure.
+
 ## Recent Changes (2026-08-09 (3) — `files-folder-page`: the files MOVE HOUSE, and that was checked)
 - **A folder page renders `childrenByParentId[folderId]`** — the occurrences whose `parentId` IS that
   folder. `childrenByParentId` is built purely from `parentId` (App.jsx), and an uploaded file is

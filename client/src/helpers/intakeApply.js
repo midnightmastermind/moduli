@@ -38,6 +38,7 @@ import { attachFile } from "./mainFile";
 import { ensureImportsFolderAndPage, ensureFolderPageOcc } from "./importsFolder";
 import { splitToChecklistItems, MAX_CHECKLIST_ITEMS } from "./checklistFromText";
 import { runOcr } from "./ocr";
+import { isPdfFile, eachPdfPageImage } from "./pdfPages";
 import { toast } from "../state/notificationStore";
 import * as CommitHelpers from "./CommitHelpers";
 
@@ -222,6 +223,11 @@ function startIntake(ctx, message) {
   // A caller that owns reporting owns the whole conversation, including this.
   if (ctx?.onIntakeResult) return null;
   return toast.loading(message, { duration: 120000 });
+}
+
+/** Update a running route's message — "Reading page 3 of 7…". */
+function progressIntake(token, message) {
+  if (token) toast.loading(message, { id: token, duration: 120000 });
 }
 
 /**
@@ -451,27 +457,63 @@ function runFileOcrText(ctx) {
     gridId, userId, dispatch, socket, containerOccurrenceId, persist,
   });
 
+  const pdf = isPdfFile(file);
+  const token = startIntake(ctx, pdf ? "Reading the PDF…" : "Reading the image…");
+
   // Read the LOCAL bytes rather than waiting on the upload — they are already
   // in hand, and coupling OCR to a network round trip makes a slow thing slower
   // and gives it a second, unrelated way to fail.
-  const token = startIntake(ctx, "Reading the image…");
-  const url = URL.createObjectURL(file);
-  return runOcr(url)
-    .then((text) => {
+  const read = pdf ? readPdf(file, token) : readImage(file);
+
+  return read
+    .then(({ text, note }) => {
       if (!String(text || "").trim()) {
         // The artifact still landed — say what did and did not happen rather
         // than reporting a blanket failure over a successful upload.
-        notifyIntake(ctx, { ok: false, error: "could not read any text from that image — the file was still added" }, token);
+        const what = pdf ? "that PDF" : "that image";
+        notifyIntake(ctx, { ok: false, error: `could not read any text from ${what} — the file was still added` }, token);
         return;
       }
       const res = mintTextblockFromText(text, ctx);
       if (!res) { notifyIntake(ctx, { ok: false, error: "could not create the textblock" }, token); return; }
-      notifyIntake(ctx, { ok: true, textblockOccurrenceId: res.occurrenceId, chars: text.length }, token);
+      notifyIntake(ctx, { ok: true, message: "Read the text", note, textblockOccurrenceId: res.occurrenceId, chars: text.length }, token);
     })
     .catch((err) => {
       notifyIntake(ctx, { ok: false, error: `OCR failed: ${err?.message || "unknown"}` }, token);
-    })
+    });
+}
+
+/** One image → its text. */
+function readImage(file) {
+  const url = URL.createObjectURL(file);
+  return runOcr(url)
+    .then((text) => ({ text, note: undefined }))
     .finally(() => URL.revokeObjectURL(url));
+}
+
+/**
+ * A PDF → the text of EVERY page, concatenated (the user's call over
+ * first-page-only, 2026-08-09).
+ *
+ * The pages are rendered and read ONE AT A TIME rather than gathered first:
+ * that is what keeps a long document out of memory at OCR resolution, and it
+ * is the only way the progress line can name the page it is on. That line
+ * matters more here than anywhere else in intake — this is one OCR pass PER
+ * PAGE, so a ten-page scan is minutes, and an indefinite "Reading…" for that
+ * long is indistinguishable from a hang.
+ */
+function readPdf(file, token) {
+  const parts = [];
+  return eachPdfPageImage(file, async (dataUrl, n, total) => {
+    progressIntake(token, `Reading page ${n} of ${total}…`);
+    const t = await runOcr(dataUrl);
+    if (String(t || "").trim()) parts.push(t.trim());
+  }).then(({ pages, total, truncated }) => ({
+    // A blank line between pages, so `textToParagraphs` keeps them apart
+    // instead of running the last line of one into the first of the next.
+    text: parts.join("\n\n"),
+    note: truncated ? `first ${pages} of ${total} pages` : undefined,
+  }));
 }
 
 // The URL as a VALUE on the occurrence it was dropped on.

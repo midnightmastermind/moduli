@@ -85,6 +85,7 @@ const S = INTAKE_SHAPES;
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|avif|bmp|svg|heic|heif|tiff?)$/i;
 const MARKDOWN_EXT = /\.(md|markdown|mdx)$/i;
 const TABLE_EXT = /\.(csv|tsv)$/i;
+const PDF_EXT = /\.pdf$/i;
 
 /** Normalize the many shapes a drop/paste/QuickAdd can arrive in into one. */
 export function normalizeIntakePayload(raw = {}) {
@@ -229,17 +230,16 @@ export function classifyIntake(payload = {}, destination = {}) {
       add(S.FILE_ARTIFACT);
       fallback = S.FILE_CSV_TABLE.id;
     } else {
-      // NO OCR SHAPE HERE, and the reason is measured rather than assumed.
-      // `FILE_OCR_TEXT` used to be offered for `.pdf` and NOTHING else — but
-      // `helpers/ocr.runOcr` is tesseract.js, and tesseract cannot read a PDF:
-      // handing it one fails with "Error attempting to read image." So the
-      // shape was pointed at the one file type its own runner refuses, and
-      // building the route as specified would have shipped a tile that always
-      // fails. It is offered on IMAGES now, where the runner demonstrably
-      // works. A PDF needs a raster step first (pdf.js is already a dependency
-      // — render page 1 to a canvas, OCR that); until that exists, not
-      // offering it is the honest answer.
       add(S.FILE_ARTIFACT);
+      // A PDF CAN be read now, but only through a raster step. tesseract cannot
+      // read a PDF at all (measured 2026-08-08: "Error attempting to read
+      // image."), which is why this shape was pulled off PDFs entirely — it had
+      // been offered for `.pdf` and NOTHING else, i.e. pointed at the one type
+      // its own runner refuses. `helpers/pdfPages` renders each page to an
+      // image first, so the shape is honest here again. Both are offered and
+      // the sheet asks: a PDF you only want to keep is the common case, and OCR
+      // is one slow pass PER PAGE.
+      if (one && PDF_EXT.test(one.name)) add(S.FILE_OCR_TEXT);
       fallback = S.FILE_ARTIFACT.id;
     }
   } else if (p.kind === "html" || p.kind === "text") {

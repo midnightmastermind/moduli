@@ -93,20 +93,27 @@ describe("classifyIntake", () => {
     expect(ids(homeless)).toContain(S.TEXT_DOC_PAGE.id);
   });
 
-  // MEASURED, not assumed: `runOcr` is tesseract.js, and tesseract cannot read
-  // a PDF ("Error attempting to read image."). The shape used to be offered on
-  // `.pdf` and nothing else — i.e. pointed at the one file type its own runner
-  // refuses. Offering it there again would be a tile that always fails.
-  it("the OCR shape is offered on IMAGES, never on a PDF", () => {
+  // The engine still cannot read a PDF — `helpers/pdfPages` rasterises each
+  // page first (2026-08-09). Before that existed the shape was offered on
+  // `.pdf` and NOTHING else, i.e. pointed at the one type its runner refuses.
+  it("the OCR shape is offered on images AND, via rasterising, on PDFs", () => {
     const img = classifyIntake({ files: [file("receipt.jpg", "image/jpeg")] }, { kind: "board", occurrenceId: "c1" });
     expect(ids(img)).toContain(S.FILE_OCR_TEXT.id);
-    // Both OCR outcomes are offered — prose vs one item per line — because
+    // Both OCR outcomes on an image — prose vs one item per line — because
     // which one is right is a fact about the photo, not the file.
     expect(ids(img)).toContain(S.IMAGE_OCR_LIST.id);
 
     const pdf = classifyIntake({ files: [file("scan.pdf", "application/pdf")] }, { kind: "board", occurrenceId: "c1" });
-    expect(ids(pdf)).not.toContain(S.FILE_OCR_TEXT.id);
+    expect(ids(pdf)).toContain(S.FILE_OCR_TEXT.id);
+    // Keeping it as a plain file stays on offer — that is the common case, and
+    // OCR is one slow pass per page.
+    expect(ids(pdf)).toContain(S.FILE_ARTIFACT.id);
     expect(pdf.fallback).toBe(S.FILE_ARTIFACT.id);
+  });
+
+  it("a file that is neither an image nor a PDF gets no OCR tile", () => {
+    const zip = classifyIntake({ files: [file("backup.zip", "application/zip")] }, { kind: "board", occurrenceId: "c1" });
+    expect(ids(zip)).not.toContain(S.FILE_OCR_TEXT.id);
   });
 
   it("a .md file routes to the importer — the audit gap — and a .csv to a table", () => {

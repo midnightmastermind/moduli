@@ -26,6 +26,15 @@ vi.mock("../helpers/artifactUpload", () => ({
 const runOcr = vi.fn(async () => "");
 vi.mock("../helpers/ocr", () => ({ runOcr: (...a) => runOcr(...a) }));
 
+// pdf.js needs a real canvas, which jsdom does not have. The route's contract
+// is what it does with the pages, not the rasterising — that lives in
+// helpers/pdfPages and is exercised in a browser, not here.
+const eachPdfPageImage = vi.fn();
+vi.mock("../helpers/pdfPages", async (orig) => ({
+  ...(await orig()),
+  eachPdfPageImage: (...a) => eachPdfPageImage(...a),
+}));
+
 // The router reports an intake's outcome itself when the caller does not
 // override — the defect this replaced was that NO caller overrode, so the OCR
 // shapes reported nothing at all.
@@ -680,5 +689,97 @@ describe("describeFileSet", () => {
   it("falls back to 'files' for a mixed drop", async () => {
     const { describeFileSet } = await import("../helpers/intakeApply.js");
     expect(describeFileSet([{ type: "image/png" }, { type: "application/pdf" }], at)).toBe("2 files (2026-08-09)");
+  });
+});
+
+// ── A PDF, EVERY PAGE ───────────────────────────────────────────────────────
+// The user's call over first-page-only. That makes it one OCR pass PER PAGE,
+// so the progress line naming the page is part of the feature, not polish.
+describe("the OCR shape reads a PDF page by page", () => {
+  const pdf = new File(["%PDF-1.4"], "scan.pdf", { type: "application/pdf" });
+
+  function fakePages(n, { total = n } = {}) {
+    eachPdfPageImage.mockImplementation(async (file, onPage) => {
+      for (let i = 1; i <= n; i++) await onPage(`data:image/png;base64,page${i}`, i, n);
+      return { pages: n, total, truncated: n < total };
+    });
+  }
+  function run() {
+    const emitted = [];
+    const socket = {
+      connected: true,
+      emit: vi.fn((event, data) => emitted.push({ event, data })),
+      on: vi.fn(), off: vi.fn(),
+    };
+    const done = {};
+    done.promise = new Promise((r) => { done.resolve = r; });
+    const ctx = {
+      files: [pdf], gridId: "g1", userId: "u1", dispatch: vi.fn(), socket,
+      destinationOccurrence: { id: "c1", moduleId: "cm", occurrences: [] },
+      onIntakeResult: (r) => done.resolve(r),
+    };
+    applyIntakeShape(INTAKE_SHAPES.FILE_OCR_TEXT.id, ctx);
+    return { emitted, done: done.promise };
+  }
+
+  it("reads EVERY page and joins them into one textblock", async () => {
+    fakePages(3);
+    runOcr.mockImplementation(async (src) => `text of ${String(src).slice(-5)}`);
+    const { emitted, done } = run();
+    const res = await done;
+
+    expect(res.ok).toBe(true);
+    expect(runOcr).toHaveBeenCalledTimes(3);          // not just page 1
+    const block = emitted.find((e) => e.event === "create_occurrence" && e.data.occurrence?.textmap);
+    const paras = block.data.occurrence.textmap.content.map((p) => p.content[0].text);
+    // One paragraph per page: the pages are joined with a BLANK line, so a page
+    // boundary is not run into the previous page's last sentence.
+    expect(paras).toEqual(["text of page1", "text of page2", "text of page3"]);
+  });
+
+  it("keeps the PDF as an artifact too", async () => {
+    fakePages(2);
+    runOcr.mockResolvedValue("something");
+    const { done } = run();
+    await done;
+    expect(createArtifactPlaceholders).toHaveBeenCalledTimes(1);
+  });
+
+  it("names the page it is on while it works", async () => {
+    fakePages(3);
+    runOcr.mockResolvedValue("x");
+    // NO `onIntakeResult`: a caller that owns reporting owns the progress line
+    // too, so `startIntake` deliberately stays silent for one. The router's own
+    // reporting is what shows progress, and that is the path a real drop takes.
+    const socket = { connected: true, emit: vi.fn(), on: vi.fn(), off: vi.fn() };
+    applyIntakeShape(INTAKE_SHAPES.FILE_OCR_TEXT.id, {
+      files: [pdf], gridId: "g1", userId: "u1", dispatch: vi.fn(), socket,
+      destinationOccurrence: { id: "c1", moduleId: "cm", occurrences: [] },
+    });
+    await vi.waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+
+    const lines = toastLoading.mock.calls.map((c) => c[0]);
+    expect(lines).toContain("Reading page 2 of 3…");
+    // …and they REPLACE one another rather than stacking three toasts.
+    expect(toastLoading.mock.calls.slice(1).every((c) => c[1]?.id === "tok-1")).toBe(true);
+  });
+
+  it("says so when it stopped short of the whole document", async () => {
+    fakePages(50, { total: 120 });
+    runOcr.mockResolvedValue("x");
+    const { done } = run();
+    const res = await done;
+    expect(res.note).toBe("first 50 of 120 pages");
+  });
+
+  it("reports an unreadable PDF without claiming the upload failed", async () => {
+    fakePages(2);
+    runOcr.mockResolvedValue("   ");
+    const { done } = run();
+    const res = await done;
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/PDF/);
+    expect(res.error).toMatch(/still added/);
+    expect(createArtifactPlaceholders).toHaveBeenCalledTimes(1);
   });
 });

@@ -6,6 +6,37 @@
 
 ---
 
+### 2026-08-09 (4) — the PDF that OCR could not read, read; and an A/B that lied
+
+Coverage stays 20 of 24 — this finishes a shape rather than adding one. `file-ocr-text` was pulled
+off PDFs on 08-08 because tesseract cannot read one; **`helpers/pdfPages.js` renders each page to an
+image first**, so the shape is honest on PDFs again. Every page, per the user's call over
+first-page-only.
+
+**The engine was never the missing piece.** pdf.js already rasterises pages for the artifact viewer;
+nothing turned a page into something tesseract could see. One page at a time, callback awaited, each
+canvas released before the next — collecting page images first would hold a whole document in memory
+at OCR resolution, and the progress line could not name the page it is on.
+
+**Scale is an OCR decision, not a display one.** pdf.js scale 1 is 72 DPI and reads badly; 2.5 is
+~180 DPI. The viewer uses 1.2 because a human is reading it — sharing that number would have quietly
+produced bad text.
+
+**`progressIntake` earns its keep here specifically:** this is one OCR pass PER PAGE, so a ten-page
+scan is minutes, and an indefinite "Reading…" for that long is indistinguishable from a hang. Pages
+are joined with a BLANK line so the last line of one page does not run into the first of the next.
+
+**AN A/B LIED, AND THAT IS THE REUSABLE PART.** Testing whether the blank-line join mattered, the
+mutation silently failed to apply (shell escaping) and the A/B reported "the test does not
+discriminate" — i.e. it looked like a WEAK TEST when the test was fine. Re-run with the mutation
+verified, it fails correctly. **Check that the mutation landed before believing an A/B**, exactly as
+this file already says to check a probe before believing a failure. An A/B is a probe.
+
+pdfjs stays lazy: the intake chunk grew 1.5 kB, not 400. 2217 client tests (the same 3 pre-existing
+`liveOpsBehavioral` failures). Build clean.
+
+---
+
 ### 2026-08-09 (3) — a folder page shows what is PARENTED to it, so the files had to move house
 
 Coverage **19 → 20 of 24**. Four shapes left.
