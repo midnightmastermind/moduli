@@ -1,6 +1,28 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-08 (7) — intake REPORTS ITSELF; the seam is an override, not a requirement)
+- **A CORRECTION TO (6), SHIPPED THE SAME DAY.** (6) fixed the OCR silence by wiring
+  `onIntakeResult` at all three call sites — and the three handlers came out **byte-identical**.
+  That is the tell that reporting is not caller-specific business at all. Placement genuinely is
+  (a doc inserts a `moduleEmbed`, a board splices — that is why `onPlaceholders` exists);
+  *announcing an outcome* is not.
+- **Worse, wiring three callers fixed one INSTANCE and left the CLASS open:** the fourth caller
+  forgets and the silence is back. That is exactly how the original defect happened.
+- **`notifyIntake(ctx, res, token)` + `startIntake(ctx, message)` (NEW, module-private).** The
+  router reports every intake outcome itself; `onIntakeResult` still exists and still WINS when a
+  caller passes one, so it is an override rather than a requirement. Every `onIntakeResult?.(…)`
+  inside the routes now goes through `notifyIntake`, and the three duplicated call-site handlers
+  are deleted.
+- **`startIntake` closes the progress gap (6) recorded as open.** OCR is the only thing intake does
+  that takes seconds — lazy-loading a 3.5MB worker — so it is the only thing that announces itself:
+  `toast.loading("Reading the image…")` and the finish REPLACES that toast by id rather than
+  stacking a second one. A caller that owns reporting owns this too, so `startIntake` returns null
+  when `onIntakeResult` is present and nothing double-reports.
+- 2 tests, both A/B'd against the state this replaced: reverting to seam-only, and dropping the
+  loading toast, each fail the default-reporting test (at different assertions — it is one contract
+  test covering both halves).
+
 ## Recent Changes (2026-08-08 (6) — the OCR shape was gated to the ONE format OCR cannot read)
 - **`file-ocr-text` was offered for `.pdf` AND NOTHING ELSE** (`OCR_EXT = /\.(pdf)$/i`), and
   `helpers/ocr.runOcr` is tesseract.js — **which cannot read a PDF.** Measured directly against a

@@ -1617,24 +1617,10 @@ export function handleFileDrop(dropContext, ctx) {
       toast.success(`Imported (${bits.join(" · ") || "no content"})`);
       if (res.rootOccurrenceId) setTimeout(() => jumpToOccurrence(res.rootOccurrenceId), 200);
     },
-    // ── The OCR shapes' ONLY reporting channel ──────────────────────
-    // Nothing passed this until now, so the shipped photo-to-checklist shape
-    // reported NOTHING — not a failure, not a read-nothing, not a success.
-    // OCR is seconds long and lazy-loads a 3.5MB worker, so silence there is
-    // indistinguishable from a drop that did nothing at all.
-    onIntakeResult: (res) => {
-      if (res?.ok) {
-        const what = res.count
-          ? `Read ${res.count} item${res.count === 1 ? "" : "s"}`
-          : "Read the text";
-        // `note` carries what the split REFUSED (unreadable lines skipped, the
-        // 100-item cap) — the shape returns it deliberately, and dropping it
-        // would hide the fact that part of the photo did not make it.
-        toast.success(res.note ? `${what} · ${res.note}` : what);
-      } else if (res) {
-        toast.error(res.error || "Could not read that");
-      }
-    },
+    // NOTE: no `onIntakeResult` here on purpose. The router reports an intake's
+    // outcome itself (`notifyIntake`), including the OCR shapes' progress toast.
+    // Passing one here would OVERRIDE that — the seam still exists for a caller
+    // that genuinely needs different behaviour, and this one does not.
   };
 
   // ── ASK what this should become ───────────────────────────────────

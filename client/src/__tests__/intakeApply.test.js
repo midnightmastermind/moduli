@@ -26,6 +26,18 @@ vi.mock("../helpers/artifactUpload", () => ({
 const runOcr = vi.fn(async () => "");
 vi.mock("../helpers/ocr", () => ({ runOcr: (...a) => runOcr(...a) }));
 
+// The router reports an intake's outcome itself when the caller does not
+// override — the defect this replaced was that NO caller overrode, so the OCR
+// shapes reported nothing at all.
+const toastSuccess = vi.fn(), toastError = vi.fn(), toastLoading = vi.fn(() => "tok-1");
+vi.mock("../state/notificationStore", () => ({
+  toast: Object.assign(vi.fn(), {
+    success: (...a) => toastSuccess(...a),
+    error: (...a) => toastError(...a),
+    loading: (...a) => toastLoading(...a),
+  }),
+}));
+
 const {
   applyIntakeShape, filterToImplemented, assertShapeCoverage,
   IMPLEMENTED_SHAPE_IDS, INTAKE_ROUTES,
@@ -313,6 +325,32 @@ describe("applyIntakeShape — routes reach the EXISTING helpers unchanged", () 
       expect(createArtifactPlaceholders).toHaveBeenCalledTimes(1);
       expect(res.error).toMatch(/still added/i);
       expect(emitted.some((e) => e.event === "create_occurrence" && e.data.occurrence?.textmap)).toBe(false);
+    });
+
+    // THE DEFECT CLASS, pinned. Every caller used to omit `onIntakeResult` and
+    // the OCR shapes went completely silent behind seconds of work. A caller
+    // that says nothing must still produce a visible outcome.
+    it("reports through the router when the caller passes NO handler", async () => {
+      runOcr.mockResolvedValueOnce("Some words");
+      const emitted = [];
+      const ctx = ocrCtx(emitted);
+      delete ctx.onIntakeResult;                 // the state every call site is in
+      applyIntakeShape(INTAKE_SHAPES.FILE_OCR_TEXT.id, ctx);
+
+      // Announced up front — OCR is the slowest thing intake does.
+      expect(toastLoading).toHaveBeenCalledWith("Reading the image…", expect.anything());
+      await vi.waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+      // …and the finish REPLACES that toast rather than stacking a second one.
+      expect(toastSuccess.mock.calls[0][1]).toMatchObject({ id: "tok-1" });
+    });
+
+    it("a caller's own handler still wins, and suppresses the router's toast", async () => {
+      runOcr.mockResolvedValueOnce("Some words");
+      const emitted = [];
+      const ctx = ocrCtx(emitted);
+      await (applyIntakeShape(INTAKE_SHAPES.FILE_OCR_TEXT.id, ctx), ctx._done);
+      expect(toastLoading).not.toHaveBeenCalled();
+      expect(toastSuccess).not.toHaveBeenCalled();
     });
 
     it("surfaces an OCR failure instead of swallowing it", async () => {

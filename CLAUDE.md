@@ -6,6 +6,35 @@
 
 ---
 
+### 2026-08-08 (10) — I fixed the INSTANCE and left the CLASS open; the router reports itself now
+
+A correction to (9), shipped the same day, and worth recording because the mistake is a common one.
+
+**(9) fixed the OCR silence by wiring `onIntakeResult` at all three call sites — and the three
+handlers came out BYTE-IDENTICAL.** That is the tell: reporting is not caller-specific business.
+Placement genuinely is (a doc inserts a `moduleEmbed`, a board splices — that is why
+`onPlaceholders` exists); *announcing an outcome* is not. **And wiring three callers fixed one
+INSTANCE while leaving the CLASS open** — the fourth caller forgets and the silence returns, which
+is precisely how the original defect happened.
+
+So the router reports every intake outcome itself (`notifyIntake`). `onIntakeResult` still exists
+and still WINS when passed — it is an **override, not a requirement**, so forgetting it can no
+longer produce silence.
+
+**The progress gap (9) filed as open is closed in the same pass.** OCR is the only thing intake does
+that takes seconds, so it is the only thing that announces itself: a loading toast up front, and the
+finish REPLACES it by id rather than stacking a second. A caller that owns reporting owns this too,
+so nothing double-reports.
+
+**The general lesson: three identical copies of a "caller-specific" handler means it was never
+caller-specific.** When a fix is "wire it at every call site", ask whether the default belongs in the
+callee instead — otherwise the next call site reintroduces the bug.
+
+2185 client tests (the same 3 pre-existing `liveOpsBehavioral` failures). Both new tests A/B'd:
+reverting to seam-only and dropping the loading toast each fail the default-reporting contract.
+
+---
+
 ### 2026-08-08 (9) — the OCR shape was pointed at the ONE format OCR cannot read
 
 Coverage **17 → 18 of 24**. Deployed and verified.

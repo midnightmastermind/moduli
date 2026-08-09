@@ -37,6 +37,7 @@ import { optionBoardStampFields } from "./boardOption";
 import { attachFile } from "./mainFile";
 import { splitToChecklistItems, MAX_CHECKLIST_ITEMS } from "./checklistFromText";
 import { runOcr } from "./ocr";
+import { toast } from "../state/notificationStore";
 import * as CommitHelpers from "./CommitHelpers";
 
 const S = INTAKE_SHAPES;
@@ -186,6 +187,47 @@ export function applyIntakeShape(shapeId, ctx = {}) {
   });
 }
 
+// ── Reporting ───────────────────────────────────────────────────────────────
+//
+// `onIntakeResult` IS STILL A SEAM, BUT IT NOW HAS A DEFAULT, and the reason is
+// a defect this file already shipped: NO caller passed it, so the OCR shapes
+// reported nothing at all — not a failure, not "read nothing", not success —
+// behind a 3.5MB lazy import and seconds of work. Wiring three callers fixed
+// that instance and left the class open: the fourth caller forgets and the
+// silence is back.
+//
+// Worse, the three handlers came out BYTE-IDENTICAL, which is the tell that
+// this is not caller-specific business at all. Placement is (a doc inserts an
+// embed, a board splices — `onPlaceholders` genuinely differs); *reporting an
+// outcome* is not. So the router owns it, and a caller may still override.
+
+/** Announce that a slow route has started. Returns a token for `notifyIntake`. */
+function startIntake(ctx, message) {
+  // A caller that owns reporting owns the whole conversation, including this.
+  if (ctx?.onIntakeResult) return null;
+  return toast.loading(message, { duration: 120000 });
+}
+
+/**
+ * Report a route's outcome exactly once.
+ *
+ * `res.note` carries what a split REFUSED (unreadable lines, the item cap) —
+ * shapes return it deliberately, and dropping it hides the fact that part of
+ * the input did not make it.
+ */
+function notifyIntake(ctx, res, token = null) {
+  if (ctx?.onIntakeResult) { ctx.onIntakeResult(res); return; }
+  const opts = token ? { id: token } : undefined;
+  if (res?.ok) {
+    const what = res.count
+      ? `Read ${res.count} item${res.count === 1 ? "" : "s"}`
+      : "Read the text";
+    toast.success(res.note ? `${what} · ${res.note}` : what, opts);
+  } else {
+    toast.error(res?.error || "Could not read that", opts);
+  }
+}
+
 // ── Routes ──────────────────────────────────────────────────────────────────
 
 // Today's file path, unchanged: mint placeholders at the destination, then
@@ -232,11 +274,11 @@ function runImageAttach(ctx) {
     files = [], gridId, userId, dispatch, socket,
     destinationOccurrence = null, destination = {},
     occExtra = null, persist = null, containerOccurrenceId = null,
-    onPlaceholders = null, onIntakeResult = null,
+    onPlaceholders = null,
   } = ctx;
   const filesFieldId = destination.filesFieldId || null;
   if (!files.length || !destinationOccurrence || !filesFieldId) {
-    onIntakeResult?.({ ok: false, error: "nothing here to attach it to" });
+    notifyIntake(ctx, { ok: false, error: "nothing here to attach it to" });
     return;
   }
 
@@ -261,7 +303,7 @@ function runImageAttach(ctx) {
       });
     },
   });
-  onIntakeResult?.({ ok: true, count: placeholders.length });
+  notifyIntake(ctx, { ok: true, count: placeholders.length });
 }
 
 // ── TEXT / PHOTO → CHECKLIST ───────────────────────────────────────────────
@@ -288,26 +330,26 @@ function mintChecklist(items, ctx) {
   return minted;
 }
 
-function reportChecklist(res, minted, onIntakeResult) {
+function reportChecklist(res, minted, ctx, token = null) {
   const notes = [];
   if (res.skipped) notes.push(`${res.skipped} unreadable line${res.skipped === 1 ? "" : "s"} skipped`);
   if (res.truncated) notes.push(`stopped at ${MAX_CHECKLIST_ITEMS}`);
-  onIntakeResult?.({ ok: true, count: minted.length, note: notes.join(" · ") || undefined });
+  notifyIntake(ctx, { ok: true, count: minted.length, note: notes.join(" · ") || undefined }, token);
 }
 
 function runTextChecklist(ctx) {
-  const { payload = {}, destinationOccurrence = null, onIntakeResult = null } = ctx;
+  const { payload = {}, destinationOccurrence = null } = ctx;
   const text = payload.text || "";
   if (!text || !destinationOccurrence) {
-    onIntakeResult?.({ ok: false, error: "nothing to make a list from" });
+    notifyIntake(ctx, { ok: false, error: "nothing to make a list from" });
     return;
   }
   const res = splitToChecklistItems(text);
   if (!res.items.length) {
-    onIntakeResult?.({ ok: false, error: "no readable lines in that text" });
+    notifyIntake(ctx, { ok: false, error: "no readable lines in that text" });
     return;
   }
-  reportChecklist(res, mintChecklist(res.items, ctx), onIntakeResult);
+  reportChecklist(res, mintChecklist(res.items, ctx), ctx);
 }
 
 // The photo arm. OCR is SLOW (seconds, and it lazy-loads a 3.5MB worker), so
@@ -318,11 +360,11 @@ function runImageOcrList(ctx) {
   const {
     files = [], gridId, userId, dispatch, socket,
     destinationOccurrence = null, occExtra = null, persist = null,
-    containerOccurrenceId = null, onPlaceholders = null, onIntakeResult = null,
+    containerOccurrenceId = null, onPlaceholders = null,
   } = ctx;
   const file = files[0];
   if (!file || !destinationOccurrence) {
-    onIntakeResult?.({ ok: false, error: "nothing to read" });
+    notifyIntake(ctx, { ok: false, error: "nothing to read" });
     return;
   }
 
@@ -337,18 +379,19 @@ function runImageOcrList(ctx) {
   // Read from the local file rather than waiting for the upload: the bytes are
   // already in hand, and coupling OCR to a network round trip would make a slow
   // thing slower and fail for two unrelated reasons.
+  const token = startIntake(ctx, "Reading the image…");
   const url = URL.createObjectURL(file);
   runOcr(url)
     .then((text) => {
       const res = splitToChecklistItems(text);
       if (!res.items.length) {
-        onIntakeResult?.({ ok: false, error: "could not read any lines from that image" });
+        notifyIntake(ctx, { ok: false, error: "could not read any lines from that image" }, token);
         return;
       }
-      reportChecklist(res, mintChecklist(res.items, ctx), onIntakeResult);
+      reportChecklist(res, mintChecklist(res.items, ctx), ctx, token);
     })
     .catch((err) => {
-      onIntakeResult?.({ ok: false, error: `OCR failed: ${err?.message || "unknown"}` });
+      notifyIntake(ctx, { ok: false, error: `OCR failed: ${err?.message || "unknown"}` }, token);
     })
     .finally(() => URL.revokeObjectURL(url));
 }
@@ -371,11 +414,11 @@ function runFileOcrText(ctx) {
   const {
     files = [], gridId, userId, dispatch, socket,
     destinationOccurrence = null, occExtra = null, persist = null,
-    containerOccurrenceId = null, onPlaceholders = null, onIntakeResult = null,
+    containerOccurrenceId = null, onPlaceholders = null,
   } = ctx;
   const file = files[0];
   if (!file || !destinationOccurrence) {
-    onIntakeResult?.({ ok: false, error: "nothing to read" });
+    notifyIntake(ctx, { ok: false, error: "nothing to read" });
     return;
   }
 
@@ -393,21 +436,22 @@ function runFileOcrText(ctx) {
   // Read the LOCAL bytes rather than waiting on the upload — they are already
   // in hand, and coupling OCR to a network round trip makes a slow thing slower
   // and gives it a second, unrelated way to fail.
+  const token = startIntake(ctx, "Reading the image…");
   const url = URL.createObjectURL(file);
   return runOcr(url)
     .then((text) => {
       if (!String(text || "").trim()) {
         // The artifact still landed — say what did and did not happen rather
         // than reporting a blanket failure over a successful upload.
-        onIntakeResult?.({ ok: false, error: "could not read any text from that image — the file was still added" });
+        notifyIntake(ctx, { ok: false, error: "could not read any text from that image — the file was still added" }, token);
         return;
       }
       const res = mintTextblockFromText(text, ctx);
-      if (!res) { onIntakeResult?.({ ok: false, error: "could not create the textblock" }); return; }
-      onIntakeResult?.({ ok: true, textblockOccurrenceId: res.occurrenceId, chars: text.length });
+      if (!res) { notifyIntake(ctx, { ok: false, error: "could not create the textblock" }, token); return; }
+      notifyIntake(ctx, { ok: true, textblockOccurrenceId: res.occurrenceId, chars: text.length }, token);
     })
     .catch((err) => {
-      onIntakeResult?.({ ok: false, error: `OCR failed: ${err?.message || "unknown"}` });
+      notifyIntake(ctx, { ok: false, error: `OCR failed: ${err?.message || "unknown"}` }, token);
     })
     .finally(() => URL.revokeObjectURL(url));
 }
@@ -478,14 +522,13 @@ function runLinkChip(ctx) {
 function runLinkBoardOption(ctx) {
   const {
     payload = {}, destinationOccurrence = null, gridId, userId, dispatch, socket,
-    onIntakeResult = null,
   } = ctx;
   const urls = payload.urls || [];
   const stamp = optionBoardStampFields(destinationOccurrence);
   if (!urls.length || !destinationOccurrence || !stamp) {
     // Reported, not swallowed: the shape promised something specific, and a
     // silent no-op here is indistinguishable from "the drop did nothing".
-    onIntakeResult?.({ ok: false, error: "this board does not define what its options are" });
+    notifyIntake(ctx, { ok: false, error: "this board does not define what its options are" });
     return;
   }
 
@@ -503,7 +546,7 @@ function runLinkBoardOption(ctx) {
     });
     if (res) minted.push(res);
   }
-  onIntakeResult?.({ ok: true, count: minted.length });
+  notifyIntake(ctx, { ok: true, count: minted.length });
 }
 
 // Several links dropped together become ONE container of chips rather than N
