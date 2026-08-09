@@ -546,3 +546,50 @@ describe("the link-container shape", () => {
     expect(c.dispatch).not.toHaveBeenCalled();
   });
 });
+
+// The first shape that needs a second answer. Asserted on the write that
+// LEAVES, because "did updateOccurrence get called" is not the same question as
+// "did the right field get the URL".
+describe("the link-field shape writes the URL into the CHOSEN field", () => {
+  const dest = { id: "row-1", moduleId: "m-1", fields: { "f-name": { value: "Ada", flow: "in" } } };
+  function run(answer) {
+    const emitted = [];
+    const socket = {
+      connected: true,
+      emit: vi.fn((event, data) => emitted.push({ event, data })),
+      on: vi.fn(), off: vi.fn(),
+    };
+    const r = applyIntakeShape(INTAKE_SHAPES.LINK_FIELD_VALUE.id, {
+      payload: { kind: "link", urls: ["https://example.com/a"] },
+      destinationOccurrence: dest,
+      gridId: "g1", userId: "u1", dispatch: vi.fn(), socket,
+      onIntakeResult: vi.fn(),
+    }, answer);
+    return { emitted, r };
+  }
+
+  it("writes to the field the user picked, in the stored {value,flow} shape", () => {
+    const { emitted } = run("f-web");
+    const w = emitted.find((e) => e.event === "update_occurrence");
+    expect(w, "nothing was written").toBeTruthy();
+    expect(w.data.occurrence.fields["f-web"]).toEqual({ value: "https://example.com/a", flow: "in" });
+  });
+
+  it("leaves the occurrence's OTHER field values alone", () => {
+    const { emitted } = run("f-web");
+    const w = emitted.find((e) => e.event === "update_occurrence");
+    expect(w.data.occurrence.fields["f-name"]).toEqual({ value: "Ada", flow: "in" });
+  });
+
+  it("REFUSES rather than guessing a field when none was chosen", () => {
+    const onIntakeResult = vi.fn();
+    const socket = { connected: true, emit: vi.fn(), on: vi.fn(), off: vi.fn() };
+    applyIntakeShape(INTAKE_SHAPES.LINK_FIELD_VALUE.id, {
+      payload: { kind: "link", urls: ["https://example.com/a"] },
+      destinationOccurrence: dest,
+      gridId: "g1", userId: "u1", dispatch: vi.fn(), socket, onIntakeResult,
+    });   // no answer — the no-host fallback can reach here
+    expect(socket.emit).not.toHaveBeenCalled();
+    expect(onIntakeResult).toHaveBeenCalledWith(expect.objectContaining({ ok: false }));
+  });
+});

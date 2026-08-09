@@ -7,7 +7,7 @@
 //
 // This is the only surface that asks, and it is deliberately cheap to dismiss:
 //
-//   • the best shape is PRE-SELECTED and focused on open, so Enter commits it
+//   • NOTHING is pre-selected — the user picks every time (2026-08-09)
 //   • Escape cancels and WRITES NOTHING — this component never writes at all
 //   • ONE sheet per gesture, never per item: nine files ask once, for the set
 //
@@ -62,7 +62,7 @@ export function IntakeSheetHost() {
     <IntakeSheet
       classification={req.classification}
       position={req.position || null}
-      onPick={(shapeId) => { setReq(null); req.onPick?.(shapeId); }}
+      onPick={(shapeId, answer) => { setReq(null); req.onPick?.(shapeId, answer); }}
       onCancel={() => { setReq(null); req.onCancel?.(); }}
     />
   );
@@ -125,6 +125,17 @@ const listSt = {
   overflowY: "auto",
 };
 
+const backSt = {
+  background: "transparent",
+  border: "none",
+  color: "var(--text-muted, rgba(255,255,255,0.55))",
+  cursor: "pointer",
+  font: "inherit",
+  fontSize: 15,
+  lineHeight: 1,
+  padding: "0 4px 0 0",
+};
+
 const footSt = {
   padding: "7px 12px",
   borderTop: "1px solid var(--border-subtle, rgba(255,255,255,0.07))",
@@ -154,38 +165,72 @@ const tileSt = {
  *                                   nothing is pre-selected, so the sheet has no
  *                                   opinion to render (see helpers/intake.js).
  * @param {object}   position        desktop anchor `{ top, left }` (MenuSurface ignores it on mobile)
- * @param {Function} onPick          (shapeId) => void — the ONLY way this sheet produces an outcome
+ * @param {Function} onPick          (shapeId, answer?) => void — the ONLY way this
+ *                                   sheet produces an outcome. `answer` is set
+ *                                   for shapes that declared a `followUp`.
  * @param {Function} onCancel        () => void — Escape / backdrop / Cancel. Writes nothing.
  */
 export default function IntakeSheet({ classification, position = null, onPick, onCancel, zIndex = 1200 }) {
-  const shapes = classification?.shapes || [];
+  const allShapes = classification?.shapes || [];
   const surfaceRef = useRef(null);
   const dialogRef = useRef(null);
   const itemRefs = useRef([]);
+
+  // ── STEP 2 ────────────────────────────────────────────────────────────────
+  // Some shapes cannot be carried out from the shape alone: "Set as field
+  // value" needs to know WHICH field. Rather than a bespoke dialog per shape,
+  // a shape may declare `followUp` and the sheet renders a second list in
+  // place. The shape is not committed until that list is answered — picking
+  // `Set as field value` writes nothing on its own.
+  const [followUpFor, setFollowUpFor] = useState(null);
+  const followUp = followUpFor?.followUp || null;
+
+  // Whatever list is on screen right now. Both steps render the same tiles and
+  // share the same arrow-key handling, so there is one interaction to get right
+  // instead of two that drift.
+  const items = followUp
+    ? followUp.options.map((o) => ({ id: o.value, label: o.label, hint: o.hint }))
+    : allShapes;
+  // Drop refs left by the other step. In the render body deliberately — an
+  // effect runs AFTER the ref callbacks and would wipe this render's own refs.
+  itemRefs.current.length = items.length;
+
+  const choose = useCallback((id) => {
+    if (followUpFor) { onPick?.(followUpFor.id, id); return; }
+    const shape = allShapes.find((s) => s.id === id);
+    if (shape?.followUp?.options?.length) { setFollowUpFor(shape); return; }
+    onPick?.(id);
+  }, [followUpFor, allShapes, onPick]);
 
   // NOTHING IS PRE-SELECTED (user, 2026-08-09: "there shouldnt be a default, it
   // should ask everytime"). Focus lands on the DIALOG, not on a tile — focusing
   // a tile would make Enter commit it, which is a default wearing a different
   // hat. Arrow keys move into the list from here, so the keyboard path is intact
   // without one shape being quietly privileged.
+  // Re-parked when the step changes, so focus is never left on a tile that has
+  // just been replaced — and step 2 opens with nothing selected, exactly like
+  // step 1. There is no default at either level.
   useEffect(() => {
     dialogRef.current?.focus();
-  }, []);
+  }, [followUpFor]);
 
   // Escape must reach us even when focus has wandered off the tiles (the
   // backdrop, a scroll). Bound at the document so there is no focus-dependent
   // dead spot where Escape silently does nothing.
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        onCancel?.();
-      }
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      // From step 2, Escape goes BACK rather than throwing the gesture away —
+      // you answered "what should this become", not "what field". Either way
+      // it commits nothing, which is the property that matters.
+      if (followUpFor) { setFollowUpFor(null); return; }
+      onCancel?.();
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [onCancel]);
+  }, [onCancel, followUpFor]);
 
   const move = useCallback((delta) => {
     const els = itemRefs.current.filter(Boolean);
@@ -207,7 +252,9 @@ export default function IntakeSheet({ classification, position = null, onPick, o
     [move],
   );
 
-  if (!shapes.length) return null;
+  if (!allShapes.length) return null;
+
+  const title = followUp ? followUp.title : "What should this become?";
 
   return (
     <MenuSurface
@@ -221,13 +268,24 @@ export default function IntakeSheet({ classification, position = null, onPick, o
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="What should this become?"
+        aria-label={title}
         ref={dialogRef}
         tabIndex={-1}
         style={{ outline: "none" }}
       >
         <div style={headSt}>
-          <span style={{ fontSize: 12, fontWeight: 600 }}>What should this become?</span>
+          {followUp && (
+            <button
+              type="button"
+              onClick={() => setFollowUpFor(null)}
+              style={backSt}
+              data-testid="intake-back"
+              aria-label="Back to shapes"
+            >
+              ‹
+            </button>
+          )}
+          <span style={{ fontSize: 12, fontWeight: 600 }} data-testid="intake-title">{title}</span>
           <span
             style={{
               fontSize: 11,
@@ -238,34 +296,36 @@ export default function IntakeSheet({ classification, position = null, onPick, o
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
             }}
-            title={describeIntakePayload(classification?.payload)}
+            title={followUp ? followUpFor.label : describeIntakePayload(classification?.payload)}
             data-testid="intake-payload"
           >
-            {describeIntakePayload(classification?.payload)}
+            {followUp ? followUpFor.label : describeIntakePayload(classification?.payload)}
           </span>
         </div>
 
         <div style={listSt} onKeyDown={onListKeyDown}>
-          {shapes.map((s, i) => (
+          {items.map((it, i) => (
             <button
-              key={s.id}
+              key={it.id}
               type="button"
               ref={(el) => { itemRefs.current[i] = el; }}
               style={tileSt}
-              data-testid={`intake-shape-${s.id}`}
-              onClick={() => onPick?.(s.id)}
+              data-testid={followUp ? `intake-option-${it.id}` : `intake-shape-${it.id}`}
+              onClick={() => choose(it.id)}
             >
-              <div style={{ fontSize: 12, fontWeight: 500 }}>{s.label}</div>
-              {s.hint && (
+              <div style={{ fontSize: 12, fontWeight: 500 }}>{it.label}</div>
+              {it.hint && (
                 <div style={{ fontSize: 10.5, color: "var(--text-muted, rgba(255,255,255,0.5))", marginTop: 1 }}>
-                  {s.hint}
+                  {it.hint}
                 </div>
               )}
             </button>
           ))}
         </div>
 
-        <div style={footSt}>Pick one · ↑↓ to move · Esc to cancel</div>
+        <div style={footSt}>
+          {followUp ? "Pick one · ↑↓ to move · Esc to go back" : "Pick one · ↑↓ to move · Esc to cancel"}
+        </div>
       </div>
     </MenuSurface>
   );

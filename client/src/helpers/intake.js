@@ -136,7 +136,10 @@ function extractUrls(text) {
  *   kind:        "canvas" | "doc" | "board" | "table" | "folder" | "grid-cell" | null
  *   occurrenceId: string|null  — the occurrence being dropped ON (not the page)
  *   isOptionBoard: boolean     — resolved by the caller from the board's feed tag
- *   linkFieldId:  string|null  — a url/link field on that occurrence
+ *   linkFields:   [{id,name}] — text fields on that occurrence a URL could go
+ *                               into, in binding order (helpers/intakeFields).
+ *                               A LIST, not one id: there is no link field TYPE
+ *                               to detect, so the user picks (see that file).
  *   filesFieldId: string|null  — its Files field
  *   canDraw:      boolean      — a surface that can host a canvas (default: kind === "canvas")
  * }
@@ -164,7 +167,20 @@ export function classifyIntake(payload = {}, destination = {}) {
     // (addNewOption already knows how), an occurrence with a link field can take
     // the URL as a value.
     if (d.isOptionBoard) add(S.LINK_BOARD_OPTION);
-    if (onOccurrence && d.linkFieldId) add(S.LINK_FIELD_VALUE);
+    // A SHAPE MAY ASK A SECOND QUESTION. Offered only where the occurrence has
+    // somewhere to put a URL; which of those places is the user's call, always,
+    // even when there is one candidate (2026-08-09) — so the follow-up is
+    // attached unconditionally rather than skipped for a list of length 1.
+    if (onOccurrence && d.linkFields?.length) {
+      add({
+        ...S.LINK_FIELD_VALUE,
+        followUp: {
+          kind: "choose-one",
+          title: "Which field?",
+          options: d.linkFields.map((f) => ({ value: f.id, label: f.name })),
+        },
+      });
+    }
     add(S.LINK_FOLLOW);
     fallback = many ? S.LINK_CONTAINER.id : S.LINK_CHIP.id;
   } else if (p.kind === "file" || p.kind === "files") {

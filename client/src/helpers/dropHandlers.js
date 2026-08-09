@@ -98,6 +98,7 @@ import { snapPanelToEdge } from "./gridSnap";
 import { placementSemanticForKind } from "./mainFile";
 import { isOptionBoard } from "./boardOption";
 import { filesFieldIdFor } from "./occurrenceMedia";
+import { linkTargetFieldsFor } from "./intakeFields";
 import { toast } from "../state/notificationStore";
 import { jumpToOccurrence } from "./jumpToOccurrence";
 import { createImportsDocPage } from "./importsFolder";
@@ -1645,7 +1646,7 @@ export function handleFileDrop(dropContext, ctx) {
   const opened = openIntakeSheet({
     classification,
     position: { top: y + 8, left: x + 8 },
-    onPick: (shapeId) => applyIntakeShape(shapeId, intakeCtx),
+    onPick: (shapeId, answer) => applyIntakeShape(shapeId, intakeCtx, answer),
     // Cancel writes NOTHING. The placeholders have not been minted yet —
     // that is the whole reason the ask happens BEFORE any write rather than
     // after, so "Escape" cannot leave debris behind.
@@ -1781,6 +1782,13 @@ export function handleExternalDrop(dropContext, ctx) {
         kind: "board",
         occurrenceId: containerOcc?.id || null,
         isOptionBoard: isOptionBoard(containerOcc),
+        // Lights up LINK_FIELD_VALUE, and supplies its second question. A LIST,
+        // because there is no link field TYPE to detect — the user picks
+        // (helpers/intakeFields.js has the measurement).
+        linkFields: linkTargetFieldsFor(
+          containerOcc ? state?.modulesById?.[containerOcc.moduleId] : null,
+          Object.fromEntries((state?.fields || []).map((f) => [f.id, f])),
+        ),
       }),
     );
     const linkCtx = {
@@ -1805,7 +1813,7 @@ export function handleExternalDrop(dropContext, ctx) {
     const opened = openIntakeSheet({
       classification,
       position: { top: (pointer?.y ?? 0) + 8, left: (pointer?.x ?? 0) + 8 },
-      onPick: (shapeId) => { applyIntakeShape(shapeId, linkCtx); clearSession(); },
+      onPick: (shapeId, answer) => { applyIntakeShape(shapeId, linkCtx, answer); clearSession(); },
       onCancel: () => clearSession(),
     });
     if (!opened) { applyIntakeShape(classification.fallback, linkCtx); clearSession(); }
@@ -1921,7 +1929,7 @@ export function handleExternalDrop(dropContext, ctx) {
       const opened = openIntakeSheet({
         classification: textClassification,
         position: { top: (pointer?.y ?? 0) + 8, left: (pointer?.x ?? 0) + 8 },
-        onPick: (shapeId) => { applyIntakeShape(shapeId, textCtx); clearSession(); },
+        onPick: (shapeId, answer) => { applyIntakeShape(shapeId, textCtx, answer); clearSession(); },
         onCancel: () => clearSession(),
       });
       if (!opened) { applyIntakeShape(textClassification.fallback, textCtx); clearSession(); }

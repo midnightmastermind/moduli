@@ -2354,7 +2354,7 @@ const Editor = forwardRef(function Editor({
       const opened = openIntakeSheet({
         classification,
         position: { top: dropY + 8, left: dropX + 8 },
-        onPick: (shapeId) => applyIntakeShape(shapeId, intakeCtx),
+        onPick: (shapeId, answer) => applyIntakeShape(shapeId, intakeCtx, answer),
         onCancel: () => {},
       });
       // A doc rendered inside a preview iframe has no host — keep today's

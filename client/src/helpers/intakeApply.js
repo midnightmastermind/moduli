@@ -91,6 +91,10 @@ export const INTAKE_ROUTES = {
   // worth fighting for. Offered only when the destination IS an option board,
   // which `helpers/boardOption` derives from the board's own feed.
   [S.LINK_BOARD_OPTION.id]: { run: runLinkBoardOption, note: "a tagged option this board's dropdowns can see" },
+  // The URL as a VALUE on the row it was dropped on, rather than a new sibling.
+  // The FIRST shape that asks a second question — which field — because there
+  // is no link field type to detect (see helpers/intakeFields.js).
+  [S.LINK_FIELD_VALUE.id]: { run: runLinkFieldValue, note: "write the link into a field on this occurrence" },
   // Attach an image to the occurrence it was dropped ON, rather than adding a
   // sibling next to it. Offered only where there is a Files field to attach to.
   [S.IMAGE_ATTACH.id]: { run: runImageAttach, note: "append to this occurrence's Files, as its face if it has none" },
@@ -165,7 +169,7 @@ export function filterToImplemented(classification) {
  *     occurrencesById, containerOccurrenceId, occExtra, persist, onDone }
  * @returns {{ ok: boolean, shapeId: string, reason?: string }}
  */
-export function applyIntakeShape(shapeId, ctx = {}) {
+export function applyIntakeShape(shapeId, ctx = {}, answer = undefined) {
   const route = INTAKE_ROUTES[shapeId];
   if (!route) {
     // Loud, not silent: an unrouted shape reaching here means the sheet offered
@@ -185,8 +189,11 @@ export function applyIntakeShape(shapeId, ctx = {}) {
   // `withAction` closes it in a `finally`, which matters more than it looks: a
   // leaked scope silently swallows every LATER write into a stale action, so a
   // throw here would make undo revert far too much rather than too little.
+  // A shape that declared a `followUp` is answered before it runs; the answer
+  // rides on the ctx so routes keep one argument and nothing else has to change.
+  const runCtx = answer === undefined ? ctx : { ...ctx, answer };
   return withAction(`Intake: ${shapeId}`, () => {
-    route.run(ctx);
+    route.run(runCtx);
     return { ok: true, shapeId };
   });
 }
@@ -223,9 +230,11 @@ function notifyIntake(ctx, res, token = null) {
   if (ctx?.onIntakeResult) { ctx.onIntakeResult(res); return; }
   const opts = token ? { id: token } : undefined;
   if (res?.ok) {
-    const what = res.count
-      ? `Read ${res.count} item${res.count === 1 ? "" : "s"}`
-      : "Read the text";
+    // `message` lets a shape name its own outcome. Without it this reporter's
+    // wording was the OCR shapes' ("Read the text"), which is a lie the moment
+    // a non-OCR shape reports through it.
+    const what = res.message
+      || (res.count ? `Read ${res.count} item${res.count === 1 ? "" : "s"}` : "Read the text");
     toast.success(res.note ? `${what} · ${res.note}` : what, opts);
   } else {
     toast.error(res?.error || "Could not read that", opts);
@@ -458,6 +467,38 @@ function runFileOcrText(ctx) {
       notifyIntake(ctx, { ok: false, error: `OCR failed: ${err?.message || "unknown"}` }, token);
     })
     .finally(() => URL.revokeObjectURL(url));
+}
+
+// The URL as a VALUE on the occurrence it was dropped on.
+//
+// THE FIRST SHAPE WITH A SECOND QUESTION. `ctx.answer` is the field id the user
+// picked in step 2; the sheet does not commit the shape until that is answered,
+// so reaching here without one means a caller invoked the route directly (the
+// no-host fallback can do this). It refuses rather than guessing a field —
+// writing a URL into the wrong field is silent and the user would find it
+// later, in the wrong place.
+//
+// Writes through `updateOccurrence` with `triggerField`, which is what makes it
+// indistinguishable from typing the URL in: the same MeasureOp fires, so any
+// operation watching that field runs exactly as it would have.
+function runLinkFieldValue(ctx) {
+  const { payload = {}, destinationOccurrence = null, dispatch, socket, answer = null } = ctx;
+  const url = payload.urls?.[0];
+  if (!url || !destinationOccurrence) { notifyIntake(ctx, { ok: false, error: "nowhere to put the link" }); return; }
+  if (!answer) { notifyIntake(ctx, { ok: false, error: "no field chosen" }); return; }
+
+  // The stored shape is `{ value, flow }` like every other field write — a bare
+  // string reads fine until something looks for `.value`.
+  updateOccurrence({
+    dispatch, socket,
+    occurrence: {
+      id: destinationOccurrence.id,
+      fields: { ...(destinationOccurrence.fields || {}), [answer]: { value: url, flow: "in" } },
+    },
+    emit: true,
+    triggerField: { fieldId: answer, value: url, instanceId: destinationOccurrence.id },
+  });
+  notifyIntake(ctx, { ok: true, message: "Link saved to the field" });
 }
 
 // Fetch what the link points at and build the page from it. The URL is NOT

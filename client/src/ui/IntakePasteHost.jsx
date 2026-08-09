@@ -141,7 +141,7 @@ export default function IntakePasteHost() {
       const opened = openIntakeSheet({
         classification,
         position: { top: (pointer.y ?? 80) + 8, left: (pointer.x ?? 80) + 8 },
-        onPick: (shapeId) => applyIntakeShape(shapeId, intakeCtx),
+        onPick: (shapeId, answer) => applyIntakeShape(shapeId, intakeCtx, answer),
         onCancel: () => {},
       });
       // No host mounted (a preview iframe, a harness) — do today's thing rather

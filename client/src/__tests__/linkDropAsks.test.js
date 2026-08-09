@@ -27,7 +27,7 @@ function makeCtx(url) {
     },
     ctx: {
       dispatch: vi.fn(),
-      socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() },
+      socket: { connected: true, emit: vi.fn(), on: vi.fn(), off: vi.fn() },
       state: { gridId: "g1", userId: "u1", grid: { _id: "g1" }, modulesById: { containerMod }, viewsById: {} },
       occurrencesById: occs,
       baseContainers: [containerMod],
@@ -137,7 +137,7 @@ describe("dropping HTML / long text ASKS", () => {
       },
       ctx: {
         dispatch: vi.fn(),
-        socket: { emit: vi.fn(), on: vi.fn(), off: vi.fn() },
+        socket: { connected: true, emit: vi.fn(), on: vi.fn(), off: vi.fn() },
         state: { gridId: "g1", userId: "u1", grid: { _id: "g1" }, modulesById: { cm: containerMod }, viewsById: {} },
         occurrencesById: { co: { id: "co", moduleId: "cm", occurrences: [] } },
         baseContainers: [containerMod],
@@ -175,5 +175,58 @@ describe("dropping HTML / long text ASKS", () => {
     expect(call).toBeTruthy();
     expect(call[1]).toMatchObject({ gridId: "g1", format: "html", parentId: "co" });
     expect(call[1].content).toContain("Title");
+  });
+});
+
+// ── THE DROP HANDLER IS A CALL SITE FOR THE ANSWER TOO ──────────────────────
+// `link-field-value` is the first shape whose outcome depends on a SECOND
+// answer, and the sheet hands that answer back as onPick's second argument.
+// Every caller has to forward it. An A/B proved this needs its own test:
+// deleting `answer` from this handler's onPick left every other suite green
+// while the chosen field was dropped on the floor — the same class as the
+// missing dispatch/userId, destinationModule and onIntakeResult before it.
+describe("a link dropped on a ROW can fill one of its fields", () => {
+  function rowCtx(url = "https://example.com/profile") {
+    const c = makeCtx(url);
+    // A row that binds two text fields: Website and LinkedIn. There is no link
+    // field TYPE, so both are candidates and the user picks (helpers/intakeFields).
+    c.ctx.state.modulesById.containerMod = {
+      id: "containerMod", role: "container", kind: "board", label: "People",
+      fieldBindings: [{ fieldId: "f-web" }, { fieldId: "f-li" }, { fieldId: "f-age" }],
+    };
+    c.ctx.state.fields = [
+      { id: "f-web", name: "Website", type: "text" },
+      { id: "f-li", name: "LinkedIn", type: "text" },
+      { id: "f-age", name: "Age", type: "number" },   // cannot hold a URL
+    ];
+    return c;
+  }
+
+  it("offers the shape, with only the TEXT fields as its follow-up", () => {
+    const { dropContext, ctx } = rowCtx();
+    handleExternalDrop(dropContext, ctx);
+    const shape = requests[0].classification.shapes
+      .find((s) => s.id === INTAKE_SHAPES.LINK_FIELD_VALUE.id);
+    expect(shape, "the shape was not offered").toBeTruthy();
+    expect(shape.followUp.options.map((o) => o.value)).toEqual(["f-web", "f-li"]);
+  });
+
+  it("FORWARDS the chosen field, and the URL lands in it", () => {
+    const { dropContext, ctx } = rowCtx();
+    handleExternalDrop(dropContext, ctx);
+    requests[0].onPick(INTAKE_SHAPES.LINK_FIELD_VALUE.id, "f-li");
+
+    const write = ctx.socket.emit.mock.calls.find(([ev]) => ev === "update_occurrence");
+    expect(write, "no field write left the client").toBeTruthy();
+    expect(write[1].occurrence.fields["f-li"])
+      .toEqual({ value: "https://example.com/profile", flow: "in" });
+  });
+
+  it("is NOT offered on a row with no text fields to fill", () => {
+    const { dropContext, ctx } = rowCtx();
+    ctx.state.fields = [{ id: "f-age", name: "Age", type: "number" }];
+    handleExternalDrop(dropContext, ctx);
+    const ids = requests[0].classification.shapes.map((s) => s.id);
+    expect(ids).not.toContain(INTAKE_SHAPES.LINK_FIELD_VALUE.id);
   });
 });

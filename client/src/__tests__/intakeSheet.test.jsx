@@ -12,8 +12,8 @@
 // only the write assertion can tell them apart.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
-import IntakeSheet, { describeIntakePayload } from "../ui/IntakeSheet.jsx";
+import { render, screen, fireEvent, act } from "@testing-library/react";
+import IntakeSheet, { describeIntakePayload, IntakeSheetHost, openIntakeSheet } from "../ui/IntakeSheet.jsx";
 import { classifyIntake } from "../helpers/intake.js";
 
 afterEach(() => { delete document.body.dataset.layout; });
@@ -155,5 +155,138 @@ describe("IntakeSheet", () => {
       <IntakeSheet classification={{ payload: {}, shapes: [], fallback: null }} onPick={() => {}} onCancel={() => {}} />,
     );
     expect(container.querySelector(".intake-sheet")).toBeFalsy();
+  });
+});
+
+// ── STEP 2 ──────────────────────────────────────────────────────────────────
+// A shape may need one more answer before it can run ("Set as field value"
+// needs to know WHICH field). The sheet asks it in place rather than each shape
+// growing its own dialog.
+describe("IntakeSheet — a shape that asks a second question", () => {
+  const withFollowUp = {
+    payload: { kind: "link", urls: ["https://example.com"] },
+    shapes: [
+      { id: "link-chip", label: "Link chip" },
+      {
+        id: "link-field-value",
+        label: "Set as field value",
+        followUp: {
+          kind: "choose-one",
+          title: "Which field?",
+          options: [
+            { value: "f-web", label: "Website" },
+            { value: "f-li", label: "LinkedIn" },
+          ],
+        },
+      },
+    ],
+    fallback: "link-chip",
+  };
+
+  function open2(props = {}) {
+    const onPick = vi.fn(), onCancel = vi.fn();
+    render(<IntakeSheet classification={withFollowUp} onPick={onPick} onCancel={onCancel} {...props} />);
+    return { onPick, onCancel };
+  }
+
+  it("picking it WRITES NOTHING — it opens the second question", () => {
+    const { onPick } = open2();
+    fireEvent.click(screen.getByTestId("intake-shape-link-field-value"));
+    expect(onPick).not.toHaveBeenCalled();          // the assertion that matters
+    expect(screen.getByTestId("intake-title").textContent).toBe("Which field?");
+    expect(screen.getByTestId("intake-option-f-web")).toBeTruthy();
+    expect(screen.getByTestId("intake-option-f-li")).toBeTruthy();
+  });
+
+  it("answering it commits the shape AND the answer", () => {
+    const { onPick } = open2();
+    fireEvent.click(screen.getByTestId("intake-shape-link-field-value"));
+    fireEvent.click(screen.getByTestId("intake-option-f-li"));
+    expect(onPick).toHaveBeenCalledWith("link-field-value", "f-li");
+    expect(onPick).toHaveBeenCalledTimes(1);
+  });
+
+  it("a shape with NO follow-up still commits in one step", () => {
+    const { onPick } = open2();
+    fireEvent.click(screen.getByTestId("intake-shape-link-chip"));
+    expect(onPick).toHaveBeenCalledWith("link-chip");
+  });
+
+  it("step 2 pre-selects nothing either", () => {
+    open2();
+    fireEvent.click(screen.getByTestId("intake-shape-link-field-value"));
+    for (const id of ["f-web", "f-li"]) {
+      expect(document.activeElement).not.toBe(screen.getByTestId(`intake-option-${id}`));
+    }
+    expect(document.activeElement?.getAttribute("role")).toBe("dialog");
+  });
+
+  it("ESCAPE from step 2 goes BACK, and still commits nothing", () => {
+    const { onPick, onCancel } = open2();
+    fireEvent.click(screen.getByTestId("intake-shape-link-field-value"));
+    fireEvent.keyDown(document, { key: "Escape" });
+    // Back to the shapes — you answered "what should this become", not "which
+    // field", so the gesture is not thrown away.
+    expect(screen.getByTestId("intake-shape-link-field-value")).toBeTruthy();
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(onPick).not.toHaveBeenCalled();
+    // …and Escape again from step 1 does cancel.
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("the back button returns to the shapes", () => {
+    const { onPick } = open2();
+    fireEvent.click(screen.getByTestId("intake-shape-link-field-value"));
+    fireEvent.click(screen.getByTestId("intake-back"));
+    expect(screen.getByTestId("intake-shape-link-chip")).toBeTruthy();
+    expect(onPick).not.toHaveBeenCalled();
+  });
+});
+
+// ── THE HOST IS A CALL SITE TOO ─────────────────────────────────────────────
+// `IntakeSheetHost` is what App mounts and what every drop handler reaches
+// through `openIntakeSheet`. Rendering IntakeSheet directly does NOT exercise
+// it — and an A/B proved that: deleting the second argument from the host's
+// onPick left every other test in this file green while the follow-up answer
+// was silently dropped on the floor. That is the same class of defect that has
+// bitten three sessions running (missing dispatch/userId, missing
+// destinationModule, nobody passing onIntakeResult), so the seam gets its own
+// test rather than being trusted.
+describe("IntakeSheetHost — the seam the drop handlers actually use", () => {
+  const classification = {
+    payload: { kind: "link", urls: ["https://example.com"] },
+    shapes: [{
+      id: "link-field-value",
+      label: "Set as field value",
+      followUp: { kind: "choose-one", title: "Which field?", options: [{ value: "f-web", label: "Website" }] },
+    }],
+    fallback: "link-field-value",
+  };
+
+  it("delivers BOTH the shape and the follow-up answer to the caller", () => {
+    const onPick = vi.fn();
+    render(<IntakeSheetHost />);
+    let opened;
+    act(() => { opened = openIntakeSheet({ classification, onPick, onCancel: () => {} }); });
+    expect(opened).toBe(true);
+
+    fireEvent.click(screen.getByTestId("intake-shape-link-field-value"));
+    expect(onPick).not.toHaveBeenCalled();          // step 2 is open, nothing written
+    fireEvent.click(screen.getByTestId("intake-option-f-web"));
+
+    expect(onPick).toHaveBeenCalledWith("link-field-value", "f-web");
+  });
+
+  it("the sheet is gone once the answer is given", () => {
+    render(<IntakeSheetHost />);
+    act(() => { openIntakeSheet({ classification, onPick: () => {}, onCancel: () => {} }); });
+    fireEvent.click(screen.getByTestId("intake-shape-link-field-value"));
+    expect(document.querySelector(".intake-sheet")).toBeTruthy();   // step 2 open
+    fireEvent.click(screen.getByTestId("intake-option-f-web"));
+    // A sheet still sitting there after you have answered it is a real bug.
+    // (NOT asserted: that it closes synchronously INSIDE the callback — React
+    // batches the state update, so that is not observable and never was.)
+    expect(document.querySelector(".intake-sheet")).toBeNull();
   });
 });

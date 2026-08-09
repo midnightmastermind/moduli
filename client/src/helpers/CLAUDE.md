@@ -1,6 +1,51 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-09 (2) — a shape can ask a SECOND question; `link-field-value` lands)
+- **`intakeFields.js` (NEW, pure)** — `linkTargetFieldsFor(module, fieldsById)`. Which fields could a
+  dropped URL go into?
+- **MEASURED ON poms grid FIRST, and it killed the obvious answer.** There is **no url/link field
+  TYPE and no link binding ROLE**:
+  ```
+  types  occurrence 43 · text 42 · number 52 · date 11 · select 14 · boolean 2 · rating 3 · duration 2 · address 1
+  roles  input 3497 · display 81 · media 207 · files 192
+  name looks url-ish   "Website", "LinkedIn"   (2 of 170)
+  actually holds http  "Website"               (1 of 170, 10 rows)
+  ```
+  So a link field can only be GUESSED — from a name, or from what it happens to hold today. Name
+  matching is what produced **10 candidates and 10 FALSE POSITIVES** in the relink work (2026-08-07
+  (6)); guessing from contents means an empty field can never be chosen. **The user's own decision
+  removes the need to detect anything** (always ask which field): offer the TEXT fields the
+  occurrence binds and let them pick.
+- **THE LIST IS USABLE, also measured:** of 274 modules binding ≥1 text field, **253 bind exactly
+  one**, 9 bind two, 12 bind seventeen — the People rows, which is exactly where asking earns its
+  keep (Website / LinkedIn / Email are all plausible). Order is the module's own BINDING order;
+  floating a url-ish name to the top would be a recommendation, and the sheet stopped making those.
+- **`intake.js` — a shape may carry `followUp: { kind:"choose-one", title, options }`.** Attached to
+  a COPY of the shape constant, never the shared constant itself (a test pins that). The follow-up
+  is attached even for a single candidate, because "always ask" means always.
+- **`IntakeSheet.jsx` — two steps in one surface.** Both render the same tiles and share one
+  arrow-key handler, so there is one interaction to get right rather than two that drift. Step 2
+  pre-selects nothing either. **Escape from step 2 goes BACK, not cancel** — you answered "what
+  should this become", not "which field" — and commits nothing either way. `onPick(shapeId, answer)`.
+- **THE REF-CLEARING BUG, worth keeping:** clearing `itemRefs` in an effect keyed on the step WIPES
+  the refs that render just assigned — an effect runs AFTER the ref callbacks. It is truncated in the
+  render body instead.
+- **`runLinkFieldValue`** — writes `{value, flow}` (a bare string reads fine until something looks
+  for `.value`) through `updateOccurrence` with `triggerField`, so it is indistinguishable from
+  typing the URL in: the same MeasureOp fires and any operation watching that field runs. **REFUSES
+  rather than guessing when no answer arrived** — the no-host fallback can reach a route directly,
+  and a URL written into the wrong field is silent.
+- **`notifyIntake` gained `res.message`** — its success wording was the OCR shapes' ("Read the
+  text"), which becomes a lie the moment a non-OCR shape reports through it.
+- **TWO CALL-SITE SEAMS, AND THE A/B FOUND THAT ONE WAS UNCOVERED.** `IntakeSheetHost` — what App
+  actually mounts — has its own `onPick`, and deleting its second argument left **every test green**
+  while the answer was dropped. Same for the drop handler. Both now have tests that fail when the
+  argument is removed. **Fourth session running where the call site, not the unit, was the gap.**
+- **Probe trap, again:** a mock socket without `connected: true` makes `safeEmit` QUEUE instead of
+  emit, which reads exactly like "the route did nothing".
+- Coverage **18 → 19 of 24**.
+
 ## Recent Changes (2026-08-09 — the intake sheet has NO DEFAULT; `preselected` → `fallback`)
 - **User: *"there shouldnt be a default, it should ask everytime what id like to do with it."*** Asked
   about the two text shapes; the answer generalises to the whole sheet.

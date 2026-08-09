@@ -6,6 +6,58 @@
 
 ---
 
+### 2026-08-09 (2) — "which field?" is unanswerable, so the app stopped trying to answer it
+
+Coverage **18 → 19 of 24**. The second-question step in the sheet, plus the first shape that needs
+it — built together, because shipping the mechanism with nothing using it would be unexercised
+machinery.
+
+**THE MEASUREMENT KILLED THE OBVIOUS DESIGN.** `link-field-value` writes a dropped URL into a field
+on the row. The obvious implementation detects "the link field" — except there is **no url/link
+field TYPE and no link binding ROLE** on this grid:
+```
+types  occurrence 43 · text 42 · number 52 · date 11 · select 14 · boolean 2 · rating 3 · duration 2 · address 1
+roles  input 3497 · display 81 · media 207 · files 192
+name looks url-ish   "Website", "LinkedIn"   ← 2 of 170
+actually holds http  "Website"               ← 1 of 170, 10 rows
+```
+A link field can therefore only be GUESSED — from its name, or from what it happens to contain
+today. **Name matching is exactly what produced 10 candidates and 10 FALSE POSITIVES** in the relink
+work (2026-08-07 (6)), and guessing from contents means an empty field can never be picked.
+
+**The user's own answer had already dissolved the problem.** "Always ask which field, even when
+there is only one candidate" means the app never needs to identify a link field at all: offer the
+TEXT fields the row binds, and the person picks. *A product decision removed an unsolvable
+detection problem — worth noticing, because the instinct was to go build the detector.*
+
+**AND THE LIST IS USABLE, also measured rather than hoped:** of 274 modules binding at least one
+text field, **253 bind exactly one**, 9 bind two, and 12 bind seventeen. The twelve are the People
+rows — which is precisely where asking earns its keep, since Website / LinkedIn / Email are all
+plausible. Order is the module's own binding order; floating a url-ish name to the top would be a
+recommendation, and the sheet stopped making those yesterday.
+
+**The follow-up is ONE mechanism, not a dialog per shape.** A shape may declare
+`followUp: { kind:"choose-one", title, options }`; the sheet renders a second list in place, shares
+the same tiles and the same arrow-key handling, and pre-selects nothing there either. **Escape from
+step 2 goes BACK rather than throwing the gesture away** — you answered "what should this become",
+not "which field" — and commits nothing either way. Two more shapes are already waiting on it
+(which trace, which pages).
+
+**THE A/B FOUND AN UNCOVERED SEAM, and this is the fourth session running.** `IntakeSheetHost` — the
+thing App actually mounts — has its own `onPick`, and deleting its second argument left **every test
+in the file green** while the user's answer was dropped on the floor. The drop handler had the same
+hole. Both now have tests that fail when the argument is removed. *A test that renders the component
+directly does not test the host that wraps it.*
+
+**Two smaller things worth keeping:** clearing the tile refs in an effect keyed on the step WIPES the
+refs that render just assigned (an effect runs after the ref callbacks) — it belongs in the render
+body. And `notifyIntake`'s success wording was the OCR shapes' *"Read the text"*, which became a lie
+the moment a non-OCR shape reported through it; shapes name their own outcome now.
+
+2204 client tests (the same 3 pre-existing `liveOpsBehavioral` failures). Build clean.
+
+---
+
 ### 2026-08-09 — the intake sheet stops recommending; and ONE NAME WAS DOING TWO JOBS
 
 User, answering the design questions: ***"there shouldnt be a default, it should ask everytime what

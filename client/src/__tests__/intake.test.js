@@ -165,3 +165,46 @@ describe("normalizeIntakePayload", () => {
     expect(normalizeIntakePayload({ files: [file("a.png", "image/png")], text: "https://a.com" }).kind).toBe("file");
   });
 });
+
+describe("a shape can ask a second question", () => {
+  const url = { url: "https://example.com" };
+
+  it("the link-field shape is offered ONLY where the row has text fields to fill", () => {
+    const none = classifyIntake(url, { kind: "board", occurrenceId: "o1" });
+    expect(ids(none)).not.toContain(S.LINK_FIELD_VALUE.id);
+
+    const some = classifyIntake(url, {
+      kind: "board", occurrenceId: "o1",
+      linkFields: [{ id: "f-web", name: "Website" }],
+    });
+    expect(ids(some)).toContain(S.LINK_FIELD_VALUE.id);
+  });
+
+  it("it carries the field list as its follow-up, in binding order", () => {
+    const r = classifyIntake(url, {
+      kind: "board", occurrenceId: "o1",
+      linkFields: [{ id: "f-web", name: "Website" }, { id: "f-li", name: "LinkedIn" }],
+    });
+    const shape = r.shapes.find((s) => s.id === S.LINK_FIELD_VALUE.id);
+    expect(shape.followUp.kind).toBe("choose-one");
+    expect(shape.followUp.options).toEqual([
+      { value: "f-web", label: "Website" },
+      { value: "f-li", label: "LinkedIn" },
+    ]);
+  });
+
+  // The user's call (2026-08-09): ask even when there is only one candidate.
+  it("asks even when there is exactly ONE candidate field", () => {
+    const r = classifyIntake(url, {
+      kind: "board", occurrenceId: "o1",
+      linkFields: [{ id: "f-web", name: "Website" }],
+    });
+    const shape = r.shapes.find((s) => s.id === S.LINK_FIELD_VALUE.id);
+    expect(shape.followUp.options).toHaveLength(1);
+  });
+
+  it("the shared shape constant is not mutated by attaching a follow-up", () => {
+    classifyIntake(url, { kind: "board", occurrenceId: "o1", linkFields: [{ id: "f", name: "F" }] });
+    expect(S.LINK_FIELD_VALUE.followUp).toBeUndefined();
+  });
+});
