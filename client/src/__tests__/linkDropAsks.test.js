@@ -60,15 +60,15 @@ describe("dropping a link ASKS", () => {
     expect(ids).toContain(INTAKE_SHAPES.LINK_PAGE.id);
   });
 
-  it("pre-selects the CHIP — the audit's headline finding, answered", () => {
+  it("falls back to the CHIP — the audit's headline finding, answered", () => {
     // Was LINK_INSTANCE while the chip was unimplemented (filterToImplemented
     // re-pointed the classifier's ideal pick at the only wired shape). Task 5
-    // landed the chip, so the classifier's own preselection now stands: a
+    // landed the chip, so the classifier's own fallback now stands: a
     // dropped link becomes a clickable chip, not a card labelled with a URL.
     // The plain card is still OFFERED — it is one keystroke away, not gone.
     const { dropContext, ctx } = makeCtx("https://example.com");
     handleExternalDrop(dropContext, ctx);
-    expect(requests[0].classification.preselected).toBe(INTAKE_SHAPES.LINK_CHIP.id);
+    expect(requests[0].classification.fallback).toBe(INTAKE_SHAPES.LINK_CHIP.id);
     expect(requests[0].classification.shapes.map(s => s.id)).toContain(INTAKE_SHAPES.LINK_INSTANCE.id);
   });
 
@@ -106,9 +106,9 @@ describe("dropping a link ASKS", () => {
     expect(ctx.clearSession).toHaveBeenCalled();
   });
 
-  it("with no host, still WRITES — the preselected shape runs rather than the drop vanishing", () => {
+  it("with no host, still WRITES — the FALLBACK runs rather than the drop vanishing", () => {
     // A preview iframe / test harness has no sheet host. The drop must not be
-    // swallowed; it commits the preselected shape, which is now the chip.
+    // swallowed; it commits the fallback shape, which is now the chip.
     unregister?.(); unregister = null;
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { dropContext, ctx } = makeCtx("https://example.com/y");
@@ -122,7 +122,7 @@ describe("dropping a link ASKS", () => {
 });
 
 // The HTML / long-text branch asks too. Today's outcome (the whole tree via
-// import_text) stays pre-selected, so Enter reproduces exactly what this
+// import_text) stays the no-host FALLBACK, so a sheetless drop reproduces what this
 // branch did on its own — the ask only decides WHETHER to run it.
 describe("dropping HTML / long text ASKS", () => {
   function htmlCtx(html) {
@@ -149,14 +149,14 @@ describe("dropping HTML / long text ASKS", () => {
   const HTML = "<h1>Title</h1><p>Body text that is long enough to import.</p>";
 
   // Still today's OUTCOME — the tree lands in the container it was dropped on.
-  // The preselected shape id changed because that outcome now has its own name:
+  // The fallback shape id changed because that outcome now has its own name:
   // `text-doc-page` used to produce this and is, as of this change, the one that
   // actually wraps the tree in a page (see helpers/intakeApply).
-  it("opens the sheet and pre-selects the tree in place (today's outcome)", () => {
+  it("opens the sheet; the tree in place is the fallback (today's outcome)", () => {
     const { dropContext, ctx } = htmlCtx(HTML);
     handleExternalDrop(dropContext, ctx);
     expect(requests).toHaveLength(1);
-    expect(requests[0].classification.preselected).toBe(INTAKE_SHAPES.TEXT_CONTAINER_TREE.id);
+    expect(requests[0].classification.fallback).toBe(INTAKE_SHAPES.TEXT_CONTAINER_TREE.id);
   });
 
   it("writes nothing until picked, and nothing at all on cancel", () => {

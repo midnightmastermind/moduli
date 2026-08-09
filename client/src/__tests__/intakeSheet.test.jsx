@@ -4,7 +4,7 @@
 // The plan makes always-ask affordable by promising two things, and both are
 // behaviour a test can hold:
 //
-//   1. the best shape is PRE-SELECTED and focused, so Enter commits it
+//   1. NOTHING is pre-selected — the user picks every time (2026-08-09)
 //   2. Escape cancels and COMMITS NOTHING
 //
 // (2) is asserted as "zero calls to onPick", not "the sheet closed" — a sheet
@@ -57,21 +57,39 @@ describe("IntakeSheet", () => {
     }
   });
 
-  it("focuses the PRE-SELECTED tile, so Enter commits it", () => {
-    const { onPick, classification } = open({ url: "https://example.com" });
-    const pre = screen.getByTestId(`intake-shape-${classification.preselected}`);
-    expect(document.activeElement).toBe(pre);
-
-    // Enter on a focused button is the browser's own activation — this asserts
-    // the wiring (focus lands on the right tile), not that React handles keys.
-    fireEvent.click(pre);
-    expect(onPick).toHaveBeenCalledWith(classification.preselected);
-    expect(onPick).toHaveBeenCalledTimes(1);
+  // THE CONTRACT, and the whole point of this change (user, 2026-08-09: "there
+  // shouldnt be a default, it should ask everytime what id like to do with it").
+  // Focusing a tile is not a neutral act — a focused button is activated by
+  // Enter, so it IS a default whatever we call it.
+  it("focuses NO tile — nothing is pre-selected", () => {
+    const { classification } = open({ url: "https://example.com" });
+    for (const s of classification.shapes) {
+      expect(
+        document.activeElement,
+        `tile ${s.id} was focused — that makes Enter commit it`,
+      ).not.toBe(screen.getByTestId(`intake-shape-${s.id}`));
+    }
+    // Focus is parked on the dialog so Escape and the arrow keys still work.
+    expect(document.activeElement?.getAttribute("role")).toBe("dialog");
   });
 
-  it("a link pre-selects the chip — the user's headline ask", () => {
-    open({ url: "https://example.com" });
-    expect(screen.getByTestId("intake-shape-link-chip").dataset.preselected).toBe("true");
+  it("no tile is visually singled out either", () => {
+    const { classification } = open({ url: "https://example.com" });
+    const bgs = new Set(
+      classification.shapes.map(
+        (s) => screen.getByTestId(`intake-shape-${s.id}`).style.background,
+      ),
+    );
+    // Every tile renders identically; a highlighted one would be a
+    // recommendation the sheet is no longer allowed to make.
+    expect(bgs.size).toBe(1);
+  });
+
+  it("the fallback is NOT wired into the sheet — it is the no-host escape only", () => {
+    const { classification } = open({ url: "https://example.com" });
+    const tile = screen.getByTestId(`intake-shape-${classification.fallback}`);
+    expect(tile.dataset.preselected).toBeUndefined();
+    expect(tile.dataset.fallback).toBeUndefined();
   });
 
   it("ESCAPE COMMITS NOTHING", () => {
@@ -97,7 +115,7 @@ describe("IntakeSheet", () => {
     expect(screen.getByTestId("intake-shape-files-siblings")).toBeTruthy();
   });
 
-  it("picking a non-preselected tile returns THAT shape", () => {
+  it("picking a tile returns THAT shape", () => {
     const { onPick } = open({ url: "https://example.com" });
     fireEvent.click(screen.getByTestId("intake-shape-link-page"));
     expect(onPick).toHaveBeenCalledWith("link-page");
@@ -105,10 +123,16 @@ describe("IntakeSheet", () => {
 
   it("arrow keys move focus between tiles", () => {
     const { classification } = open({ url: "https://example.com" });
-    const list = screen.getByTestId(`intake-shape-${classification.shapes[0].id}`).parentElement;
-    const before = document.activeElement;
+    const first = screen.getByTestId(`intake-shape-${classification.shapes[0].id}`);
+    const list = first.parentElement;
+    // Focus starts on the dialog, so the FIRST Down lands on the first tile —
+    // arriving at an end of the list rather than at a recommended shape.
     fireEvent.keyDown(list, { key: "ArrowDown" });
-    expect(document.activeElement).not.toBe(before);
+    expect(document.activeElement).toBe(first);
+    fireEvent.keyDown(list, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(
+      screen.getByTestId(`intake-shape-${classification.shapes[1].id}`),
+    );
   });
 
   it("is a DRAWER on mobile and anchored on desktop (MenuSurface owns this)", () => {
@@ -128,7 +152,7 @@ describe("IntakeSheet", () => {
 
   it("renders nothing when there are no shapes (cannot show an empty dead end)", () => {
     const { container } = render(
-      <IntakeSheet classification={{ payload: {}, shapes: [], preselected: null }} onPick={() => {}} onCancel={() => {}} />,
+      <IntakeSheet classification={{ payload: {}, shapes: [], fallback: null }} onPick={() => {}} onCancel={() => {}} />,
     );
     expect(container.querySelector(".intake-sheet")).toBeFalsy();
   });

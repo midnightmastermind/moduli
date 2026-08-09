@@ -146,7 +146,7 @@ export default function IntakePasteHost() {
       });
       // No host mounted (a preview iframe, a harness) — do today's thing rather
       // than swallowing the paste.
-      if (!opened) applyIntakeShape(classification.preselected, intakeCtx);
+      if (!opened) applyIntakeShape(classification.fallback, intakeCtx);
     };
 
     document.addEventListener("paste", onPaste);

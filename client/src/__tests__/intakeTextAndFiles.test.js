@@ -1,12 +1,13 @@
 // Intake Task 5, continued (2026-08-08): `text-textblock` and `files-container`.
 //
-// WHY text-textblock FIRST. The classifier ALREADY preselects it for text
+// WHY text-textblock FIRST. The classifier already resolved to it for text
 // dropped inside a doc body ("inside a doc the page wrapper has nowhere to go —
 // the words do"), but it had no route, so `filterToImplemented` silently
-// re-pointed the preselection at TEXT_DOC_PAGE. Pasting a paragraph into a doc
-// therefore offered to build a whole page. That is the same shape as the
-// link-chip preselection bug recorded on 2026-08-07 (5): a classifier decision
-// quietly overruled by a missing route.
+// re-pointed that at TEXT_DOC_PAGE. Pasting a paragraph into a doc therefore
+// offered to build a whole page. Same shape as the link-chip bug recorded on
+// 2026-08-07 (5): a classifier decision quietly overruled by a missing route.
+// (As of 2026-08-09 that resolution is the no-host FALLBACK, not a UI default —
+// the sheet pre-selects nothing — but the filter must still not re-point it.)
 //
 // files-container is the file twin of `runLinkContainer` — N things dropped at
 // once become ONE container holding them, rather than N loose siblings.
@@ -63,9 +64,9 @@ describe("text-textblock", () => {
     expect(createTextblockInContainer).not.toHaveBeenCalled();
   });
 
-  // THE REGRESSION THIS FIXES: the classifier's own preselection must survive
-  // the implemented-filter now that the route exists.
-  it("stays preselected for text dropped inside a doc", async () => {
+  // THE REGRESSION THIS FIXES: the classifier's own choice must survive the
+  // implemented-filter now that the route exists.
+  it("the fallback stays the textblock for text dropped inside a doc", async () => {
     const { filterToImplemented } = await import("../helpers/intakeApply.js");
     // The destination's KIND is what makes it "in a doc" — there is no `inDoc`
     // flag (the first version of this test invented one and failed against
@@ -74,8 +75,8 @@ describe("text-textblock", () => {
       { kind: "text", text: "a paragraph of prose that is long enough to matter" },
       { kind: "doc" },
     );
-    expect(c.preselected).toBe(INTAKE_SHAPES.TEXT_TEXTBLOCK.id);
-    expect(filterToImplemented(c).preselected).toBe(INTAKE_SHAPES.TEXT_TEXTBLOCK.id);
+    expect(c.fallback).toBe(INTAKE_SHAPES.TEXT_TEXTBLOCK.id);
+    expect(filterToImplemented(c).fallback).toBe(INTAKE_SHAPES.TEXT_TEXTBLOCK.id);
   });
 });
 

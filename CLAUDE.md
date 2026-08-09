@@ -6,6 +6,49 @@
 
 ---
 
+### 2026-08-09 — the intake sheet stops recommending; and ONE NAME WAS DOING TWO JOBS
+
+User, answering the design questions: ***"there shouldnt be a default, it should ask everytime what
+id like to do with it."*** Asked about the two text shapes; it generalises to the whole sheet.
+
+**THE REAL FINDING IS THAT `preselected` WAS DOING TWO UNRELATED JOBS UNDER ONE NAME.** It was the
+UI default — the sheet focused and highlighted it — *and* it was what runs when there is **no sheet
+host at all** (a preview iframe, a harness). Only the first was asked for; only the second may
+survive. So it is renamed `fallback` everywhere, because **leaving it called `preselected` is
+exactly how it gets quietly wired back into the UI six weeks from now.** The rename is the fix; the
+deletion is the easy half.
+
+**FOCUSING A TILE IS NOT NEUTRAL, and that is the subtle part.** A focused button is activated by
+Enter, so focus-on-open IS a default whatever it is called. Focus now lands on the DIALOG; arrow
+keys move into the list from there (first Down → first tile, first Up → last), so the keyboard path
+survives without one shape being privileged. `tileStyle(isPreselected)` became a flat `tileSt` —
+there is no selected state because nothing is selected.
+
+**THE NO-HOST FALLBACK STAYS, and it is not a default in any sense the user experiences** — nobody
+is being offered a choice on that path. A drop that cannot ask must still do something; 2026-08-07
+(5) verified that path WRITES rather than the drop vanishing. Flagged to the user rather than
+decided silently. `filterToImplemented` still re-points it when the classifier's pick did not
+survive the filter, or the no-host path would run an unrouted shape and write nothing.
+
+**The classifier keeps ALL its reasoning** (inDoc → textblock, homeless → doc page, several links →
+container). Removing the user-facing default must not delete the knowledge — the fallback depends
+on it.
+
+**A/B'd both halves:** restoring focus-on-fallback fails 2 tests, restoring the highlight fails 1.
+And ~20 assertions across 6 suites were renamed with their TITLES rewritten — several tests existed
+specifically to pin a preselection, and **a test title that claims something no longer true is worse
+than no title**, because the next person reads it as the contract.
+
+2186 client tests (the same 3 pre-existing `liveOpsBehavioral` failures). Build clean, chunk sanity
+holding.
+
+**This is the first of nine decisions the user answered on 2026-08-09** — the rest are recorded on
+the intake task, with a build order. The sheet's contract went first because everything else adds
+tiles to it, and the next piece is the SECOND-QUESTION step (which field / which trace / which
+pages), which three separate shapes need and which should be built once.
+
+---
+
 ### 2026-08-08 (10) — I fixed the INSTANCE and left the CLASS open; the router reports itself now
 
 A correction to (9), shipped the same day, and worth recording because the mistake is a common one.

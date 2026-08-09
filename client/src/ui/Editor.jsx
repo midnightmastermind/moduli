@@ -2359,7 +2359,7 @@ const Editor = forwardRef(function Editor({
       });
       // A doc rendered inside a preview iframe has no host — keep today's
       // behaviour rather than swallowing the drop.
-      if (!opened) applyIntakeShape(classification.preselected, intakeCtx);
+      if (!opened) applyIntakeShape(classification.fallback, intakeCtx);
       return;
     }
 

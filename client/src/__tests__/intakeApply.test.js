@@ -83,28 +83,28 @@ describe("filterToImplemented — the sheet never shows a dead tile", () => {
     expect(f.shapes.map((s) => s.id)).not.toContain(INTAKE_SHAPES.IMAGE_CANVAS.id);
   });
 
-  it("keeps the preselection when it survived", () => {
+  it("keeps the fallback when it survived", () => {
     const c = classifyIntake({ files: [{ name: "a.png", type: "image/png" }] }, { kind: "canvas" });
-    expect(filterToImplemented(c).preselected).toBe(INTAKE_SHAPES.IMAGE_ARTIFACT.id);
+    expect(filterToImplemented(c).fallback).toBe(INTAKE_SHAPES.IMAGE_ARTIFACT.id);
   });
 
-  it("re-points the preselection when it did NOT survive", () => {
-    // A link preselects the chip, which Step 1 does not implement.
+  it("re-points the fallback when it did NOT survive", () => {
+    // A link's fallback is the chip, which Step 1 does not implement.
     const c = classifyIntake({ url: "https://example.com" });
-    expect(c.preselected).toBe(INTAKE_SHAPES.LINK_CHIP.id);
+    expect(c.fallback).toBe(INTAKE_SHAPES.LINK_CHIP.id);
 
     const f = filterToImplemented(c);
-    expect(f.shapes.some((s) => s.id === f.preselected)).toBe(true);
+    expect(f.shapes.some((s) => s.id === f.fallback)).toBe(true);
   });
 
   it("NEVER returns zero shapes — a sheet with no options is worse than not asking", () => {
-    const f = filterToImplemented({ payload: {}, shapes: [], preselected: null });
+    const f = filterToImplemented({ payload: {}, shapes: [], fallback: null });
     expect(f.shapes.length).toBe(1);
-    expect(f.preselected).toBe(INTAKE_SHAPES.FILE_ARTIFACT.id);
+    expect(f.fallback).toBe(INTAKE_SHAPES.FILE_ARTIFACT.id);
 
     // …and the fallback it picks is itself implemented (otherwise the escape
     // hatch would be its own dead end).
-    expect(IMPLEMENTED_SHAPE_IDS).toContain(f.preselected);
+    expect(IMPLEMENTED_SHAPE_IDS).toContain(f.fallback);
   });
 });
 
@@ -460,7 +460,7 @@ describe("file-content shapes (.md / .csv)", () => {
     // filterToImplemented stripped them back out.
     const md = filterToImplemented(classifyIntake({ files: [{ name: "notes.md" }] }, {}));
     expect(md.shapes.map((s) => s.id)).toContain(INTAKE_SHAPES.FILE_MARKDOWN_IMPORT.id);
-    expect(md.preselected).toBe(INTAKE_SHAPES.FILE_MARKDOWN_IMPORT.id);
+    expect(md.fallback).toBe(INTAKE_SHAPES.FILE_MARKDOWN_IMPORT.id);
     const csv = filterToImplemented(classifyIntake({ files: [{ name: "rows.csv" }] }, {}));
     expect(csv.shapes.map((s) => s.id)).toContain(INTAKE_SHAPES.FILE_CSV_TABLE.id);
   });

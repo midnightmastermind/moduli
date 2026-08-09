@@ -1654,7 +1654,7 @@ export function handleFileDrop(dropContext, ctx) {
 
   // No host mounted (a preview iframe, a test harness) — fall back to today's
   // behaviour rather than silently dropping the file on the floor.
-  if (!opened) applyIntakeShape(classification.preselected, intakeCtx);
+  if (!opened) applyIntakeShape(classification.fallback, intakeCtx);
 
   clearSession();
 }
@@ -1808,7 +1808,7 @@ export function handleExternalDrop(dropContext, ctx) {
       onPick: (shapeId) => { applyIntakeShape(shapeId, linkCtx); clearSession(); },
       onCancel: () => clearSession(),
     });
-    if (!opened) { applyIntakeShape(classification.preselected, linkCtx); clearSession(); }
+    if (!opened) { applyIntakeShape(classification.fallback, linkCtx); clearSession(); }
     return;
   }
 
@@ -1924,7 +1924,7 @@ export function handleExternalDrop(dropContext, ctx) {
         onPick: (shapeId) => { applyIntakeShape(shapeId, textCtx); clearSession(); },
         onCancel: () => clearSession(),
       });
-      if (!opened) { applyIntakeShape(textClassification.preselected, textCtx); clearSession(); }
+      if (!opened) { applyIntakeShape(textClassification.fallback, textCtx); clearSession(); }
       return;
     }
     // No usable drop destination — fall through to legacy below.

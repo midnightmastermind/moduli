@@ -132,51 +132,45 @@ const footSt = {
   color: "var(--text-faint, rgba(255,255,255,0.4))",
 };
 
-function tileStyle(isPreselected) {
-  return {
-    display: "block",
-    width: "100%",
-    textAlign: "left",
-    padding: "8px 10px",
-    borderRadius: 6,
-    border: "1px solid transparent",
-    background: "transparent",
-    color: "var(--text-primary, rgba(255,255,255,0.92))",
-    cursor: "pointer",
-    font: "inherit",
-    ...(isPreselected
-      ? {
-          borderColor: "var(--accent-blue, rgb(50,150,255))",
-          background: "var(--accent-blue-bg, rgba(50,150,255,0.10))",
-        }
-      : null),
-  };
-}
+// No selected state: nothing is chosen until the user chooses it. The only
+// distinguishing style a tile can carry is FOCUS, which follows the keyboard
+// rather than announcing a recommendation.
+const tileSt = {
+  display: "block",
+  width: "100%",
+  textAlign: "left",
+  padding: "8px 10px",
+  borderRadius: 6,
+  border: "1px solid transparent",
+  background: "transparent",
+  color: "var(--text-primary, rgba(255,255,255,0.92))",
+  cursor: "pointer",
+  font: "inherit",
+};
 
 /**
- * @param {object}   classification  `classifyIntake` output — { payload, shapes[], preselected }
+ * @param {object}   classification  `classifyIntake` output — { payload, shapes[] }.
+ *                                   Its `fallback` is deliberately IGNORED here:
+ *                                   nothing is pre-selected, so the sheet has no
+ *                                   opinion to render (see helpers/intake.js).
  * @param {object}   position        desktop anchor `{ top, left }` (MenuSurface ignores it on mobile)
  * @param {Function} onPick          (shapeId) => void — the ONLY way this sheet produces an outcome
  * @param {Function} onCancel        () => void — Escape / backdrop / Cancel. Writes nothing.
  */
 export default function IntakeSheet({ classification, position = null, onPick, onCancel, zIndex = 1200 }) {
   const shapes = classification?.shapes || [];
-  const preselected = classification?.preselected || shapes[0]?.id || null;
   const surfaceRef = useRef(null);
+  const dialogRef = useRef(null);
   const itemRefs = useRef([]);
 
-  const preIdx = useMemo(() => {
-    const i = shapes.findIndex((s) => s.id === preselected);
-    return i >= 0 ? i : 0;
-  }, [shapes, preselected]);
-
-  // Focus the pre-selected tile on open. THIS is what makes "drop → Enter" one
-  // keystroke rather than a hunt: the browser's own activation handles Enter and
-  // Space, so there is no key handling to get wrong.
+  // NOTHING IS PRE-SELECTED (user, 2026-08-09: "there shouldnt be a default, it
+  // should ask everytime"). Focus lands on the DIALOG, not on a tile — focusing
+  // a tile would make Enter commit it, which is a default wearing a different
+  // hat. Arrow keys move into the list from here, so the keyboard path is intact
+  // without one shape being quietly privileged.
   useEffect(() => {
-    const el = itemRefs.current[preIdx];
-    if (el) el.focus();
-  }, [preIdx]);
+    dialogRef.current?.focus();
+  }, []);
 
   // Escape must reach us even when focus has wandered off the tiles (the
   // backdrop, a scroll). Bound at the document so there is no focus-dependent
@@ -193,16 +187,17 @@ export default function IntakeSheet({ classification, position = null, onPick, o
     return () => document.removeEventListener("keydown", onKey, true);
   }, [onCancel]);
 
-  const move = useCallback(
-    (delta) => {
-      const els = itemRefs.current.filter(Boolean);
-      if (!els.length) return;
-      const cur = els.indexOf(document.activeElement);
-      const next = (cur < 0 ? preIdx : cur + delta + els.length) % els.length;
-      els[next]?.focus();
-    },
-    [preIdx],
-  );
+  const move = useCallback((delta) => {
+    const els = itemRefs.current.filter(Boolean);
+    if (!els.length) return;
+    const cur = els.indexOf(document.activeElement);
+    // From the dialog (nothing focused yet) the first Down lands on the first
+    // tile and the first Up on the last — arriving at an end, not at a default.
+    const next = cur < 0
+      ? (delta > 0 ? 0 : els.length - 1)
+      : (cur + delta + els.length) % els.length;
+    els[next]?.focus();
+  }, []);
 
   const onListKeyDown = useCallback(
     (e) => {
@@ -223,7 +218,14 @@ export default function IntakeSheet({ classification, position = null, onPick, o
       onClose={onCancel}
       className="intake-sheet"
     >
-      <div role="dialog" aria-modal="true" aria-label="What should this become?">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="What should this become?"
+        ref={dialogRef}
+        tabIndex={-1}
+        style={{ outline: "none" }}
+      >
         <div style={headSt}>
           <span style={{ fontSize: 12, fontWeight: 600 }}>What should this become?</span>
           <span
@@ -249,9 +251,8 @@ export default function IntakeSheet({ classification, position = null, onPick, o
               key={s.id}
               type="button"
               ref={(el) => { itemRefs.current[i] = el; }}
-              style={tileStyle(s.id === preselected)}
+              style={tileSt}
               data-testid={`intake-shape-${s.id}`}
-              data-preselected={s.id === preselected ? "true" : undefined}
               onClick={() => onPick?.(s.id)}
             >
               <div style={{ fontSize: 12, fontWeight: 500 }}>{s.label}</div>
@@ -264,7 +265,7 @@ export default function IntakeSheet({ classification, position = null, onPick, o
           ))}
         </div>
 
-        <div style={footSt}>Enter to accept · Esc to cancel</div>
+        <div style={footSt}>Pick one · ↑↓ to move · Esc to cancel</div>
       </div>
     </MenuSurface>
   );

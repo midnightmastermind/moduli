@@ -9,7 +9,16 @@
 // user is never told why. The fix is not another hard-coded payload→shape path;
 // it is to name the SHAPES a payload could take here and let the sheet ask.
 //
-//   classifyIntake(payload, destination) → { payload, shapes[], preselected }
+//   classifyIntake(payload, destination) → { payload, shapes[], fallback }
+//
+// `fallback` IS NOT A DEFAULT AND MUST NEVER BECOME ONE. The sheet does not
+// pre-select it, does not highlight it, and does not focus it — the user picks
+// every time (user, 2026-08-09: "there shouldnt be a default, it should ask
+// everytime what id like to do with it"). It exists for exactly one case: when
+// no sheet host is mounted (a preview iframe, a test harness) there is nobody
+// to ask, and a drop that cannot ask must still do SOMETHING rather than
+// vanish. It was called `preselected` until that decision; the rename is what
+// stops it quietly being wired back into the UI.
 //
 // TWO RULES THIS FILE IS BUILT ON:
 //
@@ -142,7 +151,7 @@ export function classifyIntake(payload = {}, destination = {}) {
   const shapes = [];
   const add = (shape) => { if (shape && !shapes.some((s) => s.id === shape.id)) shapes.push(shape); };
 
-  let preselected = null;
+  let fallback = null;
 
   if (p.kind === "link") {
     const many = (p.urls?.length || 0) > 1;
@@ -157,7 +166,7 @@ export function classifyIntake(payload = {}, destination = {}) {
     if (d.isOptionBoard) add(S.LINK_BOARD_OPTION);
     if (onOccurrence && d.linkFieldId) add(S.LINK_FIELD_VALUE);
     add(S.LINK_FOLLOW);
-    preselected = many ? S.LINK_CONTAINER.id : S.LINK_CHIP.id;
+    fallback = many ? S.LINK_CONTAINER.id : S.LINK_CHIP.id;
   } else if (p.kind === "file" || p.kind === "files") {
     const files = p.files || [];
     const one = files.length === 1 ? files[0] : null;
@@ -175,7 +184,7 @@ export function classifyIntake(payload = {}, destination = {}) {
         add(S.FILES_CONTAINER);
         add(S.FILES_FOLDER_PAGE);
       }
-      preselected = S.FILES_SIBLINGS.id;
+      fallback = S.FILES_SIBLINGS.id;
       // A set of images can still become one canvas or be attached in bulk.
       if (p.allImages && onCanvas) add(S.IMAGE_CANVAS);
       if (p.allImages && onOccurrence && d.filesFieldId) add(S.IMAGE_ATTACH);
@@ -192,17 +201,17 @@ export function classifyIntake(payload = {}, destination = {}) {
       // where splitting on newlines is the wrong answer.
       add(S.IMAGE_OCR_LIST);
       add(S.FILE_OCR_TEXT);
-      preselected = S.IMAGE_ARTIFACT.id;
+      fallback = S.IMAGE_ARTIFACT.id;
     } else if (one && MARKDOWN_EXT.test(one.name)) {
       // The audit gap: `import_markdown` has existed for months and a dropped
       // .md file has never reached it.
       add(S.FILE_MARKDOWN_IMPORT);
       add(S.FILE_ARTIFACT);
-      preselected = S.FILE_MARKDOWN_IMPORT.id;
+      fallback = S.FILE_MARKDOWN_IMPORT.id;
     } else if (one && TABLE_EXT.test(one.name)) {
       add(S.FILE_CSV_TABLE);
       add(S.FILE_ARTIFACT);
-      preselected = S.FILE_CSV_TABLE.id;
+      fallback = S.FILE_CSV_TABLE.id;
     } else {
       // NO OCR SHAPE HERE, and the reason is measured rather than assumed.
       // `FILE_OCR_TEXT` used to be offered for `.pdf` and NOTHING else — but
@@ -215,7 +224,7 @@ export function classifyIntake(payload = {}, destination = {}) {
       // — render page 1 to a canvas, OCR that); until that exists, not
       // offering it is the honest answer.
       add(S.FILE_ARTIFACT);
-      preselected = S.FILE_ARTIFACT.id;
+      fallback = S.FILE_ARTIFACT.id;
     }
   } else if (p.kind === "html" || p.kind === "text") {
     add(S.TEXT_DOC_PAGE);
@@ -227,25 +236,24 @@ export function classifyIntake(payload = {}, destination = {}) {
     add(S.TEXT_TEXTBLOCK);
     add(S.TEXT_CHECKLIST);
     // Inside a doc body the page wrapper has nowhere to go — the words do.
-    // Otherwise the default is whichever shape reproduces today's outcome for
-    // this destination: the tree lands in place when there is one, and gets
-    // wrapped in a page when there is not (the empty-cell drop). Both shapes
-    // are real writes now, so the preselection is the whole back-compat story.
-    if (inDoc) preselected = S.TEXT_TEXTBLOCK.id;
-    else preselected = onOccurrence ? S.TEXT_CONTAINER_TREE.id : S.TEXT_DOC_PAGE.id;
+    // Otherwise fall back to whichever shape reproduces what this destination
+    // did before intake existed: the tree lands in place when there is one, and
+    // gets wrapped in a page when there is not (the empty-cell drop).
+    if (inDoc) fallback = S.TEXT_TEXTBLOCK.id;
+    else fallback = onOccurrence ? S.TEXT_CONTAINER_TREE.id : S.TEXT_DOC_PAGE.id;
   }
 
   // Rule 1: never zero. An unrecognised payload still becomes what it becomes
   // today rather than opening a sheet with nothing in it.
   if (!shapes.length) {
     add(S.FILE_ARTIFACT);
-    preselected = S.FILE_ARTIFACT.id;
+    fallback = S.FILE_ARTIFACT.id;
   }
-  if (!preselected || !shapes.some((s) => s.id === preselected)) {
-    preselected = shapes[0].id;
+  if (!fallback || !shapes.some((s) => s.id === fallback)) {
+    fallback = shapes[0].id;
   }
 
-  return { payload: p, shapes, preselected };
+  return { payload: p, shapes, fallback };
 }
 
 /** Every id this module can emit — the router's coverage is asserted against it. */

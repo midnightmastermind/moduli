@@ -2,7 +2,7 @@
 // the drop now ASKS.
 //
 // The plan's pass condition for this step is deliberately unglamorous:
-// **nothing changes yet**. The sheet opens, the pre-selected shape is today's
+// **nothing changes yet**. The sheet opens, the no-host fallback is today's
 // outcome, and picking it writes exactly what the hard-coded path used to
 // write. That is what proves the decision layer is transparent before any new
 // shape rides on it.
@@ -12,7 +12,7 @@
 // the fallback. These tests mount a host and pin the three things that only
 // matter once something asks:
 //
-//   1. the sheet opens, for the whole gesture, with today's shape pre-selected
+//   1. the sheet opens once for the whole gesture, with NOTHING pre-selected
 //   2. picking it writes what the old path wrote
 //   3. CANCELLING WRITES NOTHING — and nothing was minted before the ask, so
 //      there is no debris to clean up either
@@ -71,10 +71,10 @@ describe("a file drop ASKS before it writes", () => {
     expect(requests[0].classification.shapes.length).toBeGreaterThan(0);
   });
 
-  it("pre-selects TODAY'S behaviour, so Enter reproduces the old path", () => {
+  it("the no-host fallback is TODAY'S behaviour, so a sheetless drop is unchanged", () => {
     const { dropContext, ctx } = makeCtx([file("a.png")]);
     handleFileDrop(dropContext, ctx);
-    expect(requests[0].classification.preselected).toBe(INTAKE_SHAPES.IMAGE_ARTIFACT.id);
+    expect(requests[0].classification.fallback).toBe(INTAKE_SHAPES.IMAGE_ARTIFACT.id);
   });
 
   it("asks ONCE for a nine-file gesture, not once per file", () => {
@@ -83,7 +83,7 @@ describe("a file drop ASKS before it writes", () => {
     handleFileDrop(dropContext, ctx);
     expect(requests).toHaveLength(1);
     expect(requests[0].classification.payload.files).toHaveLength(9);
-    expect(requests[0].classification.preselected).toBe(INTAKE_SHAPES.FILES_SIBLINGS.id);
+    expect(requests[0].classification.fallback).toBe(INTAKE_SHAPES.FILES_SIBLINGS.id);
   });
 
   it("only offers shapes the router can carry out", () => {
@@ -114,10 +114,10 @@ describe("a file drop ASKS before it writes", () => {
     expect(ctx.socket.emit).not.toHaveBeenCalled();
   });
 
-  it("picking the pre-selected shape mints and uploads, as before", () => {
+  it("picking the fallback shape mints and uploads, as before", () => {
     const { dropContext, ctx } = makeCtx([file("a.png"), file("b.png")]);
     handleFileDrop(dropContext, ctx);
-    requests[0].onPick(requests[0].classification.preselected);
+    requests[0].onPick(requests[0].classification.fallback);
 
     // 2 files → module + occurrence dispatched per file, one upload each.
     expect(ctx.dispatch.mock.calls.length).toBeGreaterThanOrEqual(4);

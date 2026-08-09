@@ -12,7 +12,7 @@ const file = (name, type = "") => ({ name, type });
 describe("classifyIntake", () => {
   it("a PNG on a canvas offers the canvas pair; the same file in a doc does not", () => {
     const onCanvas = classifyIntake({ files: [file("floorplan.png", "image/png")] }, { kind: "canvas" });
-    expect(onCanvas.preselected).toBe(S.IMAGE_ARTIFACT.id);
+    expect(onCanvas.fallback).toBe(S.IMAGE_ARTIFACT.id);
     expect(ids(onCanvas)).toContain(S.IMAGE_CANVAS.id);
     expect(ids(onCanvas)).toContain(S.IMAGE_OUTLINE.id);
 
@@ -20,7 +20,7 @@ describe("classifyIntake", () => {
     // A canvas shape inside a doc body would be a shape with nowhere to go.
     expect(ids(inDoc)).not.toContain(S.IMAGE_CANVAS.id);
     expect(ids(inDoc)).not.toContain(S.IMAGE_OUTLINE.id);
-    expect(inDoc.preselected).toBe(S.IMAGE_ARTIFACT.id);
+    expect(inDoc.fallback).toBe(S.IMAGE_ARTIFACT.id);
   });
 
   it("attach-to-this appears only when the destination occurrence has a Files field", () => {
@@ -31,9 +31,9 @@ describe("classifyIntake", () => {
     expect(ids(onOcc)).toContain(S.IMAGE_ATTACH.id);
   });
 
-  it("a bare URL offers chip / bookmark / page / follow, pre-selecting the chip", () => {
+  it("a bare URL offers chip / bookmark / page / follow", () => {
     const r = classifyIntake({ url: "https://en.wikipedia.org/wiki/Eminem" }, { kind: "board" });
-    expect(r.preselected).toBe(S.LINK_CHIP.id);
+    expect(r.fallback).toBe(S.LINK_CHIP.id);
     expect(ids(r)).toEqual(expect.arrayContaining([
       S.LINK_CHIP.id, S.LINK_BOOKMARK.id, S.LINK_PAGE.id, S.LINK_FOLLOW.id,
     ]));
@@ -48,16 +48,16 @@ describe("classifyIntake", () => {
     expect(ids(r)).toContain(S.LINK_BOARD_OPTION.id);
   });
 
-  it("several links pre-select the container instead of a lone chip", () => {
+  it("several links fall back to the container instead of a lone chip", () => {
     const r = classifyIntake({ text: "https://a.com\nhttps://b.com\nhttps://c.com" }, { kind: "board" });
     expect(r.payload.kind).toBe("link");
     expect(r.payload.urls).toHaveLength(3);
-    expect(r.preselected).toBe(S.LINK_CONTAINER.id);
+    expect(r.fallback).toBe(S.LINK_CONTAINER.id);
   });
 
   it("three files offer the SET shapes", () => {
     const r = classifyIntake({ files: [file("a.pdf"), file("b.pdf"), file("c.pdf")] }, { kind: "board" });
-    expect(r.preselected).toBe(S.FILES_SIBLINGS.id);
+    expect(r.fallback).toBe(S.FILES_SIBLINGS.id);
     expect(ids(r)).toEqual(expect.arrayContaining([
       S.FILES_SIBLINGS.id, S.FILES_CONTAINER.id, S.FILES_FOLDER_PAGE.id,
     ]));
@@ -69,18 +69,18 @@ describe("classifyIntake", () => {
     expect(ids(onBoard)).toEqual(expect.arrayContaining([
       S.TEXT_DOC_PAGE.id, S.TEXT_CONTAINER_TREE.id, S.TEXT_TEXTBLOCK.id, S.TEXT_CHECKLIST.id,
     ]));
-    expect(classifyIntake({ html }, { kind: "doc" }).preselected).toBe(S.TEXT_TEXTBLOCK.id);
+    expect(classifyIntake({ html }, { kind: "doc" }).fallback).toBe(S.TEXT_TEXTBLOCK.id);
   });
 
-  // The default is the shape that reproduces what the drop ALREADY did at this
-  // destination, because both text-tree shapes are real writes now: the tree
+  // NOT a UI default — nothing is pre-selected. This is the no-host fallback,
+  // and it reproduces what the drop ALREADY did at this destination: the tree
   // lands in place when there is somewhere to land, and only the homeless
   // (empty-cell) import gets wrapped in a page.
-  it("the text default follows the destination: tree in place, page when homeless", () => {
+  it("the text fallback follows the destination: tree in place, page when homeless", () => {
     const html = "<h2>Heading</h2><p>Some prose that is long enough to matter.</p>";
-    expect(classifyIntake({ html }, { kind: "board", occurrenceId: "c1" }).preselected)
+    expect(classifyIntake({ html }, { kind: "board", occurrenceId: "c1" }).fallback)
       .toBe(S.TEXT_CONTAINER_TREE.id);
-    expect(classifyIntake({ html }, { kind: null, occurrenceId: null }).preselected)
+    expect(classifyIntake({ html }, { kind: null, occurrenceId: null }).fallback)
       .toBe(S.TEXT_DOC_PAGE.id);
   });
 
@@ -106,23 +106,23 @@ describe("classifyIntake", () => {
 
     const pdf = classifyIntake({ files: [file("scan.pdf", "application/pdf")] }, { kind: "board", occurrenceId: "c1" });
     expect(ids(pdf)).not.toContain(S.FILE_OCR_TEXT.id);
-    expect(pdf.preselected).toBe(S.FILE_ARTIFACT.id);
+    expect(pdf.fallback).toBe(S.FILE_ARTIFACT.id);
   });
 
   it("a .md file routes to the importer — the audit gap — and a .csv to a table", () => {
     const md = classifyIntake({ files: [file("notes.md", "text/markdown")] }, { kind: "board" });
-    expect(md.preselected).toBe(S.FILE_MARKDOWN_IMPORT.id);
+    expect(md.fallback).toBe(S.FILE_MARKDOWN_IMPORT.id);
     const csv = classifyIntake({ files: [file("weights.csv", "text/csv")] }, { kind: "board" });
-    expect(csv.preselected).toBe(S.FILE_CSV_TABLE.id);
+    expect(csv.fallback).toBe(S.FILE_CSV_TABLE.id);
   });
 
   it("an unknown payload returns EXACTLY ONE shape — never zero", () => {
     const r = classifyIntake({}, { kind: "board" });
     expect(r.shapes).toHaveLength(1);
-    expect(r.preselected).toBe(r.shapes[0].id);
+    expect(r.fallback).toBe(r.shapes[0].id);
   });
 
-  it("the preselected id is always one of the offered shapes", () => {
+  it("the fallback id is always one of the offered shapes", () => {
     const cases = [
       [{ url: "https://a.com" }, { kind: "canvas" }],
       [{ files: [file("x.png", "image/png")] }, { kind: "doc" }],
@@ -132,7 +132,7 @@ describe("classifyIntake", () => {
     ];
     for (const [p, d] of cases) {
       const r = classifyIntake(p, d);
-      expect(ids(r)).toContain(r.preselected);
+      expect(ids(r)).toContain(r.fallback);
     }
   });
 

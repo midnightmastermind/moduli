@@ -143,13 +143,17 @@ export function assertShapeCoverage() {
 export function filterToImplemented(classification) {
   const shapes = (classification?.shapes || []).filter((s) => INTAKE_ROUTES[s.id]);
   if (!shapes.length) {
-    const fallback = INTAKE_SHAPES.FILE_ARTIFACT;
-    return { ...classification, shapes: [fallback], preselected: fallback.id };
+    const only = INTAKE_SHAPES.FILE_ARTIFACT;
+    return { ...classification, shapes: [only], fallback: only.id };
   }
-  const preselected = shapes.some((s) => s.id === classification?.preselected)
-    ? classification.preselected
+  // `fallback` is only ever used where there is no sheet host to ask — see the
+  // contract note in helpers/intake.js. It still has to name a shape that
+  // SURVIVED the filter, or the no-host path would run an unrouted shape and
+  // write nothing.
+  const fallback = shapes.some((s) => s.id === classification?.fallback)
+    ? classification.fallback
     : shapes[0].id;
-  return { ...classification, shapes, preselected };
+  return { ...classification, shapes, fallback };
 }
 
 /**

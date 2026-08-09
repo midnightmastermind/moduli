@@ -1,6 +1,35 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-09 — the intake sheet has NO DEFAULT; `preselected` → `fallback`)
+- **User: *"there shouldnt be a default, it should ask everytime what id like to do with it."*** Asked
+  about the two text shapes; the answer generalises to the whole sheet.
+- **`preselected` IS RENAMED `fallback` EVERYWHERE, and the rename is the point.** The field was
+  doing two unrelated jobs under one name: a UI default the sheet focused and highlighted, and the
+  thing that runs when there is **no sheet host at all** (a preview iframe, a test harness). Only the
+  first was asked for; only the second may survive. Leaving it called `preselected` is how it gets
+  quietly wired back into the UI, so the name now says what it is. The contract note lives at the top
+  of `intake.js`.
+- **`ui/IntakeSheet.jsx`** — focus lands on the **dialog**, not on a tile. **Focusing a tile is not
+  neutral: a focused button is activated by Enter, so it IS a default whatever it is called.** Arrow
+  keys move into the list from there (first Down → first tile, first Up → last), so the keyboard path
+  is intact without one shape being privileged. `tileStyle(isPreselected)` became a flat `tileSt` —
+  no selected state, because nothing is selected — and `data-preselected` is gone. Footer now reads
+  *"Pick one · ↑↓ to move · Esc to cancel"*.
+- **THE NO-HOST FALLBACK STAYS, deliberately**, at all five call sites
+  (`if (!opened) applyIntakeShape(classification.fallback, ctx)`). A drop that cannot ask must still
+  do something; 2026-08-07 (5) verified that path WRITES rather than the drop vanishing. It is not a
+  default in any sense the user sees — nobody is being offered a choice on that path.
+- **`filterToImplemented` still re-points it** when the classifier's pick did not survive the filter,
+  and that is load-bearing for the same reason it always was: the no-host path would otherwise run an
+  unrouted shape and write nothing.
+- **The classifier keeps ALL its reasoning** (inDoc → textblock; homeless → doc page; several links →
+  container). Removing the user-facing default must not delete it — the fallback still depends on it.
+- 3 new sheet tests (nothing focused, nothing visually singled out, the fallback carries no marker),
+  **A/B'd**: restoring focus-on-fallback fails 2, restoring the highlight fails 1. ~20 assertions
+  across 6 suites renamed, and every test title that claimed a preselection now describes the
+  fallback instead — a title that lies is worse than no title.
+
 ## Recent Changes (2026-08-08 (7) — intake REPORTS ITSELF; the seam is an override, not a requirement)
 - **A CORRECTION TO (6), SHIPPED THE SAME DAY.** (6) fixed the OCR silence by wiring
   `onIntakeResult` at all three call sites — and the three handlers came out **byte-identical**.

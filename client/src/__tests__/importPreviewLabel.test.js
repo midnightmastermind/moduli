@@ -1,6 +1,6 @@
 // Intake audit finding 1, the pill half: the drag preview used to ANNOUNCE a
 // decision ("Convert HTML → modules") and offer no choice. Intake asks now, so
-// that wording named an outcome that is merely pre-selected.
+// that wording announced an outcome the user has not chosen yet.
 import { describe, it, expect } from "vitest";
 import { importPreviewLabel } from "../helpers/DragProvider";
 
