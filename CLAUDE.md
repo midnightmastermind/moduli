@@ -6,6 +6,44 @@
 
 ---
 
+### 2026-08-09 (5) — the user was right: a board page CAN hold artifacts, and one surface disagreed
+
+User, correcting a note I had written: ***"a board page can hold artifacts. as occurances in the
+page. so would canvases."*** Right on both counts. I had claimed the opposite the day before while
+designing `files-folder-page`, and the correction is worth recording because **my reasoning was
+wrong even though the observation was true.**
+
+**What I said:** "`PageBoard` renders CONTAINERS only, which is why a board page could not hold
+artifacts directly." **What is actually true:** the data model allows any role —
+`getPageChildrenModules` applies NO role filter and `ModulePage` says so in as many words — but
+`PageBoard` handed every child to `<Container>`, and **`ModuleContainer` never inspects its own
+role** (zero references to `module.role` in 1600 lines). So an artifact on a board page rendered as
+an **empty container shell wearing the file's name**. A missing feature, not a law.
+
+**And `PageCanvas` already did it right**, with a comment saying it *"mirrors ModuleContainer's
+child loop"*. So the board page was the single surface out of step — which is exactly why the user's
+expectation was reasonable and mine was not.
+
+Fixed: `PageBoard` now routes leaf roles to `ArtifactCard` / `TextblockCard` inside a
+`ModuleInstance` shell, the same way the canvas does. `pageChildRenderer(role)` is exported and
+tested rather than left inline, because mounting PageBoard needs the whole grid store and the
+predicate is where the bug lived. A nested page and a role-less child both keep their existing path,
+pinned so neither shifts by accident.
+
+**Does this retract `files-folder-page`?** No — that shape follows D2 ("a new folder per drop under
+Imports"), and a folder page also gives it a home in the tree. But the REASON I gave for it was a
+missing feature rather than an intrinsic limit, and that distinction matters for whoever reads it
+next.
+
+**The lesson: when the user contradicts a claim about their own app, check what the code does
+before defending the claim — and check the neighbouring surface too.** Three files disagreed with
+each other here; the one I happened to read first was the outlier.
+
+2221 client tests (the same 3 pre-existing `liveOpsBehavioral` failures). Build clean.
+**NOT verified in a browser** — nobody has dropped a file on a board page and looked at it yet.
+
+---
+
 ### 2026-08-09 (4) — the PDF that OCR could not read, read; and an A/B that lied
 
 Coverage stays 20 of 24 — this finishes a shape rather than adding one. `file-ocr-text` was pulled

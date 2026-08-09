@@ -16,9 +16,33 @@
 //                 multi-parenting)
 import React, { useMemo } from "react";
 import Container from "../ModuleContainer.jsx";
+import ModuleInstance from "../ModuleInstance.jsx";
+import ArtifactCard from "../ArtifactCard.jsx";
+import TextblockCard from "../TextblockCard.jsx";
 import { Spinner } from "../../components/ui/spinner";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../../GridActionsContext";
 import { resolveEffectiveLayout } from "../../helpers/layoutCascade";
+
+/**
+ * Which component renders a page's direct child?
+ *
+ * A page can host ANY module role — `getPageChildrenModules` applies no role
+ * filter, and ModulePage says so in as many words. But `ModuleContainer` never
+ * inspects its OWN role (it always draws container chrome), so handing it a
+ * leaf produced an empty container shell wearing the leaf's name. That is what
+ * an artifact dropped straight onto a board page used to look like.
+ *
+ * Exported because the decision is the thing worth pinning: mounting PageBoard
+ * needs the whole grid store, and this predicate is where the bug lived.
+ */
+export function pageChildRenderer(role) {
+  // A missing role is legacy data — Container is what it used to get.
+  if (!role) return "container";
+  // A nested page keeps going to Container, which is the pre-existing
+  // behaviour. Rendering it as a real nested page is the layout cascade's
+  // job (#45) and a separate change.
+  return role === "container" || role === "page" ? "container" : "instance";
+}
 
 // Resolve a sortable numeric key from a child occurrence's field value.
 // Date-like strings → epoch ms; plain numbers → the number; everything
@@ -163,7 +187,39 @@ export default function PageBoard({
     >
       <div style={innerStyle}>
         {visibleList.map(({ container, occurrence: containerOcc }) => {
-          const card = (
+          // LEAF-ROLE ROUTING, mirroring PageCanvas and ModuleContainer's child
+          // loop. A page can host ANY module role — `getPageChildrenModules`
+          // applies no role filter and ModulePage says so in as many words —
+          // but every child used to be handed to <Container>, which never
+          // inspects its own role and so renders container chrome regardless.
+          // An artifact dropped straight onto a board page therefore came out
+          // as an EMPTY container shell wearing the file's name (user,
+          // 2026-08-09: "a board page can hold artifacts. as occurances in the
+          // page. so would canvases" — the canvas already did; the board did
+          // not). Textblocks had the same problem, for the same reason
+          // PageCanvas records: ModuleInstance's default render has no field
+          // bindings to lay out, so it comes out blank without `renderBody`.
+          const role = container?.role;
+          const via = pageChildRenderer(role);
+          let renderBody = null;
+          if (role === "artifact") {
+            renderBody = () => <ArtifactCard module={container} label={container.label} occurrence={containerOcc} />;
+          } else if (role === "textblock") {
+            renderBody = () => <TextblockCard occurrence={containerOcc} module={container} />;
+          }
+          const card = via === "instance" ? (
+            <ModuleInstance
+              key={containerOcc?.id || container.id}
+              module={container}
+              occurrence={containerOcc}
+              containerOccurrence={occurrence}
+              panelId={panelId}
+              dispatch={dispatch}
+              socket={socket}
+              renderBody={renderBody}
+              floatHandle={!!renderBody}
+            />
+          ) : (
             <Container
               key={containerOcc?.id || container.id}
               module={container}

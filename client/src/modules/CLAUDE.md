@@ -1,6 +1,30 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-08-01. This folder implements occurrence-based view routing._
+_Updated: 2026-08-09. This folder implements occurrence-based view routing._
+
+## Recent Changes (2026-08-09 — a BOARD page renders its leaf children as themselves)
+- **User: *"a board page can hold artifacts. as occurances in the page. so would canvases."*
+  Right on both counts, and `PageCanvas` already did it — the BOARD page was the one surface that
+  did not.**
+- **What was actually wrong, and it was not the data model.** A page can host any role:
+  `getPageChildrenModules` applies NO role filter, and `ModulePage` says so
+  (*"Pages can host any module role (containers, artifacts, textblocks, nested pages)"*). But
+  `PageBoard` handed EVERY child to `<Container>` — and `ModuleContainer` **never inspects its own
+  role** (grep: zero references to `module.role` in 1600 lines), so it always draws container
+  chrome. An artifact dropped straight onto a board page came out as an **EMPTY container shell
+  wearing the file's name**.
+- **`PageBoard` now does the leaf-role routing `PageCanvas` already had** — artifact →
+  `ArtifactCard`, textblock → `TextblockCard`, both inside a `ModuleInstance` shell via
+  `renderBody`. PageCanvas's own comment records why the shell is needed: ModuleInstance's default
+  render has no field bindings to lay out, so a leaf comes out blank without it.
+- **`pageChildRenderer(role)` is EXPORTED and tested** rather than left inline. Mounting PageBoard
+  needs the whole grid store, and this predicate is exactly where the bug lived. A nested `page`
+  child deliberately stays on the Container path (rendering it as a real nested page is the layout
+  cascade's job, #45) and a role-less child keeps today's behaviour — both pinned, so neither
+  changes by accident.
+- 4 tests, A/B'd: reverting to always-Container fails the leaf case.
+- **NOT verified in a browser.** The predicate and the wiring are asserted; nobody has yet dropped
+  a file on a board page and looked at it.
 
 ## Recent Changes (2026-08-06 (5) — ModulePanel: chrome renders now, the BODY is staged)
 - **`ModulePanel.jsx`** — the panel's chrome (header, page name, tree toggles, drag handle, border)
