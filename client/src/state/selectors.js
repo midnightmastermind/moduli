@@ -392,6 +392,36 @@ export function getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById,
   return null;
 }
 
+// WHEN an occurrence's own fields are shown — a SEPARATE cascade from WHICH.
+//
+//   occurrence.fieldReveal:
+//     null / undefined   → inherit from ancestors
+//     "always"           → shown at rest (the default, and an explicit stop:
+//                          it re-enables here even if an ancestor said hover)
+//     "hover"            → present but transparent until the card is hovered
+//
+// DELIBERATELY NOT A KEY ON `fieldVisibility`, for two reasons. The mechanical
+// one: the resolver above returns `{mode, fieldIds}` and DROPS every other key,
+// so a `reveal` smuggled in there would silently vanish. The design one: they
+// answer different questions, so folding them together means setting WHICH
+// fields show on a container would wipe WHEN they show, inherited from its page.
+//
+// Nearest-wins, same walk and the same memoised parent map.
+export function getEffectiveFieldRevealForOccurrence(occ, { occurrencesById, parentByChildId } = {}) {
+  if (!occ) return "always";
+  const pbc = parentByChildId || cachedParentMap(occurrencesById || {});
+  let cur = occ;
+  const guard = new Set();
+  while (cur && !guard.has(cur.id)) {
+    guard.add(cur.id);
+    const r = cur.fieldReveal;
+    if (r === "hover" || r === "always") return r;
+    const nextId = pbc[cur.id] ?? cur.parentId;
+    cur = nextId ? (occurrencesById?.[nextId] || null) : null;
+  }
+  return "always";
+}
+
 // Pure predicate: does fieldId pass the given resolved field-visibility?
 // `fv` is the output of getEffectiveFieldVisibilityForOccurrence (or a table
 // column's local fieldVisibility). null = no constraint, everything passes.

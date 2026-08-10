@@ -4808,6 +4808,43 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   min-width: 0;
 }
 
+/* ── An occurrence's OWN fields (ui/OccurrenceFields.jsx) ──────────────────
+   `--corner` is for occurrences with no heading to sit under (textblocks,
+   artifacts): absolutely positioned, so a textblock's prose never reflows
+   around it and the hover mode below cannot move anything.               */
+.occurrence-fields--corner { pointer-events: auto; }
+
+/* REVEAL ON HOVER = OPACITY ONLY. Never height, never display.
+   The 2026-08-01 (17) defect verbatim: a hover rule that un-collapsed a
+   trailing line grew the day column by +23px per nesting level, the layout
+   shifted out from under the pointer, the hover re-fired, and the page
+   oscillated 46-64 times per three IDLE seconds. Anything that changes the
+   box on hover reintroduces that.                                         */
+.occurrence-fields--hover {
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+  /* A transparent strip still swallows clicks aimed at the card beneath it —
+     the corner variant sits directly over the content. */
+  pointer-events: none;
+}
+
+/* THE `:not(:has(…))` GUARD IS THE LOAD-BEARING PART, not the :hover.
+   A plain descendant combinator is what leaked in that same bug: hovering a
+   day column matched every nested card's rule at once and lit all of them.
+   Each rule below fires only when NO nested card of the same type is hovered,
+   so exactly one strip — the innermost — is ever revealed.
+   `:focus-within` is included so the fields are reachable by keyboard, and
+   carries the identical guard. */
+.container-shell:hover:not(:has(.container-shell:hover)) > .occurrence-fields--hover,
+.container-shell:focus-within:not(:has(.container-shell:focus-within)) > .occurrence-fields--hover,
+.page-shell:hover:not(:has(.page-shell:hover)) > .occurrence-fields--hover,
+.page-shell:focus-within:not(:has(.page-shell:focus-within)) > .occurrence-fields--hover,
+.textblock-card:hover:not(:has(.textblock-card:hover)) > .occurrence-fields--hover,
+.textblock-card:focus-within:not(:has(.textblock-card:focus-within)) > .occurrence-fields--hover {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 /* The multi-select occurrence trigger is a shadcn <Button>, whose own size
    classes set 12px/16px text where the single-select pill uses 10px/15px —
    a 1px taller box. Pin the compact one to the single-select's type scale so

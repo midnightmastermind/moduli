@@ -115,6 +115,7 @@ const CONTEXT_ADD_KINDS = tileKindsForRole("instance").filter(
   (k) => k !== "artifact" && k !== "image",
 );
 import FieldRenderer from "../ui/FieldRenderer.jsx";
+import OccurrenceFields from "../ui/OccurrenceFields.jsx";
 import { resolveEditorBinding } from "../state/editorBindings.js";
 
 // Minimum children before a list opts into the browser off-screen skip.
@@ -440,15 +441,22 @@ function Container({
     [containerOccurrence, module]
   );
 
-  // Resolve fields bound to this container (for header display)
-  const containerFields = useMemo(() => {
-    if (!module?.fieldBindings || !fieldsById) return [];
-    return (module.fieldBindings || [])
-      .filter(b => !b.hidden)
-      .map(b => ({ field: fieldsById[b.fieldId], binding: b }))
-      .filter(item => item.field)
-      .sort((a, b) => (a.binding.order || 0) - (b.binding.order || 0));
-  }, [module?.fieldBindings, fieldsById]);
+  // The container's OWN fields. Resolution (bindings + the grid's universal
+  // fields + both cascades) lives in <OccurrenceFields>, so the two header
+  // layouts cannot drift — which is exactly what happened before: the strip was
+  // rendered ONLY in the heading branch, so a plain container's visible bindings
+  // were computed and then thrown away.
+  const ownFieldsProps = useMemo(() => ({
+    occurrence: containerOccurrence,
+    module,
+    grid: ctxGrid,
+    fieldsById,
+    occurrencesById: getOccMap(),
+    position: "under",
+    state: ctxStateLite,
+    dispatch,
+    socket,
+  }), [containerOccurrence, module, ctxGrid, fieldsById, getOccMap, ctxStateLite, dispatch, socket]);
 
   // Attached fields — fields whose content IS the header/body of this module.
   // header/body are arrays of fieldIds; all share the same typed value.
@@ -1119,25 +1127,9 @@ function Container({
               <div onPointerDown={(e) => e.stopPropagation()} style={{ flexShrink: 0, marginLeft: "auto" }}>
               </div>
             </div>
-            {/* Row 3: Container-bound fields (below label, prevents mobile crush) */}
-            {containerFields.length > 0 && !isBodyCollapsed && (
-              <div style={{ padding: "0px 12px 4px 28px", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }} onPointerDown={(e) => e.stopPropagation()}>
-                {containerFields.map(({ field, binding }) => (
-                  <AutoMarquee key={field.id} className="instance-field-mq">
-                    <FieldRenderer
-                      field={field}
-                      binding={binding}
-                      occurrence={containerOccurrence}
-                      instance={module}
-                      state={ctxStateLite}
-                      dispatch={dispatch}
-                      socket={socket}
-                      compact={true}
-                    />
-                  </AutoMarquee>
-                ))}
-              </div>
-            )}
+            {/* Row 3: the container's OWN fields, below the label (prevents the
+                mobile crush that putting them beside it caused). */}
+            {!isBodyCollapsed && <OccurrenceFields {...ownFieldsProps} />}
           </>
         ) : (
           /* Standard single-row layout */
@@ -1283,6 +1275,11 @@ function Container({
                 openTrigger={quickAddTrigger}
               />
             </div>
+            {/* The container's OWN fields — the SAME strip the heading layout
+                gets. It only ever rendered in the heading branch, so a plain
+                container with a visible binding showed nothing at all (49 such
+                bindings on poms grid, measured 2026-08-10). */}
+            {!isBodyCollapsed && <OccurrenceFields {...ownFieldsProps} />}
           </>
         )}
 

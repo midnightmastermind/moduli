@@ -21,6 +21,7 @@ import FeedSection from "../ui/FeedSection";
 import GraphSection from "../ui/GraphSection";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
+import OccurrenceFields from "../ui/OccurrenceFields.jsx";
 import ViewModeSection from "../ui/ViewModeSection";
 import LayoutCascadeSection from "../ui/LayoutCascadeSection";
 import TemplatesSection from "../ui/TemplatesSection";
@@ -96,6 +97,14 @@ function Page({
   const ctxUserId = useGridActionsSelector(s => s.state.userId);
   const ctxGridId = useGridActionsSelector(s => s.state.gridId) || ctxGrid?._id;
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
+  // For the page's own field strip (<OccurrenceFields>). `ctxStateLite` is the
+  // same shape ModuleContainer/ModuleInstance hand FieldRenderer — it reads
+  // `state.grid` for filter context and nothing else.
+  const fieldsById = useGridActionsSelector(s => s.fieldsById);
+  const ctxStateLite = useMemo(
+    () => ({ grid: ctxGrid, gridId: ctxGridId, userId: ctxUserId }),
+    [ctxGrid, ctxGridId, ctxUserId],
+  );
   const { isMobileLayout, fullStateLoaded } = useContext(GridLiveContext);
   const selection = useContext(SelectionContext);
 
@@ -755,6 +764,20 @@ function Page({
             </div>
           </div>
         )}
+        {/* The page's OWN fields, under its label — pages could carry bindings
+            all along (the data model never restricted them) but nothing rendered
+            them, so a page-level field was invisible on every grid. */}
+        <OccurrenceFields
+          occurrence={occurrence}
+          module={pageModule}
+          grid={ctxGrid}
+          fieldsById={fieldsById}
+          occurrencesById={getOccMap()}
+          position="under"
+          state={ctxStateLite}
+          dispatch={dispatch}
+          socket={socket}
+        />
       </div>
 
       {/* Content */}
