@@ -103,7 +103,7 @@ import { FilterOverridePopup } from "./containerPopups.jsx";
 import ModuleInstance from "./ModuleInstance.jsx";
 import InsertGap from "../ui/InsertGap.jsx";
 import ArtifactCard from "./ArtifactCard.jsx";
-import TextblockCard from "./TextblockCard.jsx";
+import ModuleTextblock from "./ModuleTextblock.jsx";
 import BoundHeader from "./BoundHeader.jsx";
 import QuickAddMenu, { KIND_TILE, tileKindsForRole } from "../ui/QuickAddMenu.jsx";
 import { getModuleTypeBadge } from "../helpers/moduleIcons";
@@ -748,9 +748,7 @@ function Container({
   // board/doc — only positioning differs.
   const renderCanvasCard = useCallback(({ module: mod, occurrence: occ, containerId: cid, panelId: pid }) => {
     let renderBody = null;
-    if (mod.role === "textblock") {
-      renderBody = () => <TextblockCard occurrence={occ} module={mod} />;
-    } else if (mod.role === "artifact") {
+    if (mod.role === "artifact") {
       renderBody = () => <ArtifactCard module={mod} label={mod.label} occurrence={occ} />;
     }
     return (
@@ -772,6 +770,18 @@ function Container({
             embedded={mod.kind === "doc"}
             dispatch={dispatch}
             socket={socket}
+          />
+        ) : mod.role === "textblock" ? (
+          <ModuleTextblock
+            context="card"
+            module={mod}
+            occurrence={occ}
+            containerId={cid}
+            containerOccurrence={containerOccurrence}
+            panelId={pid}
+            dispatch={dispatch}
+            socket={socket}
+            floatHandle
           />
         ) : (
           <ModuleInstance
@@ -1619,10 +1629,27 @@ function Container({
                 let renderBody = null;
                 if (role === "artifact") {
                   renderBody = () => <ArtifactCard module={instance} label={instance.label} occurrence={occurrence} />;
-                } else if (role === "textblock") {
-                  renderBody = () => <TextblockCard occurrence={occurrence} module={instance} />;
                 }
-                node = (
+                // This site passes NO floatHandle — do not add one; the canvas and
+                // page sites do, and ModuleTextblock passes it through rather than
+                // supplying it precisely so these two stay different.
+                node = role === "textblock" ? (
+                  <ModuleTextblock
+                    context="card"
+                    module={instance}
+                    occurrence={occurrence}
+                    containerId={module.id}
+                    panelId={panelId}
+                    panel={panel}
+                    container={module}
+                    containerOccurrence={containerOccurrence}
+                    dragOutDisabled={isGraphContainer}
+                    dispatch={dispatch}
+                    socket={socket}
+                    allowedEdges={containerAllowedEdges}
+                    onInstanceFocus={null}
+                  />
+                ) : (
                   <ModuleInstance
                     module={instance}
                     occurrence={occurrence}

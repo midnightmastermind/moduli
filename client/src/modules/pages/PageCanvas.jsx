@@ -8,7 +8,7 @@ import { useGridActions } from "../../GridActionsContext";
 import { CanvasDrawSection } from "../CanvasContent.jsx";
 import ModuleInstance from "../ModuleInstance.jsx";
 import Container from "../ModuleContainer.jsx";
-import TextblockCard from "../TextblockCard.jsx";
+import ModuleTextblock from "../ModuleTextblock.jsx";
 import ArtifactCard from "../ArtifactCard.jsx";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { useDroppable, DropAccepts } from "../../helpers/dragSystem";
@@ -68,9 +68,7 @@ export default function PageCanvas({ pageModule, occurrence, panelId, dispatch, 
       // because ModuleInstance's default rendering has no field bindings
       // to lay out.
       let renderBody = null;
-      if (mod.role === "textblock") {
-        renderBody = () => <TextblockCard occurrence={occ} module={mod} />;
-      } else if (mod.role === "artifact") {
+      if (mod.role === "artifact") {
         renderBody = () => <ArtifactCard module={mod} label={mod.label} />;
       }
       // Position-less cards (e.g. feed-minted copies — occurrence.feed
@@ -99,6 +97,18 @@ export default function PageCanvas({ pageModule, occurrence, panelId, dispatch, 
               embedded={mod.kind === "doc"}
               dispatch={dispatch}
               socket={socket}
+            />
+          ) : mod.role === "textblock" ? (
+            <ModuleTextblock
+              context="card"
+              module={mod}
+              occurrence={occ}
+              containerId={containerId}
+              containerOccurrence={occurrence}
+              panelId={pid}
+              dispatch={dispatch}
+              socket={socket}
+              floatHandle
             />
           ) : (
             <ModuleInstance

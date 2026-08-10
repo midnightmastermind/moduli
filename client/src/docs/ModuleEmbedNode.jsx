@@ -9,7 +9,7 @@ import Container from "../modules/ModuleContainer.jsx";
 import ModuleInstance from "../modules/ModuleInstance.jsx";
 import ArtifactContent from "../modules/ArtifactContent.jsx";
 import ArtifactCard from "../modules/ArtifactCard.jsx";
-import TextblockCard from "../modules/TextblockCard.jsx";
+import ModuleTextblock from "../modules/ModuleTextblock.jsx";
 import FieldRenderer from "../ui/FieldRenderer.jsx";
 import { CellEmbedContext } from "./CellEmbedContext.js";
 import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Box, Combine, Ungroup, WrapText } from "lucide-react";
@@ -259,17 +259,18 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
     <NodeViewWrapper contentEditable={false} data-occ-id={occurrenceId}>
       <div style={{ position: "relative", ...alignStyle(align, width) }}>
         {mod?.role === "textblock" ? (
-          // Render through ModuleInstance with renderBody=TextblockCard (the same
+          // Render through ModuleTextblock's `card` context — which composes the
+          // same ModuleInstance + TextblockCard it always did (the same
           // path ModuleContainer uses for textblock children) so an embedded
           // textblock gets the GripVertical drag handle + radial menu — not just
           // the bare editor. The imported article's prose blocks are textblock
           // occurrences embedded via moduleEmbed; without this they had no handle.
-          <ModuleInstance
+          <ModuleTextblock
+            context="card"
             module={mod}
             occurrence={occurrence}
             dispatch={dispatch}
             socket={socket}
-            renderBody={() => <TextblockCard occurrence={occurrence} module={mod} />}
             embedRadialItems={embedRadialItems}
             embedOnDelete={deleteNode}
             embedSourceType="doc-embed"

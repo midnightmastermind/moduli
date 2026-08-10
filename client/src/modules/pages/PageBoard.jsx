@@ -18,7 +18,7 @@ import React, { useMemo } from "react";
 import Container from "../ModuleContainer.jsx";
 import ModuleInstance from "../ModuleInstance.jsx";
 import ArtifactCard from "../ArtifactCard.jsx";
-import TextblockCard from "../TextblockCard.jsx";
+import ModuleTextblock from "../ModuleTextblock.jsx";
 import { Spinner } from "../../components/ui/spinner";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../../GridActionsContext";
 import { resolveEffectiveLayout } from "../../helpers/layoutCascade";
@@ -204,10 +204,20 @@ export default function PageBoard({
           let renderBody = null;
           if (role === "artifact") {
             renderBody = () => <ArtifactCard module={container} label={container.label} occurrence={containerOcc} />;
-          } else if (role === "textblock") {
-            renderBody = () => <TextblockCard occurrence={containerOcc} module={container} />;
           }
-          const card = via === "instance" ? (
+          const card = via === "instance" ? (role === "textblock" ? (
+            <ModuleTextblock
+              context="card"
+              key={containerOcc?.id || container.id}
+              module={container}
+              occurrence={containerOcc}
+              containerOccurrence={occurrence}
+              panelId={panelId}
+              dispatch={dispatch}
+              socket={socket}
+              floatHandle
+            />
+          ) : (
             <ModuleInstance
               key={containerOcc?.id || container.id}
               module={container}
@@ -219,7 +229,7 @@ export default function PageBoard({
               renderBody={renderBody}
               floatHandle={!!renderBody}
             />
-          ) : (
+          )) : (
             <Container
               key={containerOcc?.id || container.id}
               module={container}
