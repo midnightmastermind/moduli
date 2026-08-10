@@ -4808,6 +4808,33 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   min-width: 0;
 }
 
+/* ── Container children as a WRAPPING GRID of squares ─────────────────────
+   Opt-in via the layout cascade (`mode: "wrap"`), so a page sets it once and
+   its containers follow. `--child-w` doubles as the square's side.          */
+.container-items--wrap {
+  flex-direction: row !important;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: var(--child-gap, 8px);
+}
+.container-items--wrap > .instance-wrap {
+  width: var(--child-w, 132px);
+  /* Square by construction rather than by a fixed height, so the card keeps
+     its proportions at any configured width. */
+  aspect-ratio: 1 / 1;
+  margin: 0;
+  overflow: hidden;
+}
+.container-items--wrap > .instance-wrap > .instance-row {
+  height: 100%;
+  align-items: flex-start;
+}
+/* The between-item insert gaps are a VERTICAL affordance — a full-width strip
+   that says "put one here". In a wrapping row they become flex items of their
+   own and break the grid, so they are hidden in this mode; the header "+" is
+   still the way to add. */
+.container-items--wrap > .insert-gap { display: none; }
+
 /* ── An occurrence's OWN fields (ui/OccurrenceFields.jsx) ──────────────────
    `--corner` is for occurrences with no heading to sit under (textblocks,
    artifacts): absolutely positioned, so a textblock's prose never reflows

@@ -145,8 +145,22 @@ export default function LayoutCascadeEditor({
               { value: "stack", label: "Stack" },
               { value: "flex-row", label: "Columns" },
               { value: "grid", label: "Grid" },
+              // Consumed by ModuleContainer, not PageBoard: the CHILDREN of a
+              // container flow into a wrapping row of squares instead of
+              // full-width stacked rows (user 2026-08-10). "Wrap" sits with the
+              // other arrangements because it is the same question — how does
+              // this surface arrange what is inside it.
+              { value: "wrap", label: "Wrap (squares)" },
             ]}
           />
+          {cur.mode === "wrap" ? (
+            <RuleNumber
+              label="Square size"
+              value={cur.childMinWidth ?? null}
+              onChange={(v) => setKey("childMinWidth", v)}
+              placeholder="132"
+            />
+          ) : null}
           {cur.mode === "grid" ? (
             <RuleNumber
               label="Grid columns"

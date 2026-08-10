@@ -644,6 +644,20 @@ function Container({
   }, [containerOccurrence, ancestorChain, modulesById, ctxGrid, getOccMap]);
   const stickyHeader = layoutCascade?.resolved?.stickyHeaders === true;
 
+  // Children laid out as a WRAPPING GRID of squares rather than a stack of
+  // full-width rows (user 2026-08-10: *"i want the instances inside the board
+  // containers, wrapped and squared"*). Read from the layout cascade rather than
+  // a new per-container flag, so the Trackers PAGE can set it once and every
+  // container under it follows — and so the existing Layout menu already edits
+  // it. `childMinWidth` doubles as the square's side.
+  const childWrap = layoutCascade?.resolved?.mode === "wrap";
+  const childW = Number.isFinite(layoutCascade?.resolved?.childMinWidth) && layoutCascade.resolved.childMinWidth > 0
+    ? layoutCascade.resolved.childMinWidth
+    : 132;
+  const childGap = Number.isFinite(layoutCascade?.resolved?.childGap) && layoutCascade.resolved.childGap >= 0
+    ? layoutCascade.resolved.childGap
+    : 8;
+
   // Occurrence controls order — pass containerOccurrence so ordering reads from occurrence.occurrences.
   // When `module.meta.allowChildContainers` is set, fall back to the full modulesById lookup so
   // role:"container" children are not filtered out (leafModulesById only contains instance/artifact/
@@ -1565,12 +1579,21 @@ function Container({
           <div
             role="list"
             aria-label={`${module.label || "Container"} items`}
+            className={childWrap ? "container-items container-items--wrap" : "container-items"}
             style={{
               // Board containers get +2px top + bottom over the list default —
               // the kanban-style column rows were too squished against the
               // container chrome.
               padding: module.kind === "board" ? "7px 5px 9px 5px" : "3px 5px 5px 5px",
               flex: 1, display: "flex", flexDirection: "column",
+              // Wrap mode ("i want to see them as squares instead of rectangles
+              // stacked") is driven by the SAME layout cascade the board page
+              // uses for its columns — `mode` + `childMinWidth` — so a page can
+              // set it once and every container under it follows, and the
+              // existing Layout menu already edits it. The two numbers ride as
+              // CSS vars because the rest of the shape (aspect ratio, hiding the
+              // between-item insert gaps) is CSS.
+              ...(childWrap ? { "--child-w": `${childW}px`, "--child-gap": `${childGap}px` } : null),
             }}
           >
             {itemsWithOccurrences.map(({ instance, occurrence }, idx) => {
