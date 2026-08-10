@@ -38,3 +38,20 @@ export function isPullOnlyFeed(occurrence) {
   if (occurrence.meta?.graph) return true;
   return occurrence.feed?.materialize === false;
 }
+
+/**
+ * The rows a graph draws: the feed's live matches, or its own children when it
+ * has no feed.
+ *
+ * SHARED because two surfaces need the identical answer — the chart
+ * (`ContainerGraph`) and the encoding editor's live readout (`GraphSection`).
+ * When they were resolved separately the readout reported "0 rows" for a fed
+ * graph while the chart drew 128, which is the exact failure that section
+ * exists to prevent: a readout that lies is worse than no readout.
+ */
+export function resolveGraphRows(occurrence, { occurrencesById, modulesById, resolveFeedItems }) {
+  if (!occurrence?.feed?.enabled || typeof resolveFeedItems !== "function") return null;
+  return resolveFeedItems(occurrence, { occurrencesById, modulesById })
+    .map((m) => m?.occurrence || m)
+    .filter(Boolean);
+}

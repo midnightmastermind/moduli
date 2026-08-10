@@ -23,6 +23,8 @@ import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { CHART_TYPES } from "../helpers/graphOption";
 import { buildGraphData } from "../helpers/graphData";
+import { resolveGraphRows } from "../helpers/feedPull";
+import { resolveFeedItems } from "../state/selectors";
 
 const inputStyle = {
   width: "100%", boxSizing: "border-box",
@@ -90,7 +92,11 @@ export default function GraphSection({ occurrence }) {
   const readout = useMemo(() => {
     if (!spec || !occurrence?.id) return null;
     try {
-      const { nodes, warnings } = buildGraphData(occurrence, { occurrencesById, modulesById, fieldsById });
+      // The SAME rows the chart draws — pulled from the feed, not the graph's
+      // children. Resolving these separately is how the readout came to say
+      // "0 rows" while the chart showed 128.
+      const rows = resolveGraphRows(occurrence, { occurrencesById, modulesById, resolveFeedItems });
+      const { nodes, warnings } = buildGraphData(occurrence, { occurrencesById, modulesById, fieldsById, rows });
       const count = (ns) => ns.reduce((n, x) => n + 1 + count(x.children || []), 0);
       const depth = (ns, d = 1) => (ns.length ? Math.max(...ns.map((x) => depth(x.children || [], d + 1))) : d - 1);
       return { roots: nodes.length, rows: count(nodes), depth: depth(nodes), warnings };

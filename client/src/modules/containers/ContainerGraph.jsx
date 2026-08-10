@@ -26,6 +26,7 @@ import { BarChart3, Minimize2 } from "lucide-react";
 import EChart, { readChartTheme } from "../../ui/EChart";
 import { buildGraphData } from "../../helpers/graphData";
 import { resolveFeedItems } from "../../state/selectors";
+import { resolveGraphRows } from "../../helpers/feedPull";
 import { buildEChartsOption } from "../../helpers/graphOption";
 import { DEFAULT_VIEW, isDefaultView } from "../../helpers/graphView";
 import { useGridActionsSelector } from "../../GridActionsContext";
@@ -65,9 +66,7 @@ export default function ContainerGraph({ occurrence, dispatch, socket }) {
   const { nodes, warnings } = useMemo(
     () => {
       const occurrencesById = getOccMap();
-      const rows = occurrence?.feed?.enabled
-        ? resolveFeedItems(occurrence, { occurrencesById, modulesById }).map(m => m.occurrence || m)
-        : null;
+      const rows = resolveGraphRows(occurrence, { occurrencesById, modulesById, resolveFeedItems });
       return buildGraphData(occurrence, { occurrencesById, modulesById, fieldsById, rows });
     },
     [occurrence, getOccMap, modulesById, fieldsById]
