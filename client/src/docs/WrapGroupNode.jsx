@@ -253,7 +253,15 @@ export default function WrapGroupNode({ node, updateAttributes }) {
     } else {
       const anchorIndex = Number(node.attrs.anchorIndex) || 0; // legacy fallback
       if (anchorIndex > 0) {
-        const hostPm = els[els.length - 1].querySelector(".ProseMirror");
+        // Same fallback as the text measurement above (:193): a host whose editor
+        // has not mounted yet paints a `.textblock-card-placeholder` and has NO
+        // `.ProseMirror`. Without this the legacy anchorIndex would silently
+        // resolve to a 0 margin-top and the float would sit at the host's top
+        // instead of the anchored line. Now that the doc BLOCK path is lazy too,
+        // this is reachable from a second renderer.
+        const hostEl2 = els[els.length - 1];
+        const hostPm = hostEl2.querySelector(".ProseMirror")
+          || hostEl2.querySelector(".textblock-card-placeholder");
         const blocks = hostPm ? Array.from(hostPm.children) : [];
         const idx = Math.min(anchorIndex, blocks.length - 1);
         if (idx > 0 && blocks[idx]) {

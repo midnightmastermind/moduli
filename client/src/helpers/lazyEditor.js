@@ -43,8 +43,15 @@ export function forceLiveNow(occurrenceId) {
 }
 
 // Test-only: register a goLive without mounting a component. Not used in app code.
+// In the app the registration is removed by the hook's own effect cleanup, so a
+// stale entry is impossible; a hand-registered one has no such lifecycle, which is
+// why `__resetForTest` exists — without it a closure from a previous test fires
+// against detached DOM and throws NotFoundError from an unrelated test.
 export function __registerForTest(occurrenceId, goLive) {
   pending.set(occurrenceId, goLive);
+}
+export function __resetForTest() {
+  pending.clear();
 }
 
 /**

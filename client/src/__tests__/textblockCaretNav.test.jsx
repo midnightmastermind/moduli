@@ -16,6 +16,7 @@ import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "@testing-library/react";
 import InstanceTextblockNode from "../docs/pills/InstanceTextblockNode.jsx";
+import * as lazyEditor from "../helpers/lazyEditor.js";
 
 vi.mock("@tiptap/react", () => ({
   NodeViewWrapper: ({ children }) => <div>{children}</div>,
@@ -124,6 +125,9 @@ const renderNode = (editor, getPos) =>
 
 beforeEach(() => {
   document.body.innerHTML = "";
+  // Hand-registered goLive closures have no unmount cleanup, so without this a
+  // closure from the previous test fires against detached DOM.
+  lazyEditor.__resetForTest();
   ctx = {
     occurrencesById: { "occ-1": { id: "occ-1", textmap: { type: "doc", content: [] } } },
     modulesById: { "mod-1": { id: "mod-1", role: "textblock", kind: "doc" } },
@@ -147,15 +151,50 @@ describe("textblock caret navigation across blocks", () => {
     expect(document.activeElement).toBe(pm);
   });
 
-  // REGRESSION GUARD. This documents the hazard the lazy-block change introduces:
-  // today the focus is silently swallowed. The task that makes the block body lazy
-  // must force the neighbour live first and then focus it — at which point this
-  // test's expectation flips, deliberately and visibly.
-  it("TODAY: a neighbour with no .ProseMirror silently swallows the caret", () => {
-    const { wrap } = neighbourWithPlaceholder();
+  // THE REGRESSION THIS FILE EXISTS FOR. A lazily-unmounted neighbour renders a
+  // placeholder and no .ProseMirror, so the `if (innerPM)` guard would swallow the
+  // focus and the caret would silently stop moving between blocks. The node must
+  // force the neighbour live first, then focus what it paints.
+  it("forces a lazy neighbour live and focuses it, instead of swallowing the caret", () => {
+    const { wrap, ph } = neighbourWithPlaceholder();
+    const forced = vi.fn(() => {
+      const pm = document.createElement("div");
+      pm.className = "ProseMirror";
+      pm.tabIndex = -1;
+      wrap.replaceChild(pm, ph);
+    });
+    lazyEditor.__registerForTest("neighbour-1", forced);
+
     const { getByTestId } = renderNode(forwardEditor(() => wrap), () => 0);
     getByTestId("exit").click();
+
+    expect(forced).toHaveBeenCalled();
+    expect(document.activeElement).toBe(wrap.querySelector(".ProseMirror"));
+  });
+
+  it("does the same going BACKWARD into a lazy previous sibling", () => {
+    const { wrap, ph } = neighbourWithPlaceholder();
+    const forced = vi.fn(() => {
+      const pm = document.createElement("div");
+      pm.className = "ProseMirror";
+      pm.tabIndex = -1;
+      wrap.replaceChild(pm, ph);
+    });
+    lazyEditor.__registerForTest("neighbour-1", forced);
+
+    const { getByTestId } = renderNode(backwardEditor(() => wrap), () => 5);
+    getByTestId("back").click();
+
+    expect(forced).toHaveBeenCalled();
+    expect(document.activeElement).toBe(wrap.querySelector(".ProseMirror"));
+  });
+
+  it("falls through harmlessly when the neighbour is not registered at all", () => {
+    // Not every missing .ProseMirror is a lazy block — the node may simply not be
+    // mounted. forceLiveNow returns false and the caller must not throw.
+    const { wrap } = neighbourWithPlaceholder();
+    const { getByTestId } = renderNode(forwardEditor(() => wrap), () => 0);
+    expect(() => getByTestId("exit").click()).not.toThrow();
     expect(wrap.querySelector(".ProseMirror")).toBeNull();
-    expect(document.activeElement).toBe(document.body);
   });
 });

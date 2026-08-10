@@ -16,6 +16,25 @@ import {
   isProvisionalTextblock, discardProvisionalTextblock, suppressTextblockMint,
   getProvisionalOccurrence,
 } from "../../helpers/provisionalTextblock.js";
+import { forceLiveNow } from "../../helpers/lazyEditor.js";
+
+// The caret hand-off below focuses the NEIGHBOUR's inner editor directly. Now that
+// the block body mounts lazily, a neighbour off screen renders a placeholder and
+// has NO `.ProseMirror` — the `if (innerPM)` guards would swallow the focus and the
+// caret would silently stop moving between blocks, with nothing in the console.
+//
+// So: look, and if it is missing, force that occurrence live and look again. A
+// neighbour that is genuinely absent (not merely lazy) returns false from
+// forceLiveNow and we fall through to the outer-cursor placement as before.
+function innerProseMirror(domNode) {
+  if (!domNode) return null;
+  const found = domNode.querySelector?.(".ProseMirror");
+  if (found) return found;
+  const occId = domNode.getAttribute?.("data-occurrence-id")
+    || domNode.querySelector?.("[data-occurrence-id]")?.getAttribute("data-occurrence-id");
+  if (occId && forceLiveNow(occId)) return domNode.querySelector?.(".ProseMirror") || null;
+  return null;
+}
 
 export default function InstanceTextblockNode({ node, editor, getPos, deleteNode }) {
   const { occurrencesById, modulesById, dispatch, socket } = useGridActions() || {};
@@ -151,7 +170,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
       // The next sibling is another textblock — focus ITS inner editor at
       // the start so the user keeps typing in the next textblock instead
       // of leaving the textblock chain entirely.
-      const innerPM = editor.view.nodeDOM(nextChildStart)?.querySelector?.(".ProseMirror");
+      const innerPM = innerProseMirror(editor.view.nodeDOM(nextChildStart));
       if (innerPM) {
         innerPM.focus();
         const range = document.createRange();
@@ -265,7 +284,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
       // Previous sibling is also a textblock — focus its sub-editor at end
       const prevFrom = pos - prevSibling.nodeSize;
       const domNode = editor.view.nodeDOM(prevFrom);
-      const innerPM = domNode?.querySelector?.(".ProseMirror");
+      const innerPM = innerProseMirror(domNode);
       if (innerPM) {
         innerPM.focus();
         const range = document.createRange();
@@ -328,6 +347,10 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
                 dispatch={dispatch}
                 socket={socket}
                 hideToolbar={true}
+                // A block minted a frame ago must mount its real editor NOW: 2026-08-07
+                // records that deferring alone left a new block un-editable for 1223ms —
+                // "the original wait, moved."
+                lazy={!isProvisionalTextblock(occurrenceId)}
                 onExitBlock={handleExitBlock}
                 onDeleteBlock={handleNavigateBack}
                 onEmptyBlur={handleEmptyBlur}
@@ -345,6 +368,10 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
               dispatch={dispatch}
               socket={socket}
               hideToolbar={true}
+              // A block minted a frame ago must mount its real editor NOW: 2026-08-07
+              // records that deferring alone left a new block un-editable for 1223ms —
+              // "the original wait, moved."
+              lazy={!isProvisionalTextblock(occurrenceId)}
               onExitBlock={handleExitBlock}
               onDeleteBlock={handleNavigateBack}
               onEmptyBlur={handleEmptyBlur}
