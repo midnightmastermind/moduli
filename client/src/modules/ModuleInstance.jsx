@@ -14,6 +14,7 @@ import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
 import InstanceForm from "../ui/InstanceForm";
 import FieldRenderer from "../ui/FieldRenderer";
+import { resolveOccurrenceFields } from "../helpers/universalFields";
 import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
 import RadialMenu from "../ui/RadialMenu";
 import RepresentationView from "../ui/RepresentationView";
@@ -306,60 +307,28 @@ function InstanceInner({
   // are stamped as VALUES on each occurrence via Build Day's defaultFields,
   // not declared as bindings on the source module). Without this, "show" mode
   // referring to an unbound fieldId rendered nothing.
+  // THE GRID'S UNIVERSAL FIELDS APPLY HERE TOO (user 2026-08-10: *"tags should
+  // be a bound field from grid level filter settings, tags shouldnt be some
+  // hardcoded thing. universal is what i mean by that, cause its bound at a grid
+  // level cascaded down"*). `resolveOccurrenceFields` reproduces every rule this
+  // memo already applied — media-role exclusion, the force-show that lets a
+  // table column ask for a hidden binding by name, show-mode extras for values
+  // stamped without a declared binding, and the order sort — and adds the grid's
+  // list on top.
+  //
+  // INSTANCE ROWS STILL RENDER IDENTICALLY, because a universal binding is born
+  // hidden: it resolves to nothing until an occurrence's fieldVisibility names
+  // it. That is what keeps "instances shouldnt change at all" true while making
+  // a textblock (which reaches this same path via renderBody) taggable.
   const instanceFields = useMemo(() => {
     if (!fieldsById) return [];
-    const bindings = Array.isArray(instance?.fieldBindings) ? instance.fieldBindings : [];
-    // Show-mode fieldIds: any binding whose fieldId is in this set must
-    // render even when `binding.hidden === true`. The hide flag is for the
-    // "normal render with default visibility" path — when a column / page
-    // explicitly opts a field IN via "show" mode, that wins over the hide
-    // flag (otherwise Schedule Table's Date column shows nothing: the
-    // schedule task module binds dateFieldId with `hidden: true` so the
-    // date doesn't show inline in the Schedule panel, but the table cell
-    // is explicitly asking for it).
-    const showSet = effectiveFieldVisibility?.mode === "show"
-      && Array.isArray(effectiveFieldVisibility.fieldIds)
-      ? new Set(effectiveFieldVisibility.fieldIds)
-      : null;
-
-    const fromBindings = bindings
-      .filter(binding => {
-        // Media-role bindings render in the dedicated media section under the
-        // label + fields (see `mediaBinding` below) — never as an inline pill.
-        if (binding.role === "media") return false;
-        const isExplicitShow = showSet?.has(binding.fieldId);
-        if (binding.hidden && !isExplicitShow) return false;
-        return fieldPassesVisibility(binding.fieldId, effectiveFieldVisibility);
-      })
-      .map(binding => {
-        const field = fieldsById[binding.fieldId];
-        if (!field) return null;
-        // Force-show: clone the binding without the hidden flag so any
-        // downstream UI that checks binding.hidden also sees it as visible.
-        const b = (binding.hidden && showSet?.has(binding.fieldId))
-          ? { ...binding, hidden: false }
-          : binding;
-        return { field, binding: b };
-      })
-      .filter(Boolean);
-
-    // Synthesize bindings for "show"-mode fieldIds that aren't bound at all
-    // (e.g. schedule task modules don't formally bind date/timeslot — those
-    // values are stamped by Build Day's defaultFields).
-    const extras = [];
-    if (showSet) {
-      const alreadyBound = new Set(bindings.map(b => b.fieldId));
-      for (const fid of showSet) {
-        if (alreadyBound.has(fid)) continue;
-        const field = fieldsById[fid];
-        if (!field) continue;
-        extras.push({ field, binding: { fieldId: fid, role: "input" } });
-      }
-    }
-
-    return [...fromBindings, ...extras]
-      .sort((a, b) => (a.binding.order || 0) - (b.binding.order || 0));
-  }, [instance?.fieldBindings, fieldsById, effectiveFieldVisibility]);
+    return resolveOccurrenceFields({
+      module: instance,
+      grid: ctxGrid,
+      fieldsById,
+      fieldVisibility: effectiveFieldVisibility,
+    });
+  }, [instance, ctxGrid, fieldsById, effectiveFieldVisibility]);
 
   // ── Media section ──────────────────────────────────────────────────────────
   // A field binding with role:"media" surfaces below the label + fields as an
@@ -831,8 +800,17 @@ function InstanceInner({
               display: "flex",
               flexWrap: "wrap",
               gap: 4,
-              justifyContent: renderBody ? "flex-start" : "flex-end",
+              justifyContent: renderBody ? "flex-end" : "flex-end",
               alignItems: "center",
+              // A BODY-RENDERED card (textblock / artifact) has NO label row to
+              // sit under, so its fields go top-right instead — user 2026-08-10:
+              // *"make sure anything without a heading (textblocks) shows up in
+              // the top right"*. Absolute, so a textblock's prose does not
+              // reflow around them and the hover reveal cannot move anything.
+              // The row is `position: relative` already (`.instance-row`).
+              ...(renderBody
+                ? { position: "absolute", top: 2, right: 4, zIndex: 2, maxWidth: "60%", flex: "0 0 auto" }
+                : null),
             }}
           >
             {instanceFields.map(({ field, binding }) => (
