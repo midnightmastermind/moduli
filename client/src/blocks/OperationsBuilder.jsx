@@ -475,11 +475,11 @@ function DraggableStepWrapper({ step, depth, steps, onReorder, children }) {
 
   return (
     <div ref={containerRef} style={{ position: "relative" }}>
-      {closestEdge === "top" && <div style={topIndicator} />}
+      {closestEdge === "top" && <div className="drop-indicator drop-indicator-top" />}
 
       {React.cloneElement(children, { dragHandleRef: handleRef })}
 
-      {closestEdge === "bottom" && <div style={bottomIndicator} />}
+      {closestEdge === "bottom" && <div className="drop-indicator drop-indicator-bottom" />}
     </div>
   );
 }
@@ -1603,11 +1603,11 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
         <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <span style={labelSt}>Source (select field):</span>
-            <FieldPicker value={cfg.sourceFieldId} onChange={v => setCfg({ ...cfg, sourceFieldId: v })} fields={allFields.filter(f => f.type === "select")} placeholder="Select field..." />
+            <FieldPicker value={cfg.sourceFieldId} onChange={v => setCfg({ ...cfg, sourceFieldId: v })} fields={fields.filter(f => f.type === "select")} placeholder="Select field..." />
           </div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <span style={labelSt}>Write label to:</span>
-            <FieldPicker value={cfg.targetFieldId} onChange={v => setCfg({ ...cfg, targetFieldId: v })} fields={allFields} placeholder="Target field..." />
+            <FieldPicker value={cfg.targetFieldId} onChange={v => setCfg({ ...cfg, targetFieldId: v })} fields={fields} placeholder="Target field..." />
           </div>
           <span style={{ ...labelSt, opacity: 0.5 }}>Cycles by day-of-year (one option per day)</span>
         </div>
