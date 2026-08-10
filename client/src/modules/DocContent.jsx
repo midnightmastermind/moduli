@@ -10,9 +10,32 @@ import { logCaretInterference } from "../helpers/caretDiag";
 import { requestTextblockFocus, cancelTextblockFocus } from "../helpers/pendingTextblockFocus";
 import { registerProvisionalTextblock, discardProvisionalTextblock, isProvisionalTextblock } from "../helpers/provisionalTextblock";
 import { mintMark, mintStep } from "../helpers/mintDiag";
+import { useLazyEditor, LAZY_PLACEHOLDER_CLASS } from "../helpers/lazyEditor.js";
 import { afterPaint } from "../helpers/afterPaint";
 
-export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false, scrollAnchor, onExitBlock, onDeleteBlock, onAutoCreateTextblock, onEmptyBlur = null }) {
+// One plain-text string per top-level block. Roughly height-matched — and, just as
+// important, REAL TEXT ON SCREEN, because WrapGroupNode measures rendered
+// characters to decide wrap vs stack and would read an empty placeholder as
+// "blank host, nothing to wrap". Mirrors TextblockCard's own extractor.
+function textmapBlocks(textmap) {
+  if (!textmap || typeof textmap !== "object") return [];
+  const content = Array.isArray(textmap.content) ? textmap.content : [];
+  return content.map((node) => {
+    const parts = [];
+    const walk = (n) => {
+      if (!n || typeof n !== "object") return;
+      if (typeof n.text === "string") parts.push(n.text);
+      if (Array.isArray(n.content)) n.content.forEach(walk);
+    };
+    walk(node);
+    return parts.join("");
+  });
+}
+
+// `lazy` defaults FALSE so every existing call site is byte-identical — only the
+// doc BLOCK node view opts in, where 246 eager ProseMirror instances on poms grid
+// are the measured cost.
+export const DocContent = React.memo(function DocContent({ occurrence, dispatch, socket, onConvertListToInstances, hideToolbar = false, scrollAnchor, onExitBlock, onDeleteBlock, onAutoCreateTextblock, onEmptyBlur = null, lazy = false }) {
   const [showLockBtn, setShowLockBtn] = useState(false);
   const wrapRef = useRef(null);
   const editorRef = useRef(null);
@@ -45,6 +68,18 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
   // A valid textmap is a JSON object. A compressed textmap is a base64 string —
   // treat it the same as missing (full_state delivers all textmaps decompressed upfront).
   const hasValidTextmap = occurrence?.textmap != null && typeof occurrence.textmap === "object";
+
+  // Lazy body. Declared with the other hooks (the `!live` early return sits after
+  // every hook, so order stays stable). An EMPTY doc mounts eagerly — there is no
+  // placeholder text to stand in for it and it is immediately editable.
+  const { live, ref: lazyRef, goLive } = useLazyEditor({
+    eager: !lazy || !hasValidTextmap,
+    occurrenceId: occurrence?.id,
+  });
+  const lazyBlocks = React.useMemo(
+    () => (live || !hasValidTextmap ? [] : textmapBlocks(occurrence.textmap)),
+    [live, hasValidTextmap, occurrence?.textmap]
+  );
   // Auto-create textblock: when user types on empty paragraph or a list appears at top level,
   // replace it with an instancePill block. nodeJson is optional — when provided (for lists),
   // it becomes the initial textmap content directly.
@@ -288,6 +323,22 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
     if (!occurrence?.id) return;
     CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...occurrence, locked: !isLocked } });
   };
+  if (!live) {
+    return (
+      <div
+        ref={lazyRef}
+        onPointerDown={goLive}
+        className={`doc-container flex flex-col flex-1 min-h-0 relative ${LAZY_PLACEHOLDER_CLASS}`}
+        style={{ cursor: "text" }}
+        title="Click to edit"
+      >
+        {lazyBlocks.map((b, i) => (
+          <div key={i} style={{ minHeight: "1.35em" }}>{b || " "}</div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div
       ref={wrapRef}
