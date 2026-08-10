@@ -19,7 +19,7 @@ vi.mock("../GridActionsContext", () => ({
   useGridActions: () => gridActions.current,
 }));
 
-import GraphSection from "../ui/GraphSection";
+import GraphSection, { splitFieldsByPresence } from "../ui/GraphSection";
 
 const GRAPH = "occ-graph";
 const F_PARENT = "f-parent";
@@ -119,5 +119,56 @@ describe("GraphSection", () => {
     world({});
     const { container } = render(<GraphSection occurrence={null} />);
     expect(container.firstChild).toBeNull();
+  });
+});
+
+// ── the field pickers offer what the FEED PULLS IN ──────────────────────────
+// User 2026-08-10: "a good ui for linking diff data to it via what we pull in
+// from the feed". These cover the DECISION (which fields are offered first and
+// with what count); the <optgroup> rendering itself is one JSX branch above it.
+describe("splitFieldsByPresence", () => {
+  const F = [{ id: "f-cal", name: "Calories" }, { id: "f-pro", name: "Protein" }, { id: "f-none", name: "Unused" }];
+  const rows = [
+    { id: "r1", fields: { "f-cal": { value: 200 }, "f-pro": { value: 12 } } },
+    { id: "r2", fields: { "f-cal": { value: 300 } } },
+  ];
+
+  it("separates the fields the rows carry from the rest of the grid", () => {
+    const { onRows, others } = splitFieldsByPresence(F, rows);
+    expect(onRows.map((f) => f.id)).toEqual(["f-cal", "f-pro"]);   // 2 rows, then 1
+    expect(others.map((f) => f.id)).toEqual(["f-none"]);
+  });
+
+  it("counts how many rows carry each — the number that says what a pick will reach", () => {
+    expect(splitFieldsByPresence(F, rows).counts.get("f-cal")).toBe(2);
+    expect(splitFieldsByPresence(F, rows).counts.get("f-pro")).toBe(1);
+  });
+
+  it("orders by how many rows carry it, not by name", () => {
+    // "Calories" beats "Protein" alphabetically too, so the discriminating case
+    // is one where the popular field sorts LAST by name.
+    const fields = [{ id: "f-a", name: "Aaa" }, { id: "f-z", name: "Zzz" }];
+    const world = [{ fields: { "f-z": { value: 1 } } }, { fields: { "f-z": { value: 2 } } }, { fields: { "f-a": { value: 3 } } }];
+    expect(splitFieldsByPresence(fields, world).onRows.map((f) => f.id)).toEqual(["f-z", "f-a"]);
+  });
+
+  it("treats an EMPTY value as absent — an empty field is not data to chart", () => {
+    const world = [{ fields: { "f-cal": { value: null }, "f-pro": { value: "" } } }];
+    expect(splitFieldsByPresence(F, world).onRows).toEqual([]);
+  });
+
+  it("reads an ARRAY value as present — a multi-select is a bare value, not a wrapper", () => {
+    // The 2026-07-12 class: treating an array as "object without a value key"
+    // made every multi-select read as empty.
+    const world = [{ fields: { "f-cal": ["a", "b"] } }];
+    expect(splitFieldsByPresence(F, world).onRows.map((f) => f.id)).toEqual(["f-cal"]);
+  });
+
+  it("offers EVERY field when nothing is pulled yet, rather than an empty list", () => {
+    // A graph is configured before its feed matches anything; hiding the fields
+    // then would make it unconfigurable.
+    const { onRows, others } = splitFieldsByPresence(F, []);
+    expect(onRows).toEqual([]);
+    expect(others).toHaveLength(3);
   });
 });

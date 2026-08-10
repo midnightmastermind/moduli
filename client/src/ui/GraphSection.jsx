@@ -45,16 +45,69 @@ const DEFAULT_SPEC = {
   literals: [],
 };
 
+/**
+ * Split the field list into the ones THE PULLED ROWS ACTUALLY CARRY and the
+ * rest, counting how many rows hold a value for each.
+ *
+ * User, 2026-08-10: *"a good ui for linking diff data to it via what we pull in
+ * from the feed"*. This grid has 167 fields; a feed's rows typically carry a
+ * handful. Offering all 167 in every dropdown is not a list, it is a haystack —
+ * and picking one no row carries builds a chart that renders and means nothing,
+ * which is the failure mode this whole section exists to make visible.
+ *
+ * The rest of the fields are still offered, below, because a feed's matches can
+ * gain a field tomorrow and an editor that hides it makes that unconfigurable.
+ * They are separated, not removed.
+ */
+export function splitFieldsByPresence(fields, rows) {
+  const counts = new Map();
+  for (const occ of rows || []) {
+    for (const [fid, raw] of Object.entries(occ?.fields || {})) {
+      // The stored shape is either the `{value, flow}` wrapper or the bare
+      // value, and an ARRAY is a bare value — treating it as a wrapper is the
+      // 2026-07-12 bug that made every multi-select read as empty.
+      const v = raw && typeof raw === "object" && !Array.isArray(raw)
+        ? ("value" in raw ? raw.value : undefined)
+        : raw;
+      if (v != null && v !== "") counts.set(fid, (counts.get(fid) || 0) + 1);
+    }
+  }
+  const onRows = [], others = [];
+  for (const f of fields) (counts.has(f.id) ? onRows : others).push(f);
+  // Most-populated first: the field 40 rows carry is a likelier encoding than
+  // the one 1 row carries, and sorting by name buries it.
+  onRows.sort((a, b) => (counts.get(b.id) || 0) - (counts.get(a.id) || 0));
+  return { onRows, others, counts };
+}
+
 // One row of the encoding form. `null` is a real, meaningful choice for every
 // one of these (label / tally / no split / flat), so the empty option is
 // labelled with what it MEANS rather than left blank.
-function EncodingRow({ label, hint, value, options, onChange, emptyLabel }) {
+function EncodingRow({ label, hint, value, options, onChange, emptyLabel, rows }) {
+  const { onRows, others, counts } = useMemo(
+    () => splitFieldsByPresence(options, rows),
+    [options, rows],
+  );
+  // The count is the whole point of the grouping: "Protein · 12" says this
+  // encoding will reach 12 rows before you pick it, not after.
+  const opt = (f) => (
+    <option key={f.id} value={f.id}>
+      {f.name || f.id.slice(0, 8)}{counts.has(f.id) ? ` · ${counts.get(f.id)}` : ""}
+    </option>
+  );
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
       <div style={{ ...labelStyle, flex: "0 0 74px" }} title={hint}>{label}</div>
       <select value={value || ""} onChange={(e) => onChange(e.target.value || null)} style={{ ...inputStyle, flex: 1 }}>
         <option value="">{emptyLabel}</option>
-        {options.map((f) => <option key={f.id} value={f.id}>{f.name || f.id.slice(0, 8)}</option>)}
+        {/* Ungrouped when nothing is pulled yet — an empty "on these rows"
+            heading above every field would read as a claim that none match. */}
+        {onRows.length === 0
+          ? others.map(opt)
+          : <>
+              <optgroup label={`on these rows (${onRows.length})`}>{onRows.map(opt)}</optgroup>
+              {others.length > 0 && <optgroup label="every other field">{others.map(opt)}</optgroup>}
+            </>}
       </select>
     </div>
   );
@@ -89,14 +142,24 @@ export default function GraphSection({ occurrence }) {
   );
   const occurrenceFields = useMemo(() => fields.filter((f) => f.type === "occurrence"), [fields]);
 
+  // THE ROWS, RESOLVED ONCE. The readout reports on them and the field pickers
+  // are built from them, and those two must be the same set — a picker offering
+  // fields the readout says nothing about is the "0 rows while the chart drew
+  // 128" failure wearing a different hat.
+  //
+  // Pulled from the feed, falling back to the graph's own children exactly as
+  // buildGraphData does, so a hand-built graph gets the same treatment.
+  const rows = useMemo(() => {
+    if (!occurrence?.id) return [];
+    const pulled = resolveGraphRows(occurrence, { occurrencesById, modulesById, resolveFeedItems });
+    if (pulled) return pulled;
+    return (occurrence.occurrences || []).map((id) => occurrencesById?.[id]).filter(Boolean);
+  }, [occurrence, occurrencesById, modulesById]);
+
   // What the CURRENT spec actually draws, from the same function the chart uses.
   const readout = useMemo(() => {
     if (!spec || !occurrence?.id) return null;
     try {
-      // The SAME rows the chart draws — pulled from the feed, not the graph's
-      // children. Resolving these separately is how the readout came to say
-      // "0 rows" while the chart showed 128.
-      const rows = resolveGraphRows(occurrence, { occurrencesById, modulesById, resolveFeedItems });
       const { nodes, warnings } = buildGraphData(occurrence, { occurrencesById, modulesById, fieldsById, rows });
       // BOTH HALVES WARN, and the readout is worthless if it only hears one.
       // graphData knows a row contributed nothing; graphOption knows the chart
@@ -115,7 +178,7 @@ export default function GraphSection({ occurrence }) {
     } catch (e) {
       return { error: String(e?.message || e) };
     }
-  }, [spec, occurrence, occurrencesById, modulesById, fieldsById]);
+  }, [spec, occurrence, occurrencesById, modulesById, fieldsById, rows]);
 
   if (!occurrence?.id) return null;
 
@@ -165,20 +228,20 @@ export default function GraphSection({ occurrence }) {
           <EncodingRow
             label="Label" hint="Which field names each slice. Empty = the occurrence's own label."
             emptyLabel="the occurrence's label"
-            value={spec.encoding?.category} options={fields}
+            value={spec.encoding?.category} options={fields} rows={rows}
             onChange={(v) => patchEncoding({ category: v })}
           />
           <EncodingRow
             label="Value" hint="Which field sizes each slice. Empty = every row counts as one."
             emptyLabel="count the rows"
-            value={spec.encoding?.value} options={fields}
+            value={spec.encoding?.value} options={fields} rows={rows}
             onChange={(v) => patchEncoding({ value: v })}
           />
           {uses("series") && (
             <EncodingRow
               label="Split by" hint="Optional: draw one series per distinct value of this field."
               emptyLabel="one series"
-              value={spec.encoding?.series} options={fields}
+              value={spec.encoding?.series} options={fields} rows={rows}
               onChange={(v) => patchEncoding({ series: v })}
             />
           )}
@@ -219,13 +282,13 @@ export default function GraphSection({ occurrence }) {
               <EncodingRow
                 label="Parent" hint="A field on each row naming its parent row — a hierarchy from a FLAT board."
                 emptyLabel="no parent field"
-                value={spec.encoding?.parent} options={occurrenceFields}
+                value={spec.encoding?.parent} options={occurrenceFields} rows={rows}
                 onChange={(v) => patchEncoding({ parent: v })}
               />
               <EncodingRow
                 label="Level" hint="Optional: which ring a row declares it belongs to. Reported, not used — a disagreement with the tree is worth seeing."
                 emptyLabel="not tracked"
-                value={spec.encoding?.level} options={fields}
+                value={spec.encoding?.level} options={fields} rows={rows}
                 onChange={(v) => patchEncoding({ level: v })}
               />
             </>
