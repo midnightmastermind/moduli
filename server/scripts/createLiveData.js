@@ -9451,6 +9451,31 @@ async function main() {
       });
     }
 
+    // ── The Files folder (migration 0049, shared with the live grid) ──
+    //
+    // WITHOUT THIS THE WHOLE FILES RULE IS INERT ON A FRESH GRID, and it is
+    // inert SILENTLY: `utils/filesFolder.js` deliberately returns null rather
+    // than guessing a home when the folder is absent, so `resolveFilesFolderId`
+    // refuses, `homeFolderForUpload` falls back to the old behaviour, and every
+    // upload lands with no home again — the exact defect the 2026-08-07 Files
+    // work exists to fix. Measured 2026-08-09: poms grid (migrated) had the
+    // folder, test grid 2 — the seed's OWN target — did not.
+    //
+    // This is the same defect `0043` had one migration earlier ("a fresh grid
+    // rendered NO posters"), so it takes the same remedy: CALL THE MIGRATION
+    // rather than reimplement it, and the two cannot drift. 0049 only ever
+    // creates, and finds-or-creates each folder, so a second run is a no-op.
+    {
+      const { up: createFilesFolder } = await import("../migrations/0049-files-folder.mjs");
+      console.log("\n📁 Files folder + subfolders (migration 0049, shared with the live grid)…");
+      await createFilesFolder({
+        gridId: result.gridId,
+        models: { Manifest, Folder },
+        log: (m) => console.log(`   ${m}`),
+        dryRun: false,
+      });
+    }
+
     // ── Snapshot to server/seed/*.json (skipped with --no-export) ──
     // The on-disk seed acts as the canonical fixture for fast restores
     // via `reloadLiveData.js`. Default = always export so the JSON
