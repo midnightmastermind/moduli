@@ -11,9 +11,19 @@
 //
 // LAZY BY CONSTRUCTION. ECharts is ~158 kB gzipped (measured, 2026-08-06), so
 // it is dynamically imported on first render and lands in its own chunk. A grid
-// with no graph on screen never downloads it. Only the series actually used are
-// imported — each extra chart type is ~13 kB, which is why supporting several
-// is affordable.
+// with no graph on screen never downloads it.
+//
+// CORRECTED 2026-08-10 — this file used to claim "only the series actually used
+// are imported, each extra chart type is ~13 kB". It is not true of this import
+// style: `import("echarts/charts")` pulls the whole NAMESPACE, so rollup retains
+// every chart the package ships whatever we register. A/B'd by building the
+// table at 4 types and at 9: **the chunk is byte-identical, same content hash,
+// 261 kB / 86 kB gzipped either way.**
+//
+// So a new chart type costs NOTHING in bundle size — which is worth knowing
+// before anyone rations types to protect a budget that is already spent. Making
+// the cost real again would mean importing each chart from its own path
+// (`echarts/lib/chart/bar`), and only then would this list gate what ships.
 //
 // THE FOOTGUN THIS FILE EXISTS TO CONTAIN: a leaked ECharts instance keeps a
 // canvas AND a resize listener alive. Every early return and every re-run of
@@ -37,6 +47,7 @@
 // ============================================================
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { zoomAt, panBy, wheelFactor, pinchFactor, distanceBetween, DEFAULT_VIEW } from "../helpers/graphView";
+import { CHART_TYPES } from "../helpers/graphOption";
 
 // Resolved once per mount and handed to buildEChartsOption, so charts follow
 // the app's theme instead of shipping a palette of their own.
@@ -52,6 +63,36 @@ export function readChartTheme(el) {
 
 // One module-level promise: several graphs on one page must not each pull the
 // chunk. Resolves to the configured echarts core.
+//
+// ECharts IS TREE-SHAKEN, so a chart type only exists if it was `use`d — and
+// nothing about that is visible from `graphOption`, which is pure and never
+// touches the library. Adding a type to CHART_TYPES and forgetting this list
+// would ship a picker entry that renders NOTHING, with every unit test green:
+// the call-site class this repo has been bitten by four sessions running.
+//
+// So the registration is DERIVED FROM CHART_TYPES rather than hand-listed. The
+// only thing left to forget is a row in this map, and `EChart.test.jsx` fails
+// when a declared type has no row.
+//
+// Written as STATIC member accesses rather than `charts[someString]`. Measured,
+// not assumed: it makes no difference to the built chunk today (see the header —
+// the namespace import retains everything either way), so this is for the reader
+// and for the day the imports become per-chart, when a dynamic lookup would
+// quietly defeat the shaking that change exists to buy.
+//
+// Taking the namespace as an argument is what lets the test verify the mapping
+// against the type table without importing echarts.
+export function chartModulesFor(charts) {
+  return {
+    sunburst: charts.SunburstChart,
+    pie: charts.PieChart,
+    bar: charts.BarChart,
+    line: charts.LineChart,
+    treemap: charts.TreemapChart,
+    radar: charts.RadarChart,
+  };
+}
+
 let _echartsPromise = null;
 function loadECharts() {
   if (_echartsPromise) return _echartsPromise;
@@ -62,9 +103,17 @@ function loadECharts() {
       import("echarts/components"),
       import("echarts/renderers"),
     ]);
+    const registry = chartModulesFor(charts);
+    const needed = [...new Set(CHART_TYPES.map((t) => t.echarts || t.id))]
+      .map((k) => registry[k])
+      .filter(Boolean);
     core.use([
-      charts.SunburstChart, charts.PieChart, charts.BarChart, charts.LineChart,
-      components.TooltipComponent, components.LegendComponent, components.GridComponent,
+      ...needed,
+      // RadarComponent is the AXES (the spokes), a separate registration from
+      // RadarChart which is the polygon drawn on them — registering only the
+      // chart yields a radar with nothing to plot against.
+      components.TooltipComponent, components.LegendComponent,
+      components.GridComponent, components.RadarComponent,
       renderers.CanvasRenderer,
     ]);
     return core;

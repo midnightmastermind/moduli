@@ -17,11 +17,16 @@ const on = vi.fn();
 const use = vi.fn();
 
 vi.mock("echarts/core", () => ({ init: (...a) => init(...a), use: (...a) => use(...a) }));
-vi.mock("echarts/charts", () => ({ SunburstChart: {}, PieChart: {}, BarChart: {}, LineChart: {} }));
-vi.mock("echarts/components", () => ({ TooltipComponent: {}, LegendComponent: {}, GridComponent: {} }));
+vi.mock("echarts/charts", () => ({
+  SunburstChart: {}, PieChart: {}, BarChart: {}, LineChart: {}, TreemapChart: {}, RadarChart: {},
+}));
+vi.mock("echarts/components", () => ({
+  TooltipComponent: {}, LegendComponent: {}, GridComponent: {}, RadarComponent: {},
+}));
 vi.mock("echarts/renderers", () => ({ CanvasRenderer: {} }));
 
-import EChart, { normalizeSelect } from "../ui/EChart";
+import EChart, { normalizeSelect, chartModulesFor } from "../ui/EChart";
+import { CHART_TYPES } from "../helpers/graphOption";
 
 const OPTION = { series: [{ type: "pie", data: [] }] };
 const flush = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
@@ -233,5 +238,33 @@ describe("normalizeSelect", () => {
   it("never throws on a malformed payload", () => {
     expect(normalizeSelect(null)).toBe(null);
     expect(normalizeSelect({}).occurrenceId).toBe(null);
+  });
+});
+
+// ── the guard that makes a new chart type impossible to half-ship ───────────
+describe("every declared chart type is registered with ECharts", () => {
+  it("has a module for each type's ECharts series name", () => {
+    // ECharts is tree-shaken: a type only renders if it was `use`d. graphOption
+    // is pure and never touches the library, so a type added to CHART_TYPES
+    // without a row here builds a perfectly valid option that draws NOTHING —
+    // and every graphOption test still passes. This is the only place that can
+    // catch it without a browser.
+    // A Proxy stands in for the echarts namespace so this asserts the MAPPING,
+    // not the library: every name chartModulesFor reads comes back truthy, so a
+    // key the table asks for and the map does not provide reads as undefined.
+    const stub = new Proxy({}, { get: (_, name) => ({ __module: name }) });
+    const registry = chartModulesFor(stub);
+    for (const t of CHART_TYPES) {
+      const key = t.echarts || t.id;
+      expect(registry[key], `chart type "${t.id}" needs a row in chartModulesFor`).toBeTruthy();
+    }
+  });
+
+  it("registers no module the type table does not ask for", () => {
+    // The other direction: a leftover registration is dead weight in the chunk
+    // (~13 kB each, per this file's own header).
+    const wanted = new Set(CHART_TYPES.map((t) => t.echarts || t.id));
+    const stub = new Proxy({}, { get: (_, name) => ({ __module: name }) });
+    expect(Object.keys(chartModulesFor(stub)).filter((k) => !wanted.has(k))).toEqual([]);
   });
 });

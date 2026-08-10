@@ -119,3 +119,53 @@ encoding is discarding. F3 is the missing control inside that UI.
 
 **Order:** F2 (encoding capability per type) → F1 (category alignment) → F3 (level control) → then
 new types, which by then are a table entry plus an option branch.
+
+---
+
+## Outcome — all three fixed, then five types added, same session
+
+| | state |
+|---|---|
+| **F1** category misalignment | FIXED — every series is padded to the shared category list. Two rows sharing a name in one series keep the first and say so, rather than aggregating (this file does not invent aggregates) or going silent. |
+| **F2** dead encoding controls | FIXED — each type declares the encodings it reads; the editor renders only those, and `buildEChartsOption` warns about anything configured that the type ignores. Config is kept, not dropped, so switching type and back destroys nothing. |
+| **F3** silent hierarchy flattening | FIXED — a `Levels` control (deepest / top / every), default unchanged, and a warning naming how many grouping rows were not drawn. |
+| **F4** pie is a donut | Named honestly in the picker rather than "fixed". |
+
+**Added: `bar-h`, `bar-stacked`, `area`, `treemap`, `radar` — 4 types → 9.**
+
+**Two defects found in the ADDING, both of the class this repo keeps paying for:**
+
+1. **ECharts is tree-shaken, and neither new chart was registered.** `graphOption` is pure and never
+   touches the library, so treemap and radar built perfectly valid options that would have rendered
+   **nothing**, with every unit test green — the call-site class, four sessions running. The
+   registration now derives from `CHART_TYPES`, and a test fails when a declared type has no module
+   row. (Verified against the installed echarts 6.1.0 that all six charts and `RadarComponent` are
+   real exports — a registration naming something the library does not export throws at load.)
+2. **The treemap branch sat AFTER the flatten step**, so it warned about discarding a level it had
+   in fact drawn. Both nested types now return above it.
+
+**A stale claim in `EChart.jsx` was falsified while checking the cost.** The header said "only the
+series actually used are imported — each extra chart type is ~13 kB". A/B'd by building the type
+table at 4 and at 9: **the charts chunk is byte-identical, same content hash, 261 kB / 86 kB
+gzipped.** `import("echarts/charts")` pulls the whole namespace, so rollup retains every chart
+regardless. **New chart types cost nothing** — worth knowing before anyone rations them to protect a
+budget that is already spent.
+
+**Verified vs asserted, stated plainly:** every branch is asserted at the option level and A/B'd —
+nine mutations, each failing 1–3 tests (unpadded series, no encoding warning, ignored flatten mode,
+silent duplicate, our own id reaching ECharts as a series type, unswapped axes, dropped stacking,
+treemap drilling on click, per-spoke radar maxes). **Nothing here has been rendered in a browser.**
+Two of the three defects this surface has produced were invisible to every assertion and took a
+screenshot — so the new types want a look before they are trusted, particularly the radar (whose
+polygon geometry no option assertion describes) and the treemap's own `nodeClick`.
+
+**One honest limitation, stated rather than shipped quietly:** a **radar click identifies the
+SERIES, not the spoke** — an ECharts radar datum is a whole polygon. Every other type carries
+`occurrenceId` per datum and selects a row. Radar is for reading, not picking.
+
+**Also fixed on the way:** `GraphSection`'s live readout only ever heard `buildGraphData`'s warnings,
+so the two new classes of warning (an ignored encoding, a discarded level) — precisely the failures
+that still LOOK like a chart — would never have reached the reader. It now builds both halves.
+
+**Still open:** a **scatter** type needs a second numeric encoding (`x` alongside `value`), which is
+a `graphData` change rather than an option branch — the first type that is not free.

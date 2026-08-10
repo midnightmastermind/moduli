@@ -26,15 +26,100 @@
 // ============================================================
 import { clampView, DEFAULT_VIEW } from "./graphView";
 
+// EVERY TYPE DECLARES WHICH ENCODINGS IT CONSUMES, and that is not
+// documentation — the editor renders only these rows, and `buildEChartsOption`
+// warns about anything configured that the selected type ignores.
+//
+// It exists because the alternative shipped and was wrong: the editor offered
+// all six encodings for every type while `splitSeries` was called ONLY in the
+// bar/line branch, so **"Split by" on a pie or a sunburst did nothing at all**
+// — no legend, no grouping, no warning (audited 2026-08-10). That is the
+// dead-control class, and it is the one that gets worse with every type added,
+// which is why this table is a PREREQUISITE for more chart types rather than a
+// tidy-up after them.
 export const CHART_TYPES = [
-  { id: "sunburst", label: "Sunburst", nested: true, desc: "Multi-level rings — a wheel you can click into" },
-  { id: "pie", label: "Pie", nested: false, desc: "One ring of proportions" },
-  { id: "bar", label: "Bar", nested: false, desc: "Compare values across categories" },
-  { id: "line", label: "Line", nested: false, desc: "A value over a sequence" },
+  {
+    id: "sunburst", label: "Sunburst", nested: true,
+    desc: "Multi-level rings — a wheel you can click into",
+    encodings: ["category", "value", "children", "parent", "level"],
+  },
+  {
+    id: "pie", label: "Pie", nested: false,
+    // Drawn as a DONUT at panel sizes, where a full disc reads worse. Named
+    // honestly here so nobody adds a "Donut" type that is this one again.
+    desc: "One ring of proportions (drawn as a donut)",
+    encodings: ["category", "value", "flatten"],
+  },
+  {
+    id: "bar", label: "Bar", nested: false,
+    desc: "Compare values across categories",
+    encodings: ["category", "value", "series", "flatten"],
+  },
+  {
+    id: "bar-h", label: "Bar (horizontal)", nested: false, echarts: "bar", axis: "y",
+    // Not a style choice — a category axis along the BOTTOM has one label's
+    // width per row, so board labels ("Peer Support Group - Froedtert") overlap
+    // or get dropped. Down the side, each label has a whole row to itself.
+    desc: "Compare values — room for long labels",
+    encodings: ["category", "value", "series", "flatten"],
+  },
+  {
+    id: "bar-stacked", label: "Bar (stacked)", nested: false, echarts: "bar", stack: true,
+    // The one type where "Split by" is the POINT: each category is a whole made
+    // of its series, rather than groups standing side by side.
+    desc: "Split each bar into its series — parts of a whole",
+    encodings: ["category", "value", "series", "flatten"],
+  },
+  {
+    id: "line", label: "Line", nested: false,
+    desc: "A value over a sequence",
+    encodings: ["category", "value", "series", "flatten"],
+  },
+  {
+    id: "area", label: "Area", nested: false, echarts: "line", area: true,
+    desc: "A line with the space beneath it filled — volume over a sequence",
+    encodings: ["category", "value", "series", "flatten"],
+  },
+  {
+    id: "treemap", label: "Treemap", nested: true,
+    // The sunburst's data, read the other way: a wheel compares ANGLES, a
+    // treemap compares AREAS, and area is far easier to judge. Same encodings,
+    // so switching between them costs nothing and discards no configuration.
+    desc: "Nested rectangles — which parts are biggest",
+    encodings: ["category", "value", "children", "parent", "level"],
+  },
+  {
+    id: "radar", label: "Radar", nested: false,
+    // For comparing the SAME set of measures across a few subjects — the nine
+    // wellness dimensions, this week against last. See the note on its branch:
+    // a radar point is not clickable back to one row.
+    desc: "One spoke per category — compare a few series across all of them",
+    encodings: ["category", "value", "series", "flatten"],
+  },
 ];
 
 const BY_ID = new Map(CHART_TYPES.map((t) => [t.id, t]));
 const FALLBACK_TYPE = "bar";
+
+/** Which encodings this chart type actually reads. Unknown type → the fallback's. */
+export function encodingsForType(typeId) {
+  return (BY_ID.get(typeId) || BY_ID.get(FALLBACK_TYPE)).encodings;
+}
+
+/**
+ * Encoding keys the spec CONFIGURES that its chart type will ignore.
+ *
+ * Switching type is the common way to get here — a wheel configured with a
+ * parent field, switched to a pie, still carries the parent field. The config
+ * is deliberately KEPT (switching back must not have destroyed it); this is
+ * what makes the fact that it is currently inert visible.
+ */
+export function unusedEncodingKeys(spec) {
+  const enc = spec?.encoding;
+  if (!enc || typeof enc !== "object") return [];
+  const used = new Set(encodingsForType(spec?.type));
+  return Object.keys(enc).filter((k) => enc[k] != null && !used.has(k));
+}
 
 // Deliberately neutral: the real palette arrives from the app's CSS custom
 // properties via the wrapper. These only keep a test or a headless render
@@ -83,12 +168,29 @@ export function highlightSet(spec) {
   return clean.length ? new Set(clean) : null;
 }
 
-// Flatten for chart types that have no concept of nesting, so a nested data set
-// dropped into a pie still renders its leaves rather than nothing.
-function flatten(nodes, out = []) {
+// A FLAT CHART HAS TO PICK A LEVEL, and until 2026-08-10 it picked one in
+// silence: leaves only, so switching the 128-emotion wheel to a pie dropped its
+// primary and secondary rings with nothing said. Leaves-only is still the
+// default (it is the right answer for most hierarchies), but it is now a choice
+// and a discarded branch is reported.
+//
+//   leaves  every node with no children — the deepest ring
+//   roots   the top level only — the summary
+//   all     every node at every depth
+export const FLATTEN_MODES = [
+  { id: "leaves", label: "deepest level only" },
+  { id: "roots", label: "top level only" },
+  { id: "all", label: "every level" },
+];
+
+function flatten(nodes, mode = "leaves", out = [], dropped = { n: 0 }) {
   for (const n of nodes || []) {
-    if (Array.isArray(n.children) && n.children.length) flatten(n.children, out);
-    else out.push(n);
+    const kids = Array.isArray(n.children) ? n.children : [];
+    const isBranch = kids.length > 0;
+    if (mode === "all" || !isBranch || mode === "roots") out.push(n);
+    else dropped.n += 1;
+    // "roots" never descends — the top level IS the answer.
+    if (isBranch && mode !== "roots") flatten(kids, mode, out, dropped);
   }
   return out;
 }
@@ -174,6 +276,16 @@ export function buildEChartsOption(spec, data, theme, view, boxPx) {
     def = BY_ID.get(FALLBACK_TYPE);
   }
 
+  // An encoding this type does not read is INERT, and inert is exactly what
+  // nobody can see: the chart renders, it is simply not doing the thing that was
+  // configured. Reported rather than dropped — switching type back must not have
+  // destroyed the setting. It lives here, not in graphData, because whether an
+  // encoding is read is a fact about the CHART TYPE: graphData honestly builds a
+  // tree from `parent` no matter what is eventually drawn from it.
+  for (const key of unusedEncodingKeys({ ...spec, type: def.id })) {
+    warnings.push(`"${key}" is ignored by a ${def.label.toLowerCase()} chart`);
+  }
+
   const base = {
     backgroundColor: "transparent", // the surface owns the background
     color: t.palette,
@@ -182,7 +294,7 @@ export function buildEChartsOption(spec, data, theme, view, boxPx) {
     animationDuration: 240,
   };
 
-  if (def.nested) {
+  if (def.id === "sunburst") {
     return {
       option: {
         ...base,
@@ -233,7 +345,47 @@ export function buildEChartsOption(spec, data, theme, view, boxPx) {
     };
   }
 
-  const flat = flatten(nodes);
+  if (def.id === "treemap") {
+    return {
+      option: {
+        ...base,
+        tooltip: { trigger: "item", confine: true },
+        series: [{
+          type: "treemap",
+          data: nodes.map((n) => toDatum(n, hi)),
+          // THE SUNBURST'S LESSON, APPLIED BEFORE IT COSTS A SCREENSHOT.
+          // ECharts' treemap defaults to `nodeClick: "zoomToNode"` — the same
+          // family of default that made a click on the feeling wheel re-root the
+          // chart instead of recording a mood (2026-08-06). A click here SELECTS;
+          // the breadcrumb that comes with drill-down goes with it.
+          nodeClick: false,
+          breadcrumb: { show: false },
+          roam: false,
+          label: { color: "#fff", fontSize: 11, overflow: "truncate" },
+          // Without this every level is drawn in the same flat block; the border
+          // is what makes a parent readable as a parent.
+          levels: [
+            { itemStyle: { borderColor: "transparent", borderWidth: 4, gapWidth: 2 } },
+            { itemStyle: { borderColorSaturation: 0.5, borderWidth: 2, gapWidth: 1 } },
+          ],
+        }],
+      },
+      warnings,
+    };
+  }
+
+  // FLATTENING IS FOR THE FLAT TYPES ONLY — both nested types return above it,
+  // so a treemap never reports discarding a level it in fact drew.
+  const flattenMode = FLATTEN_MODES.some((m) => m.id === spec?.encoding?.flatten)
+    ? spec.encoding.flatten
+    : "leaves";
+  const droppedBranches = { n: 0 };
+  const flat = flatten(nodes, flattenMode, [], droppedBranches);
+  if (droppedBranches.n > 0) {
+    warnings.push(
+      `${droppedBranches.n} grouping row${droppedBranches.n === 1 ? "" : "s"} not drawn — a ${def.label.toLowerCase()} shows one level ("${FLATTEN_MODES.find((m) => m.id === flattenMode).label}")`,
+    );
+  }
 
   if (def.id === "pie") {
     return {
@@ -254,29 +406,118 @@ export function buildEChartsOption(spec, data, theme, view, boxPx) {
   }
 
   // bar / line — a shared category axis built from the node names.
+  //
+  // EVERY SERIES IS PADDED TO THE FULL CATEGORY LIST, and that is a correctness
+  // fix rather than tidiness. An ECharts CATEGORY AXIS maps a series' data to
+  // categories BY INDEX — a datum's `name` is used for the label and the
+  // tooltip, never for placement. So a series that carries a datum for only
+  // some categories used to be drawn SHIFTED LEFT: measured 2026-08-10, a "Bob"
+  // series holding one Tuesday value rendered it on Monday. Fully populated,
+  // no error, and quietly wrong — the worst shape a chart bug can take.
+  //
+  // `null` for a category this series has no row for is ECharts' own "no data
+  // here": a gap in a line, no bar in a group.
   const groups = splitSeries(flat);
   const categories = [...new Set(flat.map((n) => n.name))];
+
+  // One row per (series, category). Shared by every category-axis type — bar,
+  // its horizontal and stacked variants, line, area and radar — so the padding
+  // rule above cannot hold for some of them and not others.
+  const alignedData = (seriesName, ns) => {
+    // First row wins a category. Two rows sharing a name inside ONE series is a
+    // request to aggregate, and this file does not invent aggregates — it says
+    // so instead, so the author can add a value field or split the series rather
+    // than wonder where a row went.
+    const byName = new Map();
+    for (const n of ns) {
+      if (byName.has(n.name)) {
+        warnings.push(
+          `two rows share the name "${n.name}"${seriesName ? ` in series "${seriesName}"` : ""} — only the first is drawn`,
+        );
+        continue;
+      }
+      byName.set(n.name, toDatum(n, hi));
+    }
+    return categories.map((c) => byName.get(c) ?? null);
+  };
+
+  const legend = groups.length > 1
+    ? { textStyle: { color: t.faint, fontSize: 10 }, top: 0 }
+    : undefined;
+
+  if (def.id === "radar") {
+    // A RADAR POINT IS NOT CLICKABLE BACK TO ONE ROW, and that is worth saying
+    // out loud rather than shipping a dead affordance: an ECharts radar datum is
+    // a whole series (one polygon, N values), so a click identifies the SERIES,
+    // not the spoke. Every other type here carries `occurrenceId` per datum and
+    // selects a row. This one is for reading, not picking.
+    //
+    // Every spoke shares ONE max so the polygon means something — per-spoke maxes
+    // would normalise every measure to the same radius and make the shape a lie.
+    const max = Math.max(1, ...flat.map((n) => Number(n.value) || 0));
+    return {
+      option: {
+        ...base,
+        tooltip: { trigger: "item", confine: true },
+        legend,
+        radar: {
+          indicator: categories.map((c) => ({ name: c, max })),
+          center,
+          radius: scaled(62),
+          axisName: { color: t.faint, fontSize: 10 },
+          splitLine: { lineStyle: { color: t.faint, opacity: 0.2 } },
+          axisLine: { lineStyle: { color: t.faint, opacity: 0.2 } },
+          splitArea: { show: false },
+        },
+        series: [{
+          type: "radar",
+          data: groups.map(([seriesName, ns]) => ({
+            name: seriesName ?? undefined,
+            value: alignedData(seriesName, ns).map((d) => (d ? d.value ?? 0 : 0)),
+            areaStyle: { opacity: 0.15 },
+          })),
+        }],
+      },
+      warnings,
+    };
+  }
+
+  // bar / bar-h / bar-stacked / line / area — one shared category axis.
+  // `axis: "y"` puts the categories down the SIDE, which is the whole point of
+  // the horizontal variant, so the two axis definitions are built once and
+  // swapped rather than duplicated.
+  const categoryAxis = {
+    type: "category",
+    data: categories,
+    axisLabel: { color: t.faint, fontSize: 10, hideOverlap: true },
+    axisLine: { lineStyle: { color: t.faint } },
+  };
+  const valueAxis = {
+    type: "value",
+    axisLabel: { color: t.faint, fontSize: 10 },
+    splitLine: { lineStyle: { color: t.faint, opacity: 0.16 } },
+  };
+  const horizontal = def.axis === "y";
+  const seriesType = def.echarts || def.id;
+
   return {
     option: {
       ...base,
       grid: { left: 8, right: 12, top: 24, bottom: 8, containLabel: true },
-      xAxis: {
-        type: "category",
-        data: categories,
-        axisLabel: { color: t.faint, fontSize: 10, hideOverlap: true },
-        axisLine: { lineStyle: { color: t.faint } },
-      },
-      yAxis: {
-        type: "value",
-        axisLabel: { color: t.faint, fontSize: 10 },
-        splitLine: { lineStyle: { color: t.faint, opacity: 0.16 } },
-      },
-      legend: groups.length > 1 ? { textStyle: { color: t.faint, fontSize: 10 }, top: 0 } : undefined,
+      xAxis: horizontal ? valueAxis : categoryAxis,
+      yAxis: horizontal ? categoryAxis : valueAxis,
+      legend,
       series: groups.map(([seriesName, ns]) => ({
-        type: def.id,
+        type: seriesType,
         name: seriesName ?? undefined,
-        data: ns.map((n) => toDatum(n, hi)),
-        ...(def.id === "line" ? { smooth: true, symbolSize: 6 } : { barMaxWidth: 42 }),
+        data: alignedData(seriesName, ns),
+        // A stack needs a shared name to stack ONTO; one constant means every
+        // series of this chart stacks together, which is what "parts of a whole"
+        // means. Absent, ECharts groups them side by side.
+        ...(def.stack ? { stack: "total" } : {}),
+        ...(seriesType === "line"
+          ? { smooth: true, symbolSize: 6, ...(def.area ? { areaStyle: { opacity: 0.22 } } : {}) }
+          : { barMaxWidth: 42 }),
       })),
     },
     warnings,

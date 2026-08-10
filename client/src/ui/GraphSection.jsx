@@ -15,13 +15,14 @@
 // wrong (a parent field that names rows off this graph, a value field nothing
 // carries), and a chart failing that way looks like a chart — just the wrong
 // one. So the header reports what the CURRENT spec actually produces: how many
-// roots, how many rows reached, how deep, and every warning buildGraphData
-// raised. That is the same data the chart is drawing from, not a re-derivation.
+// roots, how many rows reached, how deep, and every warning BOTH halves raise —
+// the data build AND the chart build. That is the same data the chart is drawing
+// from, not a re-derivation.
 import React, { useCallback, useMemo } from "react";
 import { BarChart3, Plus, X } from "lucide-react";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { CHART_TYPES } from "../helpers/graphOption";
+import { CHART_TYPES, encodingsForType, FLATTEN_MODES, buildEChartsOption } from "../helpers/graphOption";
 import { buildGraphData } from "../helpers/graphData";
 import { resolveGraphRows } from "../helpers/feedPull";
 import { resolveFeedItems } from "../state/selectors";
@@ -97,9 +98,20 @@ export default function GraphSection({ occurrence }) {
       // "0 rows" while the chart showed 128.
       const rows = resolveGraphRows(occurrence, { occurrencesById, modulesById, resolveFeedItems });
       const { nodes, warnings } = buildGraphData(occurrence, { occurrencesById, modulesById, fieldsById, rows });
+      // BOTH HALVES WARN, and the readout is worthless if it only hears one.
+      // graphData knows a row contributed nothing; graphOption knows the chart
+      // type is ignoring an encoding, or discarded a level of the hierarchy —
+      // and those are precisely the failures that still LOOK like a chart.
+      const { warnings: drawWarnings } = buildEChartsOption(spec, nodes);
+      const all = [
+        ...warnings,
+        // graphOption states its warnings as plain strings; normalise so one
+        // renderer handles both without either side learning the other's shape.
+        ...drawWarnings.map((w) => (typeof w === "string" ? { occurrenceId: null, why: w } : w)),
+      ];
       const count = (ns) => ns.reduce((n, x) => n + 1 + count(x.children || []), 0);
       const depth = (ns, d = 1) => (ns.length ? Math.max(...ns.map((x) => depth(x.children || [], d + 1))) : d - 1);
-      return { roots: nodes.length, rows: count(nodes), depth: depth(nodes), warnings };
+      return { roots: nodes.length, rows: count(nodes), depth: depth(nodes), warnings: all };
     } catch (e) {
       return { error: String(e?.message || e) };
     }
@@ -107,6 +119,12 @@ export default function GraphSection({ occurrence }) {
 
   if (!occurrence?.id) return null;
 
+  // ONLY THE ENCODINGS THIS TYPE READS. Offering a control the chart ignores is
+  // worse than not offering it: it looks configured and does nothing, silently
+  // (a pie ignored "Split by" entirely until 2026-08-10). The type declares its
+  // own list, so adding a chart type cannot reintroduce the gap by omission.
+  const reads = encodingsForType(spec?.type);
+  const uses = (key) => reads.includes(key);
   const nested = CHART_TYPES.find((t) => t.id === (spec?.type || "sunburst"))?.nested;
   const literals = spec?.literals || [];
 
@@ -156,12 +174,32 @@ export default function GraphSection({ occurrence }) {
             value={spec.encoding?.value} options={fields}
             onChange={(v) => patchEncoding({ value: v })}
           />
-          <EncodingRow
-            label="Split by" hint="Optional: draw one series per distinct value of this field."
-            emptyLabel="one series"
-            value={spec.encoding?.series} options={fields}
-            onChange={(v) => patchEncoding({ series: v })}
-          />
+          {uses("series") && (
+            <EncodingRow
+              label="Split by" hint="Optional: draw one series per distinct value of this field."
+              emptyLabel="one series"
+              value={spec.encoding?.series} options={fields}
+              onChange={(v) => patchEncoding({ series: v })}
+            />
+          )}
+
+          {/* A flat chart can only draw ONE level of a hierarchy — this is which
+              one. It renders whether or not the rows are nested today, because a
+              feed's matches can become nested tomorrow. */}
+          {uses("flatten") && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ ...labelStyle, flex: "0 0 74px" }} title="A flat chart shows one level of a nested set. Rows at other levels are reported, not drawn.">
+                Levels
+              </div>
+              <select
+                value={spec.encoding?.flatten || "leaves"}
+                onChange={(e) => patchEncoding({ flatten: e.target.value })}
+                style={{ ...inputStyle, flex: 1 }}
+              >
+                {FLATTEN_MODES.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+              </select>
+            </div>
+          )}
 
           {/* Hierarchy only matters where the chart can draw one. */}
           {nested && (
