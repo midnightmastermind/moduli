@@ -1,6 +1,39 @@
 # client/src/ui — UI Components CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-10 (2) — EChart registers what the type table declares; GraphSection offers the PULLED fields)
+- **`EChart.jsx` — ECharts is TREE-SHAKEN and two new charts were not registered.** `graphOption` is
+  pure and never touches the library, so treemap and radar built perfectly valid options that would
+  have rendered **nothing**, with every unit test green — the call-site class this repo has been bitten
+  by four sessions running. Registration now DERIVES from `CHART_TYPES` via `chartModulesFor(charts)`,
+  and a test fails when a declared type has no row. `RadarComponent` (the spokes) is a separate
+  registration from `RadarChart` (the polygon drawn on them); registering only the chart yields a radar
+  with nothing to plot against. Verified against the installed echarts **6.1.0** that all six charts and
+  `RadarComponent` are real exports — naming one the library does not export throws at load.
+- **A CLAIM IN THIS FILE'S HEADER WAS FALSE, and checking the cost is what found it.** It said "only
+  the series actually used are imported — each extra chart type is ~13 kB". A/B'd by building the type
+  table at 4 types and at 9: **byte-identical chunk, same content hash, 261 kB / 86 kB gzipped.**
+  `import("echarts/charts")` pulls the whole namespace, so rollup retains every chart regardless — **a
+  new chart type costs nothing.** Corrected in place, because the next person rationing types would
+  have been protecting a budget already spent.
+- **Test trap worth keeping: a missing export on a MOCKED ES namespace THROWS.** Adding
+  `components.RadarComponent` to the load path made 13 of 20 EChart tests fail as "the component never
+  mounted" — the mock simply did not declare it. A mock stands in for the real module surface; when a
+  render test dies with no error of its own, check what the mock does not export.
+- **`GraphSection.jsx` — the encoding pickers offer WHAT THE FEED PULLS IN** (`splitFieldsByPresence`,
+  exported and tested). "on these rows (N)" first, ordered by how many rows carry the field and labelled
+  `Protein · 12`, then every other field below — separated, never removed, since a feed's matches can
+  gain a field tomorrow. Empty value = absent; an ARRAY = present (a multi-select is a bare value, the
+  2026-07-12 class). **The rows are resolved ONCE and shared with the readout** — resolving them twice
+  is how the readout reported 0 rows while the chart drew 128.
+- **The readout hears BOTH halves now.** It only ever collected `buildGraphData`'s warnings, so an
+  ignored encoding and a discarded hierarchy level — precisely the failures that still LOOK like a
+  chart — would never have reached the reader.
+- **NOT rendered in a browser.** Two of the three defects this surface has produced were invisible to
+  every assertion and took a screenshot; the radar (whose polygon geometry no option assertion
+  describes) and the treemap's `nodeClick` want a look. **Honest limit:** a radar click identifies the
+  SERIES, not the spoke — every other type selects a row. Radar reads; it does not pick.
+
 ## Recent Changes (2026-08-09 (2) — `ConfirmListHost`: "which of these?", for a list that did not exist yet)
 - **`ConfirmListHost.jsx` (NEW)** — a multi-select confirmation over a list the app just discovered.
   Built for `link-follow` (tick the pages worth importing, import nothing until approved) and kept

@@ -1,6 +1,36 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-10 (2) — the graph: 9 chart types, and three SILENT defects fixed first)
+Audit: `docs/graph-audit-2026-08-10.md`. Two of its three findings get WORSE with more chart types,
+which is why they were prerequisites rather than follow-ups.
+- **`graphOption.js` — EVERY TYPE DECLARES THE ENCODINGS IT READS** (`encodings: [...]` per entry,
+  `encodingsForType` / `unusedEncodingKeys`). The editor renders only those, and a configured
+  encoding the type ignores is now a WARNING. Before this, `splitSeries` was called only in the
+  bar/line branch while the editor offered all six encodings for every type — **"Split by" on a pie
+  or a sunburst did nothing at all**, silently. The config is KEPT when it goes unused, so switching
+  type and back destroys nothing.
+- **Every series is PADDED to the shared category axis.** An ECharts category axis places data BY
+  INDEX — a datum's `name` is decoration — so a series carrying only some categories was drawn
+  SHIFTED. Measured: a two-series set where "Bob" holds one Tuesday value rendered it on **Monday**,
+  fully populated and with no error. Two rows sharing a name in one series keep the first and say
+  so: this file does not invent aggregates, and must not go silent either.
+- **A flat chart PICKS ITS LEVEL** (`FLATTEN_MODES`: deepest / top / every, default unchanged) and
+  reports how many grouping rows it did not draw. Switching the 128-emotion wheel to a pie used to
+  discard its primary and secondary rings with nothing said.
+- **New types: `bar-h`, `bar-stacked`, `area`, `treemap`, `radar` — 4 → 9.** `echarts` / `axis` /
+  `stack` / `area` on a def parameterise the shared axis branch, so the variants are one table row
+  plus a flag rather than near-duplicate branches. **Both nested types return ABOVE the flatten
+  step** — the treemap first warned about discarding a level it had drawn.
+- **`graphData.js` is unchanged and stays type-agnostic.** Whether an encoding is READ is a fact
+  about the chart type; graphData honestly builds a tree from `parent` whatever is drawn from it. An
+  earlier draft put the warning there and made every type-less hierarchy fixture warn — the wrong
+  layer, reverted.
+- **A/B'd, nine mutations, each failing 1-3 tests.** One assertion was VACUOUS on the first pass —
+  "every spoke shares a max" also passes when every max is `undefined`, and the A/B proved it — so it
+  pins the number now. *An equality assertion over derived values proves nothing until you have
+  proven the values are not all missing.*
+
 ## Recent Changes (2026-08-10 — a graph PULLS its rows; it does not own them)
 - **`feedPull.js` (NEW)** — `isPullOnlyFeed(occ)`. User, 2026-08-10: *"the graphs are supposed to
   hold a representation of the occurance, not the occurances themselves … make it use a feed and
