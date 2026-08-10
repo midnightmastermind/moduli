@@ -113,7 +113,18 @@ export function buildGraphData(graphOcc, ctx) {
     return n;
   };
 
-  const memberIds = Array.isArray(graphOcc.occurrences) ? graphOcc.occurrences : [];
+  // THE ROWS. `ctx.rows` is the PULLED set — the occurrences a feed matches
+  // right now, resolved by the caller the same way an occurrence dropdown
+  // resolves its options (user, 2026-08-10: "it should work like our dropdowns
+  // … so pulling in the data"). Nothing is materialised: the graph draws a
+  // representation of each match and stores only the id when one is clicked.
+  //
+  // Falling back to the graph's own children keeps a hand-built graph working
+  // and keeps every existing test honest — a graph with no feed still charts
+  // whatever was dropped into it.
+  const memberIds = Array.isArray(ctx?.rows)
+    ? ctx.rows.map((r) => (typeof r === "string" ? r : r?.id)).filter(Boolean)
+    : (Array.isArray(graphOcc.occurrences) ? graphOcc.occurrences : []);
 
   // A ROW IS ADDRESSABLE BY THE OCCURRENCE IT STANDS FOR, not only by its own
   // id — which is what makes a FEED and a parent-field hierarchy compose.

@@ -21,6 +21,7 @@
 // - Sweeps use fireTrigger:false (derived data — tracker re-aggregation over
 //   a swept mirror is pure waste; trackers also exclude feed copies by rule).
 import * as CommitHelpers from "./CommitHelpers";
+import { isPullOnlyFeed } from "./feedPull";
 import * as LayoutHelpers from "./LayoutHelpers";
 import {
   resolveFeedItems,
@@ -33,6 +34,32 @@ import {
 export function syncFeed(feedOcc, { state, occurrencesById, modulesById, dispatch, socket, diag = false }) {
   const feed = feedOcc?.feed;
   if (!feed?.enabled) return { minted: 0, swept: 0, bail: "disabled" };
+
+  // A PULL-ONLY feed reads its matches and owns none of them (helpers/feedPull).
+  // It mints nothing — and SWEEPS anything it minted before, so a graph that
+  // used to materialise its rows heals itself on the next pass instead of
+  // needing a migration to chase the leftovers. Sweeping is safe by the same
+  // rule the normal path relies on: a copy carries `meta.feedSourceId`, so only
+  // rows THIS feed minted are ever removed, never a hand-placed child.
+  if (isPullOnlyFeed(feedOcc)) {
+    const owned = Object.values(occurrencesById || {})
+      .filter(o => o?.meta?.feedSourceId && o.parentId === feedOcc.id);
+    for (const o of owned) {
+      CommitHelpers.removeOccurrence({
+        dispatch, socket,
+        occurrenceId: o.id,
+        occurrence: o,
+        // The parent ref matters: removeOccurrence unlinks from the owner's
+        // occurrences[] as well as deleting the row. Omitting it would leave
+        // the owner listing ids that no longer exist — the dangling-child-ref
+        // class this repo has repaired five times.
+        parentOccurrence: occurrencesById[feedOcc.id] || feedOcc,
+        emit: true,
+        fireTrigger: false, // derived data — no tracker churn, echo suppressed
+      });
+    }
+    return { minted: 0, swept: owned.length, bail: "pull-only" };
+  }
   const gridId = state?.gridId || state?.grid?._id;
   const userId = state?.userId;
   if (!gridId || !userId) return { minted: 0, swept: 0, bail: `no ${!gridId ? "gridId" : "userId"}` };

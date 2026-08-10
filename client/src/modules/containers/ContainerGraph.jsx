@@ -22,22 +22,22 @@
 // is data plus one operation, and `noDomainKnowledge.test.js` guards that.
 // ============================================================
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { BarChart3, PanelRightClose, PanelRightOpen, Minimize2 } from "lucide-react";
+import { BarChart3, Minimize2 } from "lucide-react";
 import EChart, { readChartTheme } from "../../ui/EChart";
 import { buildGraphData } from "../../helpers/graphData";
+import { resolveFeedItems } from "../../state/selectors";
 import { buildEChartsOption } from "../../helpers/graphOption";
 import { DEFAULT_VIEW, isDefaultView } from "../../helpers/graphView";
 import { useGridActionsSelector } from "../../GridActionsContext";
 import { runMatchingOperations } from "../../helpers/operationExecutor";
 
-export default function ContainerGraph({ occurrence, dispatch, socket, renderSourceBoard = null }) {
+export default function ContainerGraph({ occurrence, dispatch, socket }) {
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const modulesById = useGridActionsSelector(s => s.modulesById);
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
   const operationsById = useGridActionsSelector(s => s.operationsById);
   const getState = useGridActionsSelector(s => s.getState || (() => s.state || {}));
 
-  const [boardOpen, setBoardOpen] = useState(true);
   const hostRef = useRef(null);
 
   // ZOOM IS VIEW STATE, NOT DOCUMENT STATE — deliberately local and unsaved.
@@ -50,10 +50,26 @@ export default function ContainerGraph({ occurrence, dispatch, socket, renderSou
 
   const spec = occurrence?.meta?.graph || null;
 
-  // Rebuilt when the graph's own children change — the chart is a view of the
-  // same set the board shows, so one dependency drives both.
+  // THE ROWS ARE PULLED, NOT OWNED (user, 2026-08-10: "the graphs are supposed
+  // to hold a representation of the occurance, not the occurances themselves …
+  // make it use a feed and pull in the data … it should work like our dropdowns
+  // in a way … so pulling in the data").
+  //
+  // So this resolves the feed's matches the same way an occurrence dropdown
+  // resolves its options — a live query over the grid, materialising nothing.
+  // `feedSync` leaves a pull-only feed alone (helpers/feedPull), so there are no
+  // copies to keep in step and none to clone into a day column.
+  //
+  // A graph with no feed still charts its own children, so a hand-built one is
+  // unaffected.
   const { nodes, warnings } = useMemo(
-    () => buildGraphData(occurrence, { occurrencesById: getOccMap(), modulesById, fieldsById }),
+    () => {
+      const occurrencesById = getOccMap();
+      const rows = occurrence?.feed?.enabled
+        ? resolveFeedItems(occurrence, { occurrencesById, modulesById }).map(m => m.occurrence || m)
+        : null;
+      return buildGraphData(occurrence, { occurrencesById, modulesById, fieldsById, rows });
+    },
     [occurrence, getOccMap, modulesById, fieldsById]
   );
 
@@ -148,26 +164,13 @@ export default function ContainerGraph({ occurrence, dispatch, socket, renderSou
         )}
       </div>
 
-      {renderSourceBoard && (
-        <>
-          <button
-            type="button"
-            className="container-graph-board-toggle"
-            onClick={() => setBoardOpen(v => !v)}
-            title={boardOpen ? "Hide the source board" : "Show the source board"}
-          >
-            {boardOpen
-              ? <PanelRightClose style={{ width: 13, height: 13 }} />
-              : <PanelRightOpen style={{ width: 13, height: 13 }} />}
-          </button>
-          {boardOpen && (
-            // The graph's own children, rendered by the container's existing
-            // row renderer. Drag in, drag out, reorder, edit fields — all of it
-            // is behaviour that already exists.
-            <div className="container-graph-board">{renderSourceBoard()}</div>
-          )}
-        </>
-      )}
+      {/* NO SOURCE BOARD. It existed to let you drag occurrences INTO the graph
+          back when a graph OWNED its rows; now the rows come from the feed, so
+          there is nothing to drag in and a board of draggables would be a
+          second, editable copy of a query result (user, 2026-08-10: "but dont
+          show draggables"). The occurrences themselves stay where they live —
+          on their own board — which is the point of pulling rather than
+          owning. */}
     </div>
   );
 }

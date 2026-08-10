@@ -1652,11 +1652,13 @@ function Container({
         </div>
         );
         return isGraphContainer ? (
+          // No source board: a graph PULLS its rows from its feed now, so there
+          // is nothing to drag in and the child list would be an editable copy
+          // of a query result (user, 2026-08-10).
           <ContainerGraph
             occurrence={containerOccurrence}
             dispatch={dispatch}
             socket={socket}
-            renderSourceBoard={() => childList}
           />
         ) : childList;
       })())}

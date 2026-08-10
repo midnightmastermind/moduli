@@ -22,13 +22,22 @@ vi.mock("../helpers/operationExecutor", () => ({
   runMatchingOperations: (...a) => runMatchingOperations(...a),
 }));
 
+// A graph PULLS its rows from its feed, the way a dropdown resolves its options.
+// Mocked so the test can prove the rows come from the QUERY and not from the
+// graph's children — the whole point of the change.
+const feedMatches = vi.fn(() => []);
+vi.mock("../state/selectors", async (orig) => ({
+  ...(await orig()),
+  resolveFeedItems: (...a) => feedMatches(...a),
+}));
+
 import ContainerGraph from "../modules/containers/ContainerGraph";
 
 const F_VALUE = "f-intensity";
 
-function setup({ graph = { type: "pie", encoding: { value: F_VALUE } }, childIds = ["a", "b"] } = {}) {
+function setup({ graph = { type: "pie", encoding: { value: F_VALUE } }, childIds = ["a", "b"], feed = null } = {}) {
   const occurrencesById = {
-    g1: { id: "g1", moduleId: "m-graph", occurrences: childIds, meta: graph ? { graph } : {} },
+    g1: { id: "g1", moduleId: "m-graph", occurrences: childIds, meta: graph ? { graph } : {}, ...(feed ? { feed } : {}) },
     a: { id: "a", moduleId: "m-a", label: "Angry", fields: { [F_VALUE]: { value: 8 } }, occurrences: [] },
     b: { id: "b", moduleId: "m-b", label: "Sad", fields: { [F_VALUE]: { value: 3 } }, occurrences: [] },
   };
@@ -39,10 +48,9 @@ function setup({ graph = { type: "pie", encoding: { value: F_VALUE } }, childIds
     getState: () => ({ grid: {} }),
     state: { grid: {} },
   };
-  const board = () => <div data-testid="board">source board</div>;
   const view = render(
     <GridActionsContext.Provider value={ctx}>
-      <ContainerGraph occurrence={occurrencesById.g1} dispatch={ctx.dispatch} socket={null} renderSourceBoard={board} />
+      <ContainerGraph occurrence={occurrencesById.g1} dispatch={ctx.dispatch} socket={null} />
     </GridActionsContext.Provider>
   );
   return { view, occurrencesById };
@@ -52,10 +60,15 @@ beforeEach(() => { lastEChartProps = null; runMatchingOperations.mockClear(); })
 afterEach(cleanup);
 
 describe("ContainerGraph", () => {
-  it("renders the chart AND the source board — two views of the same children", () => {
+  it("renders the chart and NO draggable board", () => {
+    // The board existed to drag occurrences INTO a graph that OWNED its rows.
+    // The rows are pulled now, so there is nothing to drag in and a board of
+    // draggables would be an editable copy of a query result (user,
+    // 2026-08-10: "but dont show draggables").
     setup();
     expect(screen.getByTestId("echart")).toBeTruthy();
-    expect(screen.getByTestId("board")).toBeTruthy();
+    expect(screen.queryByTestId("board")).toBe(null);
+    expect(screen.queryByTitle(/source board/i)).toBe(null);
   });
 
   it("feeds the chart data derived from its CHILD OCCURRENCES", () => {
@@ -71,8 +84,6 @@ describe("ContainerGraph", () => {
     setup({ childIds: [] });
     expect(screen.queryByTestId("echart")).toBe(null);
     expect(screen.getByText(/Nothing to chart yet/i)).toBeTruthy();
-    // the board still renders — that is where you drop something in
-    expect(screen.getByTestId("board")).toBeTruthy();
   });
 
   it("degrades with a message when no chart is configured, rather than blanking", () => {
@@ -105,12 +116,6 @@ describe("ContainerGraph", () => {
     expect(runMatchingOperations).not.toHaveBeenCalled();
   });
 
-  it("collapses the source board on demand", () => {
-    setup();
-    expect(screen.getByTestId("board")).toBeTruthy();
-    fireEvent.click(document.querySelector(".container-graph-board-toggle"));
-    expect(screen.queryByTestId("board")).toBe(null);
-  });
 
   it("renders without a source board at all (embeds that have no room for one)", () => {
     const occurrencesById = {
@@ -128,5 +133,27 @@ describe("ContainerGraph", () => {
     );
     expect(screen.getByTestId("echart")).toBeTruthy();
     expect(document.querySelector(".container-graph-board-toggle")).toBe(null);
+  });
+});
+
+describe("ContainerGraph pulls its rows", () => {
+  it("charts the FEED's matches when the graph has NO children of its own", () => {
+    // The discriminating case for the whole change: nothing is materialised, so
+    // if the component still read `occurrence.occurrences` this would be empty.
+    feedMatches.mockReturnValue([
+      { occurrence: { id: "a" } },
+      { occurrence: { id: "b" } },
+    ]);
+    setup({ childIds: [], feed: { enabled: true } });
+    const data = lastEChartProps.option.series[0].data;
+    expect(data.map(d => d.name)).toEqual(["Angry", "Sad"]);
+    expect(data.map(d => d.occurrenceId)).toEqual(["a", "b"]);
+  });
+
+  it("does NOT consult the feed when the graph has none — a hand-built graph is unaffected", () => {
+    feedMatches.mockClear();
+    setup({ childIds: ["a"] });
+    expect(feedMatches).not.toHaveBeenCalled();
+    expect(lastEChartProps.option.series[0].data.map(d => d.name)).toEqual(["Angry"]);
   });
 });

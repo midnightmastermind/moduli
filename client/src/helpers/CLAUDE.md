@@ -1,6 +1,35 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-10 — a graph PULLS its rows; it does not own them)
+- **`feedPull.js` (NEW)** — `isPullOnlyFeed(occ)`. User, 2026-08-10: *"the graphs are supposed to
+  hold a representation of the occurance, not the occurances themselves … make it use a feed and
+  pull in the data … it should work like our dropdowns in a way (like movies, etc). it would be
+  like a mood dropdown"*.
+- **THE DROPDOWN IS THE WHOLE MODEL.** An occurrence dropdown resolves its options from a query on
+  every render and materialises NOTHING — the field stores the picked occurrence's id, not a copy.
+  A graph is the same shape: it draws a representation of each match, and a click records the id.
+- **`feedSync` — a pull-only feed mints nothing AND SWEEPS what it minted before**, so a graph that
+  used to materialise heals itself on the next pass instead of needing a migration to chase the
+  leftovers. Safe by the rule the normal path already relies on: only rows carrying
+  `meta.feedSourceId` are ever removed, so a hand-placed child is untouched. It passes
+  `parentOccurrence` for the same reason the existing sweep does — deleting without unlinking is
+  the dangling-child-ref class.
+- **`graphData` takes `ctx.rows`** (the pulled set) and falls back to the graph's own children, so a
+  hand-built graph is unaffected and every existing test stays honest.
+- **`ContainerGraph` resolves the rows via `resolveFeedItems`** and **no longer renders the source
+  board** (*"but dont show draggables"*). That board existed to drag occurrences INTO a graph that
+  OWNED its rows; with the rows pulled there is nothing to drag in, and a board of draggables would
+  be an editable copy of a query result. `renderSourceBoard` is gone from the prop list and from
+  `ModuleContainer`'s call.
+- **Two ways to be pull-only:** the owner renders as a graph (`meta.graph`) — structural, needs no
+  migration — or `feed.materialize === false`, the surface-agnostic opt-in.
+- **The default did not move:** a board or page feed still materialises, because those surfaces
+  render CHILDREN. 156 live feed copies on poms grid depend on that.
+- 19 tests. **A/B'd, and the first pass of them did NOT discriminate** — the sweep assertion passed
+  against the mutation because the ORDINARY path also sweeps unmatched copies, and the pull path had
+  no test at all (mutating it broke nothing). Fixed by returning real matches from the mocked
+  resolver and adding a graph with a FEED and NO children. Both halves now fail exactly one test.
 ## Recent Changes (2026-08-09 (8) — `link-follow`: the last shape; coverage 24 of 24)
 - **`intakeApply.runLinkFollow` + `importLinksIntoFolder`** — one hop, any domain, CONFIRM FIRST.
   The crawl runs, the user ticks a list, and only then does each approved link become a full
