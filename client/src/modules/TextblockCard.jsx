@@ -16,10 +16,14 @@
 //   - { kind: "occurrence", occId }   → scrolls to + flashes that occurrence
 // The markdown importer emits these for every [text](url) link; a user can also
 // set one via the textblock's settings (meta.link on the occurrence).
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import Editor from "../ui/Editor.jsx";
 import { useGridActions } from "../GridActionsContext";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
+// The lazy-mount decision lives in ONE place now — the doc BLOCK path needs the
+// same behaviour and a second copy would drift. `forceLiveNow` (same module) is
+// what lets a neighbour be made live before the caret is moved into it.
+import { useLazyEditor, LAZY_PLACEHOLDER_CLASS } from "../helpers/lazyEditor.js";
 
 // Per-placement link (occurrence.meta) wins over the template default (module.meta).
 function resolveLink(occurrence, module) {
@@ -103,27 +107,20 @@ export default function TextblockCard({ occurrence, module }) {
   const cls = listCapRows > 0 ? `${baseCls} textblock-card--cols` : baseCls;
 
   // PERF: a live TipTap/ProseMirror editor per textblock is the app's dominant
-  // render cost (~250 on the live grid; 100+ on an imported article). Mount the
-  // real editor only once this block scrolls near the viewport (or is clicked/
-  // focused). Until then show a readable, roughly height-matched plain-text
-  // placeholder. Once live it STAYS live (no scroll-away unmount → no flash, no
-  // lost edit state). Inline chips + empty blocks mount eagerly (small / editable
-  // immediately). Falls back to eager mount if IntersectionObserver is missing.
+  // render cost (~250 on the live grid; 100+ on an imported article). The real
+  // editor mounts only once this block scrolls near the viewport (or is clicked).
+  // Until then a readable, roughly height-matched plain-text placeholder stands in
+  // — and it is REAL TEXT, because WrapGroupNode measures rendered characters to
+  // decide wrap vs stack. Once live it STAYS live (no scroll-away unmount → no
+  // flash, no lost edit state).
+  //
+  // The observer/eager/registration logic lives in helpers/lazyEditor so the doc
+  // BLOCK path can share it rather than growing a second copy.
+  // Inline chips + empty blocks mount eagerly: small, and editable immediately.
   const hasContent = !!(occurrence?.textmap && typeof occurrence.textmap === "object");
   const eager = isInline || !hasContent;
   const blocks = useMemo(() => (eager ? [] : textmapBlocks(occurrence.textmap)), [eager, occurrence?.textmap]);
-  const cardRef = useRef(null);
-  const [live, setLive] = useState(eager);
-  useEffect(() => {
-    if (live) return;
-    const el = cardRef.current;
-    if (!el || typeof IntersectionObserver === "undefined") { setLive(true); return; }
-    const io = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) { setLive(true); io.disconnect(); }
-    }, { rootMargin: "700px" });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [live]);
+  const { live, ref: cardRef, goLive } = useLazyEditor({ eager, occurrenceId: occurrence?.id });
 
   if (!live) {
     return (
@@ -131,10 +128,10 @@ export default function TextblockCard({ occurrence, module }) {
         ref={cardRef}
         className={cls}
         style={Object.keys(cardStyle).length ? cardStyle : undefined}
-        onPointerDown={() => setLive(true)}
+        onPointerDown={goLive}
         title="Click to edit"
       >
-        <div className="textblock-card-placeholder" style={{ cursor: "text" }}>
+        <div className={LAZY_PLACEHOLDER_CLASS} style={{ cursor: "text" }}>
           {blocks.map((b, i) => (
             <div key={i} style={{ minHeight: "1.35em" }}>{b || " "}</div>
           ))}
