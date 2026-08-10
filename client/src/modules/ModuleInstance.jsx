@@ -953,6 +953,11 @@ function ModuleInstance({
   // per-write-rebuilt maps here re-rendered every instance on every write.
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const getParentId = useGridActionsSelector(s => s.getParentId || ((oid) => (oid ? s.parentByChildId?.[oid] || null : null)));
+  // Read at CALLBACK time, like getOccMap above. `handleContextMenu` needs the
+  // module map for planConvertRelink; subscribing to `modulesById` here would
+  // re-render all ~190 mounted instances on every module write — the churn the
+  // 2026-07-03 per-id selector migration removed.
+  const getModMap = useGridActionsSelector(s => s.getModMap || (() => s.modulesById || {}));
   // Linked-badge count for THIS instance's group — a number, so Object.is
   // keeps it stable across unrelated writes.
   const linkedGroupCount = useGridActionsSelector(s =>
@@ -1106,7 +1111,7 @@ function ModuleInstance({
                 url,
                 rootOccurrenceId: res.rootOccurrenceId,
                 occurrencesById: getOccMap(),
-                modulesById,
+                modulesById: getModMap(),
               });
               for (const w of writes) {
                 CommitHelpers.updateOccurrence({
@@ -1140,7 +1145,7 @@ function ModuleInstance({
       },
     ].filter(Boolean);
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
-  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket, selection, getOccMap, getParentId, modulesById]);
+  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket, selection, getOccMap, getParentId, getModMap]);
 
   // Touch: long-press opens the same menu (right-click has no touch equivalent).
   const instanceLongPress = useLongPress(({ x, y }) =>
