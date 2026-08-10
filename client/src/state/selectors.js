@@ -595,10 +595,24 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
       // Without span detection, kind:"range" (unit:"day", span:N) fell back
       // to SAME_DAY which can't compare a string to an object → every
       // schedule day-col was invisible on a multi-day filter.
-      const hasPeriod = rightVal && typeof rightVal === "object" &&
-        ((rightVal.unit && rightVal.unit !== "day") ||
-         (Number(rightVal.span) > 1) ||
-         (rightVal.kind === "multi" && Array.isArray(rightVal.dates)));
+      //   - kind === "single"  (a single-day pick that still carries the OBJECT
+      //     shape `{value, unit:"day", kind:"single"}` — see below)
+      //
+      // 2026-08-10: this list used to enumerate the period SHAPES, and
+      // `kind:"single"` matched none of them — unit is "day", span is undefined,
+      // kind is not "multi" — so a single-day pick fell back to SAME_DAY and
+      // compared a STRING to an OBJECT. Every Schedule day column went invisible
+      // the moment the user narrowed a multi-day range to one day (user: "i go
+      // from aug 10th and 11th, to just the 10th and schedule disappears"). The
+      // data was intact throughout; only the visibility test failed.
+      //
+      // So the rule is now the INVARIANT rather than a shape list: if the filter
+      // value is an OBJECT, SAME_DAY can never work — it would compare a string
+      // to an object and always return false. DATE_IN_PERIOD handles every
+      // variant (day/week/month/year/span/multi) and treats `{value, unit:"day"}`
+      // as exactly the single day SAME_DAY intended. Enumerating shapes is what
+      // made this recur twice; `kind:"range"` was the first.
+      const hasPeriod = !!rightVal && typeof rightVal === "object" && !Array.isArray(rightVal);
       const comparator = hasPeriod ? "DATE_IN_PERIOD" : String(cond.comparator || "IS").toUpperCase();
       const ok = evalRule({ left: leftVal, comparator, right: rightVal }, {});
       if (!ok) return false;
