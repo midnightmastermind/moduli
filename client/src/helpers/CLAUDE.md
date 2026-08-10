@@ -1,6 +1,28 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-10 (3) — `universalFields.js`: the GRID says which fields every occurrence carries)
+- **`universalFields.js` (NEW, pure)** — `grid.meta.universalFieldIds` is a LIST OF FIELD IDS, and
+  nothing in the codebase names Tags or Date. User: *"it shouldnt be hard coded at all, it should be
+  set on the grid level to give every occurance that field (and Date). just like we do on the
+  schedule level"* — the same shape as the existing `grid.meta.scheduleFieldIds`.
+- **A grid naming none behaves BYTE-IDENTICALLY to before**, which is the property that made it safe
+  to mount on every surface at once. Pinned by its own test.
+- **Why not a migration over 2,505 modules:** a large write to protected live data AND a rule every
+  future module must remember. A grid-level list cannot be forgotten by a module that does not exist
+  yet — the "next call site forgets" class, avoided by construction rather than by discipline.
+- **Universal bindings are born HIDDEN** (`hidden: true, source: "grid"`) and become visible through
+  the mechanism that ALREADY existed for exactly this: an occurrence whose resolved `fieldVisibility`
+  is show-mode listing the field. No second visibility concept was invented. A/B'd — making them
+  born-visible fails 3 tests, and on poms grid it would have put a pill on 2,509 occurrences.
+- **An EXPLICIT module binding always outranks the grid default** (its order / role / hidden flag are
+  a deliberate statement about that field). Same precedence `homeFolderForUpload` gives an explicitly
+  chosen folder over the computed one.
+- **It does NOT re-implement `ModuleInstance`, and instances do not use it** — user: *"instances
+  shouldnt change at all."* That path renders every row of every board and carries the table-cell
+  column override, the media split and `meta.disabled`. The duplication is chosen and stated in the
+  file header rather than left for someone to "fix".
+
 ## Recent Changes (2026-08-10 (2) — the graph: 9 chart types, and three SILENT defects fixed first)
 Audit: `docs/graph-audit-2026-08-10.md`. Two of its three findings get WORSE with more chart types,
 which is why they were prerequisites rather than follow-ups.

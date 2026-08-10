@@ -2,6 +2,18 @@
 
 _Updated: 2026-08-08. Check this file before re-reading source._
 
+## Recent Changes (2026-08-10 — `getEffectiveFieldRevealForOccurrence`: WHEN fields show)
+- **`selectors.js`** — new nearest-wins cascade `occurrence.fieldReveal: "always" | "hover"`, beside
+  the existing field-VISIBILITY one.
+- **Deliberately NOT a key on `fieldVisibility`, for two independent reasons.** Mechanical: that
+  resolver returns `{mode, fieldIds}` and DROPS every other key (`selectors.js:385`), so a `reveal`
+  smuggled in there would silently vanish — the exact shape of defect this file keeps recording.
+  Design: they answer different questions, so folding them together would mean setting WHICH fields
+  show on a container wipes WHEN they show, inherited from its page.
+- **An explicit `"always"` STOPS the walk**, so one card can opt back out from under a hover
+  ancestor. Without it "always" would be indistinguishable from unset — A/B'd, and dropping it fails
+  exactly that test.
+
 ## Recent Changes (2026-08-08 — resolveFeedItems: rules built once per pass, and `$today`)
 - **`selectors.js` (`resolveFeedItems`)** — condition rules are now built **once per pass** instead
   of once per occurrence, and each value goes through `helpers/feedTokens.resolveFeedConditionValue`.
