@@ -1,6 +1,33 @@
 # client/src/helpers — Helpers CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-10 (4) — a CLONE now carries `_ancestors`; the 3 red behavioral tests are GREEN)
+- **`operationActions.stampCloneAncestors` (NEW, 6 tests)** — the clone paths (APPLY_TEMPLATE and
+  clone-subtree) published their stubs into `$allItems` and every role slice **without an
+  `_ancestors` chain**, so any same-pipeline `FIND … _ancestors HAS_ANCESTOR <id>` over freshly
+  cloned nodes matched NOTHING. `CREATE` has walked that chain since 2026-05-05 and `COPY_LINK`
+  copies its logic verbatim — the clone paths were simply never given it.
+- **THIS WAS A REAL BUG, not the test artifact three sessions assumed.** `Day Page: Build` clones a
+  day column and then finds the question container inside it by `_ancestors HAS_ANCESTOR $colId` +
+  identitySignature. The FIND bound null, its own `$dqId IS_NOT_EMPTY` guard swallowed it, and
+  **the day's question was never filled on the pass that BUILT the column.**
+- **Why the live grid looked fine and the audit concluded "not a broken feature":** it self-heals one
+  load later. On the next sweep the column already exists, so its question container is enriched
+  normally at pipeline start and the fill lands. 12 of 13 filled is what a feature that works on the
+  SECOND pass looks like — the harness builds and fills in ONE pass, which is why only it saw this.
+- **IT CANNOT BE DONE INLINE DURING THE WALK, and that is the whole design.** The clone walk is
+  depth-first — a CHILD is stubbed BEFORE its PARENT — so a child's chain runs through a parent that
+  does not exist yet. Resolving as a second pass against the stubs PLUS the existing world is also
+  what lets a deep clone reach PAST the new subtree into the real tree above it, which is exactly
+  what the failing FIND needed (`$colId` is existing world, not a clone).
+- **Stubs are mutated IN PLACE**, because they were published into `$vars` by reference — the same
+  reasoning `patchAllItemsCache` records for the read-model entry. Cycle-guarded and depth-capped; a
+  clone rooted at a folder gets an empty chain rather than throwing, which is the normal case.
+- **A/B'd: disabling both call sites fails EXACTLY the 3 tests and nothing else.** 2372 client tests
+  — **zero skipped**, the first clean baseline in several sessions (the skip existed because "a
+  permanent red baseline is where the next real regression hides", and on 2026-08-09 (6) a fourth
+  failure was caught only because the count moved 3 → 4).
+
 ## Recent Changes (2026-08-10 (3) — `universalFields.js`: the GRID says which fields every occurrence carries)
 - **`universalFields.js` (NEW, pure)** — `grid.meta.universalFieldIds` is a LIST OF FIELD IDS, and
   nothing in the codebase names Tags or Date. User: *"it shouldnt be hard coded at all, it should be

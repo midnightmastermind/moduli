@@ -22,6 +22,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   getParentOccurrence,
   getEffectiveFieldVisibilityForOccurrence,
+  getEffectiveFieldRevealForOccurrence,
 } from "../state/selectors";
 import { buildParentMap } from "../helpers/dragHitTesting";
 import FieldRenderer from "./FieldRenderer";
@@ -31,6 +32,17 @@ const MODES = [
   { key: "off", label: "Off" },
   { key: "show", label: "Show" },
   { key: "hide", label: "Hide" },
+];
+
+// WHEN the fields show — a SEPARATE cascade from WHICH ones do.
+// Kept off `fieldVisibility` deliberately: that resolver strips every key but
+// {mode, fieldIds}, so a reveal smuggled in there would silently vanish, and
+// setting WHICH fields show on a container would wipe WHEN they show,
+// inherited from its page.
+const REVEAL_MODES = [
+  { key: "inherit", label: "Inherit" },
+  { key: "always", label: "Always" },
+  { key: "hover", label: "On hover" },
 ];
 
 export default function FieldVisibilitySection({ occurrence }) {
@@ -75,6 +87,24 @@ export default function FieldVisibilitySection({ occurrence }) {
     CommitHelpers.updateOccurrence({
       dispatch, socket,
       occurrence: { id: occurrence.id, fieldVisibility: nextFieldVisibility },
+      emit: true,
+    });
+  };
+
+  // `null` means inherit; an explicit "always" is a STOP that re-enables
+  // at-rest fields under a hover ancestor, so it is not the same as unset.
+  const ownReveal = occurrence?.fieldReveal || null;
+  const revealMode = ownReveal === "always" || ownReveal === "hover" ? ownReveal : "inherit";
+  const effectiveReveal = useMemo(
+    () => getEffectiveFieldRevealForOccurrence(occurrence, { occurrencesById, parentByChildId }),
+    [occurrence, occurrencesById, parentByChildId],
+  );
+
+  const setReveal = (mode) => {
+    if (!occurrence?.id) return;
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { id: occurrence.id, fieldReveal: mode === "inherit" ? null : mode },
       emit: true,
     });
   };
@@ -138,6 +168,34 @@ export default function FieldVisibilitySection({ occurrence }) {
         {currentMode === "inherit" && inherited && (
           <span style={{ opacity: 0.7 }}> (inheriting {describe(inherited)})</span>
         )}
+      </div>
+
+      {/* Reveal cascade — WHEN the fields show. Its own nearest-wins walk. */}
+      <div style={{ ...sectionHeader, marginTop: 6 }}>Reveal</div>
+      <div style={{ display: "flex", gap: 2, marginBottom: 4 }}>
+        {REVEAL_MODES.map(m => {
+          const isActive = revealMode === m.key;
+          return (
+            <button
+              key={m.key}
+              type="button"
+              onClick={() => setReveal(m.key)}
+              style={{
+                flex: 1, height: 22, fontSize: 10, fontFamily: "var(--font-mono)",
+                borderRadius: 3, border: "1px solid var(--input-border, #374151)",
+                background: isActive ? "var(--accent-blue-bg, rgba(96,165,250,0.18))" : "var(--input-bg, transparent)",
+                color: isActive ? "var(--accent-blue, #60a5fa)" : "var(--text-muted, #888)",
+                cursor: "pointer",
+              }}
+            >
+              {m.label}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ fontSize: 10, opacity: 0.7, marginBottom: showList ? 6 : 0 }}>
+        Effective: <strong>{effectiveReveal === "hover" ? "On hover" : "Always"}</strong>
+        {` · ${revealMode === "inherit" ? "Ancestor" : "Local"}`}
       </div>
 
       {/* Field checklist — only when this occurrence sets a local show/hide.

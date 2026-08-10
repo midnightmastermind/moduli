@@ -2,6 +2,46 @@
 
 _Updated: 2026-08-07. Check this file before re-reading source._
 
+## Recent Changes (2026-08-10 — `0064` universal fields + structural tags; the SEED calls it)
+- **`migrations/0064-universal-fields-and-tags.mjs` (24 tests)** — stamps
+  `grid.meta.universalFieldIds` (Tags + Date) so every occurrence carries them, and backfills Tags
+  **from structure that already exists**: an option board's own `Board Category` value, an
+  artifact's `Files/<kind>` folder, and a Routines dimension ancestor. Nothing is inferred from a
+  label and nothing is invented — an occurrence no rule matches is left alone.
+- **`scripts/createLiveData.js` CALLS IT** (beside 0043 / 0049 / 0061), so a reseeded grid and a
+  migrated grid are the same code and cannot drift. **It runs AFTER 0049 deliberately** — the
+  file-kind rule reads the `Files/<kind>` folders, so they have to exist first for that rule to mean
+  anything. Without the seed call a fresh grid has the field and the renderer and resolves NOTHING:
+  the same silent-inertness class as 0043 (no posters) and 0049 (no Files home).
+- **THE DRY RUN WAS CHECKED AGAINST A NAMED EXPECTATION, per rule, measured independently per rule
+  rather than accepting a count:**
+  ```
+  test grid 2   379 = 251 board-category (0 feed copies) + 0 file-kind (193 artifacts, none homed)
+                    + 128 routines (9 dimensions)
+  poms grid     733 = 382 board-category (156 feed copies EXCLUDED) + 223 file-kind (all in Images)
+                    + 128 routines
+  ```
+  0 violations on both — nothing in the plan is a feed copy or already tagged.
+- **FEED COPIES ARE NEVER WRITTEN**, and that is not a detail: a copy carries its SOURCE's board
+  category, and feedSync re-mints it, so a tag written there is a write to something about to be
+  overwritten. 156 of poms grid's 538 board-category occurrences are copies.
+- **It overwrites nothing** — a Tags value already present is the user's, which is also what makes a
+  re-run a no-op rather than an accumulation. Proven by force re-run: 0 tags, 0 options.
+- **APPLIED TO TEST GRID 2 ONLY. poms grid is live data and stays the user's call.**
+- **Verified by reading the RESULT back, not the log:** `universalFieldIds` resolves to real
+  Tags+Date fields, 379 tagged (314 instance / 65 container), **every stored value is offered by the
+  field's option list** (0 orphans — the check that matters, or the dropdown shows values it calls
+  invalid), Trackers page carries show-Tags + wrap. Then RESEEDED to prove a fresh seed produces the
+  identical shape (379 / 43 / 42, new field ids, 0 orphans).
+- 666 server tests. test grid 2 at **0 integrity errors**, and `Tags` has DROPPED OFF its
+  unused-field warning while still listed on the unmigrated test grid 1 — independent confirmation
+  the field is now genuinely in use. poms grid untouched at 0 errors.
+- **The 24-test suite is A/B'd FOUR ways** — dropping the feed-copy refusal, the already-tagged
+  refusal, the `resolveFieldByName` TYPE discriminator (poms grid has two fields called "Due"), and
+  the artifact-role gate each fail EXACTLY ONE test. The suite discriminates rather than merely
+  passing, which matters because it had never been run: the session that wrote it hit its limit the
+  instant the file was created.
+
 ## Recent Changes (2026-08-09 (3) — build ops are scoped to their OWN page; `0062`)
 - **`utils/liveSystemBuilders.js`** — the source guards on `makeScheduleBuildScheduleOp` and
   `makeDayPageBuildOp` now pass only the toolbar/onLoad case (`sourceOccurrenceId IS_EMPTY`) and the

@@ -6,9 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import FormInput from "./FormInput";
 import { Button } from "@/components/ui/button";
-import { X, Eye, EyeOff, Hash, Plus } from "lucide-react";
-import DrilldownPicker from "./DrilldownPicker";
+import { X, Plus } from "lucide-react";
 import EditorBindingSection from "./EditorBindingSection.jsx";
+import FieldBindingsEditor from "./FieldBindingsEditor.jsx";
 import StyleEditor from "./StyleEditor";
 import LayoutCascadeSection from "./LayoutCascadeSection";
 import { useGridActions } from "../GridActionsContext";
@@ -38,7 +38,7 @@ export default function InstanceForm({
   dispatch,
   socket,
 }) {
-  const { fieldsById, containersById, panelsById, occurrencesById, modulesById, state } = useGridActions();
+  const { fieldsById, occurrencesById, modulesById, state } = useGridActions();
 
   // Cascade context — walks from THIS instance occurrence up through
   // Container → Page → Panel → Grid so the StyleEditor's "Inherited
@@ -78,13 +78,7 @@ export default function InstanceForm({
     });
   }, [occurrence, dispatch, socket]);
 
-  const [localBindings, setLocalBindings] = useState(() =>
-    instance?.fieldBindings || []
-  );
-
   const allFields = Object.values(fieldsById || {});
-  const panels = Object.values(panelsById || {});
-  const containers = Object.values(containersById || {});
 
   return (
     <div className="font-mono flex flex-col w-72">
@@ -309,17 +303,7 @@ export default function InstanceForm({
 
         {/* FIELDS TAB */}
         <TabsContent value="fields" className="max-h-[55vh] overflow-y-auto px-3 pb-2 mt-1">
-          <FieldsSection
-            instance={instance}
-            localBindings={localBindings}
-            setLocalBindings={setLocalBindings}
-            allFields={allFields}
-            fieldsById={fieldsById}
-            panels={panels}
-            containers={containers}
-            dispatch={dispatch}
-            socket={socket}
-          />
+          <FieldBindingsEditor module={instance} />
 
           {/* Body binding picker — textblock-role instances only */}
           {instance?.role === "textblock" && (
@@ -660,154 +644,5 @@ function LinkSettingsSection({ occurrence, dispatch, socket, occurrencesById, mo
         </p>
       </div>
     </>
-  );
-}
-
-/**
- * FieldsSection — DrilldownPicker (set to fields) drives attach/detach.
- * Field creation, renaming, type changes, and deletion live exclusively in
- * the Command Center → Fields tab. This popover only binds/unbinds fields
- * and toggles per-binding visibility.
- */
-function FieldsSection({
-  instance,
-  localBindings,
-  setLocalBindings,
-  allFields,
-  fieldsById,
-  dispatch,
-  socket,
-}) {
-  const boundFieldIds = useMemo(
-    () => new Set(localBindings.map(b => b.fieldId).filter(Boolean)),
-    [localBindings]
-  );
-
-  // Single-category picker exposing the grid's fields, minus the ones already
-  // bound. One click commits — no drilling past the category step.
-  const pickerConfig = useMemo(() => ({
-    placeholder: "Add field",
-    categories: [{
-      id: "fields",
-      label: "Pick a field to bind",
-      description: "Fields are created and edited in Command Center → Fields.",
-      icon: Hash,
-      color: "rgba(168,85,247,0.7)",
-      resolveItems: () => allFields
-        .filter(f => !boundFieldIds.has(f.id))
-        .map(f => ({
-          value: f.id,
-          title: f.name || "(unnamed field)",
-          sub: f.type || "field",
-          description: f.meta?.description || `${f.type || "field"} field`,
-          hasChildren: false,
-        })),
-    }],
-  }), [allFields, boundFieldIds]);
-
-  const commitBindings = useCallback((newBindings) => {
-    setLocalBindings(newBindings);
-    if (instance) {
-      CommitHelpers.updateModule({
-        dispatch, socket,
-        module: { id: instance.id, fieldBindings: newBindings },
-        emit: true,
-      });
-    }
-  }, [instance, dispatch, socket, setLocalBindings]);
-
-  const handlePickField = useCallback((picked) => {
-    if (!picked) return;
-    // Picker commits the picked field id as a dot-joined chain. With our
-    // single-flat-category config, that chain is just the field id.
-    const fieldId = picked.split(".").pop();
-    if (!fieldId || boundFieldIds.has(fieldId)) return;
-    commitBindings([
-      ...localBindings,
-      { fieldId, role: "input", order: localBindings.length },
-    ]);
-  }, [localBindings, boundFieldIds, commitBindings]);
-
-  const updateBinding = useCallback((fieldId, updates) => {
-    commitBindings(localBindings.map(b =>
-      b.fieldId === fieldId ? { ...b, ...updates } : b
-    ));
-  }, [localBindings, commitBindings]);
-
-  const removeBinding = useCallback((fieldId) => {
-    commitBindings(localBindings.filter(b => b.fieldId !== fieldId));
-  }, [localBindings, commitBindings]);
-
-  return (
-    <div className="py-2">
-      <div className="mb-2">
-        <h4 className="text-xs font-semibold text-white">Fields</h4>
-      </div>
-
-      <p className="text-[10px] text-foregroundScale-2/80 mb-2">
-        Attach existing fields. Create, rename, or change types in Command Center → Fields.
-      </p>
-
-      <DrilldownPicker
-        value=""
-        onChange={handlePickField}
-        ctx={{ fields: allFields, sources: [], localVars: [] }}
-        config={pickerConfig}
-      />
-
-      {localBindings.filter(b => b.fieldId).length > 0 && (
-        <div className="mt-3 space-y-1">
-          {localBindings.filter(b => b.fieldId).map((binding) => {
-            const field = fieldsById[binding.fieldId];
-            if (!field) return null;
-            return (
-              <FieldBindingRow
-                key={binding.fieldId}
-                field={field}
-                binding={binding}
-                onUpdateBinding={(updates) => updateBinding(binding.fieldId, updates)}
-                onRemove={() => removeBinding(binding.fieldId)}
-              />
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * FieldBindingRow — read-only label + per-binding toggles only.
- * No field name/type/meta editing.
- */
-function FieldBindingRow({ field, binding, onUpdateBinding, onRemove }) {
-  const pillColor = "bg-blue-500/20 text-blue-300 border-blue-500/30";
-  return (
-    <div className="border border-border rounded-md overflow-hidden">
-      <div className={`w-full flex items-center justify-between px-2 py-1.5 ${binding.hidden ? "bg-muted/10" : "bg-muted/30"}`}>
-        <div className="flex items-center gap-2 flex-1">
-          <span className={`px-2 py-0.5 text-[10px] rounded-full border ${binding.hidden ? "opacity-40 " : ""}${pillColor}`}>
-            {field.name || field.type}
-          </span>
-          <span className="text-[10px] text-muted-foreground">{field.type}</span>
-        </div>
-        <button
-          type="button"
-          title={binding.hidden ? "Show field" : "Hide field"}
-          className="ml-1 p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-          onClick={(e) => { e.stopPropagation(); onUpdateBinding({ hidden: !binding.hidden }); }}
-        >
-          {binding.hidden ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-        </button>
-        <button
-          type="button"
-          title="Unbind field"
-          className="ml-1 p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
-          onClick={(e) => { e.stopPropagation(); onRemove(); }}
-        >
-          <X className="h-3 w-3" />
-        </button>
-      </div>
-    </div>
   );
 }

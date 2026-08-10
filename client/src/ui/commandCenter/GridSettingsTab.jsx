@@ -400,6 +400,29 @@ export function GridSettingsTab() {
 
       <Separator className="mb-3" />
 
+      {/* ── Universal fields — the fields EVERY occurrence carries ──────────
+          Writes `grid.meta.universalFieldIds`, the same shape as the existing
+          `grid.meta.scheduleFieldIds`. Nothing in the code names a field; the
+          grid says which ones are universal and `helpers/universalFields`
+          synthesizes a binding per occurrence that does not already bind one.
+          Born HIDDEN — a universal field lands on every occurrence at once, so
+          it shows only where an occurrence's field visibility asks for it. An
+          explicit module binding always outranks this. */}
+      <div className="mb-3">
+        <UniversalFieldsPicker
+          fieldsById={fieldsById}
+          selectedIds={Array.isArray(grid?.meta?.universalFieldIds) ? grid.meta.universalFieldIds : []}
+          onChange={(nextIds) => {
+            const nextMeta = { ...(grid?.meta || {}) };
+            if (nextIds.length) nextMeta.universalFieldIds = nextIds;
+            else delete nextMeta.universalFieldIds;
+            CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { meta: nextMeta }, emit: true });
+          }}
+        />
+      </div>
+
+      <Separator className="mb-3" />
+
       {/* ── Grid-wide layout cascade defaults — root of the layout cascade ───
           Writes to `grid.meta.layoutCascadeDefaults`. Every panel / page /
           container / instance inherits these rules (drag-in view, nav
@@ -635,6 +658,72 @@ function FilterRow({ filter, isActive, allFields, onActivate, onUpdate, onDelete
           >
             <Plus size={9} /> Add condition
           </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * UniversalFieldsPicker — which fields EVERY occurrence on this grid carries.
+ *
+ * A flat checklist rather than a drilldown: the answer is a small set chosen
+ * from all the grid's fields, and the ORDER is the order they render in, so it
+ * is preserved as picked instead of re-sorted.
+ */
+function UniversalFieldsPicker({ fieldsById, selectedIds, onChange }) {
+  const all = useMemo(
+    () => Object.values(fieldsById || {}).sort((a, b) =>
+      String(a.name || "").localeCompare(String(b.name || ""))),
+    [fieldsById],
+  );
+  const selected = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+  const toggle = (id) => {
+    // Removing keeps the remaining order; adding appends, so the render order
+    // is the order the user picked them in.
+    onChange(selected.has(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id]);
+  };
+
+  return (
+    <div>
+      <div className="text-[11px] font-semibold text-text-primary mb-1">Universal fields</div>
+      <p className="text-[10px] text-text-muted mb-2">
+        Every occurrence on this grid carries these — containers, pages and panels included.
+        They start hidden; show them per occurrence under Field Visibility.
+      </p>
+      {all.length === 0 ? (
+        <div className="text-[10px] text-text-muted">No fields on this grid yet.</div>
+      ) : (
+        <div className="max-h-40 overflow-y-auto border border-border-subtle rounded p-1">
+          {all.map((f) => {
+            const on = selected.has(f.id);
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => toggle(f.id)}
+                className="w-full flex items-center gap-2 px-1.5 py-1 rounded text-left hover:bg-input-bg"
+              >
+                <span
+                  className={`inline-flex items-center justify-center h-3 w-3 rounded-sm border shrink-0 ${
+                    on ? "bg-accent-blue-bg border-accent-blue" : "border-border-default"
+                  }`}
+                >
+                  {on && <Check className="h-2 w-2 text-accent-blue" />}
+                </span>
+                <span className={`text-[10px] ${on ? "text-text-primary" : "text-text-muted"}`}>
+                  {f.name || "(unnamed field)"}
+                </span>
+                <span className="text-[9px] text-text-muted ml-auto">{f.type}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {selectedIds.length > 0 && (
+        <div className="text-[10px] text-text-muted mt-1">
+          {selectedIds.length} universal field{selectedIds.length === 1 ? "" : "s"}
         </div>
       )}
     </div>

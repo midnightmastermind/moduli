@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import StyleEditor from "./StyleEditor";
 import LayoutCascadeSection from "./LayoutCascadeSection";
+import FieldBindingsEditor from "./FieldBindingsEditor.jsx";
 import { useGridActions } from "../GridActionsContext";
 import { resolveStyleCascade } from "../helpers/StyleHelpers";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -341,11 +342,12 @@ export default function LayoutForm({
 
       {/* Tabs */}
       <Tabs defaultValue="basic">
-        <TabsList className="grid grid-cols-4 mx-2 mt-1.5 h-7">
+        <TabsList className="grid grid-cols-5 mx-2 mt-1.5 h-7">
           <TabsTrigger value="basic" className="text-[10px]">Basic</TabsTrigger>
           <TabsTrigger value="layout" className="text-[10px]">Layout</TabsTrigger>
           <TabsTrigger value="style" className="text-[10px]">Style</TabsTrigger>
           <TabsTrigger value="actions" className="text-[10px]">Actions</TabsTrigger>
+          <TabsTrigger value="fields" className="text-[10px]">Fields</TabsTrigger>
         </TabsList>
 
         {/* BASIC TAB: Name, ViewType, DragBehavior, Iteration, Persistence, BehaviorToggle */}
@@ -976,6 +978,12 @@ export default function LayoutForm({
               </div>
             </>
           )}
+        </TabsContent>
+
+        {/* FIELDS TAB — a panel can carry fields too; the editor is shared with
+            instances, containers and pages so there is one binding UI, not four. */}
+        <TabsContent value="fields" className="max-h-[55vh] overflow-y-auto px-3 pb-2 mt-1">
+          <FieldBindingsEditor module={panel} />
         </TabsContent>
       </Tabs>
 

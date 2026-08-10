@@ -305,7 +305,7 @@ describe("onLoad sweep (seed sanity)", () => {
 // Skipped so the suite reads ZERO failures: on 2026-08-09 (6) a fourth failure
 // was caught ONLY because the count went 3 → 4, and a permanent red baseline is
 // exactly where the next real regression hides.
-describe.skip("the day's Daily Question is filled at BUILD time (2026-08-05)", () => {
+describe("the day's Daily Question is filled at BUILD time (2026-08-05)", () => {
   const QSIG = "daypage:Daily Question/question";
   let boardId, colIds, qFid;
 

@@ -21,6 +21,7 @@ import FeedSection from "../ui/FeedSection";
 import GraphSection from "../ui/GraphSection";
 import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
+import FieldBindingsSection from "../ui/FieldBindingsSection";
 import OccurrenceFields from "../ui/OccurrenceFields.jsx";
 import ViewModeSection from "../ui/ViewModeSection";
 import LayoutCascadeSection from "../ui/LayoutCascadeSection";
@@ -792,6 +793,7 @@ function Page({
           <GraphSection occurrence={occurrence} />
           <SortSection occurrence={occurrence} />
           <FieldVisibilitySection occurrence={occurrence} />
+          <FieldBindingsSection occurrence={occurrence} />
           <ViewModeSection occurrence={occurrence} />
           <LayoutCascadeSection occurrence={occurrence} />
         </HeaderDropdown>

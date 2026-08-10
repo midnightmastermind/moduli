@@ -9476,6 +9476,32 @@ async function main() {
       });
     }
 
+    // ── Universal fields + tags (migration 0064, shared with the live grid) ──
+    //
+    // The GRID names which fields every occurrence carries
+    // (`grid.meta.universalFieldIds`), so nothing in the code knows the word
+    // "Tags". Without this stamp a fresh grid has the field and the renderer and
+    // resolves NOTHING — the same silent-inertness class as 0043 (no posters)
+    // and 0049 (no Files home), which is why this takes the same remedy: CALL
+    // the migration rather than reimplement it, so a reseeded grid and a
+    // migrated grid are the same code and cannot drift.
+    //
+    // RUNS AFTER 0049 DELIBERATELY: one of the three tag rules reads an
+    // artifact's `Files/<kind>` folder, so the folders have to exist first for
+    // that rule to mean anything. It never overwrites a tag a user set, and
+    // never writes to a feed copy (feedSync re-mints those from their source),
+    // so a second run is a no-op.
+    {
+      const { up: universalFieldsAndTags } = await import("../migrations/0064-universal-fields-and-tags.mjs");
+      console.log("\n🏷️  Universal fields + structural tags (migration 0064, shared with the live grid)…");
+      await universalFieldsAndTags({
+        gridId: result.gridId,
+        models: { Occurrence, Module, Field, Folder, Grid },
+        log: (m) => console.log(`   ${m}`),
+        dryRun: false,
+      });
+    }
+
     // ── Snapshot to server/seed/*.json (skipped with --no-export) ──
     // The on-disk seed acts as the canonical fixture for fast restores
     // via `reloadLiveData.js`. Default = always export so the JSON

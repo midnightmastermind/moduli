@@ -1,6 +1,48 @@
 # client/src/ui — UI Components CLAUDE.md
 
 _Updated: 2026-08-08. Check this file before re-reading source._
+## Recent Changes (2026-08-10 (4) — `FieldBindingsEditor`: adding a field stops being a MIGRATION)
+- **`FieldBindingsEditor.jsx` (NEW, 15 tests)** — the one add-a-field-to-a-thing editor, for every
+  role. Until now `InstanceForm`'s Fields tab was the ONLY authoring surface and it only renders for
+  `role: "instance"`, so **the only way to bind a field to a container, page or panel was to write a
+  migration** — while `resolveOccurrenceFields` had been rendering them since 2026-08-10 and
+  `OccurrenceFields` was already mounted on all of them. The gap was authoring, not capability.
+- **Mounted in FOUR places from ONE component:** `InstanceForm` (its local copy DELETED — 148 lines,
+  the faithfulness check), `ContainerForm` + `LayoutForm` as a new Fields tab, and `ModulePage`
+  through the thin `FieldBindingsSection.jsx` — a page has no settings FORM, everything lives in its
+  HeaderDropdown, so a tab had nowhere to go. Four binding editors is exactly the drift this repo
+  keeps paying for.
+- **IT DERIVES FROM THE MODULE INSTEAD OF CACHING IT.** The version it replaces held
+  `useState(() => instance?.fieldBindings || [])`, seeded ONCE and stale the moment anything else
+  wrote the module. `CommitHelpers.updateModule` dispatches LOCALLY BEFORE it emits, so deriving
+  from the prop is both immediate and correct — a latent staleness bug removed by the extraction.
+- **It commits ONLY `{id, fieldBindings}`.** Sending the whole module would carry a stale copy of
+  every other key back over whatever else changed — the `createPageInContainer` whole-`meta` clobber
+  (2026-08-08 (5)) as a class. A/B'd: the `...module` spread fails that test.
+- **GRID-GIVEN FIELDS ARE LISTED, NOT HIDDEN.** `grid.meta.universalFieldIds` gives every occurrence
+  a field through a SYNTHESIZED binding — nothing is written to the module — so a user sees Tags
+  rendering on the occurrence and cannot find it in the editor, which reads as a bug. They get their
+  own section, marked as coming from the grid, with the one action that makes sense: **Bind**, which
+  writes an explicit binding so this module can show or order it. That is the precedence
+  `resolveOccurrenceFields` already implements (explicit outranks grid default), surfaced instead of
+  left implicit. Hand-bound it is born VISIBLE — binding by hand IS the act of asking for it, unlike
+  the grid default which lands on everything at once and must stay hidden. A/B'd both halves.
+- **`FieldVisibilitySection` gained the REVEAL control** — `fieldReveal: "inherit"|"always"|"hover"`,
+  its own nearest-wins cascade beside the visibility one. The resolver
+  (`getEffectiveFieldRevealForOccurrence`) and the CSS shipped on 2026-08-10; **nothing wrote the
+  value**, so hover-reveal was unreachable from the UI — shipped and inert. Its own control, never a
+  key on `fieldVisibility`, which strips to `{mode, fieldIds}` and would silently drop it.
+- **`commandCenter/GridSettingsTab` gained the Universal fields picker** — a flat checklist writing
+  `grid.meta.universalFieldIds`. **Order is the pick order, not alphabetical**: it is the render
+  order. Selecting none DELETES the key rather than storing `[]`, so a grid naming none is byte-
+  identical to one that never had the feature.
+- 2363 client tests, build clean, chunk sanity holding (tiptap 435 / highlight 969 /
+  CommandCenter 204 / PagePreviewApp 1038).
+- **NOT VERIFIED IN A BROWSER, and that is the honest gap.** Every write is asserted and four
+  mutations each fail exactly one test, but nobody has opened a container's Fields tab, bound a
+  field and watched it appear. This repo's own record says the wiring — not the unit — is where
+  these break.
+
 ## Recent Changes (2026-08-10 (2) — EChart registers what the type table declares; GraphSection offers the PULLED fields)
 - **`EChart.jsx` — ECharts is TREE-SHAKEN and two new charts were not registered.** `graphOption` is
   pure and never touches the library, so treemap and radar built perfectly valid options that would

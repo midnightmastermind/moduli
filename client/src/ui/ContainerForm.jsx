@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useGridActions } from "../GridActionsContext";
 import { getOtherOccurrences } from "../state/selectors";
 import EditorBindingSection from "./EditorBindingSection.jsx";
+import FieldBindingsEditor from "./FieldBindingsEditor.jsx";
 import { buildStyleCascadeContext, resolveStyleCascade } from "../helpers/StyleHelpers";
 import LayoutCascadeSection from "./LayoutCascadeSection";
 
@@ -116,9 +117,10 @@ export default function ContainerForm({
 
       {/* Tabs */}
       <Tabs defaultValue="settings">
-        <TabsList className="grid grid-cols-2 mx-2 mt-1.5 h-7">
+        <TabsList className="grid grid-cols-3 mx-2 mt-1.5 h-7">
           <TabsTrigger value="settings" className="text-[10px]">Settings</TabsTrigger>
           <TabsTrigger value="style" className="text-[10px]">Style</TabsTrigger>
+          <TabsTrigger value="fields" className="text-[10px]">Fields</TabsTrigger>
         </TabsList>
 
         {/* SETTINGS TAB */}
@@ -367,6 +369,12 @@ export default function ContainerForm({
               <LayoutCascadeSection occurrence={occurrence} />
             </>
           )}
+        </TabsContent>
+
+        {/* FIELDS TAB — a container can carry fields like anything else; until
+            this existed the only way to bind one was a migration. */}
+        <TabsContent value="fields" className="max-h-[55vh] overflow-y-auto px-3 pb-2 mt-1">
+          <FieldBindingsEditor module={container} />
         </TabsContent>
 
       </Tabs>

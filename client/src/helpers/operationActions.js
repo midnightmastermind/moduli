@@ -249,6 +249,58 @@ export function resolveExpr(expr, $vars) {
 // "$c0" } }] }` — gets its `$var` leaves substituted. Literal strings pass
 // through unchanged (resolveExpr returns non-`$`/non-prefixed strings as-is),
 // so node `type`/`text` values are preserved.
+/**
+ * Stamp `_ancestors` onto freshly-cloned occurrence stubs.
+ *
+ * WHY THIS EXISTS. `CREATE` and `COPY_LINK` each walk the parent chain for the
+ * item they mint, because without it a same-pipeline
+ * `FIND … _ancestors HAS_ANCESTOR <someId>` is blind to what was just created
+ * (the 2026-05-05 fix, with its reason written at the CREATE site). The CLONE
+ * paths — APPLY_TEMPLATE and clone-subtree — publish their stubs into
+ * `$allItems` and the role slices WITHOUT that walk, so every cloned node
+ * carried an undefined `_ancestors` and any ancestor-scoped FIND over the
+ * clones silently matched nothing.
+ *
+ * That is not hypothetical: `Day Page: Build` clones a day column and then
+ * looks up the question container inside it by
+ * `_ancestors HAS_ANCESTOR $colId` + identitySignature. The FIND bound null,
+ * its own `$dqId IS_NOT_EMPTY` guard swallowed it, and the day's question was
+ * never filled on the pass that built the column.
+ *
+ * A CHILD MAY BE STUBBED BEFORE ITS PARENT (the clone walk is depth-first,
+ * leaves first), so this cannot be done inline during the walk — a child's
+ * chain runs THROUGH a parent that does not exist yet. Resolving here, against
+ * a map of the stubs PLUS the existing world, is what lets a deep clone reach
+ * past the new subtree into the real tree above it.
+ *
+ * Stubs are mutated IN PLACE deliberately: they were published into `$vars` by
+ * reference, so the collections see the enrichment without being rebuilt — the
+ * same reasoning `patchAllItemsCache` records for the read-model entry.
+ */
+export function stampCloneAncestors(stubs, occurrencesById) {
+  if (!Array.isArray(stubs) || !stubs.length) return;
+  const stubById = new Map(stubs.map((st) => [st.id, st]));
+  const memo = new Map();
+
+  const chainFor = (id, seen) => {
+    if (memo.has(id)) return memo.get(id);
+    if (seen.has(id) || seen.size > 64) return [];   // cycle / runaway depth
+    seen.add(id);
+    const occ = stubById.get(id) || occurrencesById?.[id];
+    const parentId = occ?.parentId;
+    // A parent naming nothing we can see ends the chain rather than throwing —
+    // a clone rooted at a folder is the normal case, not an error.
+    const out = parentId ? [parentId, ...chainFor(parentId, seen)] : [];
+    memo.set(id, out);
+    return out;
+  };
+
+  for (const st of stubs) {
+    if (!st?.id) continue;
+    st._ancestors = chainFor(st.id, new Set());
+  }
+}
+
 export function deepResolveExpr(value, $vars) {
   if (typeof value === "string") return resolveExpr(value, $vars);
   if (Array.isArray(value)) return value.map(v => deepResolveExpr(v, $vars));
@@ -3055,6 +3107,11 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
 
       // CREATE_ITEM auto-appends each new occurrence to its parent.
 
+      // Every clone's ancestor chain, resolved once the whole subtree exists —
+      // a child is stubbed before its parent, so this cannot happen inline.
+      // Without it an ancestor-scoped FIND over the clones matches nothing.
+      stampCloneAncestors(newOccStubs, context.occurrencesById);
+
       // resultVar holds full stubs (each has .id) so downstream LOOP+UPDATE
       // can bind to the records via `as: "$newOcc"` and `path: "$newOcc.fields..."`
       if (cfg.resultVar) $vars[cfg.resultVar] = newOccStubs;
@@ -3179,6 +3236,9 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
 
       const rootCloneId = clone(sourceOccurrenceId, target.id);
       if (!rootCloneId) break;
+
+      // Same reason as the APPLY_TEMPLATE path above.
+      stampCloneAncestors(newOccStubs, context.occurrencesById);
 
       if (cfg.resultVar) $vars[cfg.resultVar] = newOccStubs;
       if (cfg.resultIdsVar) $vars[cfg.resultIdsVar] = newOccIds;
