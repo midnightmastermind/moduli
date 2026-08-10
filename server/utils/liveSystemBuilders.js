@@ -1816,6 +1816,20 @@ export function makeDayPageBuildOp({
                 // has already answered would orphan their answer.
                 condition: { operator: "AND", rules: [
                   { id: uid(), left: "$dqId", comparator: "IS_NOT_EMPTY", right: "" },
+                  // `$dq.id` — NOT redundant with the line above. A FIND that
+                  // matches MORE THAN ONE binds an ARRAY, and an array of ids is
+                  // not empty, so `$dqId IS_NOT_EMPTY` PASSES; the UPDATE below
+                  // then needs a record with `.id` and throws "$dq has no id to
+                  // update" (user, 2026-08-10). Measured cause: two day columns
+                  // on poms grid carry TWO occurrences with this signature each
+                  // — the 2026-07-31 (3) duplicate-wrapper class. An array has
+                  // no `.id`, so this rule makes a multi-match SKIP the fill
+                  // instead of throwing. Fails closed, like the rest of this op.
+                  //
+                  // Kept BESIDE the $dqId rule rather than replacing it: a FIND
+                  // that matches nothing may leave $dq unbound, and the $dqId
+                  // check is what already guards that path today.
+                  { id: uid(), left: "$dq.id", comparator: "IS_NOT_EMPTY", right: "" },
                   { id: uid(), left: `$dq.fields.${journalQuestionFieldId}.value`, comparator: "IS_EMPTY", right: "" },
                 ]},
                 then: [
