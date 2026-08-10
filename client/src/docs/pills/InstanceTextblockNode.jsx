@@ -1,17 +1,18 @@
 // docs/pills/InstanceTextblockNode.jsx
 // NodeView for the instanceTextblock TipTap node.
-// Renders a DocContent sub-editor with a RadialMenu handle in the top-left.
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+// Owns the ProseMirror concerns only — NodeViewWrapper, getPos/deleteNode, the
+// embed delete registry, the drag registration and the caret hand-off between
+// adjacent blocks. The BODY (field binding + lazy editor) belongs to
+// ModuleTextblock's `block` context.
+import React, { useCallback, useEffect, useRef } from "react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { disarmDraggableUntilHandle } from "../../helpers/dragSystem";
 import { useGridActions } from "../../GridActionsContext";
-import DocContent from "../../modules/DocContent.jsx";
-import BoundBody from "../../modules/BoundBody.jsx";
+import ModuleTextblock from "../../modules/ModuleTextblock.jsx";
 import RadialMenu from "../../ui/RadialMenu.jsx";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { embedDeleteRegistry } from "../../helpers/embedRegistry.js";
-import { resolveEditorBinding } from "../../state/editorBindings.js";
 import {
   isProvisionalTextblock, discardProvisionalTextblock, suppressTextblockMint,
   getProvisionalOccurrence,
@@ -47,14 +48,6 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
   const instance = modulesById?.[instanceId] || null;
   const wrapperRef = useRef(null);
   const handleRef = useRef(null);
-
-  // Editor↔field body binding: when set, the inner DocContent is replaced by
-  // a BoundBody render that reads (and in Task 4, writes back to) a linked
-  // occurrence's target field instead of this textblock's own textmap.
-  const bodyBinding = useMemo(
-    () => resolveEditorBinding({ occurrence, module: instance, slot: "body" }),
-    [occurrence, instance]
-  );
 
   // Per-occurrence drag mode (move / copy / copylink). Mirrors ModuleInstance —
   // defaults to occurrence.dragMode → instance.defaultDragMode → "move". Stored
@@ -340,43 +333,24 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
         </div>
 
         {occurrence ? (
-          bodyBinding ? (
-            <BoundBody hostOccurrence={occurrence} binding={bodyBinding}>
-              <DocContent
-                occurrence={occurrence}
-                dispatch={dispatch}
-                socket={socket}
-                hideToolbar={true}
-                // A block minted a frame ago must mount its real editor NOW: 2026-08-07
-                // records that deferring alone left a new block un-editable for 1223ms —
-                // "the original wait, moved."
-                lazy={!isProvisionalTextblock(occurrenceId)}
-                onExitBlock={handleExitBlock}
-                onDeleteBlock={handleNavigateBack}
-                onEmptyBlur={handleEmptyBlur}
-              />
-            </BoundBody>
-          ) : (
-            // Inner DocContent sits flush at the top of the card. The
-            // floating RadialMenu handle is absolute-positioned at top:4 /
-            // left:2 and the wrapper's paddingLeft:22 already reserves the
-            // horizontal column for it, so the text doesn't overlap the
-            // handle and we don't need a top spacer that pushes content
-            // down the box.
-            <DocContent
-              occurrence={occurrence}
-              dispatch={dispatch}
-              socket={socket}
-              hideToolbar={true}
-              // A block minted a frame ago must mount its real editor NOW: 2026-08-07
-              // records that deferring alone left a new block un-editable for 1223ms —
-              // "the original wait, moved."
-              lazy={!isProvisionalTextblock(occurrenceId)}
-              onExitBlock={handleExitBlock}
-              onDeleteBlock={handleNavigateBack}
-              onEmptyBlur={handleEmptyBlur}
-            />
-          )
+          // The BODY belongs to ModuleTextblock; this node view keeps only the
+          // ProseMirror concerns (NodeViewWrapper, getPos/deleteNode, the delete
+          // registry, the caret hand-off). The field binding and the lazy editor
+          // live behind the `block` context.
+          <ModuleTextblock
+            context="block"
+            occurrence={occurrence}
+            module={instance}
+            dispatch={dispatch}
+            socket={socket}
+            // A block minted a frame ago must mount its real editor NOW: 2026-08-07
+            // records that deferring alone left a new block un-editable for 1223ms —
+            // "the original wait, moved."
+            lazy={!isProvisionalTextblock(occurrenceId)}
+            onExitBlock={handleExitBlock}
+            onDeleteBlock={handleNavigateBack}
+            onEmptyBlur={handleEmptyBlur}
+          />
         ) : isProvisionalTextblock(occurrenceId) ? (
           // Minted a frame ago; its occurrence has not reached the store yet.
           // The insert is deliberately ahead of the store writes so the block
