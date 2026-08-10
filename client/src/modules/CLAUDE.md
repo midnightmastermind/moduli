@@ -1,6 +1,36 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-08-09. This folder implements occurrence-based view routing._
+_Updated: 2026-08-10. This folder implements occurrence-based view routing._
+
+## Recent Changes (2026-08-10 — `ModuleTextblock`: role:"textblock" gets its own renderer)
+- **THE TASK'S PREMISE WAS WRONG, and measuring is what found it.** It assumed a textblock inherits
+  the ModuleInstance shell. Measured across three grids (`server/scripts/_textblockcensus.mjs`,
+  read-only), that is true of **~5%**: on poms grid, of 1036 textblock occurrences, **721 render
+  through `InstanceTextblockInlineNode`, 246 through `InstanceTextblockNode`, and only 45 + 6
+  through `ModuleInstance` + `renderBody`.** Neither node view mounts ModuleInstance at all — the
+  block one says *"Mirrors ModuleInstance"*, i.e. it RE-IMPLEMENTS the shell. So the thing to escape
+  was never the shell; it was that **one role had three renderers**.
+- **NO DATA CHANGE.** `role:"textblock"` is already first-class; module↔occurrence is **1:1 (0 of
+  1036 modules reused)**; no children, no `viewId`, no `ownStyle`, no `linkedGroupId`. Purely a
+  rendering split.
+- **Fields are dead weight for textblocks:** 5.1% of modules bind one and **1.8% of occurrences hold
+  a value** (instances: 100% / 97.9%); on test grid 2 it is **0%**. All 56 binders are `Daily Answer`.
+- **`ModuleTextblock.jsx` (NEW)** dispatches by CONTEXT (`card` / `block` / `inline`) because the
+  three have **disjoint feature sets** — only `block` has the BoundBody binding + the provisional
+  lifecycle, only `card` has `listCapRows`, the chip exists on card and inline but not block. A union
+  renderer would silently GRANT features, which is what *"works exactly the same"* forbids. An
+  unknown context THROWS rather than rendering an arbitrary one.
+- **`card` COMPOSES ModuleInstance** rather than reimplementing the shell (which is shared with
+  ArtifactCard and is not going away), so the routing change is behaviour-identical by construction.
+- **`floatHandle` PASSES THROUGH — do not hardcode it.** The five call sites disagree:
+  ModuleContainer's canvas renderer, PageBoard and PageCanvas pass it; **ModuleContainer's list
+  renderer and ModuleEmbedNode deliberately do not.** The plan's first draft supplied it inside
+  ModuleTextblock, which would have changed the handle treatment at two of five sites. Pinned in
+  both directions by a test.
+- **`inline` is DELIBERATELY NOT ROUTED HERE** (it throws). Diffed at implementation time: on a card
+  the whole chip IS the link, inline the chip is an editable text zone and only the arrow opens the
+  target. Unifying changes what a click does for **709 of 1036** textblocks. Full table in
+  `docs/superpowers/specs/2026-08-10-textblock-occurrence-type-design.md` §6.5.
 
 ## Recent Changes (2026-08-09 — a BOARD page renders its leaf children as themselves)
 - **User: *"a board page can hold artifacts. as occurances in the page. so would canvases."*

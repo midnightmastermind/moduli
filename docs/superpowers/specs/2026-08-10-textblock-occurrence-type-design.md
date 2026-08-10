@@ -286,6 +286,36 @@ re-checked. Current consumers of a rendered `.ProseMirror` (excluding tests):
 
 ---
 
+## 6.5 RESOLVED AT IMPLEMENTATION TIME — the inline chip keeps its own renderer
+
+§2 flagged the duplicate link-chip implementation as the riskiest single change in the plan, and
+Stage 3 gated it on diffing the two before writing anything. **Diffed, and they are not
+reconcilable without a visible change. The inline path is therefore left alone**, which is the
+outcome the plan pre-authorized rather than a failure to finish.
+
+| | `card` — TextblockCard's link branch | `inline` — InstanceTextblockInlineNode |
+|---|---|---|
+| structure | one `<a>` / `<button>` + two spans | **three zones**: `.itbi-handle` / `.itbi-content` / `.itbi-arrow` |
+| styling | inline `chipStyle` object | CSS classes (`itbi--url` / `itbi--occ`) |
+| text | read-only label | **contentEditable**, commits on blur / Enter, reverts on Escape |
+| drag | none | Pragmatic `draggable`, handle-scoped, with the Firefox attribute disarm |
+| radial menu | none | hover-mounted, additionally gated on `editor.isEditable` |
+| caret | n/a | `placeCaretFromPoint` — the Firefox caret-suppression fix |
+| **clicking the chip** | **opens the target** | **places a caret to edit it**; only the arrow opens |
+
+That last row is the one that decides it. On a card the whole chip IS the link; inline, the chip is
+an editable text zone and opening the target is the arrow's job. Unifying them changes what a click
+does — **for 709 of poms grid's 1,036 textblocks**, the single largest behaviour surface in this
+work. The constraint is *"it should work exactly the same way it does now"*, so the correct move is
+to stop.
+
+**What this costs, stated plainly:** one duplicate implementation stays. `ModuleTextblock` throws
+for `context: "inline"`, so nothing can route there by accident, and the inline characterization
+tests (§ Stage 0) remain the gate if anyone revisits it. What would make it tractable later is a
+product decision about whether an inline chip should be editable in place at all — not a refactor.
+
+---
+
 ## 7. Open question for implementation time
 
 Stage 2 offers a choice the plan deliberately does not pre-decide: whether `ModuleTextblock` ever
