@@ -7384,8 +7384,29 @@ export async function createLiveData(userId, options = {}) {
                   id: uid(), type: "if",
                   // Only pages that actually carry their own date — leave the
                   // ones deliberately opted out of the date cascade alone.
+                  // CARRIES ITS OWN DATE — and a CLEARED date is not one.
+                  //
+                  // Clearing leaves a period object whose value is null, which
+                  // is still a non-empty OBJECT, so the bare IS_NOT_EMPTY this
+                  // replaces stamped today onto it overnight and silently undid
+                  // the user's clear. Since 2026-08-11 a cleared filter means
+                  // "show nothing dated" — a deliberate state, not a stale one.
+                  //
+                  // The `unit IS_EMPTY` arm is what keeps a BARE STRING passing:
+                  // a string has no `.unit`, so that arm is true for it and
+                  // false for every period object. Requiring `.value` alone
+                  // would skip a plain "YYYY-MM-DD" override entirely.
+                  //
+                  // The `dates` arm covers a non-consecutive multi-pick, which
+                  // can carry a null anchor while still naming real days — that
+                  // is a selection, and it must keep moving forward.
                   condition: { operator: "AND", rules: [
                     { id: uid(), left: `$pg.filterOverride.${dateFieldId}`, comparator: "IS_NOT_EMPTY", right: "" },
+                    { id: uid(), operator: "OR", rules: [
+                      { id: uid(), left: `$pg.filterOverride.${dateFieldId}.value`, comparator: "IS_NOT_EMPTY", right: "" },
+                      { id: uid(), left: `$pg.filterOverride.${dateFieldId}.unit`,  comparator: "IS_EMPTY",     right: "" },
+                      { id: uid(), left: `$pg.filterOverride.${dateFieldId}.dates`, comparator: "IS_NOT_EMPTY", right: "" },
+                    ] },
                   ] },
                   then: [
                     { id: uid(), type: "action", config: { type: "UPDATE", path: `$pg.filterOverride.${dateFieldId}`, value: "$today" } },
