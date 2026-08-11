@@ -73,7 +73,31 @@ a shape that is live on the grid**, and the `unit IS_EMPTY` arm is the load-bear
 Trackers page. `0069`. *Shipping a behaviour change means re-asking what now DEPENDS on the state it
 created.*
 
-**Also found, not fixed:** Aug 10 had THREE wheels — the merge-duplication defect compounding. Filed.
+**THE MERGE DUPLICATION IS ROOT-CAUSED AND FIXED — it was upstream of all of it.** `APPLY_TEMPLATE
+mode:"merge"` decides "this already exists" by scanning the TARGET's `occurrences[]` for a matching
+`identitySignature`. **A child that fell OUT of that array is invisible to that scan** — the
+created-but-unlinked class, repaired from four directions before and now reached from a fifth — so
+merge concluded "not here yet" and cloned a second one, then a third. The census is unmistakable:
+```
+Monday, August 10th   Journal / Notes / Tasks Completed / Highlights   x3 each
+                      exactly 1 UNLISTED + 2 listed, every group
+284 occurrences whose parent does not list them
+  277 unsigned                 merge never matched these anyway
+    6 SIGNED                   precisely the stray duplicates
+    1 SIGNED, listed elsewhere the shared wheel — correct, and never reached here
+```
+A signed child whose `parentId` names the target IS the node that signature means. **Two decisions
+carry the weight: LISTED WINS when both exist** (preferring the stray would top up the invisible copy
+and leave the visible one stale — this can only stop new duplicates, never worsen old ones), and **an
+adopted child is RE-LISTED**, because a parent renders `occurrences[]` and topping up a node nobody
+lists is the listed-but-not-embedded failure wearing a new hat. Scoped to SIGNED nodes: `parentId`
+alone is far too broad a net without a signature to pin identity. Both halves A/B'd INDEPENDENTLY —
+disabling the fallback fails 2, disabling the re-list fails exactly 1.
+
+**The duplicate DATA is deliberately not cleaned up here.** The 0022/0023 rule is that the keeper is
+whichever copy HOLDS WRITING and anything containing text is never deleted — that needs
+`decompressTextmap` over each candidate and is its own reviewed pass. Stopping the bleeding and
+repairing the wound are two changes; shipping them together is how a cleanup gets rushed.
 
 **A 502 on the post-deploy check was the documented restart window, not an outage** — bundle 200 +
 index 502 is the tell, first retry answered 200, pm2 online with 13s uptime, `dist/index.html` fresh,
