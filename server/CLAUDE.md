@@ -2,6 +2,51 @@
 
 _Updated: 2026-08-07. Check this file before re-reading source._
 
+## Recent Changes (2026-08-11 (2) — the kind recurrence, orphan MODULES, and unique names)
+- **`utils/orphanModules.js` (NEW, 11 tests)** — the inverse of `gridIntegrity`'s `missing-module`:
+  a MODULE that no occurrence places. Deletions remove the occurrence and its subtree and leave the
+  module behind. **385 on poms grid, 18 on test grid 1, 0 on test grid 2.** Wired into
+  `scripts/sweepOrphans.js` as a fourth pass, with the same dump-before-delete net.
+- **THE REFUSALS ARE THE WHOLE RISK, each A/B'd (removing one fails its own test + the
+  reason-reporting one):** a TEMPLATE ROOT is kept — having no placement is its *normal* state, and
+  sweeping it would delete what every future apply clones from; anything an operation or textmap
+  still names is kept; and an **AGE FLOOR (60 min)** keeps anything freshly minted, because
+  `create_module` and `create_occurrence` are separate writes and the occurrence create is QUEUED
+  server-side — sweeping that gap deletes a module whose placement is still in flight.
+- **TWO OF THE FOUR REFERENCE CHECKS PROVED NOTHING, recorded rather than counted as coverage.** A
+  CONTROL over LIVE module ids finds **17 in operations and 967 in textmaps**, so a zero for the
+  orphans is a measurement. **Field configs and `grid.meta` return zero even for live modules** —
+  passing them says nothing at all. *An absent signal is not a measurement of zero.*
+- **`0076-clear-inert-kind-recurrence`** — `0003` cleared 525 inert kinds on 2026-07-29 and **232
+  came back**. The census identified the cause and nothing else would have: all 232 `instance/doc`,
+  all carrying `appliedFromTemplateId`, 2026-08-02..08-11 at ~6-12/day (the Schedule's daily routine
+  clones) — **while every one of their TEMPLATES is `instance/-`, i.e. CLEAN.** A clean source
+  producing dirty clones points past the clone code.
+- **THE CAUSE: one decision, two copies, one of them fixed.** The clone copies `kind: srcMod.kind`
+  faithfully, so a kindless template emits `undefined` — and **`bindSocketToStore`'s CREATE_ITEM
+  applier had its OWN `|| "doc"`**. The 2026-07-29 removal landed on the CREATE action and never
+  here. Both now call one exported `kindForNewModule`, and `gridIntegrity` exports
+  `KIND_BEARING_ROLES` so the migration cannot restate it differently.
+- **THE A/B IS THE REUSABLE PART:** restoring the old default fails the APPLIER test and leaves the
+  pure-helper test GREEN. *A test of the helper would never have caught this* — the seam trap this
+  repo keeps paying for, demonstrated rather than asserted.
+- **`0077-unique-field-names`** — the user's standing rule (2026-07-14). Five pairs, each an INPUT
+  field and its DISPLAY twin; only the twin moves, because the input field is the user's vocabulary.
+  `Calories/Protein/Carbs/Fats → Total X`, and the `Due` number tile → `Due This Week`. **Names come
+  from the SEED'S OWN KEYS** (`totalProtein`, `upcomingThisWeek`), and the seed already calls its
+  other twins "Total Phone Calls"/"Total Workouts". **The SEED is fixed in the same commit** so a
+  reseed and a migration cannot drift. Not cosmetic: `0053` records having to discriminate by TYPE
+  because "this grid has TWO fields called 'Due'". **Checked first — `[Field]` tokens resolve BY
+  NAME**, and 0 tokens name any of the five (control: the scan found the one real token).
+- **Verified by reading the grid back**, not the logs: 0 duplicate names, 0 stray kinds, all five
+  renamed fields still bound (bindings are by id), **2707 − 385 swept = 2322 modules, exact**. poms
+  grid **3 warnings → 1**, both live grids at **0 errors**. 848 server + 2445 client tests.
+- **STILL OPEN, reported not swept: 15 `unused-field` on poms grid.** Two (`Title`, `URL`) were
+  created *deliberately* by `0061` for the bookmark intake shape and `Notes` is reused by it, so
+  deleting them breaks a shipped feature's prerequisites. The other 13 date to 2026-07-28 and look
+  like the 2026-07-25 media-retarget leftovers the 2026-07-29 audit already declined to delete.
+  **Which of those the user still wants is theirs to say, not a guess to make.**
+
 ## Recent Changes (2026-08-10 — `0064` universal fields + structural tags; the SEED calls it)
 - **`migrations/0064-universal-fields-and-tags.mjs` (24 tests)** — stamps
   `grid.meta.universalFieldIds` (Tags + Date) so every occurrence carries them, and backfills Tags
