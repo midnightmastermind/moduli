@@ -664,6 +664,16 @@ function Container({
   const childH = Number.isFinite(layoutCascade?.resolved?.childMaxHeight) && layoutCascade.resolved.childMaxHeight > 0
     ? layoutCascade.resolved.childMaxHeight
     : 200;
+  // HOW EACH CHILD COMPOSES ITSELF — title above its fields, or beside them.
+  // A CONTAINER decides this for its DIRECT children (a CSS custom property
+  // reaches exactly one level, which is the scope we want — it is not a
+  // cascade). `ModuleInstance` reads these through `var()` on its own inline
+  // style, so no `!important` is involved and a container that sets nothing
+  // renders exactly as before. Defaults to "column" under wrap, because a
+  // square tile has no room for a side-by-side title, and that was the
+  // hardcoded behaviour this replaces.
+  const childContentDir = layoutCascade?.resolved?.childContentDirection
+    || (childWrap ? "column" : null);
 
   // Occurrence controls order — pass containerOccurrence so ordering reads from occurrence.occurrences.
   // When `module.meta.allowChildContainers` is set, fall back to the full modulesById lookup so
@@ -1601,6 +1611,13 @@ function Container({
               // CSS vars because the rest of the shape (aspect ratio, hiding the
               // between-item insert gaps) is CSS.
               ...(childWrap ? { "--child-w": `${childW}px`, "--child-h": `${childH}px`, "--child-gap": `${childGap}px` } : null),
+              ...(childContentDir === "column"
+                ? {
+                    "--instance-content-direction": "column",
+                    "--instance-content-wrap": "nowrap",
+                    "--instance-content-justify": "flex-start",
+                  }
+                : null),
             }}
           >
             {itemsWithOccurrences.map(({ instance, occurrence }, idx) => {

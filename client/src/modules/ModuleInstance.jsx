@@ -660,9 +660,22 @@ function InstanceInner({
         style={{
           flex: 1,
           display: "flex",
-          flexDirection: "row",
-          flexWrap: "wrap",
-          justifyContent: "space-between",
+          // COMPOSITION COMES FROM CONFIG, NOT FROM THIS FILE.
+          // These were literal values, and because an inline style beats any
+          // stylesheet rule regardless of specificity, every attempt to lay a
+          // tile out differently had to fight them with `!important` — six
+          // recorded times. A `var()` keeps the inline style (so nothing about
+          // the hot path changes) while letting the OWNING CONTAINER supply the
+          // value, which is what makes "title above fields vs beside them" a
+          // setting instead of a stylesheet edit.
+          //
+          // THE FALLBACKS ARE TODAY'S EXACT VALUES, so a surface that sets
+          // nothing renders byte-identically — the property that made
+          // universalFieldIds safe to ship everywhere at once.
+          flexDirection: "var(--instance-content-direction, row)",
+          flexWrap: "var(--instance-content-wrap, wrap)",
+          justifyContent: "var(--instance-content-justify, space-between)",
+          alignItems: "var(--instance-content-align, stretch)",
           gap: 2,
           rowGap: 4,
           minWidth: 0,

@@ -53,6 +53,10 @@ import { buildParentMap, cachedParentMap } from "./dragHitTesting";
 export const SURFACE_SHAPE_KEYS = Object.freeze([
   "mode", "columns", "childGap", "hideChildIds", "sortChildrenByField", "childMaxHeight",
   "childMinWidth", "childMaxWidth",
+  // How each child composes ITSELF (title above vs beside its fields). A shape
+  // key, so it does NOT cascade — a container states it for its own children,
+  // and a grandparent has no business reaching past that.
+  "childContentDirection",
 ]);
 
 /** The shape-only subset of a stored cascade partial (null when it has none). */

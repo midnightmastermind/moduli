@@ -4883,23 +4883,16 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 }
 /* Stack the tile: handle + title on top, fields underneath. */
 .container-items--wrap > .instance-wrap .instance-content {
-  /* EVERY ONE OF THESE NEEDS !important, and that is not defensive habit.
-     `ModuleInstance` sets flexDirection / flexWrap / justifyContent as INLINE
-     styles, and an inline style beats any stylesheet rule regardless of
-     specificity — the trap this file has now recorded SIX times. The first
-     version of this block only marked flex-wrap, so the tile stayed laid out
-     left-to-right and the user reported exactly that. The component cannot
-     know it is inside a wrap container, so the override belongs here. */
-  flex-direction: column !important;
-  flex-wrap: nowrap !important;
-  align-items: stretch !important;
-  justify-content: flex-start !important;  /* base is space-between, which in a
-                                              column pushes the fields to the
-                                              bottom edge */
+  /* NO `!important` HERE ANY MORE. `ModuleInstance` used to hardcode
+     flexDirection / flexWrap / justifyContent as inline literals, so every
+     override had to shout; it reads `var(--instance-content-*)` now and the
+     CONTAINER supplies them (see ModuleContainer's childContentDirection).
+     What is left is genuine structure rather than a layout choice: fill the
+     capped box, and give the field block a bounded parent to scroll inside. */
   height: 100%;
   min-height: 0;
-  row-gap: 4px !important;
-  padding-right: 4px !important;
+  row-gap: 4px;
+  padding-right: 4px;
 }
 /* The header — drag handle + label. NEVER scrolls away. */
 .container-items--wrap > .instance-wrap .instance-content > div:first-child:not(.instance-body):not(.instance-fields) {
