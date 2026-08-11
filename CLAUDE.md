@@ -6,6 +6,68 @@
 
 ---
 
+### 2026-08-11 — three fixes the USER'S OWN WORDS designed; and a wheel nobody could ever click
+
+**"its a cascade of shown fields and auto applied fields"** — and, twice, *"universal fields isnt
+the name"*. Both corrections were right, and the name was wrong because I was treating a cascade as
+a hard-coded category.
+
+**THE TRACKERS BUG WAS A WHITELIST DOING THE WRONG JOB.** Fields carried by every occurrence were
+born HIDDEN and revealed by naming them in a `show`-mode `fieldVisibility`. But show-mode is a
+WHITELIST — "show Tags AND NOTHING ELSE" — and `fieldVisibility` is a nearest-wins cascade, so
+`0064` writing it on the Trackers page hid every tracker's own bound fields. The migration did the
+documented thing; the mechanism could not work. **Reusing the SHOWN cascade as the APPLIED cascade
+is the whole defect** — the same split, for the same reason, that gave `fieldReveal` its own cascade.
+Now `getEffectiveAutoAppliedFieldIds`: rooted at the grid, overridable anywhere, **a LIST not a
+flag** so *"turned off on occurances"* is `[]` and needs no second switch, and any level may ADD its
+own (a cascade only the grid can set is not a cascade). Verified through the REAL resolver on live
+data: **31/31 tracker tiles render their own fields (was 0), 35/35 still render Tags.** `0067`.
+
+**THE WHEEL: THE REPORTED BUG WAS THE SMALLER ONE.** The wheel is a Day Page TEMPLATE child, merge
+clones it per column, and **a clone does not carry `feed`** — so 5 of 6 had none and said "nothing
+to chart yet". But `Mood: Record Selection` is scoped `targetId: <the TEMPLATE's wheel>`, and a
+trigger scoped by occurrence id matches exactly ONE occurrence, so **clicking a wheel on any real
+day column matched nothing: no mood has ever been recorded**, including on the one day it displayed.
+Nobody reported it because the empty chart hid it. User's call — one wheel, multi-parented — fixes
+both: one feed, one id, one op that matches. The alternative (carry `feed` through APPLY_TEMPLATE)
+materialises ~130 occurrences AND ~130 modules **per day, forever**. The builder gained a GENERIC
+`sharedChildOccurrenceIds` (the Todo link in that same op already had the shape); nothing in it
+learns the word "graph". `0068`.
+
+**AND MY OWN MIGRATION WAS WRONG IN THE DANGEROUS WAY, caught only by the dry run.** It resolved the
+template by grepping the first `$allItemsById.<id>` in the pipeline — and got the **Schedule page**,
+because the op names it earlier. The dry run still read plausibly (*"template already does not list
+the graph — no change"*), so the critical unlist silently did nothing while every other line looked
+right. `resolveTemplateId` follows the variable chain now and returns null rather than guessing.
+**A selector that matches the wrong thing CONFIDENTLY is the `0035` class, and a count would never
+have caught it — only checking the dry run against a NAMED expectation did.**
+
+**"show nothing dated" SHIPPED ONLY BECAUSE THE DATA SETTLED THE RISK.** I flagged that "never set"
+and "explicitly cleared" might be the same state, which would make a slow load look like data loss.
+Measured instead of assumed — they are structurally different:
+```
+key ABSENT / rightVal null    no filter target ("— any —", or not bootstrapped)  -> passes
+{value: null, unit:"day"}     CLEARED ON PURPOSE  (what the Day Page carries)    -> hide dated
+a real value                  filters normally
+```
+So the change is one branch that fires only on the middle state. A multi-pick with a null anchor but
+real `dates[]` is a SELECTION, not a clear. *A risk worth raising is also worth measuring rather than
+trading away.*
+
+**Also found, not yet fixed:** the Schedule page STILL carries the stale `span:2, kind:"range"`
+override (the documented 2026-08-01 recurrence), and Aug 10 had THREE wheels — the merge-duplication
+defect compounding. Both filed.
+
+Every A/B fails exactly the test written for it: the naive template grep (1), the whitelist guard
+(2), the cleared-date branch (1). 2388 client + 716 server tests. Deployed twice, prod HEAD verified,
+chunks sha256-identical, the new key present in the SERVED bundles with the old key at 0 as the
+control. `0067` + `0068` applied to poms grid, each read back through the real resolver.
+
+**NOT VERIFIED IN A BROWSER, and it is the honest gap:** nobody has clicked the wheel and watched a
+mood record, or cleared a date and watched the columns go.
+
+---
+
 ### 2026-08-09 (8) — the date-nav task: HALF OF IT WAS ALREADY TRUE, and "49 ops" never meant 49 ops ran
 
 D7: *"daycol should only show up on the schedule or daypage and should be always based on the filter
