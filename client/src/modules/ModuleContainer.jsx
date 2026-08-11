@@ -193,6 +193,14 @@ function Container({
   embedRadialItems = null,
   embedOnDelete = null,
   embedSourceType = null,
+  // WHICH occurrence rendered this one. Not derivable from the data: a SHARED
+  // occurrence (the emotions wheel is multi-parented into every day column)
+  // has several parents, and `buildParentMap` keys child → ONE parent on a
+  // last-writer-wins scan, so every data-side ancestor walk picks an arbitrary
+  // one. Only the render tree knows which column the user is actually looking
+  // at, so it has to be passed down. Null for a top-level container, which is
+  // the honest answer — nothing rendered it.
+  renderParentOccurrenceId = null,
 }) {
   bumpRender("container");
   // RENDER-phase mark (body, not effect): with the commit mark below it, the
@@ -1634,6 +1642,10 @@ function Container({
                     occurrenceOverride={occurrence}
                     panelId={panelId}
                     pageOccurrenceId={pageOccurrenceId || null}
+                    // THIS container is what rendered the child — the same
+                    // reason `occurrenceOverride` is pinned here rather than
+                    // looked up ("multi-parent-safe", above).
+                    renderParentOccurrenceId={containerOccurrence?.id || null}
                     dispatch={dispatch}
                     socket={socket}
                     gapPx={6}
@@ -1701,6 +1713,7 @@ function Container({
           // of a query result (user, 2026-08-10).
           <ContainerGraph
             occurrence={containerOccurrence}
+            renderParentOccurrenceId={renderParentOccurrenceId}
             dispatch={dispatch}
             socket={socket}
           />

@@ -32,7 +32,7 @@ import { DEFAULT_VIEW, isDefaultView } from "../../helpers/graphView";
 import { useGridActionsSelector } from "../../GridActionsContext";
 import { runMatchingOperations } from "../../helpers/operationExecutor";
 
-export default function ContainerGraph({ occurrence, dispatch, socket }) {
+export default function ContainerGraph({ occurrence, renderParentOccurrenceId = null, dispatch, socket }) {
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const modulesById = useGridActionsSelector(s => s.modulesById);
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
@@ -89,6 +89,13 @@ export default function ContainerGraph({ occurrence, dispatch, socket }) {
   // A selection fires the ordinary trigger path, so an operation decides what a
   // click MEANS. This is the whole reason the feeling wheel needs no
   // graph-specific code: "record the mood" is an op matching onGraphSelect.
+  //
+  // `ancestorOccurrenceId` is WHERE THE CLICK HAPPENED, and it is the one fact
+  // no operation can recover for itself. A shared graph is multi-parented (the
+  // emotions wheel sits in every day column), so walking the data upward picks
+  // an arbitrary parent — `buildParentMap` keys child → ONE parent, last writer
+  // wins. Reporting the render context makes "record this on the day I clicked"
+  // expressible; without it the op can only ever guess a day.
   const handleSelect = useCallback((sel) => {
     if (!sel) return;
     const state = getState();
@@ -99,6 +106,7 @@ export default function ContainerGraph({ occurrence, dispatch, socket }) {
           type: "GraphSelectOp",
           occurrenceId: sel.occurrenceId,
           containerId: occurrence?.id,
+          ancestorOccurrenceId: renderParentOccurrenceId || null,
           value: sel.value,
           path: sel.path,
           seriesName: sel.seriesName,
@@ -111,7 +119,7 @@ export default function ContainerGraph({ occurrence, dispatch, socket }) {
       // A broken op must not take the chart down with it.
       console.warn("[graph] selection trigger failed:", e?.message || e);
     }
-  }, [occurrence?.id, getState, dispatch, socket, getOccMap, modulesById, fieldsById, operationsById]);
+  }, [occurrence?.id, renderParentOccurrenceId, getState, dispatch, socket, getOccMap, modulesById, fieldsById, operationsById]);
 
   if (!spec) {
     return (
