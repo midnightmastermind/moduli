@@ -471,6 +471,21 @@ export function getEffectiveFieldRevealForOccurrence(occ, { occurrencesById, par
 //
 // Nearest-wins, same walk and the same memoised parent map as the two above,
 // rooted at the grid so it is genuinely "set at a grid level and passed down".
+/**
+ * Which ROLES receive the grid's auto-applied fields. `null` = every role,
+ * which is what every grid did before this existed, so an unset key changes
+ * nothing.
+ *
+ * Grid-level ONLY, deliberately: this is a statement about what a KIND of
+ * surface is for ("a page header is chrome, a row carries data"), not about
+ * one page — and unlike the auto-applied LIST it must not cascade, or setting
+ * it on a page would silence the instances beneath it.
+ */
+export function getAutoAppliedRoles(grid) {
+  const v = grid?.meta?.autoAppliedRoles;
+  return Array.isArray(v) ? v.filter((r) => typeof r === "string" && r) : null;
+}
+
 export function getEffectiveAutoAppliedFieldIds(
   occ, { occurrencesById, parentByChildId, grid } = {},
 ) {

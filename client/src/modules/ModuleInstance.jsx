@@ -49,6 +49,7 @@ import {
   getEffectiveFieldVisibilityForOccurrence,
   fieldPassesVisibility,
   getEffectiveAutoAppliedFieldIds,
+  getAutoAppliedRoles,
 } from "../state/selectors";
 import { consumeLabelEdit } from "../helpers/pendingLabelEdit.js";
 import { primaryMediaOf, filesFieldIdFor } from "../helpers/occurrenceMedia";
@@ -339,8 +340,9 @@ function InstanceInner({
       fieldsById,
       fieldVisibility: effectiveFieldVisibility,
       autoAppliedFieldIds,
+      autoAppliedRoles: getAutoAppliedRoles(ctxGrid),
     });
-  }, [instance, fieldsById, effectiveFieldVisibility, autoAppliedFieldIds]);
+  }, [instance, fieldsById, effectiveFieldVisibility, autoAppliedFieldIds, ctxGrid]);
 
   // ── Media section ──────────────────────────────────────────────────────────
   // A field binding with role:"media" surfaces below the label + fields as an

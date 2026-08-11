@@ -64,16 +64,39 @@ export function gridAutoAppliedFieldIds(grid) {
  * @param fieldsById           field lookup
  * @param fieldVisibility      RESOLVED shown cascade (`{mode, fieldIds}` | null)
  * @param autoAppliedFieldIds  RESOLVED auto-applied cascade (array of field ids)
+ * @param autoAppliedRoles     which ROLES receive the auto-applied list; null =
+ *                             every role, which is the historical behaviour
+ *
+ * ── WHY ROLES AND NOT THE CASCADE (user, 2026-08-11: *"please hide date, tags
+ *    on page headers too"*) ────────────────────────────────────────────────
+ *
+ * The obvious move is to write `[]` onto the page's own auto-applied cascade.
+ * It cannot work: that cascade is NEAREST-WINS, so `[]` on a page silences
+ * every occurrence beneath it — and the whole point of the Trackers / Tasks /
+ * Schedule pages is that the INSTANCES under them show Date. The cascade
+ * answers "which fields exist here and below"; this answers "which kinds of
+ * surface render them", and they are different questions.
+ *
+ * Measured before choosing: 3 pages and 147 containers were rendering the
+ * universal Date/Tags purely because they sit above (or are) the three pages
+ * where Date is shown. A page header and a container header are chrome; the
+ * row is the thing carrying the data.
+ *
+ * STILL NAMES NO FIELD, and an absent list behaves exactly as before — the
+ * property that makes this safe to have on every surface.
  */
 export function resolveOccurrenceFields({
   module,
   fieldsById,
   fieldVisibility = null,
   autoAppliedFieldIds = [],
+  autoAppliedRoles = null,
 } = {}) {
   if (!fieldsById) return [];
   const bindings = Array.isArray(module?.fieldBindings) ? module.fieldBindings : [];
-  const applied = Array.isArray(autoAppliedFieldIds) ? autoAppliedFieldIds : [];
+  const roleAllowed = !Array.isArray(autoAppliedRoles)
+    || autoAppliedRoles.includes(module?.role);
+  const applied = roleAllowed && Array.isArray(autoAppliedFieldIds) ? autoAppliedFieldIds : [];
 
   // Show-mode ids: a field named here renders EVEN IF its binding is hidden.
   // The hidden flag means "not in the normal inline render"; an explicit show

@@ -32,6 +32,7 @@ import {
   getEffectiveFieldVisibilityForOccurrence,
   getEffectiveFieldRevealForOccurrence,
   getEffectiveAutoAppliedFieldIds,
+  getAutoAppliedRoles,
 } from "../state/selectors";
 
 /**
@@ -69,8 +70,9 @@ export default function OccurrenceFields({
   const items = useMemo(
     () => resolveOccurrenceFields({
       module, fieldsById, fieldVisibility: visibility, autoAppliedFieldIds: applied,
+      autoAppliedRoles: getAutoAppliedRoles(grid),
     }),
-    [module, fieldsById, visibility, applied],
+    [module, fieldsById, visibility, applied, grid],
   );
 
   // Render NOTHING when there is nothing to show — an empty strip in the corner
