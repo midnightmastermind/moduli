@@ -1279,6 +1279,11 @@ function Container({
               {containerOccurrence?.feed?.enabled && (
                 <Rss size={10} style={{ color: "rgba(96,165,250,0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
               )}
+              {/* FIELDS SIT LEFT OF THE FILTER (user 2026-08-11: "fields should
+                  go to the left of filters anyway"). Inside the right-aligned
+                  cluster rather than after it, so the whole group stays
+                  right-aligned and the order reads fields → filter → add. */}
+              {!isBodyCollapsed && <OccurrenceFields {...ownFieldsProps} />}
               <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={containerOccurrence} />
               <QuickAddMenu
                 targetRole="instance"
@@ -1289,11 +1294,6 @@ function Container({
                 openTrigger={quickAddTrigger}
               />
             </div>
-            {/* The container's OWN fields — the SAME strip the heading layout
-                gets. It only ever rendered in the heading branch, so a plain
-                container with a visible binding showed nothing at all (49 such
-                bindings on poms grid, measured 2026-08-10). */}
-            {!isBodyCollapsed && <OccurrenceFields {...ownFieldsProps} />}
           </>
         )}
 

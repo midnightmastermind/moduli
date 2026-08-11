@@ -4835,16 +4835,45 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   gap: var(--child-gap, 8px);
 }
 .container-items--wrap > .instance-wrap {
-  width: var(--child-w, 132px);
-  /* Square by construction rather than by a fixed height, so the card keeps
-     its proportions at any configured width. */
-  aspect-ratio: 1 / 1;
+  width: var(--child-w, 160px);
+  /* A SQUARE, and the content scrolls inside it. The first version of this was
+     `aspect-ratio: 1/1` + `overflow: hidden`, which CLIPPED a tile carrying
+     more fields than fit — user 2026-08-11: *"the entire tracker is getting cut
+     off if there are too many fields (vertically)"*. Growing the tile instead
+     was rejected in the same breath: the user wants the handle and title
+     pinned and the FIELDS scrollable, which keeps the grid even. */
+  height: var(--child-w, 160px);
   margin: 0;
-  overflow: hidden;
+  overflow: hidden;              /* the scroll lives on the field block below */
 }
 .container-items--wrap > .instance-wrap > .instance-row {
   height: 100%;
-  align-items: flex-start;
+  min-height: 0;                 /* or the flex child refuses to shrink */
+  align-items: stretch;
+}
+/* Stack the tile: handle + title on top, fields underneath. */
+.container-items--wrap > .instance-wrap .instance-content {
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap !important;  /* the base sets wrap INLINE, which beats a
+                                    stylesheet rule — the trap this file has
+                                    recorded five times */
+  height: 100%;
+  min-height: 0;
+  row-gap: 4px !important;
+}
+/* The header — drag handle + label. NEVER scrolls away. */
+.container-items--wrap > .instance-wrap .instance-content > div:first-child:not(.instance-body):not(.instance-fields) {
+  flex: 0 0 auto;
+  align-self: stretch;
+}
+/* The fields — take the rest and scroll within it. */
+.container-items--wrap > .instance-wrap .instance-fields {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;  /* don't chain the scroll out to the board */
+  align-content: flex-start;
 }
 /* The between-item insert gaps are a VERTICAL affordance — a full-width strip
    that says "put one here". In a wrapping row they become flex items of their

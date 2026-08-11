@@ -166,7 +166,14 @@ export default function PageBoard({
     soloColumn ? { flex: "1 1 auto", minWidth: 0, maxWidth: "none", width: "100%", ...capStyle }
       : mode === "flex-row" ? { flex: "0 0 auto", minWidth: colMinW, maxWidth: colMaxW, ...capStyle }
       : mode === "grid" ? { minWidth: 0, minHeight: 100, ...capStyle }
-      : capStyle || undefined;
+      // STACK (the default, and what a page falls to when its mode is one this
+      // renderer does not implement — e.g. "wrap", which is a CHILD-arrangement
+      // rule meant for the containers below). A stacked child spans the board:
+      // stated explicitly rather than left to default block behaviour, because
+      // anything that wraps a child in a flex/inline context would otherwise
+      // shrink it to content. User 2026-08-11: "let the containers extend full
+      // width".
+      : { width: "100%", ...(capStyle || null) };
 
   return (
     <div
