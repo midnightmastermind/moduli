@@ -189,6 +189,34 @@ export function mergeLayoutRules(parent, child) {
   return out;
 }
 
+/**
+ * A stored rule with its SHAPE keys removed — i.e. only the parts that still
+ * cascade.
+ *
+ * LAYOUT DOES NOT CASCADE (user, 2026-08-11: *"we need to remove cascade from
+ * the layout ui"* / *"layout ui shouldnt be cascaded. that makes no sense"*).
+ * How a surface arranges its own children is its own business: a page saying
+ * "wrap" cannot sensibly mean "and every container beneath you, whatever kind
+ * you are" — a doc container renders a TEXTMAP and has no child list to
+ * arrange. Differences BETWEEN kinds belong in per-kind defaults
+ * (`resolveDefaultLayout`), not in an ancestor pushing its own arrangement
+ * down.
+ *
+ * The VIEW keys are a different question and still cascade: `dragInView`,
+ * `navOptions`, `navAllowChange`, `representationFieldIds` and `locked` are
+ * statements ABOUT DESCENDANTS by design, which is why the split is by key
+ * rather than by turning the walker off.
+ */
+export function stripSurfaceShape(rule) {
+  if (!rule) return null;
+  const out = {};
+  for (const [k, v] of Object.entries(rule)) {
+    if (SURFACE_SHAPE_KEYS.includes(k)) continue;
+    if (v !== undefined && v !== null) out[k] = v;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 // ── Cascade walker (Slice 6) ─────────────────────────────────────────────
 // Walks Grid → Panel → Page → Container → Instance/leaf, layering
 // `meta.layoutCascade` overrides on top of the per-kind default.
@@ -239,15 +267,12 @@ export function resolveLayoutCascade(ctx, leafRole = "instance", leafKind = null
   }
 
   // Layer 3-5: panel / page / container overrides via their occurrences' meta.
-  if (ctx?.panelOcc?.meta?.layoutCascade) {
-    pushOverride("panel", "Panel", ctx.panelOcc.meta.layoutCascade, "panelOcc.meta.layoutCascade");
-  }
-  if (ctx?.pageOcc?.meta?.layoutCascade) {
-    pushOverride("page", "Page", ctx.pageOcc.meta.layoutCascade, "pageOcc.meta.layoutCascade");
-  }
-  if (ctx?.containerOcc?.meta?.layoutCascade) {
-    pushOverride("container", "Container", ctx.containerOcc.meta.layoutCascade, "containerOcc.meta.layoutCascade");
-  }
+  // ANCESTORS CONTRIBUTE VIEW KEYS ONLY — their SHAPE is theirs alone.
+  // See `stripSurfaceShape` for why. Before this, a page storing `mode: "wrap"`
+  // reached every container beneath it regardless of kind.
+  pushOverride("panel", "Panel", stripSurfaceShape(ctx?.panelOcc?.meta?.layoutCascade), "panelOcc.meta.layoutCascade (view)");
+  pushOverride("page", "Page", stripSurfaceShape(ctx?.pageOcc?.meta?.layoutCascade), "pageOcc.meta.layoutCascade (view)");
+  pushOverride("container", "Container", stripSurfaceShape(ctx?.containerOcc?.meta?.layoutCascade), "containerOcc.meta.layoutCascade (view)");
 
   // Layer 6: per-occurrence (leaf) override — strongest.
   // `leafOcc` is the canonical leaf slot; `instanceOcc` is a back-compat alias
