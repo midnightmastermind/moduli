@@ -54,9 +54,30 @@ So the change is one branch that fires only on the middle state. A multi-pick wi
 real `dates[]` is a SELECTION, not a clear. *A risk worth raising is also worth measuring rather than
 trading away.*
 
-**Also found, not yet fixed:** the Schedule page STILL carries the stale `span:2, kind:"range"`
-override (the documented 2026-08-01 recurrence), and Aug 10 had THREE wheels — the merge-duplication
-defect compounding. Both filed.
+**AND THE "STALE span:2" RECURRENCE TURNED OUT NOT TO EXIST.** 2026-08-01 (11) filed it as open:
+*"this recurs the next time a multi-day range is picked and left overnight."* Re-measured through the
+REAL `evalRule` over the live shapes — `Grid: Snap Filter To Today` writes a bare `$today`, which
+REPLACES the whole object, so a range collapses on the next new-day load. poms grid still showed one
+because its marker read **2026-08-10 while today was 2026-08-11**: the op had not run yet. *An open
+item is a claim about TODAY'S code — re-measure before inheriting it.* Third time this month a filed
+task was retired by measuring instead of built.
+
+**But the same probe found a real defect that MY OWN change had just made matter.** A CLEARED date is
+a period object whose value is null — and `isEmptyVal` counts only null/undefined/""/empty-array, so
+a cleared page passed `IS_NOT_EMPTY` and got today stamped onto it the next morning. Clear a page,
+come back tomorrow, find it dated again with nothing to explain why. Harmless until "clearing means
+show nothing dated" shipped hours earlier; then it silently undoes a deliberate state. Guard narrowed
+to `IS_NOT_EMPTY AND (value IS_NOT_EMPTY OR unit IS_EMPTY OR dates IS_NOT_EMPTY)` — **each arm covers
+a shape that is live on the grid**, and the `unit IS_EMPTY` arm is the load-bearing one: a bare
+`"YYYY-MM-DD"` has no `.unit`, so requiring `.value` alone would have silently stopped moving the
+Trackers page. `0069`. *Shipping a behaviour change means re-asking what now DEPENDS on the state it
+created.*
+
+**Also found, not fixed:** Aug 10 had THREE wheels — the merge-duplication defect compounding. Filed.
+
+**A 502 on the post-deploy check was the documented restart window, not an outage** — bundle 200 +
+index 502 is the tell, first retry answered 200, pm2 online with 13s uptime, `dist/index.html` fresh,
+error log empty. Diagnosed rather than assumed, per 2026-08-07 (4).
 
 Every A/B fails exactly the test written for it: the naive template grep (1), the whitelist guard
 (2), the cleared-date branch (1). 2388 client + 716 server tests. Deployed twice, prod HEAD verified,
