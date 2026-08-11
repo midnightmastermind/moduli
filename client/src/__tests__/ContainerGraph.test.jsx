@@ -17,9 +17,13 @@ vi.mock("../ui/EChart", () => ({
   readChartTheme: () => ({ text: "#fff", faint: "#888" }),
 }));
 
-const runMatchingOperations = vi.fn();
+// The component fires through operationsBridge, the chokepoint every other
+// write path uses. THIS MOCK USED TO TARGET `runMatchingOperations` AND ASSERT
+// A SINGLE-OBJECT CALL — i.e. it pinned the defect: that function is positional,
+// so the real call did nothing and this test passed anyway. A test that encodes
+// a broken contract protects the bug.
+const fireOperations = vi.fn();
 vi.mock("../helpers/operationExecutor", () => ({
-  runMatchingOperations: (...a) => runMatchingOperations(...a),
 }));
 
 // A graph PULLS its rows from its feed, the way a dropdown resolves its options.
@@ -32,6 +36,7 @@ vi.mock("../state/selectors", async (orig) => ({
 }));
 
 import ContainerGraph from "../modules/containers/ContainerGraph";
+import { operationsBridge } from "../state/bindSocketToStore";
 
 const F_VALUE = "f-intensity";
 
@@ -56,7 +61,7 @@ function setup({ graph = { type: "pie", encoding: { value: F_VALUE } }, childIds
   return { view, occurrencesById };
 }
 
-beforeEach(() => { lastEChartProps = null; runMatchingOperations.mockClear(); });
+beforeEach(() => { lastEChartProps = null; fireOperations.mockClear(); operationsBridge.fireOperations = fireOperations; });
 afterEach(cleanup);
 
 describe("ContainerGraph", () => {
@@ -95,14 +100,14 @@ describe("ContainerGraph", () => {
   it("turns a selection into an ordinary OPERATION TRIGGER", () => {
     setup();
     lastEChartProps.onSelect({ occurrenceId: "a", name: "Angry", value: 8, seriesName: null, path: ["Angry"] });
-    expect(runMatchingOperations).toHaveBeenCalledTimes(1);
-    const arg = runMatchingOperations.mock.calls[0][0];
-    expect(arg.transactionType).toBe("GraphSelectOp");
-    expect(arg.transaction).toMatchObject({ occurrenceId: "a", value: 8, path: ["Angry"], containerId: "g1" });
+    expect(fireOperations).toHaveBeenCalledTimes(1);
+    const [txType, tx] = fireOperations.mock.calls[0];
+    expect(txType).toBe("GraphSelectOp");
+    expect(tx).toMatchObject({ occurrenceId: "a", value: 8, path: ["Angry"], containerId: "g1" });
   });
 
   it("survives a THROWING operation — a broken op must not take the chart down", () => {
-    runMatchingOperations.mockImplementationOnce(() => { throw new Error("bad pipeline"); });
+    fireOperations.mockImplementationOnce(() => { throw new Error("bad pipeline"); });
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     setup();
     expect(() => lastEChartProps.onSelect({ occurrenceId: "a", path: [] })).not.toThrow();
@@ -113,7 +118,7 @@ describe("ContainerGraph", () => {
   it("ignores a null selection", () => {
     setup();
     lastEChartProps.onSelect(null);
-    expect(runMatchingOperations).not.toHaveBeenCalled();
+    expect(fireOperations).not.toHaveBeenCalled();
   });
 
 

@@ -30,14 +30,12 @@ import { resolveGraphRows } from "../../helpers/feedPull";
 import { buildEChartsOption } from "../../helpers/graphOption";
 import { DEFAULT_VIEW, isDefaultView } from "../../helpers/graphView";
 import { useGridActionsSelector } from "../../GridActionsContext";
-import { runMatchingOperations } from "../../helpers/operationExecutor";
+import { operationsBridge } from "../../state/bindSocketToStore";
 
-export default function ContainerGraph({ occurrence, renderParentOccurrenceId = null, dispatch, socket }) {
+export default function ContainerGraph({ occurrence, renderParentOccurrenceId = null }) {
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const modulesById = useGridActionsSelector(s => s.modulesById);
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
-  const operationsById = useGridActionsSelector(s => s.operationsById);
-  const getState = useGridActionsSelector(s => s.getState || (() => s.state || {}));
 
   const hostRef = useRef(null);
 
@@ -96,30 +94,41 @@ export default function ContainerGraph({ occurrence, renderParentOccurrenceId = 
   // an arbitrary parent — `buildParentMap` keys child → ONE parent, last writer
   // wins. Reporting the render context makes "record this on the day I clicked"
   // expressible; without it the op can only ever guess a day.
+  // IT GOES THROUGH `operationsBridge.fireOperations`, NOT `runMatchingOperations`,
+  // and that is the whole reason a click ever recorded anything.
+  //
+  // `runMatchingOperations(operations, transactionType, transaction, context)`
+  // takes POSITIONAL arguments. This called it with a single OBJECT — so
+  // `operations` was that object, every other argument was undefined, and the
+  // op loop iterated nothing. **No click had ever fired this trigger**, which is
+  // why zero moods had ever been recorded. It failed silently because the whole
+  // call sits in a try/catch whose job is to keep a broken op from taking the
+  // chart down.
+  //
+  // Worse, even a correct positional call would have been HALF a fix: the
+  // returned effects have to be APPLIED, and this discarded the return value.
+  // `fireOperations` is the chokepoint every other write path already uses — it
+  // assembles the context, calls the executor correctly, splits display updates
+  // from CRUD effects and applies them, and carries the cascade dedup. Wiring a
+  // second copy of that here is exactly the drift that produced this bug.
   const handleSelect = useCallback((sel) => {
     if (!sel) return;
-    const state = getState();
     try {
-      runMatchingOperations({
-        transactionType: "GraphSelectOp",
-        transaction: {
-          type: "GraphSelectOp",
-          occurrenceId: sel.occurrenceId,
-          containerId: occurrence?.id,
-          ancestorOccurrenceId: renderParentOccurrenceId || null,
-          value: sel.value,
-          path: sel.path,
-          seriesName: sel.seriesName,
-          name: sel.name,
-        },
-        state, dispatch, socket,
-        occurrencesById: getOccMap(), modulesById, fieldsById, operationsById,
+      operationsBridge.fireOperations?.("GraphSelectOp", {
+        type: "GraphSelectOp",
+        occurrenceId: sel.occurrenceId,
+        containerId: occurrence?.id,
+        ancestorOccurrenceId: renderParentOccurrenceId || null,
+        value: sel.value,
+        path: sel.path,
+        seriesName: sel.seriesName,
+        name: sel.name,
       });
     } catch (e) {
       // A broken op must not take the chart down with it.
       console.warn("[graph] selection trigger failed:", e?.message || e);
     }
-  }, [occurrence?.id, renderParentOccurrenceId, getState, dispatch, socket, getOccMap, modulesById, fieldsById, operationsById]);
+  }, [occurrence?.id, renderParentOccurrenceId]);
 
   if (!spec) {
     return (
