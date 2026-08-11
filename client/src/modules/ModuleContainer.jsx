@@ -657,6 +657,13 @@ function Container({
   const childGap = Number.isFinite(layoutCascade?.resolved?.childGap) && layoutCascade.resolved.childGap >= 0
     ? layoutCascade.resolved.childGap
     : 8;
+  // The tile's HEIGHT CAP — its own value, not derived from the width (user
+  // 2026-08-11: "not width. height"). Read from `childMaxHeight`, a cascade key
+  // that already exists and is already in the Layout menu, so this is
+  // configurable rather than a hardcoded number.
+  const childH = Number.isFinite(layoutCascade?.resolved?.childMaxHeight) && layoutCascade.resolved.childMaxHeight > 0
+    ? layoutCascade.resolved.childMaxHeight
+    : 200;
 
   // Occurrence controls order — pass containerOccurrence so ordering reads from occurrence.occurrences.
   // When `module.meta.allowChildContainers` is set, fall back to the full modulesById lookup so
@@ -1593,7 +1600,7 @@ function Container({
               // existing Layout menu already edits it. The two numbers ride as
               // CSS vars because the rest of the shape (aspect ratio, hiding the
               // between-item insert gaps) is CSS.
-              ...(childWrap ? { "--child-w": `${childW}px`, "--child-gap": `${childGap}px` } : null),
+              ...(childWrap ? { "--child-w": `${childW}px`, "--child-h": `${childH}px`, "--child-gap": `${childGap}px` } : null),
             }}
           >
             {itemsWithOccurrences.map(({ instance, occurrence }, idx) => {

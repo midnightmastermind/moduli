@@ -4857,12 +4857,27 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
      off if there are too many fields (vertically)"*. Growing the tile instead
      was rejected in the same breath: the user wants the handle and title
      pinned and the FIELDS scrollable, which keeps the grid even. */
-  height: var(--child-w, 160px);
-  margin: 0;
+  /* HEIGHT IS AUTO — the tile is as tall as its content. A fixed square made a
+     tracker with two fields as tall as one with eight (user 2026-08-11: "some
+     of them dont have enough fields to justify the size"). Width stays fixed so
+     the grid still lines up in columns; only the height follows the content.
+     The pinned-header / scrolling-fields structure below is kept: it costs
+     nothing at auto height (there is no overflow to scroll) and is what makes a
+     bounded height work if one is ever configured. */
+  height: auto;
+  /* …CAPPED. A short tracker stays short; a long one stops at the cap and its
+     FIELD BLOCK scrolls (the pinned-header structure below is what makes that
+     work). The cap is its OWN value (`--child-h`, from the `childMaxHeight`
+     cascade key the Layout menu already edits) rather than derived from the
+     width — so it is configurable, not hardcoded. */
+  max-height: var(--child-h, 200px);
   overflow: hidden;              /* the scroll lives on the field block below */
+  margin: 0;
 }
 .container-items--wrap > .instance-wrap > .instance-row {
-  height: 100%;
+  height: 100%;                  /* fill the capped box so the field block has
+                                    a bounded parent to scroll inside */
+  max-height: 100%;
   min-height: 0;                 /* or the flex child refuses to shrink */
   align-items: stretch;
 }
