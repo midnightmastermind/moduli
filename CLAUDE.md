@@ -6,6 +6,46 @@
 
 ---
 
+### 2026-08-11 (2) — Tags off everywhere, Date on three pages; and the tracker date that must NOT be set
+
+User: *"hide tags everywhere, and date isnt being set on trackers. hide date everywhere thats not
+tasks, schedule, trackers."*
+
+**A DEFAULT WITH THREE EXCEPTIONS IS A CASCADE WITH A ROOT — and the SHOWN cascade had none.** It
+gets one (`grid.meta.fieldVisibility`), symmetric with the auto-applied root added hours earlier.
+HIDE mode is the right control precisely because it is a BLACKLIST: it suppresses only what it names
+and never a module's own bound fields, which is the whole reason the show-whitelist broke the
+trackers in the first place. Writing "everywhere" onto all 71 pages instead would need re-writing for
+every page created afterwards.
+```
+grid       hide [Tags, Date]                    everywhere
+Tasks      hide [Tags]                          Date shows
+Trackers   hide [Tags]                          Date shows
+Schedule   hide [Tags, Time Slot, Last Seen]    Date shows
+```
+**THE SCHEDULE IS MERGED, NOT OVERWRITTEN.** It already hid `[Date, Time Slot, Last Seen]` (seeded
+2026-07-11 so its rows show Completed only). The ask names Date and says nothing about the other two,
+so the migration DROPS Date and ADDS Tags, keeping the rest. Replacing the list wholesale would
+silently un-hide two fields nobody mentioned — *an instruction about one field is not permission to
+reset the others.* Ids come from the grid's own `autoAppliedFieldIds` rather than by name, because
+this grid carries five duplicate field names.
+
+Verified through the REAL resolver over live data: **Tags renders on 0 of 2566 occurrences**, Date on
+182 and only under those three pages, and each tracker still shows its own bound fields beside it.
+`0071`.
+
+**AND THE HALF I REFUSED, which is the more interesting one.** *"date isnt being set on trackers"* is
+accurate — 0 of 35 tiles carry a value — but stamping one is the opposite of a fix. 2026-04-30
+records it verbatim: *"a date field on the occurrence makes the named-filter SAME_DAY check fail on
+any other day, so the goal vanished as soon as the user navigated past today"*, and a migration
+removed exactly this once already. **It is now strictly worse than it was then:** since this morning a
+CLEARED date hides anything dated, so a stamped tracker would also vanish whenever the filter is
+cleared. Trackers are date-scoped by their PAGE's filter, not by a value they carry. Flagged to the
+user with the history rather than guessed at — *the fix that matches the words would re-create a
+documented data loss.*
+
+---
+
 ### 2026-08-11 — three fixes the USER'S OWN WORDS designed; and a wheel nobody could ever click
 
 **"its a cascade of shown fields and auto applied fields"** — and, twice, *"universal fields isnt
