@@ -1626,6 +1626,24 @@ export function makeDayPageBuildOp({
   // `questionPoolModuleId` is the MODULE id of the container whose occurrence
   // lists the questions (PICK_RANDOM_FROM_POOL resolves the occurrence from it).
   journalQuestionFieldId = null, questionPoolModuleId = null,
+  // SHARED children: occurrence ids that every day column LISTS rather than
+  // owns. One occurrence, N parents — the same shape the Todo link below uses,
+  // and the Schedule's shared slots before it.
+  //
+  // WHY THIS EXISTS RATHER THAN PUTTING THEM IN THE TEMPLATE. A template child
+  // is CLONED per day, and a clone does not carry every key: `feed` is dropped,
+  // so a fed container (a graph) clones into a copy that can never materialise
+  // and renders "nothing to chart yet". Cloning it faithfully is worse — a fed
+  // wheel materialises ~130 occurrences PER DAY. A shared child sidesteps both:
+  // one occurrence, one feed, listed everywhere.
+  //
+  // It also keeps an op TARGETED AT IT working. A trigger scoped by occurrence
+  // id matches exactly one occurrence; with per-day clones every column carries
+  // a different id, so the op fires for none of them.
+  //
+  // NOTHING HERE KNOWS WHAT THESE ARE. The caller names ids; this builder never
+  // learns the word "graph" or "wheel".
+  sharedChildOccurrenceIds = [],
 }) {
   if (!schedulePageOccId) throw new Error("makeDayPageBuildOp: schedulePageOccId required (picker-direct ancestor + page ref)");
   if (!dayPageBoardOccId) throw new Error("makeDayPageBuildOp: dayPageBoardOccId required — the board page the day COLUMNS live on");
@@ -1774,6 +1792,16 @@ export function makeDayPageBuildOp({
             { id: uid(), type: "action", config: {
                 type: "UPDATE", path: "$col.meta.appliedFromTemplateId", value: "$tplId",
             }},
+
+            // ── shared children: listed by every column, owned by none ──────
+            // ADD_CHILD appends to the column's `occurrences[]` and never
+            // touches the child's own `parentId`, so one occurrence can be
+            // listed by every day without forking. Idempotent (it no-ops when
+            // the id is already there), which is what makes a rebuild free.
+            ...(sharedChildOccurrenceIds || []).filter(Boolean).map((sharedId) => ({
+              id: uid(), type: "action",
+              config: { type: "ADD_CHILD", parentId: "$colId", childId: sharedId },
+            })),
 
             // ── the day's Daily Question ────────────────────────────────────
             // A day arrives with an EMPTY question, so the bound header renders
