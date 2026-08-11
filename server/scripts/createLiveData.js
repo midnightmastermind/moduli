@@ -2316,7 +2316,10 @@ export async function createLiveData(userId, options = {}) {
     },
     upcomingThisWeek: {
       id: uid(),
-      name: "Due",
+      // NOT "Due" — that is the real date field's name, and two fields sharing
+      // one name breaks the standing unique-names rule AND makes every
+      // resolve-by-name a coin flip. The key says what it is.
+      name: "Due This Week",
       type: "number",
       inputEnabled: false,
       displayEnabled: true,
@@ -2399,19 +2402,19 @@ export async function createLiveData(userId, options = {}) {
       },
     },
     totalProtein: {
-      id: uid(), name: "Protein", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Total Protein", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: "g" }, displayConfig: {},
     },
     totalCalories: {
-      id: uid(), name: "Calories", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Total Calories", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: " kcal" }, displayConfig: {},
     },
     totalCarbs: {
-      id: uid(), name: "Carbs", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Total Carbs", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: "g" }, displayConfig: {},
     },
     totalFats: {
-      id: uid(), name: "Fats", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Total Fats", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: "g" }, displayConfig: {},
     },
 
