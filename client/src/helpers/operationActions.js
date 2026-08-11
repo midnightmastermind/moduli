@@ -2933,10 +2933,63 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           const sig = nodeSig;
           const parentOcc = occurrencesById[parentId] || $vars.$allOccurrences?.find(o => o.id === parentId);
           const siblingIds = parentOcc?.occurrences || [];
-          const matched = siblingIds
-            .map(id => occurrencesById[id] || $vars.$allOccurrences?.find(o => o.id === id))
+          const resolveOcc = (id) => occurrencesById[id] || $vars.$allOccurrences?.find(o => o.id === id);
+          let matched = siblingIds
+            .map(resolveOcc)
             .find(o => o && o.identitySignature === sig);
+
+          // ── A MATCH THE PARENT NO LONGER LISTS IS STILL A MATCH ────────────
+          //
+          // The scan above only sees the parent's `occurrences[]`. A child that
+          // fell OUT of that array — the documented created-but-unlinked class,
+          // which this repo has repaired from four directions — is invisible to
+          // it, so merge concluded "not here yet" and cloned a second one. Then
+          // a third. Measured on poms grid 2026-08-11: Monday August 10th
+          // carried THREE of Journal / Notes / Tasks Completed / Highlights,
+          // each group exactly one UNLISTED copy plus two listed ones.
+          //
+          // A signed child whose `parentId` points at this very parent IS the
+          // node the signature names, listed or not. Matching it is what stops
+          // the duplication at the source.
+          //
+          // LISTED WINS when both exist, deliberately: on a grid that already
+          // carries duplicates, preferring the stray would top up the invisible
+          // copy and leave the visible one stale. This never makes existing
+          // data worse — it only stops new duplicates.
+          //
+          // SCOPED TO SIGNED NODES. An unsigned node was never matched by the
+          // array scan either, so nothing changes for it; and `parentId` alone
+          // is far too broad a net without a signature to pin identity.
+          //
+          // Only 7 occurrences on poms grid are signed-and-unlisted, and one of
+          // them is a deliberately shared child (its parentId is the template it
+          // was authored in, while three day columns list it). That one is never
+          // reached here — merge looks for children of the TARGET, and its
+          // parentId names the source.
+          let adoptedUnlisted = false;
+          if (!matched && sig) {
+            const pool = Array.isArray($vars.$allOccurrences)
+              ? $vars.$allOccurrences
+              : Object.values(occurrencesById || {});
+            const stray = pool.find(o => o && o.parentId === parentId && o.identitySignature === sig);
+            if (stray) { matched = stray; adoptedUnlisted = true; }
+          }
+
           if (matched) {
+            // RE-LIST it, or the merge "succeeds" and the section stays invisible
+            // — the parent renders `occurrences[]`, so topping up a node nobody
+            // lists is the listed-but-not-embedded failure wearing a new hat.
+            // Same idempotent append ADD_CHILD performs, via the same effect.
+            if (adoptedUnlisted) {
+              const nextSiblings = [...siblingIds, matched.id];
+              if (occurrencesById && occurrencesById[parentId]) {
+                occurrencesById[parentId] = { ...occurrencesById[parentId], occurrences: nextSiblings };
+              }
+              updates.push({
+                _effect: "UPDATE_OCCURRENCE",
+                occurrence: { id: parentId, occurrences: nextSiblings },
+              });
+            }
             // Track child IDs we add this pass so downstream same-pipeline FINDs
             // walking matched.occurrences[] see them. Without this, recursive
             // clones into a matched node are invisible to FINDs that ran later
