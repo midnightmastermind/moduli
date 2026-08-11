@@ -7,6 +7,7 @@
 
 import { ActionTypes } from "./actions";
 import { runMatchingOperations, executeOperation, executePipeline, setOpApplyingEffects } from "../helpers/operationExecutor";
+import { kindForNewModule } from "../helpers/operationActions";
 import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
 import { toast, pushTxNotification } from "./notificationStore";
 import { makeOpNotificationCallbacks } from "../helpers/opResultSummary";
@@ -1094,10 +1095,18 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
         // Mint template if one was created
         if (effect.template?.id) {
+          // A CLONE emits `kind: srcMod.kind`, so a kindless template arrives
+          // here as undefined. Defaulting that to "doc" is what minted 232
+          // inert `instance/doc` modules on the live grid between 2026-08-02
+          // and 08-11 — the 2026-07-29 kind removal was fixed in the CREATE
+          // action and never here. One shared rule now, so the two cannot
+          // disagree again.
+          const newRole = effect.template.role || "container";
+          const newKind = kindForNewModule(newRole, effect.template.kind);
           const newModule = {
             id: effect.template.id,
-            role: effect.template.role || "container",
-            kind: effect.template.kind || "doc",
+            role: newRole,
+            ...(newKind ? { kind: newKind } : {}),
             label: effect.template.label || effect.template.name,
             name: effect.template.name || effect.template.label,
             userId,

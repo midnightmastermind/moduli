@@ -12,6 +12,12 @@
  * @param {{grid, occurrences, modules, fields, operations, folders}} world
  * @returns {Array<{level:"error"|"warn", code:string, message:string, ids?:string[]}>}
  */
+// Roles where `kind` is a real sub-type. THE list — migration 0076 imports it
+// rather than restating it, because a second copy of exactly this is what let
+// the 2026-07-29 kind removal come back (the CREATE action was fixed and the
+// effect applier, which had its own copy of the default, was not).
+export const KIND_BEARING_ROLES = new Set(["container", "page", "artifact", "textblock"]);
+
 export function checkGridIntegrity({ occurrences = [], modules = [], fields = [], operations = [], folders = [] } = {}) {
   const findings = [];
   const add = (level, code, message, ids) => findings.push({ level, code, message, ...(ids?.length ? { ids: ids.slice(0, 12) } : {}) });
@@ -133,9 +139,8 @@ export function checkGridIntegrity({ occurrences = [], modules = [], fields = []
   //    harmless: getModuleTypeIcon resolves kind BEFORE role, so an instance
   //    carrying kind:"board" draws the BOARD icon everywhere an icon appears.
   //    539 of them did, for months (2026-07-29).
-  const KIND_BEARING = new Set(["container", "page", "artifact", "textblock"]);
   const strayKind = modules
-    .filter(m => m.kind && m.role && !KIND_BEARING.has(m.role))
+    .filter(m => m.kind && m.role && !KIND_BEARING_ROLES.has(m.role))
     .map(m => `${m.role}/${m.kind}`);
   if (strayKind.length) {
     const counts = strayKind.reduce((a, k) => { a[k] = (a[k] || 0) + 1; return a; }, {});

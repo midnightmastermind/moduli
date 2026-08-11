@@ -323,9 +323,30 @@ export function deepResolveExpr(value, $vars) {
 // HAS_ANCESTOR and the array-aware CONTAINS branches.
 const arrayIncludes = (arr, val) => arr.some(a => String(a) === String(val));
 
-// Roles that carry NO sub-type, so a CREATE must not invent one for them
+// Roles that carry NO sub-type, so minting one must not invent a kind for them
 // (2026-07-29 kind removal). Everything else keeps the historical "doc" default.
 const KINDLESS_CREATE_ROLES = new Set(["instance", "panel"]);
+
+/**
+ * The kind a newly minted module should carry — THE one rule, for every path
+ * that mints one.
+ *
+ * It lived only in the CREATE action until 2026-08-11, when a census found 232
+ * `instance/doc` modules on the live grid whose TEMPLATES were clean. The clone
+ * path copies `kind` faithfully (`kind: srcMod.kind`), so a kindless template
+ * emitted `kind: undefined` — and the effect APPLIER in bindSocketToStore had
+ * its OWN independent `|| "doc"` default that turned it into a kind. Two
+ * copies of one decision, one of them fixed; exporting it is what stops a
+ * third from drifting.
+ *
+ * An explicit kind always wins, so an emitter that means `kind:"inline"` keeps
+ * it. Returns null when the role has no sub-types — callers should OMIT the
+ * key rather than store null.
+ */
+export function kindForNewModule(role, kind) {
+  if (kind) return kind;
+  return KINDLESS_CREATE_ROLES.has(role) ? null : "doc";
+}
 
 export function evalRule(rule, $vars) {
   const { left, comparator, right } = rule;
@@ -1399,7 +1420,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         // it. An explicit cfg.kind is still honoured; container/page keep the
         // "doc" default byte-identically.
         const createdRole = cfg.role || "container";
-        const createdKind = cfg.kind || (KINDLESS_CREATE_ROLES.has(createdRole) ? null : "doc");
+        const createdKind = kindForNewModule(createdRole, cfg.kind);
         templateRecord = {
           id: templateId,
           name,
