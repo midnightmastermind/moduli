@@ -123,7 +123,7 @@ describe("buildScheduleFilters", () => {
 });
 
 describe("buildDailyRoutineTemplate", () => {
-  it("emits one slot template occ per timeSlot with identitySignature and routine children", async () => {
+  it("emits one slot template occ per timeSlot, plus a Todo bucket (was Due until 2026-08-11)", async () => {
     const occs = [];
     const mkOcc = async (d) => { const id = d.id || `o${occs.length}`; occs.push({ ...d, id }); return id; };
     const ModuleStub = function (o) { Object.assign(this, o); this.save = async () => {}; };
@@ -135,16 +135,21 @@ describe("buildDailyRoutineTemplate", () => {
       findModule: async () => ({ fieldBindings: [{ fieldId: "c", role: "input", order: 0 }] }),
     });
     const slotOccs = occs.filter(o => o.identitySignature?.startsWith("slot:"));
-    // 2 hour slots + 1 Due container (identitySig "slot:Due", first child of Day)
+    // 2 hour slots + 1 TODO container (identitySig "slot:Todo", first child of
+    // Day). This template's untimed bucket was "Due" until 2026-08-11; Due and
+    // Todo were the same thing under two markers, and this template had no Todo
+    // sibling, so it BECAME the Todo rather than losing its bucket.
     expect(slotOccs).toHaveLength(3);
-    expect(slotOccs.some(o => o.identitySignature === "slot:Due")).toBe(true);
+    expect(slotOccs.some(o => o.identitySignature === "slot:Todo")).toBe(true);
+    // …and no Due survives anywhere.
+    expect(slotOccs.some(o => o.identitySignature === "slot:Due")).toBe(false);
     const root = occs.find(o => o.id === rootOccId);
     expect(root.meta).toMatchObject({ templateName: "Daily Routine", templateModule: true });
   });
 });
 
 describe("buildScheduleTemplatePage", () => {
-  it("seeds a Schedule Template page under libraryTemplatesFolderId with a Day container holding Due + slots", async () => {
+  it("seeds a Schedule Template page under libraryTemplatesFolderId with a Day container holding Todo + slots", async () => {
     const { buildScheduleTemplatePage } = await import("../utils/liveSystemBuilders.js");
     const occs = [];
     const mkOcc = async (d) => { const id = d.id || `o${occs.length}`; occs.push({ ...d, id }); return id; };
@@ -162,12 +167,16 @@ describe("buildScheduleTemplatePage", () => {
     const day = occs.find(o => o.id === dayContainerOccId);
     expect(day.identitySignature).toBe("day-container");
     expect(day.parentId).toBe(schedTplPageOccId);
-    // Day's occurrences[] = [Due, Todo, slot1, slot2]
-    expect(day.occurrences).toHaveLength(4);
+    // Day's occurrences[] = [Todo, slot1, slot2]. The Due container was dropped
+    // on 2026-08-11 — it was structurally identical to Todo (same role, kind and
+    // binding, differing only in its marker), so two buckets for "work with no
+    // time on it" was a distinction without a difference.
+    expect(day.occurrences).toHaveLength(3);
     const slotOccs = occs.filter(o => o.identitySignature?.startsWith("slot:"));
-    expect(slotOccs).toHaveLength(4);
-    expect(slotOccs.some(o => o.identitySignature === "slot:Due")).toBe(true);
+    expect(slotOccs).toHaveLength(3);
     expect(slotOccs.some(o => o.identitySignature === "slot:Todo")).toBe(true);
+    // THE DISCRIMINATING ASSERTION: a Due must not come back.
+    expect(slotOccs.some(o => o.identitySignature === "slot:Due")).toBe(false);
     expect(slotOccs.every(o => o.parentId === dayContainerOccId)).toBe(true);
   });
 });

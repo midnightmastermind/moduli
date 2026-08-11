@@ -133,28 +133,34 @@ export async function buildDailyRoutineTemplate({
     meta: { templateModule: true, allowChildContainers: true },
   }).save();
 
-  // Due container — holds tasks for the day with no specific time slot.
+  // TODO container — the day's bucket for work with no specific time slot.
   // Lives as the FIRST child of the Day container, before the 48 timeslots.
-  // Identity is field-based (timeslot="Due") — no schedule-specific meta
-  // marker.
-  const tplDueModId = uid();
-  const tplDueOccId = uid();
+  // Identity is field-based (timeslot === TODO_SLOT_LABEL), never by label.
+  //
+  // THIS WAS "Due" UNTIL 2026-08-11. User: "get rid of the Due container and
+  // just put all the stuff that went in Due, put in the todo container on
+  // schedule". Due and Todo were structurally identical — same role, kind and
+  // binding, differing only in the marker — so two buckets for "work with no
+  // time on it" was a distinction without a difference. This template had NO
+  // Todo sibling, so it BECOMES the Todo rather than simply losing its Due.
+  const tplTodoModId = uid();
+  const tplTodoOccId = uid();
   await new Module({
-    id: tplDueModId, userId, gridId,
-    role: "container", kind: "board", label: "Due",
+    id: tplTodoModId, userId, gridId,
+    role: "container", kind: "board", label: TODO_SLOT_LABEL,
     meta: { templateModule: true },
     fieldBindings: [{ fieldId: timeslotFieldId, role: "input", hidden: true, order: 0 }],
   }).save();
   await mkOcc({
-    id: tplDueOccId,
-    moduleId: tplDueModId,
-    targetId: tplDueModId, targetType: "module",
+    id: tplTodoOccId,
+    moduleId: tplTodoModId,
+    targetId: tplTodoModId, targetType: "module",
     parentId: tplDayOccId,
     fields: {
-      [timeslotFieldId]: { value: "Due", flow: "in" },
+      [timeslotFieldId]: { value: TODO_SLOT_LABEL, flow: "in" },
     },
     occurrences: [],
-    identitySignature: "slot:Due",
+    identitySignature: `slot:${TODO_SLOT_LABEL}`,
   });
 
   // Build one slot container per timeslot, with nested routine instances
@@ -236,7 +242,7 @@ export async function buildDailyRoutineTemplate({
     moduleId: tplDayModId,
     targetId: tplDayModId, targetType: "module",
     parentId: tplRoutineRootOccId,
-    occurrences: [tplDueOccId, ...tplSlotOccIds],
+    occurrences: [tplTodoOccId, ...tplSlotOccIds],
     meta: { templateModule: true },
     identitySignature: "day-container",
   });
@@ -286,23 +292,14 @@ export async function buildScheduleTemplatePage({
     meta: { allowChildContainers: true },
   }).save();
 
-  // Due container (first child of Day). Field-based identity via timeslot="Due".
-  const tplDueModId = uid();
-  const tplDueOccId = uid();
-  await new Module({
-    id: tplDueModId, userId, gridId,
-    role: "container", kind: "board", label: "Due",
-    fieldBindings: [{ fieldId: timeslotFieldId, role: "input", hidden: true, order: 0 }],
-  }).save();
-  await mkOcc({
-    id: tplDueOccId,
-    moduleId: tplDueModId,
-    targetId: tplDueModId, targetType: "module",
-    parentId: dayContainerOccId,
-    fields: { [timeslotFieldId]: { value: "Due", flow: "in" } },
-    occurrences: [],
-    identitySignature: "slot:Due",
-  });
+  // NO "Due" CONTAINER. It used to be created here as the first child of Day,
+  // and was structurally identical to the Todo below — same role, kind and
+  // binding, differing only in its marker. Two buckets for "work with no time
+  // on it" was a distinction without a difference, so everything that went to
+  // Due now goes to Todo (user 2026-08-11). Migration 0070 carries the change
+  // to grids already built, moving Due's children into Todo rather than
+  // deleting them — they are multi-parented and a delete would take them off
+  // the Tasks board too.
 
   // "Todo" container — like Due, but the bucket for tasks with no time on them:
   // anything dropped on a day-column outside a slot, plus drops made in the
@@ -401,7 +398,7 @@ export async function buildScheduleTemplatePage({
     moduleId: dayContainerModId,
     targetId: dayContainerModId, targetType: "module",
     parentId: schedTplPageOccId,
-    occurrences: [tplDueOccId, tplNoSlotOccId, ...tplSlotOccIds],
+    occurrences: [tplNoSlotOccId, ...tplSlotOccIds],
     identitySignature: "day-container",
   });
 
@@ -976,8 +973,13 @@ export function makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId
             { id: uid(), type: "action", config: {
                 type: "FIND",
                 over: "$allContainers",
+                // BY THE MARKER, NOT THE LABEL. This FIND used to match
+                // `label IS "Due"` — the exact thing the Place Dated Work site
+                // warns against, and what cost three repair passes on
+                // 2026-07-30. A label is the user's to rename; the Time Slot
+                // marker is identity.
                 predicate: { operator: "AND", rules: [
-                  { id: uid(), left: "label", comparator: "IS", right: "Due" },
+                  { id: uid(), left: `fields.${timeslotFieldId}.value`, comparator: "IS", right: TODO_SLOT_LABEL },
                 ]},
                 itemIdVar: "$dueId",
             }},
@@ -987,12 +989,11 @@ export function makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId
               then: [
                 { id: uid(), type: "action", config: {
                     type: "CREATE",
-                    name: "Due",
+                    name: TODO_SLOT_LABEL,
                     role: "container",
                     kind: "board",
-                    meta: { scheduleDueContainer: true },
                     parent: "$schedPageId",
-                    fields: { [timeslotFieldId]: "literal:Due" },
+                    fields: { [timeslotFieldId]: `literal:${TODO_SLOT_LABEL}` },
                     fieldHidden: { [timeslotFieldId]: true },
                     insertAtIndex: 0,
                     itemIdVar: "$dueId",
@@ -3754,17 +3755,21 @@ export function makeSchedulePlaceDatedWorkOp({
                     }],
                   },
 
-                  // ── PHASE 2: due-dated work in this day's Due container ───
+                  // ── PHASE 2: due-dated work in this day's TODO container ──
                   //
-                  // The Due container is found by its FIELD-BASED IDENTITY
-                  // MARKER (Time Slot == "Due"), never by label. Matching the
-                  // label cost three repair passes on 2026-07-30 and the
-                  // marker is what `Schedule: Build Schedule` itself uses.
+                  // Found by its FIELD-BASED IDENTITY MARKER (Time Slot ==
+                  // TODO_SLOT_LABEL), never by label. Matching the label cost
+                  // three repair passes on 2026-07-30 and the marker is what
+                  // `Schedule: Build Schedule` itself uses.
+                  //
+                  // This was the "Due" container until 2026-08-11; Due and Todo
+                  // were the same thing under two markers, so due-dated work now
+                  // lands in the one bucket.
                   { id: uid(), type: "action", config: {
                     type: "FIND", over: "$allContainers",
                     predicate: { operator: "AND", rules: [
                       { id: uid(), left: "_ancestors",          comparator: "HAS_ANCESTOR", right: "$dayColId" },
-                      { id: uid(), left: f(timeslotFieldId),    comparator: "IS",           right: "Due" },
+                      { id: uid(), left: f(timeslotFieldId),    comparator: "IS",           right: TODO_SLOT_LABEL },
                     ]},
                     itemIdVar: "$dueId",
                   }},

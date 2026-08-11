@@ -43,7 +43,12 @@ function occ(id, { role, kind, moduleId, parentId, fields = {}, occurrences = []
   return id;
 }
 
-/** Build a Schedule with one day column: a Due container + 48 slot containers. */
+/** Build a Schedule with one day column: a TODO container + 48 slot containers.
+ *
+ * This fixture held a "Due" container until 2026-08-11. Due and Todo were the
+ * same thing under two markers — same role, kind and binding — so they were
+ * merged and due-dated work now lands in Todo (migration 0070). The container
+ * is still matched by its MARKER, never its label. */
 function buildDay(dayKey, dayColId) {
   const slotIds = LABELS.map((label, i) => {
     const id = `${dayColId}-slot-${i}`;
@@ -56,7 +61,7 @@ function buildDay(dayKey, dayColId) {
   const dueId = `${dayColId}-due`;
   occ(dueId, {
     role: "container", kind: "board", moduleId: "mod-due", parentId: dayColId,
-    label: "Due", fields: { [TIMESLOT]: "Due", [DATE]: dayKey },
+    label: "Todo", fields: { [TIMESLOT]: "Todo", [DATE]: dayKey },
   });
   occ(dayColId, {
     role: "container", kind: "board", moduleId: `mod-daycol-${dayKey}`, parentId: SCHED_PAGE,
@@ -106,7 +111,7 @@ beforeEach(() => {
   modulesById = {
     [APPT_TPL]: { id: APPT_TPL, label: "Appointment", role: "instance", fieldBindings: [] },
     "mod-task": { id: "mod-task", label: "Task", role: "instance", fieldBindings: [] },
-    "mod-due": { id: "mod-due", label: "Due", role: "container", kind: "board", fieldBindings: [] },
+    "mod-due": { id: "mod-due", label: "Todo", role: "container", kind: "board", fieldBindings: [] },
   };
   LABELS.forEach((l, i) => {
     modulesById[`mod-slot-${i}`] = { id: `mod-slot-${i}`, label: l, role: "container", kind: "board", fieldBindings: [] };
@@ -198,16 +203,16 @@ describe("Place Dated Work — an appointment covers every slot it spans", () =>
 // ============================================================
 // PHASE 2 — due-dated work
 // ============================================================
-describe("Place Dated Work — due-dated tasks fill the Due container", () => {
+describe("Place Dated Work — due-dated tasks fill the Todo container", () => {
   const task = (id, fields) => occ(id, { role: "instance", moduleId: "mod-task", fields });
 
-  it("an outstanding task due later lands in today's Due", () => {
+  it("an outstanding task due later lands in today's Todo", () => {
     task("task-signup", { [DUE]: OTHER_DAY });
     run(placeOp());
     expect(childrenOf(dayCol.dueId)).toContain("task-signup");
   });
 
-  it("a task with NO due date never enters Due", () => {
+  it("a task with NO due date never enters Todo", () => {
     task("task-paul", {}); // "Work on Paul's website" — organized on Tasks, not dated
     run(placeOp());
     expect(childrenOf(dayCol.dueId)).not.toContain("task-paul");
@@ -262,7 +267,7 @@ describe("Place Dated Work — due-dated tasks fill the Due container", () => {
     expect(childrenOf(dayCol.dueId)).toContain("task-undo");
   });
 
-  it("leaves a child with no due date in Due exactly where it was", () => {
+  it("leaves a child with no due date in Todo exactly where it was", () => {
     // A Pay Bill copy seeded by another op. Narrow sweep or the user loses it.
     occ("bill-copy", { role: "instance", moduleId: "mod-task", label: "Pay Bill" });
     occurrencesById[dayCol.dueId].occurrences = ["bill-copy"];
