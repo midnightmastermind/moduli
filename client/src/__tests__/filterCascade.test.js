@@ -267,6 +267,49 @@ describe("Schedule-cascaded date filter hides cross-day routine instances", () =
     });
   });
 
+  describe("CLEARED date — 'show nothing dated' (user, 2026-08-10)", () => {
+    // Clearing a date leaves a period OBJECT with a null value; that is exactly
+    // what the Day Page carries. It used to sail past the no-filter-target guard
+    // and behave like no filter at all, so every dated row stayed on screen
+    // (user: "i currently have no date set and it pops up with aug 6th and
+    // aug 10th").
+    const col = (date) => ({
+      id: "daycol", parentId: "schedPage",
+      fields: { scheduledDate: { value: date, flow: "in" } },
+    });
+    const cleared = { scheduledDate: { value: null, unit: "day", kind: "single" } };
+
+    it("hides a dated occurrence when the date was explicitly cleared", () => {
+      expect(isOccurrenceVisible(col("2026-08-10"), cleared, dailyFilterConditions)).toBe(false);
+      expect(isOccurrenceVisible(col("2026-08-06"), cleared, dailyFilterConditions)).toBe(false);
+    });
+
+    it("still shows an occurrence carrying NO date — persistent rows are untouched", () => {
+      const persistent = { id: "habit", parentId: "schedPage", fields: {} };
+      expect(isOccurrenceVisible(persistent, cleared, dailyFilterConditions)).toBe(true);
+    });
+
+    // THE DISCRIMINATING PAIR. Without it this change would hide every dated row
+    // during a slow load, which reads as data loss rather than a filter.
+    it("does NOT hide when there is simply no filter target — absent is not cleared", () => {
+      expect(isOccurrenceVisible(col("2026-08-10"), {}, dailyFilterConditions)).toBe(true);
+      expect(isOccurrenceVisible(col("2026-08-10"), { scheduledDate: null }, dailyFilterConditions)).toBe(true);
+      expect(isOccurrenceVisible(col("2026-08-10"), { scheduledDate: undefined }, dailyFilterConditions)).toBe(true);
+    });
+
+    it("a multi-pick with a null anchor but real dates is a SELECTION, not a clear", () => {
+      const multi = { scheduledDate: { value: null, unit: "day", kind: "multi", dates: ["2026-08-10"] } };
+      expect(isOccurrenceVisible(col("2026-08-10"), multi, dailyFilterConditions)).toBe(true);
+      expect(isOccurrenceVisible(col("2026-08-11"), multi, dailyFilterConditions)).toBe(false);
+    });
+
+    it("a real value still filters normally — the change is only about null", () => {
+      const real = { scheduledDate: { value: "2026-08-10", unit: "day", kind: "single" } };
+      expect(isOccurrenceVisible(col("2026-08-10"), real, dailyFilterConditions)).toBe(true);
+      expect(isOccurrenceVisible(col("2026-08-11"), real, dailyFilterConditions)).toBe(false);
+    });
+  });
+
   describe("multi-date filter shape (drilldown picker)", () => {
     const inst = (date) => ({
       id: "x", parentId: "slot",

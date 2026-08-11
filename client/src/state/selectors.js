@@ -640,6 +640,41 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
       // all slots: clearing writes filterOverride[fieldId] = null, the cascade
       // deletes the key, rightVal lands as undefined, and we should pass.
       if (rightVal == null) continue;
+      // ── EXPLICITLY CLEARED is not the same as NO FILTER SET ────────────────
+      //
+      // User, 2026-08-10: *"for the daypage, i currently have no date set and it
+      // pops up with aug 6th and aug 10th"* — and, asked what clearing the date
+      // should do: **show nothing dated**.
+      //
+      // Clearing a date leaves a period OBJECT whose value is null
+      // (`{value: null, unit: "day", kind: "single"}` — that is exactly what the
+      // Day Page carries today), which sails past the `rightVal == null` guard
+      // above and lands in DATE_IN_PERIOD against an empty period. So a cleared
+      // filter behaved like no filter at all and every dated row stayed on
+      // screen.
+      //
+      // THE DISTINCTION IS WHY THIS IS SAFE, and it is the whole reason the
+      // change is this narrow. Three states are structurally different:
+      //
+      //   key ABSENT / rightVal null   no filter target — the "— any —" reset,
+      //                                and a filter that has not bootstrapped
+      //                                yet. Still passes. Untouched.
+      //   period object, value null    the user cleared it ON PURPOSE. Hide.
+      //   a real value                 filter normally.
+      //
+      // Without that middle case being its own shape, "hide everything dated"
+      // would also fire during a slow load and read as data loss.
+      //
+      // `dates[]` is checked because a non-consecutive multi-pick can carry a
+      // null anchor while still naming real days — that is a selection, not a
+      // clear. Reaching here means the occurrence HAS a value for this field
+      // (the `leftVal == null` guard above already let persistent rows through),
+      // so returning false hides exactly the dated ones and nothing else.
+      if (typeof rightVal === "object" && !Array.isArray(rightVal)
+          && rightVal.value == null
+          && !(Array.isArray(rightVal.dates) && rightVal.dates.length)) {
+        return false;
+      }
       // Period-shape `{value, unit, span?}` filter values broaden the match
       // window — route through DATE_IN_PERIOD regardless of the condition's
       // static comparator (e.g. SAME_DAY). Covers:
