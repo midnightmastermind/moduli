@@ -6,6 +6,71 @@
 
 ---
 
+### 2026-08-11 (4) — the wheel recorded NOTHING, and the highlight was only the symptom
+
+User: *"it should be lighting up the moods i select too"* / *"on the wheel."*
+
+**MEASURED BEFORE READING ANY CODE, and the measurement moved the whole problem: 0 moods have
+EVER been recorded** on poms grid and `meta.graph.highlight` is null. The op fires correctly and
+its pipeline exits with zero effects — so the highlight was never the bug.
+
+**DEFECT 1 — `$day` IS A PERIOD OBJECT AND `SAME_DAY` CANNOT READ ONE.** `0046` took the day from
+the graph's own `_effectiveFilter`, which is the date picker's shape. Driven through the real
+comparator over live data, with a control so a `false` means something:
+```
+SAME_DAY(date, <period object>)    false   <- every candidate failed here
+SAME_DAY(date, "2026-08-11")       true
+DATE_IN_PERIOD(date, <period obj>) true
+DATE_IN_PERIOD(date, wrong day)    false   <- control
+```
+All 10 Mood-binding occurrences failed the date rule — **including the two dated exactly
+2026-08-11** — so `$moodHost` bound nothing and `IF $moodHost IS_NOT_EMPTY` swallowed it. This is
+the class 2026-06-03 records for `Table:`/`Canvas: Build`, both migrated SAME_DAY → DATE_IN_PERIOD
+for exactly this. **0046 was written afterwards and never got the treatment.**
+
+**DEFECT 2 — THE OBVIOUS FIX THROWS, and only the A/B found it.** Swapping in DATE_IN_PERIOD makes
+the span-2 range match THREE journals; FIND binds an ARRAY on multi-match and UPDATE throws
+`$moodHost is not a record (no .id)`. *A silent no-op became a crash — the "fix" was worse than
+the bug, and I would have shipped it on reasoning alone.*
+
+**THE ROOT CAUSE UNDER BOTH: A SHARED OCCURRENCE HAS NO DAY.** `0068` unified the wheel into ONE
+occurrence multi-parented into every day column — fixing "a click matches nothing" and leaving it
+with no single day. `buildParentMap` keys child → ONE parent, **last writer wins**, so every
+data-side ancestor walk resolves an arbitrary parent. *Fixing one ambiguity created another, and
+nobody measured the second.* Only the RENDER TREE knows which column you are looking at, so
+`ContainerGraph` reports it (`ancestorOccurrenceId`) and `ModuleContainer` threads it down the same
+seam that already pins `occurrenceOverride` "multi-parent-safe". User's call, asked not guessed.
+
+**AND THE PREMISE THE USER'S OWN ANSWER RESTED ON WAS FALSE — measurement caught it.** Scoping the
+HOST to the clicked column is the obvious next step and finds NOTHING: the day columns hold **zero**
+Mood-binding occurrences. The journals live under the SCHEDULE. **The column supplies the DATE; the
+Schedule supplies the HOST.** *Check the premise of an answer, not just the answer.*
+
+**`0080`/`0081` — the orphans, on the user's rule** (*"if its a duplicate, remove it. but if its
+not, keep it and resolve it"*). Only ONE of three was a duplicate. **The keepers are keepers because
+day columns are TRANSIENT** — Build Schedule rebuilds for the filtered dates — so "unreachable from
+the Schedule" means *an older day*, not junk. The delete guard is TEXT-ONLY at full subtree depth
+(`0038` scored field values, fired on the app's own date stamp, and refused forever; its header
+records that mistake twice).
+
+**`0081` EXISTS BECAUSE `0080` LOOKED DONE AND WAS NOT.** Reading the result back through the real
+parent map: the resolved journal was `listed by 2: Schedule, 9:00pm(dead)` and **buildParentMap
+picked the dead slot**. *Listing a child is not giving it a path* — a second parent does not stop
+the first competing. **The same last-writer-wins ambiguity, third appearance in one session.**
+
+Verified by reading back through the real executor per column after every step: Aug 10 went
+MISSED → records to its own journal; 3 of 4 columns record and the 4th has **no journal in
+existence for that date**, said plainly rather than counted as a pass. Every A/B fails exactly its
+own test: defeating the clicked-column resolution (2), dropping the Schedule scope (2), removing
+the writing veto (1), walking only the first parent (1). 2456 client + 865 server tests, poms grid
+**0 integrity errors**, deployed and verified — prod HEAD, all referenced assets sha256-identical,
+the new key present in the SERVED chunk with both a positive and a zero control.
+
+**NOT VERIFIED IN A BROWSER, and it is the honest gap:** nobody has clicked a slice and watched a
+mood land or a slice light up.
+
+---
+
 ### 2026-08-11 (3) — a FIXED-DEPTH WALK is a bug waiting for the next re-nesting
 
 User: *"the Date display field is not on every tracker atm and shouldnt be shown on the container
