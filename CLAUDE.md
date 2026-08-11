@@ -6,6 +6,38 @@
 
 ---
 
+### 2026-08-11 (3) — a FIXED-DEPTH WALK is a bug waiting for the next re-nesting
+
+User: *"the Date display field is not on every tracker atm and shouldnt be shown on the container
+headers. just the individuaL trackers"* / *"the filter date is enough for the containers."*
+
+**BOTH SYMPTOMS WERE ONE MISTAKE IN MY OWN `0072`.** It collected tiles by walking exactly TWO levels
+(page → container → tile) and bound whatever it found, **without checking role**:
+```
+46  instance   the real tracker tiles — 31 bound, 15 MISSED (all at depth 3)
+14  container  4 bound, so the field rendered in their HEADER
+```
+The 15 missed are the tiles inside the nested Workout / Nutrition / Media / Planning groups the
+2026-07-30 restructure created. **A fixed-depth walk cannot see them and will keep missing whatever
+gets nested next** — this tree has been re-nested twice already. `0073` states the invariant instead:
+*every instance-role occurrence under the page, at any depth; no container, ever.* A/B'd by capping
+the walk back to two levels — it fails exactly the depth tests.
+
+**And the containers were wrong rather than merely redundant.** A container renders its fields in its
+HEADER, beside a title that ALREADY carries the date (`Trackers: Date-Prefix Labels` stamps "Today's
+Physical"). So the header showed the date twice — once as prose, once as an **empty pill**, empty
+because the op loops `$allInstances` and never had containers in it. *A binding that promises a value
+nothing will write is worse than no binding.*
+
+**The op needed no change, which is worth stating.** Its tile loop is `over $allInstances` gated by
+`_ancestors HAS_ANCESTOR <page>` — role-filtered and ancestor-scoped at ANY depth, so it already
+covered all 46. Only the bindings were wrong, so only the bindings moved. *When a fix and a report
+disagree about scope, check whether the op or the data is the thing that is actually narrow.*
+
+Verified through the real resolver: **46/46 tiles render it, 0/14 containers do.**
+
+---
+
 ### 2026-08-11 (2) — Tags off everywhere, Date on three pages; and the tracker date that must NOT be set
 
 User: *"hide tags everywhere, and date isnt being set on trackers. hide date everywhere thats not
