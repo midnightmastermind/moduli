@@ -52,8 +52,8 @@ export default function OccurrenceFields({
   const visibility = useMemo(
     () => (fieldVisibility !== undefined
       ? fieldVisibility
-      : getEffectiveFieldVisibilityForOccurrence(occurrence, { occurrencesById })),
-    [fieldVisibility, occurrence, occurrencesById],
+      : getEffectiveFieldVisibilityForOccurrence(occurrence, { occurrencesById, grid })),
+    [fieldVisibility, occurrence, occurrencesById, grid],
   );
   const reveal = useMemo(
     () => getEffectiveFieldRevealForOccurrence(occurrence, { occurrencesById }),

@@ -299,8 +299,8 @@ function InstanceInner({
     if (columnFieldVisibility) return columnFieldVisibility;
     // ancestorChain is the reactive dep for the ancestor walk inside.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    return getEffectiveFieldVisibilityForOccurrence(occurrence, { occurrencesById: getOccMap() });
-  }, [columnFieldVisibility, occurrence, ancestorChain, getOccMap]);
+    return getEffectiveFieldVisibilityForOccurrence(occurrence, { occurrencesById: getOccMap(), grid: ctxGrid });
+  }, [columnFieldVisibility, occurrence, ancestorChain, getOccMap, ctxGrid]);
 
   // The OTHER half of the field cascade — which fields this occurrence HAS
   // without its module binding them. Same nearest-wins walk, same reactive dep.

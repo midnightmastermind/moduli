@@ -368,8 +368,24 @@ export function getEffectiveFilterForOccurrence(occ, { grid, occurrencesById, pa
 // (it is by construction the nearest setting in the chain). When that nearest
 // setting is mode:"off" the function returns null — "show all fields here".
 // Returns { mode: "show"|"hide", fieldIds: string[] } or null.
-export function getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById, parentByChildId } = {}) {
-  if (!occ) return null;
+export function getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById, parentByChildId, grid } = {}) {
+  // THE GRID IS THE ROOT OF THIS CASCADE TOO, and it had none until 2026-08-11.
+  // User: *"hide tags everywhere, and hide date everywhere thats not tasks,
+  // schedule, trackers"* — a default with three exceptions, which is exactly a
+  // cascade rooted somewhere. Without a root, "everywhere" would have to be
+  // written onto all 71 pages and re-written for every page created afterwards.
+  //
+  // Same shape as `getEffectiveAutoAppliedFieldIds`: the grid states the
+  // default, any occurrence overrides it for itself and everything under it.
+  const gridDefault = (() => {
+    const fv = grid?.meta?.fieldVisibility;
+    if (!fv || fv.mode === "off") return null;
+    if (fv.mode === "show" || fv.mode === "hide") {
+      return { mode: fv.mode, fieldIds: Array.isArray(fv.fieldIds) ? fv.fieldIds : [] };
+    }
+    return null;
+  })();
+  if (!occ) return gridDefault;
   // Memoised fallback — ModuleInstance calls this per row inside its own
   // useMemo, so an unmemoised build is one full-grid scan per instance
   // (142ms of the 2026-08-07 date-navigation profile). See cachedParentMap.
@@ -389,7 +405,8 @@ export function getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById,
     const nextId = pbc[cur.id] ?? cur.parentId;
     cur = nextId ? (occurrencesById?.[nextId] || null) : null;
   }
-  return null;
+  // Nothing in the chain said anything — fall back to the grid's default.
+  return gridDefault;
 }
 
 // WHEN an occurrence's own fields are shown — a SEPARATE cascade from WHICH.
