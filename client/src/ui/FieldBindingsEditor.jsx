@@ -18,16 +18,16 @@
 //
 // The version this replaces held `useState(() => instance?.fieldBindings || [])`,
 // seeded ONCE. That is stale the moment anything else writes the module — a
-// migration, another window, or the grid-level universal list changing. Every
+// migration, another window, or an inherited auto-applied list changing. Every
 // commit here goes through `CommitHelpers.updateModule`, which dispatches
 // LOCALLY BEFORE it emits, so deriving from the prop is immediate AND correct.
 //
 // ── GRID-GIVEN FIELDS ARE SHOWN, NOT HIDDEN ────────────────────────────────
 //
-// `grid.meta.universalFieldIds` gives every occurrence a field through a
+// `grid.meta.autoAppliedFieldIds` gives every occurrence a field through a
 // SYNTHESIZED binding — nothing is written to the module. So a user opens this
 // editor, sees Tags rendering on the occurrence, and does not find it in the
-// list. That reads as a bug. Universal fields are listed as their own section,
+// list. That reads as a bug. Auto-applied fields are listed as their own section,
 // marked as coming from the grid, with the one action that makes sense on them:
 // BIND, which writes an explicit binding so this module can say something
 // specific about the field (show it, order it, change its role). That is the
@@ -39,7 +39,7 @@ import React, { useCallback, useMemo } from "react";
 import { X, Eye, EyeOff, Hash, Link2 } from "lucide-react";
 import DrilldownPicker from "./DrilldownPicker";
 import { useGridActions } from "../GridActionsContext";
-import { universalFieldIds } from "../helpers/universalFields";
+import { gridAutoAppliedFieldIds } from "../helpers/autoAppliedFields";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
 /**
@@ -67,10 +67,10 @@ export default function FieldBindingsEditor({
     [bindings]
   );
 
-  // Universal ids the module does NOT already bind. One it DOES bind is an
+  // Auto-applied ids the module does NOT already bind. One it DOES bind is an
   // ordinary row — the explicit binding is what is in force.
   const gridGivenIds = useMemo(
-    () => universalFieldIds(state?.grid).filter((id) => !boundFieldIds.has(id) && fieldsById?.[id]),
+    () => gridAutoAppliedFieldIds(state?.grid).filter((id) => !boundFieldIds.has(id) && fieldsById?.[id]),
     [state?.grid, boundFieldIds, fieldsById]
   );
 

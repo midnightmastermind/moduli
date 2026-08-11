@@ -422,6 +422,60 @@ export function getEffectiveFieldRevealForOccurrence(occ, { occurrencesById, par
   return "always";
 }
 
+// ── AUTO-APPLIED FIELDS: the other half of the field cascade ────────────────
+//
+// USER, 2026-08-10: *"its a cascade of shown fields and auto applied fields."*
+// Two questions, two cascades, sitting beside each other:
+//
+//   SHOWN fields        `fieldVisibility`        — of the fields this occurrence
+//                                                  has, which ones render
+//   AUTO-APPLIED fields `autoAppliedFieldIds`    — which fields it HAS without
+//                                                  its module declaring them
+//
+// AND IT IS NOT A HARD-CODED CATEGORY. User, correcting the first name twice:
+// *"universal fields arent anything hard coded, its just what the app sets at a
+// grid level and passed down."* So nothing here knows which field is Tags, or
+// that Date is special; a level names ids, and the levels below inherit them.
+//
+// A LIST, NOT AN ON/OFF FLAG — which is what makes *"turned off on occurances if
+// i want"* fall out for free rather than needing a second switch: an occurrence
+// overrides the list, and `[]` is how it carries none. Any level may also ADD
+// its own (a page that wants a field on everything under it), because a cascade
+// that only the grid can set is not a cascade.
+//
+// WHY THIS REPLACES THE FIRST DESIGN. Auto-applied fields used to be born hidden
+// and revealed by naming them in a `show`-mode `fieldVisibility`. But show-mode
+// is a WHITELIST — naming Tags there says "show Tags AND NOTHING ELSE". Migration
+// 0064 did exactly that on the Trackers page and hid every tracker's own bound
+// fields; the user saw the result: *"currently none of the trackers are showing
+// their fields either… just the tags field."* Reusing the shown cascade as the
+// applied cascade is precisely the confusion this split removes — the same
+// reasoning that gave `fieldReveal` its own cascade, recorded directly above.
+//
+// Nearest-wins, same walk and the same memoised parent map as the two above,
+// rooted at the grid so it is genuinely "set at a grid level and passed down".
+export function getEffectiveAutoAppliedFieldIds(
+  occ, { occurrencesById, parentByChildId, grid } = {},
+) {
+  const clean = (v) => (Array.isArray(v) ? v.filter((id) => typeof id === "string" && id) : null);
+  const gridIds = clean(grid?.meta?.autoAppliedFieldIds) || [];
+  if (!occ) return gridIds;
+  const pbc = parentByChildId || cachedParentMap(occurrencesById || {});
+  let cur = occ;
+  const guard = new Set();
+  while (cur && !guard.has(cur.id)) {
+    guard.add(cur.id);
+    // `null`/absent means "inherit"; `[]` means "none here or below" — the
+    // distinction is the whole reason this is a list and not a flag, so it must
+    // survive the walk rather than being coalesced away.
+    const own = clean(cur.autoAppliedFieldIds);
+    if (own) return own;
+    const nextId = pbc[cur.id] ?? cur.parentId;
+    cur = nextId ? (occurrencesById?.[nextId] || null) : null;
+  }
+  return gridIds;
+}
+
 // Pure predicate: does fieldId pass the given resolved field-visibility?
 // `fv` is the output of getEffectiveFieldVisibilityForOccurrence (or a table
 // column's local fieldVisibility). null = no constraint, everything passes.

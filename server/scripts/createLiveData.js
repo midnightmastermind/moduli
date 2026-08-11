@@ -9476,10 +9476,10 @@ async function main() {
       });
     }
 
-    // ── Universal fields + tags (migration 0064, shared with the live grid) ──
+    // ── Auto-applied fields + tags (migrations 0064 + 0067, shared with live) ──
     //
     // The GRID names which fields every occurrence carries
-    // (`grid.meta.universalFieldIds`), so nothing in the code knows the word
+    // (`grid.meta.autoAppliedFieldIds`), so nothing in the code knows the word
     // "Tags". Without this stamp a fresh grid has the field and the renderer and
     // resolves NOTHING — the same silent-inertness class as 0043 (no posters)
     // and 0049 (no Files home), which is why this takes the same remedy: CALL
@@ -9495,6 +9495,26 @@ async function main() {
       const { up: universalFieldsAndTags } = await import("../migrations/0064-universal-fields-and-tags.mjs");
       console.log("\n🏷️  Universal fields + structural tags (migration 0064, shared with the live grid)…");
       await universalFieldsAndTags({
+        gridId: result.gridId,
+        models: { Occurrence, Module, Field, Folder, Grid },
+        log: (m) => console.log(`   ${m}`),
+        dryRun: false,
+      });
+    }
+
+    // ── The auto-applied CASCADE (migration 0067) ─────────────────────────────
+    //
+    // 0064 wrote the OLD key name and revealed Tags on the Trackers page with a
+    // show-mode `fieldVisibility` — which is a WHITELIST, so it hid every
+    // tracker's own bound fields (the user's report, 2026-08-10). 0067 renames
+    // the key and drops that whitelist. Running it here for the same reason 0064
+    // is run here: the seed IS the migration, so a fresh grid and a migrated one
+    // cannot drift. Chained rather than folded into 0064 so the live grid's
+    // applied-ledger keeps describing what actually executed on it.
+    {
+      const { up: autoAppliedCascade } = await import("../migrations/0067-auto-applied-fields-cascade.mjs");
+      console.log("\n🧬 Auto-applied field cascade (migration 0067, shared with the live grid)…");
+      await autoAppliedCascade({
         gridId: result.gridId,
         models: { Occurrence, Module, Field, Folder, Grid },
         log: (m) => console.log(`   ${m}`),

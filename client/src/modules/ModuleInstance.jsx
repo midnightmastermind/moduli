@@ -14,7 +14,7 @@ import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
 import InstanceForm from "../ui/InstanceForm";
 import FieldRenderer from "../ui/FieldRenderer";
-import { resolveOccurrenceFields } from "../helpers/universalFields";
+import { resolveOccurrenceFields } from "../helpers/autoAppliedFields";
 import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
 import RadialMenu from "../ui/RadialMenu";
 import RepresentationView from "../ui/RepresentationView";
@@ -45,7 +45,11 @@ import { hexToRgba } from "../helpers/colorHelpers.js";
 import { CellEmbedContext } from "../docs/CellEmbedContext.js";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
-import { getEffectiveFieldVisibilityForOccurrence, fieldPassesVisibility } from "../state/selectors";
+import {
+  getEffectiveFieldVisibilityForOccurrence,
+  fieldPassesVisibility,
+  getEffectiveAutoAppliedFieldIds,
+} from "../state/selectors";
 import { consumeLabelEdit } from "../helpers/pendingLabelEdit.js";
 import { primaryMediaOf, filesFieldIdFor } from "../helpers/occurrenceMedia";
 import { setMainFile } from "../helpers/mainFile";
@@ -298,6 +302,14 @@ function InstanceInner({
     return getEffectiveFieldVisibilityForOccurrence(occurrence, { occurrencesById: getOccMap() });
   }, [columnFieldVisibility, occurrence, ancestorChain, getOccMap]);
 
+  // The OTHER half of the field cascade — which fields this occurrence HAS
+  // without its module binding them. Same nearest-wins walk, same reactive dep.
+  const autoAppliedFieldIds = useMemo(
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => getEffectiveAutoAppliedFieldIds(occurrence, { occurrencesById: getOccMap(), grid: ctxGrid }),
+    [occurrence, ancestorChain, getOccMap, ctxGrid],
+  );
+
   // Get fields for this instance based on fieldBindings (skip hidden bindings),
   // then apply the cascade-resolved field-visibility (show/hide whitelist).
   // ADDITIONALLY: when the visibility is "show" mode, synthesize bindings for
@@ -307,28 +319,28 @@ function InstanceInner({
   // are stamped as VALUES on each occurrence via Build Day's defaultFields,
   // not declared as bindings on the source module). Without this, "show" mode
   // referring to an unbound fieldId rendered nothing.
-  // THE GRID'S UNIVERSAL FIELDS APPLY HERE TOO (user 2026-08-10: *"tags should
-  // be a bound field from grid level filter settings, tags shouldnt be some
-  // hardcoded thing. universal is what i mean by that, cause its bound at a grid
-  // level cascaded down"*). `resolveOccurrenceFields` reproduces every rule this
-  // memo already applied — media-role exclusion, the force-show that lets a
-  // table column ask for a hidden binding by name, show-mode extras for values
-  // stamped without a declared binding, and the order sort — and adds the grid's
-  // list on top.
+  // AUTO-APPLIED FIELDS APPLY HERE TOO (user 2026-08-10: *"tags should be a
+  // bound field from grid level filter settings, tags shouldnt be some hardcoded
+  // thing … its bound at a grid level cascaded down"*, and *"its a cascade of
+  // shown fields and auto applied fields"*). `resolveOccurrenceFields` reproduces
+  // every rule this memo already applied — media-role exclusion, the force-show
+  // that lets a table column ask for a hidden binding by name, show-mode extras
+  // for values stamped without a declared binding, and the order sort — and adds
+  // the inherited list on top.
   //
-  // INSTANCE ROWS STILL RENDER IDENTICALLY, because a universal binding is born
-  // hidden: it resolves to nothing until an occurrence's fieldVisibility names
-  // it. That is what keeps "instances shouldnt change at all" true while making
-  // a textblock (which reaches this same path via renderBody) taggable.
+  // AN EMPTY CASCADE RENDERS IDENTICALLY TO BEFORE, which is what keeps
+  // "instances shouldnt change at all" true by default while letting a page or
+  // the grid opt its rows in — and makes a textblock (which reaches this same
+  // path via renderBody) taggable.
   const instanceFields = useMemo(() => {
     if (!fieldsById) return [];
     return resolveOccurrenceFields({
       module: instance,
-      grid: ctxGrid,
       fieldsById,
       fieldVisibility: effectiveFieldVisibility,
+      autoAppliedFieldIds,
     });
-  }, [instance, ctxGrid, fieldsById, effectiveFieldVisibility]);
+  }, [instance, fieldsById, effectiveFieldVisibility, autoAppliedFieldIds]);
 
   // ── Media section ──────────────────────────────────────────────────────────
   // A field binding with role:"media" surfaces below the label + fields as an

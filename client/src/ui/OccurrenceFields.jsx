@@ -2,7 +2,7 @@
 // ============================================================
 // The pill strip for an OCCURRENCE'S OWN fields — container, page, panel,
 // textblock, artifact. Instances are deliberately not routed through here
-// (see helpers/universalFields).
+// (see helpers/autoAppliedFields).
 //
 // TWO POSITIONS, AND WHICH ONE IS NOT A STYLE CHOICE:
 //   "under"  — beneath the label, for anything with a header to sit under
@@ -27,10 +27,11 @@
 import React, { useMemo } from "react";
 import AutoMarquee from "./AutoMarquee";
 import FieldRenderer from "./FieldRenderer";
-import { resolveOccurrenceFields } from "../helpers/universalFields";
+import { resolveOccurrenceFields } from "../helpers/autoAppliedFields";
 import {
   getEffectiveFieldVisibilityForOccurrence,
   getEffectiveFieldRevealForOccurrence,
+  getEffectiveAutoAppliedFieldIds,
 } from "../state/selectors";
 
 /**
@@ -58,9 +59,18 @@ export default function OccurrenceFields({
     () => getEffectiveFieldRevealForOccurrence(occurrence, { occurrencesById }),
     [occurrence, occurrencesById],
   );
+  // The OTHER half of the field cascade (user: *"its a cascade of shown fields
+  // and auto applied fields"*) — resolved the same nearest-wins way as the two
+  // above, rooted at the grid, so a page or container can add to or clear it.
+  const applied = useMemo(
+    () => getEffectiveAutoAppliedFieldIds(occurrence, { occurrencesById, grid }),
+    [occurrence, occurrencesById, grid],
+  );
   const items = useMemo(
-    () => resolveOccurrenceFields({ module, grid, fieldsById, fieldVisibility: visibility }),
-    [module, grid, fieldsById, visibility],
+    () => resolveOccurrenceFields({
+      module, fieldsById, fieldVisibility: visibility, autoAppliedFieldIds: applied,
+    }),
+    [module, fieldsById, visibility, applied],
   );
 
   // Render NOTHING when there is nothing to show — an empty strip in the corner
