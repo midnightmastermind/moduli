@@ -94,10 +94,25 @@ lists is the listed-but-not-embedded failure wearing a new hat. Scoped to SIGNED
 alone is far too broad a net without a signature to pin identity. Both halves A/B'd INDEPENDENTLY —
 disabling the fallback fails 2, disabling the re-list fails exactly 1.
 
-**The duplicate DATA is deliberately not cleaned up here.** The 0022/0023 rule is that the keeper is
-whichever copy HOLDS WRITING and anything containing text is never deleted — that needs
-`decompressTextmap` over each candidate and is its own reviewed pass. Stopping the bleeding and
-repairing the wound are two changes; shipping them together is how a cleanup gets rushed.
+**And the duplicate DATA is gone too, in its own pass (`0070`).** Measured at full depth through
+`decompressTextmap` FIRST: all 6 groups / 10 removable copies held **0 characters**, so the
+0022/0023 writing refusal never had to fire. 18 occurrences + 18 orphaned modules removed once
+subtrees are included. The writing guard counts TEXT, never field values — `0038` scored field
+values, fired on `0037`'s own date stamp, and refused to delete anything, and its header records
+making that mistake TWICE.
+
+**MY MULTI-PARENT GUARD WAS WRONG ON THE FIRST DRY RUN, and a count would have looked fine.** A
+duplicate is of course listed by the parent whose duplicates are being removed, and that parent is
+not inside the doomed subtree — so all four second-listed copies read as "shared" and the run
+proposed UNLINKING the very things it was meant to delete. Caught only by checking the report against
+a derived expectation (18 = 2×2 + 2×4 + 2×1×3). *Second time in one session that a dry run's prose
+read plausibly while its selector was wrong; both times the named expectation was the only thing that
+noticed.*
+
+Verified after: duplicate groups **6 → 0**, poms grid **0 integrity errors**, unlisted children
+**284 → 278** — the 277 unsigned feed sources plus the one deliberately shared wheel, exactly as
+predicted. **Deployed with a pm2 restart, because the warm cache is authoritative for reads and would
+otherwise re-serve the deleted rows.**
 
 **A 502 on the post-deploy check was the documented restart window, not an outage** — bundle 200 +
 index 502 is the tell, first retry answered 200, pm2 online with 13s uptime, `dist/index.html` fresh,
