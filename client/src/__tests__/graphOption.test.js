@@ -6,7 +6,8 @@
 // survives onto the click event — that is what lets a click resolve back to an
 // occurrence with no index-to-occurrence table to keep in sync.
 import { describe, it, expect } from "vitest";
-import { buildEChartsOption, CHART_TYPES, BLUR_ITEM_OPACITY, SUNBURST_LABEL_COLOR } from "../helpers/graphOption";
+import { buildEChartsOption, CHART_TYPES, BLUR_ITEM_OPACITY, SUNBURST_LABEL_COLOR,
+  radialLabelMinAngle, NESTED_RADIUS_PCT } from "../helpers/graphOption";
 
 const NODES = [
   { id: "a", occurrenceId: "occ-a", name: "Angry", value: 8, series: null, children: [], depth: 0 },
@@ -485,6 +486,40 @@ describe("buildEChartsOption — the added chart types", () => {
 
     it("still emphasises the ancestor path — the hint is not removed, only softened", () => {
       expect(sun().emphasis.focus).toBe("ancestor");
+    });
+  });
+
+  // ── The outer ring must not flip on a few pixels ──────────────────────────
+  // The feeling wheel's tertiary slice is a FIXED 4.5deg (8/40/80). The label
+  // threshold is NOT fixed — it grows as the chart narrows — so when the two sit
+  // close together, all 80 labels appear and disappear together. At the box the
+  // wheel actually renders at on a desktop the margin was 4.9%: about twenty
+  // pixels, i.e. a scrollbar.
+  //
+  // BOTH SIDES are pinned. Widening the margin is only correct while the phone
+  // keeps its deliberate unlabelled-at-rest behaviour — otherwise "fixing" the
+  // desktop quietly reinstates the 80-labels-in-a-390px-ring mass.
+  describe("radial label threshold has margin at desktop AND still hides on a phone", () => {
+    const TERTIARY_DEG = 360 / 80;
+    const at = (w) => radialLabelMinAngle({
+      boxPx: { width: w, height: 620 }, radiusPct: NESTED_RADIUS_PCT, zoom: 1,
+    });
+
+    it("leaves real margin at the desktop box the wheel renders at (524px)", () => {
+      const margin = (TERTIARY_DEG - at(524)) / TERTIARY_DEG;
+      expect(at(524)).toBeLessThan(TERTIARY_DEG);
+      expect(margin).toBeGreaterThan(0.15);   // 1.8 gave 0.049 — the reported bug
+    });
+
+    it("keeps the outer ring labelled well below the desktop size", () => {
+      // The cliff has to sit far enough away that a scrollbar cannot cross it.
+      expect(at(440)).toBeLessThan(TERTIARY_DEG);
+    });
+
+    it("still hides the outer ring on a 390px phone, as designed", () => {
+      // 2026-08-08: unlabelled at rest, readable the moment you zoom in. A
+      // multiplier low enough to break this is too low.
+      expect(at(390)).toBeGreaterThan(TERTIARY_DEG);
     });
   });
 });

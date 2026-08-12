@@ -245,7 +245,27 @@ export const SUNBURST_LABEL_COLOR = "#000000";
 // unreadable chart — 0.45 was the latter.
 export const BLUR_ITEM_OPACITY = 0.85;
 export const LABEL_FONT_PX = 10;
-export const LABEL_MIN_ARC_PX = LABEL_FONT_PX * 1.8;
+// A `rotate: "radial"` label runs ALONG the radius, so what has to fit inside
+// the arc is its THICKNESS — the font size. The multiple is the breathing room
+// between neighbouring labels, and it is expressed as a multiple so the two
+// cannot drift.
+//
+// IT WAS 1.8, AND THAT PUT THE FEELING WHEEL 4.9% FROM A CLIFF. A tertiary slice
+// is a FIXED 4.5deg (8 primary / 40 secondary / 80 tertiary); the threshold is
+// not fixed — it grows as the chart narrows. Measured at the box the wheel
+// actually renders at on a desktop (524px): threshold 4.28deg against a 4.5deg
+// slice. Twenty pixels narrower — a scrollbar appearing — and the threshold
+// crosses 4.5, at which point ALL 80 outer labels vanish at once, which is
+// exactly what "after the selection those 3rd level emotions dont show labels
+// anymore" looks like (user, 2026-08-12).
+//
+// 1.5 was chosen by rendering the real option through real ECharts at both
+// sizes and looking, not by arithmetic:
+//   desktop 524px   threshold 3.57deg   +21% margin   cliff moves 505px -> 415px
+//   phone   390px   threshold 4.79deg   still HIDDEN — the deliberate 2026-08-08
+//                   behaviour (unlabelled at rest, readable the moment you zoom)
+//                   is preserved EXACTLY, which 1.3 would have destroyed.
+export const LABEL_MIN_ARC_PX = LABEL_FONT_PX * 1.5;
 
 // `minAngle` applies to the WHOLE series, so an unclamped threshold on a tiny
 // box would blank the 8 primary slices (45° each) as well — which is the
