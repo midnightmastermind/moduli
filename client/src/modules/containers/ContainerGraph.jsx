@@ -113,6 +113,17 @@ export default function ContainerGraph({ occurrence, renderParentOccurrenceId = 
   // second copy of that here is exactly the drift that produced this bug.
   const handleSelect = useCallback((sel) => {
     if (!sel) return;
+    // `[graph]` diagnostics, ON by default — the same posture caretDiag took for
+    // a user-facing bug: a report should cost the user no setup. Mute with
+    // `window.__graphDiag = false`. It prints what the click CARRIES and whether
+    // the bridge is even wired, because "nothing happened" has now had three
+    // different causes (a wrong-shaped call, a day that resolved to an object,
+    // and a highlight too faint to see).
+    if (window.__graphDiag !== false) {
+      console.log(`[graph] click name=${sel.name} occ=${String(sel.occurrenceId || "none").slice(0, 8)} ` +
+        `column=${String(renderParentOccurrenceId || "none").slice(0, 8)} ` +
+        `bridge=${typeof operationsBridge.fireOperations === "function" ? "wired" : "MISSING"}`);
+    }
     try {
       operationsBridge.fireOperations?.("GraphSelectOp", {
         type: "GraphSelectOp",

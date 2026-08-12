@@ -147,10 +147,21 @@ function toDatum(node, highlight) {
   if (node.value !== undefined) d.value = node.value;
   if (highlight && node.occurrenceId && highlight.has(node.occurrenceId)) {
     d.selected = true;
-    // Lift it out of the palette so a marked slice reads as marked at a glance,
-    // and keep the label legible against the brighter fill.
-    d.itemStyle = { borderWidth: 2, borderColor: "#fff", opacity: 1 };
-    d.label = { fontWeight: 700 };
+    // IT HAS TO READ AS PICKED FROM ACROSS THE WHEEL, and the first version did
+    // not: a 2px white border on a 4.5° tertiary slice is a hairline. The user
+    // reported the selection "turned off" when they clicked away — what they had
+    // actually seen was ECharts' own click EMPHASIS fading, leaving a highlight
+    // too faint to notice. The data was correct the whole time.
+    //
+    // So: a thick BLACK ring and shadow that read at any slice width, with the
+    // label pulled to black and bold (user, 2026-08-12: "make the lettering
+    // black too and the outlines"). Black is deliberately not a palette colour
+    // — a marked slice must not look like just another category.
+    d.itemStyle = {
+      borderWidth: 4, borderColor: "#000000", opacity: 1,
+      shadowBlur: 12, shadowColor: "rgba(0,0,0,0.9)",
+    };
+    d.label = { fontWeight: 700, color: "#000000" };
   }
   if (Array.isArray(node.children) && node.children.length) {
     d.children = node.children.map((c) => toDatum(c, highlight));
@@ -223,6 +234,12 @@ export const NESTED_RADIUS_PCT = 92;
 // readable. A `rotate: "radial"` label runs ALONG the radius, so what has to fit
 // inside the slice's arc is its THICKNESS — the font size — plus room to
 // breathe. Expressed as a multiple of the font size so the two cannot drift.
+// A sunburst's labels sit ON its slices, so they take their contrast from the
+// PALETTE, not from the page theme. Black reads on every fill in the palette;
+// the theme's light `text` colour did not, which is what made the wheel hard to
+// read. Same colour is used for the slice separators so a ring reads as
+// segmented rather than as one blended band.
+export const SUNBURST_LABEL_COLOR = "#000000";
 export const LABEL_FONT_PX = 10;
 export const LABEL_MIN_ARC_PX = LABEL_FONT_PX * 1.8;
 
@@ -304,6 +321,9 @@ export function buildEChartsOption(spec, data, theme, view, boxPx) {
           radius: [0, scaled(NESTED_RADIUS_PCT)],
           center,
           data: nodes.map((n) => toDatum(n, hi)),
+          // Every slice carries a thin black separator so the rings read as
+          // segments. A highlighted slice overrides this with a thicker one.
+          itemStyle: { borderColor: SUNBURST_LABEL_COLOR, borderWidth: 1 },
           // `minAngle` HIDES a label whose slice is narrower than N degrees, and
           // it defaults high enough to blank an entire ring. Measured on the
           // real 128-node emotions wheel (2026-08-06): 80 tertiary leaves are
@@ -322,7 +342,7 @@ export function buildEChartsOption(spec, data, theme, view, boxPx) {
           // Falls back to the old fixed 1 when the host box is unknown, so a
           // caller that passes no box gets exactly the previous chart.
           label: {
-            rotate: "radial", color: t.text, fontSize: LABEL_FONT_PX, overflow: "truncate",
+            rotate: "radial", color: SUNBURST_LABEL_COLOR, fontSize: LABEL_FONT_PX, overflow: "truncate",
             minAngle: radialLabelMinAngle({ boxPx, radiusPct: NESTED_RADIUS_PCT, zoom: v.zoom }) ?? 1,
           },
           emphasis: { focus: "ancestor" },

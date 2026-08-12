@@ -15,7 +15,7 @@
 // which is what 0046's tests used — passes against code that cannot work.
 import { describe, it, expect, beforeEach } from "vitest";
 import { runMatchingOperations, applyEffectsToLiveOccs } from "../helpers/operationExecutor";
-import { buildRecordSelectionPipeline } from "../../../server/migrations/0079-mood-records-the-clicked-day.mjs";
+import { buildTogglePipeline } from "../../../server/migrations/0082-mood-click-toggles.mjs";
 
 const GRAPH = "occ-graph";
 const OTHER_GRAPH = "occ-other-graph";
@@ -43,7 +43,7 @@ function makeOp(targetGraph = GRAPH) {
       eventType: "onGraphSelect", subjectType: "module",
       subjectRole: "container", targetId: targetGraph,
     }],
-    pipeline: buildRecordSelectionPipeline({
+    pipeline: buildTogglePipeline({
       graphOccId: targetGraph, moodFieldId: MOOD, dateFieldId: DATE,
       schedulePageOccId: SCHED,
     }),
@@ -119,12 +119,35 @@ describe("Mood: Record Selection — clicking the wheel records a mood", () => {
     expect(moods()).toEqual([LONELY]);
   });
 
-  it("UNIONS — a day holds several feelings, and re-picking one does not duplicate it", () => {
+  it("TOGGLES — clicking a recorded feeling takes it back", () => {
+    // User, 2026-08-12: "if i click that one again, it should remove it."
+    // MERGE_ARRAY alone is union-only, so a wheel could only ever fill up.
+    clickSlice(LONELY);
+    expect(moods()).toEqual([LONELY]);
+    clickSlice(LONELY);
+    expect(moods()).toEqual([]);
+  });
+
+  it("holds SEVERAL feelings, and removing one leaves the others", () => {
+    // "if i click on another one, both should be selected and added."
     clickSlice(LONELY);
     clickSlice(HURT);
     expect(moods()).toEqual([LONELY, HURT]);
     clickSlice(LONELY);
-    expect(moods()).toEqual([LONELY, HURT]);
+    expect(moods()).toEqual([HURT]);
+    clickSlice(LONELY);
+    expect(moods()).toEqual([HURT, LONELY]);
+  });
+
+  it("the HIGHLIGHT follows the toggle — one truth, written twice", () => {
+    // Removing a feeling must clear its slice, or the wheel shows a mood the
+    // day no longer holds.
+    clickSlice(LONELY);
+    clickSlice(HURT);
+    const updates = clickSlice(LONELY);
+    const meta = updates.find((u) => u._effect === "UPDATE_ITEM_META");
+    expect(meta.value).toEqual([HURT]);
+    expect(meta.value).toEqual(moods());
   });
 
   it("lights the picked slice, with the SAME ids as the field", () => {
