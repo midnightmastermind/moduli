@@ -35,6 +35,39 @@ _Updated: 2026-08-12. Check this file before re-reading source._
 - Merged after bringing master in: **one conflict, in `modules/CLAUDE.md`**, both dated entries
   kept. 2518 client tests.
 
+## Recent Changes (2026-08-12 (3) — `graphSelection.js` NEW: the wheel READS the field)
+- **User: *"if i drag a mood onto a day, it should select it on the graph"*** — then, shown the
+  measurement, **"derive from the Mood field."**
+- **THE MEASUREMENT RETIRED THE WORK INSTEAD OF ADDING TO IT.** `meta.graph.highlight` was an EXACT
+  DUPLICATE of the day's own Mood value — same 7 ids, same day, written by the same op in the same
+  step. Two stores for one fact, kept in step only by the paths someone remembered to wire, so a
+  click lit a slice and every OTHER way a mood reaches a day left it dark. The asked-for drag was
+  one case; a manual field edit and any future op are the same gap. **A mirror op would have fixed
+  the one case and left the class open.**
+- **`selectedIdsForDay(occurrences, {valueFieldId, dayFieldId, day})`** unions the selection across
+  rows dated that day. Pure, and it knows nothing about moods: the graph occurrence NAMES both
+  fields. Dragging a Check In re-stamps its Date (the existing slot op), so the drag moves the mood
+  with no new code at all.
+- **AN EMPTY SET IS A REAL ANSWER — "nothing is selected today" — and must NOT fall through to the
+  cache; `null` means "not configured to derive" and does.** That distinction IS the back-compat
+  story: an unmigrated grid still lights its stored list. A/B'd both ways.
+- **Feed copies are skipped**: a copy carries its SOURCE's value under whatever day it was copied
+  to. Every tracker on this grid excludes them for the same reason.
+- **`0085` stamps `valueFieldId`, DELETES the cache, and drops the op's highlight write** — leaving
+  that write would keep filling a key nothing reads. **The journal Mood write is untouched: it is
+  the record the wheel now reads.** Dry run checked against a NAMED expectation first (cache 7,
+  field 7, IDENTICAL — so dropping it changes nothing that lights).
+- **A/B TRAP WORTH KEEPING:** one of the five mutations *applied* and was **not observable** — it
+  added an unused variable and "passed" 102 tests while changing nothing. *Verify a mutation is
+  OBSERVABLE, not merely landed.*
+- **KNOWN EDGE, stated rather than hidden:** a mood held by BOTH the journal and a Check In for one
+  day is unioned; dragging the Check In lights the new day while the old still lights via the
+  journal. Which is the record is a separate decision.
+- **NOT VERIFIED IN A BROWSER, and it is the honest gap:** nobody has dragged a Check In between
+  days and watched the wheel follow. Also, **no Check In has ever been minted on poms grid** — the
+  7 recorded moods were written at 13:04, before `0083` shipped the mint, so that path is live but
+  unexercised.
+
 ## Recent Changes (2026-08-12 (2) — graphOption: the highlight is PER DAY)
 - **User: *"the highlight of the selected should be per day, not all of them."*** The
   one-occurrence-many-days shape, third appearance. `0068` unified the wheel into ONE occurrence
