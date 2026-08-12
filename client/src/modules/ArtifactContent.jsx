@@ -11,6 +11,11 @@ import Editor from "../ui/Editor.jsx";
 import { hexToRgba } from "../helpers/colorHelpers.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
 import { resolveFileRef } from "../helpers/fileRef.js";
+// The global image picker (search / upload / URL). Its single host is mounted in
+// App.jsx and call sites open it imperatively — the same way ui/QuickAddMenu does.
+// The "Replace" button below called this WITHOUT the import, so clicking it threw
+// a ReferenceError instead of opening the picker.
+import { openImagePicker } from "../ui/ImagePickerMenu";
 import "highlight.js/styles/atom-one-dark.css";
 import { Settings, Download, ScanText, Loader2, ImagePlus } from "lucide-react";
 import { toast } from "../state/notificationStore";

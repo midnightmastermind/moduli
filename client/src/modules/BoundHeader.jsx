@@ -11,8 +11,9 @@
 // Falls back to the module label when the host doesn't yet have a value for
 // the selfField AND the field has no resolvable options.
 import React, { useMemo, useCallback } from "react";
-import { Dices, Link2, Unlink2 } from "lucide-react";
+import { ChevronDown, Dices, Link2, Unlink2 } from "lucide-react";
 import { useGridActions } from "../GridActionsContext.js";
+import AutoMarquee from "../ui/AutoMarquee";
 import { resolveOptions } from "../helpers/optionsResolver.js";
 import { propagateBoundFieldWrite } from "../helpers/boundFieldSync.js";
 import { findLinkedSiblings } from "../state/editorBindings.js";
@@ -94,25 +95,27 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
     [hostOccurrence, binding, dispatch, socket, occurrencesById]
   );
 
-  if (!hostOccurrence || !field) {
-    return <span>{markdownPrefix}{label}</span>;
-  }
+  const value = hostOccurrence?.fields?.[binding?.selfField]?.value;
 
-  const value = hostOccurrence.fields?.[binding.selfField]?.value;
-  // Render as a dropdown whenever options are available — covers select-type
-  // fields AND text-type fields with an optionsSource (e.g. journalQuestion's
-  // find-mode pool). Falls back to the text branch when no options resolve.
-  const hasOptions = options.length > 0;
-  // The <select> truncates its selected option, and a native select cannot be
-  // made to marquee. Until the header is restructured (render the text as a
-  // marquee span with the select laid over it transparently — the Alarms tab's
-  // pattern), the full text is at least reachable on hover (user 2026-08-01:
-  // "it should at least have a hover that says the full thing").
+  // The text the control is currently showing. Declared BEFORE the early
+  // return: a hook after a conditional return changes the hook COUNT the moment
+  // hostOccurrence resolves, which is a React crash waiting for the first render
+  // where this component mounts without one. It was already written that way;
+  // moving it up is the whole fix.
   const selectedLabel = useMemo(() => {
     const hit = options.find((o) => (typeof o === "string" ? o : o.value) === value);
     if (hit) return typeof hit === "string" ? hit : (hit.label ?? hit.value);
     return value == null || value === "" ? "" : String(value);
   }, [options, value]);
+
+  if (!hostOccurrence || !field) {
+    return <span>{markdownPrefix}{label}</span>;
+  }
+
+  // Render as a dropdown whenever options are available — covers select-type
+  // fields AND text-type fields with an optionsSource (e.g. journalQuestion's
+  // find-mode pool). Falls back to the text branch when no options resolve.
+  const hasOptions = options.length > 0;
   // Any field with a configured optionsSource — render the dropdown UI
   // even when the predicate currently resolves zero options. Gives users
   // a visible affordance (instead of a silent text fallback) plus a
@@ -141,43 +144,67 @@ export default function BoundHeader({ hostOccurrence, binding, markdownPrefix = 
             row, which is the "small next to it". Only the markdown prefix (the
             `#` heading marker) is printed here. */}
         {markdownPrefix ? <span>{markdownPrefix}</span> : null}
-        {/* Full text on hover — see .bound-header-fulltext. Sits OVER the row so
-            the select and everything around it stay exactly where they are. */}
-        {selectedLabel ? <span className="bound-header-fulltext">{selectedLabel}</span> : null}
-        <select
-          aria-label="bound select"
-          title={selectedLabel || undefined}
-          value={value ?? ""}
-          onChange={(e) => writeAndSync(e.target.value)}
-          // NO inline fontSize. A hardcoded 11px here beat the heading size the
-          // host span sets (the parent measured 13px while this stayed 11), so a
-          // bound header never rendered at the level it declared — and it is an
-          // INLINE style, which no stylesheet rule can override. That is the
-          // fifth time this trap has been recorded in this codebase: when a size
-          // or layout rule silently does nothing, look for an inline style
-          // FIRST. `font: inherit` in index.css now supplies family/size/weight
-          // from the heading.
-          style={{ padding: "2px 4px", maxWidth: "100%" }}
-        >
-          {hasOptions ? (
-            <>
-              {/* Empty, like every other field select — an unset question reads
-                  as blank rather than announcing a placeholder. */}
-              <option value=""></option>
-              {options.map((opt) => {
-                const v = typeof opt === "string" ? opt : opt.value;
-                const l = typeof opt === "string" ? opt : (opt.label ?? opt.value);
-                return (
-                  <option key={String(v)} value={v}>
-                    {l}
-                  </option>
-                );
-              })}
-            </>
-          ) : (
-            <option value="" disabled>(no options — check pool predicate)</option>
-          )}
-        </select>
+        {/* THE TEXT IS A REAL SPAN AND THE SELECT IS LAID OVER IT, TRANSPARENT.
+            A native <select> truncates its selected option internally and cannot
+            be made to marquee — AutoMarquee measures scrollWidth, and a select
+            capped at max-width:100% never reports any overflow, so the marquee
+            this module asks for (meta.labelOverflow) was inert by construction.
+            The reveal was therefore hover-only, which means on TOUCH the rest of
+            a long question was unreachable at all (measured 2026-08-11).
+            The text layer overflows honestly, so it marquees / wraps / ellipses
+            exactly as labelOverflow says, with no pointer required.
+
+            The earlier attempt REPOSITIONED the select on hover and lost the
+            row's stretched width plus the app's control chrome (user 2026-08-01:
+            "a diff css version of select thats alot smaller and square border").
+            Overlaying instead leaves the native control's geometry alone — it is
+            simply invisible, and still opens its own picker on click or tap. */}
+        <span className="bound-header-pick" title={selectedLabel || undefined}>
+          {/* The empty-pool diagnostic (#47) used to be the select's only
+              <option>, which an invisible select can no longer show — so it
+              moves to the text layer. Dropping it would turn a misconfigured
+              predicate back into a silently blank header. */}
+          <span className="bound-header-text">
+            <AutoMarquee>
+              {selectedLabel || (hasOptions ? " " : "(no options — check pool predicate)")}
+            </AutoMarquee>
+          </span>
+          {/* The caret is drawn by us because an invisible select cannot draw
+              its own — without it there is nothing saying this is pickable. */}
+          <ChevronDown className="bound-header-caret" size={12} aria-hidden="true" />
+          <select
+            className="bound-header-native"
+            aria-label="bound select"
+            value={value ?? ""}
+            onChange={(e) => writeAndSync(e.target.value)}
+            // NO inline fontSize. A hardcoded 11px here beat the heading size the
+            // host span sets (the parent measured 13px while this stayed 11), so a
+            // bound header never rendered at the level it declared — and it is an
+            // INLINE style, which no stylesheet rule can override. That is the
+            // fifth time this trap has been recorded in this codebase: when a size
+            // or layout rule silently does nothing, look for an inline style
+            // FIRST.
+          >
+            {hasOptions ? (
+              <>
+                {/* Empty, like every other field select — an unset question reads
+                    as blank rather than announcing a placeholder. */}
+                <option value=""></option>
+                {options.map((opt) => {
+                  const v = typeof opt === "string" ? opt : opt.value;
+                  const l = typeof opt === "string" ? opt : (opt.label ?? opt.value);
+                  return (
+                    <option key={String(v)} value={v}>
+                      {l}
+                    </option>
+                  );
+                })}
+              </>
+            ) : (
+              <option value="" disabled>(no options — check pool predicate)</option>
+            )}
+          </select>
+        </span>
         {field.meta?.randomizable && (
           <button
             data-testid="bound-header-dice"

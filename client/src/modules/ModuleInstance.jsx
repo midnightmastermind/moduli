@@ -14,7 +14,7 @@ import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
 import InstanceForm from "../ui/InstanceForm";
 import FieldRenderer from "../ui/FieldRenderer";
-import { resolveOccurrenceFields } from "../helpers/universalFields";
+import { resolveOccurrenceFields } from "../helpers/autoAppliedFields";
 import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
 import RadialMenu from "../ui/RadialMenu";
 import RepresentationView from "../ui/RepresentationView";
@@ -45,7 +45,12 @@ import { hexToRgba } from "../helpers/colorHelpers.js";
 import { CellEmbedContext } from "../docs/CellEmbedContext.js";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
-import { getEffectiveFieldVisibilityForOccurrence, fieldPassesVisibility } from "../state/selectors";
+import {
+  getEffectiveFieldVisibilityForOccurrence,
+  fieldPassesVisibility,
+  getEffectiveAutoAppliedFieldIds,
+  getAutoAppliedRoles,
+} from "../state/selectors";
 import { consumeLabelEdit } from "../helpers/pendingLabelEdit.js";
 import { primaryMediaOf, filesFieldIdFor } from "../helpers/occurrenceMedia";
 import { setMainFile } from "../helpers/mainFile";
@@ -295,8 +300,16 @@ function InstanceInner({
     if (columnFieldVisibility) return columnFieldVisibility;
     // ancestorChain is the reactive dep for the ancestor walk inside.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    return getEffectiveFieldVisibilityForOccurrence(occurrence, { occurrencesById: getOccMap() });
-  }, [columnFieldVisibility, occurrence, ancestorChain, getOccMap]);
+    return getEffectiveFieldVisibilityForOccurrence(occurrence, { occurrencesById: getOccMap(), grid: ctxGrid });
+  }, [columnFieldVisibility, occurrence, ancestorChain, getOccMap, ctxGrid]);
+
+  // The OTHER half of the field cascade — which fields this occurrence HAS
+  // without its module binding them. Same nearest-wins walk, same reactive dep.
+  const autoAppliedFieldIds = useMemo(
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    () => getEffectiveAutoAppliedFieldIds(occurrence, { occurrencesById: getOccMap(), grid: ctxGrid }),
+    [occurrence, ancestorChain, getOccMap, ctxGrid],
+  );
 
   // Get fields for this instance based on fieldBindings (skip hidden bindings),
   // then apply the cascade-resolved field-visibility (show/hide whitelist).
@@ -307,28 +320,29 @@ function InstanceInner({
   // are stamped as VALUES on each occurrence via Build Day's defaultFields,
   // not declared as bindings on the source module). Without this, "show" mode
   // referring to an unbound fieldId rendered nothing.
-  // THE GRID'S UNIVERSAL FIELDS APPLY HERE TOO (user 2026-08-10: *"tags should
-  // be a bound field from grid level filter settings, tags shouldnt be some
-  // hardcoded thing. universal is what i mean by that, cause its bound at a grid
-  // level cascaded down"*). `resolveOccurrenceFields` reproduces every rule this
-  // memo already applied — media-role exclusion, the force-show that lets a
-  // table column ask for a hidden binding by name, show-mode extras for values
-  // stamped without a declared binding, and the order sort — and adds the grid's
-  // list on top.
+  // AUTO-APPLIED FIELDS APPLY HERE TOO (user 2026-08-10: *"tags should be a
+  // bound field from grid level filter settings, tags shouldnt be some hardcoded
+  // thing … its bound at a grid level cascaded down"*, and *"its a cascade of
+  // shown fields and auto applied fields"*). `resolveOccurrenceFields` reproduces
+  // every rule this memo already applied — media-role exclusion, the force-show
+  // that lets a table column ask for a hidden binding by name, show-mode extras
+  // for values stamped without a declared binding, and the order sort — and adds
+  // the inherited list on top.
   //
-  // INSTANCE ROWS STILL RENDER IDENTICALLY, because a universal binding is born
-  // hidden: it resolves to nothing until an occurrence's fieldVisibility names
-  // it. That is what keeps "instances shouldnt change at all" true while making
-  // a textblock (which reaches this same path via renderBody) taggable.
+  // AN EMPTY CASCADE RENDERS IDENTICALLY TO BEFORE, which is what keeps
+  // "instances shouldnt change at all" true by default while letting a page or
+  // the grid opt its rows in — and makes a textblock (which reaches this same
+  // path via renderBody) taggable.
   const instanceFields = useMemo(() => {
     if (!fieldsById) return [];
     return resolveOccurrenceFields({
       module: instance,
-      grid: ctxGrid,
       fieldsById,
       fieldVisibility: effectiveFieldVisibility,
+      autoAppliedFieldIds,
+      autoAppliedRoles: getAutoAppliedRoles(ctxGrid),
     });
-  }, [instance, ctxGrid, fieldsById, effectiveFieldVisibility]);
+  }, [instance, fieldsById, effectiveFieldVisibility, autoAppliedFieldIds, ctxGrid]);
 
   // ── Media section ──────────────────────────────────────────────────────────
   // A field binding with role:"media" surfaces below the label + fields as an
@@ -648,9 +662,22 @@ function InstanceInner({
         style={{
           flex: 1,
           display: "flex",
-          flexDirection: "row",
-          flexWrap: "wrap",
-          justifyContent: "space-between",
+          // COMPOSITION COMES FROM CONFIG, NOT FROM THIS FILE.
+          // These were literal values, and because an inline style beats any
+          // stylesheet rule regardless of specificity, every attempt to lay a
+          // tile out differently had to fight them with `!important` — six
+          // recorded times. A `var()` keeps the inline style (so nothing about
+          // the hot path changes) while letting the OWNING CONTAINER supply the
+          // value, which is what makes "title above fields vs beside them" a
+          // setting instead of a stylesheet edit.
+          //
+          // THE FALLBACKS ARE TODAY'S EXACT VALUES, so a surface that sets
+          // nothing renders byte-identically — the property that made
+          // universalFieldIds safe to ship everywhere at once.
+          flexDirection: "var(--instance-content-direction, row)",
+          flexWrap: "var(--instance-content-wrap, wrap)",
+          justifyContent: "var(--instance-content-justify, space-between)",
+          alignItems: "var(--instance-content-align, stretch)",
           gap: 2,
           rowGap: 4,
           minWidth: 0,
@@ -953,6 +980,11 @@ function ModuleInstance({
   // per-write-rebuilt maps here re-rendered every instance on every write.
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const getParentId = useGridActionsSelector(s => s.getParentId || ((oid) => (oid ? s.parentByChildId?.[oid] || null : null)));
+  // Read at CALLBACK time, like getOccMap above. `handleContextMenu` needs the
+  // module map for planConvertRelink; subscribing to `modulesById` here would
+  // re-render all ~190 mounted instances on every module write — the churn the
+  // 2026-07-03 per-id selector migration removed.
+  const getModMap = useGridActionsSelector(s => s.getModMap || (() => s.modulesById || {}));
   // Linked-badge count for THIS instance's group — a number, so Object.is
   // keeps it stable across unrelated writes.
   const linkedGroupCount = useGridActionsSelector(s =>
@@ -1106,7 +1138,7 @@ function ModuleInstance({
                 url,
                 rootOccurrenceId: res.rootOccurrenceId,
                 occurrencesById: getOccMap(),
-                modulesById,
+                modulesById: getModMap(),
               });
               for (const w of writes) {
                 CommitHelpers.updateOccurrence({
@@ -1140,7 +1172,7 @@ function ModuleInstance({
       },
     ].filter(Boolean);
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
-  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket, selection, getOccMap, getParentId, modulesById]);
+  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket, selection, getOccMap, getParentId, getModMap]);
 
   // Touch: long-press opens the same menu (right-click has no touch equivalent).
   const instanceLongPress = useLongPress(({ x, y }) =>

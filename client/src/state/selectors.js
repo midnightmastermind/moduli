@@ -368,8 +368,24 @@ export function getEffectiveFilterForOccurrence(occ, { grid, occurrencesById, pa
 // (it is by construction the nearest setting in the chain). When that nearest
 // setting is mode:"off" the function returns null — "show all fields here".
 // Returns { mode: "show"|"hide", fieldIds: string[] } or null.
-export function getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById, parentByChildId } = {}) {
-  if (!occ) return null;
+export function getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById, parentByChildId, grid } = {}) {
+  // THE GRID IS THE ROOT OF THIS CASCADE TOO, and it had none until 2026-08-11.
+  // User: *"hide tags everywhere, and hide date everywhere thats not tasks,
+  // schedule, trackers"* — a default with three exceptions, which is exactly a
+  // cascade rooted somewhere. Without a root, "everywhere" would have to be
+  // written onto all 71 pages and re-written for every page created afterwards.
+  //
+  // Same shape as `getEffectiveAutoAppliedFieldIds`: the grid states the
+  // default, any occurrence overrides it for itself and everything under it.
+  const gridDefault = (() => {
+    const fv = grid?.meta?.fieldVisibility;
+    if (!fv || fv.mode === "off") return null;
+    if (fv.mode === "show" || fv.mode === "hide") {
+      return { mode: fv.mode, fieldIds: Array.isArray(fv.fieldIds) ? fv.fieldIds : [] };
+    }
+    return null;
+  })();
+  if (!occ) return gridDefault;
   // Memoised fallback — ModuleInstance calls this per row inside its own
   // useMemo, so an unmemoised build is one full-grid scan per instance
   // (142ms of the 2026-08-07 date-navigation profile). See cachedParentMap.
@@ -389,7 +405,8 @@ export function getEffectiveFieldVisibilityForOccurrence(occ, { occurrencesById,
     const nextId = pbc[cur.id] ?? cur.parentId;
     cur = nextId ? (occurrencesById?.[nextId] || null) : null;
   }
-  return null;
+  // Nothing in the chain said anything — fall back to the grid's default.
+  return gridDefault;
 }
 
 // WHEN an occurrence's own fields are shown — a SEPARATE cascade from WHICH.
@@ -420,6 +437,75 @@ export function getEffectiveFieldRevealForOccurrence(occ, { occurrencesById, par
     cur = nextId ? (occurrencesById?.[nextId] || null) : null;
   }
   return "always";
+}
+
+// ── AUTO-APPLIED FIELDS: the other half of the field cascade ────────────────
+//
+// USER, 2026-08-10: *"its a cascade of shown fields and auto applied fields."*
+// Two questions, two cascades, sitting beside each other:
+//
+//   SHOWN fields        `fieldVisibility`        — of the fields this occurrence
+//                                                  has, which ones render
+//   AUTO-APPLIED fields `autoAppliedFieldIds`    — which fields it HAS without
+//                                                  its module declaring them
+//
+// AND IT IS NOT A HARD-CODED CATEGORY. User, correcting the first name twice:
+// *"universal fields arent anything hard coded, its just what the app sets at a
+// grid level and passed down."* So nothing here knows which field is Tags, or
+// that Date is special; a level names ids, and the levels below inherit them.
+//
+// A LIST, NOT AN ON/OFF FLAG — which is what makes *"turned off on occurances if
+// i want"* fall out for free rather than needing a second switch: an occurrence
+// overrides the list, and `[]` is how it carries none. Any level may also ADD
+// its own (a page that wants a field on everything under it), because a cascade
+// that only the grid can set is not a cascade.
+//
+// WHY THIS REPLACES THE FIRST DESIGN. Auto-applied fields used to be born hidden
+// and revealed by naming them in a `show`-mode `fieldVisibility`. But show-mode
+// is a WHITELIST — naming Tags there says "show Tags AND NOTHING ELSE". Migration
+// 0064 did exactly that on the Trackers page and hid every tracker's own bound
+// fields; the user saw the result: *"currently none of the trackers are showing
+// their fields either… just the tags field."* Reusing the shown cascade as the
+// applied cascade is precisely the confusion this split removes — the same
+// reasoning that gave `fieldReveal` its own cascade, recorded directly above.
+//
+// Nearest-wins, same walk and the same memoised parent map as the two above,
+// rooted at the grid so it is genuinely "set at a grid level and passed down".
+/**
+ * Which ROLES receive the grid's auto-applied fields. `null` = every role,
+ * which is what every grid did before this existed, so an unset key changes
+ * nothing.
+ *
+ * Grid-level ONLY, deliberately: this is a statement about what a KIND of
+ * surface is for ("a page header is chrome, a row carries data"), not about
+ * one page — and unlike the auto-applied LIST it must not cascade, or setting
+ * it on a page would silence the instances beneath it.
+ */
+export function getAutoAppliedRoles(grid) {
+  const v = grid?.meta?.autoAppliedRoles;
+  return Array.isArray(v) ? v.filter((r) => typeof r === "string" && r) : null;
+}
+
+export function getEffectiveAutoAppliedFieldIds(
+  occ, { occurrencesById, parentByChildId, grid } = {},
+) {
+  const clean = (v) => (Array.isArray(v) ? v.filter((id) => typeof id === "string" && id) : null);
+  const gridIds = clean(grid?.meta?.autoAppliedFieldIds) || [];
+  if (!occ) return gridIds;
+  const pbc = parentByChildId || cachedParentMap(occurrencesById || {});
+  let cur = occ;
+  const guard = new Set();
+  while (cur && !guard.has(cur.id)) {
+    guard.add(cur.id);
+    // `null`/absent means "inherit"; `[]` means "none here or below" — the
+    // distinction is the whole reason this is a list and not a flag, so it must
+    // survive the walk rather than being coalesced away.
+    const own = clean(cur.autoAppliedFieldIds);
+    if (own) return own;
+    const nextId = pbc[cur.id] ?? cur.parentId;
+    cur = nextId ? (occurrencesById?.[nextId] || null) : null;
+  }
+  return gridIds;
 }
 
 // Pure predicate: does fieldId pass the given resolved field-visibility?
@@ -586,6 +672,41 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
       // all slots: clearing writes filterOverride[fieldId] = null, the cascade
       // deletes the key, rightVal lands as undefined, and we should pass.
       if (rightVal == null) continue;
+      // ── EXPLICITLY CLEARED is not the same as NO FILTER SET ────────────────
+      //
+      // User, 2026-08-10: *"for the daypage, i currently have no date set and it
+      // pops up with aug 6th and aug 10th"* — and, asked what clearing the date
+      // should do: **show nothing dated**.
+      //
+      // Clearing a date leaves a period OBJECT whose value is null
+      // (`{value: null, unit: "day", kind: "single"}` — that is exactly what the
+      // Day Page carries today), which sails past the `rightVal == null` guard
+      // above and lands in DATE_IN_PERIOD against an empty period. So a cleared
+      // filter behaved like no filter at all and every dated row stayed on
+      // screen.
+      //
+      // THE DISTINCTION IS WHY THIS IS SAFE, and it is the whole reason the
+      // change is this narrow. Three states are structurally different:
+      //
+      //   key ABSENT / rightVal null   no filter target — the "— any —" reset,
+      //                                and a filter that has not bootstrapped
+      //                                yet. Still passes. Untouched.
+      //   period object, value null    the user cleared it ON PURPOSE. Hide.
+      //   a real value                 filter normally.
+      //
+      // Without that middle case being its own shape, "hide everything dated"
+      // would also fire during a slow load and read as data loss.
+      //
+      // `dates[]` is checked because a non-consecutive multi-pick can carry a
+      // null anchor while still naming real days — that is a selection, not a
+      // clear. Reaching here means the occurrence HAS a value for this field
+      // (the `leftVal == null` guard above already let persistent rows through),
+      // so returning false hides exactly the dated ones and nothing else.
+      if (typeof rightVal === "object" && !Array.isArray(rightVal)
+          && rightVal.value == null
+          && !(Array.isArray(rightVal.dates) && rightVal.dates.length)) {
+        return false;
+      }
       // Period-shape `{value, unit, span?}` filter values broaden the match
       // window — route through DATE_IN_PERIOD regardless of the condition's
       // static comparator (e.g. SAME_DAY). Covers:
@@ -595,10 +716,24 @@ export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditio
       // Without span detection, kind:"range" (unit:"day", span:N) fell back
       // to SAME_DAY which can't compare a string to an object → every
       // schedule day-col was invisible on a multi-day filter.
-      const hasPeriod = rightVal && typeof rightVal === "object" &&
-        ((rightVal.unit && rightVal.unit !== "day") ||
-         (Number(rightVal.span) > 1) ||
-         (rightVal.kind === "multi" && Array.isArray(rightVal.dates)));
+      //   - kind === "single"  (a single-day pick that still carries the OBJECT
+      //     shape `{value, unit:"day", kind:"single"}` — see below)
+      //
+      // 2026-08-10: this list used to enumerate the period SHAPES, and
+      // `kind:"single"` matched none of them — unit is "day", span is undefined,
+      // kind is not "multi" — so a single-day pick fell back to SAME_DAY and
+      // compared a STRING to an OBJECT. Every Schedule day column went invisible
+      // the moment the user narrowed a multi-day range to one day (user: "i go
+      // from aug 10th and 11th, to just the 10th and schedule disappears"). The
+      // data was intact throughout; only the visibility test failed.
+      //
+      // So the rule is now the INVARIANT rather than a shape list: if the filter
+      // value is an OBJECT, SAME_DAY can never work — it would compare a string
+      // to an object and always return false. DATE_IN_PERIOD handles every
+      // variant (day/week/month/year/span/multi) and treats `{value, unit:"day"}`
+      // as exactly the single day SAME_DAY intended. Enumerating shapes is what
+      // made this recur twice; `kind:"range"` was the first.
+      const hasPeriod = !!rightVal && typeof rightVal === "object" && !Array.isArray(rightVal);
       const comparator = hasPeriod ? "DATE_IN_PERIOD" : String(cond.comparator || "IS").toUpperCase();
       const ok = evalRule({ left: leftVal, comparator, right: rightVal }, {});
       if (!ok) return false;

@@ -6,6 +6,305 @@
 
 ---
 
+### 2026-08-11 (5) — RETRACTION: the click never fired the op AT ALL, and a TEST WAS PINNING IT
+
+User, after (4) shipped and deployed: *"nothing happened when i clicked an emotion for today."*
+
+**(4) FOUND REAL DEFECTS AND MISSED THE CAUSE.** `runMatchingOperations(operations,
+transactionType, transaction, context)` is POSITIONAL. `ContainerGraph` called it with a **single
+OBJECT** — so `operations` WAS that object, every other argument was `undefined`, and the op loop
+iterated nothing. **No click has ever fired this trigger.** That is the actual reason zero moods
+were ever recorded; the period-object/`SAME_DAY` mismatch and the array-throw are real and would
+have bitten the instant this was fixed, but they sat downstream of a call that never ran.
+
+It was silent because the call lives in a `try/catch` that exists to stop a broken op taking the
+chart down. **Every other call site on the grid is positional; this was the only one that was not.**
+And a merely-corrected positional call would still be half a fix — the returned effects have to be
+APPLIED and the return value was discarded. It now goes through `operationsBridge.fireOperations`,
+the chokepoint every other write path uses.
+
+**A TEST WAS PROTECTING THE BUG, which is why it survived.** `ContainerGraph.test.jsx` asserted
+`runMatchingOperations.mock.calls[0][0]` and read `arg.transactionType` — i.e. it encoded the
+single-object shape as the contract and passed for months while the feature was dead. *A test that
+pins a broken contract is worse than no test: it converts a defect into a guarantee.*
+
+**AND MY OWN VERIFICATION HAD THE IDENTICAL BLIND SPOT.** Every check in (4) drove the executor
+DIRECTLY and positionally — over live data, through the real resolver, with controls — so the op
+demonstrably worked while the app could never reach it. **I verified the operation and never the
+caller**, then reported it fixed. The repo has now paid for this class four times; the rule earns
+restating in its strongest form: *driving the callee proves nothing about the call. Assert on what
+LEAVES the component.*
+
+`graphSelectFires.test.jsx` does exactly that — renders `ContainerGraph`, fires `EChart`'s
+`onSelect`, and asserts the POSITIONAL arguments that leave it. A/B'd against the original defect:
+restoring the single-object call fails 4 of its 5 cases.
+
+2461 client tests, deployed, prod HEAD verified, served chunk sha256-identical with the new key
+present and both a positive and a zero control — **the first attempt at that check read 0 for the
+POSITIVE control too, which is the tell that the probe was grepping the index HTML rather than the
+chunk.** Checked, not believed.
+
+---
+
+### 2026-08-11 (4) — the wheel recorded NOTHING, and the highlight was only the symptom
+
+User: *"it should be lighting up the moods i select too"* / *"on the wheel."*
+
+**MEASURED BEFORE READING ANY CODE, and the measurement moved the whole problem: 0 moods have
+EVER been recorded** on poms grid and `meta.graph.highlight` is null. The op fires correctly and
+its pipeline exits with zero effects — so the highlight was never the bug.
+
+**DEFECT 1 — `$day` IS A PERIOD OBJECT AND `SAME_DAY` CANNOT READ ONE.** `0046` took the day from
+the graph's own `_effectiveFilter`, which is the date picker's shape. Driven through the real
+comparator over live data, with a control so a `false` means something:
+```
+SAME_DAY(date, <period object>)    false   <- every candidate failed here
+SAME_DAY(date, "2026-08-11")       true
+DATE_IN_PERIOD(date, <period obj>) true
+DATE_IN_PERIOD(date, wrong day)    false   <- control
+```
+All 10 Mood-binding occurrences failed the date rule — **including the two dated exactly
+2026-08-11** — so `$moodHost` bound nothing and `IF $moodHost IS_NOT_EMPTY` swallowed it. This is
+the class 2026-06-03 records for `Table:`/`Canvas: Build`, both migrated SAME_DAY → DATE_IN_PERIOD
+for exactly this. **0046 was written afterwards and never got the treatment.**
+
+**DEFECT 2 — THE OBVIOUS FIX THROWS, and only the A/B found it.** Swapping in DATE_IN_PERIOD makes
+the span-2 range match THREE journals; FIND binds an ARRAY on multi-match and UPDATE throws
+`$moodHost is not a record (no .id)`. *A silent no-op became a crash — the "fix" was worse than
+the bug, and I would have shipped it on reasoning alone.*
+
+**THE ROOT CAUSE UNDER BOTH: A SHARED OCCURRENCE HAS NO DAY.** `0068` unified the wheel into ONE
+occurrence multi-parented into every day column — fixing "a click matches nothing" and leaving it
+with no single day. `buildParentMap` keys child → ONE parent, **last writer wins**, so every
+data-side ancestor walk resolves an arbitrary parent. *Fixing one ambiguity created another, and
+nobody measured the second.* Only the RENDER TREE knows which column you are looking at, so
+`ContainerGraph` reports it (`ancestorOccurrenceId`) and `ModuleContainer` threads it down the same
+seam that already pins `occurrenceOverride` "multi-parent-safe". User's call, asked not guessed.
+
+**AND THE PREMISE THE USER'S OWN ANSWER RESTED ON WAS FALSE — measurement caught it.** Scoping the
+HOST to the clicked column is the obvious next step and finds NOTHING: the day columns hold **zero**
+Mood-binding occurrences. The journals live under the SCHEDULE. **The column supplies the DATE; the
+Schedule supplies the HOST.** *Check the premise of an answer, not just the answer.*
+
+**`0080`/`0081` — the orphans, on the user's rule** (*"if its a duplicate, remove it. but if its
+not, keep it and resolve it"*). Only ONE of three was a duplicate. **The keepers are keepers because
+day columns are TRANSIENT** — Build Schedule rebuilds for the filtered dates — so "unreachable from
+the Schedule" means *an older day*, not junk. The delete guard is TEXT-ONLY at full subtree depth
+(`0038` scored field values, fired on the app's own date stamp, and refused forever; its header
+records that mistake twice).
+
+**`0081` EXISTS BECAUSE `0080` LOOKED DONE AND WAS NOT.** Reading the result back through the real
+parent map: the resolved journal was `listed by 2: Schedule, 9:00pm(dead)` and **buildParentMap
+picked the dead slot**. *Listing a child is not giving it a path* — a second parent does not stop
+the first competing. **The same last-writer-wins ambiguity, third appearance in one session.**
+
+Verified by reading back through the real executor per column after every step: Aug 10 went
+MISSED → records to its own journal; 3 of 4 columns record and the 4th has **no journal in
+existence for that date**, said plainly rather than counted as a pass. Every A/B fails exactly its
+own test: defeating the clicked-column resolution (2), dropping the Schedule scope (2), removing
+the writing veto (1), walking only the first parent (1). 2456 client + 865 server tests, poms grid
+**0 integrity errors**, deployed and verified — prod HEAD, all referenced assets sha256-identical,
+the new key present in the SERVED chunk with both a positive and a zero control.
+
+**NOT VERIFIED IN A BROWSER, and it is the honest gap:** nobody has clicked a slice and watched a
+mood land or a slice light up.
+
+---
+
+### 2026-08-11 (3) — a FIXED-DEPTH WALK is a bug waiting for the next re-nesting
+
+User: *"the Date display field is not on every tracker atm and shouldnt be shown on the container
+headers. just the individuaL trackers"* / *"the filter date is enough for the containers."*
+
+**BOTH SYMPTOMS WERE ONE MISTAKE IN MY OWN `0072`.** It collected tiles by walking exactly TWO levels
+(page → container → tile) and bound whatever it found, **without checking role**:
+```
+46  instance   the real tracker tiles — 31 bound, 15 MISSED (all at depth 3)
+14  container  4 bound, so the field rendered in their HEADER
+```
+The 15 missed are the tiles inside the nested Workout / Nutrition / Media / Planning groups the
+2026-07-30 restructure created. **A fixed-depth walk cannot see them and will keep missing whatever
+gets nested next** — this tree has been re-nested twice already. `0073` states the invariant instead:
+*every instance-role occurrence under the page, at any depth; no container, ever.* A/B'd by capping
+the walk back to two levels — it fails exactly the depth tests.
+
+**And the containers were wrong rather than merely redundant.** A container renders its fields in its
+HEADER, beside a title that ALREADY carries the date (`Trackers: Date-Prefix Labels` stamps "Today's
+Physical"). So the header showed the date twice — once as prose, once as an **empty pill**, empty
+because the op loops `$allInstances` and never had containers in it. *A binding that promises a value
+nothing will write is worse than no binding.*
+
+**The op needed no change, which is worth stating.** Its tile loop is `over $allInstances` gated by
+`_ancestors HAS_ANCESTOR <page>` — role-filtered and ancestor-scoped at ANY depth, so it already
+covered all 46. Only the bindings were wrong, so only the bindings moved. *When a fix and a report
+disagree about scope, check whether the op or the data is the thing that is actually narrow.*
+
+Verified through the real resolver: **46/46 tiles render it, 0/14 containers do.**
+
+---
+
+### 2026-08-11 (2) — Tags off everywhere, Date on three pages; and the tracker date that must NOT be set
+
+User: *"hide tags everywhere, and date isnt being set on trackers. hide date everywhere thats not
+tasks, schedule, trackers."*
+
+**A DEFAULT WITH THREE EXCEPTIONS IS A CASCADE WITH A ROOT — and the SHOWN cascade had none.** It
+gets one (`grid.meta.fieldVisibility`), symmetric with the auto-applied root added hours earlier.
+HIDE mode is the right control precisely because it is a BLACKLIST: it suppresses only what it names
+and never a module's own bound fields, which is the whole reason the show-whitelist broke the
+trackers in the first place. Writing "everywhere" onto all 71 pages instead would need re-writing for
+every page created afterwards.
+```
+grid       hide [Tags, Date]                    everywhere
+Tasks      hide [Tags]                          Date shows
+Trackers   hide [Tags]                          Date shows
+Schedule   hide [Tags, Time Slot, Last Seen]    Date shows
+```
+**THE SCHEDULE IS MERGED, NOT OVERWRITTEN.** It already hid `[Date, Time Slot, Last Seen]` (seeded
+2026-07-11 so its rows show Completed only). The ask names Date and says nothing about the other two,
+so the migration DROPS Date and ADDS Tags, keeping the rest. Replacing the list wholesale would
+silently un-hide two fields nobody mentioned — *an instruction about one field is not permission to
+reset the others.* Ids come from the grid's own `autoAppliedFieldIds` rather than by name, because
+this grid carries five duplicate field names.
+
+Verified through the REAL resolver over live data: **Tags renders on 0 of 2566 occurrences**, Date on
+182 and only under those three pages, and each tracker still shows its own bound fields beside it.
+`0071`.
+
+**AND THE HALF I REFUSED, which is the more interesting one.** *"date isnt being set on trackers"* is
+accurate — 0 of 35 tiles carry a value — but stamping one is the opposite of a fix. 2026-04-30
+records it verbatim: *"a date field on the occurrence makes the named-filter SAME_DAY check fail on
+any other day, so the goal vanished as soon as the user navigated past today"*, and a migration
+removed exactly this once already. **It is now strictly worse than it was then:** since this morning a
+CLEARED date hides anything dated, so a stamped tracker would also vanish whenever the filter is
+cleared. Trackers are date-scoped by their PAGE's filter, not by a value they carry. Flagged to the
+user with the history rather than guessed at — *the fix that matches the words would re-create a
+documented data loss.*
+
+---
+
+### 2026-08-11 — three fixes the USER'S OWN WORDS designed; and a wheel nobody could ever click
+
+**"its a cascade of shown fields and auto applied fields"** — and, twice, *"universal fields isnt
+the name"*. Both corrections were right, and the name was wrong because I was treating a cascade as
+a hard-coded category.
+
+**THE TRACKERS BUG WAS A WHITELIST DOING THE WRONG JOB.** Fields carried by every occurrence were
+born HIDDEN and revealed by naming them in a `show`-mode `fieldVisibility`. But show-mode is a
+WHITELIST — "show Tags AND NOTHING ELSE" — and `fieldVisibility` is a nearest-wins cascade, so
+`0064` writing it on the Trackers page hid every tracker's own bound fields. The migration did the
+documented thing; the mechanism could not work. **Reusing the SHOWN cascade as the APPLIED cascade
+is the whole defect** — the same split, for the same reason, that gave `fieldReveal` its own cascade.
+Now `getEffectiveAutoAppliedFieldIds`: rooted at the grid, overridable anywhere, **a LIST not a
+flag** so *"turned off on occurances"* is `[]` and needs no second switch, and any level may ADD its
+own (a cascade only the grid can set is not a cascade). Verified through the REAL resolver on live
+data: **31/31 tracker tiles render their own fields (was 0), 35/35 still render Tags.** `0067`.
+
+**THE WHEEL: THE REPORTED BUG WAS THE SMALLER ONE.** The wheel is a Day Page TEMPLATE child, merge
+clones it per column, and **a clone does not carry `feed`** — so 5 of 6 had none and said "nothing
+to chart yet". But `Mood: Record Selection` is scoped `targetId: <the TEMPLATE's wheel>`, and a
+trigger scoped by occurrence id matches exactly ONE occurrence, so **clicking a wheel on any real
+day column matched nothing: no mood has ever been recorded**, including on the one day it displayed.
+Nobody reported it because the empty chart hid it. User's call — one wheel, multi-parented — fixes
+both: one feed, one id, one op that matches. The alternative (carry `feed` through APPLY_TEMPLATE)
+materialises ~130 occurrences AND ~130 modules **per day, forever**. The builder gained a GENERIC
+`sharedChildOccurrenceIds` (the Todo link in that same op already had the shape); nothing in it
+learns the word "graph". `0068`.
+
+**AND MY OWN MIGRATION WAS WRONG IN THE DANGEROUS WAY, caught only by the dry run.** It resolved the
+template by grepping the first `$allItemsById.<id>` in the pipeline — and got the **Schedule page**,
+because the op names it earlier. The dry run still read plausibly (*"template already does not list
+the graph — no change"*), so the critical unlist silently did nothing while every other line looked
+right. `resolveTemplateId` follows the variable chain now and returns null rather than guessing.
+**A selector that matches the wrong thing CONFIDENTLY is the `0035` class, and a count would never
+have caught it — only checking the dry run against a NAMED expectation did.**
+
+**"show nothing dated" SHIPPED ONLY BECAUSE THE DATA SETTLED THE RISK.** I flagged that "never set"
+and "explicitly cleared" might be the same state, which would make a slow load look like data loss.
+Measured instead of assumed — they are structurally different:
+```
+key ABSENT / rightVal null    no filter target ("— any —", or not bootstrapped)  -> passes
+{value: null, unit:"day"}     CLEARED ON PURPOSE  (what the Day Page carries)    -> hide dated
+a real value                  filters normally
+```
+So the change is one branch that fires only on the middle state. A multi-pick with a null anchor but
+real `dates[]` is a SELECTION, not a clear. *A risk worth raising is also worth measuring rather than
+trading away.*
+
+**AND THE "STALE span:2" RECURRENCE TURNED OUT NOT TO EXIST.** 2026-08-01 (11) filed it as open:
+*"this recurs the next time a multi-day range is picked and left overnight."* Re-measured through the
+REAL `evalRule` over the live shapes — `Grid: Snap Filter To Today` writes a bare `$today`, which
+REPLACES the whole object, so a range collapses on the next new-day load. poms grid still showed one
+because its marker read **2026-08-10 while today was 2026-08-11**: the op had not run yet. *An open
+item is a claim about TODAY'S code — re-measure before inheriting it.* Third time this month a filed
+task was retired by measuring instead of built.
+
+**But the same probe found a real defect that MY OWN change had just made matter.** A CLEARED date is
+a period object whose value is null — and `isEmptyVal` counts only null/undefined/""/empty-array, so
+a cleared page passed `IS_NOT_EMPTY` and got today stamped onto it the next morning. Clear a page,
+come back tomorrow, find it dated again with nothing to explain why. Harmless until "clearing means
+show nothing dated" shipped hours earlier; then it silently undoes a deliberate state. Guard narrowed
+to `IS_NOT_EMPTY AND (value IS_NOT_EMPTY OR unit IS_EMPTY OR dates IS_NOT_EMPTY)` — **each arm covers
+a shape that is live on the grid**, and the `unit IS_EMPTY` arm is the load-bearing one: a bare
+`"YYYY-MM-DD"` has no `.unit`, so requiring `.value` alone would have silently stopped moving the
+Trackers page. `0069`. *Shipping a behaviour change means re-asking what now DEPENDS on the state it
+created.*
+
+**THE MERGE DUPLICATION IS ROOT-CAUSED AND FIXED — it was upstream of all of it.** `APPLY_TEMPLATE
+mode:"merge"` decides "this already exists" by scanning the TARGET's `occurrences[]` for a matching
+`identitySignature`. **A child that fell OUT of that array is invisible to that scan** — the
+created-but-unlinked class, repaired from four directions before and now reached from a fifth — so
+merge concluded "not here yet" and cloned a second one, then a third. The census is unmistakable:
+```
+Monday, August 10th   Journal / Notes / Tasks Completed / Highlights   x3 each
+                      exactly 1 UNLISTED + 2 listed, every group
+284 occurrences whose parent does not list them
+  277 unsigned                 merge never matched these anyway
+    6 SIGNED                   precisely the stray duplicates
+    1 SIGNED, listed elsewhere the shared wheel — correct, and never reached here
+```
+A signed child whose `parentId` names the target IS the node that signature means. **Two decisions
+carry the weight: LISTED WINS when both exist** (preferring the stray would top up the invisible copy
+and leave the visible one stale — this can only stop new duplicates, never worsen old ones), and **an
+adopted child is RE-LISTED**, because a parent renders `occurrences[]` and topping up a node nobody
+lists is the listed-but-not-embedded failure wearing a new hat. Scoped to SIGNED nodes: `parentId`
+alone is far too broad a net without a signature to pin identity. Both halves A/B'd INDEPENDENTLY —
+disabling the fallback fails 2, disabling the re-list fails exactly 1.
+
+**And the duplicate DATA is gone too, in its own pass (`0070`).** Measured at full depth through
+`decompressTextmap` FIRST: all 6 groups / 10 removable copies held **0 characters**, so the
+0022/0023 writing refusal never had to fire. 18 occurrences + 18 orphaned modules removed once
+subtrees are included. The writing guard counts TEXT, never field values — `0038` scored field
+values, fired on `0037`'s own date stamp, and refused to delete anything, and its header records
+making that mistake TWICE.
+
+**MY MULTI-PARENT GUARD WAS WRONG ON THE FIRST DRY RUN, and a count would have looked fine.** A
+duplicate is of course listed by the parent whose duplicates are being removed, and that parent is
+not inside the doomed subtree — so all four second-listed copies read as "shared" and the run
+proposed UNLINKING the very things it was meant to delete. Caught only by checking the report against
+a derived expectation (18 = 2×2 + 2×4 + 2×1×3). *Second time in one session that a dry run's prose
+read plausibly while its selector was wrong; both times the named expectation was the only thing that
+noticed.*
+
+Verified after: duplicate groups **6 → 0**, poms grid **0 integrity errors**, unlisted children
+**284 → 278** — the 277 unsigned feed sources plus the one deliberately shared wheel, exactly as
+predicted. **Deployed with a pm2 restart, because the warm cache is authoritative for reads and would
+otherwise re-serve the deleted rows.**
+
+**A 502 on the post-deploy check was the documented restart window, not an outage** — bundle 200 +
+index 502 is the tell, first retry answered 200, pm2 online with 13s uptime, `dist/index.html` fresh,
+error log empty. Diagnosed rather than assumed, per 2026-08-07 (4).
+
+Every A/B fails exactly the test written for it: the naive template grep (1), the whitelist guard
+(2), the cleared-date branch (1). 2388 client + 716 server tests. Deployed twice, prod HEAD verified,
+chunks sha256-identical, the new key present in the SERVED bundles with the old key at 0 as the
+control. `0067` + `0068` applied to poms grid, each read back through the real resolver.
+
+**NOT VERIFIED IN A BROWSER, and it is the honest gap:** nobody has clicked the wheel and watched a
+mood record, or cleared a date and watched the columns go.
+
+---
+
 ### 2026-08-09 (8) — the date-nav task: HALF OF IT WAS ALREADY TRUE, and "49 ops" never meant 49 ops ran
 
 D7: *"daycol should only show up on the schedule or daypage and should be always based on the filter

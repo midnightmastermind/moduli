@@ -400,22 +400,28 @@ export function GridSettingsTab() {
 
       <Separator className="mb-3" />
 
-      {/* ── Universal fields — the fields EVERY occurrence carries ──────────
-          Writes `grid.meta.universalFieldIds`, the same shape as the existing
+      {/* ── Auto-applied fields — carried without a module binding them ─────
+          Writes `grid.meta.autoAppliedFieldIds`, the same shape as the existing
           `grid.meta.scheduleFieldIds`. Nothing in the code names a field; the
-          grid says which ones are universal and `helpers/universalFields`
-          synthesizes a binding per occurrence that does not already bind one.
-          Born HIDDEN — a universal field lands on every occurrence at once, so
-          it shows only where an occurrence's field visibility asks for it. An
+          grid names them and `helpers/autoAppliedFields` synthesizes a binding
+          per occurrence that does not already bind one.
+
+          THIS IS THE ROOT OF A CASCADE, not a global switch — user, 2026-08-10:
+          *"its a cascade of shown fields and auto applied fields"*, and *"it can
+          be passed down as on but turned off on occurances if i want."* Any
+          occurrence may override the list (`occurrence.autoAppliedFieldIds`),
+          and `[]` is how it carries none. They render like any other bound
+          field; the SHOWN cascade (`fieldVisibility`) decides visibility — that
+          separation is what `getEffectiveAutoAppliedFieldIds` exists for. An
           explicit module binding always outranks this. */}
       <div className="mb-3">
-        <UniversalFieldsPicker
+        <AutoAppliedFieldsPicker
           fieldsById={fieldsById}
-          selectedIds={Array.isArray(grid?.meta?.universalFieldIds) ? grid.meta.universalFieldIds : []}
+          selectedIds={Array.isArray(grid?.meta?.autoAppliedFieldIds) ? grid.meta.autoAppliedFieldIds : []}
           onChange={(nextIds) => {
             const nextMeta = { ...(grid?.meta || {}) };
-            if (nextIds.length) nextMeta.universalFieldIds = nextIds;
-            else delete nextMeta.universalFieldIds;
+            if (nextIds.length) nextMeta.autoAppliedFieldIds = nextIds;
+            else delete nextMeta.autoAppliedFieldIds;
             CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { meta: nextMeta }, emit: true });
           }}
         />
@@ -665,13 +671,13 @@ function FilterRow({ filter, isActive, allFields, onActivate, onUpdate, onDelete
 }
 
 /**
- * UniversalFieldsPicker — which fields EVERY occurrence on this grid carries.
+ * AutoAppliedFieldsPicker — which fields EVERY occurrence on this grid carries.
  *
  * A flat checklist rather than a drilldown: the answer is a small set chosen
  * from all the grid's fields, and the ORDER is the order they render in, so it
  * is preserved as picked instead of re-sorted.
  */
-function UniversalFieldsPicker({ fieldsById, selectedIds, onChange }) {
+function AutoAppliedFieldsPicker({ fieldsById, selectedIds, onChange }) {
   const all = useMemo(
     () => Object.values(fieldsById || {}).sort((a, b) =>
       String(a.name || "").localeCompare(String(b.name || ""))),
@@ -687,10 +693,10 @@ function UniversalFieldsPicker({ fieldsById, selectedIds, onChange }) {
 
   return (
     <div>
-      <div className="text-[11px] font-semibold text-text-primary mb-1">Universal fields</div>
+      <div className="text-[11px] font-semibold text-text-primary mb-1">Auto-applied fields</div>
       <p className="text-[10px] text-text-muted mb-2">
         Every occurrence on this grid carries these — containers, pages and panels included.
-        They start hidden; show them per occurrence under Field Visibility.
+        Any occurrence can override the list for itself and everything under it.
       </p>
       {all.length === 0 ? (
         <div className="text-[10px] text-text-muted">No fields on this grid yet.</div>
@@ -723,7 +729,7 @@ function UniversalFieldsPicker({ fieldsById, selectedIds, onChange }) {
       )}
       {selectedIds.length > 0 && (
         <div className="text-[10px] text-text-muted mt-1">
-          {selectedIds.length} universal field{selectedIds.length === 1 ? "" : "s"}
+          {selectedIds.length} auto-applied field{selectedIds.length === 1 ? "" : "s"}
         </div>
       )}
     </div>

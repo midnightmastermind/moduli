@@ -36,12 +36,12 @@ const FIELDS = {
   "f-date": { id: "f-date", name: "Date", type: "date" },
 };
 
-const setCtx = (universalFieldIds = []) => {
+const setCtx = (autoAppliedFieldIds = []) => {
   ctx = {
     fieldsById: FIELDS,
     dispatch: vi.fn(),
     socket: { connected: true },
-    state: { grid: { meta: { universalFieldIds } } },
+    state: { grid: { meta: { autoAppliedFieldIds } } },
   };
 };
 
@@ -134,8 +134,8 @@ describe("FieldBindingsEditor — fields the GRID gives every occurrence", () =>
   });
 
   it("binding one writes an explicit VISIBLE binding", () => {
-    // Grid-given fields are born hidden because they land on everything at
-    // once. Binding by hand is the act of asking for this one.
+    // An explicit binding is what lets THIS module order it, hide it, or give
+    // it a role — the inherited one carries no such intent.
     setCtx(["f-tags"]);
     render(<FieldBindingsEditor module={{ id: "m1", fieldBindings: [] }} />);
     fireEvent.click(screen.getByTitle(/Bind to this one/));

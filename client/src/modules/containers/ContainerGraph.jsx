@@ -30,14 +30,16 @@ import { resolveGraphRows } from "../../helpers/feedPull";
 import { buildEChartsOption } from "../../helpers/graphOption";
 import { DEFAULT_VIEW, isDefaultView } from "../../helpers/graphView";
 import { useGridActionsSelector } from "../../GridActionsContext";
-import { runMatchingOperations } from "../../helpers/operationExecutor";
+import { operationsBridge } from "../../state/bindSocketToStore";
 
-export default function ContainerGraph({ occurrence, dispatch, socket }) {
+// Bumped whenever this file's click path changes. A log line that cannot tell a
+// STALE BUNDLE from a real failure sent us round the same loop twice.
+const GRAPH_BUILD = "col-walk-2";
+
+export default function ContainerGraph({ occurrence, renderParentOccurrenceId = null }) {
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const modulesById = useGridActionsSelector(s => s.modulesById);
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
-  const operationsById = useGridActionsSelector(s => s.operationsById);
-  const getState = useGridActionsSelector(s => s.getState || (() => s.state || {}));
 
   const hostRef = useRef(null);
 
@@ -89,29 +91,96 @@ export default function ContainerGraph({ occurrence, dispatch, socket }) {
   // A selection fires the ordinary trigger path, so an operation decides what a
   // click MEANS. This is the whole reason the feeling wheel needs no
   // graph-specific code: "record the mood" is an op matching onGraphSelect.
+  //
+  // `ancestorOccurrenceId` is WHERE THE CLICK HAPPENED, and it is the one fact
+  // no operation can recover for itself. A shared graph is multi-parented (the
+  // emotions wheel sits in every day column), so walking the data upward picks
+  // an arbitrary parent — `buildParentMap` keys child → ONE parent, last writer
+  // wins. Reporting the render context makes "record this on the day I clicked"
+  // expressible; without it the op can only ever guess a day.
+  // IT GOES THROUGH `operationsBridge.fireOperations`, NOT `runMatchingOperations`,
+  // and that is the whole reason a click ever recorded anything.
+  //
+  // `runMatchingOperations(operations, transactionType, transaction, context)`
+  // takes POSITIONAL arguments. This called it with a single OBJECT — so
+  // `operations` was that object, every other argument was undefined, and the
+  // op loop iterated nothing. **No click had ever fired this trigger**, which is
+  // why zero moods had ever been recorded. It failed silently because the whole
+  // call sits in a try/catch whose job is to keep a broken op from taking the
+  // chart down.
+  //
+  // Worse, even a correct positional call would have been HALF a fix: the
+  // returned effects have to be APPLIED, and this discarded the return value.
+  // `fireOperations` is the chokepoint every other write path already uses — it
+  // assembles the context, calls the executor correctly, splits display updates
+  // from CRUD effects and applies them, and carries the cascade dedup. Wiring a
+  // second copy of that here is exactly the drift that produced this bug.
+  // WHICH OCCURRENCE IS RENDERING THIS ONE, resolved from the DOM.
+  //
+  // The prop is threaded by ModuleContainer's child loop, but a DAY COLUMN is a
+  // `kind:"doc"` container — it renders its children through its TEXTMAP as
+  // moduleEmbed node views, not through that loop. So the prop never arrived and
+  // the live log said so plainly: `column=none` on every click. With no column
+  // the op fell back to the shared wheel's own filter, which is ONE value for
+  // every day — which is exactly why a pick appeared to land on every day at
+  // once.
+  //
+  // Reading the nearest ancestor carrying `data-occ-id` works for BOTH render
+  // paths and needs no plumbing through the embed. It runs on click, never per
+  // render. The prop still WINS when supplied, so the direct path is unchanged.
+  const resolveRenderColumn = useCallback(() => {
+    if (renderParentOccurrenceId) return { id: renderParentOccurrenceId, how: "prop", seen: [] };
+    // The walk REPORTS what it saw. `column=none` twice in a row with no idea
+    // whether the walk ran, found nothing, or the bundle was stale is not a
+    // measurement — it is a guess with a number attached.
+    const seen = [];
+    let node = hostRef.current?.parentElement || null;
+    let guard = 0;
+    while (node && guard++ < 40) {
+      const id = node.getAttribute?.("data-occ-id");
+      if (id) {
+        seen.push(id === occurrence?.id ? `self(${id.slice(0, 6)})` : id.slice(0, 6));
+        // Skip the graph's own shell — we want the surface it SITS IN.
+        if (id !== occurrence?.id) return { id, how: "dom", seen };
+      }
+      node = node.parentElement;
+    }
+    return { id: null, how: hostRef.current ? "dom-miss" : "no-host", seen };
+  }, [renderParentOccurrenceId, occurrence?.id]);
+
   const handleSelect = useCallback((sel) => {
     if (!sel) return;
-    const state = getState();
+    const col = resolveRenderColumn();
+    const column = col.id;
+    // `[graph]` diagnostics, ON by default — the same posture caretDiag took for
+    // a user-facing bug: a report should cost the user no setup. Mute with
+    // `window.__graphDiag = false`. It prints what the click CARRIES and whether
+    // the bridge is even wired, because "nothing happened" has now had three
+    // different causes (a wrong-shaped call, a day that resolved to an object,
+    // and a highlight too faint to see).
+    if (window.__graphDiag !== false) {
+      console.log(`[graph] click name=${sel.name} occ=${String(sel.occurrenceId || "none").slice(0, 8)} ` +
+        `column=${String(column || "none").slice(0, 8)} via=${col.how} ` +
+        `chain=[${col.seen.join(" < ") || "empty"}] ` +
+        `bridge=${typeof operationsBridge.fireOperations === "function" ? "wired" : "MISSING"} ` +
+        `build=${GRAPH_BUILD}`);
+    }
     try {
-      runMatchingOperations({
-        transactionType: "GraphSelectOp",
-        transaction: {
-          type: "GraphSelectOp",
-          occurrenceId: sel.occurrenceId,
-          containerId: occurrence?.id,
-          value: sel.value,
-          path: sel.path,
-          seriesName: sel.seriesName,
-          name: sel.name,
-        },
-        state, dispatch, socket,
-        occurrencesById: getOccMap(), modulesById, fieldsById, operationsById,
+      operationsBridge.fireOperations?.("GraphSelectOp", {
+        type: "GraphSelectOp",
+        occurrenceId: sel.occurrenceId,
+        containerId: occurrence?.id,
+        ancestorOccurrenceId: column || null,
+        value: sel.value,
+        path: sel.path,
+        seriesName: sel.seriesName,
+        name: sel.name,
       });
     } catch (e) {
       // A broken op must not take the chart down with it.
       console.warn("[graph] selection trigger failed:", e?.message || e);
     }
-  }, [occurrence?.id, getState, dispatch, socket, getOccMap, modulesById, fieldsById, operationsById]);
+  }, [occurrence?.id, resolveRenderColumn]);
 
   if (!spec) {
     return (

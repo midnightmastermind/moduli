@@ -4834,17 +4834,87 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   align-content: flex-start;
   gap: var(--child-gap, 8px);
 }
+/* A nested CONTAINER inside a wrapping list takes the WHOLE ROW.
+   `mode: "wrap"` means "lay my LEAF children out as a wrapping grid of
+   squares" — it is not a statement about sub-containers. A nested container
+   mounts its own <Container> (a .container-shell, NOT wrapped in
+   .instance-wrap), so inside the flex-wrap row it was sized to its content:
+   user 2026-08-11 — "todays nutrition for example, it should be the full width
+   of the page its in". flex-basis 100% forces it onto its own line, which also
+   keeps the tiles after it starting from the left edge. */
+.container-items--wrap > .container-shell,
+.container-items--wrap > [data-container-id] {
+  flex: 0 0 100% !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
 .container-items--wrap > .instance-wrap {
-  width: var(--child-w, 132px);
-  /* Square by construction rather than by a fixed height, so the card keeps
-     its proportions at any configured width. */
-  aspect-ratio: 1 / 1;
+  width: var(--child-w, 160px);
+  /* A SQUARE, and the content scrolls inside it. The first version of this was
+     `aspect-ratio: 1/1` + `overflow: hidden`, which CLIPPED a tile carrying
+     more fields than fit — user 2026-08-11: *"the entire tracker is getting cut
+     off if there are too many fields (vertically)"*. Growing the tile instead
+     was rejected in the same breath: the user wants the handle and title
+     pinned and the FIELDS scrollable, which keeps the grid even. */
+  /* HEIGHT IS AUTO — the tile is as tall as its content. A fixed square made a
+     tracker with two fields as tall as one with eight (user 2026-08-11: "some
+     of them dont have enough fields to justify the size"). Width stays fixed so
+     the grid still lines up in columns; only the height follows the content.
+     The pinned-header / scrolling-fields structure below is kept: it costs
+     nothing at auto height (there is no overflow to scroll) and is what makes a
+     bounded height work if one is ever configured. */
+  height: auto;
+  /* …CAPPED. A short tracker stays short; a long one stops at the cap and its
+     FIELD BLOCK scrolls (the pinned-header structure below is what makes that
+     work). The cap is its OWN value (`--child-h`, from the `childMaxHeight`
+     cascade key the Layout menu already edits) rather than derived from the
+     width — so it is configurable, not hardcoded. */
+  max-height: var(--child-h, 200px);
+  overflow: hidden;              /* the scroll lives on the field block below */
   margin: 0;
-  overflow: hidden;
 }
 .container-items--wrap > .instance-wrap > .instance-row {
+  height: 100%;                  /* fill the capped box so the field block has
+                                    a bounded parent to scroll inside */
+  max-height: 100%;
+  min-height: 0;                 /* or the flex child refuses to shrink */
+  align-items: stretch;
+}
+/* Stack the tile: handle + title on top, fields underneath. */
+.container-items--wrap > .instance-wrap .instance-content {
+  /* NO `!important` HERE ANY MORE. `ModuleInstance` used to hardcode
+     flexDirection / flexWrap / justifyContent as inline literals, so every
+     override had to shout; it reads `var(--instance-content-*)` now and the
+     CONTAINER supplies them (see ModuleContainer's childContentDirection).
+     What is left is genuine structure rather than a layout choice: fill the
+     capped box, and give the field block a bounded parent to scroll inside. */
   height: 100%;
-  align-items: flex-start;
+  min-height: 0;
+  row-gap: 4px;
+  padding-right: 4px;
+}
+/* The header — drag handle + label. NEVER scrolls away. */
+.container-items--wrap > .instance-wrap .instance-content > div:first-child:not(.instance-body):not(.instance-fields) {
+  flex: 0 0 auto !important;
+  align-self: stretch !important;
+  width: 100% !important;        /* the label gets the tile's width, not the
+                                    shrink-to-content width a row gave it */
+  min-width: 0;
+  /* The group is an inline flex ROW carrying `alignItems: "center"`, which in a
+     tall tile floats the title down to the middle — user 2026-08-11: "the title
+     is vertically in the middle". It belongs at the top edge with the handle. */
+  align-items: flex-start !important;
+}
+/* The fields — take the rest and scroll within it. */
+.container-items--wrap > .instance-wrap .instance-fields {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;  /* don't chain the scroll out to the board */
+  align-content: flex-start;
+  justify-content: flex-start !important;
 }
 /* The between-item insert gaps are a VERTICAL affordance — a full-width strip
    that says "put one here". In a wrapping row they become flex items of their
@@ -5127,72 +5197,76 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .page-header-close-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.08); }
 
 /* ── Bound header (the day page's Daily Question picker) ────────────────────
-   The header is wrapped in AutoMarquee, which scrolls whatever overflows it.
-   A native <select> sizes to its longest option, so a pool of full-sentence
-   questions made the header permanently wider than its container and it
-   marquee-scrolled — mostly through empty space (user 2026-07-31: "make it
-   shorter, cause it marquees empty at the moment"). Constraining the control to
-   the row makes scrollWidth == clientWidth, so the marquee goes inert and the
-   selected question simply truncates. */
-/* Hovering the SELECT reveals the whole question. It expands ABSOLUTELY, so
-   nothing around it reflows (user 2026-08-01: "expands it as an absolute so it
-   doesnt push anything. this is just highlighting the select itself — not the
-   randomize button"). A native select truncates its selected option and cannot
-   marquee, so this is how the full text becomes readable in place.
-   Hover survives the switch: the expanded select is still a DESCENDANT of the
-   hovered span, so `:hover` on the parent stays true and it cannot flicker. */
-/* Hovering the header reveals the WHOLE question as an overlay. The select
-   itself is left completely alone: repositioning it pulled it out of the flex
-   row, so it lost its stretched width AND fell back to the browser's default
-   control chrome — "a diff css version of select thats alot smaller and square
-   border" (user 2026-08-01). An overlay cannot restyle the control, cannot
-   reflow the row, and shows the full text regardless of how the select
-   truncates. */
-.bound-header-fulltext {
-  display: none;
-}
-.bound-header-select:hover { overflow: visible; }
-.bound-header-select:hover > .bound-header-fulltext {
-  display: block;
-  position: absolute;
-  top: -2px;
-  left: 0;
-  z-index: 60;
-  width: max-content;
-  max-width: min(60vw, 560px);
-  padding: 3px 7px;
-  border-radius: 4px;
-  border: 1px solid hsl(var(--border));
-  background: var(--input-bg);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
-  white-space: normal;
-  pointer-events: none;
-  font: inherit;
-  color: var(--text-primary);
-}
+   THE TEXT IS A SPAN; THE SELECT IS AN INVISIBLE OVERLAY ON TOP OF IT.
+
+   History, because three shapes were tried and each failed for its own reason:
+   a native <select> sizes to its LONGEST option, so a pool of full-sentence
+   questions made the header permanently wider than its row and it marquee-
+   scrolled through empty space (user 2026-07-31: "make it shorter, cause it
+   marquees empty at the moment"). Capping the control at max-width:100% fixed
+   that and created this one — scrollWidth == clientWidth, so AutoMarquee goes
+   inert and the question simply truncates inside the control where nothing can
+   measure it. The remainder was then reachable only through a :hover overlay,
+   which on TOUCH is not reachable at all (measured 2026-08-11: the select is
+   342px inside a 460px header at every width, and the overlay never fires
+   without a pointer). Repositioning the select on hover was tried too and lost
+   the row's stretched width plus the app's control chrome (user 2026-08-01:
+   "a diff css version of select thats alot smaller and square border").
+
+   So the visible text is an ordinary span that overflows honestly — it obeys
+   whatever meta.labelOverflow says (marquee / wrap / ellipsis) with no pointer
+   involved — and the real <select> sits over it at opacity 0, still opening its
+   own native picker on click or tap. */
 .bound-header-select {
-  /* Positioning context for the hover expansion above. */
-  position: relative;
-  /* NOT width:100% — the marquee wrapper this sits in is sized to its CONTENT,
-     so 100% resolved to the select's own intrinsic width (745px inside a 530px
-     panel) and pushed the field-name badge off the visible row. Shrink to fit
-     the row instead. */
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
 }
-.bound-header-select > select {
-  /* A <select> does NOT inherit font by default — it used the UA font (11px),
-     so a bound header never LOOKED like the heading level it declared
-     (user 2026-08-01: "it doesnt even look like the # heading"). */
-  font: inherit;
+/* The control's chrome lives HERE now, because the element that draws it is no
+   longer the element that carries the border. */
+.bound-header-pick {
+  position: relative;   /* the overlay's containing block */
+  display: flex;
+  align-items: center;
+  gap: 4px;
   flex: 1 1 auto;
   min-width: 0;
-  max-width: 100%;
-  background: transparent;
-  color: inherit;
+  overflow: hidden;
+  padding: 2px 4px;
   border: 1px solid hsl(var(--border));
   border-radius: 4px;
+}
+.bound-header-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  font: inherit;
+  color: inherit;
+}
+/* Drawn by us: an opacity-0 select cannot render its own caret, and without one
+   there is nothing saying this is pickable. */
+.bound-header-caret {
+  flex: 0 0 auto;
+  opacity: 0.6;
+  pointer-events: none;
+}
+.bound-header-native {
+  /* Invisible but REAL — it keeps focus, keyboard access and the native picker.
+     `inset: 0` rather than width/height so it covers the padded box exactly. */
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font: inherit;
+  border: none;
+  background: transparent;
+}
+/* A keyboard user gets no hover and no caret feedback, so focus has to be
+   visible on the box the select is standing in for. */
+.bound-header-pick:has(.bound-header-native:focus-visible) {
+  outline: 2px solid hsl(var(--border));
+  outline-offset: 1px;
 }
 /* Keep the field-name badge visible beside the picker — the control may shrink,
    the badge may not (user: "daily question small next to it"). */

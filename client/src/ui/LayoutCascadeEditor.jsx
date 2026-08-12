@@ -153,6 +153,26 @@ export default function LayoutCascadeEditor({
               { value: "wrap", label: "Wrap (squares)" },
             ]}
           />
+
+          {/* HOW EACH CHILD COMPOSES ITSELF — the title above its fields, or
+              beside them. Applies to this container's DIRECT children only (it
+              travels as a CSS custom property, which reaches exactly one
+              level); it is NOT a cascade. User 2026-08-11: "where to put the
+              title and fields in relation to each other … we can stack in
+              vertically or horizontally, cause i may need to change that in
+              the future". "—" leaves it to the arrangement's own default,
+              which is column under Wrap (a square tile has no room for a
+              side-by-side title) and row everywhere else. */}
+          <RuleRadio
+            label="Child content"
+            value={cur.childContentDirection ?? null}
+            onChange={(v) => setKey("childContentDirection", v)}
+            options={[
+              { value: null, label: "—" },
+              { value: "row", label: "Title beside fields" },
+              { value: "column", label: "Title above fields" },
+            ]}
+          />
           {cur.mode === "wrap" ? (
             <RuleNumber
               label="Square size"

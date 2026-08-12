@@ -147,10 +147,21 @@ function toDatum(node, highlight) {
   if (node.value !== undefined) d.value = node.value;
   if (highlight && node.occurrenceId && highlight.has(node.occurrenceId)) {
     d.selected = true;
-    // Lift it out of the palette so a marked slice reads as marked at a glance,
-    // and keep the label legible against the brighter fill.
-    d.itemStyle = { borderWidth: 2, borderColor: "#fff", opacity: 1 };
-    d.label = { fontWeight: 700 };
+    // IT HAS TO READ AS PICKED FROM ACROSS THE WHEEL, and the first version did
+    // not: a 2px white border on a 4.5° tertiary slice is a hairline. The user
+    // reported the selection "turned off" when they clicked away — what they had
+    // actually seen was ECharts' own click EMPHASIS fading, leaving a highlight
+    // too faint to notice. The data was correct the whole time.
+    //
+    // So: a thick BLACK ring and shadow that read at any slice width, with the
+    // label pulled to black and bold (user, 2026-08-12: "make the lettering
+    // black too and the outlines"). Black is deliberately not a palette colour
+    // — a marked slice must not look like just another category.
+    d.itemStyle = {
+      borderWidth: 4, borderColor: "#000000", opacity: 1,
+      shadowBlur: 12, shadowColor: "rgba(0,0,0,0.9)",
+    };
+    d.label = { fontWeight: 700, color: "#000000" };
   }
   if (Array.isArray(node.children) && node.children.length) {
     d.children = node.children.map((c) => toDatum(c, highlight));
@@ -223,8 +234,38 @@ export const NESTED_RADIUS_PCT = 92;
 // readable. A `rotate: "radial"` label runs ALONG the radius, so what has to fit
 // inside the slice's arc is its THICKNESS — the font size — plus room to
 // breathe. Expressed as a multiple of the font size so the two cannot drift.
+// A sunburst's labels sit ON its slices, so they take their contrast from the
+// PALETTE, not from the page theme. Black reads on every fill in the palette;
+// the theme's light `text` colour did not, which is what made the wheel hard to
+// read. Same colour is used for the slice separators so a ring reads as
+// segmented rather than as one blended band.
+export const SUNBURST_LABEL_COLOR = "#000000";
+// How much a NON-focused slice fades while the pointer is on the wheel. Named,
+// exported and tested because it is the difference between a de-emphasis and an
+// unreadable chart — 0.45 was the latter.
+export const BLUR_ITEM_OPACITY = 0.85;
 export const LABEL_FONT_PX = 10;
-export const LABEL_MIN_ARC_PX = LABEL_FONT_PX * 1.8;
+// A `rotate: "radial"` label runs ALONG the radius, so what has to fit inside
+// the arc is its THICKNESS — the font size. The multiple is the breathing room
+// between neighbouring labels, and it is expressed as a multiple so the two
+// cannot drift.
+//
+// IT WAS 1.8, AND THAT PUT THE FEELING WHEEL 4.9% FROM A CLIFF. A tertiary slice
+// is a FIXED 4.5deg (8 primary / 40 secondary / 80 tertiary); the threshold is
+// not fixed — it grows as the chart narrows. Measured at the box the wheel
+// actually renders at on a desktop (524px): threshold 4.28deg against a 4.5deg
+// slice. Twenty pixels narrower — a scrollbar appearing — and the threshold
+// crosses 4.5, at which point ALL 80 outer labels vanish at once, which is
+// exactly what "after the selection those 3rd level emotions dont show labels
+// anymore" looks like (user, 2026-08-12).
+//
+// 1.5 was chosen by rendering the real option through real ECharts at both
+// sizes and looking, not by arithmetic:
+//   desktop 524px   threshold 3.57deg   +21% margin   cliff moves 505px -> 415px
+//   phone   390px   threshold 4.79deg   still HIDDEN — the deliberate 2026-08-08
+//                   behaviour (unlabelled at rest, readable the moment you zoom)
+//                   is preserved EXACTLY, which 1.3 would have destroyed.
+export const LABEL_MIN_ARC_PX = LABEL_FONT_PX * 1.5;
 
 // `minAngle` applies to the WHOLE series, so an unclamped threshold on a tiny
 // box would blank the 8 primary slices (45° each) as well — which is the
@@ -304,6 +345,9 @@ export function buildEChartsOption(spec, data, theme, view, boxPx) {
           radius: [0, scaled(NESTED_RADIUS_PCT)],
           center,
           data: nodes.map((n) => toDatum(n, hi)),
+          // Every slice carries a thin black separator so the rings read as
+          // segments. A highlighted slice overrides this with a thicker one.
+          itemStyle: { borderColor: SUNBURST_LABEL_COLOR, borderWidth: 1 },
           // `minAngle` HIDES a label whose slice is narrower than N degrees, and
           // it defaults high enough to blank an entire ring. Measured on the
           // real 128-node emotions wheel (2026-08-06): 80 tertiary leaves are
@@ -322,10 +366,43 @@ export function buildEChartsOption(spec, data, theme, view, boxPx) {
           // Falls back to the old fixed 1 when the host box is unknown, so a
           // caller that passes no box gets exactly the previous chart.
           label: {
-            rotate: "radial", color: t.text, fontSize: LABEL_FONT_PX, overflow: "truncate",
+            rotate: "radial", color: SUNBURST_LABEL_COLOR, fontSize: LABEL_FONT_PX, overflow: "truncate",
             minAngle: radialLabelMinAngle({ boxPx, radiusPct: NESTED_RADIUS_PCT, zoom: v.zoom }) ?? 1,
           },
-          emphasis: { focus: "ancestor" },
+          // THE WHEEL MUST NEVER GET HARDER TO READ WHEN YOU POINT AT IT.
+          //
+          // `focus: "ancestor"` puts every non-ancestor slice into ECharts' BLUR
+          // state. The default blur fades the LABEL as well as the slice, which
+          // is why the lettering "blanked out on hover" — so emphasis, blur and
+          // select each pin the label to opaque black.
+          //
+          // That fixed the labels and left the second half: the SLICE still
+          // faded to 0.45, and black lettering on a slice washed toward a dark
+          // page background is exactly as unreadable (user, 2026-08-12: "the
+          // hover of the wheel makes all the ones thats not lit up, too dim to
+          // read"). Screenshots of the live wheel at rest and hovering are what
+          // settled it — a luminance probe over sampled ring points reported the
+          // medians UNCHANGED while the two images were obviously different, so
+          // the numbers were inconclusive and the pictures were not.
+          //
+          // BLUR_ITEM_OPACITY is therefore set so the ancestor path still reads
+          // as emphasised while every other slice stays legible. Reading the
+          // wheel is its whole purpose; the focus effect is a hint, and a hint
+          // must not cost you the thing it is hinting about.
+          emphasis: {
+            focus: "ancestor",
+            label: { color: SUNBURST_LABEL_COLOR, opacity: 1 },
+          },
+          blur: {
+            label: { color: SUNBURST_LABEL_COLOR, opacity: 1 },
+            itemStyle: { opacity: BLUR_ITEM_OPACITY },
+          },
+          // A selected slice keeps black lettering too — ECharts' `select`
+          // state would otherwise fall back to its own default on click.
+          select: {
+            label: { color: SUNBURST_LABEL_COLOR, opacity: 1 },
+            itemStyle: { opacity: 1 },
+          },
           // A CLICK SELECTS. It must not NAVIGATE.
           //
           // ECharts' sunburst defaults to `nodeClick: "rootToNode"` — clicking a

@@ -53,6 +53,10 @@ import { buildParentMap, cachedParentMap } from "./dragHitTesting";
 export const SURFACE_SHAPE_KEYS = Object.freeze([
   "mode", "columns", "childGap", "hideChildIds", "sortChildrenByField", "childMaxHeight",
   "childMinWidth", "childMaxWidth",
+  // How each child composes ITSELF (title above vs beside its fields). A shape
+  // key, so it does NOT cascade — a container states it for its own children,
+  // and a grandparent has no business reaching past that.
+  "childContentDirection",
 ]);
 
 /** The shape-only subset of a stored cascade partial (null when it has none). */
@@ -189,6 +193,83 @@ export function mergeLayoutRules(parent, child) {
   return out;
 }
 
+/**
+ * A stored rule with its SHAPE keys removed — i.e. only the parts that still
+ * cascade.
+ *
+ * LAYOUT DOES NOT CASCADE (user, 2026-08-11: *"we need to remove cascade from
+ * the layout ui"* / *"layout ui shouldnt be cascaded. that makes no sense"*).
+ * How a surface arranges its own children is its own business: a page saying
+ * "wrap" cannot sensibly mean "and every container beneath you, whatever kind
+ * you are" — a doc container renders a TEXTMAP and has no child list to
+ * arrange. Differences BETWEEN kinds belong in per-kind defaults
+ * (`resolveDefaultLayout`), not in an ancestor pushing its own arrangement
+ * down.
+ *
+ * The VIEW keys are a different question and still cascade: `dragInView`,
+ * `navOptions`, `navAllowChange`, `representationFieldIds` and `locked` are
+ * statements ABOUT DESCENDANTS by design, which is why the split is by key
+ * rather than by turning the walker off.
+ */
+export function stripSurfaceShape(rule) {
+  if (!rule) return null;
+  const out = {};
+  for (const [k, v] of Object.entries(rule)) {
+    if (SURFACE_SHAPE_KEYS.includes(k)) continue;
+    if (v !== undefined && v !== null) out[k] = v;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/**
+ * `module.layout` (the rich CSS layout editor) → the shape keys the surface
+ * renderers already understand.
+ *
+ * WHY A TRANSLATION AND NOT A REWRITE. `module.layout` has been the real layout
+ * vocabulary all along — presets, display / flow / wrap / gap / columns /
+ * min-max width / align / scroll — but ONLY `ModulePanel` consumed it, while
+ * `PageBoard` and `ModuleContainer` read a thinner, overlapping key set. User,
+ * 2026-08-10: *"we have a whole css ui for the children of the board"* and
+ * *"would it be worth using that layout ui for all occurances"*. Mapping one
+ * onto the other gives containers and pages the richer editor without
+ * rewriting two renderers that work.
+ *
+ * IT IS PER-MODULE AND DOES NOT CASCADE, which is the user's other rule and is
+ * safe by measurement: pages and panels have ZERO multi-placement modules on
+ * both grids, and the only multi-placement containers are the Schedule's shared
+ * slots — which want one layout by definition, being the same slot on different
+ * days.
+ *
+ * RETURNS null FOR AN ABSENT LAYOUT, so a module that has never been touched
+ * renders exactly as before. That is what makes this safe to apply everywhere
+ * at once.
+ */
+export function layoutToSurfaceShape(layout) {
+  if (!layout || typeof layout !== "object") return null;
+  const out = {};
+
+  // display + wrap → the renderers' single `mode`.
+  //   grid                     → "grid" (+ columns)
+  //   flex, wrapping           → "wrap"   (a container's grid of squares)
+  //   flex/columns, not wrapping → "flex-row" (side-by-side, the Schedule)
+  const wraps = layout.wrap === "wrap";
+  if (layout.display === "grid") out.mode = "grid";
+  else if (layout.display === "flex" || layout.display === "columns") {
+    out.mode = wraps ? "wrap" : "flex-row";
+  }
+
+  if (Number.isFinite(layout.columns) && layout.columns > 0) out.columns = layout.columns;
+  if (Number.isFinite(layout.gapPx) && layout.gapPx >= 0) out.childGap = layout.gapPx;
+
+  // Width/height caps only mean something when the mode actually bounds a
+  // child; 0 is the editor's "unset", not a real zero.
+  if (Number.isFinite(layout.minWidthPx) && layout.minWidthPx > 0) out.childMinWidth = layout.minWidthPx;
+  if (Number.isFinite(layout.maxWidthPx) && layout.maxWidthPx > 0) out.childMaxWidth = layout.maxWidthPx;
+  if (Number.isFinite(layout.maxHeightPx) && layout.maxHeightPx > 0) out.childMaxHeight = layout.maxHeightPx;
+
+  return Object.keys(out).length ? out : null;
+}
+
 // ── Cascade walker (Slice 6) ─────────────────────────────────────────────
 // Walks Grid → Panel → Page → Container → Instance/leaf, layering
 // `meta.layoutCascade` overrides on top of the per-kind default.
@@ -239,15 +320,12 @@ export function resolveLayoutCascade(ctx, leafRole = "instance", leafKind = null
   }
 
   // Layer 3-5: panel / page / container overrides via their occurrences' meta.
-  if (ctx?.panelOcc?.meta?.layoutCascade) {
-    pushOverride("panel", "Panel", ctx.panelOcc.meta.layoutCascade, "panelOcc.meta.layoutCascade");
-  }
-  if (ctx?.pageOcc?.meta?.layoutCascade) {
-    pushOverride("page", "Page", ctx.pageOcc.meta.layoutCascade, "pageOcc.meta.layoutCascade");
-  }
-  if (ctx?.containerOcc?.meta?.layoutCascade) {
-    pushOverride("container", "Container", ctx.containerOcc.meta.layoutCascade, "containerOcc.meta.layoutCascade");
-  }
+  // ANCESTORS CONTRIBUTE VIEW KEYS ONLY — their SHAPE is theirs alone.
+  // See `stripSurfaceShape` for why. Before this, a page storing `mode: "wrap"`
+  // reached every container beneath it regardless of kind.
+  pushOverride("panel", "Panel", stripSurfaceShape(ctx?.panelOcc?.meta?.layoutCascade), "panelOcc.meta.layoutCascade (view)");
+  pushOverride("page", "Page", stripSurfaceShape(ctx?.pageOcc?.meta?.layoutCascade), "pageOcc.meta.layoutCascade (view)");
+  pushOverride("container", "Container", stripSurfaceShape(ctx?.containerOcc?.meta?.layoutCascade), "containerOcc.meta.layoutCascade (view)");
 
   // Layer 6: per-occurrence (leaf) override — strongest.
   // `leafOcc` is the canonical leaf slot; `instanceOcc` is a back-compat alias
@@ -256,6 +334,14 @@ export function resolveLayoutCascade(ctx, leafRole = "instance", leafKind = null
   // The leaf's OWN push-down rules, shape keys only — how this surface arranges
   // its children is its own business, so a board must read back the layout its
   // header menu just wrote (that menu writes `layoutCascade`, not the override).
+  // The MODULE's own CSS layout, translated. It sits BELOW the stored cascade
+  // shape so a value set explicitly in the layout menu still wins, and it is
+  // null for any module that has never been given one — so nothing changes for
+  // a surface that has not opted in.
+  const fromModuleLayout = layoutToSurfaceShape(ctx?.leaf?.layout);
+  if (fromModuleLayout) {
+    pushOverride(leafRole, "Layout", fromModuleLayout, "leaf.layout (module CSS layout)");
+  }
   const ownShape = pickSurfaceShape(leafOcc?.meta?.layoutCascade);
   if (ownShape) {
     pushOverride(leafRole, "This surface", ownShape, "leafOcc.meta.layoutCascade (shape)");

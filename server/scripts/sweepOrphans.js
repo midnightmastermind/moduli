@@ -32,6 +32,13 @@
 // reads store textmap COMPRESSED, so scanning the raw value reports "no text"
 // for everything and would happily delete a journal entry.
 //
+// ALSO sweeps ORPHAN MODULES: the inverse — a module that NO occurrence
+// places. Left behind by deletions (delete_occurrence removes the occurrence
+// and its subtree and leaves the modules). Refusals + why they are trustworthy
+// live in `utils/orphanModules.js`; the load-bearing one is an AGE FLOOR,
+// because a module minted seconds ago may still be waiting on the queued
+// occurrence create that places it.
+//
 // ── THIS SWEEP LEGITIMATELY REPORTS FEWER ROWS THAN `checkGrid`. DO NOT
 //    "FIX" THAT BY LOOSENING THE PREDICATE. ──────────────────────────────────
 // Settled 2026-08-07, after the 2026-08-04 note filed it as "one predicate is
@@ -68,6 +75,7 @@ import Folder from "../models/Folder.js";
 import Operation from "../models/Operation.js";
 import User from "../models/User.js";
 import { decompressTextmap } from "../utils/textmapCompression.js";
+import { planOrphanModules, collectReferencedModuleIds } from "../utils/orphanModules.js";
 
 const COLLECTIONS = [
   ["occurrences", Occurrence], ["modules", Module], ["fields", Field],
@@ -213,17 +221,54 @@ async function main() {
     if (moduleLessDrop.length > 6) console.log(`      … ${moduleLessDrop.length - 6} more`);
   }
 
+  // ── Orphan modules (no occurrence places them) ─────────────────────────
+  const liveGridIds = live;   // the live-grid id set resolved at the top
+  const modCandidates = await Module.find({ userId }).lean();
+  const inScopeMods = modCandidates.filter(m =>
+    m.gridId && liveGridIds.has(String(m.gridId))          // a dead grid's modules go with the grid
+    && (!scopeGridId || String(m.gridId) === scopeGridId));
+  const modIds = new Set(inScopeMods.map(m => m.id));
+  // Ops + textmaps are the two that demonstrably discriminate (control run
+  // 2026-08-11: 17 and 967 hits over LIVE ids). Fields and grid.meta reference
+  // no module id even for live modules — they cost nothing and prove nothing.
+  const allOps = await Operation.find({ userId }).lean();
+  const textmaps = allOccs.map(o => decompressTextmap(o.textmap)).filter(Boolean);
+  const gridMetaDocs = await Grid.find({ _id: { $in: [...live] } }).select({ meta: 1 }).lean();
+  const referencedIds = collectReferencedModuleIds([...allOps, ...textmaps, ...gridMetaDocs], modIds);
+
+  const { drop: orphanMods, keep: orphanModsKept } = planOrphanModules({
+    modules: inScopeMods,
+    occurrences: allOccs.filter(o => !doomedIds.has(String(o._id))),
+    referencedIds,
+  });
+  if (orphanMods.length || orphanModsKept.length) {
+    console.log(`\n   ORPHAN MODULES: ${orphanMods.length} placed by no occurrence ` +
+                `(deleting)${orphanModsKept.length ? `, ${orphanModsKept.length} kept` : ""}`);
+    const byRole = {};
+    for (const m of orphanMods) {
+      const k = `${m.role || "?"}/${m.kind || "-"}`;
+      byRole[k] = (byRole[k] || 0) + 1;
+    }
+    for (const [k, n] of Object.entries(byRole).sort((a, b) => b[1] - a[1])) {
+      console.log(`      ${k.padEnd(20)} ${n}`);
+    }
+    for (const k of orphanModsKept.slice(0, 6)) {
+      console.log(`      KEEPING ${String(k.mod.label || k.mod.id).slice(0, 24).padEnd(24)} — ${k.why.join(", ")}`);
+    }
+    if (orphanModsKept.length > 6) console.log(`      … ${orphanModsKept.length - 6} more kept`);
+  }
+
   if (nullTotal) {
     console.log(`\n   ${nullTotal} document(s) have NO gridId — left alone on purpose ` +
                 `(could be mid-flight; "probably dead" is not good enough for a delete).`);
   }
-  if (!orphanTotal && !danglingTotal && !moduleLessDrop.length) {
-    console.log("\n✅ No orphans, no dangling child refs, no module-less occurrences.");
+  if (!orphanTotal && !danglingTotal && !moduleLessDrop.length && !orphanMods.length) {
+    console.log("\n✅ No orphans, no dangling child refs, no module-less occurrences, no orphan modules.");
     return;
   }
 
   console.log(`\n   TOTAL: ${orphanTotal} orphan document(s), ${danglingTotal} dangling child ref(s)` +
-              `, ${moduleLessDrop.length} module-less occurrence(s)`);
+              `, ${moduleLessDrop.length} module-less occurrence(s), ${orphanMods.length} orphan module(s)`);
   if (!APPLY) { console.log("\nDRY RUN — nothing written. Re-run with --apply."); return; }
 
   // Dump the FULL documents before deleting. backupGrid can't cover these —
@@ -241,9 +286,12 @@ async function main() {
   const moduleLessIds = moduleLessDrop.map(o => o._id);
   dump.moduleLess = moduleLessIds.length
     ? await Occurrence.find({ _id: { $in: moduleLessIds } }).lean() : [];
+  const orphanModIds = orphanMods.map(m => m._id);
+  dump.orphanModules = orphanModIds.length
+    ? await Module.find({ _id: { $in: orphanModIds } }).lean() : [];
   fs.writeFileSync(dumpPath, JSON.stringify(dump, null, 2));
   const dumped = Object.entries(dump).reduce((n, [k, a]) => n + (k.startsWith("_") ? 0 : a.length), 0);
-  const expected = orphanTotal + moduleLessDrop.length;
+  const expected = orphanTotal + moduleLessDrop.length + orphanMods.length;
   if (dumped !== expected) {
     throw new Error(`Dump holds ${dumped} of ${expected} documents — refusing to delete.`);
   }
@@ -257,14 +305,18 @@ async function main() {
     const { deletedCount } = await Occurrence.deleteMany({ _id: { $in: moduleLessIds } });
     console.log(`   🗑️  module-less occurrences: ${deletedCount}`);
   }
+  if (orphanModIds.length) {
+    const { deletedCount } = await Module.deleteMany({ _id: { $in: orphanModIds } });
+    console.log(`   🗑️  orphan modules: ${deletedCount}`);
+  }
   // Repair the child lists. Dumped above alongside the orphans so a bad prune
   // is reversible.
   for (const d of danglingFix) {
     await Occurrence.updateOne({ _id: d._id }, { $set: { occurrences: d.kept } });
   }
   if (danglingTotal) console.log(`   🔗 repaired ${danglingTotal} dangling child ref(s) across ${danglingFix.length} parent(s)`);
-  console.log(`\n✅ Swept ${orphanTotal} orphan(s) + ${moduleLessDrop.length} module-less occurrence(s), ` +
-              `repaired ${danglingTotal} child ref(s). Dump: ${dumpPath}`);
+  console.log(`\n✅ Swept ${orphanTotal} orphan(s) + ${moduleLessDrop.length} module-less occurrence(s) + ` +
+              `${orphanMods.length} orphan module(s), repaired ${danglingTotal} child ref(s). Dump: ${dumpPath}`);
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {

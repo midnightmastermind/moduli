@@ -2316,7 +2316,10 @@ export async function createLiveData(userId, options = {}) {
     },
     upcomingThisWeek: {
       id: uid(),
-      name: "Due",
+      // NOT "Due" — that is the real date field's name, and two fields sharing
+      // one name breaks the standing unique-names rule AND makes every
+      // resolve-by-name a coin flip. The key says what it is.
+      name: "Due This Week",
       type: "number",
       inputEnabled: false,
       displayEnabled: true,
@@ -2399,19 +2402,19 @@ export async function createLiveData(userId, options = {}) {
       },
     },
     totalProtein: {
-      id: uid(), name: "Protein", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Total Protein", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: "g" }, displayConfig: {},
     },
     totalCalories: {
-      id: uid(), name: "Calories", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Total Calories", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: " kcal" }, displayConfig: {},
     },
     totalCarbs: {
-      id: uid(), name: "Carbs", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Total Carbs", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: "g" }, displayConfig: {},
     },
     totalFats: {
-      id: uid(), name: "Fats", type: "number", inputEnabled: false, displayEnabled: true,
+      id: uid(), name: "Total Fats", type: "number", inputEnabled: false, displayEnabled: true,
       meta: { postfix: "g" }, displayConfig: {},
     },
 
@@ -7384,8 +7387,29 @@ export async function createLiveData(userId, options = {}) {
                   id: uid(), type: "if",
                   // Only pages that actually carry their own date — leave the
                   // ones deliberately opted out of the date cascade alone.
+                  // CARRIES ITS OWN DATE — and a CLEARED date is not one.
+                  //
+                  // Clearing leaves a period object whose value is null, which
+                  // is still a non-empty OBJECT, so the bare IS_NOT_EMPTY this
+                  // replaces stamped today onto it overnight and silently undid
+                  // the user's clear. Since 2026-08-11 a cleared filter means
+                  // "show nothing dated" — a deliberate state, not a stale one.
+                  //
+                  // The `unit IS_EMPTY` arm is what keeps a BARE STRING passing:
+                  // a string has no `.unit`, so that arm is true for it and
+                  // false for every period object. Requiring `.value` alone
+                  // would skip a plain "YYYY-MM-DD" override entirely.
+                  //
+                  // The `dates` arm covers a non-consecutive multi-pick, which
+                  // can carry a null anchor while still naming real days — that
+                  // is a selection, and it must keep moving forward.
                   condition: { operator: "AND", rules: [
                     { id: uid(), left: `$pg.filterOverride.${dateFieldId}`, comparator: "IS_NOT_EMPTY", right: "" },
+                    { id: uid(), operator: "OR", rules: [
+                      { id: uid(), left: `$pg.filterOverride.${dateFieldId}.value`, comparator: "IS_NOT_EMPTY", right: "" },
+                      { id: uid(), left: `$pg.filterOverride.${dateFieldId}.unit`,  comparator: "IS_EMPTY",     right: "" },
+                      { id: uid(), left: `$pg.filterOverride.${dateFieldId}.dates`, comparator: "IS_NOT_EMPTY", right: "" },
+                    ] },
                   ] },
                   then: [
                     { id: uid(), type: "action", config: { type: "UPDATE", path: `$pg.filterOverride.${dateFieldId}`, value: "$today" } },
@@ -9476,10 +9500,10 @@ async function main() {
       });
     }
 
-    // ── Universal fields + tags (migration 0064, shared with the live grid) ──
+    // ── Auto-applied fields + tags (migrations 0064 + 0067, shared with live) ──
     //
     // The GRID names which fields every occurrence carries
-    // (`grid.meta.universalFieldIds`), so nothing in the code knows the word
+    // (`grid.meta.autoAppliedFieldIds`), so nothing in the code knows the word
     // "Tags". Without this stamp a fresh grid has the field and the renderer and
     // resolves NOTHING — the same silent-inertness class as 0043 (no posters)
     // and 0049 (no Files home), which is why this takes the same remedy: CALL
@@ -9495,6 +9519,26 @@ async function main() {
       const { up: universalFieldsAndTags } = await import("../migrations/0064-universal-fields-and-tags.mjs");
       console.log("\n🏷️  Universal fields + structural tags (migration 0064, shared with the live grid)…");
       await universalFieldsAndTags({
+        gridId: result.gridId,
+        models: { Occurrence, Module, Field, Folder, Grid },
+        log: (m) => console.log(`   ${m}`),
+        dryRun: false,
+      });
+    }
+
+    // ── The auto-applied CASCADE (migration 0067) ─────────────────────────────
+    //
+    // 0064 wrote the OLD key name and revealed Tags on the Trackers page with a
+    // show-mode `fieldVisibility` — which is a WHITELIST, so it hid every
+    // tracker's own bound fields (the user's report, 2026-08-10). 0067 renames
+    // the key and drops that whitelist. Running it here for the same reason 0064
+    // is run here: the seed IS the migration, so a fresh grid and a migrated one
+    // cannot drift. Chained rather than folded into 0064 so the live grid's
+    // applied-ledger keeps describing what actually executed on it.
+    {
+      const { up: autoAppliedCascade } = await import("../migrations/0067-auto-applied-fields-cascade.mjs");
+      console.log("\n🧬 Auto-applied field cascade (migration 0067, shared with the live grid)…");
+      await autoAppliedCascade({
         gridId: result.gridId,
         models: { Occurrence, Module, Field, Folder, Grid },
         log: (m) => console.log(`   ${m}`),

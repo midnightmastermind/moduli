@@ -193,6 +193,14 @@ function Container({
   embedRadialItems = null,
   embedOnDelete = null,
   embedSourceType = null,
+  // WHICH occurrence rendered this one. Not derivable from the data: a SHARED
+  // occurrence (the emotions wheel is multi-parented into every day column)
+  // has several parents, and `buildParentMap` keys child → ONE parent on a
+  // last-writer-wins scan, so every data-side ancestor walk picks an arbitrary
+  // one. Only the render tree knows which column the user is actually looking
+  // at, so it has to be passed down. Null for a top-level container, which is
+  // the honest answer — nothing rendered it.
+  renderParentOccurrenceId = null,
 }) {
   bumpRender("container");
   // RENDER-phase mark (body, not effect): with the commit mark below it, the
@@ -657,6 +665,23 @@ function Container({
   const childGap = Number.isFinite(layoutCascade?.resolved?.childGap) && layoutCascade.resolved.childGap >= 0
     ? layoutCascade.resolved.childGap
     : 8;
+  // The tile's HEIGHT CAP — its own value, not derived from the width (user
+  // 2026-08-11: "not width. height"). Read from `childMaxHeight`, a cascade key
+  // that already exists and is already in the Layout menu, so this is
+  // configurable rather than a hardcoded number.
+  const childH = Number.isFinite(layoutCascade?.resolved?.childMaxHeight) && layoutCascade.resolved.childMaxHeight > 0
+    ? layoutCascade.resolved.childMaxHeight
+    : 200;
+  // HOW EACH CHILD COMPOSES ITSELF — title above its fields, or beside them.
+  // A CONTAINER decides this for its DIRECT children (a CSS custom property
+  // reaches exactly one level, which is the scope we want — it is not a
+  // cascade). `ModuleInstance` reads these through `var()` on its own inline
+  // style, so no `!important` is involved and a container that sets nothing
+  // renders exactly as before. Defaults to "column" under wrap, because a
+  // square tile has no room for a side-by-side title, and that was the
+  // hardcoded behaviour this replaces.
+  const childContentDir = layoutCascade?.resolved?.childContentDirection
+    || (childWrap ? "column" : null);
 
   // Occurrence controls order — pass containerOccurrence so ordering reads from occurrence.occurrences.
   // When `module.meta.allowChildContainers` is set, fall back to the full modulesById lookup so
@@ -1289,6 +1314,11 @@ function Container({
               {containerOccurrence?.feed?.enabled && (
                 <Rss size={10} style={{ color: "rgba(96,165,250,0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
               )}
+              {/* FIELDS SIT LEFT OF THE FILTER (user 2026-08-11: "fields should
+                  go to the left of filters anyway"). Inside the right-aligned
+                  cluster rather than after it, so the whole group stays
+                  right-aligned and the order reads fields → filter → add. */}
+              {!isBodyCollapsed && <OccurrenceFields {...ownFieldsProps} />}
               <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={containerOccurrence} />
               <QuickAddMenu
                 targetRole="instance"
@@ -1299,11 +1329,6 @@ function Container({
                 openTrigger={quickAddTrigger}
               />
             </div>
-            {/* The container's OWN fields — the SAME strip the heading layout
-                gets. It only ever rendered in the heading branch, so a plain
-                container with a visible binding showed nothing at all (49 such
-                bindings on poms grid, measured 2026-08-10). */}
-            {!isBodyCollapsed && <OccurrenceFields {...ownFieldsProps} />}
           </>
         )}
 
@@ -1603,7 +1628,14 @@ function Container({
               // existing Layout menu already edits it. The two numbers ride as
               // CSS vars because the rest of the shape (aspect ratio, hiding the
               // between-item insert gaps) is CSS.
-              ...(childWrap ? { "--child-w": `${childW}px`, "--child-gap": `${childGap}px` } : null),
+              ...(childWrap ? { "--child-w": `${childW}px`, "--child-h": `${childH}px`, "--child-gap": `${childGap}px` } : null),
+              ...(childContentDir === "column"
+                ? {
+                    "--instance-content-direction": "column",
+                    "--instance-content-wrap": "nowrap",
+                    "--instance-content-justify": "flex-start",
+                  }
+                : null),
             }}
           >
             {itemsWithOccurrences.map(({ instance, occurrence }, idx) => {
@@ -1620,6 +1652,10 @@ function Container({
                     occurrenceOverride={occurrence}
                     panelId={panelId}
                     pageOccurrenceId={pageOccurrenceId || null}
+                    // THIS container is what rendered the child — the same
+                    // reason `occurrenceOverride` is pinned here rather than
+                    // looked up ("multi-parent-safe", above).
+                    renderParentOccurrenceId={containerOccurrence?.id || null}
                     dispatch={dispatch}
                     socket={socket}
                     gapPx={6}
@@ -1704,6 +1740,7 @@ function Container({
           // of a query result (user, 2026-08-10).
           <ContainerGraph
             occurrence={containerOccurrence}
+            renderParentOccurrenceId={renderParentOccurrenceId}
             dispatch={dispatch}
             socket={socket}
           />
