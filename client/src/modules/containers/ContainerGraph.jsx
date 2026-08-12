@@ -32,6 +32,10 @@ import { DEFAULT_VIEW, isDefaultView } from "../../helpers/graphView";
 import { useGridActionsSelector } from "../../GridActionsContext";
 import { operationsBridge } from "../../state/bindSocketToStore";
 
+// Bumped whenever this file's click path changes. A log line that cannot tell a
+// STALE BUNDLE from a real failure sent us round the same loop twice.
+const GRAPH_BUILD = "col-walk-2";
+
 export default function ContainerGraph({ occurrence, renderParentOccurrenceId = null }) {
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const modulesById = useGridActionsSelector(s => s.modulesById);
@@ -125,20 +129,29 @@ export default function ContainerGraph({ occurrence, renderParentOccurrenceId = 
   // paths and needs no plumbing through the embed. It runs on click, never per
   // render. The prop still WINS when supplied, so the direct path is unchanged.
   const resolveRenderColumn = useCallback(() => {
-    if (renderParentOccurrenceId) return renderParentOccurrenceId;
+    if (renderParentOccurrenceId) return { id: renderParentOccurrenceId, how: "prop", seen: [] };
+    // The walk REPORTS what it saw. `column=none` twice in a row with no idea
+    // whether the walk ran, found nothing, or the bundle was stale is not a
+    // measurement — it is a guess with a number attached.
+    const seen = [];
     let node = hostRef.current?.parentElement || null;
-    while (node) {
+    let guard = 0;
+    while (node && guard++ < 40) {
       const id = node.getAttribute?.("data-occ-id");
-      // Skip the graph's own shell — we want the surface it SITS IN.
-      if (id && id !== occurrence?.id) return id;
+      if (id) {
+        seen.push(id === occurrence?.id ? `self(${id.slice(0, 6)})` : id.slice(0, 6));
+        // Skip the graph's own shell — we want the surface it SITS IN.
+        if (id !== occurrence?.id) return { id, how: "dom", seen };
+      }
       node = node.parentElement;
     }
-    return null;
+    return { id: null, how: hostRef.current ? "dom-miss" : "no-host", seen };
   }, [renderParentOccurrenceId, occurrence?.id]);
 
   const handleSelect = useCallback((sel) => {
     if (!sel) return;
-    const column = resolveRenderColumn();
+    const col = resolveRenderColumn();
+    const column = col.id;
     // `[graph]` diagnostics, ON by default — the same posture caretDiag took for
     // a user-facing bug: a report should cost the user no setup. Mute with
     // `window.__graphDiag = false`. It prints what the click CARRIES and whether
@@ -147,8 +160,10 @@ export default function ContainerGraph({ occurrence, renderParentOccurrenceId = 
     // and a highlight too faint to see).
     if (window.__graphDiag !== false) {
       console.log(`[graph] click name=${sel.name} occ=${String(sel.occurrenceId || "none").slice(0, 8)} ` +
-        `column=${String(column || "none").slice(0, 8)} ` +
-        `bridge=${typeof operationsBridge.fireOperations === "function" ? "wired" : "MISSING"}`);
+        `column=${String(column || "none").slice(0, 8)} via=${col.how} ` +
+        `chain=[${col.seen.join(" < ") || "empty"}] ` +
+        `bridge=${typeof operationsBridge.fireOperations === "function" ? "wired" : "MISSING"} ` +
+        `build=${GRAPH_BUILD}`);
     }
     try {
       operationsBridge.fireOperations?.("GraphSelectOp", {
