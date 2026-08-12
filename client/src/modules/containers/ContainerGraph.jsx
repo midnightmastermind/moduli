@@ -111,8 +111,34 @@ export default function ContainerGraph({ occurrence, renderParentOccurrenceId = 
   // assembles the context, calls the executor correctly, splits display updates
   // from CRUD effects and applies them, and carries the cascade dedup. Wiring a
   // second copy of that here is exactly the drift that produced this bug.
+  // WHICH OCCURRENCE IS RENDERING THIS ONE, resolved from the DOM.
+  //
+  // The prop is threaded by ModuleContainer's child loop, but a DAY COLUMN is a
+  // `kind:"doc"` container — it renders its children through its TEXTMAP as
+  // moduleEmbed node views, not through that loop. So the prop never arrived and
+  // the live log said so plainly: `column=none` on every click. With no column
+  // the op fell back to the shared wheel's own filter, which is ONE value for
+  // every day — which is exactly why a pick appeared to land on every day at
+  // once.
+  //
+  // Reading the nearest ancestor carrying `data-occ-id` works for BOTH render
+  // paths and needs no plumbing through the embed. It runs on click, never per
+  // render. The prop still WINS when supplied, so the direct path is unchanged.
+  const resolveRenderColumn = useCallback(() => {
+    if (renderParentOccurrenceId) return renderParentOccurrenceId;
+    let node = hostRef.current?.parentElement || null;
+    while (node) {
+      const id = node.getAttribute?.("data-occ-id");
+      // Skip the graph's own shell — we want the surface it SITS IN.
+      if (id && id !== occurrence?.id) return id;
+      node = node.parentElement;
+    }
+    return null;
+  }, [renderParentOccurrenceId, occurrence?.id]);
+
   const handleSelect = useCallback((sel) => {
     if (!sel) return;
+    const column = resolveRenderColumn();
     // `[graph]` diagnostics, ON by default — the same posture caretDiag took for
     // a user-facing bug: a report should cost the user no setup. Mute with
     // `window.__graphDiag = false`. It prints what the click CARRIES and whether
@@ -121,7 +147,7 @@ export default function ContainerGraph({ occurrence, renderParentOccurrenceId = 
     // and a highlight too faint to see).
     if (window.__graphDiag !== false) {
       console.log(`[graph] click name=${sel.name} occ=${String(sel.occurrenceId || "none").slice(0, 8)} ` +
-        `column=${String(renderParentOccurrenceId || "none").slice(0, 8)} ` +
+        `column=${String(column || "none").slice(0, 8)} ` +
         `bridge=${typeof operationsBridge.fireOperations === "function" ? "wired" : "MISSING"}`);
     }
     try {
@@ -129,7 +155,7 @@ export default function ContainerGraph({ occurrence, renderParentOccurrenceId = 
         type: "GraphSelectOp",
         occurrenceId: sel.occurrenceId,
         containerId: occurrence?.id,
-        ancestorOccurrenceId: renderParentOccurrenceId || null,
+        ancestorOccurrenceId: column || null,
         value: sel.value,
         path: sel.path,
         seriesName: sel.seriesName,
@@ -139,7 +165,7 @@ export default function ContainerGraph({ occurrence, renderParentOccurrenceId = 
       // A broken op must not take the chart down with it.
       console.warn("[graph] selection trigger failed:", e?.message || e);
     }
-  }, [occurrence?.id, renderParentOccurrenceId]);
+  }, [occurrence?.id, resolveRenderColumn]);
 
   if (!spec) {
     return (
