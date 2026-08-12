@@ -17,6 +17,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { runMatchingOperations, applyEffectsToLiveOccs } from "../helpers/operationExecutor";
 import { buildPerDayPipeline } from "../../../server/migrations/0084-highlight-is-per-day.mjs";
 import { buildFieldReadPipeline } from "../../../server/migrations/0085-wheel-reads-the-field.mjs";
+import { buildAlwaysLandsPipeline } from "../../../server/migrations/0086-a-click-always-lands.mjs";
+import { buildCheckInTruthPipeline } from "../../../server/migrations/0087-the-check-in-is-the-truth.mjs";
 
 const GRAPH = "occ-graph";
 const OTHER_GRAPH = "occ-other-graph";
@@ -410,4 +412,126 @@ describe("0085 — the wheel reads the field, so the op stops writing a copy", (
   // pipeline without one. It is a fail-closed assertion for a FUTURE edit
   // upstream, and an earlier version of this block "tested" it by throwing the
   // error itself, which proves nothing.
+});
+
+describe("0086 — a click lands on EVERY day, not just the one with a Todo", () => {
+  const walk = (steps, out = []) => {
+    for (const st of steps || []) { out.push(st); if (st.type === "if") { walk(st.then, out); walk(st.else, out); } }
+    return out;
+  };
+  const args = {
+    graphOccId: GRAPH, moodFieldId: MOOD, dateFieldId: DATE,
+    schedulePageOccId: SCHED, checkInSourceOccId: CHECKIN_SRC,
+    timeslotFieldId: TIMESLOT, completedFieldId: COMPLETED,
+  };
+  const built = () => walk(buildAlwaysLandsPipeline(args).steps);
+
+  it("places the Check In under $placeParent, never the Todo directly", () => {
+    const cl = built().filter((st) => st.actionType === "COPY_LINK");
+    expect(cl).toHaveLength(1);
+    expect(cl[0].config.parent).toBe("$placeParent");
+  });
+
+  it("resolves $placeParent to the Todo when there is one, else the COLUMN", () => {
+    const steps = built();
+    const gate = steps.find((st) =>
+      st.type === "if" && (st.condition?.rules || []).some((r) => r.left === "$todo") &&
+      (st.then || []).some((s) => s.config?.name === "$placeParent"));
+    expect(gate.then[0].config.expr).toBe("$todo.id");
+    // The fallback is the clicked COLUMN — not the Schedule page (which belongs to
+    // no day) and not nothing (the silent half-success this fixes).
+    expect(gate.else[0].config.expr).toBe("$col.id");
+  });
+
+  it("the placement is NO LONGER gated on the Todo existing", () => {
+    const gated = built().some((st) =>
+      st.type === "if" &&
+      (st.condition?.rules || []).some((r) => r.left === "$todo" && r.comparator === "IS_NOT_EMPTY") &&
+      (st.then || []).some((s) => s.actionType === "COPY_LINK"));
+    expect(gated).toBe(false);
+  });
+
+  it("un-picking looks under the SAME parent, or a fallback row is undeletable", () => {
+    const finds = built().filter((st) => st.actionType === "FIND");
+    const stale = finds.find((f) => f.config?.itemVar === "$staleCheckIn");
+    const anc = (stale.config.predicate.rules || []).find((r) => r.comparator === "HAS_ANCESTOR");
+    expect(anc.right).toBe("$placeParent");
+    // $todo.id still appears exactly once — in the SET_VAR that RESOLVES the
+    // fallback. What must be gone is any SCOPE or PARENT still pinned to it.
+    const steps = built();
+    expect(steps.filter((st) => st.actionType === "COPY_LINK" && st.config?.parent === "$todo.id")).toHaveLength(0);
+    expect(steps.filter((st) => (st.config?.predicate?.rules || [])
+      .some((r) => r.right === "$todo.id"))).toHaveLength(0);
+  });
+
+  it("declares $placeParent before use — an unbound var THROWS in the executor", () => {
+    const steps = buildAlwaysLandsPipeline(args).steps;
+    expect(steps[0].actionType).toBe("INIT_VAR");
+    expect(steps[0].config.name).toBe("$placeParent");
+  });
+
+  it("still records the mood and still finds the day's Todo", () => {
+    const steps = built();
+    expect(steps.some((st) => st.actionType === "UPDATE" && String(st.config?.path || "").includes(MOOD))).toBe(true);
+    expect(steps.some((st) => st.actionType === "FIND" && st.config?.itemVar === "$todo")).toBe(true);
+  });
+});
+
+describe("0087 — the Check In is the truth, so a journal-less day still works", () => {
+  const walk = (steps, out = []) => {
+    for (const st of steps || []) { out.push(st); if (st.type === "if") { walk(st.then, out); walk(st.else, out); } }
+    return out;
+  };
+  const args = {
+    graphOccId: GRAPH, moodFieldId: MOOD, dateFieldId: DATE,
+    schedulePageOccId: SCHED, checkInSourceOccId: CHECKIN_SRC,
+    timeslotFieldId: TIMESLOT, completedFieldId: COMPLETED,
+  };
+  const top = () => buildCheckInTruthPipeline(args).steps;
+  const all = () => walk(top());
+  const hostGates = (steps) => walk(steps).filter((st) =>
+    st.type === "if" && (st.condition?.rules || []).length === 1 &&
+    st.condition.rules[0]?.left === "$moodHost");
+
+  it("the PLACEMENT no longer sits under the journal gate", () => {
+    // The whole defect: on a day with no journal the gate is false and the click
+    // silently does nothing.
+    for (const g of hostGates(top())) {
+      expect(walk(g.then).some((s) => s.actionType === "COPY_LINK")).toBe(false);
+    }
+    expect(all().some((s) => s.actionType === "COPY_LINK")).toBe(true);
+  });
+
+  it("the journal gate now guards ONLY reading and writing the journal", () => {
+    const gates = hostGates(top());
+    expect(gates.length).toBe(2);
+    const kinds = gates.map((g) => (g.then || []).map((s) => s.actionType).join(","));
+    expect(kinds).toContain("INIT_VAR");
+    expect(kinds.some((k) => k.includes("UPDATE"))).toBe(true);
+  });
+
+  it("the toggle asks the CHECK IN first, with the journal as an OR fallback", () => {
+    const toggle = all().find((st) =>
+      st.type === "if" && (st.condition?.rules || []).some((r) => r.left === "$staleCheckIn"));
+    expect(toggle.condition.operator).toBe("OR");
+    // The journal arm is load-bearing: 7 feelings were recorded before Check Ins
+    // existed and live only there — without it, clicking one would DUPLICATE.
+    expect(toggle.condition.rules.some((r) => r.left === "$moods")).toBe(true);
+  });
+
+  it("the stale-Check-In FIND runs BEFORE the toggle, not inside its THEN", () => {
+    const flat = top();
+    const idxFind = walk(flat).findIndex((s) => s.config?.itemVar === "$staleCheckIn");
+    const idxToggle = walk(flat).findIndex((s) =>
+      s.type === "if" && (s.condition?.rules || []).some((r) => r.left === "$staleCheckIn"));
+    expect(idxFind).toBeGreaterThanOrEqual(0);
+    expect(idxFind).toBeLessThan(idxToggle);
+  });
+
+  it("still deletes on un-pick and still places on pick", () => {
+    const toggle = all().find((st) =>
+      st.type === "if" && (st.condition?.rules || []).some((r) => r.left === "$staleCheckIn"));
+    expect(walk(toggle.then).some((s) => s.actionType === "DELETE")).toBe(true);
+    expect(walk(toggle.else).some((s) => s.actionType === "COPY_LINK")).toBe(true);
+  });
 });
