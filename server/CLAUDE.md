@@ -2,6 +2,45 @@
 
 _Updated: 2026-08-07. Check this file before re-reading source._
 
+## Recent Changes (2026-08-12 — `0086`/`0087`: a wheel click lands on EVERY day)
+- **User: *"it should always be in sync between todays emotional wheel and todays schedule. same as
+  the other days."*** Firing the STORED op through the REAL executor once per day column is what
+  found the cause, and it was NOT what the report sounded like — the days were already isolated:
+  ```
+  column        Mood recorded    Check In on the schedule
+  2026-08-06    NONE             none
+  2026-08-10    journal          none    <- records, but not on the schedule
+  2026-08-11    NONE             none
+  2026-08-12    journal          Todo
+  ```
+  The click SILENTLY HALF-SUCCEEDED, differently per day.
+- **CAUSE 1 — THE TODO IS TRANSIENT.** `Schedule: Build Schedule` rebuilds day columns for the
+  FILTERED dates, so only the current day still has a Todo; older columns are Day Page columns whose
+  Schedule day-col is gone. Of 4 Todo containers, **exactly 1 is listed by a real column**. `0086`
+  falls the Check In back to **the day COLUMN itself** — it always exists (you clicked a wheel inside
+  it) and it IS that day's view of the schedule. Un-picking is scoped to the same parent, or every
+  fallback-placed row would be undeletable.
+- **CAUSE 2 — NOT EVERY DAY HAS A JOURNAL, and dumping the pipeline as a TREE is what showed it:**
+  everything sat inside `IF $moodHost IS_NOT_EMPTY`, so a journal-less day did nothing at all — the
+  `0046` swallow, still live. `0087` reduces that gate to the journal WRITE and moves the toggle onto
+  the Check In: `IF (a Check In for this feeling today) OR (the journal already lists it)`.
+- **THE `OR` ARM IS LOAD-BEARING, not caution.** 7 feelings were recorded BEFORE Check Ins existed
+  and live only on the journal; without it, clicking one would find no Check In, conclude "not
+  picked", and DUPLICATE instead of un-picking.
+- **THE CHECK IN BEING THE TRUTH IS THE SYNC FIX.** The wheel reads the Mood field per day (`0085`)
+  and the Check In carries Mood AND Date, so the wheel and the schedule answer from the SAME row —
+  in sync by construction rather than by two writes being kept in step.
+- **MY OWN FIRST WALK WAS WRONG AND THE FAIL-CLOSED GUARD CAUGHT IT:** the Todo FIND is emitted
+  NESTED inside the toggle's branch, not at the top level, so a top-level splice found nothing.
+  *A migration that quietly finds nothing leaves a pipeline that looks updated and is not.*
+- **Verified end-to-end through the real op AND the real renderer on live data:** clicking one
+  feeling on 2026-08-11 lights 08-11 and ONLY 08-11, leaves 08-12's seven untouched, and places
+  exactly one row dated 08-11. All four columns now record and place. 6 A/Bs, each mutation verified
+  to land. poms grid **0 integrity errors**.
+- **NOT VERIFIED IN A BROWSER, and it is the honest gap:** nobody has clicked a wheel on a past day
+  and watched the row appear. Also **no Check In has ever been minted for real** — the 7 existing
+  moods predate the mint.
+
 ## Recent Changes (2026-08-11 (2) — the kind recurrence, orphan MODULES, and unique names)
 - **`utils/orphanModules.js` (NEW, 11 tests)** — the inverse of `gridIntegrity`'s `missing-module`:
   a MODULE that no occurrence places. Deletions remove the occurrence and its subtree and leave the
