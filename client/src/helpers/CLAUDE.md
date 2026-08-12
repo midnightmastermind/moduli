@@ -35,6 +35,24 @@ _Updated: 2026-08-12. Check this file before re-reading source._
 - Merged after bringing master in: **one conflict, in `modules/CLAUDE.md`**, both dated entries
   kept. 2518 client tests.
 
+## Recent Changes (2026-08-12 (2) — graphOption: the highlight is PER DAY)
+- **User: *"the highlight of the selected should be per day, not all of them."*** The
+  one-occurrence-many-days shape, third appearance. `0068` unified the wheel into ONE occurrence
+  multi-parented into every day column, so `meta.graph.highlight` belongs to the GRAPH — the moods
+  picked on Tuesday lit the same slices on Monday. `0079` fixed the RECORD and left the highlight
+  global, which is precisely why the wheel still *looked* like it selected on every day.
+- **`highlightSet(spec, dayKey)`** reads `highlight[dayKey]` when the stored value is a MAP, and
+  **a map with no dayKey lights NOTHING**. Falling back to "some day" would light Tuesday's picks
+  on a column whose date is unknown — this bug wearing a fallback. A/B'd: that variant fails.
+- **The legacy flat ARRAY still lights every day**, so an unmigrated grid behaves exactly as before
+  and the migration is what changes behaviour, not the deploy.
+- **The renderer learns its day from DATA:** the graph occurrence carries `meta.graph.dayFieldId`
+  and `ContainerGraph` reads that field off the column it ALREADY resolves for recording
+  (`resolveRenderColumn`). Nothing in the chart code learns what a day or an emotion is.
+- **Verified by reading the RESULT back through the real `highlightSet` over live data**, never the
+  migration log: 7 ids lit on 2026-08-12, **0 on the days either side**, 0 when the day is unknown,
+  and the stored op writes the interpolated path `$graph.meta.graph.highlight.${$day}`.
+
 ## Recent Changes (2026-08-12 — graphOption: hovering the wheel stopped making it unreadable)
 - **User: *"the hover of the wheel makes all the ones thats not lit up, too dim to read."*** The
   second half of a defect whose first half shipped the day before.
