@@ -15,7 +15,7 @@
 // which is what 0046's tests used — passes against code that cannot work.
 import { describe, it, expect, beforeEach } from "vitest";
 import { runMatchingOperations, applyEffectsToLiveOccs } from "../helpers/operationExecutor";
-import { buildTogglePipeline } from "../../../server/migrations/0082-mood-click-toggles.mjs";
+import { buildCheckInPipeline } from "../../../server/migrations/0083-mood-mints-a-check-in.mjs";
 
 const GRAPH = "occ-graph";
 const OTHER_GRAPH = "occ-other-graph";
@@ -29,6 +29,13 @@ const COL_YESTER = "occ-col-yester";
 
 const LONELY = "occ-lonely";
 const HURT = "occ-hurt";
+// The Check In half (0083): the tracker counts an INSTANCE carrying a Mood and
+// a Date under the Schedule, which is what these place.
+const TIMESLOT = "fld-timeslot";
+const COMPLETED = "fld-completed";
+const CHECKIN_SRC = "occ-checkin-src";      // the Routines catalog entry
+const TODO_TODAY = "occ-todo-today";
+const TODO_YESTER = "occ-todo-yester";
 
 let occurrencesById, modulesById, fieldsById, operations, operationsById, grid;
 
@@ -43,9 +50,13 @@ function makeOp(targetGraph = GRAPH) {
       eventType: "onGraphSelect", subjectType: "module",
       subjectRole: "container", targetId: targetGraph,
     }],
-    pipeline: buildTogglePipeline({
+    // 0083 is what SHIPS, so the whole suite runs against it — every existing
+    // assertion below therefore also proves the Check In steps did not disturb
+    // the mood/highlight writes they were folded into.
+    pipeline: buildCheckInPipeline({
       graphOccId: targetGraph, moodFieldId: MOOD, dateFieldId: DATE,
-      schedulePageOccId: SCHED,
+      schedulePageOccId: SCHED, checkInSourceOccId: CHECKIN_SRC,
+      timeslotFieldId: TIMESLOT, completedFieldId: COMPLETED,
     }),
   };
 }
@@ -55,6 +66,8 @@ beforeEach(() => {
   fieldsById = {
     [MOOD]: { id: MOOD, name: "Mood", type: "occurrence", inputEnabled: true, meta: { multiSelect: true } },
     [DATE]: { id: DATE, name: "Date", type: "date", inputEnabled: true },
+    [TIMESLOT]: { id: TIMESLOT, name: "Time Slot", type: "select", inputEnabled: true },
+    [COMPLETED]: { id: COMPLETED, name: "Completed", type: "boolean", inputEnabled: true },
   };
   modulesById = {
     "m-graph": { id: "m-graph", role: "container", kind: "graph", label: "Emotions Wheel" },
@@ -65,6 +78,13 @@ beforeEach(() => {
     "m-journal": { id: "m-journal", role: "container", kind: "doc", label: "Journal",
       fieldBindings: [{ fieldId: MOOD, role: "input" }, { fieldId: DATE, role: "input", hidden: true }] },
     "m-emotion": { id: "m-emotion", role: "instance", label: "Lonely" },
+    "m-todo": { id: "m-todo", role: "container", kind: "board", label: "Todo" },
+    // Check In binds Completed, which is why the tracker skips it until ticked.
+    "m-checkin": { id: "m-checkin", role: "instance", label: "Check In",
+      fieldBindings: [
+        { fieldId: COMPLETED, role: "input" }, { fieldId: MOOD, role: "input" },
+        { fieldId: DATE, role: "input", hidden: true },
+      ] },
   };
   occurrencesById = {
     // ONE wheel, listed by BOTH columns, with no filter of its own — the live
@@ -73,10 +93,18 @@ beforeEach(() => {
                meta: { graph: { type: "sunburst", highlight: [] } } },
     [OTHER_GRAPH]: { id: OTHER_GRAPH, moduleId: "m-graph", occurrences: [], fields: {},
                      meta: { graph: { type: "pie" } } },
-    [COL_TODAY]: { id: COL_TODAY, moduleId: "m-col", occurrences: [GRAPH],
+    // Each column lists the wheel AND its own Todo — the live shape, where the
+    // Todo is multi-parented into both the column and the Schedule day column.
+    [COL_TODAY]: { id: COL_TODAY, moduleId: "m-col", occurrences: [GRAPH, TODO_TODAY],
                    fields: { [DATE]: { value: TODAY } } },
-    [COL_YESTER]: { id: COL_YESTER, moduleId: "m-col", occurrences: [GRAPH],
+    [COL_YESTER]: { id: COL_YESTER, moduleId: "m-col", occurrences: [GRAPH, TODO_YESTER],
                     fields: { [DATE]: { value: YESTERDAY } } },
+    [TODO_TODAY]: { id: TODO_TODAY, moduleId: "m-todo", occurrences: [],
+                    fields: { [TIMESLOT]: { value: "Todo" } } },
+    [TODO_YESTER]: { id: TODO_YESTER, moduleId: "m-todo", occurrences: [],
+                     fields: { [TIMESLOT]: { value: "Todo" } } },
+    // The catalog entry the placement copies — lives in Routines, not the Schedule.
+    [CHECKIN_SRC]: { id: CHECKIN_SRC, moduleId: "m-checkin", occurrences: [], fields: {} },
     // The journals live under the SCHEDULE, not in the columns.
     [SCHED]: { id: SCHED, moduleId: "m-page", occurrences: ["occ-journal", "occ-journal-yester"] },
     "occ-journal": { id: "occ-journal", moduleId: "m-journal", parentId: SCHED, occurrences: [],
@@ -247,5 +275,70 @@ describe("Mood: Record Selection — the assertions DISCRIMINATE", () => {
     operations[0].enabled = false;
     clickSlice(LONELY);
     expect(moods()).toEqual([]);
+  });
+});
+
+// ── 0083: the pick also places a Check In, which is what the tracker counts ──
+// The Moods tracker loops $allInstances and requires Mood + Date + HAS_ANCESTOR
+// <Schedule> + Completed. The Journal is a CONTAINER, so it can never satisfy
+// that — these assert the INSTANCE that can.
+const creates = (updates) => updates.filter((u) => u._effect === "CREATE_ITEM");
+const deletes = (updates) => updates.filter((u) => u._effect === "DELETE_ITEM" || u._effect === "DELETE");
+
+describe("Mood: Record Selection — a pick places a Check In in that day's Todo", () => {
+  it("mints a Check In into the Todo of the column that was clicked", () => {
+    const updates = clickSlice(LONELY, { column: COL_TODAY });
+    const made = creates(updates);
+    expect(made).toHaveLength(1);
+    const inst = made[0].instance;
+    expect(inst.templateId).toBe("m-checkin");     // the SAME module, not a clone
+    expect(inst.parentId).toBe(TODO_TODAY);
+    expect(inst.fields[DATE].value).toBe(TODAY);
+    expect(inst.fields[MOOD].value).toEqual([LONELY]);
+  });
+
+  it("stamps Completed, or the tracker skips it", () => {
+    const inst = creates(clickSlice(LONELY))[0].instance;
+    expect(inst.fields[COMPLETED].value).toBe(true);
+  });
+
+  it("carries NO linkedGroupId — ticking one must not tick every other", () => {
+    const inst = creates(clickSlice(LONELY))[0].instance;
+    expect(inst.linkedGroupId ?? null).toBeNull();
+  });
+
+  it("follows the CLICKED column — yesterday's pick lands in yesterday's Todo", () => {
+    const inst = creates(clickSlice(LONELY, { column: COL_YESTER }))[0].instance;
+    expect(inst.parentId).toBe(TODO_YESTER);
+    expect(inst.fields[DATE].value).toBe(YESTERDAY);
+  });
+
+  it("two different feelings place two Check Ins (one per click)", () => {
+    clickSlice(LONELY);
+    const updates = clickSlice(HURT);
+    expect(creates(updates)).toHaveLength(1);
+    expect(moods()).toEqual([LONELY, HURT]);
+  });
+
+  it("UN-picking deletes the Check In, so the tracker cannot drift from the wheel", () => {
+    clickSlice(LONELY);
+    const undo = clickSlice(LONELY);          // same slice again = un-pick
+    expect(creates(undo)).toHaveLength(0);
+    expect(deletes(undo).length).toBeGreaterThan(0);
+    expect(moods()).toEqual([]);
+  });
+
+  // DISCRIMINATORS — an assertion of absence proves nothing until the thing has
+  // been shown to be present, so each of these breaks exactly one precondition.
+  it("no Todo under the clicked column → no Check In, and nothing throws", () => {
+    occurrencesById[COL_TODAY].occurrences = [GRAPH];   // Todo no longer listed
+    const updates = clickSlice(LONELY);
+    expect(creates(updates)).toHaveLength(0);
+    expect(moods()).toEqual([LONELY]);                  // the mood still records
+  });
+
+  it("a container that is not the Todo is never used as the destination", () => {
+    occurrencesById[TODO_TODAY].fields[TIMESLOT] = { value: "9:00am" };
+    expect(creates(clickSlice(LONELY))).toHaveLength(0);
   });
 });
