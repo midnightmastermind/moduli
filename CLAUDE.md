@@ -6,6 +6,46 @@
 
 ---
 
+### 2026-08-11 (5) — RETRACTION: the click never fired the op AT ALL, and a TEST WAS PINNING IT
+
+User, after (4) shipped and deployed: *"nothing happened when i clicked an emotion for today."*
+
+**(4) FOUND REAL DEFECTS AND MISSED THE CAUSE.** `runMatchingOperations(operations,
+transactionType, transaction, context)` is POSITIONAL. `ContainerGraph` called it with a **single
+OBJECT** — so `operations` WAS that object, every other argument was `undefined`, and the op loop
+iterated nothing. **No click has ever fired this trigger.** That is the actual reason zero moods
+were ever recorded; the period-object/`SAME_DAY` mismatch and the array-throw are real and would
+have bitten the instant this was fixed, but they sat downstream of a call that never ran.
+
+It was silent because the call lives in a `try/catch` that exists to stop a broken op taking the
+chart down. **Every other call site on the grid is positional; this was the only one that was not.**
+And a merely-corrected positional call would still be half a fix — the returned effects have to be
+APPLIED and the return value was discarded. It now goes through `operationsBridge.fireOperations`,
+the chokepoint every other write path uses.
+
+**A TEST WAS PROTECTING THE BUG, which is why it survived.** `ContainerGraph.test.jsx` asserted
+`runMatchingOperations.mock.calls[0][0]` and read `arg.transactionType` — i.e. it encoded the
+single-object shape as the contract and passed for months while the feature was dead. *A test that
+pins a broken contract is worse than no test: it converts a defect into a guarantee.*
+
+**AND MY OWN VERIFICATION HAD THE IDENTICAL BLIND SPOT.** Every check in (4) drove the executor
+DIRECTLY and positionally — over live data, through the real resolver, with controls — so the op
+demonstrably worked while the app could never reach it. **I verified the operation and never the
+caller**, then reported it fixed. The repo has now paid for this class four times; the rule earns
+restating in its strongest form: *driving the callee proves nothing about the call. Assert on what
+LEAVES the component.*
+
+`graphSelectFires.test.jsx` does exactly that — renders `ContainerGraph`, fires `EChart`'s
+`onSelect`, and asserts the POSITIONAL arguments that leave it. A/B'd against the original defect:
+restoring the single-object call fails 4 of its 5 cases.
+
+2461 client tests, deployed, prod HEAD verified, served chunk sha256-identical with the new key
+present and both a positive and a zero control — **the first attempt at that check read 0 for the
+POSITIVE control too, which is the tell that the probe was grepping the index HTML rather than the
+chunk.** Checked, not believed.
+
+---
+
 ### 2026-08-11 (4) — the wheel recorded NOTHING, and the highlight was only the symptom
 
 User: *"it should be lighting up the moods i select too"* / *"on the wheel."*
