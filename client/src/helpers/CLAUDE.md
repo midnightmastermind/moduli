@@ -2,6 +2,39 @@
 
 _Updated: 2026-08-12. Check this file before re-reading source._
 
+## Recent Changes (2026-08-12 — `lazyEditor` VERIFIED IN A BROWSER, then merged)
+- The textblock branch sat unmerged for two days with one gap: *"measure in a browser"*. Measured on
+  poms grid, on **Gospel of Thomas (Text)** — 116 textblocks, the most of any page on the grid:
+  ```
+                        master   branch
+    live TipTap editors    117        6
+    lazy placeholders        0      111
+    textblocks in DOM      116      116
+  ```
+  Same page, same panel state, both read at load. **95% fewer live editors.**
+- **THE MEASUREMENT WAS VACUOUS TWICE BEFORE IT WAS REAL, and both traps are worth keeping.**
+  (1) The first run counted **0 editors on both builds** — every visible page held no textblocks at
+  all, so the "win" was 0 vs 0. A mount count taken where there is nothing to mount is not a
+  measurement. (2) The second run navigated with the app's occurrence search, reported `clicked`,
+  and went nowhere; only the probe's own "is the target page on screen?" guard caught it. Navigate
+  by the tree row's `data-node-occ-id` and ASSERT the page arrived.
+- **THE TWO HAZARDS THE LAZINESS CREATES, checked rather than argued:**
+  - **Arrowing into a not-yet-live neighbour** — starting from the LAST live block, ArrowDown grew
+    live editors **6 → 9** and the caret landed in the next block. `forceLiveNow` works at runtime.
+    Starting from the FIRST live block proves nothing: it moves between blocks that are already
+    live, which the first attempt did (`liveEditorsNow` never moved).
+  - **A freshly minted block can never be a placeholder** — `eager: !lazy || !hasValidTextmap`, and
+    a new block has no textmap yet, so it mounts live and is typeable in the frame it appears.
+    Structural, so it was verified by reading the guard rather than by minting debris into live data.
+- **NOT exercised by a real click, and said plainly: clicking a placeholder.** Only one is ever
+  inside the viewport (the 700px observer margin makes everything reachable live), and an
+  insert-gap `+` button covers it — every point sampled hit the BUTTON, which the probe's hit-test
+  reported rather than passing off as a failure of the code. Both paths do carry
+  `onPointerDown={goLive}` (`DocContent.jsx`, `TextblockCard.jsx`), the same mechanism the arrow
+  check proves live.
+- Merged after bringing master in: **one conflict, in `modules/CLAUDE.md`**, both dated entries
+  kept. 2518 client tests.
+
 ## Recent Changes (2026-08-12 — graphOption: hovering the wheel stopped making it unreadable)
 - **User: *"the hover of the wheel makes all the ones thats not lit up, too dim to read."*** The
   second half of a defect whose first half shipped the day before.
