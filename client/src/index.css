@@ -5197,72 +5197,76 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .page-header-close-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.08); }
 
 /* ── Bound header (the day page's Daily Question picker) ────────────────────
-   The header is wrapped in AutoMarquee, which scrolls whatever overflows it.
-   A native <select> sizes to its longest option, so a pool of full-sentence
-   questions made the header permanently wider than its container and it
-   marquee-scrolled — mostly through empty space (user 2026-07-31: "make it
-   shorter, cause it marquees empty at the moment"). Constraining the control to
-   the row makes scrollWidth == clientWidth, so the marquee goes inert and the
-   selected question simply truncates. */
-/* Hovering the SELECT reveals the whole question. It expands ABSOLUTELY, so
-   nothing around it reflows (user 2026-08-01: "expands it as an absolute so it
-   doesnt push anything. this is just highlighting the select itself — not the
-   randomize button"). A native select truncates its selected option and cannot
-   marquee, so this is how the full text becomes readable in place.
-   Hover survives the switch: the expanded select is still a DESCENDANT of the
-   hovered span, so `:hover` on the parent stays true and it cannot flicker. */
-/* Hovering the header reveals the WHOLE question as an overlay. The select
-   itself is left completely alone: repositioning it pulled it out of the flex
-   row, so it lost its stretched width AND fell back to the browser's default
-   control chrome — "a diff css version of select thats alot smaller and square
-   border" (user 2026-08-01). An overlay cannot restyle the control, cannot
-   reflow the row, and shows the full text regardless of how the select
-   truncates. */
-.bound-header-fulltext {
-  display: none;
-}
-.bound-header-select:hover { overflow: visible; }
-.bound-header-select:hover > .bound-header-fulltext {
-  display: block;
-  position: absolute;
-  top: -2px;
-  left: 0;
-  z-index: 60;
-  width: max-content;
-  max-width: min(60vw, 560px);
-  padding: 3px 7px;
-  border-radius: 4px;
-  border: 1px solid hsl(var(--border));
-  background: var(--input-bg);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
-  white-space: normal;
-  pointer-events: none;
-  font: inherit;
-  color: var(--text-primary);
-}
+   THE TEXT IS A SPAN; THE SELECT IS AN INVISIBLE OVERLAY ON TOP OF IT.
+
+   History, because three shapes were tried and each failed for its own reason:
+   a native <select> sizes to its LONGEST option, so a pool of full-sentence
+   questions made the header permanently wider than its row and it marquee-
+   scrolled through empty space (user 2026-07-31: "make it shorter, cause it
+   marquees empty at the moment"). Capping the control at max-width:100% fixed
+   that and created this one — scrollWidth == clientWidth, so AutoMarquee goes
+   inert and the question simply truncates inside the control where nothing can
+   measure it. The remainder was then reachable only through a :hover overlay,
+   which on TOUCH is not reachable at all (measured 2026-08-11: the select is
+   342px inside a 460px header at every width, and the overlay never fires
+   without a pointer). Repositioning the select on hover was tried too and lost
+   the row's stretched width plus the app's control chrome (user 2026-08-01:
+   "a diff css version of select thats alot smaller and square border").
+
+   So the visible text is an ordinary span that overflows honestly — it obeys
+   whatever meta.labelOverflow says (marquee / wrap / ellipsis) with no pointer
+   involved — and the real <select> sits over it at opacity 0, still opening its
+   own native picker on click or tap. */
 .bound-header-select {
-  /* Positioning context for the hover expansion above. */
-  position: relative;
-  /* NOT width:100% — the marquee wrapper this sits in is sized to its CONTENT,
-     so 100% resolved to the select's own intrinsic width (745px inside a 530px
-     panel) and pushed the field-name badge off the visible row. Shrink to fit
-     the row instead. */
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
 }
-.bound-header-select > select {
-  /* A <select> does NOT inherit font by default — it used the UA font (11px),
-     so a bound header never LOOKED like the heading level it declared
-     (user 2026-08-01: "it doesnt even look like the # heading"). */
-  font: inherit;
+/* The control's chrome lives HERE now, because the element that draws it is no
+   longer the element that carries the border. */
+.bound-header-pick {
+  position: relative;   /* the overlay's containing block */
+  display: flex;
+  align-items: center;
+  gap: 4px;
   flex: 1 1 auto;
   min-width: 0;
-  max-width: 100%;
-  background: transparent;
-  color: inherit;
+  overflow: hidden;
+  padding: 2px 4px;
   border: 1px solid hsl(var(--border));
   border-radius: 4px;
+}
+.bound-header-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  font: inherit;
+  color: inherit;
+}
+/* Drawn by us: an opacity-0 select cannot render its own caret, and without one
+   there is nothing saying this is pickable. */
+.bound-header-caret {
+  flex: 0 0 auto;
+  opacity: 0.6;
+  pointer-events: none;
+}
+.bound-header-native {
+  /* Invisible but REAL — it keeps focus, keyboard access and the native picker.
+     `inset: 0` rather than width/height so it covers the padded box exactly. */
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font: inherit;
+  border: none;
+  background: transparent;
+}
+/* A keyboard user gets no hover and no caret feedback, so focus has to be
+   visible on the box the select is standing in for. */
+.bound-header-pick:has(.bound-header-native:focus-visible) {
+  outline: 2px solid hsl(var(--border));
+  outline-offset: 1px;
 }
 /* Keep the field-name badge visible beside the picker — the control may shrink,
    the badge may not (user: "daily question small next to it"). */

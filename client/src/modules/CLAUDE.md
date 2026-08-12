@@ -1,6 +1,49 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-08-09. This folder implements occurrence-based view routing._
+_Updated: 2026-08-11. This folder implements occurrence-based view routing._
+
+## Recent Changes (2026-08-11 — BoundHeader: the question is a SPAN, the select is an invisible overlay)
+- **User: *"the question shows up on daypage and picked, but cant be seen until i hover over it."***
+- **MEASURED FIRST, AND THE LITERAL SYMPTOM DID NOT REPRODUCE — say so.** At 1440px the question
+  IS painted at rest; the `<select>` renders **342px inside a 460px header** and simply truncates
+  after ~7 words. What was actually broken is the recovery path: the rest of the text lived in a
+  `.bound-header-fulltext` overlay that is `display:none` until `:hover`, **so on TOUCH it was
+  unreachable at all.** The select measures 338px at 390px too — the day column has a 420px min
+  width — so a phone shows the same truncation with no way to see the remainder.
+- **Why the marquee this module explicitly asks for was inert.** `meta.labelOverflow: "marquee"` was
+  set on the Daily Question deliberately (2026-08-01 (2): *"the question IS prose, reading it is the
+  whole point"*), and `LabelShell` does wrap it in `AutoMarquee` — but AutoMarquee measures
+  `inner.scrollWidth > box.clientWidth`, and a `<select>` capped at `max-width:100%` can never
+  report overflow. **A native select truncates INTERNALLY, where nothing can measure it.** The
+  marquee was switched on and could not fire, by construction.
+- **THE FIX IS THE ONE THIS REPO WROTE DOWN TWICE AND NEVER BUILT** (2026-08-01 (9), and BoundHeader's
+  own comment): the visible text is an ordinary `<span>` inside `.bound-header-pick`, and the real
+  `<select>` sits over it at `opacity: 0` / `inset: 0`. The span overflows honestly, so it obeys
+  whatever `labelOverflow` says — **no pointer involved** — while the select keeps focus, keyboard
+  access and its native picker. The control's border/padding moved onto `.bound-header-pick`,
+  because the element that DRAWS the chrome is no longer the element that carries it.
+- **Two things that would have been silently lost, and are not.** An `opacity:0` select cannot draw
+  its own caret, so `.bound-header-caret` is ours — without it nothing says the header is pickable.
+  And the empty-pool diagnostic (#47) used to be the select's only `<option>`; it moves to the text
+  layer, or a misconfigured predicate goes back to rendering a silently blank header.
+- **A pre-existing HOOKS-ORDER BUG fixed in passing:** `selectedLabel`'s `useMemo` sat AFTER the
+  `if (!hostOccurrence || !field) return` early return. The hook COUNT changes the first time this
+  component renders without a host and then with one — a latent React crash. Moved above the return.
+- **Verified in a browser at rest with no pointer** (`_dqfix.mjs`, local build on live data), which is
+  the only thing that can settle a "cannot be seen" report:
+  ```
+  question 442px of text in a 316px box   marqueeArmed TRUE   textOpacity 1
+  legacy .bound-header-fulltext in DOM    0
+  elementFromPoint left/centre/right      SELECT.bound-header-native  (all three)
+  ```
+  3 tests, each A/B'd — removing the text layer fails 2, unwiring the overlay select fails 1,
+  dropping the empty-pool fallback fails 1. **The first A/B-3 run "passed" because the mutation
+  never applied (a non-breaking space in the source); the assert caught it.** Check the mutation
+  landed before believing an A/B — for the Nth time.
+- **NOT VERIFIED, and it is the honest gap:** nobody has TAPPED the control on a real touch device.
+  The phone probe's hit-test returned null at every point because at 390px the Day Page cell is
+  translated off-screen by the mobile slider — the documented trap. Its layout numbers are valid
+  (the marquee arms at 390 too); its hit-test is not, and a zero there is a claim about the probe.
 
 ## Recent Changes (2026-08-09 — a BOARD page renders its leaf children as themselves)
 - **User: *"a board page can hold artifacts. as occurances in the page. so would canvases."*
