@@ -240,6 +240,10 @@ export const NESTED_RADIUS_PCT = 92;
 // read. Same colour is used for the slice separators so a ring reads as
 // segmented rather than as one blended band.
 export const SUNBURST_LABEL_COLOR = "#000000";
+// How much a NON-focused slice fades while the pointer is on the wheel. Named,
+// exported and tested because it is the difference between a de-emphasis and an
+// unreadable chart — 0.45 was the latter.
+export const BLUR_ITEM_OPACITY = 0.85;
 export const LABEL_FONT_PX = 10;
 export const LABEL_MIN_ARC_PX = LABEL_FONT_PX * 1.8;
 
@@ -345,19 +349,33 @@ export function buildEChartsOption(spec, data, theme, view, boxPx) {
             rotate: "radial", color: SUNBURST_LABEL_COLOR, fontSize: LABEL_FONT_PX, overflow: "truncate",
             minAngle: radialLabelMinAngle({ boxPx, radiusPct: NESTED_RADIUS_PCT, zoom: v.zoom }) ?? 1,
           },
-          // THE LABELS MUST NEVER FADE. `focus: "ancestor"` puts every
-          // non-ancestor slice into ECharts' BLUR state, and the default blur
-          // drops opacity on the label as well as the slice — which is why the
-          // lettering "blanked out on hover" (user, 2026-08-12). Emphasis and
-          // blur therefore both pin the label to opaque black; only the SLICE
-          // dims, which is the part that carries the focus effect.
+          // THE WHEEL MUST NEVER GET HARDER TO READ WHEN YOU POINT AT IT.
+          //
+          // `focus: "ancestor"` puts every non-ancestor slice into ECharts' BLUR
+          // state. The default blur fades the LABEL as well as the slice, which
+          // is why the lettering "blanked out on hover" — so emphasis, blur and
+          // select each pin the label to opaque black.
+          //
+          // That fixed the labels and left the second half: the SLICE still
+          // faded to 0.45, and black lettering on a slice washed toward a dark
+          // page background is exactly as unreadable (user, 2026-08-12: "the
+          // hover of the wheel makes all the ones thats not lit up, too dim to
+          // read"). Screenshots of the live wheel at rest and hovering are what
+          // settled it — a luminance probe over sampled ring points reported the
+          // medians UNCHANGED while the two images were obviously different, so
+          // the numbers were inconclusive and the pictures were not.
+          //
+          // BLUR_ITEM_OPACITY is therefore set so the ancestor path still reads
+          // as emphasised while every other slice stays legible. Reading the
+          // wheel is its whole purpose; the focus effect is a hint, and a hint
+          // must not cost you the thing it is hinting about.
           emphasis: {
             focus: "ancestor",
             label: { color: SUNBURST_LABEL_COLOR, opacity: 1 },
           },
           blur: {
             label: { color: SUNBURST_LABEL_COLOR, opacity: 1 },
-            itemStyle: { opacity: 0.45 },
+            itemStyle: { opacity: BLUR_ITEM_OPACITY },
           },
           // A selected slice keeps black lettering too — ECharts' `select`
           // state would otherwise fall back to its own default on click.

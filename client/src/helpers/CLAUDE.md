@@ -1,6 +1,33 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-08-08. Check this file before re-reading source._
+_Updated: 2026-08-12. Check this file before re-reading source._
+
+## Recent Changes (2026-08-12 — graphOption: hovering the wheel stopped making it unreadable)
+- **User: *"the hover of the wheel makes all the ones thats not lit up, too dim to read."*** The
+  second half of a defect whose first half shipped the day before.
+- **`focus: "ancestor"` blurs every non-ancestor slice**, and ECharts' default blur fades the LABEL
+  with it — that was the earlier "the letters are blanking out on hover", fixed by pinning the label
+  opaque black in emphasis/blur/select. **What was left was the SLICE**, still fading to `0.45`:
+  black lettering on a slice washed toward a dark page background is exactly as unreadable, so the
+  first fix moved the problem rather than ending it. `BLUR_ITEM_OPACITY = 0.85` (named, exported,
+  tested) is the fix; the ancestor hint survives, it just no longer costs you the wheel.
+- **SCREENSHOTS SETTLED IT AND THE NUMBERS DID NOT — worth recording, because the numbers looked
+  authoritative.** A probe sampling painted-canvas luminance around each ring reported the medians
+  **UNCHANGED between rest and hover** (0.449 → 0.449) while the two images were obviously
+  different: at rest the wheel is saturated and every label reads; on hover the whole thing goes
+  muddy olive. The metric was measuring the wrong thing (too few angular samples, landing on labels
+  and slice borders as often as fill). *A quantitative probe that disagrees with a screenshot of a
+  CANVAS is the probe being wrong — that is the third time this surface has been settled by looking.*
+- **AND THE FIRST RUN OF THAT PROBE MEASURED NOTHING AT ALL.** The wheel's canvas sat at y=777 with
+  height 620 in a 900px viewport, so the hover point landed BELOW the window; rest and hover came
+  back byte-identical, which reads exactly like "the blur does nothing". It scrolls the canvas into
+  view and asserts `inViewport` now. **A hover outside the viewport is not a measurement of hover.**
+- 3 tests, each A/B'd with the mutation verified to land: restoring 0.45 fails the readability
+  floor, fading the blur label fails the all-states pin, and dropping `focus: "ancestor"` fails two.
+- **The wheel's RECORDING is confirmed end-to-end in the same session** — the user's `[graph]` log
+  shows `via=dom column=8bb2d89a`, and reading the live grid back shows all five clicked emotions on
+  the `2026-08-12` journal with the other two days still `null`. That is the direct refutation of
+  "everytime i make a selection, its selecting on everyday".
 ## Recent Changes (2026-08-10 (4) — a CLONE now carries `_ancestors`; the 3 red behavioral tests are GREEN)
 - **`operationActions.stampCloneAncestors` (NEW, 6 tests)** — the clone paths (APPLY_TEMPLATE and
   clone-subtree) published their stubs into `$allItems` and every role slice **without an

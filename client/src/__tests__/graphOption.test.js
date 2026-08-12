@@ -6,7 +6,7 @@
 // survives onto the click event — that is what lets a click resolve back to an
 // occurrence with no index-to-occurrence table to keep in sync.
 import { describe, it, expect } from "vitest";
-import { buildEChartsOption, CHART_TYPES } from "../helpers/graphOption";
+import { buildEChartsOption, CHART_TYPES, BLUR_ITEM_OPACITY, SUNBURST_LABEL_COLOR } from "../helpers/graphOption";
 
 const NODES = [
   { id: "a", occurrenceId: "occ-a", name: "Angry", value: 8, series: null, children: [], depth: 0 },
@@ -452,5 +452,39 @@ describe("buildEChartsOption — the added chart types", () => {
     const zeros = SPLIT.map((n) => ({ ...n, value: 0 }));
     const { option } = buildEChartsOption({ type: "radar" }, zeros);
     expect(option.radar.indicator.every((i) => i.max === 1)).toBe(true);
+  });
+
+  // ── The wheel must not get HARDER to read when you point at it ────────────
+  // `focus: "ancestor"` blurs every non-ancestor slice. Twice now that has cost
+  // readability: first the LABEL faded with it, then the slice itself faded so
+  // far that black lettering on a washed-out slice was unreadable anyway
+  // (user, 2026-08-12: "the hover of the wheel makes all the ones thats not lit
+  // up, too dim to read"). Both halves are pinned here.
+  describe("sunburst hover states stay readable", () => {
+    const NESTED = [
+      { name: "Angry", occurrenceId: "a", children: [
+        { name: "Envious", occurrenceId: "b", value: 1 },
+      ] },
+    ];
+    const sun = () => buildEChartsOption({ type: "sunburst" }, NESTED).option.series[0];
+
+    it("does not fade a non-focused slice below readability", () => {
+      // 0.45 shipped and was the reported defect. The floor is what this test
+      // is really about — the exact value above it is a taste call.
+      expect(sun().blur.itemStyle.opacity).toBeGreaterThanOrEqual(0.8);
+      expect(BLUR_ITEM_OPACITY).toBeGreaterThanOrEqual(0.8);
+    });
+
+    it("pins the label opaque and black in EVERY interaction state", () => {
+      const s = sun();
+      for (const state of ["emphasis", "blur", "select"]) {
+        expect(s[state].label.opacity).toBe(1);
+        expect(s[state].label.color).toBe(SUNBURST_LABEL_COLOR);
+      }
+    });
+
+    it("still emphasises the ancestor path — the hint is not removed, only softened", () => {
+      expect(sun().emphasis.focus).toBe("ancestor");
+    });
   });
 });
