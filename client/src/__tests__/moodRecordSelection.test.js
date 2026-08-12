@@ -15,7 +15,7 @@
 // which is what 0046's tests used — passes against code that cannot work.
 import { describe, it, expect, beforeEach } from "vitest";
 import { runMatchingOperations, applyEffectsToLiveOccs } from "../helpers/operationExecutor";
-import { buildCheckInPipeline } from "../../../server/migrations/0083-mood-mints-a-check-in.mjs";
+import { buildPerDayPipeline } from "../../../server/migrations/0084-highlight-is-per-day.mjs";
 
 const GRAPH = "occ-graph";
 const OTHER_GRAPH = "occ-other-graph";
@@ -50,10 +50,10 @@ function makeOp(targetGraph = GRAPH) {
       eventType: "onGraphSelect", subjectType: "module",
       subjectRole: "container", targetId: targetGraph,
     }],
-    // 0083 is what SHIPS, so the whole suite runs against it — every existing
+    // 0084 is what SHIPS, so the whole suite runs against it — every existing
     // assertion below therefore also proves the Check In steps did not disturb
     // the mood/highlight writes they were folded into.
-    pipeline: buildCheckInPipeline({
+    pipeline: buildPerDayPipeline({
       graphOccId: targetGraph, moodFieldId: MOOD, dateFieldId: DATE,
       schedulePageOccId: SCHED, checkInSourceOccId: CHECKIN_SRC,
       timeslotFieldId: TIMESLOT, completedFieldId: COMPLETED,
@@ -186,7 +186,11 @@ describe("Mood: Record Selection — clicking the wheel records a mood", () => {
     clickSlice(LONELY);
     const updates = clickSlice(HURT);
     const meta = updates.find((u) => u._effect === "UPDATE_ITEM_META");
-    expect(meta).toMatchObject({ itemId: GRAPH, metaPath: ["graph", "highlight"] });
+    // The path gained the DAY as of 0084: the wheel is one occurrence shared by
+    // every column, so a whole-graph highlight lit the same slices on every day.
+    // The "one truth" property this test exists for is unchanged — the ids
+    // written still equal the day's stored moods.
+    expect(meta).toMatchObject({ itemId: GRAPH, metaPath: ["graph", "highlight", TODAY] });
     expect(meta.value).toEqual(moods());
   });
 
@@ -340,5 +344,23 @@ describe("Mood: Record Selection — a pick places a Check In in that day's Todo
   it("a container that is not the Todo is never used as the destination", () => {
     occurrencesById[TODO_TODAY].fields[TIMESLOT] = { value: "9:00am" };
     expect(creates(clickSlice(LONELY))).toHaveLength(0);
+  });
+});
+
+// ── The highlight write is keyed by the day that was clicked ──────────────
+describe("Mood: Record Selection — the highlight is stored PER DAY", () => {
+  const metaWrites = (updates) => updates.filter((u) => u._effect === "UPDATE_ITEM_META");
+
+  it("writes the highlight under the clicked day, not over the whole graph", () => {
+    const w = metaWrites(clickSlice(LONELY, { column: COL_TODAY }));
+    expect(w).toHaveLength(1);
+    // meta.graph.highlight.<day> — the day is the LAST path segment.
+    expect(w[0].metaPath).toEqual(["graph", "highlight", TODAY]);
+    expect(w[0].value).toEqual([LONELY]);
+  });
+
+  it("a pick on another day writes under THAT day — the two cannot collide", () => {
+    const w = metaWrites(clickSlice(HURT, { column: COL_YESTER }));
+    expect(w[0].metaPath).toEqual(["graph", "highlight", YESTERDAY]);
   });
 });

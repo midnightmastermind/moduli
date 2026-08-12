@@ -169,12 +169,32 @@ function toDatum(node, highlight) {
   return d;
 }
 
-// An operation writes `meta.graph.highlight` as a list of occurrence ids (or a
-// single id). Normalized here so callers never have to care which shape it is.
-export function highlightSet(spec) {
+// An operation writes `meta.graph.highlight`. Normalized here so callers never
+// have to care which shape it is.
+//
+// IT IS KEYED BY DAY, and that is not a refinement — it is the same
+// one-occurrence-many-days bug the click resolution already had. The wheel is
+// ONE occurrence multi-parented into every day column, so a single list lit the
+// same slices on every day (user, 2026-08-12: "the highlight of the selected
+// should be per day, not all of them"). The op writes
+// `meta.graph.highlight["2026-08-12"]`, and the renderer asks for the day it is
+// being shown in.
+//
+//   { "2026-08-12": [ids] }   per-day map — the shape written today
+//   [ids] | "id"              LEGACY flat list, still honoured on every day
+//
+// WITH A MAP AND NO DAY, NOTHING IS LIT. Picking some arbitrary key would light
+// a day the user is not looking at, which is the exact complaint.
+export function highlightSet(spec, dayKey = null) {
   const h = spec?.highlight;
   if (!h) return null;
-  const ids = Array.isArray(h) ? h : [h];
+  let raw = h;
+  if (!Array.isArray(h) && typeof h === "object") {
+    if (!dayKey) return null;
+    raw = h[dayKey];
+    if (!raw) return null;
+  }
+  const ids = Array.isArray(raw) ? raw : [raw];
   const clean = ids.filter((x) => typeof x === "string" && x);
   return clean.length ? new Set(clean) : null;
 }
@@ -296,7 +316,11 @@ export function radialLabelMinAngle({ boxPx, radiusPct, zoom = 1, minArcPx = LAB
   return Math.min((minArcPx * 360) / (2 * Math.PI * r), MAX_MIN_ANGLE_DEG);
 }
 
-export function buildEChartsOption(spec, data, theme, view, boxPx) {
+// `dayKey` is WHICH DAY this chart is being rendered for. A shared graph is
+// multi-parented into every day column, so the highlight cannot be a property of
+// the graph alone — see highlightSet. Omitted (every existing caller) a per-day
+// map lights nothing, which is the safe direction.
+export function buildEChartsOption(spec, data, theme, view, boxPx, dayKey = null) {
   const warnings = [];
   const t = { ...DEFAULT_THEME, ...(theme || {}) };
   const nodes = Array.isArray(data) ? data : [];
@@ -308,7 +332,7 @@ export function buildEChartsOption(spec, data, theme, view, boxPx) {
   const scaled = (pct) => `${pct * v.zoom}%`;
   const center = [`${v.cx}%`, `${v.cy}%`];
 
-  const hi = highlightSet(spec);
+  const hi = highlightSet(spec, dayKey);
 
   const wanted = spec?.type || FALLBACK_TYPE;
   let def = BY_ID.get(wanted);

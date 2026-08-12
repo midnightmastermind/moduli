@@ -21,7 +21,7 @@
 // renders). It knows nothing about emotions, moods, or wheels — a feeling wheel
 // is data plus one operation, and `noDomainKnowledge.test.js` guards that.
 // ============================================================
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BarChart3, Minimize2 } from "lucide-react";
 import EChart, { readChartTheme } from "../../ui/EChart";
 import { buildGraphData } from "../../helpers/graphData";
@@ -83,9 +83,18 @@ export default function ContainerGraph({ occurrence, renderParentOccurrenceId = 
   // fixed default, so the first paint is never worse than before.
   const [boxPx, setBoxPx] = useState(null);
 
+  // WHICH DAY THIS CHART IS BEING SHOWN FOR. The wheel is ONE occurrence
+  // multi-parented into every day column, so a highlight stored on it alone lit
+  // the same slices on every day (user: "the highlight of the selected should be
+  // per day, not all of them"). The op keys the highlight by day; this is the
+  // read side. Resolved from the SAME render-context walk the click uses —
+  // walking the DATA upward would pick an arbitrary parent (buildParentMap keys
+  // child -> ONE parent, last writer wins), which is the bug, not the fix.
+  const [dayKey, setDayKey] = useState(null);
+
   const { option } = useMemo(
-    () => buildEChartsOption(spec, nodes, readChartTheme(hostRef.current), view, boxPx),
-    [spec, nodes, view, boxPx]
+    () => buildEChartsOption(spec, nodes, readChartTheme(hostRef.current), view, boxPx, dayKey),
+    [spec, nodes, view, boxPx, dayKey]
   );
 
   // A selection fires the ordinary trigger path, so an operation decides what a
@@ -147,6 +156,23 @@ export default function ContainerGraph({ occurrence, renderParentOccurrenceId = 
     }
     return { id: null, how: hostRef.current ? "dom-miss" : "no-host", seen };
   }, [renderParentOccurrenceId, occurrence?.id]);
+
+  // Read the day off the column this graph is rendered in. `spec.dayFieldId`
+  // names the field — DATA, so nothing here learns what a "day" or an emotion
+  // is. Runs after mount (the ancestor element does not exist on first render)
+  // and whenever the surface changes; a graph with no dayFieldId keeps the
+  // legacy whole-graph highlight.
+  useEffect(() => {
+    const fid = spec?.dayFieldId;
+    if (!fid) { setDayKey(null); return; }
+    const { id } = resolveRenderColumn();
+    const col = id ? getOccMap()[id] : null;
+    // The RAW stored value, unnormalised: the op keys the map with the same
+    // value read from the same field, so the two cannot disagree. Slicing here
+    // and not there is how the key silently stops matching.
+    const v = col?.fields?.[fid]?.value;
+    setDayKey(typeof v === "string" && v ? v : null);
+  }, [spec?.dayFieldId, resolveRenderColumn, getOccMap, occurrence?.id, nodes]);
 
   const handleSelect = useCallback((sel) => {
     if (!sel) return;

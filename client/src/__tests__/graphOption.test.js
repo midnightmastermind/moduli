@@ -7,7 +7,7 @@
 // occurrence with no index-to-occurrence table to keep in sync.
 import { describe, it, expect } from "vitest";
 import { buildEChartsOption, CHART_TYPES, BLUR_ITEM_OPACITY, SUNBURST_LABEL_COLOR,
-  radialLabelMinAngle, NESTED_RADIUS_PCT } from "../helpers/graphOption";
+  radialLabelMinAngle, NESTED_RADIUS_PCT, highlightSet } from "../helpers/graphOption";
 
 const NODES = [
   { id: "a", occurrenceId: "occ-a", name: "Angry", value: 8, series: null, children: [], depth: 0 },
@@ -521,5 +521,43 @@ describe("buildEChartsOption — the added chart types", () => {
       // multiplier low enough to break this is too low.
       expect(at(390)).toBeGreaterThan(TERTIARY_DEG);
     });
+  });
+});
+
+// ── The highlight is PER DAY ──────────────────────────────────────────────
+// The wheel is ONE occurrence multi-parented into every day column, so a
+// highlight stored on the graph alone lit the same slices on every day
+// (user: "the highlight of the selected should be per day, not all of them").
+describe("highlightSet is keyed by day", () => {
+  const MAP = { "2026-08-12": ["a", "b"], "2026-08-11": ["c"] };
+
+  it("lights the ids recorded for the day being shown", () => {
+    expect([...highlightSet({ highlight: MAP }, "2026-08-12")]).toEqual(["a", "b"]);
+  });
+
+  it("lights NOTHING on a different day — the actual bug", () => {
+    expect(highlightSet({ highlight: MAP }, "2026-08-09")).toBeNull();
+  });
+
+  it("lights nothing when the day is unknown, rather than picking one", () => {
+    // Choosing an arbitrary key would light a day the user is not looking at,
+    // which is the complaint itself.
+    expect(highlightSet({ highlight: MAP }, null)).toBeNull();
+  });
+
+  it("still honours a LEGACY flat list on any day", () => {
+    expect([...highlightSet({ highlight: ["x"] }, "2026-08-12")]).toEqual(["x"]);
+    expect([...highlightSet({ highlight: "x" }, null)]).toEqual(["x"]);
+  });
+
+  it("selects only the day's ids in the built option", () => {
+    const data = [{ name: "A", occurrenceId: "a", value: 1 },
+                  { name: "C", occurrenceId: "c", value: 1 }];
+    const spec = { type: "sunburst", highlight: MAP };
+    const onThe12th = buildEChartsOption(spec, data, undefined, undefined, undefined, "2026-08-12");
+    const onThe11th = buildEChartsOption(spec, data, undefined, undefined, undefined, "2026-08-11");
+    const picked = (o) => o.option.series[0].data.filter((d) => d.selected).map((d) => d.occurrenceId);
+    expect(picked(onThe12th)).toEqual(["a"]);
+    expect(picked(onThe11th)).toEqual(["c"]);
   });
 });
