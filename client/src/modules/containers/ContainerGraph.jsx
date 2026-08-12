@@ -28,6 +28,7 @@ import { buildGraphData } from "../../helpers/graphData";
 import { resolveFeedItems } from "../../state/selectors";
 import { resolveGraphRows } from "../../helpers/feedPull";
 import { buildEChartsOption } from "../../helpers/graphOption";
+import { selectedIdsForDay, derivesSelection } from "../../helpers/graphSelection";
 import { DEFAULT_VIEW, isDefaultView } from "../../helpers/graphView";
 import { useGridActionsSelector } from "../../GridActionsContext";
 import { operationsBridge } from "../../state/bindSocketToStore";
@@ -92,9 +93,25 @@ export default function ContainerGraph({ occurrence, renderParentOccurrenceId = 
   // child -> ONE parent, last writer wins), which is the bug, not the fix.
   const [dayKey, setDayKey] = useState(null);
 
+  // WHICH SLICES ARE LIT IS READ FROM THE DATA, not from a list stored beside
+  // it. The stored highlight was an exact duplicate of the day's own field value
+  // (measured: the same 7 ids in both), so only the paths someone remembered to
+  // wire kept it in step — a click lit it, dragging a row onto a day did not.
+  // Reading the field means every write path lights the wheel and the copies
+  // cannot disagree. `nodes` is in the deps as the occurrences-changed signal:
+  // `getOccMap` is a stable getter and does NOT change identity on a write.
+  const derivedIds = useMemo(() => {
+    if (!derivesSelection(spec)) return null;
+    return selectedIdsForDay(Object.values(getOccMap() || {}), {
+      valueFieldId: spec.valueFieldId,
+      dayFieldId: spec.dayFieldId,
+      day: dayKey,
+    });
+  }, [spec, dayKey, getOccMap, nodes]);
+
   const { option } = useMemo(
-    () => buildEChartsOption(spec, nodes, readChartTheme(hostRef.current), view, boxPx, dayKey),
-    [spec, nodes, view, boxPx, dayKey]
+    () => buildEChartsOption(spec, nodes, readChartTheme(hostRef.current), view, boxPx, dayKey, derivedIds),
+    [spec, nodes, view, boxPx, dayKey, derivedIds]
   );
 
   // A selection fires the ordinary trigger path, so an operation decides what a

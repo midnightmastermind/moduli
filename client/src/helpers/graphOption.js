@@ -320,7 +320,7 @@ export function radialLabelMinAngle({ boxPx, radiusPct, zoom = 1, minArcPx = LAB
 // multi-parented into every day column, so the highlight cannot be a property of
 // the graph alone — see highlightSet. Omitted (every existing caller) a per-day
 // map lights nothing, which is the safe direction.
-export function buildEChartsOption(spec, data, theme, view, boxPx, dayKey = null) {
+export function buildEChartsOption(spec, data, theme, view, boxPx, dayKey = null, derivedIds = null) {
   const warnings = [];
   const t = { ...DEFAULT_THEME, ...(theme || {}) };
   const nodes = Array.isArray(data) ? data : [];
@@ -332,7 +332,13 @@ export function buildEChartsOption(spec, data, theme, view, boxPx, dayKey = null
   const scaled = (pct) => `${pct * v.zoom}%`;
   const center = [`${v.cx}%`, `${v.cy}%`];
 
-  const hi = highlightSet(spec, dayKey);
+  // DERIVED WINS. `derivedIds` is read from the day's own field values
+  // (helpers/graphSelection), so it is the truth rather than a copy of it; the
+  // stored list survives only for a grid that has not been migrated off the
+  // cache, where it is still the only thing there is. An EMPTY derived set is a
+  // real answer ("nothing is selected today") and must not fall through to a
+  // stale cache, so the test is null-ness, not emptiness.
+  const hi = derivedIds ?? highlightSet(spec, dayKey);
 
   const wanted = spec?.type || FALLBACK_TYPE;
   let def = BY_ID.get(wanted);

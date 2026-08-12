@@ -16,6 +16,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { runMatchingOperations, applyEffectsToLiveOccs } from "../helpers/operationExecutor";
 import { buildPerDayPipeline } from "../../../server/migrations/0084-highlight-is-per-day.mjs";
+import { buildFieldReadPipeline } from "../../../server/migrations/0085-wheel-reads-the-field.mjs";
 
 const GRAPH = "occ-graph";
 const OTHER_GRAPH = "occ-other-graph";
@@ -363,4 +364,50 @@ describe("Mood: Record Selection — the highlight is stored PER DAY", () => {
     const w = metaWrites(clickSlice(HURT, { column: COL_YESTER }));
     expect(w[0].metaPath).toEqual(["graph", "highlight", YESTERDAY]);
   });
+});
+
+describe("0085 — the wheel reads the field, so the op stops writing a copy", () => {
+  const walk = (steps, out = []) => {
+    for (const st of steps || []) {
+      out.push(st);
+      if (st.type === "if") { walk(st.then, out); walk(st.else, out); }
+    }
+    return out;
+  };
+  const args = {
+    graphOccId: GRAPH, moodFieldId: MOOD, dateFieldId: DATE,
+    schedulePageOccId: SCHED, checkInSourceOccId: CHECKIN_SRC,
+    timeslotFieldId: TIMESLOT, completedFieldId: COMPLETED,
+  };
+
+  it("removes the highlight write and NOTHING else", () => {
+    const before = walk(buildPerDayPipeline(args).steps);
+    const after = walk(buildFieldReadPipeline(args).steps);
+    const hl = (steps) => steps.filter(
+      (st) => st.actionType === "UPDATE" &&
+        String(st.config?.path || "").startsWith("$graph.meta.graph.highlight"));
+    expect(hl(before)).toHaveLength(1);
+    expect(hl(after)).toHaveLength(0);
+    expect(after).toHaveLength(before.length - 1);
+  });
+
+  it("KEEPS the Mood write to the journal — that is what the wheel now reads", () => {
+    const after = walk(buildFieldReadPipeline(args).steps);
+    const moodWrites = after.filter(
+      (st) => st.actionType === "UPDATE" && String(st.config?.path || "").includes(MOOD));
+    expect(moodWrites.length).toBeGreaterThan(0);
+  });
+
+  it("KEEPS the Check In placement, so a drag still has a row to drag", () => {
+    const after = walk(buildFieldReadPipeline(args).steps);
+    expect(after.some((st) => st.actionType === "COPY_LINK")).toBe(true);
+    expect(after.some((st) => st.actionType === "DELETE")).toBe(true);
+  });
+
+  // NOT TESTED, and said plainly rather than faked: the `removed !== 1` guard is
+  // unreachable through the public API — buildPerDayPipeline throws first if the
+  // write it re-keys is missing, so there is no way to hand this function a
+  // pipeline without one. It is a fail-closed assertion for a FUTURE edit
+  // upstream, and an earlier version of this block "tested" it by throwing the
+  // error itself, which proves nothing.
 });

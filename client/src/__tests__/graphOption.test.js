@@ -561,3 +561,30 @@ describe("highlightSet is keyed by day", () => {
     expect(picked(onThe11th)).toEqual(["c"]);
   });
 });
+
+describe("derived selection wins over the stored list", () => {
+  // The stored highlight was an exact duplicate of the day's own field value, so
+  // it is retired and the wheel reads the field. These pin the handoff.
+  const CACHED = { type: "pie", highlight: { "2026-08-12": ["occ-b"] } };
+  const lit = (opt) => seriesOf(opt)[0].data.filter((d) => d.selected).map((d) => d.occurrenceId);
+
+  it("lights the DERIVED ids, not the cached ones", () => {
+    const { option } = buildEChartsOption(CACHED, NODES, {}, undefined, undefined,
+      "2026-08-12", new Set(["occ-a"]));
+    expect(lit(option)).toEqual(["occ-a"]);
+  });
+
+  it("an EMPTY derived set lights NOTHING — it does not fall through to the cache", () => {
+    // Load-bearing: "nothing is selected today" is a real answer. Falling back
+    // here would relight a stale list on a day the user has cleared.
+    const { option } = buildEChartsOption(CACHED, NODES, {}, undefined, undefined,
+      "2026-08-12", new Set());
+    expect(lit(option)).toEqual([]);
+  });
+
+  it("with NO derived set the stored list still lights — an unmigrated grid is unaffected", () => {
+    const { option } = buildEChartsOption(CACHED, NODES, {}, undefined, undefined,
+      "2026-08-12", null);
+    expect(lit(option)).toEqual(["occ-b"]);
+  });
+});
