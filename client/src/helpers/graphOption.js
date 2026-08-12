@@ -345,7 +345,26 @@ export function buildEChartsOption(spec, data, theme, view, boxPx) {
             rotate: "radial", color: SUNBURST_LABEL_COLOR, fontSize: LABEL_FONT_PX, overflow: "truncate",
             minAngle: radialLabelMinAngle({ boxPx, radiusPct: NESTED_RADIUS_PCT, zoom: v.zoom }) ?? 1,
           },
-          emphasis: { focus: "ancestor" },
+          // THE LABELS MUST NEVER FADE. `focus: "ancestor"` puts every
+          // non-ancestor slice into ECharts' BLUR state, and the default blur
+          // drops opacity on the label as well as the slice — which is why the
+          // lettering "blanked out on hover" (user, 2026-08-12). Emphasis and
+          // blur therefore both pin the label to opaque black; only the SLICE
+          // dims, which is the part that carries the focus effect.
+          emphasis: {
+            focus: "ancestor",
+            label: { color: SUNBURST_LABEL_COLOR, opacity: 1 },
+          },
+          blur: {
+            label: { color: SUNBURST_LABEL_COLOR, opacity: 1 },
+            itemStyle: { opacity: 0.45 },
+          },
+          // A selected slice keeps black lettering too — ECharts' `select`
+          // state would otherwise fall back to its own default on click.
+          select: {
+            label: { color: SUNBURST_LABEL_COLOR, opacity: 1 },
+            itemStyle: { opacity: 1 },
+          },
           // A CLICK SELECTS. It must not NAVIGATE.
           //
           // ECharts' sunburst defaults to `nodeClick: "rootToNode"` — clicking a
