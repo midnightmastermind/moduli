@@ -1137,6 +1137,58 @@ has not been watched land in its 9:00am slot; that happens when the user navigat
 
 ---
 
+### 2026-08-13 (7) — the grocery list gets the PLAN's amounts; and the rainbow band opts out as DATA
+
+User: *"take the amounts out of the title for the grocery list. add the total amount needed in the
+quantity field with the proper postfix … but the full amount needed, not just one meals worth. hide
+poster and file fields from them and fill the vitamins amounts correctly. keep ingrediants at the
+quantity of what it needs for a meal. so half cup for brown rice."*
+
+**THE TOTALS ARE THE PLAN'S OWN, AND `0120` HAD DERIVED THEM.** `0120` computed "servings per day"
+by counting meal placements — a reasonable inference, and unnecessary: **`Nutrition Plan.md` carries
+an actual "Shopping List (With Measurements)" for the full three days.**
+```
+Chicken thighs 33 oz · Eggs 6 large · Greek yogurt 3 cups · Tortillas 3 · Granola ¾ cup
+Frozen berries 1.5 cups · Brown rice 1.5 cups · Hummus 6 tbsp · Peanuts 1.5 cups
+Pecans 1.5 cups · Lettuce 1 head · Frozen mixed veggies 1.5 cups · Apples 6 medium
+```
+*Read the whole source document before deriving what it already states.* **Protein powder is the one
+exception and the doc says so** ("Excludes spices, olive oil, and protein powder, but they remain in
+the meal plan"), so its 6 scoops is DERIVED and flagged as such rather than passed off as the plan's.
+
+**THE SERVING SIZE IS PRESERVED, NOT DELETED.** Stripping "(1/2 cup)" from the title removes the only
+record of what the macros on that row DESCRIBE — 150 cal is 150 cal *per half cup*. It moves to
+`meta.servingSize`, and the macros are left alone: *"keep ingrediants at the quantity of what it
+needs for a meal"*.
+
+**ONE `Quantity` FIELD SERVES oz / cups / tbsp / head / count BECAUSE THE POSTFIX IS PER ROW** —
+`field.meta.postfixOptions` says what the field OFFERS, `occurrence.fields[fid].postfix` what the row
+PICKED (2026-08-08). The cooking units are ADDED to the existing g/kg/ml/L/oz/lb/count rather than
+replacing them, so nothing that already picked one loses its choice.
+
+**`0123` — 182 VITAMIN VALUES, AND THE PROVENANCE IS STATED IN THE FILE.** Not from the user's
+documents: the plan lists "Key Vitamins & Nutrients" **qualitatively** ("Iron, Zinc, B Vitamins") and
+the Basic Nutrition Guide gives daily TARGETS for four vitamins, not per-ingredient content. These
+are standard reference values per the stated serving. **The line against `Price`, which `0120` left
+empty, is deliberate: a food's vitamin content is a property OF THE FOOD — stable, public, lookupable
+— whereas a price is a fact about a shop on a day.** One can be looked up; the other would have been
+invented. **Zero is written where a food genuinely contains none**, because `Meal Nutrition` sums
+these and a blank would read as "nothing to add" for both the absent and the unmeasured case.
+
+**`0124` — THE RAINBOW BAND IS TURNED OFF AS DATA.** User: *"turn it off on the timeslots."* The
+band is a `::after` on every `.container-shell > .container-header`, which reads as an accent on a
+page and as **49 stripes down a schedule day column**. The stylesheet may NOT name a timeslot —
+`noDomainKnowledge.test.js` fails the build if the generic renderer learns what a schedule is, a rule
+already earned twice (the hardcoded timeslot-passed tint, 2026-06-03; `SCHEDULE_LABEL_PREFIX`,
+2026-07-26). So the renderer reads `module.meta.headerBand === false` and the migration sets it.
+**Which containers is STRUCTURAL — do they carry a `Time Slot` value** — not their label ("7:00am" is
+one rename from wrong). 294 modules = 49 slots × 6 roots; **the day column keeps its band**, being
+the one header per column a band flatters rather than repeats.
+
+2567 client + 865 server tests, build clean, poms grid **0 errors**.
+
+---
+
 ### 2026-08-13 (6) — the grocery list is the PLAN's; and why the new ingredients had no price/quantity/picture
 
 User: *"why are the old ingredients in the grocery list and why dont the new ones have price quantity

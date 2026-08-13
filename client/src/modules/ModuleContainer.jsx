@@ -1062,7 +1062,7 @@ function Container({
       {showHeader && (
       <div
         ref={headerDropRef}
-        className={`container-header module-header-row no-select ${embedded ? "embedded-container-header" : ""}`}
+        className={`container-header module-header-row no-select ${embedded ? "embedded-container-header" : ""} ${module?.meta?.headerBand === false ? "container-header--no-band" : ""}`}
         style={embedded
           ? { padding: "0", alignItems: "stretch", flexDirection: "column", ...embeddedHeaderStyle }
           : module.kind === "board"

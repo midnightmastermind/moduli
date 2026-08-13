@@ -5630,3 +5630,12 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .page-shell--nested .container-header::after {
   display: none;
 }
+
+/* OPT-OUT, per container, as DATA. A surface that repeats many times in one
+   column (the schedule's 49 timeslots) turns one accent into 49 stripes and the
+   band stops reading as an accent at all. Driven by `module.meta.headerBand ===
+   false` rather than by any selector naming a slot — nothing in this stylesheet
+   is allowed to know what a schedule is (`noDomainKnowledge.test.js`). */
+.container-header--no-band::after {
+  display: none;
+}
