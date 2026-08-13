@@ -240,7 +240,8 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
   }, [editor, getPos, node.nodeSize, dropOccurrenceData]);
 
   // Backspace/ArrowLeft/ArrowUp at start of sub-editor.
-  // deleteIfEmpty=true (only from Backspace or Shift+Enter): replace textblock with empty paragraph.
+  // deleteIfEmpty=true (only from Backspace or Shift+Enter): delete the block AND
+  // join the caret to the end of the previous sibling — the line goes too.
   // CALLER CONTRACT: only pass deleteIfEmpty=true when the sub-editor's doc is empty
   // (Editor.jsx checks docIsEmpty before calling). This function cannot re-verify emptiness
   // because it has no ref to the inner ProseMirror view.
@@ -248,20 +249,67 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
     if (!editor || !getPos) return;
 
     if (deleteIfEmpty) {
-      // Replace textblock with an empty paragraph and place cursor inside it.
-      // Gives the user an intermediate "empty line" step before the next backspace.
+      // BACKSPACE ON AN EMPTY BLOCK TAKES THE LINE WITH IT.
+      //
+      // It used to leave an empty paragraph behind — "an intermediate empty-line
+      // step before the next backspace" — and that step was unreachable, which
+      // is the bug the user hit: "we need a way to delete empty lines in docs
+      // cause currently it cant do it if a textblock is being created each time."
+      // The caret lands on the vacated line, the caret-entry mint fires on
+      // exactly that, and a fresh block appears. Backspace again and you are
+      // collapsing a new block, forever. The suppression window only defers the
+      // re-mint; it never made the second backspace reachable.
+      //
+      // So there is no second step: the block is deleted and the caret joins the
+      // END of the previous sibling, which is what backspace on an empty line
+      // means everywhere else.
       const pos = getPos();
       const nodeSize = node.nodeSize;
-      // The caret lands ON that empty line, which is precisely what the
-      // caret-entry mint watches for — without the suppression window
-      // backspace would immediately re-create the block it just collapsed.
+      const prevSibling = pos > 0 ? editor.state.doc.resolve(pos).nodeBefore : null;
+
+      // NOTHING ABOVE TO JOIN INTO — keep the empty paragraph. A doc whose only
+      // block is deleted leaves ProseMirror with no valid cursor position, and
+      // the old behaviour is correct for this one case.
+      if (!prevSibling) {
+        suppressTextblockMint(pos);
+        editor.chain().focus()
+          .deleteRange({ from: pos, to: pos + nodeSize })
+          .insertContentAt(pos, { type: "paragraph" })
+          .setTextSelection(pos + 1)
+          .run();
+        dropOccurrenceData();
+        return;
+      }
+
+      // Suppress at the vacated position anyway: the caret passes through it on
+      // the way up, and the mint check is deferred + coalesced (it reads the
+      // caret AFTER this transaction), so an unguarded delete can still mint.
       suppressTextblockMint(pos);
-      editor.chain().focus()
-        .deleteRange({ from: pos, to: pos + nodeSize })
-        .insertContentAt(pos, { type: "paragraph" })
-        .setTextSelection(pos + 1)
-        .run();
-      // Clean up the occurrence from the data model
+      editor.chain().focus().deleteRange({ from: pos, to: pos + nodeSize }).run();
+
+      // THE CARET IS PLACED BEFORE THE OCCURRENCE IS DROPPED. Dropping dispatches
+      // a store write, which re-renders the parent doc and can remount node
+      // views — invalidating the very DOM node being focused. Positions BEFORE
+      // `pos` are unmoved by the delete, so the previous sibling's geometry is
+      // still valid at this point.
+      if (prevSibling.type.name === "instanceTextblock") {
+        // Its content lives in a sub-editor; `setTextSelection` in the OUTER doc
+        // cannot reach inside an atom node view. Focus it the way the
+        // navigate-back path already does.
+        const prevFrom = pos - prevSibling.nodeSize;
+        const innerPM = innerProseMirror(editor.view.nodeDOM(prevFrom));
+        if (innerPM) {
+          innerPM.focus();
+          const range = document.createRange();
+          range.selectNodeContents(innerPM);
+          range.collapse(false);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }
+      } else {
+        editor.chain().setTextSelection(pos - 1).focus().run();
+      }
       dropOccurrenceData();
       return;
     }

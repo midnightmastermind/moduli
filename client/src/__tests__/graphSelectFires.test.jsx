@@ -22,10 +22,16 @@ vi.mock("../ui/EChart", () => ({
   default: (props) => { capturedOnSelect = props.onSelect; return React.createElement("div"); },
   readChartTheme: () => ({}),
 }));
+// `useGridActionsSelectorShallow` was added when the wheel stopped READING the
+// occurrence map through a stable getter and started SUBSCRIBING to it — a
+// getter never changes identity, so a write left the highlight stale. A context
+// double has to offer it or the component throws on mount.
+const STATE = {
+  getOccMap: () => ({}), modulesById: {}, fieldsById: {}, occurrencesById: {},
+};
 vi.mock("../GridActionsContext", () => ({
-  useGridActionsSelector: (sel) => sel({
-    getOccMap: () => ({}), modulesById: {}, fieldsById: {},
-  }),
+  useGridActionsSelector: (sel) => sel(STATE),
+  useGridActionsSelectorShallow: (sel) => sel(STATE),
 }));
 vi.mock("../helpers/graphData", () => ({
   buildGraphData: () => ({ nodes: [{ name: "Lonely", occurrenceId: "occ-lonely" }], warnings: [] }),
