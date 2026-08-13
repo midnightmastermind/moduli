@@ -1187,6 +1187,44 @@ override or any operation names it. **It is a separate migration from `0104` on 
 existence check keys on the OLD label, so re-running it against a renamed grid would build four MORE
 templates. The applied-ledger is what prevents that, which is exactly what a ledger is for.
 
+**THE USER CAUGHT A REAL DEFECT IN `0104`/`0106`, and it was functional, not cosmetic.** *"the
+template must use eat and excercise with the correct things filled. not new occurances."* Both had
+placed **copies of the BOARD ROWS** — a row literally labelled "Barbell Bench Press" — beside the
+routines. Measured against the bindings, those rows are invisible to everything meant to read them:
+
+```
+Exercise  binds Movement · Set 1-3 · Weight 1-3 · Completed · Time Slot · Habit   (13)
+Eat       binds Meal · Ingredient · Calories/Protein/Carbs/Fats · Habit · …       (23)
+rows carrying a Movement or Meal pick, BEFORE this work:                            0
+```
+
+The workout trackers resolve the **Movement pick** to read its muscle group (2026-07-25) and
+`Meal Nutrition` is **Eat-scoped** — so a bare board copy fed no tracker at all. **A board row is
+the OPTION you pick; the routine is the thing you do, and the schedule holds the doing.** `0108`
+replaces all 72 copies with `Eat`/`Exercise` rows whose picks arrive FILLED the way a hand pick
+would: Movement + `Set 1/2/3` copied from the movement, Meal + its ingredient list + the four macros
+**summed over those ingredients** — which is exactly what `0042`'s prefill chain produces.
+
+**ONE RULE, BOTH DESTINATIONS.** `applyCycleDay` runs over the four templates AND today's live
+column. Writing it twice is how a migrated grid and a rebuilt day drift — the lesson `0053` and
+`0064` both paid for.
+
+**Idempotency keys on the PICK, not the label** — every meal row is called "Eat", so a label check
+would place eight duplicates on a re-run and then call itself clean.
+
+Also shipped: **Hot Tub** (`0107`) under Physical → Care, its shape COPIED from Hygiene rather than
+enumerated — the **Habit** binding is the discriminator "Completed Habits" counts on, and a routine
+minted without it lands silently in the TASKS count instead. Hygiene moved **7:00am → 7:30am** ("the
+timeslot after the workouts", read literally — the workout is IN 7:00am), with Hot Tub beside it.
+
+**Verified by reading the grid back:** 72 picks, **0 unresolved**; 40 Eat rows at 23 bindings, 32
+Exercise rows at 13; **0 board copies left**; the two Todo rows and four Peer Support appointments
+untouched. poms grid **0 errors**, 865 server tests.
+
+**FLAGGED, NOT CHANGED:** the original 8:00am "Eat" routine is still there with no meal picked,
+beside eight real meals. It contributes 0 to every macro tracker so it is harmless, but whether it
+still earns a place is the user's call, not a guess.
+
 **THE ROTATION IS NOT WIRED — the user asked for it and it is NOT done.** Stated plainly rather than
 half-shipped. What the next session needs, already settled:
 - The blocker is that the cycle day must be derived PER DAY inside the loop, and the pipeline has no
