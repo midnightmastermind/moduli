@@ -1137,6 +1137,54 @@ has not been watched land in its 9:00am slot; that happens when the user navigat
 
 ---
 
+### 2026-08-13 (6) — the grocery list is the PLAN's; and why the new ingredients had no price/quantity/picture
+
+User: *"why are the old ingredients in the grocery list and why dont the new ones have price quantity
+and pictures"*.
+
+**THE OLD ONES WERE THERE BECAUSE I LEFT THEM, and that was my misjudgement.** `0115` retired only
+exact prefix duplicates and kept eleven more as "staples the plan does not mention". The grocery list
+is the plan's SHOPPING LIST; Chicken Breast · Rice · Spinach · Oats · Salmon · Olive Oil · Sweet
+Potatoes · Black Beans · Milk · Bananas · Coffee Beans are the 07-28 seed's ingredient set,
+superseded wholesale. All 11 untagged. **`Paper Towels` stays** — it is the one row tagged `grocery`
+and NOT `ingredient`, and "the old ingredients" is not a household item. *When the caution is wrong,
+say which call was wrong rather than re-deriving the same answer.*
+
+**WHY THE NEW ONES HAD NOTHING, measured rather than guessed:** the `Quantity` and `Price` fields
+DO exist — an earlier commit put them "on every ingredient" — but it bound them to the modules that
+existed THEN. `0103` minted the plan's ingredients afterwards, binding only Board Category, macros
+and vitamins:
+```
+old ingredient   Board Category · Poster · Files · Calories… · Quantity · Price     (9)
+new ingredient   Board Category · Calories… · 13 vitamins                          (18, none of the four)
+```
+**"Every X" in a migration means every X THAT EXISTS WHEN IT RUNS.** A later mint does not inherit it,
+and nothing fails — the field is simply absent from the new rows' controls. Same family as `0043`
+(a fresh seed with no posters) and `0064` (the seed never learning a renamed key).
+
+**QUANTITY IS DERIVED, PRICE IS DELIBERATELY BLANK.** Quantity = **servings per day**, computed by
+walking `MEALS_BY_SLOT` against each meal's own ingredient list — so Peanuts & Apple, eaten twice a
+day, gives Peanuts 2, and Pecans, appearing in two different meals, also gives 2. That is a fact
+about the plan. **Price is left EMPTY on purpose**: nothing on this grid or in the plan docs knows a
+price, and a plausible-looking price in a shopping list is indistinguishable from one the user
+entered and will be trusted — the rule `0052` set for phone numbers and `0054` for addresses. The
+field is BOUND so there is somewhere to type it.
+
+**A PICTURE IS AN ARTIFACT OCCURRENCE, learned from an existing one rather than assumed:**
+`Poster = "e442d34b…"` → `role:"artifact" kind:"image" fileRef:"https://…"`, with `Files` pointing at
+the same id. `0121` mints one per ingredient from the app's OWN `/api/images/search` route, and
+**homes it where the existing ingredient pictures live — derived as the parent of an artifact an
+ingredient already points at**, so a renamed Files folder cannot break it.
+- **It probes the route before writing anything** and REFUSES if it is unreachable, because a
+  half-populated board is worse than an untouched one: nothing tells you which half failed.
+- Idempotent on "already has a Poster", so a re-run after a partial failure fills only the gaps.
+- 14/14 attached, one search each, 400ms apart — the route proxies a public endpoint.
+
+Grocery list ends at **15**: the plan's 14, each with a picture and a per-day quantity, plus Paper
+Towels. poms grid **0 errors**.
+
+---
+
 ### 2026-08-13 (5) — "8 workouts a day?" — the OPTIONAL CORE had been folded in as prescribed
 
 User: *"that seems like alot of excercises for one day. im counting 8 workouts today alone"* —
