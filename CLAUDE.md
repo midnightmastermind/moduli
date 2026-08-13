@@ -1137,6 +1137,67 @@ has not been watched land in its 9:00am slot; that happens when the user navigat
 
 ---
 
+### 2026-08-13 (3) — AUDIT of 2026-08-09 → 08-13: six findings, and three "defects" that measuring dissolved
+
+User: *"audit this and all the other stuff we worked on the past couple days"* (the whisper session
+excluded on their instruction — it made no commits to this repo). Audited by measuring the LIVE
+grids and the deployed state, not by re-reading the entries.
+
+**CLEAN, each verified rather than assumed:**
+```
+2567 client + 865 server tests · client build clean, chunk sizes at documented values
+integrity   poms grid 0 errors · test grid 2 0 · test grid 1 the 1 documented frozen-archive error
+0 dangling child refs · 0 module-less occurrences · 0 duplicate field names · 0 inert kinds
+0 duplicate day columns · 0 "Due" containers (the 08-11 merge into Todo held)
+1 Emotions Wheel, multi-parented into 5 columns (the 08-11 "ONE shared wheel" held)
+72 Meal/Movement picks, 0 unresolved
+```
+**The deploy state is CORRECT and that was worth checking rather than assuming:** prod HEAD is
+`b2d0e77d` while local is 6 commits ahead — but `git diff --name-only b2d0e77d..HEAD -- client/`
+is **EMPTY**. Every commit since is `server/migrations/` plus docs, and migrations run against the
+shared Atlas database, so nothing is owed. *A stale prod HEAD is not evidence of an undeployed
+feature; diff the paths.*
+
+**THREE APPARENT DEFECTS DISSOLVED UNDER TIMESTAMPS — recorded because the raw count was alarming
+and wrong.** A scan found 278 occurrences "parented but not listed by their parent". Excluding
+children rendered through a TEXTMAP (a doc lists nothing; it embeds) cut it to 43, and dating the
+survivors explained all but one:
+- **Ingredients, 10 "invisible"** — the seed's plain rows (`Chicken Breast`, dated 07-28), unlisted
+  by `0103` when it replaced them with the plan's unit-bearing ones (`Eggs (1 large)`, dated 08-13).
+  That is the migration doing exactly what was asked. Dead rows, not a fault.
+- **Grocery List, 6** — dated 2026-07-28, superseded 07-29. **Predates this week entirely.**
+- **Notes / Journal, 18 textblocks** — `fwefefifeuife`, `trhthw`, `9865['0`. Test typing, stranded
+  by the textblock/backspace work. `sweepOrphans` correctly REFUSES them (they hold a character), so
+  they linger as invisible junk.
+*A count of "unreachable" rows is a claim about the reachability definition until every way a thing
+can be reached has been checked — the 2026-08-07 (8) lesson, paid again from the opposite side.*
+
+**FINDING THAT STANDS, and it needs one look on screen: the Day Page board lists 5 of its 13
+columns.** Jul 28 – Aug 5 are parented to it and unlisted. `Day Page: Build` carries an `ADD_CHILD`
+in its mint branch; whether an EXISTING column is re-linked on navigation was NOT settled here.
+**The 5-second test that settles it: navigate the Day Page to Aug 5 and see whether the column
+renders.** It matters because the 08-13 moods work is specifically about going back to a past day.
+
+**MY OWN DEBRIS, found and swept:** `0108`/`0109` deleted 83 occurrences and left their MODULES
+behind — deleting an occurrence never removes its module. 67 swept (dumped first); 16 held by
+`sweepOrphans`' 60-minute age floor, which is the guard working, not a failure.
+
+**test grid 2 is STALE, not broken:** it still carries the pre-`0067` `grid.meta.universalFieldIds`
+while poms grid carries `autoAppliedFieldIds`. The client reads only the latter — but the SEED calls
+`0067`, so a fresh grid is correct and a reseed aligns it. **Checked rather than assumed**, because
+the same shape (a renamed grid-level key the seed never learned) is exactly how `0043` left a fresh
+grid with no posters.
+
+**Also open:** 1 Check In of 19 carries no resolvable Mood.
+
+**THE STANDING HAZARD, unguarded: a client echoing a stale `occurrences[]` back over a migration's
+write.** Today was the third recorded instance of that family. There is no guard — the only defence
+is the rule now recorded above: **restart the server AND reload the tab before believing a placement
+stuck.** Worth a real one: the server could reject a parent-array write whose contents predate the
+occurrence's own `updatedAt`.
+
+---
+
 ### 2026-08-13 (2) — "none show up on today": the rows were never deleted, the BROWSER echoed a stale array
 
 User, on the deployed grid: *"none show up on today right now, which they should."* The database had
