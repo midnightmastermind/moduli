@@ -129,6 +129,16 @@ describe("backspace on an empty textblock", () => {
     expect(suppress).toHaveBeenCalledWith(10);
   });
 
+  it("ALSO suppresses at the destination — the line above may itself be empty", () => {
+    // Without this the caret lands on an empty line above, the caret-entry mint
+    // fires there, and a fresh block appears one line up: the old block vanishes
+    // and a new one takes its place, which reads as "backspace did nothing".
+    const ed = makeEditor({ type: { name: "paragraph" }, nodeSize: 2 });
+    render(<InstanceTextblockNode {...props(ed)} />);
+    onDeleteBlock(true);
+    expect(suppress).toHaveBeenCalledWith(8); // pos(10) - prev.nodeSize(2)
+  });
+
   it("does NOT use setTextSelection when the previous sibling is a textblock", () => {
     // Its content lives in a sub-editor; a selection in the OUTER doc cannot
     // reach inside an atom node view, so that path focuses the inner editor.

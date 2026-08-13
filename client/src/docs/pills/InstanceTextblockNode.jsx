@@ -266,6 +266,14 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
       const pos = getPos();
       const nodeSize = node.nodeSize;
       const prevSibling = pos > 0 ? editor.state.doc.resolve(pos).nodeBefore : null;
+      // ON BY DEFAULT (`window.__tbDiag = false` mutes) — the same posture
+      // caretDiag took for a user-facing bug: a report should cost no setup.
+      // "it still doesn't delete the line" has already had two different causes.
+      if (typeof window !== "undefined" && window.__tbDiag !== false) {
+        console.log(`[tb] backspace-empty pos=${pos} size=${nodeSize} ` +
+          `prev=${prevSibling ? prevSibling.type.name : "none"} ` +
+          `join=${prevSibling ? "yes" : "no (keeps a paragraph)"}`);
+      }
 
       // NOTHING ABOVE TO JOIN INTO — keep the empty paragraph. A doc whose only
       // block is deleted leaves ProseMirror with no valid cursor position, and
@@ -281,10 +289,16 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
         return;
       }
 
-      // Suppress at the vacated position anyway: the caret passes through it on
-      // the way up, and the mint check is deferred + coalesced (it reads the
-      // caret AFTER this transaction), so an unguarded delete can still mint.
+      // SUPPRESS AT BOTH ENDS, and the destination is the one that was missing.
+      // The caret ends up on the PREVIOUS block, and if that block is itself an
+      // empty line the caret-entry mint fires there and creates a fresh
+      // textblock — so the old block vanishes, a new one appears one line up,
+      // and it reads as "backspace did nothing". The vacated position needs it
+      // too: the caret passes through on the way up and the mint check is
+      // deferred + coalesced, so it reads the caret AFTER this transaction.
+      const prevPos = pos - prevSibling.nodeSize;
       suppressTextblockMint(pos);
+      suppressTextblockMint(prevPos);
       editor.chain().focus().deleteRange({ from: pos, to: pos + nodeSize }).run();
 
       // THE CARET IS PLACED BEFORE THE OCCURRENCE IS DROPPED. Dropping dispatches
@@ -296,8 +310,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
         // Its content lives in a sub-editor; `setTextSelection` in the OUTER doc
         // cannot reach inside an atom node view. Focus it the way the
         // navigate-back path already does.
-        const prevFrom = pos - prevSibling.nodeSize;
-        const innerPM = innerProseMirror(editor.view.nodeDOM(prevFrom));
+        const innerPM = innerProseMirror(editor.view.nodeDOM(prevPos));
         if (innerPM) {
           innerPM.focus();
           const range = document.createRange();
