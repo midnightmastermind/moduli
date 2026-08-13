@@ -1600,6 +1600,26 @@ body[data-drag-kind="panel"] .container-shell {
   transform-origin: center top;
 }
 
+/* Breathing room around a page (user, 2026-08-12: "give pages a margin on the
+   left and right side and like 1px on top"). It lives in the stylesheet rather
+   than ModulePage's inline style on purpose: the page's cascade-resolved
+   ownStyle is spread AFTER the inline defaults, so a margin set here is still
+   overridable from Page Settings, while an inline one would beat the user's own
+   choice — the inline-style trap this file has recorded five times.
+
+   NESTED pages are excluded. `.page-shell--nested` is #45's page-inside-a-page,
+   deliberately styled to inline flush inside its parent container; side margins
+   there would undo that. */
+.page-shell:not(.page-shell--nested) {
+  margin: 1px 6px 0;
+}
+
+/* A phone has far less width to give away — the board content inside already
+   carries its own 6px side padding, so the outer margin stays small. */
+body[data-layout="mobile"] .page-shell:not(.page-shell--nested) {
+  margin: 1px 3px 0;
+}
+
 /* Drilldown zoom-in — card expands (drill in) */
 /* Drill IN — target card grows from tiny, filling view. Dramatic zoom. */
 @keyframes drilldown-fade-in {
