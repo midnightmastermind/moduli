@@ -1137,6 +1137,70 @@ has not been watched land in its 9:00am slot; that happens when the user navigat
 
 ---
 
+### 2026-08-13 — today's schedule matches the cycle template; and the build op's slots belong to ONE template
+
+Picked up the other account's queue (it applied `0104` — four cycle templates — then hit its session
+limit before committing). Committed `0104` as the record of what already ran, then the user's two
+asks: **rename the templates** (`0105`) and **make today match them** (`0106`). Both applied to poms
+grid; **0 integrity errors**.
+
+**THE MEASUREMENT THAT DECIDED THE DESIGN, and it contradicted the obvious approach.** The obvious
+move is "point `Schedule: Build Schedule` at the new template". It would have been wrong:
+
+```
+build op step [2]   $dayCont = $allItemsById.9EZL5iXnYhul     <- ONE template, resolved ONCE,
+                                                                 OUTSIDE the per-day loop
+slot match          meta.copyLinkSource IS $tplChildId        <- a specific template's slot IDS
+today's 49 slots    identitySignature: null, copyLinkSource -> the ORIGINAL "Day" template
+```
+
+**A day's slots are COPY_LINK copies keyed to the slot occurrence ids of the template that minted
+them.** Applying a different template over an existing column matches *nothing* and copies in **49
+duplicate slots** beside the real ones. The templates carry correct `slot:<label>` signatures — all
+49, verified — but the build op never looks at them; `identitySignature` is APPLY_TEMPLATE's
+matcher, and this path uses COPY_LINK. **Two identity schemes for one concept, and the one the
+header documented is not the one that runs.**
+
+So `0106` places ITEMS into the slots that already exist, matched on the **`Time Slot` value** —
+what a slot actually is, and the only key both sides share. Additive and idempotent by label.
+
+**THE "PAST SCHEDULE DAYS" ASK WAS ALREADY MOOT, and only a census showed it.** The previous
+session's open ask was *"change the past schedule days to use the new templates"*. There is exactly
+**ONE schedule day column on the grid** — today's. Older days are Day Page columns; their Schedule
+day-col is swept by the rebuild (the 2026-08-12 `0086` finding, from a new direction). Nothing to
+migrate; scope collapsed to today by measuring rather than by building.
+
+**THE REMOVAL IS GUARDED, and the guard is the point.** `0104` drops the generic "Exercise" from a
+cycle day because real movements now sit at 7:00am and a generic Exercise beside them double-counts
+in every workout tracker. `0106` removes today's only when it carries **nothing the user entered** —
+a ticked Completed is a record that a workout happened, and deleting it is data loss, not tidying.
+It reported `carries nothing entered` before removing.
+
+**Verified by reading the column back, not from the log.** 16 rows placed (8 meals + 8 movements),
+1 removed; every slot now equals the template except the three things deliberately preserved — the
+two Todo rows and the four **Peer Support Group** appointments (7:00pm correctly shows the
+appointment AND the meal; a slot holds any number of items).
+
+**`0105` renames on the MODULE and checks first.** Nothing resolves these templates by label, and
+that is verified rather than assumed — it refuses if any occurrence carries the old name as a label
+override or any operation names it. **It is a separate migration from `0104` on purpose:** `0104`'s
+existence check keys on the OLD label, so re-running it against a renamed grid would build four MORE
+templates. The applied-ledger is what prevents that, which is exactly what a ledger is for.
+
+**THE ROTATION IS NOT WIRED — the user asked for it and it is NOT done.** Stated plainly rather than
+half-shipped. What the next session needs, already settled:
+- The blocker is that the cycle day must be derived PER DAY inside the loop, and the pipeline has no
+  modulo. **Two routes exist and both are unexercised for this:** `CYCLE_FIELD_VALUE` already does
+  `dayOfYear % n` but reads `$today`, not the loop's `$day`; and `DATE_ADD`'s `advanceUntil` can roll
+  an anchor forward by 4 until it passes `$day`, which yields the cycle position by subtraction.
+- **It must NOT rotate the template `Schedule: Build Schedule` applies** — see the slot-identity
+  finding above. It should be a SEPARATE op placing items into existing slots, i.e. `0106`'s rule
+  running per day.
+- It changes a shared op governing every date-carrying page, so it wants its own pass with the
+  behavioural harness driving the real executor — not a pipeline edit believed by reading.
+
+---
+
 ### 2026-08-08 (2) — an ADDRESS field type; the design shrank three times, and THREE tasks were retired by measuring
 
 Carried the other account's queue over (14 items; it shipped #1/#3 then hit its spend limit one grep
