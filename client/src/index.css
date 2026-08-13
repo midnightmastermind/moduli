@@ -5445,7 +5445,12 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   display: flex;
   align-items: stretch;
   gap: 8px;
-  min-height: min(70vh, 620px);
+  /* User, 2026-08-12: "just make the graph smaller, it doesnt need to be so
+     big." 70vh/620px made the wheel dominate a day column. 42vh/380px still
+     clears the ~222px box the outer ring needs to keep its labels (0090 sets
+     this wheel's own threshold), so it gets smaller WITHOUT losing its text —
+     which is the only reason the two asks are compatible. */
+  min-height: min(42vh, 380px);
   flex: 1 1 auto;
 }
 .container-graph-chart {

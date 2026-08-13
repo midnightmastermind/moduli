@@ -264,7 +264,8 @@ export const SUNBURST_LABEL_COLOR = "#000000";
 // exported and tested because it is the difference between a de-emphasis and an
 // unreadable chart — 0.45 was the latter.
 export const BLUR_ITEM_OPACITY = 0.85;
-export const LABEL_FONT_PX = 10;
+// 9, not 10 (user, 2026-08-12: "you can make the letters a size smaller too").
+export const LABEL_FONT_PX = 9;
 // A `rotate: "radial"` label runs ALONG the radius, so what has to fit inside
 // the arc is its THICKNESS — the font size. The multiple is the breathing room
 // between neighbouring labels, and it is expressed as a multiple so the two
@@ -285,7 +286,32 @@ export const LABEL_FONT_PX = 10;
 //   phone   390px   threshold 4.79deg   still HIDDEN — the deliberate 2026-08-08
 //                   behaviour (unlabelled at rest, readable the moment you zoom)
 //                   is preserved EXACTLY, which 1.3 would have destroyed.
-export const LABEL_MIN_ARC_PX = LABEL_FONT_PX * 1.5;
+// THE DEFAULT STAYS 1.5, AND A TEST IS WHY. Dropping it to 1.15 to satisfy
+// "i still cant see the third levels text" (user, 2026-08-12) re-showed all 80
+// outer labels on a 390px phone — the collision the 2026-08-06 work exists to
+// prevent, caught by its own regression test. The arithmetic, for the 80
+// tertiary slices (4.5° each):
+//
+//   multiplier 1.8  -> needs a  498px box   (the 2026-08-06 blanked ring)
+//   multiplier 1.5  -> needs a  415px box   <- a day column is 420px: 1.2% margin
+//   multiplier 1.15 -> needs a  318px box   <- 24% margin at the same width
+//
+// A day column is 420-560px WIDE, but the box is min(width, height) and the
+// chart's height inside a column is routinely less — so at 1.5 the third ring
+// lost its text for a few pixels. The earlier entry called 1.8 "4.9% from a
+// cliff" and then replaced it with something 1.2% from the same cliff.
+//
+// So the global default is unchanged and THIS wheel carries its own value in
+// `meta.graph.labelMinArcPx` (0090). A per-graph number is the honest shape: how
+// dense a wheel may be is a property of that wheel and the surface it sits in,
+// not a constant every chart on the grid has to share.
+// THE MULTIPLE MOVED WITH THE FONT ON PURPOSE. Shrinking the letters to 9 while
+// holding the multiplier at 1.5 would drop the default threshold 15 -> 13.5px,
+// which re-shows all 80 outer labels on a 390px phone (its arc is 14.1px) — the
+// collision this threshold exists to prevent, and its own regression test says
+// so. 1.67 keeps the DEFAULT at ~15px, so smaller text changes how the labels
+// LOOK without quietly changing which of them render.
+export const LABEL_MIN_ARC_PX = LABEL_FONT_PX * 1.67;
 
 // `minAngle` applies to the WHOLE series, so an unclamped threshold on a tiny
 // box would blank the 8 primary slices (45° each) as well — which is the
@@ -397,7 +423,12 @@ export function buildEChartsOption(spec, data, theme, view, boxPx, dayKey = null
           // caller that passes no box gets exactly the previous chart.
           label: {
             rotate: "radial", color: SUNBURST_LABEL_COLOR, fontSize: LABEL_FONT_PX, overflow: "truncate",
-            minAngle: radialLabelMinAngle({ boxPx, radiusPct: NESTED_RADIUS_PCT, zoom: v.zoom }) ?? 1,
+            // Tunable per graph as DATA (`meta.graph.labelMinArcPx`) so a wheel
+            // that wants denser or sparser labels needs no code change.
+            minAngle: radialLabelMinAngle({
+              boxPx, radiusPct: NESTED_RADIUS_PCT, zoom: v.zoom,
+              minArcPx: Number(spec?.labelMinArcPx) > 0 ? Number(spec.labelMinArcPx) : LABEL_MIN_ARC_PX,
+            }) ?? 1,
           },
           // THE WHEEL MUST NEVER GET HARDER TO READ WHEN YOU POINT AT IT.
           //
