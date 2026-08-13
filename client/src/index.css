@@ -5547,3 +5547,86 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
     padding-left: 0; padding-top: 6px;
   }
 }
+
+/* ============================================================================
+   RETRO RAINBOW HEADERS  (user, 2026-08-12: "match the container headers, the
+   panel background and header, and the grid header to match the color theme.
+   make the headers background image be the 70s or 80s rainbow to make the site
+   pop")
+
+   THE RAINBOW IS A GRADIENT, NOT AN IMAGE FILE. Same six-band 70s stripe, but
+   it costs no request, scales to any header width, and cannot 404 — and the
+   artifact CSP forbids remote assets anyway.
+
+   READABILITY IS THE WHOLE RISK. A saturated rainbow behind 11px header text
+   destroys contrast, and these headers carry the label you navigate by. So the
+   rainbow is LAYERED UNDER A SCRIM: the dark theme surface sits on top at high
+   alpha and the colour reads as a warm tint, while a crisp 2px band of the full
+   rainbow runs along the bottom edge where nothing overlaps it. That band is
+   what actually "pops"; the wash just keeps it from looking bolted on.
+
+   THE SURFACES NOW COME FROM THE THEME. They were hardcoded rgba(0,0,0,.32)
+   blacks, which is why they never followed the theme — the scrim is built from
+   --surface-* so a theme switch moves the headers with it.
+   ============================================================================ */
+:root {
+  --retro-rainbow: linear-gradient(
+    90deg,
+    #e5453a 0%, #ef7d3a 18%, #f5c542 36%, #4cae52 56%, #3b7dd8 76%, #7c4bbd 100%
+  );
+  /* How much of the rainbow survives the scrim. Two knobs, one per surface, so
+     a header can read stronger than the panel behind it. */
+  --retro-header-scrim: 0.86;
+  --retro-panel-scrim: 0.965;
+}
+
+.toolbar,
+.panel-header,
+.container-shell > .container-header {
+  position: relative;
+  background-image:
+    linear-gradient(
+      hsl(var(--surface-2) / var(--retro-header-scrim)),
+      hsl(var(--surface-2) / var(--retro-header-scrim))
+    ),
+    var(--retro-rainbow) !important;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+/* The band. `::after` rather than a border so it cannot alter layout — these
+   rows are height-sensitive (the 2026-07-31 header overflow was exactly that). */
+.toolbar::after,
+.panel-header::after,
+.container-shell > .container-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--retro-rainbow);
+  opacity: 0.95;
+  pointer-events: none;
+}
+
+/* The panel body picks up the faintest wash so the header does not look like a
+   sticker on an unrelated surface. */
+.panel-shell {
+  background-image:
+    linear-gradient(
+      hsl(var(--surface-1) / var(--retro-panel-scrim)),
+      hsl(var(--surface-1) / var(--retro-panel-scrim))
+    ),
+    var(--retro-rainbow);
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+/* EMBEDDED container headers are deliberately transparent (they sit inside a
+   doc body and carry their own heading level) — a band there would draw a line
+   through prose. Nested-as-container pages are excluded for the same reason. */
+.embedded-container-header::after,
+.page-shell--nested .container-header::after {
+  display: none;
+}
