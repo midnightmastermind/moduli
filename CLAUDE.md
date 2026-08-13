@@ -1137,6 +1137,63 @@ has not been watched land in its 9:00am slot; that happens when the user navigat
 
 ---
 
+### 2026-08-13 (4) — the dropdown showed IDs because I pointed at FEED COPIES; grocery list from the plan
+
+User: *"the meal dropdown is showing the ids and not the names"* and *"the grocery list isnt updated
+to match the new ingrediants."* Both fixed, plus the audit's sweepable findings.
+
+**THE POINTER BUG WAS MINE AND THE MECHANISM IS THE KEEPER.** `0108` resolved each meal and movement
+by walking the **Meals / Movements BOARD's children**. Those boards are FEED-BACKED materialized
+views, so their children are feedSync COPIES with client-minted `<epoch-ms>-<rand>` ids:
+
+```
+stored Meal/Movement picks   source:0   feedCopy:0   MISSING:72
+                             ^ every one dangling, hours after I verified "0 unresolved"
+```
+
+Two consequences, and the second is what was on screen:
+1. **feedSync RE-MINTS its copies.** The servers restarted, clients reconnected, the sync ran, every
+   copy got a new id — and all 72 stored picks became references to occurrences that no longer exist.
+2. **Every occurrence dropdown's predicate ends `meta.feedSourceId IS_EMPTY`** — it offers the
+   SOURCES, never the copies. So even while the id was live the value was not in the option list, the
+   renderer had no label for it, and it printed the raw id.
+
+**A REFERENCE TO A FEED COPY IS VALID ONLY UNTIL THE NEXT SYNC.** CLAUDE.md 2026-08-10 already states
+this for WRITES — *"a tag written on a copy is a write to something about to be overwritten"* — and
+this is the same rule for POINTERS, which nothing had recorded. **My verification said "72 picks, 0
+unresolved" and was TRUE when measured and FALSE twenty minutes later.** A check against data a
+background engine regenerates has a shelf life; re-check it after the thing that regenerates it runs.
+
+**THE INTENT SURVIVED THE IDS, by luck that is worth making deliberate.** `0112` had signed every
+placed row `identitySignature: "cycle:<pick label>"` for merge-idempotence — and that signature is
+what made the repair a LOOKUP instead of guesswork. `0114` repoints from the signature to the source
+pool the dropdown itself offers, and only where the value fails to resolve, so a hand-set pick is
+never touched. **Proven durable rather than asserted: re-measured AFTER a restart ran feedSync again
+— 72 resolve to a source, 0 copies, 0 dangling.**
+
+**`0115` — the grocery list is DERIVED FROM THE MEALS, not listed.** All 16 grocery rows were the
+2026-07-28 seed's and not one of the plan's 14 ingredients carried the tag; `0103` replaced the
+Ingredients board and never touched grocery. It **writes the TAG, not the board** — the board is a
+materialized view, and pushing into its `occurrences[]` fights the sync that just cost a session.
+The requirement is computed by walking the six plan meals' own `Ingredient` values, so changing the
+plan and re-running picks the change up.
+- **Only exact PREFIX duplicates are retired** — "Eggs" against "Eggs (1 large)" — which measured as
+  4 rows. The other **12 are KEPT and reported**: Milk, Bananas, Coffee Beans, **Paper Towels**, Rice,
+  Spinach, Oats, Salmon, Olive Oil, Sweet Potatoes, Black Beans, Chicken Breast. They are staples the
+  plan does not mention, and **a shopping list is precisely where deleting something the user meant
+  to buy is worse than leaving a row too many.** Paper Towels is the tell.
+
+**`0116` — 18 stranded textblocks swept, and the GUARD is the point.** Reachability is checked THREE
+ways — parent `occurrences[]`, textmap embed, **and field value** — because the 2026-08-07 (8) lesson
+was paid for by answering exactly this question with two of the three. **A CONTROL runs first**: each
+test must find live rows (1517 / 1327 / 324) or the migration REFUSES, because a test returning zero
+is a broken probe, not an empty set. That third check spared two blocks my earlier two-way scan had
+condemned. 18 blocks, 23 characters of test typing, dumped raw before deletion.
+
+poms grid **0 errors**, 865 server tests.
+
+---
+
 ### 2026-08-13 (3) — AUDIT of 2026-08-09 → 08-13: six findings, and three "defects" that measuring dissolved
 
 User: *"audit this and all the other stuff we worked on the past couple days"* (the whisper session
