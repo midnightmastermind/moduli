@@ -1137,6 +1137,76 @@ has not been watched land in its 9:00am slot; that happens when the user navigat
 
 ---
 
+### 2026-08-13 (2) — "none show up on today": the rows were never deleted, the BROWSER echoed a stale array
+
+User, on the deployed grid: *"none show up on today right now, which they should."* The database had
+every row. **They were not deleted — their slot stopped listing them.**
+
+```
+Eat/Exercise rows with a pick        72 exist
+unlisted by the slot they name       9      <- the 7:00am Eat + all 8 Exercise
+Hygiene                              back in 7:00am, Hot Tub gone from 7:30am
+```
+
+**A sweep DELETES; an array overwrite leaves the row alive and invisible** — which is exactly what
+was on screen, and the tell that told the two apart without guessing.
+
+**THE CAUSE IS THE DOCUMENTED SELF-RESTORING CLASS (2026-07-29), reached from a new direction.**
+That entry says *"the client holds whatever the last full_state gave it and echoes the whole array
+back, so sweeping the DB fixed nothing."* `0106`/`0108` wrote `occurrences[]` directly **while a
+browser tab was connected holding the pre-migration arrays**, and the tab's next write echoed its
+stale copy over them. The pure ADDs to slots the tab had not touched SURVIVED — which is why the
+9:00am-onward meals were fine and only the two slots the MOVE touched came back wrong. That
+asymmetry is the fingerprint.
+
+**THE RULE, and the standing one was not enough: a migration that writes `occurrences[]` needs the
+CLIENT gone, not just the server restarted.** The documented remedy is a pm2 restart, which clears
+the warm cache — necessary, and it was not sufficient, because the stale array was in the BROWSER.
+Restart *and* have the tab reload before believing a placement stuck.
+
+**`0111` re-links rather than re-creates**, with `$push` + a `$ne` guard rather than writing the
+array whole — a read-modify-write on the very field that got clobbered would race the same client
+again. It is deliberately re-runnable: if a tab clobbers it once more, run it again and it converges.
+
+**AND THE REPAIR CREATED A SECOND DEFECT THAT ONLY READING IT BACK CAUGHT.** Hygiene ended up listed
+by **BOTH** 7:00am and 7:30am — the echo restored the 7:00am entry while its own `parentId` said
+7:30am, so re-linking left it in two places. `0113` unlists it, and **the rule is narrow on purpose**:
+only when ANOTHER slot **of the same root** is the child's actual parent. Multi-parenting is
+load-bearing here — the Schedule shares one slot across day columns and `Place Dated Work`
+multi-parents a task into several days so one tick counts everywhere — and a blanket "listed by a
+non-parent" rule would have forked all of it. Dry run: **1 hit, 0 false positives** across every day
+column and template.
+
+**THE ROTATION IS WIRED** (`0112`, `Schedule: Place Cycle Day`). Each new day takes the next cycle
+template, 1→2→3→4→1.
+- **It does NOT rotate the template `Schedule: Build Schedule` applies** — that op resolves its
+  template once outside the per-day loop and matches slots by `meta.copyLinkSource`, so pointing it
+  elsewhere copies in 49 duplicate slots per day. Build Schedule keeps the SLOTS and the daily
+  routines; the new op owns the CONTENTS.
+- **Idempotence is `identitySignature` + `mode:"merge"`, not dedupe written in pipeline JSON.**
+  Merge skips a node when a sibling already carries the signature, so the migration signs the 56
+  template items **and today's 16 already-placed rows** — without that second half the first run
+  would clone a duplicate of every one.
+- **The op places only rows carrying a PICK.** The cycle templates also hold the daily routines so
+  they stay complete if applied by hand — but Build Schedule already places those, so placing them
+  here too would put a second Drink on every column. **The dry run is what surfaced this**, before
+  it could land.
+- **The cycle position is STORED, not computed** (the pipeline has no modulo): a day column carries
+  `Cycle Day` as TEXT ("Day 1"), and the stored value is what makes a rebuild stable — a re-run
+  reuses it instead of advancing, so the sequence cannot drift on every reload. Text because a
+  rule's `right` is a string and comparing it to a stored number is a loose-equality guess.
+- Trigger surface is **mirrored from Build Schedule at run time** rather than restated, at a lower
+  priority so it always follows it.
+
+**NOT VERIFIED, and it is the honest gap: the op has never fired.** It is wired, enabled, signed and
+scoped, but no day has rolled over with it live — that only proves out at midnight, and the first
+thing to check then is whether tomorrow's column comes up "Day 2".
+
+Also shipped: `0109` (empty Eat/Exercise off the schedule, catalog kept), `0110` (Hot Tub on the
+daily template). poms grid **0 errors**, 865 server tests.
+
+---
+
 ### 2026-08-13 — today's schedule matches the cycle template; and the build op's slots belong to ONE template
 
 Picked up the other account's queue (it applied `0104` — four cycle templates — then hit its session
