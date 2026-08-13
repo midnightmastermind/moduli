@@ -1221,9 +1221,24 @@ timeslot after the workouts", read literally — the workout is IN 7:00am), with
 Exercise rows at 13; **0 board copies left**; the two Todo rows and four Peer Support appointments
 untouched. poms grid **0 errors**, 865 server tests.
 
-**FLAGGED, NOT CHANGED:** the original 8:00am "Eat" routine is still there with no meal picked,
-beside eight real meals. It contributes 0 to every macro tracker so it is harmless, but whether it
-still earns a place is the user's call, not a guess.
+**The flagged empty 8:00am Eat came out the same session** — user: *"i dont need the original eat
+thats empty or any empty excersise."* `0109`'s discriminator is **structural, and it is the whole
+safety of the migration: does the row sit in a TIMESLOT.** The Routines catalog holds the ONE
+canonical `Eat` (Physical > Nutrition) and `Exercise` (Physical > Fitness) — the actions every
+placed row is cloned FROM — and **matching on the label would have deleted them**, breaking `0108`'s
+rule and the "+ Add" flow permanently. They are not in a slot, so they are not placements. 11
+removed, catalog reported as declined rather than assumed safe.
+
+**IT HAD TO INCLUDE THE "Day" TEMPLATE, and that is the non-obvious half.** `Day` is what
+`Schedule: Build Schedule` still applies every morning, so leaving its empty Eat/Exercise would have
+put them back on tomorrow's column and read as the fix silently failing overnight.
+
+**The same reasoning found a gap in the Hot Tub ask** (`0110`): `0108` placed it on the four CYCLE
+templates and today, but the rotation is not wired, so tomorrow builds from `Day` — which had no Hot
+Tub. The routine would have appeared today and vanished tomorrow. It is placed **in Hygiene's own
+slot by LOOKUP, not by naming a time**: 7:30am on the cycle templates (after the workouts), 7:00am
+on `Day`, which has no workouts for it to come after. *"The same timeslot as hygiene" is a lookup,
+not a constant.*
 
 **THE ROTATION IS NOT WIRED — the user asked for it and it is NOT done.** Stated plainly rather than
 half-shipped. What the next session needs, already settled:
