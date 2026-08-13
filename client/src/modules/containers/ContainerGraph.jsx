@@ -30,12 +30,15 @@ import { resolveGraphRows } from "../../helpers/feedPull";
 import { buildEChartsOption } from "../../helpers/graphOption";
 import { selectedIdsForDay, derivesSelection } from "../../helpers/graphSelection";
 import { DEFAULT_VIEW, isDefaultView } from "../../helpers/graphView";
-import { useGridActionsSelector } from "../../GridActionsContext";
+import { useGridActionsSelector, useGridActionsSelectorShallow } from "../../GridActionsContext";
 import { operationsBridge } from "../../state/bindSocketToStore";
 
 // Bumped whenever this file's click path changes. A log line that cannot tell a
 // STALE BUNDLE from a real failure sent us round the same loop twice.
 const GRAPH_BUILD = "col-walk-2";
+
+// Reference-stable so the shallow selector does not see a new array every run.
+const EMPTY_SELECTION = [];
 
 export default function ContainerGraph({ occurrence, renderParentOccurrenceId = null }) {
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
@@ -100,14 +103,32 @@ export default function ContainerGraph({ occurrence, renderParentOccurrenceId = 
   // Reading the field means every write path lights the wheel and the copies
   // cannot disagree. `nodes` is in the deps as the occurrences-changed signal:
   // `getOccMap` is a stable getter and does NOT change identity on a write.
-  const derivedIds = useMemo(() => {
-    if (!derivesSelection(spec)) return null;
-    return selectedIdsForDay(Object.values(getOccMap() || {}), {
+  // IT MUST SUBSCRIBE, NOT READ. The first version derived this in a useMemo
+  // keyed on `nodes` — and `nodes` is itself memoised on STABLE GETTERS
+  // (getOccMap never changes identity), so writing an occurrence changed nothing
+  // in the chain and the wheel never re-read the field. The user's console
+  // proved the op was firing and recording on every click while the slice stayed
+  // dark: "nothing happens when i click". A getter is not a subscription.
+  //
+  // Shallow-compares element-wise, so a store write that does not change THIS
+  // day's selection re-renders nothing. Sorted for a stable comparison.
+  const derivedList = useGridActionsSelectorShallow((s) => {
+    if (!derivesSelection(spec) || !dayKey) return EMPTY_SELECTION;
+    const ids = selectedIdsForDay(Object.values(s.occurrencesById || {}), {
       valueFieldId: spec.valueFieldId,
       dayFieldId: spec.dayFieldId,
       day: dayKey,
     });
-  }, [spec, dayKey, getOccMap, nodes]);
+    return ids && ids.size ? [...ids].sort() : EMPTY_SELECTION;
+  });
+
+  // An empty LIST still means "nothing selected today" once the graph is
+  // configured to derive; null is reserved for "not configured", which is what
+  // lets an unmigrated grid fall back to its stored highlight.
+  const derivedIds = useMemo(
+    () => (derivesSelection(spec) && dayKey ? new Set(derivedList) : null),
+    [spec, dayKey, derivedList]
+  );
 
   const { option } = useMemo(
     () => buildEChartsOption(spec, nodes, readChartTheme(hostRef.current), view, boxPx, dayKey, derivedIds),
