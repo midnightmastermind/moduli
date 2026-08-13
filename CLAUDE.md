@@ -1137,6 +1137,57 @@ has not been watched land in its 9:00am slot; that happens when the user navigat
 
 ---
 
+### 2026-08-13 (5) — "8 workouts a day?" — the OPTIONAL CORE had been folded in as prescribed
+
+User: *"that seems like alot of excercises for one day. im counting 8 workouts today alone"* —
+and the answer was **every training day, not just today.**
+
+**READING THE SOURCE DOC SETTLED IT IN ONE LOOK.** `Fitness Plan.md` lists **6 numbered exercises**
+per training day and then a SEPARATE block:
+```
+### Day 1: Upper Body – Push Focus
+1..6  Bench · Shoulder Press · Incline · Lateral Raises · Tricep Dips · Pushdowns
+**Optional Core**:  Planks · Russian Twists          <- a separate block
+```
+`0104` flattened both into `CYCLE.movements` with no distinction — its own header even says
+"(+ optional core)" and then lists all eight. **The plan's own structure was the specification and
+it was right there; the migration paraphrased it instead of preserving it.** Worth keeping: when a
+source document separates two lists, the separation is usually the meaning.
+
+**THE USER'S RESTRUCTURE IS ALSO THE PLAN'S.** *"make one of the rest days a core and cardio day, so
+5 templates total"* — and the six optional-core movements (two per training day) are exactly one
+core session:
+```
+Day 1 Push   6 lifts      Day 4 Core & Cardio   the 6 core movements + Run + Stretch
+Day 2 Legs   6 lifts      Day 5 Rest            NOTHING for exercise, per the user
+Day 3 Pull   6 lifts
+```
+**CARDIO IS BUILT FROM WHAT EXISTS.** `Muscle Group` HAS a "cardio" option but the Movements board
+has **no cardio movement** — so a cardio Exercise row would have nothing to pick and would render as
+exactly the empty row `0109` deleted this morning. Physical > Fitness already holds **Run** and
+**Stretch**, which is what the plan's Day 4 describes, so those are placed as routines instead.
+
+**`0117` — Set 4 / Weight 4.** The plan prescribes 4 sets on compounds and the action bound only
+Set 1-3, so the fourth set could not be recorded. Which lifts get four is **read from the plan** (the
+entries reading "4 sets of …" — 8 of them, all 8 resolved). The binding goes on **every** Exercise
+module, not just the catalog one: each placed row is a CLONE with its own `fieldBindings`, so binding
+the catalog alone would give the field to future rows and leave every existing row without the
+control. Inserted AFTER Set 3 because binding order is render order.
+
+**`0119` EXISTS BECAUSE READING THE RESULT BACK CAUGHT WHAT THE LOG DID NOT.** After `0117` today's
+Bench still read `sets=[6,6,6,-]`: the field was on the movement OPTION, where a NEWLY placed row
+copies from — but every row already placed had copied its sets before the field existed. So the
+prescription was correct in the catalog and missing everywhere it is read. It backfills from the
+picked movement, and **only where the row's own value is EMPTY — a row is a LOG as well as a
+prescription, and overwriting a performed set from the catalog would rewrite history.**
+
+Verified by reading back: 6 lifts on each training day, Day 4 six core + Run + Stretch, **Day 5 zero
+lifts**, today down from 8 to 6 with `sets=[6,6,6,6]` on the compounds. Rotation rebuilt over five
+names using `0112`'s OWN builder rather than re-authored, so the tested pipeline shape cannot drift.
+poms grid **0 errors**, 865 server tests.
+
+---
+
 ### 2026-08-13 (4) — the dropdown showed IDs because I pointed at FEED COPIES; grocery list from the plan
 
 User: *"the meal dropdown is showing the ids and not the names"* and *"the grocery list isnt updated
