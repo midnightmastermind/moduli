@@ -1127,9 +1127,21 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     const ROW_ACTION_COL_W_LOCAL = 32; // mirrors the const below — keep in sync
     const target = Math.max(0, containerWidth - ROW_ACTION_COL_W_LOCAL);
     if (target <= 0 || sum <= 0) return raw;
-    // Live-resize takes precedence — if the user is dragging a column,
-    // don't redistribute their drag.
-    if (resizing) return raw;
+    // DURING A RESIZE the dragged column keeps its live width EXACTLY and the
+    // others absorb the difference. Returning `raw` here (the old behaviour)
+    // dropped the fit-to-panel scaling the instant a drag began, so every column
+    // jumped to its unscaled width the moment you touched a handle (user,
+    // 2026-08-14: "whenever i click resize all the col suddently shoot to an
+    // increase in size"). Scaling the dragged column too would damp the drag —
+    // move 100px, grow 70 — so it is excluded from the redistribution instead.
+    if (resizing) {
+      const i = resizing.colIndex;
+      const live = resizing.currentWidth ?? raw[i];
+      const othersSum = raw.reduce((a, w, j) => (j === i ? a : a + w), 0);
+      if (othersSum <= 0) return raw;
+      const s2 = Math.max(0, target - live) / othersSum;
+      return raw.map((w, j) => (j === i ? live : Math.max(40, Math.round(w * s2))));
+    }
     // Scales BOTH ways, so the table always fits its panel (user, 2026-08-14:
     // "now the table cant shrink anymore"). Squeezing used to make headers
     // unreadable — that is now the MARQUEE's job, not the width's: every cell
