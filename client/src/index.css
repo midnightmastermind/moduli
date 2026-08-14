@@ -4463,9 +4463,14 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 }
 .table-th-inner {
   /* flex:1 + min-width:0 — take the whole cell, and be allowed to shrink so the
-     marquee box measures the COLUMN's width rather than the title's. */
+     marquee box measures the COLUMN's width rather than the title's.
+     COLUMN direction so the title gets the FULL cell width instead of sharing
+     the row with the sort/kebab cluster — in a row the actions ate ~48px of a
+     ~150px column, so the marquee measured overflow against what was left over
+     rather than against the column. `align-items: stretch` is what actually
+     delivers the width: centered children in a column shrink to their content. */
   flex: 1; min-width: 0;
-  display: flex; align-items: center; gap: 2px;
+  display: flex; flex-direction: column; align-items: stretch; gap: 2px;
   padding: 4px 24px 4px 8px; /* right padding leaves room for resize grip */
   min-height: 28px;
 }
@@ -4505,6 +4510,15 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .table-th-actions {
   display: flex; align-items: center; gap: 1px;
   opacity: 0; transition: opacity 0.1s;
+  /* OUT OF FLOW. With `.table-th-inner` in column direction the actions would
+     otherwise claim their own row and every header grew 28px -> 40px, even at
+     opacity 0 (opacity does not free layout). Absolute keeps the title on the
+     full column width AND the header at its original height. The inner's 24px
+     right padding — already there for the resize grip — is what keeps the title
+     clear of these. */
+  position: absolute;
+  top: 3px;
+  right: 4px;
 }
 .table-th:hover .table-th-actions { opacity: 1; }
 
