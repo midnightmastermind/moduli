@@ -5639,3 +5639,13 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .container-header--no-band::after {
   display: none;
 }
+
+/* …and the WASH, which is the half that was actually visible. The band is a 2px
+   ::after; the rainbow itself is a `background-image` with `!important` on the
+   same header. Killing only the band left the header still rainbow-washed AND
+   still covering whatever the container paints itself — which for a schedule
+   slot is the green/red/neutral its own operation writes to `ownStyle.bg`.
+   `none` here lets that show through. */
+.container-header--no-band {
+  background-image: none !important;
+}

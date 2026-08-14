@@ -1068,6 +1068,12 @@ function Field({
   const postfix = hidePostfix ? "" : (affixPostfix ?? meta?.postfix ?? "");
   const canPickPrefix = !!onAffixChange && affixPrefixMenu.length > 0 && !hidePrefix;
   const canPickPostfix = !!onAffixChange && affixPostfixMenu.length > 0 && !hidePostfix;
+  // When the affix PICKER renders, it already shows the unit as its own segment
+  // — appending it to the value text too reads "3oz oz" (user, 2026-08-14). So
+  // the inline copy is suppressed exactly when a picker is present. A field with
+  // one fixed affix and no options keeps it inline, byte-identical.
+  const inlinePrefix = canPickPrefix ? "" : prefix;
+  const inlinePostfix = canPickPostfix ? "" : postfix;
   const showLabel = !compact && !hideName && binding?.display?.showLabel !== false;
   const showUnit = unit && binding?.display?.showUnit !== false;
 
@@ -1214,7 +1220,7 @@ function Field({
       );
       // Empty-input display: number/duration → 0, text/notes → "—".
       const displayNum = localValue ?? ((type === "number" || type === "duration") ? 0 : "—");
-      const formattedDisplay = `${prefix}${displayNum}${postfix}`;
+      const formattedDisplay = `${inlinePrefix}${displayNum}${inlinePostfix}`;
       // Pill tint:
       //   - target present  → target-met (green) / not-met (red)
       //   - no target       → value-direction colors (red <0, blue 0/null, green >0)
@@ -1230,7 +1236,7 @@ function Field({
       if (isClickEditing) {
         return withFlowToggle(
           <div className={`field-input editing inline-flex items-center gap-0.5 ${showFlowToggle ? "px-1" : ""}`}>
-            {prefix && <span className="text-[10px] text-muted-foreground">{prefix}</span>}
+            {inlinePrefix && <span className="text-[10px] text-muted-foreground">{inlinePrefix}</span>}
             <Input ref={inputRef} type={type === "number" ? "number" : "text"}
               value={localValue ?? ""}
               onChange={(e) => handleChange(type === "number" ? (e.target.value === "" ? null : Number(e.target.value)) : e.target.value)}
@@ -1246,7 +1252,7 @@ function Field({
                 ...(type === "number" ? {} : { maxWidth: "min(420px, 60vw)" }),
                 ...(showFlowToggle ? { color: "inherit" } : {}),
               }} />
-            {postfix && <span className="text-[10px] text-muted-foreground">{postfix}</span>}
+            {inlinePostfix && <span className="text-[10px] text-muted-foreground">{inlinePostfix}</span>}
           </div>
         );
       }
@@ -1992,8 +1998,8 @@ function Field({
 
   const fmt = (v) => typeof v === "number" ? (Number.isInteger(v) ? v : v.toFixed(2)) : v;
   const valueDisplay = hasTarget && scaledTarget !== null
-    ? `${prefix}${fmt(rawDisplayValue ?? 0)}/${fmt(scaledTarget)}${postfix}`
-    : `${prefix}${formattedValue}${postfix}`;
+    ? `${inlinePrefix}${fmt(rawDisplayValue ?? 0)}/${fmt(scaledTarget)}${inlinePostfix}`
+    : `${inlinePrefix}${formattedValue}${inlinePostfix}`;
 
   // Shared style for read-only "input-like" boxes
   // Non-compact value color precedence:

@@ -196,6 +196,16 @@ function parseInline(text, mintLink) {
 // Strip inline markdown emphasis/link syntax down to plain text — used for
 // container HEADER labels (a heading like `### 1997–1999: … *The Slim Shady LP*`
 // should read as clean text, not show literal `*` asterisks).
+// A column is only as readable as its widest fixed element — the header. Clamped
+// so one long header cannot squeeze the data columns to nothing.
+const TABLE_LABEL = "List";
+const TABLE_HEADING_LEVEL = 4;
+
+function headerWidth(title) {
+  const n = String(title ?? "").length;
+  return Math.max(110, Math.min(320, 12 + n * 8));
+}
+
 function stripInlineMd(s) {
   return String(s)
     .replace(/\[([^\]]+)\]\((?:[^()]|\([^)]*\))*\)/g, "$1")
@@ -566,12 +576,20 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
   function buildTable({ headers, rows }) {
     const moduleId = uid();
     const occurrenceId = uid();
-    const columns = headers.map((title, idx) => ({
+    // Header cells arrive as raw markdown (`**Item**`) — the same strip the
+    // heading path already uses, or the table renders literal asterisks and the
+    // container is LABELLED "**Item**" (user, 2026-08-14).
+    const cleanHeaders = headers.map((t) => (t == null ? null : stripInlineMd(String(t)).trim()));
+    const columns = cleanHeaders.map((title, idx) => ({
       id: `tcol_${idx}`,
       // An explicitly EMPTY header cell stays empty (no "Column N" fallback) — the
       // infobox is emitted with blank headers so it renders without a header title.
       title: title != null ? title : `Column ${idx + 1}`,
-      width: 160,
+      // Width TRACKS THE HEADER, because ContainerTable scales columns
+      // PROPORTIONALLY to fit — a flat 160 gives "Key Vitamins & Nutrients" the
+      // same room as "Item" and truncates it (the header renders in an <input>,
+      // which cannot wrap the way a body cell does).
+      width: headerWidth(title),
       displayFieldId: null,
       sort: null,
       filter: null,
@@ -591,8 +609,13 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
     modules.push({
       id: moduleId, userId, gridId,
       role: "container", kind: "table",
-      // headers[0] doubles as the label; an empty first header → no label.
-      label: headers[0] || "",
+      // The label is NOT the first header. Reusing `headers[0]` titled the
+      // container after a COLUMN ("Item"), which reads as a mislabel next to the
+      // section heading above it — the table is a list of rows, not an "Item"
+      // (user, 2026-08-14: "make it say #### list"). Level 4 keeps it below the
+      // section that contains it.
+      label: TABLE_LABEL,
+      meta: { headingLevel: TABLE_HEADING_LEVEL },
     });
     occurrences.push({
       id: occurrenceId, userId, gridId,
