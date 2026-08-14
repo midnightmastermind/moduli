@@ -30,6 +30,7 @@ import DrilldownPicker from "../../ui/DrilldownPicker.jsx";
 import ModuleInstance from "../ModuleInstance.jsx";
 import ModuleContainer from "../ModuleContainer.jsx";
 import { CellEmbedContext } from "../../docs/CellEmbedContext.js";
+import AutoMarquee from "../../ui/AutoMarquee.jsx";
 
 // ── FilterValueWidget ─────────────────────────────────────────────────────────
 // Minimal inline value-input for the column filter popover.
@@ -1303,7 +1304,11 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                     title={col.title}
                     onDoubleClick={() => setEditingTitleCol(c)}
                   >
-                    {col.title}
+                    {/* MARQUEE, not wrap (user, 2026-08-14). AutoMarquee is
+                        inert when the title fits — it only animates on real
+                        overflow — so a header that fits reads exactly as before
+                        and one that does not scrolls instead of stacking. */}
+                    <AutoMarquee>{col.title}</AutoMarquee>
                   </span>
                 )}
                 <div className="table-th-actions">

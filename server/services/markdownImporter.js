@@ -203,7 +203,9 @@ const TABLE_HEADING_LEVEL = 4;
 
 function headerWidth(title) {
   const n = String(title ?? "").length;
-  return Math.max(110, Math.min(320, 12 + n * 8));
+  // Roomier than the first pass (user, 2026-08-14: "make it wider"). The floor
+  // matters most — it is what every short header lands on.
+  return Math.max(150, Math.min(360, 28 + n * 9));
 }
 
 function stripInlineMd(s) {

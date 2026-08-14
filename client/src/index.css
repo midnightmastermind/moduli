@@ -4468,13 +4468,16 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   font-family: inherit; cursor: default;
 }
 .table-th-title:focus { cursor: text; }
-/* The resting (non-editing) header. An <input> cannot wrap, so a narrow column
-   truncated "Calories" to "C"; this one wraps like a body cell and the row grows
-   to fit (`.table-th` is min-height). Double-click swaps in the input. */
+/* The resting (non-editing) header. An <input> cannot overflow gracefully — a
+   narrow column truncated "Calories" to "C" — so the resting state is a plain
+   span whose child AutoMarquee owns the overflow: static when the title fits,
+   scrolling when it does not. NOT wrapped (user, 2026-08-14: "dont wrap it,
+   marque it"), so the header row keeps one line whatever the title's length.
+   Double-click swaps in the input. */
 .table-th-title--static {
   display: block;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  min-width: 0;
+  white-space: nowrap;
   line-height: 1.2;
   padding: 1px 0;
   cursor: default;
