@@ -1100,6 +1100,13 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     // Live-resize takes precedence — if the user is dragging a column,
     // don't redistribute their drag.
     if (resizing) return raw;
+    // NEVER SCALE DOWN. Shrinking to fit squeezed a 7-column table into a
+    // ~610px panel and cut "Calories" to "C" — the column widths are what each
+    // header NEEDS, so a table wider than its panel scrolls horizontally
+    // (`.table-container` is overflow-x:auto) instead of compressing until
+    // nothing is readable (user, 2026-08-14: "it should be width auto").
+    // Scaling UP is kept: spare room still fills the panel to its right edge.
+    if (sum >= target) return raw;
     const scale = target / sum;
     const scaled = raw.map(w => Math.max(40, Math.round(w * scale)));
     // Push the rounding remainder into the last column so the columns sum to
