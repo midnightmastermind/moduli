@@ -55,6 +55,7 @@ import { consumeLabelEdit } from "../helpers/pendingLabelEdit.js";
 import { primaryMediaOf, filesFieldIdFor } from "../helpers/occurrenceMedia";
 import { setMainFile } from "../helpers/mainFile";
 import { useComputedValue } from "../state/computedValuesStore";
+import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
 
 // Operation display widget — its own component so the per-key
 // computedValues subscription lives HERE, not on the whole instance
@@ -763,7 +764,22 @@ function InstanceInner({
                   className="instance-media-inline"
                   src={mediaSrc}
                   alt={label || "media"}
-                  title={mediaBinding?.field?.name || "Media"}
+                  // Clicking the thumbnail opens the artifact viewer (user,
+                  // 2026-08-14). The viewer was only ever reachable from a media
+                  // FIELD PILL — an inline thumb had no handler at all, so on a
+                  // row whose media binding is hidden (which is the whole point
+                  // of an inline thumb) there was no way to see the full image.
+                  // stopPropagation so it does not reach the row's own
+                  // select/drag handling; double-click-to-rename lives on the
+                  // label beside it and is untouched.
+                  role="button"
+                  title={`Open ${mediaBinding?.field?.name || "media"}`}
+                  style={{ cursor: "zoom-in" }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (occurrence?.id) openArtifactSpread(occurrence.id, e.currentTarget.getBoundingClientRect());
+                  }}
                 />
               )}
               <div
