@@ -457,6 +457,9 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
 
   // Kebab menu state: { colIndex, anchor }
   const [kebabOpen, setKebabOpen] = useState(null);
+  // Which column header is being RENAMED. At rest the title is a wrapping label;
+  // only the one being edited becomes an <input>.
+  const [editingTitleCol, setEditingTitleCol] = useState(null);
 
   // Field picker: which column is showing the "Show field" picker
   const [fieldPickerCol, setFieldPickerCol] = useState(null);
@@ -1264,17 +1267,38 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
               className="table-th"
               style={{
                 flex: `0 0 ${colW}px`,
-                height: HEADER_H,
+                // minHeight, not height: a wrapped header ("Key Vitamins &
+                // Nutrients" in a narrow column) has to be able to grow. Body
+                // rows already size to their tallest cell.
+                minHeight: HEADER_H,
                 boxSizing: "border-box",
               }}
             >
               <div className="table-th-inner">
-                <input
-                  className="table-th-title"
-                  defaultValue={col.title}
-                  onBlur={(e) => handleTitleBlur(c, e.currentTarget.value)}
-                  onKeyDown={(e) => handleTitleKeyDown(e)}
-                />
+                {/* An <input> CANNOT WRAP — in a narrow column it truncated
+                    "Calories" to "C" while the body cell beside it wrapped
+                    happily (user, 2026-08-14). So the resting state is a plain
+                    wrapping label and the input appears only while renaming. */}
+                {editingTitleCol === c ? (
+                  <input
+                    className="table-th-title"
+                    autoFocus
+                    defaultValue={col.title}
+                    onBlur={(e) => { handleTitleBlur(c, e.currentTarget.value); setEditingTitleCol(null); }}
+                    onKeyDown={(e) => {
+                      handleTitleKeyDown(e);
+                      if (e.key === "Enter" || e.key === "Escape") setEditingTitleCol(null);
+                    }}
+                  />
+                ) : (
+                  <span
+                    className="table-th-title table-th-title--static"
+                    title={col.title}
+                    onDoubleClick={() => setEditingTitleCol(c)}
+                  >
+                    {col.title}
+                  </span>
+                )}
                 <div className="table-th-actions">
                   <button
                     className="table-sort-btn"

@@ -1219,7 +1219,13 @@ function Field({
         </span>
       );
       // Empty-input display: number/duration → 0, text/notes → "—".
-      const displayNum = localValue ?? ((type === "number" || type === "duration") ? 0 : "—");
+      const rawNum = localValue ?? ((type === "number" || type === "duration") ? 0 : "—");
+      // The DISPLAY path already rounds to `precision`; this INPUT pill printed
+      // the bare number, so a price of 2.50 read "$2.5" (user, 2026-08-14).
+      // Integers stay integers — "6 oz", not "6.00 oz".
+      const displayNum = (type === "number" && typeof rawNum === "number" && !Number.isInteger(rawNum))
+        ? rawNum.toFixed(binding?.display?.precision ?? 2)
+        : rawNum;
       const formattedDisplay = `${inlinePrefix}${displayNum}${inlinePostfix}`;
       // Pill tint:
       //   - target present  → target-met (green) / not-met (red)

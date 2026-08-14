@@ -4468,6 +4468,17 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   font-family: inherit; cursor: default;
 }
 .table-th-title:focus { cursor: text; }
+/* The resting (non-editing) header. An <input> cannot wrap, so a narrow column
+   truncated "Calories" to "C"; this one wraps like a body cell and the row grows
+   to fit (`.table-th` is min-height). Double-click swaps in the input. */
+.table-th-title--static {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+  padding: 1px 0;
+  cursor: default;
+}
 .table-th-actions {
   display: flex; align-items: center; gap: 1px;
   opacity: 0; transition: opacity 0.1s;
