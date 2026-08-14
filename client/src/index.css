@@ -4474,6 +4474,18 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    scrolling when it does not. NOT wrapped (user, 2026-08-14: "dont wrap it,
    marque it"), so the header row keeps one line whatever the title's length.
    Double-click swaps in the input. */
+/* The idle (unfocused, unhovered) TEXT cell. One line, marquee-owned overflow —
+   the cell only becomes a live editor when you focus or hover it. */
+.table-cell-static-text {
+  padding: 3px 8px;
+  min-height: 18px;
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
+  min-width: 0;
+  color: var(--text-primary);
+}
+
 .table-th-title--static {
   display: block;
   min-width: 0;

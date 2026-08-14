@@ -136,6 +136,20 @@ function StaticCellEmbed({ occId, occurrencesById, modulesById, dispatch, socket
   );
 }
 
+// The visible text of a cell doc — used for the idle view so an unfocused cell
+// does not need a live TipTap instance just to show its own words.
+function plainTextOfDoc(doc) {
+  if (!doc || typeof doc !== "object") return "";
+  const out = [];
+  const walk = (n) => {
+    if (!n || typeof n !== "object") return;
+    if (typeof n.text === "string") out.push(n.text);
+    if (Array.isArray(n.content)) n.content.forEach(walk);
+  };
+  walk(doc);
+  return out.join("").trim();
+}
+
 function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cellRefs, dispatch, socket, displayFieldId, fieldVisibility, hideLabel, showMedia, onFocusCell, onBlurCell, isFocused, fillMode, onFillPointerDown, onToggleFillMode, style }) {
   const key = cellKey(r, c);
 
@@ -173,13 +187,23 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
   // always use the editor so typed content keeps working.
   const { occurrencesById, modulesById } = useGridActions() || {};
   const [hovered, setHovered] = useState(false);
+  // What the idle cell shows. Seeded from the same doc TipTap is seeded with and
+  // kept current by handleChange, so leaving a cell shows what was just typed
+  // rather than the value it mounted with.
+  const [idleText, setIdleText] = useState(() => plainTextOfDoc(initialDoc));
   const [dropActive, setDropActive] = useState(false);
   const cellElRef = useRef(null);
   const embedOccId = useMemo(
     () => firstEmbedOccId(initialContent.current),
     [],
   );
-  const showEditor = !embedOccId || isFocused || hovered;
+  // A cell mounts a live editor ONLY while it is focused or hovered. At rest a
+  // TEXT cell is a marquee (user: "i wanted all the cells to be marqued if
+  // necessary") and an EMBED cell is its occurrence — so a narrow column scrolls
+  // its content instead of wrapping it, and an idle table mounts no TipTap at
+  // all, which is the same reason the embed path was made lazy in the first
+  // place (~24 instances on the Schedule Table crawled Firefox to a crash).
+  const showEditor = isFocused || hovered;
 
   // Cell-level drop target — catches drops anywhere in the .table-td,
   // including the padding outside .doc-editor-wrapper, and drops onto cells
@@ -285,6 +309,7 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
   const handleChange = useCallback((newDoc) => {
     // Track the latest pending doc so blur/unmount can flush it.
     pendingDocRef.current = newDoc;
+    setIdleText(plainTextOfDoc(newDoc));
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
       debounceTimer.current = null;
@@ -341,6 +366,10 @@ function TableCell({ r, c, initialDoc, tableRef, persist, onCellCommitMove, cell
           hideLabel={hideLabel ?? false}
           showMedia={showMedia ?? false}
         />
+      ) : !embedOccId ? (
+        <div className="table-cell-static-text">
+          <AutoMarquee>{idleText}</AutoMarquee>
+        </div>
       ) : (
         <StaticCellEmbed
           occId={embedOccId}
@@ -1101,13 +1130,11 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     // Live-resize takes precedence — if the user is dragging a column,
     // don't redistribute their drag.
     if (resizing) return raw;
-    // NEVER SCALE DOWN. Shrinking to fit squeezed a 7-column table into a
-    // ~610px panel and cut "Calories" to "C" — the column widths are what each
-    // header NEEDS, so a table wider than its panel scrolls horizontally
-    // (`.table-container` is overflow-x:auto) instead of compressing until
-    // nothing is readable (user, 2026-08-14: "it should be width auto").
-    // Scaling UP is kept: spare room still fills the panel to its right edge.
-    if (sum >= target) return raw;
+    // Scales BOTH ways, so the table always fits its panel (user, 2026-08-14:
+    // "now the table cant shrink anymore"). Squeezing used to make headers
+    // unreadable — that is now the MARQUEE's job, not the width's: every cell
+    // and header scrolls its own overflow, so a narrow column stays legible
+    // instead of the whole table growing a horizontal scrollbar.
     const scale = target / sum;
     const scaled = raw.map(w => Math.max(40, Math.round(w * scale)));
     // Push the rounding remainder into the last column so the columns sum to
