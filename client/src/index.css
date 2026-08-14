@@ -4474,6 +4474,28 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    scrolling when it does not. NOT wrapped (user, 2026-08-14: "dont wrap it,
    marque it"), so the header row keeps one line whatever the title's length.
    Double-click swaps in the input. */
+/* ── TABLE MARQUEES REVEAL ON HOVER, THEY DO NOT RUN CONSTANTLY ─────────────
+   AutoMarquee animates whenever its content overflows. In a 7-column table that
+   is EVERY cell at once, each at its own phase — so nothing ever sits still and
+   every column reads as garbled mid-scroll text (user, 2026-08-14: "see how its
+   incredibly cut off"). At rest the animation is off, which parks the content at
+   translateX(0): each cell shows its text from the START, left-aligned and
+   clipped. Hovering a cell or header scrolls that ONE thing.
+
+   `!important` is REQUIRED: AutoMarquee sets `animation` as an INLINE style, and
+   an inline style beats any stylesheet rule regardless of specificity — the trap
+   this file has recorded six times. `--mq-shift` is also inline, so the hover
+   rule inherits the correct per-element travel distance and only the duration is
+   restated. */
+.table-th-title--static .auto-marquee-inner,
+.table-cell-static-text .auto-marquee-inner {
+  animation: none !important;
+}
+.table-th:hover .table-th-title--static .auto-marquee-inner,
+.table-td:hover .table-cell-static-text .auto-marquee-inner {
+  animation: auto-marquee-scroll 6s linear infinite alternate !important;
+}
+
 /* The idle (unfocused, unhovered) TEXT cell. One line, marquee-owned overflow —
    the cell only becomes a live editor when you focus or hover it. */
 .table-cell-static-text {
