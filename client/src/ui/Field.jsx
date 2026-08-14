@@ -570,6 +570,27 @@ function resolveOccCard(occId, { occurrencesById, modulesById, fieldsById }, chi
     : null;
   const showLabel = chipDisplay ? chipDisplay.showLabel !== false : true;
 
+  // An OCCURRENCE-typed field holds ids, so printing the stored value verbatim
+  // renders a chip full of uuids — "in the meals dropdown ingredients are being
+  // showin as ids and not labels" (user, 2026-08-14). Resolved here from the
+  // maps this function already has, rather than from a field's
+  // `_resolvedOptions`: an option chip is drawn OUTSIDE FieldRenderer, so that
+  // cache is not populated for the inner field and never will be.
+  const readableValue = (f, v) => {
+    if (f?.type !== "occurrence" || v == null) return v;
+    const ids = Array.isArray(v) ? v : [v];
+    const names = ids
+      .map((id) => {
+        const t = occurrencesById?.[id];
+        if (!t) return null;
+        return t.label ?? modulesById?.[t.moduleId]?.label ?? null;
+      })
+      .filter(Boolean);
+    // Fall back to the raw value rather than blanking it — an unresolvable id is
+    // information, an empty chip is not.
+    return names.length ? names.join(", ") : v;
+  };
+
   let fieldVals;
   if (chipDisplay && Array.isArray(chipDisplay.fieldIds)) {
     // Explicit field list — render in the configured order. Skip empty/missing
@@ -579,7 +600,7 @@ function resolveOccCard(occId, { occurrencesById, modulesById, fieldsById }, chi
         const v = occ.fields?.[fid]?.value;
         if (v == null || v === "") return null;
         const f = fieldsById?.[fid];
-        return f ? { name: f.name, value: v } : null;
+        return f ? { name: f.name, value: readableValue(f, v) } : null;
       })
       .filter(Boolean);
   } else {
@@ -589,7 +610,7 @@ function resolveOccCard(occId, { occurrencesById, modulesById, fieldsById }, chi
       .slice(0, 3)
       .map(b => {
         const f = fieldsById?.[b.fieldId];
-        return f ? { name: f.name, value: occ.fields[b.fieldId].value } : null;
+        return f ? { name: f.name, value: readableValue(f, occ.fields[b.fieldId].value) } : null;
       })
       .filter(Boolean);
   }
