@@ -52,6 +52,7 @@ import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { useGridActionsSelector } from "../GridActionsContext";
 import { runMatchingOperations } from "../helpers/operationExecutor";
 import { setComputedValuesAction } from "../state/actions";
+import LoadingImage from "./LoadingImage.jsx";
 
 // ─── FlowToggle (popover with 3 flow options) ─────────────────
 // Whole-control tints per flow (2026-07-11, per user): the control CARRYING a
@@ -635,8 +636,20 @@ function OccurrenceOption({ occId, fallbackLabel, maps, chipDisplay = null, onSe
       {renderMediaSlot && (
         <div style={{ width: 34, height: 46, flexShrink: 0, borderRadius: 4, overflow: "hidden", position: "relative",
           background: "var(--input-bg, rgba(255,255,255,0.04))", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {/* The slot is `position: relative`, so LoadingImage's default
+              `display: contents` wrapper lets the spinner cover exactly this
+              box. A chip's picture is remote (a poster, a face, an ingredient
+              photo) — without the spinner the slot reads as "no image", which
+              is what a MISSING one looks like. */}
           {mediaVal && isImg
-            ? <img src={resolveFileRef(mediaVal)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ? (
+              <LoadingImage
+                src={resolveFileRef(mediaVal)}
+                imgStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
+                spinnerSize="xs"
+                errorSize={12}
+              />
+            )
             : <Link2 style={{ width: 12, height: 12, opacity: 0.4 }} />}
           {onSetImage && !(mediaVal && isImg) && (
             // "Set image" — Calibre-style cover lookup for THIS option, offered

@@ -3045,8 +3045,11 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    max-width still resolves against the CARD, not against a new wrapper. The
    status badge is absolutely positioned, so it costs no layout either;
    `.artifact-card` is already `position: relative`. */
-.artifact-img-wrap { display: contents; }
-.artifact-img-status {
+/* Shared by every LoadingImage (ui/LoadingImage.jsx): artifact cards, dropdown
+   option chips, representation thumbnails. The wrapper is layout-neutral by
+   default — the caller's `frameStyle` decides what `inset: 0` resolves to. */
+.img-load-wrap { display: contents; }
+.img-load-status {
   position: absolute;
   inset: 0;
   display: flex;
@@ -3057,7 +3060,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   /* Sits over the empty frame, under the card's own chrome. */
   z-index: 1;
 }
-.artifact-img-status--error { color: rgb(248,113,113); }
+.img-load-status--error { color: rgb(248,113,113); }
 
 .artifact-thumb {
   /* Center the media inside the card (contain, not crop) so the whole image /
@@ -4493,9 +4496,20 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
      delivers the width: centered children in a column shrink to their content. */
   flex: 1; min-width: 0;
   display: flex; flex-direction: column; align-items: stretch; gap: 2px;
-  padding: 4px 24px 4px 8px; /* right padding leaves room for resize grip */
+  /* AT REST the title gets the WHOLE column. The right inset only exists to
+     keep the title clear of the sort/kebab cluster, and that cluster is not on
+     screen until you hover — reserving its width permanently made every header
+     read ~16px narrower than its column for no visible reason (user,
+     2026-08-16: "it hides the buttons but the dom its in is still taking up
+     space"). 8px is the resize grip's own clearance (the grip is 5px), which
+     IS always there. */
+  padding: 4px 8px;
   min-height: 28px;
 }
+/* Yield the room the moment the controls actually appear. The title's marquee
+   re-measures on the width change, so a title that only just fits starts
+   scrolling while hovered — which is the state where you can read it anyway. */
+.table-th:hover .table-th-inner { padding-right: 24px; }
 .table-th-title {
   flex: 1; min-width: 0;
   background: transparent; border: none; outline: none;
@@ -4541,8 +4555,11 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   position: absolute;
   top: 3px;
   right: 4px;
+  /* An opacity-0 element still hit-tests, so at rest the invisible kebab sat
+     over the header's right edge and swallowed clicks aimed at the title. */
+  pointer-events: none;
 }
-.table-th:hover .table-th-actions { opacity: 1; }
+.table-th:hover .table-th-actions { opacity: 1; pointer-events: auto; }
 
 /* Sort caret */
 .table-sort-btn {

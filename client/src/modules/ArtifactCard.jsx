@@ -11,6 +11,7 @@ import { getUploadController } from "../helpers/uploadWithProgress";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
+import LoadingImage from "../ui/LoadingImage.jsx";
 
 // Render a plain string with bare URLs turned into clickable links (quote artifacts
 // store their text as a plain string, so http(s):// links weren't resolving — 2026-07-10).
@@ -227,7 +228,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
       // image; that predates the rule and was the one artifact reading the
       // other way round.
       <div ref={fullbleedRef} className="artifact-card artifact-card--fullbleed" data-kind="image">
-        <ArtifactImage className="artifact-fullbleed-img" src={src} alt={label || "viafluere"} />
+        <LoadingImage className="artifact-fullbleed-img" src={src} alt={label || "viafluere"} />
         <div className="artifact-fullbleed-header">
           {fileName && <span className="artifact-fullbleed-name" title={fileName}>{fileName}</span>}
         </div>
@@ -328,49 +329,11 @@ function formatBytes(bytes) {
   return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)} ${units[i]}`;
 }
 
-// An image that says it is LOADING. Remote artifact images (an imported photo,
-// a picture picked from search) have no bytes locally, so a spread of them
-// opened as a grid of empty frames for a second with nothing to say why (user,
-// 2026-08-16). The spinner sits OVER the image rather than replacing it, so the
-// frame never changes size when the picture arrives.
-//
-// `img.complete` is checked on mount because a CACHED image can finish before
-// React attaches the handler — without it a re-opened spread would spin forever.
-function ArtifactImage({ className, src, alt }) {
-  const ref = useRef(null);
-  const [state, setState] = useState("loading");
-  useEffect(() => {
-    setState("loading");
-    const el = ref.current;
-    if (el && el.complete) setState(el.naturalWidth > 0 ? "ok" : "error");
-  }, [src]);
-  return (
-    <span className="artifact-img-wrap">
-      <img
-        ref={ref}
-        className={className}
-        src={src}
-        alt={alt}
-        onLoad={() => setState("ok")}
-        onError={() => setState("error")}
-      />
-      {state === "loading" && (
-        <span className="artifact-img-status" aria-hidden="true"><Spinner size="sm" /></span>
-      )}
-      {state === "error" && (
-        <span className="artifact-img-status artifact-img-status--error" title="This image could not be loaded">
-          <AlertCircle style={{ width: 14, height: 14 }} />
-        </span>
-      )}
-    </span>
-  );
-}
-
 // The PREVIEW half of the card — picture, frame, or type glyph. It never prints
 // the file name: that is the info block's job and it always sits underneath, so
 // printing it here too showed it twice.
 function renderThumbnail(kind, src, label, imgSrc = src) {
-  if (kind === "image") return <ArtifactImage className="artifact-thumb" src={imgSrc} alt={label || "image"} />;
+  if (kind === "image") return <LoadingImage className="artifact-thumb" src={imgSrc} alt={label || "image"} />;
   if (kind === "video") return <video className="artifact-thumb" src={src} muted playsInline preload="metadata" />;
   if (kind === "audio") return (
     <div className="artifact-thumb artifact-thumb--audio" onClick={(e) => e.stopPropagation()}>
@@ -391,7 +354,7 @@ function renderThumbnail(kind, src, label, imgSrc = src) {
 }
 
 function renderExpanded(kind, src, label, imgSrc = src) {
-  if (kind === "image") return <ArtifactImage className="artifact-expanded-media" src={imgSrc} alt={label || "image"} />;
+  if (kind === "image") return <LoadingImage className="artifact-expanded-media" src={imgSrc} alt={label || "image"} />;
   if (kind === "video") return <video className="artifact-expanded-media" src={src} controls playsInline />;
   if (kind === "audio") return (
     <div className="artifact-expanded-audio">

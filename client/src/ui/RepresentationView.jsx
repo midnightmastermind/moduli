@@ -39,6 +39,7 @@ import { primaryMediaOf } from "../helpers/occurrenceMedia";
 // move module into another chunk` warning. Importing it here directly
 // fixes the warning at zero cost (already in the main bundle).
 import ModuleInstanceComponent from "../modules/ModuleInstance.jsx";
+import LoadingImage from "./LoadingImage.jsx";
 
 const HOVER_OPEN_MS = 320;
 const HOVER_CLOSE_MS = 140;
@@ -185,14 +186,20 @@ export default function RepresentationView({
         }}
       >
         {mediaSrc ? (
-          <img
+          // The chip itself is not positioned, so the wrapper HAS to carry the
+          // thumbnail's box — that is what the spinner overlay resolves
+          // against. Sizing the wrapper (not the img) also keeps the chip's
+          // width fixed from first paint, so a late-arriving picture never
+          // reflows the row it sits in.
+          <LoadingImage
             src={mediaSrc}
-            alt=""
-            style={{
-              width: sizing.thumb, height: sizing.thumb,
-              objectFit: "cover", borderRadius: 2,
-              flexShrink: 0,
+            frameStyle={{
+              position: "relative", display: "inline-flex",
+              width: sizing.thumb, height: sizing.thumb, flexShrink: 0,
             }}
+            imgStyle={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 2 }}
+            spinnerSize="xs"
+            errorSize={Math.max(10, sizing.thumb - 6)}
           />
         ) : (
           <Icon size={sizing.icon} style={{ color, flexShrink: 0 }} />
