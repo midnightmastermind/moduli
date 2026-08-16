@@ -4503,7 +4503,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
      2026-08-16: "it hides the buttons but the dom its in is still taking up
      space"). 8px is the resize grip's own clearance (the grip is 5px), which
      IS always there. */
-  padding: 4px 8px;
+  padding: 4px 5px;
   min-height: 28px;
 }
 /* Yield the room the moment the controls actually appear. The title's marquee
@@ -4526,7 +4526,14 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 /* The idle (unfocused, unhovered) TEXT cell. One line, marquee-owned overflow —
    the cell only becomes a live editor when you focus or hover it. */
 .table-cell-static-text {
-  padding: 3px 8px;
+  /* NO horizontal padding — `.table-td` already pads the cell, and this layer
+     sits INSIDE it. Carrying 8px here too meant every text cell lost 32px of
+     horizontal room, so a word clipped with visible space still left in the
+     column (user, 2026-08-16: "all the words get cut off unnecessarily
+     early"). The live editor that replaces this on hover has `padding: 0` for
+     the same reason — the idle state now matches it, so text no longer shifts
+     when the cell wakes up. */
+  padding: 3px 0;
   min-height: 18px;
   font-size: 12px;
   line-height: 1.3;
@@ -4843,7 +4850,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
      infobox "Other names" cell, a one-line Schedule cell) hugs its content and
      doesn't read as too tall; horizontal padding kept for breathing room around
      embedded instance cards. Applies to every table (infobox + Schedule). */
-  padding: 2px 8px; font-size: 13px;
+  padding: 2px 5px; font-size: 13px;
   position: relative;
   display: block;
   /* min-width:0 is REQUIRED on a flex item or it grows to its content's
