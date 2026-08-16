@@ -4503,7 +4503,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
      2026-08-16: "it hides the buttons but the dom its in is still taking up
      space"). 8px is the resize grip's own clearance (the grip is 5px), which
      IS always there. */
-  padding: 4px 5px;
+  padding: 4px 3px;
   min-height: 28px;
 }
 /* Yield the room the moment the controls actually appear. The title's marquee
@@ -4850,7 +4850,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
      infobox "Other names" cell, a one-line Schedule cell) hugs its content and
      doesn't read as too tall; horizontal padding kept for breathing room around
      embedded instance cards. Applies to every table (infobox + Schedule). */
-  padding: 2px 5px; font-size: 13px;
+  padding: 2px 3px; font-size: 13px;
   position: relative;
   display: block;
   /* min-width:0 is REQUIRED on a flex item or it grows to its content's
