@@ -5475,6 +5475,18 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   color: var(--text-faint);
 }
 
+/* The PREPARING state — same box as the empty one, so the panel does not jump
+   when it swaps to the real content. */
+.artifact-spread-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 28px 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 /* Shift is held: the next drag is LEAVING for the grid, so the overlay gets
    out of the way. Ghosted rather than unmounted — unmounting mid-drag would
    destroy the element the drag system is carrying. */

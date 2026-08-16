@@ -36,6 +36,7 @@ import { openImagePicker } from "./ImagePickerMenu";
 import { filesOf } from "../helpers/occurrenceMedia";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext";
+import { Spinner } from "../components/ui/spinner.jsx";
 
 function makeUUID() {
   return (typeof crypto !== "undefined" && crypto.randomUUID)
@@ -200,6 +201,17 @@ export function ArtifactSpreadHost() {
           embedded
           embedSourceType="artifact-spread"
         />
+      ) : files.length > 0 ? (
+        // PREPARING, not empty. The spread's own page is minted lazily on first
+        // open, so `spreadOcc` is null for the first render(s) — and printing
+        // "No files yet" there told the user the opposite of the truth right
+        // before their pictures appeared (user, 2026-08-16). The owner's file
+        // count is known immediately, so it is what decides which of the two
+        // this is.
+        <div className="artifact-spread-loading">
+          <Spinner size="sm" />
+          <span>{files.length === 1 ? "Opening 1 file…" : `Opening ${files.length} files…`}</span>
+        </div>
       ) : (
         <div className="artifact-spread-empty">No files yet — add one.</div>
       )}
