@@ -62,3 +62,62 @@ describe("bodyOpen — one open body, app-wide", () => {
     expect(seen).toEqual(["occ-a"]);
   });
 });
+
+// ── useBodyOpen: the React binding ─────────────────────────────────────────
+// These are the Task-2 exclusivity cases. They test the HOOK rather than
+// `ModuleInstance` because that file is 1300 lines and mounting it needs the
+// whole grid store — the plan named this fallback explicitly so the cases
+// could not be quietly dropped. What is NOT covered here is the button's DOM
+// (a browser probe covers that); what IS covered is the behaviour that made
+// this feature necessary: a row closing when a SIBLING opens.
+import { renderHook, act } from "@testing-library/react";
+import { useBodyOpen } from "../helpers/bodyOpen.js";
+
+describe("useBodyOpen", () => {
+  it("opening B closes A", () => {
+    const a = renderHook(() => useBodyOpen("occ-a"));
+    const b = renderHook(() => useBodyOpen("occ-b"));
+
+    act(() => { a.result.current[1](); });          // toggle A open
+    expect(a.result.current[0]).toBe(true);
+    expect(b.result.current[0]).toBe(false);
+
+    act(() => { b.result.current[1](); });          // toggle B open
+    expect(b.result.current[0]).toBe(true);
+    expect(a.result.current[0]).toBe(false);        // A closed without an event
+  });
+
+  it("toggling the open one closes it", () => {
+    const a = renderHook(() => useBodyOpen("occ-a"));
+    act(() => { a.result.current[1](); });
+    expect(a.result.current[0]).toBe(true);
+    act(() => { a.result.current[1](); });
+    expect(a.result.current[0]).toBe(false);
+    expect(getOpenBodyId()).toBe(null);
+  });
+
+  it("unmounting a row with an open body releases the claim", () => {
+    const a = renderHook(() => useBodyOpen("occ-a"));
+    act(() => { a.result.current[1](); });
+    expect(getOpenBodyId()).toBe("occ-a");
+    a.unmount();
+    expect(getOpenBodyId()).toBe(null);
+  });
+
+  it("unmounting a CLOSED row does not close the open one", () => {
+    // React commits the new row before running the old row's cleanup, so this
+    // ordering is the normal case, not a corner.
+    const a = renderHook(() => useBodyOpen("occ-a"));
+    const b = renderHook(() => useBodyOpen("occ-b"));
+    act(() => { b.result.current[1](); });
+    a.unmount();
+    expect(getOpenBodyId()).toBe("occ-b");
+  });
+
+  it("an occurrence with no id never opens", () => {
+    const n = renderHook(() => useBodyOpen(undefined));
+    act(() => { n.result.current[1](); });
+    expect(n.result.current[0]).toBe(false);
+    expect(getOpenBodyId()).toBe(null);
+  });
+});

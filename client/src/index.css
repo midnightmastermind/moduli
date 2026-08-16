@@ -5843,3 +5843,39 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .container-header--no-band {
   background-image: none !important;
 }
+
+/* ── The instance body button ──────────────────────────────────────────────
+   Opens this row's mini doc. Bottom-right, revealed on row hover — the same
+   affordance pattern the drag handle uses, so it costs no layout and a row
+   without a body reads exactly as it does today. Absolute for the same
+   reason: it must never push content.                                       */
+.instance-body-btn {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity 120ms ease-out, color 120ms ease-out;
+  cursor: pointer;
+  z-index: 3;
+}
+/* An OPEN body keeps its button visible — otherwise the only way to close it
+   is to find the row again and hover it. */
+.instance-wrap:hover > .instance-body-btn,
+.instance-body-btn[aria-expanded="true"] { opacity: 1; }
+.instance-body-btn:hover { color: var(--text-primary); }
+.instance-body-btn[aria-expanded="true"] { transform: rotate(180deg); }
+
+/* Coarse pointers have no hover, so it is always visible and thumb-sized. */
+@media (pointer: coarse) {
+  .instance-body-btn { opacity: 1; width: 26px; height: 26px; }
+}

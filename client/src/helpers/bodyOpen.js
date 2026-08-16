@@ -20,6 +20,7 @@
 // re-render every instance row on the grid each time any body opened, and this
 // file exists on the hot path (ModuleInstance mounts once per row).
 // ============================================================
+import { useCallback, useEffect, useState } from "react";
 
 let openId = null;
 const subs = new Set();
@@ -64,4 +65,39 @@ export function releaseBodyOpen(occurrenceId) {
 export function subscribeBodyOpen(fn) {
   subs.add(fn);
   return () => subs.delete(fn);
+}
+
+/**
+ * React binding: `[isOpen, toggle]` for one occurrence's body.
+ *
+ * Lives here rather than inline in `ModuleInstance` for two reasons: that file
+ * is 1300 lines and mounting it needs the whole grid store, so inline logic is
+ * effectively untestable; and the SUBSCRIBE half is subtle enough to deserve
+ * its own tests — it is what closes a row when a SIBLING opens, which is the
+ * entire feature.
+ */
+export function useBodyOpen(occurrenceId) {
+  const [isOpen, setIsOpen] = useState(
+    () => !!occurrenceId && getOpenBodyId() === occurrenceId,
+  );
+
+  useEffect(() => {
+    if (!occurrenceId) { setIsOpen(false); return undefined; }
+    // Re-sync on id change: this row may be rendering a different occurrence
+    // than it was a moment ago (list reorder, filter change).
+    setIsOpen(getOpenBodyId() === occurrenceId);
+    const off = subscribeBodyOpen((id) => setIsOpen(id === occurrenceId));
+    // Releasing on unmount is safe because a release from an id that no longer
+    // holds the claim is ignored — a row unmounting AFTER another body opened
+    // cannot close the new one.
+    return () => { off(); releaseBodyOpen(occurrenceId); };
+  }, [occurrenceId]);
+
+  const toggle = useCallback(() => {
+    if (!occurrenceId) return;
+    if (getOpenBodyId() === occurrenceId) releaseBodyOpen(occurrenceId);
+    else claimBodyOpen(occurrenceId);
+  }, [occurrenceId]);
+
+  return [isOpen, toggle];
 }
