@@ -118,3 +118,29 @@ result — per this repo's standing rule.
 - Any change to linked-group propagation.
 - Narrowing or re-styling the body box beyond what it renders today.
 - Full-screening a body — that is the separate spread-viewer fusion plan.
+
+---
+
+## Follow-on: the spread viewer needs a MINI GRID (decided 2026-08-16)
+
+Recorded here because it was settled while verifying the spread and it changes
+the next plan's shape.
+
+Asked whether reorder should be able to turn "4 in a row + 1" into "3 + 2", or
+4 into 2×2, the answer was **yes** — *"thats what i want, why i think i need a
+mini grid inside the viewer."*
+
+**Reorder cannot deliver that, and the distinction matters.** Reordering changes
+which file sits in which SLOT; the column count is derived from the file count
+and the grid re-flows, so 5 files at 3 columns are always 3 + 2. Controlling
+where the wrap falls is PLACEMENT, not order.
+
+So the spread-viewer fusion plan is not "make the flex-wrap reorder better". It
+needs a real placement surface — per-tile `{row, col, width, height}`, which is
+what `Grid.jsx`'s rows×cols renderer and `helpers/bspTree.js` already express at
+the top level, and what the spread's existing canvas mode approximates with free
+x/y. Which of those three to reuse is the plan's first decision.
+
+The 2-D reorder fix shipped in `16e9c4ed` is still worth having on its own — it
+corrects `computeInsertIndexFromPointer` for EVERY wrapping board container,
+including the Trackers page — but it is not this feature.
