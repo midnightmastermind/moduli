@@ -2715,3 +2715,37 @@ container once their date passes. The `$today` token that was believed to be the
 today, but the real obstacle is that feed conditions are **ANDed** — one container holding both
 completed todos and past appointments needs OR/nested predicate groups, which feeds do not have.
 Three options are filed rather than chosen.
+
+## 2026-08-16 — the spread becomes a viewer; instances get bodies back
+
+> "the zuccini picture is too big and wrapping. also the artifact spread isnt spreading them out
+> into a grid."
+
+Both fixed. The zucchini one was an ORDERING defect, not a new one: `0130` only switches an
+ingredient to an inline thumbnail if its Poster is already bound `role:"media"`, and `0134` gave
+that row its binding hours AFTER `0130` ran. The grid one is recorded in `client/src/ui/CLAUDE.md`.
+
+> "the spread viewer should be full screen btw no matter if it has one or multiple. or at least the
+> max size as whats in the screenshot" / "so that way, if i have one, it opens bigger"
+
+The overlay is a fixed 86vh now rather than shrinking to its content, and the tiles size themselves
+from the file count so one file fills the surface. **What this decided in passing: the tile SIZE is
+not storable.** It depends on the viewport and the file count, so it lives in the spread's
+stylesheet while the cascade keeps only the arrangement.
+
+> "i want to play around with the idea of having instances have bodies again. a button that opens
+> up a little doc. typing here would create a textblock here too so same rules as doc. it just is
+> mini" / "we need a full plan for that"
+
+An instance gets an optional body: a disclosure button opens a small doc under the row, and typing
+in it mints textblocks exactly the way a doc page does — the same click-to-mint / abandon-empty
+rules, at a smaller size. Plan requested before any code.
+
+> "after the instance body plan, lets make a plan to fuse the full screen mode and the artifact
+> spread viewer. we want to be able to full screen any occurance. so when i click on full screen on
+> an instance, i can see its body full screen. so instead of artifact spread viewer, it would be
+> just spread viwer."
+
+The spread stops being artifact-specific: ANY occurrence can be opened full screen, and what you
+see is that occurrence's own content — its files if it has files, its BODY if it has one. Order is
+explicit: these fixes, then the instance-body plan, then the fusion plan.

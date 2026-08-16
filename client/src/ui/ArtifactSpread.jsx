@@ -150,8 +150,14 @@ export default function ArtifactSpread({
           </button>
         </div>
 
-        {/* The board or canvas renderer, whole and unmodified. */}
-        <div className="artifact-spread-body">{children}</div>
+        {/* The board or canvas renderer, whole and unmodified.
+            `data-count` is the ONE thing the shell says about the content, and
+            it is presentation rather than arrangement: how many columns the
+            tiles use so they fill the overlay instead of huddling at 200px in
+            a corner. A CSS quantity query cannot do this — `ModuleContainer`
+            interleaves an insert-gap between every item, so a
+            `:nth-child(1):nth-last-child(1)` count never sees "one file". */}
+        <div className="artifact-spread-body" data-count={count}>{children}</div>
       </div>
     </>,
     document.body

@@ -5413,7 +5413,15 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   top: 50%;
   left: 50%;
   width: min(1180px, 92vw);
-  max-height: 86vh;
+  /* ALWAYS the full size, whether it holds one file or twenty (user
+     2026-08-16: "the spread viewer should be full screen no matter if it has
+     one or multiple, or at least the max size"). This was `max-height`, so the
+     overlay shrank to its content and a 4-file spread opened as a short strip
+     — the surface kept resizing itself per occurrence instead of being a
+     stable place to look at files. A fixed height also gives
+     `.artifact-spread-body` something to fill, which is what lets the grid
+     scroll inside the overlay rather than growing it. */
+  height: 86vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -5490,6 +5498,46 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   /* The canvas arrangement scrolls its own world; the board wraps. Neither
      should chain a rubber-band out to the page behind the overlay. */
   overscroll-behavior: contain;
+}
+
+/* THE TILES FILL THE OVERLAY, and the FILE COUNT decides the columns.
+   The arrangement (`mode: "wrap"`) is data on the spread page; the SIZE cannot
+   be, because it depends on the viewport and on how many files this occurrence
+   has — a stored pixel knows neither. Written as a stored 200px it produced a
+   full-size overlay holding four small tiles in a sea of empty, and a single
+   file opening no bigger than one of four (user 2026-08-16: "if i have one, it
+   opens bigger").
+
+   The count comes from `data-count` on the body, NOT from a CSS quantity
+   query: `ModuleContainer` interleaves an insert-gap between every item, so
+   `:nth-child(1):nth-last-child(1)` never sees "exactly one file" (measured —
+   a single-file spread still rendered at four-column width). `!important` is
+   required and is not laziness: `ModuleContainer` writes `--child-w` as an
+   INLINE custom property, and an inline value beats a stylesheet rule at any
+   specificity. */
+.artifact-spread-body { --spread-cols: 4; }
+.artifact-spread-body[data-count="1"] { --spread-cols: 1; }
+.artifact-spread-body[data-count="2"] { --spread-cols: 2; }
+.artifact-spread-body[data-count="3"] { --spread-cols: 3; }
+.artifact-spread-body .container-items--wrap > .instance-wrap {
+  width: calc(
+    (100% - (var(--spread-cols) - 1) * var(--child-gap, 10px)) / var(--spread-cols)
+  ) !important;
+  /* Height follows the picture rather than a cap — the cap exists for tracker
+     tiles whose FIELDS scroll, and clipping a file's own filename off is the
+     one thing this surface must not do. The image is what is bounded, below. */
+  max-height: none !important;
+}
+/* The base `.artifact-thumb` cap is 240px — right for a row thumbnail, and the
+   reason a "bigger" single file still rendered small. Bounded by the VIEWPORT
+   here so one file can use the overlay while a tall image still cannot push
+   the grid off screen. */
+.artifact-spread-body .artifact-thumb {
+  max-height: min(34vh, 340px);
+}
+/* A LONE file is the whole point of the overlay, so it gets the room. */
+.artifact-spread-body[data-count="1"] .artifact-thumb {
+  max-height: min(64vh, 620px);
 }
 
 .artifact-spread-empty {

@@ -2,6 +2,25 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-08-16 (2) — the zucchini picture: `0130` ran BEFORE the row qualified)
+- **User: *"the zuccini picture is too big and wrapping."*** It rendered the full-width block
+  poster instead of the 22px inline thumbnail beside the label.
+- **NOT A NEW DEFECT — AN ORDERING ONE, and the dry run named it in one line.** `0130` sets
+  `meta.mediaInline` only on ingredient modules that already bind Poster as `role: "media"`, and it
+  logs a skip for the rest. When it ran, the Zucchini row had no Poster binding at all; **`0134`
+  gave it one hours later**. So the row was correctly skipped by a migration that could never see
+  it. Re-running `0130 --force` reports exactly **1 module to switch: Zucchini Peppers Onions**.
+- **This is the `0120`/`0103` class again, one migration over: "every X" in a migration means every
+  X THAT EXISTS WHEN IT RUNS.** A later migration that creates the qualifying condition does not
+  re-trigger the earlier one, and nothing fails — the row just keeps the old rendering. **When a
+  migration MINTS or RE-BINDS rows, ask which earlier migration's predicate those rows would now
+  satisfy.** `0130` is idempotent by construction, so the remedy is a `--force` re-run, not a new
+  file.
+- **Verified by driving the predicate over a fresh dump of the live grid, not by reading the log:**
+  ingredient/grocery rows carrying a media Poster are **31 inline / 0 still rendering as a block**
+  (was 30/1), Zucchini reads `mediaInline=true` with a poster value set, and the whole-grid control
+  is 202 inline modules. poms grid **0 integrity errors**.
+
 ## Recent Changes (2026-08-16 — the photos were never missing: the Files binding's ROLE was wrong)
 - **User: *"clicking on a profile picture for an ingrediant is still only showing one file. in the
   spread."*** Reported twice. My first answer — a stale local server cache — was WRONG, and the

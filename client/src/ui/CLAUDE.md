@@ -2,6 +2,63 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-08-16 (2) — the spread SPREADS: it was minting a page with no layout)
+- **User: *"the artifact spread isnt spreading them out into a grid."*** It was a vertical list —
+  one full-width row per file, which is the opposite of what the overlay exists for.
+- **THE GRID MECHANISM ALREADY EXISTED AND NOTHING TURNED IT ON.** `ModuleContainer` has had the
+  wrapping-grid mode since 2026-08-10 (`layoutCascade.mode: "wrap"` → `.container-items--wrap`,
+  `childMinWidth` as the tile width). `ArtifactSpreadHost` minted the overlay-only page with
+  `meta: { spreadFor }` and no layout at all, so `resolveLayoutCascade` fell to
+  `PAGE_DEFAULTS.board.mode = "stack"`. **No CSS was added and no second grid was written** — the
+  fix is `SPREAD_LAYOUT` written to `meta.layoutCascade`, the same slot the Layout menu edits, so
+  the arrangement is editable in the app instead of frozen in a stylesheet.
+- **THE MINT ALONE WOULD HAVE BEEN HALF A FIX.** Measured on poms grid first: **10 spread pages
+  already exist and 0 carry a layout** — every spread ever opened would have stayed stacked
+  forever. So the host also HEALS on open, and only when no arrangement is set: the board⇄canvas
+  switch and the Layout menu both write here, and a default that re-asserts itself on every open
+  is a lock, not a default.
+- **The heal and the file-list top-up are ONE write, deliberately.** Both patches spread the same
+  `spreadOcc` snapshot, so as two effects whichever landed second would carry a copy taken before
+  the first and silently drop it — the stale-snapshot clobber this repo has paid for repeatedly.
+- **THE OVERLAY IS ALWAYS FULL SIZE** (user: *"the spread viewer should be full screen no matter if
+  it has one or multiple, or at least the max size"*). `.artifact-spread` had `max-height: 86vh`,
+  so it shrank to its content and a 4-file spread opened as a short strip — the surface resized
+  itself per occurrence instead of being a stable place to look at files. Now `height: 86vh`, which
+  also gives the body something to fill so the grid scrolls INSIDE the overlay.
+- **THE TILE SIZE IS CSS, NOT STORED DATA — and three screenshots are why.** The first version put
+  `childMinWidth: 200` / `childMaxHeight: 280` in the persisted cascade. Each looked right by the
+  numbers and was wrong in the picture:
+  1. at 280 the probe reported a perfect grid (4 tiles, 1 row, 4 images) **and two of the four
+     files had their FILENAME SLICED OFF** — the wrap tile clips overflow and `.artifact-thumb`
+     already caps an image at 240;
+  2. once the overlay was full size, 200px tiles read as **four small pictures in a sea of empty**;
+  3. a single file opened **no bigger than one of four** — the opposite of the ask.
+  A stored pixel cannot fix any of this, because the right size depends on the VIEWPORT and on HOW
+  MANY files this occurrence has. So the cascade carries only the durable arrangement
+  (`mode: "wrap"` + `childGap`) and the spread's own stylesheet sizes tiles from a live column
+  count. Measured after: 4 files → 276px each filling the row; 1 file → **1132px**, filling the
+  overlay.
+- **THE COLUMN COUNT COMES FROM `data-count` ON THE BODY, NOT A CSS QUANTITY QUERY.** A
+  `:nth-child(1):nth-last-child(1)` count never sees "exactly one file" — `ModuleContainer`
+  interleaves an insert-gap between every item, so the tiles are not consecutive siblings. That
+  version measured as a silent no-op (a single-file spread still rendered at four-column width);
+  the shell passes the count it already has.
+- **4 host tests, each A/B'd with the mutation verified to land**: dropping the mint layout,
+  dropping the heal, and making the heal unconditional each fail exactly one. The fourth drives the
+  REAL `buildLayoutCascadeContext` + `resolveLayoutCascade` over the REAL minted meta, so it fails
+  if the key written is ever not the key the renderer reads — A/B'd by writing to `meta.layout`, a
+  slot nothing reads. **`ArtifactSpread.test.jsx` covers the SHELL and passed the whole time this
+  was broken**: the shell owns no arrangement, so no assertion there could see it. The host was
+  untested — the seam again.
+- **Verified in a browser on live data** (`_spreadgrid.mjs`, repo root — parameterised by
+  `PAGE`/`SEL`/`NTH`): 4 files → 4 per row at 276px with every caption visible; 1 file → one tile
+  at 1132px; overlay 860×1180 in a 1000px viewport in both cases; 0 page errors. 2577 client tests,
+  poms grid **0 integrity errors**.
+- **NOT SETTLED, and deliberately left for the spread-viewer plan:** how tiles should fill
+  VERTICALLY. Four files occupy one row and leave the lower half of the overlay empty; a 2×2 would
+  fill it but needs the image cap to know the ROW count. Several defensible answers, and the user
+  has asked for a plan that fuses this surface with fullscreen — it belongs there, not in a guess.
+
 ## Recent Changes (2026-08-16 — `LoadingImage`: every picture says what it is doing)
 - **User: *"all the 'profile' images need loading icons instead of a text thumbnail."*** Every
   picture in this app is a REMOTE fetch, so there is always a window where the frame is empty —

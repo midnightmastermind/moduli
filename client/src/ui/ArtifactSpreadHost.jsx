@@ -44,6 +44,39 @@ function makeUUID() {
     : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+/**
+ * HOW THE FILES ARE ARRANGED — and why it is DATA rather than CSS.
+ *
+ * "Spread" means a grid you can see at a glance. But a board container's
+ * default is a STACK of full-width rows (`PAGE_DEFAULTS.board.mode = "stack"`),
+ * so a page minted with no layout laid every artifact out one per row — a
+ * vertical list, which is the opposite of the thing this overlay is for.
+ *
+ * `ModuleContainer` has had the wrapping-grid mode since 2026-08-10
+ * (`mode: "wrap"` → `.container-items--wrap`, `childMinWidth` as the tile
+ * width). Nothing here re-implements it: this is the same layout cascade the
+ * Layout menu edits, written to the slot a container reads for its OWN
+ * children (`meta.layoutCascade`, per `SURFACE_SHAPE_KEYS`). So the spread's
+ * arrangement is editable in the app rather than frozen in a stylesheet, and
+ * there is no second grid implementation to drift.
+ *
+ * WHAT IS DELIBERATELY *NOT* HERE: the tile SIZE. `childMinWidth` /
+ * `childMaxHeight` are stored PIXELS, and the right tile size depends on two
+ * things a stored pixel cannot know — the viewport, and how many files this
+ * particular occurrence has. Writing 200px here produced exactly what the user
+ * then reported: a full-size overlay holding four small tiles in a sea of
+ * empty, and a single file opening no bigger than one of four. So the spread's
+ * own stylesheet sizes the tiles from the live column count (see
+ * `.artifact-spread-body .container-items--wrap` in index.css), and this
+ * carries only the durable ARRANGEMENT decision.
+ *
+ * Only `board` mode reads any of this — canvas positions by x/y.
+ */
+const SPREAD_LAYOUT = Object.freeze({
+  mode: "wrap",
+  childGap: 10,
+});
+
 let _hostListener = null;
 export function registerArtifactSpreadHost(fn) {
   _hostListener = fn;
@@ -123,7 +156,7 @@ export function ArtifactSpreadHost() {
         // Parented to NOTHING on purpose — see the file header.
         fields: {},
         occurrences: files.map(f => f.occ.id),
-        meta: { spreadFor: ownerOcc.id },
+        meta: { spreadFor: ownerOcc.id, layoutCascade: { ...SPREAD_LAYOUT } },
       },
       fireTrigger: false,
     });
@@ -133,17 +166,37 @@ export function ArtifactSpreadHost() {
     });
   }, [req, ownerOcc, spreadOcc, dispatch, socket, gridId, userId, ownerLabel, files]);
 
-  // Keep the page listing every artifact the owner has gained since it was
-  // minted (a new Files pick, a new child). Additive only: the ORDER inside the
-  // page is the user's arrangement and is never rewritten from the field.
+  // Keep the page in step with the owner on open. TWO things can be stale, and
+  // they are written TOGETHER in ONE update on purpose: both patches spread the
+  // same `spreadOcc` snapshot, so as separate effects whichever landed second
+  // would carry a copy of the occurrence taken before the first — dropping it.
+  // That stale-snapshot clobber is a class this repo has paid for repeatedly.
   useEffect(() => {
     if (!req || !spreadOcc || !dispatch) return;
+
+    // (1) Artifacts the owner has gained since the page was minted (a new Files
+    // pick, a new child). Additive only — the ORDER inside the page is the
+    // user's arrangement and is never rewritten from the field.
     const listed = new Set(spreadOcc.occurrences || []);
     const missing = files.map(f => f.occ.id).filter(id => !listed.has(id));
-    if (missing.length === 0) return;
+
+    // (2) A page minted before the spread had a layout at all. Fixing only the
+    // mint would leave every spread opened before today stacked forever — the
+    // "shipped and does nothing" class. Healed only when NO arrangement is set:
+    // the board⇄canvas switch and the Layout menu both write here, and a
+    // default that re-asserts itself on every open is a lock, not a default.
+    const needsLayout = !spreadOcc.meta?.layoutCascade?.mode;
+
+    if (missing.length === 0 && !needsLayout) return;
     CommitHelpers.updateOccurrence({
       dispatch, socket,
-      occurrence: { ...spreadOcc, occurrences: [...(spreadOcc.occurrences || []), ...missing] },
+      occurrence: {
+        ...spreadOcc,
+        occurrences: [...(spreadOcc.occurrences || []), ...missing],
+        ...(needsLayout
+          ? { meta: { ...(spreadOcc.meta || {}), layoutCascade: { ...SPREAD_LAYOUT } } }
+          : null),
+      },
     });
   }, [req, spreadOcc, files, dispatch, socket]);
 
