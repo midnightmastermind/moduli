@@ -10,6 +10,7 @@ import { resolveFileRef } from "../helpers/fileRef";
 import { getUploadController } from "../helpers/uploadWithProgress";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext.js";
+import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
 
 // Render a plain string with bare URLs turned into clickable links (quote artifacts
 // store their text as a plain string, so http(s):// links weren't resolving — 2026-07-10).
@@ -55,6 +56,22 @@ export default function ArtifactCard({ module, label, occurrence }) {
     e?.stopPropagation();
     setExpanded((v) => !v);
   }, []);
+
+  // Clicking ANY artifact occurrence opens the spread viewer (user, 2026-08-16),
+  // so a picture behaves the same wherever it is met — an inline row thumbnail,
+  // a board card, a doc embed.
+  //
+  // TWO GUARDS, both load-bearing:
+  //   - a card ALREADY INSIDE a spread keeps the in-place expand, or clicking a
+  //     file in the viewer would re-open the viewer on top of itself;
+  //   - no occurrence (a preview render, a bare module card) has nothing to
+  //     open, so it falls back rather than throwing.
+  const openViewer = useCallback((e) => {
+    e?.stopPropagation();
+    const insideSpread = e?.currentTarget?.closest?.(".artifact-spread");
+    if (insideSpread || !occurrence?.id) { toggle(e); return; }
+    openArtifactSpread(occurrence.id, e.currentTarget.getBoundingClientRect());
+  }, [occurrence?.id, toggle]);
 
   // Full-bleed logo (Viafluere top-middle cell): on first mount, scroll the
   // nearest scrollable ancestor so the LOGO sits vertically centered in the
@@ -210,7 +227,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
       // image; that predates the rule and was the one artifact reading the
       // other way round.
       <div ref={fullbleedRef} className="artifact-card artifact-card--fullbleed" data-kind="image">
-        <img className="artifact-fullbleed-img" src={src} alt={label || "viafluere"} />
+        <ArtifactImage className="artifact-fullbleed-img" src={src} alt={label || "viafluere"} />
         <div className="artifact-fullbleed-header">
           {fileName && <span className="artifact-fullbleed-name" title={fileName}>{fileName}</span>}
         </div>
@@ -268,10 +285,10 @@ export default function ArtifactCard({ module, label, occurrence }) {
     <div
       className={showInfo ? "artifact-card artifact-card--with-info" : "artifact-card"}
       data-kind={kind}
-      onClick={toggle}
+      onClick={openViewer}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") toggle(e); }}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openViewer(e); }}
     >
       {showInfo && (
         <div className="artifact-thumb-info">
@@ -281,7 +298,19 @@ export default function ArtifactCard({ module, label, occurrence }) {
         </div>
       )}
       {renderThumbnail(kind, src, label, thumb256Src)}
-      <Maximize2 className="artifact-thumb-expand-hint" size={12} />
+      {/* The in-place expand keeps its own affordance — the card's click now
+          opens the viewer, and losing "grow it where it sits" entirely would be
+          taking a behaviour away rather than adding one. */}
+      <button
+        type="button"
+        className="artifact-thumb-expand-hint"
+        title="Expand here"
+        aria-label="Expand here"
+        onClick={toggle}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        <Maximize2 size={12} />
+      </button>
     </div>
   );
 }
@@ -299,11 +328,49 @@ function formatBytes(bytes) {
   return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)} ${units[i]}`;
 }
 
+// An image that says it is LOADING. Remote artifact images (an imported photo,
+// a picture picked from search) have no bytes locally, so a spread of them
+// opened as a grid of empty frames for a second with nothing to say why (user,
+// 2026-08-16). The spinner sits OVER the image rather than replacing it, so the
+// frame never changes size when the picture arrives.
+//
+// `img.complete` is checked on mount because a CACHED image can finish before
+// React attaches the handler — without it a re-opened spread would spin forever.
+function ArtifactImage({ className, src, alt }) {
+  const ref = useRef(null);
+  const [state, setState] = useState("loading");
+  useEffect(() => {
+    setState("loading");
+    const el = ref.current;
+    if (el && el.complete) setState(el.naturalWidth > 0 ? "ok" : "error");
+  }, [src]);
+  return (
+    <span className="artifact-img-wrap">
+      <img
+        ref={ref}
+        className={className}
+        src={src}
+        alt={alt}
+        onLoad={() => setState("ok")}
+        onError={() => setState("error")}
+      />
+      {state === "loading" && (
+        <span className="artifact-img-status" aria-hidden="true"><Spinner size="sm" /></span>
+      )}
+      {state === "error" && (
+        <span className="artifact-img-status artifact-img-status--error" title="This image could not be loaded">
+          <AlertCircle style={{ width: 14, height: 14 }} />
+        </span>
+      )}
+    </span>
+  );
+}
+
 // The PREVIEW half of the card — picture, frame, or type glyph. It never prints
 // the file name: that is the info block's job and it always sits underneath, so
 // printing it here too showed it twice.
 function renderThumbnail(kind, src, label, imgSrc = src) {
-  if (kind === "image") return <img className="artifact-thumb" src={imgSrc} alt={label || "image"} />;
+  if (kind === "image") return <ArtifactImage className="artifact-thumb" src={imgSrc} alt={label || "image"} />;
   if (kind === "video") return <video className="artifact-thumb" src={src} muted playsInline preload="metadata" />;
   if (kind === "audio") return (
     <div className="artifact-thumb artifact-thumb--audio" onClick={(e) => e.stopPropagation()}>
@@ -324,7 +391,7 @@ function renderThumbnail(kind, src, label, imgSrc = src) {
 }
 
 function renderExpanded(kind, src, label, imgSrc = src) {
-  if (kind === "image") return <img className="artifact-expanded-media" src={imgSrc} alt={label || "image"} />;
+  if (kind === "image") return <ArtifactImage className="artifact-expanded-media" src={imgSrc} alt={label || "image"} />;
   if (kind === "video") return <video className="artifact-expanded-media" src={src} controls playsInline />;
   if (kind === "audio") return (
     <div className="artifact-expanded-audio">

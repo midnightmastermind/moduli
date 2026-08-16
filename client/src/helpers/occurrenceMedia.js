@@ -147,6 +147,12 @@ export function filesOf(occ, ctx) {
     if (resolved) ordered.push({ ...resolved, source, isPrimary: id === primaryId });
   };
 
+  // AN ARTIFACT IS ITS OWN FILE. Without this, opening the spread on an artifact
+  // occurrence resolves nothing — an artifact carries no Poster, no Files and no
+  // children — so clicking a picture would open an EMPTY viewer. Pushed FIRST so
+  // a single artifact opens as a one-window view of itself (user, 2026-08-16:
+  // "single artifacts would still only open up that one in the view").
+  push(occ?.id, "self");
   if (primaryId) push(primaryId, attachedIds.includes(primaryId) ? "field" : "child");
   for (const id of attachedIds) push(id, "field");
   for (const id of childIds) push(id, "child");
