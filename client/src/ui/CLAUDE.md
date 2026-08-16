@@ -1,6 +1,31 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-08-08. Check this file before re-reading source._
+_Updated: 2026-08-16. Check this file before re-reading source._
+
+## Recent Changes (2026-08-16 — `LoadingImage`: every picture says what it is doing)
+- **User: *"all the 'profile' images need loading icons instead of a text thumbnail."*** Every
+  picture in this app is a REMOTE fetch, so there is always a window where the frame is empty —
+  and an empty frame is indistinguishable from a broken reference. A spinner says "wait", a
+  broken-image glyph says "this one is gone"; a blank box says neither.
+- **`LoadingImage.jsx` (NEW, 6 tests)** is now the one `<img>` for the three sites that had a raw
+  one: `ArtifactCard` (whose private `ArtifactImage` it REPLACES — the faithfulness check),
+  `Field.jsx`'s `OccurrenceOption` chips, and `RepresentationView`'s thumbnail.
+- **THE STATUS IS AN OVERLAY, NOT A REPLACEMENT.** Swapping a spinner element for an `<img>`
+  reflows every row around it at the moment the image loads — the exact jitter this exists to
+  remove. The img stays mounted in all three states, so the frame never changes size (pinned).
+- **`el.complete` on mount is load-bearing.** A CACHED image finishes before React attaches
+  `onLoad`, and that event never fires again — without the check, a RE-opened dropdown (every
+  picture already in cache) would spin forever over pictures that are right there. **That test was
+  VACUOUS on its first draft and the A/B caught it**: it fired a `load` event, which passes with or
+  without the check. It now asserts the mount path with no event at all.
+- **`frameStyle` decides what `inset: 0` resolves against**, which is why it is a prop and not a
+  constant: the artifact cards keep `display: contents` (the CARD is the positioned frame, and a
+  wrapper between it and the img would break its layout), while `RepresentationView` must supply
+  the thumbnail's box because the chip itself is not positioned.
+- **A/B'd, and the first attempt PROVED NOTHING** — the mutations ran from the wrong cwd, so all
+  three "failed to fail". With absolute paths and an assert that the mutation actually applied:
+  removing the spinner, the error branch, or the cached check each fail exactly one test.
+
 ## Recent Changes (2026-08-10 (4) — `FieldBindingsEditor`: adding a field stops being a MIGRATION)
 - **`FieldBindingsEditor.jsx` (NEW, 15 tests)** — the one add-a-field-to-a-thing editor, for every
   role. Until now `InstanceForm`'s Fields tab was the ONLY authoring surface and it only renders for

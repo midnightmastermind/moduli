@@ -1,6 +1,35 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-07-24. Check this file before re-reading source._
+_Updated: 2026-08-16. Check this file before re-reading source._
+
+## Recent Changes (2026-08-16 — table cells: the padding was DOUBLE-STACKED)
+- **User: *"theres too much padding on each table cell too. all the words get cut off
+  unnecessarily early."*** Measured from the screenshot's own column widths, and the cause was
+  two layers of padding stacking invisibly:
+  ```
+  .table-td                8px + 8px
+  .table-cell-static-text  8px + 8px      <- INSIDE the td
+  = 32px gone from every text cell
+  ```
+  On a 72px column that is nearly half the width, so a word clipped with visible space still left
+  in the column. The live editor that replaces the idle cell on hover already had `padding: 0`, so
+  the two states also disagreed — text shifted when the cell woke up.
+- **Glyph room per cell, measured against the BUILT stylesheet across the three passes: 40 -> 62
+  -> 66px (+65%).** The inner layer's horizontal padding is gone; `.table-td` and
+  `.table-th-inner` are at 3px.
+- **The header controls no longer reserve their box.** `.table-th-actions` was already absolute,
+  but the inner kept a permanent 24px right inset for a cluster that is not on screen until hover
+  (user: *"it hides the buttons but the dom its in is still taking up space"*). The inset is now
+  applied on `:hover` only, and the cluster gets `pointer-events: none` at rest — an opacity-0
+  element still hit-tests, so the invisible kebab was swallowing clicks aimed at the title.
+  Measured: right-edge click hits the TITLE at rest and the kebab on hover; header height is 28px
+  in both states.
+- **TWO PROBES LIED BEFORE EITHER NUMBER WAS TRUSTWORTHY, both mine.** The first measured
+  `scrollWidth` on an inline span (always 0, so every cell "fits"); the second reconstructed the
+  OLD css with a string replace anchored on `{padding:` — **the minifier reorders declarations, so
+  that patch matched nothing** while the overall guard still passed because the OTHER patch had
+  applied. *An A/B guard has to assert each mutation landed, not that the file changed.*
+
 
 ## Recent Changes (2026-08-07 (2) — the per-panel loaders never showed: a JS timer on a busy thread)
 - **User, on the deployed build:** *"the grid loads and is empty for a few seconds before the loads

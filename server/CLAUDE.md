@@ -1,6 +1,59 @@
 # server — Server CLAUDE.md
 
-_Updated: 2026-08-07. Check this file before re-reading source._
+_Updated: 2026-08-16. Check this file before re-reading source._
+
+## Recent Changes (2026-08-16 — the photos were never missing: the Files binding's ROLE was wrong)
+- **User: *"clicking on a profile picture for an ingrediant is still only showing one file. in the
+  spread."*** Reported twice. My first answer — a stale local server cache — was WRONG, and the
+  correction is the useful part: a cache theory explains a stale view, never a wrong one.
+- **`0133-files-binding-role`.** `occurrenceMedia.filesFieldIdFor` does not look the field up by
+  NAME — it asks the MODULE which binding carries `role: "files"`, and returns nothing when none
+  does. `0120` bound Files as a plain input and nothing since re-roled it, so the ids sat on the
+  occurrence, complete and correct, and the spread could not find the field they were in. It fell
+  back to the Poster alone — hence exactly ONE window.
+- **THE MEASUREMENT IS THE PROOF, not the reasoning, and it has no exceptions in either
+  direction:**
+  ```
+  Files binding role="files"   21 rows   holds 4 files   spread opens 4   OK
+  Files binding role="input"   28 rows   holds 4 files   spread opens 1   BROKEN
+  no binding at all             1 row    holds 3 files   spread opens 0   BROKEN
+  ```
+  There is no other variable between the two groups. **This is `0129` one field over** — that one
+  re-roled `Poster` from `input` to `media` for the same reason, and Files was never done.
+- **Fixing the MODULE fixes the feed copies too** — a copy reads its source's module, so the 14
+  broken copies and their 14 broken sources are the same ~15 modules. It is also why this cannot be
+  fixed on the occurrence: the role lives on the module by design.
+- **A CLAIM I MADE EARLIER WAS FALSE and re-measuring is what caught it.** I reported "31 of 33
+  sources carry 4 files". Measured through the REAL `filesOf`: 16 sources opened 4 windows, 14
+  opened 1, 3 opened none. *A count of stored VALUES is not a count of what resolves* — the earlier
+  number came from reading the field, not from driving the resolver the client actually uses.
+- **`0134-apple-fruit-and-zucchini-row`.** Two rows, two causes, applied independently:
+  - **Apple was showing Apple INC.** `0131` searched each ingredient by its bare name; three of the
+    four pictures were `9to5mac.com`, `insight.com/store`, `compucom.com`. **A URL cannot be
+    inspected to tell a fruit from a laptop**, so this does not prune — it re-runs the same search
+    with a disambiguated query and replaces the row's pictures wholesale. `AMBIGUOUS` is a TABLE so
+    the next collision (Turkey, Kiwi) is one line rather than a new migration.
+  - **The Zucchini row had pictures and no way to show them.** Tagged `ingredient` only — never
+    `grocery` — so `0125`'s grocery pass never saw it: no Poster binding (nothing rendered) and no
+    Quantity binding ("nothing for quantity"). Its face comes from a file it ALREADY had, so this
+    half fetches nothing. **Price and Total Needed are deliberately NOT added** — those are the
+    grocery board's fields, this row is not on that board, and a plausible price nobody entered is
+    indistinguishable from a real one (the `0052`/`0054` rule).
+- **`0135-copies-follow-replaced-pictures`.** The board renders feed COPIES, and Apple went from
+  four pictures to four, all resolving — invisible to `0132`, which syncs only when the source
+  offers MORE or the copy is broken. **Loosening `0132` to "any difference" would be the wrong
+  fix** (its own header records why: for books and courses a same-count difference is drift where
+  the copy is as likely to be right). So this is SCOPED to the names `0134` replaced, and it
+  IMPORTS that list rather than restating it so the two cannot drift.
+- **Verified by driving the REAL `filesOf`/`primaryMediaOf` over a fresh dump of the live grid**,
+  not by reading the migration logs: **49 of 50 rows open 4 windows, 1 opens 3 (it has 3 photos),
+  0 rows open one, 0 rows have no face**; Apple's four are all pixabay/vecteezy apple fruit; the
+  Zucchini row reads `label="Zucchini Peppers Onions" face=true quantity="1/2 cup"`. Control: a
+  bare artifact still opens 1 window, which is the intended behaviour.
+- **OPEN, reported not fixed: 26 ingredient rows carry no Quantity.** They are the plain
+  ingredient rows rather than grocery ones; the user has only flagged the Zucchini one, so which
+  of the rest should carry an amount is theirs to say.
+
 
 ## Recent Changes (2026-08-12 — `0086`/`0087`: a wheel click lands on EVERY day)
 - **User: *"it should always be in sync between todays emotional wheel and todays schedule. same as
