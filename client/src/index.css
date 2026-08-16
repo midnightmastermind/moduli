@@ -5879,3 +5879,13 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 @media (pointer: coarse) {
   .instance-body-btn { opacity: 1; width: 26px; height: 26px; }
 }
+
+/* The instance's mini doc body. "it just is mini" (user 2026-08-16) — and an
+   EMPTY body was a ~100px empty slab, because `.doc-editor-wrapper` carries a
+   Tailwind `min-h-[100px]` sized for a full doc page. Floored at one line here
+   so an empty body is a place to start typing rather than a hole; it grows
+   with its content exactly as a doc does. Same treatment `.table-td` already
+   gives its cell editors, and for the same reason. */
+.instance-doc-body .doc-editor-wrapper { min-height: 0 !important; }
+.instance-doc-body .doc-editor { min-height: 22px !important; }
+.instance-doc-body .doc-editor-content.ProseMirror { min-height: 22px; }

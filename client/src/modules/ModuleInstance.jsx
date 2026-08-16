@@ -1290,7 +1290,7 @@ function ModuleInstance({
       {occurrence && showDoc && (() => {
         const bg = container?.ownStyle?.bg || null;
         return (
-          <div style={{
+          <div className="instance-doc-body" style={{
             borderLeft: `2px solid ${hexToRgba(bg, 0.45) ?? "rgba(255,255,255,0.08)"}`,
             background: hexToRgba(bg, 0.06) ?? "transparent",
             marginLeft: 4,
