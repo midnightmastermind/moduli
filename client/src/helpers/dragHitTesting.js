@@ -264,16 +264,66 @@ export function computeInsertIndexFromPointer(targetOcc, ptr) {
   const cards = collectMemberCards(containerEl);
   if (cards.length === 0) return null;
 
-  const r0 = cards[0].getBoundingClientRect();
-  const r1 = cards.length > 1 ? cards[1].getBoundingClientRect() : null;
-  const horizontal = r1 ? Math.abs(r1.left - r0.left) > Math.abs(r1.top - r0.top) : false;
+  // WHICH CARD DOES THE POINTER SIT BEFORE?
+  //
+  // This used to pick ONE axis from the first two cards and scan every card on
+  // it. That is correct for the two layouts it was written for — a vertical
+  // stack and a single horizontal row — and WRONG for a wrapping grid, where
+  // cards[0] and cards[1] are side by side, so it chose the x axis and then
+  // compared x against cards from EVERY row in document order. Dropping into
+  // row 2 matched a card in row 1: the artifact spread's tiles could not be
+  // reordered (user 2026-08-16). A grid needs both axes — row first, then
+  // position within that row.
+  //
+  // The two original layouts are preserved EXACTLY (a grid is only entered
+  // when there genuinely is more than one row AND some row holds more than one
+  // card), so no existing surface changes behaviour.
+  const rects = cards.map((c) => ({ el: c, r: c.getBoundingClientRect() }));
+
+  // Group into visual rows: a card joins the current row while its vertical
+  // MIDPOINT still falls inside that row's band. Midpoint rather than `top`
+  // because tiles in one row can differ in height.
+  const rows = [];
+  for (const item of [...rects].sort((a, b) => a.r.top - b.r.top || a.r.left - b.r.left)) {
+    const mid = item.r.top + item.r.height / 2;
+    const row = rows[rows.length - 1];
+    if (row && mid < row.bottom) {
+      row.items.push(item);
+      row.bottom = Math.max(row.bottom, item.r.bottom);
+    } else {
+      rows.push({ items: [item], top: item.r.top, bottom: item.r.bottom });
+    }
+  }
+  for (const row of rows) row.items.sort((a, b) => a.r.left - b.r.left);
+
+  const isGrid = rows.length > 1 && rows.some((row) => row.items.length > 1);
+
+  let scan = rects;                       // document order — the 1-D default
+  let horizontal;
+  if (isGrid) {
+    // The row whose band contains the pointer; past the last row, the last row.
+    const row =
+      rows.find((rw) => ptr.y < rw.bottom) || rows[rows.length - 1];
+    scan = row.items;
+    horizontal = true;                    // within a row, x decides
+  } else {
+    const r0 = rects[0].r;
+    const r1 = rects.length > 1 ? rects[1].r : null;
+    horizontal = r1 ? Math.abs(r1.left - r0.left) > Math.abs(r1.top - r0.top) : false;
+  }
   const p = horizontal ? ptr.x : ptr.y;
 
   let beforeCard = null;
-  for (const c of cards) {
-    const r = c.getBoundingClientRect();
+  for (const { el, r } of scan) {
     const mid = horizontal ? r.left + r.width / 2 : r.top + r.height / 2;
-    if (p < mid) { beforeCard = c; break; }
+    if (p < mid) { beforeCard = el; break; }
+  }
+  // Past the last card of a MIDDLE row, insert before the next row's first
+  // card — not at the very end of the list, which is what a 1-D scan did.
+  if (!beforeCard && isGrid) {
+    const rowIdx = rows.findIndex((rw) => rw.items === scan);
+    const nextRow = rows[rowIdx + 1];
+    if (nextRow) beforeCard = nextRow.items[0].el;
   }
 
   const occIdOf = (el) =>

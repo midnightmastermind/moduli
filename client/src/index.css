@@ -5515,29 +5515,69 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    required and is not laziness: `ModuleContainer` writes `--child-w` as an
    INLINE custom property, and an inline value beats a stylesheet rule at any
    specificity. */
-.artifact-spread-body { --spread-cols: 4; }
+.artifact-spread-body { --spread-cols: 3; }
 .artifact-spread-body[data-count="1"] { --spread-cols: 1; }
 .artifact-spread-body[data-count="2"] { --spread-cols: 2; }
-.artifact-spread-body[data-count="3"] { --spread-cols: 3; }
+/* FOUR is 2x2, not 3+1 — a ragged last row wastes the same space it saves.
+   Everything else is 3 across (user 2026-08-16: "lets me have 3 or 2 on a row
+   instead of 4"), which is also what makes the tiles big enough to read. */
+.artifact-spread-body[data-count="4"] { --spread-cols: 2; }
 .artifact-spread-body .container-items--wrap > .instance-wrap {
   width: calc(
     (100% - (var(--spread-cols) - 1) * var(--child-gap, 10px)) / var(--spread-cols)
   ) !important;
-  /* Height follows the picture rather than a cap — the cap exists for tracker
-     tiles whose FIELDS scroll, and clipping a file's own filename off is the
-     one thing this surface must not do. The image is what is bounded, below. */
-  max-height: none !important;
+  /* The TILE is what is bounded now (the image inside it is `flex: 1`), so a
+     tall photo cannot push the grid off screen. Bounded by the VIEWPORT rather
+     than a stored pixel, for the same reason the width is.
+     The cap is sized by how many ROWS there will be, so a grid fits the
+     overlay instead of scrolling: 4+ files wrap onto a second row, and two
+     rows at the single-row cap ran off the bottom (measured — 2x460 in a
+     ~790px body). */
+  max-height: min(38vh, 380px) !important;
 }
-/* The base `.artifact-thumb` cap is 240px — right for a row thumbnail, and the
-   reason a "bigger" single file still rendered small. Bounded by the VIEWPORT
-   here so one file can use the overlay while a tall image still cannot push
-   the grid off screen. */
-.artifact-spread-body .artifact-thumb {
-  max-height: min(34vh, 340px);
+/* One row (<=3 files at 3 columns, <=2 at 2) — nothing below to make room for. */
+.artifact-spread-body[data-count="2"] .container-items--wrap > .instance-wrap,
+.artifact-spread-body[data-count="3"] .container-items--wrap > .instance-wrap {
+  max-height: min(60vh, 600px) !important;
 }
 /* A LONE file is the whole point of the overlay, so it gets the room. */
-.artifact-spread-body[data-count="1"] .artifact-thumb {
-  max-height: min(64vh, 620px);
+.artifact-spread-body[data-count="1"] .container-items--wrap > .instance-wrap {
+  max-height: min(76vh, 760px) !important;
+}
+/* EVERY TILE IS FULL HEIGHT AND THE CAPTION SITS ON THE BOTTOM EDGE (user
+   2026-08-16: "make the height full so the caption underneath is always at the
+   bottom of the artifact components"). A flex row already stretches its items
+   to the tallest, so the tiles were uniform — but each CARD hugged its own
+   image, leaving the filename floating at a different height in every tile and
+   a slab of empty card beneath it. Filling the chain and pushing the caption
+   down with `margin-top: auto` lines every filename up on one baseline.
+   The chain has to be unbroken: wrap → row → content → body → card. */
+.artifact-spread-body .container-items--wrap > .instance-wrap .instance-body {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+}
+.artifact-spread-body .artifact-card {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+/* The picture takes the leftover room; `contain` letterboxes rather than
+   cropping, so a short image simply sits in a taller box. */
+.artifact-spread-body .artifact-thumb {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* The base cap is 240px — right for a row thumbnail, and the reason a
+     "bigger" single file still rendered small. Lifted here; the TILE bounds it
+     now, and the tile is bounded by the overlay. */
+  max-height: none;
+  object-fit: contain;
+}
+.artifact-spread-body .artifact-thumb-info {
+  margin-top: auto;      /* pinned to the bottom edge, whatever the image height */
+  flex: 0 0 auto;
 }
 
 .artifact-spread-empty {

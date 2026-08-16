@@ -236,7 +236,13 @@ export function ArtifactSpreadHost() {
       open
       title={ownerLabel}
       mode={mode}
-      count={files.length}
+      // THE COUNT IS WHAT IS RENDERED, not what the owner's Files field holds.
+      // The page can legitimately carry MORE than `filesOf`: the top-up below
+      // is additive only (a picture replaced by a migration stays listed), and
+      // the "+" button adds straight to the page rather than to the field. The
+      // header said "4 files" over five tiles, and — because `count` also
+      // drives the column count — the fifth wrapped onto a second row.
+      count={spreadOcc?.occurrences?.length ?? files.length}
       originRect={req.originRect}
       onClose={close}
       onAdd={handleAdd}

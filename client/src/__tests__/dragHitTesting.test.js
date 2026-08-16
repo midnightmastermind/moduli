@@ -223,7 +223,7 @@ describe("buildDropContext", () => {
   });
 });
 
-import { collectMemberCards } from "../helpers/dragHitTesting.js";
+import { collectMemberCards, computeInsertIndexFromPointer } from "../helpers/dragHitTesting.js";
 
 describe("collectMemberCards", () => {
   it("returns direct leaf rows and nested container shells, not grandchildren", () => {
@@ -245,5 +245,97 @@ describe("collectMemberCards", () => {
   });
   it("returns [] for a null container", () => {
     expect(collectMemberCards(null)).toEqual([]);
+  });
+});
+
+// ── computeInsertIndexFromPointer: the GRID case ────────────────────────────
+// The helper used to pick ONE axis from the first two cards and scan every
+// card on it. Correct for a vertical stack and for a single horizontal row —
+// and wrong for a WRAPPING GRID, where cards[0] and cards[1] sit side by side,
+// so it chose x and then compared x against cards from every row in document
+// order. Dropping into row 2 matched a card in row 1, which is why the
+// artifact spread's tiles could not be reordered (user 2026-08-16).
+//
+// jsdom has no layout, so each card's rect is stubbed. That is the point: the
+// helper's whole job is turning rects + a pointer into an index.
+function layout(spec) {
+  // spec: [{ id, x, y, w, h }] laid out however the test wants
+  // `data-occ-id` is how computeInsertIndexFromPointer finds the container;
+  // `data-container-id` is how collectMemberCards decides a card is OWNED by it.
+  document.body.innerHTML = `<div id="c" data-occ-id="target" data-container-id="targetmod">${spec
+    .map((s) => `<div class="instance-wrap" data-occurrence-id="${s.id}"></div>`)
+    .join("")}</div>`;
+  const cards = Array.from(document.querySelectorAll(".instance-wrap"));
+  cards.forEach((el, i) => {
+    const s = spec[i];
+    el.getBoundingClientRect = () => ({
+      left: s.x, right: s.x + s.w, top: s.y, bottom: s.y + s.h,
+      width: s.w, height: s.h, x: s.x, y: s.y,
+    });
+  });
+  return { id: "target", occurrences: spec.map((s) => s.id) };
+}
+
+// 3 across, then 2 on the second row — the spread's 5-file shape.
+const GRID_3x2 = [
+  { id: "a", x: 0,   y: 0,   w: 100, h: 100 },
+  { id: "b", x: 110, y: 0,   w: 100, h: 100 },
+  { id: "c", x: 220, y: 0,   w: 100, h: 100 },
+  { id: "d", x: 0,   y: 110, w: 100, h: 100 },
+  { id: "e", x: 110, y: 110, w: 100, h: 100 },
+];
+
+describe("computeInsertIndexFromPointer — wrapping grid", () => {
+  it("uses the ROW under the pointer, not document order", () => {
+    const occ = layout(GRID_3x2);
+    // Left edge of the SECOND row. The 1-D scan compared x only and returned
+    // 0 (before "a", row one). Row-aware, this is before "d" — index 3.
+    expect(computeInsertIndexFromPointer(occ, { x: 10, y: 160 })).toBe(3);
+  });
+
+  it("resolves position WITHIN the pointed-at row", () => {
+    const occ = layout(GRID_3x2);
+    // Past d's midpoint (x=50), before e's (x=160) → between them.
+    expect(computeInsertIndexFromPointer(occ, { x: 100, y: 160 })).toBe(4);
+  });
+
+  it("still reads the first row correctly", () => {
+    const occ = layout(GRID_3x2);
+    expect(computeInsertIndexFromPointer(occ, { x: 10, y: 50 })).toBe(0);
+    expect(computeInsertIndexFromPointer(occ, { x: 160, y: 50 })).toBe(2);
+  });
+
+  it("past the end of a MIDDLE row inserts before the next row, not at the end", () => {
+    const occ = layout(GRID_3x2);
+    // Right of "c" on row one. A 1-D scan fell through to "append at the end"
+    // (5); the correct answer is before "d".
+    expect(computeInsertIndexFromPointer(occ, { x: 400, y: 50 })).toBe(3);
+  });
+
+  it("past the end of the LAST row appends", () => {
+    const occ = layout(GRID_3x2);
+    expect(computeInsertIndexFromPointer(occ, { x: 400, y: 160 })).toBe(5);
+  });
+
+  it("a VERTICAL STACK is unchanged (one card per row)", () => {
+    const occ = layout([
+      { id: "a", x: 0, y: 0,   w: 300, h: 100 },
+      { id: "b", x: 0, y: 110, w: 300, h: 100 },
+      { id: "c", x: 0, y: 220, w: 300, h: 100 },
+    ]);
+    expect(computeInsertIndexFromPointer(occ, { x: 150, y: 10 })).toBe(0);
+    expect(computeInsertIndexFromPointer(occ, { x: 150, y: 150 })).toBe(1);
+    expect(computeInsertIndexFromPointer(occ, { x: 150, y: 400 })).toBe(3);
+  });
+
+  it("a SINGLE horizontal row is unchanged", () => {
+    const occ = layout([
+      { id: "a", x: 0,   y: 0, w: 100, h: 100 },
+      { id: "b", x: 110, y: 0, w: 100, h: 100 },
+      { id: "c", x: 220, y: 0, w: 100, h: 100 },
+    ]);
+    expect(computeInsertIndexFromPointer(occ, { x: 10,  y: 50 })).toBe(0);
+    expect(computeInsertIndexFromPointer(occ, { x: 150, y: 50 })).toBe(1);
+    expect(computeInsertIndexFromPointer(occ, { x: 400, y: 50 })).toBe(3);
   });
 });
