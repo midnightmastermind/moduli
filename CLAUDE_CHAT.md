@@ -2781,7 +2781,21 @@ corners, no top margin — so it reads as the row opening rather than a slab par
 
 > "make the chevron up still be on the instance when you expand it, right now it moves it to the body"
 
-**DONE.** The button was absolutely positioned against `.instance-wrap`, which GROWS to contain the
+> "textblock rows are not instances"
+
+**Right, and the body button was on all three roles.** `ModuleInstance` is the shared row SHELL, not
+an instance-only renderer — `ModuleTextblock`'s card context composes it and so does every
+ArtifactCard call site — so adding the body to that shell handed it to textblocks and artifacts too.
+A textblock is ALREADY its own body (its `occurrence.textmap` is what the card renders), which is
+why opening one showed the row's text twice. Gated on `module.role === "instance"`, in the callee
+rather than at each call site, so the next thing that composes the shell cannot re-inherit it.
+Measured on screen: **textblock rows offering it 34 → 0, instance rows unchanged at 75.** The same
+one predicate also removes the radial's "Toggle doc", so the two surfaces cannot drift.
+
+---
+
+**The chevron, earlier the same day — DONE.** The button was absolutely positioned against
+`.instance-wrap`, which GROWS to contain the
 body — so "bottom of the wrap" became the bottom of the body. It renders inside `InstanceInner`
 now, against `.instance-row`, which does not grow; no wrapper div, so the several
 `.instance-wrap > .instance-row` direct-child selectors are untouched. Measured on live data and

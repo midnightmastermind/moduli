@@ -2,6 +2,45 @@
 
 _Updated: 2026-08-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-08-17 (2) — a BODY IS AN INSTANCE AFFORDANCE; the shared shell gave it away)
+- **User: *"textblock rows are not instances."*** Correct, and the body button was on all three
+  roles that reach this shell. `ModuleInstance` is the shared row SHELL, not an instance-only
+  renderer: `ModuleTextblock`'s `card` context composes it (its own header says so — *"COMPOSES
+  ModuleInstance rather than reimplementing its shell"*) and so does every `ArtifactCard` call site
+  (ModuleContainer x2, PageBoard, PageCanvas, ModuleEmbedNode). Adding an affordance to the shell
+  therefore added it to `textblock` and `artifact` as well.
+- **A TEXTBLOCK IS ALREADY ITS OWN BODY, which is what made this visible.** Its
+  `occurrence.textmap` is exactly what `TextblockCard` renders, so the disclosure opened a doc
+  showing the row's own text a second time. I had noticed the doubling and filed it as out of scope;
+  the user named the real reason.
+- **Gated in the CALLEE, not at the call sites** — `canHaveBody(module)`, exported and used by
+  `ModuleInstance` itself. The 2026-08-08 (10) rule: when the fix is "wire it at every call site",
+  the default belongs in the callee, or the next call site reintroduces the bug. **ONE predicate
+  covers BOTH surfaces**: nulling `toggleDoc` removes the row button AND the radial's "Toggle doc"
+  item (`RadialMenu` gates that item on `if (onToggleDoc)`), so the two cannot drift.
+- **Gated on ROLE, not on `!renderBody`** — which selects the same rows today and is a rendering
+  detail rather than the fact. **Safe by census, not by assumption:** all 3101 modules on poms grid
+  carry a role, none null (instance 861 / textblock 1161 / artifact 345 / container 654 / page 75 /
+  panel 5), so the gate cannot silently strip the body from a real instance.
+- **Measured on screen before and after** (`_bodybtnroles.mjs`, repo root — classifies each button
+  by what its row's body renders):
+  ```
+                       before   after
+  textblock rows         34        0
+  artifact rows           0        0     (none mounted on this screen — see gap below)
+  instance rows          75       75     <- the positive control, unchanged
+  ```
+  The instance count holding at 75 is the load-bearing half: it proves the button CAN still be
+  present, so the textblock zero is the gate rather than a broken probe (the 2026-08-01 (16) trap).
+- **A/B'd with the mutation verified as landed:** ungating `canHaveBody` to `return true` fails 4 of
+  the 5 new tests. The tests deliberately NAME textblock and artifact rather than restating
+  `role === "instance"`, so a later "gate on `!renderBody`" fails here instead of quietly
+  re-granting the affordance to a role that gains a renderBody.
+- **Honest gaps:** no ARTIFACT row was mounted during the census, so that half is gated by the same
+  predicate but never observed changing; and the probe's per-page navigation does not actually
+  re-scope (identical counts per page, one of the three reported `navigated:false`) — treat it as
+  one whole-document census, not three.
+
 ## Recent Changes (2026-08-17 — the body chevron stays on the ROW, and it is measured)
 - **User: *"make the chevron up still be on the instance when you expand it, right now it moves it
   to the body."*** The button was `position: absolute; bottom: 2px` against `.instance-wrap` — and
@@ -30,10 +69,9 @@ _Updated: 2026-08-11. This folder implements occurrence-based view routing._
   The A/B re-parents the SAME button to `.instance-wrap` in the live DOM — same element, same CSS,
   same open body — so a number that did not move under it would have been measuring nothing.
   Screenshotted and looked at: the chevron sits at the row's bottom-right, above the pocket.
-- **Noticed while looking, NOT fixed and out of scope:** opening a body on a TEXTBLOCK row shows the
-  row's own text twice — the body renders `occurrence.textmap`, which for a textblock is the same
-  content the card renders. That is the instance-body feature meeting the textblock role, not this
-  change; worth deciding whether textblock rows should offer a body at all.
+- **Noticed while looking:** opening a body on a TEXTBLOCK row showed the row's own text twice. I
+  filed it as out of scope; it was the visible symptom of the real defect the user named an hour
+  later — a textblock is not an instance and should never have had a body. **Fixed in (2) above.**
 
 ## Recent Changes (2026-08-16 — instances get a BODY BUTTON; the feature was mostly already there)
 - **User: *"i want to have instances have bodies again. a button that opens up a little doc. typing

@@ -989,6 +989,21 @@ function InstanceInner({
 // ============================================================
 // MODULE INSTANCE WRAPPER (was SortableInstance.jsx — used within Container only)
 // ============================================================
+/**
+ * Which rows may open a mini doc body. Exported so the RULE is testable without
+ * mounting a 1300-line component that needs the whole grid store — the same call
+ * `pageChildRenderer` made (2026-08-09), and for the same reason: the predicate
+ * is where the bug lived.
+ *
+ * A body is an INSTANCE affordance. `ModuleInstance` is the shared row SHELL,
+ * not an instance-only renderer — `ModuleTextblock`'s card context composes it,
+ * and so does every ArtifactCard call site — so without this the shell handed a
+ * textblock and an artifact something that was never theirs.
+ */
+export function canHaveBody(module) {
+  return module?.role === "instance";
+}
+
 function ModuleInstance({
   module,
   occurrence,
@@ -1045,7 +1060,26 @@ function ModuleInstance({
   // what closes this row when a SIBLING opens (the row being closed receives
   // no event of its own). `toggleDoc` is the one handler both the row button
   // and the radial item call.
-  const [showDoc, toggleDoc] = useBodyOpen(occId);
+  const [showDocRaw, toggleDocRaw] = useBodyOpen(occId);
+  // A BODY IS AN INSTANCE AFFORDANCE, and this shell is NOT instance-only —
+  // `ModuleTextblock`'s card context composes it, and so does every ArtifactCard
+  // call site. Sharing a shell does not make a textblock an instance (user
+  // 2026-08-17: "textblock rows are not instances"), and a textblock is ALREADY
+  // its own body: its `occurrence.textmap` is what the card renders, so the
+  // disclosure opened a doc showing the row's own text a second time. Measured
+  // before gating — one screen carried 34 textblock cards offering it.
+  //
+  // Gated on ROLE rather than on `!renderBody`, which would happen to select the
+  // same rows today: renderBody is a rendering detail, role is the fact. Safe by
+  // census — all 3101 modules on poms grid carry a role, none null (instance 861
+  // / textblock 1161 / artifact 345 / container 654 / page 75 / panel 5), so this
+  // cannot silently strip the body from a real instance.
+  //
+  // ONE predicate covers BOTH surfaces: nulling `toggleDoc` removes the row
+  // button and the radial's "Toggle doc" item together, so the two cannot drift.
+  const hasBody = canHaveBody(module);
+  const showDoc = hasBody && showDocRaw;
+  const toggleDoc = hasBody ? toggleDocRaw : null;
   const isSelected = occId ? selection.isSelected(occId) : false;
   // Clipboard-staged class — applied when this occurrence is currently in
   // the clipboard (post Copy / Move / Copy-link from the right-click menu).
