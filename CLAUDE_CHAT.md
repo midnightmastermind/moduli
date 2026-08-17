@@ -2892,3 +2892,76 @@ Verified on prod: **0 opaque out of 5 panels, 94 containers, 94 headers and 190 
 with a **planted-opaque control** (forcing one container opaque makes the probe report 1, so the
 zero discriminates). Looked at, too: everything reads through and the wallpaper's bands surface in
 the gaps. **0.45 is a taste knob, not a law — say the word and it goes lighter or heavier.**
+
+---
+
+> "check the latest screenshot. none of the occurances are see through. we want transparacy"
+
+**THEY WERE RIGHT AND MY VERIFICATION WAS THE REASON I BELIEVED OTHERWISE.** The
+previous pass measured alpha on the surfaces it had CHANGED and reported *"0
+opaque of 94 containers"* — true, and meaningless. It never measured what sits
+BEHIND them. Walking the real paint stack from a container to the wallpaper,
+transmission was **0.0%**: every container was correctly translucent and
+revealing an opaque slab. *A surface being translucent is not the same claim as
+the wallpaper reaching the eye — and a survey of chosen selectors cannot tell you
+which claim you proved.*
+
+**THREE CAUSES, none of them the knob I had been turning:**
+1. **An opaque LID** — `.page-shell`, painting `var(--surface-card)` (alpha 1)
+   INLINE. A census of every element inside `.grid-surface` found exactly 5
+   opaque nodes and all 5 were this. Now transparent, because the layer is
+   redundant: a page renders inside a panel that already paints a card surface.
+2. **AN INVENTED COLOUR, STACKED FIVE DEEP — the dominant one.**
+   `ModuleContainer` holds a THIRD inline colour path with a hardcoded teal
+   fallback, and **56 of the 87 painting surfaces were that literal**: an
+   imported doc nests sections five deep, none carry a colour, so all five
+   painted the same made-up teal on each other. *Inventing a colour for a
+   section that has none is the defect; compounding is what made it visible.*
+3. **THE CAP COULD NOT BITE.** Those 56 sat at 0.35, already under the 0.45 cap,
+   so `min()` left every one untouched — **the knob was inert on exactly the
+   surfaces that dominate the stack.** A cap only does anything below the lowest
+   stored alpha.
+
+**THE SCRIM CARRIES THE CONTRAST, NOT THE SURFACES.** At 43% the rays competed
+with the text, so the wallpaper's own scrim went 0.28 → 0.62. That is the knob
+for "more/less wallpaper"; reaching for the surface alpha instead is what made
+this a three-round fix.
+
+**`.panel-header` IS DEAD CSS** — nothing renders it, so half my earlier rule was
+inert. The header on screen is `.page-header`, deliberately excluded because its
+own background is already lighter than the cap. It gained the asked-for **2px of
+air below as MARGIN**, not padding, since these rows are height-sensitive.
+
+**Deepest stack: 0.0% → 66.9%**, no opaque layer, painting surfaces 87 → 26.
+
+---
+
+> "i saved a new image, use that for the background just turned landscape wise"
+
+Rotated 90° and nothing else. **A mirror-extend to 16:9 was built first and
+thrown away:** it was seamless, but it invented a composition (two bursts
+flanking a stripe) where the ask said *just* turned.
+
+---
+
+> "id like to swap the colors on doc containers … have the textblock background
+> colors be the colors for the containers and have the container colors be the
+> textblocks" / "its like an army green for the textblocks currently (which i
+> want for container)"
+
+**MEASURING COLLAPSED THE SCOPE TO ONE CSS EDIT: NEITHER COLOUR WAS EVER IN THE
+DATA.** A stored-colour swap would need a migration over poms grid plus a seed
+change to cover "new docs". Censused first — **1161 of 1161 textblock modules
+carry `ownStyle.bg: null`, and 180 of 191 doc containers do too.** The green came
+from `.textblock-card`; the teal came from that same hardcoded fallback. So one
+token covers the docs that exist and every doc made later, and a migration would
+have written 1161 identical values to say what one token says.
+
+Named as a **pair** (`--doc-container-tint` / `--doc-textblock-tint` + hover and
+ring), because the colours were spread over six literals across two files, which
+is how two halves of a pair drift. **The teal is the very literal deleted an hour
+earlier** — the swap gives it a real home instead of being an accident.
+
+Verified on prod: textblock `rgba(134,239,172,.04)` → `rgba(14,61,50,.35)`,
+container `rgba(0,0,0,0)` → `rgba(134,239,172,.04)`. **0.04 is why this does not
+undo the transparency work** — the old default was 0.35.
