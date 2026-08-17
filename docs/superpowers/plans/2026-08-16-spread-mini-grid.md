@@ -554,6 +554,18 @@ check the animation and reported scale 1 for a working shoot-out — the keyfram
 animates the `scale` PROPERTY, and `transform` reads `none` throughout. Same
 property-vs-property confusion as the bug it was measuring.
 
+**DEPLOYED and verified the documented way.** Prod HEAD `7581c571` == local,
+index 200, the referenced stylesheet 200 and **sha256 byte-identical** to the
+local build, and the SERVED `.artifact-spread` rule read back in full — no
+`translate`, `top/left: 0`, `100vw/100vh`, `border: none`, `border-radius: 0`.
+Controls: `artifact-spread-in`, `instance-body-btn` and the new descendant hover
+selector all present (non-zero), the OLD `instance-wrap:hover>.instance-body-btn`
+at **0** — so a zero there is the fix, not a probe grepping the wrong file.
+Both probes re-run against **https://viafluere.com** with identical numbers to
+local, 0 page errors. One arm is weaker on prod: the 45ms animation sample reads
+`scale: none` there because the network roundtrip outlasts the 260ms animation —
+the `scale: 0.08` start was measured locally against byte-identical CSS.
+
 ## Verification still owed
 
 - **The SINGLE-FILE tile cap (82vh) has never been exercised.** 175 occurrences
