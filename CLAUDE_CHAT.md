@@ -2781,6 +2781,39 @@ corners, no top margin — so it reads as the row opening rather than a slab par
 
 > "make the chevron up still be on the instance when you expand it, right now it moves it to the body"
 
+> "move the files container up more, flush with the viewer header, and make those not transparent.
+> also dont give the artifacts colored see through. just tinted black or gray. also look at the
+> latest screenshot, could you try and make everything on the grid itself, slightly tinted
+> background, with the latest screenshot being the background of the grid itself. we need to try to
+> add sides to the background image cause it wont cover the screen currently with its size."
+> …and mid-turn: *"give the viewer a very slight transparent black background too"*
+
+**The viewer half, all measured:** `gap under the viewer header 17px → 1px`, both headers opaque
+(`rgba(255,255,255,0.02)` → `rgb(20,22,26)`; once the overlay stopped painting, 2% of nothing was an
+unreadable title floating over grid rows), the tile tint `rgba(70,44,30,0.85)` → **`rgba(0,0,0,0.6)`**
+with a neutral gray hairline — a COLOURED wash over a photograph shifts the photograph, black only
+darkens it — and the overlay itself `transparent` → `rgba(0,0,0,0.28)`.
+
+**The wallpaper half, and the first attempt was completely invisible.** It painted on `.grid-frame`,
+which is App's PADDING WRAPPER — the grid renderer mounts its own full-bleed opaque div inside it,
+**measured 1598x968 inside 1600x970**. *The positive control is what found it: forcing every panel,
+container and header transparent AND the scrim to 0 still showed nothing, which killed "the UI is
+covering it" before I spent the session tuning alpha.* Both grid renderers carry a shared
+`grid-surface` class now and the art paints there.
+
+**"Add sides" = MIRRORED, chosen by measuring both edge columns.** The source is the top-left corner
+of a rainbow frame; bands exit the RIGHT edge horizontally, so joining it to a flipped copy makes a
+seamless join and a symmetric arch. Copy-EXTENDING was rejected — the outer edges are where the bands
+run vertically, so it would smear a leg into a solid block. Aspect **0.56 → 1.13**, cutting `cover`
+crop on a desktop from 2.8x to 1.4x, which is the stated complaint.
+
+**Three knobs, and alpha compounds** — swept live: shipped `0.55/0.62` puts 6.5% of the wallpaper
+through a panel+container, and the gutters expose only **2.8%** of the surface, so it reads as a warm
+tint rather than a picture. **One limit worth knowing: a container carrying its own `ownStyle.bg` is
+fully opaque and shows none of it** — that would be a data change, not a CSS one.
+
+---
+
 > "i still need the artifacts in the viewer to have a tinted background and a border around it. and
 > no larger background on any of the parents. i want to see the grid through the viewer"
 

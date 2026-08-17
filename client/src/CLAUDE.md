@@ -2,6 +2,48 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-08-17 (3) — a GRID WALLPAPER, and the layer that made the first try invisible)
+- **User: *"make everything on the grid itself, slightly tinted background, with the latest
+  screenshot being the background of the grid itself. we need to try to add sides to the background
+  image cause it wont cover the screen currently with its size."*** Plus, mid-turn, *"give the viewer
+  a very slight transparent black background too"* — `.artifact-spread` went transparent →
+  `rgba(0,0,0,0.28)`, neutral for the same reason the tiles are.
+- **THE FIRST ATTEMPT PAINTED ON `.grid-frame` AND WAS COMPLETELY INVISIBLE.** `.grid-frame` is
+  App's PADDING WRAPPER; the grid renderer mounts its own full-bleed opaque `bg-background2` div
+  inside it — **measured 1598x968 inside 1600x970, covering 99.9%**. So the wallpaper was behind an
+  opaque layer at every scrim value.
+- **THE POSITIVE CONTROL IS WHAT FOUND IT, and this is the reusable part.** Forcing every panel,
+  container, header and toolbar transparent AND the scrim to 0 **still showed no wallpaper** — which
+  killed the obvious theory ("the UI covers it, turn the knobs down") and proved the problem was a
+  layer nobody had looked for. Without that arm I would have spent the session tuning alpha. *When a
+  thing does not appear, first prove it CAN appear.*
+- Both grid renderers (`GridMosaic`, `Grid.jsx`'s `GridRender`) now carry a shared **`grid-surface`**
+  class and the wallpaper paints there. `bg-background2` sets background-COLOR and an image paints
+  over it, so the colour survives underneath as the 404 fallback and nothing needs un-setting.
+- **THE ASSET IS MIRRORED — that is the "add sides", and it was chosen by measuring both edge
+  columns rather than by eye.** The source is the TOP-LEFT corner of a rainbow frame: bands rise
+  from the bottom-left, curve round the top-left, exit the RIGHT edge horizontally. Joining it to a
+  flipped copy puts its right edge against itself — an identical pixel column, so the join is
+  seamless and the bands run through into the mirrored corner, making a symmetric arch.
+  **Edge-EXTENSION was rejected**: the outer edges are the source's LEFT edge, where the bands run
+  VERTICALLY, so copy-extending would smear a leg into a solid block. Aspect **0.56 → 1.13**, which
+  cuts `cover` crop on a ~1.6 desktop from 2.8x to 1.4x — the stated complaint.
+- **THREE KNOBS, and alpha COMPOUNDS — which is why they are not guessable.** `--grid-wallpaper`,
+  `--grid-wallpaper-scrim`, `--grid-surface-a`. Swept on the live grid:
+  ```
+  scrim 0.55  surface 0.62  (shipped)    6.5% of the wallpaper through panel+container
+  scrim 0.40  surface 0.45              18.2%
+  scrim 0.25  surface 0.30              36.7%
+  scrim 0.10  surface 0.18              60.5%
+  frame exposed by gutters alone         2.8%   <- it can never read as a picture, only a wash
+  ```
+- Panel bodies drop the redundant rainbow GRADIENT: it was opaque, so it blocked the wallpaper
+  whatever the scrim said, and the wallpaper is the same motif one level out.
+- **LIMIT, measured on prod and worth knowing before turning a knob: a container carrying its own
+  `ownStyle.bg` is OPAQUE** (sampled `rgb(179,79,36)` — no alpha) and shows no wallpaper at all.
+  `--grid-surface-a` only reaches containers that fall back to the stylesheet. Making "everything"
+  translucent would mean changing stored container colours — DATA, not CSS.
+
 ## Recent Changes (2026-08-17 (2) — the spread: BARE PARENTS, FRAMED TILES (you look THROUGH it))
 - **User: *"i still need the artifacts in the viewer to have a tinted background and a border around
   it. and no larger background on any of the parents. i want to see the grid through the viewer."***
