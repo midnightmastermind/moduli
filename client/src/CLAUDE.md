@@ -2,6 +2,37 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-08-17 (2) — the spread: BARE PARENTS, FRAMED TILES (you look THROUGH it))
+- **User: *"i still need the artifacts in the viewer to have a tinted background and a border around
+  it. and no larger background on any of the parents. i want to see the grid through the viewer."***
+- **The earlier pass made the whole chain transparent — parents AND tiles — which answered half the
+  ask and lost the other half.** The overlay still carried an opaque `--panel-bg` and the backdrop
+  `rgba(0,0,0,0.62)` + `blur(2px)`, so nothing showed through; and with the tiles bare there was
+  nothing separating a photo from what sat behind it. The two halves are ONE idea, which is why they
+  arrived in one sentence: strip the PARENTS so the grid reads through, frame each TILE so the files
+  read as objects rather than pictures pasted onto the app.
+- `.artifact-spread` and `.artifact-spread-backdrop` draw nothing. The backdrop stays in the DOM —
+  it is the click-to-close target (`ArtifactSpread.jsx:97`, pinned by a test) — and loses its blur,
+  which would have softened the grid even at zero opacity. The overlay's `box-shadow` went with its
+  background: a shadow on a transparent full-screen box is a dark band over the page.
+- **The tint and border live on the TILE (`.instance-row`), not on the `.artifact-card` inside it**,
+  so there is exactly one frame — the same call `.instance-wrap > .instance-row:has(.artifact-card)`
+  already makes everywhere else (2026-07-31: "the row IS the single visual box").
+- **THE TINT IS DERIVED FROM THE THEME, NOT HARDCODED:** `rgba(var(--occ-card) / calc(var(--occ-card-a)
+  + 0.3))`. `--occ-card-a` is `.55` in dark and `.07` in light, so a fixed alpha would read as a black
+  slab in one of them. Stepped UP rather than reused as-is because the tile now sits over an arbitrary
+  grid instead of an opaque panel — the same alpha means something different once the parent is gone.
+- **Verified the calc PARSED, not just that a rule exists.** A `calc()` the engine cannot evaluate
+  drops the whole declaration, which looks like "no tint" rather than a broken value:
+  ```
+  tile      background rgba(70, 44, 30, 0.85)   border 1px rgb(70, 56, 52)
+  parents   overlay / backdrop / shell / list / items / card  all rgba(0, 0, 0, 0)
+  overlay   1600x1000 @ 0,0 == viewport      0 tiles past its edge
+  ```
+- **Looked at, and reported rather than smoothed over:** the grid is fully bright in the gaps between
+  tiles and about 4x dimmed *through* a tile, where its text stays faintly legible. That is what a
+  tint is; going more solid is one number.
+
 ## Recent Changes (2026-08-17 — the spread's FULL-SCREEN change had shipped INERT)
 - **A change can be in the stylesheet, in the served bundle, and do nothing.** The 2026-08-17 edit
   made `.artifact-spread` full screen by ADDING `top/left: 0`, `translate: none`,

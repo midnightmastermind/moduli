@@ -2781,6 +2781,31 @@ corners, no top margin — so it reads as the row opening rather than a slab par
 
 > "make the chevron up still be on the instance when you expand it, right now it moves it to the body"
 
+> "i still need the artifacts in the viewer to have a tinted background and a border around it. and
+> no larger background on any of the parents. i want to see the grid through the viewer"
+
+**The first pass answered half of this and lost the other half.** It made the WHOLE chain transparent
+— parents and tiles alike — while the overlay itself kept an opaque `--panel-bg` slab and the
+backdrop kept `rgba(0,0,0,0.62)` + a 2px blur. So the grid could not be seen at all, and the tiles
+had nothing separating a photo from whatever sat behind it. The two halves are one idea: strip the
+PARENTS so the grid reads through, frame each TILE so the files still read as objects.
+- The overlay and the backdrop draw **nothing** now. The backdrop stays in the DOM because it is the
+  click-to-close target (pinned by a test); the overlay's drop shadow went with its background — a
+  shadow on a transparent full-screen box is just a dark band over the grid.
+- The tile carries the tint and the border, **not** the `.artifact-card` inside it, so there is
+  exactly one frame — the call `.instance-wrap > .instance-row:has(.artifact-card)` already makes
+  everywhere else.
+- **The tint is stepped up from the THEME's own alpha, not hardcoded**: `--occ-card-a` is `.55` in
+  dark and `.07` in light, so a fixed value would read as a black slab in one of them. Verified it
+  actually parsed — a `calc()` that fails drops the whole declaration and would look like "no tint"
+  rather than a broken value. Computed: `rgba(70, 44, 30, 0.85)`, 1px border, and every parent
+  (overlay / backdrop / shell / list / items / card) reads `rgba(0,0,0,0)`.
+- **Looked at, and one thing is worth your call:** the grid is fully bright in the gaps between
+  tiles and roughly 4x dimmed *through* a tile, where its text is still faintly legible. That is
+  what "tinted" gets you; say the word and it goes more solid — it is one number.
+
+---
+
 > "textblock rows are not instances"
 
 **Right, and the body button was on all three roles.** `ModuleInstance` is the shared row SHELL, not

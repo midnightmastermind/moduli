@@ -5398,13 +5398,19 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    there are no tile, grid or drag rules here — those already exist and adding
    a second set is how two renderers drift apart.
    ═══════════════════════════════════════════════════════════════════════════ */
+/* THE BACKDROP IS A HIT AREA, NOT A SCRIM (user 2026-08-17: "no larger
+   background on any of the parents. i want to see the grid through the
+   viewer"). It was `rgba(0,0,0,0.62)` + `blur(2px)`, which is precisely what
+   made the grid unseeable — and the blur would have softened it even at zero
+   opacity. It STAYS IN THE DOM because it is the click-to-close target
+   (`ArtifactSpread.jsx:97`, pinned by a test); it just draws nothing.
+   Separation now comes from the TILES having their own tint + border, which is
+   why the user asked for both in one breath. */
 .artifact-spread-backdrop {
   position: fixed;
   inset: 0;
   z-index: 1300;
-  background: rgba(0, 0, 0, 0.62);
-  backdrop-filter: blur(2px);
-  animation: menu-backdrop-in 140ms ease-out;
+  background: transparent;
 }
 
 /* FULL SCREEN (user 2026-08-17: "the spread viewer needs to be the full height
@@ -5437,8 +5443,11 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   overflow: hidden;
   border: none;
   border-radius: 0;
-  background: var(--panel-bg, #14161a);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  /* NO BACKGROUND. The overlay is a full-screen frame you look THROUGH — it was
+     an opaque `--panel-bg` slab, which is the "larger background on a parent"
+     the user is objecting to. The drop shadow goes with it: a shadow on a
+     transparent full-screen box is a dark band over the grid and nothing else. */
+  background: transparent;
   /* Opens out of the thumbnail that was clicked. The origin is handed in as
      custom properties because it is the only part that varies per open —
      the keyframe itself stays here rather than being rebuilt inline.
@@ -5912,21 +5921,50 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .instance-doc-body .doc-editor { min-height: 22px !important; }
 .instance-doc-body .doc-editor-content.ProseMirror { min-height: 22px; }
 
-/* ── The spread's tiles are CONTAINED and CHROMELESS ───────────────────────
-   User 2026-08-17: "the artifacts are expanding the green box. we need those
-   contained in there. also we need to make the artifact backgrounds and the
-   green background to be transparent."
+/* ── The spread: BARE PARENTS, FRAMED TILES ────────────────────────────────
+   User 2026-08-17: "i still need the artifacts in the viewer to have a tinted
+   background and a border around it. and no larger background on any of the
+   parents. i want to see the grid through the viewer."
 
-   TRANSPARENT. The overlay IS the surface; a container box inside it, holding
-   tile boxes, holding card boxes, is three frames drawn around one thing. Only
-   the pictures should read. `!important` throughout because each of these
-   backgrounds is a deliberate default elsewhere (the container's own colour,
-   the recessed drop pocket, the instance keycap) and specificity alone will
-   not beat them.                                                            */
+   The first pass made the whole chain transparent — parents AND tiles — which
+   answered half the ask and lost the other half: with the overlay opaque you
+   could not see the grid, and with the tiles bare there was nothing separating
+   a photo from whatever sat behind it. The two halves are one idea: strip the
+   PARENTS so the grid reads through, and give each TILE its own frame so the
+   files still read as objects rather than pictures pasted onto the app.
+
+   `!important` throughout because each of these is a deliberate default
+   elsewhere (the container's own colour, the recessed drop pocket, the instance
+   keycap) and specificity alone will not beat them.                          */
+
+/* THE PARENTS DRAW NOTHING. A container box inside the overlay, holding tile
+   boxes, holding card boxes, is three frames around one thing. */
 .artifact-spread-body .container-shell,
 .artifact-spread-body .container-list,
-.artifact-spread-body .container-items,
-.artifact-spread-body .instance-wrap > .instance-row,
+.artifact-spread-body .container-items {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* THE TILE IS THE ONE BOX. Tint + border live on `.instance-row` rather than on
+   the `.artifact-card` inside it, so there is exactly one frame — the same call
+   `.instance-wrap > .instance-row:has(.artifact-card)` already makes everywhere
+   else (2026-07-31: "the row IS the single visual box").
+
+   The tint is the app's OWN occurrence-card colour, stepped up from the theme's
+   alpha rather than hardcoded, because the tile now sits over an arbitrary
+   grid instead of a panel: `--occ-card-a` is .55 in dark and .07 in light, so a
+   fixed alpha would read as a black slab in one of them. */
+.artifact-spread-body .instance-wrap > .instance-row {
+  background: rgba(var(--occ-card) / calc(var(--occ-card-a) + 0.3)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* The card INSIDE the tile stays bare — it is the picture, not a second frame.
+   An EXPANDED card is excluded: that is the lightbox and owns its own surface. */
 .artifact-spread-body .artifact-card:not(.artifact-card--expanded) {
   background: transparent !important;
   border-color: transparent !important;
