@@ -1,6 +1,38 @@
 # client/src — Source Root CLAUDE.md
 
-_Updated: 2026-08-16. Check this file before re-reading source._
+_Updated: 2026-08-17. Check this file before re-reading source._
+
+## Recent Changes (2026-08-17 (4) — a stored colour is the one surface CSS cannot reach)
+- **User: *"nothing else is transparent. make each transparacy as light as possible. on all
+  occurances (the backgrounds of them and headers)."*** The knobs (3) shipped got the surfaces that
+  fall back to the stylesheet, and could never have got the rest.
+- **`ownStyle.bg` RENDERS INLINE, WHICH BEATS ANY RULE AT ANY SPECIFICITY.** Measured on the live
+  grid: a container with a stored colour came back `rgb(179, 79, 36)` — fully opaque, wallpaper
+  invisible behind it — while `--grid-surface-a` was doing its job everywhere else. So the alpha is
+  applied where the stored colour BECOMES css: `StyleHelpers.styleToCSS`, the one chokepoint every
+  surface passes through. `withSurfaceAlpha` is exported and tested separately because that is where
+  the parsing risk lives.
+- **`App` PUBLISHES `SURFACE_ALPHA` INTO `--grid-surface-a` AT MOUNT** — one authority instead of two
+  numbers that have to be remembered as equal. A container with a colour and one without must be
+  equally light, and that is only true by construction. The stylesheet's own value is the pre-mount
+  fallback.
+- **MINIMUM, NOT MULTIPLY.** A colour already stored translucent is already at least this light;
+  compounding would drive it toward invisible on every pass. Hex + rgb/rgba only (what the picker
+  and the seed write) — **a named colour, hsl, `var()` or a gradient is returned UNCHANGED**, since
+  emitting a value the engine drops leaves the surface unpainted, which is worse than doing nothing.
+- **THE HEADER RAINBOW WAS REMOVED, AND ITS SCRIM WAS NOT THE FIX.** The gradient is an OPAQUE layer:
+  no scrim value lets the wallpaper through it, and a lighter scrim only reveals more rainbow —
+  louder without being any more see-through. Same reason `.panel-shell`'s went; the wallpaper IS
+  that motif one level out. The 2px `::after` band stays (it is the part that pops, and it costs
+  nothing). **`.toolbar` keeps its wash** — it is app chrome over the page, not an occurrence over
+  the wallpaper, so there is nothing behind it to see.
+- **Verified on prod with a control that matters:** 0 opaque of 5 panels / 94 containers / 94
+  headers / 190 instance rows, **and forcing one container opaque makes the probe report 1** — a
+  zero from a probe never shown reporting non-zero is a claim about the probe. Two probe selectors
+  DID read 0 on the first run (`.instance-shell`, `.module-instance`) — neither exists; the class is
+  `.instance-row`. Screenshot taken: text legible, bands visible in the gaps.
+- **A/B'd:** reverting the `styleToCSS` chokepoint fails exactly 2 of the 10 new tests — so the other
+  8 pure-function cases do not discriminate on their own, and are kept as contract pins.
 
 ## Recent Changes (2026-08-17 (3) — a GRID WALLPAPER, and the layer that made the first try invisible)
 - **User: *"make everything on the grid itself, slightly tinted background, with the latest

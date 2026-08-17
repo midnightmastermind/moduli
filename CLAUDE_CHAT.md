@@ -2859,3 +2859,36 @@ now, against `.instance-row`, which does not grow; no wrapper div, so the severa
 `.instance-wrap > .instance-row` direct-child selectors are untouched. Measured on live data and
 A/B'd: the button's centre reads 12px INSIDE the row both closed and open, and re-homing the same
 button to the wrap in the live DOM puts it 63px below the row, down in the body.
+
+---
+
+> "nothing else is transparent. make each transparacy as light as possible. on all occurances (the
+> backgrounds of them and headers)"
+
+**THE CSS TOKENS COULD NEVER HAVE FINISHED THIS, and that is the whole finding.** `--grid-surface-a`
+/ `--occ-card-a` only reach a surface that falls back to the stylesheet. A container or instance
+carrying its own `ownStyle.bg` renders that colour as an **INLINE style, which beats any rule at any
+specificity** — measured on the live grid, one such container came back `rgb(179, 79, 36)`, fully
+opaque, showing none of the wallpaper. So the alpha has to be applied where the stored colour
+*becomes* css: `styleToCSS`, the one chokepoint every surface passes through.
+
+**ONE AUTHORITY, NOT TWO NUMBERS KEPT EQUAL.** `App` publishes `StyleHelpers.SURFACE_ALPHA` into
+`--grid-surface-a` at mount, so the JS half and the CSS half cannot drift; the stylesheet's value is
+the pre-mount fallback. A container *with* a colour and one *without* must be equally light, and
+that is only true by construction.
+
+**It takes the MINIMUM rather than multiplying** — a colour already stored translucent is already at
+least this light, and compounding would push it toward invisible on every pass. Hex and rgb/rgba are
+handled because those are what the picker and the seed actually write; **anything else is returned
+UNCHANGED**, because emitting a value the engine drops leaves the surface unpainted, which is worse
+than today's appearance.
+
+**THE HEADER RAINBOW HAD TO GO, AND LOWERING ITS SCRIM WAS NOT THE FIX.** The gradient is an OPAQUE
+layer, so no scrim value lets the wallpaper through it — a lighter scrim only reveals more rainbow,
+which is louder without being any more see-through. **The toolbar keeps its wash**: it sits above the
+grid, over the page rather than over the wallpaper, so there is nothing to see through it.
+
+Verified on prod: **0 opaque out of 5 panels, 94 containers, 94 headers and 190 instance rows** —
+with a **planted-opaque control** (forcing one container opaque makes the probe report 1, so the
+zero discriminates). Looked at, too: everything reads through and the wallpaper's bands surface in
+the gaps. **0.45 is a taste knob, not a law — say the word and it goes lighter or heavier.**
