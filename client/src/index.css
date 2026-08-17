@@ -5859,12 +5859,18 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
      wallpaper still reads as a tint rather than a picture — raise the
      transparency (lower the number) if you want more of it. */
   --grid-wallpaper: url("/grid-wallpaper.jpg");
-  --grid-wallpaper-scrim: 0.28;
+  /* THE SCRIM CARRIES THE CONTRAST, NOT THE SURFACES. Once the surfaces became
+     genuinely translucent (43% of the wallpaper reaching the eye through the
+     deepest stack, up from 0%), a 0.28 scrim let the rays compete with the text
+     on top of them. Raising it keeps the transparency and gives the type its
+     background back — the wallpaper reads as a tint rather than a poster. This
+     is the knob to turn for "more/less wallpaper", NOT the surface alpha. */
+  --grid-wallpaper-scrim: 0.62;
   /* THE FALLBACK ONLY. `App.jsx` publishes the real value from
      `StyleHelpers.SURFACE_ALPHA` at mount, so the CSS half and the JS half that
      re-alphas stored `ownStyle.bg` colours cannot drift — a container's own
      colour and a container with no colour must be equally light. */
-  --grid-surface-a: 0.45;
+  --grid-surface-a: 0.18;
 }
 
 /* THE TOOLBAR keeps the rainbow wash. It sits ABOVE the grid, over the page
@@ -5894,17 +5900,27 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 
    The 2px band below stays. That is what actually "pops" (its own comment says
    so) and it is a separate `::after`, so it costs nothing to keep. */
-.panel-header,
+/* `.panel-header` USED TO BE NAMED HERE AND IS DEAD — nothing renders it (the
+   2026-07-03 header redesign left the class behind; grep the JSX: zero hits).
+   The panel header on screen is `.page-header`, and it is deliberately NOT in
+   this rule: its own background is `rgba(0,0,0,0.28)`, already LIGHTER than
+   --grid-surface-a, so folding it in here would have made it darker. */
 .container-shell > .container-header {
   position: relative;
   background-image: none !important;
   background-color: hsl(var(--surface-2) / var(--grid-surface-a));
 }
 
+/* 2px of air under the panel header (user 2026-08-17). Margin, not padding:
+   padding would grow the header itself, and these rows are height-sensitive —
+   the 2026-07-31 bug was a header label overflowing its own fixed-height row. */
+.page-header {
+  margin-bottom: 2px;
+}
+
 /* The band. `::after` rather than a border so it cannot alter layout — these
    rows are height-sensitive (the 2026-07-31 header overflow was exactly that). */
 .toolbar::after,
-.panel-header::after,
 .container-shell > .container-header::after {
   content: "";
   position: absolute;

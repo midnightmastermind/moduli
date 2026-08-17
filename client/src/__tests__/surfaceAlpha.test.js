@@ -30,8 +30,16 @@ describe("withSurfaceAlpha", () => {
   it("takes the MINIMUM rather than multiplying", () => {
     // A colour already stored translucent is already at least this light.
     // Multiplying would compound toward invisible every time it passed through.
-    expect(withSurfaceAlpha("rgba(10, 20, 30, 0.2)")).toBe("rgba(10, 20, 30, 0.2)");
-    expect(withSurfaceAlpha("rgba(10, 20, 30, 0.9)")).toBe(`rgba(10, 20, 30, ${SURFACE_ALPHA})`);
+    //
+    // BOTH FIXTURES ARE DERIVED FROM THE CONSTANT, not hardcoded. The first
+    // version wrote 0.2 as "already lighter" — true at SURFACE_ALPHA 0.45 and
+    // FALSE the moment it dropped to 0.18, so the test failed on a correct
+    // change. A fixture that hardcodes which side of a threshold it sits on
+    // fails whenever the threshold moves.
+    const lighter = SURFACE_ALPHA / 2;          // already under the cap: kept
+    const darker = (1 + SURFACE_ALPHA) / 2;     // over the cap: capped
+    expect(withSurfaceAlpha(`rgba(10, 20, 30, ${lighter})`)).toBe(`rgba(10, 20, 30, ${lighter})`);
+    expect(withSurfaceAlpha(`rgba(10, 20, 30, ${darker})`)).toBe(`rgba(10, 20, 30, ${SURFACE_ALPHA})`);
   });
 
   it("FAILS SAFE on anything it does not understand", () => {

@@ -592,7 +592,19 @@ function Page({
         // representation. Per #45.
         ...(isNestedAsContainer
           ? { border: "1px solid var(--border-subtle)", borderRadius: 4, background: "transparent" }
-          : { border: "1px solid var(--border-default)", borderRadius: 6, background: "var(--surface-card)" }),
+          // THE PAGE SHELL WAS THE ONE OPAQUE LID IN THE WHOLE GRID. Measured on
+          // prod: 5 opaque elements inside `.grid-surface`, all of them this —
+          // `var(--surface-card)` is `hsl(var(--surface-1))`, alpha 1, applied
+          // INLINE where no stylesheet rule can reach it. So every container
+          // above it was correctly translucent and revealing a solid slab:
+          // wallpaper transmission through the stack measured 0.0%.
+          //
+          // It is TRANSPARENT rather than merely lighter, because this layer is
+          // redundant: a page renders inside a panel that already paints the
+          // card surface, so painting it again only stacked a second lid. The
+          // nested-as-container branch above reached the same conclusion for its
+          // own reason and has been transparent all along.
+          : { border: "1px solid var(--border-default)", borderRadius: 6, background: "transparent" }),
         // Cascade-resolved page style — Grid default → Panel pushdown
         // → this page's own ownStyle (last write wins). Spread AFTER
         // the static defaults so any key the user set in the Page

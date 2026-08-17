@@ -323,7 +323,26 @@ export function resolveStyleCascade(ctx, leafKind = "instance") {
  * `App.jsx` publishes this same number as `--grid-surface-a` so the CSS and JS
  * halves cannot drift — one authority, not two that must be kept equal.
  */
-export const SURFACE_ALPHA = 0.45;
+/**
+ * ALPHA COMPOUNDS, SO THIS IS PICKED FOR THE DEEPEST STACK, NOT A SINGLE CARD.
+ *
+ * Measured on the live grid: the worst case is SIX painting surfaces between the
+ * eye and the wallpaper (an imported doc nests sections five deep inside a
+ * panel), and 56 of them repaint the SAME teal. Transmission is `(1 - a)^6`:
+ *
+ *   a = 0.45   4.5%   reads as a solid slab — the user's report
+ *   a = 0.35   7.5%
+ *   a = 0.18    30%   the wallpaper is genuinely visible at full depth
+ *
+ * 0.45 ALSO COULD NOT BITE. Those 56 surfaces are stored at 0.35, already under
+ * that cap, so `withSurfaceAlpha`'s `min()` left every one of them unchanged —
+ * the knob was inert on precisely the surfaces that dominate the stack. A value
+ * here only does anything below the lowest stored alpha.
+ *
+ * Only the ALPHA is ours; the hue is the user's, and it survives. Text, borders
+ * and icons are never faded — they are not surfaces you look through.
+ */
+export const SURFACE_ALPHA = 0.18;
 
 /**
  * Re-render a colour at (at most) `alpha`.

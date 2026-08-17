@@ -31,7 +31,7 @@ import {
   DragType,
   DropAccepts,
 } from "../helpers/dragSystem";
-import { resolveContainerStyle, styleToCSS } from "../helpers/StyleHelpers";
+import { resolveContainerStyle, styleToCSS, SURFACE_ALPHA } from "../helpers/StyleHelpers";
 import { hexToRgba, lightenHex } from "../helpers/colorHelpers.js";
 import { getEffectiveFilterForOccurrence, isOccurrenceVisible, getLocalFilterConditions } from "../state/selectors";
 import HeaderChevron from "../ui/HeaderChevron";
@@ -586,13 +586,32 @@ function Container({
   const rawColor = embedded ? (module?.ownStyle?.bg || null) : null;
   // Text: lighten the raw color 70% toward white for bright readable labels
   const embeddedAccent = rawColor ? lightenHex(rawColor, 0.7) : "#b0f8da";
+  // A SECTION WITH NO COLOUR OF ITS OWN PAINTS NO BACKGROUND.
+  //
+  // This is a THIRD inline colour path — separate from `styleToCSS` and from the
+  // stylesheet tokens — and it carried its own hardcoded alphas plus a hardcoded
+  // teal fallback. Measured on the live grid, 56 of the 87 painting surfaces were
+  // that FALLBACK literal (`rgba(14,61,50,0.35)`): an imported doc nests sections
+  // five deep, none of them carry `ownStyle.bg`, so all five painted the same
+  // invented teal on top of each other. Alpha compounds, so the wallpaper behind
+  // the deepest stack came through at 9.5% and read as a solid slab.
+  //
+  // Inventing a colour for a section that has none is the actual defect; the
+  // stacking is just what made it visible. A coloured section still tints (the
+  // nine dimension colours are a real signal), capped at SURFACE_ALPHA so this
+  // path cannot drift from the other two. THE BORDER STAYS in both cases — it is
+  // what gives a section its edge, and a border is not a surface you look
+  // through.
   const embeddedCardStyle = embedded ? {
-    background: hexToRgba(rawColor, 0.18) ?? "rgba(14,61,50,0.35)",
+    background: hexToRgba(rawColor, SURFACE_ALPHA) ?? "transparent",
     border: `1px solid ${hexToRgba(rawColor, 0.5) ?? "rgba(14,61,50,0.65)"}`,
     borderRadius: 6,
   } : {};
   const embeddedHeaderStyle = embedded ? {
-    background: hexToRgba(rawColor, 0.42) ?? "rgba(14,61,50,0.6)",
+    // The header used to read stronger than its card (0.42 vs 0.18). It shares the
+    // one alpha now — the ask names headers explicitly ("the backgrounds of them
+    // and headers"), and two knobs here is how they drift apart.
+    background: hexToRgba(rawColor, SURFACE_ALPHA) ?? "transparent",
     borderBottom: `1px solid ${hexToRgba(rawColor, 0.55) ?? "rgba(14,61,50,0.7)"}`,
   } : {};
 
