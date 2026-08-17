@@ -228,11 +228,24 @@ export default function GridMosaic({
             touchAction: "none",
           }}
         >
+          {/* THE SEAM LINE. This was an 18px NUB at 18% white floating in the
+              middle of the splitter — so a column boundary was marked by a short
+              tick rather than a line, which is what read as "no grid lines"
+              (user, 2026-08-17: "make the grid lines more pronounced … thicker
+              gray boarder lines").
+
+              It now spans the FULL length of the seam and uses the shared
+              `--grid-line` gray, so the seams and the outer frame match.
+              THICKNESS IS STILL SEPARATE FROM THE GRAB AREA: the parent div's
+              rect is the hit target and is unchanged — only this child is
+              painted, so a 3px line does not make the splitter 3px to grab.
+              Coarse pointers keep their fatter line for the same reason they
+              keep a fatter lane. */}
           <div style={{
-            background: IS_COARSE ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.18)",
-            borderRadius: 3,
-            width: s.dir === "v" ? (IS_COARSE ? 5 : 2) : (IS_COARSE ? 44 : 18),
-            height: s.dir === "v" ? (IS_COARSE ? 44 : 18) : (IS_COARSE ? 5 : 2),
+            background: "var(--grid-line, rgba(160,170,182,0.55))",
+            borderRadius: 2,
+            width: s.dir === "v" ? (IS_COARSE ? 5 : 3) : "100%",
+            height: s.dir === "v" ? "100%" : (IS_COARSE ? 5 : 3),
           }} />
         </div>
       ))}

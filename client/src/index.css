@@ -127,6 +127,12 @@
 
   /* Grid cell border */
   --grid-cell-border: #3f444a;
+  /* THE GRID LINES — the row/col resize seams and the outer frame. Its own
+     token rather than reusing `--grid-cell-border`: a cell edge sits under
+     content and should stay quiet, while these are the structure of the
+     workspace and the user asked for them to read (2026-08-17: "thicker
+     gray boarder lines"). Gray, so it never competes with a panel tint. */
+  --grid-line: rgba(160, 170, 182, 0.55);
 
   /* Semantic tokens for component Tailwind migration */
   --text-primary: hsl(var(--foreground-1));
@@ -235,6 +241,12 @@
 
   /* Grid cell border */
   --grid-cell-border: hsl(var(--border-1));
+  /* THE GRID LINES — the row/col resize seams and the outer frame. Its own
+     token rather than reusing `--grid-cell-border`: a cell edge sits under
+     content and should stay quiet, while these are the structure of the
+     workspace and the user asked for them to read (2026-08-17: "thicker
+     gray boarder lines"). Gray, so it never competes with a panel tint. */
+  --grid-line: rgba(88, 98, 112, 0.45);
 
   /* Semantic tokens */
   --text-primary: hsl(var(--foreground-1));
@@ -348,6 +360,12 @@
 
   /* Grid cell border */
   --grid-cell-border: hsl(var(--border-0));
+  /* THE GRID LINES — the row/col resize seams and the outer frame. Its own
+     token rather than reusing `--grid-cell-border`: a cell edge sits under
+     content and should stay quiet, while these are the structure of the
+     workspace and the user asked for them to read (2026-08-17: "thicker
+     gray boarder lines"). Gray, so it never competes with a panel tint. */
+  --grid-line: rgba(160, 170, 182, 0.55);
 
   /* Semantic tokens */
   --text-primary: hsl(var(--foreground-1));
@@ -457,6 +475,12 @@
 
   /* Grid cell border */
   --grid-cell-border: hsl(var(--border-1));
+  /* THE GRID LINES — the row/col resize seams and the outer frame. Its own
+     token rather than reusing `--grid-cell-border`: a cell edge sits under
+     content and should stay quiet, while these are the structure of the
+     workspace and the user asked for them to read (2026-08-17: "thicker
+     gray boarder lines"). Gray, so it never competes with a panel tint. */
+  --grid-line: rgba(88, 98, 112, 0.45);
 
   /* Semantic tokens */
   --text-primary: hsl(var(--foreground-1));
@@ -566,6 +590,12 @@
 
   /* Grid cell border */
   --grid-cell-border: hsl(var(--border-0));
+  /* THE GRID LINES — the row/col resize seams and the outer frame. Its own
+     token rather than reusing `--grid-cell-border`: a cell edge sits under
+     content and should stay quiet, while these are the structure of the
+     workspace and the user asked for them to read (2026-08-17: "thicker
+     gray boarder lines"). Gray, so it never competes with a panel tint. */
+  --grid-line: rgba(160, 170, 182, 0.55);
 
   /* Semantic tokens */
   --text-primary: hsl(var(--foreground-1));
@@ -661,7 +691,12 @@ select:disabled { cursor: not-allowed; }
 .grid-frame {
   background: hsl(var(--surface-0));
   border-radius: 10px;
-  border: 1px solid hsl(var(--border-1));
+  /* The OUTER BORDER of the workspace (user, 2026-08-17). 1px against a
+     wallpaper barely read as an edge at all; 2px of the shared grid-line gray
+     is what makes the grid look like a framed surface rather than content
+     floating on an image. Same token as the resize seams, so the frame and the
+     lines inside it cannot drift apart. */
+  border: 2px solid var(--grid-line, hsl(var(--border-1)));
   overflow: hidden;
   padding: 0;
   box-shadow:
@@ -6262,4 +6297,48 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   /* A hairline in the container's own accent ties the pocket to its board. */
   border-left: 2px solid var(--body-accent, rgba(255, 255, 255, 0.10));
   padding: 2px 5px 4px 5px;
+}
+
+/* ============================================================
+   GRID RESIZE SEAMS (user, 2026-08-17: "make the grid lines more pronounced …
+   its the grid col and row resize handles")
+
+   These drew NO LINE AT ALL — the handle is a transparent 6px lane (28px on
+   touch) carrying a three-dot SVG, so the only thing marking a column boundary
+   was three faint dots in the middle of a tall gap.
+
+   THE LINE IS A PSEUDO-ELEMENT, NOT THE HANDLE'S OWN BACKGROUND, and that is
+   the load-bearing part: the handle's width IS its hit area, so painting the
+   handle itself would mean choosing between a fat line and a thin grab target.
+   Drawing a centred 3px bar inside a 6px lane keeps the grab area exactly as it
+   was — the same separation `.insert-gap` makes between its 8px hit zone and
+   the line it paints, for the same reason (that one had to be narrowed once
+   because it was eating clicks meant for the rows around it).
+
+   The handle divs keep their inline positioning styles in `Grid.jsx`; an inline
+   style cannot override a pseudo-element, so the two layers do not fight. */
+.grid-resize-handle::before {
+  content: "";
+  position: absolute;
+  background: var(--grid-line, #6b7280);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.grid-resize-handle--col::before {
+  top: 0; bottom: 0;
+  left: 50%;
+  width: 3px;
+  transform: translateX(-50%);
+}
+.grid-resize-handle--row::before {
+  left: 0; right: 0;
+  top: 50%;
+  height: 3px;
+  transform: translateY(-50%);
+}
+/* Grabbing one should say so. The line is the affordance now, so it brightens
+   rather than the dots doing all the work. */
+.grid-resize-handle:hover::before,
+.grid-resize-handle:active::before {
+  background: var(--accent-blue, #3296ff);
 }

@@ -241,6 +241,12 @@ function GridRender({
       {!isMobileLayout && [...Array(cols - 1)].map((_, i) => (
         <div
           key={`col-resize-${i}`}
+          // The visible SEAM is drawn by this class's ::before (index.css), not
+          // by the div's own background — the div's width is the grab area, and
+          // painting it would tie how thick the line looks to how easy it is to
+          // hit. Positioning stays inline; a pseudo-element can't be overridden
+          // by an inline style, so the two do not fight.
+          className="grid-resize-handle grid-resize-handle--col"
           onMouseDown={(e) => onStartColResize(e, i)}
           onTouchStart={(e) => onStartColResize(e, i)}
           style={{
@@ -275,6 +281,7 @@ function GridRender({
       {!isMobileLayout && [...Array(rows - 1)].map((_, i) => (
         <div
           key={`row-resize-${i}`}
+          className="grid-resize-handle grid-resize-handle--row"
           onMouseDown={(e) => onStartRowResize(e, i)}
           onTouchStart={(e) => onStartRowResize(e, i)}
           style={{
