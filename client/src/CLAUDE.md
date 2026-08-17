@@ -2,6 +2,29 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-08-17 — the spread's FULL-SCREEN change had shipped INERT)
+- **A change can be in the stylesheet, in the served bundle, and do nothing.** The 2026-08-17 edit
+  made `.artifact-spread` full screen by ADDING `top/left: 0`, `translate: none`,
+  `border-radius: 0` and `border: none` at the TOP of the rule — while the originals
+  (`top/left: 50%`, `translate: -50% -50%`, `border-radius: 12px`, `border: 1px solid`) sat further
+  down in the SAME rule. **Within one rule the last declaration wins**, so four of the six were dead
+  and the overlay rendered in the upper-left quadrant with half of it off screen.
+  ```
+  before   overlay 1600x1000 at top -500 / left -800    fullScreen false
+  after    overlay 1600x1000 at top    0 / left    0    fullScreen true
+  ```
+- **`translate: none` could never have worked in ANY ordering**, and that is the reusable half:
+  `translate`, `rotate`, `scale` and `transform` are SEPARATE CSS properties. Setting one to `none`
+  says nothing about the others. (The spread's own open animation depends on this — it animates the
+  `scale` property, which is exactly why no `transform` may sit on the element.)
+- The rule is authored once now rather than layered, and `.artifact-spread--mobile` is trimmed to
+  the two things a phone needs beyond a full-screen base (`100dvh` + safe-area inset). Restating the
+  base's own behaviour in the mobile rule is what let the desktop change hide for a day.
+- **Verified by LOOKING, on live data** — full details, numbers and the probe-lesson in
+  `docs/superpowers/plans/2026-08-16-spread-mini-grid.md`. Standing rule earned again: a visual
+  change is unverified until someone measures the rect. The unit suite (2595 green) had nothing to
+  say either way.
+
 ## Recent Changes (2026-08-16 — table cells: the padding was DOUBLE-STACKED)
 - **User: *"theres too much padding on each table cell too. all the words get cut off
   unnecessarily early."*** Measured from the screenshot's own column widths, and the cause was

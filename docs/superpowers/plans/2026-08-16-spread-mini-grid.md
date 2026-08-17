@@ -512,13 +512,57 @@ The original diagnosis, kept because it names the trap:
 > `.instance-wrap > .instance-row:has(.artifact-card…)`, and the transparency
 > rules added above), and a wrapper silently breaks all of them.
 
-## Verification owed before any deploy
+## DONE 2026-08-17 — the browser pass over the spread, and the defect it found
 
-- A browser pass over the spread: full-screen, transparent, tiles contained and
-  scrolling INSIDE, the shoot-out animation, and the tile caps at a real
-  viewport. `_spreadgrid.mjs` (repo root, takes `CREDS_FILE`/`PAGE`/`SEL`/`NTH`)
-  is the harness; mint a fresh JWT, they last 2h.
-- A browser pass over the instance body pocket, with a row that HAS notes and
-  one that does not.
+**THE FULL-SCREEN CHANGE HAD SHIPPED INERT, and only looking caught it.** The
+edit added `top/left: 0`, `translate: none`, `border-radius: 0` and
+`border: none` at the TOP of the `.artifact-spread` rule while the originals
+(`top/left: 50%`, `translate: -50% -50%`, `border-radius: 12px`,
+`border: 1px solid`) stayed further down in the same rule — and within one rule
+the LAST declaration wins. So four of the six declarations were dead on arrival
+and the overlay rendered in the upper-left quadrant with half of it off screen:
+
+```
+before   overlay 1600x1000 at top -500 / left -800     fullScreen false
+after    overlay 1600x1000 at top    0 / left    0     fullScreen true
+```
+
+`translate: none` could not have worked in any ordering, and that is the sharper
+half: **`translate` and `transform` are separate CSS properties**, so a `none`
+on one says nothing about the other. The rule is authored once now instead of
+layered, and `.artifact-spread--mobile` is trimmed to the two things a phone
+genuinely needs beyond a full-screen base (`100dvh` and the safe-area inset) —
+restating the rest is exactly how the base change stayed invisible.
+
+**Measured on the live grid** (`_spreadverify.mjs`, repo root —
+`CREDS_FILE`/`PAGE`/`LABEL`/`SEL`/`NTH`/`SHOT`), a real 4-file spread at
+1600x1000:
+
+```
+full screen     overlay 1600x1000 @ 0,0 == viewport            true
+transparent     shell / list / keycap / card  all rgba(0,0,0,0)
+contained       list overflow-y auto · 0 tiles past bottom or right
+shoot-out       animation artifact-spread-in · scale 0.08 · origin 1110px 690px
+layout          4 tiles · 2 rows · 2 per row · 420px each · 4 images · 0 page errors
+```
+
+Screenshotted and looked at: a 2x2 grid of photographs on a plain dark surface,
+no nested boxes, nothing clipped.
+
+**Probe lesson, mine:** the first version read `getComputedStyle().transform` to
+check the animation and reported scale 1 for a working shoot-out — the keyframe
+animates the `scale` PROPERTY, and `transform` reads `none` throughout. Same
+property-vs-property confusion as the bug it was measuring.
+
+## Verification still owed
+
+- **The SINGLE-FILE tile cap (82vh) has never been exercised.** 175 occurrences
+  on poms grid carry exactly one file, but none of the pages probed renders an
+  inline media thumbnail for one, so `data-count="1"` was never reached. The
+  4-file case measures correct; the number the user actually named ("if i have
+  one, it opens bigger") is unmeasured.
+- A browser pass over the instance body pocket with a row that HAS notes and one
+  that does not. The chevron POSITION is verified (see above) — the pocket's
+  recess styling is not.
 - **Spec check #2 is still open from the instance-bodies work: nobody has
   dragged an occurrence into an open body.**

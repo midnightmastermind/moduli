@@ -5407,40 +5407,45 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   animation: menu-backdrop-in 140ms ease-out;
 }
 
+/* FULL SCREEN (user 2026-08-17: "the spread viewer needs to be the full height
+   and width of the screen"). It was `min(1180px, 92vw) x 86vh` centred at 50/50
+   with `translate: -50% -50%`, which left the files fighting for room while the
+   page behind showed through around them.
+
+   THE FIRST ATTEMPT AT THIS WAS INERT AND SHIPPED THAT WAY, which is the reason
+   this block is now written once rather than layered. It ADDED `top/left: 0`,
+   `translate: none`, `border-radius: 0` and `border: none` at the TOP of the
+   rule while the originals stayed further down — and within one rule the LAST
+   declaration wins, so the overlay kept its -50%/-50% shift and sat in the
+   upper-left quadrant, half of it off screen. `translate: none` could not have
+   helped anyway: `translate` and `transform` are separate properties. Measured,
+   not reasoned about: rect was 1600x1000 at top -500 / left -800.
+
+   Fixed dimensions rather than max-*: the surface must not resize itself per
+   occurrence, and `.artifact-spread-body` needs something definite to fill so
+   the grid scrolls INSIDE the overlay instead of growing it. The mobile variant
+   below now differs only in `100dvh` and the safe-area inset. */
 .artifact-spread {
   position: fixed;
   z-index: 1301;
-  top: 50%;
-  left: 50%;
-  /* FULL SCREEN (user 2026-08-17: "the spread viewer needs to be the full
-     height and width of the screen"). It was min(1180px, 92vw) x 86vh and
-     centred, which left the files fighting for room while the page behind
-     showed through around them. Fixed dimensions rather than max-* on purpose:
-     the surface must not resize itself per occurrence, and `.artifact-spread-
-     body` needs something definite to fill so the grid scrolls INSIDE the
-     overlay instead of growing it. This is what the mobile variant below has
-     always done; the two now differ only in the safe-area inset. */
   top: 0;
   left: 0;
-  translate: none;
   width: 100vw;
   height: 100vh;
-  max-height: 100vh;
-  border-radius: 0;
-  border: none;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 12px;
-  border: 1px solid var(--border-subtle);
+  border: none;
+  border-radius: 0;
   background: var(--panel-bg, #14161a);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
   /* Opens out of the thumbnail that was clicked. The origin is handed in as
      custom properties because it is the only part that varies per open —
-     the keyframe itself stays here rather than being rebuilt inline. */
+     the keyframe itself stays here rather than being rebuilt inline.
+     The keyframe animates the `scale` PROPERTY, so there must be no `transform`
+     or `translate` on this element competing with it. */
   transform-origin: var(--spread-origin-x, 50%) var(--spread-origin-y, 50%);
   animation: artifact-spread-in 260ms cubic-bezier(0.16, 1, 0.3, 1);
-  translate: -50% -50%;
 }
 
 /* SHOOTS OUT of the thing you clicked — the inverse of the preview drilldown's
@@ -5626,17 +5631,13 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .artifact-spread--armed + .artifact-spread-backdrop { opacity: 0; }
 .artifact-spread--armed .artifact-spread-body { pointer-events: auto; }
 
-/* Mobile: a full-screen sheet, one column, safe-area inset — the drawer
-   conventions from MenuSurface, not its code (a spread is not a menu). */
+/* Mobile: one column, and the two things a phone genuinely needs that the
+   now-full-screen base does not — `100dvh` (so a retracting URL bar does not
+   leave a strip of page showing) and the safe-area inset. Everything else this
+   rule used to restate is the base rule's own behaviour now; restating it was
+   how the base's own full-screen change stayed invisible on desktop for a day. */
 .artifact-spread--mobile {
-  top: 0;
-  left: 0;
-  translate: none;
-  width: 100vw;
-  max-height: 100vh;
   height: 100dvh;
-  border-radius: 0;
-  border: none;
   padding-bottom: env(safe-area-inset-bottom);
 }
 

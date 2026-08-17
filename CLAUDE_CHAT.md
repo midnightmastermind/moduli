@@ -2756,10 +2756,16 @@ explicit: these fixes, then the instance-body plan, then the fusion plan.
 > contained in there. also we need to make the artifact backgrounds and the green background to be
 > transparent and the spread viewer needs to be the full height and width of the screen."
 
-Three separate things, all shipped to master unverified (see the handoff at the bottom of
-`docs/superpowers/plans/2026-08-16-spread-mini-grid.md`): the overlay is 100vw x 100vh, the
-container/pocket/keycap/card backgrounds are transparent inside it so only the pictures read, and
-the container scrolls internally instead of growing past the overlay.
+Three separate things. **The full-screen half SHIPPED INERT and is fixed now** — the edit added
+`top/left: 0`, `translate: none`, `border-radius: 0` and `border: none` at the TOP of the
+`.artifact-spread` rule while the originals sat further down, and within one rule the LAST
+declaration wins. So the overlay kept `translate: -50% -50%` and rendered in the upper-left
+quadrant with half of it off screen — measured at 1600x1000 positioned at top -500 / left -800.
+(`translate: none` could not have helped regardless: `translate` and `transform` are separate
+properties.) The rule is written once now rather than layered, and the mobile variant is trimmed to
+the two things a phone actually needs beyond it. Verified on the live grid: overlay exactly
+1600x1000 at 0,0; container/pocket/keycap/card all `rgba(0,0,0,0)`; 0 tiles past the overlay edge;
+the open animation starts at `scale: 0.08` with its origin on the clicked thumbnail. Looked at.
 
 > "the spread viewer also needs to shoot out, like the opposite of our zoom ins for previews"
 
