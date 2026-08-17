@@ -33,7 +33,6 @@ import { AddressPickerHost } from "./ui/AddressPickerMenu";
 import { IntakeSheetHost } from "./ui/IntakeSheet";
 import { ConfirmListHost } from "./ui/ConfirmListHost";
 import IntakePasteHost from "./ui/IntakePasteHost";
-import { ArtifactSpreadHost } from "./ui/ArtifactSpreadHost";
 import { SelectionContext, useSelectionProvider } from "./state/SelectionContext";
 import { publishComputedValues } from "./state/computedValuesStore";
 
@@ -1057,11 +1056,11 @@ export default function App() {
             per-surface handlers is focused when the key is pressed. */}
         <IntakePasteHost />
 
-        {/* Artifact spread — the overlay an occurrence's files spread out
-            onto, opened from its main artifact. Single global host for the
-            same reason the picker has one: the thumbnails that open it live
-            in rows and popovers that unmount on the click. */}
-        <ArtifactSpreadHost />
+        {/* Artifact spread — MOVED to `Grid.jsx`, INSIDE <DragProvider>.
+            It is still one global host and still portals to <body>; it just
+            has to be mounted where the drag context exists, or its tiles
+            register as draggables and then hand every gesture to a no-op.
+            Do not move it back up here without moving DragProvider with it. */}
       </SelectionContext.Provider>
       </GridDataContext.Provider>
       </GridLiveContext.Provider>

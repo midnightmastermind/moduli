@@ -35,6 +35,7 @@ import { applyLocalSort, createPanelInGrid } from "./helpers/LayoutHelpers";
 import { openPanelOnRootFolderPage } from "./helpers/importsFolder";
 import { snapPanelInDirection } from "./helpers/gridSnap";
 import MobileGridNav from "./mobile/MobileGridNav";
+import { ArtifactSpreadHost } from "./ui/ArtifactSpreadHost";
 import { Layers } from "lucide-react";
 
 // ============================================================
@@ -978,6 +979,26 @@ function GridInner() {
       {/* Grid Radial Menu removed — undo/redo + history live in Toolbar.
           The fixed bottom-right placement was covering the bottom-right
           panel's resize handle. */}
+
+      {/* MOUNTED HERE, NOT IN App, AND THAT IS THE WHOLE POINT (user,
+          2026-08-17: "i currently cant rearrange the viewer at all with drag").
+          The spread portals to <body>, so where it PAINTS is unaffected — but
+          React context flows from where a component is MOUNTED, and every other
+          global host sits beside <Grid>, i.e. OUTSIDE <DragProvider>. From
+          there `useDragContext()` returns NOOP_DRAG_CTX, whose handlers are all
+          `() => {}`.
+
+          THAT FAILS SILENTLY, which is why this read as "drag does nothing"
+          rather than as an error: the tiles still REGISTER as Pragmatic
+          draggables (that is local to the hook), so the native ghost is
+          generated and drop-edge indicators still draw — measured, both fire —
+          while `handleDragStart` goes to the no-op and no session is ever
+          started. Registration is not participation.
+
+          It stays a single global host for the reason its own comment gives:
+          the thumbnails that open it live in rows and popovers that unmount on
+          the click. */}
+      <ArtifactSpreadHost />
 
     </DragProvider>
   );

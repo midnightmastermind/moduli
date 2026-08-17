@@ -58,9 +58,14 @@
      hardcoded teal in the rules themselves, which is why switching themes
      left every doc/card still reading green. Now theme-owned. */
   --occ-card: 12 53 70;
-  --occ-card-a: .30;
-  --occ-card-soft-a: .38;
-  --occ-card-hover-a: .52;
+  /* ONE STEP DARKER (user, 2026-08-17: "make the tint of the occurance 1 step
+     darker too"). `--occ-card` is a DARK colour, so more alpha = darker.
+     All three move together — bumping only the base would leave hover a
+     smaller jump than it was and make the row read flatter on hover, which is
+     the opposite of what a darker resting tint is for. */
+  --occ-card-a: .38;
+  --occ-card-soft-a: .46;
+  --occ-card-hover-a: .60;
   --occ-pill: 6 182 212;
   --occ-pill-text: rgb(180 225 245);
   --figure-well: 8 20 28;
@@ -166,9 +171,9 @@
      hardcoded teal in the rules themselves, which is why switching themes
      left every doc/card still reading green. Now theme-owned. */
   --occ-card: 12 53 70;
-  --occ-card-a: .07;
-  --occ-card-soft-a: .05;
-  --occ-card-hover-a: .10;
+  --occ-card-a: .12;
+  --occ-card-soft-a: .09;
+  --occ-card-hover-a: .15;
   --occ-pill: 6 182 212;
   --occ-pill-text: rgb(14 90 110);
   --figure-well: 12 53 70;
@@ -274,9 +279,14 @@
      hardcoded teal in the rules themselves, which is why switching themes
      left every doc/card still reading green. Now theme-owned. */
   --occ-card: 12 53 70;
-  --occ-card-a: .30;
-  --occ-card-soft-a: .38;
-  --occ-card-hover-a: .52;
+  /* ONE STEP DARKER (user, 2026-08-17: "make the tint of the occurance 1 step
+     darker too"). `--occ-card` is a DARK colour, so more alpha = darker.
+     All three move together — bumping only the base would leave hover a
+     smaller jump than it was and make the row read flatter on hover, which is
+     the opposite of what a darker resting tint is for. */
+  --occ-card-a: .38;
+  --occ-card-soft-a: .46;
+  --occ-card-hover-a: .60;
   --occ-pill: 6 182 212;
   --occ-pill-text: rgb(180 225 245);
   --figure-well: 8 20 28;
@@ -383,9 +393,9 @@
      hardcoded teal in the rules themselves, which is why switching themes
      left every doc/card still reading green. Now theme-owned. */
   --occ-card: 179 79 36;
-  --occ-card-a: .10;
-  --occ-card-soft-a: .07;
-  --occ-card-hover-a: .16;
+  --occ-card-a: .16;
+  --occ-card-soft-a: .12;
+  --occ-card-hover-a: .22;
   --occ-pill: 179 79 36;
   --occ-pill-text: rgb(138 58 22);
   --figure-well: 179 166 143;
@@ -492,9 +502,9 @@
      hardcoded teal in the rules themselves, which is why switching themes
      left every doc/card still reading green. Now theme-owned. */
   --occ-card: 70 44 30;
-  --occ-card-a: .30;
-  --occ-card-soft-a: .40;
-  --occ-card-hover-a: .62;
+  --occ-card-a: .38;
+  --occ-card-soft-a: .48;
+  --occ-card-hover-a: .70;
   --occ-pill: 224 166 63;
   --occ-pill-text: rgb(238 197 99);
   --figure-well: 26 18 15;
@@ -4564,7 +4574,11 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
      2026-08-16: "it hides the buttons but the dom its in is still taking up
      space"). 8px is the resize grip's own clearance (the grip is 5px), which
      IS always there. */
-  padding: 4px 3px;
+  /* Horizontal matches `.table-td` exactly (3px -> 5px, same 2026-08-17 ask) so a
+     header title and the values under it sit on ONE left edge. They are separate
+     rules on separate elements, so the only thing keeping them aligned is that
+     both carry the same number — change one, change the other. */
+  padding: 4px 5px;
   min-height: 28px;
 }
 /* Yield the room the moment the controls actually appear. The title's marquee
@@ -4910,14 +4924,18 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   /* Was fully transparent, which is why a table read as a pale hole in the doc:
      it showed the container tint and the wallpaper rather than a surface of its
      own. Same token as `.textblock-card`, so the two cannot drift.
-     THIS IS ALSO WHAT MAKES THE 3px BELOW VISIBLE — padding you can see needs a
-     fill to be inset from. */
+     THIS IS ALSO WHAT MAKES THE PADDING BELOW VISIBLE — padding you can see
+     needs a fill to be inset from. */
   background: var(--doc-textblock-tint);
   /* Rows size to CONTENT (no min) — tight vertical padding so a short row (an
      infobox "Other names" cell, a one-line Schedule cell) hugs its content and
      doesn't read as too tall; horizontal padding kept for breathing room around
-     embedded instance cards. Applies to every table (infobox + Schedule). */
-  padding: 2px 3px; font-size: 13px;
+     embedded instance cards. Applies to every table (infobox + Schedule).
+     HORIZONTAL WENT 3px -> 5px (user, 2026-08-17: "a tiny bit of left and right
+     padding, like 2px"), i.e. 2px MORE than it already had. VERTICAL IS
+     DELIBERATELY UNCHANGED — the ask names left and right, and the row height is
+     what keeps a one-line cell from reading as too tall. */
+  padding: 2px 5px; font-size: 13px;
   position: relative;
   display: block;
   /* min-width:0 is REQUIRED on a flex item or it grows to its content's

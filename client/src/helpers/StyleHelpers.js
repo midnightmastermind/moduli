@@ -341,8 +341,23 @@ export function resolveStyleCascade(ctx, leafKind = "instance") {
  *
  * Only the ALPHA is ours; the hue is the user's, and it survives. Text, borders
  * and icons are never faded — they are not surfaces you look through.
+ *
+ * 0.18 -> 0.24, ONE STEP DARKER (user, 2026-08-17: "make the tint of the
+ * occurance 1 step darker too"). Transmission at full depth goes 30% -> 19%.
+ *
+ * IT HAD TO MOVE WITH `--occ-card-a`, BECAUSE AN OCCURRENCE ROW HAS TWO
+ * PAINTERS AND ONLY BUMPING ONE IS A HALF-CHANGE. Censused on poms grid, 190
+ * rows on screen: 106 are painted by the style CASCADE (an inline background,
+ * capped here) and 84 by the `--occ-card-a` stylesheet token. Moving the token
+ * alone left more than half the rows exactly as they were — and an inline
+ * style beats the stylesheet, so no CSS edit could ever have reached them.
+ *
+ * KNOWN AND ACCEPTED SCOPE: this cap is not occurrence-specific. `styleToCSS`
+ * is shared by panels and containers, so a container carrying a stored colour
+ * darkens by the same step. Narrowing it to occurrences means threading a role
+ * through every caller — a real change, not a tint tweak.
  */
-export const SURFACE_ALPHA = 0.18;
+export const SURFACE_ALPHA = 0.24;
 
 /**
  * Re-render a colour at (at most) `alpha`.
