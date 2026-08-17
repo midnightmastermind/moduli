@@ -3484,10 +3484,36 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 /* was minted via the QuickAddMenu "+ Textblock" button or by    */
 /* typing in a doc page.                                          */
 /* ============================================================ */
+/* ── THE DOC PAIR: container tint vs textblock tint ───────────────────────
+   User 2026-08-17: "id like to swap the colors on doc containers … have the
+   textblock background colors be the colors for the containers and have the
+   container colors be the textblocks" / "its like an army green for the
+   textblocks currently (which i want for container)".
+
+   NEITHER COLOUR WAS EVER IN THE DATA, which is what makes this a stylesheet
+   change and not a migration. Censused on poms grid: 1161 of 1161 textblock
+   modules carry `ownStyle.bg: null`, and 180 of 191 doc containers do too. The
+   green came from `.textblock-card` here; the teal came from a hardcoded
+   fallback in ModuleContainer. So one edit covers "the docs we have" AND "new
+   docs" — there is no per-document state to migrate.
+
+   Named as a PAIR so the swap is one place. Swapping six scattered literals is
+   how the two halves drift, and this repo has paid for that repeatedly. */
+:root {
+  /* was the textblock's — the "army green" */
+  --doc-container-tint: rgba(134, 239, 172, 0.04);
+  --doc-container-tint-hover: rgba(134, 239, 172, 0.10);
+  --doc-container-ring: rgba(134, 239, 172, 0.22);
+  /* was the container's — the doc-section teal */
+  --doc-textblock-tint: rgba(14, 61, 50, 0.35);
+  --doc-textblock-tint-hover: rgba(14, 61, 50, 0.52);
+  --doc-textblock-ring: rgba(62, 142, 126, 0.30);
+}
+
 .textblock-card {
   width: 100%;
   margin: 3px 0;
-  background: rgba(134, 239, 172, 0.04);
+  background: var(--doc-textblock-tint);
   border-radius: 6px;
   position: relative;
   font-size: 13px;
@@ -3498,8 +3524,8 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    editable occurrence (not flat prose). Block variant: soft tint + inset ring.
    Link/inline variants brighten their own chrome below. */
 .textblock-card:not(.textblock-card--inline):not(.textblock-card--link):not(.textblock-card--wraphost):hover {
-  background: rgba(134, 239, 172, 0.10);
-  box-shadow: inset 0 0 0 1px rgba(134, 239, 172, 0.22);
+  background: var(--doc-textblock-tint-hover);
+  box-shadow: inset 0 0 0 1px var(--doc-textblock-ring);
 }
 /* Wrap HOST (carries a reserved notch + neighbor): render as a crisp L/C FRAME
    (outline), not a filled box — so it reads as one of two puzzle-piece frames that
@@ -3507,11 +3533,11 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    inside a green box". The clip-path shapes this border into the L/C outline. */
 .textblock-card--wraphost {
   background: transparent;
-  border: 1px solid rgba(134, 239, 172, 0.32);
+  border: 1px solid var(--doc-textblock-ring);
   border-radius: 6px;
 }
 .textblock-card--wraphost:hover {
-  border-color: rgba(134, 239, 172, 0.5);
+  border-color: var(--doc-textblock-tint-hover);
 }
 .textblock-card--inline:hover .doc-editor-wrapper .ProseMirror,
 .textblock-card--inline:hover .ProseMirror {

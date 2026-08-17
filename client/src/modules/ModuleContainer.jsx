@@ -602,17 +602,25 @@ function Container({
   // path cannot drift from the other two. THE BORDER STAYS in both cases — it is
   // what gives a section its edge, and a border is not a surface you look
   // through.
+  // THE COLOURLESS CASE TAKES THE PAIR'S CONTAINER TINT, NOT AN INVENTED TEAL.
+  // The teal literal that used to sit here moved to `--doc-textblock-tint` (the
+  // user's swap: the green that was on textblocks belongs on their container, and
+  // the container's teal belongs on the textblocks). Reading the token instead of
+  // a literal means the swap lives in ONE place — see the doc-pair block in
+  // index.css. It is a 0.04 tint, so five nested sections still transmit ~82%,
+  // which is why re-introducing a default here does not undo the transparency
+  // work: the old default was 0.35 and compounded to 9.5%.
   const embeddedCardStyle = embedded ? {
-    background: hexToRgba(rawColor, SURFACE_ALPHA) ?? "transparent",
-    border: `1px solid ${hexToRgba(rawColor, 0.5) ?? "rgba(14,61,50,0.65)"}`,
+    background: hexToRgba(rawColor, SURFACE_ALPHA) ?? "var(--doc-container-tint)",
+    border: `1px solid ${hexToRgba(rawColor, 0.5) ?? "var(--doc-container-ring)"}`,
     borderRadius: 6,
   } : {};
   const embeddedHeaderStyle = embedded ? {
     // The header used to read stronger than its card (0.42 vs 0.18). It shares the
     // one alpha now — the ask names headers explicitly ("the backgrounds of them
     // and headers"), and two knobs here is how they drift apart.
-    background: hexToRgba(rawColor, SURFACE_ALPHA) ?? "transparent",
-    borderBottom: `1px solid ${hexToRgba(rawColor, 0.55) ?? "rgba(14,61,50,0.7)"}`,
+    background: hexToRgba(rawColor, SURFACE_ALPHA) ?? "var(--doc-container-tint-hover)",
+    borderBottom: `1px solid ${hexToRgba(rawColor, 0.55) ?? "var(--doc-container-ring)"}`,
   } : {};
 
   const commitContainerStyleUpdate = useCallback((updates) => {
