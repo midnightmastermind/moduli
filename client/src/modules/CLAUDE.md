@@ -2,6 +2,49 @@
 
 _Updated: 2026-08-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-08-16 — instances get a BODY BUTTON; the feature was mostly already there)
+- **User: *"i want to have instances have bodies again. a button that opens up a little doc. typing
+  here would create a textblock here too so same rules as doc. it just is mini."***
+- **MEASURING RETIRED THREE QUARTERS OF THE WORK.** `ModuleInstance` already held
+  `showDoc`/`toggleDoc`, already offered **"Toggle doc"** in the radial menu, and already rendered a
+  real `DocContent` under the row. And because it passes **no `onExitBlock`**, `DocContent` treats
+  it as a PRIMARY doc editor — `onCaretMintTextblock`, `onAutoCreateTextblock` and insert-gaps are
+  all wired — so **typing there already minted textblocks under the doc rules**. Separately, the
+  server's linked-group fan-out already copies `textmap`, so **copy-linked siblings already shared
+  one body**. What was missing was a way to find it.
+- **`helpers/bodyOpen.js` (NEW) — the open body is a CLAIM, not per-row state.** A boolean per row
+  cannot express *"someone else opened"*: the row that ought to close is precisely the one receiving
+  no event. Same shape as `gapHover.js claimExclusiveGap` (2026-08-01 (9)), and for the same reason
+  — at most one open **by construction** rather than by bookkeeping. Module state, not context: a
+  context value would re-render every row on the grid whenever any body opened.
+- **THE RELEASE GUARD IS LOAD-BEARING, NOT DEFENSIVE.** React commits the new row before running the
+  old row's cleanup, so an unconditional release-on-unmount would close the body that just opened.
+  A/B'd: making it unconditional fails exactly that case.
+- **THE LOGIC LEFT `ModuleInstance` RATHER THAN BEING TESTED THROUGH IT.** The plan's test mounted
+  the component; it is 1300 lines, needs the whole grid store, and **no existing test mounts it**.
+  The plan named the fallback, so `useBodyOpen(occId)` was extracted and the hook is tested with
+  `renderHook`. `ModuleInstance` now reads `const [showDoc, toggleDoc] = useBodyOpen(occId);`.
+- **An EMPTY body was a ~100px slab** — `.doc-editor-wrapper` carries a Tailwind `min-h-[100px]`
+  sized for a full doc page, which is the opposite of *"it just is mini"*. Floored at one line via
+  `.instance-doc-body`, the same treatment `.table-td` already gives its cell editors. **Measured:
+  100+ → 35px.** Only the screenshot showed this; every assertion passed either way.
+- **Verified in a browser on live data** (`_instancebody.mjs`, repo root):
+  ```
+  button opacity   at rest 0        on hover 1
+  open row 0       aria-expanded true    doc editors 4 -> 5
+  outside click    still 5               (you must be able to drag into it)
+  open row 1       row0 false, row1 true (the claim closes a sibling, in the real app)
+  toggle closed    5 -> 4                empty body height 35px
+  page errors      0
+  ```
+- **Spec check #1 PASSED structurally:** the body's editor has none of
+  `.textblock-card` / `.instance-textblock-block` / `.table-td` as an ancestor, which are exactly
+  what makes `Editor` SKIP drop-target registration — so it is on the registering path.
+- **NOT VERIFIED, and it is the honest gap: nobody has DRAGGED an occurrence into an open body.**
+  The mechanism is there (`DragProvider` bails on any drop over a `.doc-editor`, 2026-06-16, and the
+  body is one), but a real drag has not been performed. That is spec check #2 and it remains open.
+- 11 tests. Four A/Bs, each mutation verified to LAND before the result was believed.
+
 ## Recent Changes (2026-08-11 — BoundHeader: the question is a SPAN, the select is an invisible overlay)
 - **User: *"the question shows up on daypage and picked, but cant be seen until i hover over it."***
 - **MEASURED FIRST, AND THE LITERAL SYMPTOM DID NOT REPRODUCE — say so.** At 1440px the question

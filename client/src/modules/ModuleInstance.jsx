@@ -26,7 +26,7 @@ import {
   PopoverContent,
   PopoverAnchor,
 } from "@/components/ui/popover";
-import { Link2, Unlink, Settings, Copy, Move, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type, FileDown } from "lucide-react";
+import { Link2, Unlink, Settings, Copy, Move, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type, FileDown, ChevronDown } from "lucide-react";
 import { convertLeafRole, CONVERTIBLE_LEAF_ROLES } from "../helpers/convertOccurrence";
 import { canConvertLinkToPage, resolveExternalLink, convertLinkToPage } from "../helpers/linkToPage";
 import { planConvertRelink } from "../helpers/convertRelink";
@@ -56,6 +56,7 @@ import { primaryMediaOf, filesFieldIdFor } from "../helpers/occurrenceMedia";
 import { setMainFile } from "../helpers/mainFile";
 import { useComputedValue } from "../state/computedValuesStore";
 import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
+import { useBodyOpen } from "../helpers/bodyOpen";
 
 // Operation display widget — its own component so the per-key
 // computedValues subscription lives HERE, not on the whole instance
@@ -1007,9 +1008,14 @@ function ModuleInstance({
     occurrence?.linkedGroupId ? (s.linkedGroupIndex?.[occurrence.linkedGroupId]?.length || 0) : 0
   );
   const [ctxMenu, setCtxMenu] = useState(null);
-  const [showDoc, setShowDoc] = useState(false);
 
   const occId = occurrence?.id;
+  // THE OPEN BODY IS A CLAIM, not per-row state — see helpers/bodyOpen.js.
+  // `useBodyOpen` mirrors the claim into local state AND subscribes, which is
+  // what closes this row when a SIBLING opens (the row being closed receives
+  // no event of its own). `toggleDoc` is the one handler both the row button
+  // and the radial item call.
+  const [showDoc, toggleDoc] = useBodyOpen(occId);
   const isSelected = occId ? selection.isSelected(occId) : false;
   // Clipboard-staged class — applied when this occurrence is currently in
   // the clipboard (post Copy / Move / Copy-link from the right-click menu).
@@ -1208,7 +1214,7 @@ function ModuleInstance({
     disabled: dragOutDisabled,
   });
 
-  const toggleDoc = () => setShowDoc(v => !v);
+
 
   return (
     <div
@@ -1241,6 +1247,27 @@ function ModuleInstance({
         return <Link2 title={title} className="linked-copy-badge" />;
       })()}
 
+      {/* Opens this row's mini doc. Bottom-right, revealed on row hover — the
+          affordance the drag handle already uses, so it costs no layout and
+          cannot push content. It calls the SAME `toggleDoc` the radial item
+          calls; two handlers is how the two surfaces drift.
+          `stopPropagation` matters: `.instance-wrap` owns a click (selection)
+          and a context menu of its own. */}
+      {occurrence && (
+        <button
+          type="button"
+          className="instance-body-btn"
+          data-testid="instance-body-btn"
+          aria-expanded={showDoc}
+          aria-label={showDoc ? "Hide notes" : "Show notes"}
+          title={showDoc ? "Hide notes" : "Show notes"}
+          onClick={(e) => { e.stopPropagation(); toggleDoc(); }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <ChevronDown style={{ width: 12, height: 12 }} />
+        </button>
+      )}
+
       <InstanceInner
         id={module.id}
         label={occurrence?.label ?? module.label}
@@ -1263,7 +1290,7 @@ function ModuleInstance({
       {occurrence && showDoc && (() => {
         const bg = container?.ownStyle?.bg || null;
         return (
-          <div style={{
+          <div className="instance-doc-body" style={{
             borderLeft: `2px solid ${hexToRgba(bg, 0.45) ?? "rgba(255,255,255,0.08)"}`,
             background: hexToRgba(bg, 0.06) ?? "transparent",
             marginLeft: 4,

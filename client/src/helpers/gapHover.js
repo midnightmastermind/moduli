@@ -94,6 +94,13 @@ export function releaseGapHover(el) {
 /** Periodic safety net: nothing may stay hot without a live claim. */
 if (typeof window !== "undefined") {
   setInterval(() => {
+    // The interval outlives the DOCUMENT under a test runner: jsdom tears the
+    // environment down between files while this module-level timer keeps
+    // firing, and the sweep then throws `document is not defined` as an
+    // unhandled error — which Vitest warns "might cause false positive tests".
+    // Guarding the callback as well as the module-load `window` check is the
+    // whole fix; the timer is harmless once it no-ops.
+    if (typeof document === "undefined") return;
     if (activeEl) { schedule(); return; }
     for (const el of document.querySelectorAll(".insert-gap--hot")) {
       el.classList.remove("insert-gap--hot"); // orphaned by an unmount/remount
