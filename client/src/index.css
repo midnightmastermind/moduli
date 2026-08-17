@@ -5888,8 +5888,10 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   z-index: 3;
 }
 /* An OPEN body keeps its button visible — otherwise the only way to close it
-   is to find the row again and hover it. */
-.instance-wrap:hover > .instance-body-btn,
+   is to find the row again and hover it. DESCENDANT, not direct child: the
+   button lives inside `.instance-row` so it stays anchored to the ROW when the
+   wrap grows to contain an open body. */
+.instance-wrap:hover .instance-body-btn,
 .instance-body-btn[aria-expanded="true"] { opacity: 1; }
 .instance-body-btn:hover { color: var(--text-primary); }
 .instance-body-btn[aria-expanded="true"] { transform: rotate(180deg); }

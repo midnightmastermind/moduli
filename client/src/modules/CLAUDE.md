@@ -2,6 +2,39 @@
 
 _Updated: 2026-08-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-08-17 — the body chevron stays on the ROW, and it is measured)
+- **User: *"make the chevron up still be on the instance when you expand it, right now it moves it
+  to the body."*** The button was `position: absolute; bottom: 2px` against `.instance-wrap` — and
+  **the wrap GROWS to contain the open body**, so "bottom of the wrap" silently became the bottom of
+  the body the moment you opened one. The element never moved; its containing block changed size
+  underneath it.
+- **The fix is WHERE it renders, not new positioning.** It moved into `InstanceInner`, inside
+  `.instance-row` — which is already `position: relative` and does NOT grow with the body — so the
+  existing `right`/`bottom` offsets work unchanged. `InstanceInner` already received `toggleDoc`; it
+  now also takes `showDoc`, purely so the button can live next to the thing it is anchored to.
+- **A WRAPPER DIV WOULD HAVE BEEN THE OBVIOUS FIX AND IS THE WRONG ONE.** Several selectors depend
+  on `.instance-wrap > .instance-row` being a DIRECT child — `.container-items--wrap > … `, the
+  artifact-card chrome strip, the spread's transparency rules — and a wrapper breaks all of them
+  silently. The hover reveal went the other way: `.instance-wrap:hover > .instance-body-btn` became
+  a DESCENDANT selector, since the button is no longer the wrap's child.
+- **The representation chip deliberately does NOT get one.** It is a compact reference to an
+  occurrence, not the occurrence; a disclosure there would open a body inside a chip.
+- **VERIFIED IN A BROWSER ON LIVE DATA, because a positional claim cannot be asserted from jsdom**
+  (`_bodychevron.mjs`, repo root — takes `CREDS_FILE`/`PAGE`/`SHOT`). Same row, closed then open:
+  ```
+                       wrapH   rowH   bodyH   btnCentreY   btnBelowRowBottom
+  closed                 80     80      —         199            -12
+  open                  155     80     74         199            -12   <- did not move
+  A/B: re-homed to wrap 155     80     74         274            +63   <- 63px down IN the body
+  ```
+  The A/B re-parents the SAME button to `.instance-wrap` in the live DOM — same element, same CSS,
+  same open body — so a number that did not move under it would have been measuring nothing.
+  Screenshotted and looked at: the chevron sits at the row's bottom-right, above the pocket.
+- **Noticed while looking, NOT fixed and out of scope:** opening a body on a TEXTBLOCK row shows the
+  row's own text twice — the body renders `occurrence.textmap`, which for a textblock is the same
+  content the card renders. That is the instance-body feature meeting the textblock role, not this
+  change; worth deciding whether textblock rows should offer a body at all.
+
 ## Recent Changes (2026-08-16 — instances get a BODY BUTTON; the feature was mostly already there)
 - **User: *"i want to have instances have bodies again. a button that opens up a little doc. typing
   here would create a textblock here too so same rules as doc. it just is mini."***

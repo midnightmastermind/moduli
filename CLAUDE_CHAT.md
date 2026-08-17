@@ -2775,7 +2775,9 @@ corners, no top margin — so it reads as the row opening rather than a slab par
 
 > "make the chevron up still be on the instance when you expand it, right now it moves it to the body"
 
-**NOT DONE.** Diagnosed and written up in the handoff: the button is absolutely positioned against
-`.instance-wrap`, which grows to contain the body. The fix is to render it inside `InstanceInner`
-(which already gets `toggleDoc` and whose `.instance-row` is already positioned) — NOT to insert a
-wrapper div, which would break several `.instance-wrap > .instance-row` direct-child selectors.
+**DONE.** The button was absolutely positioned against `.instance-wrap`, which GROWS to contain the
+body — so "bottom of the wrap" became the bottom of the body. It renders inside `InstanceInner`
+now, against `.instance-row`, which does not grow; no wrapper div, so the several
+`.instance-wrap > .instance-row` direct-child selectors are untouched. Measured on live data and
+A/B'd: the button's centre reads 12px INSIDE the row both closed and open, and re-homing the same
+button to the wrap in the live DOM puts it 63px below the row, down in the body.

@@ -94,6 +94,12 @@ function InstanceInner({
   dragHandleRef = null,
   onDoubleClick,
   toggleDoc,
+  // Whether this row's mini doc is open. Lives here (not on the wrapper) purely
+  // so the disclosure button can be positioned against `.instance-row` — the
+  // wrapper GROWS to contain the open body, so a button anchored to its bottom
+  // moves to the bottom of the BODY the moment it opens (user 2026-08-17:
+  // "make the chevron up still be on the instance when you expand it").
+  showDoc = false,
   containerOccurrence,
   dispatch,
   socket,
@@ -167,7 +173,7 @@ function InstanceInner({
     p_panel: panel, p_container: container, p_containerOccurrence: containerOccurrence,
     p_dragAttributes: dragAttributes, p_dragListeners: dragListeners,
     p_dragHandleRef: dragHandleRef, p_onDoubleClick: onDoubleClick,
-    p_toggleDoc: toggleDoc, p_renderBody: renderBody,
+    p_toggleDoc: toggleDoc, p_showDoc: showDoc, p_renderBody: renderBody,
     s_fieldsById: fieldsById, s_addInstanceToContainer: addInstanceToContainer,
     s_modulesById: modulesById, s_instancesById: instancesById,
     s_operationsById: operationsById, s_ctxGrid: ctxGrid, s_isActive: isOriginalActiveSel,
@@ -656,6 +662,30 @@ function InstanceInner({
       {...(!overlay ? dragAttributes : {})}
       {...(!overlay ? dragListeners : {})}
     >
+      {/* Opens this row's mini doc. Bottom-right of the ROW, revealed on hover —
+          the affordance the drag handle already uses, so it costs no layout and
+          cannot push content. It calls the SAME `toggleDoc` the radial item
+          calls; two handlers is how the two surfaces drift.
+          It lives HERE rather than on `.instance-wrap` because the wrap grows to
+          contain the open body, so "bottom of the wrap" becomes the bottom of the
+          body — the chevron would walk away from the row it belongs to.
+          `stopPropagation` matters: `.instance-wrap` owns a click (selection) and
+          a context menu of its own. */}
+      {occurrence && toggleDoc && !overlay && (
+        <button
+          type="button"
+          className="instance-body-btn"
+          data-testid="instance-body-btn"
+          aria-expanded={showDoc}
+          aria-label={showDoc ? "Hide notes" : "Show notes"}
+          title={showDoc ? "Hide notes" : "Show notes"}
+          onClick={(e) => { e.stopPropagation(); toggleDoc(); }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <ChevronDown style={{ width: 12, height: 12 }} />
+        </button>
+      )}
+
       {/* Content: [radial + label] inline with fields; fields wrap to a new row below the label when the row is too narrow.
           When `floatHandle` is on (canvas-style cards), the handle wrapper instead lives as an absolute overlay at the top-left
           of the card and the renderBody fills the full row. */}
@@ -1247,27 +1277,9 @@ function ModuleInstance({
         return <Link2 title={title} className="linked-copy-badge" />;
       })()}
 
-      {/* Opens this row's mini doc. Bottom-right, revealed on row hover — the
-          affordance the drag handle already uses, so it costs no layout and
-          cannot push content. It calls the SAME `toggleDoc` the radial item
-          calls; two handlers is how the two surfaces drift.
-          `stopPropagation` matters: `.instance-wrap` owns a click (selection)
-          and a context menu of its own. */}
-      {occurrence && (
-        <button
-          type="button"
-          className="instance-body-btn"
-          data-testid="instance-body-btn"
-          aria-expanded={showDoc}
-          aria-label={showDoc ? "Hide notes" : "Show notes"}
-          title={showDoc ? "Hide notes" : "Show notes"}
-          onClick={(e) => { e.stopPropagation(); toggleDoc(); }}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <ChevronDown style={{ width: 12, height: 12 }} />
-        </button>
-      )}
-
+      {/* The body disclosure button renders INSIDE InstanceInner, against
+          `.instance-row` — this wrapper grows to contain the open body, so a
+          button anchored to its bottom would move to the bottom of the body. */}
       <InstanceInner
         id={module.id}
         label={occurrence?.label ?? module.label}
@@ -1280,6 +1292,7 @@ function ModuleInstance({
         socket={socket}
         dragHandleRef={handleRef}
         toggleDoc={toggleDoc}
+        showDoc={showDoc}
         onDoubleClick={onInstanceFocus ? () => onInstanceFocus(module, occurrence) : undefined}
         embedRadialItems={embedRadialItems}
         embedHideLabel={embedHideLabel}

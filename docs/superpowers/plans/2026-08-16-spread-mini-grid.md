@@ -475,33 +475,42 @@ deploying.**
    stylesheet, so the pocket would not have rendered at all; only the accent
    colour is passed through, as `--body-accent`.
 
-## NOT STARTED — the next thing to do
+## DONE 2026-08-17 — the body chevron stays on the row
 
-**The body chevron jumps to the bottom of the body when expanded.** User
-2026-08-17: *"make the chevron up still be on the instance when you expand it,
-right now it moves it to the body."*
+Shipped exactly as sketched below: the button renders inside `InstanceInner`
+against `.instance-row` (which does not grow with the body), `showDoc` is passed
+down alongside `toggleDoc`, the hover selector became a DESCENDANT selector, and
+the representation chip deliberately gets no button. No wrapper div, so the
+`.instance-wrap > .instance-row` direct-child selectors are untouched.
 
-**Cause, already diagnosed:** `.instance-body-btn` is
-`position: absolute; bottom: 2px` against `.instance-wrap` — and the wrap GROWS
-to contain the body, so "bottom of the wrap" becomes the bottom of the body.
+**Verified in a browser on live data and A/B'd** — the same row, closed then
+open, then with the SAME button re-homed to `.instance-wrap` in the live DOM:
 
-**The fix is NOT to insert a wrapper div.** Several selectors depend on
-`.instance-wrap > .instance-row` being a DIRECT child
-(`.container-items--wrap > .instance-wrap > .instance-row`,
-`.instance-wrap > .instance-row:has(.artifact-card…)`, and the transparency
-rules added above). A wrapper silently breaks all of them.
+```
+                       wrapH   rowH   bodyH   btnCentreY   btnBelowRowBottom
+closed                   80     80      —         199            -12
+open                    155     80     74         199            -12   <- did not move
+A/B: re-homed to wrap   155     80     74         274            +63   <- 63px down IN the body
+```
 
-**Do this instead:** render the button inside `InstanceInner`, which already
-renders `.instance-row` and **already receives `toggleDoc`** — it needs
-`showDoc` passed too. `.instance-row` is already `position: relative` (there is
-a comment at `ModuleInstance.jsx:854` saying so), so the existing `right/bottom`
-offsets work unchanged once the button lives there. Then update the hover
-selector from `.instance-wrap:hover > .instance-body-btn` to
-`.instance-wrap:hover .instance-body-btn` (no longer a direct child).
+Harness: `_bodychevron.mjs` (repo root; `CREDS_FILE`/`PAGE`/`SHOT`). Screenshot
+looked at — the chevron sits at the row's bottom-right, above the pocket.
+2595 client tests, build clean, chunk sizes at documented values.
 
-Note `InstanceInner` has TWO row roots — the representation variant at ~:625 and
-the normal row at ~:642. Decide deliberately whether a representation chip gets
-a body button; it probably should not.
+**Found while looking, filed not fixed:** opening a body on a TEXTBLOCK row
+shows its text twice — the body renders `occurrence.textmap`, which for a
+textblock is what the card already renders. Whether textblock rows should offer
+a body at all is a product call.
+
+The original diagnosis, kept because it names the trap:
+
+> `.instance-body-btn` was `position: absolute; bottom: 2px` against
+> `.instance-wrap` — and the wrap GROWS to contain the body, so "bottom of the
+> wrap" becomes the bottom of the body. **The fix is NOT to insert a wrapper
+> div**: several selectors depend on `.instance-wrap > .instance-row` being a
+> DIRECT child (`.container-items--wrap > .instance-wrap > .instance-row`,
+> `.instance-wrap > .instance-row:has(.artifact-card…)`, and the transparency
+> rules added above), and a wrapper silently breaks all of them.
 
 ## Verification owed before any deploy
 
