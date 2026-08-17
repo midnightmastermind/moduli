@@ -58,7 +58,7 @@
      hardcoded teal in the rules themselves, which is why switching themes
      left every doc/card still reading green. Now theme-owned. */
   --occ-card: 12 53 70;
-  --occ-card-a: .55;
+  --occ-card-a: .30;
   --occ-card-soft-a: .38;
   --occ-card-hover-a: .52;
   --occ-pill: 6 182 212;
@@ -274,7 +274,7 @@
      hardcoded teal in the rules themselves, which is why switching themes
      left every doc/card still reading green. Now theme-owned. */
   --occ-card: 12 53 70;
-  --occ-card-a: .55;
+  --occ-card-a: .30;
   --occ-card-soft-a: .38;
   --occ-card-hover-a: .52;
   --occ-pill: 6 182 212;
@@ -492,7 +492,7 @@
      hardcoded teal in the rules themselves, which is why switching themes
      left every doc/card still reading green. Now theme-owned. */
   --occ-card: 70 44 30;
-  --occ-card-a: .55;
+  --occ-card-a: .30;
   --occ-card-soft-a: .40;
   --occ-card-hover-a: .62;
   --occ-pill: 224 166 63;
@@ -5835,8 +5835,11 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   );
   /* How much of the rainbow survives the scrim. Two knobs, one per surface, so
      a header can read stronger than the panel behind it. */
-  --retro-header-scrim: 0.86;
-  --retro-panel-scrim: 0.965;
+  /* AS LIGHT AS POSSIBLE (user 2026-08-17), so the grid's wallpaper reads
+     through the headers too — these are the scrims over the rainbow gradient,
+     and at 0.86/0.965 they were very nearly opaque lids. */
+  --retro-header-scrim: 0.45;
+  --retro-panel-scrim: 0.45;
 
   /* ── The grid wallpaper ────────────────────────────────────────────────
      User 2026-08-17: "make everything on the grid itself, slightly tinted
@@ -5856,13 +5859,18 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
      wallpaper still reads as a tint rather than a picture — raise the
      transparency (lower the number) if you want more of it. */
   --grid-wallpaper: url("/grid-wallpaper.jpg");
-  --grid-wallpaper-scrim: 0.55;
-  --grid-surface-a: 0.62;
+  --grid-wallpaper-scrim: 0.28;
+  /* THE FALLBACK ONLY. `App.jsx` publishes the real value from
+     `StyleHelpers.SURFACE_ALPHA` at mount, so the CSS half and the JS half that
+     re-alphas stored `ownStyle.bg` colours cannot drift — a container's own
+     colour and a container with no colour must be equally light. */
+  --grid-surface-a: 0.45;
 }
 
-.toolbar,
-.panel-header,
-.container-shell > .container-header {
+/* THE TOOLBAR keeps the rainbow wash. It sits ABOVE the grid, over the page
+   rather than over the wallpaper, so there is nothing to see through it — and
+   it is the app's own chrome, not an occurrence. */
+.toolbar {
   position: relative;
   background-image:
     linear-gradient(
@@ -5872,6 +5880,25 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
     var(--retro-rainbow) !important;
   background-size: cover;
   background-repeat: no-repeat;
+}
+
+/* AN OCCURRENCE'S HEADER IS TRANSLUCENT (user 2026-08-17: "make each transparacy
+   as light as possible. on all occurances (the backgrounds of them and
+   headers)").
+
+   THE RAINBOW GRADIENT HAD TO GO, and lowering its scrim was NOT the fix — it
+   is an OPAQUE layer, so no scrim value lets the wallpaper through it; a lighter
+   scrim only reveals more rainbow, which is loud without being any more
+   see-through. Removed for the same reason `.panel-shell`'s was: the wallpaper
+   IS this motif, one level out, so the wash is now redundant as well as opaque.
+
+   The 2px band below stays. That is what actually "pops" (its own comment says
+   so) and it is a separate `::after`, so it costs nothing to keep. */
+.panel-header,
+.container-shell > .container-header {
+  position: relative;
+  background-image: none !important;
+  background-color: hsl(var(--surface-2) / var(--grid-surface-a));
 }
 
 /* The band. `::after` rather than a border so it cannot alter layout — these

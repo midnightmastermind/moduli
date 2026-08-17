@@ -307,6 +307,64 @@ export function resolveStyleCascade(ctx, leafKind = "instance") {
 }
 
 /**
+ * HOW OPAQUE A SURFACE'S OWN STORED COLOUR RENDERS.
+ *
+ * User 2026-08-17: "nothing else is transparent. make each transparacy as light
+ * as possible. on all occurances (the backgrounds of them and headers)."
+ *
+ * The grid has a wallpaper behind it, and the CSS tokens (`--grid-surface-a`,
+ * `--occ-card-a`) only reach surfaces that fall back to the stylesheet. A
+ * container or instance carrying its own `ownStyle.bg` renders that colour as an
+ * INLINE style, which beats any rule at any specificity — measured on prod, one
+ * such container came back `rgb(179,79,36)`, fully opaque, showing none of the
+ * wallpaper. So the transparency has to be applied where the stored colour
+ * BECOMES css, which is here: the one chokepoint every surface passes through.
+ *
+ * `App.jsx` publishes this same number as `--grid-surface-a` so the CSS and JS
+ * halves cannot drift — one authority, not two that must be kept equal.
+ */
+export const SURFACE_ALPHA = 0.45;
+
+/**
+ * Re-render a colour at (at most) `alpha`.
+ *
+ * Takes the MINIMUM rather than multiplying: a colour already stored
+ * translucent is already at least this light, and compounding would push it
+ * toward invisible. Hex and rgb/rgba are handled because those are what the
+ * colour picker and the seed actually write; anything else (a named colour,
+ * hsl, a var(), a gradient) is returned UNCHANGED — failing safe to today's
+ * appearance beats emitting a value the engine drops on the floor.
+ */
+export function withSurfaceAlpha(color, alpha = SURFACE_ALPHA) {
+  if (typeof color !== "string") return color;
+  const s = color.trim();
+
+  const hex = /^#([0-9a-f]{3,8})$/i.exec(s);
+  if (hex) {
+    let h = hex[1];
+    if (h.length === 3 || h.length === 4) h = h.split("").map((c) => c + c).join("");
+    if (h.length !== 6 && h.length !== 8) return color;
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    const a = h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1;
+    return `rgba(${r}, ${g}, ${b}, ${Math.min(a, alpha)})`;
+  }
+
+  const rgb = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:[\s,/]+([\d.]+%?))?\s*\)$/i.exec(s);
+  if (rgb) {
+    const [, r, g, b, rawA] = rgb;
+    const a = rawA == null ? 1
+      : rawA.endsWith("%") ? parseFloat(rawA) / 100
+      : parseFloat(rawA);
+    if (!Number.isFinite(a)) return color;
+    return `rgba(${r}, ${g}, ${b}, ${Math.min(a, alpha)})`;
+  }
+
+  return color;
+}
+
+/**
  * Convert a resolved style object into React inline styles.
  * Only includes non-null properties. The granular border trio is
  * applied AFTER the legacy `border` shorthand so a partial override
@@ -316,7 +374,9 @@ export function resolveStyleCascade(ctx, leafKind = "instance") {
 export function styleToCSS(style) {
   if (!style) return {};
   const css = {};
-  if (style.bg != null)         css.backgroundColor = style.bg;
+  // The stored colour renders TRANSLUCENT so the grid's wallpaper reads through
+  // it — see SURFACE_ALPHA. The hue is the user's; only the alpha is ours.
+  if (style.bg != null)         css.backgroundColor = withSurfaceAlpha(style.bg);
   if (style.textColor != null)  css.color = style.textColor;
   if (style.border != null)     css.border = style.border;
   if (style.borderColor != null) css.borderColor = style.borderColor;

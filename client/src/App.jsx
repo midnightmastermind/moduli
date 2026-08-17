@@ -42,6 +42,7 @@ import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useAnimations } from "./hooks/useAnimations";
 import { useScheduler } from "./state/useScheduler";
 import { useTheme } from "./helpers/useTheme";
+import { SURFACE_ALPHA } from "./helpers/StyleHelpers";
 import { useMobileDetect } from "./hooks/useMobileDetect";
 import { useLayoutRuleMode } from "./hooks/useLayoutRuleMode";
 import { installMobileInputAutoScroll } from "./hooks/useMobileKeyboard";
@@ -276,6 +277,17 @@ export default function App() {
 
   const { captureAllPositions, animateToNewPositions, flashElement } = useAnimations();
   useTheme(); // Applies data-theme + dark class from localStorage on mount
+
+  // ONE AUTHORITY FOR SURFACE TRANSPARENCY. Two halves make the grid's wallpaper
+  // show through: the stylesheet (`--grid-surface-a`, for surfaces with no
+  // colour of their own) and `StyleHelpers.withSurfaceAlpha` (for a container or
+  // instance carrying `ownStyle.bg`, which renders INLINE and beats any rule).
+  // Publishing the JS constant into the CSS var means there is one number, not
+  // two that have to be remembered as equal — the drift this repo keeps paying
+  // for. The stylesheet's own value is the pre-mount fallback.
+  useEffect(() => {
+    document.documentElement.style.setProperty("--grid-surface-a", String(SURFACE_ALPHA));
+  }, []);
 
   // Mobile grid navigation state. The user can pin the layout per viewport
   // size via grid.meta.layoutRules (GridSettingsTab) — a matching rule wins
