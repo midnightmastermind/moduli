@@ -2749,3 +2749,33 @@ rules, at a smaller size. Plan requested before any code.
 The spread stops being artifact-specific: ANY occurrence can be opened full screen, and what you
 see is that occurrence's own content — its files if it has files, its BODY if it has one. Order is
 explicit: these fixes, then the instance-body plan, then the fusion plan.
+
+## 2026-08-17 — the spread goes full screen; the instance body gets a pocket
+
+> "check the screenshot and see how the artifacts are expanding the green box. we need those
+> contained in there. also we need to make the artifact backgrounds and the green background to be
+> transparent and the spread viewer needs to be the full height and width of the screen."
+
+Three separate things, all shipped to master unverified (see the handoff at the bottom of
+`docs/superpowers/plans/2026-08-16-spread-mini-grid.md`): the overlay is 100vw x 100vh, the
+container/pocket/keycap/card backgrounds are transparent inside it so only the pictures read, and
+the container scrolls internally instead of growing past the overlay.
+
+> "the spread viewer also needs to shoot out, like the opposite of our zoom ins for previews"
+
+`artifact-spread-in` now starts at scale 0.08 and runs expo-out from the clicked thumbnail's centre.
+The preview drilldown's zoom IN is deliberately left gentler — arriving somewhere should feel calmer
+than launching.
+
+> "the dropdown doc for instances needs to look more connected to the instance. can you make that
+> dropdown look like its the same pocket a doc container has?"
+
+`.instance-doc-body` takes `.container-list`'s recess language, but ATTACHED to the row — square top
+corners, no top margin — so it reads as the row opening rather than a slab parked underneath.
+
+> "make the chevron up still be on the instance when you expand it, right now it moves it to the body"
+
+**NOT DONE.** Diagnosed and written up in the handoff: the button is absolutely positioned against
+`.instance-wrap`, which grows to contain the body. The fix is to render it inside `InstanceInner`
+(which already gets `toggleDoc` and whose `.instance-row` is already positioned) — NOT to insert a
+wrapper div, which would break several `.instance-wrap > .instance-row` direct-child selectors.

@@ -1290,11 +1290,17 @@ function ModuleInstance({
       {occurrence && showDoc && (() => {
         const bg = container?.ownStyle?.bg || null;
         return (
-          <div className="instance-doc-body" style={{
-            borderLeft: `2px solid ${hexToRgba(bg, 0.45) ?? "rgba(255,255,255,0.08)"}`,
-            background: hexToRgba(bg, 0.06) ?? "transparent",
-            marginLeft: 4,
-          }}>
+          // The body is the same RECESSED POCKET a doc container's child list
+          // sits in (user 2026-08-17: "make that dropdown look like its the
+          // same pocket a doc container has"), so it reads as part of this row
+          // rather than a slab parked under it. The look lives in CSS
+          // (`.instance-doc-body`); only the container's own accent colour is
+          // passed through, as a custom property — an inline background would
+          // beat the stylesheet and there would be no pocket at all.
+          <div
+            className="instance-doc-body"
+            style={{ "--body-accent": hexToRgba(bg, 0.45) ?? "rgba(255,255,255,0.10)" }}
+          >
             <DocContent occurrence={occurrence} dispatch={dispatch} socket={socket} hideToolbar={true} />
           </div>
         );

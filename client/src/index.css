@@ -5412,16 +5412,22 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   z-index: 1301;
   top: 50%;
   left: 50%;
-  width: min(1180px, 92vw);
-  /* ALWAYS the full size, whether it holds one file or twenty (user
-     2026-08-16: "the spread viewer should be full screen no matter if it has
-     one or multiple, or at least the max size"). This was `max-height`, so the
-     overlay shrank to its content and a 4-file spread opened as a short strip
-     — the surface kept resizing itself per occurrence instead of being a
-     stable place to look at files. A fixed height also gives
-     `.artifact-spread-body` something to fill, which is what lets the grid
-     scroll inside the overlay rather than growing it. */
-  height: 86vh;
+  /* FULL SCREEN (user 2026-08-17: "the spread viewer needs to be the full
+     height and width of the screen"). It was min(1180px, 92vw) x 86vh and
+     centred, which left the files fighting for room while the page behind
+     showed through around them. Fixed dimensions rather than max-* on purpose:
+     the surface must not resize itself per occurrence, and `.artifact-spread-
+     body` needs something definite to fill so the grid scrolls INSIDE the
+     overlay instead of growing it. This is what the mobile variant below has
+     always done; the two now differ only in the safe-area inset. */
+  top: 0;
+  left: 0;
+  translate: none;
+  width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  border-radius: 0;
+  border: none;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -5433,12 +5439,25 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
      custom properties because it is the only part that varies per open —
      the keyframe itself stays here rather than being rebuilt inline. */
   transform-origin: var(--spread-origin-x, 50%) var(--spread-origin-y, 50%);
-  animation: artifact-spread-in 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: artifact-spread-in 260ms cubic-bezier(0.16, 1, 0.3, 1);
   translate: -50% -50%;
 }
 
+/* SHOOTS OUT of the thing you clicked — the inverse of the preview drilldown's
+   zoom-IN (user 2026-08-17: "the spread viewer also needs to shoot out, like
+   the opposite of our zoom ins for previews"). It was 0.86 -> 1, which at
+   full-screen size is a barely-perceptible settle rather than a launch.
+   Starting near-nothing AT THE ORIGIN is what sells it: `transform-origin` is
+   already the clicked thumbnail's centre, handed in as --spread-origin-x/y, so
+   the surface appears to erupt from the picture you pressed.
+
+   The easing is expo-out — almost all the distance is covered in the first
+   third, so it reads as thrown rather than eased. `drilldown-fade-in` (the
+   zoom IN) is the mirror of this and deliberately stays gentler: arriving
+   somewhere should feel calmer than launching. */
 @keyframes artifact-spread-in {
-  from { opacity: 0; scale: 0.86; }
+  from { opacity: 0; scale: 0.08; }
+  60%  { opacity: 1; }
   to   { opacity: 1; scale: 1; }
 }
 
@@ -5533,16 +5552,16 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
      overlay instead of scrolling: 4+ files wrap onto a second row, and two
      rows at the single-row cap ran off the bottom (measured — 2x460 in a
      ~790px body). */
-  max-height: min(38vh, 380px) !important;
+  max-height: min(42vh, 560px) !important;
 }
 /* One row (<=3 files at 3 columns, <=2 at 2) — nothing below to make room for. */
 .artifact-spread-body[data-count="2"] .container-items--wrap > .instance-wrap,
 .artifact-spread-body[data-count="3"] .container-items--wrap > .instance-wrap {
-  max-height: min(60vh, 600px) !important;
+  max-height: min(66vh, 820px) !important;
 }
 /* A LONE file is the whole point of the overlay, so it gets the room. */
 .artifact-spread-body[data-count="1"] .container-items--wrap > .instance-wrap {
-  max-height: min(76vh, 760px) !important;
+  max-height: min(82vh, 1000px) !important;
 }
 /* EVERY TILE IS FULL HEIGHT AND THE CAPTION SITS ON THE BOTTOM EDGE (user
    2026-08-16: "make the height full so the caption underneath is always at the
@@ -5889,3 +5908,68 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .instance-doc-body .doc-editor-wrapper { min-height: 0 !important; }
 .instance-doc-body .doc-editor { min-height: 22px !important; }
 .instance-doc-body .doc-editor-content.ProseMirror { min-height: 22px; }
+
+/* ── The spread's tiles are CONTAINED and CHROMELESS ───────────────────────
+   User 2026-08-17: "the artifacts are expanding the green box. we need those
+   contained in there. also we need to make the artifact backgrounds and the
+   green background to be transparent."
+
+   TRANSPARENT. The overlay IS the surface; a container box inside it, holding
+   tile boxes, holding card boxes, is three frames drawn around one thing. Only
+   the pictures should read. `!important` throughout because each of these
+   backgrounds is a deliberate default elsewhere (the container's own colour,
+   the recessed drop pocket, the instance keycap) and specificity alone will
+   not beat them.                                                            */
+.artifact-spread-body .container-shell,
+.artifact-spread-body .container-list,
+.artifact-spread-body .container-items,
+.artifact-spread-body .instance-wrap > .instance-row,
+.artifact-spread-body .artifact-card:not(.artifact-card--expanded) {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* CONTAINED. The container grew past the overlay instead of scrolling inside
+   it, which is why its own header was scrolled out of sight while tiles ran
+   off the bottom. The chain has to be definite the whole way down or the
+   flex child refuses to shrink and overflows its parent instead. */
+.artifact-spread-body .container-shell {
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.artifact-spread-body .container-list {
+  flex: 1 1 auto !important;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto !important;   /* the SCROLL lives here, not on the page */
+  margin: 0;
+}
+.artifact-spread-body .container-items {
+  align-content: flex-start;     /* rows stack from the top, not stretched apart */
+}
+
+/* ── The instance body sits in the SAME POCKET a doc container's list does ──
+   User 2026-08-17: "make that dropdown look like its the same pocket a doc
+   container has." It was a flat tinted slab with a left border, which read as
+   something parked under the row rather than part of it.
+
+   Same recess language as `.container-list` (#18, 2026-06-08): darken
+   theme-agnostically, an inset shadow for depth, and the raised row showing
+   around it. What differs is deliberate — the pocket is ATTACHED to the row
+   above, so its top corners stay square and it carries no top margin. That
+   join is what makes it read as the row opening rather than a sibling. */
+.instance-doc-body {
+  margin: 0 5px 5px 5px;
+  border-radius: 0 0 8px 8px;
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    inset 0 12px 24px -6px rgba(0, 0, 0, 0.5);
+  /* A hairline in the container's own accent ties the pocket to its board. */
+  border-left: 2px solid var(--body-accent, rgba(255, 255, 255, 0.10));
+  padding: 2px 5px 4px 5px;
+}

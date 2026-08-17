@@ -428,3 +428,88 @@ Then verify the deploy the documented way: prod HEAD over SSH, index 200 **with 
 **Placeholders.** Tasks 1, 5, 6 give test *names* rather than full bodies, because mounting `GridMosaic` and the spread host requires a context double whose surface the implementer discovers. Each names the exact assertion and the A/B that proves it discriminates. Every step that ships code shows the code.
 
 **Type consistency.** `buildBalancedTree(ids, cols)`, `columnsForCount(n)`, `reconcileSpreadTree(tree, childIds)` and the `MosaicSurface` prop names are spelled identically wherever they appear.
+
+---
+
+# HANDOFF — 2026-08-17: in-flight styling work, and what is NOT done
+
+Read this before starting Phase 1. Four asks arrived while the spread was being
+verified; **three are implemented but NOT verified in a browser and NOT
+deployed**, and one is **not started**. All of it is committed on `master`.
+
+## Implemented, tests green, build clean — but UNVERIFIED and UNDEPLOYED
+
+Nobody has looked at any of this in a browser. `npm run build` passes and 2595
+client tests pass, which says nothing about how it renders. **Verify before
+deploying.**
+
+1. **The spread viewer is FULL SCREEN.** (*"the spread viewer needs to be the
+   full height and width of the screen"*.) `.artifact-spread` went from
+   `min(1180px, 92vw) x 86vh` centred to `100vw x 100vh` at `top/left: 0` with
+   `translate: none`, no radius, no border. It is now what the mobile variant
+   always was; the two differ only in the safe-area inset. **Check the mobile
+   rule is not now redundant or fighting it.**
+2. **Backgrounds are TRANSPARENT.** (*"make the artifact backgrounds and the
+   green background to be transparent"*.) The container shell, the drop pocket,
+   the instance keycap and the artifact card are all transparent inside
+   `.artifact-spread-body`, so only the pictures read. `!important` throughout,
+   because each of those backgrounds is a deliberate default elsewhere.
+   **An EXPANDED artifact card is deliberately excluded** — it is a lightbox and
+   needs its own surface.
+3. **The tiles are CONTAINED.** (*"the artifacts are expanding the green box"*.)
+   The container shell is `height: 100%` + flex column and `.container-list`
+   scrolls internally, so the grid can no longer grow past the overlay. Tile
+   caps were raised for the taller surface: 42vh multi-row / 66vh single row /
+   82vh for a lone file. **These numbers are guesses against a full-screen
+   overlay and want measuring.**
+4. **The spread SHOOTS OUT.** (*"like the opposite of our zoom ins for
+   previews"*.) `artifact-spread-in` starts at `scale: 0.08` instead of 0.86 and
+   runs 260ms on expo-out, from the clicked thumbnail's centre (the
+   `--spread-origin-x/y` vars already existed). `drilldown-fade-in` — the zoom
+   IN — is deliberately left gentler.
+5. **The instance body is a doc-container POCKET.** (*"make that dropdown look
+   like its the same pocket a doc container has"*.) `.instance-doc-body` now
+   uses `.container-list`'s recess language (darken + inset shadow), but
+   ATTACHED to the row: square top corners, no top margin. The inline
+   background was removed from `ModuleInstance` — an inline style beats the
+   stylesheet, so the pocket would not have rendered at all; only the accent
+   colour is passed through, as `--body-accent`.
+
+## NOT STARTED — the next thing to do
+
+**The body chevron jumps to the bottom of the body when expanded.** User
+2026-08-17: *"make the chevron up still be on the instance when you expand it,
+right now it moves it to the body."*
+
+**Cause, already diagnosed:** `.instance-body-btn` is
+`position: absolute; bottom: 2px` against `.instance-wrap` — and the wrap GROWS
+to contain the body, so "bottom of the wrap" becomes the bottom of the body.
+
+**The fix is NOT to insert a wrapper div.** Several selectors depend on
+`.instance-wrap > .instance-row` being a DIRECT child
+(`.container-items--wrap > .instance-wrap > .instance-row`,
+`.instance-wrap > .instance-row:has(.artifact-card…)`, and the transparency
+rules added above). A wrapper silently breaks all of them.
+
+**Do this instead:** render the button inside `InstanceInner`, which already
+renders `.instance-row` and **already receives `toggleDoc`** — it needs
+`showDoc` passed too. `.instance-row` is already `position: relative` (there is
+a comment at `ModuleInstance.jsx:854` saying so), so the existing `right/bottom`
+offsets work unchanged once the button lives there. Then update the hover
+selector from `.instance-wrap:hover > .instance-body-btn` to
+`.instance-wrap:hover .instance-body-btn` (no longer a direct child).
+
+Note `InstanceInner` has TWO row roots — the representation variant at ~:625 and
+the normal row at ~:642. Decide deliberately whether a representation chip gets
+a body button; it probably should not.
+
+## Verification owed before any deploy
+
+- A browser pass over the spread: full-screen, transparent, tiles contained and
+  scrolling INSIDE, the shoot-out animation, and the tile caps at a real
+  viewport. `_spreadgrid.mjs` (repo root, takes `CREDS_FILE`/`PAGE`/`SEL`/`NTH`)
+  is the harness; mint a fresh JWT, they last 2h.
+- A browser pass over the instance body pocket, with a row that HAS notes and
+  one that does not.
+- **Spec check #2 is still open from the instance-bodies work: nobody has
+  dragged an occurrence into an open body.**
