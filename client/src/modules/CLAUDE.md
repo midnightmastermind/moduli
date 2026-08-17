@@ -1,6 +1,41 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-08-11. This folder implements occurrence-based view routing._
+_Updated: 2026-08-17. This folder implements occurrence-based view routing._
+
+## Recent Changes (2026-08-17 (3) — the artifact full-screen button, and a colour nobody stored)
+- **`ArtifactCard.jsx` — THE FULL-SCREEN BUTTON WAS INERT, and it read as a z-index problem.**
+  `.artifact-thumb-expand-hint` carries `pointer-events: none` and its `:hover` rule only ever
+  restored OPACITY — so the button faded in and was completely dead; every click fell through to the
+  card underneath, which opens the spread viewer. Both are set now. The z-index is real too (the
+  media fills the card edge to edge) but it was never the blocker.
+- **"Full screen" meant THE SIZE OF ITS OWN TILE.** The expanded card rendered INLINE, so inside the
+  spread viewer it grew to fill the small tile it already occupied — the icon is a `Maximize2` and
+  that was never what it promised. It is **portalled to `document.body`** now, because inline it can
+  never escape: every ancestor (tile, container, panel, the spread overlay) clips and stacks it.
+  `z-index: 1310` sits above `.artifact-spread`'s 1301 — this opens FROM inside the spread, so
+  anything lower renders under the thing that launched it.
+- **Escape is bound at the DOCUMENT and stops propagation**, so one press closes the artifact and
+  leaves the viewer open rather than tearing down both. Same reason `ArtifactSpread` binds it there.
+- **`ModuleContainer.jsx` — 56 SURFACES PAINTED AN INVENTED COLOUR.** `embeddedCardStyle` is a THIRD
+  inline colour path (beside `styleToCSS` and the stylesheet tokens) and carried hardcoded alphas
+  plus a hardcoded teal FALLBACK. Measured on the live grid: 56 of 87 painting surfaces were that
+  literal — an imported doc nests sections five deep, none carry `ownStyle.bg`, so all five painted
+  the same made-up teal on each other and the wallpaper behind them came through at 9.5%. A section
+  with no colour now paints NONE; the fallback reads `--doc-container-tint` (the user's 08-17 swap).
+  Borders stay in both cases — a border is not a surface you look through.
+- **`ModulePage.jsx` — `.page-shell` WAS THE ONE OPAQUE LID IN THE GRID.** It painted
+  `var(--surface-card)` (alpha 1) INLINE, where no rule can reach it; a census of every element
+  inside `.grid-surface` found exactly 5 opaque nodes and all 5 were this. Now transparent, because
+  the layer is redundant: a page renders inside a panel that already paints the card surface (its
+  own nested-as-container branch had been transparent all along).
+- **Verified in a browser, with the control that makes the number mean something:** the button's hit
+  test returns the BUTTON under real hover (it returns the photo without the hover rule), the overlay
+  measures 1600x1000 in a 1600x1000 viewport above the spread, Escape closes only the artifact, 0
+  page errors — re-run against prod. **A synthetic `mouseover` does NOT trigger a CSS `:hover` rule**;
+  the first probe run used one, measured the un-hovered state, and would have reported the fix as
+  absent.
+- **Probe trap: there are ZERO `.artifact-card`s on the default screen** — they exist only inside the
+  viewer. What sits on the grid is the occurrence's inline media, and clicking THAT opens the spread.
 
 ## Recent Changes (2026-08-17 (2) — a BODY IS AN INSTANCE AFFORDANCE; the shared shell gave it away)
 - **User: *"textblock rows are not instances."*** Correct, and the body button was on all three

@@ -2,6 +2,55 @@
 
 _Updated: 2026-08-17. Check this file before re-reading source._
 
+## Recent Changes (2026-08-17 (5) — the LID, the invented colour, the doc swap, and the table tint)
+
+**RETRACTION OF (4)'s VERIFICATION.** It reported "0 opaque of 94 containers" and that was true and
+meaningless — it measured alpha on the surfaces it had CHANGED and never what sits BEHIND them.
+Walking the real paint stack to the wallpaper, transmission was **0.0%**: every container was
+correctly translucent and revealing an opaque slab. *A surface being translucent is not the same
+claim as the wallpaper reaching the eye, and a survey of chosen selectors cannot tell you which one
+you proved.*
+
+- **THREE CAUSES, found by walking the stack instead of turning the knob again.** (1) An opaque LID:
+  `.page-shell`, alpha 1, INLINE — 5 opaque nodes in the whole grid, all of them this. (2) An
+  INVENTED colour stacked five deep: `ModuleContainer`'s hardcoded teal fallback was **56 of 87**
+  painting surfaces. (3) The cap COULD NOT BITE — those 56 sat at 0.35, under `SURFACE_ALPHA`'s
+  0.45, so `min()` left every one untouched. **A cap only does anything below the lowest stored
+  alpha.** It is 0.18 now, chosen for the DEEPEST stack (`(1-a)^n`, n = 4-6 here), not one card.
+- **THE SCRIM CARRIES THE CONTRAST, NOT THE SURFACES.** At 43% transmission the wallpaper competed
+  with the text on it, so `--grid-wallpaper-scrim` went 0.28 -> 0.62. **That is the knob for
+  "more/less wallpaper"**; reaching for the surface alpha instead is what made this a three-round fix.
+- **`.panel-header` IS DEAD CSS** — nothing renders it (the 2026-07-03 redesign left the class), so
+  half of (4)'s rule was inert. The header on screen is `.page-header`; it is deliberately excluded
+  because its own background (`rgba(0,0,0,0.28)`) is already lighter than the cap. It gained the
+  asked-for **2px of air below as MARGIN, not padding** — these rows are height-sensitive.
+- **THE DOC PAIR SWAP NEEDED NO MIGRATION, and only a census showed it.** The ask was to swap the doc
+  container and textblock colours across existing and new docs. **1161 of 1161 textblock modules
+  carry `ownStyle.bg: null`, and 180 of 191 doc containers do too** — neither colour was ever in the
+  data. One CSS token pair (`--doc-container-tint` / `--doc-textblock-tint`, + hover and ring) covers
+  every doc that exists and every doc made later; a migration would have written 1161 identical
+  values to say what one token says. Named as a PAIR because the colours were spread over six
+  literals across two files.
+- **THE TABLE'S 3px PADDING WAS ALREADY THERE.** Asked for colour-match + "3px left and right":
+  `.table-td` is `2px 3px` and `.table-th-inner` is `4px 3px` **already**. What was missing was a
+  reason to SEE it — `.table-td` painted NOTHING, so there was no fill for the text to be inset from.
+  Colouring the cell is what makes the existing padding read as padding; the values are unchanged.
+  **The header ROW is the only painter** — `.table-th` used to paint the same colour as the row
+  behind it, invisible at 0.06 and DOUBLING at 0.35 (which would have made the header darker than
+  every textblock, i.e. not "the same"). Safe to go translucent because **0 of 4 tables scroll inside
+  themselves**; the sticky header's own comment demands opacity, and that trade is recorded in the rule.
+- **A "DEFECT" RETIRED BY MEASURING: the table text is NOT clipped, it is MARQUEEING.** Cut-off words
+  losing their FRONT ("alories") is the signature of something scrolling left, not of
+  `overflow: hidden` (which eats the END). Measured: 20/32 header and 28/112 body cells overflow, and
+  every one has `animation: auto-marquee-scroll` with `--mq-shift` equal to its exact overflow
+  (-54px for 54px over, -7px for 7). **My first probe called them "static" because it compared
+  `transform` on the BOX instead of the animating inner** — and its own output contradicted itself
+  (`overflowPx: -8`, content narrower than the cell, while calling the text clipped). *A
+  self-contradictory probe is the tell; read your own numbers against each other.*
+- Deepest stack **0.0% -> 66.9%**, no opaque layer, painting surfaces 87 -> 26. 2610 client tests,
+  poms grid **0 integrity errors**, deployed and verified on prod each time (served-asset sha256,
+  feature present with a zero control).
+
 ## Recent Changes (2026-08-17 (4) — a stored colour is the one surface CSS cannot reach)
 - **User: *"nothing else is transparent. make each transparacy as light as possible. on all
   occurances (the backgrounds of them and headers)."*** The knobs (3) shipped got the surfaces that
