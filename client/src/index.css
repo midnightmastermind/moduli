@@ -5475,13 +5475,19 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   to   { opacity: 1; scale: 1; }
 }
 
+/* THE CHROME IS SOLID; only the CONTENT area is see-through (user 2026-08-17:
+   "make those not transparent"). Once the overlay stopped painting, this bar's
+   `rgba(255,255,255,0.02)` was 2% of nothing — a title and its buttons floating
+   unreadably over whatever grid rows happened to sit behind them. It gets the
+   opaque panel colour the OVERLAY used to carry; the surface moved, the need
+   for a legible header did not. */
 .artifact-spread-header {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border-subtle);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--panel-bg, #14161a);
   flex: 0 0 auto;
 }
 .artifact-spread-title {
@@ -5527,10 +5533,32 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .artifact-spread-body {
   flex: 1 1 auto;
   overflow: auto;
-  padding: 12px;
+  /* NO TOP PADDING — the files container butts straight up under the viewer
+     header so the two read as one chrome block (user 2026-08-17: "move the
+     files container up more, flush with the viewer header"). Measured before:
+     12px of padding plus the shell's own top margin put a 17px band of bare
+     grid between the two headers. The other three sides keep their inset;
+     tiles still need room from the edges. */
+  padding: 0 12px 12px;
   /* The canvas arrangement scrolls its own world; the board wraps. Neither
      should chain a rubber-band out to the page behind the overlay. */
   overscroll-behavior: contain;
+}
+
+/* The container's own top margin is the other half of the 17px — zeroing the
+   body's padding alone leaves a stripe of grid showing between the headers. */
+.artifact-spread-body > .container-shell,
+.artifact-spread-body .container-shell:first-child {
+  margin-top: 0 !important;
+}
+
+/* The files container's HEADER is chrome too, so it is solid. Its own tint
+   gradient (the per-container colour and the rainbow band) composites OVER an
+   opaque base rather than over the grid — `background-color` and
+   `background-image` are separate properties, so setting the base here does not
+   disturb the gradient the container paints for itself. */
+.artifact-spread-body .container-header {
+  background-color: var(--panel-bg, #14161a) !important;
 }
 
 /* THE TILES FILL THE OVERLAY, and the FILE COUNT decides the columns.
@@ -5952,13 +5980,15 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    `.instance-wrap > .instance-row:has(.artifact-card)` already makes everywhere
    else (2026-07-31: "the row IS the single visual box").
 
-   The tint is the app's OWN occurrence-card colour, stepped up from the theme's
-   alpha rather than hardcoded, because the tile now sits over an arbitrary
-   grid instead of a panel: `--occ-card-a` is .55 in dark and .07 in light, so a
-   fixed alpha would read as a black slab in one of them. */
+   NEUTRAL, NOT THE THEME'S COLOUR (user 2026-08-17: "dont give the artifacts
+   colored see through. just tinted black or gray"). It was the app's own
+   `--occ-card` teal, which on this grid resolves to a warm brown — a coloured
+   wash over a photograph shifts the photograph. Black does not: it only
+   darkens. So the tint is theme-independent here on purpose, which is the
+   opposite of the usual rule in this file and is the whole point. */
 .artifact-spread-body .instance-wrap > .instance-row {
-  background: rgba(var(--occ-card) / calc(var(--occ-card-a) + 0.3)) !important;
-  border: 1px solid hsl(var(--border)) !important;
+  background: rgba(0, 0, 0, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
   border-radius: 8px !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
 }
