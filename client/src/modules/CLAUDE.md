@@ -36,10 +36,11 @@ _Updated: 2026-08-11. This folder implements occurrence-based view routing._
   the 5 new tests. The tests deliberately NAME textblock and artifact rather than restating
   `role === "instance"`, so a later "gate on `!renderBody`" fails here instead of quietly
   re-granting the affordance to a role that gains a renderBody.
-- **Honest gaps:** no ARTIFACT row was mounted during the census, so that half is gated by the same
-  predicate but never observed changing; and the probe's per-page navigation does not actually
-  re-scope (identical counts per page, one of the three reported `navigated:false`) — treat it as
-  one whole-document census, not three.
+- **Re-run against the DEPLOYED site**, where all three navigations landed (locally one had reported
+  `navigated:false`, which is why the local counts repeated — the probe re-scopes fine, my local run
+  did not): `Nutrition Plan 0/75 · Ingredients 0/75 · Routines 0/173`, 0 page errors.
+- **Honest gap:** no ARTIFACT row was mounted on any screen visited, so that half of the gate is
+  covered by the same predicate and the unit tests but was never observed changing in a browser.
 
 ## Recent Changes (2026-08-17 — the body chevron stays on the ROW, and it is measured)
 - **User: *"make the chevron up still be on the instance when you expand it, right now it moves it
