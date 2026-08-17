@@ -2965,3 +2965,60 @@ earlier** — the swap gives it a real home instead of being an accident.
 Verified on prod: textblock `rgba(134,239,172,.04)` → `rgba(14,61,50,.35)`,
 container `rgba(0,0,0,0)` → `rgba(134,239,172,.04)`. **0.04 is why this does not
 undo the transparency work** — the old default was 0.35.
+
+---
+
+> "can you make the table colors the same as the textblock backgrounds … also give the header cells
+> and normal cells a tiny padding. like 3px on the left and right"
+
+**THE SECOND ASK WAS ALREADY DONE, AND THE FIRST ONE IS WHY IT WAS INVISIBLE.** Measured before
+changing anything: `.table-td` is `2px 3px` and `.table-th-inner` is `4px 3px` — **already exactly
+3px** on both. What was missing was a reason to SEE it: `.table-td` painted **nothing**, so a cell
+had no fill for its text to be inset from and the table read as a pale hole in the doc while the
+prose around it carried the teal. Colouring the cell is what makes the existing padding read as
+padding, so the two asks were one change and the padding values are **unchanged** — reported rather
+than nudged to look responsive.
+
+**THE ROW IS THE ONLY PAINTER.** `.table-th` painted the same colour as `.table-header-row` behind
+it; at 0.06 near-opaque that doubling was invisible, at 0.35 it would have made the header **darker
+than every textblock** — i.e. not "the same", which is the whole ask.
+
+**Translucent is safe because nothing scrolls under it** — measured 0 of 4 tables scrolling
+vertically inside themselves. That mattered: the sticky header's own comment demands an opaque
+background so body rows cannot bleed through. Recorded in the rule so the fix is known if a table
+ever does scroll.
+
+Verified on prod: header row / cell / textblock all `rgba(14,61,50,0.35)`, `.table-th` transparent.
+**Not addressed, and visible in the same screenshot:** narrow columns still clip their text
+("alories"). That is the column-width/marquee behaviour, it predates this, and more padding would
+make it worse.
+
+---
+
+> "in the viewer, we need to make pressing the full screen … make that artifact full screen" / "not
+> the zoom in but the full screen button. that button should have zindex too so i can click it over
+> the zoom on the photo"
+
+**IT LOOKED LIKE Z-INDEX AND IT WAS NOT.** `.artifact-thumb-expand-hint` carries
+`pointer-events: none`, and its `:hover` rule only ever restored **opacity**. The button faded in and
+was completely dead — every click fell through to the card underneath, which opens the viewer. No
+z-index value would have fixed it. Both are set now; the z-index is real too, it just was not the
+blocker.
+
+**"FULL SCREEN" MEANT THE SIZE OF ITS OWN TILE.** The expanded card rendered INLINE, so inside the
+spread viewer it grew to fill the small tile it was already in — the icon is a Maximize2 and that was
+never what it promised. **Portalled** now, because inline it can never escape: every ancestor clips
+and stacks it. z-index 1310 sits above the spread's 1301, since this is opened FROM inside the
+spread. Escape is bound at the document and stops propagation, so one press closes the artifact and
+leaves the viewer open.
+
+**MY OWN PROBE WOULD HAVE REPORTED THE FIX AS ABSENT.** Its first run dispatched a synthetic
+`mouseover` — which does **not** trigger a CSS `:hover` rule — read `pointer-events: none`, and
+measured the un-hovered state. With real mouse movement: `pointer-events auto`, **`hitIsTheButton
+true`**, click → `1600x1000` in a `1600x1000` viewport, above the spread, portalled to `<body>`,
+Escape closes only the artifact, 0 page errors. *The un-hovered reading is the useful control: without
+the hover rule the hit at the button's centre is the photo.* Verified again on prod, and looked at.
+
+**A setup trap worth keeping: there are ZERO `.artifact-card`s on the default screen** — they exist
+only inside the viewer. What sits on the grid is the occurrence's inline media, and clicking THAT is
+what opens the spread.
