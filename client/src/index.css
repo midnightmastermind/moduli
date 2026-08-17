@@ -4493,8 +4493,23 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    background so scrolling body content doesn't bleed through the gaps
    between cells or behind the trailing +Column cell (which is intentionally
    transparent to host the dashed button). */
+/* A TABLE READS AS THE SAME MATERIAL AS A TEXTBLOCK (user 2026-08-17: "make the
+   table colors the same as the textblock backgrounds"). Measured before: the
+   header painted `--input-bg` at 0.06 and the body cells were FULLY TRANSPARENT,
+   so a table looked like a pale hole in the doc while the prose around it carried
+   the teal.
+
+   THE ROW IS THE ONLY PAINTER, and that is the load-bearing part. `.table-th`
+   used to paint the same colour as this row, which at 0.06 opaque-ish was
+   invisible — at 0.35 it would DOUBLE and the header would come out darker than
+   every textblock, i.e. not "the same" at all. The row keeps the fill (its own
+   reason, below: covering the gaps between cells), the cell goes transparent.
+
+   Translucent is safe here because no table scrolls inside itself — measured 0 of
+   4 on the live grid, worst case 0px. If one ever does, body rows will show
+   through this sticky header and it needs an opaque backing again. */
 .table-header-row {
-  background: var(--input-bg);
+  background: var(--doc-textblock-tint);
 }
 .table-th {
   /* position: relative (NOT sticky) — the header ROW is the sticky element
@@ -4502,7 +4517,11 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
      and shifts header cells out of alignment with the body columns. relative
      is still needed so the absolutely-positioned resize grip anchors here. */
   position: relative; z-index: 2;
-  background: var(--input-bg); border: 1px solid var(--border-default);
+  /* transparent, NOT the tint — `.table-header-row` behind it is the single
+     painter, or the two stack and the header reads darker than a textblock. */
+  background: transparent; border: 1px solid var(--border-default);
+  /* padding:0 is correct here — `.table-th-inner` carries the cell's own 4px/3px
+     so the resize grip can anchor to the padding-free cell edge. */
   font-weight: 600; font-size: 12px; padding: 0;
   user-select: none;
   box-sizing: border-box;
@@ -4875,6 +4894,12 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 
 .table-td {
   border: 1px solid var(--border-subtle);
+  /* Was fully transparent, which is why a table read as a pale hole in the doc:
+     it showed the container tint and the wallpaper rather than a surface of its
+     own. Same token as `.textblock-card`, so the two cannot drift.
+     THIS IS ALSO WHAT MAKES THE 3px BELOW VISIBLE — padding you can see needs a
+     fill to be inset from. */
+  background: var(--doc-textblock-tint);
   /* Rows size to CONTENT (no min) — tight vertical padding so a short row (an
      infobox "Other names" cell, a one-line Schedule cell) hugs its content and
      doesn't read as too tall; horizontal padding kept for breathing room around
