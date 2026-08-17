@@ -212,7 +212,10 @@ function GridRender({
     <div
       ref={gridRef}
       className={[
-        "bg-background2 shadow-inner",
+        // See GridMosaic: `grid-surface` is the grid's own background layer,
+        // and the wallpaper paints there rather than on `.grid-frame` (which
+        // this div covers opaquely).
+        "grid-surface bg-background2 shadow-inner",
         isMobileLayout ? "" : "rounded-xl border border-border ring-1 ring-black/30",
         fullscreenPanelId !== null ? "pointer-events-none opacity-0" : "",
       ].join(" ")}

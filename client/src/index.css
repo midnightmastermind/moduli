@@ -768,7 +768,10 @@ select:disabled { cursor: not-allowed; }
   box-sizing: border-box;
   border-radius: 8px;
   border: 1px solid hsl(var(--border-1));
-  background: hsl(var(--surface-1));
+  /* Translucent so the grid's wallpaper reads through — see --grid-surface-a.
+     A container sits on a panel that is already translucent, so the two
+     compound; the knob is tuned for the pair, not for this surface alone. */
+  background: hsl(var(--surface-1) / var(--grid-surface-a));
   overflow: hidden;
   margin-top: 4px;
   height: 100%;
@@ -5443,11 +5446,16 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   overflow: hidden;
   border: none;
   border-radius: 0;
-  /* NO BACKGROUND. The overlay is a full-screen frame you look THROUGH — it was
-     an opaque `--panel-bg` slab, which is the "larger background on a parent"
-     the user is objecting to. The drop shadow goes with it: a shadow on a
-     transparent full-screen box is a dark band over the grid and nothing else. */
-  background: transparent;
+  /* A VERY SLIGHT BLACK (user 2026-08-17: "give the viewer a very slight
+     transparent black background too"). It was an opaque `--panel-bg` slab —
+     the "larger background on a parent" being objected to — then fully
+     transparent, which left the tiles sitting on a grid at full brightness.
+     This is the middle: enough to settle the grid behind the viewer, little
+     enough that you still read it. NEUTRAL black for the same reason the tiles
+     are: a coloured wash over the whole screen shifts every photo on it.
+     The drop shadow stays gone — a shadow on a full-screen box is a dark band
+     over the grid and nothing else. */
+  background: rgba(0, 0, 0, 0.28);
   /* Opens out of the thumbnail that was clicked. The origin is handed in as
      custom properties because it is the only part that varies per open —
      the keyframe itself stays here rather than being rebuilt inline.
@@ -5829,6 +5837,27 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
      a header can read stronger than the panel behind it. */
   --retro-header-scrim: 0.86;
   --retro-panel-scrim: 0.965;
+
+  /* ── The grid wallpaper ────────────────────────────────────────────────
+     User 2026-08-17: "make everything on the grid itself, slightly tinted
+     background, with the latest screenshot being the background of the grid
+     itself."
+
+     THREE KNOBS, and they are the whole feature — every value below is a dial,
+     not a decision baked into a selector:
+       --grid-wallpaper         the art
+       --grid-wallpaper-scrim   how much app-surface sits over it on .grid-frame
+       --grid-surface-a         how opaque a PANEL / CONTAINER is on top of that
+
+     ALPHA COMPOUNDS, which is the thing to know before turning them. A panel
+     and a container stack, so the wallpaper reaching your eye through both is
+     (1 - a)^2, not (1 - a): at a = 0.80 that is 4%, which reads as "no
+     wallpaper". These values are deliberately low for that reason and the
+     wallpaper still reads as a tint rather than a picture — raise the
+     transparency (lower the number) if you want more of it. */
+  --grid-wallpaper: url("/grid-wallpaper.jpg");
+  --grid-wallpaper-scrim: 0.55;
+  --grid-surface-a: 0.62;
 }
 
 .toolbar,
@@ -5861,17 +5890,51 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   pointer-events: none;
 }
 
-/* The panel body picks up the faintest wash so the header does not look like a
-   sticker on an unrelated surface. */
-.panel-shell {
+/* THE GRID HAS A WALLPAPER (user 2026-08-17: "the latest screenshot being the
+   background of the grid itself"). Same shape as the `--retro-rainbow` system
+   above — art under a theme-built scrim, with the scrim as a knob — because
+   that pattern already exists here and a second one would drift from it.
+
+   IT PAINTS ON `.grid-surface`, NOT `.grid-frame`, and that distinction is the
+   whole reason the first attempt was invisible. `.grid-frame` is App's padding
+   wrapper; the grid renderer (GridMosaic, or GridRender for a rows x cols grid)
+   mounts its OWN full-bleed `bg-background2` div inside it — measured at
+   1598x968 inside 1600x970, i.e. covering 99.9% of it opaquely. A wallpaper on
+   the frame is behind that and cannot be seen at any scrim value. **The
+   positive control is what found this**: forcing every panel, container and
+   header transparent STILL showed no wallpaper, which ruled out "the UI is
+   covering it" and pointed at a layer nobody had looked for.
+
+   `bg-background2` (Tailwind) sets background-COLOR, and a background-image
+   paints over it — so the colour survives underneath as the 404 fallback and
+   nothing needs to be un-set.
+
+   `cover` + `center`: the asset is a 1.13 arch and a desktop grid is ~1.6, so
+   the browser scales to width and crops the legs. That crop is intended — the
+   crown is the subject. The asset is MIRRORED to get that 1.13 in the first
+   place; the raw phone wallpaper is 0.56, which `cover` would crop 2.8x. */
+.grid-surface {
   background-image:
     linear-gradient(
-      hsl(var(--surface-1) / var(--retro-panel-scrim)),
-      hsl(var(--surface-1) / var(--retro-panel-scrim))
+      hsl(var(--surface-0) / var(--grid-wallpaper-scrim)),
+      hsl(var(--surface-0) / var(--grid-wallpaper-scrim))
     ),
-    var(--retro-rainbow);
+    var(--grid-wallpaper);
   background-size: cover;
+  background-position: center;
   background-repeat: no-repeat;
+}
+
+/* The panel body used to carry the faintest wash of the rainbow GRADIENT so the
+   header did not look like a sticker on an unrelated surface. The grid's
+   wallpaper is now that surface, and it is the same motif — so the gradient
+   here is redundant AND opaque, which is the part that matters: an opaque
+   background-image on the panel blocks the wallpaper no matter what the scrim
+   says. It is replaced by a translucent tint, so the panel reads as a pane of
+   smoked glass over the grid's own art rather than a lid on it. */
+.panel-shell {
+  background-image: none;
+  background-color: hsl(var(--surface-1) / var(--grid-surface-a));
 }
 
 /* EMBEDDED container headers are deliberately transparent (they sit inside a

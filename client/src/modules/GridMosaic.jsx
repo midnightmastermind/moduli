@@ -181,7 +181,12 @@ export default function GridMosaic({
   return (
     <div
       ref={setRefs}
-      className={["bg-background2 shadow-inner rounded-xl border border-border ring-1 ring-black/30",
+      // `grid-surface` is THE grid's own background layer — the thing the
+      // wallpaper paints on. It is not `.grid-frame`: that is App's padding
+      // wrapper, and this div covers 99.9% of it opaquely, so a wallpaper on
+      // the frame is invisible (measured — 1598x968 inside 1600x970). The
+      // rows x cols renderer carries the same class for the same reason.
+      className={["grid-surface bg-background2 shadow-inner rounded-xl border border-border ring-1 ring-black/30",
         fullscreenPanelId !== null ? "pointer-events-none opacity-0" : ""].join(" ")}
       style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden", boxSizing: "border-box", transition: "opacity 0.15s ease" }}
     >
