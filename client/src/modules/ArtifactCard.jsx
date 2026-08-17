@@ -4,6 +4,7 @@
 //   - expanded mode: fills the parent instance row, with <video controls autoPlay>,
 //     a scaled <img>, an <audio controls>, or an <iframe> for pdf. X button collapses.
 import React, { useState, useCallback, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, Maximize2, AlertCircle } from "lucide-react";
 import { Spinner } from "../components/ui/spinner.jsx";
 import { resolveFileRef } from "../helpers/fileRef";
@@ -57,6 +58,21 @@ export default function ArtifactCard({ module, label, occurrence }) {
     e?.stopPropagation();
     setExpanded((v) => !v);
   }, []);
+
+  // Escape closes the full-screen artifact. Bound at the DOCUMENT rather than on
+  // the dialog, so it works without the overlay having taken focus — the same
+  // reason `ArtifactSpread` and `ConfirmListHost` bind it there. `stopPropagation`
+  // keeps one Escape from also closing the spread viewer underneath it.
+  useEffect(() => {
+    if (!expanded) return undefined;
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setExpanded(false);
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [expanded]);
 
   // Clicking ANY artifact occurrence opens the spread viewer (user, 2026-08-16),
   // so a picture behaves the same wherever it is met — an inline row thumbnail,
@@ -243,7 +259,22 @@ export default function ArtifactCard({ module, label, occurrence }) {
     // stored filename is timestamp-randomized).
     const sizeLabel = formatBytes(module?.meta?.uploadSize);
     const originalName = module?.meta?.originalName || label || module?.label;
-    return (
+    // FULL SCREEN, NOT "fills its tile" (user 2026-08-17: "make that artifact full
+    // screen"). It used to render inline, so inside the spread viewer the button
+    // grew the artifact to the size of its own small tile — the icon is a
+    // Maximize2 and that was never what it promised.
+    //
+    // PORTALLED, because inline it can never escape its container: every ancestor
+    // (tile, container, panel, the spread overlay) clips and stacks it. Same shape
+    // `ArtifactSpread` uses for the same reason. Escape closes it, and so does a
+    // click on the backdrop.
+    return createPortal(
+      <div
+        className="artifact-fullscreen"
+        role="dialog"
+        aria-label={originalName || "Artifact"}
+        onClick={(e) => { if (e.target === e.currentTarget) toggle(e); }}
+      >
       <div className="artifact-card artifact-card--expanded" data-kind={kind}>
         <button className="artifact-expand-close" onClick={toggle} aria-label="Collapse">
           <X size={14} />
@@ -265,6 +296,8 @@ export default function ArtifactCard({ module, label, occurrence }) {
           )}
         </div>
       </div>
+      </div>,
+      document.body
     );
   }
 

@@ -3206,8 +3206,21 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   opacity: 0;
   transition: opacity 0.12s ease-out;
   pointer-events: none;
+  /* ABOVE THE PHOTO. The card's media fills it edge to edge and the card itself is
+     the click target that opens the viewer, so without a stacking context of its
+     own this button sits UNDER the image (user 2026-08-17: "that button should
+     have zindex too so i can click it over the zoom on the photo"). */
+  z-index: 3;
 }
-.artifact-card:hover .artifact-thumb-expand-hint { opacity: 1; }
+/* `pointer-events` HAD TO BE RESTORED HERE, and that was the actual defect: the
+   base rule sets `none` and the hover rule only ever restored OPACITY, so the
+   button was visible and completely inert — every click fell through to the card
+   underneath and opened the viewer instead. It looked like a z-index problem and
+   was not. */
+.artifact-card:hover .artifact-thumb-expand-hint {
+  opacity: 1;
+  pointer-events: auto;
+}
 
 /* Quote artifact — styled pull-quote (imported Wikipedia blockquotes/pull-quotes).
    Overrides the media-card base (flex/center/zoom) for a left-aligned text block. */
@@ -5465,6 +5478,37 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   inset: 0;
   z-index: 1300;
   background: transparent;
+}
+
+/* ONE ARTIFACT, FULL SCREEN (user 2026-08-17: "make that artifact full screen").
+   z-index 1310 puts it ABOVE the spread viewer (1301) — this is opened FROM
+   inside the spread, so anything lower renders underneath the thing that
+   launched it. The scrim is opaque enough to settle the grid behind without
+   going black, matching the viewer's own wash. */
+.artifact-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1310;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.72);
+}
+/* The card inside takes the whole surface; its media rule already caps to the
+   box, so a small image is centred rather than stretched. */
+.artifact-fullscreen > .artifact-card--expanded {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  background: transparent;
+  border: none;
+}
+.artifact-fullscreen .artifact-expanded-media {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 /* FULL SCREEN (user 2026-08-17: "the spread viewer needs to be the full height
