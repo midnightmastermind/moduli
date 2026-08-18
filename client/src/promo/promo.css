@@ -233,3 +233,21 @@
   transition: border-color 140ms ease;
 }
 .promo-chip:hover { border-color: var(--p-accent); }
+
+/* ── Login ───────────────────────────────────────────────────────── */
+.promo-login { min-height: calc(100vh - 66px); display: flex; align-items: center; }
+.promo-login-inner { max-width: 460px; }
+.promo-login-mark { display: inline-block; margin-bottom: 26px; }
+.promo-login-mark img { max-width: min(200px, 56vw); height: auto; display: block; }
+.promo-login-form { display: flex; flex-direction: column; gap: 16px; margin-top: 26px; }
+.promo-field { display: flex; flex-direction: column; gap: 7px; }
+.promo-field span { font-size: 13px; color: var(--p-text-dim); font-weight: 600; }
+.promo-field input {
+  background: var(--p-bg-card); border: 1px solid var(--p-line); border-radius: 10px;
+  padding: 13px 14px; color: var(--p-text); font-size: 16px; /* 16px: iOS zooms below it */
+  outline: none; transition: border-color 140ms ease;
+}
+.promo-field input:focus { border-color: var(--p-accent); }
+.promo-login-error { color: #ff8f8f; font-size: 14px; margin: 0; }
+.promo-login-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+.promo-btn:disabled { opacity: 0.6; cursor: default; transform: none; }

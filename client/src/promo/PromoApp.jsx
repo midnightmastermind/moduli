@@ -9,6 +9,7 @@ import PromoLayout from "./PromoLayout.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
 import FeaturePage from "./pages/FeaturePage.jsx";
 import ExamplesPage from "./pages/ExamplesPage.jsx";
+import LoginRoute from "./pages/LoginRoute.jsx";
 import NotFoundPage from "./pages/NotFoundPage.jsx";
 
 // Paths that belong to the promo surface even for a signed-in visitor. One
@@ -24,6 +25,7 @@ export default function PromoApp() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/features/:slug" element={<FeaturePage />} />
           <Route path="/examples" element={<ExamplesPage />} />
+          <Route path="/login" element={<LoginRoute />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
