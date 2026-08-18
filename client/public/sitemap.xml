@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://viafluere.com/</loc><priority>1.0</priority></url>
+  <url><loc>https://viafluere.com/examples</loc><priority>0.8</priority></url>
+  <url><loc>https://viafluere.com/features/measure</loc><priority>0.7</priority></url>
+  <url><loc>https://viafluere.com/features/build</loc><priority>0.7</priority></url>
+  <url><loc>https://viafluere.com/features/operations</loc><priority>0.7</priority></url>
+  <url><loc>https://viafluere.com/features/intake</loc><priority>0.7</priority></url>
+  <url><loc>https://viafluere.com/features/visualize</loc><priority>0.7</priority></url>
+</urlset>

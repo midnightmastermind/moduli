@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { FEATURES, featureBySlug } from "../content/features.js";
 import { EXAMPLES } from "../content/examples.js";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 describe("promo content", () => {
   it("every feature has the fields FeaturePage renders", () => {
@@ -40,6 +42,14 @@ describe("promo content", () => {
       for (const b of e.built) {
         expect(slugs.has(b), `${e.id} names unknown capability "${b}"`).toBe(true);
       }
+    }
+  });
+
+  // A capability page that no crawler is told about is a page nobody finds.
+  it("the sitemap lists every capability page", () => {
+    const xml = readFileSync(join(process.cwd(), "public", "sitemap.xml"), "utf8");
+    for (const f of FEATURES) {
+      expect(xml, `sitemap is missing ${f.slug}`).toContain(`/features/${f.slug}`);
     }
   });
 
