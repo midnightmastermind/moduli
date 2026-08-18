@@ -7,6 +7,9 @@ import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import PromoLayout from "./PromoLayout.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
+import FeaturePage from "./pages/FeaturePage.jsx";
+import ExamplesPage from "./pages/ExamplesPage.jsx";
+import NotFoundPage from "./pages/NotFoundPage.jsx";
 
 // Paths that belong to the promo surface even for a signed-in visitor. One
 // definition, in promoPaths.js; re-exported here for callers already holding
@@ -19,6 +22,9 @@ export default function PromoApp() {
       <Routes>
         <Route element={<PromoLayout />}>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/features/:slug" element={<FeaturePage />} />
+          <Route path="/examples" element={<ExamplesPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
