@@ -36,6 +36,32 @@
 
 .promo * { box-sizing: border-box; }
 
+/* THE PROMO SURFACE IS A DOCUMENT AND MUST SCROLL.
+ *
+ * index.css sets `html, body, #root { height: 100%; overflow: hidden }` because
+ * the grid is a fixed-viewport application that scrolls inside its own panels.
+ * That reset is loaded for everyone from main.jsx, so without this the landing
+ * page silently could not scroll: measured at 1440x900 the document was 900px
+ * tall with the first section starting at y=916, and every reveal stayed
+ * invisible forever because nothing below the fold could ever be reached.
+ *
+ * These rules are the ONE place the promo surface reaches outside `.promo`, and
+ * they only fire while PromoLayout is mounted — it stamps `.promo-html` on the
+ * root element and removes it on unmount, so the grid's reset is untouched the
+ * moment the promo surface goes away. `promoLayout.test.jsx` pins both halves.
+ */
+.promo-html,
+.promo-html body,
+.promo-html #root {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
+  overscroll-behavior: auto;
+}
+.promo-html #root { display: block; }
+/* Overscroll must not flash the application's ground colour. */
+.promo-html body { background: #070b14; }
+
 .promo-shell { max-width: var(--p-max); margin: 0 auto; padding: 0 var(--p-pad); }
 
 /* ── Nav ─────────────────────────────────────────────────────────── */
@@ -96,10 +122,21 @@
   display: block; transition: transform 160ms ease, border-color 160ms ease;
 }
 .promo-card:hover { transform: translateY(-3px); border-color: rgba(52, 245, 231, 0.35); }
+/* Cards in a row stretch to equal height; without this the "Read more" of a
+ * short card floats mid-card while its neighbour's sits at the foot, and the
+ * row reads as misaligned rather than as varied. */
+.promo-card { display: flex; flex-direction: column; }
+.promo-card .promo-card-more { margin-top: auto; padding-top: 14px; }
 .promo-card h3 { margin: 0 0 8px; font-size: 19px; letter-spacing: -0.01em; }
 .promo-card p { margin: 0; color: var(--p-text-dim); font-size: 15px; line-height: 1.55; }
 
-.promo-grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(268px, 1fr)); }
+/* FLEX, not grid, and the reason is the last row. `repeat(auto-fit,
+ * minmax(268px, 1fr))` leaves a lone final card at one track's width with the
+ * rest of the row empty — measured at 1440, the four examples came out 3 + 1
+ * with 700px of void beside the orphan. Flex lets the final row's items stretch
+ * to fill, so a row is never part-empty at any width. */
+.promo-grid { display: flex; flex-wrap: wrap; gap: 18px; }
+.promo-grid > * { flex: 1 1 260px; }
 
 .promo-stat { font-size: clamp(38px, 6vw, 60px); font-weight: 800; letter-spacing: -0.03em;
   background: var(--p-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -134,3 +171,40 @@
   .promo * { animation: none !important; transition: none !important; }
   .promo-reveal { opacity: 1; transform: none; }
 }
+
+/* ── Landing ─────────────────────────────────────────────────────── */
+.promo-hero { padding-top: clamp(48px, 8vw, 96px); position: relative; overflow: hidden; }
+/* A single soft light behind the hero, in the mark's own colours. One
+ * gradient, no image to load. */
+.promo-hero::before {
+  content: ""; position: absolute; inset: -40% 0 auto 50%;
+  width: min(1100px, 130vw); aspect-ratio: 1; transform: translateX(-50%);
+  background: radial-gradient(circle, rgba(52,245,231,0.16) 0%, rgba(58,210,255,0.10) 38%, transparent 66%);
+  pointer-events: none;
+}
+.promo-hero > * { position: relative; }
+.promo-hero-mark { max-width: min(260px, 62vw); height: auto; margin-bottom: 30px; }
+.promo-hero-title {
+  font-size: clamp(38px, 7.4vw, 78px); line-height: 1.03;
+  letter-spacing: -0.035em; margin: 0 0 22px; font-weight: 800; max-width: 15ch;
+}
+.promo-hero-em { background: var(--p-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.promo-hero-lede { font-size: clamp(17px, 2.1vw, 21px); }
+.promo-hero-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 34px; }
+
+.promo-section--raised { background: var(--p-bg-raised); border-block: 1px solid var(--p-line); }
+
+.promo-card-stat {
+  font-size: 30px; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 10px;
+  background: var(--p-grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.promo-card-more { display: inline-block; margin-top: 14px; font-size: 14px; font-weight: 600; color: var(--p-accent); }
+
+.promo-cta { text-align: center; }
+.promo-cta .promo-lede { max-width: 52ch; }
+
+/* Stagger the reveal across a row so cards arrive in sequence. */
+.promo-grid .promo-reveal:nth-child(2) { transition-delay: 70ms; }
+.promo-grid .promo-reveal:nth-child(3) { transition-delay: 140ms; }
+.promo-grid .promo-reveal:nth-child(4) { transition-delay: 210ms; }
+.promo-grid .promo-reveal:nth-child(5) { transition-delay: 280ms; }
