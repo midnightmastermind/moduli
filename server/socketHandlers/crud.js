@@ -417,7 +417,11 @@ export function registerCrudHandlers(socket, {
         id: instance.id,
         userId, gridId,
         role: "instance",
-        kind: instance.kind || "list",
+        // NO kind. An instance has no sub-types, and getModuleTypeIcon resolves
+        // kind before role — so a kind here draws the wrong icon and lands as an
+        // `inert-kind` integrity warning (31 of them on a grid built by clicking,
+        // measured 2026-08-18). Migration 0003 swept 525 of these off the live
+        // grid; this path kept minting them.
         label: instance.label || "New item",
         fieldBindings: instance.fieldBindings || [],
         defaultDragMode: instance.defaultDragMode || "move",
