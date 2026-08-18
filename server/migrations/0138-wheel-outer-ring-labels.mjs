@@ -38,6 +38,14 @@ export const describe =
   "Feeling wheel: smaller label font so the third ring reads at rest, and no derived count in its tooltip.";
 
 export const LABEL_FONT_PX = 7;
+// THE STORED 8 SAT EXACTLY ON THE CLIFF, which is why the ring was blank while
+// the arithmetic said it should not be. The threshold is
+// `minArcPx*360 / (2*pi*r)`, and at the box this wheel actually renders in the
+// value that puts a 4.5deg slice right at the boundary is ~8. A/B'd on the live
+// chart: at 8 the outer ring is empty, at 2 all 80 labels draw cleanly. 6 keeps
+// a ~25% margin so a slightly narrower box does not blank the ring again, while
+// still guarding a genuinely tiny one.
+export const LABEL_MIN_ARC_PX = 6;
 
 export async function up({ gridId, models, log, dryRun }) {
   const { Occurrence } = models;
@@ -52,15 +60,15 @@ export async function up({ gridId, models, log, dryRun }) {
 
   for (const g of targets) {
     const spec = g.meta.graph;
-    const already = spec.labelFontPx === LABEL_FONT_PX && spec.hideTooltipValue === true;
-    log(`    ${g.id} · labelFontPx ${spec.labelFontPx ?? "(default)"} -> ${LABEL_FONT_PX} · hideTooltipValue ${spec.hideTooltipValue ?? false} -> true${already ? "  (already set)" : ""}`);
+    const already = spec.labelFontPx === LABEL_FONT_PX && spec.labelMinArcPx === LABEL_MIN_ARC_PX && spec.hideTooltipValue === true;
+    log(`    ${g.id} · labelFontPx ${spec.labelFontPx ?? "(default)"} -> ${LABEL_FONT_PX} · labelMinArcPx ${spec.labelMinArcPx ?? "(default)"} -> ${LABEL_MIN_ARC_PX} · hideTooltipValue ${spec.hideTooltipValue ?? false} -> true${already ? "  (already set)" : ""}`);
   }
   if (dryRun) { log("  DRY RUN — nothing written"); return; }
 
   for (const g of targets) {
     await Occurrence.updateOne(
       { id: g.id, gridId },
-      { $set: { "meta.graph.labelFontPx": LABEL_FONT_PX, "meta.graph.hideTooltipValue": true } },
+      { $set: { "meta.graph.labelFontPx": LABEL_FONT_PX, "meta.graph.labelMinArcPx": LABEL_MIN_ARC_PX, "meta.graph.hideTooltipValue": true } },
     );
   }
 
@@ -70,7 +78,7 @@ export async function up({ gridId, models, log, dryRun }) {
   let bad = 0;
   for (const g of targets) {
     const now = after.find(x => x.id === g.id)?.meta?.graph || {};
-    const ok = now.labelFontPx === LABEL_FONT_PX && now.hideTooltipValue === true
+    const ok = now.labelFontPx === LABEL_FONT_PX && now.labelMinArcPx === LABEL_MIN_ARC_PX && now.hideTooltipValue === true
       && JSON.stringify(now.encoding) === JSON.stringify(g.meta.graph.encoding);
     if (!ok) bad++;
     log(`    verify ${g.id}: font+tooltip set and encoding intact -> ${ok ? "YES" : "NO"}`);
