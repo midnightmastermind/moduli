@@ -1478,6 +1478,9 @@ body[data-drag-kind="panel"] .container-shell {
   line-height: 1.6;
   /* Tighten the gap between words across the whole doc by ~1px (per user). */
   word-spacing: -1px;
+  /* 5px of air on the left so a wrapped line does not start flush against the
+     box edge (user 2026-08-18: "the d in the box is too flush on the left"). */
+  padding-left: 5px;
   overflow: visible;
   pointer-events: auto;
   cursor: text;
