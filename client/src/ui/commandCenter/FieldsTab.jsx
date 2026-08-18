@@ -2,6 +2,7 @@
 // FieldsTab + FieldPill + FieldDetail
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
+import { FIELD_TYPES } from "../../helpers/fieldTypes.js";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { Plus, FolderPlus, ChevronLeft, GripVertical, Trash2 } from "lucide-react";
@@ -329,7 +330,7 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
             onChange={(e) => setLocal((p) => ({ ...p, type: e.target.value }))}
             style={{ ...inputStyle, width: "auto", minWidth: 90 }}
           >
-            {["number", "text", "boolean", "select", "date", "rating", "duration", "occurrence"].map((t) => (
+            {FIELD_TYPES.map((t) => (
               <option key={t} value={t}>{t}</option>
             ))}
           </select>

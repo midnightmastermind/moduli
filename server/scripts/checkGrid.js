@@ -20,11 +20,30 @@ async function main() {
   const uri = process.env.MONGO_URI || process.env.MONGODB_URI;
   if (!uri) throw new Error("MONGO_URI is not set (run with --env-file=server/.env)");
   await mongoose.connect(uri);
-  const user = await User.findOne({ email: arg("--user", "josh@jpoms.com") }).lean();
-  if (!user) throw new Error("User not found");
+  const email = arg("--user", "josh@jpoms.com");
+  const user = await User.findOne({ email }).lean();
+  if (!user) throw new Error(`No user "${email}". Pass --user <email>.`);
   const grids = await Grid.find({ userId: user._id.toString() }).lean();
   const wanted = ALL ? grids : grids.filter(g => (g.name || "").toLowerCase() === String(arg("--grid", "")).toLowerCase());
-  if (!wanted.length) throw new Error(`No grid matched. Available: ${grids.map(g => `"${g.name}"`).join(", ")}`);
+  if (!wanted.length) {
+    // The old message listed only THIS user's grids and never said whose they
+    // were, so asking for a grid that belongs to another account read as "that
+    // grid does not exist" — measured 2026-08-18 against a grid that plainly
+    // did. Name the account searched, and say where else to look.
+    const name = String(arg("--grid", ""));
+    const elsewhere = await Grid.find({ userId: { $ne: user._id.toString() },
+      name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") }).lean();
+    const owners = elsewhere.length
+      ? await User.find({ _id: { $in: elsewhere.map(g => g.userId) } }).lean()
+      : [];
+    throw new Error(
+      `No grid named "${name}" for ${email}. That account has: ` +
+      `${grids.map(g => `"${g.name || "(unnamed)"}"`).join(", ") || "(none)"}.` +
+      (owners.length
+        ? `\n   It DOES exist under: ${owners.map(u => u.email).join(", ")} — re-run with --user <email>.`
+        : "")
+    );
+  }
   let ok = true;
   for (const g of wanted) {
     const gid = g._id.toString();

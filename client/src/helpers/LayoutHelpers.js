@@ -1,5 +1,6 @@
 // helpers/LayoutHelpers.js
 import * as CommitHelpers from "./CommitHelpers";
+import { kindForNewModule } from "./operationActions.js";
 import { uid } from "../uid";
 // ============================================================================
 // LOOKUP HELPERS - get items from state by ID
@@ -275,8 +276,30 @@ export function createPanelInGrid({
   const gridId = grid._id?.toString() || grid.id;
   const occurrenceId = uid();
 
-  // 1. Create the panel entity as a module
-  CommitHelpers.createModule({ dispatch, socket, module: { ...panel, role: "panel" }, emit });
+  // 1. Create the panel entity as a module.
+  //
+  // The kind is decided by THE one rule (`kindForNewModule`), not by whatever
+  // the caller happened to pass. A panel has no sub-types, and
+  // `getModuleTypeIcon` resolves kind BEFORE role — so a panel carrying
+  // `kind:"board"` draws the BOARD icon. Migration 0003 swept 525 of these off
+  // the live grid on 2026-07-29 and `gridIntegrity` flags them as `inert-kind`,
+  // but every UI path that mints a panel still hand-wrote one: App.jsx and four
+  // sites in dropHandlers.js. A brand-new account's very first panel came out
+  // with an integrity warning (measured 2026-08-18).
+  //
+  // Applying it HERE rather than at those six call sites is the point: this is
+  // the one chokepoint every panel passes through, so a seventh caller cannot
+  // reintroduce it.
+  CommitHelpers.createModule({
+    dispatch, socket, emit,
+    // The caller's `kind` is dropped on purpose. `kindForNewModule` lets an
+    // EXPLICIT kind win — correct for an op that means `kind:"inline"` — but a
+    // panel has no sub-types at all, so there is no kind for a caller to mean.
+    // App.jsx only ever used it to pick a label ("Board 1"), which it still
+    // does; nothing renders it. Passing no kind is what makes the rule return
+    // null here.
+    module: { ...panel, role: "panel", kind: kindForNewModule("panel") },
+  });
 
   // 2. Create the occurrence (panels are persistent by default)
   const occurrence = {

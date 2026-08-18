@@ -14,6 +14,7 @@
 // handful of patterns. Either way the chatbox works.
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { ASSISTANT_FIELD_TYPES } from "../helpers/fieldTypes.js";
 import { useGridActions } from "../GridActionsContext";
 import { getCurrentLocation, subscribeCurrentLocation } from "../helpers/currentLocation";
 import MiniGridMap from "../mobile/MiniGridMap";
@@ -659,7 +660,7 @@ const HIDDEN_ARG_KEYS = new Set(["gridId", "dryRun", "userId"]);
 
 // Field types the create_field confirm card lets the user pick (mirrors the
 // Field model's type enum + the create_field tool description).
-const FIELD_TYPES = ["number", "text", "boolean", "select", "date", "duration", "rating", "occurrence"];
+const FIELD_TYPES = ASSISTANT_FIELD_TYPES;
 
 // "parentId" → "parent", "fieldId" → "field", "moduleId" → "module".
 function prettyArgKey(k) {
