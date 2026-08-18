@@ -6,6 +6,7 @@ import { preventUnhandled } from "@atlaskit/pragmatic-drag-and-drop/prevent-unha
 
 import { socket } from "./socket";
 import { bindSocketToStore, operationsBridge } from "./state/bindSocketToStore";
+import { toast } from "./state/notificationStore";
 
 import { ActionTypes, logoutAction } from "./state/actions";
 import Grid from "./Grid";
@@ -547,9 +548,47 @@ export default function App() {
     socket.emit("request_full_state", { gridId: newGridId });
   };
 
+  // "Add new grid" used to clear the stored gridId and re-request state — which
+  // MINTS nothing. `request_full_state` only creates a grid for a user who has
+  // NONE (state.js); otherwise it falls back to the default-flagged or oldest
+  // grid, so on any account with at least one grid the button silently reloaded
+  // the grid you were already on. Measured on a fresh account 2026-08-18: same
+  // label, same gridId, before and after.
+  //
+  // It mints for real now, through the `create_grid` handler the server already
+  // had. The switch waits for the server's OWN acknowledgement rather than
+  // firing request_full_state straight after the emit: socket.io preserves
+  // message order but each handler awaits, so the state request can reach
+  // Grid.findOne before the upsert lands — and a miss there falls back to the
+  // OLD grid, which is exactly the bug wearing a new hat. Same race the
+  // create_page/apply_template work documented on 2026-08-03.
   const handleCreateNewGrid = () => {
-    localStorage.removeItem("moduli-gridId");
-    socket.emit("request_full_state");
+    // A Grid's `_id` is a Mongo ObjectId, so this has to be 24 hex characters —
+    // a UUID fails to cast and the upsert throws. Same shape Mongo would mint:
+    // a 4-byte timestamp followed by 8 random bytes.
+    const hex = (n) => Array.from({ length: n }, () =>
+      Math.floor(Math.random() * 16).toString(16)).join("");
+    const newGridId =
+      Math.floor(Date.now() / 1000).toString(16).padStart(8, "0") + hex(16);
+
+    const onCreated = (payload = {}) => {
+      const grid = payload.grid || payload;
+      const id = String(grid?.id || grid?._id || "");
+      if (id !== newGridId) return;
+      socket.off("grid_created", onCreated);
+      clearTimeout(timer);
+      dispatch({ type: ActionTypes.SET_GRID_ID, payload: newGridId });
+      localStorage.setItem("moduli-gridId", newGridId);
+      socket.emit("request_full_state", { gridId: newGridId });
+    };
+    // If the ack never arrives, say so rather than leaving a dead button.
+    const timer = setTimeout(() => {
+      socket.off("grid_created", onCreated);
+      toast.error("Could not create the grid — the server did not confirm it.");
+    }, 10000);
+
+    socket.on("grid_created", onCreated);
+    socket.emit("create_grid", { grid: { id: newGridId, rows: 1, cols: 1, name: "" } });
   };
 
   // Grid-switch retry: if the requested grid hasn't arrived after 8s

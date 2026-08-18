@@ -60,7 +60,14 @@ export function registerCrudHandlers(socket, {
         name: grid.name ?? "", userId,
       };
       const saved = await Grid.findOneAndUpdate({ _id: gridId, userId }, { _id: gridId, ...next }, { upsert: true, returnDocument: 'after' }).lean();
-      socket.to(userRoom(userId)).emit("grid_created", { grid: { id: gridId, _id: gridId, ...saved } });
+      const payload = { grid: { id: gridId, _id: gridId, ...saved } };
+      socket.to(userRoom(userId)).emit("grid_created", payload);
+      // ...and to the CALLER. Without this the creating client had no signal
+      // that the upsert had landed, so "Add new grid" could only guess when to
+      // request the new grid's state — and a request that arrives first falls
+      // back to the OLD grid (state.js only mints for a user with none). The
+      // ack is what makes the switch race-free.
+      socket.emit("grid_created", payload);
     } catch (err) {
       console.error("create_grid error:", err);
       socket.emit("server_error", "Failed to create grid");
