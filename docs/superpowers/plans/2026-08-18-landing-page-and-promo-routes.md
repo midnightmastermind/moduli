@@ -2350,7 +2350,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 ### Task 10: Full verification and deploy
 
-- [ ] **Step 1: Full suites**
+- [x] **Step 1: Full suites**
 
 Run: `cd client && npm test 2>&1 | tail -20`
 Expected: the documented baseline plus the new promo tests. **Read the failure COUNT** — the 3 pre-existing `liveOpsBehavioral` failures are known; a fourth is a regression (the 2026-08-09 (6) lesson).
@@ -2358,7 +2358,7 @@ Expected: the documented baseline plus the new promo tests. **Read the failure C
 Run: `cd server && npm test 2>&1 | tail -10`
 Expected: 865 passing, unchanged — no server file was touched.
 
-- [ ] **Step 2: Build and record the chunks**
+- [x] **Step 2: Build and record the chunks**
 
 Run: `cd client && npm run build 2>&1 | tail -30`
 Expected: succeeds, no new chunk-size warnings beyond the documented ones.
@@ -2367,7 +2367,7 @@ Run: `cd client && ls -la dist/assets/*.js | awk '{print $5, $9}' | sort -rn | h
 
 Record: the entry chunk, `PromoApp-*`, `App-*`. State the promo chunk size in the commit.
 
-- [ ] **Step 3: Verify the isolation claim against the BUILT output**
+- [x] **Step 3: Verify the isolation claim against the BUILT output**
 
 The static test proves the source has no bad imports; this proves the bundler agreed.
 
@@ -2385,19 +2385,19 @@ grep -c "CommitHelpers" "$PROMO"      # expect 0
 
 **Run the controls first and confirm they are non-zero.** A zero on a control is the tell that the probe is reading the wrong chunk — exactly the trap recorded on 2026-08-08 (4) and 2026-08-11 (5).
 
-- [ ] **Step 4: Look at every route in a real browser**
+- [x] **Step 4: Look at every route in a real browser**
 
 At 1440x900 and 390x844, with no session, walk: `/` → each of the five `/features/<slug>` → `/examples` → `/login` → a deliberate 404. Confirm at each stop that the page renders, the nav marks the right link, and nothing overflows horizontally.
 
 Then with a session: confirm `/` is the grid and `/features/build` is still the feature page.
 
-- [ ] **Step 5: Deploy**
+- [x] **Step 5: Deploy**
 
 Run: `./deploy.sh`
 
 **Do not pipe it through `tail`** — that masks a failed build and took prod down on 2026-08-18.
 
-- [ ] **Step 6: Verify the SERVED site, not the script output**
+- [x] **Step 6: Verify the SERVED site, not the script output**
 
 ```bash
 ssh <prod> 'cd <repo> && git log --oneline -1'          # HEAD matches local
@@ -2410,15 +2410,15 @@ Then fetch the served promo chunk and grep it with the same control-first discip
 
 A 502 immediately after deploy is the documented pm2 restart window — bundle 200 + index 502 is the tell. Retry once, check pm2 uptime and the error log's **timestamp** before believing it is yours.
 
-- [ ] **Step 7: Look at production**
+- [x] **Step 7: Look at production**
 
 Load `https://viafluere.com/` in a real browser, signed out, at desktop and phone width. **Look at it.** Then sign in and confirm the grid still loads normally.
 
-- [ ] **Step 8: Update CLAUDE.md**
+- [x] **Step 8: Update CLAUDE.md**
 
 Add a dated entry recording: the entry-split design, the measured chunk numbers, the `bindSocketToStore` token-writer trap and why `authStorage.js` exists, and the no-domain-knowledge rule for the promo surface with the user's verbatim quote. State plainly anything left unverified.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add -A
