@@ -548,7 +548,7 @@ The pages are data. Write the data and the rule that keeps the marketing site ho
   - `featureBySlug(slug) => Feature | undefined`
   - `EXAMPLES` — array of `{ id, name, blurb, detail, built: [string] }` where `built` names the generic capabilities the example is assembled from.
 
-- [ ] **Step 1: Write the content**
+- [x] **Step 1: Write the content**
 
 Create `client/src/promo/content/features.js`:
 
@@ -747,7 +747,7 @@ export const EXAMPLES = [
 ];
 ```
 
-- [ ] **Step 2: Write the content test**
+- [x] **Step 2: Write the content test**
 
 Create `client/src/promo/__tests__/promoContent.test.js`:
 
@@ -808,7 +808,7 @@ describe("promo content", () => {
 });
 ```
 
-- [ ] **Step 3: Write the domain-knowledge guard**
+- [x] **Step 3: Write the domain-knowledge guard**
 
 Create `client/src/promo/__tests__/noProductDomainKnowledge.test.js`:
 
@@ -893,12 +893,12 @@ describe("the promo site has no product domain knowledge", () => {
 });
 ```
 
-- [ ] **Step 4: Run all three suites**
+- [x] **Step 4: Run all three suites**
 
 Run: `cd client && npx vitest run src/promo/__tests__/`
 Expected: PASS. If the domain-knowledge guard fails, the fix is to reword the content — never to add to `EXEMPT`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add client/src/promo/content client/src/promo/__tests__
@@ -926,7 +926,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Consumes: `FEATURES` (Task 3), `PROMO_PATHS` (Task 2).
 - Produces: `PromoLayout` (default), `PromoNav` (default), `PromoFooter` (default). All CSS lives under a `.promo` root class so nothing leaks into the app when both are in one bundle.
 
-- [ ] **Step 1: Write the palette**
+- [x] **Step 1: Write the palette**
 
 Create `client/src/promo/promo.css`:
 
@@ -1063,7 +1063,7 @@ Create `client/src/promo/promo.css`:
 }
 ```
 
-- [ ] **Step 2: Write the nav test first**
+- [x] **Step 2: Write the nav test first**
 
 Create `client/src/promo/__tests__/PromoNav.test.jsx`:
 
@@ -1123,12 +1123,12 @@ describe("PromoNav", () => {
 });
 ```
 
-- [ ] **Step 3: Run it to verify it fails**
+- [x] **Step 3: Run it to verify it fails**
 
 Run: `cd client && npx vitest run src/promo/__tests__/PromoNav.test.jsx`
 Expected: FAIL — cannot resolve `../PromoNav.jsx`.
 
-- [ ] **Step 4: Write the nav**
+- [x] **Step 4: Write the nav**
 
 Create `client/src/promo/PromoNav.jsx`:
 
@@ -1184,7 +1184,7 @@ export default function PromoNav() {
 
 `NavLink` sets `aria-current="page"` on the active route by default, which is what the third test asserts.
 
-- [ ] **Step 5: Write the footer**
+- [x] **Step 5: Write the footer**
 
 Create `client/src/promo/PromoFooter.jsx`:
 
@@ -1207,7 +1207,7 @@ export default function PromoFooter() {
 }
 ```
 
-- [ ] **Step 6: Write the layout**
+- [x] **Step 6: Write the layout**
 
 Create `client/src/promo/PromoLayout.jsx`:
 
@@ -1238,7 +1238,7 @@ export default function PromoLayout() {
 }
 ```
 
-- [ ] **Step 7: Wire the layout into the router**
+- [x] **Step 7: Wire the layout into the router**
 
 Replace the `<Routes>` block in `client/src/promo/PromoApp.jsx`:
 
@@ -1263,12 +1263,12 @@ export default function PromoApp() {
 }
 ```
 
-- [ ] **Step 8: Run the tests**
+- [x] **Step 8: Run the tests**
 
 Run: `cd client && npx vitest run src/promo/__tests__/`
 Expected: PASS — including the domain-knowledge guard over the new CSS and components.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add client/src/promo/
@@ -1288,7 +1288,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Consumes: `FEATURES`, `EXAMPLES`.
 - Produces: `LandingPage` default export. Also `useReveal()` — a local hook in the same file, not exported.
 
-- [ ] **Step 1: Write the page**
+- [x] **Step 1: Write the page**
 
 Replace `client/src/promo/pages/LandingPage.jsx` entirely:
 
@@ -1436,7 +1436,7 @@ export default function LandingPage() {
 }
 ```
 
-- [ ] **Step 2: Add the landing-specific CSS**
+- [x] **Step 2: Add the landing-specific CSS**
 
 Append to `client/src/promo/promo.css`:
 
@@ -1478,12 +1478,12 @@ Append to `client/src/promo/promo.css`:
 .promo-grid .promo-reveal:nth-child(5) { transition-delay: 280ms; }
 ```
 
-- [ ] **Step 3: Verify tests still pass**
+- [x] **Step 3: Verify tests still pass**
 
 Run: `cd client && npx vitest run src/promo/__tests__/`
 Expected: PASS. In particular the domain-knowledge guard must still be green — if the hero copy accidentally used the word "schedule", it fails here.
 
-- [ ] **Step 4: Look at it**
+- [x] **Step 4: Look at it**
 
 Run the dev server and open `http://localhost:5173/` in a browser with no session.
 
@@ -1495,7 +1495,7 @@ Confirm by eye, and say so explicitly in the commit:
 
 Take a screenshot at 1440x900 and at 390x844 and look at both.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add client/src/promo/
@@ -1519,7 +1519,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Consumes: `featureBySlug`, `FEATURES`, `EXAMPLES`.
 - Produces: `FeaturePage`, `ExamplesPage`, `NotFoundPage` default exports.
 
-- [ ] **Step 1: Write the routing test first**
+- [x] **Step 1: Write the routing test first**
 
 Create `client/src/promo/__tests__/promoRouting.test.jsx`:
 
@@ -1608,12 +1608,12 @@ describe("promo routing", () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd client && npx vitest run src/promo/__tests__/promoRouting.test.jsx`
 Expected: FAIL — cannot resolve `../pages/FeaturePage.jsx`.
 
-- [ ] **Step 3: Write FeaturePage**
+- [x] **Step 3: Write FeaturePage**
 
 Create `client/src/promo/pages/FeaturePage.jsx`:
 
@@ -1691,7 +1691,7 @@ export default function FeaturePage() {
 }
 ```
 
-- [ ] **Step 4: Write ExamplesPage**
+- [x] **Step 4: Write ExamplesPage**
 
 Create `client/src/promo/pages/ExamplesPage.jsx`:
 
@@ -1754,7 +1754,7 @@ export default function ExamplesPage() {
 }
 ```
 
-- [ ] **Step 5: Write NotFoundPage**
+- [x] **Step 5: Write NotFoundPage**
 
 Create `client/src/promo/pages/NotFoundPage.jsx`:
 
@@ -1781,7 +1781,7 @@ export default function NotFoundPage() {
 }
 ```
 
-- [ ] **Step 6: Add the routes**
+- [x] **Step 6: Add the routes**
 
 Replace the `<Routes>` block in `client/src/promo/PromoApp.jsx`:
 
@@ -1812,7 +1812,7 @@ export default function PromoApp() {
 }
 ```
 
-- [ ] **Step 7: Add the page CSS**
+- [x] **Step 7: Add the page CSS**
 
 Append to `client/src/promo/promo.css`:
 
@@ -1843,17 +1843,17 @@ Append to `client/src/promo/promo.css`:
 .promo-chip:hover { border-color: var(--p-accent); }
 ```
 
-- [ ] **Step 8: Run the tests**
+- [x] **Step 8: Run the tests**
 
 Run: `cd client && npx vitest run src/promo/__tests__/`
 Expected: PASS, all suites.
 
-- [ ] **Step 9: A/B the 404 branch**
+- [x] **Step 9: A/B the 404 branch**
 
 Temporarily change `FeaturePage.jsx`'s guard to `if (false) return <NotFoundPage />;` and re-run.
 Expected: the "an unknown slug is not found" test FAILS. Restore the guard and confirm it passes again. **An A/B is a probe — confirm the mutation actually landed before believing the result** (2026-08-09 (4)).
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add client/src/promo/
@@ -1877,7 +1877,7 @@ The only promo route that touches the socket, and the one that would have looped
 - Consumes: `persistAuth` (Task 1).
 - Produces: `LoginRoute` default export. On `auth_success` it persists the session and performs a **full-page** navigation to `/`.
 
-- [ ] **Step 1: Write the test first**
+- [x] **Step 1: Write the test first**
 
 Create `client/src/promo/__tests__/LoginRoute.test.jsx`:
 
@@ -1976,12 +1976,12 @@ describe("LoginRoute", () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd client && npx vitest run src/promo/__tests__/LoginRoute.test.jsx`
 Expected: FAIL — cannot resolve `../pages/LoginRoute.jsx`.
 
-- [ ] **Step 3: Write the route**
+- [x] **Step 3: Write the route**
 
 Create `client/src/promo/pages/LoginRoute.jsx`:
 
@@ -2107,7 +2107,7 @@ export default function LoginRoute() {
 }
 ```
 
-- [ ] **Step 4: Add the route**
+- [x] **Step 4: Add the route**
 
 In `client/src/promo/PromoApp.jsx` add the import and the route:
 
@@ -2121,7 +2121,7 @@ and, inside `<Route element={<PromoLayout />}>`, before the `*` route:
         <Route path="/login" element={<LoginRoute />} />
 ```
 
-- [ ] **Step 5: Add the login CSS**
+- [x] **Step 5: Add the login CSS**
 
 Append to `client/src/promo/promo.css`:
 
@@ -2145,19 +2145,19 @@ Append to `client/src/promo/promo.css`:
 .promo-btn:disabled { opacity: 0.6; cursor: default; transform: none; }
 ```
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 Run: `cd client && npx vitest run src/promo/__tests__/`
 Expected: PASS, all suites including isolation (the socket import is lazy, so `SOCKET_STATIC` does not match).
 
-- [ ] **Step 7: A/B the token write — the regression that motivated Task 1**
+- [x] **Step 7: A/B the token write — the regression that motivated Task 1**
 
 Comment out the `persistAuth(payload || {});` line in `LoginRoute.jsx` and re-run:
 
 Run: `cd client && npx vitest run src/promo/__tests__/LoginRoute.test.jsx`
 Expected: the "stores the session on auth_success" test FAILS and no other. Restore the line and confirm green. Verify the mutation actually landed (the file really changed) before believing the result.
 
-- [ ] **Step 8: Verify end to end in a browser**
+- [x] **Step 8: Verify end to end in a browser**
 
 With the dev server running and NO session:
 1. Load `/`, click "Log in" → the form renders at `/login`.
@@ -2168,7 +2168,7 @@ With the dev server running and NO session:
 
 Step 2 is the one that would have failed before Task 1. Confirm the token is in `localStorage` immediately after `auth_success`, before the reload.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add client/src/promo/
@@ -2190,7 +2190,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Create: `client/public/robots.txt` (overwrite the existing stub)
 - Create: `client/public/promo/` (directory for Task 9's captures)
 
-- [ ] **Step 1: Write the document head**
+- [x] **Step 1: Write the document head**
 
 In `client/index.html`, replace the `<title>` line (add one if absent) and the description meta:
 
@@ -2210,7 +2210,7 @@ In `client/index.html`, replace the `<title>` line (add one if absent) and the d
 
 **Note the cache rule:** `index.html` is served `no-cache` but `og-card.png` sits under `/promo/`, which is NOT `assets/`, so it is also `no-cache` — no content hash needed. Confirm by reading `server/server.js:1210-1220`: only `assets/` gets `immutable`.
 
-- [ ] **Step 2: Write robots.txt**
+- [x] **Step 2: Write robots.txt**
 
 Overwrite `client/public/robots.txt`:
 
@@ -2222,7 +2222,7 @@ Disallow: /login
 Sitemap: https://viafluere.com/sitemap.xml
 ```
 
-- [ ] **Step 3: Add a sitemap**
+- [x] **Step 3: Add a sitemap**
 
 Create `client/public/sitemap.xml` listing `/`, `/examples`, and one entry per feature slug:
 
@@ -2241,7 +2241,7 @@ Create `client/public/sitemap.xml` listing `/`, `/examples`, and one entry per f
 
 The namespace host is `sitemaps.org`, plural — a singular `sitemap.org` is a common typo that makes the file invalid.
 
-- [ ] **Step 4: Guard the sitemap against drift**
+- [x] **Step 4: Guard the sitemap against drift**
 
 Append to `client/src/promo/__tests__/promoContent.test.js`:
 
@@ -2257,7 +2257,7 @@ it("the sitemap lists every capability page", () => {
 });
 ```
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 Run: `cd client && npx vitest run src/promo/__tests__/promoContent.test.js`
 Expected: PASS.
