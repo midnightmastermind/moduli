@@ -2429,6 +2429,77 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 ---
 
+### Task 11: Register from scratch and build `claude-grid` through the UI
+
+**User, 2026-08-18:** *"put in a thing to create a grid after from your own imagination of the site. register, create a grid from scratch, and try to add things via the ui, and just come up with your own grid called claude-grid. this way i can test how the site works from scratch and see what you come up with, knowing all the features of the site"*
+
+This is a real from-scratch pass, not a fixture: a brand-new account, a grid built by clicking, so the user can open it and judge both the product's new-user path and the design. It doubles as the most honest end-to-end test of Tasks 2-7 — the landing page is only proven when someone reaches a working workspace through it.
+
+**RUN THIS ONLY AFTER TASK 7.** The register button on the promo `/login` route is the entry point, and exercising it is half the point.
+
+#### Ground rules
+
+- **Never touch `poms grid`.** It is protected live data (`server/utils/protectedGrids.js`). This task creates a NEW user, so it cannot reach it — verify that assumption once rather than assuming it.
+- **Everything through the UI.** No direct Mongo writes, no seed scripts, no migrations. The value of this task is that it exercises the paths a real person uses; a grid assembled by writing to the database proves nothing about them.
+- **dev and prod share one Atlas database** (CLAUDE.md 2026-07-14). A grid created against a local dev server is therefore visible on the deployed site, which is what lets the user open it. Confirm this before promising it.
+- **Report the credentials** to the user at the end — the grid is under a new account and is unreachable without them.
+
+- [ ] **Step 1: Register through the promo login route**
+
+Drive a real browser to the running site with no session. Land on `/`, click "Log in", and use **Create account** with:
+
+```
+email:    claude-grid@viafluere.test
+password: <generate one, record it in the final report>
+```
+
+Confirm: the token is stored, the page navigates to `/`, and a workspace renders. Note what the brand-new user is given by `createDefaultUserData` — that is the real first-run experience and worth describing honestly.
+
+- [ ] **Step 2: Create the grid**
+
+Create a new grid named exactly `claude-grid` and switch to it. Do not rename or reuse the seeded default grid — the ask is a grid built from scratch.
+
+- [ ] **Step 3: Build it — the concept**
+
+**Concept: a workshop log for learning a craft.** Deliberately NOT the wellness framing `poms grid` uses, so the grid demonstrates that the product is generic rather than reproducing the one build it already has.
+
+The theme is yours to execute, but the grid MUST exercise each capability the promo site claims, because the site is now making these claims in public:
+
+| Claim on the promo site | Must appear in `claude-grid` |
+|---|---|
+| 11 kinds of value | at least six distinct field types on real records, including a duration, a number, a rating, a date, a choice, and a reference to another occurrence |
+| 4 ways to render a container | one board, one doc, one table, one canvas |
+| values carry direction | at least one amount field used both in and out |
+| 114 verbs — the maths is yours | at least two operations you compose: one total, and one that is not a plain sum (a streak, a count with a condition, or a difference) |
+| 7 chart shapes, fed live | one graph container reading records you entered |
+| 24 things a dropped item can become | bring at least one thing in by dropping it — a link or a file — and choose a shape deliberately |
+| build it your way | more than one panel, arranged |
+
+- [ ] **Step 4: Put real data in it**
+
+A grid with empty containers demonstrates nothing. Enter enough records that the trackers show non-zero numbers and the chart has shape — several days' worth, not one row.
+
+- [ ] **Step 5: Write down what fought you**
+
+**This is the most valuable output of the task.** Keep a running note of every place the UI was confusing, slow, broken, or surprising for a first-time user, with what you expected and what happened. Do not fix anything — record it. A from-scratch pass by someone who knows the feature set is the closest thing to a usability study this project has had, and the friction list is worth more than the grid.
+
+- [ ] **Step 6: Verify by reading it back**
+
+Run `node --env-file=.env server/scripts/checkGrid.js` (or the documented equivalent) scoped to the new grid.
+Expected: **0 integrity errors.** If the grid a person can build by clicking has integrity errors, that is a finding — report it rather than repairing it by hand.
+
+- [ ] **Step 7: Capture it**
+
+Screenshot the finished grid at 1440x900 and 390x844, and **look at both**. These are also candidates for Task 9's promo captures — a grid with no personal data in it is exactly what a marketing screenshot needs, which is a reason to prefer it over `test grid 2`.
+
+- [ ] **Step 8: Report**
+
+Deliver to the user: the credentials, the grid name, what was built and why, the capability coverage table with each row ticked or explained, the friction list from Step 5, the integrity result, and the screenshots.
+
+Do NOT commit the credentials to the repository.
+
+---
+
 ## Deviations from the spec, stated rather than buried
 
 **The mobile nav does NOT go through `MenuSurface`.** The spec says *"`MenuSurface` owns floating menus (drawer on mobile). A nav dropdown must go through it."* Measured: `MenuSurface` imports only React and `createPortal`, so using it would not have broken promo isolation — the reason is behavioural, not structural. Its mobile presentation is a sheet pinned to the **bottom** edge, which is right for a menu opened by a thumb somewhere in a grid and wrong for a nav opened from a sticky header at the **top** of the page: the links would fly to the opposite end of the screen from the control that opened them. The promo nav is therefore a full-width disclosure that opens directly beneath the header bar it belongs to.
