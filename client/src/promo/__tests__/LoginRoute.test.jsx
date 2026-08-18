@@ -82,21 +82,22 @@ describe("LoginRoute", () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
-  // Registering seeds a default workspace server-side — measured at ~51s
-  // against Atlas. A button reading "Working…" for a minute is indistinguishable
-  // from a hang, so the register path must say what is taking the time. Logging
-  // in must NOT show it: it returns immediately, and the note would be a lie.
-  it("says what the wait is for while registering, and only then", async () => {
+  // Each button names what IT is doing, and neither claims a wait that no
+  // longer exists: registration stopped seeding a workspace on 2026-08-18 and
+  // now replies in ~160ms, so the old "takes up to a minute" note would be a
+  // lie. A label that claims something untrue is worse than no label.
+  it("each button names its own in-flight action, and promises no wait", async () => {
     const { unmount } = mount();
     await fill();
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
-    expect(screen.getByRole("status").textContent).toMatch(/takes up to a minute/i);
+    expect(screen.getByRole("button", { name: /creating/i })).toBeTruthy();
+    expect(screen.queryByText(/takes up to a minute/i)).toBeNull();
     unmount();
 
     mount();
     await fill();
     fireEvent.click(screen.getByRole("button", { name: /^log in$/i }));
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByRole("button", { name: /signing in/i })).toBeTruthy();
   });
 
   it("refuses to submit with an empty field", async () => {

@@ -259,4 +259,3 @@
 .promo-login-error { color: #ff8f8f; font-size: 14px; margin: 0; }
 .promo-login-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
 .promo-btn:disabled { opacity: 0.6; cursor: default; transform: none; }
-.promo-login-note { color: var(--p-accent); font-size: 14px; margin: 0; line-height: 1.5; }

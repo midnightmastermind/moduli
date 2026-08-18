@@ -23,10 +23,11 @@ export default function LoginRoute() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  // Which action is in flight, not merely THAT one is: registering seeds a
-  // whole default workspace server-side and was measured at ~51s against
-  // Atlas on 2026-08-18. A button that says "Working…" for a minute reads as
-  // hung, so the register path says what is actually taking the time.
+  // WHICH action is in flight, not merely that one is, so each button can name
+  // what it is doing. (This used to carry a "takes up to a minute" note as well:
+  // registering awaited a full workspace seed, measured at 50.7s. That seed is
+  // gone as of 2026-08-18 — a fresh account gets an empty grid and the reply
+  // lands in ~160ms — so the note would now be a lie and it went with it.)
   const [busy, setBusy] = useState("");
   const emailRef = useRef(null);
 
@@ -102,12 +103,6 @@ export default function LoginRoute() {
           </label>
 
           {error ? <p className="promo-login-error" role="alert">{error}</p> : null}
-
-          {busy === "register" ? (
-            <p className="promo-login-note" role="status">
-              Building your workspace — this takes up to a minute. Leave this page open.
-            </p>
-          ) : null}
 
           <div className="promo-login-actions">
             <button type="submit" className="promo-btn promo-btn--primary" disabled={!!busy}>
