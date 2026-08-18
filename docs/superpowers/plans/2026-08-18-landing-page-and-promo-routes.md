@@ -100,7 +100,7 @@ The token writer must be callable from a surface that has no store. Extract it f
   - `hasSession() => boolean`
   - `AUTH_KEYS` — `{ token: "moduli-token", userId: "moduli-userId", gridId: "moduli-gridId" }`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `client/src/helpers/__tests__/authStorage.test.js`:
 
@@ -166,12 +166,12 @@ describe("authStorage", () => {
 ```
 
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd client && npx vitest run src/helpers/__tests__/authStorage.test.js`
 Expected: FAIL — `Failed to resolve import "../authStorage.js"`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `client/src/helpers/authStorage.js`:
 
@@ -226,12 +226,12 @@ export function hasSession() {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cd client && npx vitest run src/helpers/__tests__/authStorage.test.js`
 Expected: PASS, 7 tests.
 
-- [ ] **Step 5: Route bindSocketToStore through it**
+- [x] **Step 5: Route bindSocketToStore through it**
 
 In `client/src/state/bindSocketToStore.js`, add to the imports at the top of the file:
 
@@ -268,7 +268,7 @@ with:
 
 Then find the third removal site around line 762 (inside `onConnectError`) and replace the same three `localStorage.removeItem` calls with `clearAuth();`.
 
-- [ ] **Step 6: Verify nothing regressed**
+- [x] **Step 6: Verify nothing regressed**
 
 Run: `cd client && npx vitest run src/__tests__/bindSocketToStore.test.js`
 Expected: PASS.
@@ -276,12 +276,12 @@ Expected: PASS.
 Run: `cd client && grep -n 'localStorage.setItem("moduli-token"' src/state/bindSocketToStore.js`
 Expected: no output — the hand-written writer is gone.
 
-- [ ] **Step 7: Full client suite**
+- [x] **Step 7: Full client suite**
 
 Run: `cd client && npm test 2>&1 | tail -20`
 Expected: the documented baseline (2461+ passing; the 3 pre-existing `liveOpsBehavioral` failures are known — confirm the count did not GROW, per the 2026-08-09 (6) lesson about reading the failure count rather than "roughly the same").
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add client/src/helpers/authStorage.js client/src/helpers/__tests__/authStorage.test.js client/src/state/bindSocketToStore.js
@@ -309,12 +309,12 @@ Install the router and split the entry, with a placeholder landing page. This pr
   - `PromoApp` — default export, a `<BrowserRouter>` owning the route table.
   - `PROMO_PATHS` — exported from `PromoApp.jsx`: `["/features", "/examples", "/login", "/about"]`. Any path starting with one of these is a promo path even when a session exists.
 
-- [ ] **Step 1: Install the router**
+- [x] **Step 1: Install the router**
 
 Run: `cd client && npm install react-router-dom@^7`
 Expected: `react-router-dom` appears in `client/package.json` dependencies.
 
-- [ ] **Step 2: Write the failing isolation test**
+- [x] **Step 2: Write the failing isolation test**
 
 Create `client/src/promo/__tests__/promoIsolation.test.js`:
 
@@ -376,12 +376,12 @@ describe("promo isolation", () => {
 });
 ```
 
-- [ ] **Step 3: Run it to verify it fails**
+- [x] **Step 3: Run it to verify it fails**
 
 Run: `cd client && npx vitest run src/promo/__tests__/promoIsolation.test.js`
 Expected: FAIL — `ENOENT` on the `src/promo` directory (it does not exist yet).
 
-- [ ] **Step 4: Create the placeholder landing page**
+- [x] **Step 4: Create the placeholder landing page**
 
 Create `client/src/promo/pages/LandingPage.jsx`:
 
@@ -397,7 +397,7 @@ export default function LandingPage() {
 }
 ```
 
-- [ ] **Step 5: Create the router**
+- [x] **Step 5: Create the router**
 
 Create `client/src/promo/PromoApp.jsx`:
 
@@ -426,12 +426,12 @@ export default function PromoApp() {
 }
 ```
 
-- [ ] **Step 6: Run the isolation test**
+- [x] **Step 6: Run the isolation test**
 
 Run: `cd client && npx vitest run src/promo/__tests__/promoIsolation.test.js`
 Expected: PASS, 3 tests.
 
-- [ ] **Step 7: Split the entry**
+- [x] **Step 7: Split the entry**
 
 In `client/src/main.jsx`, add near the top with the other imports:
 
@@ -501,7 +501,7 @@ And in `PromoApp.jsx` replace the local `export const PROMO_PATHS = …` line wi
 export { PROMO_PATHS } from "./promoPaths.js";
 ```
 
-- [ ] **Step 8: Build and measure the chunks**
+- [x] **Step 8: Build and measure the chunks**
 
 Run: `cd client && npm run build 2>&1 | tail -30`
 Expected: build succeeds. Record the byte sizes of `dist/assets/PromoApp-*.js`, `dist/assets/index-*.js` (the entry) and `dist/assets/App-*.js`.
@@ -513,14 +513,14 @@ cd client && ls -la dist/assets/*.js | awk '{print $5, $9}' | sort -rn | head -1
 
 Write the three numbers into the commit message. **The number that matters is the entry chunk: it must not have grown by the size of react-router.** If it did, `promoPaths.js` is being tree-shaken incorrectly — check that nothing else re-exports `PromoApp` from it.
 
-- [ ] **Step 9: Prove the logged-out visitor does not fetch the App chunk**
+- [x] **Step 9: Prove the logged-out visitor does not fetch the App chunk**
 
 Run the app locally (`npm run dev` from the repo root) and, in a fresh browser profile with no `moduli-token`, load `http://localhost:5173/` with the Network tab open.
 
 Expected: `App-*.js` is **absent** from the request list; `PromoApp-*.js` is present.
 Then set a token (`localStorage.setItem("moduli-token","x")`), reload, and confirm `App-*.js` IS requested. **Both arms are required** — a zero on the first arm alone is a claim about the probe, not a measurement (the 2026-08-11 (5) control lesson).
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add client/package.json client/package-lock.json client/src/main.jsx client/src/promo/
