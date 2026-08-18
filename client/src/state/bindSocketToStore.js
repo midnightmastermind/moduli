@@ -215,7 +215,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           dispatch(updateGridAction({ gridId: grid._id || payload.gridId, grid: { activeFilterValues: patch } }));
           // Persist to server so a subsequent load (or another tab) sees the
           // bootstrapped value rather than re-bootstrapping each time.
-          safeEmit(socket, "update_grid", { gridId: grid._id || payload.gridId, patch: { activeFilterValues: patch } });
+          // THE KEY IS `grid`, NOT `patch` — see the SET_FILTER emit below.
+          safeEmit(socket, "update_grid", { gridId: grid._id || payload.gridId, grid: { activeFilterValues: patch } });
         }
       }
     }
@@ -1351,7 +1352,17 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         socketDispatch(setFilterNavAction(plan.navValue.key, plan.navValue.value));
         if (plan.gridId) {
           socketDispatch(updateGridAction({ gridId: plan.gridId, grid: plan.gridPatch }));
-          safeEmit(socket, "update_grid", { gridId: plan.gridId, patch: plan.gridPatch });
+          // THE PAYLOAD KEY IS `grid`, AND SENDING `patch` SILENTLY DID NOTHING.
+          // `update_grid` reads the patch from `payload.grid`, falling back to
+          // the top-level rest of the payload — so `{ gridId, patch: {...} }`
+          // resolved to `{ patch: {...} }`, which Mongoose strict mode drops
+          // whole. The local dispatch still moved, so the date changed on
+          // screen and reverted on the next load when `full_state` sent the
+          // stored value back. `CommitHelpers.updateGrid` has always used
+          // `grid`, and its test pins that shape; these two emits were the
+          // outliers. Measured 2026-08-18: grid filter stuck nine days back
+          // while the client showed today.
+          safeEmit(socket, "update_grid", { gridId: plan.gridId, grid: plan.gridPatch });
         }
         break;
       }
