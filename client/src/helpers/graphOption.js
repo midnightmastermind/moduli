@@ -333,6 +333,32 @@ const MAX_MIN_ANGLE_DEG = 30;
  * @returns {number|null} degrees, or null when the box is unknown — the caller
  *   then keeps its fixed default rather than guessing.
  */
+// The tooltip a chart shows, and whether it prints the NUMBER.
+//
+// User, 2026-08-18: "dont show the number on the graph hover (it says like
+// Trust 8, since its one of 8), dont show that number for this graph."
+//
+// On a nested chart with no value encoding, that number is a COUNT ECharts
+// derived from the children — not something the author asked for. On a wheel
+// whose whole purpose is picking a feeling, "Trust 8" reads as data about Trust
+// and is simply wrong.
+//
+// OPT-IN PER GRAPH (`meta.graph.hideTooltipValue`), because a chart that DOES
+// encode a value must keep showing it — a bar chart without its number is not a
+// chart. Written once and used by every branch rather than inline per type: six
+// tooltip sites is exactly the shape where the seventh forgets.
+export function tooltipConfig(spec, trigger) {
+  const base = { trigger, confine: true };
+  if (!spec?.hideTooltipValue) return base;
+  return {
+    ...base,
+    formatter: (p) => {
+      const d = Array.isArray(p) ? p[0] : p;
+      return (d && d.name) || "";
+    },
+  };
+}
+
 export function radialLabelMinAngle({ boxPx, radiusPct, zoom = 1, minArcPx = LABEL_MIN_ARC_PX } = {}) {
   const box = Math.min(Number(boxPx?.width) || 0, Number(boxPx?.height) || 0);
   const pct = Number(radiusPct) || 0;
@@ -387,7 +413,7 @@ export function buildEChartsOption(spec, data, theme, view, boxPx, dayKey = null
     backgroundColor: "transparent", // the surface owns the background
     color: t.palette,
     textStyle: { color: t.text, fontSize: 11 },
-    tooltip: { trigger: def.nested ? "item" : "axis", confine: true },
+    tooltip: tooltipConfig(spec, def.nested ? "item" : "axis"),
     animationDuration: 240,
   };
 
@@ -395,7 +421,7 @@ export function buildEChartsOption(spec, data, theme, view, boxPx, dayKey = null
     return {
       option: {
         ...base,
-        tooltip: { trigger: "item", confine: true },
+        tooltip: tooltipConfig(spec, "item"),
         series: [{
           type: def.id,
           radius: [0, scaled(NESTED_RADIUS_PCT)],
@@ -421,8 +447,23 @@ export function buildEChartsOption(spec, data, theme, view, boxPx, dayKey = null
           //
           // Falls back to the old fixed 1 when the host box is unknown, so a
           // caller that passes no box gets exactly the previous chart.
+          // FONT SIZE IS PER GRAPH, and on this wheel it is the ONLY lever that
+          // works. Measured 2026-08-18 on the live feeling wheel: the outer ring
+          // is 80 slices of a FIXED 4.5deg, and at the box it renders in (315px)
+          // that is ~9.5px of arc against a 9px label. ECharts hides a label
+          // that cannot fit its slice, so the whole ring is blank at rest and
+          // each label appears individually on hover — which is what the user
+          // reported, twice.
+          //
+          // OUR OWN `minAngle` WAS NOT THE CAUSE, and I checked rather than
+          // assumed: this graph already stores `labelMinArcPx: 8`, which gives a
+          // 3.16deg threshold against a 4.5deg slice — it was passing. The
+          // constraint is ECharts' own fit test, and the only inputs to that are
+          // the arc (fixed by the data) and the font.
           label: {
-            rotate: "radial", color: SUNBURST_LABEL_COLOR, fontSize: LABEL_FONT_PX, overflow: "truncate",
+            rotate: "radial", color: SUNBURST_LABEL_COLOR,
+            fontSize: Number(spec?.labelFontPx) > 0 ? Number(spec.labelFontPx) : LABEL_FONT_PX,
+            overflow: "truncate",
             // Tunable per graph as DATA (`meta.graph.labelMinArcPx`) so a wheel
             // that wants denser or sparser labels needs no code change.
             minAngle: radialLabelMinAngle({
@@ -487,7 +528,7 @@ export function buildEChartsOption(spec, data, theme, view, boxPx, dayKey = null
     return {
       option: {
         ...base,
-        tooltip: { trigger: "item", confine: true },
+        tooltip: tooltipConfig(spec, "item"),
         series: [{
           type: "treemap",
           data: nodes.map((n) => toDatum(n, hi)),
@@ -529,7 +570,7 @@ export function buildEChartsOption(spec, data, theme, view, boxPx, dayKey = null
     return {
       option: {
         ...base,
-        tooltip: { trigger: "item", confine: true },
+        tooltip: tooltipConfig(spec, "item"),
         series: [{
           type: "pie",
           // a donut reads better at panel sizes than a full disc
@@ -596,7 +637,7 @@ export function buildEChartsOption(spec, data, theme, view, boxPx, dayKey = null
     return {
       option: {
         ...base,
-        tooltip: { trigger: "item", confine: true },
+        tooltip: tooltipConfig(spec, "item"),
         legend,
         radar: {
           indicator: categories.map((c) => ({ name: c, max })),
