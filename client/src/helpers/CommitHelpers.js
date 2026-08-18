@@ -102,8 +102,22 @@ export function deleteGrid({ dispatch, socket, gridId, emit = true }) {
 }
 
 // ===== MODULE (unified Panel + Container + Instance) =====
+// Roles with no sub-types. A `kind` on one of these is inert AND harmful:
+// getModuleTypeIcon resolves kind BEFORE role, so an instance carrying
+// kind:"board" draws the board icon, and gridIntegrity reports it. Migration
+// 0003 swept 525 of them off the live grid in July; nine client call sites kept
+// minting them (measured 2026-08-18 on a grid built by clicking, where 31 of 31
+// rows carried one). Stripped HERE, at the single chokepoint every module
+// creation passes through, rather than at each caller — the server does the
+// same on its side.
+const KINDLESS_ROLES = new Set(["instance", "panel"]);
+
 export function createModule({ dispatch, socket, module, emit = true }) {
   if (!module) return;
+  if (module.kind && KINDLESS_ROLES.has(module.role)) {
+    const { kind, ...rest } = module;   // eslint-disable-line no-unused-vars
+    module = rest;
+  }
   dispatch?.(createModuleAction(module));
   if (shouldEmit(emit)) safeEmit(socket, "create_module", { module });
 }
