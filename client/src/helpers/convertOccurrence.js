@@ -19,7 +19,13 @@ import { updateModule, updateOccurrence } from "./CommitHelpers";
 // Container kinds a container can convert between. "list" is NOT here — for
 // CONTAINERS list == board (the list/board split only exists for PAGES); the
 // four real container kinds are doc / board / canvas / table.
-export const CONVERTIBLE_CONTAINER_KINDS = ["doc", "board", "canvas", "table"];
+// `graph` is here because a container's header dropdown already configures a
+// whole chart (GraphSection: type, label, value, and a live row-count readout)
+// while nothing in the UI could ever set the kind that RENDERS one — measured
+// on a fresh account 2026-08-18, where the graph spec reported "9 roots · 9
+// rows" into a container that drew a plain board. Converting to it is a kind
+// flip like board ↔ table; the chart itself is configured in the header.
+export const CONVERTIBLE_CONTAINER_KINDS = ["doc", "board", "canvas", "table", "graph"];
 // Leaf roles that convert into each other (a typed textblock ↔ a data instance).
 export const CONVERTIBLE_LEAF_ROLES = ["instance", "textblock"];
 

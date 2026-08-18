@@ -469,10 +469,15 @@ export function ScheduleEditor({ schedule, onChange }) {
 // ============================================================
 // OPERATION EDITOR
 // ============================================================
-export function OperationEditor({ operation, fields, onSave, onDelete, onRun, categoryFolders = [], isDuplicate = false }) {
+export function OperationEditor({ operation, fields, onSave, onDelete, onRun, categoryFolders = [], isDuplicate = false, onWorkingCopy }) {
   const { modulesById, occurrencesById, fieldsById, operationsById } = useGridActions();
   const [local, setLocal] = useState(operation);
   useMemo(() => setLocal(operation), [operation?.id]);
+  // The header's Save lives in the LIST component, one level up, and had no way
+  // to reach this working copy — so it closed the editor and every unsaved edit
+  // went with it, while its own tooltip said changes were auto-saved. Reporting
+  // the working copy upward is what lets that button save what you can see.
+  useEffect(() => { onWorkingCopy?.(local); }, [local, onWorkingCopy]);
 
   // triggerObjects is authoritative. triggerTypes is a derived index for dispatch.
   // Migrate older ops (triggerObjects null/missing) by deriving from triggerTypes/triggerType
@@ -953,6 +958,10 @@ export function OperationsTab() {
   }, [gridOperations]);
 
   const [selectedOpId, setSelectedOpId] = useState(null);
+  // The editor's unsaved working copy, so the header's Save can persist what is
+  // on screen rather than discarding it (see that button).
+  const workingCopyRef = useRef(null);
+  const handleWorkingCopy = useCallback((working) => { workingCopyRef.current = working; }, []);
   const selectedOp = selectedOpId ? operationsById?.[selectedOpId] : null;
   const [dragOpId, setDragOpId] = useState(null);
   const [overColumn, setOverColumn] = useState(null);
@@ -1080,9 +1089,16 @@ export function OperationsTab() {
           </button>
           <span style={{ fontSize: 12, fontFamily: "monospace", color: "var(--text-primary)", fontWeight: 600 }}>{selectedOp.name}</span>
           <button
-            onClick={() => setSelectedOpId(null)}
+            onClick={() => {
+              // SAVE, then close. This button used to only close — measured on
+              // a fresh account 2026-08-18: an edited name and three pipeline
+              // steps were both gone after clicking it, with no warning.
+              const working = workingCopyRef.current;
+              if (working) CommitHelpers.updateOperation({ dispatch, socket, operation: working });
+              setSelectedOpId(null);
+            }}
             style={{ marginLeft: "auto", padding: "3px 12px", borderRadius: 5, fontSize: 11, fontFamily: "monospace", background: "var(--accent-blue-bg)", border: "1px solid var(--accent-blue-border)", color: "var(--accent-blue-text)", cursor: "pointer", fontWeight: 600 }}
-            title="Save and return to operations list (changes are auto-saved as you edit)"
+            title="Save and return to the operations list"
           >
             Save
           </button>
@@ -1106,6 +1122,7 @@ export function OperationsTab() {
               </div>
             ) : (
             <OperationEditor
+              onWorkingCopy={handleWorkingCopy}
               operation={selectedOp}
               fields={gridFields}
               categoryFolders={categoryFolders}
