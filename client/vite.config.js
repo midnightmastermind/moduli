@@ -84,7 +84,10 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/__tests__/setup.js"],
-    include: ["src/__tests__/**/*.test.{js,jsx}"],
+    // Widened for the promo surface, which keeps its tests beside its source
+    // (`src/promo/__tests__/`). Without this the promo suites are silently
+    // never run — a guard nothing executes is worse than no guard.
+    include: ["src/**/__tests__/**/*.test.{js,jsx}"],
     coverage: {
       reporter: ["text", "json", "html"],
     },
