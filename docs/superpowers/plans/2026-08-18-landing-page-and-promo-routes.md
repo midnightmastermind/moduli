@@ -100,7 +100,7 @@ The token writer must be callable from a surface that has no store. Extract it f
   - `hasSession() => boolean`
   - `AUTH_KEYS` — `{ token: "moduli-token", userId: "moduli-userId", gridId: "moduli-gridId" }`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `client/src/helpers/__tests__/authStorage.test.js`:
 
@@ -166,12 +166,12 @@ describe("authStorage", () => {
 ```
 
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd client && npx vitest run src/helpers/__tests__/authStorage.test.js`
 Expected: FAIL — `Failed to resolve import "../authStorage.js"`
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `client/src/helpers/authStorage.js`:
 
@@ -226,12 +226,12 @@ export function hasSession() {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cd client && npx vitest run src/helpers/__tests__/authStorage.test.js`
 Expected: PASS, 7 tests.
 
-- [ ] **Step 5: Route bindSocketToStore through it**
+- [x] **Step 5: Route bindSocketToStore through it**
 
 In `client/src/state/bindSocketToStore.js`, add to the imports at the top of the file:
 
@@ -268,7 +268,7 @@ with:
 
 Then find the third removal site around line 762 (inside `onConnectError`) and replace the same three `localStorage.removeItem` calls with `clearAuth();`.
 
-- [ ] **Step 6: Verify nothing regressed**
+- [x] **Step 6: Verify nothing regressed**
 
 Run: `cd client && npx vitest run src/__tests__/bindSocketToStore.test.js`
 Expected: PASS.
@@ -276,12 +276,12 @@ Expected: PASS.
 Run: `cd client && grep -n 'localStorage.setItem("moduli-token"' src/state/bindSocketToStore.js`
 Expected: no output — the hand-written writer is gone.
 
-- [ ] **Step 7: Full client suite**
+- [x] **Step 7: Full client suite**
 
 Run: `cd client && npm test 2>&1 | tail -20`
 Expected: the documented baseline (2461+ passing; the 3 pre-existing `liveOpsBehavioral` failures are known — confirm the count did not GROW, per the 2026-08-09 (6) lesson about reading the failure count rather than "roughly the same").
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add client/src/helpers/authStorage.js client/src/helpers/__tests__/authStorage.test.js client/src/state/bindSocketToStore.js
@@ -309,12 +309,12 @@ Install the router and split the entry, with a placeholder landing page. This pr
   - `PromoApp` — default export, a `<BrowserRouter>` owning the route table.
   - `PROMO_PATHS` — exported from `PromoApp.jsx`: `["/features", "/examples", "/login", "/about"]`. Any path starting with one of these is a promo path even when a session exists.
 
-- [ ] **Step 1: Install the router**
+- [x] **Step 1: Install the router**
 
 Run: `cd client && npm install react-router-dom@^7`
 Expected: `react-router-dom` appears in `client/package.json` dependencies.
 
-- [ ] **Step 2: Write the failing isolation test**
+- [x] **Step 2: Write the failing isolation test**
 
 Create `client/src/promo/__tests__/promoIsolation.test.js`:
 
@@ -376,12 +376,12 @@ describe("promo isolation", () => {
 });
 ```
 
-- [ ] **Step 3: Run it to verify it fails**
+- [x] **Step 3: Run it to verify it fails**
 
 Run: `cd client && npx vitest run src/promo/__tests__/promoIsolation.test.js`
 Expected: FAIL — `ENOENT` on the `src/promo` directory (it does not exist yet).
 
-- [ ] **Step 4: Create the placeholder landing page**
+- [x] **Step 4: Create the placeholder landing page**
 
 Create `client/src/promo/pages/LandingPage.jsx`:
 
@@ -397,7 +397,7 @@ export default function LandingPage() {
 }
 ```
 
-- [ ] **Step 5: Create the router**
+- [x] **Step 5: Create the router**
 
 Create `client/src/promo/PromoApp.jsx`:
 
@@ -426,12 +426,12 @@ export default function PromoApp() {
 }
 ```
 
-- [ ] **Step 6: Run the isolation test**
+- [x] **Step 6: Run the isolation test**
 
 Run: `cd client && npx vitest run src/promo/__tests__/promoIsolation.test.js`
 Expected: PASS, 3 tests.
 
-- [ ] **Step 7: Split the entry**
+- [x] **Step 7: Split the entry**
 
 In `client/src/main.jsx`, add near the top with the other imports:
 
@@ -501,7 +501,7 @@ And in `PromoApp.jsx` replace the local `export const PROMO_PATHS = …` line wi
 export { PROMO_PATHS } from "./promoPaths.js";
 ```
 
-- [ ] **Step 8: Build and measure the chunks**
+- [x] **Step 8: Build and measure the chunks**
 
 Run: `cd client && npm run build 2>&1 | tail -30`
 Expected: build succeeds. Record the byte sizes of `dist/assets/PromoApp-*.js`, `dist/assets/index-*.js` (the entry) and `dist/assets/App-*.js`.
@@ -513,14 +513,14 @@ cd client && ls -la dist/assets/*.js | awk '{print $5, $9}' | sort -rn | head -1
 
 Write the three numbers into the commit message. **The number that matters is the entry chunk: it must not have grown by the size of react-router.** If it did, `promoPaths.js` is being tree-shaken incorrectly — check that nothing else re-exports `PromoApp` from it.
 
-- [ ] **Step 9: Prove the logged-out visitor does not fetch the App chunk**
+- [x] **Step 9: Prove the logged-out visitor does not fetch the App chunk**
 
 Run the app locally (`npm run dev` from the repo root) and, in a fresh browser profile with no `moduli-token`, load `http://localhost:5173/` with the Network tab open.
 
 Expected: `App-*.js` is **absent** from the request list; `PromoApp-*.js` is present.
 Then set a token (`localStorage.setItem("moduli-token","x")`), reload, and confirm `App-*.js` IS requested. **Both arms are required** — a zero on the first arm alone is a claim about the probe, not a measurement (the 2026-08-11 (5) control lesson).
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add client/package.json client/package-lock.json client/src/main.jsx client/src/promo/
@@ -548,7 +548,7 @@ The pages are data. Write the data and the rule that keeps the marketing site ho
   - `featureBySlug(slug) => Feature | undefined`
   - `EXAMPLES` — array of `{ id, name, blurb, detail, built: [string] }` where `built` names the generic capabilities the example is assembled from.
 
-- [ ] **Step 1: Write the content**
+- [x] **Step 1: Write the content**
 
 Create `client/src/promo/content/features.js`:
 
@@ -747,7 +747,7 @@ export const EXAMPLES = [
 ];
 ```
 
-- [ ] **Step 2: Write the content test**
+- [x] **Step 2: Write the content test**
 
 Create `client/src/promo/__tests__/promoContent.test.js`:
 
@@ -808,7 +808,7 @@ describe("promo content", () => {
 });
 ```
 
-- [ ] **Step 3: Write the domain-knowledge guard**
+- [x] **Step 3: Write the domain-knowledge guard**
 
 Create `client/src/promo/__tests__/noProductDomainKnowledge.test.js`:
 
@@ -893,12 +893,12 @@ describe("the promo site has no product domain knowledge", () => {
 });
 ```
 
-- [ ] **Step 4: Run all three suites**
+- [x] **Step 4: Run all three suites**
 
 Run: `cd client && npx vitest run src/promo/__tests__/`
 Expected: PASS. If the domain-knowledge guard fails, the fix is to reword the content — never to add to `EXEMPT`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add client/src/promo/content client/src/promo/__tests__
@@ -926,7 +926,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Consumes: `FEATURES` (Task 3), `PROMO_PATHS` (Task 2).
 - Produces: `PromoLayout` (default), `PromoNav` (default), `PromoFooter` (default). All CSS lives under a `.promo` root class so nothing leaks into the app when both are in one bundle.
 
-- [ ] **Step 1: Write the palette**
+- [x] **Step 1: Write the palette**
 
 Create `client/src/promo/promo.css`:
 
@@ -1063,7 +1063,7 @@ Create `client/src/promo/promo.css`:
 }
 ```
 
-- [ ] **Step 2: Write the nav test first**
+- [x] **Step 2: Write the nav test first**
 
 Create `client/src/promo/__tests__/PromoNav.test.jsx`:
 
@@ -1123,12 +1123,12 @@ describe("PromoNav", () => {
 });
 ```
 
-- [ ] **Step 3: Run it to verify it fails**
+- [x] **Step 3: Run it to verify it fails**
 
 Run: `cd client && npx vitest run src/promo/__tests__/PromoNav.test.jsx`
 Expected: FAIL — cannot resolve `../PromoNav.jsx`.
 
-- [ ] **Step 4: Write the nav**
+- [x] **Step 4: Write the nav**
 
 Create `client/src/promo/PromoNav.jsx`:
 
@@ -1184,7 +1184,7 @@ export default function PromoNav() {
 
 `NavLink` sets `aria-current="page"` on the active route by default, which is what the third test asserts.
 
-- [ ] **Step 5: Write the footer**
+- [x] **Step 5: Write the footer**
 
 Create `client/src/promo/PromoFooter.jsx`:
 
@@ -1207,7 +1207,7 @@ export default function PromoFooter() {
 }
 ```
 
-- [ ] **Step 6: Write the layout**
+- [x] **Step 6: Write the layout**
 
 Create `client/src/promo/PromoLayout.jsx`:
 
@@ -1238,7 +1238,7 @@ export default function PromoLayout() {
 }
 ```
 
-- [ ] **Step 7: Wire the layout into the router**
+- [x] **Step 7: Wire the layout into the router**
 
 Replace the `<Routes>` block in `client/src/promo/PromoApp.jsx`:
 
@@ -1263,12 +1263,12 @@ export default function PromoApp() {
 }
 ```
 
-- [ ] **Step 8: Run the tests**
+- [x] **Step 8: Run the tests**
 
 Run: `cd client && npx vitest run src/promo/__tests__/`
 Expected: PASS — including the domain-knowledge guard over the new CSS and components.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add client/src/promo/
@@ -1288,7 +1288,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Consumes: `FEATURES`, `EXAMPLES`.
 - Produces: `LandingPage` default export. Also `useReveal()` — a local hook in the same file, not exported.
 
-- [ ] **Step 1: Write the page**
+- [x] **Step 1: Write the page**
 
 Replace `client/src/promo/pages/LandingPage.jsx` entirely:
 
@@ -1436,7 +1436,7 @@ export default function LandingPage() {
 }
 ```
 
-- [ ] **Step 2: Add the landing-specific CSS**
+- [x] **Step 2: Add the landing-specific CSS**
 
 Append to `client/src/promo/promo.css`:
 
@@ -1478,12 +1478,12 @@ Append to `client/src/promo/promo.css`:
 .promo-grid .promo-reveal:nth-child(5) { transition-delay: 280ms; }
 ```
 
-- [ ] **Step 3: Verify tests still pass**
+- [x] **Step 3: Verify tests still pass**
 
 Run: `cd client && npx vitest run src/promo/__tests__/`
 Expected: PASS. In particular the domain-knowledge guard must still be green — if the hero copy accidentally used the word "schedule", it fails here.
 
-- [ ] **Step 4: Look at it**
+- [x] **Step 4: Look at it**
 
 Run the dev server and open `http://localhost:5173/` in a browser with no session.
 
@@ -1495,7 +1495,7 @@ Confirm by eye, and say so explicitly in the commit:
 
 Take a screenshot at 1440x900 and at 390x844 and look at both.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add client/src/promo/
@@ -1519,7 +1519,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Consumes: `featureBySlug`, `FEATURES`, `EXAMPLES`.
 - Produces: `FeaturePage`, `ExamplesPage`, `NotFoundPage` default exports.
 
-- [ ] **Step 1: Write the routing test first**
+- [x] **Step 1: Write the routing test first**
 
 Create `client/src/promo/__tests__/promoRouting.test.jsx`:
 
@@ -1608,12 +1608,12 @@ describe("promo routing", () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd client && npx vitest run src/promo/__tests__/promoRouting.test.jsx`
 Expected: FAIL — cannot resolve `../pages/FeaturePage.jsx`.
 
-- [ ] **Step 3: Write FeaturePage**
+- [x] **Step 3: Write FeaturePage**
 
 Create `client/src/promo/pages/FeaturePage.jsx`:
 
@@ -1691,7 +1691,7 @@ export default function FeaturePage() {
 }
 ```
 
-- [ ] **Step 4: Write ExamplesPage**
+- [x] **Step 4: Write ExamplesPage**
 
 Create `client/src/promo/pages/ExamplesPage.jsx`:
 
@@ -1754,7 +1754,7 @@ export default function ExamplesPage() {
 }
 ```
 
-- [ ] **Step 5: Write NotFoundPage**
+- [x] **Step 5: Write NotFoundPage**
 
 Create `client/src/promo/pages/NotFoundPage.jsx`:
 
@@ -1781,7 +1781,7 @@ export default function NotFoundPage() {
 }
 ```
 
-- [ ] **Step 6: Add the routes**
+- [x] **Step 6: Add the routes**
 
 Replace the `<Routes>` block in `client/src/promo/PromoApp.jsx`:
 
@@ -1812,7 +1812,7 @@ export default function PromoApp() {
 }
 ```
 
-- [ ] **Step 7: Add the page CSS**
+- [x] **Step 7: Add the page CSS**
 
 Append to `client/src/promo/promo.css`:
 
@@ -1843,17 +1843,17 @@ Append to `client/src/promo/promo.css`:
 .promo-chip:hover { border-color: var(--p-accent); }
 ```
 
-- [ ] **Step 8: Run the tests**
+- [x] **Step 8: Run the tests**
 
 Run: `cd client && npx vitest run src/promo/__tests__/`
 Expected: PASS, all suites.
 
-- [ ] **Step 9: A/B the 404 branch**
+- [x] **Step 9: A/B the 404 branch**
 
 Temporarily change `FeaturePage.jsx`'s guard to `if (false) return <NotFoundPage />;` and re-run.
 Expected: the "an unknown slug is not found" test FAILS. Restore the guard and confirm it passes again. **An A/B is a probe — confirm the mutation actually landed before believing the result** (2026-08-09 (4)).
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add client/src/promo/
@@ -1877,7 +1877,7 @@ The only promo route that touches the socket, and the one that would have looped
 - Consumes: `persistAuth` (Task 1).
 - Produces: `LoginRoute` default export. On `auth_success` it persists the session and performs a **full-page** navigation to `/`.
 
-- [ ] **Step 1: Write the test first**
+- [x] **Step 1: Write the test first**
 
 Create `client/src/promo/__tests__/LoginRoute.test.jsx`:
 
@@ -1976,12 +1976,12 @@ describe("LoginRoute", () => {
 });
 ```
 
-- [ ] **Step 2: Run it to verify it fails**
+- [x] **Step 2: Run it to verify it fails**
 
 Run: `cd client && npx vitest run src/promo/__tests__/LoginRoute.test.jsx`
 Expected: FAIL — cannot resolve `../pages/LoginRoute.jsx`.
 
-- [ ] **Step 3: Write the route**
+- [x] **Step 3: Write the route**
 
 Create `client/src/promo/pages/LoginRoute.jsx`:
 
@@ -2107,7 +2107,7 @@ export default function LoginRoute() {
 }
 ```
 
-- [ ] **Step 4: Add the route**
+- [x] **Step 4: Add the route**
 
 In `client/src/promo/PromoApp.jsx` add the import and the route:
 
@@ -2121,7 +2121,7 @@ and, inside `<Route element={<PromoLayout />}>`, before the `*` route:
         <Route path="/login" element={<LoginRoute />} />
 ```
 
-- [ ] **Step 5: Add the login CSS**
+- [x] **Step 5: Add the login CSS**
 
 Append to `client/src/promo/promo.css`:
 
@@ -2145,19 +2145,19 @@ Append to `client/src/promo/promo.css`:
 .promo-btn:disabled { opacity: 0.6; cursor: default; transform: none; }
 ```
 
-- [ ] **Step 6: Run the tests**
+- [x] **Step 6: Run the tests**
 
 Run: `cd client && npx vitest run src/promo/__tests__/`
 Expected: PASS, all suites including isolation (the socket import is lazy, so `SOCKET_STATIC` does not match).
 
-- [ ] **Step 7: A/B the token write — the regression that motivated Task 1**
+- [x] **Step 7: A/B the token write — the regression that motivated Task 1**
 
 Comment out the `persistAuth(payload || {});` line in `LoginRoute.jsx` and re-run:
 
 Run: `cd client && npx vitest run src/promo/__tests__/LoginRoute.test.jsx`
 Expected: the "stores the session on auth_success" test FAILS and no other. Restore the line and confirm green. Verify the mutation actually landed (the file really changed) before believing the result.
 
-- [ ] **Step 8: Verify end to end in a browser**
+- [x] **Step 8: Verify end to end in a browser**
 
 With the dev server running and NO session:
 1. Load `/`, click "Log in" → the form renders at `/login`.
@@ -2168,7 +2168,7 @@ With the dev server running and NO session:
 
 Step 2 is the one that would have failed before Task 1. Confirm the token is in `localStorage` immediately after `auth_success`, before the reload.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add client/src/promo/
@@ -2190,7 +2190,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Create: `client/public/robots.txt` (overwrite the existing stub)
 - Create: `client/public/promo/` (directory for Task 9's captures)
 
-- [ ] **Step 1: Write the document head**
+- [x] **Step 1: Write the document head**
 
 In `client/index.html`, replace the `<title>` line (add one if absent) and the description meta:
 
@@ -2210,7 +2210,7 @@ In `client/index.html`, replace the `<title>` line (add one if absent) and the d
 
 **Note the cache rule:** `index.html` is served `no-cache` but `og-card.png` sits under `/promo/`, which is NOT `assets/`, so it is also `no-cache` — no content hash needed. Confirm by reading `server/server.js:1210-1220`: only `assets/` gets `immutable`.
 
-- [ ] **Step 2: Write robots.txt**
+- [x] **Step 2: Write robots.txt**
 
 Overwrite `client/public/robots.txt`:
 
@@ -2222,7 +2222,7 @@ Disallow: /login
 Sitemap: https://viafluere.com/sitemap.xml
 ```
 
-- [ ] **Step 3: Add a sitemap**
+- [x] **Step 3: Add a sitemap**
 
 Create `client/public/sitemap.xml` listing `/`, `/examples`, and one entry per feature slug:
 
@@ -2241,7 +2241,7 @@ Create `client/public/sitemap.xml` listing `/`, `/examples`, and one entry per f
 
 The namespace host is `sitemaps.org`, plural — a singular `sitemap.org` is a common typo that makes the file invalid.
 
-- [ ] **Step 4: Guard the sitemap against drift**
+- [x] **Step 4: Guard the sitemap against drift**
 
 Append to `client/src/promo/__tests__/promoContent.test.js`:
 
@@ -2257,7 +2257,7 @@ it("the sitemap lists every capability page", () => {
 });
 ```
 
-- [ ] **Step 5: Run and commit**
+- [x] **Step 5: Run and commit**
 
 Run: `cd client && npx vitest run src/promo/__tests__/promoContent.test.js`
 Expected: PASS.
@@ -2426,6 +2426,79 @@ git commit -m "docs: landing page and promo routes — as built
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ```
+
+---
+
+### Task 11: Register from scratch and build `claude-grid` through the UI
+
+**User, 2026-08-18:** *"put in a thing to create a grid after from your own imagination of the site. register, create a grid from scratch, and try to add things via the ui, and just come up with your own grid called claude-grid. this way i can test how the site works from scratch and see what you come up with, knowing all the features of the site"*
+
+This is a real from-scratch pass, not a fixture: a brand-new account, a grid built by clicking, so the user can open it and judge both the product's new-user path and the design. It doubles as the most honest end-to-end test of Tasks 2-7 — the landing page is only proven when someone reaches a working workspace through it.
+
+**RUN THIS ONLY AFTER TASK 7.** The register button on the promo `/login` route is the entry point, and exercising it is half the point.
+
+**THIS IS A ONE-OFF.** User, 2026-08-18: *"it shouldnt build claude grid on a fresh account everytime btw"* / *"just this once"*. `claude-grid` is built once, on one fresh account, so the user can look at it. It is NOT a fixture to be rebuilt, NOT something a later session should re-run, and NOT a step to automate. Once this task is done it is done — a future session finding it unticked should ask before repeating it.
+
+#### Ground rules
+
+- **Never touch `poms grid`.** It is protected live data (`server/utils/protectedGrids.js`). This task creates a NEW user, so it cannot reach it — verify that assumption once rather than assuming it.
+- **Everything through the UI.** No direct Mongo writes, no seed scripts, no migrations. The value of this task is that it exercises the paths a real person uses; a grid assembled by writing to the database proves nothing about them.
+- **dev and prod share one Atlas database** (CLAUDE.md 2026-07-14). A grid created against a local dev server is therefore visible on the deployed site, which is what lets the user open it. Confirm this before promising it.
+- **Report the credentials** to the user at the end — the grid is under a new account and is unreachable without them.
+
+- [ ] **Step 1: Register through the promo login route**
+
+Drive a real browser to the running site with no session. Land on `/`, click "Log in", and use **Create account** with:
+
+```
+email:    claude-grid@viafluere.test
+password: <generate one, record it in the final report>
+```
+
+Confirm: the token is stored, the page navigates to `/`, and a workspace renders. Note what the brand-new user is given by `createDefaultUserData` — that is the real first-run experience and worth describing honestly.
+
+- [ ] **Step 2: Create the grid**
+
+Create a new grid named exactly `claude-grid` and switch to it. Do not rename or reuse the seeded default grid — the ask is a grid built from scratch.
+
+- [ ] **Step 3: Build it — the concept**
+
+**Concept: a workshop log for learning a craft.** Deliberately NOT the wellness framing `poms grid` uses, so the grid demonstrates that the product is generic rather than reproducing the one build it already has.
+
+The theme is yours to execute, but the grid MUST exercise each capability the promo site claims, because the site is now making these claims in public:
+
+| Claim on the promo site | Must appear in `claude-grid` |
+|---|---|
+| 11 kinds of value | at least six distinct field types on real records, including a duration, a number, a rating, a date, a choice, and a reference to another occurrence |
+| 4 ways to render a container | one board, one doc, one table, one canvas |
+| values carry direction | at least one amount field used both in and out |
+| 114 verbs — the maths is yours | at least two operations you compose: one total, and one that is not a plain sum (a streak, a count with a condition, or a difference) |
+| 7 chart shapes, fed live | one graph container reading records you entered |
+| 24 things a dropped item can become | bring at least one thing in by dropping it — a link or a file — and choose a shape deliberately |
+| build it your way | more than one panel, arranged |
+
+- [ ] **Step 4: Put real data in it**
+
+A grid with empty containers demonstrates nothing. Enter enough records that the trackers show non-zero numbers and the chart has shape — several days' worth, not one row.
+
+- [ ] **Step 5: Write down what fought you**
+
+**This is the most valuable output of the task.** Keep a running note of every place the UI was confusing, slow, broken, or surprising for a first-time user, with what you expected and what happened. Do not fix anything — record it. A from-scratch pass by someone who knows the feature set is the closest thing to a usability study this project has had, and the friction list is worth more than the grid.
+
+- [ ] **Step 6: Verify by reading it back**
+
+Run `node --env-file=.env server/scripts/checkGrid.js` (or the documented equivalent) scoped to the new grid.
+Expected: **0 integrity errors.** If the grid a person can build by clicking has integrity errors, that is a finding — report it rather than repairing it by hand.
+
+- [ ] **Step 7: Capture it**
+
+Screenshot the finished grid at 1440x900 and 390x844, and **look at both**. These are also candidates for Task 9's promo captures — a grid with no personal data in it is exactly what a marketing screenshot needs, which is a reason to prefer it over `test grid 2`.
+
+- [ ] **Step 8: Report**
+
+Deliver to the user: the credentials, the grid name, what was built and why, the capability coverage table with each row ticked or explained, the friction list from Step 5, the integrity result, and the screenshots.
+
+Do NOT commit the credentials to the repository.
 
 ---
 
