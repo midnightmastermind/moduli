@@ -2437,6 +2437,8 @@ This is a real from-scratch pass, not a fixture: a brand-new account, a grid bui
 
 **RUN THIS ONLY AFTER TASK 7.** The register button on the promo `/login` route is the entry point, and exercising it is half the point.
 
+**THIS IS A ONE-OFF.** User, 2026-08-18: *"it shouldnt build claude grid on a fresh account everytime btw"* / *"just this once"*. `claude-grid` is built once, on one fresh account, so the user can look at it. It is NOT a fixture to be rebuilt, NOT something a later session should re-run, and NOT a step to automate. Once this task is done it is done — a future session finding it unticked should ask before repeating it.
+
 #### Ground rules
 
 - **Never touch `poms grid`.** It is protected live data (`server/utils/protectedGrids.js`). This task creates a NEW user, so it cannot reach it — verify that assumption once rather than assuming it.
