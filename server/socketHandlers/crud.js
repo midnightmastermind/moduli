@@ -151,7 +151,17 @@ export function registerCrudHandlers(socket, {
       const uc = await getUc();
       const id = moduleData?.id;
       if (!id) return;
-      const next = { ...(uc.modulesById[id] || {}), ...moduleData, id, userId };
+      // A module with NO gridId is invisible to full_state, which is
+      // grid-scoped — so the container it describes renders once, disappears on
+      // the next load, and leaves a module-less occurrence behind (measured on
+      // a fresh account 2026-08-18 via the page's "Add container"). Several
+      // client call sites omit it. The socket already knows who it belongs to
+      // (userId is stamped here for exactly that reason) and it knows which
+      // grid as well, so the same rule covers every caller that forgets.
+      // An explicit gridId always wins: a template or import writing into
+      // another grid must not be re-homed to the one on screen.
+      const gridId = moduleData?.gridId ?? uc.modulesById[id]?.gridId ?? socket.data.activeGridId;
+      const next = { ...(uc.modulesById[id] || {}), ...moduleData, id, userId, ...(gridId ? { gridId } : {}) };
       uc.modulesById[id] = next;
       await Module.findOneAndUpdate({ id, userId }, next, { upsert: true });
       socket.to(userRoom(userId)).emit("module_created", { module: next });

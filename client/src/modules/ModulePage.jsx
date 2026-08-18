@@ -762,7 +762,22 @@ function Page({
                 onCreateNew={({ kind } = {}) => {
                   if (!occurrence?.id || !ctxUserId || !ctxGridId) return;
                   const id = crypto.randomUUID();
-                  const mod = { id, role: "container", kind: kind || "board", label: `List ${containersList.length + 1}` };
+                  // userId/gridId belong on the MODULE too. Without a gridId it
+                  // is invisible to full_state (grid-scoped), so the container
+                  // rendered once and was gone on reload, leaving a module-less
+                  // occurrence — measured on a fresh account 2026-08-18. The
+                  // server stamps it now as well; both halves are cheap and the
+                  // client one keeps the optimistic copy honest.
+                  //
+                  // The label names the KIND the user picked. It said
+                  // `List N` — a word this app deliberately does not use for a
+                  // board (see CLAUDE.md: list and board are the same thing).
+                  const k = kind || "board";
+                  const mod = {
+                    id, role: "container", kind: k,
+                    userId: ctxUserId, gridId: ctxGridId,
+                    label: `${k[0].toUpperCase()}${k.slice(1)} ${containersList.length + 1}`,
+                  };
                   CommitHelpers.createModule({ dispatch, socket, module: mod, emit: true });
                   const occId = crypto.randomUUID();
                   const occ = { id: occId, userId: ctxUserId, gridId: ctxGridId, moduleId: id, fields: {} };
