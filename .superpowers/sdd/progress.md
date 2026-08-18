@@ -54,11 +54,20 @@ REVISED TASK ORDER (Task 9 moved after 11 on purpose):
       (53 files) from an earlier root-run build, so vite's emptyDir hit EACCES.
       `set -e` correctly stopped BEFORE the pm2 restart and prod stayed up on the
       old bundle. Fixed with chown -R deploy:deploy on the server, then redeployed.
-- [~] Task 11 — IN PROGRESS. Registered on production, `claude-grid` created and
-      renamed through the UI, 2x2, one panel added. 0 integrity ERRORS.
-      Built so far: grid + 1 panel + 1 field. NOT yet: containers, records,
-      operations, chart, dropped item.
-      Blocked on structure, not effort — see "Task 11 findings" below.
+- [x] Task 11 — BUILT. `claude-grid` on production holds 4 panels / 4 pages,
+      6 containers across 4 kinds (board, doc, table, graph), 14 fields in 9 of
+      the 11 types, 19 records with real values, 2 operations composed in the
+      editor (a total and a count with a condition, both computing on screen),
+      and a live bar chart fed from the session rows. checkGrid: 0 errors, 1
+      warning (an address field created to prove the type is reachable and never
+      bound to a row). Screenshots at 1440x900 and 390x844.
+      SIX defects were found by building it, four of them fixed and deployed —
+      see the findings below. The one thing NOT done is a dropped file/link
+      landing as a record: the intake sheet was reached and offered its five
+      shapes for a pasted link, but a synthetic paste has no real destination
+      context and the chosen shape wrote nothing. CLAUDE.md already records that
+      these gesture paths are not drivable synthetically, so that is a probe
+      limit, not a proven defect.
       Original note:
       ONE-OFF (user, 2026-08-18: "it shouldnt build claude grid on a fresh account
       everytime" / "just this once"). Do not re-run it in a later session.
@@ -129,3 +138,55 @@ account, not by reading code. Code was consulted only to confirm a cause.
 6. **An empty grid shows the full-screen wallpaper with one line of small
    italic text.** It reads as loud-with-nothing-in-it rather than as an
    invitation. First thing a new account sees.
+
+
+## Task 11 findings, round 2 (2026-08-18) — building the grid by clicking
+
+Each of these was found by USING the product on production, not by reading code.
+
+7. **A container added through the UI VANISHED on reload.** FIXED (ad2f3cf4).
+   `create_module` persisted the module with no gridId, so the grid-scoped
+   full_state never sent it back and the occurrence was left module-less — the
+   exact `module-less-occurrence` integrity error. Fixed on the SERVER, where
+   the socket already knows the user and the grid, so every client call site
+   that forgets is covered.
+
+8. **The operations editor's header "Save" only CLOSED the editor.** FIXED
+   (65965414). Its tooltip said "changes are auto-saved as you edit"; nothing
+   auto-saves, and a websocket trace showed that button emitting nothing while
+   the one beside Preview/Delete emitted `update_operation`. A renamed op with
+   three pipeline steps came back untouched. This is silent data loss on the
+   most obvious control in the panel.
+
+9. **A graph container could not be MADE through the UI.** FIXED (65965414).
+   Every container's header dropdown carries the whole GraphSection and reported
+   "9 roots · 9 rows" for the feed I configured — into a container that drew a
+   plain board, because only `kind: "graph"` renders a chart and no UI path sets
+   it. `graph` is now one of the convertible kinds.
+
+10. **Every row created by "+ Item" was born with an inert kind.** FIXED
+    (f1209b77). 31 of 31 instance modules on a grid built by clicking carried
+    `kind: "board"`, so they all drew the board icon — migration 0003's defect,
+    still being minted by the live create path.
+
+11. **`SET_FIELD_VALUE` is offered and does nothing.** NOT fixed. The action
+    picker lists it, the builder has a full editor for it (occurrence, field,
+    value, flow) and operationIntrospection analyses it — but the executor has
+    no case for it, so the step is a silent no-op. I built a tracker on it and
+    the tile stayed at 0. The same class, softer: ~40 actions in the picker
+    (SUM_VAR, STREAK_VAR, the whole Aggregators and Collections groups) have no
+    editor in OperationsBuilder, so picking one renders a step with no
+    configurable fields.
+
+12. **"Duplicate (new instance)" does nothing inside a table container.** NOT
+    fixed. ContainerTable renders `<ModuleInstance>` without `containerId`, and
+    the duplicate handler needs it; the menu item is offered and no row appears.
+
+Smaller things, none fixed: a table container with two columns renders the SAME
+child in both cells; the tree's "+" on a folder mints an artifact/doc container
+called "Untitled" that looks like a page card, cannot be renamed or deleted from
+the tree, and needs its own panel to reach; a container added to a doc PAGE is
+listed but never rendered (the documented listed-but-not-embedded class); a new
+container is called "List 1" (the word this app deliberately does not use);
+the mobile drawer prints the raw userId; and a brand-new account's first screen
+is a full-bleed wallpaper with one line of small italic text.
