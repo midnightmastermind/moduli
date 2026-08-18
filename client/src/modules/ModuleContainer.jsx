@@ -105,6 +105,7 @@ import InsertGap from "../ui/InsertGap.jsx";
 import ArtifactCard from "./ArtifactCard.jsx";
 import ModuleTextblock from "./ModuleTextblock.jsx";
 import BoundHeader from "./BoundHeader.jsx";
+import HeadingLevelPicker, { parseHeadingPrefix } from "../ui/HeadingLevelPicker.jsx";
 import QuickAddMenu, { KIND_TILE, tileKindsForRole } from "../ui/QuickAddMenu.jsx";
 import { getModuleTypeBadge } from "../helpers/moduleIcons";
 
@@ -430,6 +431,15 @@ function Container({
   // Section-hierarchy header sizing (imported docs stamp meta.headingLevel
   // 1=article … 6). Falls back to the default 20/700 for every other container.
   const headingLevel = Number(module?.meta?.headingLevel) || 1;
+  // The ONE place the level is written. `meta` is spread rather than replaced:
+  // it also carries allowChildContainers, labelOverflow, headerLink and more, and
+  // `updateModule` sends the whole module — writing `meta` whole is how those get
+  // dropped (the `createPageInContainer` clobber, 2026-08-08).
+  const commitHeadingLevel = useCallback((n) => {
+    const meta = { ...(module?.meta || {}) };
+    if (n == null) delete meta.headingLevel; else meta.headingLevel = n;
+    CommitHelpers.updateModule({ dispatch, socket, module: { ...module, meta }, emit: true });
+  }, [module, dispatch, socket]);
   const headerFontSize = HEADING_SIZES[module?.meta?.headingLevel] || 20;
   const headerFontWeight = HEADING_WEIGHTS[module?.meta?.headingLevel] || 700;
   // Per-occurrence header label overflow: marquee (default) | wrap | none.
@@ -1159,7 +1169,13 @@ function Container({
                   day page container headings ## not #. except the top one saying
                   the date"). Driven by the level in module.meta, so the renderer
                   still knows nothing about which containers those are. */}
-              <span className="embedded-hash" style={{ fontSize: headerFontSize, fontWeight: headerFontWeight, color: embeddedAccent, fontFamily: "var(--font-mono)" }}>{"#".repeat(headingLevel)}</span>
+              <HeadingLevelPicker
+                level={module?.meta?.headingLevel}
+                onPick={commitHeadingLevel}
+                fontSize={headerFontSize}
+                fontWeight={headerFontWeight}
+                color={embeddedAccent}
+              />
               {headerBinding ? (
                 <LabelShell
                   mode={boundLabelOverflow}
@@ -1182,12 +1198,22 @@ function Container({
                     contentEditable
                     suppressContentEditableWarning
                     onBlur={(e) => {
-                      const next = e.currentTarget.textContent.trim();
-                      if (next && next !== module.label) {
-                        CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label: next }, emit: true });
-                      } else {
-                        e.currentTarget.textContent = displayLabel || "Container";
+                      const typed = e.currentTarget.textContent.trim();
+                      // MARKDOWN TYPING STILL WORKS, and it lands as ONE write
+                      // rather than a rename followed by a level change — two
+                      // writes would race each other on the same module and the
+                      // second would carry a pre-rename copy.
+                      const parsed = parseHeadingPrefix(typed);
+                      const next = parsed ? parsed.label : typed;
+                      if (!next) { e.currentTarget.textContent = displayLabel || "Container"; return; }
+                      const meta = { ...(module?.meta || {}) };
+                      if (parsed) meta.headingLevel = parsed.level;
+                      const changed = next !== module.label || (parsed && meta.headingLevel !== module?.meta?.headingLevel);
+                      if (changed) {
+                        CommitHelpers.updateModule({ dispatch, socket, module: { ...module, label: next, meta }, emit: true });
                       }
+                      // The hashes never stay in the text — they became the level.
+                      if (parsed) e.currentTarget.textContent = next;
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
