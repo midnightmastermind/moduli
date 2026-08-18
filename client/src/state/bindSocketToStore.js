@@ -33,6 +33,7 @@ import { whenStagedFirstRelease } from "../helpers/stagedMount";
 import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers";
 import { migrateFieldOptionsSource, needsMigration } from "./migrateFieldOptionsSource";
 import { analyzeAllOperations } from "../helpers/operationIntrospection";
+import { persistAuth, clearAuth } from "../helpers/authStorage.js";
 
 /**
  * Module-level bridge so CommitHelpers can fire operations immediately
@@ -722,8 +723,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   function onAuthSuccess({ token, userId } = {}) {
     console.log("[socket] auth_success", { userId });
 
-    if (token) localStorage.setItem("moduli-token", token);
-    if (userId) localStorage.setItem("moduli-userId", userId);
+    persistAuth({ token, userId });
 
     socketDispatch({
       type: ActionTypes.SET_USER_ID,
@@ -748,9 +748,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
   function onAuthError(msg) {
     console.log("[socket] auth_error:", msg);
-    localStorage.removeItem("moduli-token");
-    localStorage.removeItem("moduli-userId");
-    localStorage.removeItem("moduli-gridId");
+    clearAuth();
     socketDispatch({ type: ActionTypes.LOGOUT });
   }
 
@@ -759,9 +757,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     console.log("[socket] connect_error:", msg);
 
     if (msg === "INVALID_TOKEN" || msg === "USER_NOT_FOUND") {
-      localStorage.removeItem("moduli-token");
-      localStorage.removeItem("moduli-userId");
-      localStorage.removeItem("moduli-gridId");
+      clearAuth();
 
       socketDispatch({ type: ActionTypes.LOGOUT });
 
