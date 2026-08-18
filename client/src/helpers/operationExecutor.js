@@ -1119,6 +1119,21 @@ function trimRunForWire(payload) {
 const _LIVEOCCS_MUTATING = new Set([
   "CREATE_ITEM", "DELETE_ITEM", "REMOVE_OCCURRENCE", "LINK_OCCURRENCE_TO_PARENT",
   "UPDATE_ITEM_FIELD", "UPDATE_ITEM_META", "UPDATE_ITEM_PARENT", "UPDATE_ITEM_TEXTMAP",
+  // A DATE MOVE IS STRUCTURAL, and leaving it out cost a day's schedule.
+  // `Grid: Snap Filter To Today` (trigger priority 0) moves each page's own
+  // date on the first load of a new day; `Schedule: Build Schedule` (priority 1)
+  // runs moments later IN THE SAME SWEEP and takes its dates from its target
+  // page's effective filter. With this effect missing from the overlay, that
+  // read returned YESTERDAY's date — so the build rebuilt the column that
+  // already existed, concluded there was nothing to do, and today's column was
+  // not created until the NEXT load. Measured 2026-08-18: the page and the
+  // marker both read today while the only day column on the grid was
+  // yesterday's.
+  //
+  // It is deliberately NOT in `_VALUE_ONLY_EFFECTS`: a filter override changes
+  // the EFFECTIVE FILTER of every descendant, so the enriched read model (which
+  // carries `_effectiveFilter` per item) is genuinely stale and must be rebuilt.
+  "UPDATE_ITEM_FILTER_OVERRIDE",
 ]);
 
 // A field write changes a VALUE on an occurrence that already exists. It cannot
@@ -1239,6 +1254,19 @@ export function applyEffectsToLiveOccs(liveOccs, effects) {
         const occ = liveOccs[eff.itemId];
         if (!occ) break;
         liveOccs[eff.itemId] = { ...occ, textmap: eff.textmap };
+        break;
+      }
+      // A null VALUE clears that one key rather than writing null — the same
+      // meaning `updateOccurrenceFilterOverride` gives it, so an op that clears
+      // a date in one step and reads it in the next sees "no filter", not a
+      // filter set to nothing.
+      case "UPDATE_ITEM_FILTER_OVERRIDE": {
+        const occ = liveOccs[eff.itemId];
+        if (!occ) break;
+        const next = { ...(occ.filterOverride || {}) };
+        if (eff.value == null) delete next[eff.fieldId];
+        else next[eff.fieldId] = eff.value;
+        liveOccs[eff.itemId] = { ...occ, filterOverride: next };
         break;
       }
       case "DELETE_ITEM":

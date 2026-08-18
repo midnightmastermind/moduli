@@ -7380,6 +7380,25 @@ export async function createLiveData(userId, options = {}) {
           ] },
           then: [],
           else: [
+            // THE GRID'S OWN FILTER MOVES TOO — this was the whole of the
+            // user's report on 2026-08-18 ("the grid filter is still stuck on
+            // the 9th, that should be today"). The loop below advances every
+            // PAGE's own override, and nothing wrote `grid.activeFilterValues`,
+            // so the toolbar kept showing whatever date was last navigated to
+            // while the pages underneath had already moved on. The grid filter
+            // is the FLOOR of the cascade, so anything not carrying its own
+            // override was still being filtered against a stale day.
+            //
+            // SET_FILTER is the verb for it because it writes BOTH halves —
+            // `filterNavState` (the nav widget) and `grid.activeFilterValues`
+            // (what `isOccurrenceVisible` actually reads). Writing only the
+            // first moves the date on screen without filtering anything, which
+            // is the exact half-wiring that was fixed on 2026-07-26.
+            //
+            // Its no-op guard (`applySetFilterEffect` returns null when both
+            // halves already match) is what keeps this onLoad op from firing on
+            // its own write.
+            { id: uid(), type: "action", config: { type: "SET_FILTER", fieldId: dateFieldId, value: "$today" } },
             {
               id: uid(), type: "loop", overExpr: "$allPages", as: "$pg",
               body: [
