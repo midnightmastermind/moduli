@@ -23,7 +23,11 @@ export default function LoginRoute() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  // Which action is in flight, not merely THAT one is: registering seeds a
+  // whole default workspace server-side and was measured at ~51s against
+  // Atlas on 2026-08-18. A button that says "Working…" for a minute reads as
+  // hung, so the register path says what is actually taking the time.
+  const [busy, setBusy] = useState("");
   const emailRef = useRef(null);
 
   useEffect(() => { emailRef.current?.focus(); }, []);
@@ -42,7 +46,7 @@ export default function LoginRoute() {
     };
     const onError = (msg) => {
       setError(msg || "Login failed");
-      setBusy(false);
+      setBusy("");
     };
     socket.on("auth_success", onSuccess);
     socket.on("auth_error", onError);
@@ -56,7 +60,7 @@ export default function LoginRoute() {
     if (!email || !password) { setError("Email and password required"); return; }
     if (!socket) { setError("Still connecting — try again in a moment"); return; }
     setError("");
-    setBusy(true);
+    setBusy(event);
     socket.emit(event, { email, password });
   };
 
@@ -99,17 +103,23 @@ export default function LoginRoute() {
 
           {error ? <p className="promo-login-error" role="alert">{error}</p> : null}
 
+          {busy === "register" ? (
+            <p className="promo-login-note" role="status">
+              Building your workspace — this takes up to a minute. Leave this page open.
+            </p>
+          ) : null}
+
           <div className="promo-login-actions">
-            <button type="submit" className="promo-btn promo-btn--primary" disabled={busy}>
-              {busy ? "Working…" : "Log in"}
+            <button type="submit" className="promo-btn promo-btn--primary" disabled={!!busy}>
+              {busy === "login" ? "Signing in…" : "Log in"}
             </button>
             <button
               type="button"
               className="promo-btn promo-btn--ghost"
-              disabled={busy}
+              disabled={!!busy}
               onClick={() => submit("register")}
             >
-              Create account
+              {busy === "register" ? "Creating…" : "Create account"}
             </button>
           </div>
         </form>

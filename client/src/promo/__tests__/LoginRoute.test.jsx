@@ -82,6 +82,23 @@ describe("LoginRoute", () => {
     expect(assign).not.toHaveBeenCalled();
   });
 
+  // Registering seeds a default workspace server-side — measured at ~51s
+  // against Atlas. A button reading "Working…" for a minute is indistinguishable
+  // from a hang, so the register path must say what is taking the time. Logging
+  // in must NOT show it: it returns immediately, and the note would be a lie.
+  it("says what the wait is for while registering, and only then", async () => {
+    const { unmount } = mount();
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+    expect(screen.getByRole("status").textContent).toMatch(/takes up to a minute/i);
+    unmount();
+
+    mount();
+    await fill();
+    fireEvent.click(screen.getByRole("button", { name: /^log in$/i }));
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
   it("refuses to submit with an empty field", async () => {
     mount();
     await waitFor(() => screen.getByLabelText(/email/i));

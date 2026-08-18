@@ -29,12 +29,17 @@
 
   background: var(--p-bg);
   color: var(--p-text);
+  /* Sticky footer: on a short route (404, /login) the footer would otherwise
+   * float in the middle of the viewport with dead ground beneath it. */
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 .promo * { box-sizing: border-box; }
+.promo > main { flex: 1 0 auto; }
 
 /* THE PROMO SURFACE IS A DOCUMENT AND MUST SCROLL.
  *
@@ -235,7 +240,10 @@
 .promo-chip:hover { border-color: var(--p-accent); }
 
 /* ── Login ───────────────────────────────────────────────────────── */
-.promo-login { min-height: calc(100vh - 66px); display: flex; align-items: center; }
+/* No min-height: `.promo > main { flex: 1 0 auto }` already fills the space
+ * between the nav and the sticky footer. Asking for 100vh on top of both put
+ * the page 103px into a pointless scroll. */
+.promo-login { display: flex; align-items: center; }
 .promo-login-inner { max-width: 460px; }
 .promo-login-mark { display: inline-block; margin-bottom: 26px; }
 .promo-login-mark img { max-width: min(200px, 56vw); height: auto; display: block; }
@@ -251,3 +259,4 @@
 .promo-login-error { color: #ff8f8f; font-size: 14px; margin: 0; }
 .promo-login-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
 .promo-btn:disabled { opacity: 0.6; cursor: default; transform: none; }
+.promo-login-note { color: var(--p-accent); font-size: 14px; margin: 0; line-height: 1.5; }
