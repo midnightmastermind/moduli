@@ -60,11 +60,18 @@ export function dayKey(value) {
  *  • **Up to and INCLUDING the due date.** "Every day until it's due" reads as
  *    including the day it is due; that is the day it matters most.
  *
- *  • **An OVERDUE task KEEPS showing.** The user did not say what happens once
- *    the due date passes, and the safe reading is that it stays until dealt
- *    with. A task silently vanishing because its date went by is
- *    indistinguishable from losing it, and the point of a Due slot is that it
- *    nags. **This is why an uncompleted task has no upper bound at all.**
+ *  • **An OVERDUE task NAGS FOR THREE DAYS, then stops.** The original reading
+ *    was that it stays until dealt with, because the user had not said — and a
+ *    task vanishing because its date went by is indistinguishable from losing
+ *    it. They have now said (2026-08-18): *"i also need you to not put past dues
+ *    in the todo list after 3 days, just leave them in the tasks folder so i can
+ *    delete them."*
+ *
+ *    NOTHING IS DELETED AND NOTHING IS LOST — this decides only which days the
+ *    schedule LISTS it on. The task itself still lives on the Tasks page, which
+ *    is exactly where the user asked to be able to go and delete it. So the
+ *    original worry does not apply: the row does not disappear, it stops
+ *    following you around.
  *
  *  • **Completed → gone from the NEXT day on, kept on the day it was completed.**
  *    The user's sentence exactly, and it makes each day read truthfully: the day
@@ -76,6 +83,25 @@ export function dayKey(value) {
  *    where the question rarely arises — but a builder that CAN look backwards
  *    must pass it.
  */
+/** How many days an overdue task keeps appearing before the schedule lets it go.
+ *  Named and exported because it is a product decision, not a tuning constant —
+ *  and because a test that hardcodes 3 would silently stop testing the rule the
+ *  day it changes. */
+export const OVERDUE_GRACE_DAYS = 3;
+
+/** `YYYY-MM-DD` plus n days, still as a day key.
+ *  Built from UTC parts and read back as UTC parts: a day key carries no time,
+ *  so this cannot drift the way local-midnight arithmetic does around DST — the
+ *  same reason everything else here compares strings rather than Dates. */
+export function addDays(key, n) {
+  const k = dayKey(key);
+  if (!k) return null;
+  const [y, m, d] = k.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  t.setUTCDate(t.getUTCDate() + n);
+  return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, "0")}-${String(t.getUTCDate()).padStart(2, "0")}`;
+}
+
 export function isDueOn(task, day) {
   const d = dayKey(day);
   const due = dayKey(task?.due);
@@ -87,7 +113,10 @@ export function isDueOn(task, day) {
   const done = dayKey(task?.completedOn);
   if (done) return d <= done;         // completed: never after that day
 
-  return true;                        // outstanding: today, up to due, and past it
+  // Outstanding: every day up to the due date, then a THREE-DAY grace and no
+  // more. The window is counted from the due date, so the task is listed on the
+  // due day itself and on the three days after it.
+  return d <= addDays(due, OVERDUE_GRACE_DAYS);
 }
 
 /**

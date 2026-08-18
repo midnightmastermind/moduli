@@ -97,10 +97,18 @@ describe("IS_DUE_ON", () => {
     }
   });
 
-  it("keeps showing an overdue task", () => {
+  it("shows an overdue task for three days through the ACTION, then stops", () => {
+    // The pipeline verb has to carry the same contract as the helper — an op
+    // deciding placement from a stale rule is how a schedule and its own tests
+    // end up disagreeing. Updated with the helper on 2026-08-18 (user: "not put
+    // past dues in the todo list after 3 days").
     const $vars = { $due: "2026-08-11" };
+    executeActionItem("IS_DUE_ON", { due: "$due", day: "literal:2026-08-14", to: "$d" }, $vars, [], ctx());
+    expect($vars.$d).toBe(true);   // 3 days over — still listed
+    executeActionItem("IS_DUE_ON", { due: "$due", day: "literal:2026-08-15", to: "$d" }, $vars, [], ctx());
+    expect($vars.$d).toBe(false);  // 4 days over — the schedule lets go
     executeActionItem("IS_DUE_ON", { due: "$due", day: "literal:2026-08-20", to: "$d" }, $vars, [], ctx());
-    expect($vars.$d).toBe(true);
+    expect($vars.$d).toBe(false);
   });
 
   it("stops the day AFTER completion, and still shows on the day it was done", () => {

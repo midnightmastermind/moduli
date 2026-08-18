@@ -43,12 +43,21 @@ describe("the user's real task: Talk to Angela, due Aug 11", () => {
       .toEqual(["2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11"]);
   });
 
-  it("KEEPS showing once overdue", () => {
-    // The user did not say what happens after the date passes. A task vanishing
-    // because its date went by is indistinguishable from losing it, and the
-    // point of a Due slot is that it nags.
-    expect(isDueOn(task, "2026-08-12")).toBe(true);
-    expect(isDueOn(task, "2026-09-01")).toBe(true);
+  it("nags for THREE DAYS once overdue, then lets go", () => {
+    // CONTRACT CHANGED 2026-08-18, and this test is updated rather than deleted
+    // because the old behaviour was itself a deliberate decision. It used to
+    // keep showing forever — "a task vanishing because its date went by is
+    // indistinguishable from losing it". The user has since asked for the
+    // opposite: "not put past dues in the todo list after 3 days, just leave
+    // them in the tasks folder so i can delete them."
+    //
+    // The original worry does not apply, which is why the reversal is safe:
+    // this decides only which days the SCHEDULE lists it on. The task stays on
+    // the Tasks page — exactly where the user asked to go and delete it.
+    expect(isDueOn(task, "2026-08-12")).toBe(true);   // 1 day over
+    expect(isDueOn(task, "2026-08-14")).toBe(true);   // 3 days over — the last
+    expect(isDueOn(task, "2026-08-15")).toBe(false);  // 4 days over — gone
+    expect(isDueOn(task, "2026-09-01")).toBe(false);
   });
 });
 
