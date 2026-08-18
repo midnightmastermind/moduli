@@ -6,6 +6,36 @@ import { nanoid } from "nanoid";
 import { compressTextmap, decompressTextmap } from "../utils/textmapCompression.js";
 import { recordDoc } from "../utils/txRecorder.js";
 
+/**
+ * A stale write may ADD children, never DROP them.
+ *
+ * Pure decision half, exported so the rule can be tested without a socket —
+ * the same split `applySetFilterEffect` uses. Returns the array to store.
+ *
+ * @param {string[]} incoming        the array the client sent
+ * @param {string[]} prev            the array currently stored
+ * @param {number}   basisMs         the client's `expectedUpdatedAt`, ms (NaN if absent)
+ * @param {number}   prevMs          the stored `updatedAt`, ms (NaN if absent)
+ * @param {(id:string)=>boolean} isKnown  does this occurrence still exist
+ */
+export function mergeStaleChildArray(incoming, prev, basisMs, prevMs, isKnown) {
+  if (!Array.isArray(incoming) || !Array.isArray(prev) || !prev.length) return incoming;
+  // Only act on a write that can be PROVEN stale. A missing basis is not
+  // evidence of staleness, and treating it as such would silently disable every
+  // legitimate removal from a path that does not send one.
+  const stale = Number.isFinite(basisMs) && Number.isFinite(prevMs) && prevMs > basisMs;
+  if (!stale) return incoming;
+
+  const sent = new Set(incoming);
+  // PREV ORDER FIRST: on a day column the array IS the running order, so
+  // appending the survivors would leave the schedule rotated (0137 repaired
+  // exactly that once already).
+  const merged = [];
+  for (const cid of prev) if (sent.has(cid) || isKnown(cid)) merged.push(cid);
+  for (const cid of incoming) if (!merged.includes(cid)) merged.push(cid);
+  return merged;
+}
+
 export function registerOccurrenceHandlers(socket, {
   io, ensureUserCache, userCacheReady, loadUserIntoCache,
   userRoom,
@@ -189,6 +219,57 @@ export function registerOccurrenceHandlers(socket, {
       // known, or when it is the one being created RIGHT NOW (create emits its
       // parent link before the child row lands, and the create handler does its
       // own atomic $push afterwards).
+      // ── A STALE WRITE MAY ADD CHILDREN, NEVER DROP THEM ───────────────────
+      // The clobber this exists to stop, observed twice (2026-08-13, 2026-08-17):
+      // a client holds the array `full_state` gave it, something else adds a
+      // child, and the client's next write echoes its pre-add copy back. The row
+      // is not deleted — it is alive, still naming this parent in its own
+      // `parentId`, and invisible, because a parent renders `occurrences[]`. On
+      // 2026-08-17 that cost a whole day's schedule: the column was built, 52
+      // children and all, and the page's array was overwritten three
+      // MILLISECONDS later by a copy taken before the build.
+      //
+      // WHY THE EXISTING STALE CHECK DID NOT CATCH IT: it is waived for
+      // SELF-SUCCESSION (the same socket writing twice in a row), and that
+      // waiver is correct for what it was built for — a page's own filter write
+      // followed by an op's meta write on the same row would otherwise report a
+      // false conflict (2026-05-26). But self-succession is EXACTLY the shape of
+      // this clobber: the client's second write carries its pre-build array.
+      //
+      // SO THE ARRAY GETS ITS OWN RULE, narrower than rejecting the write: when
+      // the basis is provably older than what is stored, the incoming array is
+      // treated as ADDITIVE. Anything it drops that still exists is put back.
+      //
+      // AN INTENTIONAL UNLINK IS UNTOUCHED, which is what makes this safe:
+      // `REMOVE_CHILD` and the drag paths go through `CommitHelpers`, which
+      // sends a CURRENT `expectedUpdatedAt`, so their writes never enter this
+      // branch and remove exactly what they meant to. A guard keyed on the
+      // child's `parentId` instead would have blocked them outright — those
+      // children are usually multi-parented and an unlink deliberately leaves
+      // `parentId` alone.
+      //
+      // PREV ORDER IS PRESERVED rather than appending the survivors, because on
+      // a day column the array IS the running order and appending would leave
+      // the schedule rotated (repaired once already, 0137).
+      //
+      // KNOWN GAP, stated rather than papered over: a write that sends NO
+      // `expectedUpdatedAt` cannot be shown to be stale, so it keeps today's
+      // replace-verbatim behaviour. Every in-app path sends one.
+      if (Array.isArray(next.occurrences) && Array.isArray(prev.occurrences) && prev.occurrences.length) {
+        const merged = mergeStaleChildArray(
+          next.occurrences,
+          prev.occurrences,
+          expectedUpdatedAt ? new Date(expectedUpdatedAt).getTime() : NaN,
+          prev.updatedAt ? new Date(prev.updatedAt).getTime() : NaN,
+          (cid) => !!uc.occurrencesById?.[cid],
+        );
+        const restored = merged.length - next.occurrences.length;
+        if (restored > 0) {
+          console.log(`🛡  update_occurrence ${id}: stale array would have dropped ${restored} live child(ren) — kept`);
+        }
+        next.occurrences = merged;
+      }
+
       if (Array.isArray(next.occurrences) && next.occurrences.length) {
         const known = (cid) => cid === id || !!uc.occurrencesById?.[cid];
         const kept = next.occurrences.filter(known);
