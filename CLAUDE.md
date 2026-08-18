@@ -6,6 +6,63 @@
 
 ---
 
+### 2026-08-18 — I BUILT A GRID BY CLICKING, and it found six defects reading code never would
+
+Task 11 of the landing-page plan: register a fresh account on production and build a grid called
+`claude-grid` entirely through the UI, so the user can judge the new-user path. The grid exists —
+4 panels, 4 pages, 6 containers across board/doc/table/graph, 14 fields in 9 of the 11 types, 19
+records, two operations composed in the editor, a live bar chart. **checkGrid: 0 errors.** But the
+grid is the by-product; the findings are the output.
+
+**THE FIRST ONE STOPPED THE BUILD DEAD: A CONTAINER ADDED THROUGH THE UI VANISHED ON RELOAD.**
+`create_module` persisted the module with **no gridId** — the occurrence had one, the page still
+listed it as a child, and full_state is grid-scoped, so the module was never sent back and what
+remained was the `module-less-occurrence` error `gridIntegrity` reports. **Fixed on the SERVER**,
+which already stamps `userId` for exactly this reason and knows the grid too (`activeGridId`), so
+the ModulePage call site AND the two in dropHandlers that omit it are all covered — an explicit
+gridId still wins, so a template writing into another grid is never re-homed.
+
+**THE MOST EXPENSIVE ONE: THE OPERATIONS EDITOR'S HEADER "Save" ONLY CLOSED THE EDITOR.** Its own
+tooltip read *"changes are auto-saved as you edit"*. Nothing auto-saves — the editor holds the whole
+operation in local state and only the Save beside Preview/Delete calls `onSave`. I lost a renamed op
+and three pipeline steps twice before a **websocket trace** settled it: the header button emitted
+NOTHING, the bottom one emitted `update_operation`. *A button that says Save and discards your work
+is worse than no button.* It saves the working copy now.
+
+**AND A CHART COULD NOT BE MADE AT ALL.** Every container's header dropdown carries the entire
+GraphSection — chart type, label field, value field, and a live readout that told me **"9 roots · 9
+rows"** — into a container that drew a plain board, because `ContainerGraph` only renders
+`kind: "graph"` and NO UI path sets it (add offers Board/Document/Canvas/Table; convert offers the
+same four). Every graph in existence was minted by a migration. `graph` joins the convertible kinds;
+the chart drew immediately.
+
+**Also fixed:** every row created by "+ Item" was born `kind: "board"` — 31 of 31 on a grid built by
+clicking — which is migration `0003`'s defect still being minted by the live create path (the seed
+was fixed in July; this path was not).
+
+**TWO ARE FILED, NOT FIXED, and they are the same shape as each other.** `SET_FIELD_VALUE` is in the
+action picker, has a full editor, and is read by `operationIntrospection` — **and the executor has no
+case for it**, so the step is a silent no-op (I built a whole tracker on it and the tile stayed at 0;
+the working version writes through `UPDATE`). Softer version of the same: roughly 40 actions in the
+picker — `SUM_VAR`, `STREAK_VAR`, the Aggregators and Collections groups — have **no editor** in
+`OperationsBuilder`, so choosing one renders a step with nothing to configure. And "Duplicate (new
+instance)" does nothing inside a table, because `ContainerTable` renders `<ModuleInstance>` without
+the `containerId` that handler needs.
+
+**THE PART THAT IS NOT DONE, said plainly:** no dropped file or link became a record. The intake
+sheet was reached and offered all five shapes for a pasted URL, and the shape I picked wrote
+nothing — a synthetic paste has no real destination context, which is the same limit this file
+already records for drag paths. It is a probe limit, not a proven defect, and it is the one row of
+the task's capability table I cannot tick.
+
+**What building it felt like, since that was the point:** the field editor, the predicate builder
+(with its live "Preview: 4 matches"), the intake sheet and the graph readout are genuinely good —
+each tells you what it is about to do before you commit. The paths that hurt are the ones where a
+control exists but nothing behind it runs, and they cost hours precisely because the UI looked
+right. 2688 client + 885 server tests; four deploys, prod HEAD verified each time.
+
+---
+
 ### 2026-08-11 (5) — RETRACTION: the click never fired the op AT ALL, and a TEST WAS PINNING IT
 
 User, after (4) shipped and deployed: *"nothing happened when i clicked an emotion for today."*
