@@ -13,6 +13,10 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
 import LoadingImage from "../ui/LoadingImage.jsx";
+import { useClosingGate } from "../helpers/closingGate";
+
+// Must match `.artifact-fullscreen--closing` in index.css.
+const FULLSCREEN_CLOSE_MS = 190;
 
 // Render a plain string with bare URLs turned into clickable links (quote artifacts
 // store their text as a plain string, so http(s):// links weren't resolving — 2026-07-10).
@@ -54,10 +58,32 @@ export default function ArtifactCard({ module, label, occurrence }) {
   const thumb256Src  = module?.meta?.thumb256  ? resolveFileRef(module.meta.thumb256)  : src;
   const thumb1024Src = module?.meta?.thumb1024 ? resolveFileRef(module.meta.thumb1024) : src;
 
+  // WHERE the full-screen view grows out of, and shrinks back into. Captured
+  // from the card's own rect at the moment of expand — once expanded the card is
+  // gone from the layout, so measuring later would find nothing.
+  const cardRef = useRef(null);
+  const [originVars, setOriginVars] = useState(null);
+
+  const expand = useCallback((e) => {
+    e?.stopPropagation();
+    const r = cardRef.current?.getBoundingClientRect();
+    setOriginVars(r && r.width
+      ? { "--fs-origin-x": `${Math.round(r.left + r.width / 2)}px`,
+          "--fs-origin-y": `${Math.round(r.top + r.height / 2)}px` }
+      : null);
+    setExpanded(true);
+  }, []);
+
+  // Closing runs the inverse animation first (user, 2026-08-17), so the surface
+  // stays mounted for its duration — see `helpers/closingGate`.
+  const { closing, requestClose } = useClosingGate(
+    expanded, FULLSCREEN_CLOSE_MS, () => setExpanded(false),
+  );
+
   const toggle = useCallback((e) => {
     e?.stopPropagation();
-    setExpanded((v) => !v);
-  }, []);
+    if (expanded) requestClose(); else expand(e);
+  }, [expanded, requestClose, expand]);
 
   // Escape closes the full-screen artifact. Bound at the DOCUMENT rather than on
   // the dialog, so it works without the overlay having taken focus — the same
@@ -68,11 +94,11 @@ export default function ArtifactCard({ module, label, occurrence }) {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
       e.stopPropagation();
-      setExpanded(false);
+      requestClose();
     };
     document.addEventListener("keydown", onKey, true);
     return () => document.removeEventListener("keydown", onKey, true);
-  }, [expanded]);
+  }, [expanded, requestClose]);
 
   // Clicking ANY artifact occurrence opens the spread viewer (user, 2026-08-16),
   // so a picture behaves the same wherever it is met — an inline row thumbnail,
@@ -270,7 +296,8 @@ export default function ArtifactCard({ module, label, occurrence }) {
     // click on the backdrop.
     return createPortal(
       <div
-        className="artifact-fullscreen"
+        className={closing ? "artifact-fullscreen artifact-fullscreen--closing" : "artifact-fullscreen"}
+        style={originVars || undefined}
         role="dialog"
         aria-label={originalName || "Artifact"}
         onClick={(e) => { if (e.target === e.currentTarget) toggle(e); }}
@@ -317,6 +344,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
 
   return (
     <div
+      ref={cardRef}
       className={showInfo ? "artifact-card artifact-card--with-info" : "artifact-card"}
       data-kind={kind}
       onClick={openViewer}

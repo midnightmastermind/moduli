@@ -7,8 +7,8 @@
 // is handed — never that it positions anything.
 import React from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import ArtifactSpread from "../ui/ArtifactSpread";
+import { render, screen, fireEvent, cleanup, act } from "@testing-library/react";
+import ArtifactSpread, { SPREAD_CLOSE_MS } from "../ui/ArtifactSpread";
 
 afterEach(() => { cleanup(); delete document.body.dataset.layout; });
 
@@ -42,20 +42,47 @@ describe("ArtifactSpread shell", () => {
     expect(document.querySelector(".artifact-spread")).toBe(null);
   });
 
-  it("closes on Escape", () => {
+  // THESE TWO CHANGED CONTRACT ON 2026-08-17 and are updated rather than
+  // deleted. The close is no longer reported synchronously: the surface stays
+  // mounted to play the inverse of its open animation and reports afterwards
+  // (user: "the zoom in effect thats the opposite of when opening it").
+  // The "not yet" assertion is the one that matters — it is what fails if the
+  // gate is ever removed and the surface goes back to vanishing instantly.
+  it("closes on Escape AFTER the exit animation, not during it", () => {
+    vi.useFakeTimers();
     const onClose = vi.fn();
     renderSpread({ onClose });
     fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(SPREAD_CLOSE_MS); });
     expect(onClose).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 
   it("closes on a backdrop click but NOT on a click inside the surface", () => {
+    vi.useFakeTimers();
     const onClose = vi.fn();
     renderSpread({ onClose });
     fireEvent.click(document.querySelector(".artifact-spread"));
+    act(() => { vi.advanceTimersByTime(SPREAD_CLOSE_MS); });
     expect(onClose).not.toHaveBeenCalled();
     fireEvent.click(document.querySelector(".artifact-spread-backdrop"));
+    expect(onClose).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(SPREAD_CLOSE_MS); });
     expect(onClose).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it("wears the closing class while it animates out", () => {
+    vi.useFakeTimers();
+    renderSpread({ onClose: vi.fn() });
+    expect(document.querySelector(".artifact-spread--closing")).toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    // Still mounted — this is what gives the keyframes a frame to run in.
+    expect(document.querySelector(".artifact-spread--closing")).not.toBeNull();
+    expect(document.querySelector(".artifact-spread-backdrop--closing")).not.toBeNull();
+    act(() => { vi.advanceTimersByTime(SPREAD_CLOSE_MS); });
+    vi.useRealTimers();
   });
 
   it("toggles board → canvas and back", () => {

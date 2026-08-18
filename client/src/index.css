@@ -5631,6 +5631,60 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   to   { opacity: 1; scale: 1; }
 }
 
+/* THE EXACT INVERSE, on the way out (user 2026-08-17: "when closing out of full
+   screen or closing out of the viewer, we have the zoom in effect thats the
+   opposite of when opening it"). Same `transform-origin`, so the surface
+   shrinks back INTO the thumbnail it came from rather than collapsing to the
+   middle of the screen — which is what makes it read as a reversal rather than
+   a different animation that happens to end small.
+
+   THIS ONLY RUNS BECAUSE THE COMPONENT STAYS MOUNTED FOR IT (`closingGate`).
+   React unmounts on close, so without that gate there is no frame for these
+   keyframes to run in and the element simply disappears.
+
+   Shorter than the open (200 vs 260ms) and eased the other way: leaving should
+   get out of the way, not perform. `forwards` holds the end state so there is
+   no flash back to full size in the frame before the unmount. */
+@keyframes artifact-spread-out {
+  from { opacity: 1; scale: 1; }
+  40%  { opacity: 1; }
+  to   { opacity: 0; scale: 0.08; }
+}
+.artifact-spread--closing {
+  animation: artifact-spread-out 200ms cubic-bezier(0.4, 0, 0.9, 0.4) forwards;
+}
+.artifact-spread-backdrop--closing {
+  animation: artifact-fade-out 200ms linear forwards;
+}
+@keyframes artifact-fade-out { to { opacity: 0; } }
+
+/* FULL SCREEN gets the pair too. It had NO open animation, so "the opposite of
+   when opening it" had nothing to be the opposite OF — it appeared and vanished
+   instantly. Both directions are anchored on the tile it was opened from
+   (`--fs-origin-x/y`, measured at the moment of expand), so it grows out of the
+   picture and shrinks back into it. Falls back to the centre when the origin is
+   unknown, which is the honest answer for a keyboard-triggered expand. */
+.artifact-fullscreen {
+  transform-origin: var(--fs-origin-x, 50%) var(--fs-origin-y, 50%);
+  animation: artifact-spread-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.artifact-fullscreen--closing {
+  animation: artifact-spread-out 190ms cubic-bezier(0.4, 0, 0.9, 0.4) forwards;
+}
+
+/* Someone who has asked for less motion gets none of this — the surfaces still
+   open and close, they just do it instantly. The `closingGate` hook makes the
+   matching lifecycle decision (it skips the delay), so the two halves agree. */
+@media (prefers-reduced-motion: reduce) {
+  .artifact-spread,
+  .artifact-spread--closing,
+  .artifact-spread-backdrop--closing,
+  .artifact-fullscreen,
+  .artifact-fullscreen--closing {
+    animation: none;
+  }
+}
+
 /* THE CHROME IS SOLID; only the CONTENT area is see-through (user 2026-08-17:
    "make those not transparent"). Once the overlay stopped painting, this bar's
    `rgba(255,255,255,0.02)` was 2% of nothing — a title and its buttons floating

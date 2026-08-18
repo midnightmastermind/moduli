@@ -29,6 +29,11 @@ import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Plus, X, LayoutGrid, Move } from "lucide-react";
 import { isDrawerLayout } from "./MenuSurface";
+import { useClosingGate } from "../helpers/closingGate";
+
+// Must match `artifact-spread-out` in index.css. The surface stays mounted for
+// this long so the exit animation has frames to run in — see `closingGate`.
+export const SPREAD_CLOSE_MS = 200;
 
 export default function ArtifactSpread({
   open,
@@ -45,11 +50,17 @@ export default function ArtifactSpread({
   // Shift ARMS the ordinary app drag: the overlay gets out of the way so the
   // drop lands on the grid behind it.
   const [shiftHeld, setShiftHeld] = useState(false);
+  // Closing SHRINKS BACK INTO THE THUMBNAIL — the exact inverse of the open
+  // (user, 2026-08-17: "the zoom in effect thats the opposite of when opening
+  // it"). `transform-origin` is already the clicked thumbnail's centre, so the
+  // same origin serves both directions and the surface returns to where it
+  // came from rather than collapsing to the middle of the screen.
+  const { closing, requestClose } = useClosingGate(open, SPREAD_CLOSE_MS, onClose);
 
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (e) => {
-      if (e.key === "Escape") { e.stopPropagation(); onClose?.(); return; }
+      if (e.key === "Escape") { e.stopPropagation(); requestClose(); return; }
       if (e.key === "Shift") setShiftHeld(true);
     };
     const onKeyUp = (e) => { if (e.key === "Shift") setShiftHeld(false); };
@@ -64,7 +75,7 @@ export default function ArtifactSpread({
       document.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onBlur);
     };
-  }, [open, onClose]);
+  }, [open, requestClose]);
 
   useEffect(() => { if (!open) setShiftHeld(false); }, [open]);
 
@@ -74,6 +85,10 @@ export default function ArtifactSpread({
   const onDragStartCapture = useCallback((e) => {
     if (!shiftHeld) return;
     // Let the drop land on the grid, then get out of the way entirely.
+    // DELIBERATELY IMMEDIATE, not the animated close: the surface is already
+    // ghosted out of the way for the drag, so shrinking it back into a
+    // thumbnail afterwards would animate something the user has stopped
+    // looking at, on top of the drop they just made.
     const end = () => { document.removeEventListener("dragend", end, true); onClose?.(); };
     document.addEventListener("dragend", end, true);
   }, [shiftHeld, onClose]);
@@ -94,7 +109,10 @@ export default function ArtifactSpread({
 
   return createPortal(
     <>
-      <div className="artifact-spread-backdrop" onClick={() => onClose?.()} />
+      <div
+        className={`artifact-spread-backdrop${closing ? " artifact-spread-backdrop--closing" : ""}`}
+        onClick={() => requestClose()}
+      />
       <div
         className={[
           "artifact-spread",
@@ -103,6 +121,8 @@ export default function ArtifactSpread({
           // Ghosted, not unmounted — unmounting mid-drag would destroy the
           // element the drag system is carrying.
           shiftHeld ? "artifact-spread--armed" : "",
+          // Plays the inverse of the open, then the host unmounts us.
+          closing ? "artifact-spread--closing" : "",
         ].filter(Boolean).join(" ")}
         style={originVars}
         role="dialog"
@@ -142,7 +162,7 @@ export default function ArtifactSpread({
           <button
             type="button"
             className="artifact-spread-close"
-            onClick={() => onClose?.()}
+            onClick={() => requestClose()}
             title="Close (Esc)"
             aria-label="Close"
           >
