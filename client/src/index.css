@@ -6634,3 +6634,16 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   --danger-border: rgba(201, 74, 58, 0.40);
   --danger-text: #a83a2c;
 }
+
+
+/* THE HEADING FACE. `--font-display` is declared by the Stardew skin and would
+   be read by nothing without this rule — an inert token is a control that does
+   nothing, which is the defect this session has spent its time removing. Scoped
+   to headers so the blocky face never lands on 10px body text, where it is
+   genuinely unreadable; that split is the whole reason the skin ships two faces
+   rather than one. */
+:root[data-skin="stardew"] .page-header,
+:root[data-skin="stardew"] .container-header,
+:root[data-skin="stardew"] .toolbar {
+  font-family: var(--font-display);
+}
