@@ -13,6 +13,7 @@ import { assertNotProtectedFolder } from "../utils/protectedFolders.js";
 import { classifyFileDelete, filesFolderIdSet } from "../utils/filesFolder.js";
 import { recordDoc } from "../utils/txRecorder.js";
 import { registerPendingOccCreate } from "../utils/pendingOccCreates.js";
+import { planOrphanModules, collectReferencedModuleIds } from "../utils/orphanModules.js";
 
 export function registerCrudHandlers(socket, {
   ensureUserCache, userCacheReady, loadUserIntoCache,
@@ -310,6 +311,9 @@ export function registerCrudHandlers(socket, {
       // records 50 `before`s, and undo restores the whole subtree. This is the
       // case an inverse-op design could never get right.
       const deletedParentId = uc.occurrencesById[occurrenceId]?.parentId;
+      // Kept so the module-cleanup pass below can read each deleted node's
+      // moduleId — by then the occurrence is gone from cache and DB alike.
+      const deletedOccSnapshots = new Map();
       for (const id of toDelete) {
         // Warm cache FIRST — it is authoritative for reads (loadUserIntoCache
         // populates it fully). Reading the DB here instead added one Atlas
@@ -318,6 +322,7 @@ export function registerCrudHandlers(socket, {
         const before = uc.occurrencesById[id]
           || (await Occurrence.findOne({ id, userId }).lean())
           || null;
+        deletedOccSnapshots.set(id, before);
         delete uc.occurrencesById[id];
         await Occurrence.findOneAndDelete({ id, userId });
         recordChange({ model: "occurrence", id, before, after: null, payload, label: "Deleted item" });
@@ -357,6 +362,68 @@ export function registerCrudHandlers(socket, {
           recordChange({ model: "occurrence", id: next.id, before: current, after: next, payload });
           uc.occurrencesById[next.id] = next;
           socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: next });
+        }
+      }
+
+      // ── THE MODULE BEHIND A DELETED PLACEMENT ───────────────────────────
+      // Deleting an occurrence never removed its MODULE, so every delete left
+      // a template nothing places. Measured on a grid built by clicking for a
+      // few hours: 64 modules for 49 occurrences, 15 orphans, every one of
+      // them a row or container that had been deleted or converted. Nothing
+      // renders them and nothing warns; they just ship in `full_state` forever.
+      //
+      // The decision is `planOrphanModules` unchanged — the same predicate
+      // `sweepOrphans.js` uses, with its refusals intact (a template ROOT is
+      // meant to have no placement; anything an operation or a textmap names
+      // is reachable). Re-deriving "is this module dead" here would be a
+      // second opinion that drifts from the sweeper's.
+      //
+      // TWO DELIBERATE DIFFERENCES FROM THE SWEEP:
+      //
+      //   minAgeMinutes: 0 — the age floor exists because `create_module` and
+      //   `create_occurrence` are separate writes and the occurrence create is
+      //   QUEUED, so a module minted seconds ago may be waiting for a
+      //   placement still in flight. That cannot be this module: we just
+      //   deleted its placement, so it HAD one. And an in-flight create for a
+      //   SECOND occurrence of the same module is already in the warm cache
+      //   (that is the documented phantom behaviour), so the placement scan
+      //   below sees it and keeps the module.
+      //
+      //   Candidates only — the scan is restricted to the modules whose
+      //   placements this delete removed, so a delete never walks the whole
+      //   module table, and the reference scan runs at all only when a module
+      //   actually lost its last placement (a feed copy shares its source's
+      //   module, so sweeping copies never reaches this code).
+      const candidateIds = new Set();
+      for (const id of deletedIds) {
+        const mid = deletedOccSnapshots.get(id)?.moduleId;
+        if (mid) candidateIds.add(mid);
+      }
+      const remainingOccs = Object.values(uc.occurrencesById || {});
+      for (const o of remainingOccs) if (o?.moduleId) candidateIds.delete(o.moduleId);
+
+      if (candidateIds.size) {
+        const candidates = [...candidateIds]
+          .map(id => uc.modulesById?.[id])
+          .filter(Boolean);
+        // Operations first (a handful of documents), then textmaps — the warm
+        // cache stores them DECOMPRESSED, so the substring scan is honest here
+        // in a way a scan over raw Mongo documents would not be.
+        const opDocs = Object.values(uc.operationsById || {});
+        const textmaps = remainingOccs.map(o => o?.textmap).filter(Boolean);
+        const referencedIds = collectReferencedModuleIds([...opDocs, ...textmaps], candidateIds);
+        const { drop } = planOrphanModules({
+          modules: candidates,
+          occurrences: remainingOccs,
+          referencedIds,
+          minAgeMinutes: 0,
+        });
+        for (const mod of drop) {
+          const beforeMod = uc.modulesById?.[mod.id] || mod;
+          delete uc.modulesById[mod.id];
+          await Module.findOneAndDelete({ id: mod.id, userId });
+          recordChange({ model: "module", id: mod.id, before: beforeMod, after: null, payload, label: "Deleted item" });
+          socket.to(userRoom(userId)).emit("module_deleted", { moduleId: mod.id });
         }
       }
 
