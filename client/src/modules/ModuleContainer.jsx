@@ -1101,6 +1101,13 @@ function Container({
       <div
         ref={headerDropRef}
         className={`container-header module-header-row no-select ${embedded ? "embedded-container-header" : ""} ${module?.meta?.headerBand === false ? "container-header--no-band" : ""}`}
+        // The heading level, addressable from CSS. The size and weight are
+        // computed here and applied INLINE (headerFontSize / headerFontWeight),
+        // so a stylesheet could not previously tell a `#` from a `####` — which
+        // matters the moment a skin swaps in a font with different metrics: the
+        // Stardew skin's pixel face runs much wider per character and clipped
+        // the top level at a size that fits every other font.
+        data-heading-level={module?.meta?.headingLevel ?? undefined}
         style={embedded
           ? { padding: "0", alignItems: "stretch", flexDirection: "column", ...embeddedHeaderStyle }
           : module.kind === "board"

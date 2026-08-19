@@ -6695,6 +6695,17 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   font-weight: 400 !important;
 }
 
+/* AND THE `#` LEVEL COMES DOWN A STEP — measured, not guessed: at the shipped
+   18px the day column's own title rendered as "ESDAY, AUGUST 19TH, 2026", i.e.
+   "WEDN" clipped off the front. Silkscreen is a fixed-width pixel face and runs
+   far wider per character than the stack it replaced, so a size that fits in a
+   375px column with one font does not with another. Only the top level: the
+   user was explicit that the others are right. Inline style, so !important. */
+:root[data-skin="stardew"] .container-header[data-heading-level="1"] .auto-marquee,
+:root[data-skin="stardew"] .container-header[data-heading-level="1"] span {
+  font-size: 14px !important;
+}
+
 /* (3) — body text up. Deliberately NOT a blanket scale on the root: this app
    sizes almost everything in px, so a root scale would move nothing, and the
    places that DO inherit would move twice. */
