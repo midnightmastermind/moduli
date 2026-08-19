@@ -82,10 +82,16 @@ describe("remapToPalette — the refusals", () => {
 });
 
 describe("remapToPalette — what it does change", () => {
-  it("snaps an opaque colour onto one of the palette's hues", () => {
-    const out = remapToPalette("#98431f", stardew);   // the 136-row rust
+  it("pulls an opaque colour TOWARD its family anchor without landing on it", () => {
+    // Deliberately not a snap. Snapping collapsed nine oranges into one — see
+    // the "must not COLLAPSE a family" block below, which is why this contract
+    // changed. The colour has to MOVE toward the palette, and has to stop short.
+    const before = hueOf("#98431f");                  // the 136-row rust, 18°
+    const out = remapToPalette("#98431f", stardew);
     expect(out).toMatch(/^rgb\(/);
-    expect(stardew.hues).toContain(Math.round(hueOf(out)));
+    const after = hueOf(out);
+    expect(hueDistance(after, 25)).toBeLessThan(hueDistance(before, 25));   // moved toward
+    expect(stardew.hues).not.toContain(Math.round(after));                  // …but not onto
   });
 
   it("keeps DIFFERENT families different — the nine dimensions stay readable", () => {
@@ -127,5 +133,52 @@ describe("hue helpers", () => {
   it("snaps to the nearest anchor across the 0/360 seam", () => {
     expect(nearestHue(355, [340, 25])).toBe(340);
     expect(nearestHue(5, [340, 25])).toBe(25);
+  });
+});
+
+describe("remapToPalette — it must not COLLAPSE a family", () => {
+  // The first version snapped hue to the anchor and clamped lightness into the
+  // band. Rendering poms grid's real 424 colours as a before/after strip showed
+  // what that cost: these nine distinct oranges all landed within four RGB
+  // points of each other. They are different things on that grid, and a remap
+  // that erases distinctions the user relies on is worse than no remap.
+  const NINE_ORANGES = ["#98431f", "#b84329", "#be762a", "#b34f24", "#b95d36",
+                        "#dc5d41", "#e08b31", "#d94f30", "#e29441"];
+
+  const dist = (a, b) => {
+    const p = parseColor(a), q = parseColor(b);
+    return Math.abs(p.r - q.r) + Math.abs(p.g - q.g) + Math.abs(p.b - q.b);
+  };
+
+  it("keeps every one of the nine oranges distinguishable from the others", () => {
+    const out = NINE_ORANGES.map(c => remapToPalette(c, stardew));
+    expect(new Set(out).size).toBe(9);
+    // The threshold is RELATIVE to what the source already had, which is the
+    // only defensible one: two of these nine are near-identical in the source
+    // (#b84329 and #b34f24 are 22 apart), so an absolute floor would be either
+    // unreachable or meaningless. Measured: source 22, snap 4 (18%), pull 13
+    // (59%). Keeping over half the separation the user actually had is the
+    // contract; a snap fails it by a wide margin.
+    const minOf = (arr) => {
+      let m = Infinity;
+      for (let i = 0; i < arr.length; i++)
+        for (let j = i + 1; j < arr.length; j++) m = Math.min(m, dist(arr[i], arr[j]));
+      return m;
+    };
+    expect(minOf(out)).toBeGreaterThan(minOf(NINE_ORANGES) * 0.5);
+  });
+
+  it("preserves the family's ORDER — a lighter source stays lighter", () => {
+    const l = (c) => { const p = parseColor(remapToPalette(c, stardew)); return rgbToHsl(p.r, p.g, p.b)[2]; };
+    expect(l("#e29441")).toBeGreaterThan(l("#98431f"));
+    expect(l("#e08b31")).toBeGreaterThan(l("#b34f24"));
+  });
+
+  it("still lands the family in the palette's register, not on its original hue", () => {
+    // Pulled toward the anchor, not left alone: the point is a pixel-art palette.
+    const before = hueOf("#98431f");
+    const after = hueOf(remapToPalette("#98431f", stardew));
+    expect(Math.abs(after - before)).toBeGreaterThan(1);
+    expect(hueDistance(after, 25)).toBeLessThan(hueDistance(before, 25));
   });
 });

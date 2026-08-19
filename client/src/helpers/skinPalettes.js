@@ -53,8 +53,22 @@ export const WASH_ALPHA_MAX = 0.35;
 export const STARDEW_PALETTE = {
   id: "stardew",
   hues: [340, 25, 42, 100, 150, 185, 265, 225],
-  satRange: [55, 78],
-  lightRange: [38, 58],
+  satRange: [55, 82],
+  lightRange: [36, 62],
+  // How far a colour is pulled TOWARD its family anchor. Not 1.
+  //
+  // The first version SNAPPED to the anchor, and rendering poms grid's real 424
+  // colours as a before/after strip showed what that costs: NINE distinct source
+  // oranges (#98431f, #b84329, #be762a, #b34f24, #b95d36, #dc5d41, #e08b31,
+  // #d94f30, #e29441) all landed within four RGB points of each other. Those nine
+  // are different things on that grid, and a remap that erases distinctions the
+  // user relies on is worse than no remap. Pulling part of the way lands the
+  // family in the pixel-art register while keeping its members apart.
+  huePull: 0.55,
+  // The source lightness range the palette's band is mapped ONTO. Clamping into
+  // the band instead flattened every one of those oranges to the same value,
+  // because almost all stored colours sit between 24% and 56%.
+  sourceLightRange: [22, 58],
 };
 
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
@@ -143,13 +157,25 @@ export function remapToPalette(color, palette) {
 
   const [satLo, satHi] = palette.satRange;
   const [liLo, liHi] = palette.lightRange;
+  const [srcLo, srcHi] = palette.sourceLightRange || [22, 58];
+  const pull = palette.huePull ?? 1;
+
+  // Pull TOWARD the family anchor, the short way round the circle. Snapping to
+  // it collapses every member of a family onto one colour — measured on poms
+  // grid's real palette, nine oranges became one.
+  const anchor = nearestHue(h, palette.hues);
+  const delta = ((anchor - h + 540) % 360) - 180;
+
+  // Map the source's own lightness RANGE onto the palette's band, rather than
+  // clamping into it: almost every stored colour sits between 24% and 56%, so a
+  // clamp flattens the whole set and a container stops reading lighter than the
+  // rows inside it.
+  const t = (l - srcLo) / (srcHi - srcLo);
+
   const [r2, g2, b2] = hslToRgb(
-    nearestHue(h, palette.hues),
+    h + delta * pull,
     clamp(s * 1.35, satLo, satHi),
-    // Keep the ORIGINAL colour's position within its own range — a container
-    // that was lighter than its rows stays lighter — while moving the whole
-    // set into the skin's band.
-    clamp(liLo + (l / 100) * (liHi - liLo) * 1.6, liLo, liHi),
+    clamp(liLo + t * (liHi - liLo), liLo, liHi),
   );
   return c.a >= 1 ? `rgb(${r2}, ${g2}, ${b2})` : `rgba(${r2}, ${g2}, ${b2}, ${c.a})`;
 }
