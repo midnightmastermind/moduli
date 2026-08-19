@@ -6642,10 +6642,24 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   --input-border: rgba(90, 58, 28, 0.30);
   --accent-blue: #3d7bbf;
   --accent-blue-hover: #336aa6;
-  --accent-blue-text: #2c5c92;
+
+  /* THE SIGNAL INK IS DERIVED FROM THE SIGNAL HUE, and on a LIGHT theme it has
+     to be much darker than the hue itself. A value pill is `rgba(signal / 0.2)`
+     — on a dark theme that fill is dark and a bright ink reads against it, but
+     on cream the fill is PALE, so a mid-tone ink of the same hue is the same
+     luminance as its own background. Measured from rendered pixels on the live
+     grid: green ink #3d7a33 on its own pill scored 1.8:1, blue 2.3:1, red
+     2.0:1, where WCAG asks 4.5:1 for body text — and this skin draws that text
+     at 10-11px in a pixel font.
+
+     `color-mix` against black keeps the HUE (which is the signal) and takes the
+     lightness down until the ink separates from its fill. Derived rather than
+     hand-picked, so retinting a signal moves its ink with it and the two can
+     never drift. */
+  --accent-blue-text: color-mix(in srgb, rgb(var(--signal-zero)) 32%, black);
   --accent-blue-bg: rgba(61, 123, 191, 0.16);
   --accent-blue-border: rgba(61, 123, 191, 0.45);
-  --accent-green-text: #3d7a33;
+  --accent-green-text: color-mix(in srgb, rgb(var(--signal-pos)) 32%, black);
   --accent-green-bg: rgba(74, 158, 63, 0.16);
   --accent-green-border: rgba(74, 158, 63, 0.45);
   --accent-purple-text: #6b4a9c;
@@ -6654,7 +6668,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   --danger: #c94a3a;
   --danger-bg: rgba(201, 74, 58, 0.12);
   --danger-border: rgba(201, 74, 58, 0.40);
-  --danger-text: #a83a2c;
+  --danger-text: color-mix(in srgb, rgb(var(--signal-neg)) 34%, black);
 }
 
 
