@@ -30,33 +30,33 @@ export const SKINS = [
   // 2026-08-17 added both. Nothing is lost by the picker becoming the one
   // "what does my grid look like" control.
   //
-  // `wallpaper: null` and `rainbow: false` are what a plain skin needs, and the
+  // `wallpaper: null` and `band: null` are what a plain skin needs, and the
   // scrim goes to 1 with them: a translucent scrim over NO art is a wash over
   // the body colour, not the flat surface these looks are supposed to have.
   {
     id: "moduli-dark", label: "Moduli Dark", description: "Deep navy workspace",
     swatches: ["#0c1220", "#141e30", "#1e3a5f"],
-    theme: "moduli-dark", wallpaper: null, rainbow: false, surfaceAlpha: 1, storedColorAlpha: 1, palette: null,
+    theme: "moduli-dark", wallpaper: null, band: null, surfaceAlpha: 1, storedColorAlpha: 1, palette: null,
   },
   {
     id: "moduli-light", label: "Moduli Light", description: "Clean light workspace",
     swatches: ["#f7f8fa", "#e8ebf0", "#c9d2de"],
-    theme: "moduli-light", wallpaper: null, rainbow: false, surfaceAlpha: 1, storedColorAlpha: 1, palette: null,
+    theme: "moduli-light", wallpaper: null, band: null, surfaceAlpha: 1, storedColorAlpha: 1, palette: null,
   },
   {
     id: "midnight", label: "Midnight", description: "Near-black, high contrast",
     swatches: ["#07090d", "#12151b", "#2a2f3a"],
-    theme: "midnight", wallpaper: null, rainbow: false, surfaceAlpha: 1, storedColorAlpha: 1, palette: null,
+    theme: "midnight", wallpaper: null, band: null, surfaceAlpha: 1, storedColorAlpha: 1, palette: null,
   },
   {
     id: "vintage-light", label: "Vintage Light", description: "70s cream paper, rust ink",
     swatches: ["#ece3d0", "#b34f24", "#3e8e7e"],
-    theme: "vintage-light", wallpaper: null, rainbow: false, surfaceAlpha: 1, storedColorAlpha: 1, palette: null,
+    theme: "vintage-light", wallpaper: null, band: null, surfaceAlpha: 1, storedColorAlpha: 1, palette: null,
   },
   {
     id: "vintage-dark", label: "Vintage Dark", description: "70s dark brown, cream ink",
     swatches: ["#2b211d", "#e0a63f", "#3e8e7e"],
-    theme: "vintage-dark", wallpaper: null, rainbow: false, surfaceAlpha: 1, storedColorAlpha: 1, palette: null,
+    theme: "vintage-dark", wallpaper: null, band: null, surfaceAlpha: 1, storedColorAlpha: 1, palette: null,
   },
 
   // ── Today's look, named ──────────────────────────────────────────────────
@@ -70,7 +70,11 @@ export const SKINS = [
     // a grid that is already using it.
     theme: null,
     wallpaper: 'url("/grid-wallpaper.jpg")',
-    rainbow: true,
+    // THE BAND IS A VALUE, NOT A FLAG — see hooks/useSkin.js. This is the same
+    // gradient the bare `:root` rule in index.css declares as the no-skin
+    // default; `skinBandMatchesCss` in the tests pins the two together.
+    band: "linear-gradient(90deg, #e5453a 0%, #ef7d3a 18%, #f5c542 36%, " +
+          "#4cae52 56%, #3b7dd8 76%, #7c4bbd 100%)",
     wallpaperScrim: 0.62,
     headerScrim: 0.45,
     panelScrim: 0.45,
@@ -91,21 +95,17 @@ export const SKINS = [
     // Pinned, because the whole look collapses under a dark one.
     theme: "stardew",
     wallpaper: 'url("/stardew-wallpaper.webp")',
-    rainbow: false,
-    // SEMI-TRANSPARENT, LIKE THE RETRO SKIN (user, 2026-08-19: "i still cant
-    // see that background … every occurance background should be semi
-    // transparent like we had on our rainbow theme").
+    // NOT the retro rainbow — the wooden frame Stardew puts around every panel,
+    // so the app still has a header band, in this skin's own material.
     //
-    // THIS REVERSES MY OWN REASONING, and the reversal is the point. I argued
-    // that Stardew's panels are solid wood so the art should read in the
-    // GUTTERS — which is faithful to the game and, measured, meant the
-    // wallpaper covered ~2% of what you look at. The user wants the workspace
-    // to show its background, and that is a product call, not a fidelity one.
-    //
-    // The scrim goes UP as the surfaces come down: with translucent panels the
-    // art is behind the TEXT rather than beside it, so it needs dimming to give
-    // the ink its background back. That is the same knob, in the same
-    // direction, that CLAUDE.md 2026-08-17 records as the one to turn.
+    // THIS IS WHY THE FLAG HAD TO BECOME A VALUE. A false `rainbow` meant two
+    // different things — "no band at all" (the five plain skins) and "my own
+    // band, declared in CSS" (here) — and once useSkin began publishing the
+    // token from JS, false resolved to the first and painted this band out on
+    // the live grid. Measured on production 2026-08-19: the CSS block said the
+    // wood gradient, the inline style said `none`, and an inline style beats a
+    // stylesheet rule every time.
+    band: "linear-gradient(90deg, #8a5a2b 0%, #b06f30 50%, #8a5a2b 100%)",
     // SEMI-TRANSPARENT, LIKE THE RETRO SKIN (user, 2026-08-19: "i still cant
     // see that background … every occurance background should be semi
     // transparent like we had on our rainbow theme").
@@ -153,7 +153,9 @@ export const SKINS = [
                'repeating-linear-gradient(90deg, rgba(91,200,245,0.16) 0 1px, transparent 1px 88px), ' +
                'repeating-linear-gradient(0deg, rgba(91,200,245,0.07) 0 1px, transparent 1px 22px), ' +
                'repeating-linear-gradient(90deg, rgba(91,200,245,0.07) 0 1px, transparent 1px 22px)',
-    rainbow: false,
+    // No band: on drafting paper the rule IS the decoration, and a coloured
+    // strip across the top would be the one thing on the sheet nobody drew.
+    band: null,
     // The rule is the point, so almost nothing sits over it: a low scrim, and
     // surfaces translucent enough to read the grid through them.
     wallpaperScrim: 0.30,

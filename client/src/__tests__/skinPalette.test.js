@@ -30,13 +30,24 @@ describe("the skin registry", () => {
     expect(retro.theme).toBeNull();          // it has never pinned one
   });
 
-  it("gives every plain skin a theme, no wallpaper and no rainbow", () => {
+  it("gives every plain skin a theme, no wallpaper and no band", () => {
     for (const id of ["moduli-dark", "moduli-light", "midnight", "vintage-light", "vintage-dark"]) {
       const s = getSkin(id);
       expect(s.theme).toBe(id);
       expect(s.wallpaper).toBeNull();
-      expect(s.rainbow).toBe(false);
+      expect(s.band).toBeNull();
     }
+  });
+
+  // THE BAND IS A VALUE, NOT A FLAG, and this is the test that says why. It was
+  // `rainbow: <bool>` for a few hours, and `false` had two meanings: "no band"
+  // (the plain skins above) and "my own band, in CSS" (Stardew's wooden frame).
+  // Once useSkin started publishing the token from JS, false resolved to the
+  // first and painted Stardew's band out on the live grid.
+  it("lets a skin declare its OWN band, which a boolean could not express", () => {
+    expect(getSkin("stardew").band).toMatch(/^linear-gradient\(/);
+    expect(getSkin("blueprint").band).toBeNull();
+    expect(getSkin("retro-rainbow").band).toMatch(/^linear-gradient\(/);
   });
 
   it("falls back to a real skin for an unknown id rather than undefined", () => {

@@ -10,7 +10,7 @@
 //
 // FOUR THINGS MOVE TOGETHER, and they must move in ONE place or they drift:
 //
-//   1. `data-skin` on <html>  — the CSS half (wallpaper, scrims, rainbow, fonts)
+//   1. `data-skin` on <html>  — the CSS half (the fonts, and the per-skin rules)
 //   2. `data-theme` on <html> — pinned by skins that declare one, because a
 //      light theme under a dark skin is two clicks away and reads as broken
 //   3. `--grid-surface-a`     — App already published SURFACE_ALPHA here; the
@@ -66,7 +66,14 @@ export function applySkin(skin) {
   put("--grid-surface-a", skin.surfaceAlpha);
   put("--grid-wallpaper", skin.wallpaper ?? "none");
   put("--grid-wallpaper-scrim", skin.wallpaperScrim ?? 1);
-  put("--retro-rainbow", skin.rainbow ? null : "none");
+  // THE BAND IS A VALUE, and it had to become one. This published
+  // `skin.rainbow ? null : "none"` for a few hours, which read a boolean where
+  // three states exist: retro's rainbow, Stardew's wooden frame, and no band at
+  // all. Stardew declares `rainbow: false` and yet HAS a band — so `none` went
+  // out inline over the wood gradient its own CSS block declares, and an inline
+  // style on <html> beats a stylesheet rule whatever its specificity. The band
+  // vanished from the live grid. A value has no such gap.
+  put("--retro-rainbow", skin.band ?? "none");
   put("--retro-header-scrim", skin.headerScrim ?? 1);
   put("--retro-panel-scrim", skin.panelScrim ?? 1);
   setActiveSkin(skin);

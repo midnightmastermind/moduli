@@ -6123,11 +6123,14 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
      background back — the wallpaper reads as a tint rather than a poster. This
      is the knob to turn for "more/less wallpaper", NOT the surface alpha. */
   --grid-wallpaper-scrim: 0.62;
-  /* THE FALLBACK ONLY. `App.jsx` publishes the real value from
-     `StyleHelpers.SURFACE_ALPHA` at mount, so the CSS half and the JS half that
-     re-alphas stored `ownStyle.bg` colours cannot drift — a container's own
-     colour and a container with no colour must be equally light. */
-  --grid-surface-a: 0.18;
+  /* MUST EQUAL `StyleHelpers.SURFACE_ALPHA`. `App.jsx` publishes that value at
+     mount, so in the grid itself this is only the pre-mount fallback — but the
+     PREVIEW IFRAME never publishes it, so this IS what a folder-page preview
+     card renders at. The old comment claimed the two "cannot drift"; they did.
+     SURFACE_ALPHA went 0.18 -> 0.24 on 2026-08-17 and this was left behind, so
+     every preview card painted its surfaces lighter than the same container in
+     the grid. `skinCssParity.test.js` is what now holds the two together. */
+  --grid-surface-a: 0.24;
 }
 
 /* THE TOOLBAR keeps the rainbow wash. It sits ABOVE the grid, over the page
