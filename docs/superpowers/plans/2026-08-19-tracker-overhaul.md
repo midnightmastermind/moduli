@@ -192,18 +192,23 @@ tiles, so the tiles went inside them.
 4. **Fitness** — the six fields and the prescription op. *Needs questions 4 and 5.*
 5. **Nutrition step 3** — the seven missing minerals, only if wanted. *Needs question 3.*
 
-## 5. Questions the user has to answer
+## 5. Questions — ANSWERED 2026-08-19
 
-1. **Financial layout:** one `Financial` container with `Spent`/`Income` still daily inside it, or
-   split those two into a `Today's Spending`?
-2. **Protein and fats:** the meal plan says 185-200 g / 100-120 g; the nutrition guide says
-   150-180 g / 70-120 g. Which is the goal?
-3. **The seven minerals** the guide targets but the grid has no field for — track them (which means
-   ~98 more per-ingredient reference values) or leave them as guidance?
-4. **Cycle vs weekday:** does "Thursday" mean the 5-day rotation's current position, or should the
-   programme be re-pinned so a weekday always gets the same workout?
-5. **Day 4's Run and Stretch:** their own `Workout 7` / `Workout 8` slots, or routines rather than
-   prescribed workouts?
+1. **Financial layout** → **one `Financial` container, cumulative by default.** `Spent` and `Income`
+   keep a date on the TILE so it stays clear those two are for today.
+2. **Protein and fats** → the **meal plan's** numbers (185-200 g / 100-120 g), per the user's own
+   "goals set up with my meal plan". Shipped in `0146` at the low end.
+3. **The seven minerals** → **track all of them.** 7 fields plus ~98 per-ingredient reference
+   values, the same way `0123` added the vitamins, and with the same provenance line: these are
+   standard reference figures, not values from the user's documents.
+4. **Cycle vs weekday** → **keep the 5-day cycle.** The op reads the column's stored `Cycle Day`;
+   a given weekday legitimately moves through the rotation.
+5. **Day 4's Run and Stretch** → not asked in the end; defaulting to **their own slots**, since the
+   plan lists them as that day's work and a Core & Cardio day with no cardio shown would be wrong.
+   Say if they should be routines instead.
+6. **The five dead display fields** → **drop them** (`Now`, `Time Left`, `Overdue Tasks`,
+   `Due This Week`, `Task Count`), and **bind `Days Until Due`**, which already computes and is
+   shown nowhere.
 
 ---
 
