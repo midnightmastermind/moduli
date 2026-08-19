@@ -200,6 +200,40 @@ Each of these was found by USING the product on production, not by reading code.
     ordinary action there is. `sweepOrphans.js` exists and has an age floor;
     nothing calls it from the delete path.
 
+## Task 11 findings — resolution (2026-08-19)
+
+User: *"please fix the things you ran into and ask questions if needed."*
+
+FIXED and deployed:
+- **11 → SET_FIELD_VALUE now runs**, and the diff that found it also found a SECOND silent no-op
+  nobody had reported: **LINK_OCCURRENCE_TO_PARENT**. Both are in the picker with no executor case.
+- **11 (the softer half) → all 35 editor-less actions are configurable**, from a declared shape read
+  off each executor case. A coverage test asserts the empty set both ways, plus that no declared key
+  is one the executor never reads.
+- **12 → "Duplicate (new instance)" works inside a table**; the child row now carries the containerId
+  the handler needs (child rows only — a cell embed's parent is elsewhere).
+- **14 → deleting through the UI removes the module**, via `planOrphanModules` unchanged. Verified
+  against production: create 65/50 → delete 64/49, module gone.
+- **The two-column table** was never duplicating the row — every column is a projection of the same
+  record, and an UNCONFIGURED column shows the whole record. A new column now projects the next
+  unclaimed field, stamped at creation time so no existing table changes.
+- **A container added to a doc PAGE is embedded**, not merely listed, so the page draws it.
+- **A tree doc row can be renamed** (double-click, the affordance folder rows always had), offered
+  only when the doc has no heading — with one, the heading is the name and the rename would be inert.
+- **First run**: the grid is named and an empty grid explains what a panel is. Verified by
+  registering a fresh account on production.
+- **The account menu shows the email**, not the raw userId.
+
+RETRACTED: the report that a condition rule's path pickers write to the wrong side. Each side owns
+its own onChange and the picker keeps state per instance; the probe was clicking the wrong one of
+two identical buttons. Pinned as a test in both directions.
+
+NOT DONE, and why: the positive branch of column auto-projection has not been exercised in a
+browser (the only live table on claude-grid has no child rows, so the live click correctly produced
+an unprojected column — the null branch); and the tree rename has not been double-clicked by a real
+pointer. Deleting a doc row FROM the tree is still not offered — it needs a confirm surface the tree
+does not have, and the row is deletable from its page.
+
 Smaller things, none fixed: a table container with two columns renders the SAME
 child in both cells; the tree's "+" on a folder mints an artifact/doc container
 called "Untitled" that looks like a page card, cannot be renamed or deleted from

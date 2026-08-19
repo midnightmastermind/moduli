@@ -6,6 +6,120 @@
 
 ---
 
+### 2026-08-19 — FIXING WHAT THE BUILD FOUND: two actions that ran NOTHING, and 35 with nothing to configure
+
+User: *"please fix the things you ran into and ask questions if needed."* Eight items were filed
+against the claude-grid build; six are fixed, one is retracted as my own probe error, and every
+answer that was a product decision was asked rather than guessed.
+
+**THE MEASUREMENT CHANGED THE SCOPE BEFORE ANY CODE WAS WRITTEN.** Extracting the picker's action
+list and diffing it against the executor's `case` labels and the builder's editors:
+```
+picker actions          70
+NO EXECUTOR CASE         2    SET_FIELD_VALUE, LINK_OCCURRENCE_TO_PARENT
+NO STEP EDITOR          35
+```
+**`LINK_OCCURRENCE_TO_PARENT` was a second silent no-op nobody had noticed** — the build only found
+`SET_FIELD_VALUE` because that is the one I happened to use. A list read off the picker would have
+fixed one and left the other; a diff found both.
+
+**AND THE TWO ARE NOT THE SAME VERB, which is the reason both exist.** `ADD_CHILD` only LISTS a
+child in a parent's `occurrences[]` and leaves `parentId` alone — that is what multi-parenting needs
+(one slot shared across day columns). `LINK_OCCURRENCE_TO_PARENT` MOVES it: one `UPDATE_ITEM_PARENT`
+effect, which unlists from the old parent, re-parents, and lists under the new one. *Listing without
+parenting is the created-but-unlinked class this repo has repaired from five directions;* emitting
+the one effect that does all three is what stops this action minting a sixth.
+
+**`SET_FIELD_VALUE` REFUSES A MULTI-MATCH BINDING, deliberately, because `UPDATE` does.** A FIND
+that matched several rows binds an ARRAY, and quietly writing to the first — or to all — is exactly
+the ambiguity that made UPDATE throw. Two actions resolving the same binding differently is a trap;
+failing the same way is the contract. Flow is written **only when the step names one**: the value
+effect keeps whatever flow the cell had, so an absent `flow` must not silently reset a number the
+user marked as an expense.
+
+**THE 35 EDITORS ARE ONE RENDERER OVER DECLARED DATA, and writing 35 more by hand was the wrong
+answer.** Each shape was read off its own executor case — which is the specification — into
+`blocks/actionConfigSchema.js`, and one component draws it. **A `path` field is deliberately NOT an
+expression input:** the executor walks it inside each ROW of an array, so a `$var` there resolves to
+nothing and the step silently does the wrong thing. **The coverage test asserts the EMPTY SET three
+ways** — no picker action without an executor case, none without a control, and **no declared key
+the executor does not actually read**. That last one is the same defect one level up: a control that
+writes a key nothing reads is exactly what this whole pass is about. A/B'd by planting a bogus key.
+
+**THE ORPHAN MODULES ARE FIXED AT DELETE TIME — the user's call, asked before building.** Deleting
+an occurrence never removed its module: **64 modules placing 49 occurrences on a grid built in one
+sitting, 15 orphans**, every one a row or container deleted or converted. The decision is
+`planOrphanModules` **unchanged** — the same predicate `sweepOrphans.js` uses, refusals intact —
+because re-deriving "is this module dead" at the delete site would be a second opinion that drifts
+from the sweeper's. **Two deliberate differences, each with a reason: `minAgeMinutes: 0`**, since
+the age floor exists for a module whose FIRST placement may still be in flight and this module
+demonstrably had one (and an in-flight second placement is already in the warm cache); and the scan
+is **restricted to the modules this delete unplaced**, so a delete never walks the module table and
+the reference scan runs at all only when a module truly lost its last placement — a feed copy shares
+its source's module, so sweeping copies never reaches it. **The warm cache stores textmaps
+DECOMPRESSED**, which is what makes the substring reference scan honest here in a way a scan over
+raw Mongo documents would not be.
+
+**Verified end to end against PRODUCTION on claude-grid, not just in unit tests:** create → 65
+modules / 50 occurrences, delete → **64 / 49, and the module is gone**. Before this change the
+second line read 65 / 49.
+
+**A TABLE COLUMN WAS A COPY OF THE FIRST, and the honest reading is that it was never duplicating
+the row.** A table whose rows are child occurrences renders the SAME record in every column — each
+column is a PROJECTION, which is the spreadsheet model and is correct. What was wrong is that an
+unconfigured column projects nothing and therefore shows the whole record, so two fresh columns are
+identical. A new column is now born pointing at the next field the rows carry that no other column
+shows. **Applied at column-creation time on purpose: inferring it at render time would silently
+change what every existing table on every grid displays, the Schedule's included.**
+
+**AND MY OWN FIX HAD THE TDZ TRAP THIS FILE ALREADY RECORDS.** `handleAddColumn` needed
+`childRowOccs`, which is declared 130 lines below it — and a `useCallback` dep array is evaluated at
+RENDER time, so the reference throws before the callback ever runs. Same trap `CanvasContent` paid
+for on 2026-05-21. Moved, not worked around.
+
+**A DOC PAGE LISTED A CONTAINER AND NEVER DREW IT** — a doc renders its TEXTMAP and nothing else, so
+the page's own "+ container" produced something present in the data and invisible on screen. It is
+still listed (it is a real child); the embed is what makes the page draw it.
+
+**THE TREE'S "+" MINTS "Untitled" AND COULD NOT NAME IT.** Folder rows have had double-click rename
+all along; doc rows never got one. **Offered ONLY when the doc has no heading, and that restriction
+is the point:** the row renders `heading || label`, so with a heading present the rename would write
+the label and the heading would still win — *a control that appears to work and does not is worse
+than no control.* When a doc has a heading, that heading IS its name, and it is edited in the doc.
+
+**FIRST RUN, and the user picked the restrained option.** A brand-new account landed on a NAMELESS
+1×1 grid — a full-bleed wallpaper and one line of small italic text. The grid is named (a nameless
+grid renders as a blank slot in the picker) and an empty grid explains what a panel is. **Derived
+from what is on screen — no panels rendered — rather than a "new user" flag**, so a grid emptied by
+deleting its last panel says the same thing. Nothing is seeded on the user's behalf.
+**Verified by REGISTERING A FRESH ACCOUNT on production and looking at it:** grid reads "My grid",
+the empty state renders, 0 page errors.
+
+**THE ACCOUNT MENU PRINTED A UUID.** `state.userId` identifies the account to the database and to
+nobody else. `full_state` carries the email now, cached on the socket so a grid switch does not
+re-query it, with the id as the fallback. Verified on prod: the menu reads the email and no raw id.
+
+**ONE FINDING IS RETRACTED, and it was mine.** I reported that a condition rule's two path pickers
+assigned my picks to the wrong side. Reading the code: each side owns its own `onChange` and
+`DrilldownPicker` keeps its state per instance — there is no shared state for one to write through
+the other. The likelier explanation is my probe clicking the wrong one of two identical small
+buttons on one row. **A test now pins both directions**, so a real crossover would be a failure
+rather than an argument. *A finding is a claim about the code until the probe has been ruled out.*
+
+**Deployed and verified the documented way:** prod HEAD matched, index + bundle 200, served
+`App` / `CommandCenter` / `index` chunks **sha256-identical** to the local build, and the new strings
+present in the SERVED chunks with a control reading 0 in both. Driven on production afterwards: the
+schema-driven editor renders `sum $ · by · → $` with its hint, and the whole load reports 0 page
+errors. 2715 client + 891 server tests. Probe debris swept (one stray table column) and pm2
+restarted, since the warm cache is authoritative for reads.
+
+**STILL OPEN, said plainly:** the positive branch of the column auto-projection was NOT exercised in
+a browser — the only live table on claude-grid has no child rows, so the live click correctly
+produced an unprojected column, which verifies the null branch and nothing else. And the tree rename
+is unit-covered but has not been double-clicked by a real pointer.
+
+---
+
 ### 2026-08-18 — I BUILT A GRID BY CLICKING, and it found six defects reading code never would
 
 Task 11 of the landing-page plan: register a fresh account on production and build a grid called
