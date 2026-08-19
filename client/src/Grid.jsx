@@ -41,7 +41,7 @@ import { Layers } from "lucide-react";
 // ============================================================
 // GRID CELL - Drop zone for panels
 // ============================================================
-const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenStack, stackCount, rows, cols, onEmptyCellClick }) {
+const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenStack, stackCount, rows, cols, onEmptyCellClick, firstRun = false }) {
   const { cyclePanelStack } = useDragContext();
   const { isPanelDrag } = useDragStateContext();
   const { panelOverCellId } = useDragHotContext();
@@ -117,12 +117,41 @@ const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenS
             cursor: onEmptyCellClick ? "pointer" : undefined,
           }}
         >
-          <div
-            className="text-xs text-muted-foreground p-2 text-center"
-            style={{ fontStyle: "italic", opacity: 0.6, width: "100%", position: "absolute", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
-          >
-            Tap to add a panel
-          </div>
+          {/* FIRST RUN — a brand-new account lands on one empty cell, and a
+              single line of small italic text is the whole product. It says
+              what a panel is and what clicking does; the terse hint is still
+              right for the fourth empty cell on a grid you already built.
+              Nothing is minted on the user's behalf either way. */}
+          {firstRun ? (
+            <div
+              className="text-center"
+              style={{ width: "100%", position: "absolute", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", padding: "0 16px" }}
+            >
+              <div style={{ fontSize: 15, fontWeight: 600, color: "var(--text-primary)", marginBottom: 6 }}>
+                Your workspace is empty
+              </div>
+              <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--text-muted)", maxWidth: 380, margin: "0 auto" }}>
+                A <strong>panel</strong> is a window onto one page — a board, a document,
+                a table or a canvas. Everything you build lives inside one.
+              </div>
+              <div
+                style={{
+                  display: "inline-block", marginTop: 12, padding: "6px 14px",
+                  fontSize: 12, fontWeight: 600, borderRadius: 6,
+                  background: "var(--accent-blue)", color: "#fff",
+                }}
+              >
+                Click anywhere to add your first panel
+              </div>
+            </div>
+          ) : (
+            <div
+              className="text-xs text-muted-foreground p-2 text-center"
+              style={{ fontStyle: "italic", opacity: 0.6, width: "100%", position: "absolute", top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
+            >
+              Tap to add a panel
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -156,6 +185,12 @@ function GridRender({
   isTouch,
 }) {
   const [foregroundPanelId, setForegroundPanelId] = useState(null);
+
+  // Nothing rendered anywhere = a grid with no panels, which on a new account
+  // is the entire first screen. Derived from what is on screen rather than
+  // from a "is this a new user" flag, so a grid emptied by deleting its last
+  // panel explains itself the same way.
+  const noPanelsAtAll = !(panelsRender && panelsRender.length);
 
   // Detect cells whose primary panel is covered by another panel's multi-span
   const coveredCells = useMemo(() => {
@@ -234,7 +269,7 @@ function GridRender({
       }}
     >
       {cellsData.map(({ r, c, dark, hasPanel, hasHiddenStack, stackCount }) => (
-        <GridCell key={`cell-${r}-${c}`} r={r} c={c} dark={dark} hasPanel={hasPanel} hasHiddenStack={hasHiddenStack} stackCount={stackCount} rows={rows} cols={cols} onEmptyCellClick={onEmptyCellClick} />
+        <GridCell key={`cell-${r}-${c}`} r={r} c={c} dark={dark} hasPanel={hasPanel} hasHiddenStack={hasHiddenStack} stackCount={stackCount} rows={rows} cols={cols} onEmptyCellClick={onEmptyCellClick} firstRun={noPanelsAtAll} />
       ))}
 
       {/* Vertical resize handles (between columns) — hidden on mobile */}

@@ -2,6 +2,7 @@
 // Loads ALL data for the requested grid (grid-scoped cache).
 // No priority_state / lazy viewport traversal — everything ships in one emission.
 import Grid from "../models/Grid.js";
+import User from "../models/User.js";
 import { getOccurrencesForGrid } from "../utils/occurrenceHelpers.js";
 import { ensureTemplatesManifest } from "../utils/templatesManifest.js";
 import { ensureUserManifest } from "../utils/userManifest.js";
@@ -39,7 +40,11 @@ export function registerStateHandlers(socket, {
       if (!gridDoc) {
         // Fresh/empty grids start as a single empty cell (2026-07-03, per user) —
           // the snap/arrow-key workflow grows the grid from there.
-          const newGrid = await Grid.create({ rows: 1, cols: 1, rowSizes: [], colSizes: [], userId, name: "" });
+          // A nameless grid renders as a blank slot in the toolbar's grid picker, so
+          // a brand-new account could not tell what it was looking at or that it was
+          // on a grid at all. Named, not seeded: the workspace is still empty, which
+          // is the point — nothing is created on the user's behalf.
+          const newGrid = await Grid.create({ rows: 1, cols: 1, rowSizes: [], colSizes: [], userId, name: "My grid" });
         gridId = newGrid._id.toString();
         gridDoc = newGrid.toObject();
       }
@@ -81,8 +86,20 @@ export function registerStateHandlers(socket, {
 
       console.log(`[full_state] grid=${gridId} — ${allGridOccs.length} occurrences, ${gridModules.length} modules — total ${Date.now() - t0}ms`);
 
+      // The account menu used to print the raw userId — a UUID, which tells
+      // nobody which account they are signed into. The email is the one thing
+      // a person recognises. Cached on the socket so a grid switch (which
+      // re-requests full_state) does not re-query it.
+      if (socket.data.userEmail === undefined) {
+        try {
+          const u = await User.findById(userId).select({ email: 1 }).lean();
+          socket.data.userEmail = u?.email || null;
+        } catch { socket.data.userEmail = null; }
+      }
+
       socket.emit("full_state", {
         gridId,
+        userEmail: socket.data.userEmail,
         grid: gridDoc,
         modules: gridModules,
         occurrences: allGridOccs,

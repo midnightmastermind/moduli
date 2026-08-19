@@ -971,6 +971,7 @@ export default function App() {
           onHistory={() => setHistoryOpen((prev) => !prev)}
           historyOpen={historyOpen}
           userId={state.userId}
+          userEmail={state.userEmail}
           onLogout={() => { socket?.emit("logout"); dispatch(logoutAction()); }}
           isMobileLayout={isMobileLayout}
         />

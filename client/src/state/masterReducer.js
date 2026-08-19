@@ -116,6 +116,7 @@ function reduce(state, action) {
                 folders: folders || [],
                 operations: operations || [],
                 computedValues: isFullLoad ? {} : state.computedValues,
+                userEmail: action.payload?.userEmail ?? state.userEmail ?? null,
                 hydrated: true,
                 fullStateLoaded: isFullLoad,
             };

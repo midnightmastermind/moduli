@@ -42,6 +42,7 @@ export default function Toolbar({
   historyOpen = false,
   // Account
   userId,
+  userEmail,
   onLogout,
   // Mobile grid navigation
   isMobileLayout,
@@ -105,8 +106,13 @@ const gridOptions = useMemo(
   // (MosaicMobileNav, 2026-07-14 — the old synthetic 1×N strip is gone), so
   // the mini map mirrors rows×cols for every grid shape.
 
-  // Avatar: first char of userId, uppercased
-  const avatarChar = userId ? String(userId).charAt(0).toUpperCase() : "?";
+  // The account rows show the EMAIL when the server knows it — the raw userId
+  // is a UUID, which identifies the account to the database and to nobody else.
+  // It stays as the fallback so a client that predates the server sending an
+  // email still shows something rather than nothing.
+  const accountLabel = userEmail || userId || null;
+  // Avatar: first char of whatever identifies the account, uppercased
+  const avatarChar = accountLabel ? String(accountLabel).charAt(0).toUpperCase() : "?";
 
 
   if (!toolbarVisible) {
@@ -316,9 +322,9 @@ const gridOptions = useMemo(
                   style={{ zIndex: 1200 }}
                 >
                   <div className="flex flex-col gap-px">
-                    {userId && (
-                      <div className="px-2 py-1 text-[11px] text-text-faint border-b border-border-subtle mb-0.5">
-                        {userId}
+                    {accountLabel && (
+                      <div className="px-2 py-1 text-[11px] text-text-faint border-b border-border-subtle mb-0.5" title={accountLabel}>
+                        {accountLabel}
                       </div>
                     )}
                     <button
@@ -459,9 +465,9 @@ const gridOptions = useMemo(
 
             {/* Account section */}
             <div style={{ borderTop: "1px solid var(--border-default)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
-              {userId && (
-                <div style={{ fontSize: 10, color: "var(--text-faint)", padding: "2px 4px", marginBottom: 2 }}>
-                  {userId}
+              {accountLabel && (
+                <div style={{ fontSize: 10, color: "var(--text-faint)", padding: "2px 4px", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis" }} title={accountLabel}>
+                  {accountLabel}
                 </div>
               )}
               <button
