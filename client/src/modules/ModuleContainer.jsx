@@ -830,6 +830,7 @@ function Container({
             occurrenceOverride={occ}
             panelId={pid}
             embedded={mod.kind === "doc"}
+            addInstanceToContainer={addInstanceToContainer}
             dispatch={dispatch}
             socket={socket}
           />
@@ -860,7 +861,7 @@ function Container({
         )}
       </div>
     );
-  }, [dispatch, socket, containerOccurrence]);
+  }, [dispatch, socket, containerOccurrence, addInstanceToContainer]);
 
 
   // Per-occurrence view-mode handling. Default is Actual (full container
@@ -1705,6 +1706,11 @@ function Container({
                     occurrenceOverride={occurrence}
                     panelId={panelId}
                     pageOccurrenceId={pageOccurrenceId || null}
+                    // Without this a NESTED container's own "+ → Item" throws
+                    // `addInstanceToContainer is not a function` and adds
+                    // nothing — measured on claude-grid 2026-08-18, where a
+                    // board inside a board could not take a single row.
+                    addInstanceToContainer={addInstanceToContainer}
                     // THIS container is what rendered the child — the same
                     // reason `occurrenceOverride` is pinned here rather than
                     // looked up ("multi-parent-safe", above).
