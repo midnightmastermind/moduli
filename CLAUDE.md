@@ -113,6 +113,39 @@ schema-driven editor renders `sum $ · by · → $` with its hint, and the whole
 errors. 2715 client + 891 server tests. Probe debris swept (one stray table column) and pm2
 restarted, since the warm cache is authoritative for reads.
 
+**EDIT PATHS, DRIVEN BY CLICKS (user: *"not just creating, but editing things in the grid should be
+tested via the ui clicks"*).** Every one of these was performed by a real click/keystroke against
+production and then read back out of Mongo:
+```
+boolean toggle       click            -> Done today: true            PERSISTED
+duration field       click + type     -> Time at bench: "20"         PERSISTED
+row label            double-click     -> renamed                     PERSISTED
+rating               click a star     -> Went well: 3 -> 4           PERSISTED
+select pill          click + pick     -> Sharpening -> Joinery       PERSISTED
+text field           click + type     -> note edited                 PERSISTED
+tree doc row         double-click     -> Untitled -> "Sharpening log" PERSISTED  (the new fix)
+operation edit       header Save      -> steps added AND removed     PERSISTED  (the fix in question)
+container delete     right-click      -> occ 51->50, modules 66->65  PERSISTED  (the new fix)
+container into doc   header "+"       -> listed AND embedded          PERSISTED  (the new fix)
+date field           click            -> opens the NATIVE picker      NOT DRIVABLE
+```
+**The date pill is the one honest gap and it is not a defect:** it calls `input.showPicker()`, and
+that picker is browser CHROME, not DOM, so no probe can click it. Driving the input's own change
+event — every layer except the picker's own UI — writes correctly (Aug 3 → Aug 4, persisted).
+
+**TWO OF MY OWN PROBES REPORTED A DEFECT THAT WAS NOT THERE, and both are the same mistake.**
+(1) "The header Save did not persist" — it did; I compared TOP-LEVEL step counts while "+ Action"
+adds to the innermost step list, so the new step was nested and the top-level count was unchanged
+either way. A count that cannot move is not a measurement. (2) "The tree does not list the doc its
+own + minted" — it does; my selector was `.manifest-row`, which that row does not carry, and the
+tree's own innerText had it all along. **Both times the tell was available and I missed it: a probe
+that reports 'no change' has to be shown reporting a change first.**
+
+**Probe debris swept and the grid returned to its pre-session state** — every value restored, the
+probe doc deleted, and the 15 PRE-EXISTING orphan modules (created by deletes from before the fix
+shipped) swept with a dump first. claude-grid ends at 64 modules / 49 occurrences, **0 integrity
+errors**, pm2 restarted because the sweep wrote directly.
+
 **STILL OPEN, said plainly:** the positive branch of the column auto-projection was NOT exercised in
 a browser — the only live table on claude-grid has no child rows, so the live click correctly
 produced an unprojected column, which verifies the null branch and nothing else. And the tree rename
