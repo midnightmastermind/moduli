@@ -62,6 +62,38 @@ export const FLOW_TINTS = {
   out:     { bg: "rgba(248,113,113,0.16)", border: "rgba(248,113,113,0.35)", text: "rgb(252,165,165)" },
   replace: { bg: "rgba(59,130,246,0.16)",  border: "rgba(59,130,246,0.35)",  text: "rgb(147,197,253)" },
 };
+// ─── The neutral pill surface ────────────────────────────────────────────────
+// USER, 2026-08-19: *"the account dropdowns are very hard to read currently
+// colour wise"*, *"any dropdown select really is hard to read"*, *"ingrediant
+// too."*
+//
+// THREE CONTROLS HARDCODED A DARK-SURFACE COLOUR, which is invisible on a light
+// theme. The compact SELECT pill and the compact DATE pill were
+// `bg-white/5 border-white/10 text-white/60` — white ink at 55-60% opacity, fine
+// over near-black and gone over cream — and the multi-select CHIPS (Ingredient,
+// Movement, People) were `bg-primary/20 text-primary`, which resolves to a
+// washed mid-green under a light theme and to NEAR-WHITE under any theme that
+// does not redefine `--primary`.
+//
+// `--occ-pill` / `--occ-pill-text` is the token pair that already exists for
+// exactly this and is defined by every one of the six themes, with ink chosen
+// against that theme's own surface. Using it means a pill is legible in each
+// theme by construction rather than by luck, and a seventh theme gets it free.
+// Measured before the change on the live grid: the select and date pills scored
+// **1.4:1** against their own background where the number pills beside them
+// scored 8.9:1. WCAG wants 4.5:1 for body text.
+export const OCC_PILL = {
+  bg:     "rgba(var(--occ-pill) / 0.14)",
+  border: "rgba(var(--occ-pill) / 0.30)",
+  text:   "var(--occ-pill-text)",
+};
+// A CHIP sits INSIDE one of those pills, so it needs to read against the pill
+// rather than against the row — hence a stronger fill than OCC_PILL.bg.
+export const OCC_CHIP = {
+  bg:   "rgba(var(--occ-pill) / 0.28)",
+  text: "var(--occ-pill-text)",
+};
+
 // `segment` renders it as a divided LEADING segment inside the parent control's
 // border (the RandomizeSegment pattern) instead of a standalone square button —
 // the parent owns border/background/overflow-hidden.
@@ -192,7 +224,8 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
                 ? <span className="text-muted-foreground">{compact ? (fieldName ? "—" : name) : "Select..."}</span>
                 : <div className="flex flex-wrap gap-1 items-center overflow-hidden">
                     {selectedOptions.slice(0, 2).map(o => (
-                      <span key={o.value} className="inline-flex items-center gap-0.5 px-1.5 py-0 text-[10px] rounded-full bg-primary/20 text-primary">
+                      <span key={o.value} className="inline-flex items-center gap-0.5 px-1.5 py-0 text-[10px] rounded-full"
+                        style={{ background: OCC_CHIP.bg, color: OCC_CHIP.text }}>
                         {o.label}
                         <X className="h-2.5 w-2.5 cursor-pointer" onClick={e => { e.stopPropagation(); onChange(selected.filter(v => v !== o.value)); }} />
                       </span>
@@ -1322,7 +1355,7 @@ function Field({
       const isOn = !!localValue;
       return (
         <div className={`field-input inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-full border transition-all
-          ${isOn ? "bg-green-500/20 border-green-500/30" : "bg-white/5 border-white/10"}
+          ${isOn ? "bg-green-500/20 border-green-500/30" : "moduli-pill-off"}
           ${disabled ? "opacity-50" : ""}`}
           title={`${name}: ${isOn ? "on" : "off"}`}
         >
@@ -1348,8 +1381,8 @@ function Field({
           <PopoverTrigger asChild>
             <button type="button" disabled={disabled}
               className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full border transition-all
-                bg-white/5 border-white/10 text-white/60
                 ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
+              style={{ background: OCC_PILL.bg, borderColor: OCC_PILL.border, color: OCC_PILL.text }}
               title={`${name}: ${currentLabel}`}
             >
               {!hideName && name && <span className="opacity-70">{name}:</span>}
@@ -1411,8 +1444,9 @@ function Field({
       };
       return (
         <label className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full border transition-all
-          bg-white/5 border-white/10 text-white/55 cursor-pointer hover:brightness-110
+          cursor-pointer hover:brightness-110
           ${disabled ? "opacity-50 pointer-events-none" : ""}`}
+          style={{ background: OCC_PILL.bg, borderColor: OCC_PILL.border, color: OCC_PILL.text }}
           title={`${name}: ${formatted} — Click to change`}
           onClick={openPicker}
         >

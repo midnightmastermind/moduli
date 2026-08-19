@@ -6456,6 +6456,16 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 }
 
 
+/* The OFF state of a compact boolean pill.
+   Was `bg-white/5 border-white/10` inline — a dark-surface assumption, so on a
+   light theme the pill had no visible box at all and the toggle read as missing
+   rather than as off. Built from the theme's own surface tokens, so it is a
+   faint recess in every theme instead of a wash that only works in one. */
+.moduli-pill-off {
+  background: hsl(var(--surface-2) / 0.55);
+  border-color: hsl(var(--border) / 0.7);
+}
+
 /* =============================================================================
    SKINS  (2026-08-19)
 
@@ -6552,7 +6562,13 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   --occ-card-soft-a: .12;
   --occ-card-hover-a: .26;
   --occ-pill: 176 111 48;
-  --occ-pill-text: rgb(90 57 33);
+  /* THE PILL INK FOLLOWS THE THEME'S OWN INK. `rgb(90 57 33)` is a MID brown,
+     and measured from rendered pixels on the live grid it scored 3.76:1 against
+     the pill it sits on — under the 4.5:1 WCAG wants for body text, and this
+     skin renders that text at 10-11px in a pixel font. `--foreground-1` is the
+     ink this theme already uses for prose; against the same pill it computes to
+     ~5.7:1. Self-maintaining, too: retint the theme and the pills follow. */
+  --occ-pill-text: hsl(var(--foreground-1));
   --figure-well: 217 187 143;
 
   /* Backgrounds — parchment */
