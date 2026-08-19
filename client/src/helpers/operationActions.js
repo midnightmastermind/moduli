@@ -2284,6 +2284,46 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
 
+    // ---- SET_FIELD_VALUE: write one field on one named occurrence ----
+    //
+    // This action has been in the picker, in the builder (a full editor:
+    // occurrence, field, value, flow) and in `operationIntrospection` since
+    // long before it ran — and the executor had NO case for it, so every step
+    // built with it was a silent no-op. Found 2026-08-18 by building a tracker
+    // on it and watching the tile stay at 0.
+    //
+    // It emits the SAME `UPDATE_ITEM_FIELD` effect shape `applyUpdate` produces
+    // for `$var.fields.<id>.value`, so there is one downstream apply path
+    // rather than a second one to keep in step. It also mirrors UPDATE's
+    // refusal of a non-record binding: a FIND that matched several rows binds
+    // an ARRAY, and quietly writing to the first (or to all) is exactly the
+    // ambiguity that made UPDATE throw. Two actions that resolve the same
+    // binding differently is a trap; failing the same way is the contract.
+    //
+    // cfg: { occurrenceIdExpr?, fieldId, valueExpr | value, flow? }
+    case "SET_FIELD_VALUE": {
+      if (!cfg.fieldId) break;
+      const target = resolveExpr(cfg.occurrenceIdExpr || "$trigger.occurrenceId", $vars);
+      if (Array.isArray(target)) {
+        throw new Error(`SET_FIELD_VALUE: ${cfg.occurrenceIdExpr} matched ${target.length} records — bind one`);
+      }
+      const setItemId = target && typeof target === "object" ? target.id : target;
+      if (!setItemId) break;
+      const setValue = cfg.valueExpr !== undefined
+        ? resolveExpr(cfg.valueExpr, $vars)
+        : (cfg.value !== null && typeof cfg.value === "object"
+            ? deepResolveExpr(cfg.value, $vars)
+            : resolveExpr(cfg.value, $vars));
+      updates.push({ _effect: "UPDATE_ITEM_FIELD", itemId: setItemId, fieldId: cfg.fieldId, value: setValue, subKind: "value" });
+      // Flow is written ONLY when the step names one. The value effect keeps
+      // whatever flow the cell already had (`prev.flow || "in"`), so an absent
+      // `flow` must not silently reset a value the user marked as an expense.
+      if (cfg.flow) {
+        updates.push({ _effect: "UPDATE_ITEM_FIELD", itemId: setItemId, fieldId: cfg.fieldId, value: cfg.flow, subKind: "flow" });
+      }
+      break;
+    }
+
     // Other CRUD effects — dispatched + emitted by bindSocketToStore after execution
 
     case "MOVE_OCCURRENCE": {
@@ -2350,6 +2390,35 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         context.occurrencesById[parentId] = { ...context.occurrencesById[parentId], occurrences: next };
       }
       updates.push({ _effect: "UPDATE_OCCURRENCE", occurrence: { id: parentId, occurrences: next } });
+      break;
+    }
+
+    // ---- LINK_OCCURRENCE_TO_PARENT: re-home an occurrence ----
+    //
+    // The second silent no-op found on 2026-08-18: offered in the picker
+    // ("Reparent an existing occurrence"), analysed by introspection, with an
+    // effect handler waiting for it — and no executor case, so the step did
+    // nothing.
+    //
+    // It is NOT a duplicate of ADD_CHILD, and the difference is the whole
+    // reason both exist. ADD_CHILD only LISTS a child in a parent's
+    // `occurrences[]`, leaving `parentId` alone — that is what multi-parenting
+    // needs (one slot shared across day columns). This one MOVES the child:
+    // it emits `UPDATE_ITEM_PARENT`, which unlists it from its old parent,
+    // sets `parentId`, and lists it under the new one. Listing without
+    // parenting is the created-but-unlinked class this repo has repaired from
+    // five directions; emitting the one effect that does all three is what
+    // keeps this action from minting a sixth.
+    //
+    // cfg: { parentId, childId } — the same two keys ADD_CHILD takes, so
+    // switching a step between them needs no re-configuring.
+    case "LINK_OCCURRENCE_TO_PARENT": {
+      const linkChild = resolveExpr(cfg.childId ?? cfg.occurrenceId, $vars);
+      const linkParent = resolveExpr(cfg.parentId ?? cfg.parentOccurrenceId, $vars);
+      const linkChildId = linkChild && typeof linkChild === "object" ? linkChild.id : linkChild;
+      const linkParentId = linkParent && typeof linkParent === "object" ? linkParent.id : linkParent;
+      if (!linkChildId || !linkParentId || linkChildId === linkParentId) break;
+      updates.push({ _effect: "UPDATE_ITEM_PARENT", itemId: linkChildId, toParentId: linkParentId });
       break;
     }
 

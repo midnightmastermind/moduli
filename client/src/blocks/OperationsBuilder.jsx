@@ -19,6 +19,7 @@ import JsonStructureEditor from "../ui/JsonStructureEditor";
 import { useGridActions } from "../GridActionsContext";
 import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig, TEMPLATE_PICKER_CONFIG } from "../ui/categoryRegistry";
 import ConditionGroup from "./ConditionGroup";
+import { ACTION_CONFIG_SCHEMA } from "./actionConfigSchema";
 
 /**
  * OperationsBuilder - Main visual block editor component
@@ -1649,9 +1650,148 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
       );
     }
 
-    default:
-      return null;
+    // ── EVERY OTHER ACTION, drawn from its declared shape ────────────────
+    // 35 of the 70 actions in the picker had no case here, so choosing one
+    // rendered a step with nothing to configure while the executor ran it on
+    // its defaults. Rather than 35 more hand-written editors (35 more places to
+    // drift from the executor), the shape is declared in `actionConfigSchema`
+    // and drawn once. An action with neither a case nor a schema still falls
+    // through to null — but the coverage test asserts there are none.
+    default: {
+      const schema = ACTION_CONFIG_SCHEMA[actionType];
+      if (!schema) return null;
+      return (
+        <div>
+          <div style={{ ...rowStyle, flexWrap: "wrap" }}>
+            {schema.fields.map((f) => (
+              <SchemaField
+                key={f.key}
+                field={f}
+                cfg={cfg}
+                setCfg={setCfg}
+                fl={fl}
+                varNameInput={varNameInput}
+                exprProps={exprProps}
+              />
+            ))}
+          </div>
+          {schema.hint && (
+            <div style={{ fontSize: 9, color: "var(--text-faint)", marginTop: 3, lineHeight: 1.4 }}>
+              {schema.hint}
+            </div>
+          )}
+        </div>
+      );
+    }
   }
+}
+
+// ---- One declared config field ----
+// `path` is deliberately NOT an ExprOrPath: the executor walks it inside each
+// ROW of an array, so a `$var` there resolves to nothing and the step silently
+// does the wrong thing. A plain input with a placeholder that says so is the
+// honest control.
+function SchemaField({ field, cfg, setCfg, fl, varNameInput, exprProps }) {
+  const { key, kind, label, placeholder, optional, defaultsTo, options } = field;
+  const ph = placeholder || (optional && defaultsTo ? `(default: ${defaultsTo})` : "");
+
+  const control = (() => {
+    switch (kind) {
+      case "var":
+        return varNameInput(key, ph || "varName");
+      case "path":
+        return (
+          <input
+            value={cfg[key] ?? ""}
+            onChange={e => setCfg({ [key]: e.target.value || undefined })}
+            placeholder={ph || "a path inside each row"}
+            style={{ ...inputSt, width: 130, fontFamily: "monospace" }}
+          />
+        );
+      case "text":
+        return (
+          <input
+            value={cfg[key] ?? ""}
+            onChange={e => setCfg({ [key]: e.target.value })}
+            placeholder={ph}
+            style={{ ...inputSt, width: 130 }}
+          />
+        );
+      case "number":
+        return (
+          <input
+            type="number"
+            value={cfg[key] ?? ""}
+            onChange={e => setCfg({ [key]: e.target.value === "" ? undefined : Number(e.target.value) })}
+            placeholder={ph}
+            style={{ ...inputSt, width: 70 }}
+          />
+        );
+      case "select":
+        return (
+          <select
+            value={cfg[key] ?? ""}
+            onChange={e => setCfg({ [key]: e.target.value || undefined })}
+            style={selectSt}
+          >
+            {optional && <option value="">{defaultsTo ? `${defaultsTo} (default)` : "—"}</option>}
+            {(options || []).map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        );
+      case "bool":
+        return (
+          <label style={{ ...labelSt, display: "flex", alignItems: "center", gap: 3, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={cfg[key] === true}
+              onChange={e => setCfg({ [key]: e.target.checked || undefined })}
+            />
+            {label}
+          </label>
+        );
+      case "list": {
+        const items = Array.isArray(cfg[key]) ? cfg[key] : [];
+        const write = (next) => setCfg({ [key]: next.length ? next : undefined });
+        return (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+            {items.map((v, i) => (
+              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+                <ExprOrPath
+                  value={v ?? ""}
+                  onChange={nv => write(items.map((x, j) => (j === i ? nv : x)))}
+                  placeholder={ph}
+                  width={110}
+                  {...exprProps}
+                />
+                <button style={removeBtnSt} onClick={() => write(items.filter((_, j) => j !== i))}>×</button>
+              </span>
+            ))}
+            <button style={addBtnStyle} onClick={() => write([...items, ""])}>+ value</button>
+          </span>
+        );
+      }
+      case "expr":
+      default:
+        return (
+          <ExprOrPath
+            value={cfg[key] ?? ""}
+            onChange={v => setCfg({ [key]: v === "" ? undefined : v })}
+            placeholder={ph}
+            width={130}
+            {...exprProps}
+          />
+        );
+    }
+  })();
+
+  // A bool renders its own label inside the checkbox row.
+  if (kind === "bool") return control;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+      {fl(label)}
+      {control}
+    </span>
+  );
 }
 
 // ---- Field Picker Helper ----
