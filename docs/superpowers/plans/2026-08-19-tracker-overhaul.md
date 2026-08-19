@@ -177,6 +177,13 @@ the thing you do (2026-08-13).
 
 ## 4. Order
 
+**SHIPPED 2026-08-19 (`0146`), the part that needed no new operation:** tiles `Macros` (Total
+Calories/Protein/Carbs/Fats) and `Intake` (Daily Water, Meals, Last Meal) inside the `Nutrition`
+container, `Workout Goals` (Total Workouts, Workouts, Last Workout) inside `Workout`, and daily
+targets on all five goal fields. Six fields that were being computed every load and displayed
+nowhere are now on screen. `Workout` and `Nutrition` turned out to be empty CONTAINERS rather than
+tiles, so the tiles went inside them.
+
 1. **Financial** — derive `meta.cumulative` from each tracker's own op, guard the date-prefix op.
    *Needs question 1.*
 2. **Nutrition step 1** — targets on the macro and four vitamin fields. No decisions beyond
@@ -197,3 +204,43 @@ the thing you do (2026-08-13).
    programme be re-pinned so a weekday always gets the same workout?
 5. **Day 4's Run and Stretch:** their own `Workout 7` / `Workout 8` slots, or routines rather than
    prescribed workouts?
+
+---
+
+## 6. Every display field, audited  (user: *"look at all my display fields and make sure they are
+being used by an operation or updated in some way"*)
+
+Measured on the live grid: **54 display fields**, cross-referenced against every ENABLED operation's
+pipeline and every module's `fieldBindings`.
+
+**FIVE ARE WRITTEN BY NOTHING, and four of them are bound to a tile — so they render as permanently
+empty pills on the Trackers page.** None carries a value on any occurrence, which is the
+confirmation rather than a guess:
+
+| field | bound to a tile | rows with a value |
+|---|---|---|
+| `Now` | yes | 0 |
+| `Time Left` | yes | 0 |
+| `Overdue Tasks` | yes | 0 |
+| `Due This Week` | yes | 0 |
+| `Task Count` | no | 0 |
+
+*A display field with no writer is the same defect class as the inert `--font-display` token and the
+two picker actions with no executor case: a surface that promises a value nothing will ever
+produce.* CLAUDE.md 2026-08-11 (3) states it directly — **"a binding that promises a value nothing
+will write is worse than no binding."**
+
+**ONE IS COMPUTED AND DISPLAYED NOWHERE:** `Days Until Due` is written by its own op and bound by no
+module. That is the cheaper defect — the number exists and simply is not shown.
+
+**Each needs a decision, and they are not the same decision:**
+- `Now` and `Time Left` read like Pomodoro/clock readouts — either wire them to the timer or drop
+  the tiles.
+- `Overdue Tasks`, `Due This Week`, `Task Count` are task aggregates the Tasks page could feed;
+  `Days Until Due` already computes and only needs binding, so it is the one-line case.
+- **Dropping is a legitimate outcome.** An empty pill on a dashboard is worse than no pill.
+
+**This audit should be a TEST, not a one-off.** `gridIntegrity` already reports `unused-field` for
+fields never bound, never valued and referenced by no operation — it does NOT catch a field that is
+BOUND but written by nobody, which is exactly the shape of all five above. That rule is a few lines
+and would have caught these the day they were created.
