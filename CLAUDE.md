@@ -6,6 +6,44 @@
 
 ---
 
+### 2026-08-19 (7) — the other two LIGHT themes had it worse, and one of them needed a DIFFERENT fix
+
+(6) fixed Stardew because that is what the user runs. It left a note that `moduli-light` and
+`vintage-light` had the same shape and no number against them. Measured — and they were worse:
+```
+                      green value pill      select / date pill
+moduli-light                1.5:1                 3.51:1        21 of 21 rows under 4.5
+vintage-light               2.5:1                 2.97:1        21 of 21 rows under 4.5
+```
+**`moduli-light`'s green ink was `#16a34a`, which is `--signal-pos` EXACTLY** — the same colour as
+the 20%-alpha fill it sits on. Guaranteed illegible, by construction, on any light surface.
+
+**THE TWO THEMES NEEDED DIFFERENT FIXES, and noticing that is the point.** The obvious move is to
+derive every signal ink from its `--signal-*` the way (6) did. Right for `moduli-light`, where ink
+and signal are already the same hue. **Wrong for `vintage-light`, which deliberately re-hues: its
+"blue" ink is a RUST tone while `--signal-zero` is TEAL.** Deriving would have quietly overwritten
+a choice the theme's author made on purpose — so that one darkens the AUTHORED colour toward black
+instead, keeping every hue and buying only the contrast. *A fix that is correct on one instance of
+a class is not automatically correct on the next; check what the second one was doing deliberately.*
+
+Both then hit the same second limiter (6) hit: `--occ-pill-text` at a mid tone. It follows
+`--foreground-1` on all three light themes now. **The fill still carries the hue, so a pill is
+still tinted — only the ink goes dark**, which is what the screenshots show.
+```
+moduli-light    bulk 1.5  -> 6.05-6.09
+vintage-light   bulk 2.5  -> 4.72+
+```
+**The residual "failures" are the PROBE, and they are identifiable rather than hand-waved:** every
+one reports a ratio of exactly 1.00 with ink IDENTICAL to background, which means the sampled box
+held a single colour — no text in it at all — plus the rating field, whose "ink" is a star glyph.
+*A contrast of exactly 1.00 is not a contrast reading; it is an empty sample.* Settled the way a
+colour claim has to be: both themes screenshotted and looked at, every pill legible.
+
+Scoped to eight token lines across the two theme blocks; no other skin can be affected. 2778 client
+tests, deployed, verified by looking.
+
+---
+
 ### 2026-08-19 (6) — the pills assumed a DARK surface, and six probes were wrong before one was right
 
 User: *"the account dropdowns are very hard to read currently color wise"*, *"any dropdown select

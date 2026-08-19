@@ -90,9 +90,13 @@ empty Daily Question found this morning is the kind of thing it would catch.
 - **Trackers sits at 36% of the left column** in the new mosaic — it inherited
   the row Tasks had. One splitter drag if that reads short.
 
-- **The other two LIGHT themes are unmeasured.** `moduli-light` and
-  `vintage-light` have the same shape as Stardew did — a mid-tone signal ink over
-  a pale signal fill — but nobody has put a contrast number on them. Stardew was
-  fixed because it is what the user runs and what the screenshot showed. The
-  measurement is one probe run per theme; the fix, if needed, is the same
-  `color-mix` line.
+- **The other two LIGHT themes** ✅ MEASURED AND FIXED 2026-08-19. Both were
+  worse than Stardew (21 of 21 rows under 4.5:1; `moduli-light`'s green ink was
+  `--signal-pos` exactly). `vintage-light` needed a DIFFERENT fix — it
+  deliberately re-hues, so its inks are darkened rather than re-derived. See
+  CLAUDE.md 2026-08-19 (7).
+- **The three DARK themes are unmeasured**, and are the remaining gap of this
+  kind: `midnight` and `vintage-dark` have never had a number put against them
+  (`moduli-dark` was measured via Blueprint at 7.5-11:1 and is fine). The
+  failure mode there is the inverse — an ink too DARK on a dark fill — and it is
+  one probe run each.
