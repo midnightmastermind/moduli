@@ -186,6 +186,14 @@
      to its own background on a light surface. Measured on the live grid after
      the signal inks were fixed, this became the limiter — 3.51:1. The fill still
      carries the hue, so a pill is still tinted; only the ink goes dark. */
+  /* THE PILL EDGE. `rgba(var(--occ-pill) / 0.30)` — the default the JS falls
+     back to — composites to within a few points of a LIGHT surface, so the pill
+     reads as a soft blob with no edge while the green value pills beside it look
+     fine at the same alpha (green separates from cream; brown does not). Mixing
+     the pill hue with the theme's own ink gives a solid, hued edge instead of a
+     wash: for stardew that resolves to about rgb(120,76,33) against a
+     rgb(164,157,133) surface. Dark themes do not set this and keep the wash. */
+  --occ-pill-border: color-mix(in srgb, rgb(var(--occ-pill)) 55%, hsl(var(--foreground-1)));
   --occ-pill-text: hsl(var(--foreground-1));
   --figure-well: 12 53 70;
 
@@ -433,6 +441,14 @@
      to its own background on a light surface. Measured on the live grid after
      the signal inks were fixed, this became the limiter — 2.97:1. The fill still
      carries the hue, so a pill is still tinted; only the ink goes dark. */
+  /* THE PILL EDGE. `rgba(var(--occ-pill) / 0.30)` — the default the JS falls
+     back to — composites to within a few points of a LIGHT surface, so the pill
+     reads as a soft blob with no edge while the green value pills beside it look
+     fine at the same alpha (green separates from cream; brown does not). Mixing
+     the pill hue with the theme's own ink gives a solid, hued edge instead of a
+     wash: for stardew that resolves to about rgb(120,76,33) against a
+     rgb(164,157,133) surface. Dark themes do not set this and keep the wash. */
+  --occ-pill-border: color-mix(in srgb, rgb(var(--occ-pill)) 55%, hsl(var(--foreground-1)));
   --occ-pill-text: hsl(var(--foreground-1));
   --figure-well: 179 166 143;
 
@@ -6594,6 +6610,14 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
      skin renders that text at 10-11px in a pixel font. `--foreground-1` is the
      ink this theme already uses for prose; against the same pill it computes to
      ~5.7:1. Self-maintaining, too: retint the theme and the pills follow. */
+  /* THE PILL EDGE. `rgba(var(--occ-pill) / 0.30)` — the default the JS falls
+     back to — composites to within a few points of a LIGHT surface, so the pill
+     reads as a soft blob with no edge while the green value pills beside it look
+     fine at the same alpha (green separates from cream; brown does not). Mixing
+     the pill hue with the theme's own ink gives a solid, hued edge instead of a
+     wash: for stardew that resolves to about rgb(120,76,33) against a
+     rgb(164,157,133) surface. Dark themes do not set this and keep the wash. */
+  --occ-pill-border: color-mix(in srgb, rgb(var(--occ-pill)) 55%, hsl(var(--foreground-1)));
   --occ-pill-text: hsl(var(--foreground-1));
   --figure-well: 217 187 143;
 

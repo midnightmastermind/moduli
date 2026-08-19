@@ -84,7 +84,16 @@ export const FLOW_TINTS = {
 // scored 8.9:1. WCAG wants 4.5:1 for body text.
 export const OCC_PILL = {
   bg:     "rgba(var(--occ-pill) / 0.14)",
-  border: "rgba(var(--occ-pill) / 0.30)",
+  // THE EDGE IS ITS OWN TOKEN (user, 2026-08-19: *"those pills need a border,
+  // at least in the stardew valley one"*). It was `rgba(var(--occ-pill) / 0.30)`
+  // — and on a light theme that composites to within a few points of the
+  // surface it sits on: brown at 30% over cream is (168,143,108) against a
+  // (164,157,133) background, which is not an edge. The green value pills next
+  // to it read fine at the same alpha only because green separates from tan and
+  // brown does not, so no single alpha is right for both. The default below is
+  // today's value exactly, so every DARK theme is unchanged; the light themes
+  // override it.
+  border: "var(--occ-pill-border, rgba(var(--occ-pill) / 0.30))",
   text:   "var(--occ-pill-text)",
 };
 // A CHIP sits INSIDE one of those pills, so it needs to read against the pill
@@ -225,7 +234,8 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
                 : <div className="flex flex-wrap gap-1 items-center overflow-hidden">
                     {selectedOptions.slice(0, 2).map(o => (
                       <span key={o.value} className="inline-flex items-center gap-0.5 px-1.5 py-0 text-[10px] rounded-full"
-                        style={{ background: OCC_CHIP.bg, color: OCC_CHIP.text }}>
+                        style={{ background: OCC_CHIP.bg, color: OCC_CHIP.text,
+                                 border: `1px solid ${OCC_PILL.border}` }}>
                         {o.label}
                         <X className="h-2.5 w-2.5 cursor-pointer" onClick={e => { e.stopPropagation(); onChange(selected.filter(v => v !== o.value)); }} />
                       </span>
@@ -550,7 +560,11 @@ function valueSignPillTint(value, type) {
       ? { bg: "rgba(var(--signal-pos) / 0.2)",  border: "rgba(var(--signal-pos) / 0.35)" }
       : { bg: "rgba(var(--signal-zero) / 0.18)", border: "rgba(var(--signal-zero) / 0.35)" };
   }
-  return { bg: "rgba(34,197,94,0.2)", border: "rgba(34,197,94,0.35)" };
+  // Every branch above reads `--signal-*`; this one used to paint a HARDCODED
+  // `rgba(34,197,94,…)` emerald, so a TEXT value ignored the theme entirely and
+  // sat next to a number pill in a different green. Stardew's `--signal-pos` is
+  // a muted (74,158,63); the literal was (34,197,94).
+  return { bg: "rgba(var(--signal-pos) / 0.2)", border: "rgba(var(--signal-pos) / 0.35)" };
 }
 
 // NOTE (2026-07-13): the transient +N/−N change badge lives in ONE place —
