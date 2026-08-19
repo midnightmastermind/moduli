@@ -81,6 +81,14 @@ empty Daily Question found this morning is the kind of thing it would catch.
   assistant is the thinnest thing that ships.
 - **Re-export the fixture after any migration that rewrites an op**, or
   `pomsGridOps.test.js` pins pipelines the grid no longer has. It is a snapshot,
-  not a connection.
+  not a connection. (Re-exported 2026-08-19 after `0143`-`0145`: 3,185 modules /
+  3,322 occurrences / 68 enabled ops, 294 KB.)
 - **Trackers sits at 36% of the left column** in the new mosaic — it inherited
   the row Tasks had. One splitter drag if that reads short.
+
+- **The other two LIGHT themes are unmeasured.** `moduli-light` and
+  `vintage-light` have the same shape as Stardew did — a mid-tone signal ink over
+  a pale signal fill — but nobody has put a contrast number on them. Stardew was
+  fixed because it is what the user runs and what the screenshot showed. The
+  measurement is one probe run per theme; the fix, if needed, is the same
+  `color-mix` line.
