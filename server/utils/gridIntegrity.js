@@ -18,7 +18,7 @@
 // effect applier, which had its own copy of the default, was not).
 export const KIND_BEARING_ROLES = new Set(["container", "page", "artifact", "textblock"]);
 
-export function checkGridIntegrity({ occurrences = [], modules = [], fields = [], operations = [], folders = [] } = {}) {
+export function checkGridIntegrity({ grid = null, occurrences = [], modules = [], fields = [], operations = [], folders = [] } = {}) {
   const findings = [];
   const add = (level, code, message, ids) => findings.push({ level, code, message, ...(ids?.length ? { ids: ids.slice(0, 12) } : {}) });
 
@@ -148,6 +148,46 @@ export function checkGridIntegrity({ occurrences = [], modules = [], fields = []
       `${strayKind.length} module(s) carry a kind on a role that has none — the icon resolver ` +
       `prefers kind over role, so these draw the wrong icon`,
       Object.entries(counts).map(([k, n]) => `${k}×${n}`));
+  }
+
+  // 7b. A COPY-LINK SOURCE carrying a value in a field the grid FILTERS on.
+  //
+  //     COPY_LINK copies a source's fields, so a filter value on the source is
+  //     stamped onto EVERY copy it ever mints — and the copies are then hidden
+  //     on any other value of that filter. Measured on the live grid
+  //     2026-08-19: 21 of 51 copy-link sources carried a date from the previous
+  //     day, so 21 of that morning's timeslots were invisible. The user saw a
+  //     schedule that "only created 5am and beyond", and nothing anywhere said
+  //     why. `0145` is the repair; this is what stops it being silent next time.
+  //
+  //     THE FILTER FIELDS COME FROM THE GRID, NOT FROM THIS FILE. They are the
+  //     keys of `activeFilterValues` plus every `namedFilters[].conditions[]`
+  //     fieldId — the grid stating what it filters on. Nothing here learns what
+  //     any particular field means.
+  const filterFieldIds = new Set(Object.keys(grid?.activeFilterValues || {}));
+  for (const nf of grid?.namedFilters || []) {
+    for (const c of nf?.conditions || []) if (c?.fieldId) filterFieldIds.add(c.fieldId);
+  }
+  if (filterFieldIds.size) {
+    const copySourceIds = new Set(occurrences.map(o => o.meta?.copyLinkSource).filter(Boolean));
+    const stamping = [];
+    for (const id of copySourceIds) {
+      const src = occById.get(id);
+      if (!src) continue;                    // dangling source — rule 1's business
+      for (const fid of filterFieldIds) {
+        const v = src.fields?.[fid]?.value;
+        if (v != null && v !== "") {
+          stamping.push(`${src.label || modById.get(src.moduleId)?.label || id}:${fid}`);
+          break;
+        }
+      }
+    }
+    if (stamping.length) {
+      add("error", "dated-copy-link-source",
+        `${stamping.length} copy-link source(s) carry a value in a field the grid filters on — ` +
+        `every copy inherits it, and is then hidden whenever the filter moves`,
+        stamping);
+    }
   }
 
   // 8. An operation that can never fire: no trigger objects, no trigger types,

@@ -396,3 +396,51 @@ describe("duplicate sections on a template-applied page", () => {
     expect(codes(f)).not.toContain("duplicate-template-section");
   });
 });
+
+// A COPY-LINK SOURCE carrying a filter value stamps every copy it mints, and
+// the copies are then hidden whenever the filter moves. Live on poms grid
+// 2026-08-19: 21 of 51 sources carried the previous day's date, so 21 of that
+// morning's timeslots were invisible with nothing reporting why.
+describe("dated-copy-link-source", () => {
+  const DATE = "fld-date";
+  const grid = {
+    activeFilterValues: { [DATE]: "2026-08-19" },
+    namedFilters: [{ id: "daily", conditions: [{ fieldId: DATE, comparator: "SAME_DAY" }] }],
+  };
+  const world = (srcFields) => ({
+    grid,
+    modules: [{ id: "m1", role: "container", kind: "board", label: "slot" }],
+    occurrences: [
+      { id: "src", moduleId: "m1", label: "9:00am", fields: srcFields },
+      { id: "copy", moduleId: "m1", label: "9:00am", meta: { copyLinkSource: "src" } },
+    ],
+  });
+  const codes = (w) => checkGridIntegrity(w).map(f => f.code);
+
+  it("flags a source carrying a value in a filtered field", () => {
+    expect(codes(world({ [DATE]: { value: "2026-08-18" } }))).toContain("dated-copy-link-source");
+  });
+
+  it("says nothing when the source carries no filter value — the healthy shape", () => {
+    // test grid 1 measured 61 copy-link sources and 0 dated; that is the state
+    // this rule exists to preserve, so a false positive here would be noise on
+    // a grid that is fine.
+    expect(codes(world({}))).not.toContain("dated-copy-link-source");
+  });
+
+  it("ignores a value in a field the grid does NOT filter on", () => {
+    expect(codes(world({ "fld-other": { value: "anything" } }))).not.toContain("dated-copy-link-source");
+  });
+
+  it("ignores an occurrence nothing copy-links from", () => {
+    const w = world({ [DATE]: { value: "2026-08-18" } });
+    w.occurrences = w.occurrences.filter(o => o.id !== "copy");   // no copy → not a source
+    expect(codes(w)).not.toContain("dated-copy-link-source");
+  });
+
+  it("stays silent on a grid that names no filter fields at all", () => {
+    const w = world({ [DATE]: { value: "2026-08-18" } });
+    w.grid = { activeFilterValues: {}, namedFilters: [] };
+    expect(codes(w)).not.toContain("dated-copy-link-source");
+  });
+});
