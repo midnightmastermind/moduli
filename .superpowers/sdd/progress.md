@@ -182,6 +182,24 @@ Each of these was found by USING the product on production, not by reading code.
     fixed. ContainerTable renders `<ModuleInstance>` without `containerId`, and
     the duplicate handler needs it; the menu item is offered and no row appears.
 
+13. **A NESTED container could not take a single item — it THREW.** FIXED
+    (dd83aebb). `ModuleContainer` renders child containers through another
+    `<Container>` and never passed `addInstanceToContainer` down, so "+ Item"
+    inside any nested container raised `TypeError: l is not a function` in
+    production. Source-mapped from the minified prod chunk to
+    ModuleContainer.jsx:334; threaded at both the nested and canvas-card render
+    sites. Verified afterwards on prod: 0 page errors on load.
+
+14. **Deleting through the UI leaves the MODULE behind.** NOT fixed. Measured on
+    this grid after one sitting: **64 modules for 49 occurrences — 15 orphans**,
+    every one of them a row or container I deleted or converted. Converting a
+    container's kind is the same story from the other side: the two table
+    containers still on screen have an orphaned pre-conversion module each. It
+    is not an integrity error today (checkGrid does not look for it) and it costs
+    nothing visible, but a grid used for a year accumulates junk on the most
+    ordinary action there is. `sweepOrphans.js` exists and has an age floor;
+    nothing calls it from the delete path.
+
 Smaller things, none fixed: a table container with two columns renders the SAME
 child in both cells; the tree's "+" on a folder mints an artifact/doc container
 called "Untitled" that looks like a page card, cannot be renamed or deleted from
