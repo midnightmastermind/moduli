@@ -15,7 +15,7 @@ import {
 import { MoreVertical, ChevronUp, ChevronDown, Hash, Filter, X, Eye, Image as ImageIcon } from "lucide-react";
 import { evalRule } from "../../helpers/operationActions";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
-import { cellKey, emptyCellDoc, makeEmbedCellDoc, getCellSortValue, deleteColumn, insertColumn, fillRange, firstEmbedOccId } from "../../helpers/tableCells";
+import { cellKey, emptyCellDoc, makeEmbedCellDoc, getCellSortValue, deleteColumn, insertColumn, fillRange, firstEmbedOccId, nextProjectionFieldId } from "../../helpers/tableCells";
 import { assignLinkedGroup } from "../../helpers/LayoutHelpers";
 import { COMPARATOR_OPTIONS, UNARY_COMPARATORS } from "../../helpers/comparators";
 import { useGridActions } from "../../GridActionsContext";
@@ -99,7 +99,7 @@ const DEBOUNCE_MS = 500;
 // for the cases tables actually use (instance / container). Wrapped in
 // CellEmbedContext so ModuleInstance's field-visibility + hideLabel projection
 // works identically to the editor path.
-function StaticCellEmbed({ occId, occurrencesById, modulesById, dispatch, socket, displayFieldId, fieldVisibility, hideLabel, showMedia }) {
+function StaticCellEmbed({ occId, occurrencesById, modulesById, dispatch, socket, displayFieldId, fieldVisibility, hideLabel, showMedia, containerId = null, containerOccurrence = null }) {
   const occurrence = occId ? occurrencesById?.[occId] : null;
   const mod = occurrence?.moduleId ? modulesById?.[occurrence.moduleId] : null;
   const ctxValue = useMemo(
@@ -120,6 +120,14 @@ function StaticCellEmbed({ occId, occurrencesById, modulesById, dispatch, socket
             socket={socket}
             embedSourceType="doc-embed"
             embedHideLabel={hideLabel === true}
+            // A CHILD ROW is parented to this table, so its row menu can act on
+            // the table: "Duplicate (new instance)" needs the container it is
+            // duplicating INTO, and without it the menu item was offered and no
+            // row appeared. Passed ONLY for child rows — a CELL embed's real
+            // parent is somewhere else entirely, and naming the table would
+            // duplicate it into a container it does not live in.
+            containerId={containerId}
+            containerOccurrence={containerOccurrence}
           />
         ) : (
           <ModuleContainer
@@ -1040,19 +1048,6 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
   }, [columns, persist, table]);
 
   // --- Add column ---
-  const handleAddColumn = useCallback(() => {
-    const n = columns.length + 1;
-    const colDef = {
-      id: "tcol_" + uid(),
-      title: "Column " + n,
-      width: 160,
-      displayFieldId: null,
-      sort: null,
-      filter: null,
-    };
-    const nextTable = insertColumn(table, columns.length, colDef);
-    persist(nextTable);
-  }, [columns.length, table, persist]);
 
   // --- Add row ---
   const handleAddRow = useCallback(() => {
@@ -1201,6 +1196,27 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
     }
     return occs;
   }, [occurrence?.occurrences, occurrencesById, table.sort, columns, modulesById]);
+
+  const handleAddColumn = useCallback(() => {
+    const n = columns.length + 1;
+    // A new column PROJECTS the next field the rows carry (see
+    // `nextProjectionFieldId`). Without this, every unconfigured column shows
+    // the whole record, so a second column looked like a duplicate of the
+    // first. `hideLabel` goes with it: the row's name belongs in one column,
+    // not repeated beside every value.
+    const fid = nextProjectionFieldId({ columns, rows: childRowOccs, modulesById });
+    const colDef = {
+      id: "tcol_" + uid(),
+      title: fid ? (fieldsById?.[fid]?.name || "Column " + n) : "Column " + n,
+      width: 160,
+      displayFieldId: null,
+      sort: null,
+      filter: null,
+      ...(fid ? { fieldVisibility: { mode: "show", fieldIds: [fid] }, hideLabel: true } : {}),
+    };
+    const nextTable = insertColumn(table, columns.length, colDef);
+    persist(nextTable);
+  }, [columns, childRowOccs, modulesById, fieldsById, table, persist]);
 
   // Normal document flow — NO row/column virtualization. This table holds a
   // handful of rows whose cells are heavy occurrence embeds. The virtualizer's
@@ -1738,6 +1754,8 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                   fieldVisibility={col.fieldVisibility ?? tableFieldVisibility}
                   hideLabel={col.hideLabel === true}
                   showMedia={col.showMedia === true}
+                  containerId={occurrence?.moduleId || null}
+                  containerOccurrence={occurrence}
                 />
               </div>
             ))}

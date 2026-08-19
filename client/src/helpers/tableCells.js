@@ -110,3 +110,44 @@ export function fillRange(src, target) {
   }
   return out;
 }
+
+/**
+ * Which field a NEW column should project.
+ *
+ * A table whose rows are child occurrences renders the SAME record in every
+ * column, each column showing whatever fields it was configured to show. That
+ * is the spreadsheet model and it is right — but a column with no projection
+ * shows the whole record, so two unconfigured columns are visually identical
+ * and the table reads as if it duplicated the row (measured on claude-grid,
+ * 2026-08-18).
+ *
+ * So a new column is BORN pointing at the next field the rows carry and no
+ * other column already shows. Applied at column-creation time on purpose:
+ * inferring it at render time would silently change what every existing table
+ * on every grid displays, including the Schedule's.
+ *
+ * Skips hidden bindings — a binding marked hidden is deliberately not rendered,
+ * and a column that shows nothing is worse than one that repeats the row.
+ * Returns null when there is nothing to derive from (no rows yet, or every
+ * bound field is already spoken for), and the caller leaves the column
+ * unprojected rather than guessing.
+ */
+export function nextProjectionFieldId({ columns = [], rows = [], modulesById = {} } = {}) {
+  const taken = new Set();
+  for (const col of columns) {
+    if (col?.fieldVisibility?.mode === "show") {
+      for (const fid of col.fieldVisibility.fieldIds || []) if (fid) taken.add(fid);
+    }
+    if (col?.displayFieldId) taken.add(col.displayFieldId);
+  }
+  for (const occ of rows) {
+    const mod = modulesById?.[occ?.moduleId];
+    const bindings = Array.isArray(mod?.fieldBindings) ? mod.fieldBindings : [];
+    for (const b of bindings) {
+      const fid = b?.fieldId;
+      if (!fid || b.hidden === true) continue;
+      if (!taken.has(fid)) return fid;
+    }
+  }
+  return null;
+}
