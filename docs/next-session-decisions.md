@@ -75,10 +75,14 @@ empty Daily Question found this morning is the kind of thing it would catch.
 
 ## Still open after 2026-08-19 (3)
 
-- **The AI-assistant grid-build plan** the user asked for — using the assistant
-  to reproduce `claude-grid`, as a test of whether it can construct a workspace.
-  Not started. Worth stating up front what the deck-vs-now audit found: the
-  assistant is the thinnest thing that ships.
+- **The AI-assistant grid-build plan** ✅ WRITTEN 2026-08-19 —
+  `docs/superpowers/plans/2026-08-19-assistant-grid-build.md`. Measured before
+  planned, and both premises moved: the catalog is **43** tools (not the 48 the
+  audit quotes) and the deployed ollama backend shows the assistant **19**, with
+  `create_view`, `create_operation` and every update/move/delete hidden. Driven
+  end to end, the configured 3B model took **207s** for one read-only tool call
+  and answered wrong. The plan is therefore what must change first, in order —
+  the allowlist is an env var, so step 1 is config, not code.
 - **Re-export the fixture after any migration that rewrites an op**, or
   `pomsGridOps.test.js` pins pipelines the grid no longer has. It is a snapshot,
   not a connection. (Re-exported 2026-08-19 after `0143`-`0145`: 3,185 modules /
