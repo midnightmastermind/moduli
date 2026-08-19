@@ -6736,12 +6736,21 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    `*` and `!important` on both, because the text inside a pill sits on children
    carrying their own explicit `text-[10px]` classes and inline `pillBase`
    styles; a rule on the pill alone reaches neither. */
+/* REVISED AGAIN (user: "the display field text size and the input field text
+   size should match. make it the size of the input field text size"). The two
+   were split apart to fix trackers reading smaller than everything else; with
+   both at the input size they simply agree, which is what a row of mixed
+   display and input pills should look like.
+
+   Both custom skins, not just one: they share a font and the same problem. */
 :root[data-skin="stardew"] .field-display,
-:root[data-skin="stardew"] .field-display * {
-  font-size: 13px !important;
-}
+:root[data-skin="stardew"] .field-display *,
 :root[data-skin="stardew"] .field-input,
-:root[data-skin="stardew"] .field-input * {
+:root[data-skin="stardew"] .field-input *,
+:root[data-skin="blueprint"] .field-display,
+:root[data-skin="blueprint"] .field-display *,
+:root[data-skin="blueprint"] .field-input,
+:root[data-skin="blueprint"] .field-input * {
   font-size: 11px !important;
 }
 
@@ -6837,7 +6846,14 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   color: var(--stardew-ink) !important;
 }
 
-:root[data-skin="stardew"] .textblock-card:not(.textblock-card--inline) {
-  border: 1px solid rgba(120, 82, 40, 0.38);
+/* TEXTBLOCKS NEED AN EDGE in any skin with a wallpaper (user: "textblocks need
+   a border as well in these themes"). On a flat theme the tint alone separates
+   a block from the page; over art it does not, so the card needs a real border
+   to read as a card. The colour is the theme's own border token so each skin
+   answers for its own ground rather than hardcoding one. */
+:root[data-skin="stardew"] .textblock-card:not(.textblock-card--inline),
+:root[data-skin="blueprint"] .textblock-card:not(.textblock-card--inline),
+:root[data-skin="retro-rainbow"] .textblock-card:not(.textblock-card--inline) {
+  border: 1px solid hsl(var(--border));
   border-radius: 4px;
 }
