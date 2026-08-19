@@ -6,6 +6,100 @@
 
 ---
 
+### 2026-08-19 (2) — SKINS: a Stardew theme, per-grid, and the two numbers that were one
+
+User: *"make my current styling (the retro rainbow look) a default skin … change my main grid to use
+the background i just saved … a star dew valley skin/theme. we need a ui to change the theme of the
+grid. and cascade by occurance type."* Then, mid-build: *"make sure to include the first skins we
+had, light and dark too"*, *"i thought we already had a css cascade"* (yes — see below), and *"use
+the newest image in the screenshots folder."*
+
+**THREE MEASUREMENTS SHAPED IT, and each one changed what the work was.**
+```
+the retro rainbow was NEVER A THEME    --grid-wallpaper / --retro-rainbow and their scrims sat in a
+                                       BARE :root, outside every [data-theme] block — so they
+                                       applied to all five themes and switching theme changed neither
+the theme is per-BROWSER               localStorage["moduli-theme"], so "change my main grid" was
+                                       not expressible at all
+NO WEBFONT LOADED, ANYWHERE            @fontsource/jetbrains-mono has been a dependency for months
+                                       and was NEVER IMPORTED: no @font-face in the sheet, no .woff2
+                                       in dist, none served by prod. Every machine fell through to
+                                       its own ui-monospace, so the app has looked subtly different
+                                       on Windows, macOS and Linux this whole time.
+```
+
+**THE CASCADE ALREADY EXISTED AND I DID NOT BUILD A SECOND ONE.** The user asked directly, and they
+were right: `resolveStyleCascade` has walked Grid → Panel → Page → Container → Instance since
+2026-05-21, with a per-kind field whitelist and an editor mounted at six sites. What it could not
+express is *"every doc container"*, because every level of it is a PLACEMENT. So `grid.meta.typeStyles`
+is **one `pushLevel` added to the existing walk**, keyed `role/kind` — the string `checkGrid` and the
+orphan sweep already use, rather than a second vocabulary. It had to reach `resolveContainerStyle`
+and `resolveInstanceStyle`, not just the editor's walker, or the UI would show a level that does not
+paint.
+
+**A SKIN IS A SECOND AXIS TO THEMES, NOT A REPLACEMENT.** A theme owns the ~71 surface/text/signal
+tokens; a skin owns wallpaper, scrims, fonts, and what happens to colours stored in the DATA.
+Folding them together would mean re-authoring five themes to ship one wallpaper. The five original
+looks are skins too, each pinning its theme with no wallpaper — and **their scrim goes to 1, which is
+not a detail**: a translucent scrim over NO art is a wash over the body colour, not the flat surface
+those looks are supposed to have. `:root[data-skin]` is 0,2,0 against a theme's 0,1,0, so a skin wins
+whatever the source order, and **an unstamped document is byte-identical to today by construction.**
+
+**THE 424 STORED COLOURS WERE THE WHOLE RISK, and the user's own suggestion was nearly the answer.**
+They asked whether a cascade guard could set everything to inherit from its parent. The mechanism
+exists (`styleMode`) — but measured: all 315 modules are `styleMode:"own"`, and the 109 occurrence
+placements are applied by `resolveContainerStyle` with **no styleMode gate at all**, so there is no
+switch to flip on a quarter of them. And it would be a write to protected live data that a second
+migration would have to undo. Doing it at the RUNTIME chokepoint instead covers both halves, needs no
+write, and is reversible by picking a different skin.
+
+**THE REMAP COLLAPSED A FAMILY, AND ONLY RENDERING IT AS AN IMAGE CAUGHT IT.** The first version
+snapped hue to eight anchors and clamped lightness into a band. Driving the real function over poms
+grid's real 424 colours and drawing the before/after as a strip showed **nine distinct oranges
+landing within four RGB points of each other** — nine different things on that grid, erased. Hue is
+PULLED 55% toward the anchor now, and the source's own lightness RANGE is mapped onto the band rather
+than clamped into it (almost every stored colour sits between 24% and 56%, so a clamp flattens the
+set and a container stops reading lighter than its rows). **The regression test is RELATIVE**, which
+is the only defensible threshold: two of the nine are 22 apart in the source already. Measured —
+source 22, snap 4 (18%), pull 13 (59%).
+
+**AND ONE NUMBER WAS DOING TWO OPPOSITE JOBS — found by LOOKING at poms grid, not by testing it.**
+`surfaceAlpha` was published to `--grid-surface-a` AND used as the cap for stored colours. Under
+Stardew those want opposite values, and with one number the result was unmistakable: *Physical* an
+opaque orange slab, *Nutrition* inside it another, the rows inside that orange again — **three nested
+fills, with the theme's dark-brown ink barely readable on top.** What a skin wants opaque is its own
+cream panel; what a stored colour means is *"this row is Physical"*, which is an accent. Split into
+`surfaceAlpha` (0.94) and `storedColorAlpha` (0.28); the retro skin has both at 0.24, i.e. unchanged.
+
+**106 OF THE 424 ARE NOT REMAPPED AT ALL, deliberately** — they are the signal-neg red at 10%, a
+STATE wash (missed / overdue) rather than a dimension colour. Re-hueing it would turn a signal into
+decoration. A grey and anything unparseable are left alone for the same reason.
+
+**AN INERT TOKEN SHIPPED AND WAS CAUGHT THE SAME WAY.** `--font-display` was declared by the skin and
+read by nothing, so Silkscreen never loaded — the exact class of defect this session spent its day
+removing, committed by me two hours later. It has the headers now; `document.fonts.check()` reports
+it loaded, and the split is load-bearing rather than decorative: a blocky heading face at 10px body
+text is genuinely unreadable, which is why the skin ships two.
+
+**Verified by looking, on both grids and on production:** claude-grid (no stored colours) and poms
+grid (424 of them), Silkscreen headers, VT323 body, wallpaper reading in the gutters, **0 page
+errors** and **0 integrity errors** on both. The remap's before/after strip is kept at
+`docs/stardew-palette-remap.png` — a palette change is a visual claim.
+
+**FOUND WHILE LOOKING, AND FIXED:** a deleted occurrence left its embed node behind, painting
+`embed: <uuid>` as raw text in the doc — a route the doc-page embed fix had just made ordinary. The
+scrub is handed the ids the delete just removed, which is the whole difference between it and the
+2026-08-01 (19) scrub that WAS the regression.
+
+**AND I BROKE A LIVE OPERATION WITH A PROBE, which is worth recording.** Driving the ops editor, my
+picker click landed on an EXISTING step rather than the new one — changing an action type KEEPS the
+config, so `INIT_VAR $item = <the tile>` silently became `SUM_VAR` carrying the same config, which
+then looked exactly like a stray I had added. Deleting it left `UPDATE $item.…` with nothing bound,
+and "Sessions logged" failed on every load until I read the toast in my own screenshot. *A probe that
+edits is a probe that can damage; the screenshot is what caught it, not the tests.*
+
+---
+
 ### 2026-08-19 — FIXING WHAT THE BUILD FOUND: two actions that ran NOTHING, and 35 with nothing to configure
 
 User: *"please fix the things you ran into and ask questions if needed."* Eight items were filed
