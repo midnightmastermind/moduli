@@ -6736,6 +6736,18 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    `*` and `!important` on both, because the text inside a pill sits on children
    carrying their own explicit `text-[10px]` classes and inline `pillBase`
    styles; a rule on the pill alone reaches neither. */
+/* THE INSTANCE LABEL, bigger (user: "make the labels bigger for the
+   instances"). Safe to raise now in a way it was not the first time: the field
+   pills are pinned by the rule below, so bumping the row's label can no longer
+   cascade into them — which is exactly what made the earlier attempt read as
+   "the rest are too big". */
+:root[data-skin="stardew"] .instance-content > div > .auto-marquee,
+:root[data-skin="stardew"] .instance-content .auto-marquee-inner,
+:root[data-skin="blueprint"] .instance-content > div > .auto-marquee,
+:root[data-skin="blueprint"] .instance-content .auto-marquee-inner {
+  font-size: 14px;
+}
+
 /* REVISED AGAIN (user: "the display field text size and the input field text
    size should match. make it the size of the input field text size"). The two
    were split apart to fix trackers reading smaller than everything else; with
