@@ -46,7 +46,29 @@ export function applySkin(skin) {
     const dark = !/light|stardew/.test(skin.theme);
     el.classList.toggle("dark", dark);
   }
-  el.style.setProperty("--grid-surface-a", String(skin.surfaceAlpha));
+  // EVERY VALUE THE SKIN DECLARES IS PUBLISHED FROM HERE, not just the alpha.
+  //
+  // It used to publish only `--grid-surface-a` and leave the wallpaper, the
+  // scrims and the rainbow to a `:root[data-skin=...]` CSS block. That made the
+  // registry's `wallpaper` / `wallpaperScrim` / `headerScrim` / `panelScrim` /
+  // `rainbow` fields INERT — nothing read them — and a skin added without a
+  // matching CSS block silently inherited the default look. Caught the first
+  // time a skin was added as pure data: Blueprint applied, and the retro
+  // rainbow kept painting.
+  //
+  // Publishing them means a new skin is a DATA edit and the two halves cannot
+  // disagree, which is the whole reason the alpha was centralised in the first
+  // place. `null` clears the property so the stylesheet's own value stands.
+  const put = (name, value) => {
+    if (value == null) el.style.removeProperty(name);
+    else el.style.setProperty(name, String(value));
+  };
+  put("--grid-surface-a", skin.surfaceAlpha);
+  put("--grid-wallpaper", skin.wallpaper ?? "none");
+  put("--grid-wallpaper-scrim", skin.wallpaperScrim ?? 1);
+  put("--retro-rainbow", skin.rainbow ? null : "none");
+  put("--retro-header-scrim", skin.headerScrim ?? 1);
+  put("--retro-panel-scrim", skin.panelScrim ?? 1);
   setActiveSkin(skin);
 }
 
