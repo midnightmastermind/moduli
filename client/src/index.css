@@ -6647,3 +6647,79 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 :root[data-skin="stardew"] .toolbar {
   font-family: var(--font-display);
 }
+
+
+/* =============================================================================
+   STARDEW — legibility pass (user feedback, 2026-08-19)
+
+   Four things, all of them measured on the live grid before being changed:
+
+   1. THE TEXTBLOCK WRITING COULD NOT BE SEEN. `--doc-textblock-tint` is
+      `rgba(14, 61, 50, 0.35)` — a DARK TEAL — and it lives in a bare `:root`
+      (index.css:3620), outside every [data-theme] block. That is the same
+      defect the wallpaper tokens had: a colour that assumes a dark theme,
+      applied under all of them. Under this LIGHT skin it put dark-brown ink on
+      a dark tint. A skin has to own these.
+
+   2. THE `#` HEADER IS TOO HEAVY. Silkscreen at weight 700 is a slab. Its 400
+      already reads bold, so the skin drops the weight rather than the size —
+      the user was explicit that the SIZE of the other levels is right.
+      `!important` is REQUIRED: `headerFontWeight` is an INLINE style computed
+      in ModuleContainer.jsx:444, and an inline style beats any rule at any
+      specificity (the trap this file records five times over).
+
+   3. LABELS AND FIELD VALUES READ TOO SMALL. VT323 has a small x-height for
+      its point size, so 12px of it reads like 10px of the old face. The sizes
+      are nudged up here rather than in JS so only this skin is affected.
+
+   4. THE INK GOES NEAR-BLACK on doc surfaces (user: "the doc container headers
+      and writing should be black … at least for this theme"). Stardew's own
+      menus are near-black on parchment; the theme's dark brown was too soft
+      against a cream panel.
+   ============================================================================= */
+
+:root[data-skin="stardew"] {
+  /* Parchment, not teal — see (1). */
+  --doc-container-tint: rgba(120, 82, 40, 0.06);
+  --doc-container-tint-hover: rgba(120, 82, 40, 0.12);
+  --doc-textblock-tint: rgba(255, 248, 230, 0.82);
+  --doc-textblock-tint-hover: rgba(255, 252, 240, 0.94);
+  /* The ink for doc surfaces — see (4). */
+  --stardew-ink: #14100a;
+}
+
+/* (2) — the `#` level only. Inline style, so !important. */
+:root[data-skin="stardew"] .container-header .auto-marquee,
+:root[data-skin="stardew"] .container-header span,
+:root[data-skin="stardew"] .page-header span {
+  font-weight: 400 !important;
+}
+
+/* (3) — body text up. Deliberately NOT a blanket scale on the root: this app
+   sizes almost everything in px, so a root scale would move nothing, and the
+   places that DO inherit would move twice. */
+:root[data-skin="stardew"] .doc-editor-content,
+:root[data-skin="stardew"] .doc-editor-content p,
+:root[data-skin="stardew"] .textblock-card {
+  font-size: 14px;
+}
+:root[data-skin="stardew"] .instance-row,
+:root[data-skin="stardew"] .instance-content .auto-marquee,
+:root[data-skin="stardew"] .instance-label {
+  font-size: 15px;
+}
+:root[data-skin="stardew"] .field-input,
+:root[data-skin="stardew"] .field-input input,
+:root[data-skin="stardew"] .field-input select {
+  font-size: 14px;
+}
+
+/* (4) — doc headers and prose go near-black. */
+:root[data-skin="stardew"] .doc-editor-content,
+:root[data-skin="stardew"] .doc-editor-content p,
+:root[data-skin="stardew"] .textblock-card,
+:root[data-skin="stardew"] .container-doc,
+:root[data-skin="stardew"] .container-shell:has(.container-doc) > .container-header,
+:root[data-skin="stardew"] .container-shell:has(.container-doc) > .container-header span {
+  color: var(--stardew-ink);
+}

@@ -189,10 +189,14 @@ describe("two alphas, not one", () => {
   // again — three nested fills, with the theme's dark ink barely readable on
   // top. What a SKIN wants opaque is its own cream panel; what a stored colour
   // means is "this belongs to the Physical dimension", which is an accent.
-  it("Stardew keeps its panels opaque and its stored colours translucent", () => {
+  it("Stardew keeps its panels opaque and its stored colours meaningfully lighter", () => {
+    // The absolute number moved once already (0.28 -> 0.55, because 0.28 washed
+    // the cards out). What must NOT move is the relationship: the skin's own
+    // panel is the opaque surface, and a stored colour is an accent ON it. An
+    // absolute floor would just have to be edited every time the look is tuned.
     const sd = getSkin("stardew");
     expect(sd.surfaceAlpha).toBeGreaterThan(0.8);
-    expect(sd.storedColorAlpha).toBeLessThan(0.4);
+    expect(sd.storedColorAlpha).toBeLessThan(sd.surfaceAlpha - 0.25);
   });
 
   it("every skin declares both, so neither silently falls back", () => {

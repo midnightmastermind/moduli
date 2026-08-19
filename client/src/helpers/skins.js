@@ -114,7 +114,11 @@ export const SKINS = [
     // means is "this row belongs to the Physical dimension" — an accent, not a
     // surface. At 0.28 it reads as a wash over the cream, the nine dimensions
     // stay distinguishable, and the ink keeps its background.
-    storedColorAlpha: 0.28,
+    // 0.28 washed them out (user: "make all the occurances more opaque
+    // backgrounds"). Raised — and the palette's lightness band is raised with
+    // it, so a more opaque card reads as a solid PASTEL over the cream rather
+    // than the saturated slab that 0.94 produced on the first attempt.
+    storedColorAlpha: 0.55,
     palette: STARDEW_PALETTE,
   },
 ];

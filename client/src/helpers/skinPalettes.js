@@ -53,8 +53,8 @@ export const WASH_ALPHA_MAX = 0.35;
 export const STARDEW_PALETTE = {
   id: "stardew",
   hues: [340, 25, 42, 100, 150, 185, 265, 225],
-  satRange: [55, 82],
-  lightRange: [36, 62],
+  satRange: [48, 76],
+  lightRange: [44, 70],
   // How far a colour is pulled TOWARD its family anchor. Not 1.
   //
   // The first version SNAPPED to the anchor, and rendering poms grid's real 424
@@ -64,11 +64,21 @@ export const STARDEW_PALETTE = {
   // are different things on that grid, and a remap that erases distinctions the
   // user relies on is worse than no remap. Pulling part of the way lands the
   // family in the pixel-art register while keeping its members apart.
-  huePull: 0.55,
+  //
+  // Swept again when `storedColorAlpha` went 0.28 -> 0.55 and the band had to
+  // lighten with it: lighter colours sit nearer white, so the SAME nine oranges
+  // compress (min separation 13 -> 9, i.e. below the contract). A weaker pull
+  // buys it back — at 0.4 with the lighter band the minimum is 14. Less pull is
+  // less "landed on the palette", which is the trade, and it is the right one:
+  // a card you cannot tell from its neighbour is worse than one slightly off
+  // the anchor.
+  huePull: 0.4,
   // The source lightness range the palette's band is mapped ONTO. Clamping into
   // the band instead flattened every one of those oranges to the same value,
   // because almost all stored colours sit between 24% and 56%.
   sourceLightRange: [22, 58],
+  // Raised with `storedColorAlpha` (0.28 -> 0.55): a more opaque card wants a
+  // LIGHTER colour, or the ink on top of it loses its background again.
 };
 
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
