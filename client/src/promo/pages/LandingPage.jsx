@@ -113,7 +113,6 @@ export default function LandingPage() {
                 to={`/features/${f.slug}`}
                 className="promo-card promo-reveal"
               >
-                <div className="promo-card-stat">{f.stat.value}</div>
                 <h3>{f.nav}</h3>
                 <p>{f.tagline}</p>
                 <span className="promo-card-more">Read more →</span>

@@ -6511,14 +6511,17 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    sits on top of the exposed art, so it does not need dimming to protect type. */
 :root[data-skin="stardew"] {
   --grid-wallpaper: url("/stardew-wallpaper.webp");
-  --grid-wallpaper-scrim: 0.22;
-  --grid-surface-a: 0.94;
+  /* Scrim UP, surfaces DOWN — the user wants the wallpaper to read through the
+     occurrences rather than only in the gutters, so the art is now behind the
+     TEXT and needs dimming to give the ink its background back. */
+  --grid-wallpaper-scrim: 0.52;
+  --grid-surface-a: 0.30;
 
   /* No rainbow. The header band becomes wood — the frame Stardew puts around
      every panel — so the app still has a band, in this skin's material. */
   --retro-rainbow: linear-gradient(90deg, #8a5a2b 0%, #b06f30 50%, #8a5a2b 100%);
-  --retro-header-scrim: 0.92;
-  --retro-panel-scrim: 0.92;
+  --retro-header-scrim: 0.55;
+  --retro-panel-scrim: 0.55;
 
   /* THE LETTERING. Silkscreen is a blocky pixel face for headings; VT323 is a
      taller, far more legible pixel face for body text. Two, not one, because
@@ -6706,23 +6709,40 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   font-size: 14px !important;
 }
 
-/* (3) — body text up. Deliberately NOT a blanket scale on the root: this app
-   sizes almost everything in px, so a root scale would move nothing, and the
-   places that DO inherit would move twice. */
+/* (3) — body text. REVISED after looking (user: "the fields in trackers font
+   sizes didnt change and the rest are too big now").
+   
+   Measuring every painted size showed why it landed unevenly: the first pass
+   bumped `.instance-row` and `.field-input`, which took the row LABEL and the
+   pill BOX to 15/14px — visibly too big — while the text inside a pill sits on
+   its own children carrying explicit `text-[10px]` classes, so the tracker
+   values never moved at all. Two different problems that one rule could not
+   solve, because it was aimed at the wrong elements in both directions.
+
+   So: the row label goes back to its native size, and the pill's CHILDREN are
+   raised to a floor. `*` and `!important` are needed precisely because those
+   children carry their own explicit sizes. */
 :root[data-skin="stardew"] .doc-editor-content,
 :root[data-skin="stardew"] .doc-editor-content p,
 :root[data-skin="stardew"] .textblock-card {
-  font-size: 14px;
+  font-size: 13px;
 }
-:root[data-skin="stardew"] .instance-row,
-:root[data-skin="stardew"] .instance-content .auto-marquee,
-:root[data-skin="stardew"] .instance-label {
-  font-size: 15px;
+/* DISPLAY UP, INPUT DOWN (user: "its display fields that need increase and
+   input fields that need decrease"). The two are already distinguishable —
+   `.field-display` vs `.field-input` in Field.jsx — which is the distinction the
+   first two attempts were missing: one rule aimed at "field pills" moved both in
+   the same direction, so whichever was right made the other wrong.
+
+   `*` and `!important` on both, because the text inside a pill sits on children
+   carrying their own explicit `text-[10px]` classes and inline `pillBase`
+   styles; a rule on the pill alone reaches neither. */
+:root[data-skin="stardew"] .field-display,
+:root[data-skin="stardew"] .field-display * {
+  font-size: 13px !important;
 }
 :root[data-skin="stardew"] .field-input,
-:root[data-skin="stardew"] .field-input input,
-:root[data-skin="stardew"] .field-input select {
-  font-size: 14px;
+:root[data-skin="stardew"] .field-input * {
+  font-size: 11px !important;
 }
 
 /* (4) — doc headers and prose go near-black. */

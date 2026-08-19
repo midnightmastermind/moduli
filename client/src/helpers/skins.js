@@ -92,33 +92,20 @@ export const SKINS = [
     theme: "stardew",
     wallpaper: 'url("/stardew-wallpaper.webp")',
     rainbow: false,
-    // STARDEW PANELS ARE SOLID WOOD, NOT GLASS. The retro skin keeps surfaces
-    // near-transparent so the wallpaper reads THROUGH them; that is wrong here —
-    // the game's panels are opaque, and translucent cards would put 11px text
-    // over a sky. The art reads in the GUTTERS between panels instead, which is
-    // also how the game frames its own UI.
-    wallpaperScrim: 0.22,
-    headerScrim: 0.92,
-    panelScrim: 0.92,
-    surfaceAlpha: 0.94,
-    // AND THE STORED COLOURS STAY TRANSLUCENT, which is the opposite number and
-    // is why these had to be two fields rather than one.
+    // SEMI-TRANSPARENT, LIKE THE RETRO SKIN (user, 2026-08-19: "i still cant
+    // see that background … every occurance background should be semi
+    // transparent like we had on our rainbow theme").
     //
-    // The first version used `surfaceAlpha` for both. Looked at on poms grid,
-    // which carries 424 stored colours: "Physical" is an opaque orange slab,
-    // "Nutrition" inside it is another, and the rows inside that are orange
-    // again — three nested fills at 0.94 make an orange wall, and the theme's
-    // dark-brown ink on top of it is barely readable.
+    // THIS REVERSES MY OWN REASONING, and the reversal is the point. I argued
+    // that Stardew's panels are solid wood so the art should read in the
+    // GUTTERS — which is faithful to the game and, measured, meant the
+    // wallpaper covered ~2% of what you look at. The user wants the workspace
+    // to show its background, and that is a product call, not a fidelity one.
     //
-    // What the SKIN wants opaque is its own cream panel. What a stored colour
-    // means is "this row belongs to the Physical dimension" — an accent, not a
-    // surface. At 0.28 it reads as a wash over the cream, the nine dimensions
-    // stay distinguishable, and the ink keeps its background.
-    // 0.28 washed them out (user: "make all the occurances more opaque
-    // backgrounds"). Raised — and the palette's lightness band is raised with
-    // it, so a more opaque card reads as a solid PASTEL over the cream rather
-    // than the saturated slab that 0.94 produced on the first attempt.
-    storedColorAlpha: 0.55,
+    // The scrim goes UP as the surfaces come down: with translucent panels the
+    // art is behind the TEXT rather than beside it, so it needs dimming to give
+    // the ink its background back. That is the same knob, in the same
+    // direction, that CLAUDE.md 2026-08-17 records as the one to turn.
     palette: STARDEW_PALETTE,
   },
 ];
