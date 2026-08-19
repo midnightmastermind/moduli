@@ -249,3 +249,33 @@ module. That is the cheaper defect — the number exists and simply is not shown
 fields never bound, never valued and referenced by no operation — it does NOT catch a field that is
 BOUND but written by nobody, which is exactly the shape of all five above. That rule is a few lines
 and would have caught these the day they were created.
+
+---
+
+## 7. Fitness — attempted, PARKED, and what is already ruled out
+
+`0149` created six `Workout N` display fields and an op to fill them from the current cycle day.
+**The op runs clean and writes nothing**, so `0150` disabled it and unbound the fields — six blank
+pills on the Trackers page would be the exact defect `0147` had just removed from that page.
+
+**PROVEN, so the next attempt does not re-derive it:**
+- the DATA is right — 6 exercise rows under today's column, each with a resolving Movement array,
+  today's date, no `feedSourceId`; the slot's `parentId` IS the column and the column lists the slot
+- `$colId` BINDS correctly (read out of the op's own run log); `$col` is a single object
+- the op reports NO error, and its clear step runs, so the pipeline executes
+- a FIND predicate's `left` is a bare record path (`fields.x.value`), never `$item.fields.x.value`
+  — a real bug, fixed, and NOT the cause
+
+**TRIED, NONE OF WHICH MADE IT WRITE:** the FIND path form · scoping by
+`_ancestors HAS_ANCESTOR <the column>` · scoping by the Schedule page + the row's date (the pattern
+`Total Workouts` uses and which works on this grid) · looping `$allItems` instead of `$allInstances`.
+
+**So the fault is not in the scope rules, and the next session should stop varying them.** Remaining
+suspects in order: the six `UPDATE $goalItem.fields.<id>.value` writes sit inside a nested IF inside
+a LOOP, where every working tracker writes ONCE after its loop; the `$nTxt IS "1"` index comparison;
+and `JOIN_ARRAY` + `$allItemsById.${$mvId}` inside a loop body.
+
+**THE CHEAP NEXT MOVE IS ONE MEASUREMENT, NOT ANOTHER VARIATION:** add a single write of `$n`
+straight after the loop. If it reads 6 the loop matched and the WRITES are the problem; if it reads
+0 the predicate never passed. That halves the remaining space in one run, and doing it before
+varying anything would have saved four attempts.
