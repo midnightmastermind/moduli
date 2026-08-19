@@ -6,6 +6,37 @@
 
 ---
 
+### 2026-08-19 (9) — I fixed THREE call sites and there were TEN
+
+User: *"its still not showing up. things like movement ingrediant meal, they dont have borders
+currently"* — then, a minute later, *"or they do they are just way too light."*
+
+**THE SECOND MESSAGE IS THE DIAGNOSIS, and it is the one I should have reached myself.** (8) gave
+the pill edge a token and fixed the call sites it had MEASURED — the select pill, the date pill,
+the chips. The occurrence dropdowns render through `MultiSelectWithAdd` and four other wrappers,
+each carrying its OWN hardcoded `rgba(var(--occ-pill) / 0.25)` — **lighter than the 0.30 that pass
+replaced.** So the controls a user actually names, because they are the ones with words in them,
+kept the faintest edge on the grid. Seven sites, all now reading `--occ-pill-border` with their own
+alpha as the dark-theme fallback.
+
+**The lesson is cheap and I paid full price for it: I fixed the call sites I had measured instead
+of grepping the TOKEN.** `--occ-pill` appears seventeen times in that one file. The constant now
+says to grep before adding an eleventh — the same instruction 2026-08-08 (10) wrote after wiring
+three identical handlers, arrived at from the other direction.
+
+**AND A SINGLE PICK NOW LOOKS LIKE A MULTI PICK OF ONE.** User: *"make selectors like meal show a
+pill inside like ingredient does. so one selected should look like one that has multiple
+selected."* Meal and Ingredient are both occurrence dropdowns over the same kind of board — one
+single, one multi — and they rendered as two visually unrelated controls for one idea. The single
+draws its selection as the same chip now, with the same clear button. **Empty stays plain,
+deliberately: a chip around an em-dash reads as a selection you cannot remove.**
+
+Verified on prod under Stardew: `Project: [Roubo bench hook x]` renders as a bordered chip with a
+clear button, `rgb(120,75,33)` edges on every pill, and an unset field still reads `Project: —`.
+2778 client tests.
+
+---
+
 ### 2026-08-19 (8) — the pill border was THERE and did nothing; and a text pill painted a hardcoded green
 
 User: *"those pills need a border, at least in the stardew valley one."*
