@@ -260,10 +260,18 @@
   --input-border: rgba(0,0,0,0.14);
   --accent-blue: #2563eb;
   --accent-blue-hover: #1d4ed8;
-  --accent-blue-text: #1d4ed8;
+
+  /* THE SIGNAL INK IS DERIVED FROM THE SIGNAL HUE. A value pill is
+     `rgba(signal / 0.2)`; on a LIGHT surface that fill is pale, so an ink of the
+     same hue at the same lightness is invisible against its own background.
+     `--accent-green-text` was `#16a34a`, which is `--signal-pos` EXACTLY —
+     measured from rendered pixels on the live grid at 1.5:1, where WCAG asks
+     4.5:1. Mixing the hue toward black keeps the signal and buys the contrast,
+     and being derived means retinting a signal moves its ink with it. */
+  --accent-blue-text: color-mix(in srgb, rgb(var(--signal-zero)) 34%, black);
   --accent-blue-bg: rgba(37,99,235,0.12);
   --accent-blue-border: rgba(37,99,235,0.40);
-  --accent-green-text: #16a34a;
+  --accent-green-text: color-mix(in srgb, rgb(var(--signal-pos)) 34%, black);
   --accent-green-bg: rgba(22,163,74,0.10);
   --accent-green-border: rgba(22,163,74,0.35);
   --accent-purple-text: #7c3aed;
@@ -272,7 +280,7 @@
   --danger: #dc2626;
   --danger-bg: rgba(220,38,38,0.10);
   --danger-border: rgba(220,38,38,0.35);
-  --danger-text: #dc2626;
+  --danger-text: color-mix(in srgb, rgb(var(--signal-neg)) 36%, black);
 }
 
 /* =============================================================================
@@ -494,10 +502,18 @@
   --input-border: rgba(60,45,30,0.16);
   --accent-blue: #b34f24;            /* rust = the primary action color */
   --accent-blue-hover: #9c421c;
-  --accent-blue-text: #8a3a16;
+
+  /* DARKENED, NOT RE-DERIVED — and the distinction is deliberate. These inks sit
+     on a `rgba(signal / 0.2)` fill and measured 2.5:1 on the live grid, under the
+     4.5:1 WCAG asks for body text. The obvious fix is to derive each from its
+     own `--signal-*` the way `moduli-light` above now does — but this theme
+     deliberately re-hues: its "blue" ink is a RUST tone while `--signal-zero` is
+     TEAL. Deriving would quietly overwrite that. Mixing the AUTHORED colour
+     toward black takes the lightness down and leaves every hue choice intact. */
+  --accent-blue-text: color-mix(in srgb, #8a3a16 62%, black);
   --accent-blue-bg: rgba(179,79,36,0.14);
   --accent-blue-border: rgba(179,79,36,0.45);
-  --accent-green-text: #3e6e46;      /* vintage green */
+  --accent-green-text: color-mix(in srgb, #3e6e46 58%, black);   /* vintage green, darkened */
   --accent-green-bg: rgba(74,140,92,0.14);
   --accent-green-border: rgba(74,140,92,0.40);
   --accent-purple-text: #4a3b52;     /* plum */
@@ -506,7 +522,7 @@
   --danger: #c0392b;
   --danger-bg: rgba(192,57,43,0.10);
   --danger-border: rgba(192,57,43,0.35);
-  --danger-text: #b02a1c;
+  --danger-text: color-mix(in srgb, #b02a1c 66%, black);
 }
 
 /* =============================================================================
