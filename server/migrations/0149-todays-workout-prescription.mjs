@@ -138,16 +138,23 @@ export async function up({ gridId, grid, models, log, dryRun }) {
         rule("$ex.meta.feedSourceId", "IS_EMPTY"),
       ], [
         A({ type: "INCREMENT_VAR", name: "$n", by: 1 }),
-        A({ type: "INIT_VAR", name: "$nTxt", value: "${$n}" }),
+        // SET_VAR, NOT INIT_VAR, wherever the value must be RESOLVED.
+        // `INIT_VAR` assigns `cfg.value` RAW — no interpolation, no `literal:`
+        // stripping — so `value: "${$n}"` stored the six literal characters
+        // `${$n}` and every `IS "1"` below was false forever. That is the same
+        // defect fixed in `SET_VAR` earlier today and documented one case below
+        // it on `MULTIPLY_VAR`: three sibling cases, one mistake. `SET_VAR`
+        // resolves `cfg.expr ?? cfg.value`, so it is the one to reach for.
+        A({ type: "SET_VAR", name: "$nTxt", value: "${$n}" }),
         // Movement is MULTI-select: the value is an ARRAY of ids.
         A({ type: "INIT_VAR", name: "$mvIds", expr: `$ex.fields.${MV}.value` }),
         A({ type: "JOIN_ARRAY", name: "$mvIds", by: ", ", to: "$mvId" }),
         A({ type: "INIT_VAR", name: "$mv", expr: "$allItemsById.${$mvId}" }),
         A({ type: "INIT_VAR", name: "$mvName", expr: "$mv.moduleLabel" }),
-        A({ type: "INIT_VAR", name: "$status", value: "literal:not yet" }),
+        A({ type: "SET_VAR", name: "$status", value: "literal:not yet" }),
         IF([rule(`$ex.fields.${CMP}.value`, "IS", "true")],
            [A({ type: "SET_VAR", name: "$status", value: "literal:done" })]),
-        A({ type: "INIT_VAR", name: "$text", value: "${$mvName} — ${$status}" }),
+        A({ type: "SET_VAR", name: "$text", value: "${$mvName} — ${$status}" }),
         ...names.map((n, i) => IF([rule("$nTxt", "IS", String(i + 1))],
           [A({ type: "UPDATE", path: `$goalItem.fields.${fid[n]}.value`, value: "$text" })])),
       ]),

@@ -716,7 +716,25 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           initVal = resolveExpr(cfg.fallback2, $vars);
         }
       } else {
-        initVal = cfg.value;
+        // RESOLVE `value` TOO — the third case in this family to need it.
+        // This assigned `cfg.value` RAW, so `value: "${$n}"` stored six literal
+        // characters and `value: "literal:"` stored the eight-character word.
+        // `resolveExpr` is what performs `${...}` interpolation and strips the
+        // `literal:` prefix, and it was never reached; a step written that way
+        // then failed every comparison made against it, silently.
+        //
+        // `SET_VAR` had the identical defect (fixed 2026-08-19) and
+        // `MULTIPLY_VAR`'s own comment records it a third time. Measured on poms
+        // grid before changing a shared case: of 295 INIT_VAR steps, 221 use
+        // `expr` and are untouched; 73 use `value`, of which 39 are numbers, 5
+        // objects and 28 plain strings — all returned unchanged by resolveExpr —
+        // and exactly ONE changes: `Schedule: Place Cycle Day`'s
+        // `$cycTplId = "literal:"`, which was meant to be empty and was holding
+        // the word. That is a fix, not a regression.
+        // Only when there IS a value: `resolveExpr(undefined)` returns null,
+        // which would satisfy the `!== undefined` guard below and assign null
+        // where a step carrying NEITHER key has always defaulted to 0.
+        initVal = cfg.value === undefined ? undefined : resolveExpr(cfg.value, $vars);
       }
       $vars[cfg.name] = initVal !== undefined ? initVal : 0;
       break;
