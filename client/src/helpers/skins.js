@@ -18,7 +18,7 @@
 // A skin may PIN a theme (`theme`). Without that, a light theme under a dark
 // skin is reachable in two clicks and reads as broken.
 
-import { STARDEW_PALETTE } from "./skinPalettes";
+import { STARDEW_PALETTE, BLUEPRINT_PALETTE } from "./skinPalettes";
 
 export const DEFAULT_SKIN = "retro-rainbow";
 
@@ -128,6 +128,40 @@ export const SKINS = [
     // carrying one — but well under opaque, so the wallpaper reaches through.
     storedColorAlpha: 0.42,
     palette: STARDEW_PALETTE,
+  },
+
+  // ── Blueprint ────────────────────────────────────────────────────────────
+  // A custom skin for a second grid (user, 2026-08-19: "on the claude grid,
+  // change up the theme … custom"), and deliberately the one that proves the
+  // system takes more than a picture: its wallpaper is a GENERATED CSS pattern,
+  // not a file. `--grid-wallpaper` is spliced into a `background-image` list, so
+  // any value that property accepts works — a gradient costs no bytes, scales to
+  // any viewport without cropping, and cannot be the wrong aspect ratio.
+  //
+  // It PINS the dark theme rather than shipping a sixth 71-token block: the
+  // navy-and-cyan look this wants is what `moduli-dark` already is. A skin only
+  // needs its own theme when no existing one is close, which was true of
+  // Stardew's parchment and is not true here.
+  {
+    id: "blueprint",
+    label: "Blueprint",
+    description: "Drafting paper — navy ground, cyan rule, no photo",
+    swatches: ["#0b1a2b", "#1e4a6d", "#5bc8f5"],
+    theme: "moduli-dark",
+    // Two grids of lines, coarse over fine, the way drafting paper is ruled.
+    wallpaper: 'repeating-linear-gradient(0deg, rgba(91,200,245,0.16) 0 1px, transparent 1px 88px), ' +
+               'repeating-linear-gradient(90deg, rgba(91,200,245,0.16) 0 1px, transparent 1px 88px), ' +
+               'repeating-linear-gradient(0deg, rgba(91,200,245,0.07) 0 1px, transparent 1px 22px), ' +
+               'repeating-linear-gradient(90deg, rgba(91,200,245,0.07) 0 1px, transparent 1px 22px)',
+    rainbow: false,
+    // The rule is the point, so almost nothing sits over it: a low scrim, and
+    // surfaces translucent enough to read the grid through them.
+    wallpaperScrim: 0.30,
+    headerScrim: 0.55,
+    panelScrim: 0.55,
+    surfaceAlpha: 0.34,
+    storedColorAlpha: 0.40,
+    palette: BLUEPRINT_PALETTE,
   },
 ];
 

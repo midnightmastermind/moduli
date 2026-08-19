@@ -81,6 +81,23 @@ export const STARDEW_PALETTE = {
   // LIGHTER colour, or the ink on top of it loses its background again.
 };
 
+/**
+ * Blueprint — a drafting palette, so the hue anchors are deliberately NARROW.
+ * Stardew spreads across the whole wheel because a farm does; a blueprint is
+ * ink on paper, and its whole character is that everything sits in one cold
+ * family. The nine dimensions stay separable because `huePull` still leaves
+ * them apart within it, and because saturation and lightness carry the rest of
+ * the difference.
+ */
+export const BLUEPRINT_PALETTE = {
+  id: "blueprint",
+  hues: [196, 210, 224, 172],
+  satRange: [30, 62],
+  lightRange: [40, 68],
+  huePull: 0.45,
+  sourceLightRange: [22, 58],
+};
+
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 
 /** Circular distance between two hues, in degrees (0-180). */
