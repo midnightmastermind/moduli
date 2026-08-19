@@ -6,6 +6,61 @@
 
 ---
 
+### 2026-08-19 (5) — the slot TEMPLATE carried yesterday's date, and every copy inherited it
+
+User: *"a bunch of timeslots are still missing for today"*, then *"fix the reason those timeslots
+broke too."*
+
+**NOTHING WAS MISSING, AND THAT WAS THE FIRST THING TO ESTABLISH.** Today's column held all 48
+half-hour slots, listed, in clock order, 0 parented-but-unlisted — so this was never the 2026-07-30
+link failure the symptom resembles. **21 of its 49 children carried `Date = 2026-08-18`** while the
+grid, the page and the column all filtered on today, so the filter hid them. Driven through the REAL
+`isOccurrenceVisible` over live data, **with a control** (the same slot re-dated to today comes back
+visible, so the selector is not simply rejecting everything):
+```
+VISIBLE 28   HIDDEN 21
+first visible   5:00am            <- the earlier report, "only 5am and beyond"
+hidden          12:00am-4:30am
+                7:30am-12:00pm    <- this report, "a bunch still missing"
+```
+**Both of the user's reports are one defect seen from two positions in the day** — which is why the
+first one looked like a start-of-day problem and the second like a middle-of-day one.
+
+**THE CAUSE IS ONE LEVEL UP, found by following `meta.copyLinkSource` rather than theorising.** Every
+one of the 21 is a COPY_LINK copy of a slot in the **`Day` template**, and 21 of that template's 55
+nodes carry 2026-08-18. COPY_LINK copies a source's FIELDS, so **every day column minted from it is
+born with a date that is already wrong.** CLAUDE.md 2026-07-30 (2) states the rule in one line —
+*"repair the masters and the copies in the same pass"* — and only the copies had ever been repaired.
+`0144` cleared today's copies; `0145` cleared the master.
+
+**IT CLEARS RATHER THAN RE-STAMPS, and a second grid is what settles that.** 28 of the 49 children
+carry NO date and render fine: the COLUMN carries the day and the cascade resolves visibility.
+Stamping today's date works today and goes stale tomorrow — the trade 2026-08-11 (2) refused for
+trackers. **test grid 1 has 61 copy-link sources and 0 dated**, which is the healthy shape stated by
+something other than my own reasoning.
+
+**SCOPED STRUCTURALLY, NAMING NO DOMAIN CONCEPT.** The rule is *"an occurrence something copy-links
+FROM must not carry a value in a field the grid FILTERS on"*, and the filter fields are read off the
+grid's own `activeFilterValues` and `namedFilters[].conditions[].fieldId`. Nothing learns what a
+schedule or a timeslot is — `noDomainKnowledge` stays satisfied.
+
+**AND THE CLASS IS LOUD NOW.** `gridIntegrity` gains **`dated-copy-link-source`**. It fired on the
+live defect BEFORE the repair (21) and reports 0 after — a rule nobody has watched fail is a guess.
+A/B'd: disabling the predicate fails exactly the one test that asserts it flags and none of the four
+that assert it stays quiet (a source with no filter value, a value in an unfiltered field, an
+occurrence nothing copies, and a grid that filters on nothing).
+
+**WHAT STAMPED THE TEMPLATE ON 2026-08-18 IS NOT ESTABLISHED, and is deliberately not guessed at.**
+The integrity rule is the answer to not knowing: the next occurrence is reported the same day
+instead of propagating into a morning of invisible slots.
+
+Only the DATE was cleared — **the `Time Slot` identity markers are untouched** (48 of 49 still carry
+one), which is the trap 2026-07-30 records: `Build Schedule`, `Alarm` and `Pomodoro: Start` all FIND
+their slot by that value, and nulling it breaks all three. poms grid **0 errors**, 914 server tests,
+deployed and prod HEAD verified.
+
+---
+
 ### 2026-08-19 (4) — the day's schedule was EMPTY because `SET_VAR` never stripped `literal:`
 
 User, mid-session: *"the schedule for today only created 5am and beyond again."*
