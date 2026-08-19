@@ -6,6 +6,58 @@
 
 ---
 
+### 2026-08-19 (3) — the BAND was a boolean, and a boolean painted Stardew's frame out
+
+Picked up the other account's session, which hit its limit mid-fix. It had just found a real
+defect — `wallpaper`, `wallpaperScrim` and the rainbow fields in the JS skin registry were
+**INERT**, read by nothing, so Blueprint (a skin defined as pure data, with no CSS block) applied
+and the retro rainbow kept painting. Its fix — `applySkin` publishes every token the registry
+names — was committed and deployed. **It works, and it shipped a regression with it.**
+
+**`rainbow: <bool>` HAD TWO MEANINGS FOR `false`, AND ONLY ONE OF THEM SURVIVED.** "No band at
+all" (the five plain skins) and "my own band, declared in CSS" — which is Stardew, whose block
+sets `--retro-rainbow` to a **wooden frame**, deliberately, so the app still has a band in that
+skin's material. Once the token was published from JS, `false` resolved to the first meaning, and
+**an inline style on `<html>` beats a `:root[data-skin=…]` rule whatever its specificity**. The
+frame vanished from poms grid. Nothing failed; it just stopped painting.
+
+**MEASURED ON PRODUCTION BEFORE CHANGING ANYTHING**, by reading the computed token both ways on
+the live document:
+```
+stardew, inline props CLEARED   --retro-rainbow: linear-gradient(90deg, #8a5a2b …)   <- the CSS
+stardew, as applySkin writes it --retro-rainbow: none                                <- what ran
+every other token               identical
+```
+So `band` is a VALUE now — `null` for no band, a CSS value for one. Three states, three values;
+the gap a boolean had is gone by construction. A/B'd: restoring `band: null` on Stardew fails
+exactly the parity test below and nothing else.
+
+**AND THE TEST WRITTEN TO PIN THIS FOUND A SECOND DRIFT, TWO DAYS OLD.**
+`skinCssParity.test.js` asserts that every skin's CSS block declares what the registry publishes
+— the only defence, since the registry always wins and the stylesheet keeps reading like the
+source of truth. It failed on `--grid-surface-a`: the stylesheet said **0.18**, and
+`StyleHelpers.SURFACE_ALPHA` has said **0.24** since 2026-08-17. In the grid that is only a
+pre-mount fallback — **but `PagePreviewApp` never publishes the token**, so every folder-page
+PREVIEW CARD has been painting its surfaces lighter than the same container in the grid. The
+comment above it claimed the two "cannot drift". They had. *A comment asserting an invariant is
+not the invariant; the test is.*
+
+**Blueprint is skipped by the parity test because it has no token block, and that is the point** —
+it is the skin that proves a new look is a DATA edit rather than a CSS one.
+
+**Verified through the REAL code path, by real clicks on production** — switching claude-grid to
+Stardew in the Appearance tab and back, rather than simulating the inline write (which is what my
+first probe did, and it proves nothing about the code that runs):
+```
+blueprint   band none                    header ::after paints nothing
+stardew     band linear-gradient(90deg…) header ::after paints rgb(138,90,43) -> rgb(176,111,48)
+restored    blueprint, byte-identical to before        0 page errors
+```
+The second column is what matters: the token being right is not the claim, the band being
+PAINTED is. 2760 client tests, build clean, prod HEAD verified, poms grid **0 errors**.
+
+---
+
 ### 2026-08-19 (2) — SKINS: a Stardew theme, per-grid, and the two numbers that were one
 
 User: *"make my current styling (the retro rainbow look) a default skin … change my main grid to use
