@@ -6,6 +6,98 @@
 
 ---
 
+### 2026-08-19 (4) — the day's schedule was EMPTY because `SET_VAR` never stripped `literal:`
+
+User, mid-session: *"the schedule for today only created 5am and beyond again."*
+
+**THE "AGAIN" POINTED AT THE WRONG BUG, and measuring said so before any code was read.**
+2026-07-30 (2) records this symptom as a LINK failure — slot copies parented to the day column but
+missing from its `occurrences[]`. Today:
+```
+today's column   48 slots, 12:00am -> 11:30pm · 49 children · 0 parented-but-unlisted
+slots holding anything                          4 of 49, the first at 6:00am
+```
+The slots were all there and correctly listed. What was missing was their CONTENTS — the day's 8
+meals and 8 movements. *A symptom that matches an old entry is a hypothesis, not a diagnosis.*
+
+**THE FIXTURE HARNESS BUILT AN HOUR EARLIER FOUND IT IN ONE RUN, and reading the pipeline had
+already produced two wrong theories.** Driving the real load sweep over poms grid's own exported
+operations, `Schedule: Place Cycle Day` emitted **0 effects**, and its run log named the step:
+```
+SET_VAR   $mine  = "literal:1"     -> stored the STRING "literal:1"
+INIT_VAR  $mine2 = $mine
+IF        $mine2 IS "1"            -> false, forever
+end, updates: []
+```
+`resolveExpr` is what strips a `literal:` prefix, and `SET_VAR` passed it **`cfg.expr` only**,
+falling back to the **RAW `cfg.value`**. A step authored with `value:` never reached the stripper,
+so the gate could never pass and the whole body was skipped — silently, with the op reporting a
+clean run every time.
+
+**THE IDENTICAL DEFECT IS DOCUMENTED ONE CASE BELOW IT.** `MULTIPLY_VAR`'s own comment: *"was
+`expr`-only, so a caller passing `by: 240` got resolveExpr(undefined) → NaN → the multiply silently
+no-op'd."* Two actions, one mistake, both silent — and the second was written *after* the first was
+found and fixed. **A fix applied to one `case` is a fix to one case; grep the neighbours.**
+
+**BLAST RADIUS MEASURED BEFORE TOUCHING A SHARED EXECUTOR CASE.** Of 55 stored `SET_VAR` steps:
+**38 on `expr`** (untouched), **17 on `value`**, of which **16 were wrong** — 13 an unstripped
+`literal:`, 3 an unresolved `$path` — and all 16 in this one op. The 17th is the bare number 7, and
+`resolveExpr` returns non-strings as-is. **Result on the same harness: 0 effects → 16**, which is
+exactly the 8 meals + 8 movements a cycle day places.
+
+**This closes the gap 2026-08-13 (2) left open** — *"the op has never fired… that only proves out
+at midnight."* It had been firing every load and exiting at its first gate the whole time.
+
+**MY OWN PROBE WAS WRONG FOUR TIMES, and each was caught before it became a claim.** A trigger's
+`targetId` is not an occurrence id (it is scoped by `subjectType` — a panel subject compares it to a
+MODULE id); an action's type lives at `step.config.type`, not `step.actionType`; the load sweep is
+fired with a **null** transaction type, not `"onLoad"`; and `executeActionItem` is POSITIONAL. The
+third one is the expensive one: called with `"onLoad"` the sweep matched **0 of 68 ops**, reported
+zero errors, and PASSED — a green test over a run that executed nothing. It was only found by
+planting a deliberately broken step and watching the test stay green. **The positive control is now
+a test of its own**, so "no errors" can never again mean "nothing ran".
+
+A/B'd: restoring the old line fails exactly the 2 tests that describe the defect; the other 4 are
+contract pins that pass either way and are kept as such. 2778 client tests, build clean, deployed,
+prod HEAD verified.
+
+**NOT VERIFIED, and it is the honest gap:** the 16 rows are proven through the real executor over
+the real data, but nobody has watched them land on the live grid — the op writes on the next client
+load, which is the user's own browser.
+
+---
+
+### 2026-08-19 (3b) — poms grid's OWN operations are under test at last; and the promo loses its charts page
+
+**THE OLDEST OPEN ITEM: not one of poms grid's 68 stored pipelines had ever been covered.**
+`liveOpsBehavioral` boots from `server/seed/*.json` — what a FRESH grid looks like — and poms grid
+has diverged by ~143 migrations. `client/src/__tests__/fixtures/pomsGrid.json.br` (**292 KB brotli,
+5.7 MB raw, 19.7x**; textmaps stripped because no action reads prose) plus
+`pomsGridOps.test.js` closes that. It asserts the load sweep runs every op without one erroring —
+**behind a control that it ran ≥20 of them at all** — plus, on the stored pipelines themselves: every
+action names an executor case, every picker-direct `$allItemsById.<id>` resolves, every op target and
+trigger target still exists. **Each is a defect this repo has actually shipped**, and it earned its
+keep within the hour (see (4) above).
+
+**THE PROMO LOSES ITS CHARTS PAGE, which is a stronger claim than the page was.** User: *"charts is
+not a top level section — fold it in with tables."* `CONVERTIBLE_CONTAINER_KINDS` is
+`["doc","board","canvas","table","graph"]` — a chart is one of the five things a container converts
+between, so a section of its own sold it as a reporting bolt-on. **Re-measuring rather than carrying
+the figures across caught two that were already stale:** the site said 4 ways to render a container
+(source: 5, since `graph` joined them on 2026-08-18) and 5 looks shipping (source: 8). Widening the
+list to what the user named exposed the two capabilities with no home at all — **filters and
+organisation** — which is now the `organise` page, in the retired one's slot.
+
+**And the sitemap test only checked one direction.** It asserted every capability page is listed; it
+had nothing to say about a listing pointing at a page that no longer exists, which is exactly what
+retiring one produces and is a 404 served to crawlers on request. A/B'd against the stale entry.
+
+Verified on production: five capability pages in the nav and the cards, `/features/build` carrying
+the fold with the corrected figure, `/features/organise` rendering, the retired route resolving to
+the not-found page, the served sitemap listing exactly the five, **0 page errors**.
+
+---
+
 ### 2026-08-19 (3) — the BAND was a boolean, and a boolean painted Stardew's frame out
 
 Picked up the other account's session, which hit its limit mid-fix. It had just found a real

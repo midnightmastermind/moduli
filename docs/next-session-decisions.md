@@ -42,7 +42,7 @@ keeps the split the user dragged for it. **Trackers ends up at 36% of the left
 column's height** (it inherited the row Tasks had) — one splitter drag if that
 reads short.
 
-## 2. Promo restructure  (NOT STARTED)
+## 2. Promo restructure  ✅ DONE — 2026-08-19
 
 - Charts is **not** a top-level section — fold it in **with tables**.
 - Widen the capability list toward: boards, docs, tables, canvases, charts,
@@ -54,15 +54,33 @@ reads short.
 - Already done: the hero leads with the workspace, `build` leads the nav, and
   the measured figures are off the landing-page cards.
 
-## 3. poms-grid operation testing  (NOT STARTED — the oldest open item)
+## 3. poms-grid operation testing  ✅ DONE — 2026-08-19
 
-`server/scripts/exportGridFixture.js` ships and works: poms grid exports as
-**68 enabled operations / 3,171 modules / 3,280 occurrences**, 5.7 MB with
-textmaps stripped, **292 KB brotli**. The fixture itself is deliberately NOT
-committed yet — it needs compressing first, and a test that drives all 68
-pipelines through the real executor the way `liveOpsBehavioral` drives the seed.
+`server/scripts/exportGridFixture.js` writes brotli now, and
+`client/src/__tests__/fixtures/pomsGrid.json.br` is committed at **292 KB**
+(5.7 MB raw, 19.7x). `client/src/__tests__/pomsGridOps.test.js` drives it.
+
+**It found a live defect on its first real use** — see the SET_VAR entry in
+CLAUDE.md. The day's schedule was empty because `Schedule: Place Cycle Day`
+exited at its first gate; the fixture's run log named the exact step in one
+run, where reading the pipeline had already produced two wrong theories.
 
 Worth doing because the existing behavioural suite boots from `server/seed/*.json`
 — i.e. what a FRESH grid looks like — and poms grid has diverged by ~120
 migrations, so **not one of its stored pipelines has ever been covered**. The
 empty Daily Question found this morning is the kind of thing it would catch.
+
+
+---
+
+## Still open after 2026-08-19 (3)
+
+- **The AI-assistant grid-build plan** the user asked for — using the assistant
+  to reproduce `claude-grid`, as a test of whether it can construct a workspace.
+  Not started. Worth stating up front what the deck-vs-now audit found: the
+  assistant is the thinnest thing that ships.
+- **Re-export the fixture after any migration that rewrites an op**, or
+  `pomsGridOps.test.js` pins pipelines the grid no longer has. It is a snapshot,
+  not a connection.
+- **Trackers sits at 36% of the left column** in the new mosaic — it inherited
+  the row Tasks had. One splitter drag if that reads short.
