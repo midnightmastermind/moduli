@@ -26,6 +26,7 @@ export default function NodePill({
   occurrence,
   module,
   onClick,
+  onDoubleClick,
   isActive = false,
   depth = 0,
   dragType = "module",
@@ -70,6 +71,7 @@ export default function NodePill({
     <div
       ref={ref}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       title={title}
       data-node-occ-id={occurrence?.id || undefined}
       style={{

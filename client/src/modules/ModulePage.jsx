@@ -783,7 +783,24 @@ function Page({
                   const occ = { id: occId, userId: ctxUserId, gridId: ctxGridId, moduleId: id, fields: {} };
                   CommitHelpers.createOccurrence({ dispatch, socket, occurrence: occ, emit: true });
                   const updatedOccs = [...(occurrence.occurrences || []), occId];
-                  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: occurrence.id, occurrences: updatedOccs }, emit: true });
+                  const patch = { id: occurrence.id, occurrences: updatedOccs };
+                  // A DOC page renders its TEXTMAP and nothing else, so a
+                  // container that is only LISTED is present in the data and
+                  // invisible on screen — the listed-but-not-embedded class
+                  // this repo has repaired from five directions. Listing it is
+                  // still right (it is a real child); the embed is what makes
+                  // the page draw it.
+                  if (pageModule?.kind === "doc") {
+                    const tm = occurrence.textmap && typeof occurrence.textmap === "object"
+                      ? occurrence.textmap
+                      : { type: "doc", content: [] };
+                    patch.textmap = {
+                      ...tm,
+                      content: [...(Array.isArray(tm.content) ? tm.content : []),
+                                { type: "moduleEmbed", attrs: { occurrenceId: occId } }],
+                    };
+                  }
+                  CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: patch, emit: true });
                 }}
                 createLabel="New container"
                 hostOccurrence={occurrence}

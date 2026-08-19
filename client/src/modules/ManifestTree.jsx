@@ -51,6 +51,12 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
   const [childCollapseGen, setChildCollapseGen] = useState(0);
   const [dropEdge, setDropEdge] = useState(null); // "top" | "bottom" | null
   const dropEdgeRef = useRef(null);
+  // Inline rename — the same double-click affordance a FOLDER row has had all
+  // along. A doc row never got one, so the "Untitled" the tree's own "+" mints
+  // could not be named from the place it was created (claude-grid, 2026-08-18).
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const renameInputRef = useRef(null);
   // When parent collapses and re-opens, children start collapsed
   const [lastGen, setLastGen] = useState(collapseGen);
   if (collapseGen !== lastGen) {
@@ -95,6 +101,27 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
   const heading = getDocHeading(occ.textmap);
   const displayLabel = heading || label;
   const isActive = occ.id === activeOccurrenceId;
+
+  // The row shows `heading || label`, so renaming is offered ONLY when there is
+  // no heading: with one, the module label is written and the heading still
+  // wins, i.e. the rename would visibly do nothing. A control that appears to
+  // work and does not is worse than no control — and when a doc HAS a heading,
+  // that heading IS its name and is edited in the document.
+  const canRename = !isAnchor && !heading && !!mod && !!dispatch && !!socket;
+
+  const commitRename = useCallback(() => {
+    setIsRenaming(false);
+    const trimmed = renameValue.trim();
+    if (!trimmed || trimmed === (mod?.label || "")) return;
+    CommitHelpers.updateModule({ dispatch, socket, module: { id: mod.id, label: trimmed }, emit: true });
+  }, [renameValue, mod, dispatch, socket]);
+
+  useEffect(() => {
+    if (isRenaming && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [isRenaming]);
 
   // Drop target for reorder — accept artifact drags between siblings
   const rowRef = useRef(null);
@@ -196,10 +223,34 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
           onClick={(e) => { if (showAnchors && hasChildren) { e.stopPropagation(); toggleOpen(); } }}>
           <ChevronRight size={8} style={{ opacity: 0.35, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.12s" }} />
         </span>
+        {isRenaming ? (
+          <input
+            ref={renameInputRef}
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); commitRename(); }
+              else if (e.key === "Escape") { setIsRenaming(false); }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              flex: 1, minWidth: 0, fontSize: 11, padding: "2px 6px",
+              background: "var(--input-bg)", color: "var(--text-primary)",
+              border: "1px solid var(--accent-blue)", borderRadius: 4,
+              fontFamily: "var(--font-mono)",
+            }}
+          />
+        ) : (
         <NodePill
           occurrence={occ}
           module={{ ...mod, label: displayLabel }}
           onClick={() => onSelect(occ.id)}
+          onDoubleClick={canRename ? ((e) => {
+            e.stopPropagation();
+            setRenameValue(mod?.label || "");
+            setIsRenaming(true);
+          }) : undefined}
           isActive={isActive}
           depth={depth}
           dragData={{ type: "artifact", occurrenceId: occ.id, parentId: occ.parentId }}
@@ -225,6 +276,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
             <span style={{ fontSize: 8, color: "var(--text-faint)", flexShrink: 0 }} title="Default page">&#x1F4CC;</span>
           )}
         </NodePill>
+        )}
       </div>
       {showAnchors && hasChildren && open && (
         <div style={{ paddingBottom: 4 }}>
