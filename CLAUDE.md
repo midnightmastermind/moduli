@@ -6,6 +6,56 @@
 
 ---
 
+### 2026-08-19 (6) — the pills assumed a DARK surface, and six probes were wrong before one was right
+
+User: *"the account dropdowns are very hard to read currently color wise"*, *"any dropdown select
+really is hard to read"*, *"ingrediant too"* — with a screenshot of the live grid under Stardew.
+
+**THREE CONTROLS HARDCODED A DARK-SURFACE COLOUR instead of a theme token:**
+```
+compact SELECT pill   bg-white/5 border-white/10 text-white/60
+compact DATE pill     bg-white/5 border-white/10 text-white/55
+multi-select CHIPS    bg-primary/20 text-primary
+```
+White ink at 55-60% opacity is fine over near-black and gone over cream — and `--primary` is
+near-WHITE in the base `:root`, so a chip's legibility depended on whether its theme happened to
+redefine it. All three now use `--occ-pill` / `--occ-pill-text`, the pair that exists for exactly
+this and that all six themes define against their own surface. The boolean OFF pill had the same
+assumption with no text (`bg-white/5`), so on a light theme it had no visible box at all.
+
+**THE TOKEN ALONE WAS NOT ENOUGH, and only measuring showed it.** Stardew's `--occ-pill-text` was a
+MID brown scoring **3.76:1** against the pill it sits on. It follows `--foreground-1` now — the ink
+the theme already uses for prose — which computed to 5.66 and **measured 5.71**. The same held one
+level out: the value pills are `rgba(signal / 0.2)`, so on cream a mid-tone ink of the same hue is
+the same luminance as its own fill (green **1.8:1**, blue 2.3, red 2.0). Those inks are
+`color-mix(in srgb, rgb(var(--signal-*)) 32%, black)` now — **derived from the signal hue, so
+retinting a signal moves its ink with it and the two cannot drift.**
+```
+Stardew   select 1.52 -> 5.05    date 1.39 -> 5.22    green value 1.8 -> 4.9-5.4
+Blueprint values unchanged at 7.5-11:1
+```
+
+**SIX PROBES WERE WRONG BEFORE ONE WAS RIGHT, and the sequence is the lesson.** (1) A regex for
+`rgba()` scored an `oklab()` colour as BLACK and reported 1.12:1 on pills that were merely faint —
+Tailwind opacity utilities compile to `oklab`. (2) Canvas `fillStyle` does not normalise `oklab`
+either, so the retry inherited a `#000` fallback and produced the identical wrong number. (3) A
+CSS background-compositing walk stopped at the wrong layer and scored legible green pills at 1.26.
+(4) Switching to RENDERED PIXELS finally worked — until (5) the ink-picker chose the 0.7-opacity
+LABEL rather than the value, making a fixed pill look unfixed. (6) And with that corrected, three
+rows still read as near-white ink: the probe had mistaken **a bright cloud in the wallpaper**,
+showing through a translucent pill, for the text. *The pixel method is only ground truth when the
+background is uniform; behind a wallpaper it is not.* Settled by reading the computed colour
+(`rgb(52,31,14)` — correct) and then LOOKING at the render.
+
+**The standing rule earns restating in its strongest form: a colour claim is not settled by a
+number until the number has been shown to move on a case you already know the answer to.** Every
+wrong probe here produced a plausible, precise, quotable figure.
+
+CSS-only for the signal inks, so it is scoped to one theme block and no other skin can be affected.
+2778 client tests. Deployed and verified by looking, on both skins.
+
+---
+
 ### 2026-08-19 (5) — the slot TEMPLATE carried yesterday's date, and every copy inherited it
 
 User: *"a bunch of timeslots are still missing for today"*, then *"fix the reason those timeslots
