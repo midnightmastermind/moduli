@@ -86,19 +86,18 @@ export const SKINS = [
   {
     id: "stardew",
     label: "Stardew Valley",
-    description: "Pixel-art farm at sunset, wooden panels, dark ink",
-    swatches: ["#c9315f", "#e8842d", "#7ec850"],
+    description: "Pixel-art mountains, wooden panels, dark ink",
+    swatches: ["#3fa9f5", "#4cc93f", "#2e7d32"],
     // Stardew's UI is dark ink on cream inside a wooden frame — a LIGHT theme.
     // Pinned, because the whole look collapses under a dark one.
     theme: "stardew",
     wallpaper: 'url("/stardew-wallpaper.webp")',
     rainbow: false,
     // STARDEW PANELS ARE SOLID WOOD, NOT GLASS. The retro skin keeps surfaces
-    // near-transparent so the wallpaper reads THROUGH them; that is wrong here
-    // twice over — the game's panels are opaque, and the wallpaper the user
-    // chose is busy edge to edge and hot in the mid-tones, so translucent cards
-    // would put small text over a sunset. The art reads in the GUTTERS between
-    // panels instead, which is also how the game frames its own UI.
+    // near-transparent so the wallpaper reads THROUGH them; that is wrong here —
+    // the game's panels are opaque, and translucent cards would put 11px text
+    // over a sky. The art reads in the GUTTERS between panels instead, which is
+    // also how the game frames its own UI.
     wallpaperScrim: 0.22,
     headerScrim: 0.92,
     panelScrim: 0.92,
