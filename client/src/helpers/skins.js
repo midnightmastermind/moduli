@@ -106,6 +106,27 @@ export const SKINS = [
     // art is behind the TEXT rather than beside it, so it needs dimming to give
     // the ink its background back. That is the same knob, in the same
     // direction, that CLAUDE.md 2026-08-17 records as the one to turn.
+    // SEMI-TRANSPARENT, LIKE THE RETRO SKIN (user, 2026-08-19: "i still cant
+    // see that background … every occurance background should be semi
+    // transparent like we had on our rainbow theme").
+    //
+    // THIS REVERSES MY OWN REASONING, and the reversal is worth keeping. I
+    // argued that Stardew's panels are solid wood so the art should read in the
+    // GUTTERS — faithful to the game, and measured, it meant the wallpaper
+    // covered about 2% of what you look at. Whether the workspace shows its
+    // background is a product call, not a fidelity one.
+    //
+    // The scrim goes UP as the surfaces come down: with translucent panels the
+    // art sits behind the TEXT rather than beside it, so it needs dimming to
+    // give the ink its background back. Same knob, same direction, as
+    // CLAUDE.md 2026-08-17 records.
+    wallpaperScrim: 0.52,
+    headerScrim: 0.55,
+    panelScrim: 0.55,
+    surfaceAlpha: 0.30,
+    // Above the surface alpha — a card carrying a colour should read as
+    // carrying one — but well under opaque, so the wallpaper reaches through.
+    storedColorAlpha: 0.42,
     palette: STARDEW_PALETTE,
   },
 ];

@@ -189,14 +189,19 @@ describe("two alphas, not one", () => {
   // again — three nested fills, with the theme's dark ink barely readable on
   // top. What a SKIN wants opaque is its own cream panel; what a stored colour
   // means is "this belongs to the Physical dimension", which is an accent.
-  it("Stardew keeps its panels opaque and its stored colours meaningfully lighter", () => {
-    // The absolute number moved once already (0.28 -> 0.55, because 0.28 washed
-    // the cards out). What must NOT move is the relationship: the skin's own
-    // panel is the opaque surface, and a stored colour is an accent ON it. An
-    // absolute floor would just have to be edited every time the look is tuned.
+  it("Stardew is TRANSLUCENT — the wallpaper has to reach through the occurrences", () => {
+    // This contract INVERTED on 2026-08-19 and the title moved with it. It used
+    // to read "panels opaque, stored colours lighter", from my own argument that
+    // Stardew's panels are solid wood so the art should read in the gutters.
+    // Measured, that meant the wallpaper covered ~2% of the screen, and the user
+    // asked for the retro skin's behaviour instead: "every occurance background
+    // should be semi transparent". So both alphas are well under 1, and the
+    // stored colour is now the MORE present of the two — a card carrying a
+    // colour should read as carrying one against a translucent panel.
     const sd = getSkin("stardew");
-    expect(sd.surfaceAlpha).toBeGreaterThan(0.8);
-    expect(sd.storedColorAlpha).toBeLessThan(sd.surfaceAlpha - 0.25);
+    expect(sd.surfaceAlpha).toBeLessThan(0.6);
+    expect(sd.storedColorAlpha).toBeLessThan(0.6);
+    expect(sd.storedColorAlpha).toBeGreaterThan(sd.surfaceAlpha);
   });
 
   it("every skin declares both, so neither silently falls back", () => {
