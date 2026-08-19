@@ -6,6 +6,43 @@
 
 ---
 
+### 2026-08-19 (8) — the pill border was THERE and did nothing; and a text pill painted a hardcoded green
+
+User: *"those pills need a border, at least in the stardew valley one."*
+
+**THE BORDER EXISTED.** Measured on the live grid rather than assumed absent: `1px solid
+rgba(var(--occ-pill) / 0.30)`. On Stardew that composites to about **rgb(168,143,108) against a
+rgb(164,157,133) surface** — a few points apart, which is not an edge. *"Needs a border" and "has a
+border that resolves to its own background" look identical on screen and are fixed differently.*
+
+**AND NO SINGLE ALPHA IS RIGHT FOR BOTH FAMILIES, which is why this is a token rather than a
+number.** The green value pills beside it look fine at the SAME 0.30-0.35 alpha, because green
+separates from cream and brown does not. Raising it globally would over-draw every dark theme. So
+`--occ-pill-border` defaults in the JS to today's value — **every dark theme is byte-identical** —
+and the three light themes set
+`color-mix(in srgb, rgb(var(--occ-pill)) 55%, hsl(var(--foreground-1)))`: the pill's own hue mixed
+with the theme's ink, so the edge stays HUED instead of becoming a neutral outline. Verified
+resolved on prod at **rgb(120,75,33)**, which is the value the mix was chosen to produce. The
+multi-select chips had no border at all and take the same one.
+
+**THE SAME INSPECTION FOUND A HARDCODED COLOUR, which is the more interesting half.**
+`valueSignPillTint`'s final branch — the one a TEXT value falls through to — returned a literal
+`rgba(34,197,94, ...)` emerald while every other branch reads `--signal-*`. So a text pill ignored
+the theme entirely and sat beside a number pill **in a different green**: Stardew's `--signal-pos`
+is a muted (74,158,63), the literal was (34,197,94). Nobody would report that as a bug; it just
+looks slightly off. Confirmed reading the token on prod after the change.
+
+**Deliberately left:** `FLOW_TINTS` is a fixed three-colour semantic palette for in/replace/out, not
+a theme surface, and is documented as such.
+
+**A WORKFLOW NOTE, third occurrence today: `deploy.sh` runs its own `git add -A`,** so editing and
+then deploying absorbs the work into a `deploy: update site` commit and discards the prepared
+message. The reasoning survives in the code comments, but the fix is to COMMIT FIRST, then deploy.
+
+2778 client tests, deployed, verified by looking.
+
+---
+
 ### 2026-08-19 (7) — the other two LIGHT themes had it worse, and one of them needed a DIFFERENT fix
 
 (6) fixed Stardew because that is what the user runs. It left a note that `moduli-light` and
