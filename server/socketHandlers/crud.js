@@ -14,6 +14,8 @@ import { classifyFileDelete, filesFolderIdSet } from "../utils/filesFolder.js";
 import { recordDoc } from "../utils/txRecorder.js";
 import { registerPendingOccCreate } from "../utils/pendingOccCreates.js";
 import { planOrphanModules, collectReferencedModuleIds } from "../utils/orphanModules.js";
+import { occurrencesEmbedding } from "../utils/scrubEmbeds.js";
+import { compressTextmap } from "../utils/textmapCompression.js";
 
 export function registerCrudHandlers(socket, {
   ensureUserCache, userCacheReady, loadUserIntoCache,
@@ -363,6 +365,27 @@ export function registerCrudHandlers(socket, {
           uc.occurrencesById[next.id] = next;
           socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: next });
         }
+      }
+
+      // ── A DOC THAT EMBEDDED WHAT WAS JUST DELETED ───────────────────────
+      // A doc renders its TEXTMAP, so an embed node pointing at a deleted
+      // occurrence paints as raw junk — `embed: <uuid>` in the middle of the
+      // prose. Seen on claude-grid 2026-08-19 after deleting, through the UI, a
+      // container that had been added to a doc page.
+      //
+      // Scoped to the ids this delete just removed (see utils/scrubEmbeds.js for
+      // why that is the difference between this and the 2026-08-01 scrub that
+      // was itself the regression). Skipped entirely when nothing embeds them,
+      // which is the common case — most deletes are board rows.
+      for (const { occ, textmap } of occurrencesEmbedding(uc.occurrencesById, toDelete)) {
+        const next = { ...occ, textmap };
+        recordChange({ model: "occurrence", id: occ.id, before: occ, after: next, payload });
+        uc.occurrencesById[occ.id] = next;
+        await Occurrence.findOneAndUpdate(
+          { id: occ.id, userId },
+          { textmap: compressTextmap(textmap) },
+        );
+        socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: next });
       }
 
       // ── THE MODULE BEHIND A DELETED PLACEMENT ───────────────────────────
