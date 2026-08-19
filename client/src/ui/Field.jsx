@@ -93,6 +93,15 @@ export const OCC_PILL = {
   // brown does not, so no single alpha is right for both. The default below is
   // today's value exactly, so every DARK theme is unchanged; the light themes
   // override it.
+  //
+  // THE FIRST PASS FIXED THREE CALL SITES AND THERE WERE TEN. The OCCURRENCE
+  // dropdowns — the ones a user actually names, because they are the ones with
+  // words in them — render through `MultiSelectWithAdd` and four other
+  // wrappers, each carrying its OWN hardcoded `rgba(var(--occ-pill) / 0.25)`:
+  // LIGHTER than the pills the first pass fixed, which is exactly why the
+  // report came back as "they do, they are just way too light". All seven read
+  // the token now, each keeping its own alpha as the dark-theme fallback.
+  // GREP `--occ-pill` BEFORE ADDING AN ELEVENTH.
   border: "var(--occ-pill-border, rgba(var(--occ-pill) / 0.30))",
   text:   "var(--occ-pill-text)",
 };
@@ -214,7 +223,7 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
       <div className={compact
         ? "inline-flex items-stretch rounded-full border overflow-hidden"
         : "flex items-stretch w-full rounded border overflow-hidden h-7"}
-        style={{ borderColor: fieldName ? "rgba(var(--occ-pill) / 0.25)" : "var(--input-border, hsl(var(--border)))",
+        style={{ borderColor: fieldName ? "var(--occ-pill-border, rgba(var(--occ-pill) / 0.25))" : "var(--input-border, hsl(var(--border)))",
                  ...(compact && fieldName ? { background: "rgba(var(--occ-pill) / 0.1)" } : {}) }}>
         <Popover open={isOpen} onOpenChange={setIsOpen}>
           <PopoverTrigger asChild>
@@ -1251,7 +1260,7 @@ function Field({
           }}
           className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full border transition-all
             ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
-          style={{ background: "rgba(var(--occ-pill) / 0.1)", borderColor: "rgba(var(--occ-pill) / 0.25)", color: "var(--occ-pill-text)" }}
+          style={{ background: "rgba(var(--occ-pill) / 0.1)", borderColor: "var(--occ-pill-border, rgba(var(--occ-pill) / 0.25))", color: "var(--occ-pill-text)" }}
           title={`${name}: ${localValue || "no image"} — click to set`}
         >
           {src
@@ -1515,7 +1524,7 @@ function Field({
       return (
         // Border on the wrapper so the randomize dice sits INSIDE the pill.
         <div className="field-input inline-flex items-stretch rounded-full border overflow-hidden"
-          style={{ background: "rgba(var(--occ-pill) / 0.1)", borderColor: "rgba(var(--occ-pill) / 0.25)" }}>
+          style={{ background: "rgba(var(--occ-pill) / 0.1)", borderColor: "var(--occ-pill-border, rgba(var(--occ-pill) / 0.25))" }}>
         <Popover>
           <PopoverTrigger asChild>
             <button type="button" disabled={disabled}
@@ -1526,7 +1535,24 @@ function Field({
             >
               <Link2 style={{ width: 10, height: 10, opacity: 0.6 }} />
               {!hideName && name && <span style={{ opacity: 0.7 }}>{name}:</span>}
-              <span>{currentLabel}</span>
+              {/* THE SELECTION IS A CHIP, exactly as the multi-select renders
+                  each of its own (user, 2026-08-19: *"make selectors like meal
+                  show a pill inside like ingredient does. so one selected
+                  should look like one that has multiple selected"*).
+                  A single-pick and a multi-pick over the same board were two
+                  different-looking controls for the same idea; one is now the
+                  N=1 case of the other, down to the clear button.
+                  EMPTY STAYS PLAIN — a chip around an em-dash reads as a
+                  selection you cannot remove. */}
+              {localValue
+                ? <span className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded-full"
+                    style={{ background: OCC_CHIP.bg, color: OCC_CHIP.text,
+                             border: `1px solid ${OCC_PILL.border}` }}>
+                    {currentLabel}
+                    <X className="h-2.5 w-2.5 cursor-pointer"
+                      onClick={e => { e.stopPropagation(); handleChange(null); onCommit?.(null); }} />
+                  </span>
+                : <span>{currentLabel}</span>}
               <ChevronDown style={{ width: 10, height: 10, opacity: 0.5 }} />
             </button>
           </PopoverTrigger>
@@ -1622,7 +1648,7 @@ function Field({
               }}
               className={`inline-flex items-center gap-2 px-2 py-1 text-xs rounded border transition-all self-start
                 ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
-              style={{ background: "rgba(var(--occ-pill) / 0.1)", borderColor: "rgba(var(--occ-pill) / 0.25)", color: "var(--occ-pill-text)" }}
+              style={{ background: "rgba(var(--occ-pill) / 0.1)", borderColor: "var(--occ-pill-border, rgba(var(--occ-pill) / 0.25))", color: "var(--occ-pill-text)" }}
               title={`${name}: ${localValue || "no image"} — click to set`}
             >
               {src
@@ -1674,7 +1700,7 @@ function Field({
               ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
             style={{
               background: "rgba(var(--occ-pill) / 0.1)",
-              borderColor: "rgba(var(--occ-pill) / 0.25)",
+              borderColor: "var(--occ-pill-border, rgba(var(--occ-pill) / 0.25))",
               color: "var(--occ-pill-text)",
               maxWidth: "100%",
             }}
@@ -1933,7 +1959,7 @@ function Field({
           {showLabel && <span style={inputLabelStyle}>{name}</span>}
           {/* Border on this row so the randomize dice sits INSIDE the pill. */}
           <div className="inline-flex items-stretch self-start overflow-hidden"
-            style={{ background: "rgba(var(--occ-pill) / 0.08)", border: "1px solid rgba(var(--occ-pill) / 0.25)", borderRadius: 5 }}>
+            style={{ background: "rgba(var(--occ-pill) / 0.08)", border: "1px solid var(--occ-pill-border, rgba(var(--occ-pill) / 0.25))", borderRadius: 5 }}>
           <Popover open={selectOpen} onOpenChange={setSelectOpen}>
             <PopoverTrigger asChild>
               <button type="button" disabled={disabled}
@@ -2177,7 +2203,7 @@ function Field({
     if (type === "occurrence") {
       return (
         <div className="field-display field-display-compact" style={{ ...pillBase,
-          background: "rgba(var(--occ-pill) / 0.1)", borderColor: "rgba(var(--occ-pill) / 0.25)", color: "var(--occ-pill-text)",
+          background: "rgba(var(--occ-pill) / 0.1)", borderColor: "var(--occ-pill-border, rgba(var(--occ-pill) / 0.25))", color: "var(--occ-pill-text)",
         }}>
           <Link2 style={{ width: 10, height: 10, opacity: 0.6 }} />
           {!hideName && name && <span style={{ opacity: 0.6 }}>{name}:</span>}
