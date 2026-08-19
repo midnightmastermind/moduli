@@ -21,11 +21,19 @@
 // deliberately lossy, and the header says so in case anyone reaches for it as a
 // restore.
 //
+// IT IS COMMITTED BROTLI'D, and that is not premature tidying. Even with
+// textmaps stripped the JSON is ~5.7 MB, which is a file nobody can review in a
+// diff and which bloats every clone forever. Brotli takes it to ~0.3 MB — a
+// 20x saving on data that is one enormous line either way, so nothing is lost
+// to readability that was ever there. The test decompresses it in memory; there
+// is no build step and no checked-in derived copy to drift.
+//
 // Usage:
 //   node --env-file=server/.env server/scripts/exportGridFixture.js \
 //     --grid "poms grid" [--user josh@jpoms.com] [--out <path>]
 import mongoose from "mongoose";
 import { writeFileSync, mkdirSync } from "fs";
+import { brotliCompressSync, constants as zlibConstants } from "zlib";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 import User from "../models/User.js";
@@ -80,14 +88,24 @@ async function main() {
     operations: slim(operations),
   };
 
-  const out = arg("--out", resolve(REPO_ROOT, "client/src/__tests__/fixtures/pomsGrid.json"));
+  const out = arg("--out", resolve(REPO_ROOT, "client/src/__tests__/fixtures/pomsGrid.json.br"));
   mkdirSync(dirname(out), { recursive: true });
-  writeFileSync(out, JSON.stringify(fixture));
-  const kb = Math.round(Buffer.byteLength(JSON.stringify(fixture)) / 1024);
+  const json = Buffer.from(JSON.stringify(fixture));
+  // Quality 11 is the slow end of brotli and the right end here: this is
+  // written once by hand and read on every test run.
+  const packed = brotliCompressSync(json, {
+    params: {
+      [zlibConstants.BROTLI_PARAM_QUALITY]: 11,
+      [zlibConstants.BROTLI_PARAM_SIZE_HINT]: json.length,
+    },
+  });
+  writeFileSync(out, packed);
   const enabled = operations.filter(o => o.enabled !== false).length;
   console.log(`✅ ${gridName} → ${out}`);
   console.log(`   ${modules.length} modules · ${occurrences.length} occurrences · ` +
-              `${fields.length} fields · ${operations.length} operations (${enabled} enabled) · ${kb} KB`);
+              `${fields.length} fields · ${operations.length} operations (${enabled} enabled)`);
+  console.log(`   ${Math.round(json.length / 1024)} KB raw → ${Math.round(packed.length / 1024)} KB brotli ` +
+              `(${(json.length / packed.length).toFixed(1)}x)`);
   await mongoose.disconnect();
 }
 main().catch(e => { console.error("❌", e.message); process.exit(1); });

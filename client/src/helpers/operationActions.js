@@ -722,7 +722,22 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       break;
     }
     case "SET_VAR": {
-      $vars[cfg.name] = resolveExpr(cfg.expr, $vars) ?? cfg.value ?? null;
+      // RESOLVE WHICHEVER KEY THE STEP CARRIES. This read `cfg.expr` only and
+      // fell back to the RAW `cfg.value`, so a step written `value: "literal:1"`
+      // stored the seven-character STRING "literal:1" — `resolveExpr` is what
+      // strips that prefix, and it was never reached. The step then silently
+      // failed every comparison made against it.
+      //
+      // Identical to the defect the MULTIPLY_VAR case below already records
+      // ("was `expr`-only, so a caller passing `by: 240` got
+      // resolveExpr(undefined) → NaN → the multiply silently no-op'd"). Same
+      // shape, same silence, one case further up.
+      //
+      // Measured on poms grid 2026-08-19: of 55 stored SET_VAR steps, 38 use
+      // `expr` and are unaffected; 17 use `value`, of which 16 were wrong — 13
+      // holding an unstripped `literal:` and 3 holding an unresolved `$path`.
+      // The 17th is the number 7, and `resolveExpr` returns non-strings as-is.
+      $vars[cfg.name] = resolveExpr(cfg.expr ?? cfg.value, $vars) ?? null;
       break;
     }
     case "ADD_TO_VAR": {
