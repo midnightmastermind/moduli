@@ -76,52 +76,81 @@ daily, so "Financial" is not uniformly cumulative:
 
 ---
 
-## 2. Nutritional — the plan's own numbers
+## 2. Nutritional — the amount needed in a day, with a goal against each
 
-The meal plan is already in the data and resolves: **40 meal picks across the five cycle templates,
-0 dangling**, eight meals a day (Greek Yogurt Bowl · Peanuts & Apple · Mediterranean Chicken Wrap ·
-Hard-Boiled Eggs & Pecans · Protein Shake · Grilled Chicken & Roasted Veggies · Peanuts & Apple ·
-Protein Shake), each carrying Calories/Protein/Carbs/Fats summed from its ingredients (`0120`,
-`0123`).
+**User:** *"the nutrition side should be the amount i need in a day"*, *"for cals macros and
+vitamins"*, *"i want goals to hit each of those"*, *"and the correct amount of water"*, *"and meal
+count"*.
 
-**So this is a DISPLAY gap, not a data gap.** `Meal Nutrition` and `Meal History` already compute
-today's totals.
+**The numbers exist in the user's OWN documents and must be quoted, not derived.**
 
-**Proposal:**
-1. Bind the empty `Nutrition` tile to `Calories`, `Protein`, `Carbs`, `Fats` (display) plus
-   `Meals` / `Last Meal`, which are already being written and shown nowhere.
-2. Add the plan's DAILY TARGETS as target values on those display fields, so each renders as
-   progress rather than a bare number. **The targets come from `Nutrition Plan.md` /
-   `Basic Nutrition Guide` — read the documents, do not derive them.** `0123`'s header records that
-   the plan states targets for four vitamins qualitatively and macros numerically; the exact figures
-   must be quoted from the file, and anything not stated there is left empty rather than invented,
-   the rule `0120` set for prices.
+`Nutrition Plan.md` — *Daily Macros (Approximate)*:
+```
+Calories  ~2,900 kcal      Carbs  ~150-180 g
+Protein   ~185-200 g       Fats   ~100-120 g
+```
+`Basic Nutrition Guide.md` — *Daily Nutrient & Hydration Needs*:
+```
+Water      3-4 litres daily            Fiber   25-38 g
+Vitamin D  600-800 IU                  Iron        8 mg
+Vitamin C  90 mg                       Zinc       11 mg
+Vitamin A  900 mcg                     Calcium  1,000 mg
+Vitamin B12 2.4 mcg                    Magnesium 400 mg
+Omega-3    250-500 mg                  Sodium 2,300 / Potassium 3,400 mg
+```
 
----
+**THE TWO DOCUMENTS DISAGREE, and that is the user's call, not mine.** The plan says protein
+**185-200 g** and fats **100-120 g**; the guide says protein **150-180 g** (1.0-1.2 g/lb) and fats
+**70-120 g**. The plan is the bulking programme and the guide is the general baseline, so the plan
+is the likelier intent — but picking silently would bake a 35 g/day difference into a goal.
+
+**MEASURED AGAINST WHAT THE GRID CAN ACTUALLY HOLD:**
+
+| target | field today | note |
+|---|---|---|
+| Calories / Protein / Carbs / Fats | **yes** (+ `Total *` display twins) | no `targetValue` set on any |
+| Vitamin A · C · D · B12 | **yes**, 24 rows carry values | the four the guide gives targets for |
+| Vitamin E · K · B6 · Folate | **yes**, 24 rows carry values | **no target in either document** |
+| Magnesium · Iron · Zinc · Calcium · Omega-3 · Sodium · Potassium | **NO FIELD** | the guide targets them; the grid cannot record them |
+| Water | `Daily Water` exists, 1 row with a value | guide is in LITRES, the grid records **oz** — 3-4 L = **101-135 oz** |
+| Meal count | no field | the plan is **8 meals/day**, measured off the templates |
+
+**So the work splits three ways, smallest first:**
+1. **Set `displayConfig.targetValue` on the macro + four vitamin display fields.** Cheap, and it is
+   what turns a number into a goal — the display-rules machinery already renders met/not-met.
+2. **Add `Meal Count` and give Water a target in the unit the grid uses.** A conversion, stated in
+   the migration rather than left implicit.
+3. **Decide about the seven missing minerals.** Adding fields is easy; POPULATING them is not —
+   `0123` wrote 182 vitamin values as standard reference figures per ingredient, and seven more
+   nutrients across 14 ingredients is ~98 more. Worth doing only if the user wants them tracked
+   rather than merely listed.
+
+**A range is not a target.** Every figure above except Calories is a RANGE. A goal field holds one
+number, so each needs a rule: the low end (met = "enough"), the midpoint, or a min/max pair the
+display rules colour on both sides. **Recommend the LOW end for intake targets** — hitting 185 g of
+protein means the 185-200 goal is satisfied — and flagging over-range separately if wanted.
 
 ## 3. Fitness — today's cycle day, one field per workout
 
-**THERE IS A BLOCKER, AND IT MUST BE FIXED FIRST.** Measured today:
+**A RETRACTION FIRST, because the first version of this plan led with a blocker that does not
+exist.** It claimed all 24 Movement picks on the cycle templates were dangling. They are not:
 
 ```
-Movement picks on the five cycle templates    24, ALL DANGLING
-Movement picks on today's column               6, ALL DANGLING
-Meal picks                                    40, all resolve
+Movement values on the grid     42, and every one is an ARRAY
+ids resolving                   42
+dangling                         0
 ```
 
-This is the class `0114` repaired on 2026-08-13: a pick that names a FEED COPY is valid only until
-the next sync re-mints it. **It has recurred, and CLAUDE.md's own note says a reference to a feed
-copy is a pointer with a shelf life.** Nothing that reads "which movement was prescribed" can work
-until this is repaired — `0114`'s method applies unchanged (repoint from the row's
-`identitySignature` to the source the dropdown itself offers), and it should be re-run and then
-**re-checked after a feed sync**, which is what caught it being only temporarily fixed last time.
+**Movement is a MULTI-select, so its stored value is an array of ids.** My census looked each value
+up as a scalar id, every lookup returned undefined, and I reported the whole set as dead — then
+wrote it into a plan and a commit message. What caught it was re-running `0114`, the migration built
+for exactly this class, which reported "every pick already resolves" and disagreed with me.
+*A probe that contradicts a purpose-built tool is the probe's problem until proven otherwise.*
 
-*Worth considering as the durable fix rather than a third repair:* the same `dated-copy-link-source`
-lesson from 2026-08-19 (5) — an integrity rule that reports a stored pick resolving to a feed copy,
-so the next recurrence is loud rather than discovered by a user.
+So there is no repair step, and fitness is not blocked.
 
-**Then the feature.** Today's column carries `Cycle Day = "Day 2"` (stored, per `0112`), and the
-cycle is a 5-DAY ROTATION, not a weekday:
+**What IS true:** today's column carries `Cycle Day = "Day 2"` (stored per `0112`, and the rotation
+now advances since the `SET_VAR` fix earlier today), and the cycle is a 5-DAY ROTATION, not a week:
 
 ```
 Day 1  Upper Push    6 lifts        Day 4  Core & Cardio   6 core + Run + Stretch
@@ -129,41 +158,42 @@ Day 2  Legs          6 lifts        Day 5  Rest            nothing
 Day 3  Upper Pull    6 lifts
 ```
 
-**So "if it's a Thursday do the Thursday ones" needs one decision from the user:** the plan is a
-5-day cycle that drifts against the week. Either it stays a cycle (Thursday is whatever day the
-rotation reached) or it is re-pinned to weekdays. **Ask — this changes what the op reads.**
+**So "if it's a Thursday do the Thursday ones" needs one decision:** a 5-day cycle drifts against a
+7-day week, so a given weekday will not keep getting the same workout. Either it stays a cycle, or
+the plan is re-pinned to weekdays. **This changes what the op reads — ask before building.**
 
 **Proposal, assuming the cycle stays:**
-1. Six display fields `Workout 1` … `Workout 6` (six is the measured maximum on a lifting day; Day 4
-   carries 6 core movements plus Run and Stretch, so confirm whether those two need slots 7-8).
-2. One op, `Fitness: Today's Prescription`, triggered like the other trackers:
-   - read today's column's `Cycle Day`
-   - resolve that cycle template
-   - loop its movement rows in order; for each, write `"<Movement name> — done | not yet"` into
-     `Workout <n>`, by finding today's Exercise row carrying the same Movement and reading its
-     `Completed`
-   - blank the unused slots, so a Rest day shows nothing rather than yesterday's list
-3. Bind all six to the empty `Workout` tile.
+1. Six display fields `Workout 1` … `Workout 6` — six is the measured maximum on a lifting day.
+   Day 4 adds Run and Stretch, hence open question 3.
+2. One op, `Fitness: Today's Prescription`, on the same trigger surface as the other trackers:
+   read the column's `Cycle Day` → resolve that cycle template → walk its movement rows in order →
+   for each, find today's Exercise row carrying the same Movement and read its `Completed` → write
+   `"<name> — done | not yet"` into `Workout <n>`. **Blank the unused slots**, so a Rest day shows
+   nothing rather than yesterday's list.
+3. Bind all six to the `Workout` tile, which today binds nothing.
 
-**The completion read is the part to get right:** an Exercise row is matched by its Movement PICK,
-not by label — the 2026-08-13 finding that a board row is the option you pick while the routine is
-the thing you do.
-
----
+**Match on the Movement PICK, never the label** — a board row is the option you pick; the routine is
+the thing you do (2026-08-13).
 
 ## 4. Order
 
-1. **Repair the dangling Movement picks** (blocks §3 entirely; also makes the existing workout
-   trackers honest).
-2. **Financial** — derive `meta.cumulative`, guard the date-prefix op. *Needs the (A)/(B) answer.*
-3. **Nutrition** — bind the empty tile; add targets quoted from the plan documents.
-4. **Fitness** — the six fields and the prescription op. *Needs the cycle-vs-weekday answer.*
+1. **Financial** — derive `meta.cumulative` from each tracker's own op, guard the date-prefix op.
+   *Needs question 1.*
+2. **Nutrition step 1** — targets on the macro and four vitamin fields. No decisions beyond
+   question 2; the numbers are quoted from the documents.
+3. **Nutrition step 2** — meal count, water target in oz.
+4. **Fitness** — the six fields and the prescription op. *Needs questions 4 and 5.*
+5. **Nutrition step 3** — the seven missing minerals, only if wanted. *Needs question 3.*
 
 ## 5. Questions the user has to answer
 
-1. **Financial layout:** one `Financial` container with two still-daily tiles, or split off a
-   `Today's Spending`?
-2. **Cycle vs weekday:** does "Thursday" mean the 5-day rotation's current position, or should the
-   plan be re-pinned so a given weekday always gets the same workout?
-3. **Day 4's Run and Stretch:** do they get their own `Workout 7` / `Workout 8` slots, or are they
-   routines rather than prescribed workouts?
+1. **Financial layout:** one `Financial` container with `Spent`/`Income` still daily inside it, or
+   split those two into a `Today's Spending`?
+2. **Protein and fats:** the meal plan says 185-200 g / 100-120 g; the nutrition guide says
+   150-180 g / 70-120 g. Which is the goal?
+3. **The seven minerals** the guide targets but the grid has no field for — track them (which means
+   ~98 more per-ingredient reference values) or leave them as guidance?
+4. **Cycle vs weekday:** does "Thursday" mean the 5-day rotation's current position, or should the
+   programme be re-pinned so a weekday always gets the same workout?
+5. **Day 4's Run and Stretch:** their own `Workout 7` / `Workout 8` slots, or routines rather than
+   prescribed workouts?
