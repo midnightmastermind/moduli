@@ -6741,7 +6741,13 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    however wide the picker gets. This is NOT skin-scoped — the picker was too
    narrow under every theme; the skin only made it obvious. */
 .bound-header-select {
+  /* `flex-grow` alone did NOTHING here, and measuring is the only way that was
+     ever going to surface: the picker's parent is a plain `display: block` div
+     (an inline style from BoundHeader), so there is no flex context for a child
+     to grow in — the inline-flex control just took its content width, 128px
+     inside 343px. `width: 100%` is what fills a block parent. */
   flex: 1 1 auto;
+  width: 100%;
 }
 .bound-header-select > .bound-binding-badge {
   margin-left: auto;
@@ -6771,4 +6777,27 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .module-drag-handle svg,
 [data-dnd-handle] svg {
   color: var(--drag-handle-color);
+}
+
+
+/* DOC CONTAINER HEADERS: the label colour is an INLINE style — measured on the
+   live grid as `rgb(176, 248, 218)`, a mint green from the nine-dimension
+   section palette. Mint on cream is unreadable, and an inline style beats any
+   rule at any specificity, so this needs `!important` (the trap this file
+   records five times over). Skin-scoped: the colour is correct on a dark theme,
+   which is what it was chosen against.
+
+   Textblocks get a visible edge for the same reason — on a dark theme the tint
+   alone separated them from the page; on parchment it does not, so the card
+   needs a real border to read as a card. */
+:root[data-skin="stardew"] .container-shell:has(.container-doc) .container-header,
+:root[data-skin="stardew"] .container-shell:has(.container-doc) .container-header *,
+:root[data-skin="stardew"] .container-doc,
+:root[data-skin="stardew"] .container-doc * {
+  color: var(--stardew-ink) !important;
+}
+
+:root[data-skin="stardew"] .textblock-card:not(.textblock-card--inline) {
+  border: 1px solid rgba(120, 82, 40, 0.38);
+  border-radius: 4px;
 }
