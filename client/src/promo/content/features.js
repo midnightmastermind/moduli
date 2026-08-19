@@ -10,7 +10,34 @@
 // Every number below was measured from the source on 2026-08-18; re-measure
 // any you change.
 
+// ORDER IS THE NAV ORDER AND THE CARD ORDER. `build` leads because the site's
+// first claim should be the workspace, not one kind of value inside it — the
+// same reason the hero headline changed on 2026-08-19.
 export const FEATURES = [
+  {
+    slug: "build",
+    nav: "Build it your way",
+    title: "Panels, boards, documents, canvases, tables",
+    tagline: "The shape of the workspace is yours. Nothing here is a fixed screen.",
+    body:
+      "There is no built-in layout you have to work around, because there is no built-in layout. You place panels on a grid, fill them with containers, and choose how each one renders. Anything you record can go anywhere — inside a document, on a board, pinned to a canvas, or as a row in a table.",
+    points: [
+      {
+        heading: "Four ways to render the same contents",
+        text: "A board of cards, a document you write in, a table of rows and columns, or a canvas you can draw on and connect. Switch between them without moving anything.",
+      },
+      {
+        heading: "One thing, many places",
+        text: "The same record can sit in several places at once. Tick it anywhere and it is ticked everywhere, because it is one thing rather than a copy that has to be kept in sync.",
+      },
+      {
+        heading: "Style and layout cascade",
+        text: "Set a rule once high up and everything beneath inherits it, or override it exactly where you need to. Five themes ship, and every colour is a token you can change.",
+      },
+    ],
+    stat: { value: "4", label: "ways to render any container" },
+    shot: null,
+  },
   {
     slug: "measure",
     nav: "Measure anything",
@@ -34,30 +61,6 @@ export const FEATURES = [
       },
     ],
     stat: { value: "11", label: "kinds of value a record can carry" },
-    shot: null,
-  },
-  {
-    slug: "build",
-    nav: "Build it your way",
-    title: "Panels, boards, documents, canvases, tables",
-    tagline: "The shape of the workspace is yours. Nothing here is a fixed screen.",
-    body:
-      "There is no built-in layout you have to work around, because there is no built-in layout. You place panels on a grid, fill them with containers, and choose how each one renders. Anything you record can go anywhere — inside a document, on a board, pinned to a canvas, or as a row in a table.",
-    points: [
-      {
-        heading: "Four ways to render the same contents",
-        text: "A board of cards, a document you write in, a table of rows and columns, or a canvas you can draw on and connect. Switch between them without moving anything.",
-      },
-      {
-        heading: "One thing, many places",
-        text: "The same record can sit in several places at once. Tick it anywhere and it is ticked everywhere, because it is one thing rather than a copy that has to be kept in sync.",
-      },
-      {
-        heading: "Style and layout cascade",
-        text: "Set a rule once high up and everything beneath inherits it, or override it exactly where you need to. Five themes ship, and every colour is a token you can change.",
-      },
-    ],
-    stat: { value: "4", label: "ways to render any container" },
     shot: null,
   },
   {

@@ -65,15 +65,23 @@ export default function LandingPage() {
               the same visual weight, and two identical lockups inside one
               screen reads as a mistake rather than as branding. The headline
               is what the hero is for. */}
+          {/* THE HEADLINE IS THE WORKSPACE, NOT THE FIELD.
+              It used to read "Every task is a checkbox. Or a measurement." —
+              which is true, and is the narrowest true thing about the product:
+              one capability page out of five, and one chapter of the original
+              deck's thirty-two. It read as one narrow kind of tool, so somebody who
+              wanted a second brain, a project hub or a file locker would not
+              have recognised themselves in it. The deck's own line is "one
+              space. infinite flow."; this is that, in the site's voice. */}
           <h1 className="promo-hero-title">
-            Every task is a checkbox.
+            Your desk.
             <br />
-            <span className="promo-hero-em">Or a measurement.</span>
+            <span className="promo-hero-em">Revisualized.</span>
           </h1>
           <p className="promo-lede promo-hero-lede">
-            Drag what you do into a day, and record how much of it you did. Viafluere adds it
-            up, counts it, and tracks it across any window of time you choose — without a
-            separate tool for every question you want answered.
+            Notes, documents, files, records, measurements and dashboards — and the rules that
+            tie them together — in one workspace you assemble yourself, out of pieces that all
+            speak the same language. Not six apps that do not talk to each other.
           </p>
           <div className="promo-hero-actions">
             <Link to="/login" className="promo-btn promo-btn--primary">
@@ -94,8 +102,9 @@ export default function LandingPage() {
             A workspace you assemble, not a screen you are handed
           </h2>
           <p className="promo-lede promo-reveal">
-            There is no built-in planner to work around. You build the thing you need out of
-            pieces that all speak the same language.
+            There is no built-in layout to work around, because there is no built-in layout.
+            The same handful of capabilities becomes a planner, a notebook, a project board,
+            a file library or a dashboard depending only on how you put them together.
           </p>
           <div className="promo-grid">
             {FEATURES.map((f) => (
