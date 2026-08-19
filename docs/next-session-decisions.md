@@ -3,7 +3,7 @@
 Answered by the user at the end of the session; recorded here so they are not
 re-asked.
 
-## 1. poms grid → 2×2 mosaic, 3 panels  (NOT STARTED)
+## 1. poms grid → 2×2 mosaic, 3 panels  ✅ DONE — migration `0143`, 2026-08-19
 
 **User:** *"top left should be routines, bottom left should be trackers, right
 should be schedule."*
@@ -27,16 +27,20 @@ Current state, measured: poms grid is **2×3 and already mosaic**
 | D | Trackers | r0 c2 |
 | E | Ingredients | r1 c2 |
 
-**Two things to settle before building it:**
+**Both open questions were answered and the work shipped:**
 
-- **The right pane must show the SCHEDULE**, and no panel currently does — C
-  shows the Day Page. So this is not purely a re-layout: one panel has to be
-  re-pointed at the Schedule page (or C's active page changed).
-- **Tasks, Day Page and Ingredients have no slot**, and the user did not pick
-  what happens to them. The options put to them were "stack behind the three"
-  (nothing lost, reachable via the panel cycler) or "close them" (pages
-  untouched, panels removed). **Ask before writing** — this is protected live
-  data and closing a panel is not what a layout change should silently do.
+- **Close** Tasks (Panel B) and Ingredients (Panel E). The PAGES are untouched
+  and still in the tree — verified before and after: all three tabs (Tasks,
+  Boards, Food) are parented to folders, not to the panels.
+- **Re-point Panel C** at the Schedule. It turned out to already CARRY the
+  Schedule as a tab, so this was one field on its View rather than a page move
+  or a new panel — the note above assumed otherwise.
+
+Ended at: 2×2, three panels, Routines r0c0 · Trackers r1c0 · Schedule r0c1
+spanning both rows. Ratios preserved rather than invented, so the left column
+keeps the split the user dragged for it. **Trackers ends up at 36% of the left
+column's height** (it inherited the row Tasks had) — one splitter drag if that
+reads short.
 
 ## 2. Promo restructure  (NOT STARTED)
 

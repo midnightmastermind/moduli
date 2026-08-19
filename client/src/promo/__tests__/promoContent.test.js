@@ -53,6 +53,20 @@ describe("promo content", () => {
     }
   });
 
+  // AND THE CONVERSE, which is the half that was missing when a capability page
+  // was retired on 2026-08-19: the sitemap kept pointing at it, so the only
+  // thing still telling anyone the page existed was the file whose job is to
+  // tell crawlers what exists. A stale entry is a 404 served on request.
+  it("the sitemap points at NO capability page that has been retired", () => {
+    const xml = readFileSync(join(process.cwd(), "public", "sitemap.xml"), "utf8");
+    const slugs = new Set(FEATURES.map((f) => f.slug));
+    const listed = [...xml.matchAll(/\/features\/([a-z0-9-]+)/g)].map((m) => m[1]);
+    expect(listed.length, "the sitemap lists no feature pages at all — check the regex").toBeGreaterThan(0);
+    for (const s of listed) {
+      expect(slugs.has(s), `sitemap points at /features/${s}, which no longer exists`).toBe(true);
+    }
+  });
+
   it("examples have the fields ExamplesPage renders", () => {
     for (const e of EXAMPLES) {
       expect(e.id).toBeTruthy();

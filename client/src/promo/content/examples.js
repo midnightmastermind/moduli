@@ -34,7 +34,7 @@ export const EXAMPLES = [
     blurb: "Totals that keep themselves up to date — how much, how many, how long, how often.",
     detail:
       "A tracker is an operation with somewhere to put its answer. It finds the records that qualify, adds up the part you care about, and writes the total where you can see it. Because you wrote the rule, you can change what qualifies — this week only, one category, only the ones you finished.",
-    built: ["measure", "operations", "visualize"],
+    built: ["measure", "operations", "build"],
   },
   {
     id: "goals",
@@ -42,6 +42,6 @@ export const EXAMPLES = [
     blurb: "A target, the distance to it, and how many days in a row you have got there.",
     detail:
       "The same machinery as a tracker with a target beside it, so progress is a comparison rather than a number you have to interpret. Targets scale to the window you are looking at, and a streak is one of the verbs — nothing had to be special-cased to count consecutive days.",
-    built: ["measure", "operations", "visualize"],
+    built: ["measure", "operations", "build"],
   },
 ];
