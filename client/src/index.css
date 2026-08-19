@@ -6084,7 +6084,8 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    blacks, which is why they never followed the theme — the scrim is built from
    --surface-* so a theme switch moves the headers with it.
    ============================================================================ */
-:root {
+:root,
+:root[data-skin="retro-rainbow"] {
   --retro-rainbow: linear-gradient(
     90deg,
     #e5453a 0%, #ef7d3a 18%, #f5c542 36%, #4cae52 56%, #3b7dd8 76%, #7c4bbd 100%
@@ -6449,4 +6450,183 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .grid-resize-handle:hover::before,
 .grid-resize-handle:active::before {
   background: var(--accent-blue, #3296ff);
+}
+
+
+/* =============================================================================
+   SKINS  (2026-08-19)
+
+   A SKIN is a second axis to the five THEMES, not a replacement for them. A
+   theme owns the ~71 surface / text / signal tokens; a skin owns what a theme
+   never covered — the wallpaper, the scrims over it, the rainbow, the fonts.
+
+   WHY THIS BLOCK EXISTS. `--retro-rainbow`, `--grid-wallpaper` and their scrims
+   used to sit in a BARE `:root` — outside every `[data-theme]` block — so they
+   applied to all five themes at once and switching theme changed neither the
+   wallpaper nor the rainbow. The rule above now doubles as
+   `[data-skin="retro-rainbow"]`, which means a document with NO `data-skin`
+   renders exactly as it did before this existed. That is deliberate: this half
+   of the change must be invisible.
+
+   `:root[data-skin=...]` is specificity 0,2,0 — above a theme's 0,1,0 — so a
+   skin always wins over a theme for the tokens it names, whatever the source
+   order. Selection is per GRID (`grid.meta.skin`); see helpers/skins.js.
+   ============================================================================= */
+
+/* ── The five looks that predate skins ──────────────────────────────────────
+   No wallpaper, no rainbow — the app as it looked before 2026-08-17 added both.
+   THE SCRIM GOES TO 1 WITH THEM, and that is not a detail: a translucent scrim
+   over NO art is a wash over the body colour, which reads as a washed-out
+   surface rather than the flat one these looks are supposed to have. */
+:root[data-skin="moduli-dark"],
+:root[data-skin="moduli-light"],
+:root[data-skin="midnight"],
+:root[data-skin="vintage-light"],
+:root[data-skin="vintage-dark"] {
+  --grid-wallpaper: none;
+  --grid-wallpaper-scrim: 1;
+  --grid-surface-a: 1;
+  --retro-rainbow: none;
+  --retro-header-scrim: 1;
+  --retro-panel-scrim: 1;
+}
+
+/* ── Stardew Valley ─────────────────────────────────────────────────────────
+   User, 2026-08-19: "change my main grid to use the background i just saved …
+   changing the lettering and borders and backgrounds to match the lettering in
+   star dew valley."
+
+   THE WALLPAPER IS BUSY EDGE TO EDGE AND HOT IN THE MID-TONES — the farmhouse
+   sunset, chosen over the calmer mountains. That inverts the retro skin's
+   trade: there, surfaces are near-transparent so the art reads THROUGH them;
+   here the art would be reading through 11px text. Stardew's own panels are
+   solid wood, so the surfaces go nearly opaque and the art reads in the GUTTERS
+   between them — which is both legible and truer to the game.
+
+   The scrim can therefore be LOW (0.22 against retro's 0.62): almost nothing
+   sits on top of the exposed art, so it does not need dimming to protect type. */
+:root[data-skin="stardew"] {
+  --grid-wallpaper: url("/stardew-wallpaper.webp");
+  --grid-wallpaper-scrim: 0.22;
+  --grid-surface-a: 0.94;
+
+  /* No rainbow. The header band becomes wood — the frame Stardew puts around
+     every panel — so the app still has a band, in this skin's material. */
+  --retro-rainbow: linear-gradient(90deg, #8a5a2b 0%, #b06f30 50%, #8a5a2b 100%);
+  --retro-header-scrim: 0.92;
+  --retro-panel-scrim: 0.92;
+
+  /* THE LETTERING. Silkscreen is a blocky pixel face for headings; VT323 is a
+     taller, far more legible pixel face for body text. Two, not one, because
+     this app renders body text at 9-13px and a heading face at 10px is
+     unreadable — the point of the skin is the look, not an unusable grid. */
+  --font-display: "Silkscreen", "VT323", var(--font-mono);
+  --font-mono: "VT323", "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* =============================================================================
+   THEME: Stardew Valley
+   Dark ink on cream inside a wooden frame — the game's own menu chrome. A LIGHT
+   theme, which is why the skin pins it: the look collapses under a dark one.
+   Palette read off the farmhouse-sunset art rather than invented.
+   ============================================================================= */
+[data-theme="stardew"] {
+  /* Value-state signal trio */
+  --signal-zero: 61 123 191;
+  --signal-pos: 74 158 63;
+  --signal-neg: 201 74 58;
+
+  /* Occurrence-card + field-pill chrome */
+  --occ-card: 176 111 48;
+  --occ-card-a: .18;
+  --occ-card-soft-a: .12;
+  --occ-card-hover-a: .26;
+  --occ-pill: 176 111 48;
+  --occ-pill-text: rgb(90 57 33);
+  --figure-well: 217 187 143;
+
+  /* Backgrounds — parchment */
+  --background-0: 36 54% 82%;
+  --background-1: 36 62% 87%;
+  --background-2: 34 45% 76%;
+
+  /* Surfaces — the cream panel fill */
+  --surface-0: 35 50% 80%;
+  --surface-1: 37 72% 90%;
+  --surface-2: 33 42% 73%;
+
+  /* Popovers */
+  --popover-0: 38 74% 92%;
+  --popover-1: 38 74% 92%;
+  --popover-2: 36 62% 87%;
+  --popover-foreground: 26 57% 13%;
+
+  /* Inputs */
+  --input-0: 34 42% 78%;
+  --input-1: 35 50% 83%;
+  --input-2: 33 38% 74%;
+
+  /* Overlays */
+  --overlay-0: 30 30% 58%;
+  --overlay-1: 30 30% 64%;
+  --overlay-2: 30 30% 70%;
+
+  /* Borders — wood */
+  --border-0: 28 47% 42%;
+  --border-1: 28 42% 52%;
+  --border-2: 26 50% 34%;
+
+  /* Text — dark brown ink */
+  --foreground-0: 26 52% 18%;
+  --foreground-1: 26 57% 13%;
+  --foreground-2: 26 25% 36%;
+
+  /* Tailwind aliases */
+  --background: var(--background-1);
+  --foreground: var(--foreground-1);
+  --border: var(--border-1);
+  --popover: var(--popover-1);
+  --primary: 96 44% 40%;
+  --primary-foreground: 38 74% 94%;
+  --accent: var(--surface-2);
+  --accent-foreground: var(--foreground-1);
+
+  /* Named aliases */
+  --background2: var(--surface-0);
+  --input2: var(--input-1);
+  --overlay: var(--overlay-0);
+
+  /* Body colors */
+  --body-bg: hsl(var(--background-0));
+  --body-color: hsl(var(--foreground-1));
+
+  /* Grid cell border + the structural lines */
+  --grid-cell-border: hsl(var(--border-1));
+  --grid-line: rgba(90, 58, 28, 0.55);
+
+  /* Semantic tokens */
+  --text-primary: hsl(var(--foreground-1));
+  --text-muted: rgba(58, 36, 16, 0.66);
+  --text-faint: rgba(58, 36, 16, 0.44);
+  --border-default: rgba(90, 58, 28, 0.34);
+  --border-subtle: rgba(90, 58, 28, 0.18);
+  --surface-card: hsl(var(--surface-1));
+  --surface-overlay: rgba(250, 235, 205, 0.95);
+  --input-bg: rgba(90, 58, 28, 0.08);
+  --input-border: rgba(90, 58, 28, 0.30);
+  --accent-blue: #3d7bbf;
+  --accent-blue-hover: #336aa6;
+  --accent-blue-text: #2c5c92;
+  --accent-blue-bg: rgba(61, 123, 191, 0.16);
+  --accent-blue-border: rgba(61, 123, 191, 0.45);
+  --accent-green-text: #3d7a33;
+  --accent-green-bg: rgba(74, 158, 63, 0.16);
+  --accent-green-border: rgba(74, 158, 63, 0.45);
+  --accent-purple-text: #6b4a9c;
+  --accent-purple-bg: rgba(139, 95, 191, 0.14);
+  --accent-purple-border: rgba(139, 95, 191, 0.40);
+  --danger: #c94a3a;
+  --danger-bg: rgba(201, 74, 58, 0.12);
+  --danger-border: rgba(201, 74, 58, 0.40);
+  --danger-text: #a83a2c;
 }

@@ -43,6 +43,7 @@ import { useAnimations } from "./hooks/useAnimations";
 import { useScheduler } from "./state/useScheduler";
 import { useTheme } from "./helpers/useTheme";
 import { SURFACE_ALPHA } from "./helpers/StyleHelpers";
+import { useSkin } from "./hooks/useSkin";
 import { useMobileDetect } from "./hooks/useMobileDetect";
 import { useLayoutRuleMode } from "./hooks/useLayoutRuleMode";
 import { installMobileInputAutoScroll } from "./hooks/useMobileKeyboard";
@@ -285,9 +286,15 @@ export default function App() {
   // Publishing the JS constant into the CSS var means there is one number, not
   // two that have to be remembered as equal — the drift this repo keeps paying
   // for. The stylesheet's own value is the pre-mount fallback.
+  // …and the SKIN publishes the same number when the grid names one, so a
+  // Stardew grid gets its opaque wooden panels rather than retro's glass. This
+  // effect is the pre-skin fallback; `useSkin` below runs after it and wins.
   useEffect(() => {
     document.documentElement.style.setProperty("--grid-surface-a", String(SURFACE_ALPHA));
   }, []);
+
+  // WHICH SKIN THIS GRID RENDERS IN — per grid, so switching grids re-skins.
+  useSkin(state.grid);
 
   // Mobile grid navigation state. The user can pin the layout per viewport
   // size via grid.meta.layoutRules (GridSettingsTab) — a matching rule wins

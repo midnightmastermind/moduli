@@ -11,6 +11,8 @@ import { buildParentMap } from "./dragHitTesting";
 // Granular border + font fields let the cascade override pieces
 // independently (a parent's borderColor can be replaced without
 // also re-specifying borderWidth / borderStyle, etc.).
+import { remapToPalette } from "./skinPalettes";
+
 export const DEFAULT_ENTITY_STYLE = {
   bg: null,            // CSS color string
   textColor: null,     // CSS color string
@@ -55,11 +57,41 @@ export function mergeStyles(parent, child) {
  * Passed Timeslots" op affects only that day's occurrence, not the shared
  * module).
  */
+
+// ── STYLE BY OCCURRENCE TYPE ────────────────────────────────────────────────
+// User, 2026-08-19: *"maybe by occurance type … so i can change the lettering
+// all at once."*
+//
+// The cascade has always been by PLACEMENT — grid → panel → page → container →
+// instance — so "make every doc container's lettering bigger" meant visiting
+// every doc container. `grid.meta.typeStyles` is one entry per TYPE, applied to
+// every module of that type wherever it sits.
+//
+// THE KEY IS `role/kind`, the same string `checkGrid` and the orphan sweep
+// already use to describe a module ("container/board", "instance/-"). One
+// vocabulary, not a second invented here.
+//
+// It sits directly under the grid root and ABOVE the placement chain, so a
+// panel, a container or a single placement can still override it. A type
+// default that could not be overridden would be a worse tool than editing each
+// container by hand.
+export function typeKeyFor(module) {
+  if (!module?.role) return null;
+  return `${module.role}/${module.kind || "-"}`;
+}
+
+export function typeStyleFor(grid, module) {
+  const key = typeKeyFor(module);
+  if (!key) return null;
+  return grid?.meta?.typeStyles?.[key] || null;
+}
+
 export function resolveContainerStyle(container, panel, occurrence, grid = null) {
   // Cascade root — Grid default first (when present). Optional 4th
   // arg so legacy call sites that don't pass it stay byte-identical
   // (no grid → no contribution → previous behavior).
   let result = grid?.meta?.defaultStyle || null;
+  result = mergeStyles(result, typeStyleFor(grid, container));
   if (panel?.childContainerStyle) {
     result = mergeStyles(result, panel.childContainerStyle);
   }
@@ -80,6 +112,7 @@ export function resolveInstanceStyle(instance, container, panel, grid = null) {
   // Cascade root — Grid default first when present (optional 4th
   // arg keeps legacy callers byte-identical).
   let base = grid?.meta?.defaultStyle || null;
+  base = mergeStyles(base, typeStyleFor(grid, instance));
 
   // Panel-level defaults for instances
   if (panel?.childInstanceStyle) {
@@ -226,6 +259,16 @@ export function resolveStyleCascade(ctx, leafKind = "instance") {
   // user hasn't set one.
   if (ctx?.grid?.meta?.defaultStyle) {
     pushLevel("grid", "Grid default", ctx.grid.meta.defaultStyle, "grid.meta.defaultStyle");
+  }
+
+  // Type defaults — one entry per `role/kind`, under the grid root and above
+  // the placement chain. Read from the LEAF module so the row the editor shows
+  // is the one that actually paints.
+  {
+    const leafModule = ctx?.instance || ctx?.container || ctx?.page || ctx?.panel;
+    const key = typeKeyFor(leafModule);
+    const ts = key ? ctx?.grid?.meta?.typeStyles?.[key] : null;
+    if (ts) pushLevel("type", `Every ${key}`, ts, `grid.meta.typeStyles["${key}"]`);
   }
 
   // ── Semantic rule (matches the legacy resolveContainerStyle /
@@ -398,6 +441,19 @@ export function withSurfaceAlpha(color, alpha = SURFACE_ALPHA) {
   return color;
 }
 
+// ── THE ACTIVE SKIN ─────────────────────────────────────────────────────────
+// A module singleton rather than an argument threaded through every caller.
+// `styleToCSS` is called from render by panels, containers and instances alike;
+// adding a parameter would mean touching every call site, and "the next call
+// site forgets" is the defect class this repo keeps paying for. App publishes it
+// at mount and on every grid switch — the same shape as the `--grid-surface-a`
+// publish that already exists so the CSS and JS halves cannot drift.
+let _activeSkin = null;
+
+/** Set by App from the grid's resolved skin. Null = today's behaviour exactly. */
+export function setActiveSkin(skin) { _activeSkin = skin || null; }
+export function getActiveSkin() { return _activeSkin; }
+
 /**
  * Convert a resolved style object into React inline styles.
  * Only includes non-null properties. The granular border trio is
@@ -410,7 +466,14 @@ export function styleToCSS(style) {
   const css = {};
   // The stored colour renders TRANSLUCENT so the grid's wallpaper reads through
   // it — see SURFACE_ALPHA. The hue is the user's; only the alpha is ours.
-  if (style.bg != null)         css.backgroundColor = withSurfaceAlpha(style.bg);
+  // The stored hue is re-rendered in the skin's palette (a no-op when the skin
+  // declares none), THEN capped for translucency. Order matters: the cap reads
+  // the alpha, and the remap deliberately passes a near-transparent state wash
+  // through untouched.
+  if (style.bg != null)         css.backgroundColor = withSurfaceAlpha(
+    remapToPalette(style.bg, _activeSkin?.palette),
+    _activeSkin?.surfaceAlpha ?? SURFACE_ALPHA,
+  );
   if (style.textColor != null)  css.color = style.textColor;
   if (style.border != null)     css.border = style.border;
   if (style.borderColor != null) css.borderColor = style.borderColor;

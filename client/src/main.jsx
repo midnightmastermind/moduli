@@ -1,5 +1,23 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+
+// ── FONTS ────────────────────────────────────────────────────────────────
+// `--font-mono` has named "JetBrains Mono" since the first stylesheet and the
+// package has been a dependency for months — and it was NEVER IMPORTED, so no
+// webfont was ever served (checked 2026-08-19: no @font-face in the sheet, no
+// .woff2 in dist, none served by production). Every machine fell through to its
+// own `ui-monospace`, which is why the app looked subtly different on Windows,
+// macOS and Linux. Importing it is the fix; the latin subsets keep it small.
+//
+// The two pixel faces belong to the Stardew skin (`--font-display` /
+// `--font-pixel`). They are imported here rather than lazily because a skin
+// that swaps the font AFTER first paint reflows the entire grid.
+import "@fontsource/jetbrains-mono/latin-400.css";
+import "@fontsource/jetbrains-mono/latin-500.css";
+import "@fontsource/silkscreen/latin-400.css";
+import "@fontsource/silkscreen/latin-700.css";
+import "@fontsource/vt323/latin-400.css";
+
 import "./index.css";
 import reportWebVitals from './reportWebVitals';
 import { hasSession } from "./helpers/authStorage.js";

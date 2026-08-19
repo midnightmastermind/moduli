@@ -183,13 +183,15 @@ In `AppearanceTab`, beside the theme picker:
 
 ---
 
-## Questions for the user
+## Decisions (user, 2026-08-19)
 
-1. **Which wallpaper?** `wallpapersden…1920x1080.jpg` is mountains under a big calm sky — ~65% of the
-   frame is low-detail, which is what UI text needs. `stardew-valley-farmhouse-sunset…jpg` (3840×2160)
-   is far more striking but busy edge to edge and hot in the mid-tones. **Recommendation: mountains
-   for the grid, sunset for the login/promo page**, where nothing sits on top of it.
-2. **The 424 stored colours** — remap to a Stardew palette (keeps the nine dimensions readable), or
-   suppress them (instantly consistent, loses the colour coding)?
-3. **Skin scope** — per grid (poms = Stardew, claude-grid = retro), which is what the ask implies, or
-   one skin for the whole account?
+1. **Wallpaper: the FARMHOUSE SUNSET on the grid** (`stardew-valley-farmhouse-sunset-pixel-art…jpg`,
+   3840×2160). Chosen over my recommendation, so the readability work moves from "nice to have" to
+   load-bearing: the art is busy edge to edge and hot in the mid-tones, and the scrim is what buys
+   the type its background back. **Task 4 therefore measures contrast rather than eyeballing it**,
+   and if the scrim needed to make text legible mutes the art past the point of being worth it, that
+   is a finding to report — not something to quietly settle at an unreadable value.
+2. **Remap the 424 stored colours** to a Stardew palette at `styleToCSS`. Nothing in the data is
+   rewritten, so the switch is reversible and the nine dimensions stay distinguishable.
+3. **Skin is chosen PER GRID** (`grid.meta.skin`), falling back to the user's existing localStorage
+   pick, then to `retro-rainbow`.
