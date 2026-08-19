@@ -6723,3 +6723,52 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 :root[data-skin="stardew"] .container-shell:has(.container-doc) > .container-header span {
   color: var(--stardew-ink);
 }
+
+
+/* =============================================================================
+   STARDEW — second legibility pass (user, 2026-08-19)
+   ============================================================================= */
+
+/* THE BOUND HEADER'S PICKER HAD COLLAPSED. Measured on the live grid: the
+   control was 128px inside a 375px row with 223px going spare, so a question
+   like "What is within my control today, and what is not?" had nowhere to
+   render. `.bound-header-select` was `max-width: 100%` with no `flex-grow`, so
+   it took its content width inside a flex row that had room to give.
+
+   And the LINK BADGE goes to the END of the row (user: "the link should be
+   fixed to the end as well, to show its linked to daily question"). Pinned with
+   `margin-left: auto` rather than ordered by markup, so it stays at the edge
+   however wide the picker gets. This is NOT skin-scoped — the picker was too
+   narrow under every theme; the skin only made it obvious. */
+.bound-header-select {
+  flex: 1 1 auto;
+}
+.bound-header-select > .bound-binding-badge {
+  margin-left: auto;
+}
+
+/* THE ANSWER GETS ITS 5px. The doc-body rule added earlier targets
+   `.doc-editor-content.ProseMirror`, and a BOUND body is a different editor
+   (`.bound-body-editor`) that the rule never reached — so the label and the
+   text typed under it were still flush to the edge. Both halves, since the
+   placeholder and the typed text are different elements. */
+.bound-body-text,
+.bound-body-text .ProseMirror,
+.bound-body-text .ProseMirror p {
+  padding-left: 5px;
+}
+
+/* DRAG HANDLES ARE THEME-OWNED NOW (user: "make all the drag handles colors in
+   the theme css cascade too … make them all black … white stuff gets drowned
+   out"). They were inheriting whatever `color` was in scope, which on a cream
+   panel is a white glyph on a light ground — invisible. A token means a theme
+   can answer for its own background instead of every skin re-stating it. */
+:root { --drag-handle-color: currentColor; }
+:root[data-skin="stardew"] { --drag-handle-color: #14100a; }
+
+.module-drag-handle,
+.module-drag-handle .radial-handle,
+.module-drag-handle svg,
+[data-dnd-handle] svg {
+  color: var(--drag-handle-color);
+}
