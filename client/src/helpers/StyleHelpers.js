@@ -472,7 +472,9 @@ export function styleToCSS(style) {
   // through untouched.
   if (style.bg != null)         css.backgroundColor = withSurfaceAlpha(
     remapToPalette(style.bg, _activeSkin?.palette),
-    _activeSkin?.surfaceAlpha ?? SURFACE_ALPHA,
+    // `storedColorAlpha`, NOT `surfaceAlpha` — under a skin with opaque panels
+    // the two want opposite values, which is why they are separate fields.
+    _activeSkin?.storedColorAlpha ?? _activeSkin?.surfaceAlpha ?? SURFACE_ALPHA,
   );
   if (style.textColor != null)  css.color = style.textColor;
   if (style.border != null)     css.border = style.border;

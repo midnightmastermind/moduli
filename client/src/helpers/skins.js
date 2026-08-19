@@ -36,27 +36,27 @@ export const SKINS = [
   {
     id: "moduli-dark", label: "Moduli Dark", description: "Deep navy workspace",
     swatches: ["#0c1220", "#141e30", "#1e3a5f"],
-    theme: "moduli-dark", wallpaper: null, rainbow: false, surfaceAlpha: 1, palette: null,
+    theme: "moduli-dark", wallpaper: null, rainbow: false, surfaceAlpha: 1, storedColorAlpha: 1, palette: null,
   },
   {
     id: "moduli-light", label: "Moduli Light", description: "Clean light workspace",
     swatches: ["#f7f8fa", "#e8ebf0", "#c9d2de"],
-    theme: "moduli-light", wallpaper: null, rainbow: false, surfaceAlpha: 1, palette: null,
+    theme: "moduli-light", wallpaper: null, rainbow: false, surfaceAlpha: 1, storedColorAlpha: 1, palette: null,
   },
   {
     id: "midnight", label: "Midnight", description: "Near-black, high contrast",
     swatches: ["#07090d", "#12151b", "#2a2f3a"],
-    theme: "midnight", wallpaper: null, rainbow: false, surfaceAlpha: 1, palette: null,
+    theme: "midnight", wallpaper: null, rainbow: false, surfaceAlpha: 1, storedColorAlpha: 1, palette: null,
   },
   {
     id: "vintage-light", label: "Vintage Light", description: "70s cream paper, rust ink",
     swatches: ["#ece3d0", "#b34f24", "#3e8e7e"],
-    theme: "vintage-light", wallpaper: null, rainbow: false, surfaceAlpha: 1, palette: null,
+    theme: "vintage-light", wallpaper: null, rainbow: false, surfaceAlpha: 1, storedColorAlpha: 1, palette: null,
   },
   {
     id: "vintage-dark", label: "Vintage Dark", description: "70s dark brown, cream ink",
     swatches: ["#2b211d", "#e0a63f", "#3e8e7e"],
-    theme: "vintage-dark", wallpaper: null, rainbow: false, surfaceAlpha: 1, palette: null,
+    theme: "vintage-dark", wallpaper: null, rainbow: false, surfaceAlpha: 1, storedColorAlpha: 1, palette: null,
   },
 
   // ── Today's look, named ──────────────────────────────────────────────────
@@ -74,11 +74,10 @@ export const SKINS = [
     wallpaperScrim: 0.62,
     headerScrim: 0.45,
     panelScrim: 0.45,
-    // How opaque a panel / container is over the wallpaper. Published into
-    // `--grid-surface-a` AND used by `styleToCSS`, so the CSS half and the
-    // stored-colour half cannot drift — the reason SURFACE_ALPHA was
-    // centralised in the first place (2026-08-17).
+    // Two alphas, not one — see the Stardew skin below for why they had to be
+    // split. Here they are the same number, which is today's behaviour exactly.
     surfaceAlpha: 0.24,
+    storedColorAlpha: 0.24,
     palette: null,
   },
 
@@ -102,6 +101,20 @@ export const SKINS = [
     headerScrim: 0.92,
     panelScrim: 0.92,
     surfaceAlpha: 0.94,
+    // AND THE STORED COLOURS STAY TRANSLUCENT, which is the opposite number and
+    // is why these had to be two fields rather than one.
+    //
+    // The first version used `surfaceAlpha` for both. Looked at on poms grid,
+    // which carries 424 stored colours: "Physical" is an opaque orange slab,
+    // "Nutrition" inside it is another, and the rows inside that are orange
+    // again — three nested fills at 0.94 make an orange wall, and the theme's
+    // dark-brown ink on top of it is barely readable.
+    //
+    // What the SKIN wants opaque is its own cream panel. What a stored colour
+    // means is "this row belongs to the Physical dimension" — an accent, not a
+    // surface. At 0.28 it reads as a wash over the cream, the nine dimensions
+    // stay distinguishable, and the ink keeps its background.
+    storedColorAlpha: 0.28,
     palette: STARDEW_PALETTE,
   },
 ];

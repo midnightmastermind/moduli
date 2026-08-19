@@ -182,3 +182,29 @@ describe("remapToPalette — it must not COLLAPSE a family", () => {
     expect(hueDistance(after, 25)).toBeLessThan(hueDistance(before, 25));
   });
 });
+
+describe("two alphas, not one", () => {
+  // Looked at on poms grid: using one number for both made "Physical" an opaque
+  // orange slab, "Nutrition" inside it another, and the rows inside that orange
+  // again — three nested fills, with the theme's dark ink barely readable on
+  // top. What a SKIN wants opaque is its own cream panel; what a stored colour
+  // means is "this belongs to the Physical dimension", which is an accent.
+  it("Stardew keeps its panels opaque and its stored colours translucent", () => {
+    const sd = getSkin("stardew");
+    expect(sd.surfaceAlpha).toBeGreaterThan(0.8);
+    expect(sd.storedColorAlpha).toBeLessThan(0.4);
+  });
+
+  it("every skin declares both, so neither silently falls back", () => {
+    for (const s of SKINS) {
+      expect(typeof s.surfaceAlpha).toBe("number");
+      expect(typeof s.storedColorAlpha).toBe("number");
+    }
+  });
+
+  it("leaves today's skin behaving exactly as it does — both at 0.24", () => {
+    const retro = getSkin("retro-rainbow");
+    expect(retro.surfaceAlpha).toBe(0.24);
+    expect(retro.storedColorAlpha).toBe(0.24);
+  });
+});
