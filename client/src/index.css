@@ -6787,13 +6787,22 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    records five times over). Skin-scoped: the colour is correct on a dark theme,
    which is what it was chosen against.
 
+   SCOPED TO ALL CONTAINER HEADERS, not just doc ones: the first attempt used
+   `:has(.container-doc)` and the bound header it was aimed at is not inside one,
+   so the question rendered in mint on cream — present in the DOM, invisible on
+   screen, which is the same failure wearing a different selector. Every header
+   colour on this grid was chosen against a DARK theme; on parchment they all
+   need the ink.
+
    Textblocks get a visible edge for the same reason — on a dark theme the tint
    alone separated them from the page; on parchment it does not, so the card
    needs a real border to read as a card. */
-:root[data-skin="stardew"] .container-shell:has(.container-doc) .container-header,
-:root[data-skin="stardew"] .container-shell:has(.container-doc) .container-header *,
+:root[data-skin="stardew"] .container-header,
+:root[data-skin="stardew"] .container-header *,
 :root[data-skin="stardew"] .container-doc,
-:root[data-skin="stardew"] .container-doc * {
+:root[data-skin="stardew"] .container-doc *,
+:root[data-skin="stardew"] .bound-header,
+:root[data-skin="stardew"] .bound-header * {
   color: var(--stardew-ink) !important;
 }
 
