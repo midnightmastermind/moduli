@@ -104,6 +104,18 @@ export function extractFieldValuesFiltered(occurrences, fieldId, opts = {}) {
  *   "field:fieldId.flow"         — get field flow across all occurrences (first match)
  *   (anything else)              — treat as literal
  */
+// A `YYYY-MM-DD` field value read with `new Date()` is UTC midnight, which is
+// the PREVIOUS day in every US timezone. Both `weekday:` and `dateLong:` parse
+// it as LOCAL midnight instead, from this one place so they cannot drift.
+function parseLocalDate(value) {
+  if (value == null || value === "") return null;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    const [y, m, day] = value.slice(0, 10).split("-").map(Number);
+    return new Date(y, m - 1, day);
+  }
+  return new Date(value);
+}
+
 export function resolveExpr(expr, $vars) {
   if (expr == null) return null;
   // Value Builder reference sentinel: { __ref: "$path" } — resolve as the
@@ -191,19 +203,37 @@ export function resolveExpr(expr, $vars) {
     return Math.round((d - today) / 86400000);
   }
 
+  // weekday:expr — the day of the week a date falls on, "Monday".."Sunday".
+  //
+  // `dateLong:` below computes exactly this and then buries it inside a label,
+  // so until now a pipeline could not ASK what day of the week a date was. The
+  // weekday templates need it: a day column resolves its template by matching
+  // this against the template's own `Weekday` field.
+  //
+  // THE ALTERNATIVE WAS PARSING "Thursday" OUT OF THE COLUMN'S LABEL, which is
+  // the trap the 2026-07-26 de-schedule sweep removed `SCHEDULE_LABEL_PREFIX`
+  // for — a label is one rename away from wrong, and this one is minted from a
+  // format string a user can change.
+  //
+  // The local-midnight parse is shared with `dateLong:` for the same reason it
+  // exists there: `new Date("2026-08-20")` is UTC midnight, which is the
+  // PREVIOUS DAY in every US timezone — an off-by-one that would put every
+  // Monday's template on Sunday.
+  if (expr.startsWith("weekday:")) {
+    const dateVal = resolveExpr(expr.slice(8), $vars);
+    if (dateVal == null || dateVal === "") return "";
+    const d = parseLocalDate(dateVal);
+    if (!d || isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("en-US", { weekday: "long" });
+  }
+
   // dateLong:expr — formats a date expression as "Sunday, May 24th, 2026"
   // (YYYY-MM-DD strings parsed as LOCAL midnight to avoid timezone drift).
   if (expr.startsWith("dateLong:")) {
     const dateVal = resolveExpr(expr.slice(9), $vars);
     if (dateVal == null || dateVal === "") return "";
-    let d;
-    if (typeof dateVal === "string" && /^\d{4}-\d{2}-\d{2}/.test(dateVal)) {
-      const [y, m, day] = dateVal.slice(0, 10).split("-").map(Number);
-      d = new Date(y, m - 1, day);
-    } else {
-      d = new Date(dateVal);
-    }
-    if (isNaN(d.getTime())) return String(dateVal);
+    const d = parseLocalDate(dateVal);
+    if (!d || isNaN(d.getTime())) return String(dateVal);
     const weekday = d.toLocaleDateString("en-US", { weekday: "long" });
     const month = d.toLocaleDateString("en-US", { month: "long" });
     const dayNum = d.getDate();
