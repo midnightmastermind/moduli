@@ -271,3 +271,88 @@ describe("every stored pipeline names things that exist", () => {
   });
 
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE CATEGORY AXIS (migration 0164). The gates are DATA in 31 stored pipelines,
+// so the only thing standing between them and a future migration that rewrites
+// a tracker is a test that reads them back. Each assertion below is a way the
+// axis can break SILENTLY — three of them produce a wrong number rather than an
+// error, which is why the sweep passing above is not enough on its own.
+describe("the category axis is intact in the stored pipelines", () => {
+  const TAGS = "CvJsK3lNu6_e";
+  const isLoopDate = (r) =>
+    r && typeof r.left === "string" && !r.left.startsWith("$trigger.")
+    && /^\$[A-Za-z0-9_]+\.fields\./.test(r.left)
+    && r.comparator === "DATE_IN_PERIOD" && r.right === "$goalPeriod";
+  const isPeriodAllWrapper = (r) =>
+    r && Array.isArray(r.rules) && r.operator === "OR"
+    && r.rules.some(isLoopDate)
+    && r.rules.some((x) => x && x.left === "$goalPeriod" && x.comparator === "IS_EMPTY");
+  const isCategoryGate = (r) =>
+    r && Array.isArray(r.rules) && r.operator === "OR"
+    && r.rules.some((x) => x && x.right === "$goalCategory" && x.comparator === "CONTAINS");
+
+  // Walk every rule group, reporting each gate WITH the group it sits in — the
+  // containing group is what the wrapper check needs.
+  const gates = () => {
+    const out = [];
+    const walk = (node, opName) => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) return node.forEach((n) => walk(n, opName));
+      if (Array.isArray(node.rules)) {
+        for (const r of node.rules) if (isCategoryGate(r)) out.push({ gate: r, group: node, opName });
+      }
+      for (const v of Object.values(node)) walk(v, opName);
+    };
+    for (const op of operations) walk(op.pipeline?.steps, op.name);
+    return out;
+  };
+
+  it("carries category gates at all — the control", () => {
+    const bound = operations.filter((o) => /"name":"\$goalCategory"/.test(JSON.stringify(o.pipeline || {})));
+    expect(bound.length).toBeGreaterThanOrEqual(30);
+    expect(gates().length).toBeGreaterThanOrEqual(30);
+  });
+
+  it("every gate reads a loop var its own group also date-gates", () => {
+    // A gate naming a var the group never binds throws at run time and kills the
+    // op — the failure the policy's fail-closed skip exists to prevent.
+    const bad = [];
+    for (const { gate, group, opName } of gates()) {
+      const lv = /^\$([A-Za-z0-9_]+)\./.exec(gate.rules.find((x) => x.right === "$goalCategory").left)?.[1];
+      const sib = group.rules.find((x) => isLoopDate(x) || isPeriodAllWrapper(x));
+      const sibVar = sib && /^\$([A-Za-z0-9_]+)\./.exec(
+        isPeriodAllWrapper(sib) ? sib.rules.find(isLoopDate).left : sib.left)?.[1];
+      if (!sibVar || sibVar !== lv) bad.push(`${opName}: gate on $${lv}, date gate on $${sibVar}`);
+    }
+    expect(bad).toEqual([]);
+  });
+
+  it("no gate sits INSIDE the period-all wrapper", () => {
+    // `(date in period) OR (period IS_EMPTY) OR (category…)` is vacuously true on
+    // an unfiltered page — it would silently disable DATE filtering on every
+    // tracker while every number still looked plausible.
+    expect(gates().filter(({ group }) => isPeriodAllWrapper(group)).map((g) => g.opName)).toEqual([]);
+  });
+
+  it("every gate keeps its IS_EMPTY escape arm", () => {
+    // Without it a tile reads 0 until a category is picked — the whole grid goes
+    // blank-numbered on an unfiltered page, and nothing errors.
+    const missing = gates()
+      .filter(({ gate }) => !gate.rules.some((x) => x && x.left === "$goalCategory" && x.comparator === "IS_EMPTY"))
+      .map((g) => g.opName);
+    expect(missing).toEqual([]);
+  });
+
+  it("the trackers' page carries the category nav, and it gates no visibility", () => {
+    const page = Object.values(occurrencesById).find((o) => (o.filters || []).some((f) => f?.fieldId === TAGS));
+    expect(page).toBeTruthy();
+    const f = page.filters.find((x) => x.fieldId === TAGS);
+    expect(f.active).toBe(true);   // section (2) of FiltersSection needs both to render a widget
+    expect(f.showNav).toBe(true);
+    expect(f.options.length).toBeGreaterThan(10);
+    // A NULL condition would make getLocalFilterConditions contribute a visibility
+    // rule — picking "grocery" would then empty the page instead of rescoping it.
+    expect(f.condition).toBeTruthy();
+  });
+});
