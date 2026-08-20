@@ -139,8 +139,15 @@ totals + targets + Meal Count).
 CONTROL — the reading that proves a zero is a reading rather than a broken op.
 
 Still open, in the order I would take them:
-- **Vitamin E / K / B6 / Folate have fields and values but no target** — the guide gives none.
-  Either find figures the user trusts or drop them from the tile; they currently do not appear on it.
+- ~~**Vitamin E / K / B6 / Folate have fields and values but no target**~~ **— STALE, and measuring
+  it found two live defects instead (`0165`, 2026-08-20).** All four had targets all along
+  (15 · 120 · 1.3 · 400) and all fourteen totals are bound and written. What was actually wrong:
+  **Vitamin D's target was 600 — the IU figure — while every ingredient value was in mcg**, so the
+  tile compared mcg against IU and a fully met day read as 2.5% of goal; and **sodium's 2300 mg
+  ceiling was a goal to REACH**, so the tile went green once you exceeded your limit. Both fixed,
+  plus units on 15 unit-less fields and magnesium 400 → 420 for the user's reference profile
+  (adult male 31-50, their pick). The reference figures were LOOKED UP rather than waited for —
+  public values are lookupable, which is the rule `0123` already applies to a food's content.
 - ~~**`Total Subscriptions` and `Monthly Bills` bind `Amount`, an INPUT field**~~ **— LOOKED AT
   2026-08-20 (6), NOT A DEFECT.** `Total Subscriptions` is no longer on the grid at all. `Monthly
   Bills` does write a sum into an input-enabled field, and the reason that is safe is the thing

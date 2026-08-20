@@ -6,6 +6,62 @@
 
 ---
 
+### 2026-08-20 (6) — VITAMIN D WAS OFF BY FORTY, and the sodium tile went green when you went over
+
+The open item read *"Vitamin E / K / B6 / Folate have fields and values but no target — the guide
+gives none."* **It was stale, and measuring it turned a paperwork item into two live defects.** All
+four had targets (15 · 120 · 1.3 · 400), all fourteen totals are bound to the tile and written by
+`Nutrition: Today's Micronutrients`, and every one of the fourteen already matched the standard
+adult reference value.
+
+**DEFECT 1 — VITAMIN D, OFF BY A FACTOR OF FORTY.** Target `600` is the **IU** figure; the DRI is
+**15 mcg**. The per-ingredient values were already mcg — established against a food whose answer is
+known rather than by reading the field's name:
+```
+Eggs 1.1   one large egg = 1.1 mcg = 44 IU     -> the stored values are mcg
+```
+So the tile summed mcg and compared the total against an IU target: **a day that fully met the
+requirement read as 2.5% of goal.** Nothing errored and no number looked absurd, which is exactly why
+it survived. The target moves; **not one stored value is touched**, because they were already right.
+
+**DEFECT 2 — SODIUM WAS A GOAL TO REACH.** 2300 mg is the chronic-disease-risk-reduction UPPER
+LIMIT, and `displayConfigTarget` defaults to `op: ">="` — so the tile turned **green once you went
+OVER your sodium limit**. `targetOp: "<="` now, the countdown semantic `Tasks Left` already uses.
+
+**THE UNITS ARE STAMPED ONLY WHERE THE VALUES WERE CHECKED, and that is the safety of the other
+half.** Fifteen fields carried no unit at all, so a bare `900` could have meant mcg RAE or IU. **A
+unit inferred from a field's NAME is a guess printed next to a number — worse than no unit, because
+it reads as authoritative.** Each was scale-checked against a food with a known value first: Lettuce
+48 mcg vitamin K, Peanuts 348 mcg folate, Greek Yogurt 1.3 mcg B12, Eggs 80 mcg RAE vitamin A.
+
+**THE FIGURES WERE LOOKED UP RATHER THAN WAITED FOR** — user: *"look up whats normal for those
+values thats blocked for me."* Public reference values are lookupable, which is the rule `0123`
+already applies to a food's CONTENT. What still needed the user was the reference PROFILE (adult
+male 31-50 — magnesium 400 → 420, the only figure that moves) and which direction the sodium limit
+runs, not the numbers.
+
+**AND RE-EXPORTING THE FIXTURE EXPOSED A TEST THAT HAD BEEN PASSING BY LUCK.** The weekday-template
+harness re-dated the live day column but **never CLEARED it**, so it counted whatever the snapshot
+happened to catch. A fixture taken after the morning sweep made Monday read **12** movements (6
+already there + 6 placed) and gave Fri/Sat/Sun **6 apiece on days that must place none**. *The
+fixture is a snapshot of a grid that changes hour to hour; any test whose premise is "this column
+starts empty" is a coin flip on export timing.* The harness empties the column itself now, with a
+CONTROL asserting it really did — a clear that silently matched nothing would put every case straight
+back at the mercy of the clock.
+
+**AND `created` BECAME A DELTA IN THE SAME PASS, which the first fix is what revealed.** Clearing the
+column made Thursday create **16** rather than 8 — because every weekday template also carries the
+day's **meals**, which were previously already present and matched by merge. So an absolute CREATE
+count was partly a count of meals and would shift the moment the meal plan did. It is measured
+against a rest day now (`Thursday − Saturday === 8`, `Friday − Saturday === 2`), which is the
+discriminator the test always meant.
+
+The nutrition test pins **the unit beside every target** now, and that a ceiling is a ceiling — it is
+the test that would have caught the IU/mcg mismatch. 18 fields patched, idempotent, read back out of
+Mongo. 941 server + 2831 client tests, poms grid **1 pre-existing error, 0 new**, pm2 restarted.
+
+---
+
 ### 2026-08-20 (5) — THE SECOND AXIS, and the filter that could not be surfaced
 
 Picked up the other account's session, which had `categoryScopePolicy.js` + `0164` written, 12 tests
