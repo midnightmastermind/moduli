@@ -115,6 +115,84 @@ every load re-clones the whole template into the column.
 
 ---
 
+**AND THE CYCLE IS GONE: SEVEN WEEKDAY TEMPLATES.** User: ***"i dont want a cycle, i just want 7 day
+templates"***, then ***"give the templates weekday fields"***.
+
+**MEASURING CHANGED THE SHAPE OF THE WORK BEFORE ANY CODE.** All five cycle templates carry the
+**identical 8 meals** — only the movements differ — so the week needed a workout assignment and
+nothing else. Asked whether food should rotate too (*"do we have a cycle for food… if not then just
+keep it the same"*): **there is no food cycle to rotate**, so meals stay identical, as instructed.
+*Reported rather than acted on: the Nutrition Plan document DOES define three distinct days of
+menus; the grid only ever used one of them.*
+
+**IT RENAMES THE FIVE RATHER THAN MINTING SEVEN.** Four of them already ARE the day the user asked
+for. Minting seven fresh templates would re-create ~340 slot occurrences to arrive at content the
+grid already holds, and strand five as dead clutter — the thing the user complained about once
+already ("why are the old ingredients in the grocery list"). Day 5 becomes Friday and gains Run +
+Stretch; Saturday and Sunday clone from it.
+
+**THE DAILY ROUTINES COME OFF ALL SEVEN, and that is the load-bearing decision.** `Place Cycle Day`
+could carry them harmlessly because it only placed rows holding a Meal or Movement PICK — and **that
+filter is exactly what would make this feature pointless**, since the user's reason for wanting
+weekdays is *"specific appointments certain days that are repeatable"* and an appointment carries
+neither pick. So the op places EVERYTHING and the template holds only what makes that weekday
+different. Decided **structurally** — slot time AND module label both matching a row on `Day` —
+never from a list of names: **35 = 7 rows x 5 templates**, with Day 4's 7:00am Run and Stretch
+correctly surviving, which is the discriminating case and the reason the rule tests the slot too.
+
+**THE TEMPLATE IS FOUND BY ITS FIELD, which is what the user's phrasing buys.** Baking seven ids
+into the pipeline would have made the Weekday field decorative; matching on a NAME would break the
+schedule on a rename. `weekday:expr` is the new primitive — `dateLong:` computed the weekday and
+buried it in a label — and both share one local-midnight parse, because `new Date("2026-08-24")` is
+UTC midnight, i.e. **Sunday evening in CDT: a naive parse puts every Monday's template on Sunday,
+silently, and only west of UTC.** That case is the test, with the naive reading kept beside it as the
+control.
+
+**IDEMPOTENCE IS `mergeSubtreeInto`'s `auto:<sourceId>` FALLBACK — read in the code, then measured.**
+A row nobody hand-signed matches ITSELF on the next merge, so an appointment dragged onto Tuesday is
+placed once and recognised every load after, with no signature scheme to remember. A second pass over
+the same state creates **0**. Without that, every load re-clones the whole template into the column —
+the 23-duplicate-wrappers bug of 2026-07-31 (3), waiting for a third turn.
+
+```
+Mon 6 movements Push   Thu 8 creates (6 core + Run + Stretch)   second pass          0 creates
+Tue 6 movements Legs   Fri 2 creates (cardio only)              no template claims   0, fails closed
+Wed 6 movements Pull   Sat/Sun 0 — meals and routines only
+```
+
+**TODAY'S COLUMN WAS CLEARED, and only because the numbers said it was safe.** It held Wednesday's
+Pull session, placed this morning while the cycle still ran, and today is a Thursday. Each row was
+measured against the movement catalog first: **every set value equalled the catalog prescription
+`0119` backfilled (5/5/5/5, 6/6/6/6, 8/8/8/8…) and `Completed` was null on all six.** So it carried
+nothing the user entered by `0109`'s own discriminator. Dumped to `backups/orphans/` first. *A row
+that differed from its prescription, or was ticked, would have been kept and reported — a workout log
+is not something a migration gets to tidy.*
+
+**MY OWN PROBE WAS WRONG TWICE AND THE OP'S RUN LOG SETTLED IT.** It read **0 effects on every
+weekday**, which looks exactly like a broken op — and this op's ancestor had just spent four sessions
+being broken in that way. `computeTriggerMatch` said it matched, so the log was the next place to
+look, and one line named it: every run iterated `$day = 2026-08-20` whatever date I faked.
+**`$activePeriodDates` resolves from `operation.targetOccurrenceId`'s effective filter — the op's OWN
+page — not from the clock and not from `grid.activeFilterValues`.** *A probe that reports zero is a
+claim about the probe until the callee's own log agrees with it.*
+
+**AND THE `noDomainKnowledge` GUARD CAUGHT MY OWN COMMENT** — I named the removed label-prefix
+constant while explaining why not to parse labels, and the guard greps source TEXT, which cannot tell
+a comment from the code that would reintroduce it. **Reworded rather than narrowed:** a guard that
+gets weakened the first time it fires is one nobody trusts.
+
+12 regression tests for the week (each weekday's own movements, the cardio discriminator, the second
+pass, the fails-closed case, and the templates-carry-no-daily-routines invariant), and the fitness
+harness gained a `world` argument because today's rows are now placed DURING the sweep rather than
+existing before it — which is also the real order. 2821 client tests, poms grid **1 pre-existing
+error, 0 new**, deployed.
+
+**STILL NOT VERIFIED IN A BROWSER, and it is the same honest gap:** nobody has reloaded the grid and
+watched Thursday's core + cardio session land on today's column.
+
+
+---
+
 ### 2026-08-20 — the schedule half-builds because I RESTART THE SERVER MID-BUILD
 
 User: *"it always half built. we need to figure out why the schedule is only half building
