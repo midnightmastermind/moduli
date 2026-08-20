@@ -316,3 +316,50 @@ by-product that may or may not be applied yet. Resolve the column first (the FIN
 `$colId` correctly — proven in the run log) and require `HAS_ANCESTOR $colId` **only** — then check,
 before anything else, whether the loop matched by writing `$n` after it. That single measurement is
 what found the `INIT_VAR` bug and it is what should open the next session, not close it.
+
+
+---
+
+## 9. Fitness — UNPARKED 2026-08-20, and the parked diagnosis is retracted
+
+`0157` re-scopes the loop to today's COLUMN and switches the op back on. It is the third time it has
+been enabled, so the bar was evidence rather than "it works today".
+
+**THE PARKED DIAGNOSIS WAS WRONG, and the pipeline's own shape says so.** §8 recorded the tile
+holding *slots 1-3 blank and 4-6 with Pull-day movements* and concluded the op was matching template
+rows. It cannot produce that: it clears all six slots and then writes slot `$n` in order, so its
+possible outputs are six values, a PREFIX of the day's list, or six blanks. `1-3 blank, 4-6 filled`
+requires the six CLEARS to be applied and then abandoned partway — which is exactly what
+`bindSocketToStore` did until `6b6a5d1d`, **committed the same morning**: one throwing effect
+silently discarded every effect after it. The op's writes were fine; the effect loop dropped half
+of them.
+
+**THE COLUMN SCOPE FIRES — the open question from §7 is closed.** Driven through the real executor
+over a fresh export, with the healthy case as the control that makes the difference mean something:
+
+```
+rows on the column, DATED        page+date 6 · column 6      agree — the control
+rows on the column, UNDATED      page+date 0 · column 6      the rollover, and the reason to switch
+no column for today at all       page+date 6 · column 0      the column form fails CLOSED
+```
+
+`HAS_ANCESTOR $colId` reported nothing on 2026-08-19 because the column was **truncated by a pm2
+restart mid-build** — the same restart behind the half-built schedule in CLAUDE.md. There was
+nothing under it to find, and four sessions of varying the scope rules were varying the one thing
+that was never wrong.
+
+**`fitnessPrescription.test.js` IS BACK, with the two states that parked it.** A rollover with no
+rows placed writes six CLEARS and no stale value survives; a half-drained build writes a PREFIX and
+never a gap. Both are asserted against a tile pre-loaded with a previous list, so a survivor would
+be visible as one. A/B'd — restoring the page+date scope fails **exactly** the unstamped-date test
+and none of the other six.
+
+**THE CLOCK IS PINNED to the fixture's own `_exportedAt`.** The fixture is a snapshot of one day and
+the op resolves `$today` at run time, so without that every assertion would go red the next morning
+— and a suite that fails by the calendar gets disabled rather than read.
+
+**A FINDING FROM A TEST THAT LOOKED BROKEN:** deleting today's movement rows and running the FULL
+sweep does not yield a column with no movements — `Schedule: Place Cycle Day` merges them back in
+during the same sweep. The grid self-heals a truncated column, measurably, which is why the two
+rollover cases drive the single op instead. *Six rows deleted, map confirmed empty, six movements
+still on the tile: the system repairing itself, not a broken probe.*
