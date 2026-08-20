@@ -272,8 +272,34 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       if (displayUpdates.length > 0) {
         dispatch(setComputedValuesAction(displayUpdates));
       }
+      // ONE EFFECT MUST NOT TAKE THE REST DOWN.
+      //
+      // This loop was unguarded, so the FIRST effect to throw silently discarded
+      // every effect after it — for the whole load. That is the daily
+      // half-built schedule: measured on the live grid 2026-08-20, the day
+      // column and its slots were created in one burst at 11:53:34 and stopped
+      // dead **18 of 49 in, after 8 seconds**, with the server reporting NO
+      // skipped and NO aborted creates. Nothing was lost in flight; the client
+      // simply stopped emitting, at the same point every day.
+      //
+      // Guarding per effect does not fix whatever throws — it stops one failure
+      // becoming thirty-one, and it NAMES the effect, which is the thing nobody
+      // could see before. A silent partial build is indistinguishable from a
+      // slow one; a logged one is a bug report.
+      let effectErrors = 0;
       for (const eff of effects) {
-        applyOperationEffect(eff, hydratedState);
+        try {
+          applyOperationEffect(eff, hydratedState);
+        } catch (err) {
+          effectErrors++;
+          console.error(
+            `[full_state-client] effect ${eff?._effect} threw — continuing with the rest`,
+            err, eff,
+          );
+        }
+      }
+      if (effectErrors) {
+        console.error(`[full_state-client] ${effectErrors} of ${effects.length} effect(s) threw`);
       }
       markLoad("effects:end", { count: effects.length, ms: +(performance.now() - tOps1).toFixed(1) });
       console.log(`[full_state-client] applied effects in ${Math.round(performance.now() - tOps1)}ms`);
@@ -1572,8 +1598,14 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     const batchOpIds = [...new Set(effects.map(e => e._sourceOpId).filter(Boolean))];
     for (const sid of batchOpIds) setOpApplyingEffects(sid, true);
     try {
+      // Same per-effect guard as the full_state path above, and for the same
+      // reason: a throw here used to discard every remaining effect in the batch.
       for (const eff of effects) {
-        applyOperationEffect(eff, state);
+        try {
+          applyOperationEffect(eff, state);
+        } catch (err) {
+          console.error(`[fireOperations] effect ${eff?._effect} threw — continuing`, err, eff);
+        }
       }
     } finally {
       for (const sid of batchOpIds) setOpApplyingEffects(sid, false);
