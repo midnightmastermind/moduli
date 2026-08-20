@@ -53,10 +53,18 @@ afterAll(() => { vi.useRealTimers(); });
 // truncated build. The first version of these two tests deleted six rows,
 // confirmed the map no longer held them, and still read six movements out of the
 // tile — the system repairing itself, not a broken probe.
-function sweep(mutate, only) {
+// `world` starts from a previous sweep's result instead of the raw fixture, and
+// three cases below NEED it. Since 0162 retired the cycle, today's column holds
+// no movement rows until `Schedule: Place Weekday` puts them there — which
+// happens DURING the sweep. A test that mutates a row has to run one sweep to
+// materialise the day first, then mutate, then sweep again. That is also the
+// real order: Build Schedule -> Place Weekday -> this op reads the result.
+function sweep(mutate, only, world) {
   const operations = fx.operations.filter(o => o.enabled !== false)
     .filter(o => !only || o.name === only);
-  const occurrencesById = Object.fromEntries(fx.occurrences.map(o => [o.id, structuredClone(o)]));
+  const occurrencesById = world
+    ? Object.fromEntries(Object.entries(world).map(([k, v]) => [k, structuredClone(v)]))
+    : Object.fromEntries(fx.occurrences.map(o => [o.id, structuredClone(o)]));
   const modulesById = Object.fromEntries(fx.modules.map(m => [m.id, m]));
   const fieldsById = Object.fromEntries(fx.fields.map(f => [f.id, f]));
   mutate?.(occurrencesById);
@@ -108,10 +116,11 @@ describe("Fitness: Today's Prescription", () => {
   });
 
   it("flips exactly the ticked movement to done, and only that one", () => {
-    const before = sweep().slots;
+    const placed = sweep();                       // materialise the day first
+    const before = placed.slots;
     const after = sweep((occ) => {
       rowsOnToday(occ)[0].fields[COMPLETED] = { value: true, flow: "in" };
-    }).slots;
+    }, null, placed.occurrencesById).slots;
     expect(before[0]).toMatch(/— not yet$/);
     expect(after[0]).toMatch(/— done$/);
     // The discrimination that matters: one tick must not move the others.
@@ -119,9 +128,10 @@ describe("Fitness: Today's Prescription", () => {
   });
 
   it("clears its slots each run, so a Rest day cannot show yesterday's list", () => {
+    const placed = sweep();
     const { slots } = sweep((occ) => {
       for (const r of rowsOnToday(occ)) delete r.fields[MOVEMENT];
-    });
+    }, OP, placed.occurrencesById);
     expect(slots.filter(Boolean)).toEqual([]);
   });
 
@@ -131,11 +141,12 @@ describe("Fitness: Today's Prescription", () => {
     // The morning window between the column being built and `Place Cycle Day`
     // filling it. The tile is pre-loaded with a previous list so a survivor is
     // visible as one — without that the assertion would pass on an empty tile.
+    const placed = sweep();
     const { slots } = sweep((occ) => {
       const wf = fx.fields.filter(f => /^Workout [1-6]$/.test(f.name));
       wf.forEach((f, i) => { occ[TILE].fields[f.id] = { value: `STALE ${i + 1}` }; });
       for (const r of rowsOnToday(occ)) delete occ[r.id];
-    }, OP);
+    }, OP, placed.occurrencesById);
     expect(slots).toEqual([null, null, null, null, null, null]);
   });
 
@@ -145,11 +156,12 @@ describe("Fitness: Today's Prescription", () => {
     // honest answer is the three that exist and blanks after them — the shape
     // that was reported, 1-3 blank with 4-6 filled, is the one that must be
     // impossible.
+    const placed = sweep();
     const { slots } = sweep((occ) => {
       const wf = fx.fields.filter(f => /^Workout [1-6]$/.test(f.name));
       wf.forEach((f, i) => { occ[TILE].fields[f.id] = { value: `STALE ${i + 1}` }; });
       rowsOnToday(occ).slice(3).forEach(r => delete occ[r.id]);
-    }, OP);
+    }, OP, placed.occurrencesById);
     expect(slots.filter(Boolean).length).toBe(3);
     expect(slots.slice(3)).toEqual([null, null, null]);      // no stale tail
     for (const s of slots.slice(0, 3)) expect(s).toMatch(/ — (done|not yet)$/);
@@ -159,9 +171,10 @@ describe("Fitness: Today's Prescription", () => {
     // `Place Cycle Day` puts the rows on the column; the date stamp is a
     // separate write. Scoping by the row's date made the tile go blank in that
     // window — this is the A/B for `0157`, and it fails against the old scope.
+    const placed = sweep();
     const { slots } = sweep((occ) => {
       for (const r of rowsOnToday(occ)) delete occ[r.id].fields["Eh7oi4HKdbHB"];
-    });
+    }, null, placed.occurrencesById);
     expect(slots.filter(Boolean).length).toBe(6);
   });
 });

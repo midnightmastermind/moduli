@@ -1,4 +1,11 @@
-# Weekday templates — a THIRD layer, not a replacement for the cycle
+# Weekday templates — SHIPPED 2026-08-20 as a REPLACEMENT
+
+> **STATUS: BUILT.** The plan below was written as an additive third layer. The user read it and
+> said ***"i dont want a cycle, i just want 7 day templates"***, then ***"give the templates weekday
+> fields"***. What shipped therefore RETIRES the cycle rather than layering on it — see §6 at the
+> bottom for what actually landed and where the plan was wrong.
+
+# Weekday templates — the original plan (a THIRD layer)
 
 **USER, 2026-08-20:** *"we also need to look into making a template for each of the days of the week
 and not just a cycle of 4 days. that way i can put specific appointments certain days that are
@@ -92,3 +99,56 @@ It adds an op to the schedule build path, which is the create path this repo has
 repeatedly, and the failure mode is silent duplication that compounds on every page load. It wants:
 the behavioural harness driving the real executor over the poms grid fixture, a test that a SECOND
 run places nothing, and a dry run read against a named expectation before it goes near live data.
+
+
+---
+
+## 6. WHAT ACTUALLY SHIPPED, and where §1-§5 were wrong
+
+**The user did not want a layer.** `Schedule: Place Cycle Day` is disabled; `Schedule: Place
+Weekday` replaces it. The five cycle templates were RENAMED to Mon-Fri rather than left beside seven
+new ones — four of them already WERE the day the user asked for, and minting seven fresh templates
+would have re-created ~340 slot occurrences to arrive at content the grid already held.
+
+```
+Day 1 Push  -> Monday      Day 4 Core & Cardio -> Thursday (keeps Run + Stretch)
+Day 2 Legs  -> Tuesday     Day 5 Rest          -> Friday   (+ Run and Stretch)
+Day 3 Pull  -> Wednesday   clone of Friday     -> Saturday, Sunday
+```
+
+**§1's "one missing primitive" was right, and §2's shape for it was wrong.** `weekday:expr` shipped
+— but the template is NOT resolved by name. Each template carries a **`Weekday` FIELD** and the op
+FINDs the one whose field matches, which is what the user asked for and is the better shape anyway:
+baking seven ids into the pipeline would have made the field decorative, and matching on a NAME
+would have made a rename break the schedule.
+
+**§3's risk was real and the mitigation was wrong.** The plan proposed signing every template row
+`weekday:<label>`. Unnecessary: `mergeSubtreeInto` already falls back to `auto:<sourceId>`, so an
+unsigned row matches ITSELF on the next merge. Verified in the code and then measured — a second
+pass over the same state creates **0**. That fallback is what lets a user drag an appointment onto
+Tuesday's template with no signature ceremony, which is the whole feature.
+
+**What the plan missed entirely: the daily routines have to come OFF the weekday templates.** The
+cycle op could carry them harmlessly because it only placed rows holding a Meal or Movement pick.
+The weekday op cannot keep that filter — an appointment carries neither — so it places everything,
+and a routine left on the template would be placed a second time on every load. `0161` strips them
+structurally (slot time AND module label both matching a row on `Day`): **35 = 7 rows x 5
+templates**, with Day 4's 7:00am Run and Stretch correctly surviving, which is the discriminating
+case and the reason the rule tests the slot as well as the label.
+
+**Measured through the real executor over a fresh export, one run per weekday:**
+
+```
+Mon  6 movements  Push        Thu  8 creates  6 core + Run + Stretch
+Tue  6 movements  Legs        Fri  2 creates  Run + Stretch only
+Wed  6 movements  Pull        Sat/Sun  0      rest — meals and routines only
+second pass on the same state: 0 creates      no template claims the day: 0, fails closed
+```
+
+**MY OWN PROBE WAS WRONG TWICE, and the op's run log is what settled it.** It reported 0 effects on
+every weekday, which reads exactly like the op being broken. `computeTriggerMatch` said the op
+matched, so the log was the next place to look, and one line named it: every run iterated
+`$day = 2026-08-20` regardless of the date I faked. **`$activePeriodDates` is resolved from
+`operation.targetOccurrenceId`'s effective filter — the op's OWN page — not from the clock and not
+from `grid.activeFilterValues`.** Faking either of those moves nothing. *A probe that reports zero
+is a claim about the probe until the callee's own log agrees with it.*
