@@ -5,6 +5,7 @@ import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/ad
 import { preventUnhandled } from "@atlaskit/pragmatic-drag-and-drop/prevent-unhandled";
 
 import { socket } from "./socket";
+import { bindFullStateRequest } from "./helpers/fullStateRequest";
 import { bindSocketToStore, operationsBridge } from "./state/bindSocketToStore";
 import { toast } from "./state/notificationStore";
 
@@ -494,23 +495,16 @@ export default function App() {
     const token = localStorage.getItem("moduli-token");
     if (!token) return () => unbind?.();
 
-    let didRequest = false;
-    const request = () => {
-      if (didRequest) return;
-      didRequest = true;
-
-      const savedGridId = localStorage.getItem("moduli-gridId");
-      socket.emit(
-        "request_full_state",
-        savedGridId ? { gridId: savedGridId } : undefined
-      );
-    };
-
-    if (socket.connected) request();
-    else socket.once("connect", request);
+    // Re-requests on every RECONNECT, not once per mount — a reconnect that
+    // asks for nothing leaves any burst the server dropped dropped, which is
+    // the daily half-built schedule (see helpers/fullStateRequest.js).
+    const unbindRequest = bindFullStateRequest(
+      socket,
+      () => localStorage.getItem("moduli-gridId"),
+    );
 
     return () => {
-      socket.off("connect", request);
+      unbindRequest();
       unbind?.();
     };
   }, [dispatch]);
