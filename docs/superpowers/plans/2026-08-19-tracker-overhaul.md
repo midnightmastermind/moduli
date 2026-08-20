@@ -279,3 +279,40 @@ and `JOIN_ARRAY` + `$allItemsById.${$mvId}` inside a loop body.
 straight after the loop. If it reads 6 the loop matched and the WRITES are the problem; if it reads
 0 the predicate never passed. That halves the remaining space in one run, and doing it before
 varying anything would have saved four attempts.
+
+---
+
+## 8. Fitness — PARKED AGAIN 2026-08-20, and now the cause is understood
+
+`0151` re-enabled the prescription op after the `INIT_VAR` fix, and it wrote six correct movements.
+**It is wrong anyway, and the day rollover exposed it.**
+
+**WHAT IT IS ACTUALLY MATCHING.** On 2026-08-20 the tile held slots 1-3 BLANK and 4-6 holding Pull-day
+movements — a partial, stale list. Measured in the fixture at that moment:
+
+```
+movement rows on the grid            24
+…dated today                          0
+…under the Schedule page              0
+all 24 are the CYCLE TEMPLATES' rows — undated, not on any schedule
+```
+
+So the rows the op is scoped to find **did not exist**, and what it wrote came from somewhere else.
+`SAME_DAY` was verified NOT to be the hole — it returns false for undefined/null/"" — so the date
+rule does filter. The op's writes are therefore inconsistent run to run, which is exactly what a
+partial slot list looks like.
+
+**IT LOOKED RIGHT ON 2026-08-19 BY COINCIDENCE.** That day the placed rows were dated and under the
+schedule, so a correct-looking answer came out of a scope that is not reliably satisfied. *A feature
+verified on one day's data, once, is verified against a coincidence — the rollover is the test.*
+
+**WHY IT IS PARKED RATHER THAN PATCHED AGAIN:** a dashboard tile showing a partial stale list is
+worse than an empty one, and this is now the second time it has been switched on and found wrong.
+The op is disabled, the six fields unbound, and the stale values cleared off the tile.
+
+**WHAT THE NEXT ATTEMPT SHOULD DO DIFFERENTLY.** Stop scoping by date at all. `Schedule: Place Cycle
+Day` puts the day's rows under today's COLUMN; the column is the fact, the date stamp is a
+by-product that may or may not be applied yet. Resolve the column first (the FIND already binds
+`$colId` correctly — proven in the run log) and require `HAS_ANCESTOR $colId` **only** — then check,
+before anything else, whether the loop matched by writing `$n` after it. That single measurement is
+what found the `INIT_VAR` bug and it is what should open the next session, not close it.
