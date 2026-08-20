@@ -6,6 +6,69 @@
 
 ---
 
+### 2026-08-20 (3) — I OPENED IT IN A BROWSER, and the Medications board could not be reached
+
+Picked up the other account's session, which hit its limit part-way through the browser pass the
+last two entries both name as their honest gap. **Every claim those entries made about the data was
+true. One of them was also unopenable.**
+
+**THE DEFECT ONLY A BROWSER COULD FIND.** `0158` minted the Medications board with
+`parentId: supBoard.parentId`, commented *"the same folder the other boards live in"*. **A board
+CONTAINER is not in a folder.** Supplements is a PAIR — a `page/board` homed in `Root/Boards/Food`
+whose `occurrences[]` LISTS a `container/board` whose own `parentId` is null:
+```
+Supplements   page/board       parent=FOLDER:Food   lists the container   -> opens
+Supplements   container/board  parent=(none)        listed by the page
+Medications   container/board  parent=(none)        listedBy=[]           -> nothing to open
+```
+So the board held all four medications, the dropdown resolved them, the feed was on, and **every
+read-back this repo performed said it was fine** — because every one of them read Mongo. `0163` mints
+the missing page. *The created-but-unlinked class from a seventh direction, and the first where the
+data was perfect and only the ROUTE to it was missing.*
+
+**IT REPAIRS FORWARD RATHER THAN EDITING `0158`.** That migration has executed and its ledger entry
+has to describe what ran — the 2026-08-07 (4) rule. Migrations run in order, so a grid that has seen
+neither gets the orphan and the repair back to back and converges. Editing history would have saved
+one file and made the ledger a lie.
+
+**THE INTEGRITY RULE WAS NARROWED BY A MEASUREMENT, and the number is the whole reason.**
+`unreachable-board` fires on a feed-backed board container that no occurrence lists and nothing
+parents — 1 of 36 on poms grid before the repair, 0 after, 0 on all five grids. **The obvious wider
+rule — "any board container nobody lists" — matches 12 MORE live rows**, the `<ingredient> — files`
+containers, which are reached through a FIELD VALUE: the third reachability path 2026-08-13 (4) was
+paid for missing. *A guard that cries wolf on the day it ships is one somebody weakens later.* A/B'd:
+defeating the predicate fails exactly the one test that asserts it flags and none of the four that
+assert it stays quiet.
+
+**AND THE WEEKDAY WORK IS VERIFIED ON SCREEN AT LAST** — the gap the last entry closed with *"nobody
+has reloaded the grid and watched Thursday's core + cardio session land."* Somebody has now:
+```
+7:00am   Eat · Exercise x6 -> Planks, Russian Twists, Leg Raises, Bicycle Crunches,
+                              Ab Rollouts, Side Planks · Run · Stretch
+7:30am   Hygiene · Hot Tub · Take Medication          <- the morning dose, in Hygiene's own slot
+9:00pm   Journal · Eat · Take Medication              <- the night dose, in Journal's own slot
+```
+Thursday is the cardio day, so Run and Stretch beside the six core movements **is** the
+discriminating case. Movement picks resolve to NAMES rather than raw ids, which was its own bug once.
+The Medications board renders all four; CBD Gummies sits on Ingredients with its picture and reads
+`ingredient, grocery` · 33 cal · protein 0. **0 page errors on every load.**
+
+**MY PROBE REPORTED ZERO SLOTS ON A SCHEDULE WITH 48 OF THEM.** The header innerText is
+`"12:00am\nDate:\n—\nThu, Aug 20"` — it carries its own Date pill — and my `^…$` match required the
+whole string. *A probe that reports zero is a claim about the probe*, for the Nth time. **A second
+probe then disagreed with the first about the SAME slot** — 9 rows, then 3 — which is
+`content-visibility` de-rendering rows once they scroll out of view. Settled by reading 7:00am while
+it was demonstrably `inViewport`, and screenshotted. *Two reads of one slot disagreeing is not a
+contradiction to average; it is a question about when each was taken.*
+
+**Left alone, reported not acted on:** Planks and Side Planks read `Set 1: 1 reps`, because `0119`
+backfilled the catalog prescription and a plank is TIMED rather than counted. It is the prescription
+the catalog holds, so changing it is the user's call, not a migration's.
+
+2821 client + 919 server tests, poms grid **1 pre-existing error, 0 new**.
+
+---
+
 ### 2026-08-20 (2) — the prescription comes off the bench, and the parked diagnosis was WRONG
 
 Picked up the other account's session, which hit its limit mid-sentence while mapping the six
