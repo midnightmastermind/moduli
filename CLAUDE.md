@@ -6,6 +6,76 @@
 
 ---
 
+### 2026-08-20 (4) — the create burst is ONE BATCH: 98 Atlas round trips become 4, and 8.9s becomes 0.3s
+
+The item the 2026-08-20 entry deliberately left unwritten — *"stated rather than half-shipped… it
+wants its own reviewed pass"*. This is that pass.
+
+**THE COST, MEASURED BEFORE ANY CODE WAS WRITTEN.** A test that drives the REAL handler with Mongo
+mocked and COUNTS round trips reported **98** for a 49-slot build — 49 occurrence upserts and 49
+parent `$push`es of ONE child, serialized through a per-socket Promise chain. That is the number the
+half-built-schedule entry inferred; here it is measured, and it is now a test, so nobody can
+reintroduce a per-create write silently.
+
+**Now a burst is collected and written as one batch:** bulkWrite the rows · read the parents · one
+`$push $each` per parent · re-read them. **Four round trips regardless of burst size**, and the test
+that pins it asserts the invariant a fixed number cannot state — *the same cost for 5 creates as for
+50*.
+```
+                    round trips        wall clock, REAL Atlas, 49 creates
+before                   98                       8931ms
+after                     4                        319ms
+```
+
+**THE COALESCING WINDOW IS `setImmediate`, and that is not a detail.** socket.io decodes and emits
+each packet as its own task, so a microtask closes the window after the first event and every batch
+is a batch of one. It is not a timer either — a delay would tax the single-create case (a drag, a
+click) to buy nothing. **The prod log shows exactly the predicted shape:** `create_batch START 1 /
+DONE 1` for the first packet, then `START 29 / DONE 29` for the rest.
+
+**WHAT THE SERIALIZATION WAS PROTECTING IS KEPT, and that is the whole risk of this change.** `$each`
+preserves emit order within a parent and the batch is assembled in emit order. Idempotency moves from
+the per-create `$ne` filter to a pre-read plus a set difference. `insertAtIndex` keeps the original
+single-row path, because `$each` + `$position` cannot express several different positions in one
+update. **The cache rollback is unchanged in spirit and batched in form** — a create that does not
+reach Mongo must leave nothing in the warm cache, or `update_occurrence` launders the phantom into a
+persisted dangling child ref (2026-08-04, five sweeps).
+
+**THE A/B IS THE PROOF, and it is the right shape for a perf change: the two COST tests fail against
+the old handler and the six BEHAVIOUR tests pass against BOTH.** That is what says this changed the
+cost and not the semantics. Separately, defeating the cache rollback fails exactly the three phantom
+tests and nothing else.
+
+**ASK THE SIGNAL, NOT THE ERROR — found only by aborting a real bulkWrite.** Cancelling one mid-flight
+cancels the write correctly (nothing persists, the pool slot frees) and then surfaces as a
+**`TypeError`** reading *"Cannot set property name of which has only a getter"* — a driver artifact,
+not an `AbortError`. Matching that string would be brittle AND would swallow genuine TypeErrors, so
+`isAbort` asks the controller we aborted ourselves. Without it, an ordinary reload logs an error and
+emits a spurious `server_error`. *A live (un-aborted) signal was verified harmless first — the check
+that mattered, since a throw there would have broken every batch.*
+
+**VERIFIED AGAINST A REAL DATABASE BY DIFFING PERSISTED STATE**, because the risk was a persistence
+layer quietly dropping a field — the 2026-08-01 (20) lesson, where Mongoose's `minimize` stripped an
+empty object and no in-memory test could see it. A bulkWrite-upserted row and a findOneAndUpdate-
+upserted row persist **identically**: 24 keys, the only difference a per-write `timestamp`. So
+`setDefaultsOnInsert` applies the same way. Then end to end through the real handler: 49/49 rows,
+parent listing all 49 in emit order, **`identitySignature` intact 49/49** (merge idempotency depends
+on it), fields and sortOrder kept, cache truthful, replay still 49. Every scratch database dropped
+afterwards.
+
+**AND IT IS EXERCISED ON PRODUCTION, not just deployed.** A first grid load fired **no** creates —
+the feeds were already in sync — so the deployed path was unexercised and saying "deployed" would
+have been the weaker claim. Drove 30 creates through the DEPLOYED server over a real socket against
+**test grid 2** (disposable by design; poms grid never touched): 30/30 persisted, listed in emit
+order, signatures intact, **203ms**, 0 errors in the log, and all 31 probe documents deleted after —
+test grid 2 back to **0 integrity errors**.
+
+**Only server code was owed to prod, and checking that is the 2026-08-13 (3) rule paying off:**
+`git diff --name-only` against prod HEAD showed the only `client/` changes were tests and a fixture,
+so no bundle changed and nobody has to reload. 927 server tests.
+
+---
+
 ### 2026-08-20 (3) — I OPENED IT IN A BROWSER, and the Medications board could not be reached
 
 Picked up the other account's session, which hit its limit part-way through the browser pass the
