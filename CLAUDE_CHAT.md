@@ -3022,3 +3022,25 @@ the hover rule the hit at the button's centre is the photo.* Verified again on p
 **A setup trap worth keeping: there are ZERO `.artifact-card`s on the default screen** — they exist
 only inside the viewer. What sits on the grid is the occurrence's inline media, and clicking THAT is
 what opens the spread.
+
+## 2026-08-20 — the assistant speaks plain English, and the vitamin targets are looked up
+
+> "look up whats normal for those values thats blocked for me (the vitamins) and ask me the
+> questions you need btw to continue"
+
+The four micronutrient targets were carried as "blocked on the user" for lacking figures. Direction
+here is that PUBLIC reference values are lookupable and Claude should look them up rather than wait —
+the same rule `0123` already applies to a food's vitamin CONTENT ("a food's content is public and
+lookupable, a price is not"). What still needs the user is which reference PROFILE applies and which
+direction a limit runs, not the numbers themselves.
+
+> "for the ai thing, make sure you do it with layman speak, not just give it json data"
+
+**Applies to the assistant work whenever it is picked up** (`docs/superpowers/plans/
+2026-08-19-assistant-grid-build.md`). The assistant must ANSWER IN PLAIN LANGUAGE. Returning raw
+tool output — a JSON blob, an id list, a pipeline dump — is not an answer; it is the evidence behind
+one. This is a constraint on the assistant's OUTPUT, not on its tool catalog: the tools may return
+whatever structure they like, and the reply the user reads has to be sentences.
+
+Worth noting against the existing plan, which is about WHICH tools the model can reach: this is the
+other half. A model that can call every tool and reports back in JSON is still unusable.
