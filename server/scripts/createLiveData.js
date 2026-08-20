@@ -9232,6 +9232,7 @@ export async function createLiveData(userId, options = {}) {
     if (changed.length) console.log(`   Period-all policy: ${changed.length} trackers`);
   }
 
+
   // Trackers-page scoping (2026-07-25): the Goals + Accounts pages are folded
   // into ONE "Trackers" page, but makeTrackerOp's on-page nav trigger scopes
   // by ancestor LABEL "Goals". Data-side rewrite (builders untouched per the
@@ -9560,6 +9561,29 @@ async function main() {
       await autoAppliedCascade({
         gridId: result.gridId,
         models: { Occurrence, Module, Field, Folder, Grid },
+        log: (m) => console.log(`   ${m}`),
+        dryRun: false,
+      });
+    }
+
+    // ── The CATEGORY axis (migration 0164) ───────────────────────────────────
+    //
+    // The second half of "sum/count/track across any time window AND category".
+    // CALLS the migration for the same reason 0064 and 0067 are called here: the
+    // seed IS the migration, so a fresh grid and a migrated one cannot drift.
+    //
+    // RUNS LAST DELIBERATELY, and both orderings matter. It resolves its category
+    // field from `grid.meta.autoAppliedFieldIds`, which 0067 is what finally
+    // writes under that name — run any earlier and it finds nothing and refuses.
+    // And it must follow the period-all pass above, because that pass OR-wraps
+    // the date rule and the category gate has to land BESIDE that wrapper, never
+    // inside it.
+    {
+      const { up: categoryAxis } = await import("../migrations/0164-category-axis-on-trackers.mjs");
+      console.log("\n🏷️  Category axis on trackers (migration 0164, shared with the live grid)…");
+      await categoryAxis({
+        gridId: result.gridId,
+        models: { Occurrence, Module, Field, Folder, Grid, Operation },
         log: (m) => console.log(`   ${m}`),
         dryRun: false,
       });
