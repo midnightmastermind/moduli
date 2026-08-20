@@ -211,9 +211,11 @@ export function resolveExpr(expr, $vars) {
   // this against the template's own `Weekday` field.
   //
   // THE ALTERNATIVE WAS PARSING "Thursday" OUT OF THE COLUMN'S LABEL, which is
-  // the trap the 2026-07-26 de-schedule sweep removed `SCHEDULE_LABEL_PREFIX`
+  // the trap the 2026-07-26 de-schedule sweep deleted the label-prefix sniffing
   // for — a label is one rename away from wrong, and this one is minted from a
-  // format string a user can change.
+  // format string a user can change. (Naming that removed constant here, even in
+  // a comment, trips `noDomainKnowledge`, which greps source TEXT — as it should:
+  // it cannot tell a comment from the code that would reintroduce it.)
   //
   // The local-midnight parse is shared with `dateLong:` for the same reason it
   // exists there: `new Date("2026-08-20")` is UTC midnight, which is the
