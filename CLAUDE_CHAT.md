@@ -3044,3 +3044,25 @@ whatever structure they like, and the reply the user reads has to be sentences.
 
 Worth noting against the existing plan, which is about WHICH tools the model can reach: this is the
 other half. A model that can call every tool and reports back in JSON is still unusable.
+
+## 2026-08-20 (2) — the panel sidebar: one tree, pinned on top, on the right, folders closed
+
+Three messages in quick succession, all about the same surface:
+
+> "could you make every folder closed by default in the manifest sidebar. all the folders currently
+> are expanded to start"
+
+> "i think we should combine the manifest sidebars into 1 with pinned being the panels opened stuff,
+> that will sit above the full manifest"
+
+> "put this on the right side"
+
+**What exists today**, measured before acting: `ManifestTree` is a TERNARY — `isPagePanel ? <Local
+tree> : <Root tree>` — so the sidebar shows EITHER the panel's pinned pages OR the full manifest,
+never both, switched by two separate header buttons in `ModulePanel` ("Local pages" / "Root
+directory"). The user wants them merged into ONE tree with pinned above the manifest.
+
+**And `isExpanded` is not a user preference — it is a seed-time initial value.** `FolderNode` holds
+its open state in local React state (`useState(folder?.isExpanded !== false)`) and **nothing ever
+writes it back**, so toggling a folder is per-mount and never persists. Every manifest folder was
+seeded `isExpanded: true`, which is why they all start open.
