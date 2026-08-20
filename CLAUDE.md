@@ -54,11 +54,24 @@ The server logged no killed second batch (STARTs == DONEs + 1), so no sweep ran 
 minutes: **the tab was suspended and healed the moment it reconnected.** The user stares at a half
 schedule for exactly as long as their tab is asleep.
 
-**THE STANDING RULE THIS EARNS: do not deploy or apply a migration while the user may be loading the
-grid.** A restart is not free — it truncates whatever burst is in flight, and the schedule build is
-the longest burst this app has.
+**AND THE REASON IT NEVER HEALED IS A REAL DEFECT, FIXED:** `App.jsx` latched
+`request_full_state` per MOUNT (`didRequest` + `socket.once("connect")`), so **a reconnect asked for
+nothing**. The server only sends `full_state` when asked and the sweep rides on that payload — so
+after a reconnect nothing re-ran, and whatever the server dropped stayed dropped **until the page
+was RELOADED**. That is the whole 30-minute gap: it completed at 07:24 because my deploy shipped a
+new bundle and the tab reloaded. The latch is per CONNECTION now (`helpers/fullStateRequest.js`),
+still collapsing the already-connected fast path and the `connect` event into one request, with
+disconnect re-arming it. **This makes the app self-heal from ANY interrupted burst, not just this
+one.** Extracted from `App.jsx` because mounting App needs the whole store and the latch is exactly
+where the bug lived; 6 tests, A/B'd — never re-arming fails exactly the reconnect case and nothing
+else, behind a control asserting a FIRST request happens at all.
 
-**THE DURABLE FIX IS NOT WRITTEN, and is stated rather than half-shipped:** the build is ~49 creates
+**THE STANDING RULE THIS EARNS ANYWAY: do not deploy or apply a migration while the user may be
+loading the grid.** A restart is not free — it truncates whatever burst is in flight, and the
+schedule build is the longest burst this app has. The reconnect fix makes that recoverable rather
+than permanent; it does not make it free.
+
+**THE REMAINING FIX IS NOT WRITTEN, and is stated rather than half-shipped:** the build is ~49 creates
 x 2-3 serialized round trips (~150 in total), including a parent `$push` of ONE child at a time to
 the same parent. Batching that into a single bulk write collapses the vulnerable window from
 seconds to ~100ms and speeds up every other burst (feeds, templates, day pages). It is a change to
