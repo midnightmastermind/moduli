@@ -42,6 +42,28 @@ function placeOn(isoDate, mutate) {
   column.fields[DATE] = { value: isoDate, flow: "in" };
   const sched = occ[SCHEDULE_PAGE];
   sched.filterOverride = { ...(sched.filterOverride || {}), [DATE]: isoDate };
+
+  // EMPTY THE COLUMN FIRST. The fixture is a snapshot of a LIVE grid, so whether
+  // today's column happened to hold a placed session is a fact about the MINUTE
+  // the export was taken — not about the op. These tests passed for a week only
+  // because the snapshot caught an empty column; a re-export taken after the
+  // morning sweep made Monday read 12 movements (6 already there + 6 placed) and
+  // gave Fri/Sat/Sun 6 apiece on days that must place none.
+  //
+  // Slots are kept and their CONTENTS dropped, which is what "a fresh day" means
+  // here. The daily routines go with them, and that is safe by measurement rather
+  // than by hope: the invariant test above asserts no weekday template carries a
+  // daily routine, so nothing this clears is anything `Place Weekday` places.
+  const slotIds = column.occurrences || [];
+  let cleared = 0;
+  for (const sid of slotIds) {
+    const slot = occ[sid];
+    if (!slot) continue;
+    for (const cid of slot.occurrences || []) { delete occ[cid]; cleared++; }
+    slot.occurrences = [];
+  }
+  const leftAfterClear = (column.occurrences || [])
+    .flatMap((sid) => occ[sid]?.occurrences || []).length;
   mutate?.(occ);
 
   const op = fx.operations.find(o => o.name === OP);
@@ -66,7 +88,7 @@ function placeOn(isoDate, mutate) {
     const v = o.fields[MOVEMENT].value;
     return lbl(occ[(Array.isArray(v) ? v : [v])[0]]);
   });
-  return { occ, errors, created: ups.filter(u => u._effect === "CREATE_ITEM").length, movements, column };
+  return { occ, errors, cleared, leftAfterClear, created: ups.filter(u => u._effect === "CREATE_ITEM").length, movements, column };
 }
 
 describe("the seven weekday templates", () => {
@@ -119,6 +141,14 @@ describe("Schedule: Place Weekday", () => {
     ["2026-08-30", "Sunday", [], 0],
   ];
 
+  it("the harness really does empty the column first — the control", () => {
+    // Without this, a clear that silently matched nothing would put every test
+    // below back at the mercy of when the fixture was exported.
+    const { cleared, leftAfterClear } = placeOn("2026-08-29");
+    expect(cleared).toBeGreaterThan(0);      // it found rows to remove
+    expect(leftAfterClear).toBe(0);          // and the column really was empty when the op ran
+  });
+
   it.each(WEEK)("%s (%s) places that weekday's own movements", (iso, day, expected, count) => {
     const { errors, movements } = placeOn(iso);
     expect(errors).toEqual([]);
@@ -128,10 +158,17 @@ describe("Schedule: Place Weekday", () => {
 
   it("gives Thursday its Run and Stretch, and Friday those ALONE", () => {
     // The two cardio routines are the discriminator between the two templates:
-    // Thursday is core + cardio, Friday is cardio only. Asserted by the CREATE
-    // count, since neither carries a Movement pick.
-    expect(placeOn("2026-08-27").created).toBe(8);   // 6 core + Run + Stretch
-    expect(placeOn("2026-08-28").created).toBe(2);   // Run + Stretch only
+    // Thursday is core + cardio, Friday is cardio only. Neither carries a
+    // Movement pick, so the CREATE count is what distinguishes them.
+    //
+    // Measured as a DELTA against a rest day, not as an absolute. Every weekday
+    // template also carries the day's meals, so an absolute count is partly a
+    // count of meals — and it silently changes the moment the meal plan does.
+    // Saturday is the baseline: meals and nothing else.
+    const base = placeOn("2026-08-29").created;
+    expect(base).toBeGreaterThan(0);                       // control: meals ARE placed
+    expect(placeOn("2026-08-27").created - base).toBe(8);  // 6 core + Run + Stretch
+    expect(placeOn("2026-08-28").created - base).toBe(2);  // Run + Stretch only
   });
 
   it("places NOTHING on a second run — the check the whole design rests on", () => {

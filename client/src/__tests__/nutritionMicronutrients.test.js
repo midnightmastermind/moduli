@@ -57,15 +57,42 @@ describe("Nutrition: Today's Micronutrients", () => {
     }
   });
 
-  it("every nutrient carries the guide's daily target", () => {
+  // Targets AND their units, because half of this pair is not a check.
+  // `0165`: Vitamin D's target was 600 — the IU figure — while every stored
+  // ingredient value was in mcg, so the tile compared mcg against IU and a fully
+  // met day read as 2.5% of goal. Nothing errored. The unit is asserted here so
+  // the pair can never drift apart again, and this test would have caught it.
+  it("every nutrient carries the right daily target, in the right unit", () => {
     const { fieldsById } = sweep();
-    const want = { "Total Vitamin A":900, "Total Vitamin C":90, "Total Vitamin D":600,
-      "Total Vitamin B12":2.4, "Total Magnesium":400, "Total Iron":8, "Total Zinc":11,
-      "Total Calcium":1000, "Total Omega-3":250, "Total Sodium":2300, "Total Potassium":3400 };
-    for (const [name, target] of Object.entries(want)) {
+    const want = {
+      "Total Vitamin A":  [900,  "mcg"],
+      "Total Vitamin C":  [90,   "mg"],
+      "Total Vitamin D":  [15,   "mcg"],   // 15 mcg == the 600 IU it used to say
+      "Total Vitamin B12":[2.4,  "mcg"],
+      "Total Magnesium":  [420,  "mg"],    // adult male 31-50, the user's profile
+      "Total Iron":       [8,    "mg"],
+      "Total Zinc":       [11,   "mg"],
+      "Total Calcium":    [1000, "mg"],
+      "Total Omega-3":    [250,  null],
+      "Total Sodium":     [2300, "mg"],
+      "Total Potassium":  [3400, "mg"],
+    };
+    for (const [name, [target, unit]] of Object.entries(want)) {
       const f = Object.values(fieldsById).find(x => x.name === name && x.displayEnabled);
       expect(f?.displayConfig?.targetValue, name).toBe(target);
+      if (unit) expect(f?.unit, `${name} unit`).toBe(unit);
     }
+  });
+
+  it("sodium is a CEILING, not a goal to reach", () => {
+    // `displayConfigTarget` defaults to op ">=", which turned the tile GREEN once
+    // you went OVER your sodium limit. Every other nutrient here is a floor, and
+    // asserting that is what stops a later pass "tidying" this one back.
+    const { fieldsById } = sweep();
+    const by = (n) => Object.values(fieldsById).find(x => x.name === n && x.displayEnabled);
+    expect(by("Total Sodium")?.displayConfig?.targetOp).toBe("<=");
+    for (const n of ["Total Vitamin D", "Total Calcium", "Total Iron"])
+      expect(by(n)?.displayConfig?.targetOp ?? ">=", n).toBe(">=");
   });
 
   // THE CONTROL. A total of zero is the correct reading when nothing has been
