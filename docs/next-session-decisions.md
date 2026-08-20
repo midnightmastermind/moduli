@@ -95,11 +95,38 @@ empty Daily Question found this morning is the kind of thing it would catch.
   `--signal-pos` exactly). `vintage-light` needed a DIFFERENT fix — it
   deliberately re-hues, so its inks are darkened rather than re-derived. See
   CLAUDE.md 2026-08-19 (7).
-- **The three DARK themes are unmeasured**, and are the remaining gap of this
-  kind: `midnight` and `vintage-dark` have never had a number put against them
-  (`moduli-dark` was measured via Blueprint at 7.5-11:1 and is fine). The
-  failure mode there is the inverse — an ink too DARK on a dark fill — and it is
-  one probe run each.
+- **The three DARK themes are STILL unmeasured — and the attempt on 2026-08-20 (6)
+  failed its own calibration, which is worth reading before the next one.**
+  `midnight` and `vintage-dark` were LOOKED AT on test grid 2 and are legible:
+  headers, row labels and value pills all read cleanly (amber-on-brown for
+  vintage-dark, near-white on near-black for midnight). That is an eyeball
+  judgement, not the number this item asks for.
+
+  **What went wrong, so the next attempt starts ahead:**
+  - The probe read rendered PIXELS (ink = the pixels furthest in luminance from
+    the box's modal colour) and reported *29 of 45 value pills under 4.5:1 on
+    `moduli-light`* — a theme 2026-08-19 (7) measured at **6.05-6.09 after its
+    fix**. **The calibration case is what caught it.** Without a theme whose
+    answer is already known in the same run, the dark-theme numbers (15 of ~42
+    under 4.5) would have read as a real finding and been acted on.
+  - The failure signature is the documented one: ink ≈ fill (e.g.
+    `rgb(183,146,126)` on `rgb(185,148,127)` = 1.02:1) — **the sampled box held
+    no text.** Cause: the value text lives in `.auto-marquee-inner`, and a
+    `Range` rect over it covers the marquee TRACK rather than the visible
+    glyphs, so the clip is mostly empty track.
+  - **And the premise for picking test grid 2 was wrong.** It was chosen because
+    it carries no SKIN, so the background would be uniform and pixel sampling
+    sound. It still gets the base `:root` retro rainbow — the screenshots show
+    coloured rays straight through the panels — so the surface behind a
+    translucent pill is *not* uniform, which is the same thing that defeated the
+    2026-08-19 (6) probe behind a wallpaper.
+  - An earlier iteration of the same probe reported pure white ink at 13-16:1 for
+    **60 of 60** samples, all of them the word "Completed": the selector matched
+    one repeated element and the ink-picker took the toggle KNOB rather than the
+    text. *Sixty identical samples is not sixty measurements.*
+
+  Next attempt: keep the light-theme calibration, sample glyph boxes rather than
+  marquee tracks, and use a surface with no rainbow behind it.
 
 ## Nutrition / fitness build — state at 2026-08-19 end
 
@@ -114,8 +141,17 @@ CONTROL — the reading that proves a zero is a reading rather than a broken op.
 Still open, in the order I would take them:
 - **Vitamin E / K / B6 / Folate have fields and values but no target** — the guide gives none.
   Either find figures the user trusts or drop them from the tile; they currently do not appear on it.
-- **`Total Subscriptions` and `Monthly Bills` bind `Amount`, an INPUT field**, rather than a display
-  twin. They classify as cumulative correctly, but the binding is odd and worth a look.
+- ~~**`Total Subscriptions` and `Monthly Bills` bind `Amount`, an INPUT field**~~ **— LOOKED AT
+  2026-08-20 (6), NOT A DEFECT.** `Total Subscriptions` is no longer on the grid at all. `Monthly
+  Bills` does write a sum into an input-enabled field, and the reason that is safe is the thing
+  worth recording: **its loop is scoped to the `Bills` container while the tile lives under
+  Trackers**, so it is not inside its own summation scope and cannot feed on its own output. Driven
+  over the live data: 10 rows, sum **2040.97**, which is exactly what the tile reads. The only
+  consequence of the input binding is that the tile renders an editable control the next run
+  overwrites. Also confirmed it resolves no `$goalPeriod`, so `0164` correctly left it alone.
+  *Of the 13 ops writing an input-capable field, the other 12 are legitimate stamps (Date, Time
+  Slot, Cycle Day, Pomodoro Minutes) — so a `gridIntegrity` rule for this class would be noise on
+  the day it shipped.*
 - **The micronutrient op double-counts a repeated ingredient across meals**, which is correct for a
   day's intake but means a template with the same meal twice inflates a preview. Only matters if the
   tile is ever pointed at a template.
