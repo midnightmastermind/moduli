@@ -6,6 +6,115 @@
 
 ---
 
+### 2026-08-20 (2) — the prescription comes off the bench, and the parked diagnosis was WRONG
+
+Picked up the other account's session, which hit its limit mid-sentence while mapping the six
+`Workout N` slots. The op it had parked three hours earlier is now live, and the reason it was parked
+does not survive contact with the pipeline's own shape.
+
+**THE PARKED DIAGNOSIS IS RETRACTED.** `d7e31b74` recorded the tile holding *slots 1-3 blank and 4-6
+with Pull-day movements* and concluded the op *"was matching template rows"*. **It cannot emit that.**
+It clears all six slots and then writes slot `$n` in order, so its outputs are six values, a PREFIX of
+the day's list, or six blanks — `1-3 blank, 4-6 filled` is none of those. That shape requires the six
+CLEARS to be applied and then abandoned partway, which is exactly what `bindSocketToStore` did until
+`6b6a5d1d` **committed the same morning**: one throwing effect silently discarded every effect after
+it. *The op's writes were fine and the effect loop dropped half of them — a second bug wearing the
+first one's symptoms.*
+
+**THE COLUMN SCOPE FIRES, which closes a question four sessions had been varying rules against.**
+Driven through the real executor over a fresh export, with the healthy case as the control that makes
+the difference mean anything:
+```
+rows on the column, DATED        page+date 6 · column 6      agree — the control
+rows on the column, UNDATED      page+date 0 · column 6      the rollover, and the reason to switch
+no column for today at all       page+date 6 · column 0      the column form fails CLOSED
+```
+`HAS_ANCESTOR $colId` reported nothing on 2026-08-19 because the column was **truncated by a pm2
+restart mid-build** — the same restart behind the entry below this one. *Four attempts varied the
+scope rules; the scope was never what was wrong, and the data it was being measured against was.*
+
+**A TEST THAT LOOKED BROKEN WAS THE SYSTEM WORKING.** Deleting today's six movement rows and running
+the FULL sweep does not produce a column with no movements: `Schedule: Place Cycle Day` merges them
+back in during the same sweep. Six rows deleted, the map confirmed empty, six movements still on the
+tile. **The grid self-heals a truncated column, measurably** — so the two rollover cases drive the
+single op instead. *Check the probe before believing the failure; and when the probe is right, ask
+what the disagreement is telling you.*
+
+**`fitnessPrescription.test.js` is back, with the two states that parked it** — a rollover with no
+rows placed writes six CLEARS and no stale value survives; a half-drained build writes a PREFIX and
+never a gap. Both assert against a tile **pre-loaded with a previous list**, so a survivor would be
+visible as one. **THE CLOCK IS PINNED to the fixture's own `_exportedAt`**, because the fixture is one
+day's snapshot and the op resolves `$today` at run time — otherwise every assertion goes red the next
+morning, and a suite that fails by the calendar gets disabled rather than read. A/B'd: the old scope
+fails **exactly** the unstamped-date test and none of the other six.
+
+---
+
+**MEDICATIONS, A TWICE-DAILY ROUTINE, AND CBD GUMMIES** — user, mid-session, plus their answer on
+scheduling: ***"Daily, but twice."***
+
+**EVERY PIECE IS COPIED FROM THE ONE THIS GRID ALREADY HAS, at run time rather than restated.**
+`Recover` binds a multi-select `Supplement` dropdown scoped to the Supplements board — the same
+three-part shape (board · dropdown · routine) one category over — so `0158` reads that board, that
+field and the Hygiene routine as its exemplars. **Multi-select is precedent, not a guess**, and the
+Habit marker rides along with Hygiene's bindings, which is what makes it impossible to forget (a
+routine without it lands in the TASKS count, not Completed Habits).
+
+**THE DOSE IS PART OF THE NAME, deliberately unlike `0122`**, which pulled amounts OUT of ingredient
+titles. An ingredient's amount is a serving size; **a medication's dose is its IDENTITY** — 10mg and
+20mg aripiprazole are different things to take, and a dropdown listing both as "Aripiprazole" is
+unusable. Also on `module.meta.dose`, so nothing parses a label.
+
+**TWO NAMES ARE SPELLED AS THE MANUFACTURER SPELLS THEM** — Vyvanse for *vivance*, Trazodone for
+*trazadone*. On a medication list a phonetic spelling reads as correct and is not. Flagged to the
+user rather than done silently; the doses are theirs, verbatim.
+
+**BOTH PLACEMENT TIMES ARE LOOKUPS** (`0110`'s rule, two anchors): the slot holding **Hygiene** for
+the morning, the slot holding **Journal** for the night — 7:30am and 9:00pm today, and still right the
+first time either routine moves. On `Day` because that is what Build Schedule applies every morning,
+on the five cycle templates because that is what Hygiene and Hot Tub look like here, and on today's
+column directly so it is on the schedule now. It cannot double-place: `Place Cycle Day` only places
+rows carrying a Meal or Movement pick.
+
+**THE DROPDOWN IS LEFT EMPTY ON BOTH ROWS.** Which pills go in which dose is a medical fact about this
+prescription, and the obvious inference — stimulant in the morning, sedative at night — is the
+plausible guess `0052` refused for phone numbers. The rows are the SLOTS; the picks are one tap each.
+
+**THE DRY RUN CAUGHT MY OWN SELECTOR, which is the whole reason to read one.** `0159` copies a
+30-binding ingredient rather than listing fields — *"every X" in a migration means every X that exists
+when it runs* — and the widest-bound ingredient **on the grid** is `Milk`, one of five homed under the
+**Grocery List** rather than under Ingredients. Following its parent would have filed CBD Gummies in
+the wrong board **with every log line still reading correctly**. The home is now the board feeding on
+the `ingredient` tag; being tagged `grocery` is what puts it on the list, and that board is a
+materialized feed, not a home.
+
+The user's numbers are verbatim — 33 kcal · 2g fat · 8g carbs · 15mg sodium per ONE gummy. **The 10mg
+is CBD, not a nutrient**, so it lives in the serving size where the micronutrient trackers cannot sum
+it into something meaningless. **Protein 0 is the single derived value and says so.** Every other
+vitamin and mineral is left BLANK: `0123` could write reference values for whole foods because a
+food's content is public and lookupable, and a manufactured gummy's is not.
+
+**Read back out of the database rather than off the log:** the board holds all four medications, the
+dropdown resolves them and excludes feed copies, 15 `Take Medication` rows carry the Habit marker, and
+CBD Gummies sits on Ingredients with a picture attached by **re-running `0121`** — which is generic
+and gap-filling, so it wanted no second copy of itself. 2805 client tests, poms grid **1 pre-existing
+error, 0 new**.
+
+**NOT VERIFIED, and it is the honest gap: nobody has looked at any of it in a browser.** Every write is
+proven through the real executor over the live data and read back out of Mongo, but the tile, the
+Medications board and the two schedule rows have not been seen on screen.
+
+**FILED, NOT BUILT:** weekday templates (`docs/superpowers/plans/2026-08-20-weekday-templates.md`).
+The user asked to *"look into"* a template per weekday for repeatable appointments. It is a THIRD
+layer, not a replacement — the cycle is FIVE days and they chose to keep it. The missing primitive is
+a `weekday:` token (`dateLong:` computes the weekday and throws it away; parsing it out of the column
+LABEL is the trap the de-schedule sweep removed `SCHEDULE_LABEL_PREFIX` for). **And the real risk is
+not the templates:** `Place Cycle Day` is idempotent by accident of its filter — it only places rows
+carrying a pick — while a weekday template holds arbitrary rows, so without its own signature scheme
+every load re-clones the whole template into the column.
+
+---
+
 ### 2026-08-20 — the schedule half-builds because I RESTART THE SERVER MID-BUILD
 
 User: *"it always half built. we need to figure out why the schedule is only half building
