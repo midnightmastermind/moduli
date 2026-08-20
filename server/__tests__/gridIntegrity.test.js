@@ -444,3 +444,54 @@ describe("dated-copy-link-source", () => {
     expect(codes(w)).not.toContain("dated-copy-link-source");
   });
 });
+
+describe("unreachable-board", () => {
+  // The live shape, 2026-08-20: a board is a PAIR — a page/board homed in a
+  // folder, listing a container/board whose own parentId is null. `0158` minted
+  // the container and no page, so the Medications board held four medications
+  // that could not be opened. Every DB read-back said it was fine.
+  const boardMod = (id) => mod(id, { role: "container", kind: "board" });
+  const pageMod = (id) => mod(id, { role: "page", kind: "board" });
+  const feed = { enabled: true, conditions: [{ fieldId: "f-tag", comparator: "CONTAINS", value: "t" }] };
+
+  const pair = ({ listed }) => ({
+    modules: [pageMod("m-page"), boardMod("m-board")],
+    occurrences: [
+      occ("page", "m-page", { parentId: "folder-1", occurrences: listed ? ["board"] : [] }),
+      occ("board", "m-board", { parentId: null, feed }),
+    ],
+  });
+
+  it("flags a feed-backed board that no page lists", () => {
+    const hit = checkGridIntegrity(pair({ listed: false })).find(x => x.code === "unreachable-board");
+    expect(hit.level).toBe("error");
+    expect(hit.message).toMatch(/1 feed-backed board/);
+    expect(hit.ids).toEqual(["m-board"]);
+  });
+
+  it("stays quiet once a page lists it — the repair", () => {
+    expect(codes(checkGridIntegrity(pair({ listed: true })))).not.toContain("unreachable-board");
+  });
+
+  // The discriminating case, and the reason the rule tests the feed: 12 live
+  // `<ingredient> — files` containers on poms grid are parented to nothing and
+  // listed by nobody, and are reached through a FIELD VALUE instead. A rule
+  // that flagged those would have been noise on the day it shipped.
+  it("does NOT flag a board container that carries no feed", () => {
+    const w = pair({ listed: false });
+    w.occurrences = w.occurrences.map(o => (o.id === "board" ? { ...o, feed: null } : o));
+    expect(codes(checkGridIntegrity(w))).not.toContain("unreachable-board");
+  });
+
+  it("does NOT flag a feed-backed board that is parented rather than listed", () => {
+    const w = pair({ listed: false });
+    w.occurrences = w.occurrences.map(o => (o.id === "board" ? { ...o, parentId: "page" } : o));
+    expect(codes(checkGridIntegrity(w))).not.toContain("unreachable-board");
+  });
+
+  it("does NOT flag a feed-backed container of another kind", () => {
+    const w = pair({ listed: false });
+    w.modules = [pageMod("m-page"), mod("m-board", { role: "container", kind: "doc" })];
+    expect(codes(checkGridIntegrity(w))).not.toContain("unreachable-board");
+  });
+});

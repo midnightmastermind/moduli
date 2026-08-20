@@ -24,6 +24,10 @@ export function checkGridIntegrity({ grid = null, occurrences = [], modules = []
 
   const occById = new Map(occurrences.map(o => [o.id, o]));
   const modById = new Map(modules.map(m => [m.id, m]));
+  // Every id some occurrence lists as a child. Rule 7c asks the inverse
+  // question — which occurrences nobody lists — so the set is built once.
+  const listedChildIds = new Set();
+  for (const o of occurrences) for (const c of o.occurrences || []) listedChildIds.add(c);
 
   // 1. Dangling child refs — a parent listing children that do not exist.
   //    Cause: the create/update asymmetry on disconnect (fixed at source
@@ -189,6 +193,43 @@ export function checkGridIntegrity({ grid = null, occurrences = [], modules = []
         stamping);
     }
   }
+
+  // 7c. A FEED-BACKED BOARD that nothing lists — data that is perfect and
+  //     UNREACHABLE.
+  //
+  //     A board is a PAIR: a `page/board` homed in a folder whose
+  //     `occurrences[]` lists a `container/board` whose own parentId is null.
+  //     PageBoard renders that list, so the listing IS the route to the board —
+  //     a container nobody lists renders nowhere, however healthy it is.
+  //
+  //     Measured on the live grid 2026-08-20: `0158` minted a Medications board
+  //     by copying the Supplements CONTAINER's parentId, which is null, and
+  //     never minted the page half. The board held all four medications, the
+  //     dropdown resolved them, and every read-back said it was fine. It could
+  //     not be opened. `0163` is the repair; this is what stops the next one
+  //     being invisible. Reading it back out of Mongo is exactly what did NOT
+  //     catch it — only opening the grid did.
+  //
+  //     NARROWED TO FEED-BACKED BOARDS, and the number is why. "Any board
+  //     container nobody lists and nothing parents" also matches **12** live
+  //     rows on poms grid — the `<ingredient> — files` containers, which are
+  //     reached through a FIELD VALUE rather than a child list, the third
+  //     reachability path 2026-08-13 (4) was paid for missing. A feed-backed
+  //     board is a materialized view with a page in front of it by
+  //     construction, so for that shape "nobody lists it" has one meaning.
+  //     Across all five grids this reports 0 with the repair in place, and
+  //     reported exactly 1 before it.
+  const strandedBoards = [];
+  for (const o of occurrences) {
+    if (!o.feed?.enabled || o.parentId) continue;
+    const m = modById.get(o.moduleId);
+    if (m?.role !== "container" || m?.kind !== "board") continue;
+    if (listedChildIds.has(o.id)) continue;
+    strandedBoards.push(o.label || m.label || o.id);
+  }
+  if (strandedBoards.length) add("error", "unreachable-board",
+    `${strandedBoards.length} feed-backed board(s) are listed by no page and parented to nothing — ` +
+    `their contents cannot be opened`, strandedBoards);
 
   // 8. An operation that can never fire: no trigger objects, no trigger types,
   //    no schedule. Not an error (manual-run ops are legitimate) but worth
