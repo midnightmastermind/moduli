@@ -6,6 +6,83 @@
 
 ---
 
+### 2026-08-20 (5) — THE SECOND AXIS, and the filter that could not be surfaced
+
+Picked up the other account's session, which had `categoryScopePolicy.js` + `0164` written, 12 tests
+green, and the migration **unapplied and uncommitted**.
+
+**THE VISION'S OTHER HALF, unbuilt for months.** *"sum/count/track progress across any time window
+AND category"* — the window has worked since May; **0 of 37 tracker ops referenced any category
+field**, so *"how many PHYSICAL tasks did I complete this week?"* had no answer. It introduces no
+mechanism: an `INIT_VAR` mirroring the op's own `$goalPeriod` source, and a rule beside the date rule
+in the same group.
+```
+date      INIT_VAR $goalPeriod   = $goalItem._effectiveFilter.<dateFieldId>
+          rule     $item.fields.<dateFieldId>.value DATE_IN_PERIOD $goalPeriod
+category  INIT_VAR $goalCategory = $goalItem._effectiveFilter.<categoryFieldId>
+          rule     $item.fields.<categoryFieldId>.value CONTAINS $goalCategory
+```
+
+**THE OBVIOUS SURFACING DOES NOT WORK, and finding that out reshaped the whole second half.** The
+draft created a `grid.namedFilters` entry and pushed it into `toolbarNavFilters`. Both are wrong:
+a namedFilter is reachable ONLY by becoming `activeFilterId` — `Toolbar` renders exactly ONE
+`FilterNavWidget`, for the active filter, and `FiltersSection`'s ancestor rows list that filter's
+conditions and nothing else — **so picking Category would REPLACE the date nav**. And
+`toolbarNavFilters` is written by `ToolbarFilterDropdown`'s "nav here" switch and **read by nothing
+that renders** (grep: that file and the schema). *It would have shipped a filter nobody can reach
+with every log line reading correctly* — the inert-token class, from the data side.
+
+**SO THE AXIS IS A LOCAL FILTER ON THE TRACKERS' PAGE**, the mechanism that already supports a
+second simultaneous axis — and **the Schedule page already carries exactly this** (a second
+select-styled entry on Time Slot beside its date filter), so the shape is copied at run time rather
+than restated. **The page is DERIVED, never named:** all 37 trackers bind their goal tile
+picker-direct and all 37 resolve to ONE page ancestor.
+
+**IT CHANGES NUMBERS, NOT WHAT IS ON SCREEN, and the `condition` is what buys that.**
+`getLocalFilterConditions` contributes a visibility condition only for entries whose `condition` is
+null. That matters because **Tags is MIXED — 45 values in live use and only nine are wellness
+dimensions**, the rest board categories (`image`, `grocery`, `person`). Gating visibility would mean
+picking "grocery" EMPTIES the Trackers page while the numbers rescope: an empty screen where the
+answer should be.
+
+**THE DRY RUN WAS CHECKED AGAINST A DERIVED EXPECTATION, not accepted as a count.** An independent
+walk of the live pipelines found **31 bindable ops · 36 gateable groups · the same 6 uncovered by
+name** — and corrected a number in the header on the way: the 111 live `DATE_IN_PERIOD` rules split
+**42 loop / 69 trigger**, not 32/69. Only 32 of the 42 are named `$item`; the other 10 are the
+hand-written trackers' own loop vars, **which is exactly why the discriminator is trigger-vs-loop
+rather than the name.**
+
+**AND RE-RUNNING FOUND A FLAW IN THE FAIL-CLOSED CHECK.** It converged (0 ops, 0 gates) while the
+uncovered list went **6 → 14**: `alreadyBound` scanned TOP-LEVEL steps while `addCategoryVar`
+recurses, so eight trackers resolving `$goalPeriod` inside a branch had their binding land where the
+check could not see it. Benign on a converged grid and **a refusal waiting to happen on the next
+pass** — the exact failure the check exists to prevent. A/B'd: reverting fails exactly the one test
+written for it.
+
+**Read back out of Mongo rather than off the log:** 31 ops bind `$goalCategory`, 36 gates, **0 inside
+a period-all wrapper** (the case that silently voids date filtering on every tracker) and **0
+loop-var mismatches** (the case that throws and kills the op). The live gate was then driven through
+the REAL evaluator: inert with nothing picked, discriminating once one is.
+
+**AND IT IS VERIFIED ON SCREEN, with a control.** Before opening the Trackers filter menu the page
+held 1 `<select>`; after, 3 — and **exactly one carries the Tags option list in the migration's own
+frequency order** (`image · physical · emotion`). The menu reads `Date: ‹ Thu, Aug 20 ›  Tags:
+[– any –]` with `Tags = –` listed under LOCAL FILTERS: the two axes side by side, which is the thing
+a namedFilter could not express. **0 page errors.** *My first probe reported a hit on the word "Tags"
+and it was a FALSE POSITIVE — the Routines rows carry `Tags: physical` pills. A substring in
+`body.innerText` is not a claim about a menu.*
+
+**Tags has DROPPED OFF poms grid's `unused-field` warning while test grid 1 still lists it** —
+independent confirmation the field is genuinely in use now, the same tell `0064` left. 941 server +
+2824 client tests, poms grid **1 pre-existing error, 0 new**, pm2 restarted (only server code and a
+test changed, so no bundle is owed).
+
+**NOT VERIFIED, and it is the honest gap:** nobody has PICKED a category and watched the tracker
+numbers rescope. That write lands on live data, so it is one click for the user rather than a probe
+that edits their grid.
+
+---
+
 ### 2026-08-20 (4) — the create burst is ONE BATCH: 98 Atlas round trips become 4, and 8.9s becomes 0.3s
 
 The item the 2026-08-20 entry deliberately left unwritten — *"stated rather than half-shipped… it
