@@ -20,3 +20,6 @@ screenshots/
 # Grid backups (server/scripts/backupGrid.js). Live user data — never committed,
 # and never swept into a deploy commit by deploy.sh's `git add -A`.
 backups/
+
+# throwaway probe suites (deploy.sh runs `git add -A`)
+client/src/__tests__/_*.test.js

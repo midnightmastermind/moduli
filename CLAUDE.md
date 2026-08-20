@@ -6,6 +6,70 @@
 
 ---
 
+### 2026-08-20 — the schedule half-builds because I RESTART THE SERVER MID-BUILD
+
+User: *"it always half built. we need to figure out why the schedule is only half building
+everyday."*
+
+**MY FIRST THEORY WAS WRONG AND IS RETRACTED.** I had found an unguarded effect loop in
+`bindSocketToStore` (one throwing effect silently discarded every effect after it) and shipped a
+per-effect try/catch, implying it was the cause. The user's next console proved otherwise: **239
+effects applied in 80ms with no `effect ... threw` line at all.** Nothing throws. The guard is
+reasonable hardening and it fixed nothing. *A plausible mechanism that would produce the symptom is
+not evidence that it did.*
+
+**THE CHAIN, EACH LINK MEASURED, AND EACH ONE KILLED A SUSPECT:**
+```
+the OP        driven from a fresh day over the real fixture -> 55 creates in ONE pass, then 0
+              from a 17-child column -> 33 creates (17+33 = the full 50). It tops up correctly.
+the CLIENT    applies every effect in one synchronous loop: 239 effects / 80ms
+the CACHE     localOccsById is CLEARED and rebuilt from the payload on every full_state,
+              so a stale optimistic copy cannot mask a truncated build
+the SERVER    create_occurrence is a PER-SOCKET SERIALIZED promise chain, 2-3 Atlas round
+              trips each: ~65ms warm, ~440ms cold -> a 49-slot build drains for SECONDS
+```
+So the op, the client and the cache are all fine. What is fragile is the DRAIN WINDOW.
+
+**THE LOG NAMES IT IN THREE LINES:**
+```
+create_occurrence START 55b791a4-...     <- the 18th, 8:00am
+Server running on port 5000              <- the process restarted, mid-write
+Server running on port 5000              <- and again
+```
+That create logged START and never logged DONE. Across the whole log: **2009 STARTs, 2008 DONEs** —
+**exactly one** create began and never finished, which is the signature of a kill rather than a
+disconnect (a disconnect logs SKIP/ABORT, and there are **0** of each). The slots agree: burst one
+wrote the first 18 **in clock order** (Due, 12:00am -> 8:00am) and stopped dead; burst two resumed at
+exactly 8:30am and finished.
+
+**WHO RESTARTS IT: I DO.** pm2 reports **255 restarts**, and they are not crashes — 3.2GB free, no
+OOM kill, watch disabled. They are deliberate `pm2 restart` calls, which is what `deploy.sh` and
+every migration apply does. Today the build died at **06:53** and completed at **07:24**, which is
+three minutes after my own deploy. *The recurring daily defect is my own deploys and migration
+restarts landing on the user's morning load.*
+
+**IT SELF-HEALS, AND THAT IS WHY THE GAP WAS 30 MINUTES RATHER THAN PERMANENT.** A reconnect brings
+a fresh `full_state`, the sweep runs, and the op tops the column up — proven in the harness above.
+The server logged no killed second batch (STARTs == DONEs + 1), so no sweep ran in those 30
+minutes: **the tab was suspended and healed the moment it reconnected.** The user stares at a half
+schedule for exactly as long as their tab is asleep.
+
+**THE STANDING RULE THIS EARNS: do not deploy or apply a migration while the user may be loading the
+grid.** A restart is not free — it truncates whatever burst is in flight, and the schedule build is
+the longest burst this app has.
+
+**THE DURABLE FIX IS NOT WRITTEN, and is stated rather than half-shipped:** the build is ~49 creates
+x 2-3 serialized round trips (~150 in total), including a parent `$push` of ONE child at a time to
+the same parent. Batching that into a single bulk write collapses the vulnerable window from
+seconds to ~100ms and speeds up every other burst (feeds, templates, day pages). It is a change to
+the create path this repo has repeatedly been damaged by, so it wants its own reviewed pass.
+
+**Also found, not chased:** the public endpoint takes uncaught `URIError`s from bot scanners
+(`..%c0%af..%c0%af..env`, `/wp-admin/install.php`). `process.on("uncaughtException")` catches them
+so the process survives, but they are noise in the error log and were briefly a red herring here.
+
+---
+
 ### 2026-08-19 (9) — I fixed THREE call sites and there were TEN
 
 User: *"its still not showing up. things like movement ingrediant meal, they dont have borders
