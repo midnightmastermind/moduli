@@ -100,3 +100,23 @@ empty Daily Question found this morning is the kind of thing it would catch.
   (`moduli-dark` was measured via Blueprint at 7.5-11:1 and is fine). The
   failure mode there is the inverse — an ink too DARK on a dark fill — and it is
   one probe run each.
+
+## Nutrition / fitness build — state at 2026-08-19 end
+
+Shipped: `0146` (Macros / Intake / Workout Goals tiles + macro targets) · `0147` (five dead display
+fields removed) · `0148` (Financial cumulative) · `0149`+`0151` (six Workout slots + the
+prescription op) · `0152` (seven minerals, 98 per-serving values) · `0153` (eleven micronutrient
+totals + targets + Meal Count).
+
+**Every one is verified through the real executor over the grid's own fixture**, and each has a
+CONTROL — the reading that proves a zero is a reading rather than a broken op.
+
+Still open, in the order I would take them:
+- **Vitamin E / K / B6 / Folate have fields and values but no target** — the guide gives none.
+  Either find figures the user trusts or drop them from the tile; they currently do not appear on it.
+- **`Total Subscriptions` and `Monthly Bills` bind `Amount`, an INPUT field**, rather than a display
+  twin. They classify as cumulative correctly, but the binding is odd and worth a look.
+- **The micronutrient op double-counts a repeated ingredient across meals**, which is correct for a
+  day's intake but means a template with the same meal twice inflates a preview. Only matters if the
+  tile is ever pointed at a template.
+- `unused-field` is at 14 on poms grid — worth one pass now that the audit tooling exists.
