@@ -1139,11 +1139,47 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
     abortController.abort();
   });
 
+  // ── Coalescing ──────────────────────────────────────────────────────────
+  // A pipeline emits its creates back to back, so by the time the first one is
+  // ready to write, the rest have already arrived. Collect whatever is pending
+  // and write it as one batch.
+  //
+  // The drain is scheduled on `setImmediate`, NOT a microtask: socket.io decodes
+  // and emits each packet as its own task, so a microtask closes the window
+  // after the first event and every batch would be a batch of one. It is not a
+  // timer either — a delay would add latency to the single-create case (a drag,
+  // a click) to buy nothing.
+  //
+  // Batching is opportunistic and correctness never depends on catching the
+  // whole burst: anything arriving mid-write simply schedules the next batch
+  // behind this one on the same queue, which is what preserves order.
+  //
+  // ONE ORDERING NUANCE, stated rather than glossed: the old chain was strict
+  // FIFO across create AND link_occurrence_to_parent. Now a create that arrives
+  // while a drain is still pending joins that batch, so it can persist before a
+  // link emitted earlier. That is safe because a link only appends an EXISTING
+  // occurrence to a parent — it never depends on a later create not having run
+  // — and the guarantee that actually matters, creates ordered among themselves
+  // within a parent, is exactly what `$each` preserves.
+  let pendingCreates = [];
+  let drainScheduled = false;
+
   socket.on("create_occurrence", (payload = {}) => {
     const { occurrence } = payload;
-    createQueue = createQueue
-      .then(() => handleCreateOccurrence(occurrence, payload?.__actionId || null))
-      .catch(() => {});
+    if (!occurrence) return createQueue;
+    pendingCreates.push({ occurrence, actionId: payload?.__actionId || null });
+    if (!drainScheduled) {
+      drainScheduled = true;
+      createQueue = createQueue
+        .then(() => new Promise((resolve) => setImmediate(resolve)))
+        .then(() => {
+          drainScheduled = false;
+          const batch = pendingCreates;
+          pendingCreates = [];
+          return handleCreateBatch(batch);
+        })
+        .catch(() => {});
+    }
     return createQueue;
   });
 
@@ -1182,13 +1218,75 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
       console.error("link_occurrence_to_parent error:", err);
     }
   }
+  // Turns one client payload into the document we persist. Extracted from the
+  // old per-create handler UNCHANGED — every spread here is a field that was
+  // silently dropped on insert at some point and had to be added back, so the
+  // comments travel with it.
+  function buildOccurrenceData(occurrence, gridId) {
+    return {
+      ...createOccurrenceDataFn({
+        id: occurrence.id, userId,
+        moduleId: occurrence.moduleId,
+        gridId,
+        placement: occurrence.placement, fields: occurrence.fields,
+        meta: occurrence.meta, linkedGroupId: occurrence.linkedGroupId || null,
+      }),
+      ...(occurrence.parentId != null && { parentId: occurrence.parentId }),
+      ...(occurrence.textmap != null && { textmap: occurrence.textmap }),
+      ...(occurrence.viewId != null && { viewId: occurrence.viewId }),
+      ...(Array.isArray(occurrence.occurrences) && { occurrences: occurrence.occurrences }),
+      // identitySignature drives APPLY_TEMPLATE mode:"merge" idempotency.
+      // Without forwarding it here the field is silently dropped on insert and
+      // every date-nav re-clones the entire schedule subtree.
+      ...(occurrence.identitySignature != null && { identitySignature: occurrence.identitySignature }),
+      // filterNavConfig is the per-filter nav widget config keyed by filter id.
+      // Same persistence gap as identitySignature — drop it here and HeaderDropdown
+      // toggles never survive reload.
+      ...(occurrence.filterNavConfig != null && { filterNavConfig: occurrence.filterNavConfig }),
+      // filterOverride is set explicitly elsewhere but include it here for the
+      // create path (a CREATE_ITEM clone may carry an inherited override).
+      ...(occurrence.filterOverride !== undefined && { filterOverride: occurrence.filterOverride }),
+      // filters is the per-occurrence FilterEditor list (conditional filters).
+      ...(Array.isArray(occurrence.filters) && { filters: occurrence.filters }),
+      // hidden/locked/sortOrder/dragMode are also schema fields that flow through
+      // create — include them so CREATE_ITEM clones don't drop them.
+      ...(typeof occurrence.hidden === "boolean" && { hidden: occurrence.hidden }),
+      ...(typeof occurrence.locked === "boolean" && { locked: occurrence.locked }),
+      ...(typeof occurrence.sortOrder === "number" && { sortOrder: occurrence.sortOrder }),
+      ...(occurrence.dragMode != null && { dragMode: occurrence.dragMode }),
+    };
+  }
 
-  async function handleCreateOccurrence(occurrence, actionId = null) {
-    const _id = occurrence?.id || "?";
-    // Declared out here so the outer catch can reach them (see the cache
-    // rollback note where they are assigned).
+  // ASK THE SIGNAL, NOT THE ERROR. Verified against a real Atlas: aborting a
+  // bulkWrite mid-flight cancels the write (nothing persists, the pool slot is
+  // freed) but surfaces as a **TypeError** reading "Cannot set property name of
+  // which has only a getter" — a driver artifact, not an AbortError. Matching
+  // that string would be brittle AND would swallow genuine TypeErrors, so the
+  // check asks the controller we aborted ourselves. The name checks stay for
+  // findOneAndUpdate, which does reject with a proper AbortError.
+  const isAbort = (err) => abortController.signal.aborted
+    || err?.name === "AbortError"
+    || err?.name === "MongoServerSelectionError" || /aborted/i.test(err?.message || "");
+
+  // ── The batch ───────────────────────────────────────────────────────────
+  // One burst of N creates costs FOUR Atlas round trips instead of 2N:
+  //
+  //   1. bulkWrite  — every occurrence upserted at once
+  //   2. find       — the parents, to learn what they already list
+  //   3. bulkWrite  — one $push $each per parent, in emit order
+  //   4. find       — the parents again, so the warm cache holds TRUTH rather
+  //                   than a locally-derived guess (this is the array behind
+  //                   years of dangling-child-ref bugs; it is worth a trip)
+  //
+  // Measured on the 49-slot schedule build: 98 -> 4.
+  async function handleCreateBatch(batch) {
+    if (!batch.length) return;
+    const ids = batch.map((b) => b.occurrence?.id).filter(Boolean);
+    // Every write this batch got as far as putting in the warm cache, so the
+    // outer catch can drop them all if nothing reached Mongo.
     let persisted = false;
-    let rollbackCache = () => {};
+    const rollbacks = [];
+    const rollbackAll = () => { for (const fn of rollbacks) fn(); };
     try {
       // Bail on disconnect. Reason: each Build Day run mints fresh UUIDs for its
       // CREATE effects (executor doesn't support deterministic IDs yet). If the
@@ -1198,168 +1296,192 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
       // same logical slots with different IDs → duplicates pile up on every
       // reload. Cancelling the rest of the old queue on disconnect lets the new
       // socket's FIND see whatever already persisted and only create what's
-      // missing. The maxHttpBufferSize bump in server.js is what prevented this
-      // disconnect from happening on a clean first load in the first place.
-      if (disconnected) { console.log("🟣 create_occurrence SKIP (disconnected)", _id); return; }
+      // missing.
+      if (disconnected) { console.log("🟣 create_occurrence SKIP (disconnected)", ids.length); return; }
       if (!userId) return;
-      console.log("🟣 create_occurrence START", _id, "socket:", socket.id);
-      const uc = await getUc();
-      const id = occurrence?.id;
-      if (!id) return;
-      // gridId fallback chain: payload → socket's active grid. Without this, a
-      // CREATE_ITEM effect from a pipeline that didn't set state.gridId on its
-      // optimistic newOcc emits gridId=undefined, Mongoose fails its `required`
-      // validator, the catch block silently drops the write, and the
-      // occurrence never persists — so the seed's idempotency FIND on the next
-      // reload finds nothing and creates ANOTHER copy. Same fallback as the
-      // update_occurrence handler.
-      const gridId = occurrence.gridId || socket.data.activeGridId;
-      if (!gridId) {
-        console.error("create_occurrence: missing gridId for", id);
-        return;
-      }
-      const occurrenceData = {
-        ...createOccurrenceDataFn({
-          id, userId,
-          moduleId: occurrence.moduleId,
-          gridId,
-          placement: occurrence.placement, fields: occurrence.fields,
-          meta: occurrence.meta, linkedGroupId: occurrence.linkedGroupId || null,
-        }),
-        ...(occurrence.parentId != null && { parentId: occurrence.parentId }),
-        ...(occurrence.textmap != null && { textmap: occurrence.textmap }),
-        ...(occurrence.viewId != null && { viewId: occurrence.viewId }),
-        ...(Array.isArray(occurrence.occurrences) && { occurrences: occurrence.occurrences }),
-        // identitySignature drives APPLY_TEMPLATE mode:"merge" idempotency.
-        // Without forwarding it here the field is silently dropped on insert and
-        // every date-nav re-clones the entire schedule subtree.
-        ...(occurrence.identitySignature != null && { identitySignature: occurrence.identitySignature }),
-        // filterNavConfig is the per-filter nav widget config keyed by filter id.
-        // Same persistence gap as identitySignature — drop it here and HeaderDropdown
-        // toggles never survive reload.
-        ...(occurrence.filterNavConfig != null && { filterNavConfig: occurrence.filterNavConfig }),
-        // filterOverride is set explicitly elsewhere but include it here for the
-        // create path (a CREATE_ITEM clone may carry an inherited override).
-        ...(occurrence.filterOverride !== undefined && { filterOverride: occurrence.filterOverride }),
-        // filters is the per-occurrence FilterEditor list (conditional filters).
-        ...(Array.isArray(occurrence.filters) && { filters: occurrence.filters }),
-        // hidden/locked/sortOrder/dragMode are also schema fields that flow through
-        // create — include them so CREATE_ITEM clones don't drop them.
-        ...(typeof occurrence.hidden === "boolean" && { hidden: occurrence.hidden }),
-        ...(typeof occurrence.locked === "boolean" && { locked: occurrence.locked }),
-        ...(typeof occurrence.sortOrder === "number" && { sortOrder: occurrence.sortOrder }),
-        ...(occurrence.dragMode != null && { dragMode: occurrence.dragMode }),
-      };
-      uc.occurrencesById[id] = occurrenceData;
-      // ── The warm cache must never outlive a create that did not persist ──
-      // The cache is populated HERE, before the write, so in-flight reads in
-      // the same burst can see the new row. But it also SURVIVES a disconnect
-      // (server.js stopped evicting it; it ages out on a 30-minute TTL), and
-      // `update_occurrence` decides whether a parent's occurrences[] entry
-      // names a real child by looking in this very cache. So a create that
-      // bails after this line leaves a phantom that the next connection's
-      // parent-list write launders into a PERSISTED dangling child ref — the
-      // integrity error swept on 2026-07-29, 07-30, 07-31, 08-03 and 08-04
-      // that always came back, because the sweep cleaned the database while
-      // the phantom sat in memory. Roll it back on every path that does not
-      // reach Mongo. The identity check matters: if another handler has since
-      // written this id, that object is real and must not be dropped.
-      rollbackCache = () => {
-        if (uc.occurrencesById[id] === occurrenceData) delete uc.occurrencesById[id];
-      };
-      // Second disconnect check — between the start gate and the actual
-      // Mongo write. The handler may have been queued behind a slow
-      // Mongo round-trip (e.g. `await getUc()` cold-cache load) and the
-      // socket may have disconnected during that wait. Bailing here saves
-      // a Mongo write + the parent.occurrences[] $push that follows,
-      // freeing the connection pool for the NEW socket's
-      // `request_full_state` query. Diagnostic baseline: a single
-      // in-flight create from a disconnected socket held the pool for
-      // 30s while the reload's Grid.findOne sat queued.
-      if (disconnected) { rollbackCache(); console.log("🟣 create_occurrence ABORT mid-handler (disconnected)", _id); return; }
-      try {
-        // AbortSignal cancels the Mongo round-trip if the socket
-        // disconnects mid-write. Without this, an in-flight upsert
-        // could hold a connection pool slot for 30–75s on Atlas
-        // Serverless, blocking the reload's Grid.findOne.
-        await Occurrence.findOneAndUpdate(
-          { id, userId },
-          occurrenceData,
-          { upsert: true, signal: abortController.signal }
-        );
-      } catch (upsertErr) {
-        if (disconnected && (upsertErr?.name === "AbortError" || /aborted/i.test(upsertErr?.message || ""))) {
-          rollbackCache();
-          return;
-        }
-        // E11000: an update_occurrence raced ahead and already inserted this id.
-        // Fall back to id-only $set so the create still persists its data.
-        if (upsertErr.code === 11000) {
-          await Occurrence.findOneAndUpdate(
-            { id },
-            { $set: occurrenceData },
-            { signal: abortController.signal }
-          );
-        } else {
-          rollbackCache();
-          throw upsertErr;
-        }
-      }
-      // Past this point the row IS in Mongo, so the cache entry is truthful and
-      // must survive even if the parent $push below is cancelled.
-      persisted = true;
-      if (disconnected) return; // bail before the parent push too
-      // before:null marks a CREATE — undo deletes the document.
-      recordChange({ model: "occurrence", id, before: null, after: occurrenceData, actionId, label: "Created item" });
-      socket.to(userRoomFn(userId)).emit("occurrence_created", { occurrence: occurrenceData });
+      console.log("🟣 create_batch START", ids.length, "socket:", socket.id);
 
-      // ── Auto-push into parent.occurrences[] (atomic — many concurrent
-      // creates from a pipeline loop must not clobber each other's appends) ──
-      // CRITICAL: do NOT echo the parent update back to the originating socket.
-      // The originating client already optimistically appended the new ID to
-      // parent.occurrences[] when handling the CREATE_ITEM effect. Echoing the
-      // server's snapshot back races with subsequent optimistic appends in the same tick:
-      // an echo from create #1 replaces the parent array with [..., #1], wiping
-      // out the optimistic [..., #1, #2, #3] state created moments later. Other
-      // sockets DO need the broadcast to learn about the structural change.
-      if (occurrenceData.parentId) {
-        const update = typeof occurrence.insertAtIndex === "number"
-          ? { $push: { occurrences: { $each: [id], $position: occurrence.insertAtIndex } } }
-          : { $push: { occurrences: id } };
-        const updatedParent = await Occurrence.findOneAndUpdate(
-          { id: occurrenceData.parentId, userId, occurrences: { $ne: id } },
-          update,
-          { returnDocument: "after", signal: abortController.signal }
-        );
-        if (updatedParent) {
-          const parentObj = typeof updatedParent.toObject === "function" ? updatedParent.toObject() : updatedParent;
+      const uc = await getUc();
+
+      // ---- 1. build, cache, and upsert every row in one write --------------
+      const rows = [];
+      for (const { occurrence, actionId } of batch) {
+        const id = occurrence?.id;
+        if (!id) continue;
+        // gridId fallback chain: payload → socket's active grid. Without this, a
+        // CREATE_ITEM effect from a pipeline that didn't set state.gridId on its
+        // optimistic newOcc emits gridId=undefined, Mongoose fails its `required`
+        // validator, the write is dropped, and the occurrence never persists — so
+        // the seed's idempotency FIND on the next reload finds nothing and creates
+        // ANOTHER copy.
+        const gridId = occurrence.gridId || socket.data.activeGridId;
+        if (!gridId) { console.error("create_occurrence: missing gridId for", id); continue; }
+        const occurrenceData = buildOccurrenceData(occurrence, gridId);
+        uc.occurrencesById[id] = occurrenceData;
+        // ── The warm cache must never outlive a create that did not persist ──
+        // The cache is populated HERE, before the write, so in-flight reads in
+        // the same burst can see the new row. But it also SURVIVES a disconnect
+        // (server.js stopped evicting it; it ages out on a 30-minute TTL), and
+        // `update_occurrence` decides whether a parent's occurrences[] entry
+        // names a real child by looking in this very cache. So a create that
+        // bails after this line leaves a phantom that the next connection's
+        // parent-list write launders into a PERSISTED dangling child ref — the
+        // integrity error swept on 2026-07-29, 07-30, 07-31, 08-03 and 08-04
+        // that always came back, because the sweep cleaned the database while
+        // the phantom sat in memory. Roll it back on every path that does not
+        // reach Mongo. The identity check matters: if another handler has since
+        // written this id, that object is real and must not be dropped.
+        rollbacks.push(() => {
+          if (uc.occurrencesById[id] === occurrenceData) delete uc.occurrencesById[id];
+        });
+        rows.push({ id, occurrenceData, actionId, insertAtIndex: occurrence.insertAtIndex });
+      }
+      if (!rows.length) return;
+
+      // Second disconnect check — between the start gate and the actual Mongo
+      // write. The batch may have been queued behind a slow round-trip (a cold
+      // `getUc()` load) and the socket may have gone away during that wait.
+      // Bailing here saves the whole burst and frees the connection pool for the
+      // NEW socket's request_full_state.
+      if (disconnected) { rollbackAll(); console.log("🟣 create_batch ABORT mid-handler (disconnected)"); return; }
+
+      await upsertRows(rows);
+      // Past this point the rows ARE in Mongo, so the cache entries are truthful
+      // and must survive even if the parent pushes below are cancelled.
+      persisted = true;
+      if (disconnected) return;
+
+      for (const { id, occurrenceData, actionId } of rows) {
+        // before:null marks a CREATE — undo deletes the document.
+        recordChange({ model: "occurrence", id, before: null, after: occurrenceData, actionId, label: "Created item" });
+        socket.to(userRoomFn(userId)).emit("occurrence_created", { occurrence: occurrenceData });
+      }
+
+      // ---- 2. link every child into its parent ----------------------------
+      await linkRowsToParents(rows, uc);
+      console.log("🟣 create_batch DONE", ids.length);
+    } catch (err) {
+      // Expected when disconnect aborts an in-flight write — not an actual
+      // error, just the user reloaded mid-write. `persisted` discriminates WHICH
+      // write was cancelled: an aborted parent push leaves real rows (keep the
+      // cache), an aborted occurrence upsert leaves nothing (drop it).
+      if (!persisted) rollbackAll();
+      if (disconnected && isAbort(err)) { console.log("🟣 create_batch ABORT in-flight (disconnected)"); return; }
+      console.error("create_occurrence error:", err);
+      socket.emit("server_error", "Failed to create occurrence");
+    }
+  }
+
+  // One bulkWrite for the whole batch. `ordered: false` so one bad row cannot
+  // stop the other 48 — the old per-create loop had that isolation for free and
+  // it must not be lost on the way to a batch.
+  async function upsertRows(rows) {
+    try {
+      await Occurrence.bulkWrite(
+        rows.map(({ id, occurrenceData }) => ({
+          updateOne: { filter: { id, userId }, update: { $set: occurrenceData }, upsert: true },
+        })),
+        { ordered: false, signal: abortController.signal }
+      );
+    } catch (err) {
+      if (disconnected && isAbort(err)) throw err;
+      // E11000: an update_occurrence raced ahead and already inserted this id
+      // under a different filter. Retry exactly those rows on id alone, which is
+      // what the per-create path did. Anything else is a real failure.
+      const dupIds = new Set((err?.writeErrors || err?.result?.writeErrors || [])
+        .filter((e) => (e?.code ?? e?.err?.code) === 11000)
+        .map((e) => rows[e?.index ?? e?.err?.index]?.id).filter(Boolean));
+      if (!dupIds.size) throw err;
+      await Occurrence.bulkWrite(
+        rows.filter((r) => dupIds.has(r.id)).map(({ id, occurrenceData }) => ({
+          updateOne: { filter: { id }, update: { $set: occurrenceData } },
+        })),
+        { ordered: false, signal: abortController.signal }
+      );
+    }
+  }
+
+  // ── Auto-push into parent.occurrences[] ─────────────────────────────────
+  // Grouped by parent, one $push $each per parent, so a 49-slot day column costs
+  // one append instead of 49. ORDER IS THE REASON THE OLD PATH WAS SERIALIZED:
+  // `$each` preserves the batch's emit order within a parent, and the batch was
+  // assembled in emit order, so the guarantee survives.
+  //
+  // CRITICAL: do NOT echo the parent update back to the originating socket. The
+  // originating client already optimistically appended the new ids when handling
+  // the CREATE_ITEM effect. Echoing the server's snapshot back races with
+  // subsequent optimistic appends in the same tick. Other sockets DO need the
+  // broadcast to learn about the structural change.
+  async function linkRowsToParents(rows, uc) {
+    // A drag-drop insert names a position. `$each` + `$position` cannot express
+    // several different positions in one update, and these arrive one at a time
+    // anyway, so they keep the original single-row path.
+    const positioned = rows.filter((r) => typeof r.insertAtIndex === "number" && r.occurrenceData.parentId);
+    const appended = rows.filter((r) => typeof r.insertAtIndex !== "number" && r.occurrenceData.parentId);
+
+    const byParent = new Map();
+    for (const r of appended) {
+      const pid = r.occurrenceData.parentId;
+      if (!byParent.has(pid)) byParent.set(pid, []);
+      byParent.get(pid).push(r.id);
+    }
+
+    if (byParent.size) {
+      const parentIds = [...byParent.keys()];
+      const before = await Occurrence.find({ id: { $in: parentIds }, userId })
+        .setOptions({ signal: abortController.signal }).lean();
+      const beforeById = new Map(before.map((p) => [p.id, p]));
+      const ops = [];
+      const addedByParent = new Map();
+      for (const [pid, childIds] of byParent) {
+        const prev = beforeById.get(pid);
+        if (!prev) continue;                                   // parent missing — nothing to link into
+        const already = new Set(prev.occurrences || []);
+        const add = childIds.filter((c) => !already.has(c));    // idempotent, same as the old $ne guard
+        if (!add.length) continue;
+        addedByParent.set(pid, add);
+        ops.push({ updateOne: { filter: { id: pid, userId }, update: { $push: { occurrences: { $each: add } } } } });
+      }
+      if (ops.length) {
+        if (disconnected) return;
+        await Occurrence.bulkWrite(ops, { ordered: false, signal: abortController.signal });
+        // Re-read rather than derive. The cache is what `update_occurrence`
+        // consults to decide whether a child id is real, so a guessed array here
+        // is the same class of untruth as the phantom above — and this is the
+        // array behind five separate dangling-ref sweeps.
+        const after = await Occurrence.find({ id: { $in: [...addedByParent.keys()] }, userId })
+          .setOptions({ signal: abortController.signal }).lean();
+        for (const parentObj of after) {
+          const add = addedByParent.get(parentObj.id) || [];
           // The parent's occurrences[] change is its OWN undo step. Restoring a
           // deleted child without restoring the list that names it leaves the
-          // child in the data and invisible on screen — the exact "listed but
-          // not embedded" class of bug the Daily Question hit on 2026-08-01.
+          // child in the data and invisible on screen — the "listed but not
+          // embedded" class the Daily Question hit on 2026-08-01.
           const parentBefore = {
             ...parentObj,
-            occurrences: (parentObj.occurrences || []).filter(c => c !== id),
+            occurrences: (parentObj.occurrences || []).filter((c) => !add.includes(c)),
           };
-          recordChange({ model: "occurrence", id: occurrenceData.parentId, before: parentBefore, after: parentObj, actionId });
-          uc.occurrencesById[occurrenceData.parentId] = parentObj;
+          recordChange({ model: "occurrence", id: parentObj.id, before: parentBefore, after: parentObj,
+            actionId: rows.find((r) => r.occurrenceData.parentId === parentObj.id)?.actionId || null });
+          uc.occurrencesById[parentObj.id] = parentObj;
           socket.to(userRoomFn(userId)).emit("occurrence_updated", { occurrence: parentObj });
         }
       }
-      console.log("🟣 create_occurrence DONE", _id);
-    } catch (err) {
-      // Expected when disconnect aborts an in-flight write — not an
-      // actual error, just the user reloaded mid-write.
-      // `persisted` discriminates WHICH write was cancelled: an aborted parent
-      // $push leaves a real row (keep the cache), an aborted occurrence upsert
-      // leaves nothing (drop it).
-      if (!persisted) rollbackCache();
-      if (disconnected && (err?.name === "AbortError" || err?.name === "MongoServerSelectionError" || /aborted/i.test(err?.message || ""))) {
-        console.log("🟣 create_occurrence ABORT in-flight (disconnected)", _id);
-        return;
-      }
-      console.error("create_occurrence error:", err);
-      socket.emit("server_error", "Failed to create occurrence");
+    }
+
+    for (const r of positioned) {
+      if (disconnected) return;
+      const updatedParent = await Occurrence.findOneAndUpdate(
+        { id: r.occurrenceData.parentId, userId, occurrences: { $ne: r.id } },
+        { $push: { occurrences: { $each: [r.id], $position: r.insertAtIndex } } },
+        { returnDocument: "after", signal: abortController.signal }
+      );
+      if (!updatedParent) continue;
+      const parentObj = typeof updatedParent.toObject === "function" ? updatedParent.toObject() : updatedParent;
+      const parentBefore = { ...parentObj, occurrences: (parentObj.occurrences || []).filter((c) => c !== r.id) };
+      recordChange({ model: "occurrence", id: parentObj.id, before: parentBefore, after: parentObj, actionId: r.actionId });
+      uc.occurrencesById[parentObj.id] = parentObj;
+      socket.to(userRoomFn(userId)).emit("occurrence_updated", { occurrence: parentObj });
     }
   }
 }

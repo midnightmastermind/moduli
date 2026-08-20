@@ -51,6 +51,38 @@ class AbortError extends Error {
 vi.mock("../models/Occurrence.js", () => ({
   default: {
     findOne: vi.fn(({ id }) => ({ lean: () => delayed(2, db.occurrences.get(id) || null) })),
+    // The create path writes in BATCHES (2026-08-20): one bulkWrite for the
+    // rows, a find for the parents, one bulkWrite for the appends, a find to
+    // re-read them. These mocks must honour the AbortSignal exactly as
+    // findOneAndUpdate does below — the whole phantom bug depends on a write
+    // being cancelled mid-flight, and a mock that throws TypeError instead
+    // would make every assertion here pass for the wrong reason.
+    find: vi.fn((filter) => {
+      const q = { setOptions: () => q, lean: async () => {
+        await delayed(2);
+        return (filter?.id?.$in || []).map((i) => db.occurrences.get(i)).filter(Boolean);
+      } };
+      return q;
+    }),
+    bulkWrite: vi.fn(async (ops, opts = {}) => {
+      await delayed(10);
+      if (opts.signal?.aborted) throw new AbortError();
+      for (const op of ops) {
+        const { filter, update } = op.updateOne;
+        const id = filter.id;
+        if (update?.$push) {
+          const prev = db.occurrences.get(id);
+          if (!prev) continue;
+          const each = update.$push.occurrences?.$each ?? [update.$push.occurrences];
+          const cur = [...(prev.occurrences || [])];
+          const add = each.filter((c) => !cur.includes(c));
+          if (add.length) db.occurrences.set(id, { ...prev, occurrences: [...cur, ...add] });
+        } else {
+          db.occurrences.set(id, { ...(db.occurrences.get(id) || { id }), ...(update.$set || update) });
+        }
+      }
+      return { ok: 1 };
+    }),
     findOneAndDelete: vi.fn(async ({ id }) => { db.occurrences.delete(id); return null; }),
     // Honours the AbortSignal the way the driver does — this is the behaviour
     // the whole bug depends on.
