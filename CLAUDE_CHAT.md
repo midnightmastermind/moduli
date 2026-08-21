@@ -3084,3 +3084,21 @@ folders are **remembered per browser** (over resetting, and over writing back to
 spot, i.e. against the filter of the page it lives on rather than the grid's. Note this is adjacent
 to the open date-navigation cost question (a Trackers nav matches 44 ops, ~42 of them trackers): the
 audit is about CORRECTNESS first, and whatever it finds should inform that.
+
+> "you also never added my workout goals. we dont need a workout log or reps or chest volume goal. we
+> need goals for specific workouts that day. that should be a full operation to figure out each
+> workout for that day and update tags for them. you can use a certain field on the workouts and goal
+> tiles to know which ones to update. it might be easier just to create every days workouts as a tile
+> with a field for each workout in the tile (0/1) and then show that days tile and hide the rest of
+> them if its not their day. include that in the audit."
+
+**Retires three tracker tiles by name — Workout Log, Reps, and the per-muscle Volume goals** (Chest
+Volume et al). What replaces them is a goal per SPECIFIC MOVEMENT for that day, not a generic count.
+
+The user offers their own implementation and it is the one to weigh first: **one tile per weekday**,
+each holding a 0/1 field per movement of that day's session, with the day's tile SHOWN and the other
+six HIDDEN. The alternative they describe first — one op that works out the day's movements and
+updates tags, keyed off "a certain field on the workouts and goal tiles" — is the same outcome
+computed at run time instead of enumerated.
+
+To be folded into the tracker/date-filter audit rather than done separately.
