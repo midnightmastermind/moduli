@@ -84,3 +84,49 @@ $occ.fieldVisibility  NOT a writable UPDATE path      <- the hide/show needs thi
 3. The op: per-movement 0/1 from that day's Exercise row's `Completed`, and the visibility write.
 4. **Deferred:** `CREATE_FIELD`. Until it exists, adding a 27th movement means re-running `0170`,
    which is idempotent and gap-filling — one command, documented beside the migration.
+
+---
+
+## Progress — 2026-08-21 (2)
+
+**Item 6 (`Weekday` on tasks) is SHIPPED** — `0172` + `0173`, applied to poms grid, pm2 restarted,
+14 behavioural tests. See the commit for the reasoning. Two things are worth carrying forward:
+
+- **`0172` was not in the plan and had to come first.** The day column's `Todo` container carried a
+  NULL `Time Slot` identity marker, so `Schedule: Place Dated Work` phase 2 could not find it and
+  **due placement had been a silent no-op** — 7 due-dated tasks unplaced on today's column. The
+  weekday op resolves Todo the same way, so it could not have worked either.
+- **Weekday wins over Due.** Phase 2's claim and sweep loops now carry `Weekday IS_EMPTY`, so a task
+  scheduled by weekday is invisible to due placement, source and clone alike. Inert today by
+  measurement (0 instances carry a Weekday).
+
+## Item 7 (end-of-day move to `Tasks > Completed`) — MEASURED, NOT BUILT
+
+The measurement changes the shape of the work and is recorded rather than guessed at later.
+
+```
+Completed container on Tasks     c54c2971-…, 1 child
+rows on Tasks with Completed=true                    3
+   … carrying a `Completed On` value                 0      <- the obvious discriminator is EMPTY
+`Schedule: Stamp Completed On`   onChange on the Completed FIELD, grid-wide, no ancestor scope
+                                 — so ticking on the Tasks page DOES stamp it, going forward
+```
+
+**Three findings, in the order they matter:**
+
+1. **`Completed On` is the right discriminator and it is blank on every existing row.** A row
+   completed BEFORE today is exactly "the day ended after it was done", and it needs no rollover
+   marker at all — which is better than the plan's marker-occurrence idea, because a marker shared
+   with `Grid: Snap Filter To Today` would already be stamped by the time a later-priority op ran.
+   The gap is historical rows: they must be backfilled (or swept once by hand) or they will never
+   move.
+2. **Two of the three completed rows are PARENTED somewhere they are not LISTED.** `Talk to Angela
+   about Vivance` and `Psych appointment with Angela` are listed by `Emotional` while their
+   `parentId` says `Occupational`. That matters specifically here: `LINK_OCCURRENCE_TO_PARENT`
+   MOVES — it unlists from the old parent, re-parents, and lists under the new — so on these two
+   rows it would unlist from the wrong container and leave the visible listing behind. **Repair the
+   parentage before building the move**, or the move is the thing that produces the orphan.
+3. **The move must not disturb a schedule listing.** The trackers count `HAS_ANCESTOR <Schedule
+   page>`, so a row's day-column listing is what makes it count. In practice only past-day rows
+   move and their columns are already swept — but the op should be scoped so it can never unlist a
+   row from a day column, rather than relying on that.
