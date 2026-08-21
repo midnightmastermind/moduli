@@ -2016,6 +2016,15 @@ function Field({
   // Formatted value for display
   const formattedValue = useMemo(() => {
     if (rawDisplayValue === null || rawDisplayValue === undefined) {
+      // A field may name what its EMPTY state means. `Tracker Date` uses it to
+      // read "Total" when no date filter is set, because an empty period on a
+      // tracker means "aggregate everything" rather than "no data" — so a dash
+      // there is actively misleading. Generic and configured as DATA: nothing
+      // here learns what a tracker is, which `noDomainKnowledge` enforces.
+      // Checked before the numeric defaults so a labelled number field says its
+      // label rather than 0.
+      const empty = field?.meta?.emptyLabel;
+      if (typeof empty === "string" && empty) return empty;
       // Empty numeric displays read as 0 (e.g. Days Until Due, account
       // balances); everything else (date/text/select/…) reads as a dash.
       if (type === "number") return "0";
@@ -2034,7 +2043,9 @@ function Field({
       // written before this type existed) or the picker's object.
       case "address": return addressSummary(rawDisplayValue) || (compact ? "-" : "—");
       case "date": {
-        if (!rawDisplayValue) return "—";
+        // Unreachable for null/undefined (handled above, emptyLabel included);
+        // this catches "" and other falsy shapes a date field can carry.
+        if (!rawDisplayValue) return (typeof field?.meta?.emptyLabel === "string" && field.meta.emptyLabel) || "—";
         try {
           const parseLocalDay = (v) => {
             if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(v + "T00:00:00");
