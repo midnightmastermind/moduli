@@ -7,11 +7,10 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 
 | # | Task | State |
 |---|------|-------|
-| 1 | **Set field VALUES in the add-item menu** — pick the fields *and* fill them in one step | 📋 queued |
-| 2 | **Theme sweep over every dropdown and menu** — 16 hardcoded blues in 9 files, ~25 hardcoded black shadows in 20 files | 📋 queued, measured |
-| 3 | **Merge templates as layers** — one Meals template + reusable workout sessions, matched by a multi-select `Weekday` | 📋 queued, measured |
-| 4 | **End-of-day move** — completed tasks/appointments → `Tasks > Completed` after the day rolls over | 🔎 measured; blocked on repairing 2 mis-parented rows first |
-| 5 | **Verify the weekday feature in a browser** — nobody has picked a weekday and watched a copy land | ⏳ honest gap |
+| 1 | **Theme sweep over every dropdown and menu** — 16 hardcoded blues in 9 files, ~25 hardcoded black shadows in 20 files | 📋 queued, measured |
+| 2 | **Merge templates as layers** — one Meals template + reusable workout sessions, matched by a multi-select `Weekday` | 📋 queued, measured |
+| 3 | **End-of-day move** — completed tasks/appointments → `Tasks > Completed` after the day rolls over | 🔎 measured; blocked on repairing 2 mis-parented rows first |
+| 4 | **Verify the weekday feature in a browser** — nobody has picked a weekday and watched a copy land | ⏳ honest gap |
 
 ## Done — 2026-08-21
 
@@ -30,3 +29,6 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 | **Both meal trackers were structurally dead** — macros and Meal Log | `0174` |
 | `Time 1/2/3` (seconds) replace `Weight N` on planks and side planks; the bogus `1 reps` cleared | `0175` |
 | `Date` hidden on timeslots — it was inherited-visible from the Schedule page's list | `0176` |
+| Add-menu **value step** — the real field controls, every input type, not a hand-rolled subset | `49267930` |
+| Ticked fields sort to the top of the field picker | `49267930` |
+| `+ Item` was born with no date — it wrote `fields: {}` where the sibling path stamps the filter | `49267930` |
