@@ -34,6 +34,18 @@
 
 /* Shared font tokens + brand (always present) */
 :root {
+  /* Inline mini-textblock chips (imported bullet items, link chips). ONE token
+     rather than the eighteen copies of the literal `134, 239, 172` this file
+     carried — the 2026-08-19 lesson, where a pill border was fixed at the three
+     call sites that had been MEASURED and stayed wrong at the other seven.
+     
+     IN THE BARE :root DELIBERATELY. It was first added inside
+     [data-theme="moduli-dark"], which left it UNDEFINED on every other skin —
+     `rgb(var(--textblock-tint) / .055)` then parses as invalid, so the chip lost
+     its background entirely and its border fell back to currentColor. Measured on
+     prod: bg `rgba(0,0,0,0)`, border `rgb(20,16,10)`. This file's own rule says
+     never to give a colour its only definition inside a theme block; this is why. */
+  --textblock-tint: 134 239 172;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
     Consolas, "Liberation Mono", "Courier New", monospace;
   --moduli-mark: #0e2140;
@@ -104,13 +116,6 @@
   /* Text */
   --foreground-0: 210 40% 94%;
   --foreground-1: 210 40% 98%;
-  /* Inline mini-textblock chips (imported bullet items, link chips). ONE token
-     rather than the eighteen copies of the literal `134, 239, 172` this file had
-     — the 2026-08-19 lesson, where a pill border was fixed at the three call
-     sites that had been MEASURED and stayed wrong at the other seven. Dark
-     themes are byte-identical to before; a light skin can re-tint the chip
-     without touching a rule. */
-  --textblock-tint: 134 239 172;
   --foreground-2: 216 15% 65%;
 
   /* Tailwind token aliases */
