@@ -7,26 +7,26 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 
 | # | Task | State |
 |---|------|-------|
-| 1 | **Feed-scope widening is LANDED and working** (`96b0699a`, deployed) — a fresh client shows all three completed tasks filed, 0 page errors. One thing is owed by hand: **reload any Moduli tab that was open before the deploy.** Proven on production in a single grep once the delete log named its socket: `create_batch … socket 6zzix…` against `delete_occurrence … socket wNT6K…` — two different clients, one minting and one sweeping. Nothing churns while the stale tab is alone; it settles permanently the moment every tab runs the same bundle | ⏳ landed, reload open tabs |
-| 2 | **"What else is technically needed for the original vision"** — asked 2026-08-21, never answered | 📋 open ask |
-| 3 | **Schedule apply ~1s** — `resolveOptions` predicate filter ~766ms, the residual after the index work | 📋 measured, not fixed |
-| 4 | **Three external-data pipes** — Tasker profiles, ingest credentials, the four slow exports | 🚫 blocked on the user |
-
-## Done — 2026-08-21 (panel fallback)
-
-| Task | Where |
-|------|-------|
-| **Closing a panel's LAST page lands on the root manifest folder**, not the "No content" shell — the user's *"an empty panel just goes to the root manifest folder in folder view in the panel"*. The default existed only at panel CREATION | `25022372` |
-| It also repaired a **premise the sidebar rests on** — Pinned is omitted when a panel has nothing pinned, on the grounds that such a panel "already shows the root manifest folder as its CONTENT". True only for new panels, so an emptied one showed neither | same |
-| `openPanelOnRootFolderPage` gains `existingView` so an emptied panel's view is **re-pointed, not replaced** — otherwise every emptied panel strands one. Read back: **0 orphaned views** | same |
-| **Verified by actually closing the page** on test grid 2: panel went `Trackers` → `Files` (the root folder card grid), 0 page errors. Panel restored afterwards | probe |
+| 1 | **The test fixture is STALE and hides 14 failures.** `pomsGrid.json.br` was exported 08-21 07:27; `0173`, `0174` and `0177` rewrote operations after it, and `Schedule: Place Weekday Tasks` is **absent from it entirely**. Re-exporting turns **14 tests red across 5 files** — most are A/B tests whose "before" state stops existing once the fixture catches up (their controls assert the fixture is *un*patched). Needs a pass that refreshes the fixture AND rewrites those A/Bs to synthesise the old shape instead of depending on staleness. Reverted for now so the shared checkout stays green | 🔴 measured, reverted |
+| 2 | **Display-field audit** — *"look at all my display fields and make sure they are being used by an operation or updated in some way"* (08-20). 99 display-enabled fields on poms grid; `unused-field` flags **15**. Never done; it is the same audit `next-session-decisions.md` files as *"`unused-field` is at 14 — worth one pass now that the audit tooling exists"* | 📋 never started |
+| 3 | **The three DARK themes are still unmeasured** for contrast. The 2026-08-20 attempt failed its own calibration — the probe sampled marquee TRACKS rather than glyph boxes, and test grid 2 still carries the base rainbow so the surface behind a translucent pill is not uniform. `next-session-decisions.md` records exactly how to start ahead | 📋 open, method known |
+| 4 | **"What else is technically needed for the original vision"** — asked 08-20, never answered | 📋 open ask |
+| 5 | **Instance label text size one step bigger** — *"make sure the instance labels text size 1 size bigger too"* (08-20). No commit found touching it | ❓ unconfirmed |
+| 6 | **Monthly Bills goal target is a frozen literal** — `displayConfig.targetValue` is `2040.97` and takes a number only. Correct today, drifts the moment a bill changes | 📋 reported, not fixed |
+| 7 | **Micronutrient op double-counts a repeated ingredient across meals** — correct for a day's intake, wrong if the tile is ever pointed at a template | 📋 known limit |
+| 8 | **Trackers panel sits at 36% of the left column** — one splitter drag if it reads short | 🎨 cosmetic, your call |
+| 9 | **Assistant grid-build plan is written, not executed** — and its blocker is measured: the configured 3B model took **207s** for one read-only tool call and answered wrong. Step 1 is config (the allowlist is an env var), not code | 📋 planned |
+| 10 | **Schedule apply ~1s** — `resolveOptions` predicate filter ~766ms | 📋 measured, not fixed |
+| 11 | **Three external-data pipes** — Tasker profiles, ingest credentials, the four slow exports | 🚫 blocked on you |
 
 ## Log audit — every direction from 2026-08-20 → 08-21
 
-All 8 session logs across the three accounts were replayed and every user turn
-matched against this queue. **13 directions, all accounted for**; two carried
-findings worth stating, and one was an instruction about reporting that had been
-missed.
+All 8 session logs across the three accounts were replayed. **The first pass read
+only raw user turns and missed the small asks** — when a session compacts, its
+earlier user messages are replaced by a summary, so those asks are inside the
+summary text rather than in any `type:"user"` record. Re-reading the 08-20T12:26
+summary and `docs/next-session-decisions.md` recovered seven more, now items 1-9
+above. The table below is the raw-turn pass; it was correct and incomplete.
 
 | Direction | Where it landed |
 |---|---|
