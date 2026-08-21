@@ -7,11 +7,22 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 
 | # | Task | State |
 |---|------|-------|
-| 1 | **End-of-day move** — completed tasks/appointments → `Tasks > Completed` after the day rolls over, *"even if they arent on the schedule"* | 🔎 measured; blocked on repairing 2 mis-parented rows first |
+| 1 | **The `Completed` feed reaches only 1 of 3 ticked tasks** — its `scope` is an ancestor test through `buildParentMap` (child → ONE parent, *last writer wins*), so a task that is ALSO on the schedule falls out of Tasks-page scope arbitrarily. This is the real end-of-day defect | 🔎 measured; wants its own pass (shared resolver, render path) |
 | 2 | **"What else is technically needed for the original vision"** — asked 2026-08-21, never answered | 📋 open ask |
 | 3 | **Empty panel → root manifest folder in folder view** — asked, no commit found | ❓ unconfirmed |
 | 4 | **Schedule apply ~1s** — `resolveOptions` predicate filter ~766ms, the residual after the index work | 📋 measured, not fixed |
 | 5 | **Three external-data pipes** — Tasker profiles, ingest credentials, the four slow exports | 🚫 blocked on the user |
+
+## Done — 2026-08-21 (end-of-day pass)
+
+| Task | Where |
+|------|-------|
+| **RETRACTED — the end-of-day move.** `Tasks › Completed` is a **materialized feed** (`0060`), not a folder. `0179` built an op to move rows into it; that was a second mechanism beside the one that already existed | `0180` |
+| Damage undone and **verified byte-identical to the pre-`0179` snapshot** — three rows back in `Emotional`/`Financial` at their original list positions, `meta.filedFrom` unset, op deleted | `0180` |
+| The swept feed copy **re-minted itself** on the next load — verified in a browser, 0 page errors | probe |
+| **`DATE_BEFORE_TODAY` / `DATE_IS_TODAY` / `DATE_AFTER_TODAY` were wrong west of UTC** — a bare `YYYY-MM-DD` parsed as UTC midnight, so *today* read as past. `DATE_BEFORE`, one `case` above, had already been fixed and says so. `Compute Next Due` had been treating a bill due TODAY as overdue | `dayKeyOf` |
+| **`applyEffectsToLiveOccs` disagreed with the persisting handler twice** — `UPDATE_ITEM_PARENT` set `parentId` and neither parent's `occurrences[]`; `UPDATE_ITEM_META` read only the legacy `metaPatch` while `applyUpdate` emits `metaPath`, so every `meta.*` write was invisible to the rest of the sweep | `operationExecutor` |
+| **Four rows whose `parentId` named a container that did not list them** — repaired by a structural sibling test. The shared Emotions Wheel contradicts the same way and is correctly DECLINED | `0178` |
 
 ## Done — 2026-08-21 (later)
 
