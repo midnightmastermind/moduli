@@ -119,3 +119,69 @@ export function normalizeFieldBindings({ fieldBindings, fieldIds, hidden = false
   if (Array.isArray(fieldIds) && fieldIds.length) return fieldIds.map((fid) => stamp(fid, "input"));
   return [];
 }
+
+/**
+ * Which of the picked fields the add menu offers a control for.
+ *
+ * User, 2026-08-21: *"1 to quickly set values for fields in the add item menu"*,
+ * then correcting a first attempt that only handled the typeable primitives:
+ * ***"it shouldnt be just typable. any input field should be valued inside that
+ * editor"*** / *"so the oppropriate inputs need to be there"*.
+ *
+ * They were right, and the first version was a second implementation of every
+ * input type — a hand-rolled number/text/select box beside the real ones. The
+ * step renders `Field` itself now, which is the app's ONE renderer for every
+ * type, so an occurrence dropdown, a rating, a duration and a boolean all behave
+ * exactly as they do on a row.
+ *
+ * So the filter is only about what has no INPUT to render at all:
+ *
+ * - a `display` field's value is written by an OPERATION and would be overwritten
+ *   on the next load — a control that appears to work and does not is worse than
+ *   no control. (Both the FIELD's `displayEnabled` and the BINDING's role are
+ *   checked; either alone leaves the other case through.)
+ * - `inputEnabled === false` is the field saying so itself.
+ * - `media` / `files` need an upload or a drop target, which a menu has nowhere
+ *   to put. Those stay BOUND and are filled in on the row.
+ */
+const NO_INPUT_TYPES = new Set(["media", "files"]);
+
+export function typeableFields(fieldIds, fieldsById, rolesByFieldId = {}) {
+  return (fieldIds || [])
+    .map((id) => fieldsById?.[id])
+    .filter((f) => f && !f.trashed
+      && f.displayEnabled !== true
+      && f.inputEnabled !== false
+      && !NO_INPUT_TYPES.has(f.type)
+      && (rolesByFieldId[f.id] || "input") === "input");
+}
+
+/** The `{fieldId: {value, flow}}` map a mint site wants, dropping anything unset. */
+export function toInitialFields(values) {
+  const out = {};
+  for (const [fieldId, v] of Object.entries(values || {})) {
+    if (v === "" || v === undefined || v === null) continue;
+    out[fieldId] = { value: v, flow: "in" };
+  }
+  return out;
+}
+
+/**
+ * Order a field list with the SELECTED ones first.
+ *
+ * User, 2026-08-21: *"and the selected ones should go to the top"*. With the
+ * picker now opening pre-ticked from the destination's siblings, the fields that
+ * are ON are the ones you came to check — and they were scattered through an
+ * alphabetical list of every field on the grid.
+ *
+ * STABLE within each group, so the alphabetical order the caller sorted by
+ * survives inside "selected" and inside "the rest". Unticking a field moves it
+ * down; that is the same rule read backwards, and it is what makes the position
+ * mean something.
+ */
+export function selectedFirst(fields, selectedIds) {
+  const sel = new Set(selectedIds || []);
+  const on = [], off = [];
+  for (const f of fields || []) (sel.has(f?.id) ? on : off).push(f);
+  return [...on, ...off];
+}

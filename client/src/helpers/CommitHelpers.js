@@ -1198,8 +1198,8 @@ export function addImageArtifactFromUrl({
 // (the menu opens an OS picker and passes it through).
 export function createChildInContainer({
   dispatch, socket, gridId, userId, containerOccurrence, containerModule = null,
-  kind = "instance", role = null, fieldIds = [], fieldBindings = null, index = null,
-  file = null, url = null,
+  kind = "instance", role = null, fieldIds = [], fieldBindings = null,
+  initialFields = null, index = null, file = null, url = null,
   panelId = null, containerLabel = "", folderId = null,
 }) {
   const args = { dispatch, socket, gridId, userId, containerOccurrence, index };
@@ -1224,6 +1224,7 @@ export function createChildInContainer({
   // default: a leaf instance (with any pre-picked fields)
   return createLeafInstanceAtIndex({
     ...args, role: "instance", fieldIds, fieldBindings,
+    initialFields: initialFields || {},
     parentOccurrence: containerOccurrence,
     panelId, containerLabel,
   });

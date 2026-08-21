@@ -56,6 +56,11 @@ function mount({ children = [], onCreateNew = vi.fn() } = {}) {
   return { onCreateNew, ...utils };
 }
 const tickedCount = () => Number(/\((\d+) selected\)/.exec(screen.getByText(/selected\)/).textContent)[1]);
+// The value step renders REAL `Field` controls — the same components a row uses —
+// so the inputs are whatever those emit. The hidden file input the artifact tile
+// mounts is excluded, or it would be the first "input" on the page.
+const valueInputs = () => [...document.querySelectorAll("input, select, textarea")]
+  .filter(el => el.type !== "file");
 
 beforeEach(() => { store.occurrencesById = {}; });
 
@@ -126,5 +131,107 @@ describe("display and input are separate sections", () => {
     fireEvent.click(screen.getByText("Item"));
     expect(screen.queryByText("Display")).toBeNull();
     expect(screen.getByText("Input")).toBeTruthy();
+  });
+});
+
+describe("selected fields sort to the top of the picker", () => {
+  // The helper has its own tests; this one asserts the COMPONENT uses it.
+  // Without it, removing `selectedFirst` from the render passed every helper
+  // test — the inert-call-site class.
+  // The INPUT section only — the Display section renders above it and would
+  // otherwise be the first row whatever the sort does.
+  const inputNames = Object.values(FIELDS).filter(f => !f.displayEnabled).map(f => f.name);
+  const order = () => [...document.querySelectorAll("button")]
+    .map(b => b.textContent).filter(t => inputNames.some(n => t.startsWith(n)));
+
+  it("a LATE-alphabet ticked field renders before an early unticked one", () => {
+    store.fieldsById = FIELDS;
+    store.modulesById = { ...MODULES,
+      "m-z": { id: "m-z", role: "instance", fieldBindings: [{ fieldId: "unused", role: "input" }] } };
+    store.occurrencesById = { host: { id: "host", occurrences: ["k0"] }, k0: { id: "k0", moduleId: "m-z" } };
+    const utils = render(<QuickAddMenu targetRole="instance" onCreateNew={vi.fn()}
+      hostOccurrence={store.occurrencesById.host} />);
+    fireEvent.click(utils.container.querySelector("button"));
+    fireEvent.click(screen.getByText("Item"));
+    const o = order();
+    expect(o[0]).toContain("Zebra");                    // ticked, last alphabetically
+    expect(o.findIndex(t => t.startsWith("Calories"))).toBeGreaterThan(0);
+  });
+
+  it("with nothing ticked the list stays alphabetical — the control", () => {
+    store.fieldsById = FIELDS;
+    store.modulesById = MODULES;
+    store.occurrencesById = { host: { id: "host", occurrences: [] } };
+    const utils = render(<QuickAddMenu targetRole="instance" onCreateNew={vi.fn()}
+      hostOccurrence={store.occurrencesById.host} />);
+    fireEvent.click(utils.container.querySelector("button"));
+    fireEvent.click(screen.getByText("Item"));
+    expect(order()[0]).toContain("Calories");
+  });
+});
+
+describe("the value sub-step", () => {
+  it("offers 'Values →' only when something can actually be typed", () => {
+    // A step that opens empty is a dead end, so the button is conditional.
+    mount({ children: ["m-ing"] });                 // cal/protein are numbers
+    expect(screen.getByText("Values →")).toBeTruthy();
+  });
+
+  it("does NOT offer it when every picked field is a display field", () => {
+    store.fieldsById = { total: FIELDS.total };
+    store.modulesById = { "m-d": { id: "m-d", role: "instance",
+      fieldBindings: [{ fieldId: "total", role: "display" }] } };
+    store.occurrencesById = { host: { id: "host", occurrences: ["k"] }, k: { id: "k", moduleId: "m-d" } };
+    const utils = render(<QuickAddMenu targetRole="instance" onCreateNew={vi.fn()}
+      hostOccurrence={store.occurrencesById.host} />);
+    fireEvent.click(utils.container.querySelector("button"));
+    fireEvent.click(screen.getByText("Item"));
+    expect(screen.queryByText("Values →")).toBeNull();
+  });
+
+  it("carries typed values to onCreateNew as initialFields", () => {
+    const { onCreateNew } = mount({ children: ["m-ing"] });
+    fireEvent.click(screen.getByText("Values →"));
+    const inputs = valueInputs();
+    expect(inputs.length).toBeGreaterThan(0);
+    fireEvent.change(inputs[0], { target: { value: "150" } });
+    // `Field` commits on blur/Enter, not on every keystroke — the same debounce
+    // a row uses. Firing only `change` asserts nothing about the commit path.
+    fireEvent.blur(inputs[0]);
+    fireEvent.click(screen.getByText("Create"));
+    const arg = onCreateNew.mock.calls[0][0];
+    expect(arg.initialFields).toEqual({ cal: { value: 150, flow: "in" } });
+    // Bindings still ride along — the value step ADDS to the pick, it does not
+    // replace it.
+    expect(arg.fieldIds).toEqual(["cal", "protein", "total"]);
+  });
+
+  it("a field TYPED INTO AND THEN CLEARED contributes nothing", () => {
+    // Deliberately not "an untouched field": an untouched one never enters the
+    // value map at all, so that version passed with the empty-value guard
+    // deleted and proved nothing. Typing then clearing puts a "" in the map and
+    // is the only shape that exercises the guard.
+    const { onCreateNew } = mount({ children: ["m-ing"] });
+    fireEvent.click(screen.getByText("Values →"));
+    const input = valueInputs()[0];
+    fireEvent.change(input, { target: { value: "150" } });
+    fireEvent.blur(input);
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.blur(input);
+    fireEvent.click(screen.getByText("Create"));
+    expect(onCreateNew.mock.calls[0][0].initialFields).toEqual({});
+  });
+
+  it("shows only the typeable fields — the display one is bound but not typed", () => {
+    mount({ children: ["m-ing"] });
+    fireEvent.click(screen.getByText("Values →"));
+    expect(screen.getByText(/Set values \(2 fields\)/)).toBeTruthy();   // cal + protein, not total
+  });
+
+  it("Back returns to the field picker with the picks intact", () => {
+    mount({ children: ["m-ing"] });
+    fireEvent.click(screen.getByText("Values →"));
+    fireEvent.click(screen.getByText(/Back/));
+    expect(tickedCount()).toBe(3);
   });
 });

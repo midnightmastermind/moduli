@@ -18,7 +18,9 @@ import { commitApplyTemplate } from "../helpers/CommitHelpers";
 import { getModuleTypeBadge } from "../helpers/moduleIcons";
 import { openImagePicker } from "./ImagePickerMenu";
 
-import { siblingFieldBindings, splitDisplayInput } from "../helpers/siblingFieldBindings.js";
+import { siblingFieldBindings, splitDisplayInput, typeableFields, toInitialFields, selectedFirst } from "../helpers/siblingFieldBindings.js";
+import Field from "./Field.jsx";
+import { resolveOptions } from "../helpers/optionsResolver";
 // Anchor-relative menu placement. Opens below the anchor; flips above when the
 // menu would overflow the viewport bottom (phone + on-screen keyboard). Pure —
 // unit-tested in __tests__/quickAddMenu.test.js.
@@ -132,6 +134,9 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   // field does not arrive as a typable input on the new row. Hand-picked fields
   // are absent here and default to "input".
   const inheritedRolesRef = useRef({});
+  // Value sub-step (user, 2026-08-21: "1 to quickly set values for fields in the
+  // add item menu"). `null` = not on it; an object = fieldId -> raw input value.
+  const [pickingValues, setPickingValues] = useState(null);
   // Where a page tile files the page it creates, so it shows in the Local/Root
   // tree instead of existing only at the spot it was added.
   const rootFolderId = manifestsById?.[ctxGrid?.manifestId]?.rootFolderId || null;
@@ -178,6 +183,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     setOpen(false);
     setSearch("");
     setPickingFields(null);
+    setPickingValues(null);
     setFieldSearch("");
   }, []);
 
@@ -193,9 +199,14 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
       .filter(f => !q || (f.name || "").toLowerCase().includes(q))
       .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
     const { display, input } = splitDisplayInput(all);
+    // Ticked ones first, inside each section (user: "and the selected ones
+    // should go to the top"). Now that the picker opens pre-ticked from the
+    // destination, those are the fields you came to check — and they were
+    // scattered through an alphabetical list of every field on the grid.
+    const sel = pickingFields;
     return [
-      { key: "display", title: "Display", fields: display },
-      { key: "input", title: "Input", fields: input },
+      { key: "display", title: "Display", fields: selectedFirst(display, sel) },
+      { key: "input", title: "Input", fields: selectedFirst(input, sel) },
     ].filter(sec => sec.fields.length);
   }, [fieldsById, pickingFields, fieldSearch]);
   const fieldCount = useMemo(
@@ -208,6 +219,32 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     });
   }, []);
 
+  // A stand-in for the row about to be created. An occurrence dropdown resolves
+  // its option pool against the grid and may scope by ANCESTOR, so the draft has
+  // to name the destination as its parent or those fields resolve to nothing —
+  // the same class as the 2026-07-07 `_ancestors` gap in the options resolver.
+  const draftOccurrence = useMemo(() => (
+    hostOccurrence ? { id: "__draft__", parentId: hostOccurrence.id, moduleId: null, fields: {} } : null
+  ), [hostOccurrence]);
+
+  // Resolve the option pool the same way FieldRenderer does — one call, not a
+  // second implementation. Only select/occurrence read it.
+  const fieldWithOptions = useCallback((f) => {
+    if (f?.type !== "select" && f?.type !== "occurrence") return f;
+    let resolved = { options: [], totalMatched: 0 };
+    try {
+      resolved = resolveOptions(f,
+        { occurrencesById: getOccMap(), modulesById, fieldsById, foldersById },
+        draftOccurrence) || resolved;
+    } catch { /* a pool that cannot resolve renders as an empty list, never a crash */ }
+    return { ...f, meta: { ...f.meta, _resolvedOptions: resolved.options, _totalMatched: resolved.totalMatched } };
+  }, [getOccMap, modulesById, fieldsById, foldersById, draftOccurrence]);
+
+  // The picked fields that can actually be given a value here, in pick order.
+  const valueFields = useMemo(() => (
+    pickingFields ? typeableFields(pickingFields, fieldsById, inheritedRolesRef.current) : []
+  ), [pickingFields, fieldsById]);
+
   const confirmCreate = useCallback(() => {
     const fieldIds = Array.isArray(pickingFields) ? pickingFields : [];
     // Bindings, not bare ids — the role a prefilled field carried on its
@@ -217,9 +254,10 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     onCreateNew?.({
       fieldIds,
       fieldBindings: fieldIds.map(fid => ({ fieldId: fid, role: roles[fid] || "input" })),
+      initialFields: toInitialFields(pickingValues),
     });
     closeMenu();
-  }, [pickingFields, onCreateNew, closeMenu]);
+  }, [pickingFields, pickingValues, onCreateNew, closeMenu]);
 
   // Tile click: create a new occurrence of `kind` immediately. Textblock routes
   // to its dedicated path; the instance Item tile opens the field-picker first
@@ -390,6 +428,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   }, [open, manifestsById, foldersById, modulesById, getOccMap, gridId, allowedKinds, hostOccurrence, targetRole, onCreatePageFromTemplate]);
 
   const picking = pickingFields != null;
+  const onValues = picking && pickingValues != null;
 
   return (
     <>
@@ -424,7 +463,56 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
             boxShadow: "var(--menu-shadow)", fontFamily: "var(--font-mono)",
           }}
         >
-          {picking ? (
+          {onValues ? (
+            // ── Value sub-step ───────────────────────────────────────────────
+            // One line per typeable picked field. Everything else stays BOUND and
+            // is filled in on the row — see `typeableFields` for why each type is
+            // excluded rather than faked here.
+            <>
+              <button onClick={() => setPickingValues(null)} style={backBtnStyle}>
+                <ChevronLeft size={10} /> Back
+              </button>
+              <div style={{ padding: "8px 10px 4px", fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)", borderBottom: "1px solid var(--border-subtle)" }}>
+                Set values ({valueFields.length} field{valueFields.length === 1 ? "" : "s"})
+              </div>
+              <div style={{ flex: 1, overflowY: "auto", padding: "2px 0" }}>
+                {/* THE REAL CONTROL PER FIELD, not a hand-rolled subset.
+                    `Field` is this app's ONE renderer for every type, so an
+                    occurrence dropdown, a rating, a duration and a boolean all
+                    behave here exactly as they do on a row — which is what the
+                    user asked for after the first version only handled the
+                    typeable primitives.
+
+                    It is driven CONTROLLED: `onCommit` writes into local state
+                    instead of the store, because the occurrence does not exist
+                    yet. Nothing is persisted until Create. */}
+                {valueFields.map(f => (
+                  <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 10px", minHeight: 24 }}>
+                    <span style={{ width: 86, flexShrink: 0, fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={f.name}>{f.name}</span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <Field
+                        field={fieldWithOptions(f)}
+                        binding={{ fieldId: f.id, role: "input" }}
+                        // NOT compact: the compact form is a PILL you click to
+                        // reveal an input, which is right on a crowded row and
+                        // wrong here — "quickly set values" means the control is
+                        // already there to type into.
+                        compact={false}
+                        hideName
+                        hostOccurrence={draftOccurrence}
+                        value={pickingValues[f.id]}
+                        flow={f.meta?.flow || "in"}
+                        onCommit={(nv) => setPickingValues(p => ({ ...p, [f.id]: nv }))}
+                      />
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 6, padding: "6px 8px", borderTop: "1px solid var(--border-subtle)", background: "var(--input-bg)" }}>
+                <button onClick={confirmCreate} style={{ flex: 1, padding: "5px 8px", background: "var(--accent-blue)", border: "1px solid var(--accent-blue)", borderRadius: 4, cursor: "pointer", color: "var(--on-accent)", fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600 }}>Create</button>
+              </div>
+            </>
+          ) : picking ? (
             // ── Field-picker sub-step (instance create) ──────────────────────
             <>
               <button
@@ -481,6 +569,12 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
               </div>
               <div style={{ display: "flex", gap: 6, padding: "6px 8px", borderTop: "1px solid var(--border-subtle)", background: "var(--input-bg)" }}>
                 <button onClick={() => { onCreateNew?.({ fieldIds: [] }); closeMenu(); }} style={{ flex: 1, padding: "5px 8px", background: "transparent", border: "1px solid var(--border-default)", borderRadius: 4, cursor: "pointer", color: "var(--text-muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}>Skip</button>
+                {/* Offered only when something CAN be typed — a step that opens
+                    empty is a dead end. Create stays beside it, so the one-Enter
+                    path is unchanged for anyone who does not want values yet. */}
+                {valueFields.length > 0 && (
+                  <button onClick={() => setPickingValues({})} style={{ flex: 1, padding: "5px 8px", background: "transparent", border: "1px solid var(--accent-blue-border)", borderRadius: 4, cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)" }}>Values →</button>
+                )}
                 <button onClick={confirmCreate} style={{ flex: 1, padding: "5px 8px", background: "var(--accent-blue)", border: "1px solid var(--accent-blue)", borderRadius: 4, cursor: "pointer", color: "var(--on-accent)", fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600 }}>Create</button>
               </div>
             </>

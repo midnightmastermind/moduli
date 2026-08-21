@@ -558,7 +558,7 @@ function Container({
   // path (onAdd); Textblock / Board / Doc / Table / Canvas / Artifact route through
   // createChildInContainer (appends; nested containers also flip allowChildContainers).
   const handleQuickCreate = useCallback((payload = {}) => {
-    const { kind, fieldIds = [], fieldBindings = null, file, url, folderId = null } = payload;
+    const { kind, fieldIds = [], fieldBindings = null, initialFields = null, file, url, folderId = null } = payload;
     if (!kind || kind === "instance") { onAdd?.(payload); return; }
     CommitHelpers.createChildInContainer({
       dispatch, socket,
@@ -566,7 +566,7 @@ function Container({
       userId: ctxUserId,
       containerOccurrence,
       containerModule: module,
-      kind, fieldIds, fieldBindings, file, url, folderId, index: null,
+      kind, fieldIds, fieldBindings, initialFields, file, url, folderId, index: null,
       panelId, containerLabel: module?.label || "",
     });
   }, [onAdd, dispatch, socket, ctxGridId, ctxUserId, containerOccurrence, module, panelId]);

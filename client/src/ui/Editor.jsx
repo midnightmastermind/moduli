@@ -2543,7 +2543,7 @@ const Editor = forwardRef(function Editor({
   // Mint a standalone occurrence (NOT into any occurrences[] — doc embeds are
   // standalone) and insert a moduleEmbed for it at `pos`. existingModuleId →
   // a fresh placement of a picked module; else a new role:"instance" module.
-  const insertDocItemAt = useCallback((pos, { existingModuleId = null, fieldIds = [], fieldBindings = null } = {}) => {
+  const insertDocItemAt = useCallback((pos, { existingModuleId = null, fieldIds = [], fieldBindings = null, initialFields = null } = {}) => {
     if (!editor || !occurrence?.userId) return;
     const userId = occurrence.userId;
     const gridId = occurrence.gridId;
@@ -2563,7 +2563,7 @@ const Editor = forwardRef(function Editor({
     }
     CommitHelpers.createOccurrence({
       dispatch, socket,
-      occurrence: { id: occId, userId, gridId, moduleId, parentId: occurrence?.id, iteration: { mode: "persistent" }, fields: {} },
+      occurrence: { id: occId, userId, gridId, moduleId, parentId: occurrence?.id, iteration: { mode: "persistent" }, fields: { ...(initialFields || {}) } },
       emit: true,
     });
     const at = Math.max(0, Math.min(pos, editor.state.doc.content.size));
@@ -2699,7 +2699,7 @@ const Editor = forwardRef(function Editor({
               targetRole="instance"
               hostOccurrence={occurrence}
               onSelect={(m) => insertDocItemAt(docGap.pos, { existingModuleId: m?.id ?? m })}
-              onCreateNew={({ fieldIds, fieldBindings } = {}) => insertDocItemAt(docGap.pos, { fieldIds, fieldBindings })}
+              onCreateNew={({ fieldIds, fieldBindings, initialFields } = {}) => insertDocItemAt(docGap.pos, { fieldIds, fieldBindings, initialFields })}
               openTrigger={gapAddTrigger}
               // onOpenChange fires on real transitions only (never on mount),
               // so a close always means "the user is done with this gap".

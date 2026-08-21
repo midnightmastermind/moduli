@@ -384,6 +384,7 @@ export function createInstanceInContainer({
   userId,
   index = null,
   iterationMode = "specific",
+  fields = null,
   emit = true,
 }) {
   if (!gridId || !container || !instance?.id || !userId) return;
@@ -401,7 +402,18 @@ export function createInstanceInContainer({
     gridId,
     iteration: { key: "time", value: new Date(), timeValue: new Date(), timeFilter: "daily", mode: iterationMode },
     timestamp: new Date(),
-    fields: {},
+    // The parent's own filter values, THEN whatever the caller supplied.
+    //
+    // The stamp is not cosmetic: this path wrote `fields: {}`, so an item created
+    // from a container's "+ Item" was born with no date and was invisible to the
+    // very filter the container is under — the same defect `0043`-era artifact
+    // drops had (2026-08-07), at a call site its fix never reached.
+    // `createLeafInstanceAtIndex` has stamped it all along; these two paths had
+    // silently disagreed about what a new child is born carrying.
+    fields: {
+      ...(CommitHelpers.parentFilterFields?.(containerOccurrence) || {}),
+      ...(fields || {}),
+    },
     parentId: containerOccurrence?.id || null,
   };
 

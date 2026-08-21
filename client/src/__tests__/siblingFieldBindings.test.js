@@ -6,8 +6,8 @@
 // EVERY field the siblings bind, over "only what they all share" and over
 // "copy the nearest sibling".
 import { describe, it, expect } from "vitest";
-import { siblingFieldBindings, siblingFieldIds, splitDisplayInput, normalizeFieldBindings }
-  from "../helpers/siblingFieldBindings.js";
+import { siblingFieldBindings, siblingFieldIds, splitDisplayInput, normalizeFieldBindings,
+  typeableFields, toInitialFields, selectedFirst } from "../helpers/siblingFieldBindings.js";
 
 const mods = {
   "m-a": { id: "m-a", role: "instance", fieldBindings: [
@@ -132,5 +132,108 @@ describe("normalizeFieldBindings — the one mint-site rule", () => {
   it("nothing in, empty out — so a bare item mints no fieldBindings key at all", () => {
     expect(normalizeFieldBindings()).toEqual([]);
     expect(normalizeFieldBindings({ fieldBindings: [], fieldIds: [] })).toEqual([]);
+  });
+});
+
+describe("typeableFields — what the value step may ask for", () => {
+  const F = {
+    num:   { id: "num",   type: "number" },
+    txt:   { id: "txt",   type: "text" },
+    occ:   { id: "occ",   type: "occurrence" },
+    disp:  { id: "disp",  type: "number", displayEnabled: true },
+    trash: { id: "trash", type: "number", trashed: true },
+    date:  { id: "date",  type: "date" },
+  };
+  const ids = Object.keys(F);
+
+  it("keeps the types you can type or pick in one line", () => {
+    expect(typeableFields(["num", "txt", "date"], F).map(f => f.id))
+      .toEqual(["num", "txt", "date"]);
+  });
+
+  it("INCLUDES an occurrence field — every input type gets its real control", () => {
+    // Corrected in-session: the first version rendered a hand-rolled subset of
+    // input types, and the user's answer was "any input field should be valued
+    // inside that editor". The step renders `Field` now, so there is nothing to
+    // exclude on the grounds of "I did not write a box for it".
+    expect(typeableFields(ids, F).map(f => f.id)).toContain("occ");
+  });
+
+  it("excludes a DISPLAY field even when its TYPE is typeable and its binding says input", () => {
+    // Two independent guards cover this — displayEnabled on the FIELD and the
+    // binding's role. This isolates the first: an operation writes the value, so
+    // an input for it would be overwritten on the next load.
+    expect(typeableFields(["disp"], F, { disp: "input" })).toEqual([]);
+  });
+
+  it("excludes a field whose BINDING role is display, even when the field is not display-enabled", () => {
+    // And this isolates the second guard.
+    expect(typeableFields(["num"], F, { num: "display" })).toEqual([]);
+    expect(typeableFields(["num"], F, { num: "input" }).map(f => f.id)).toEqual(["num"]);
+  });
+
+  it("skips a trashed field and an id that resolves to nothing", () => {
+    expect(typeableFields(["trash", "ghost", "num"], F).map(f => f.id)).toEqual(["num"]);
+  });
+});
+
+describe("toInitialFields", () => {
+  it("wraps each value in the stored {value, flow} shape", () => {
+    expect(toInitialFields({ a: 5, b: "x" }))
+      .toEqual({ a: { value: 5, flow: "in" }, b: { value: "x", flow: "in" } });
+  });
+
+  it("drops empty, null and undefined — a cleared box is not a value", () => {
+    expect(toInitialFields({ a: "", b: null, c: undefined, d: 0 }))
+      .toEqual({ d: { value: 0, flow: "in" } });   // 0 is a real number and survives
+  });
+
+  it("nothing in, empty out", () => {
+    expect(toInitialFields()).toEqual({});
+  });
+});
+
+describe("selectedFirst — ticked fields sort to the top", () => {
+  const F = (id) => ({ id });
+  it("moves selected ahead of the rest", () => {
+    expect(selectedFirst([F("a"), F("b"), F("c")], ["c"]).map(f => f.id)).toEqual(["c", "a", "b"]);
+  });
+
+  it("is STABLE inside each group, so the caller's sort survives", () => {
+    expect(selectedFirst([F("a"), F("b"), F("c"), F("d")], ["d", "b"]).map(f => f.id))
+      .toEqual(["b", "d", "a", "c"]);
+  });
+
+  it("nothing selected leaves the order untouched", () => {
+    expect(selectedFirst([F("a"), F("b")], []).map(f => f.id)).toEqual(["a", "b"]);
+    expect(selectedFirst([F("a"), F("b")], null).map(f => f.id)).toEqual(["a", "b"]);
+  });
+
+  it("everything selected leaves the order untouched too", () => {
+    expect(selectedFirst([F("a"), F("b")], ["a", "b"]).map(f => f.id)).toEqual(["a", "b"]);
+  });
+});
+
+describe("typeableFields — an INPUT field of any type gets a control", () => {
+  const F = {
+    occ:    { id: "occ",    type: "occurrence" },
+    rating: { id: "rating", type: "rating" },
+    dur:    { id: "dur",    type: "duration" },
+    addr:   { id: "addr",   type: "address" },
+    media:  { id: "media",  type: "media" },
+    files:  { id: "files",  type: "files" },
+    off:    { id: "off",    type: "number", inputEnabled: false },
+  };
+  it("includes an occurrence dropdown — the user's correction", () => {
+    // "it shouldnt be just typable. any input field should be valued inside
+    // that editor". A hand-rolled subset was the first version's mistake.
+    expect(typeableFields(["occ", "rating", "dur", "addr"], F).map(f => f.id))
+      .toEqual(["occ", "rating", "dur", "addr"]);
+  });
+  it("still excludes media and files — a menu has nowhere to put an upload", () => {
+    expect(typeableFields(["media", "files"], F)).toEqual([]);
+  });
+  it("respects a field that says inputEnabled: false", () => {
+    expect(typeableFields(["off"], F)).toEqual([]);
   });
 });

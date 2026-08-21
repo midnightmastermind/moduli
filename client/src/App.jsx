@@ -747,6 +747,8 @@ export default function App() {
         containerOccurrence: containerOcc || null,
         instance: module,
         userId: s.userId,
+        // Values typed in the add menu's value step, if the user went through it.
+        fields: opts?.initialFields || null,
         emit: true,
       });
       // Open the new item's label editor focused so it can be named right away.
