@@ -7,11 +7,21 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 
 | # | Task | State |
 |---|------|-------|
-| 1 | **The `Completed` feed reaches only 1 of 3 ticked tasks** — its `scope` is an ancestor test through `buildParentMap` (child → ONE parent, *last writer wins*), so a task that is ALSO on the schedule falls out of Tasks-page scope arbitrarily. This is the real end-of-day defect | 🔎 measured; wants its own pass (shared resolver, render path) |
+| 1 | **Feed-scope fix causes CHURN** — widening the scope walk is measured and correct (77 of 78 feeds byte-identical), but deploying it made the two newly-matched copies re-mint every pass and never settle. Reverted; work parked on branch `feed-scope-multiparent`. Next step is a `window.__feedDiag = true` session against a build carrying it | 🔬 parked, cause not yet found |
 | 2 | **"What else is technically needed for the original vision"** — asked 2026-08-21, never answered | 📋 open ask |
 | 3 | **Empty panel → root manifest folder in folder view** — asked, no commit found | ❓ unconfirmed |
 | 4 | **Schedule apply ~1s** — `resolveOptions` predicate filter ~766ms, the residual after the index work | 📋 measured, not fixed |
 | 5 | **Three external-data pipes** — Tasker profiles, ingest credentials, the four slow exports | 🚫 blocked on the user |
+
+## Done — 2026-08-21 (feed pass)
+
+| Task | Where |
+|------|-------|
+| **A copy-link lost the source's occurrence label** — a row is `occurrence.label ?? module.label`, and the copy carried `fields` but not `label`, so `Completed` listed a row called **"Appointment"** where *"Psych appointment with Angela"* belonged. Verified on screen after deploy | `1b63f809` |
+| The stale copy **repaired itself** — feedSync re-minted it with the name, so the migration written for it was deleted unwritten. 0 of 82 copies mis-named | measured |
+| **`delete_occurrence` logged nothing** — creates log START/DONE, deletes logged nothing at all, so the server log could not tell "swept" from "never persisted". That gap cost a whole diagnosis today | `c3d6e999` |
+| Feed-scope widening **measured across every feed on every grid** — 78 feeds, 262 → 264 rows, 77 of 78 byte-identical; the one change is exactly the two missing tasks | branch |
+| Churn shown to be **specific to the change**, not pre-existing — the same copy is id-stable across a 75s live session on master | probe |
 
 ## Done — 2026-08-21 (end-of-day pass)
 
