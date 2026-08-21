@@ -3183,3 +3183,24 @@ Order: finish the in-flight weekday-on-tasks work before the two field-picker as
 **QUEUED, two more.** (1) The add-item menu should let you SET field values as you create the item,
 not just create it and make you fill it in afterwards. (2) A theming sweep over every dropdown and
 menu — they must all read as one skin.
+
+> "is there anyway to merge like templates too. maybe we should have a monday - thurs workout
+> templates (schedules with workouts on it) and a meal one where i have all my meals, and at game
+> time, we merge those together through the operation"
+
+**QUEUED — and the mechanism already exists; it is the DATA that is duplicated.** Measured before
+answering: all seven weekday templates carry **the identical 8 meals** — 56 stored rows where 8
+would do — and a day column is ALREADY built by four ops merging into it in priority order
+(`Build Schedule` → `Place Weekday` → `Place Dated Work` → `Place Weekday Tasks`). So layering is
+what the schedule already does; what is missing is that a weekday template is a whole DAY rather
+than a LAYER.
+
+The shape that needs no new mechanism: each template carries a **multi-select `Weekday`** naming
+the days it applies to, and `Place Weekday` matches with `CONTAINS` over ALL of them instead of
+`IS` over one. `Meals` names all seven; `Workout — Push` names Monday; and the op loops the matches
+rather than binding a single template. One meal plan, four reusable sessions, assigned by editing a
+dropdown.
+
+**The risk to settle first:** merge idempotence is `auto:<sourceId>`, keyed on the SOURCE row's id.
+Moving the meals from seven copies to one changes that id, so an already-built column would not
+recognise its existing rows and could double them. Needs either a re-sign pass or a column clear.
