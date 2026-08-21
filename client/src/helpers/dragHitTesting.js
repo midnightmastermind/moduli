@@ -102,6 +102,78 @@ export function cachedParentMap(occurrencesById) {
 }
 
 // ------------------------------------------------------------
+// buildParentsMap / reachableAncestors — EVERY parent, not just one
+// ------------------------------------------------------------
+// `buildParentMap` keys child -> ONE parent, LAST WRITER WINS. That is correct
+// for the things it was built for (where to drop, which cell to paint) — but
+// this grid multi-parents deliberately: one Schedule slot is shared across day
+// columns, and a task lives in its Tasks container AND in each day's `Todo`.
+// For those rows the single map picks an arbitrary parent, so a walk up from it
+// answers "is this under X?" differently depending on document order.
+//
+// Measured on poms grid: 9 of the 18 rows on the Tasks page are listed by more
+// than one parent, and ALL NINE resolved their chain away from the Tasks page —
+// so half that page was invisible to anything scoped to it.
+//
+// `reachableAncestors` is the honest question instead: the set of occurrences
+// this one can be reached FROM, by any path. A row listed by both Emotional and
+// a day's Todo is under the Tasks page AND under the Schedule, because it is.
+//
+// Cycle-safe by construction (`seen` gates enqueueing) and depth-safe: this is
+// a DAG walk, so a diamond is visited once rather than once per path.
+export function buildParentsMap(occurrencesById) {
+  const map = Object.create(null);
+  for (const occ of Object.values(occurrencesById || {})) {
+    if (!Array.isArray(occ?.occurrences)) continue;
+    for (const childId of occ.occurrences) {
+      if (!childId) continue;
+      (map[childId] ||= []).push(occ.id);
+    }
+  }
+  return map;
+}
+
+const _parentsMapCache = new WeakMap();
+
+// Same identity-keyed memo, and the same caveat: render-path callers only.
+// A map the executor mutates in place must not be cached by identity.
+export function cachedParentsMap(occurrencesById) {
+  if (!occurrencesById || typeof occurrencesById !== "object") return Object.create(null);
+  const hit = _parentsMapCache.get(occurrencesById);
+  if (hit) return hit;
+  const map = buildParentsMap(occurrencesById);
+  _parentsMapCache.set(occurrencesById, map);
+  return map;
+}
+
+// Breadth-first, so the result is ordered nearest-first — which is what a
+// caller reading it as a chain expects, and what the single-parent walk gave.
+// `parentId` is included as a FALLBACK per node, never instead of the listings:
+// an occurrence whose parent does not list it is still reachable from it, and a
+// listed child whose `parentId` names something else is reachable from both.
+export function reachableAncestors(id, occurrencesById, parentsMap) {
+  const parents = parentsMap || buildParentsMap(occurrencesById);
+  const out = [];
+  const seen = new Set([id]);
+  const queue = [id];
+  while (queue.length) {
+    const cur = queue.shift();
+    const listed = parents[cur] || [];
+    const own = occurrencesById?.[cur]?.parentId;
+    // Copy rather than push — `listed` IS the cached map's own array, and
+    // appending to it would poison the memo for every later caller.
+    const ups = own && !listed.includes(own) ? [...listed, own] : listed;
+    for (const p of ups) {
+      if (!p || seen.has(p)) continue;
+      seen.add(p);
+      out.push(p);
+      queue.push(p);
+    }
+  }
+  return out;
+}
+
+// ------------------------------------------------------------
 // walkHoveredOccurrence
 // ------------------------------------------------------------
 // Walk elementsFromPoint and return the innermost ancestor that
