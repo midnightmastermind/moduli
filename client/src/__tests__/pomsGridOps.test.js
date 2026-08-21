@@ -309,9 +309,14 @@ describe("the category axis is intact in the stored pipelines", () => {
   };
 
   it("carries category gates at all — the control", () => {
+    // The floor is deliberately well below the current count (24 ops / 29 gates
+    // after 0168 retired seven trackers). It exists to stop the four assertions
+    // below passing vacuously on a fixture that carries no gates at all — not to
+    // pin an exact number, which would go red every time a tracker is added or
+    // retired and teach whoever hits it to just edit the number.
     const bound = operations.filter((o) => /"name":"\$goalCategory"/.test(JSON.stringify(o.pipeline || {})));
-    expect(bound.length).toBeGreaterThanOrEqual(30);
-    expect(gates().length).toBeGreaterThanOrEqual(30);
+    expect(bound.length).toBeGreaterThanOrEqual(15);
+    expect(gates().length).toBeGreaterThanOrEqual(15);
   });
 
   it("every gate reads a loop var its own group also date-gates", () => {

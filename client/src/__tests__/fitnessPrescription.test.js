@@ -42,7 +42,19 @@ const TILE = "kg860us2nhc", COMPLETED = "tZWiPDQUDP74", MOVEMENT = "gF1S8FoNc4An
 
 // Only `Date` is faked. Faking the timer queue as well would stall anything in
 // the sweep that defers, and nothing here needs the clock to move.
-beforeAll(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date(fx._exportedAt)); });
+// PINNED TO A TRAINING WEEKDAY, not to the fixture's export date.
+//
+// The clock has to be pinned at all (the op resolves $today at run time, so an
+// unpinned suite goes red the next morning) — but pinning it to `_exportedAt`
+// made these tests depend on WHICH DAY the snapshot was taken. Since 0162 the
+// week is Mon Push / Tue Legs / Wed Pull / Thu Core+Cardio / Fri cardio only /
+// Sat-Sun rest, so an export taken on a Friday yields a column with NO movement
+// rows and every assertion here reads zero. That is exactly what happened on
+// 2026-08-21. A fixed Monday is a fact about the templates rather than about
+// when someone last ran the exporter.
+const TRAINING_DAY = "2026-08-24";                    // a Monday — Push day
+const DATE_FIELD = "Eh7oi4HKdbHB", SCHEDULE_PAGE = "llpF10Bda5nu";
+beforeAll(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date(`${TRAINING_DAY}T12:00:00`)); });
 afterAll(() => { vi.useRealTimers(); });
 
 // `only` runs a single op instead of the whole sweep, and the rollover cases
@@ -67,6 +79,13 @@ function sweep(mutate, only, world) {
     : Object.fromEntries(fx.occurrences.map(o => [o.id, structuredClone(o)]));
   const modulesById = Object.fromEntries(fx.modules.map(m => [m.id, m]));
   const fieldsById = Object.fromEntries(fx.fields.map(f => [f.id, f]));
+  // Re-date the day column and the Schedule page onto the training weekday, so
+  // `Place Weekday` materialises Monday's session during the sweep regardless of
+  // the day the fixture was exported on.
+  const col = Object.values(occurrencesById).find(o => o.fields?.[FORMAT]?.value === "day-col");
+  if (col) col.fields[DATE_FIELD] = { value: TRAINING_DAY, flow: "in" };
+  const sched = occurrencesById[SCHEDULE_PAGE];
+  if (sched) sched.filterOverride = { ...(sched.filterOverride || {}), [DATE_FIELD]: TRAINING_DAY };
   mutate?.(occurrencesById);
   const operationsById = Object.fromEntries(operations.map(o => [o.id, o]));
   const state = { grid: fx.grid, gridId: fx.grid._id, fields: Object.values(fieldsById),
