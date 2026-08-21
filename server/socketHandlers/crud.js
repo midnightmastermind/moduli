@@ -1254,6 +1254,13 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
       ...(occurrence.filterOverride !== undefined && { filterOverride: occurrence.filterOverride }),
       // filters is the per-occurrence FilterEditor list (conditional filters).
       ...(Array.isArray(occurrence.filters) && { filters: occurrence.filters }),
+      // label is the per-PLACEMENT name override, and a row is named
+      // `occurrence.label ?? module.label` — so dropping it here silently RENAMES
+      // every created copy to its module's generic name. Found on the Completed
+      // feed: a copy of "Psych appointment with Angela" came back reading
+      // "Appointment", because that is the module label every appointment shares.
+      // Third instance of the class the two comments above record.
+      ...(occurrence.label != null && { label: occurrence.label }),
       // hidden/locked/sortOrder/dragMode are also schema fields that flow through
       // create — include them so CREATE_ITEM clones don't drop them.
       ...(typeof occurrence.hidden === "boolean" && { hidden: occurrence.hidden }),

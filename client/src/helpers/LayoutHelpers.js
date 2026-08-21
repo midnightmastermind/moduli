@@ -891,6 +891,16 @@ export function copylinkInstanceToContainer({
     fields: copiedFields,
     linkedGroupId,
     parentId: toContainer._occurrence?.id || null,
+    // A row is named by `occurrence.label ?? module.label`, so a copy that drops
+    // the occurrence label silently RENAMES itself to the module's generic name.
+    // On this grid every appointment shares the module "Appointment" and carries
+    // its real name on the occurrence — so the Completed feed listed a row called
+    // "Appointment" where "Psych appointment with Angela" belonged, and a second
+    // appointment would have been indistinguishable from the first. A copy-link is
+    // meant to BE the same thing; carrying the name is what makes that true.
+    ...(typeof sourceOccurrence?.label === "string" && sourceOccurrence.label
+      ? { label: sourceOccurrence.label }
+      : {}),
     ...(initialMeta ? { meta: initialMeta } : {}),
     ...(dragMode ? { dragMode } : {}),
   };
