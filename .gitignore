@@ -15,6 +15,7 @@ client/dist/
 # lands at client/_*.mjs, and deploy.sh's `git add -A` swept two of those
 # into deploy commits (2026-07-12 + 2026-07-13) before this was widened.
 _*.mjs
+_*.png
 screenshots/
 
 # Grid backups (server/scripts/backupGrid.js). Live user data — never committed,
