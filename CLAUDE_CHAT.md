@@ -3218,3 +3218,15 @@ name list, or every core movement added later comes back counted.
 
 See the measurement in the session log — two candidate causes, one of which is a product decision
 (does the macro tracker count PLANNED meals or only TICKED ones).
+
+> "and hide Date field on timeslots"
+
+**QUEUED.** The `Date` pill on a slot repeats what the day column's header already says.
+
+**And the macro answer, measured:** the per-row numbers were always fine — the two TILES were
+structurally dead, for two *different* reasons. `Meal Nutrition` matched `templateId IS <the Eat
+module>`, but an `APPLY_TEMPLATE` clone mints its OWN module, so eight meals on one column carry
+eight distinct modules and none is the one named. `Meal History` matched `Meal Type`, a field with
+**0 values and 0 bindings on the whole grid** — it never worked on any day. Both now match the
+structural fact: **a row carrying a `Meal` pick IS a meal** (85 occurrences, 79 modules). `0174`.
+The `Completed IS true` gate stays, per the user's answer.
