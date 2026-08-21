@@ -1196,7 +1196,7 @@ export const CanvasContent = React.memo(function CanvasContent({
             minWidth: 180, padding: 6, borderRadius: 5,
             background: "var(--surface, #1f2125)",
             border: "1px solid var(--border-default)",
-            boxShadow: "0 6px 18px rgba(0,0,0,0.45)",
+            boxShadow: "var(--menu-shadow-1)",
             display: "flex", flexDirection: "column", gap: 3,
             fontSize: 10, fontFamily: "var(--font-mono)",
           }}>

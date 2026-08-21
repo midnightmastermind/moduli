@@ -28,7 +28,7 @@ function Switch({ checked, onChange, title }) {
       <span style={{
         position: "absolute", top: 1, left: checked ? 13 : 1,
         width: 10, height: 10, borderRadius: "50%",
-        background: checked ? "white" : "var(--text-muted, #888)",
+        background: checked ? "var(--on-accent)" : "var(--text-muted)",
         transition: "left 0.12s",
       }} />
     </button>
@@ -105,7 +105,7 @@ export default function ToolbarFilterDropdown() {
             color: "var(--panel-fg, #f3f4f6)",
             border: "1px solid var(--panel-border, #374151)",
             borderRadius: 8, padding: 12,
-            boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
+            boxShadow: "var(--menu-shadow-2)",
             fontFamily: "var(--font-mono)",
           }}
           onMouseDown={(e) => e.stopPropagation()}

@@ -127,7 +127,7 @@ export default function FootnoteNode({ node, updateAttributes, getPos, editor, d
             border: "1px solid var(--border-default, rgba(255,255,255,0.12))",
             borderRadius: 6,
             padding: 8,
-            boxShadow: "0 6px 18px rgba(0,0,0,0.35)",
+            boxShadow: "var(--menu-shadow-1)",
             minWidth: 260,
             fontSize: 12,
             lineHeight: 1.4,

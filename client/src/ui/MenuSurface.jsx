@@ -47,7 +47,7 @@ const DRAWER_STYLE = {
   borderBottom: "none",
   borderLeft: "none",
   borderRight: "none",
-  boxShadow: "0 -8px 32px rgba(0,0,0,0.55)",
+  boxShadow: "0 -8px 32px var(--menu-shadow-color, rgba(0,0,0,0.55))",
   paddingBottom: "max(12px, env(safe-area-inset-bottom))",
 };
 

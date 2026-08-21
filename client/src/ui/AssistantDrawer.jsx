@@ -409,7 +409,7 @@ export default function AssistantDrawer() {
             width: 52, height: 52, borderRadius: 999,
             background: "linear-gradient(135deg, #2c3340, #1a1d22)",
             color: "white", border: "1px solid rgba(255,255,255,0.18)",
-            boxShadow: "0 6px 20px rgba(0,0,0,0.35)",
+            boxShadow: "var(--menu-shadow-1)",
             display: "flex", alignItems: "center", justifyContent: "center",
             cursor: "pointer", padding: 0,
           }}
@@ -427,7 +427,7 @@ export default function AssistantDrawer() {
             color: "var(--text-primary, #f0f0f0)",
             border: "1px solid var(--border-default, rgba(255,255,255,0.12))",
             borderRadius: 10,
-            boxShadow: "0 12px 40px rgba(0,0,0,0.55)",
+            boxShadow: "var(--menu-shadow-3)",
             display: "flex", flexDirection: "column",
             fontFamily: "var(--font-mono, monospace)",
             fontSize: 12,

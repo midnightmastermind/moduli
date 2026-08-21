@@ -58,9 +58,36 @@
      In the bare :root for the reason the comment above gives. */
   --on-accent: #ffffff;
 
-  /* MENU / DROPDOWN DROP SHADOW. Was `rgba(0,0,0,0.4)` inline in every floating
-     surface — a heavy black smudge under a cream panel on the light skins. */
-  --menu-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  /* The wash behind a full-screen picker. Was `rgba(0,0,0,0.45)` inline — heavy
+     enough on a light skin to read as a different app. */
+  --scrim: rgba(0,0,0,0.45);
+
+  /* Ink on a DANGER fill. Its own token rather than `--on-accent`, because the
+     accent is a light MUSTARD on vintage-dark while every theme's `--danger` is a
+     saturated red — the two need opposite inks. */
+  --on-danger: #ffffff;
+
+  /* A base value for the fourth signal, so a document with no data-theme at all
+     still resolves it. This file's own rule: never give a colour its ONLY
+     definition inside a theme block. Every theme overrides it. */
+  --signal-warn: 251 191 36;
+
+  /* MENU / DROPDOWN DROP SHADOWS — an ELEVATION SCALE, not one flat value.
+     Every floating surface carried its own inline `rgba(0,0,0,0.4-0.7)`: a heavy
+     black smudge under a cream panel on the light skins, and TEN arbitrary
+     geometries (4/12, 6/16, 6/20, 8/24, 8/28, 8/32, 10/30, 12/32, 12/40, 18/50)
+     for what are really three heights.
+
+       1  a small popover next to its trigger
+       2  a dropdown panel
+       3  a modal or a bottom sheet
+
+     The geometry differences were intentional and are KEPT as the three steps;
+     it is the COLOUR that had no business being hardcoded. */
+  --menu-shadow-color: rgba(0,0,0,0.55);
+  --menu-shadow-1: 0 6px 16px rgba(0,0,0,0.35);
+  --menu-shadow-2: 0 10px 30px rgba(0,0,0,0.45);
+  --menu-shadow-3: 0 18px 50px rgba(0,0,0,0.55);
 }
 
 /* =============================================================================
@@ -76,6 +103,7 @@
   --signal-zero: 96 165 250;
   --signal-pos: 34 197 94;
   --signal-neg: 248 113 113;
+  --signal-warn: 251 191 36;
 
   /* Occurrence-card + field-pill chrome (2026-07-25) — these used to be
      hardcoded teal in the rules themselves, which is why switching themes
@@ -189,13 +217,18 @@
    Clean bright workspace with blue accents.
    ============================================================================= */
 [data-theme="moduli-light"] {
-  --menu-shadow: 0 4px 16px rgba(30,41,59,0.16);
+  --scrim: rgba(30,41,59,0.30);
+  --menu-shadow-color: rgba(30,41,59,0.18);
+  --menu-shadow-1: 0 6px 16px rgba(30,41,59,0.10);
+  --menu-shadow-2: 0 10px 30px rgba(30,41,59,0.14);
+  --menu-shadow-3: 0 18px 50px rgba(30,41,59,0.18);
   /* Value-state signal trio (2026-07-25) — tracker tiles color by their value
      (zero / positive / negative). Theme-owned so a vintage grid doesn't show
      a bright material-blue "0". */
   --signal-zero: 59 130 246;
   --signal-pos: 22 163 74;
   --signal-neg: 220 38 38;
+  --signal-warn: 202 138 4;   /* darkened: a mid amber is the same luminance as its own fill on cream */
 
   /* Occurrence-card + field-pill chrome (2026-07-25) — these used to be
      hardcoded teal in the rules themselves, which is why switching themes
@@ -331,6 +364,7 @@
   --signal-zero: 96 165 250;
   --signal-pos: 34 197 94;
   --signal-neg: 248 113 113;
+  --signal-warn: 251 191 36;
 
   /* Occurrence-card + field-pill chrome (2026-07-25) — these used to be
      hardcoded teal in the rules themselves, which is why switching themes
@@ -445,13 +479,18 @@
    Palette from the retro reference art (screenshots 2026-07-25).
    ============================================================================= */
 [data-theme="vintage-light"] {
-  --menu-shadow: 0 4px 16px rgba(60,45,30,0.18);
+  --scrim: rgba(60,45,30,0.32);
+  --menu-shadow-color: rgba(60,45,30,0.20);
+  --menu-shadow-1: 0 6px 16px rgba(60,45,30,0.12);
+  --menu-shadow-2: 0 10px 30px rgba(60,45,30,0.16);
+  --menu-shadow-3: 0 18px 50px rgba(60,45,30,0.20);
   /* Value-state signal trio (2026-07-25) — tracker tiles color by their value
      (zero / positive / negative). Theme-owned so a vintage grid doesn't show
      a bright material-blue "0". */
   --signal-zero: 62 142 126;
   --signal-pos: 109 116 52;
   --signal-neg: 179 79 36;
+  --signal-warn: 166 108 20;   /* darkened: a mid amber is the same luminance as its own fill on cream */
 
   /* Occurrence-card + field-pill chrome (2026-07-25) — these used to be
      hardcoded teal in the rules themselves, which is why switching themes
@@ -588,6 +627,7 @@
   --signal-zero: 110 185 170;
   --signal-pos: 141 170 78;
   --signal-neg: 217 79 48;
+  --signal-warn: 251 191 36;
 
   /* Occurrence-card + field-pill chrome (2026-07-25) — these used to be
      hardcoded teal in the rules themselves, which is why switching themes
@@ -6635,11 +6675,16 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    Palette read off the farmhouse-sunset art rather than invented.
    ============================================================================= */
 [data-theme="stardew"] {
-  --menu-shadow: 0 4px 16px rgba(52,31,14,0.20);
+  --scrim: rgba(52,31,14,0.36);
+  --menu-shadow-color: rgba(52,31,14,0.22);
+  --menu-shadow-1: 0 6px 16px rgba(52,31,14,0.14);
+  --menu-shadow-2: 0 10px 30px rgba(52,31,14,0.18);
+  --menu-shadow-3: 0 18px 50px rgba(52,31,14,0.22);
   /* Value-state signal trio */
   --signal-zero: 61 123 191;
   --signal-pos: 74 158 63;
   --signal-neg: 201 74 58;
+  --signal-warn: 166 108 20;   /* darkened: a mid amber is the same luminance as its own fill on cream */
 
   /* Occurrence-card + field-pill chrome */
   --occ-card: 176 111 48;

@@ -22,50 +22,39 @@ import {
 // Each chip uses two background layers — a colored tint over an
 // opaque surface — so stacked chips don't bleed through each other.
 // Matches SocketStatusBanner's pill visual.
+// Each chip is a coloured tint over an opaque surface, so stacked chips do not
+// bleed through each other. Matches SocketStatusBanner's pill visual.
+//
+// EVERY COLOUR IS A SIGNAL TOKEN. These were fifteen literal hex values, so the
+// toast stack painted the same tailwind palette on every skin — a green success
+// chip in front of Stardew's cream and brown. Same class as `valueSignPillTint`'s
+// hardcoded emerald (2026-08-19 (8)); found by grepping the literal rather than
+// the call sites, which is the lesson that entry's successor recorded.
+//
+// `info` is the one that is NOT a signal — it is a neutral chip, so it reads the
+// theme's own muted ink instead of borrowing a hue that would imply a meaning.
+const chip = (token) => ({
+  bg: `linear-gradient(rgba(var(${token}) / 0.15), rgba(var(${token}) / 0.15)), var(--surface-card)`,
+  border: `rgba(var(${token}) / 0.45)`,
+  color: `rgba(var(${token}) / 0.92)`,
+  dot: `rgb(var(${token}))`,
+});
+const NEUTRAL = {
+  bg: "linear-gradient(var(--input-bg), var(--input-bg)), var(--surface-card)",
+  border: "var(--border-default)",
+  color: "var(--text-primary)",
+  dot: "var(--text-muted)",
+};
 const KIND_STYLES = {
-  success: {
-    bg: "linear-gradient(rgba(74, 222, 128, 0.15), rgba(74, 222, 128, 0.15)), var(--surface, #1f2125)",
-    border: "rgba(74, 222, 128, 0.45)",
-    color: "#86efac",
-    dot: "#4ade80",
-    Icon: Check,
-  },
-  error: {
-    bg: "linear-gradient(rgba(248, 113, 113, 0.15), rgba(248, 113, 113, 0.15)), var(--surface, #1f2125)",
-    border: "rgba(248, 113, 113, 0.45)",
-    color: "#fca5a5",
-    dot: "#f87171",
-    Icon: AlertTriangle,
-  },
-  pending: {
-    bg: "linear-gradient(rgba(96, 165, 250, 0.15), rgba(96, 165, 250, 0.15)), var(--surface, #1f2125)",
-    border: "rgba(96, 165, 250, 0.45)",
-    color: "#93c5fd",
-    dot: "#60a5fa",
-    Icon: Loader2,
-  },
-  info: {
-    bg: "linear-gradient(rgba(148, 163, 184, 0.15), rgba(148, 163, 184, 0.15)), var(--surface, #1f2125)",
-    border: "rgba(148, 163, 184, 0.45)",
-    color: "#cbd5f5",
-    dot: "#94a3b8",
-    Icon: Info,
-  },
-  warning: {
-    bg: "linear-gradient(rgba(251, 191, 36, 0.15), rgba(251, 191, 36, 0.15)), var(--surface, #1f2125)",
-    border: "rgba(251, 191, 36, 0.45)",
-    color: "#fcd34d",
-    dot: "#fbbf24",
-    Icon: AlertTriangle,
-  },
+  success: { ...chip("--signal-pos"),  Icon: Check },
+  error:   { ...chip("--signal-neg"),  Icon: AlertTriangle },
+  pending: { ...chip("--signal-zero"), Icon: Loader2 },
+  info:    { ...NEUTRAL,               Icon: Info },
+  warning: { ...chip("--signal-warn"), Icon: AlertTriangle },
 };
 
 // Neutral pill for the "+N" overflow indicator.
-const OVERFLOW_STYLE = {
-  bg: "linear-gradient(rgba(148, 163, 184, 0.15), rgba(148, 163, 184, 0.15)), var(--surface, #1f2125)",
-  border: "rgba(148, 163, 184, 0.45)",
-  color: "#cbd5f5",
-};
+const OVERFLOW_STYLE = { ...NEUTRAL };
 
 const VISIBLE_MAX = 6;        // hard cap on inline chips; overflow → "+N"
 const PEEK_OFFSET = 14;       // px each older card peeks past the previous
@@ -307,7 +296,7 @@ function ExpandButton({ note, color }) {
             background: "var(--surface, #1f2125)",
             border: `1px solid ${color}55`,
             color: "var(--text-primary, #e5e7eb)",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+            boxShadow: "var(--menu-shadow-1)",
             cursor: "auto",
           }}
         >
@@ -491,7 +480,7 @@ function OverflowPill({ count, leftPx, allItems, now, compact = false }) {
             borderRadius: 8,
             background: "var(--surface, #1f2125)",
             border: "1px solid var(--border-default, rgba(148,163,184,0.4))",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+            boxShadow: "var(--menu-shadow-1)",
             display: "flex",
             flexDirection: "column",
             gap: 6,

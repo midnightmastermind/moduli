@@ -231,8 +231,8 @@ export default function RepresentationView({
               padding: "0 4px",
               borderRadius: 2,
               fontSize: sizing.fontSize - 1,
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.06)",
+              background: "var(--input-bg)",
+              border: "1px solid var(--border-subtle)",
               color: "var(--text-muted)",
               flexShrink: 0,
               maxWidth: 100,
@@ -291,7 +291,7 @@ function RepresentationHoverPopup({ occurrence, module, x, y, popupFieldIds, onM
         background: "var(--surface, #1f2125)",
         border: "1px solid var(--border-default, rgba(255,255,255,0.12))",
         borderRadius: 8,
-        boxShadow: "0 8px 28px rgba(0,0,0,0.45)",
+        boxShadow: "var(--menu-shadow-2)",
       }}
     >
       {Comp ? (

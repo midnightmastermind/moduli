@@ -391,6 +391,9 @@ function FolderCoverEditor({ folder, dispatch, socket, position, onClose }) {
     }
   }, [setCover]);
 
+  // A fixed CHOICE SET, deliberately not themed: these are eight colours the
+  // user assigns to a folder, so re-hueing them per skin would change a colour
+  // somebody picked. Same reasoning as FLOW_TINTS (2026-08-19 (8)).
   const COLORS = ["#f87171", "#fb923c", "#facc15", "#4ade80", "#38bdf8", "#818cf8", "#e879f9", "#94a3b8"];
 
   return createPortal(
@@ -401,7 +404,7 @@ function FolderCoverEditor({ folder, dispatch, socket, position, onClose }) {
         minWidth: 200, padding: 8,
         background: "var(--surface, #1f2125)",
         border: "1px solid var(--border-default)", borderRadius: 6,
-        boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+        boxShadow: "var(--menu-shadow-1)",
         fontSize: 11, fontFamily: "var(--font-mono)",
       }}
       onMouseDown={(e) => e.stopPropagation()}
@@ -786,7 +789,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
         </span>
         {isRenaming ? (
           <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 5, padding: "5px 8px", borderRadius: 6, border: "1px solid var(--border-default)", background: "var(--input-bg)" }}>
-            <Folder size={10} style={{ color: "rgba(251,191,36,0.7)", flexShrink: 0 }} />
+            <Folder size={10} style={{ color: "rgba(var(--signal-warn) / 0.7)", flexShrink: 0 }} />
             <input
               ref={renameInputRef}
               value={renameValue}

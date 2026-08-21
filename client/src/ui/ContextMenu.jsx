@@ -85,9 +85,9 @@ export default function ContextMenu({ ctx, onClose }) {
         maxHeight: "70vh",
         overflowY: "auto",
         background: "var(--surface-card)",
-        border: "1px solid rgba(80,120,180,0.35)",
+        border: "1px solid var(--border-default)",
         borderRadius: 8,
-        boxShadow: "0 8px 32px rgba(0,0,0,0.7)",
+        boxShadow: "var(--menu-shadow-2)",
         padding: "4px 0",
         fontFamily: "monospace",
         fontSize: 12,
@@ -119,7 +119,7 @@ export default function ContextMenu({ ctx, onClose }) {
               border: "none",
               cursor: item.disabled ? "default" : "pointer",
               color: item.danger
-                ? "rgb(252,165,165)"
+                ? "var(--danger-text)"
                 : item.disabled
                   ? "var(--text-faint)"
                   : "var(--text-primary)",

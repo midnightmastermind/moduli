@@ -84,7 +84,7 @@ export default function HeaderDropdown({ anchorRect, onClose, children }) {
         color: "var(--panel-fg, #f3f4f6)",
         border: "1px solid var(--panel-border, #374151)",
         borderRadius: 8, padding: 12,
-        boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
+        boxShadow: "var(--menu-shadow-2)",
       }}
     >
       {children}

@@ -1446,7 +1446,7 @@ function ExternalImportPreview({ x, y, format, destination }) {
         background: "rgba(15, 25, 40, 0.92)",
         color: "rgb(180, 225, 245)",
         border: "1px solid rgba(120, 170, 220, 0.45)",
-        boxShadow: "0 4px 14px rgba(0,0,0,0.45)",
+        boxShadow: "var(--menu-shadow-1)",
         whiteSpace: "nowrap",
         display: "flex",
         alignItems: "center",

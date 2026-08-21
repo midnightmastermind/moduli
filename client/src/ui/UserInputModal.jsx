@@ -74,7 +74,7 @@ export default function UserInputModal({ request, onSubmit, onCancel }) {
           padding: 16,
           minWidth: 320, maxWidth: "calc(100vw - 32px)",
           display: "flex", flexDirection: "column", gap: 10,
-          boxShadow: "0 12px 32px rgba(0,0,0,0.5)",
+          boxShadow: "var(--menu-shadow-2)",
         }}
       >
         {request.title && (

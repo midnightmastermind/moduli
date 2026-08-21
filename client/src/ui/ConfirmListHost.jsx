@@ -89,7 +89,7 @@ const wrapSt = {
   background: "var(--surface, #1f2125)",
   border: "1px solid var(--border-default, rgba(255,255,255,0.12))",
   borderRadius: 10,
-  boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+  boxShadow: "var(--menu-shadow-3)",
   padding: 0,
   overflow: "hidden",
 };
@@ -256,7 +256,7 @@ export default function ConfirmList({
                       ? "var(--accent-blue, rgb(90,150,230))"
                       : "var(--border-default, rgba(255,255,255,0.25))"}`,
                     background: on ? "var(--accent-blue, rgb(90,150,230))" : "transparent",
-                    color: "#fff",
+                    color: "var(--on-accent)",
                     fontSize: 10,
                     lineHeight: "12px",
                     textAlign: "center",

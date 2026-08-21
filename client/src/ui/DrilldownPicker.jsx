@@ -438,7 +438,7 @@ const dropdownSt = {
   position: "fixed", zIndex: 9999,
   background: "var(--surface, #1f2125)",
   border: "1px solid var(--border-default)",
-  borderRadius: 8, boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+  borderRadius: 8, boxShadow: "var(--menu-shadow-2)",
   minWidth: 320, maxHeight: 420, overflow: "hidden",
   display: "flex", flexDirection: "column",
 };
@@ -495,7 +495,7 @@ const sepSt = { color: "var(--text-faint)", margin: "0 2px" };
 function Tile({ item, onBodyClick, onPickThis }) {
   const [hover, setHover] = useState(false);
   const Icon = item._icon;
-  const color = item._color || "rgba(120,120,120,0.7)";
+  const color = item._color || "var(--text-muted)";
 
   const showChevron = item.hasChildren;
   return (
@@ -508,7 +508,7 @@ function Tile({ item, onBodyClick, onPickThis }) {
     >
       {Icon ? (
         <span style={iconBlockSt(color)}>
-          <Icon size={14} color="white" />
+          <Icon size={14} color="var(--on-accent)" />
         </span>
       ) : (
         <span style={iconBlockSt(color)} />

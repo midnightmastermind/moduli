@@ -173,7 +173,7 @@ export function ShortcutsTab() {
     <span key={`${k}-${i}`} style={{
       padding: "1px 6px", borderRadius: 4, fontSize: 10, fontFamily: "monospace",
       background: "var(--border-subtle)", border: "1px solid var(--border-default)",
-      color: "var(--text-primary)", boxShadow: "0 1px 2px rgba(0,0,0,0.4)",
+      color: "var(--text-primary)", boxShadow: "var(--menu-shadow-1)",
       whiteSpace: "nowrap",
     }}>{k}</span>
   );

@@ -141,7 +141,7 @@ function TypePill({ value, onChange }) {
             position: "absolute", top: "calc(100% + 2px)", left: 0, zIndex: 100,
             background: "var(--surface, #1f2125)", border: "1px solid var(--border-default)",
             borderRadius: 4, padding: 2, display: "flex", flexDirection: "column", gap: 1,
-            boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+            boxShadow: "var(--menu-shadow-1)",
           }}>
             {TYPES.map(tt => (
               <button

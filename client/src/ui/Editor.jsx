@@ -2783,7 +2783,7 @@ const Editor = forwardRef(function Editor({
           top: embedPos.top, left: embedPos.left,
           background: "var(--surface-card)", border: "1px solid rgba(134,239,172,0.3)",
           borderRadius: 6, padding: "4px 0", minWidth: 220, maxHeight: 220, overflowY: "auto",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+          boxShadow: "var(--menu-shadow-1)",
         }}>
           <div style={{ padding: "4px 10px 3px", fontSize: 9, color: "rgba(134,239,172,0.5)", letterSpacing: "0.05em", textTransform: "uppercase", borderBottom: "1px solid rgba(134,239,172,0.1)", marginBottom: 2 }}>
             Embed Container
@@ -2821,7 +2821,7 @@ const Editor = forwardRef(function Editor({
           top: exprPos.top, left: exprPos.left,
           background: "var(--surface-card)", border: "1px solid rgba(250,204,21,0.3)",
           borderRadius: 6, padding: "4px 0", minWidth: 200, maxHeight: 220, overflowY: "auto",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+          boxShadow: "var(--menu-shadow-1)",
         }} ref={exprListRef}>
           {/* Formula preview header */}
           <div style={{ padding: "4px 10px 3px", fontSize: 9, color: "rgba(250,204,21,0.5)", letterSpacing: "0.05em", textTransform: "uppercase", borderBottom: "1px solid rgba(250,204,21,0.1)", marginBottom: 2 }}>

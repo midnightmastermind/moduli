@@ -138,7 +138,7 @@ export default function ImagePickerMenu({
     border: "1px solid hsl(var(--border, 0 0% 25%))",
     borderRadius: 10,
     color: "var(--text-primary, #e5edf5)",
-    boxShadow: "0 18px 50px rgba(0,0,0,0.55)",
+    boxShadow: "var(--menu-shadow-3)",
   };
 
   return createPortal(
@@ -149,7 +149,7 @@ export default function ImagePickerMenu({
       onContextMenu={(e) => e.stopPropagation()}
       style={{
         position: "fixed", inset: 0, zIndex: 12000,
-        background: "rgba(0,0,0,0.45)",
+        background: "var(--scrim)",
         display: "flex", alignItems: "center", justifyContent: "center",
       }}
     >

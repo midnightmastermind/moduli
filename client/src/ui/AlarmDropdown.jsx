@@ -36,8 +36,10 @@ function AlarmRow({ op, onPatch, onDelete }) {
           title="Alarms ring + notify; reminders only notify. Click to switch."
           className="self-start inline-flex items-center gap-1 text-[10px] px-1.5 py-px rounded-full border cursor-pointer hover:brightness-125"
           style={isAlarm
-            ? { color: "rgb(252,211,77)", background: "rgba(252,211,77,0.1)", borderColor: "rgba(252,211,77,0.3)" }
-            : { color: "rgb(147,197,253)", background: "rgba(59,130,246,0.1)", borderColor: "rgba(59,130,246,0.3)" }}>
+            // An alarm rings (warn), a reminder only notifies (neutral-blue).
+            // Both were literal tailwind values that ignored the skin entirely.
+            ? { color: "rgb(var(--signal-warn))", background: "rgba(var(--signal-warn) / 0.1)", borderColor: "rgba(var(--signal-warn) / 0.3)" }
+            : { color: "rgb(var(--signal-zero))", background: "rgba(var(--signal-zero) / 0.1)", borderColor: "rgba(var(--signal-zero) / 0.3)" }}>
           {isAlarm ? <AlarmClock className="w-2.5 h-2.5" /> : <BellRing className="w-2.5 h-2.5" />}
           {isAlarm ? "Alarm" : "Reminder"}
         </button>
@@ -109,12 +111,12 @@ export default function AlarmDropdown() {
           display: "flex", alignItems: "center", justifyContent: "center", position: "relative",
           width: 26, height: 26, borderRadius: 5, cursor: "pointer",
           background: open ? "var(--border-subtle)" : "transparent",
-          color: ringing ? "rgb(248,113,113)" : "var(--text-primary)",
+          color: ringing ? "rgb(var(--signal-neg))" : "var(--text-primary)",
           border: "none",
         }}
       >
         <AlarmClock className="w-4 h-4" style={ringing ? { animation: "alarm-shake 0.5s ease-in-out infinite" } : undefined} />
-        {ringing && <span style={{ position: "absolute", top: 2, right: 2, width: 6, height: 6, borderRadius: "50%", background: "rgb(248,113,113)", boxShadow: "0 0 6px rgba(248,113,113,0.9)" }} />}
+        {ringing && <span style={{ position: "absolute", top: 2, right: 2, width: 6, height: 6, borderRadius: "50%", background: "rgb(var(--signal-neg))", boxShadow: "0 0 6px rgba(var(--signal-neg) / 0.9)" }} />}
       </button>
 
       {open && (
@@ -131,25 +133,25 @@ export default function AlarmDropdown() {
             right: panelRight,
             width: 300, maxWidth: "94vw", maxHeight: "70vh", overflowY: "auto",
             background: "var(--surface-card)", border: "1px solid var(--input-border)",
-            borderRadius: 8, boxShadow: "0 8px 32px rgba(0,0,0,0.6)", padding: 10,
+            borderRadius: 8, boxShadow: "var(--menu-shadow-2)", padding: 10,
             display: "flex", flexDirection: "column", gap: 8, fontFamily: "monospace",
           }}>
           {ringing && (
             <div style={{
               display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8,
-              background: "rgba(248,113,113,0.14)", border: "1px solid rgba(248,113,113,0.45)",
+              background: "rgba(var(--signal-neg) / 0.14)", border: "1px solid rgba(var(--signal-neg) / 0.45)",
             }}>
-              <AlarmClock className="w-4 h-4" style={{ color: "rgb(248,113,113)", flexShrink: 0, animation: "alarm-shake 0.5s ease-in-out infinite" }} />
+              <AlarmClock className="w-4 h-4" style={{ color: "rgb(var(--signal-neg))", flexShrink: 0, animation: "alarm-shake 0.5s ease-in-out infinite" }} />
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold truncate" style={{ color: "rgb(252,165,165)" }}>{ringing.label}</div>
+                <div className="text-xs font-semibold truncate" style={{ color: "var(--danger-text)" }}>{ringing.label}</div>
                 <div className="text-[10px] text-text-faint">Ringing…</div>
               </div>
               <button type="button" onClick={() => snoozeAlarmRing(5)}
                 className="text-[11px] px-2 py-1 rounded cursor-pointer"
-                style={{ background: "rgba(255,255,255,0.08)", color: "var(--text-primary)" }}>Snooze 5m</button>
+                style={{ background: "var(--input-bg)", color: "var(--text-primary)" }}>Snooze 5m</button>
               <button type="button" onClick={() => stopAlarmRing()}
                 className="text-[11px] px-2 py-1 rounded cursor-pointer font-semibold"
-                style={{ background: "rgb(220,60,60)", color: "#fff" }}>Stop</button>
+                style={{ background: "var(--danger)", color: "var(--on-danger)" }}>Stop</button>
             </div>
           )}
 

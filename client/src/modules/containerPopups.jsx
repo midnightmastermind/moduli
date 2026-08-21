@@ -27,7 +27,7 @@ export function FilterOverridePopup({ pos, occurrence, activeFilterValues, onClo
         top: pos.y, left: pos.x,
         background: "var(--surface-card)", border: "1px solid var(--border-default)",
         borderRadius: 8, padding: 8, minWidth: 200,
-        boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+        boxShadow: "var(--menu-shadow-2)",
         fontSize: 11, fontFamily: "var(--font-mono)",
       }}
       onMouseDown={(e) => e.stopPropagation()}

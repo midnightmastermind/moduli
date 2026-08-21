@@ -102,7 +102,7 @@ const wrapSt = {
   background: "var(--surface, #1f2125)",
   border: "1px solid var(--border-default, rgba(255,255,255,0.12))",
   borderRadius: 10,
-  boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+  boxShadow: "var(--menu-shadow-3)",
   padding: 0,
   overflow: "hidden",
 };

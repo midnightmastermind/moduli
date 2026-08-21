@@ -309,7 +309,7 @@ export default function PomodoroTimer() {
           borderRadius: 8,
           padding: "12px 14px",
           minWidth: 180,
-          boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+          boxShadow: "var(--menu-shadow-1)",
           transition: "transform 0.2s ease, opacity 0.2s ease",
           transform: expanded ? "translateY(0)" : "translateY(-8px)",
           opacity: expanded ? 1 : 0,

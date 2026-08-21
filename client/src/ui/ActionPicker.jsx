@@ -16,7 +16,7 @@ import { ACTION_TREE, findActionPath, findActionLeaf } from "./actionTree";
 
 function Tile({ node, onBodyClick, onPickThis }) {
   const Icon = node.icon || null;
-  const accent = node.color || "rgba(148,163,184,0.7)";
+  const accent = node.color || "var(--text-muted)";
   const hasChildren = Array.isArray(node.children) && node.children.length > 0;
   return (
     <div
@@ -213,7 +213,7 @@ export default function ActionPicker({ value, onChange, placeholder = "Pick acti
             background: "var(--surface, #1f2125)",
             border: "1px solid var(--border-default)",
             borderRadius: 6,
-            boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
+            boxShadow: "var(--menu-shadow-2)",
             display: "flex", flexDirection: "column",
             overflow: "hidden",
           }}

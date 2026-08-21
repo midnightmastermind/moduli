@@ -195,7 +195,7 @@ function PdfViewer({ src, title }) {
       </div>
       <div style={{ flex: 1, overflow: "auto", display: "flex", justifyContent: "center", alignItems: "flex-start", padding: 16 }}>
         {pdfjs && totalPages > 0 ? (
-          <canvas ref={canvasRef} style={{ background: "white", boxShadow: "0 2px 16px rgba(0,0,0,0.5)" }} />
+          <canvas ref={canvasRef} style={{ background: "white", boxShadow: "var(--menu-shadow-1)" }} />
         ) : (
           <div style={{ color: "var(--text-faint)", fontFamily: "var(--font-mono)", fontSize: 11, padding: 32 }}>
             Loading PDF…

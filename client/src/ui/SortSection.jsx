@@ -135,7 +135,7 @@ export default function SortSection({ occurrence, entity, onPersistSort, labelOv
             background: "hsl(var(--popover-1, 220 14% 14%))",
             border: "1px solid var(--border-default, #374151)",
             borderRadius: 4,
-            boxShadow: "0 6px 16px rgba(0,0,0,0.35)",
+            boxShadow: "var(--menu-shadow-1)",
             width: 220,
             padding: 4,
           }}

@@ -460,7 +460,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
             border: "1px solid var(--border-default)", borderRadius: 6,
             width: 260, maxHeight: 360, overflow: "hidden",
             display: "flex", flexDirection: "column",
-            boxShadow: "var(--menu-shadow)", fontFamily: "var(--font-mono)",
+            boxShadow: "var(--menu-shadow-2)", fontFamily: "var(--font-mono)",
           }}
         >
           {onValues ? (
@@ -601,7 +601,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                         key={m.id}
                         onClick={() => { onSelect?.(m); closeMenu(); }}
                         style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", padding: "5px 9px", background: "none", border: "none", cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                        onMouseEnter={(e) => e.currentTarget.style.background = "var(--input-bg)"}
                         onMouseLeave={(e) => e.currentTarget.style.background = "none"}
                       >
                         <Icon size={12} color={color} style={{ flexShrink: 0 }} />
@@ -642,12 +642,12 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                         cursor: "pointer", color: "var(--text-primary)", fontFamily: "var(--font-mono)",
                         transition: "border-color 0.12s, background 0.12s, box-shadow 0.12s, transform 0.1s",
                       }}
-                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--border-default)"; e.currentTarget.style.background = "rgba(255,255,255,0.04)"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.28)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--border-default)"; e.currentTarget.style.background = "var(--input-bg)"; e.currentTarget.style.boxShadow = "var(--menu-shadow-1)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.background = "var(--input-bg)"; e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.transform = "none"; }}
                       onMouseDown={(e) => { e.currentTarget.style.transform = "translateY(0)"; }}
                     >
                       <span style={{ width: 26, height: 26, borderRadius: 6, background: color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        <Icon size={14} color="white" />
+                        <Icon size={14} color="var(--on-accent)" />
                       </span>
                       <span style={{ fontSize: 10, fontWeight: 600, lineHeight: 1 }}>{meta.label}</span>
                     </button>
