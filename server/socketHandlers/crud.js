@@ -234,6 +234,12 @@ export function registerCrudHandlers(socket, {
     const { occurrenceId, fromParentId = null } = payload;
     try {
       if (!userId || !occurrenceId) return;
+      // Creates log START/DONE; deletes logged NOTHING, so the server's own log
+      // could not answer "was this row swept, or did it never persist?" — two
+      // failure modes that look identical from the database afterwards. That
+      // gap cost a whole diagnosis on 2026-08-21: a grep for deletes returned
+      // zero, and the zero was a claim about the log rather than about deletes.
+      console.log("🗑  delete_occurrence", occurrenceId, fromParentId ? `from ${fromParentId}` : "(whole row)");
       const uc = await getUc();
 
       // ── PLACEMENT-DELETE vs FILE-DELETE (plan Task 4 Step 5) ────────────
