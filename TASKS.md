@@ -7,11 +7,39 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 
 | # | Task | State |
 |---|------|-------|
-| 1 | **Feed-scope fix — the churn did NOT reproduce.** The asked-for `__feedDiag` session was run against a build carrying the widening: **39 feeds, two consecutive passes, byte-identical — 0 minted, 0 swept.** The `Completed` feed transitioned cleanly (`matches=1 → 3`, minted 2) and then held `minted=0 swept=0` for four more passes. Ready to re-land from `feed-scope-multiparent`. **Honest limit: one headless client. The reverted run was prod with real tabs, and two clients both running feedSync is a churn source a single-client probe cannot reproduce** | 🔬 measured stable; re-land is the user's call |
+| 1 | **Land the feed-scope widening — the churn is explained and was never a defect.** The other session's `__feedDiag` run: **39 feeds, two consecutive passes, byte-identical — 0 minted, 0 swept**, with `Completed` transitioning cleanly (`matches=1 → 3`) and then holding for four more passes. It flagged its own honest limit — *one headless client* — and that limit is now closed: the reverted run was prod with other clients, and **two clients on different scope semantics sweep each other's copies** (proven below). Two implementations exist: branch `feed-scope-multiparent` (extracted `reachableAncestors`, 10 unit tests) and the inline BFS in `resolveFeedItems`. **Pick one, delete the other**, then deploy into a single-client window | ✅ ready to land |
 | 2 | **"What else is technically needed for the original vision"** — asked 2026-08-21, never answered | 📋 open ask |
 | 3 | **Empty panel → root manifest folder in folder view** — asked, no commit found | ❓ unconfirmed |
 | 4 | **Schedule apply ~1s** — `resolveOptions` predicate filter ~766ms, the residual after the index work | 📋 measured, not fixed |
 | 5 | **Three external-data pipes** — Tasker profiles, ingest credentials, the four slow exports | 🚫 blocked on the user |
+
+## Standing hazard — mixed client versions fight over a feed
+
+Two clients running different code **fight over materialized feed copies**, and neither is
+malfunctioning. Feed copies are shared persisted state and the sweep rule is *"delete any copy whose
+source I no longer match"* — so a client on the OLD scope walk deletes exactly what a client on the
+NEW one just minted, and the new one re-creates it. The result is a fresh id every pass and nothing
+ever settling.
+
+Two ways into it, and **both were live while this was being measured**: a browser tab left open
+across a deploy runs the old bundle, and a local dev stack (`npm run dev` + `server/server.js`)
+points at the **same Atlas database as production**.
+
+Proven rather than argued — `feedMixedClientChurn.test.js` drives the real `syncFeed` with the
+resolver giving two different answers: one client is idempotent with stable ids (the control), two
+disagreeing clients churn a fresh id every pass, and **the copy they agree on is never disturbed** —
+which is exactly what was seen live, one stable row beside two churning ones.
+
+**The rule: deploy a feed-semantics change into a single-client window, and reload every tab.**
+
+## Done — 2026-08-21 (merge of two sessions)
+
+| Task | Where |
+|------|-------|
+| **Both sessions independently found the same cause** — `feed.scope` walked ONE ancestor chain from `buildParentMap` (last writer wins), so multi-parented rows resolved by document order | agreed |
+| The other session verified its fix with a **local stack + `window.__feedDiag`**: three consecutive passes `matches=3 visible=3 existing=3 minted=0 swept=0` | their probe |
+| This session measured **blast radius across every feed on every grid**, both code versions: 78 feeds, 262 → 264 rows, **77 of 78 byte-identical** | probe |
+| **The parked churn item is CLOSED** — cross-version interference, not a defect in the change | `feedMixedClientChurn.test.js` |
 
 ## Done — 2026-08-21 (feed pass)
 
