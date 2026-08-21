@@ -76,6 +76,7 @@ import SortSection from "../ui/SortSection";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import LayoutCascadeSection from "../ui/LayoutCascadeSection";
 import TemplatesSection from "../ui/TemplatesSection";
+import { openPanelOnRootFolderPage } from "../helpers/importsFolder";
 
 // ============================================================
 // LAYOUT HELPERS
@@ -733,11 +734,34 @@ function Panel({
   const closePage = useCallback((occId) => {
     if (!occId || !panelOccurrence?.id) return;
     CommitHelpers.unpinPageFromPanel({ dispatch, socket, pageOccurrenceId: occId, panelOccurrenceId: panelOccurrence.id });
+    const remaining = (panelOccurrence.occurrences || []).filter(id => id !== occId);
+
+    // CLOSING THE LAST PAGE lands on the root manifest folder, not on "No
+    // content" (user, 2026-08-21: "an empty panel just goes to the root manifest
+    // folder in folder view in the panel"). That default already existed for a
+    // panel being CREATED — both the Toolbar + button and the empty-cell tap
+    // call this helper — and stopped at the panel's first moment, so a panel
+    // that became empty later fell through to the dead shell instead.
+    //
+    // It also matters one level up: the merged sidebar OMITS its "Pinned"
+    // section when a panel has nothing pinned, on the stated grounds that such a
+    // panel "already shows the root manifest folder as its CONTENT". That was
+    // true only for new panels, so an emptied one showed neither.
+    //
+    // The panel's CURRENT view is handed over so it is re-pointed rather than
+    // replaced — otherwise every emptied panel strands a View.
+    if (!remaining.length) {
+      openPanelOnRootFolderPage({
+        panelOccId: panelOccurrence.id, grid, gridId: grid?._id,
+        manifestsById, occurrencesById, modulesById, dispatch, socket, userId,
+        existingView: currentView || null,
+      });
+      return;
+    }
     if (currentView?.id && currentView.activeOccurrenceId === occId) {
-      const remaining = (panelOccurrence.occurrences || []).filter(id => id !== occId);
       CommitHelpers.updateView({ dispatch, socket, view: { ...currentView, activeOccurrenceId: remaining[0] ?? null } });
     }
-  }, [panelOccurrence, currentView, dispatch, socket]);
+  }, [panelOccurrence, currentView, dispatch, socket, grid, manifestsById, occurrencesById, modulesById, userId]);
 
   // Panel-header search: the result may live on any page of the grid, so open
   // that page HERE (pin + activate) before scrolling to it.

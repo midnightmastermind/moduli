@@ -99,22 +99,36 @@ export function ensureRootFolderPageOcc({ grid, manifestsById, occurrencesById, 
   });
 }
 
-// Open a freshly-minted panel on the ROOT folder page: ensure the page occ,
-// mint a board View activated on it, and wire both onto the panel occurrence.
-// The one "new panel is never a dead 'No content' shell" step, shared by the
-// Toolbar + button (App.addNewPanel) and the empty-cell tap (Grid). Returns the
-// folder-page occ id (null when the manifest hasn't loaded yet).
-export function openPanelOnRootFolderPage({ panelOccId, grid, gridId, manifestsById, occurrencesById, modulesById, dispatch, socket, userId }) {
+// Open a panel on the ROOT folder page: ensure the page occ, point a board View
+// at it, and wire both onto the panel occurrence. The one "a panel is never a
+// dead 'No content' shell" step — shared by the Toolbar + button
+// (App.addNewPanel), the empty-cell tap (Grid), and closing a panel's LAST page
+// (ModulePanel.closePage). Returns the folder-page occ id (null when the
+// manifest hasn't loaded yet).
+//
+// `existingView` is what makes the third caller safe. A freshly-minted panel has
+// no view, so one is created; a panel that just lost its last page already has
+// one, and minting a second would strand the first — an orphan View per emptied
+// panel, forever. Pass the panel's current view and it is re-pointed instead.
+export function openPanelOnRootFolderPage({ panelOccId, grid, gridId, manifestsById, occurrencesById, modulesById, dispatch, socket, userId, existingView = null }) {
   const folderPageOccId = ensureRootFolderPageOcc({
     grid, manifestsById, occurrencesById, modulesById, dispatch, socket, userId,
   });
   if (!panelOccId || !folderPageOccId) return folderPageOccId;
-  const viewId = crypto.randomUUID();
-  CommitHelpers.createView({
-    dispatch, socket,
-    view: { id: viewId, userId, gridId, viewType: "board", activeOccurrenceId: folderPageOccId },
-    emit: true,
-  });
+  const viewId = existingView?.id || crypto.randomUUID();
+  if (existingView?.id) {
+    CommitHelpers.updateView({
+      dispatch, socket,
+      view: { ...existingView, viewType: "board", activeOccurrenceId: folderPageOccId },
+      emit: true,
+    });
+  } else {
+    CommitHelpers.createView({
+      dispatch, socket,
+      view: { id: viewId, userId, gridId, viewType: "board", activeOccurrenceId: folderPageOccId },
+      emit: true,
+    });
+  }
   CommitHelpers.updateOccurrence({
     dispatch, socket,
     occurrence: { id: panelOccId, viewId, occurrences: [folderPageOccId] },
