@@ -22,6 +22,52 @@ import { resolveFileRef, isExternalFileRef } from "../helpers/fileRef.js";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import NodePill from "./NodePill.jsx";
 
+
+/**
+ * Partition a panel's pinned pages into what the sidebar's Pinned section draws.
+ *
+ * Exported and pure because mounting `ManifestTree` needs the whole grid store,
+ * and this predicate is where the "Pinned drew the whole manifest" bug lived.
+ *
+ * - a pinned FOLDER page renders as its real folder subtree (a panel fronted by
+ *   the Boards folder page is fully browsable from the sidebar) —
+ * - EXCEPT the folder this sidebar already renders in full below, which would
+ *   otherwise draw the entire manifest twice;
+ * - every other pinned page is grouped under its parent folder, or listed flat
+ *   when it has none;
+ * - a folder already drawn as a full node never ALSO appears as a flat group,
+ *   or its pages would be listed twice.
+ */
+export function partitionPinnedPages({ pinned, modulesById, foldersById, rootFolderId }) {
+  const folderNodes = [];
+  const pageOccs = [];
+  for (const occ of pinned || []) {
+    if (modulesById?.[occ.moduleId]?.kind === "folder") {
+      const folder = occ.parentId ? foldersById?.[occ.parentId] : null;
+      if (folder && folder.id !== rootFolderId) folderNodes.push(folder);
+    } else {
+      pageOccs.push(occ);
+    }
+  }
+  const folderMap = new Map();
+  const rootPages = [];
+  for (const occ of pageOccs) {
+    const folder = occ.parentId ? foldersById?.[occ.parentId] : null;
+    if (folder) {
+      if (!folderMap.has(folder.id)) folderMap.set(folder.id, { folder, pages: [] });
+      folderMap.get(folder.id).pages.push(occ.id);
+    } else {
+      rootPages.push(occ.id);
+    }
+  }
+  const nodeIds = new Set(folderNodes.map(f => f.id));
+  return {
+    folderGroups: [...folderMap.values()].filter(g => !nodeIds.has(g.folder.id)),
+    rootPages,
+    folderNodes,
+  };
+}
+
 // Extract first heading text from a TipTap textmap — strips markdown, ignores field pills
 function getDocHeading(textmap) {
   if (!textmap?.content) return null;
@@ -1236,48 +1282,21 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
     CommitHelpers.createFolder({ dispatch, socket, folder, emit: true });
   }, [state, socket, dispatch, manifest]);
 
-  // Open pages list for the local section — grouped by parent folder for B2
+  // Open pages list for the local section — grouped by parent folder for B2.
+  // The partition itself is `partitionPinnedPages` above: pure, exported, and
+  // tested, because that is where the manifest-drawn-twice bug lived.
   const localTreeData = useMemo(() => {
     if (!isPagePanel) return { folderGroups: [], rootPages: [], folderNodes: [] };
     const pinned = (panelOccurrence.occurrences || [])
       .map(id => occurrencesById?.[id])
       .filter(occ => occ && modulesById?.[occ.moduleId]?.role === "page");
-    // A pinned FOLDER page (kind:"folder") is the "open this folder" artifact,
-    // not a content page — it can't be a tree row itself. But when it's the
-    // ONLY thing a panel holds (the Boards panel: one folder page fronting 34
-    // board pages nested in 7 sub-folders), excluding it left the sidebar
-    // reading "No pages" (2026-07-25). Render the FOLDER it points at as a real
-    // FolderNode instead, so its whole subtree is browsable from the panel.
-    const folderNodes = [];
-    const pageOccs = [];
-    for (const occ of pinned) {
-      if (modulesById[occ.moduleId]?.kind === "folder") {
-        const folder = occ.parentId ? foldersById?.[occ.parentId] : null;
-        if (folder) folderNodes.push(folder);
-      } else {
-        pageOccs.push(occ);
-      }
-    }
-    const folderMap = new Map();
-    const rootPages = [];
-    for (const occ of pageOccs) {
-      const folder = occ.parentId ? foldersById?.[occ.parentId] : null;
-      if (folder) {
-        if (!folderMap.has(folder.id)) folderMap.set(folder.id, { folder, pages: [] });
-        folderMap.get(folder.id).pages.push(occ.id);
-      } else {
-        rootPages.push(occ.id);
-      }
-    }
-    // A folder already shown as a full FolderNode must not ALSO render as a
-    // flat pinned-pages group — that would list its pages twice.
-    const nodeIds = new Set(folderNodes.map(f => f.id));
-    return {
-      folderGroups: [...folderMap.values()].filter(g => !nodeIds.has(g.folder.id)),
-      rootPages,
-      folderNodes,
-    };
-  }, [isPagePanel, panelOccurrence?.occurrences, occurrencesById, modulesById, foldersById]);
+    return partitionPinnedPages({
+      pinned,
+      modulesById,
+      foldersById,
+      rootFolderId: manifest?.rootFolderId ?? null,
+    });
+  }, [isPagePanel, panelOccurrence?.occurrences, occurrencesById, modulesById, foldersById, manifest?.rootFolderId]);
 
   // Touch drag to open/close sidebar
   const handleThumbTouchStart = useCallback((e) => {
@@ -1384,7 +1403,15 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                 pinned set can be hidden; it defaults OPEN, unlike the manifest
                 below it. */}
             {isPagePanel && !(localTreeData.rootPages.length === 0 && localTreeData.folderGroups.length === 0 && localTreeData.folderNodes.length === 0) && (
-                <div>
+                /* The two sections are DIVIDED, not merely stacked (user, 2026-08-21:
+                   "also keep pinned and root looking seperate in the sidebar"). Merging
+                   the two trees left them reading as one list of two sibling folders,
+                   which is exactly what the merge was NOT meant to say: Pinned is this
+                   panel's own open pages, the manifest is the whole grid. A rule plus
+                   the air around it is the whole difference — no tint, because a band
+                   behind the rows would fight the wallpaper every skin paints behind
+                   this sidebar. */
+                <div style={{ paddingBottom: 5, marginBottom: 5, borderBottom: "1px solid var(--border-default)" }}>
                   <div style={{ display: "flex", alignItems: "center" }} className="manifest-row">
                     <span
                       style={{ display: "flex", alignItems: "center", flexShrink: 0, padding: "4px 2px", cursor: "pointer" }}
