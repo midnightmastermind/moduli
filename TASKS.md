@@ -21,6 +21,43 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 | `openPanelOnRootFolderPage` gains `existingView` so an emptied panel's view is **re-pointed, not replaced** — otherwise every emptied panel strands one. Read back: **0 orphaned views** | same |
 | **Verified by actually closing the page** on test grid 2: panel went `Trackers` → `Files` (the root folder card grid), 0 page errors. Panel restored afterwards | probe |
 
+## Log audit — every direction from 2026-08-20 → 08-21
+
+All 8 session logs across the three accounts were replayed and every user turn
+matched against this queue. **13 directions, all accounted for**; two carried
+findings worth stating, and one was an instruction about reporting that had been
+missed.
+
+| Direction | Where it landed |
+|---|---|
+| *"look up what the healthy amount is … those shouldnt be dropped"* (vitamins) | `0123`, `0165` |
+| *"get rid of the total subscriptions"* | gone — verified: no op, no field, no tile carries the name |
+| *"monthly bills should be a monthly goal totalling the amount of bills vs what i paid so far"* | `Monthly Bills` writes `Amount` 2040.97, `Bills: Paid This Month` writes `Bills Paid`, target on the same tile |
+| *"look at what those operations need for category and use that"* | `0164` |
+| *"make every folder closed by default in the manifest sidebar"* | `helpers/treeExpansion` |
+| *"i dont want a cycle, i just want 7 day templates"* | `0161` / `0162` |
+| *"is there anyway to merge like templates too"* | `0177` |
+| *"we need goals for specific workouts that day"* | `0168` / `0170` / `0171` |
+| *"the macros for meals arent working"* | `0174` |
+| *"make sure tasks and appointments are good via their operations too"* | `0172` / `0173`; re-verified live — 7 due-dated tasks all placed into a day's `Todo`, 3 appointments correct |
+| *"appointments or tasks set to complete … sent to completed at the end of the day"* | feed-scope fix `96b0699a` |
+| *"an empty panel just goes to the root manifest folder … go ahead and build it"* | `25022372` |
+| *"i want a running list up"* | `TASKS.md` + the published artifact |
+
+**Reported, not fixed — the Monthly Bills target is a frozen literal.**
+`displayConfig.targetValue` is `2040.97` and `displayConfig` takes a NUMBER only —
+there is no field reference. It matches the live total exactly today, so the tile
+is correct now and drifts the moment a bill is added or removed. Making it track
+would need either a per-occurrence target or an op that writes a shared field's
+`displayConfig`; both are mechanism changes, so it is stated rather than guessed at.
+
+**Not a defect, worth knowing:** `Peer Support Group - Froedtert` (Aug 27, 6:00pm)
+sits on the Tasks page unplaced. `Place Dated Work` only builds the days in the
+active period, so it lands when the schedule is navigated to that date.
+
+**An instruction that had been missed:** *"keep giving me a running checklist in
+your updates."* Saved to memory; updates now carry the queue inline.
+
 ## Standing hazard — mixed client versions fight over a feed
 
 Two clients running different code **fight over materialized feed copies**, and neither is
