@@ -3168,3 +3168,18 @@ one flat list — display first, then input, in the user's own order.
 > "continue what you were already working on first"
 
 Order: finish the in-flight weekday-on-tasks work before the two field-picker asks.
+
+**Answers, same session:**
+
+- **The three already-ticked tasks carrying no `Completed On`: MOVE THEM NOW** — a one-off sweep in
+  the migration, then the op handles everything ticked from here. Over inventing a `Completed On`
+  date for them (the `0052` rule: a plausible date is indistinguishable from a real one).
+- **Sibling field prefill takes EVERY field the siblings bind**, in the same order — over "only what
+  they all share" and over "copy the nearest sibling".
+
+> "we should also add two more tasks in. 1 to quickly set values for fields in the add item menu and
+> also making sure all the dropdowns and menus all match the theme"
+
+**QUEUED, two more.** (1) The add-item menu should let you SET field values as you create the item,
+not just create it and make you fill it in afterwards. (2) A theming sweep over every dropdown and
+menu — they must all read as one skin.
