@@ -17,6 +17,7 @@ import { KIND_ICONS as PAGE_KIND_ICON } from "../helpers/moduleIcons";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { ensureArtifactPageOcc } from "../helpers/importsFolder";
 import { isProtectedFolder } from "../helpers/protectedFolders";
+import { isFolderOpen, setFolderOpen } from "../helpers/treeExpansion";
 import { resolveFileRef, isExternalFileRef } from "../helpers/fileRef.js";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import NodePill from "./NodePill.jsx";
@@ -445,7 +446,24 @@ export function resolveFolderDrop({ folder } = {}) {
 // ─── FolderNode ──────────────────────────────────────────────────────────────
 function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, onSetDefault, defaultOccurrenceId, onOpenPage, onOpenPageAndClose, showAnchors = true }) {
   const { dispatch, socket, state } = useGridActions();
-  const [open, setOpen] = useState(folder?.isExpanded !== false);
+  // CLOSED by default, and what you open is remembered per browser.
+  //
+  // This used to read `folder.isExpanded`, which looks like the right field and
+  // is not: nothing has ever written it back, so it was a seed-time initial
+  // value — and every seeded folder carried `true`, which is why the whole tree
+  // arrived expanded. The field stays on the record (the Command Center category
+  // tabs read it) and is INERT here on purpose; `helpers/treeExpansion` owns it.
+  const [openState, setOpenState] = useState(() => isFolderOpen(folder?.id));
+  const open = openState;
+  // Persisted OUTSIDE the state updater, not inside it: React double-invokes
+  // updaters in StrictMode, so a write in there runs twice per toggle. Both call
+  // shapes below are in use — `setOpen(true)` from the drag paths and
+  // `setOpen(v => !v)` from the chevron.
+  const setOpen = useCallback((next) => {
+    const v = typeof next === "function" ? next(openState) : next;
+    setOpenState(v);
+    setFolderOpen(folder?.id, v);
+  }, [openState, folder?.id]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(folder.name);
@@ -1309,7 +1327,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
           {/* Header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 4px 3px 6px", flexShrink: 0, borderBottom: "1px solid var(--border-default)" }}>
             <span style={{ fontSize: 12, color: "var(--text-faint)", letterSpacing: "0.05em", textTransform: "uppercase", flex: 1 }}>
-              {isPagePanel ? "Local" : (manifest?.name || "Files")}
+              {manifest?.name || "Files"}
             </span>
             <div style={{ flexShrink: 0, position: "relative", display: "flex", alignItems: "center", gap: 1 }}>
               {isPagePanel && (
@@ -1351,14 +1369,21 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
 
           {/* Tree content */}
           <div style={{ flex: 1, overflowY: "auto", padding: "1px 0 4px" }}>
-            {isPagePanel ? (
-              /* Local tree — wrapped under a synthetic "Local" root so the
-                 panel sidebar reads as one expandable section instead of N
-                 flat top-level folder headers. Chevron + pill mirrors
-                 LocalFolderGroup/FolderNode chrome. */
-              (localTreeData.rootPages.length === 0 && localTreeData.folderGroups.length === 0 && localTreeData.folderNodes.length === 0) ? (
-                <div style={{ fontSize: 11, color: "var(--text-faint)", padding: "0 8px" }}>No pages</div>
-              ) : (
+            {/* ── PINNED ───────────────────────────────────────────────
+                This panel's own open pages, ABOVE the full manifest. Until
+                2026-08-21 the sidebar rendered EITHER this OR the manifest —
+                two mutually exclusive trees behind two header buttons. They are
+                one tree now (user: "combine the manifest sidebars into 1 with
+                pinned being the panels opened stuff, that will sit above the
+                full manifest").
+
+                Omitted entirely when the panel has nothing pinned, rather than
+                printing "No pages": a panel with no pages already shows the root
+                manifest folder as its CONTENT, so the row said nothing and cost
+                a line. Still wrapped in its own collapsible root so the whole
+                pinned set can be hidden; it defaults OPEN, unlike the manifest
+                below it. */}
+            {isPagePanel && !(localTreeData.rootPages.length === 0 && localTreeData.folderGroups.length === 0 && localTreeData.folderNodes.length === 0) && (
                 <div>
                   <div style={{ display: "flex", alignItems: "center" }} className="manifest-row">
                     <span
@@ -1368,7 +1393,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                       <ChevronRight size={8} style={{ opacity: 0.35, transform: localRootOpen ? "rotate(90deg)" : "none", transition: "transform 0.12s" }} />
                     </span>
                     <NodePill
-                      module={{ kind: "folder", label: "Local" }}
+                      module={{ kind: "folder", label: "Pinned" }}
                       onClick={() => setLocalRootOpen(v => !v)}
                       style={{ flex: 1 }}
                     />
@@ -1429,10 +1454,12 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                   </div>
                   )}
                 </div>
-              )
-            ) : (
-              /* Root tree — folder hierarchy */
-              (!manifest || !rootFolder) ? (
+            )}
+
+            {/* ── THE FULL MANIFEST ────────────────────────────────────────
+                One collapsed row you drill into (user's pick over "sections
+                open"). Every folder inside starts closed too — see FolderNode. */}
+            {(!manifest || !rootFolder) ? (
                 <div style={{ fontSize: 11, color: "var(--text-faint)", padding: "0 8px" }}>No files</div>
               ) : (
                 <FolderNode
@@ -1451,7 +1478,6 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                   onOpenPageAndClose={handleOpenPage}
                   showAnchors={true}
                 />
-              )
             )}
           </div>
 

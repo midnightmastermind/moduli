@@ -306,7 +306,6 @@ function Panel({
   const [ctxMenu, setCtxMenu] = useState(null);
   const [showHeader, setShowHeader] = useState(true);
   const [rootTreeOpen, setRootTreeOpen] = useState(false);
-  const [localTreeOpen, setLocalTreeOpen] = useState(false);
   const [pendingDrilldown, setPendingDrilldown] = useState(null);
   // Stable ref — an inline closure here defeated <Page>'s React.memo on EVERY
   // panel render, cascading a full page/container/instance re-render per write.
@@ -724,11 +723,10 @@ function Panel({
     }
   }, [panelOccurrence, currentView, dispatch, socket, viewsById, modulesById, occurrencesById, foldersById]);
 
-  // Sidebar-aware page open: anything that opens a page from the Local/Root
-  // tree should also collapse the sidebar (user requested: selecting closes it).
+  // Sidebar-aware page open: opening a page from the tree also collapses the
+  // sidebar (user requested: selecting closes it).
   const openPageAndCloseTrees = useCallback((occId, options) => {
     openPage(occId, options);
-    setLocalTreeOpen(false);
     setRootTreeOpen(false);
   }, [openPage]);
 
@@ -867,7 +865,11 @@ function Panel({
         if (pagesList.length > 0) {
           const activePageView = activePageEntry?.occurrence?.viewId ? viewsById[activePageEntry.occurrence.viewId] : null;
 
-          // Root tree sidebar (left) — user manifest, global page library
+          // THE sidebar — one tree on the RIGHT holding the panel's pinned
+          // pages above the full manifest. It was two mutually exclusive trees
+          // on opposite sides until 2026-08-21; `panelOccurrence` is what makes
+          // ManifestTree render the pinned section, so the merge is simply this
+          // instance carrying every prop the two used to split between them.
           const rootTree = (
             <ManifestTree
               manifestId={state?.grid?.manifestId}
@@ -876,23 +878,10 @@ function Panel({
               socket={socket}
               collapsed={false}
               onToggleCollapse={() => setRootTreeOpen(false)}
-              onOpenPage={openPageAndCloseTrees}
-              activePageView={activePageView}
-            />
-          );
-
-          // Local tree sidebar (right) — page panel mode, shows pages + anchors
-          const localTree = (
-            <ManifestTree
-              manifestId={state?.grid?.manifestId}
-              view={resolvedView}
-              dispatch={dispatch}
-              socket={socket}
-              collapsed={false}
-              onToggleCollapse={() => setLocalTreeOpen(false)}
               panelOccurrence={panelOccurrence}
               onOpenPage={openPageAndCloseTrees}
               onClosePage={closePage}
+              activePageView={activePageView}
             />
           );
 
@@ -954,25 +943,6 @@ function Panel({
                 </PopoverContent>
               </Popover>
 
-              {/* Local tree toggle — right of the drag handle (per user). Opens
-                  the LEFT sidebar listing this panel's pages. Drag-enter opens
-                  it too so a drag can drop into the tree. */}
-              <button
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => { setLocalTreeOpen(v => !v); setRootTreeOpen(false); }}
-                onDragEnter={(e) => { e.preventDefault(); setLocalTreeOpen(true); setRootTreeOpen(false); }}
-                onDragOver={(e) => e.preventDefault()}
-                title="Local pages"
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                  padding: "3px 5px", border: "none", borderRadius: 4, cursor: "pointer",
-                  background: localTreeOpen ? "rgba(var(--occ-pill) / 0.12)" : "transparent",
-                  color: localTreeOpen ? "#06b6d4" : "var(--text-muted)",
-                }}
-              >
-                <FileText size={11} style={{ opacity: 0.8 }} />
-              </button>
-
               {/* Active page name — flex-grows to fill space between handle and actions */}
               <span style={{
                 flex: 1, minWidth: 0,
@@ -998,15 +968,16 @@ function Panel({
                 {/* Search every occurrence on the grid; picking one opens its
                     page in THIS panel and scrolls to it. */}
                 <OccurrenceSearch onPick={handleSearchPick} title="Search all occurrences" />
-                {/* Root tree toggle — replaces the + quick-add (per user). Opens
-                    the RIGHT sidebar with the root page directory; page creation
-                    lives in the tree's own + menu. Drag-enter opens it so a drag
-                    can drop into the tree. */}
+                {/* THE sidebar toggle. Was one of TWO buttons that switched
+                    between a local tree and the root tree; with one merged tree
+                    there is nothing to switch, so it is a plain show/hide (the
+                    user's pick over keeping them as jump links). Drag-enter still
+                    opens it, which is what lets a drag drop into the tree. */}
                 <button
-                  onClick={() => { setRootTreeOpen(v => !v); setLocalTreeOpen(false); }}
-                  onDragEnter={(e) => { e.preventDefault(); setRootTreeOpen(true); setLocalTreeOpen(false); }}
+                  onClick={() => setRootTreeOpen(v => !v)}
+                  onDragEnter={(e) => { e.preventDefault(); setRootTreeOpen(true); }}
                   onDragOver={(e) => e.preventDefault()}
-                  title="Root directory"
+                  title="Files"
                   style={{
                     display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                     padding: "3px 5px", border: "none", borderRadius: 4, cursor: "pointer",
@@ -1085,35 +1056,9 @@ function Panel({
               {pageHeader}
               {/* On desktop: sidebars push content (flex row). On mobile: sidebars overlay (absolute). */}
               <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", position: "relative" }}>
-                {/* Local tree sidebar — LEFT, pushes content on desktop, overlays on mobile */}
-                {localTreeOpen && (
-                  isMobileLayout ? (
-                    <div style={{
-                      position: "absolute", top: 0, left: 0, bottom: 0, zIndex: 100,
-                      width: "100%", maxHeight: "50%",
-                      display: "flex", flexDirection: "column",
-                      background: "var(--surface-card)",
-                      borderBottom: "1px solid var(--border-default)",
-                      pointerEvents: "auto",
-                    }}>
-                      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
-                        {localTree}
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{
-                      flexShrink: 0, width: 222,
-                      display: "flex", flexDirection: "column",
-                      background: "var(--surface-card)",
-                      borderRight: "1px solid var(--border-default)",
-                      overflow: "hidden",
-                    }}>
-                      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "4px 2px" }}>
-                        {localTree}
-                      </div>
-                    </div>
-                  )
-                )}
+                {/* The sidebar is on the RIGHT only (user, 2026-08-21: "put this on
+                    the right side"). The left rail it replaced held the panel-local
+                    tree, which is now the Pinned section of the one on the right. */}
                 {/* Page content — flex-grows between sidebars */}
                 <div style={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                   {contentReady ? pageContent : stagedHold}
