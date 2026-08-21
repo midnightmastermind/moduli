@@ -1250,16 +1250,52 @@ export function applyEffectsToLiveOccs(liveOccs, effects) {
         liveOccs[eff.itemId] = { ...occ, fields };
         break;
       }
+      // A MOVE is three writes, not one — unlist from the old parent, re-parent,
+      // list under the new one. This overlay used to do only the middle write,
+      // so a later op in the SAME sweep still saw the row in its old parent's
+      // `occurrences[]` and never saw it in its new one. `bindSocketToStore`'s
+      // handler (the one that actually persists) has always done all three, and
+      // CREATE_ITEM above maintains the parent list for exactly this reason —
+      // this was the neighbouring case that never got the treatment.
       case "UPDATE_ITEM_PARENT": {
         const occ = liveOccs[eff.itemId];
         if (!occ) break;
+        const fromId = occ.parentId;
+        if (fromId && fromId !== eff.toParentId && liveOccs[fromId]) {
+          const from = liveOccs[fromId];
+          liveOccs[fromId] = {
+            ...from,
+            occurrences: (from.occurrences || []).filter((x) => x !== eff.itemId),
+          };
+        }
         liveOccs[eff.itemId] = { ...occ, parentId: eff.toParentId };
+        const to = liveOccs[eff.toParentId];
+        if (to && !(to.occurrences || []).includes(eff.itemId)) {
+          liveOccs[eff.toParentId] = { ...to, occurrences: [...(to.occurrences || []), eff.itemId] };
+        }
         break;
       }
+      // Two emit shapes, matching the persisting handler: `metaPath` (a deep
+      // set, which is what `applyUpdate` emits for every `$occ.meta.x` write)
+      // and the legacy shallow `metaPatch`. Only the second was handled, so an
+      // op writing `meta.anything` was invisible to the rest of the sweep.
       case "UPDATE_ITEM_META": {
         const occ = liveOccs[eff.itemId];
         if (!occ) break;
-        liveOccs[eff.itemId] = { ...occ, meta: { ...(occ.meta || {}), ...(eff.metaPatch || {}) } };
+        let nextMeta;
+        if (Array.isArray(eff.metaPath) && eff.metaPath.length) {
+          nextMeta = { ...(occ.meta || {}) };
+          let cursor = nextMeta;
+          for (let i = 0; i < eff.metaPath.length - 1; i++) {
+            const seg = eff.metaPath[i];
+            cursor[seg] = { ...(cursor[seg] || {}) };
+            cursor = cursor[seg];
+          }
+          cursor[eff.metaPath[eff.metaPath.length - 1]] = eff.value;
+        } else {
+          nextMeta = { ...(occ.meta || {}), ...(eff.metaPatch || {}) };
+        }
+        liveOccs[eff.itemId] = { ...occ, meta: nextMeta };
         break;
       }
       case "UPDATE_ITEM_TEXTMAP": {

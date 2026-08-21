@@ -380,6 +380,31 @@ export function kindForNewModule(role, kind) {
   return KINDLESS_CREATE_ROLES.has(role) ? null : "doc";
 }
 
+// ---------------------------------------------------------------------------
+// dayKeyOf — a calendar day as "YYYY-MM-DD", the app's LOCAL-day semantics.
+//
+// `new Date("2026-08-21")` is UTC midnight, which anywhere west of UTC is the
+// PREVIOUS local evening. So the obvious `new Date(v) < todayMidnight` reads
+// TODAY'S OWN date as already past — silently, and only outside UTC.
+//
+// `DATE_BEFORE` was written against exactly this and compares day-keys
+// lexically instead. `DATE_BEFORE_TODAY` / `DATE_IS_TODAY` / `DATE_AFTER_TODAY`
+// were three neighbouring `case`s that never got the treatment; this is the
+// shared helper they now all read, so the four cannot drift again.
+//
+// A bare date is taken verbatim (never re-parsed, which is where the shift gets
+// in); anything else goes through Date and is read in the LOCAL zone.
+// Unparseable → null, and every caller treats null as "no answer", never as
+// "long ago".
+const dayKeyOf = (v) => {
+  if (v == null || v === "") return null;
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0, 10);
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const todayKey = () => dayKeyOf(new Date());
+
 export function evalRule(rule, $vars) {
   const { left, comparator, right } = rule;
   const leftVal = resolveExpr(left, $vars);
@@ -609,25 +634,20 @@ export function evalRule(rule, $vars) {
       }
       return false;
     }
+    // The three partition the timeline: for any parseable day exactly one is
+    // true. All read `dayKeyOf` so a bare "YYYY-MM-DD" is never re-parsed into
+    // the previous local evening — see the helper's note.
     case "DATE_BEFORE_TODAY": {
-      if (!leftVal) return false;
-      const d = new Date(leftVal);
-      if (isNaN(d.getTime())) return false;
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      return d < today;
+      const k = dayKeyOf(leftVal);
+      return k != null && k < todayKey();
     }
     case "DATE_IS_TODAY": {
-      if (!leftVal) return false;
-      const d = new Date(leftVal);
-      if (isNaN(d.getTime())) return false;
-      return d.toDateString() === new Date().toDateString();
+      const k = dayKeyOf(leftVal);
+      return k != null && k === todayKey();
     }
     case "DATE_AFTER_TODAY": {
-      if (!leftVal) return false;
-      const d = new Date(leftVal);
-      if (isNaN(d.getTime())) return false;
-      const today = new Date(); today.setHours(23, 59, 59, 999);
-      return d > today;
+      const k = dayKeyOf(leftVal);
+      return k != null && k > todayKey();
     }
     case "DATE_WITHIN_DAYS": {
       if (!leftVal) return false;
