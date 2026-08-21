@@ -3133,3 +3133,38 @@ A **recurring-weekly task**: a `Weekday` dropdown on Tasks, and when it is set A
 schedule build places that task on that weekday. Note the primitive already exists — `Weekday` is the
 field the seven weekday TEMPLATES are matched by (`0161`/`0162`), and `weekday:expr` is already a
 token — so this is the same field one surface over, not a new mechanism.
+
+---
+
+### 2026-08-21 (2) — the merged sidebar's two reports, and three asks about adding fields
+
+> "also keep pinned and root looking seperate in the sidebar"
+
+> "its also pinning all of root right now whioch shouldnt happen"
+
+Both against the sidebar the two trees merged into earlier the same day. **The second is a real
+defect and measuring named it in one probe:** a pinned FOLDER page renders as its real folder
+subtree — which is what makes a panel fronted by the Boards folder page browsable — and Panel C
+pins `Root`, whose folder IS `manifest.rootFolderId`. Since the merge put the full manifest
+directly below Pinned, that drew the entire manifest TWICE. Fixed by folder ID, never by the name
+`Root`. The first is the separator: a rule and the air around it, no tint (a band behind the rows
+would fight the wallpaper every skin paints there).
+
+> "when im selecting a field as well to add to a new occurnce. could you already have like fields
+> set (what other occurances have in the place im placing it)"
+
+> "so if i have add an ingrediant, it already has all those fields set"
+
+**QUEUED.** A new occurrence should arrive already bound to the fields its SIBLINGS bind — add an
+ingredient to the Ingredients board and it comes with the ingredient fields, rather than being an
+empty row you have to dress by hand. The prefill is derived from the DESTINATION, so nothing has to
+know what an ingredient is.
+
+> "and i need the display and then input fields seperated by section"
+
+**QUEUED.** The field list separates DISPLAY fields from INPUT fields into two sections rather than
+one flat list — display first, then input, in the user's own order.
+
+> "continue what you were already working on first"
+
+Order: finish the in-flight weekday-on-tasks work before the two field-picker asks.
