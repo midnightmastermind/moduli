@@ -284,6 +284,22 @@ function routeRecordPath(path, segments, value, { item, occurrencesById }) {
     };
   }
 
+  // $tile.fieldVisibility — the whole {mode, fieldIds} object. The cascade
+  // (getEffectiveFieldVisibilityForOccurrence) already READS this; until now
+  // nothing but a client helper could write it, so no operation could show or
+  // hide a field. Mirrors the filterOverride branch above: one occurrence key an
+  // op may set, applied through the same commit helper the UI uses.
+  //
+  // The WHOLE object, not a key at a time — "show exactly these" is one
+  // decision, and a per-key write would leave a half-updated list on screen
+  // between two effects in the same batch.
+  if (segments[1] === "fieldVisibility" && segments.length === 2) {
+    return {
+      effects: [{ _effect: "UPDATE_ITEM_FIELD_VISIBILITY", itemId, value }],
+      varWrites: {},
+    };
+  }
+
   if (segments[1] === "textmap" && segments.length === 2) {
     let textmap = value;
     if (

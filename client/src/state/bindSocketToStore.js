@@ -1044,6 +1044,21 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         break;
       }
 
+      case "UPDATE_ITEM_FIELD_VISIBILITY": {
+        // Per-occurrence {mode, fieldIds} — which of a tile's bound fields
+        // actually render. `fieldVisibility` is a declared top-level key on the
+        // Occurrence schema, so the generic update_occurrence persists it; this
+        // goes through the same updateOccurrence helper as ownStyle above rather
+        // than a bespoke socket event.
+        const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
+        const occ = occOverlay[effect.itemId];
+        if (!occ) break;
+        const nextVis = effect.value ?? null;
+        localOccsById[effect.itemId] = { ...occ, fieldVisibility: nextVis };
+        updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, fieldVisibility: nextVis } });
+        break;
+      }
+
       case "UPDATE_ITEM_FILTER_OVERRIDE": {
         // Move (or clear, with a null value) one key of an occurrence's own
         // filter override. Goes through updateOccurrenceFilterOverride so the

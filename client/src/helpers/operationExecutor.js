@@ -1134,6 +1134,18 @@ const _LIVEOCCS_MUTATING = new Set([
   // the EFFECTIVE FILTER of every descendant, so the enriched read model (which
   // carries `_effectiveFilter` per item) is genuinely stale and must be rebuilt.
   "UPDATE_ITEM_FILTER_OVERRIDE",
+  // Which of a tile's fields RENDER. In the overlay for the same reason as the
+  // date move above: a later step in the same sweep that reads the occurrence
+  // must see the new visibility, or a two-pass op disagrees with itself.
+  //
+  // Deliberately NOT in `_VALUE_ONLY_EFFECTS`, even though it changes no
+  // occurrence's existence, parentage or effective filter. That set exists so
+  // `patchAllItemsCache` can surgically refresh the cached read model, and it
+  // only knows how to patch `fields` — listing this there would leave the cached
+  // entry carrying the OLD fieldVisibility while the overlay carried the new one.
+  // A full rebuild is the cheap, correct answer, and it is the posture this file
+  // already takes: "a stale read model is far worse than a rebuild".
+  "UPDATE_ITEM_FIELD_VISIBILITY",
 ]);
 
 // A field write changes a VALUE on an occurrence that already exists. It cannot
@@ -1267,6 +1279,16 @@ export function applyEffectsToLiveOccs(liveOccs, effects) {
         if (eff.value == null) delete next[eff.fieldId];
         else next[eff.fieldId] = eff.value;
         liveOccs[eff.itemId] = { ...occ, filterOverride: next };
+        break;
+      }
+      // Without this the overlay is stale for the rest of the batch, which is
+      // the exact defect `filterOverrideOverlay.test.js` was written for one
+      // effect over: a later step reads the occurrence and sees the OLD
+      // visibility, so a two-pass op disagrees with itself.
+      case "UPDATE_ITEM_FIELD_VISIBILITY": {
+        const occ = liveOccs[eff.itemId];
+        if (!occ) break;
+        liveOccs[eff.itemId] = { ...occ, fieldVisibility: eff.value ?? null };
         break;
       }
       case "DELETE_ITEM":
