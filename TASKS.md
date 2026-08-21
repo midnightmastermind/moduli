@@ -7,7 +7,7 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 
 | # | Task | State |
 |---|------|-------|
-| 1 | **Feed-scope fix causes CHURN** — widening the scope walk is measured and correct (77 of 78 feeds byte-identical), but deploying it made the two newly-matched copies re-mint every pass and never settle. Reverted; work parked on branch `feed-scope-multiparent`. Next step is a `window.__feedDiag = true` session against a build carrying it | 🔬 parked, cause not yet found |
+| 1 | **Feed-scope fix — the churn did NOT reproduce.** The asked-for `__feedDiag` session was run against a build carrying the widening: **39 feeds, two consecutive passes, byte-identical — 0 minted, 0 swept.** The `Completed` feed transitioned cleanly (`matches=1 → 3`, minted 2) and then held `minted=0 swept=0` for four more passes. Ready to re-land from `feed-scope-multiparent`. **Honest limit: one headless client. The reverted run was prod with real tabs, and two clients both running feedSync is a churn source a single-client probe cannot reproduce** | 🔬 measured stable; re-land is the user's call |
 | 2 | **"What else is technically needed for the original vision"** — asked 2026-08-21, never answered | 📋 open ask |
 | 3 | **Empty panel → root manifest folder in folder view** — asked, no commit found | ❓ unconfirmed |
 | 4 | **Schedule apply ~1s** — `resolveOptions` predicate filter ~766ms, the residual after the index work | 📋 measured, not fixed |
