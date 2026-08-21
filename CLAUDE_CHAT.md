@@ -3102,3 +3102,26 @@ updates tags, keyed off "a certain field on the workouts and goal tiles" — is 
 computed at run time instead of enumerated.
 
 To be folded into the tracker/date-filter audit rather than done separately.
+
+**Design answers for the workout goals (2026-08-21):**
+- **Two tiles.** One keeps the running log (`Total Workouts`, `Workouts`, `Last Workout`) and is the
+  CURRENT "Workout Goals" tile RENAMED to **Workout Log**; the existing tile of that name is deleted
+  and its fields absorbed. The generic `Workout 1-6` slots go away.
+- **A second tile, "Workouts"**, carries one display field per movement, and the op HIDES the fields
+  not in that day's session on load and on filter change. Fields only for movements the weekday
+  templates actually use — not the whole catalog.
+- **Done is DERIVED** from that day's Exercise row having `Completed` ticked. Nothing extra to tick.
+- **Delete** `Reps`, the six per-muscle `Volume` tiles, and the old `Workout Log` — 8 tiles and their
+  operations.
+- **`Tracker Date` reads "Total" when no Date filter is set, and the tracker aggregates ALL-TIME** —
+  on **every** tracker carrying the field, not just the workout ones. This makes the label finally
+  tell the truth: `periodAllPolicy` already means "empty period = aggregate everything", so today the
+  pill is the only part lying.
+
+> "make sure appointments or tasks set to complete in the tasks, get properly sent to completed at
+> the end of the day even if they arent on the schedule"
+
+Completing a task or appointment **on the Tasks page** must still reach the Completed counts. Worth
+noting against what the audit has already measured: `makeTrackerOp` scopes its loop
+`HAS_ANCESTOR <Schedule page>`, so a row completed anywhere else is invisible to it by construction —
+this is a live defect to confirm, not a hypothetical.
