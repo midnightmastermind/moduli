@@ -12,7 +12,8 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 | 3 | **Theme sweep over every dropdown and menu** — 16 hardcoded blues in 9 files, ~25 hardcoded black shadows in 20 files | 📋 queued, measured |
 | 4 | **Merge templates as layers** — one Meals template + reusable workout sessions, matched by a multi-select `Weekday` | 📋 queued, measured |
 | 5 | **End-of-day move** — completed tasks/appointments → `Tasks > Completed` after the day rolls over | 🔎 measured; blocked on repairing 2 mis-parented rows first |
-| 6 | **Verify the weekday feature in a browser** — nobody has picked a weekday and watched a copy land | ⏳ honest gap |
+| 6 | **A TIME field for timed movements** — planks and side planks take seconds, not weight. Today they read `Set 1: 1 reps` because `0119` backfilled a counted prescription onto a timed movement | 📋 queued |
+| 7 | **Verify the weekday feature in a browser** — nobody has picked a weekday and watched a copy land | ⏳ honest gap |
 
 ## Done — 2026-08-21
 

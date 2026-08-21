@@ -3204,3 +3204,17 @@ dropdown.
 **The risk to settle first:** merge idempotence is `auto:<sourceId>`, keyed on the SOURCE row's id.
 Moving the meals from seven copies to one changes that id, so an already-built column would not
 recognise its existing rows and could double them. Needs either a re-sign pass or a column clear.
+
+> "also add in a time field to put on things like planks and side planks instead of weight"
+
+**QUEUED, and it CLOSES an item this file already flagged and deliberately left to the user.**
+2026-08-20 (3) recorded: *"Planks and Side Planks read `Set 1: 1 reps`, because `0119` backfilled the
+catalog prescription and a plank is TIMED rather than counted. It is the prescription the catalog
+holds, so changing it is the user's call, not a migration's."* This is that call. A timed movement
+binds a duration in place of `Weight N`, and the movement itself has to say which it is — never a
+name list, or every core movement added later comes back counted.
+
+> "the macros for meals arent working" / "when it comes to updating the macro tracker"
+
+See the measurement in the session log — two candidate causes, one of which is a product decision
+(does the macro tracker count PLANNED meals or only TICKED ones).
