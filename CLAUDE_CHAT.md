@@ -3066,3 +3066,21 @@ directory"). The user wants them merged into ONE tree with pinned above the mani
 its open state in local React state (`useState(folder?.isExpanded !== false)`) and **nothing ever
 writes it back**, so toggling a folder is per-mount and never persists. Every manifest folder was
 seeded `isExpanded: true`, which is why they all start open.
+
+> "an empty panel just goes to the root manifest folder in folder view in the panel"
+
+Answering the one consequence flagged in the sidebar design (a panel with nothing pinned opening as a
+single collapsed row): not a concern, because such a panel already shows the root manifest folder as
+its CONTENT. So the Pinned section is OMITTED when empty rather than printing "No pages".
+
+Design answers given the same day: **Pinned open, manifest fully closed** (over "sections open");
+the two header buttons **collapse to one show/hide** (over keeping them as jump links); and open
+folders are **remembered per browser** (over resetting, and over writing back to the grid).
+
+> "after, i want you to audit all my trackers and make sure they are updated and everything is
+> updated when i select a new date filter in the respective spots"
+
+**QUEUED.** Every tracker must recompute correctly when a date filter changes — in the respective
+spot, i.e. against the filter of the page it lives on rather than the grid's. Note this is adjacent
+to the open date-navigation cost question (a Trackers nav matches 44 ops, ~42 of them trackers): the
+audit is about CORRECTNESS first, and whatever it finds should inform that.

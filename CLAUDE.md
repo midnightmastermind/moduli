@@ -6,6 +6,63 @@
 
 ---
 
+### 2026-08-21 — ONE SIDEBAR: pinned above the manifest, on the right, and folders start CLOSED
+
+Three asks on one surface — *"make every folder closed by default in the manifest sidebar"*,
+*"combine the manifest sidebars into 1 with pinned being the panels opened stuff, that will sit above
+the full manifest"*, *"put this on the right side"*.
+
+**MEASURING FIRST CHANGED TWO OF THE THREE.** `ManifestTree` was a TERNARY — `isPagePanel ? <Local>
+: <Root>` — so it showed EITHER the panel's pinned pages OR the manifest, never both, behind two
+header buttons. And the two sidebars were **already on opposite sides**: Local left, Root right. So
+*"put this on the right"* is a **deletion, not a move**, and the merge is one `<ManifestTree>`
+carrying every prop the two instances used to split between them — `panelOccurrence` is the one that
+makes it draw the pinned section at all.
+
+**AND `isExpanded` IS NOT WHAT IT LOOKS LIKE.** `FolderNode` seeded its open state from
+`folder.isExpanded` and **nothing has ever written it back** — so it was a seed-time initial value
+rather than a preference, and every seeded folder carried `true`, which is exactly why the whole tree
+arrived expanded. Writing there would have meant a socket write to LIVE GRID DATA on every folder
+click, for something that is per-device by nature, and would have synced one machine's browsing state
+onto another. `helpers/treeExpansion` owns it now (localStorage, default CLOSED). **The field stays
+on the record** — the Command Center category tabs still read it — **and the sidebar says in as many
+words that it is inert there**, because a field that looks live and is not is the exact class this
+repo keeps rediscovering six weeks later.
+
+**Every path in the store fails open to "closed"**, which is the same state as a first visit: a
+sidebar that throws on mount takes the panel down with it, and the worst case here is re-opening a
+folder.
+
+**ONE OF MY OWN TESTS DID NOT DISCRIMINATE, and the A/B is the only reason I know.** The wrong-shape
+case used an OBJECT — but `new Set({})` throws on a non-iterable and the outer try/catch already
+covers it, so the test passed with the `Array.isArray` guard removed and proved nothing. **The shape
+that actually needs guarding is a STRING:** it parses, it iterates, and `new Set("f1")` silently
+becomes `{"f","1"}` — so a folder whose id is `"f"` reads as OPEN. Rewritten to that, it fails for
+exactly its own reason. *A guard nobody has watched fail is a guess — and so is a test.*
+
+**VERIFIED ON PROD BY DRIVING IT, with the discriminating sequence rather than a single reading:**
+```
+first visit        10 rows   Root collapsed          <- closed by default
+expand Root        23 rows   storage ["0QU2baW0EjIb"]
+after a RELOAD     23 rows                            <- it remembered
+```
+A memory that did not work would have gone back to 10. Then looked at: one sidebar headed FILES on
+the right edge of its panel, `Pinned` open with the panel's pages, `Root` a single collapsed row,
+**one** "Files" button per header where there were two, **0 page errors**.
+
+**And the served bundle was checked with a control that actually belongs to it.** The first check
+grepped `moduli-theme` and read 0 — but it read 0 for the control too, because that string lives in a
+different chunk; the `curl` was also reading gzipped bytes. Ground truth on the server: controls
+present (`No files`, `New folder`), new strings present (`moduli-tree-open`, `Pinned`), the retired
+ones (`Root directory`, `Local pages`) at **0**, and the server's build **sha-identical** to the
+local one.
+
+2839 client tests. **Probe debris, reported not hidden:** `module-less-occurrence` went 1 → 2 while
+probing. `sweepOrphans` REFUSES both — they each carry a child, and its predicate only deletes rows
+that are empty AND unreachable. That refusal is the guard working, not a failure.
+
+---
+
 ### 2026-08-20 (6) — VITAMIN D WAS OFF BY FORTY, and the sodium tile went green when you went over
 
 The open item read *"Vitamin E / K / B6 / Folate have fields and values but no target — the guide
