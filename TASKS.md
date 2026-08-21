@@ -7,7 +7,7 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 
 | # | Task | State |
 |---|------|-------|
-| 1 | **Feed-scope widening is LANDED** (`96b0699a`, deployed). One thing is owed by hand: **reload any Moduli tab that was open before the deploy.** A tab left open runs the old bundle, disagrees about what the feed matches, and deletes the copies a new-bundle client mints. Proven directly — during the deploy check, deletes kept arriving *after* the only new-bundle client had disconnected, and two sockets in the log connected without ever disconnecting. No churn once every client agrees; the log is quiescent now | ⏳ landed, awaiting a tab reload |
+| 1 | **Feed-scope widening is LANDED and working** (`96b0699a`, deployed) — a fresh client shows all three completed tasks filed, 0 page errors. One thing is owed by hand: **reload any Moduli tab that was open before the deploy.** Proven on production in a single grep once the delete log named its socket: `create_batch … socket 6zzix…` against `delete_occurrence … socket wNT6K…` — two different clients, one minting and one sweeping. Nothing churns while the stale tab is alone; it settles permanently the moment every tab runs the same bundle | ⏳ landed, reload open tabs |
 | 2 | **"What else is technically needed for the original vision"** — asked 2026-08-21, never answered | 📋 open ask |
 | 3 | **Empty panel → root manifest folder in folder view** — asked, no commit found | ❓ unconfirmed |
 | 4 | **Schedule apply ~1s** — `resolveOptions` predicate filter ~766ms, the residual after the index work | 📋 measured, not fixed |
@@ -32,7 +32,8 @@ real `syncFeed` with the resolver giving two different answers: one client is id
 disagreeing clients churn a fresh id every pass, and **the copy they agree on is never disturbed** —
 which is exactly what was seen live, one stable row beside two churning ones.
 
-**The rule: deploy a feed-semantics change into a single-client window, and reload every tab.**
+**The rule: deploy a feed-semantics change into a single-client window, and reload every tab.** The log names
+the socket on both sides now, so the next occurrence is one grep rather than an afternoon.
 
 ## Done — 2026-08-21 (merge of two sessions)
 
