@@ -7,12 +7,11 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 
 | # | Task | State |
 |---|------|-------|
-| 1 | **Merge templates as layers** — one Meals template + reusable workout sessions, matched by a multi-select `Weekday` | 📋 queued, measured (56 meal rows where 8 would do) |
-| 2 | **End-of-day move** — completed tasks/appointments → `Tasks > Completed` after the day rolls over, *"even if they arent on the schedule"* | 🔎 measured; blocked on repairing 2 mis-parented rows first |
-| 3 | **"What else is technically needed for the original vision"** — asked 2026-08-21, never answered | 📋 open ask |
-| 4 | **Empty panel → root manifest folder in folder view** — asked, no commit found | ❓ unconfirmed |
-| 5 | **Schedule apply ~1s** — `resolveOptions` predicate filter ~766ms, the residual after the index work | 📋 measured, not fixed |
-| 6 | **Three external-data pipes** — Tasker profiles, ingest credentials, the four slow exports | 🚫 blocked on the user |
+| 1 | **End-of-day move** — completed tasks/appointments → `Tasks > Completed` after the day rolls over, *"even if they arent on the schedule"* | 🔎 measured; blocked on repairing 2 mis-parented rows first |
+| 2 | **"What else is technically needed for the original vision"** — asked 2026-08-21, never answered | 📋 open ask |
+| 3 | **Empty panel → root manifest folder in folder view** — asked, no commit found | ❓ unconfirmed |
+| 4 | **Schedule apply ~1s** — `resolveOptions` predicate filter ~766ms, the residual after the index work | 📋 measured, not fixed |
+| 5 | **Three external-data pipes** — Tasker profiles, ingest credentials, the four slow exports | 🚫 blocked on the user |
 
 ## Done — 2026-08-21 (later)
 
@@ -21,6 +20,8 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 | **Theme sweep over every dropdown and menu** — 82 literal colours → tokens across 20 floating surfaces | `0e090a6b`, deployed |
 | Theme tokens **verified resolving** on the live grid under Stardew — `--menu-shadow-1/2/3` brown (`rgba(52,31,14,…)`) not black, `--scrim` brown, `--signal-warn` darkened | browser probe |
 | **Weekday feature VERIFIED IN A BROWSER** — the 2026-08-21 honest gap, closed | probe |
+| **Merge templates as layers** — 7 day-templates → 6 reusable layers; `Place Weekday` merges every template whose `Weekday` contains the day. 56 duplicated meal rows → 8; stored rows 84 → 43 | `0177` |
+| Today's column needed **no clear** — `0112` signs template rows by CONTENT (`cycle:<pick>`), so consolidating changes nothing a column matches on. Both ticked rows kept | measured |
 
 ## Done — 2026-08-21
 
