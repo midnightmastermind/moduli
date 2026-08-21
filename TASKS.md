@@ -9,9 +9,17 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 |---|------|-------|
 | 1 | **Feed-scope widening is LANDED and working** (`96b0699a`, deployed) — a fresh client shows all three completed tasks filed, 0 page errors. One thing is owed by hand: **reload any Moduli tab that was open before the deploy.** Proven on production in a single grep once the delete log named its socket: `create_batch … socket 6zzix…` against `delete_occurrence … socket wNT6K…` — two different clients, one minting and one sweeping. Nothing churns while the stale tab is alone; it settles permanently the moment every tab runs the same bundle | ⏳ landed, reload open tabs |
 | 2 | **"What else is technically needed for the original vision"** — asked 2026-08-21, never answered | 📋 open ask |
-| 3 | **Empty panel → root manifest folder in folder view** — asked, no commit found | ❓ unconfirmed |
-| 4 | **Schedule apply ~1s** — `resolveOptions` predicate filter ~766ms, the residual after the index work | 📋 measured, not fixed |
-| 5 | **Three external-data pipes** — Tasker profiles, ingest credentials, the four slow exports | 🚫 blocked on the user |
+| 3 | **Schedule apply ~1s** — `resolveOptions` predicate filter ~766ms, the residual after the index work | 📋 measured, not fixed |
+| 4 | **Three external-data pipes** — Tasker profiles, ingest credentials, the four slow exports | 🚫 blocked on the user |
+
+## Done — 2026-08-21 (panel fallback)
+
+| Task | Where |
+|------|-------|
+| **Closing a panel's LAST page lands on the root manifest folder**, not the "No content" shell — the user's *"an empty panel just goes to the root manifest folder in folder view in the panel"*. The default existed only at panel CREATION | `25022372` |
+| It also repaired a **premise the sidebar rests on** — Pinned is omitted when a panel has nothing pinned, on the grounds that such a panel "already shows the root manifest folder as its CONTENT". True only for new panels, so an emptied one showed neither | same |
+| `openPanelOnRootFolderPage` gains `existingView` so an emptied panel's view is **re-pointed, not replaced** — otherwise every emptied panel strands one. Read back: **0 orphaned views** | same |
+| **Verified by actually closing the page** on test grid 2: panel went `Trackers` → `Files` (the root folder card grid), 0 page errors. Panel restored afterwards | probe |
 
 ## Standing hazard — mixed client versions fight over a feed
 
