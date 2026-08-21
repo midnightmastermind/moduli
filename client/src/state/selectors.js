@@ -1,7 +1,7 @@
 // state/selectors.js
 // Selectors for working with occurrences and entities in the state
 import { evalRule, evalGroup, evalRuleAgainstRecord, evalGroupAgainstRecord } from "../helpers/operationActions";
-import { buildParentMap, cachedParentMap } from "../helpers/dragHitTesting";
+import { buildParentMap, cachedParentMap, buildParentsMap, reachableAncestors } from "../helpers/dragHitTesting";
 import { buildFeedPredicate } from "../helpers/feedPredicate";
 
 /**
@@ -542,19 +542,23 @@ export function resolveFeedItems(feedOcc, { occurrencesById, modulesById } = {})
   const roles = Array.isArray(feed.roles) && feed.roles.length ? feed.roles : ["instance"];
   const limit = Number(feed.limit) > 0 ? Number(feed.limit) : 50;
 
-  const pbc = buildParentMap(occurrencesById);
+  // EVERY parent, not just one. `buildParentMap` keys child -> ONE parent, last
+  // writer wins — and this grid multi-parents on purpose (a task lives in its
+  // Tasks container AND in each day's `Todo`). Walking up from an arbitrary one
+  // of those made `feed.scope` answer by document order: measured on poms grid,
+  // 9 of the 18 rows on the Tasks page resolved AWAY from it, so half the page
+  // was invisible to the feed scoped to it — including tasks the user had
+  // ticked and expected to see filed.
+  //
+  // Memoised per map identity, and per occurrence within the pass: the scope
+  // test runs for every occurrence on the grid, so re-walking a shared ancestor
+  // chain thousands of times is the thing `cachedParentMap` exists to avoid.
+  const parentsMap = buildParentsMap(occurrencesById);
+  const _ancCache = new Map();
   const ancestorsOf = (id) => {
-    const out = [];
-    let cur = id;
-    const seen = new Set();
-    while (cur && !seen.has(cur)) {
-      seen.add(cur);
-      const next = pbc[cur] ?? occurrencesById[cur]?.parentId;
-      if (!next) break;
-      out.push(next);
-      cur = next;
-    }
-    return out;
+    let hit = _ancCache.get(id);
+    if (!hit) { hit = reachableAncestors(id, occurrencesById, parentsMap); _ancCache.set(id, hit); }
+    return hit;
   };
   // The feed owner + its ancestors are never pullable (recursion), and
   // anything ALREADY under the owner is excluded — those render as the
