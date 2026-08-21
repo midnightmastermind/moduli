@@ -239,7 +239,13 @@ export function registerCrudHandlers(socket, {
       // failure modes that look identical from the database afterwards. That
       // gap cost a whole diagnosis on 2026-08-21: a grep for deletes returned
       // zero, and the zero was a claim about the log rather than about deletes.
-      console.log("🗑  delete_occurrence", occurrenceId, fromParentId ? `from ${fromParentId}` : "(whole row)");
+      // The SOCKET matters as much as the id. Two clients on different bundles
+      // disagree about what a feed matches, so one deletes what the other mints —
+      // and the only way to see that in a log is to know which connection each
+      // write came from. Without it, "creates from socket A, deletes from
+      // nowhere" reads as one client contradicting itself.
+      console.log("🗑  delete_occurrence", occurrenceId,
+        fromParentId ? `from ${fromParentId}` : "(whole row)", "socket:", socket.id);
       const uc = await getUc();
 
       // ── PLACEMENT-DELETE vs FILE-DELETE (plan Task 4 Step 5) ────────────

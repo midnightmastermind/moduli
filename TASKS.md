@@ -7,7 +7,7 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 
 | # | Task | State |
 |---|------|-------|
-| 1 | **Land the feed-scope widening — the churn is explained and was never a defect.** The other session's `__feedDiag` run: **39 feeds, two consecutive passes, byte-identical — 0 minted, 0 swept**, with `Completed` transitioning cleanly (`matches=1 → 3`) and then holding for four more passes. It flagged its own honest limit — *one headless client* — and that limit is now closed: the reverted run was prod with other clients, and **two clients on different scope semantics sweep each other's copies** (proven below). Two implementations exist: branch `feed-scope-multiparent` (extracted `reachableAncestors`, 10 unit tests) and the inline BFS in `resolveFeedItems`. **Pick one, delete the other**, then deploy into a single-client window | ✅ ready to land |
+| 1 | **Feed-scope widening is LANDED** (`96b0699a`, deployed). One thing is owed by hand: **reload any Moduli tab that was open before the deploy.** A tab left open runs the old bundle, disagrees about what the feed matches, and deletes the copies a new-bundle client mints. Proven directly — during the deploy check, deletes kept arriving *after* the only new-bundle client had disconnected, and two sockets in the log connected without ever disconnecting. No churn once every client agrees; the log is quiescent now | ⏳ landed, awaiting a tab reload |
 | 2 | **"What else is technically needed for the original vision"** — asked 2026-08-21, never answered | 📋 open ask |
 | 3 | **Empty panel → root manifest folder in folder view** — asked, no commit found | ❓ unconfirmed |
 | 4 | **Schedule apply ~1s** — `resolveOptions` predicate filter ~766ms, the residual after the index work | 📋 measured, not fixed |
@@ -25,8 +25,10 @@ Two ways into it, and **both were live while this was being measured**: a browse
 across a deploy runs the old bundle, and a local dev stack (`npm run dev` + `server/server.js`)
 points at the **same Atlas database as production**.
 
-Proven rather than argued — `feedMixedClientChurn.test.js` drives the real `syncFeed` with the
-resolver giving two different answers: one client is idempotent with stable ids (the control), two
+Proven twice. On the live grid: `feedDiag` reported **`minted 2, swept 0` on every pass** while the
+server logged two deletes per pass — the minting client was not the sweeping one — and the deletes
+continued **after that client disconnected**. In a test, `feedMixedClientChurn.test.js` drives the
+real `syncFeed` with the resolver giving two different answers: one client is idempotent with stable ids (the control), two
 disagreeing clients churn a fresh id every pass, and **the copy they agree on is never disturbed** —
 which is exactly what was seen live, one stable row beside two churning ones.
 
