@@ -18,6 +18,7 @@ import { commitApplyTemplate } from "../helpers/CommitHelpers";
 import { getModuleTypeBadge } from "../helpers/moduleIcons";
 import { openImagePicker } from "./ImagePickerMenu";
 
+import { siblingFieldBindings, splitDisplayInput } from "../helpers/siblingFieldBindings.js";
 // Anchor-relative menu placement. Opens below the anchor; flips above when the
 // menu would overflow the viewport bottom (phone + on-screen keyboard). Pure —
 // unit-tested in __tests__/quickAddMenu.test.js.
@@ -127,6 +128,10 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   // grid has at least one field.
   const [pickingFields, setPickingFields] = useState(null);
   const [fieldSearch, setFieldSearch] = useState("");
+  // The role each prefilled field was bound with on its siblings, so a `display`
+  // field does not arrive as a typable input on the new row. Hand-picked fields
+  // are absent here and default to "input".
+  const inheritedRolesRef = useRef({});
   // Where a page tile files the page it creates, so it shows in the Local/Root
   // tree instead of existing only at the spot it was added.
   const rootFolderId = manifestsById?.[ctxGrid?.manifestId]?.rootFolderId || null;
@@ -176,15 +181,25 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     setFieldSearch("");
   }, []);
 
-  // Sorted, search-filtered field list for the picker.
-  const fieldList = useMemo(() => {
+  // Sorted, search-filtered field list, split into the two SECTIONS the user
+  // asked for (2026-08-21: "i need the display and then input fields seperated
+  // by section"). Display first — those are the computed ones an operation
+  // writes, and they read as a different kind of thing from what you type.
+  const fieldSections = useMemo(() => {
     if (pickingFields == null) return [];
     const q = fieldSearch.trim().toLowerCase();
-    return Object.values(fieldsById || {})
+    const all = Object.values(fieldsById || {})
       .filter(f => !f.trashed)
       .filter(f => !q || (f.name || "").toLowerCase().includes(q))
       .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    const { display, input } = splitDisplayInput(all);
+    return [
+      { key: "display", title: "Display", fields: display },
+      { key: "input", title: "Input", fields: input },
+    ].filter(sec => sec.fields.length);
   }, [fieldsById, pickingFields, fieldSearch]);
+  const fieldCount = useMemo(
+    () => fieldSections.reduce((n, s2) => n + s2.fields.length, 0), [fieldSections]);
 
   const toggleFieldPick = useCallback((fieldId) => {
     setPickingFields(prev => {
@@ -195,7 +210,14 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
 
   const confirmCreate = useCallback(() => {
     const fieldIds = Array.isArray(pickingFields) ? pickingFields : [];
-    onCreateNew?.({ fieldIds });
+    // Bindings, not bare ids — the role a prefilled field carried on its
+    // siblings has to survive, or a computed `display` field lands on the new
+    // row as an empty input box.
+    const roles = inheritedRolesRef.current || {};
+    onCreateNew?.({
+      fieldIds,
+      fieldBindings: fieldIds.map(fid => ({ fieldId: fid, role: roles[fid] || "input" })),
+    });
     closeMenu();
   }, [pickingFields, onCreateNew, closeMenu]);
 
@@ -225,7 +247,22 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     }
     if (targetRole === "instance" && (kind === "instance" || kind == null)) {
       const hasFields = Object.values(fieldsById || {}).some(f => !f.trashed);
-      if (hasFields) { setPickingFields([]); return; }
+      if (hasFields) {
+        // PRE-PICK WHAT THE SIBLINGS ALREADY WEAR (user, 2026-08-21: "so if i
+        // have add an ingrediant, it already has all those fields set"). The
+        // picker opens with them ticked rather than empty, so the common case
+        // is one Enter and the uncommon case is unticking. Read through the
+        // non-subscribing occurrence getter — the same one the existing-matches
+        // list uses — so an always-mounted header menu costs nothing until it
+        // is opened.
+        const occMap = getOccMap?.() || {};
+        const inherited = hostOccurrence
+          ? siblingFieldBindings(occMap[hostOccurrence.id] || hostOccurrence, occMap, modulesById)
+          : [];
+        inheritedRolesRef.current = Object.fromEntries(inherited.map(b => [b.fieldId, b.role]));
+        setPickingFields(inherited.map(b => b.fieldId));
+        return;
+      }
       onCreateNew?.({ fieldIds: [], kind: "instance" });
       closeMenu();
       return;
@@ -384,7 +421,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
             border: "1px solid var(--border-default)", borderRadius: 6,
             width: 260, maxHeight: 360, overflow: "hidden",
             display: "flex", flexDirection: "column",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.4)", fontFamily: "var(--font-mono)",
+            boxShadow: "var(--menu-shadow)", fontFamily: "var(--font-mono)",
           }}
         >
           {picking ? (
@@ -409,31 +446,42 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                 />
               </div>
               <div style={{ flex: 1, overflowY: "auto" }}>
-                {fieldList.length === 0 && (
+                {fieldCount === 0 && (
                   <div style={emptyStyle}>No fields found</div>
                 )}
-                {fieldList.map(f => {
-                  const selected = pickingFields.includes(f.id);
-                  return (
-                    <button
-                      key={f.id}
-                      onClick={() => toggleFieldPick(f.id)}
-                      style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "5px 10px", background: selected ? "rgba(59,130,246,0.12)" : "none", border: "none", cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
-                      onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = "var(--input-bg)"; }}
-                      onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = "none"; }}
-                    >
-                      <span style={{ width: 14, height: 14, borderRadius: 3, border: `1px solid ${selected ? "rgba(59,130,246,0.8)" : "var(--border-default)"}`, background: selected ? "rgba(59,130,246,0.8)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        {selected && <Check size={10} color="white" strokeWidth={3} />}
-                      </span>
-                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name || "(unnamed)"}</span>
-                      {f.type && <span style={{ fontSize: 9, color: "var(--text-faint)", flexShrink: 0 }}>{f.type}</span>}
-                    </button>
-                  );
-                })}
+                {/* DISPLAY then INPUT, each under its own caption (user:
+                    "i need the display and then input fields seperated by
+                    section"). A section with nothing in it is omitted rather
+                    than printed empty. */}
+                {fieldSections.map(sec => (
+                  <div key={sec.key}>
+                    <div style={{ padding: "6px 10px 3px", fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
+                      {sec.title}
+                    </div>
+                    {sec.fields.map(f => {
+                      const selected = pickingFields.includes(f.id);
+                      return (
+                        <button
+                          key={f.id}
+                          onClick={() => toggleFieldPick(f.id)}
+                          style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "5px 10px", background: selected ? "var(--accent-blue-bg)" : "none", border: "none", cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
+                          onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = "var(--input-bg)"; }}
+                          onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = "none"; }}
+                        >
+                          <span style={{ width: 14, height: 14, borderRadius: 3, border: `1px solid ${selected ? "var(--accent-blue)" : "var(--border-default)"}`, background: selected ? "var(--accent-blue)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            {selected && <Check size={10} color="var(--on-accent)" strokeWidth={3} />}
+                          </span>
+                          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name || "(unnamed)"}</span>
+                          {f.type && <span style={{ fontSize: 9, color: "var(--text-faint)", flexShrink: 0 }}>{f.type}</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
               </div>
               <div style={{ display: "flex", gap: 6, padding: "6px 8px", borderTop: "1px solid var(--border-subtle)", background: "var(--input-bg)" }}>
                 <button onClick={() => { onCreateNew?.({ fieldIds: [] }); closeMenu(); }} style={{ flex: 1, padding: "5px 8px", background: "transparent", border: "1px solid var(--border-default)", borderRadius: 4, cursor: "pointer", color: "var(--text-muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}>Skip</button>
-                <button onClick={confirmCreate} style={{ flex: 1, padding: "5px 8px", background: "rgba(59,130,246,0.8)", border: "1px solid rgba(59,130,246,0.9)", borderRadius: 4, cursor: "pointer", color: "white", fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600 }}>Create</button>
+                <button onClick={confirmCreate} style={{ flex: 1, padding: "5px 8px", background: "var(--accent-blue)", border: "1px solid var(--accent-blue)", borderRadius: 4, cursor: "pointer", color: "var(--on-accent)", fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600 }}>Create</button>
               </div>
             </>
           ) : (

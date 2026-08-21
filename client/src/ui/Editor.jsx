@@ -97,6 +97,7 @@ import {
 } from "../helpers/provisionalTextblock";
 import { operationsBridge } from "../state/bindSocketToStore";
 
+import { normalizeFieldBindings } from "../helpers/siblingFieldBindings.js";
 // The caret-entry mint must only fire for a caret the USER placed. Every other
 // path that moves a selection — a server echo's setContent, the content-sync
 // effect, a drop's setTextSelection — would otherwise mint a textblock nobody
@@ -2542,7 +2543,7 @@ const Editor = forwardRef(function Editor({
   // Mint a standalone occurrence (NOT into any occurrences[] — doc embeds are
   // standalone) and insert a moduleEmbed for it at `pos`. existingModuleId →
   // a fresh placement of a picked module; else a new role:"instance" module.
-  const insertDocItemAt = useCallback((pos, { existingModuleId = null, fieldIds = [] } = {}) => {
+  const insertDocItemAt = useCallback((pos, { existingModuleId = null, fieldIds = [], fieldBindings = null } = {}) => {
     if (!editor || !occurrence?.userId) return;
     const userId = occurrence.userId;
     const gridId = occurrence.gridId;
@@ -2550,10 +2551,14 @@ const Editor = forwardRef(function Editor({
     let moduleId = existingModuleId;
     if (!moduleId) {
       moduleId = crypto.randomUUID();
-      const module = { id: moduleId, userId, gridId, role: "instance", kind: "list", label: "" };
-      if (Array.isArray(fieldIds) && fieldIds.length) {
-        module.fieldBindings = fieldIds.map((fid) => ({ fieldId: fid, role: "input" }));
-      }
+      // NO `kind`: inert on an instance leaf, and `getModuleTypeIcon` prefers it
+      // over role — this line carried `kind: "list"`, which is not even a kind
+      // this app has (there is no list container; it is BOARD everywhere,
+      // 2026-07-29). Second call site of the same defect, fixed here too.
+      const module = { id: moduleId, userId, gridId, role: "instance", label: "" };
+      // Bindings win over bare ids — they carry each field's ROLE.
+      const bindings = normalizeFieldBindings({ fieldBindings, fieldIds });
+      if (bindings.length) module.fieldBindings = bindings;
       CommitHelpers.createModule({ dispatch, socket, module, emit: true });
     }
     CommitHelpers.createOccurrence({
@@ -2694,7 +2699,7 @@ const Editor = forwardRef(function Editor({
               targetRole="instance"
               hostOccurrence={occurrence}
               onSelect={(m) => insertDocItemAt(docGap.pos, { existingModuleId: m?.id ?? m })}
-              onCreateNew={({ fieldIds } = {}) => insertDocItemAt(docGap.pos, { fieldIds })}
+              onCreateNew={({ fieldIds, fieldBindings } = {}) => insertDocItemAt(docGap.pos, { fieldIds, fieldBindings })}
               openTrigger={gapAddTrigger}
               // onOpenChange fires on real transitions only (never on mount),
               // so a close always means "the user is done with this gap".

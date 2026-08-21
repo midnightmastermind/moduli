@@ -4,6 +4,7 @@ import { safeEmit } from "./offlineQueue";
 import { beginAction, endAction, withAction } from "./actionScope";
 import { buildParentMap } from "./dragHitTesting";
 import { computePageFilterFields } from "./filterFieldStamp";
+import { normalizeFieldBindings } from "./siblingFieldBindings.js";
 import {
   createGridAction,
   updateGridAction,
@@ -1197,7 +1198,8 @@ export function addImageArtifactFromUrl({
 // (the menu opens an OS picker and passes it through).
 export function createChildInContainer({
   dispatch, socket, gridId, userId, containerOccurrence, containerModule = null,
-  kind = "instance", role = null, fieldIds = [], index = null, file = null, url = null,
+  kind = "instance", role = null, fieldIds = [], fieldBindings = null, index = null,
+  file = null, url = null,
   panelId = null, containerLabel = "", folderId = null,
 }) {
   const args = { dispatch, socket, gridId, userId, containerOccurrence, index };
@@ -1221,7 +1223,7 @@ export function createChildInContainer({
   }
   // default: a leaf instance (with any pre-picked fields)
   return createLeafInstanceAtIndex({
-    ...args, role: "instance", fieldIds,
+    ...args, role: "instance", fieldIds, fieldBindings,
     parentOccurrence: containerOccurrence,
     panelId, containerLabel,
   });
@@ -1290,7 +1292,7 @@ export function createLeafInstanceInParent({
 export function createLeafInstanceAtIndex({
   dispatch, socket, gridId, userId, parentOccurrence, index = null,
   existingModuleId = null, role = "instance", kind = null, label = "", initialFields = {},
-  fieldIds = [], panelId = null, containerLabel = "",
+  fieldIds = [], fieldBindings = null, panelId = null, containerLabel = "",
 }) {
   if (!gridId || !userId || !parentOccurrence) return null;
   const occurrenceId = crypto?.randomUUID?.() || `lo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -1309,9 +1311,15 @@ export function createLeafInstanceAtIndex({
     // kind:"board" renders the BOARD icon everywhere (2026-07-29 audit).
     const module = { id: moduleId, userId, gridId, role, label: label || "", ...(kind ? { kind } : {}) };
     // Bind any fields the user pre-picked in the QuickAddMenu field step.
-    if (Array.isArray(fieldIds) && fieldIds.length) {
-      module.fieldBindings = fieldIds.map(fid => ({ fieldId: fid, role: "input" }));
-    }
+    //
+    // `fieldBindings` WINS over `fieldIds` when the caller sent both, because it
+    // carries each binding's ROLE. The picker seeds itself from what the
+    // destination's existing rows bind (2026-08-21), and a sibling's `display`
+    // field must land as a display binding — flattening every prefilled field to
+    // "input" would give the new row a typable box where its neighbours show a
+    // value an operation writes.
+    const bindings = normalizeFieldBindings({ fieldBindings, fieldIds });
+    if (bindings.length) module.fieldBindings = bindings;
     dispatch?.(createModuleAction(module));
     safeEmit(socket, "create_module", { module });
   }

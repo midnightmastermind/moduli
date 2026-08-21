@@ -56,6 +56,7 @@ import { requestLabelEdit } from "./helpers/pendingLabelEdit.js";
 import { openPanelOnRootFolderPage } from "./helpers/importsFolder";
 import { buildLookup } from "./helpers/LayoutHelpers";
 
+import { normalizeFieldBindings } from "./helpers/siblingFieldBindings.js";
 function findNextOpenPosition(panels = [], rows = 1, cols = 1) {
   const taken = new Set(panels.map((p) => `${p.row}-${p.col}`));
   for (let r = 0; r < rows; r++) {
@@ -713,11 +714,23 @@ export default function App() {
 
       const id = crypto.randomUUID();
       const label = `Item ${(s.instances?.length || 0) + 1}`;
-      // Module with role: "instance". Pre-bind any fields the user picked
-      // in the QuickAddMenu field-picker step. Default role="input" so the
-      // field renders as an editable pill (matches FieldsTab "attach" flow).
-      const fieldBindings = fieldIds.map(fid => ({ fieldId: fid, role: "input", hidden: false }));
-      const module = { id, role: "instance", kind: "board", label, fieldBindings };
+      // Module with role: "instance". Pre-bind the fields the picker carried —
+      // which since 2026-08-21 are seeded from what the destination's existing
+      // rows bind, so "add an ingredient" arrives wearing the ingredient fields.
+      //
+      // `opts.fieldBindings` WINS over `fieldIds` because it carries each
+      // binding's ROLE. A sibling's `display` field must land as a display
+      // binding; flattening it to "input" gives the new row a typable box where
+      // its neighbours show a value an operation writes.
+      const fieldBindings = normalizeFieldBindings({
+        fieldBindings: opts?.fieldBindings, fieldIds, hidden: true });
+      // NO `kind`. It is the sub-type WITHIN a role and is inert on an instance
+      // leaf — and `getModuleTypeIcon` resolves kind BEFORE role, so the
+      // `kind: "board"` this line used to carry drew the BOARD icon on every row
+      // "+ Item" ever created. Fixed at `createLeafInstanceAtIndex` on
+      // 2026-07-29 and at the seed before that; this was the third call site,
+      // and it is the one the container header actually uses.
+      const module = { id, role: "instance", label, fieldBindings };
 
       const container = (s.containers || []).find((c) => c.id === containerId);
       if (!container) return;

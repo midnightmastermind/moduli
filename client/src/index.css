@@ -50,6 +50,17 @@
     Consolas, "Liberation Mono", "Courier New", monospace;
   --moduli-mark: #0e2140;
   --moduli-text: #4474c2;
+
+  /* INK ON THE ACCENT FILL. Every theme re-hues `--accent-blue` — rust on
+     Stardew's cousin, violet on midnight, MUSTARD on vintage-dark — and the
+     controls painted with it hardcoded `color: "white"`, which is 2:1 on
+     mustard. One token, overridden by the one theme whose accent is light.
+     In the bare :root for the reason the comment above gives. */
+  --on-accent: #ffffff;
+
+  /* MENU / DROPDOWN DROP SHADOW. Was `rgba(0,0,0,0.4)` inline in every floating
+     surface — a heavy black smudge under a cream panel on the light skins. */
+  --menu-shadow: 0 4px 16px rgba(0,0,0,0.4);
 }
 
 /* =============================================================================
@@ -178,6 +189,7 @@
    Clean bright workspace with blue accents.
    ============================================================================= */
 [data-theme="moduli-light"] {
+  --menu-shadow: 0 4px 16px rgba(30,41,59,0.16);
   /* Value-state signal trio (2026-07-25) — tracker tiles color by their value
      (zero / positive / negative). Theme-owned so a vintage grid doesn't show
      a bright material-blue "0". */
@@ -433,6 +445,7 @@
    Palette from the retro reference art (screenshots 2026-07-25).
    ============================================================================= */
 [data-theme="vintage-light"] {
+  --menu-shadow: 0 4px 16px rgba(60,45,30,0.18);
   /* Value-state signal trio (2026-07-25) — tracker tiles color by their value
      (zero / positive / negative). Theme-owned so a vintage grid doesn't show
      a bright material-blue "0". */
@@ -663,6 +676,8 @@
   --input-border: rgba(236,227,208,0.14);
   --accent-blue: #e0a63f;            /* mustard = the primary action color */
   --accent-blue-hover: #c98f2c;
+  /* White ink on mustard is ~2:1. The theme's own deep brown reads instead. */
+  --on-accent: #2b1d0c;
   --accent-blue-text: #eec563;
   --accent-blue-bg: rgba(224,166,63,0.16);
   --accent-blue-border: rgba(224,166,63,0.45);
@@ -6620,6 +6635,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    Palette read off the farmhouse-sunset art rather than invented.
    ============================================================================= */
 [data-theme="stardew"] {
+  --menu-shadow: 0 4px 16px rgba(52,31,14,0.20);
   /* Value-state signal trio */
   --signal-zero: 61 123 191;
   --signal-pos: 74 158 63;
