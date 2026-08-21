@@ -3125,3 +3125,11 @@ Completing a task or appointment **on the Tasks page** must still reach the Comp
 noting against what the audit has already measured: `makeTrackerOp` scopes its loop
 `HAS_ANCESTOR <Schedule page>`, so a row completed anywhere else is invisible to it by construction —
 this is a live defect to confirm, not a hypothetical.
+
+> "i also want a weekday dropdown field for tasks so when i have that set and date empty, we add them
+> to the schedule for that day"
+
+A **recurring-weekly task**: a `Weekday` dropdown on Tasks, and when it is set AND `Date` is empty the
+schedule build places that task on that weekday. Note the primitive already exists — `Weekday` is the
+field the seven weekday TEMPLATES are matched by (`0161`/`0162`), and `weekday:expr` is already a
+token — so this is the same field one surface over, not a new mechanism.
