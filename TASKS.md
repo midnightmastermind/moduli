@@ -7,10 +7,20 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 
 | # | Task | State |
 |---|------|-------|
-| 1 | **Theme sweep over every dropdown and menu** — 16 hardcoded blues in 9 files, ~25 hardcoded black shadows in 20 files | 📋 queued, measured |
-| 2 | **Merge templates as layers** — one Meals template + reusable workout sessions, matched by a multi-select `Weekday` | 📋 queued, measured |
-| 3 | **End-of-day move** — completed tasks/appointments → `Tasks > Completed` after the day rolls over | 🔎 measured; blocked on repairing 2 mis-parented rows first |
-| 4 | **Verify the weekday feature in a browser** — nobody has picked a weekday and watched a copy land | ⏳ honest gap |
+| 1 | **Merge templates as layers** — one Meals template + reusable workout sessions, matched by a multi-select `Weekday` | 📋 queued, measured (56 meal rows where 8 would do) |
+| 2 | **End-of-day move** — completed tasks/appointments → `Tasks > Completed` after the day rolls over, *"even if they arent on the schedule"* | 🔎 measured; blocked on repairing 2 mis-parented rows first |
+| 3 | **"What else is technically needed for the original vision"** — asked 2026-08-21, never answered | 📋 open ask |
+| 4 | **Empty panel → root manifest folder in folder view** — asked, no commit found | ❓ unconfirmed |
+| 5 | **Schedule apply ~1s** — `resolveOptions` predicate filter ~766ms, the residual after the index work | 📋 measured, not fixed |
+| 6 | **Three external-data pipes** — Tasker profiles, ingest credentials, the four slow exports | 🚫 blocked on the user |
+
+## Done — 2026-08-21 (later)
+
+| Task | Where |
+|------|-------|
+| **Theme sweep over every dropdown and menu** — 82 literal colours → tokens across 20 floating surfaces | `0e090a6b`, deployed |
+| Theme tokens **verified resolving** on the live grid under Stardew — `--menu-shadow-1/2/3` brown (`rgba(52,31,14,…)`) not black, `--scrim` brown, `--signal-warn` darkened | browser probe |
+| **Weekday feature VERIFIED IN A BROWSER** — the 2026-08-21 honest gap, closed | probe |
 
 ## Done — 2026-08-21
 
