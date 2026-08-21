@@ -104,6 +104,13 @@
   /* Text */
   --foreground-0: 210 40% 94%;
   --foreground-1: 210 40% 98%;
+  /* Inline mini-textblock chips (imported bullet items, link chips). ONE token
+     rather than the eighteen copies of the literal `134, 239, 172` this file had
+     — the 2026-08-19 lesson, where a pill border was fixed at the three call
+     sites that had been MEASURED and stayed wrong at the other seven. Dark
+     themes are byte-identical to before; a light skin can re-tint the chip
+     without touching a rule. */
+  --textblock-tint: 134 239 172;
   --foreground-2: 216 15% 65%;
 
   /* Tailwind token aliases */
@@ -2016,8 +2023,19 @@ body[data-layout="mobile"] .page-shell:not(.page-shell--nested) {
 
 .doc-editor-content.ProseMirror li p { display: inline; margin: 0; }
 
+/* The bullet FOLLOWS THE THEME'S INK. It was a hardcoded
+   `rgba(255,255,255,0.5)` — fine over near-black, invisible over cream, which is
+   why every imported bullet list read as unmarked lines on Stardew (user,
+   2026-08-21: "the bulletpoints arent showing up"). Measured on the live page
+   before changing it: the marker computed white at 50% while the body ink was
+   `rgb(52,31,14)`, so the markers were being drawn correctly and painted in a
+   colour the surface could not show. Same class as the select/date pills on
+   2026-08-19 — a dark-surface assumption baked in as a literal.
+   `--foreground-1` is the ink the theme already uses for prose, so this tracks
+   both light and dark skins by construction rather than needing a second value
+   per theme. */
 .doc-editor-content.ProseMirror li::marker {
-  color: rgba(255, 255, 255, 0.5) !important;
+  color: hsl(var(--foreground-1) / 0.55) !important;
   font-size: 1em !important;
 }
 
@@ -4399,8 +4417,12 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
      the prose, so those spaces stop "showing up" beside the chip and the chip's own 6px
      padding becomes the sole, tidy gap. 1px top/bottom. */
   margin: 1px -3px;
-  background: rgba(134, 239, 172, 0.10);
-  border: 1px solid rgba(134, 239, 172, 0.22);
+  /* Dropped 0.10 -> 0.055 and the border 0.22 -> 0.13: on a LIGHT skin the green
+     wash read as an opaque pale box around every imported bullet line rather
+     than as a chip (measured on prod at rgba(134,239,172,0.1) over Stardew's
+     cream). Still visible enough to show the chip is a draggable object. */
+  background: rgb(var(--textblock-tint) / 0.055);
+  border: 1px solid rgb(var(--textblock-tint) / 0.13);
   border-radius: 4px;
   cursor: grab;
   transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
@@ -4418,8 +4440,8 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   max-width: 100%;
 }
 .instance-textblock-inline:hover {
-  background: rgba(134, 239, 172, 0.18);
-  border-color: rgba(134, 239, 172, 0.42);
+  background: rgb(var(--textblock-tint) / 0.14);
+  border-color: rgb(var(--textblock-tint) / 0.34);
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
 }
 /* Link mini-textblocks render their OWN <a> chip inside the wrapper — strip the
@@ -4443,8 +4465,8 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   font-style: italic;
 }
 .instance-textblock-inline.is-editing {
-  background: rgba(134, 239, 172, 0.20);
-  outline: 1px dashed rgba(134, 239, 172, 0.55);
+  background: rgb(var(--textblock-tint) / 0.20);
+  outline: 1px dashed rgb(var(--textblock-tint) / 0.55);
 }
 .instance-textblock-inline-edit {
   outline: none;
