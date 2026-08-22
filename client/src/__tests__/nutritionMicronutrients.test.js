@@ -39,7 +39,17 @@ function sweep(mutate) {
     for (const b of m?.fieldBindings || []) out[fieldsById[b.fieldId]?.name] = o?.fields?.[b.fieldId]?.value;
     return out;
   };
-  return { micro: readTile("Vitamins & Minerals"), intake: readTile("Intake"), errors, fieldsById };
+  // Resolved by WHERE THE FIELD IS BOUND, not by a tile's name. `0190` moved `Meal Count`
+  // off `Intake` (now `Liquid Intake`, water only) onto `Meal Log`, and a test naming the
+  // tile broke against a correct move. The claim was never "Intake holds it" — it is that
+  // the write lands wherever the binding is, which is the thing that was broken once.
+  const tileBinding = (fieldName) => {
+    const fid = Object.values(fieldsById).find(f => f.name === fieldName)?.id;
+    const m = Object.values(modulesById).find(x =>
+      (x.fieldBindings || []).some(b => b.fieldId === fid) && x.role === "instance");
+    return m ? readTile(m.label) : {};
+  };
+  return { micro: readTile("Vitamins & Minerals"), tileBinding, errors, fieldsById };
 }
 const tickEveryMeal = (occ) => {
   const ing = fx.fields.find(f => f.name === "Ingredient" && !f.displayEnabled).id;
@@ -130,7 +140,10 @@ describe("Nutrition: Today's Micronutrients", () => {
     // It was written to the micronutrient tile while bound to Intake, so the
     // value sat on an occurrence nothing renders. A field's value is
     // per-occurrence; binding it one place and writing it another never meets.
-    const { intake } = sweep(tickEveryMeal);
-    expect(intake["Meal Count"]).toBeGreaterThan(0);
+    const { tileBinding } = sweep(tickEveryMeal);
+    const host = tileBinding("Meal Count");
+    // control: the field is bound somewhere at all, or the assertion below is vacuous
+    expect(Object.keys(host), "no instance module binds Meal Count").not.toEqual([]);
+    expect(host["Meal Count"]).toBeGreaterThan(0);
   });
 });
