@@ -13,13 +13,24 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 | 3b | **Tracker date-filter audit** — *"after, i want you to audit all my trackers and make sure they are updated and everything is updated when i select a new date filter in the respective spots"* (08-21). Marked **QUEUED** in `CLAUDE_CHAT.md` and never run. Parts landed (`0164` category axis, `0166`/`0167` period-all on three trackers) but the audit itself — every tracker recomputing correctly against **the filter of the page it lives on** — was never done. Adjacent to item 10: a Trackers nav matches 44 ops, ~42 of them trackers | 📋 QUEUED, never run |
 | 3c | **Open-page-in-panel highlight** — *"if i open a page in a panel, and its already opened in another visible panel, highlight the page in the spot thats opened (still open the page in the original spot)"*. `openOccurrenceInPanel` knows `alreadyOpen` only for the SAME panel's active page; nothing looks across panels | ❓ appears never built |
 | 4 | **"What else is technically needed for the original vision"** — asked 08-20, never answered | 📋 open ask |
-| 5 | **Instance label text size one step bigger** — *"make sure the instance labels text size 1 size bigger too"* (08-20). No commit found touching it | ❓ unconfirmed |
+| 5 | **Instance/tracker label font sizes** — *"make sure the instance labels text size 1 size bigger too"* (08-20), and the follow-up that says the attempt went wrong: *"the fields in trackers font sizes didnt change and the rest are too big now"* (08-19). No CSS rule sizes `.instance-label`; the sizes are INLINE in `ModuleInstance.jsx`, which is the documented trap. No recorded fix for either | ❓ regression reported, unfixed |
+| 5b | **Emotions wheel third level reads blank at rest** — *"its written, the writing is just transparent and only shows on hover"* (08-18). This may BE the deliberate responsive hiding from 2026-08-08 (6) — outer labels are dropped when a 4.5° slice is under ~1.8× the font size, and return on zoom. If so it is working as designed and the design is unwanted; if not it is a real bug. **Needs your call before anything is changed** | ❓ by design or bug |
+| 5c | **A skinless grid still gets the base rainbow header.** *"dont let the default header color be the rainbow either"* (08-19) was answered by the skin system the same day — the band became a per-skin VALUE, and Stardew (what you run) paints a wooden frame. But bare `:root` still carries the retro rainbow, so any grid with no skin shows it | ❓ answered for your grid, not the default |
 | 6 | **Monthly Bills goal target is a frozen literal** — `displayConfig.targetValue` is `2040.97` and takes a number only. Correct today, drifts the moment a bill changes | 📋 reported, not fixed |
 | 7 | **Micronutrient op double-counts a repeated ingredient across meals** — correct for a day's intake, wrong if the tile is ever pointed at a template | 📋 known limit |
 | 8 | **Trackers panel sits at 36% of the left column** — one splitter drag if it reads short | 🎨 cosmetic, your call |
 | 9 | **Assistant grid-build plan is written, not executed** — and its blocker is measured: the configured 3B model took **207s** for one read-only tool call and answered wrong. Step 1 is config (the allowlist is an env var), not code | 📋 planned |
 | 10 | **Schedule apply ~1s** — `resolveOptions` predicate filter ~766ms | 📋 measured, not fixed |
 | 11 | **Three external-data pipes** — Tasker profiles, ingest credentials, the four slow exports | 🚫 blocked on you |
+
+## Micro-ask sweep — all three accounts, full history
+
+357 distinct short user asks were extracted across `.claude`, `.claude-account2`
+and `.claude-account3` and the recent tail triaged. **Six were verified SHIPPED**
+and are not carried: thicker grid lines (`--grid-line` cites the 08-17 ask
+verbatim, 2px, per theme), the spread viewer's zoom-OUT, an empty grid on a fresh
+account, ingredient photos, artifact-spread grid layout, and the loading spinners.
+Three survive as items 5, 5b and 5c above.
 
 ## Unreconciled — the 2026-05-22 backlog in `CLAUDE_CHAT.md`
 
