@@ -3255,3 +3255,20 @@ styling one:
 
 Plus a standing instruction: **sweep the logs for the other small asks of this kind.** The
 2026-08-22 micro-sweep covered the recent tail; this says the sweep is not finished.
+
+> "could you also take down a task to make another schedule template called routine and merge
+> that in with the meal one and schedule when the time comes to create the schedule."
+
+**FILED, not built — and it is the natural third layer of the system fixed this morning.** `0177`
+made `Schedule: Place Weekday` merge EVERY template whose `Weekday` multi-select contains the day,
+so a `Routine` layer is a new template row claiming all seven days, exactly as `Meals` already does.
+No new mechanism is needed.
+
+**The two things that decide the work, and both are already measured:**
+- **The daily routines were deliberately taken OFF all seven weekday templates** (2026-08-20): they
+  come from `Day`, which `Build Schedule` applies every morning, and the weekday templates hold only
+  what makes that weekday different. A `Routine` LAYER is the clean way to give them a home of their
+  own again — but it must not double-place against what `Day` already puts down.
+- **The merge defect this layer would have hit was fixed today** (`85b0989e`): two layers claiming
+  one slot lost the first layer's rows to a stale whole-array write. `Routine` + `Meals` both
+  claiming 7:00am is precisely that case, so this is now safe to build where a week ago it was not.
