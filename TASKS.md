@@ -15,13 +15,20 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 | 4 | **"What else is technically needed for the original vision"** — asked 08-20, never answered | 📋 open ask |
 | 5 | **Instance/tracker label font sizes** — *"make sure the instance labels text size 1 size bigger too"* (08-20), and the follow-up that says the attempt went wrong: *"the fields in trackers font sizes didnt change and the rest are too big now"* (08-19). No CSS rule sizes `.instance-label`; the sizes are INLINE in `ModuleInstance.jsx`, which is the documented trap. No recorded fix for either | ❓ regression reported, unfixed |
 | 5b | **Emotions wheel third level reads blank at rest** — *"its written, the writing is just transparent and only shows on hover"* (08-18). This may BE the deliberate responsive hiding from 2026-08-08 (6) — outer labels are dropped when a 4.5° slice is under ~1.8× the font size, and return on zoom. If so it is working as designed and the design is unwanted; if not it is a real bug. **Needs your call before anything is changed** | ❓ by design or bug |
-| 5c | **A skinless grid still gets the base rainbow header.** *"dont let the default header color be the rainbow either"* (08-19) was answered by the skin system the same day — the band became a per-skin VALUE, and Stardew (what you run) paints a wooden frame. But bare `:root` still carries the retro rainbow, so any grid with no skin shows it | ❓ answered for your grid, not the default |
 | 6 | **Monthly Bills goal target is a frozen literal** — `displayConfig.targetValue` is `2040.97` and takes a number only. Correct today, drifts the moment a bill changes | 📋 reported, not fixed |
 | 7 | **Micronutrient op double-counts a repeated ingredient across meals** — correct for a day's intake, wrong if the tile is ever pointed at a template | 📋 known limit |
 | 8 | **Trackers panel sits at 36% of the left column** — one splitter drag if it reads short | 🎨 cosmetic, your call |
 | 9 | **Assistant grid-build plan is written, not executed** — and its blocker is measured: the configured 3B model took **207s** for one read-only tool call and answered wrong. Step 1 is config (the allowlist is an env var), not code | 📋 planned |
 | 10 | **Schedule apply ~1s** — `resolveOptions` predicate filter ~766ms | 📋 measured, not fixed |
 | 11 | **Three external-data pipes** — Tasker profiles, ingest credentials, the four slow exports | 🚫 blocked on you |
+
+## Done — 2026-08-22 (micro sweep)
+
+| Task | Where |
+|------|-------|
+| **The rainbow header on cold load** — *"that header color is happening when the first grid loads, its a rainbow"*, and the second time it was asked. TWO causes, and the first fix alone was not enough: `useSkin` stamped `DEFAULT_SKIN` (which *is* `retro-rainbow`) before the grid loaded, **and** the gradient was declared under a bare `:root` so an unstamped document had it anyway | `89bf7dc6` + `d164ac46` |
+| Narrowed to the complaint — only `--retro-rainbow` moved to a skin-scoped rule; the wallpaper and scrims still default, so it does not trade a rainbow flash for a wallpaper flash | same |
+| **Verified on production by sampling a cold load every 250ms**: `(none)\|(unset)` throughout the load, then `stardew\|linear-gradient(90deg,#8a5a…)`. The first fix alone still showed `#e545…` — which is how the second cause was found | probe |
 
 ## Micro-ask sweep — all three accounts, full history
 
@@ -30,7 +37,9 @@ and `.claude-account3` and the recent tail triaged. **Six were verified SHIPPED*
 and are not carried: thicker grid lines (`--grid-line` cites the 08-17 ask
 verbatim, 2px, per theme), the spread viewer's zoom-OUT, an empty grid on a fresh
 account, ingredient photos, artifact-spread grid layout, and the loading spinners.
-Three survive as items 5, 5b and 5c above.
+Two survive as items 5 and 5b above; the rainbow default is fixed (see above).
+
+**One to re-check:** `0` ingredients carry `meta.servingSize`, though CLAUDE.md 2026-08-13 (7) records serving sizes moving there when the amounts came out of the titles. Either they live somewhere else or that write did not stick — measured, not yet explained.
 
 ## Unreconciled — the 2026-05-22 backlog in `CLAUDE_CHAT.md`
 
