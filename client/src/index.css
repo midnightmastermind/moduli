@@ -5537,17 +5537,19 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   animation: assistant-indeterminate 1.15s ease-in-out infinite;
 }
 
-/* ── Panel already-open flash (ModulePanel.openPage) ──────────────────── */
-/* Applied to a panel-shell when the user tries to open a page that's
-   already active in a different panel on the grid. The page still opens
-   in the requested panel — this is a heads-up notification, not a block. */
-@keyframes panel-already-open-flash {
+/* ── Already-open flash (helpers/alreadyOpenFlash) ────────────────────── */
+/* Applied to the PAGE HEADER of another panel when the user opens a page that
+   is already active there. The page still opens in the requested panel — this
+   is a heads-up notification, not a block. It used to ring the whole panel
+   shell; the user asked for the page itself, and a panel has no tab strip
+   (one page at a time, its name in `.page-header`), so the header IS the tab. */
+@keyframes already-open-flash {
   0%   { box-shadow: 0 0 0 0 var(--accent-blue, rgba(96,165,250,0.0)); }
   20%  { box-shadow: 0 0 0 4px var(--accent-blue, rgba(96,165,250,0.85)); }
   100% { box-shadow: 0 0 0 0 rgba(96,165,250,0); }
 }
-.panel-already-open-flash {
-  animation: panel-already-open-flash 1200ms ease-out 1;
+.already-open-flash {
+  animation: already-open-flash 1200ms ease-out 1;
 }
 
 /* =============================================================================

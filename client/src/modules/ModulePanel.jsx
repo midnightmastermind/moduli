@@ -26,6 +26,7 @@ import { useGridActionsSelector } from "../GridActionsContext";
 import { GridDataContext } from "../GridDataContext";
 import { GridLiveContext } from "../GridLiveContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { flashPanelAlreadyOpen } from "../helpers/alreadyOpenFlash";
 import { setCurrentLocation } from "../helpers/currentLocation";
 import {
   getPanelContainers,
@@ -690,8 +691,8 @@ function Panel({
       CommitHelpers.pinPageToPanel({ dispatch, socket, pageOccurrenceId: occId, panelOccurrenceId: panelOccurrence.id });
     }
     // Already-open notification: if this page is the active occurrence of
-    // ANOTHER panel's view in the current grid, flash that other panel's
-    // shell so the user notices. We still open the page in the requested
+    // ANOTHER panel's view in the current grid, flash that page's HEADER over
+    // there so the user notices. We still open the page in the requested
     // panel — this is a notice, not a block.
     if (occId && viewsById && (modulesById || occurrencesById)) {
       const otherPanelIds = new Set();
@@ -712,11 +713,10 @@ function Panel({
       }
       for (const pid of otherPanelIds) {
         const el = document.querySelector(`[data-panel-id="${CSS.escape(String(pid))}"]`);
-        if (!el) continue;
-        el.classList.remove("panel-already-open-flash");
-        void el.offsetWidth; // force reflow to restart animation
-        el.classList.add("panel-already-open-flash");
-        el.addEventListener("animationend", () => el.classList.remove("panel-already-open-flash"), { once: true });
+        // The PAGE HEADER, not the whole shell (user, 2026-08-22: flash "the
+        // page in the spot thats opened"). `flashPanelAlreadyOpen` falls back
+        // to the shell when a panel has no page mounted.
+        if (el) flashPanelAlreadyOpen(el);
       }
     }
     if (currentView?.id) {
