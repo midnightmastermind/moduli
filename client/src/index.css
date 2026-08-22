@@ -3822,9 +3822,20 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   --doc-container-tint: rgba(134, 239, 172, 0.04);
   --doc-container-tint-hover: rgba(134, 239, 172, 0.10);
   --doc-container-ring: rgba(134, 239, 172, 0.22);
-  /* was the container's — the doc-section teal */
-  --doc-textblock-tint: rgba(14, 61, 50, 0.35);
-  --doc-textblock-tint-hover: rgba(14, 61, 50, 0.52);
+  /* was the container's — the doc-section teal.
+
+     TRANSPARENT AT REST (user, 2026-08-22: *"just make the textblocks and the
+     tables have a transparent background here"*, after *"make each transparacy
+     as light as possible"* on 08-17). One token does all three surfaces —
+     `.textblock-card`, `.table-header-row` and `.table-td` all read it — which
+     is why they were named as a pair in the first place.
+
+     HOVER KEEPS A TINT, deliberately: it is the only thing that says a
+     textblock is a thing you can act on, and a hover that paints nothing is
+     indistinguishable from a dead one. Dropped from 0.52 to a light wash so the
+     jump off transparent is not a slab appearing under the pointer. */
+  --doc-textblock-tint: transparent;
+  --doc-textblock-tint-hover: rgba(14, 61, 50, 0.18);
   --doc-textblock-ring: rgba(62, 142, 126, 0.30);
 }
 
@@ -6957,8 +6968,13 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   /* Parchment, not teal — see (1). */
   --doc-container-tint: rgba(120, 82, 40, 0.06);
   --doc-container-tint-hover: rgba(120, 82, 40, 0.12);
-  --doc-textblock-tint: rgba(255, 248, 230, 0.82);
-  --doc-textblock-tint-hover: rgba(255, 252, 240, 0.94);
+  /* WAS 0.82 / 0.94 — an all but solid cream slab, and the single biggest
+     reason the user reported "textblocks arent transparent at all". The
+     2026-08-19 pass raised it to rescue the INK, which had been dark-brown on a
+     dark teal tint; the ink is near-black on parchment now (item 4 of that same
+     pass), so the tint no longer has to carry legibility on its own. */
+  --doc-textblock-tint: transparent;
+  --doc-textblock-tint-hover: rgba(120, 82, 40, 0.14);
   /* The ink for doc surfaces — see (4). */
   --stardew-ink: #14100a;
 }
