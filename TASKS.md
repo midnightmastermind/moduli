@@ -7,6 +7,13 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 
 | # | Task | State |
 |---|------|-------|
+| A | **`Workouts` tracker tile is empty EVERY day — confirmed live, root cause narrowed** — *"workouts arent showing up in trackers"* (08-22). Driven through the REAL executor over a fixture exported from the live grid minutes ago: `Workouts: Today's Session` emits 27 effects and **every one of the 26 movement fields is written `undefined`**, then it sets the tile's `fieldVisibility` to `{mode:"show", fieldIds:["<Tracker Date>"]}` — so the tile renders a date and nothing else. **That visibility write is byte-identical on a Monday and a Saturday**, which is the tell: it is not "rest day, nothing to show", it is day-independent. Your 08-21 design (*"a field for each workout in the tile (0/1), show that days tile and hide the rest"*) is what `0171` built and it does not fill | 🐛 confirmed, cause narrowed |
+| B | **`Macros` tile can never fill — nothing writes it** — *"the meal macros … werent updating"* (08-21, 08-22). Measured: `Macros` binds `Total Calories/Protein/Carbs/Fats` and **no operation names that tile's id**. `Meal Nutrition` writes those same four field NAMES but onto its OWN occurrence, and field values are per-occurrence — so `Macros` is inert by construction. Either point an op at it or retire it (it duplicates `Meal Nutrition`) | 🐛 confirmed inert |
+| B2 | **…and `Meal Nutrition` itself WORKS — retracted as a bug.** The same executor run emits `Total Protein=23 · Calories=305 · Carbs=35 · Fats=7` from today's one completed meal, and `Vitamins & Minerals` emits all 15 values, and `Intake.Meal Count=1`. The 0s stored in Mongo are stale because these are DISPLAY fields recomputed each load. **So the macro complaint is most likely the `Macros` tile (item B), not the maths** | ✅ works — see B |
+| C | **Operations-UI audit — "can I edit everything from the UI?"** — *"add in a task to do an audit on the operations ui and make sure i can edit everything in the ui. id like to change my tasks goal from 10 to 5 and i want to make sure we can do that via the ui easily"* (08-22). The concrete acceptance test is that one change, done by clicking. Related and already measured: 35 picker actions had no editor until 2026-08-19, and `displayConfig.targetValue` is a frozen literal (item 6) | 📋 new ask |
+| D | **The Eminem infobox renders an empty spot before Kimberly — "its just a comma"** — recovered from a COMPACT SUMMARY, not from any user turn, which is why three sweeps missed it | 🐛 never filed |
+| E | **Spanish translations in brackets** — *"could you put in the md file the translation next to the spanish in brackets"*. Same recovery | 📋 never filed |
+| F | **"and for rest day, dont have anythign for excersise"** / **"but dont show draggables"** / **"we want layout, just not cascaded dude"** — three more from summaries; the third is a CORRECTION to a design decision and needs your context before anything is changed | ❓ needs your call |
 | 0 | **`Drink` with `Water` selected, on the `Meals` template** — *"also drink should show up with water selected in the meals template"* (08-22, the newest ask, carried from account2's live session). **Measured, and it needs a decision before it can be built:** `Day` ALREADY places a `Drink` at **6:00am** with **no Beverage picked**, and it is the only Drink on any template. `Meals` holds eight `Eat` rows (7am · 9 · 11 · 1pm · 3 · 5 · 7 · 9pm) and no Drink. So "in the meals template" is either eight drinks beside the meals, or one, or simply picking Water on the one `Day` already places — and the three differ by seven rows a day. **The right `Water` is `QYYO61oFcf33`** (parent `Beverages`); the other two instances labelled "Water" are a tracker tile under *Today's Physical* and a **utility bill** — the `0114` wrong-pointer trap, avoided by reading the dropdown's own predicate (`Board Category CONTAINS beverage AND feedSourceId IS_EMPTY`) | ❓ needs your call |
 | 1 | **A `Routine` schedule-template LAYER, merged with `Meals` at build time** — *"make another schedule template called routine and merge that in with the meal one and schedule when the time comes to create the schedule"* (08-22). Needs no new mechanism: `0177` already merges every template whose `Weekday` contains the day, so this is one more template row claiming all seven. **Two constraints, both already measured:** the daily routines were deliberately stripped from all seven weekday templates on 08-20 because `Day` places them every morning — so the new layer must not double-place against `Day`; and the two-layers-one-slot merge defect that would have eaten it was only fixed today (`85b0989e`) | 📋 filed, ready to build |
 | 2 | **Display-field audit** — *"look at all my display fields and make sure they are being used by an operation or updated in some way"* (08-20). 99 display-enabled fields on poms grid; `unused-field` flags **15**. Never done; it is the same audit `next-session-decisions.md` files as *"`unused-field` is at 14 — worth one pass now that the audit tooling exists"* | 📋 never started |
@@ -219,3 +226,27 @@ It is small and it is a real disagreement between the record and the data.
 
 **Also confirmed by the same probe, and it is why item 0 needs a decision rather than a
 build:** `Day` places exactly one `Drink`, at 6:00am, with no Beverage picked.
+
+## Sweep #5 — the stream three sweeps missed
+
+The user said four times that small asks were missing. They were right, and the reason
+is mechanical: **a compacted session replaces its earlier user turns with a summary**, so
+those asks exist only as quoted text inside an assistant-authored summary record. Sweeps
+#1–#4 all read `type:"user"` records and could not see them.
+
+```
+record streams in 52 session files, all three accounts
+  type:"user"        17,321 records   ->    419 distinct real turns   <- all four sweeps read this
+  type:"last-prompt"  4,137 records   ->    402 distinct prompts      <- never read before
+  isCompactSummary       18 records   -> 286,536 chars of summary     <- never read before
+```
+
+Mining the summaries for quoted asks yielded **315 candidates**, of which the ones with no
+trace anywhere in `TASKS.md`, `CLAUDE_CHAT.md` or `CLAUDE.md` are filed above as items D, E
+and F. The Eminem infobox comma and the Spanish-translation ask appear in **no user turn at
+all** — they exist only inside a summary, which is exactly the class this sweep was for.
+
+**The filter used to say "not recorded" is a heuristic and is NOT a verdict.** It scores a
+quote by how many of its distinctive words appear in the three record files. That is good
+enough to surface candidates and not good enough to close one, so nothing was retired on its
+say-so — the items above are filed as open regardless of what the heuristic thought.
