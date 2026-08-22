@@ -217,11 +217,41 @@ describe("Schedule: Place Weekday Tasks", () => {
 });
 
 describe("due placement yields to a weekday", () => {
-  it("adds `Weekday IS_EMPTY` to both of Place Dated Work's Due-scoped loops", () => {
+  it("the live op ALREADY carries `Weekday IS_EMPTY` on both Due-scoped loops", () => {
+    // `0173` is applied to the grid, so a current fixture arrives already yielded
+    // and there is nothing left to add. This used to assert `patched === 2`,
+    // which only held while the fixture PREDATED the migration — the same stale
+    // dependency that broke `mealTrackers` when the fixture was refreshed.
     const dated = fx.operations.find((o) => o.name === "Schedule: Place Dated Work");
     const pipe = structuredClone(dated.pipeline);
+    const { patched, alreadyPatched } = yieldDuePlacementToWeekday(pipe, { DUE, WD });
+    expect(patched).toBe(0);
+    expect(alreadyPatched).toBe(2);    // the claim loop and the sweep loop
+  });
+
+  it("and it ADDS them when they are absent — stripped, then yielded again", () => {
+    // The half the assertion above can no longer show. Strip the rule the
+    // migration adds, and the migration puts it back on exactly two loops — so
+    // this still measures the migration rather than the fixture's vintage.
+    const dated = fx.operations.find((o) => o.name === "Schedule: Place Dated Work");
+    const pipe = structuredClone(dated.pipeline);
+    let stripped = 0;
+    const strip = (steps) => {
+      for (const st of steps || []) {
+        const rules = st?.condition?.rules;
+        if (Array.isArray(rules)) {
+          for (let i = rules.length - 1; i >= 0; i--)
+            if (typeof rules[i]?.left === "string" && rules[i].left.endsWith(`.fields.${WD}.value`)) {
+              rules.splice(i, 1); stripped++;
+            }
+        }
+        strip(st.body); strip(st.then); strip(st.else);
+      }
+    };
+    strip(pipe.steps);
+    expect(stripped).toBe(2);          // a strip that found nothing would be vacuous
     const { patched } = yieldDuePlacementToWeekday(pipe, { DUE, WD });
-    expect(patched).toBe(2);           // the claim loop and the sweep loop
+    expect(patched).toBe(2);
   });
 
   it("is idempotent — a second yield adds nothing", () => {

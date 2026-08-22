@@ -309,6 +309,65 @@ export function resolveExpr(expr, $vars) {
  * reference, so the collections see the enrichment without being rebuilt — the
  * same reasoning `patchAllItemsCache` records for the read-model entry.
  */
+/**
+ * List `childId` under `parentId` in BOTH in-pipeline overlays, idempotently.
+ *
+ * WHY BOTH, AND WHY THIS EXISTS AT ALL. The executor carries two views of the
+ * world and different emitters patch different ones: `context.occurrencesById`
+ * (the live-store overlay a merge reads its target through) and
+ * `$vars.$allOccurrences` + the role slices (what a FIND iterates). The clone
+ * path published its new stub into the SECOND and told neither about the
+ * PARENT — so a parent's `occurrences[]` never grew during a pipeline, and any
+ * write computed from it was a snapshot from before the first create.
+ *
+ * That is the `Schedule: Place Weekday` defect, measured 2026-08-22. Two
+ * template layers claim Friday and both target 7:00am. Layer one clones Run and
+ * Stretch into the slot; layer two adopts an unlisted meal and RE-LISTS it with
+ * a whole-array write built from the stale list:
+ *
+ *     [0] CREATE_ITEM Run     parent=7:00am
+ *     [1] CREATE_ITEM Stretch parent=7:00am
+ *     [2] UPDATE_OCCURRENCE   7:00am occurrences=[meal]     <- both discarded
+ *
+ * Fixing it where the array is BUILT rather than where it is written is what
+ * makes every other consumer of that list correct too — including the merge's
+ * own signature scan, which can now see a sibling created earlier in the same
+ * pipeline instead of cloning a second copy of it.
+ *
+ * `occurrencesById` WINS when a parent is in both, which is the precedence the
+ * merge's own `parentOcc` lookup already uses — the two must not disagree about
+ * which copy is current.
+ *
+ * Returns the resulting child list, or null when the parent is in NEITHER
+ * overlay. That null is not a failure: a clone's own freshly-minted parent is
+ * created carrying its children inline (`instance.occurrences`), so there is no
+ * list to grow.
+ */
+export function listChildInOverlays(parentId, childId, occurrencesById, $vars) {
+  if (!parentId || !childId) return null;
+  const fromMap = occurrencesById && occurrencesById[parentId];
+  const fromVars = Array.isArray($vars?.$allOccurrences)
+    ? $vars.$allOccurrences.find((o) => o && o.id === parentId)
+    : null;
+  const parent = fromMap || fromVars;
+  if (!parent) return null;
+
+  const existing = Array.isArray(parent.occurrences) ? parent.occurrences : [];
+  if (existing.includes(childId)) return existing;
+  const next = [...existing, childId];
+
+  if (fromMap) occurrencesById[parentId] = { ...fromMap, occurrences: next };
+  if (fromVars) {
+    const patched = { ...fromVars, occurrences: next };
+    for (const key of ["$allOccurrences", "$allItems", "$allContainers", "$allPages", "$allPanels", "$allInstances"]) {
+      if (Array.isArray($vars[key])) {
+        $vars[key] = $vars[key].map((o) => (o && o.id === parentId ? patched : o));
+      }
+    }
+  }
+  return next;
+}
+
 export function stampCloneAncestors(stubs, occurrencesById) {
   if (!Array.isArray(stubs) || !stubs.length) return;
   const stubById = new Map(stubs.map((st) => [st.id, st]));
@@ -3156,10 +3215,14 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
             // lists is the listed-but-not-embedded failure wearing a new hat.
             // Same idempotent append ADD_CHILD performs, via the same effect.
             if (adoptedUnlisted) {
-              const nextSiblings = [...siblingIds, matched.id];
-              if (occurrencesById && occurrencesById[parentId]) {
-                occurrencesById[parentId] = { ...occurrencesById[parentId], occurrences: nextSiblings };
-              }
+              // Built from the LIVE overlay rather than the `siblingIds`
+              // snapshot taken above: between the two, this pipeline may have
+              // cloned children into this very parent, and a whole-array write
+              // that cannot see them DELETES them. `siblingIds` stays the
+              // fallback for a parent in neither overlay.
+              const nextSiblings =
+                listChildInOverlays(parentId, matched.id, occurrencesById, $vars)
+                || [...siblingIds, matched.id];
               updates.push({
                 _effect: "UPDATE_OCCURRENCE",
                 occurrence: { id: parentId, occurrences: nextSiblings },
@@ -3268,6 +3331,15 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         });
 
         newOccIds.push(cloneOccId);
+
+        // The parent now HOLDS this child, in-pipeline. CREATE_ITEM appends it
+        // for real (server-side `$push`); this mirrors that into the overlays so
+        // anything later in the SAME pipeline that reads the parent's list —
+        // the merge signature scan, the adoption re-list below — sees it. Left
+        // out, that list is a snapshot from before the first create and every
+        // whole-array write built from it silently drops these clones.
+        listChildInOverlays(parentId, cloneOccId, occurrencesById, $vars);
+
         const stub = {
           id: cloneOccId,
           moduleId: cloneModId,
@@ -3430,6 +3502,13 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         });
 
         newOccIds.push(cloneOccId);
+
+        // Same mirroring as APPLY_TEMPLATE's clone: a copy made into a parent
+        // that a LATER step writes as a whole array must be visible in that
+        // array. Patched here rather than only at the merge that revealed it —
+        // the emitter is the class, and a second door left open re-creates it.
+        listChildInOverlays(parentId, cloneOccId, occurrencesById, $vars);
+
         const stub = {
           id: cloneOccId,
           moduleId: cloneModId,

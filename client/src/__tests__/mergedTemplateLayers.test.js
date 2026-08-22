@@ -35,14 +35,27 @@ const FRIDAY = "2026-08-21";   // a Friday — the token computes the weekday fr
 
 const baseOp = fx.operations.find((o) => o.name === "Schedule: Place Weekday");
 
-function makeOp({ layered }) {
+/**
+ * The op as the grid carries it. `0177` is APPLIED, so the stored pipeline is
+ * already the layered one and `layerizePlaceWeekday` is a no-op against it — this
+ * used to run the migration over a pre-`0177` fixture to SIMULATE the layering,
+ * and threw the day the fixture caught up. The migration's own idempotence is
+ * asserted in the controls instead, which is the honest place for it.
+ */
+function makeOp() {
   const op = structuredClone(baseOp);
-  if (layered) {
-    const r = layerizePlaceWeekday(op.pipeline, { WD });
-    if (!r.changed) throw new Error(`layerize did not apply: ${r.reason}`);
-  }
   op.enabled = true;
   return op;
+}
+
+/** Every template on the Schedule Template page, with its Weekday claim. */
+function layersOf(occ) {
+  const st = Object.values(occ).find((o) => lbl(o) === "Schedule Template");
+  return (st?.occurrences || []).map((id) => occ[id]).filter(Boolean)
+    .map((t) => {
+      const v = t.fields?.[WD]?.value;
+      return { occ: t, days: v == null ? [] : (Array.isArray(v) ? v : [v]) };
+    });
 }
 
 /** Templates keyed by the weekday they carry, read out of the live world. */
@@ -61,7 +74,7 @@ function templatesOf(occ) {
  * Both the column date AND the Schedule page's filterOverride move, because
  * `$activePeriodDates` resolves from the op's own target page, not the clock.
  */
-function run({ layered, mutate, iso = FRIDAY }) {
+function run({ mutate, iso = FRIDAY } = {}) {
   const occ = Object.fromEntries(fx.occurrences.map((o) => [o.id, structuredClone(o)]));
   const column = Object.values(occ).find((o) => o.fields?.[FORMAT]?.value === "day-col");
   column.fields[DATE] = { value: iso, flow: "in" };
@@ -76,7 +89,7 @@ function run({ layered, mutate, iso = FRIDAY }) {
   }
   mutate?.(occ, templatesOf(occ));
 
-  const operations = [makeOp({ layered })];
+  const operations = [makeOp()];
   const fieldsById = Object.fromEntries(fx.fields.map((f) => [f.id, f]));
   const operationsById = { [operations[0].id]: operations[0] };
   const state = { grid: fx.grid, gridId: fx.grid._id, fields: fx.fields, modules: fx.modules,
@@ -139,41 +152,63 @@ function layerize(occ, t) {
 }
 
 describe("the fixture's shape — the controls", () => {
-  it("carries the real op and seven scalar-weekday templates", () => {
+  it("carries the layered op and multi-select templates covering all seven days", () => {
+    // WHAT CHANGED: this used to require SEVEN templates each carrying one scalar
+    // weekday, because the file SIMULATED `0177` on a pre-migration fixture. The
+    // migration is applied, so the grid holds six reusable LAYERS with a
+    // multi-select Weekday and the simulation had nothing left to do.
     expect(baseOp).toBeTruthy();
     expect(MEAL).toBeTruthy();
-    const t = templatesOf(Object.fromEntries(fx.occurrences.map((o) => [o.id, o])));
-    expect(Object.keys(t).sort()).toEqual(
+    const layers = layersOf(Object.fromEntries(fx.occurrences.map((o) => [o.id, o])));
+    const claimed = new Set(layers.flatMap((l) => l.days));
+    expect([...claimed].sort()).toEqual(
       ["Friday", "Monday", "Saturday", "Sunday", "Thursday", "Tuesday", "Wednesday"]);
+    // At least one layer must claim SEVERAL days, or "layer" means nothing.
+    expect(layers.some((l) => l.days.length > 1)).toBe(true);
   });
 
-  it("UNLAYERED, on a Friday, places Friday's own rows — so the harness works at all", () => {
-    // Without this the two-layer assertion below could pass by placing nothing
-    // twice. A zero here would be a claim about the harness, not about the op.
-    const r = run({ layered: false });
+  it("the stored op is already layered — the migration is idempotent against it", () => {
+    // The A/B this file used to run (layered vs unlayered) is no longer available:
+    // the unlayered shape exists nowhere. What replaces it is the migration
+    // declining to change what it already produced.
+    const r = layerizePlaceWeekday(structuredClone(baseOp.pipeline), { WD });
+    expect(r.changed).toBe(false);
+  });
+
+  it("MORE THAN ONE layer claims Friday — or the merge below proves nothing", () => {
+    const layers = layersOf(Object.fromEntries(fx.occurrences.map((o) => [o.id, o])));
+    expect(layers.filter((l) => l.days.includes("Friday")).length).toBeGreaterThan(1);
+  });
+
+  it("running on a Friday places rows at all — so the harness works", () => {
+    // A zero here would be a claim about the harness, not about the op.
+    const r = run();
     expect(r.errors).toEqual([]);
     expect(r.placed.length).toBeGreaterThan(0);
-    expect(r.meals.length).toBe(8);
-    expect(r.other.map((o) => o.label).sort()).toEqual(["Run", "Stretch"]);
   });
 });
 
 describe("two layers merge into one day", () => {
-  it("LAYERED: the Meals layer and the Friday layer BOTH contribute", () => {
-    const r = run({ layered: true, mutate: layerize });
+  it("the meals layer and the workout layer BOTH contribute to one day", () => {
+    const r = run();
     expect(r.errors).toEqual([]);
-    // meals come from the all-week layer, cardio from Friday's own
     expect(r.meals.length).toBe(8);
     expect(r.other.map((o) => o.label).sort()).toEqual(["Run", "Stretch"]);
-    expect(r.meals.map((m) => m.slot).sort())
-      .toEqual(["1:00pm", "11:00am", "3:00pm", "5:00pm", "7:00am", "7:00pm", "9:00am", "9:00pm"].sort());
   });
 
-  it("A/B — the SAME data through the UNLAYERED op places only ONE layer", () => {
-    // This is the assertion that makes the test discriminate. The old op resolves
-    // a single template, so with the meals moved out of Friday it can only place
-    // Run + Stretch and the day ends up with NO meals at all.
-    const r = run({ layered: false, mutate: layerize });
+  it("A/B — un-claim Friday on the meals layer and ONLY the workout arrives", () => {
+    // The discriminator, rebuilt from the shape the grid actually has. Layering is
+    // what brings two templates into one day; take Friday off the layer carrying
+    // the meals and the day keeps its workout and loses every meal.
+    const r = run({ mutate: (occ) => {
+      for (const l of layersOf(occ)) {
+        const carriesMeals = (l.occ.occurrences || []).some((sid) =>
+          (occ[sid]?.occurrences || []).some((kid) => occ[kid]?.fields?.[MEAL]?.value));
+        if (!carriesMeals || !l.days.includes("Friday")) continue;
+        const rest = l.days.filter((d) => d !== "Friday");
+        l.occ.fields[WD] = { ...l.occ.fields[WD], value: rest };
+      }
+    } });
     expect(r.errors).toEqual([]);
     expect(r.meals.length).toBe(0);
     expect(r.other.map((o) => o.label).sort()).toEqual(["Run", "Stretch"]);
@@ -183,7 +218,7 @@ describe("two layers merge into one day", () => {
     // The `Day` template sits in the same child list and must be skipped by the
     // IS_NOT_EMPTY arm — not by anything knowing its name. Its daily routines
     // (Drink, Hygiene, Journal, Walk) would show up here if it leaked in.
-    const r = run({ layered: true, mutate: layerize });
+    const r = run();
     expect(r.errors).toEqual([]);
     const leaked = r.other.map((o) => o.label)
       .filter((n) => ["Drink", "Hygiene", "Journal", "Walk"].includes(n));
@@ -191,12 +226,12 @@ describe("two layers merge into one day", () => {
   });
 
   it("a second pass places nothing new — merge still recognises what it wrote", () => {
-    const first = run({ layered: true, mutate: layerize });
+    const first = run();
     const before = first.placed.length;
     expect(before).toBeGreaterThan(0);
 
     const occ = first.occ;
-    const operations = [makeOp({ layered: true })];
+    const operations = [makeOp()];
     const fieldsById = Object.fromEntries(fx.fields.map((f) => [f.id, f]));
     const operationsById = { [operations[0].id]: operations[0] };
     const ups = runMatchingOperations(operations, null, null,

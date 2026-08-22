@@ -92,15 +92,26 @@ function placeOn(isoDate, mutate) {
 }
 
 describe("the seven weekday templates", () => {
-  it("each carries a Weekday value, and the seven are distinct", () => {
-    // THE CONTROL. The op resolves its template by matching this field, so if
+  it("every weekday is claimed by a template, and the field is MULTI-select", () => {
+    // THE CONTROL. The op resolves its templates by matching this field, so if
     // the values were missing every assertion below would pass vacuously on an
     // op that found nothing.
+    //
+    // WHAT CHANGED: this used to require SEVEN templates each carrying one scalar
+    // weekday. `0177` turned them into SIX reusable LAYERS with a multi-select
+    // Weekday — `Meals` names all seven, `Workout — Push` names Monday — so a day
+    // is built by merging every template whose Weekday CONTAINS it. Asserting
+    // seven scalars pinned the shape the migration deliberately replaced.
+    //
+    // The invariant that survives is the one the feature actually rests on: no
+    // weekday is unclaimed, and no template is left with an empty Weekday.
     expect(weekdayField).toBeTruthy();
     const st = fx.occurrences.find(o => lbl(o) === "Schedule Template");
-    const days = (st.occurrences || []).map(i => fx.occurrences.find(o => o.id === i))
+    const vals = (st.occurrences || []).map(i => fx.occurrences.find(o => o.id === i))
       .map(t => t?.fields?.[weekdayField.id]?.value).filter(Boolean);
-    expect(days.sort()).toEqual(
+    expect(vals.length).toBeGreaterThan(0);
+    const claimed = new Set(vals.flatMap(v => Array.isArray(v) ? v : [v]));
+    expect([...claimed].sort()).toEqual(
       ["Friday", "Monday", "Saturday", "Sunday", "Thursday", "Tuesday", "Wednesday"]);
   });
 
@@ -189,8 +200,21 @@ describe("Schedule: Place Weekday", () => {
     // Fails CLOSED. A column whose weekday no template names must produce an
     // empty day, never a fallback to some other day's session.
     const { created, movements } = placeOn("2026-08-24", (occ) => {
-      for (const o of Object.values(occ))
-        if (o.fields?.[weekdayField.id]?.value === "Monday") delete o.fields[weekdayField.id];
+      // Weekday is MULTI-select since `0177`, so a strict `=== "Monday"` matched
+      // nothing and this test silently stopped un-claiming the day — it placed 14
+      // rows while asserting 0. Strip Monday from whichever shape the value holds.
+      for (const o of Object.values(occ)) {
+        const v = o.fields?.[weekdayField.id]?.value;
+        if (v == null) continue;
+        if (Array.isArray(v)) {
+          const rest = v.filter(d => d !== "Monday");
+          if (rest.length === v.length) continue;
+          if (rest.length) o.fields[weekdayField.id] = { ...o.fields[weekdayField.id], value: rest };
+          else delete o.fields[weekdayField.id];
+        } else if (v === "Monday") {
+          delete o.fields[weekdayField.id];
+        }
+      }
     });
     expect(created).toBe(0);
     expect(movements).toEqual([]);

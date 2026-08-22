@@ -1,6 +1,40 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-08-12. Check this file before re-reading source._
+_Updated: 2026-08-22. Check this file before re-reading source._
+
+## Recent Changes (2026-08-22 — `operationActions`: a parent's child list never grew mid-pipeline)
+
+- **`listChildInOverlays(parentId, childId, occurrencesById, $vars)` is the ONE place a child is
+  listed under a parent in-pipeline.** The executor carries two views of the world and different
+  emitters patched different ones — `context.occurrencesById` (the live-store overlay a merge reads
+  its target through) and `$vars.$allOccurrences` + the role slices (what a FIND iterates). The
+  clone paths published their new stub into the SECOND and told **neither** about the PARENT.
+- **What that cost:** `Schedule: Place Weekday` merges every template layer claiming the day. On a
+  Friday, `Cardio` and `Meals` both target 7:00am:
+  ```
+  [0] CREATE_ITEM Run     parent=7:00am
+  [1] CREATE_ITEM Stretch parent=7:00am
+  [2] UPDATE_OCCURRENCE   7:00am occurrences=[meal]      <- both discarded
+  ```
+  The adoption re-list is a WHOLE-ARRAY write built from `siblingIds`, a snapshot taken before the
+  first create. Fixed where the array is BUILT, not where it is written, so the merge's own
+  signature scan is correct too — it can now see a sibling cloned earlier in the same pipeline
+  instead of cloning a second copy of it.
+- **`occurrencesById` WINS when a parent is in both**, because that is the precedence the merge's
+  own `parentOcc` lookup already uses. A read and the write built from it must not describe
+  different parents.
+- **Returns `null` for a parent in NEITHER overlay, and that is not a failure** — a clone's own
+  freshly-minted parent is created carrying its children inline (`instance.occurrences`), so there
+  is no list to grow. Callers fall back rather than throw.
+- **Called from BOTH clone emitters** — `APPLY_TEMPLATE` and `COPY_OCCURRENCE`. Only the first had
+  the whole-array write that exposed it; leaving the second is how the class comes back through a
+  different door (the 2026-08-08 (10) lesson from the clone side).
+- **A/B, and it says which half is load-bearing:** neutering the clone-path call fails exactly the
+  merge test; reverting only the adoption write fails **nothing**. That half is HARDENING and is
+  reported as such — it is kept only because the old guard read `occurrencesById` alone, so a parent
+  that is itself a same-pipeline clone was skipped entirely. Its contract is pinned separately in
+  `listChildInOverlays.test.js`, whose `$vars`-only and precedence cases each fail to their own
+  mutation.
 
 ## Recent Changes (2026-08-12 — `lazyEditor` VERIFIED IN A BROWSER, then merged)
 - The textblock branch sat unmerged for two days with one gap: *"measure in a browser"*. Measured on
