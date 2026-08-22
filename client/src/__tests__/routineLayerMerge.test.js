@@ -71,13 +71,23 @@ function sweep(mutate, twice) {
 const SF = "vQ0ELZP_zxnx";
 
 describe("the Routine layer merges without duplicating", () => {
-  it("A — whatever the first pass places, a SECOND pass places nothing", () => {
-    const { first, second } = sweepTwice(null);
-    // THE CONTROL. "Second pass places nothing" is also true of an op that placed nothing
-    // at all, so the first pass has to be shown doing work. `0187` put eight Drink rows on
-    // the Meals layer that today's column has never seen, so the first pass has real work.
-    expect(first, "the first pass placed nothing — arm A cannot prove idempotence").toBeGreaterThan(0);
-    expect(second, "Fill Day re-created rows it had just placed").toBe(0);
+  it("A — a column that already holds its layers gets NOTHING new", () => {
+    // The control is that the column really does hold them; "placed 0" is otherwise also
+    // true of an op that cannot place at all.
+    //
+    // THIS ARM USED TO ASSERT `first > 0` AND IT WAS A TIMING BET. It relied on the fixture
+    // being exported while some layer row had not yet reached the column — true the moment
+    // `0187` added eight Drinks, false an hour later once prod restarted and a real load
+    // placed them. A fixture is a snapshot of a grid that changes; any test whose premise is
+    // "there is pending work" is a coin flip on export timing (2026-08-20 (6), third time).
+    const occ = Object.fromEntries(fx.occurrences.map((o) => [o.id, o]));
+    const col = Object.values(occ).find((o) => o.fields?.[SF]?.value === "day-col");
+    const onColumn = (col.occurrences || [])
+      .flatMap((sid) => occ[sid]?.occurrences || [])
+      .filter((rid) => occ[rid]?.identitySignature?.startsWith("auto:"));
+    expect(onColumn.length, "the column holds no merged routine rows — arm A proves nothing")
+      .toBeGreaterThan(0);
+    expect(sweep(null), "Fill Day re-created rows the column already had").toBe(0);
   });
 
   it("B — strip them off the column and the sweep puts back exactly seven", () => {
