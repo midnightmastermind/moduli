@@ -46,6 +46,22 @@ const tickEveryMeal = (occ) => {
   for (const o of Object.values(occ)) if (o.fields?.[ing]?.value) o.fields[COMPLETED] = { value: true, flow: "in" };
 };
 
+// THE HARNESS OWNS ITS PREMISE. The "nothing ticked yet" reading used to depend on the
+// fixture having been exported on a day before the user ticked anything — and the moment
+// one was exported after breakfast, `before` read 31 and the test failed against correct
+// code. A fixture is a snapshot of a grid that changes hour to hour, so any test whose
+// premise is "this starts empty" is a coin flip on export timing (2026-08-20 (6), which
+// paid for exactly this on the weekday-template harness).
+//
+// It returns the COUNT it cleared, and the caller asserts that count is non-zero: a clear
+// that silently matched nothing would put the case straight back at the mercy of the clock.
+const untickEveryMeal = (occ) => {
+  const ing = fx.fields.find(f => f.name === "Ingredient" && !f.displayEnabled).id;
+  let n = 0;
+  for (const o of Object.values(occ)) if (o.fields?.[ing]?.value) { o.fields[COMPLETED] = { value: false, flow: "in" }; n++; }
+  return n;
+};
+
 describe("Nutrition: Today's Micronutrients", () => {
   it("runs without error and carries all eleven nutrients", () => {
     const { micro, errors } = sweep();
@@ -99,8 +115,11 @@ describe("Nutrition: Today's Micronutrients", () => {
   // ticked as eaten, and is indistinguishable from an op that cannot add up.
   // This proves the second reading is reachable before the first is trusted.
   it("totals move once meals are ticked — zero is a reading, not a failure", () => {
-    const before = sweep().micro;
+    let cleared = 0;
+    const before = sweep((occ) => { cleared = untickEveryMeal(occ); }).micro;
     const after = sweep(tickEveryMeal).micro;
+    // the control: the clear has to have MATCHED something, or "before is 0" means nothing
+    expect(cleared, "untickEveryMeal matched no meal rows — the premise is unproven").toBeGreaterThan(0);
     expect(before["Total Vitamin A"]).toBe(0);
     expect(after["Total Vitamin A"]).toBeGreaterThan(0);
     expect(after["Total Calcium"]).toBeGreaterThan(0);
