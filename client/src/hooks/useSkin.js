@@ -22,7 +22,7 @@
 // and the stored-colour half being one source is the whole reason SURFACE_ALPHA
 // was centralised in 2026-08-17.
 import { useEffect } from "react";
-import { getSkin, resolveSkinId } from "../helpers/skins";
+import { getSkin, resolveSkinId, DEFAULT_SKIN } from "../helpers/skins";
 import { setActiveSkin } from "../helpers/StyleHelpers";
 
 const STORAGE_KEY = "moduli-skin";
@@ -83,9 +83,34 @@ export function applySkin(skin) {
  * @param grid  the live grid record (`grid.meta.skin` is the per-grid choice)
  */
 export function useSkin(grid) {
-  const skinId = resolveSkinId(grid, readStoredSkin());
+  const stored = readStoredSkin();
+  // NOTHING IS APPLIED UNTIL THERE IS SOMETHING TO RESOLVE FROM.
+  //
+  // This hook runs on the FIRST render, when `grid` is still null — `full_state`
+  // has not arrived. `resolveSkinId(null, null)` falls through to DEFAULT_SKIN,
+  // which IS `retro-rainbow`, so the document was stamped with the rainbow for
+  // the whole length of the load and every cold start opened on a rainbow header
+  // before the grid's real skin replaced it. Reported 2026-08-22: *"that header
+  // color is happening when the first grid loads, its a rainbow"* — and it is
+  // the same complaint as 2026-08-19's *"dont let the default header color be
+  // the rainbow either"*, which the skin system answered for a grid that NAMES a
+  // skin and not for the moment before one is known.
+  //
+  // An unstamped document is the right neutral by construction: `--retro-rainbow`
+  // is declared only inside `:root[data-skin="retro-rainbow"]`, so with no
+  // attribute the var is undefined, `background: var(--retro-rainbow)` is an
+  // invalid declaration, and the band simply does not paint. No new "loading"
+  // skin, and no flash of one look before another.
+  //
+  // The account-wide stored pick is still honoured pre-grid — it is a real
+  // answer, just not a grid-specific one, and using it is what keeps a returning
+  // user from seeing any transition at all.
+  const skinId = grid ? resolveSkinId(grid, stored) : (stored || null);
   useEffect(() => {
+    if (!skinId) return;
     applySkin(getSkin(skinId));
   }, [skinId]);
-  return { skinId, skin: getSkin(skinId) };
+  // Callers still get a concrete skin to read from; only the DOM waits.
+  const resolved = skinId || DEFAULT_SKIN;
+  return { skinId: resolved, skin: getSkin(resolved) };
 }
