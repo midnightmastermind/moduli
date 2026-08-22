@@ -654,6 +654,22 @@ export function compareFieldValues(va, vb) {
  * `isOccurrenceVisible` already evaluates a nested group against `$occ`, so nothing new is
  * introduced — what was missing was a way for one container to ask for it.
  */
+export function getLocalFilterConditions(occ) {
+  const out = [];
+  for (const f of (occ?.filters || [])) {
+    if (!f?.active) continue;
+    if (f.condition != null) {
+      // Declared, never defaulted. `0189` stamps `hides` on every live entry and a guard
+      // test fails the build if one lacks it, so this reads a value that is always present.
+      if (f.hides === true) out.push(f.condition);
+      continue;
+    }
+    if (!f.fieldId) continue;
+    out.push({ fieldId: f.fieldId, comparator: f.comparator || "IS" });
+  }
+  return out;
+}
+
 export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditions = null) {
   if (!occurrence) return false;
   if (occurrence.hidden) return false;
