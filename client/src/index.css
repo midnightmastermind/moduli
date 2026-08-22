@@ -6208,12 +6208,27 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    blacks, which is why they never followed the theme — the scrim is built from
    --surface-* so a theme switch moves the headers with it.
    ============================================================================ */
-:root,
+/* THE RAINBOW IS THE ONE TOKEN HELD BACK FROM THE BARE `:root`.
+   Everything else in the block below still defaults for an unstamped document —
+   the wallpaper and its scrims are what make a skinless page look like this app
+   rather than a blank sheet, and pulling those too would trade a rainbow flash
+   for a wallpaper flash. The BAND is the thing the user objected to, twice:
+   2026-08-19 *"dont let the default header color be the rainbow either"* and,
+   when it turned out that only answered it for a grid that NAMES a skin,
+   2026-08-22 *"that header color is happening when the first grid loads, its a
+   rainbow"*.
+   Declared ONLY under the skin, so an unstamped document leaves it undefined —
+   `background: var(--retro-rainbow)` is then an invalid declaration and the band
+   does not paint. No placeholder skin to maintain, and nothing to flash from. */
 :root[data-skin="retro-rainbow"] {
   --retro-rainbow: linear-gradient(
     90deg,
     #e5453a 0%, #ef7d3a 18%, #f5c542 36%, #4cae52 56%, #3b7dd8 76%, #7c4bbd 100%
   );
+}
+
+:root,
+:root[data-skin="retro-rainbow"] {
   /* How much of the rainbow survives the scrim. Two knobs, one per surface, so
      a header can read stronger than the panel behind it. */
   /* AS LIGHT AS POSSIBLE (user 2026-08-17), so the grid's wallpaper reads

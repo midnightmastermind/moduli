@@ -87,12 +87,32 @@ describe("the registry and the stylesheet agree, token for token", () => {
     });
   }
 
+  // The bare `:root` still carries the default LOOK — wallpaper and scrims — so
+  // an unstamped document reads as this app rather than a blank sheet.
   it("the bare :root default is still the default skin's look", () => {
     const bare = tokensFor(":root,\n:root[data-skin=\"retro-rainbow\"]");
     expect(bare).toBeTruthy();
     const js = publishedBy(getSkin(DEFAULT_SKIN));
-    expect(bare["--retro-rainbow"]).toBe(js["--retro-rainbow"]);
     expect(bare["--grid-wallpaper"]).toBe(js["--grid-wallpaper"]);
     expect(bare["--grid-wallpaper-scrim"]).toBe(js["--grid-wallpaper-scrim"]);
+  });
+
+  // ...but NOT the rainbow band. It was in the bare `:root` until 2026-08-22,
+  // which made it the default for every unstamped document — including the whole
+  // of a cold load, before the grid's own skin is known. User, twice: *"dont let
+  // the default header color be the rainbow either"* and *"that header color is
+  // happening when the first grid loads, its a rainbow"*.
+  it("the bare :root does NOT carry the rainbow band", () => {
+    const bare = tokensFor(":root,\n:root[data-skin=\"retro-rainbow\"]");
+    expect(bare["--retro-rainbow"]).toBeUndefined();
+  });
+
+  it("the retro skin still declares the band, and it matches the registry", () => {
+    // Held back from the default is not the same as removed — the skin that IS
+    // the rainbow must still get it, or the fix would delete the look.
+    const skinOnly = tokensFor(":root[data-skin=\"retro-rainbow\"]");
+    expect(skinOnly).toBeTruthy();
+    const js = publishedBy(getSkin(DEFAULT_SKIN));
+    expect(skinOnly["--retro-rainbow"]).toBe(js["--retro-rainbow"]);
   });
 });
