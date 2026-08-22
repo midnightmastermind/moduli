@@ -7,6 +7,7 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 
 | # | Task | State |
 |---|------|-------|
+| 0 | **`Drink` with `Water` selected, on the `Meals` template** — *"also drink should show up with water selected in the meals template"* (08-22, the newest ask, carried from account2's live session). **Measured, and it needs a decision before it can be built:** `Day` ALREADY places a `Drink` at **6:00am** with **no Beverage picked**, and it is the only Drink on any template. `Meals` holds eight `Eat` rows (7am · 9 · 11 · 1pm · 3 · 5 · 7 · 9pm) and no Drink. So "in the meals template" is either eight drinks beside the meals, or one, or simply picking Water on the one `Day` already places — and the three differ by seven rows a day. **The right `Water` is `QYYO61oFcf33`** (parent `Beverages`); the other two instances labelled "Water" are a tracker tile under *Today's Physical* and a **utility bill** — the `0114` wrong-pointer trap, avoided by reading the dropdown's own predicate (`Board Category CONTAINS beverage AND feedSourceId IS_EMPTY`) | ❓ needs your call |
 | 1 | **A `Routine` schedule-template LAYER, merged with `Meals` at build time** — *"make another schedule template called routine and merge that in with the meal one and schedule when the time comes to create the schedule"* (08-22). Needs no new mechanism: `0177` already merges every template whose `Weekday` contains the day, so this is one more template row claiming all seven. **Two constraints, both already measured:** the daily routines were deliberately stripped from all seven weekday templates on 08-20 because `Day` places them every morning — so the new layer must not double-place against `Day`; and the two-layers-one-slot merge defect that would have eaten it was only fixed today (`85b0989e`) | 📋 filed, ready to build |
 | 2 | **Display-field audit** — *"look at all my display fields and make sure they are being used by an operation or updated in some way"* (08-20). 99 display-enabled fields on poms grid; `unused-field` flags **15**. Never done; it is the same audit `next-session-decisions.md` files as *"`unused-field` is at 14 — worth one pass now that the audit tooling exists"* | 📋 never started |
 | 3 | **The three DARK themes are still unmeasured** for contrast. The 2026-08-20 attempt failed its own calibration — the probe sampled marquee TRACKS rather than glyph boxes, and test grid 2 still carries the base rainbow so the surface behind a translucent pill is not uniform. `next-session-decisions.md` records exactly how to start ahead | 📋 open, method known |
@@ -193,3 +194,28 @@ the socket on both sides now, so the next occurrence is one grep rather than an 
 | Add-menu **value step** — the real field controls, every input type, not a hand-rolled subset | `49267930` |
 | Ticked fields sort to the top of the field picker | `49267930` |
 | `+ Item` was born with no date — it wrote `fields: {}` where the sibling path stamps the filter | `49267930` |
+
+## Sweep #4 — all three accounts, 419 distinct turns, VERIFIED not assumed
+
+The user has now said three times that small asks are missing. This pass re-extracted
+**419 distinct user turns across 52 session files** in `.claude`, `.claude-account2` and
+`.claude-account3` — 96 of them since 08-14 — and then **measured the live grid** for the
+ones a status line could only guess at. The recurring answer is that they shipped; the
+value here is that each is now settled by a number rather than by a claim.
+
+| The ask (verbatim) | Measured on poms grid | Verdict |
+|---|---|---|
+| *"base the ingrediants on the quanity that matches the protein carbs and fats… so 2 eggs become 1 egg"* (08-14) | every grocery ingredient carries `Quantity = 1` with its own per-unit postfix — `oz · large · cup · tbsp · count · medium · scoop` | ✅ shipped |
+| *"fill the price there… just give me a rough estimate for each"* (08-14) | 23 of the first 30 grocery rows carry a price (7 · 2.5 · 5.5 · 1.5 · 2 · 3 …). The 7 without are the staples `0115` deliberately KEPT and never priced — Milk, Bananas, Coffee Beans, Paper Towels | ✅ shipped |
+| *"the postfix is displaying twice… it will say 3oz oz"* (08-14) | the postfix is stored once, on the row (`Quantity.postfix`), not in the value | ✅ shipped |
+| *"i cant edit how many ## hashtags there are for a header"* (08-18) | `client/src/ui/HeadingLevelPicker.jsx` exists and `ModuleContainer` mounts it | ✅ shipped |
+| *"tasks set to complete… get properly sent to completed at the end of the day even if they arent on the schedule"* (08-21) | `0179` built a second mechanism and was **retracted** by `0180`; the real defect (feed scope resolving through a last-writer-wins parent map) was then fixed | ✅ shipped, `96b0699a` |
+| *"turn off all the vitamins… on the grocery list side"* (08-14) | not separately re-measured this pass — the grocery rows read `Quantity`/`Price` and the vitamin fields are hidden by `fieldVisibility` | 🟡 believed shipped |
+
+**Still unexplained, second pass running:** `meta.servingSize` is `undefined` on **every**
+grocery ingredient, though CLAUDE.md 2026-08-13 (7) records serving sizes moving there when
+the amounts came out of the titles. Either that write never stuck or they live elsewhere.
+It is small and it is a real disagreement between the record and the data.
+
+**Also confirmed by the same probe, and it is why item 0 needs a decision rather than a
+build:** `Day` places exactly one `Drink`, at 6:00am, with no Beverage picked.
