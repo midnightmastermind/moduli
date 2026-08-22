@@ -134,9 +134,14 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   // field does not arrive as a typable input on the new row. Hand-picked fields
   // are absent here and default to "input".
   const inheritedRolesRef = useRef({});
-  // Value sub-step (user, 2026-08-21: "1 to quickly set values for fields in the
-  // add item menu"). `null` = not on it; an object = fieldId -> raw input value.
-  const [pickingValues, setPickingValues] = useState(null);
+  // Values typed in the picker: fieldId -> raw input value. There is no second
+  // screen — a ticked, typeable field renders its own control on its own row
+  // (user, 2026-08-22: "just seed the fields themselves so they are at the top
+  // of the fields selection ... and being able to enter my own values in that
+  // field selection (using the appropriate inputs)"). Nothing is SEEDED: the
+  // fields are inherited from the siblings, the values are always yours to
+  // type. Nothing is persisted until Create.
+  const [pickingValues, setPickingValues] = useState({});
   // Where a page tile files the page it creates, so it shows in the Local/Root
   // tree instead of existing only at the spot it was added.
   const rootFolderId = manifestsById?.[ctxGrid?.manifestId]?.rootFolderId || null;
@@ -183,7 +188,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     setOpen(false);
     setSearch("");
     setPickingFields(null);
-    setPickingValues(null);
+    setPickingValues({});
     setFieldSearch("");
   }, []);
 
@@ -244,6 +249,11 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   const valueFields = useMemo(() => (
     pickingFields ? typeableFields(pickingFields, fieldsById, inheritedRolesRef.current) : []
   ), [pickingFields, fieldsById]);
+  // Which of the TICKED fields may carry a typed value. Asked per row while
+  // rendering the picker, so the rule that decides it stays `typeableFields`
+  // — one source, rather than the row re-deriving "is this typeable" and
+  // drifting from the set `confirmCreate` actually reads.
+  const typeableIds = useMemo(() => new Set(valueFields.map(f => f.id)), [valueFields]);
 
   const confirmCreate = useCallback(() => {
     const fieldIds = Array.isArray(pickingFields) ? pickingFields : [];
@@ -428,7 +438,6 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   }, [open, manifestsById, foldersById, modulesById, getOccMap, gridId, allowedKinds, hostOccurrence, targetRole, onCreatePageFromTemplate]);
 
   const picking = pickingFields != null;
-  const onValues = picking && pickingValues != null;
 
   return (
     <>
@@ -463,56 +472,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
             boxShadow: "var(--menu-shadow-2)", fontFamily: "var(--font-mono)",
           }}
         >
-          {onValues ? (
-            // ── Value sub-step ───────────────────────────────────────────────
-            // One line per typeable picked field. Everything else stays BOUND and
-            // is filled in on the row — see `typeableFields` for why each type is
-            // excluded rather than faked here.
-            <>
-              <button onClick={() => setPickingValues(null)} style={backBtnStyle}>
-                <ChevronLeft size={10} /> Back
-              </button>
-              <div style={{ padding: "8px 10px 4px", fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)", borderBottom: "1px solid var(--border-subtle)" }}>
-                Set values ({valueFields.length} field{valueFields.length === 1 ? "" : "s"})
-              </div>
-              <div style={{ flex: 1, overflowY: "auto", padding: "2px 0" }}>
-                {/* THE REAL CONTROL PER FIELD, not a hand-rolled subset.
-                    `Field` is this app's ONE renderer for every type, so an
-                    occurrence dropdown, a rating, a duration and a boolean all
-                    behave here exactly as they do on a row — which is what the
-                    user asked for after the first version only handled the
-                    typeable primitives.
-
-                    It is driven CONTROLLED: `onCommit` writes into local state
-                    instead of the store, because the occurrence does not exist
-                    yet. Nothing is persisted until Create. */}
-                {valueFields.map(f => (
-                  <div key={f.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 10px", minHeight: 24 }}>
-                    <span style={{ width: 86, flexShrink: 0, fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={f.name}>{f.name}</span>
-                    <span style={{ flex: 1, minWidth: 0 }}>
-                      <Field
-                        field={fieldWithOptions(f)}
-                        binding={{ fieldId: f.id, role: "input" }}
-                        // NOT compact: the compact form is a PILL you click to
-                        // reveal an input, which is right on a crowded row and
-                        // wrong here — "quickly set values" means the control is
-                        // already there to type into.
-                        compact={false}
-                        hideName
-                        hostOccurrence={draftOccurrence}
-                        value={pickingValues[f.id]}
-                        flow={f.meta?.flow || "in"}
-                        onCommit={(nv) => setPickingValues(p => ({ ...p, [f.id]: nv }))}
-                      />
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <div style={{ display: "flex", gap: 6, padding: "6px 8px", borderTop: "1px solid var(--border-subtle)", background: "var(--input-bg)" }}>
-                <button onClick={confirmCreate} style={{ flex: 1, padding: "5px 8px", background: "var(--accent-blue)", border: "1px solid var(--accent-blue)", borderRadius: 4, cursor: "pointer", color: "var(--on-accent)", fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600 }}>Create</button>
-              </div>
-            </>
-          ) : picking ? (
+          {picking ? (
             // ── Field-picker sub-step (instance create) ──────────────────────
             <>
               <button
@@ -548,20 +508,60 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
                     </div>
                     {sec.fields.map(f => {
                       const selected = pickingFields.includes(f.id);
+                      // A ticked field that can hold a typed value gets its
+                      // control HERE, on its own row. The row is a <div> and
+                      // only the name+checkbox half toggles: an <input> nested
+                      // in a <button> is invalid, and clicking into the control
+                      // would otherwise untick the field you were filling in.
+                      //
+                      // `typeableIds` is built from the PICKED ids, so it
+                      // already implies ticked — an `&& selected` here reads
+                      // like a second gate and is really a no-op, which is how
+                      // an A/B against it comes back green and proves nothing.
+                      const typeable = typeableIds.has(f.id);
                       return (
-                        <button
+                        <div
                           key={f.id}
-                          onClick={() => toggleFieldPick(f.id)}
-                          style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "5px 10px", background: selected ? "var(--accent-blue-bg)" : "none", border: "none", cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
-                          onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = "var(--input-bg)"; }}
-                          onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = "none"; }}
+                          style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "3px 10px", minHeight: 24, background: selected ? "var(--accent-blue-bg)" : "none", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)" }}
                         >
-                          <span style={{ width: 14, height: 14, borderRadius: 3, border: `1px solid ${selected ? "var(--accent-blue)" : "var(--border-default)"}`, background: selected ? "var(--accent-blue)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            {selected && <Check size={10} color="var(--on-accent)" strokeWidth={3} />}
-                          </span>
-                          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name || "(unnamed)"}</span>
-                          {f.type && <span style={{ fontSize: 9, color: "var(--text-faint)", flexShrink: 0 }}>{f.type}</span>}
-                        </button>
+                          <button
+                            onClick={() => toggleFieldPick(f.id)}
+                            title={f.name || "(unnamed)"}
+                            style={{ display: "flex", alignItems: "center", gap: 6, flex: typeable ? "0 0 108px" : 1, minWidth: 0, padding: "2px 0", background: "none", border: "none", cursor: "pointer", color: "inherit", font: "inherit", textAlign: "left" }}
+                          >
+                            <span style={{ width: 14, height: 14, borderRadius: 3, border: `1px solid ${selected ? "var(--accent-blue)" : "var(--border-default)"}`, background: selected ? "var(--accent-blue)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              {selected && <Check size={10} color="var(--on-accent)" strokeWidth={3} />}
+                            </span>
+                            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name || "(unnamed)"}</span>
+                          </button>
+                          {typeable ? (
+                            /* The REAL control for the type, not a hand-rolled
+                               subset — `Field` is this app's one renderer, so an
+                               occurrence dropdown, a rating and a duration all
+                               behave here exactly as they do on a row. Driven
+                               CONTROLLED: `onCommit` writes local state, because
+                               the occurrence does not exist yet.
+
+                               NOT compact: the compact form is a pill you click
+                               to reveal an input, which is right on a crowded row
+                               and wrong here — the control should already be
+                               there to type into. */
+                            <span style={{ flex: 1, minWidth: 0 }}>
+                              <Field
+                                field={fieldWithOptions(f)}
+                                binding={{ fieldId: f.id, role: "input" }}
+                                compact={false}
+                                hideName
+                                hostOccurrence={draftOccurrence}
+                                value={pickingValues[f.id]}
+                                flow={f.meta?.flow || "in"}
+                                onCommit={(nv) => setPickingValues(p => ({ ...p, [f.id]: nv }))}
+                              />
+                            </span>
+                          ) : (
+                            f.type && <span style={{ fontSize: 9, color: "var(--text-faint)", flexShrink: 0 }}>{f.type}</span>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -569,12 +569,6 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
               </div>
               <div style={{ display: "flex", gap: 6, padding: "6px 8px", borderTop: "1px solid var(--border-subtle)", background: "var(--input-bg)" }}>
                 <button onClick={() => { onCreateNew?.({ fieldIds: [] }); closeMenu(); }} style={{ flex: 1, padding: "5px 8px", background: "transparent", border: "1px solid var(--border-default)", borderRadius: 4, cursor: "pointer", color: "var(--text-muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}>Skip</button>
-                {/* Offered only when something CAN be typed — a step that opens
-                    empty is a dead end. Create stays beside it, so the one-Enter
-                    path is unchanged for anyone who does not want values yet. */}
-                {valueFields.length > 0 && (
-                  <button onClick={() => setPickingValues({})} style={{ flex: 1, padding: "5px 8px", background: "transparent", border: "1px solid var(--accent-blue-border)", borderRadius: 4, cursor: "pointer", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)" }}>Values →</button>
-                )}
                 <button onClick={confirmCreate} style={{ flex: 1, padding: "5px 8px", background: "var(--accent-blue)", border: "1px solid var(--accent-blue)", borderRadius: 4, cursor: "pointer", color: "var(--on-accent)", fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600 }}>Create</button>
               </div>
             </>

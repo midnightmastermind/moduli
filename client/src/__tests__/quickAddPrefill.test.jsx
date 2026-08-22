@@ -59,8 +59,11 @@ const tickedCount = () => Number(/\((\d+) selected\)/.exec(screen.getByText(/sel
 // The value step renders REAL `Field` controls — the same components a row uses —
 // so the inputs are whatever those emit. The hidden file input the artifact tile
 // mounts is excluded, or it would be the first "input" on the page.
+// The controls live on the picker rows now, so the field SEARCH box has to be
+// excluded too — it is an <input> on the same screen and would otherwise be
+// the first one found, making every assertion below about the wrong element.
 const valueInputs = () => [...document.querySelectorAll("input, select, textarea")]
-  .filter(el => el.type !== "file");
+  .filter(el => el.type !== "file" && el.placeholder !== "Search fields\u2026");
 
 beforeEach(() => { store.occurrencesById = {}; });
 
@@ -170,14 +173,32 @@ describe("selected fields sort to the top of the picker", () => {
   });
 });
 
-describe("the value sub-step", () => {
-  it("offers 'Values →' only when something can actually be typed", () => {
-    // A step that opens empty is a dead end, so the button is conditional.
-    mount({ children: ["m-ing"] });                 // cal/protein are numbers
-    expect(screen.getByText("Values →")).toBeTruthy();
+describe("values are typed IN the field selection, not on a second screen", () => {
+  // User, 2026-08-22: *"just seed the fields themselves so they are at the top
+  // of the fields selection for that new occurance ... and being able to enter
+  // my own values in that field selection (using the appropriate inputs)"*.
+  // The separate "Values →" step is gone; a ticked typeable field carries its
+  // own control on its own row.
+
+  it("has no 'Values →' step any more", () => {
+    mount({ children: ["m-ing"] });
+    expect(screen.queryByText("Values \u2192")).toBeNull();
   });
 
-  it("does NOT offer it when every picked field is a display field", () => {
+  it("a ticked typeable field renders an input on its row", () => {
+    mount({ children: ["m-ing"] });      // cal + protein ticked and typeable
+    expect(valueInputs().length).toBe(2);
+  });
+
+  it("unticking one removes its input — the control", () => {
+    // Without this, the test above could be counting inputs the picker renders
+    // for EVERY field, which looks identical when everything is ticked.
+    mount({ children: ["m-ing"] });
+    fireEvent.click(screen.getByText("Protein"));
+    expect(valueInputs().length).toBe(1);
+  });
+
+  it("a ticked DISPLAY field gets no input — an op writes it", () => {
     store.fieldsById = { total: FIELDS.total };
     store.modulesById = { "m-d": { id: "m-d", role: "instance",
       fieldBindings: [{ fieldId: "total", role: "display" }] } };
@@ -186,23 +207,34 @@ describe("the value sub-step", () => {
       hostOccurrence={store.occurrencesById.host} />);
     fireEvent.click(utils.container.querySelector("button"));
     fireEvent.click(screen.getByText("Item"));
-    expect(screen.queryByText("Values →")).toBeNull();
+    expect(tickedCount()).toBe(1);       // it IS ticked...
+    expect(valueInputs().length).toBe(0); // ...and still has nothing to type into
+  });
+
+  it("every input starts EMPTY — the fields are inherited, the values never are", () => {
+    // The seeding question was asked and answered: fields come from the
+    // siblings, values are always the user's to type. A future change that
+    // pre-fills from a sibling fails here.
+    mount({ children: ["m-ing"] });
+    const inputs = valueInputs();
+    // The control comes FIRST: a for-loop over an empty list passes trivially,
+    // which would make this test green against a picker that renders no inputs
+    // at all — the exact shape of a vacuous assertion.
+    expect(inputs.length).toBe(2);
+    for (const el of inputs) expect(el.value).toBe("");
   });
 
   it("carries typed values to onCreateNew as initialFields", () => {
     const { onCreateNew } = mount({ children: ["m-ing"] });
-    fireEvent.click(screen.getByText("Values →"));
-    const inputs = valueInputs();
-    expect(inputs.length).toBeGreaterThan(0);
-    fireEvent.change(inputs[0], { target: { value: "150" } });
+    const input = valueInputs()[0];
+    fireEvent.change(input, { target: { value: "150" } });
     // `Field` commits on blur/Enter, not on every keystroke — the same debounce
     // a row uses. Firing only `change` asserts nothing about the commit path.
-    fireEvent.blur(inputs[0]);
+    fireEvent.blur(input);
     fireEvent.click(screen.getByText("Create"));
     const arg = onCreateNew.mock.calls[0][0];
     expect(arg.initialFields).toEqual({ cal: { value: 150, flow: "in" } });
-    // Bindings still ride along — the value step ADDS to the pick, it does not
-    // replace it.
+    // Bindings still ride along — typing ADDS to the pick, it does not replace it.
     expect(arg.fieldIds).toEqual(["cal", "protein", "total"]);
   });
 
@@ -212,7 +244,6 @@ describe("the value sub-step", () => {
     // deleted and proved nothing. Typing then clearing puts a "" in the map and
     // is the only shape that exercises the guard.
     const { onCreateNew } = mount({ children: ["m-ing"] });
-    fireEvent.click(screen.getByText("Values →"));
     const input = valueInputs()[0];
     fireEvent.change(input, { target: { value: "150" } });
     fireEvent.blur(input);
@@ -222,16 +253,16 @@ describe("the value sub-step", () => {
     expect(onCreateNew.mock.calls[0][0].initialFields).toEqual({});
   });
 
-  it("shows only the typeable fields — the display one is bound but not typed", () => {
-    mount({ children: ["m-ing"] });
-    fireEvent.click(screen.getByText("Values →"));
-    expect(screen.getByText(/Set values \(2 fields\)/)).toBeTruthy();   // cal + protein, not total
-  });
-
-  it("Back returns to the field picker with the picks intact", () => {
-    mount({ children: ["m-ing"] });
-    fireEvent.click(screen.getByText("Values →"));
-    fireEvent.click(screen.getByText(/Back/));
+  it("typing does not untick the field being filled in", () => {
+    // The row used to be one <button>; an <input> nested in a button is invalid
+    // and a click into the control would toggle the pick out from under you.
+    const { onCreateNew } = mount({ children: ["m-ing"] });
+    const input = valueInputs()[0];
+    fireEvent.click(input);
+    fireEvent.change(input, { target: { value: "42" } });
+    fireEvent.blur(input);
     expect(tickedCount()).toBe(3);
+    fireEvent.click(screen.getByText("Create"));
+    expect(onCreateNew.mock.calls[0][0].initialFields).toEqual({ cal: { value: 42, flow: "in" } });
   });
 });
