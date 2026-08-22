@@ -38,6 +38,51 @@ const uid = () => Math.random().toString(36).slice(2, 12);
 const newRule = (v) => ({ id: uid(), left: `${v}.fields.${MEAL}.value`, comparator: "IS_NOT_EMPTY", right: "" });
 
 /** Apply the migration's own two edits to a pipeline copy. */
+/**
+ * Rebuild the op as it was BEFORE `0174`, from the patched op the fixture now
+ * carries.
+ *
+ * This used to be unnecessary: the fixture predated the migration, so the "before"
+ * arm was simply the fixture's own pipeline. That made every A/B here silently
+ * dependent on the fixture STAYING STALE — and the moment it was re-exported, three
+ * tests failed for a reason that had nothing to do with the code they test.
+ *
+ * The two rules being restored are the two the migration replaced, and each is
+ * faithful to WHY it was broken rather than to its exact stored text:
+ *   nutrition — matched `templateId IS <one module>`, but an APPLY_TEMPLATE clone
+ *               mints its OWN module, so eight meals on a column carry eight
+ *               distinct modules and none is the one named.
+ *   history   — matched `Meal Type`, a field with 0 values and 0 bindings on the
+ *               whole grid; it never matched anything on any day.
+ * A rule naming a module no row carries, and a rule reading an empty field, are
+ * exactly those two defects — so the "before" arm still writes nothing, for the
+ * original reason.
+ */
+function unpatch(op, kind) {
+  const pipe = structuredClone(op.pipeline);
+  const n = replaceRule(pipe,
+    (r, v) => r?.left === `${v || (kind === "nutrition" ? "$item" : "$inst")}.fields.${MEAL}.value`
+              && r?.comparator === "IS_NOT_EMPTY",
+    (r, v) => kind === "nutrition"
+      ? { id: uid(), left: `${v || "$item"}.templateId`, comparator: "IS", right: "module-no-meal-row-carries" }
+      : { id: uid(), left: `${v || "$inst"}.fields.${MEAL_TYPE || "field-with-no-values"}.value`,
+          comparator: "IS_NOT_EMPTY", right: "" });
+  // Replacing NOTHING is the legitimate case when the fixture predates `0174` —
+  // the op is already in the "before" shape and there is nothing to reverse. That
+  // makes this harness independent of the fixture's VINTAGE in both directions,
+  // which is the whole point: the previous version only worked while the fixture
+  // was stale, and broke the day it was refreshed.
+  //
+  // What must never be silent is a fixture that is patched in a shape this cannot
+  // recognise — so the no-op is allowed only when the new rule is genuinely absent.
+  if (!n) {
+    const j = JSON.stringify(op.pipeline);
+    if (j.includes(`.fields.${MEAL}.value`))
+      throw new Error(`unpatch(${kind}): the op matches on the pick but no rule was reversed — its shape changed`);
+  }
+  return pipe;
+}
+
 function patch(op, kind) {
   const pipe = structuredClone(op.pipeline);
   const modCount = {};
@@ -84,7 +129,15 @@ function runMealOp(opName, { patched }) {
 
   const src = fx.operations.find(o => o.name === opName);
   const op = structuredClone(src);
-  if (patched) op.pipeline = patch(src, opName === "Meal Nutrition" ? "nutrition" : "history");
+  const kind = opName === "Meal Nutrition" ? "nutrition" : "history";
+  // VINTAGE-INDEPENDENT BY CONSTRUCTION. `0174` is applied to the live grid, so a
+  // freshly exported fixture carries the PATCHED op while an older one carries the
+  // original — and this harness used to assume the latter, so re-exporting the
+  // fixture broke three tests that have nothing to do with the code they test.
+  // Both arms are now derived from whichever shape the fixture happens to hold.
+  const isPatched = JSON.stringify(src.pipeline).includes(`.fields.${MEAL}.value`);
+  if (patched && !isPatched) op.pipeline = patch(src, kind);
+  if (!patched && isPatched) op.pipeline = unpatch(src, kind);
   const operations = [op];
   const fieldsById = Object.fromEntries(fx.fields.map(f => [f.id, f]));
   const operationsById = { [op.id]: op };
@@ -119,29 +172,22 @@ describe("the fixture's own shape — the controls", () => {
     expect(bound).toEqual([]);
   });
 
-  it("no placed meal row carries the module Meal Nutrition was matching", () => {
-    // The defect itself. Every meal on the column is an APPLY_TEMPLATE clone
-    // with its own module.
+  it("a day column carries SEVERAL distinct meal modules — the fact the defect rested on", () => {
+    // WHAT THIS USED TO ASSERT: that the fixture's own pipeline still carried the
+    // pre-`0174` rule, so the A/B could use it as the "before" arm. That only held
+    // while the fixture was STALE, and it broke the day it was refreshed.
+    //
+    // The durable half is the DATA fact, true of any vintage: every meal on a
+    // column is an APPLY_TEMPLATE clone with its own module, so no single
+    // `templateId` could ever have named them all. That is why the old rule
+    // matched nothing, and it is what `unpatch` reproduces.
     const occ = Object.fromEntries(fx.occurrences.map(o => [o.id, o]));
     const column = fx.occurrences.find(o => o.fields?.[FORMAT]?.value === "day-col");
     const mealMods = new Set();
     for (const sid of column.occurrences || [])
       for (const kid of occ[sid]?.occurrences || [])
         if (occ[kid]?.fields?.[MEAL]?.value) mealMods.add(occ[kid].moduleId);
-    expect(mealMods.size).toBeGreaterThan(1);          // several distinct modules
-    // Walk for the rule rather than regexing the JSON — key order is the
-    // serializer's business, and a regex that quietly matches nothing would
-    // make this assertion pass for the wrong reason.
-    const named = [];
-    const walk = (v) => {
-      if (Array.isArray(v)) return v.forEach(walk);
-      if (!v || typeof v !== "object") return;
-      if (typeof v.left === "string" && v.left.endsWith(".templateId") && v.comparator === "IS") named.push(v.right);
-      Object.values(v).forEach(walk);
-    };
-    walk(fx.operations.find(o => o.name === "Meal Nutrition").pipeline);
-    expect(named).toHaveLength(1);
-    expect(mealMods.has(named[0])).toBe(false);
+    expect(mealMods.size).toBeGreaterThan(1);
   });
 });
 
