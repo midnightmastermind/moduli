@@ -635,16 +635,25 @@ export function compareFieldValues(va, vb) {
   return String(va).localeCompare(String(vb));
 }
 
-export function getLocalFilterConditions(occ) {
-  const out = [];
-  for (const f of (occ?.filters || [])) {
-    if (!f?.active || !f.fieldId) continue;
-    if (f.condition != null) continue;
-    out.push({ fieldId: f.fieldId, comparator: f.comparator || "IS" });
-  }
-  return out;
-}
-
+/**
+ * The visibility conditions a single occurrence's own `filters[]` contribute.
+ *
+ * A CONDITION-BEARING ENTRY DECLARES `hides` EXPLICITLY. There is no default and no fallback:
+ * `0189` stamps the flag on every live entry, and `localFilterHidesDeclared.test.js` fails the
+ * build if one ever lacks it. The user's rule, and it is the right one here — *"i dont want
+ * backwards compatible. that creates bug"* — a flag whose ABSENCE means "the old behaviour" is
+ * two behaviours wearing one name, which is the inert-token class this repo keeps paying for.
+ *
+ * WHY THE FLAG EXISTS AT ALL, rather than every condition simply hiding: the four live
+ * condition entries do two genuinely different jobs. The Trackers page's `Tags` entry rescopes
+ * the NUMBERS and must leave the screen alone — 2026-08-20 (5) measured that gating visibility
+ * by it would EMPTY the page while the totals rescoped, because `Tags` is mixed (nine wellness
+ * dimensions among 45 values in live use). The Tasks page's new entry does the opposite: its
+ * whole purpose is to take a finished row off the board. One mechanism, two declared intents.
+ *
+ * `isOccurrenceVisible` already evaluates a nested group against `$occ`, so nothing new is
+ * introduced — what was missing was a way for one container to ask for it.
+ */
 export function isOccurrenceVisible(occurrence, effectiveFilters, filterConditions = null) {
   if (!occurrence) return false;
   if (occurrence.hidden) return false;
