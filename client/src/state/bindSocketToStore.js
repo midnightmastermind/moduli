@@ -39,7 +39,7 @@ import { persistAuth, clearAuth } from "../helpers/authStorage.js";
  * Module-level bridge so CommitHelpers can fire operations immediately
  * after optimistic dispatch (no server round-trip needed).
  */
-export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLocalMod: null, getFilterContext: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, beginDropBatch: null, endDropBatch: null, markDerivedOcc: null };
+export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLocalMod: null, getFilterContext: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, beginDropBatch: null, endDropBatch: null, markDerivedOcc: null, scheduleFeedSync: null };
 
 // Pure decision half of the SET_FILTER effect, so it can be tested without a
 // socket. `filterNavState` drives the nav WIDGET; `grid.activeFilterValues`
@@ -1725,6 +1725,15 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   };
 
   // Expose on module-level bridge so CommitHelpers can call optimistically
+  // A local write must re-sync feeds in the tab that made it. The server
+  // broadcasts occurrence CRUD with socket.to(userRoom()) — the sender is
+  // EXCLUDED and gets a timestamp-only ack — so the three CRUD call sites
+  // above are echo handlers that never fire in the originating window (the
+  // other three are full_state, grid_updated and the local filter cascade).
+  // Ticking a task's Completed left it out of the
+  // `Completed` feed until a reload. Same shape as the 2026-08-07 (2)
+  // NavigationOp fix, which reached CommitHelpers.updateGrid for the same reason.
+  operationsBridge.scheduleFeedSync = () => scheduleFeedSync();
   operationsBridge.fireOperations = fireOperationsOptimistic;
   operationsBridge.fireOperationsBatch = fireOperationsBatch;
   operationsBridge.updateLocalOcc = (occ) => { if (occ?.id) localOccsById[occ.id] = occ; };

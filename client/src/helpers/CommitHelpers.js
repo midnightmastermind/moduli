@@ -200,12 +200,39 @@ export function ensureModuleBindingsForOccurrenceFields({ dispatch, socket, occu
   });
 }
 
+// ─── Feeds must re-sync in the tab that WROTE ─────────────────────────────
+// The server broadcasts occurrence CRUD with `socket.to(userRoom())` — the
+// originator is deliberately excluded and gets a timestamp-only ack — so
+// bindSocketToStore's echo handlers, which are where feed syncing is
+// scheduled, never run in the window that made the change. Measured on prod:
+// ticking a task's Completed left it out of the `Completed` feed for as long
+// as the tab stayed open; one reload of that same tab minted it.
+//
+// `fireTrigger: false` is the marker feedSync already puts on every mint and
+// sweep it makes ("derived data" — its own comments). Honouring it here is
+// what stops the engine rescheduling itself off its own writes.
+function feedsMayHaveChanged() {
+  operationsBridge.scheduleFeedSync?.();
+}
+
+// A textmap carries no feed predicate — conditions read `fields.<id>.value`,
+// roles and ancestry — so debounced typing must not run a pass over every
+// feed on the grid. That is the ONE exclusion, and it is written as a
+// DENYLIST on purpose: enumerating the keys that DO matter is exactly how
+// the 2026-08-05 APPLY_TEMPLATE role gate quietly stopped covering the case
+// its own comment described.
+function isTextmapOnlyPatch(occurrence) {
+  if (!occurrence || occurrence.textmap === undefined) return false;
+  return Object.keys(occurrence).every((k) => k === "id" || k === "textmap");
+}
+
 // `fireTrigger: false` marks DERIVED data (feed copies, op-materialized rows —
 // see feedSync). Those stay out of the undo stack; everything else is a user
 // action and gets one.
 export function createOccurrence(args) {
   if (!args?.occurrence?.id) return undefined;
   if (args.fireTrigger === false) return _createOccurrence(args);
+  feedsMayHaveChanged();
   return withAction("Created item", () => _createOccurrence(args));
 }
 
@@ -269,6 +296,7 @@ function _createOccurrence({ dispatch, socket, occurrence, emit = true, panelId 
 // to act on (user: "control z ... not working on docpages").
 export function updateOccurrence(args) {
   if (!args?.occurrence?.id) return undefined;
+  if (!isTextmapOnlyPatch(args.occurrence)) feedsMayHaveChanged();
   const label = args.occurrence.textmap !== undefined ? "Edited text" : "Updated item";
   return withAction(label, () => _updateOccurrence(args));
 }
@@ -539,6 +567,7 @@ export function updateOccurrenceFilterOverride({ dispatch, socket, id, filterOve
 export function deleteOccurrence(args) {
   if (!args?.occurrenceId) return undefined;
   if (args.fireTrigger === false) return _deleteOccurrence(args);
+  feedsMayHaveChanged();
   return withAction("Deleted item", () => _deleteOccurrence(args));
 }
 
@@ -605,6 +634,7 @@ function _deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, emit = 
 export function removeOccurrence(args) {
   if (!args?.occurrenceId) return undefined;
   if (args.fireTrigger === false) return _removeOccurrence(args);
+  feedsMayHaveChanged();
   return withAction("Removed item", () => _removeOccurrence(args));
 }
 
