@@ -7,7 +7,7 @@
 // "copy the nearest sibling".
 import { describe, it, expect } from "vitest";
 import { siblingFieldBindings, siblingFieldIds, splitDisplayInput, normalizeFieldBindings,
-  typeableFields, toInitialFields, selectedFirst } from "../helpers/siblingFieldBindings.js";
+  typeableFields, toInitialFields } from "../helpers/siblingFieldBindings.js";
 
 const mods = {
   "m-a": { id: "m-a", role: "instance", fieldBindings: [
@@ -193,26 +193,7 @@ describe("toInitialFields", () => {
   });
 });
 
-describe("selectedFirst — ticked fields sort to the top", () => {
-  const F = (id) => ({ id });
-  it("moves selected ahead of the rest", () => {
-    expect(selectedFirst([F("a"), F("b"), F("c")], ["c"]).map(f => f.id)).toEqual(["c", "a", "b"]);
-  });
 
-  it("is STABLE inside each group, so the caller's sort survives", () => {
-    expect(selectedFirst([F("a"), F("b"), F("c"), F("d")], ["d", "b"]).map(f => f.id))
-      .toEqual(["b", "d", "a", "c"]);
-  });
-
-  it("nothing selected leaves the order untouched", () => {
-    expect(selectedFirst([F("a"), F("b")], []).map(f => f.id)).toEqual(["a", "b"]);
-    expect(selectedFirst([F("a"), F("b")], null).map(f => f.id)).toEqual(["a", "b"]);
-  });
-
-  it("everything selected leaves the order untouched too", () => {
-    expect(selectedFirst([F("a"), F("b")], ["a", "b"]).map(f => f.id)).toEqual(["a", "b"]);
-  });
-});
 
 describe("typeableFields — an INPUT field of any type gets a control", () => {
   const F = {

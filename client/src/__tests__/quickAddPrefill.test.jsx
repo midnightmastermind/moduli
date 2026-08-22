@@ -114,14 +114,53 @@ describe("the field picker seeds itself from the destination", () => {
   });
 });
 
-describe("display and input are separate sections", () => {
-  it("renders both captions, display first", () => {
-    mount({ children: ["m-ing"] });
-    const captions = [...document.querySelectorAll("div")]
-      .map(d => d.textContent)
-      .filter(t => t === "Display" || t === "Input");
-    expect(captions[0]).toBe("Display");
-    expect(captions).toContain("Input");
+describe("three sections: Selected, then Input, then Display", () => {
+  // User, 2026-08-22: *"put the selected fields first, then input fields and
+  // then display fields."* Ticked fields used to sort to the top WITHIN each
+  // section, which left them split across two captions and — on a grid with
+  // ~99 display fields — put the ones you can type into below the fold.
+  const captions = () => [...document.querySelectorAll("div")]
+    .map(d => d.textContent)
+    .filter(t => t === "Selected" || t === "Input" || t === "Display");
+
+  it("renders the three captions in that order", () => {
+    // `total` is the fixture's only display field and the siblings BIND it, so
+    // a Display caption needs one more display field that nobody binds — with
+    // FIELDS alone the section is legitimately empty and correctly omitted.
+    // (That is what the first version of this test got wrong: it asserted a
+    // caption the fixture could not produce, and read as a code failure.)
+    store.fieldsById = { ...FIELDS, spare: { id: "spare", name: "Spare", type: "number", displayEnabled: true } };
+    store.modulesById = MODULES;
+    store.occurrencesById = {
+      host: { id: "host", occurrences: ["k0", "k1"] },
+      k0: { id: "k0", moduleId: "m-ing" }, k1: { id: "k1", moduleId: "m-other" },
+    };
+    const utils = render(<QuickAddMenu targetRole="instance" onCreateNew={vi.fn()}
+      hostOccurrence={store.occurrencesById.host} />);
+    fireEvent.click(utils.container.querySelector("button"));
+    fireEvent.click(screen.getByText("Item"));
+    expect(captions()).toEqual(["Selected", "Input", "Display"]);
+  });
+
+  it("a ticked DISPLAY field leaves the Display section for Selected", () => {
+    // `total` is the only display field bound by the siblings. If sections were
+    // still split by role it would head the Display caption; here Display holds
+    // nothing at all and is omitted.
+    store.fieldsById = { cal: FIELDS.cal, total: FIELDS.total };
+    store.modulesById = MODULES;
+    store.occurrencesById = { host: { id: "host", occurrences: ["k0"] }, k0: { id: "k0", moduleId: "m-ing" } };
+    const utils = render(<QuickAddMenu targetRole="instance" onCreateNew={vi.fn()}
+      hostOccurrence={store.occurrencesById.host} />);
+    fireEvent.click(utils.container.querySelector("button"));
+    fireEvent.click(screen.getByText("Item"));
+    expect(captions()).toEqual(["Selected"]);
+  });
+
+  it("with nothing ticked there is no Selected section — the control", () => {
+    // Without this the first test could be measuring a picker that always
+    // prints three captions, which looks identical on a populated container.
+    mount({ children: [] });
+    expect(captions()).toEqual(["Input", "Display"]);
   });
 
   it("omits a section that has nothing in it", () => {
@@ -132,20 +171,18 @@ describe("display and input are separate sections", () => {
       hostOccurrence={store.occurrencesById.host} />);
     fireEvent.click(utils.container.querySelector("button"));
     fireEvent.click(screen.getByText("Item"));
-    expect(screen.queryByText("Display")).toBeNull();
-    expect(screen.getByText("Input")).toBeTruthy();
+    expect(captions()).toEqual(["Input"]);
   });
-});
 
-describe("selected fields sort to the top of the picker", () => {
-  // The helper has its own tests; this one asserts the COMPONENT uses it.
-  // Without it, removing `selectedFirst` from the render passed every helper
-  // test — the inert-call-site class.
-  // The INPUT section only — the Display section renders above it and would
-  // otherwise be the first row whatever the sort does.
-  const inputNames = Object.values(FIELDS).filter(f => !f.displayEnabled).map(f => f.name);
-  const order = () => [...document.querySelectorAll("button")]
-    .map(b => b.textContent).filter(t => inputNames.some(n => t.startsWith(n)));
+  it("inside Selected, input fields come before display ones", () => {
+    // The same preference the three sections express, applied one level down:
+    // `total` sorts before `cal` alphabetically and must still render after it.
+    mount({ children: ["m-ing"] });
+    const names = [...document.querySelectorAll("button")]
+      .map(b => b.textContent).filter(t => /^(Calories|Protein|Total)/.test(t));
+    expect(names.map(t => t.replace(/(number|text).*$/, "").trim()))
+      .toEqual(["Calories", "Protein", "Total"]);
+  });
 
   it("a LATE-alphabet ticked field renders before an early unticked one", () => {
     store.fieldsById = FIELDS;
@@ -156,20 +193,9 @@ describe("selected fields sort to the top of the picker", () => {
       hostOccurrence={store.occurrencesById.host} />);
     fireEvent.click(utils.container.querySelector("button"));
     fireEvent.click(screen.getByText("Item"));
-    const o = order();
-    expect(o[0]).toContain("Zebra");                    // ticked, last alphabetically
-    expect(o.findIndex(t => t.startsWith("Calories"))).toBeGreaterThan(0);
-  });
-
-  it("with nothing ticked the list stays alphabetical — the control", () => {
-    store.fieldsById = FIELDS;
-    store.modulesById = MODULES;
-    store.occurrencesById = { host: { id: "host", occurrences: [] } };
-    const utils = render(<QuickAddMenu targetRole="instance" onCreateNew={vi.fn()}
-      hostOccurrence={store.occurrencesById.host} />);
-    fireEvent.click(utils.container.querySelector("button"));
-    fireEvent.click(screen.getByText("Item"));
-    expect(order()[0]).toContain("Calories");
+    const names = [...document.querySelectorAll("button")]
+      .map(b => b.textContent).filter(t => /^(Zebra|Calories)/.test(t));
+    expect(names[0]).toContain("Zebra");   // ticked, last alphabetically
   });
 });
 

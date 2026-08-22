@@ -166,22 +166,8 @@ export function toInitialFields(values) {
   return out;
 }
 
-/**
- * Order a field list with the SELECTED ones first.
- *
- * User, 2026-08-21: *"and the selected ones should go to the top"*. With the
- * picker now opening pre-ticked from the destination's siblings, the fields that
- * are ON are the ones you came to check — and they were scattered through an
- * alphabetical list of every field on the grid.
- *
- * STABLE within each group, so the alphabetical order the caller sorted by
- * survives inside "selected" and inside "the rest". Unticking a field moves it
- * down; that is the same rule read backwards, and it is what makes the position
- * mean something.
- */
-export function selectedFirst(fields, selectedIds) {
-  const sel = new Set(selectedIds || []);
-  const on = [], off = [];
-  for (const f of fields || []) (sel.has(f?.id) ? on : off).push(f);
-  return [...on, ...off];
-}
+// `selectedFirst` lived here from 2026-08-21 until 2026-08-22, ordering ticked
+// fields to the top WITHIN the picker's Display and Input sections. Selection is
+// its own SECTION now ("put the selected fields first, then input fields and
+// then display fields"), so the sort has no caller and is deleted rather than
+// left as a helper nobody reaches — the inert class this repo keeps removing.

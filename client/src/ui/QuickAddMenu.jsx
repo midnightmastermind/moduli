@@ -18,7 +18,7 @@ import { commitApplyTemplate } from "../helpers/CommitHelpers";
 import { getModuleTypeBadge } from "../helpers/moduleIcons";
 import { openImagePicker } from "./ImagePickerMenu";
 
-import { siblingFieldBindings, splitDisplayInput, typeableFields, toInitialFields, selectedFirst } from "../helpers/siblingFieldBindings.js";
+import { siblingFieldBindings, splitDisplayInput, typeableFields, toInitialFields } from "../helpers/siblingFieldBindings.js";
 import Field from "./Field.jsx";
 import { resolveOptions } from "../helpers/optionsResolver";
 // Anchor-relative menu placement. Opens below the anchor; flips above when the
@@ -192,10 +192,16 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     setFieldSearch("");
   }, []);
 
-  // Sorted, search-filtered field list, split into the two SECTIONS the user
-  // asked for (2026-08-21: "i need the display and then input fields seperated
-  // by section"). Display first — those are the computed ones an operation
-  // writes, and they read as a different kind of thing from what you type.
+  // Sorted, search-filtered field list in THREE sections (user, 2026-08-22:
+  // "put the selected fields first, then input fields and then display
+  // fields"). Ticked fields used to sort to the top WITHIN a Display and an
+  // Input section — which split them across two captions and, on a grid with
+  // ~99 display fields, left the ones you can actually type into below the
+  // fold. Selected is now its own section regardless of role.
+  //
+  // Inside Selected the same preference applies one level down: input before
+  // display. A display field is written by an operation and carries no control
+  // here, so it belongs after the rows you can fill in.
   const fieldSections = useMemo(() => {
     if (pickingFields == null) return [];
     const q = fieldSearch.trim().toLowerCase();
@@ -203,15 +209,13 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
       .filter(f => !f.trashed)
       .filter(f => !q || (f.name || "").toLowerCase().includes(q))
       .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-    const { display, input } = splitDisplayInput(all);
-    // Ticked ones first, inside each section (user: "and the selected ones
-    // should go to the top"). Now that the picker opens pre-ticked from the
-    // destination, those are the fields you came to check — and they were
-    // scattered through an alphabetical list of every field on the grid.
-    const sel = pickingFields;
+    const sel = new Set(pickingFields);
+    const picked = splitDisplayInput(all.filter(f => sel.has(f.id)));
+    const rest = splitDisplayInput(all.filter(f => !sel.has(f.id)));
     return [
-      { key: "display", title: "Display", fields: selectedFirst(display, sel) },
-      { key: "input", title: "Input", fields: selectedFirst(input, sel) },
+      { key: "selected", title: "Selected", fields: [...picked.input, ...picked.display] },
+      { key: "input", title: "Input", fields: rest.input },
+      { key: "display", title: "Display", fields: rest.display },
     ].filter(sec => sec.fields.length);
   }, [fieldsById, pickingFields, fieldSearch]);
   const fieldCount = useMemo(
