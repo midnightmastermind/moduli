@@ -17,7 +17,7 @@ import { KIND_ICONS as PAGE_KIND_ICON } from "../helpers/moduleIcons";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { ensureArtifactPageOcc } from "../helpers/importsFolder";
 import { isProtectedFolder } from "../helpers/protectedFolders";
-import { isFolderOpen, setFolderOpen } from "../helpers/treeExpansion";
+import { isFolderOpen, setFolderOpen, ROOT_SCOPE } from "../helpers/treeExpansion";
 import { resolveFileRef, isExternalFileRef } from "../helpers/fileRef.js";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import NodePill from "./NodePill.jsx";
@@ -493,7 +493,7 @@ export function resolveFolderDrop({ folder } = {}) {
 }
 
 // ─── FolderNode ──────────────────────────────────────────────────────────────
-function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, onSetDefault, defaultOccurrenceId, onOpenPage, onOpenPageAndClose, showAnchors = true }) {
+function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, onSetDefault, defaultOccurrenceId, onOpenPage, onOpenPageAndClose, showAnchors = true, scope = ROOT_SCOPE }) {
   const { dispatch, socket, state } = useGridActions();
   // CLOSED by default, and what you open is remembered per browser.
   //
@@ -502,7 +502,11 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
   // value — and every seeded folder carried `true`, which is why the whole tree
   // arrived expanded. The field stays on the record (the Command Center category
   // tabs read it) and is INERT here on purpose; `helpers/treeExpansion` owns it.
-  const [openState, setOpenState] = useState(() => isFolderOpen(folder?.id));
+  // SCOPED: the same folder is drawn in Pinned and again in the Root tree below,
+  // and an unscoped key made those two rows share one open state — so expanding
+  // a folder in Root expanded it inside Pinned as well and Pinned slowly became
+  // a second copy of the manifest.
+  const [openState, setOpenState] = useState(() => isFolderOpen(folder?.id, scope));
   const open = openState;
   // Persisted OUTSIDE the state updater, not inside it: React double-invokes
   // updaters in StrictMode, so a write in there runs twice per toggle. Both call
@@ -511,8 +515,8 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
   const setOpen = useCallback((next) => {
     const v = typeof next === "function" ? next(openState) : next;
     setOpenState(v);
-    setFolderOpen(folder?.id, v);
-  }, [openState, folder?.id]);
+    setFolderOpen(folder?.id, v, scope);
+  }, [openState, folder?.id, scope]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(folder.name);
@@ -851,7 +855,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
           {childFolders.map(cf => (
             <FolderNode key={cf.id} folder={cf} depth={depth + 1} foldersById={foldersById}
               occurrencesById={occurrencesById} modulesById={modulesById} childrenByParentId={childrenByParentId} activeOccurrenceId={activeOccurrenceId}
-              onSelect={onSelect} onScrollTo={onScrollTo} onSetDefault={onSetDefault} defaultOccurrenceId={defaultOccurrenceId} onOpenPage={onOpenPage} onOpenPageAndClose={onOpenPageAndClose} showAnchors={showAnchors} />
+              onSelect={onSelect} onScrollTo={onScrollTo} onSetDefault={onSetDefault} defaultOccurrenceId={defaultOccurrenceId} onOpenPage={onOpenPage} onOpenPageAndClose={onOpenPageAndClose} showAnchors={showAnchors} scope={scope} />
           ))}
           {pageOccs.map(occ => (
             <PageTreeNode key={occ.id} pageOccId={occ.id} activeOccId={activeOccurrenceId}
@@ -1414,7 +1418,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                    the air around it is the whole difference — no tint, because a band
                    behind the rows would fight the wallpaper every skin paints behind
                    this sidebar. */
-                <div style={{ paddingBottom: 5, marginBottom: 5, borderBottom: "1px solid var(--border-default)" }}>
+                <div className="manifest-pinned-section">
                   <div style={{ display: "flex", alignItems: "center" }} className="manifest-row">
                     <span
                       style={{ display: "flex", alignItems: "center", flexShrink: 0, padding: "4px 2px", cursor: "pointer" }}
@@ -1423,7 +1427,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                       <ChevronRight size={8} style={{ opacity: 0.35, transform: localRootOpen ? "rotate(90deg)" : "none", transition: "transform 0.12s" }} />
                     </span>
                     <NodePill
-                      module={{ kind: "folder", label: "Pinned" }}
+                      module={{ kind: "folder", label: "PINNED" }}
                       onClick={() => setLocalRootOpen(v => !v)}
                       style={{ flex: 1 }}
                     />
@@ -1436,6 +1440,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                     <FolderNode
                       key={folder.id}
                       folder={folder}
+                      scope="pinned"
                       depth={0}
                       foldersById={foldersById}
                       occurrencesById={occurrencesById}

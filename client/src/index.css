@@ -58,6 +58,32 @@
      In the bare :root for the reason the comment above gives. */
   --on-accent: #ffffff;
 
+  /* ── THE FILTER MENU'S SURFACE WAS NEVER THEMED ────────────────────────────
+     User, 2026-08-22: *"the filter menu doesnt match the theme"*.
+
+     `--panel-bg` and `--panel-border` are read in NINE files — the toolbar
+     filter dropdown, its calendar, the filter nav widgets, FiltersSection,
+     HeaderDropdown, NavPickerPopover, TemplatesSection, FieldVisibilitySection
+     and this stylesheet — 26 uses in all. **They were defined NOWHERE.** Every
+     one fell through to its hardcoded dark literal (`#1f2125` / `#374151` /
+     `#14161a`), so those surfaces painted a dark slab on all six skins and the
+     three light ones read as a hole punched in the page.
+
+     The 2026-08-21 theming pass converted 82 literals across 20 surfaces and
+     did not catch this, because it swapped literals FOR THESE TOKENS without
+     checking that they resolve — an inert token is invisible to a grep for
+     literals, and the dark fallback made it look correct on the skin being
+     tested. This is the same class the `--textblock-tint` comment above
+     records, from the other direction: there the token was defined in only one
+     theme, here in none at all.
+
+     ALIASED RATHER THAN REPLACED AT 26 CALL SITES. The indirection resolves at
+     USE time, so one definition here follows every theme's own
+     `--surface-card` / `--border-default` — and any tenth file that reads the
+     old name is themed for free instead of being the next thing to find. */
+  --panel-bg: var(--surface-card);
+  --panel-border: var(--border-default);
+
   /* The wash behind a full-screen picker. Was `rgba(0,0,0,0.45)` inline — heavy
      enough on a light skin to read as a different app. */
   --scrim: rgba(0,0,0,0.45);
@@ -937,6 +963,35 @@ select:disabled { cursor: not-allowed; }
     0 2px 0 rgba(0, 0, 0, 0.26),
     0 5px 10px rgba(0, 0, 0, 0.40);
 }
+
+/* ── A NESTED CONTAINER DOES NOT RE-PAY THE SURFACE ALPHA ───────────────────
+   User, 2026-08-22: *"textblocks in certain documents like nutrition plan arent
+   transparent at all"* — and "certain" is the whole clue. It is not a stored
+   colour (0 of 79 stored backgrounds on the grid are opaque) and not the
+   textblock tint. It is DEPTH.
+
+   `--grid-surface-a` is 0.24 and the comment above says what it was tuned for:
+   ONE panel plus ONE container. Every nested container re-pays it, and the
+   imported documents are nested deeply:
+
+     Nutrition Plan          doc containers 4 deep   0.24^4 -> ~0.67, +0.35 textblock = ~0.78
+     Basic Nutrition Guide   3 deep                                            ~0.72
+     Gospel of Thomas        flat                                              ~0.51
+
+   So the two documents the user named are the two deepest on the grid, and the
+   flat ones — which they did NOT complain about — sit at half that. The tint
+   was never wrong; it was being paid five times.
+
+   Collapsing it to the tuned pair regardless of depth is the fix, and it is
+   also the unresolved half of the 2026-08-19 (2) report (*Physical* an opaque
+   slab, *Nutrition* inside it another, the rows inside that again) — that pass
+   fixed the STORED-colour half and left this one. A nested shell keeps its
+   border, so it still reads as its own section; what it stops doing is adding
+   another coat of paint over the wallpaper the user keeps asking to see. */
+.container-shell .container-shell {
+  background: transparent;
+}
+
 
 .container-body {
   height: 100%;
@@ -2303,7 +2358,11 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 
 /* Placeholder text */
 .doc-editor-content.ProseMirror .is-editor-empty:first-child::before {
-  color: hsl(var(--muted-foreground));
+  /* `--muted-foreground` is defined by nothing — a leftover shadcn name. With no
+     fallback the whole declaration was invalid and dropped, so the placeholder
+     inherited the editor's own ink and read as real text rather than a hint.
+     Found by the token-resolution guard, not by looking. */
+  color: hsl(var(--foreground-2));
   content: attr(data-placeholder);
   float: left;
   height: 0;
@@ -3143,6 +3202,30 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 /* Manifest tree row — X close slot rendered INSIDE NodePill (left of the
    GripVertical drag handle). Collapses to zero width when not hovered so it
    doesn't push the icon/label off-centre on idle rows. */
+/* ── PINNED vs ROOT: the boundary has to READ ──────────────────────────────
+   User, 2026-08-22: *"pinned and root in the sidebar arent seperated enough /
+   the entire root folder is being opened in the pinned"*.
+
+   The 2026-08-21 merge put both trees in ONE scroller and divided them with a
+   hairline plus 5px of air — which, at sidebar row density, is the same gap
+   that sits between any two folder rows. So the eye read one continuous tree
+   and the two sections stopped meaning different things.
+
+   AIR AND A RULE, NEVER A TINT. Every skin paints a wallpaper behind this
+   sidebar, so a filled band behind one section fights the art — the same reason
+   the original divider was a bare rule. What changes is that there is now
+   enough of it to be a boundary rather than a gap: double the space either
+   side, and a rule with a real weight.
+
+   (The other half of that report was a genuine bug, fixed in
+   `helpers/treeExpansion` — the two sections shared one open-state key, so
+   expanding a folder in Root expanded the same folder inside Pinned.) */
+.manifest-pinned-section {
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 2px solid var(--border-default);
+}
+
 .manifest-row-x-slot {
   opacity: 0;
   width: 0;
@@ -3240,7 +3323,10 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   border-top: 1px solid var(--border-default);
   font-size: 10px;
   font-family: var(--font-mono);
-  color: var(--text-secondary);
+  /* `--text-secondary` is defined by nothing — the scale here is
+     primary / muted / faint. With no fallback the declaration was invalid and
+     dropped, so this row inherited whatever ink its parent had. */
+  color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

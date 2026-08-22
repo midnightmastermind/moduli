@@ -3230,3 +3230,28 @@ eight distinct modules and none is the one named. `Meal History` matched `Meal T
 **0 values and 0 bindings on the whole grid** — it never worked on any day. Both now match the
 structural fact: **a row carrying a `Meal` pick IS a meal** (85 occurrences, 79 modules). `0174`.
 The `Completed IS true` gate stays, per the user's answer.
+
+---
+
+### 2026-08-22 — four surface asks, filed before acting
+
+> "things like the textblocks in certain documents like nutrition plan arent transparent at all.
+> and the filter menu doesnt match the theme, and pinned and root in the sidebar arent seperated
+> enough/the entire root folder is being opened in the pinned. it was a bunch of tasks like these
+> in the logs"
+
+Four distinct items, and the fourth is the only one that is a FUNCTIONAL defect rather than a
+styling one:
+
+1. **Textblocks in some documents are fully opaque** — named example: Nutrition Plan. Everything
+   else on the grid composites against the wallpaper; these do not.
+2. **The filter menu does not follow the theme** — it is one of the surfaces still painting its own
+   colours rather than reading the tokens.
+3. **`Pinned` and `Root` in the ONE sidebar are not separated enough** — the 2026-08-21 merge put
+   them in a single tree and the boundary does not read.
+4. **The whole Root folder is being opened INSIDE `Pinned`** — the pinned section is showing the
+   manifest's contents rather than the panel's own pinned pages. That is a wrong-data bug, not a
+   spacing one, and it is the one to measure first.
+
+Plus a standing instruction: **sweep the logs for the other small asks of this kind.** The
+2026-08-22 micro-sweep covered the recent tail; this says the sweep is not finished.

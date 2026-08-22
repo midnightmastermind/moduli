@@ -43,17 +43,42 @@ function write(set) {
   }
 }
 
+/**
+ * THE KEY IS SCOPED BY SECTION, and that is a bug fix rather than a tidy-up.
+ *
+ * The sidebar draws the SAME folder in two places: once inside `Pinned` (a
+ * pinned folder page renders its real subtree) and again in the full `Root`
+ * manifest below. Keyed by folder id alone, those two rows shared one open
+ * state — so expanding `Interfaces` in Root silently expanded it inside Pinned
+ * too, and as you browsed, Pinned filled up with a copy of the manifest. That
+ * is the user's 2026-08-22 report, verbatim: *"the entire root folder is being
+ * opened in the pinned"*.
+ *
+ * THE ROOT SCOPE KEEPS THE BARE ID on purpose. Prefixing both would be cleaner
+ * to look at and would make every existing browser forget which folders it had
+ * open — a silent reset of the one thing this file exists to remember. Only the
+ * new, second place a folder can appear gets a prefix.
+ */
+export const ROOT_SCOPE = "root";
+
+export function folderKey(folderId, scope = ROOT_SCOPE) {
+  if (!folderId) return null;
+  return scope === ROOT_SCOPE ? folderId : `${scope}:${folderId}`;
+}
+
 /** Is this folder open? Unknown folders — i.e. all of them, the first time — are CLOSED. */
-export function isFolderOpen(folderId) {
-  if (!folderId) return false;
-  return read().has(folderId);
+export function isFolderOpen(folderId, scope = ROOT_SCOPE) {
+  const key = folderKey(folderId, scope);
+  if (!key) return false;
+  return read().has(key);
 }
 
 /** Remember that this folder is open (or forget it). */
-export function setFolderOpen(folderId, open) {
-  if (!folderId) return;
+export function setFolderOpen(folderId, open, scope = ROOT_SCOPE) {
+  const key = folderKey(folderId, scope);
+  if (!key) return;
   const set = read();
-  if (open) set.add(folderId);
-  else set.delete(folderId);
+  if (open) set.add(key);
+  else set.delete(key);
   write(set);
 }
