@@ -22,7 +22,10 @@ import { runMatchingOperations, applyEffectsToLiveOccs } from "../helpers/operat
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fx = JSON.parse(brotliDecompressSync(readFileSync(path.join(here, "fixtures", "pomsGrid.json.br"))).toString());
-const OP = "Schedule: Place Weekday";
+// `0186` renamed this `Schedule: Fill Day`. Both accepted — see mergedTemplateLayers.
+const OP_NAMES = ["Schedule: Fill Day", "Schedule: Place Weekday"];
+const OP = OP_NAMES[0];
+const TIME_SLOT = "nSccAtADyUGW";
 const SCHEDULE_PAGE = "llpF10Bda5nu";
 const MOVEMENT = "gF1S8FoNc4An", FORMAT = "vQ0ELZP_zxnx", DATE = "Eh7oi4HKdbHB";
 
@@ -66,7 +69,7 @@ function placeOn(isoDate, mutate) {
     .flatMap((sid) => occ[sid]?.occurrences || []).length;
   mutate?.(occ);
 
-  const op = fx.operations.find(o => o.name === OP);
+  const op = fx.operations.find(o => OP_NAMES.includes(o.name));
   const operations = [structuredClone(op)];
   const fieldsById = Object.fromEntries(fx.fields.map(f => [f.id, f]));
   const operationsById = { [operations[0].id]: operations[0] };
@@ -115,29 +118,61 @@ describe("the seven weekday templates", () => {
       ["Friday", "Monday", "Saturday", "Sunday", "Thursday", "Tuesday", "Wednesday"]);
   });
 
-  it("holds only what makes that weekday different — the daily routines are not on it", () => {
-    // `Build Schedule` copies Drink / Hygiene / Hot Tub / Take Medication / Walk
-    // / Journal onto every column from the `Day` template. The weekday op has no
-    // row filter, so a routine left on a weekday template would be placed a
-    // SECOND time, every load.
+  it("no routine can be placed twice — two layers claiming the same day never share a row", () => {
+    // WHAT CHANGED, AND WHY THE OLD ASSERTION COULD NOT SURVIVE IT. This used to read
+    // "the daily routines are not on a weekday template", because `Day` held them and
+    // `Build Schedule` stamped them onto every column — so a routine left on a weekday
+    // template would be placed a SECOND time.
+    //
+    // `0185` moved them: `Day` now holds 49 slots and ZERO rows, and a `Routine` LAYER
+    // claiming all seven days is merged by `Fill Day` like Meals and the workouts. The
+    // old test's own control (`Day has rows`) therefore reads 0, and the test failed
+    // against correct data — the premise moved, not the code.
+    //
+    // The invariant that survives is the general one the old test was a special case of:
+    // **two layers whose Weekday sets INTERSECT must not carry the same row label**, or
+    // that row lands twice on the days they share. It is strictly stronger — it also
+    // covers Meals-vs-Routine, which nothing checked before.
+    //
+    // It deliberately PERMITS `Run` and `Stretch` on both `Workout — Core` (Thursday) and
+    // `Cardio` (Friday): those sets do not intersect, and `0177` recorded that duplication
+    // as the user's own choice rather than an oversight.
     const st = fx.occurrences.find(o => lbl(o) === "Schedule Template");
     const byId = Object.fromEntries(fx.occurrences.map(o => [o.id, o]));
-    const day = (st.occurrences || []).map(i => byId[i]).find(t => lbl(t) === "Day");
-    const dailyLabels = new Set();
-    for (const sid of day.occurrences || [])
-      for (const k of (byId[sid]?.occurrences || []).map(i => byId[i])) if (k) dailyLabels.add(lbl(k));
-    expect(dailyLabels.size).toBeGreaterThan(0);           // control
+    const layers = (st.occurrences || []).map(i => byId[i]).filter(t => {
+      const v = t?.fields?.[weekdayField.id]?.value;
+      return Array.isArray(v) ? v.length : Boolean(v);
+    }).map(t => {
+      const v = t.fields[weekdayField.id].value;
+      // Keyed by SLOT + label, not label alone. Merge matches within ONE slot's sibling
+      // list, so two layers may both carry `Drink` as long as they sit at different times
+      // — which is exactly what shipped: `Routine` drinks at 6:00am, `Meals` drinks beside
+      // each of the eight meals. A label-only rule flagged that as a collision and was
+      // wrong; the slot is half the identity.
+      const rows = new Set();
+      for (const sid of t.occurrences || []) {
+        const slot = byId[sid];
+        const at = slot?.fields?.[TIME_SLOT]?.value ?? sid;
+        for (const k of (slot?.occurrences || []).map(i => byId[i])) if (k) rows.add(`${at} ${lbl(k)}`);
+      }
+      return { name: lbl(t), days: new Set(Array.isArray(v) ? v : [v]), rows };
+    });
 
-    const offenders = [];
-    for (const t of (st.occurrences || []).map(i => byId[i])) {
-      if (!t?.fields?.[weekdayField.id]?.value) continue;
-      for (const sid of t.occurrences || [])
-        for (const k of (byId[sid]?.occurrences || []).map(i => byId[i]))
-          if (k && dailyLabels.has(lbl(k))) offenders.push(`${lbl(t)}: ${lbl(k)}`);
-    }
-    expect(offenders).toEqual([]);
+    // controls: without these, "no collisions" is true of an empty list
+    expect(layers.length, "no weekday-claiming layers found").toBeGreaterThan(1);
+    expect(layers.some(l => l.rows.size > 0), "no layer carries any row").toBe(true);
+
+    const collisions = [];
+    for (let i = 0; i < layers.length; i++)
+      for (let j = i + 1; j < layers.length; j++) {
+        const a = layers[i], b = layers[j];
+        if (![...a.days].some(d => b.days.has(d))) continue;      // no shared day, no risk
+        for (const r of a.rows) if (b.rows.has(r)) collisions.push(`${a.name} + ${b.name}: ${r}`);
+      }
+    expect(collisions).toEqual([]);
   });
 });
+
 
 describe("Schedule: Place Weekday", () => {
   // The user's own week: Mon Push · Tue Legs · Wed Pull · Thu Core+Cardio ·
@@ -185,7 +220,7 @@ describe("Schedule: Place Weekday", () => {
   it("places NOTHING on a second run — the check the whole design rests on", () => {
     const first = placeOn("2026-08-24");
     expect(first.created).toBeGreaterThan(0);        // control: it did something
-    const op = fx.operations.find(o => o.name === OP);
+    const op = fx.operations.find(o => OP_NAMES.includes(o.name));
     const operations = [structuredClone(op)];
     const fieldsById = Object.fromEntries(fx.fields.map(f => [f.id, f]));
     const operationsById = { [operations[0].id]: operations[0] };

@@ -24,7 +24,7 @@ import { readFileSync } from "node:fs";
 import { brotliDecompressSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { runMatchingOperations } from "../helpers/operationExecutor";
+import { runMatchingOperations, applyEffectsToLiveOccs } from "../helpers/operationExecutor";
 
 vi.setConfig({ testTimeout: 60000 });
 
@@ -34,7 +34,16 @@ beforeAll(() => {
   fx = JSON.parse(brotliDecompressSync(readFileSync(path.join(here, "fixtures", "pomsGrid.json.br"))).toString("utf8"));
 });
 
-function sweep(mutate) {
+// Run the sweep, APPLY what it emitted, and run it again. The second pass is the real
+// anti-duplication claim: "creates nothing" on a single pass is also true of an op that
+// has simply not been given anything new to place, and it goes stale the moment a row is
+// added to a layer — which `0187` did eight times an hour after this test was written.
+function sweepTwice(mutate) {
+  const first = sweep(mutate, true);
+  return { first: first.placed, second: first.again };
+}
+
+function sweep(mutate, twice) {
   const operations = fx.operations.filter((o) => o.enabled !== false);
   const fieldsById = Object.fromEntries(fx.fields.map((f) => [f.id, f]));
   const modulesById = Object.fromEntries(fx.modules.map((m) => [m.id, m]));
@@ -43,26 +52,37 @@ function sweep(mutate) {
   if (mutate) mutate({ occurrencesById, modulesById, fieldsById });
   const state = { grid: fx.grid, gridId: fx.grid?._id, fields: fx.fields, modules: Object.values(modulesById),
     occurrencesById, modulesById, fieldsById, operationsById, operations };
-  let placed = 0;
-  runMatchingOperations(operations, null, null,
-    { state, fieldsById, operationsById, occurrencesById, modulesById },
-    { onError: () => {}, onSuccess: (name, fxs) => {
-        if (/Place Weekday|Fill Day/.test(name))
-          placed += (fxs || []).filter((e) => e._effect === "CREATE_ITEM").length;
-      } });
-  return placed;
+  const ctx = { state, fieldsById, operationsById, occurrencesById, modulesById };
+  const count = () => {
+    let n = 0;
+    const updates = runMatchingOperations(operations, null, null, ctx,
+      { onError: () => {}, onSuccess: (name, fxs) => {
+          if (/Place Weekday|Fill Day/.test(name))
+            n += (fxs || []).filter((e) => e._effect === "CREATE_ITEM").length;
+        } }) || [];
+    return { n, updates };
+  };
+  const a = count();
+  if (!twice) return a.n;
+  applyEffectsToLiveOccs(occurrencesById, a.updates);
+  return { placed: a.n, again: count().n };
 }
 
 const SF = "vQ0ELZP_zxnx";
 
 describe("the Routine layer merges without duplicating", () => {
-  it("A — the column already holds its routines, so the sweep creates NOTHING", () => {
-    expect(sweep(null)).toBe(0);
+  it("A — whatever the first pass places, a SECOND pass places nothing", () => {
+    const { first, second } = sweepTwice(null);
+    // THE CONTROL. "Second pass places nothing" is also true of an op that placed nothing
+    // at all, so the first pass has to be shown doing work. `0187` put eight Drink rows on
+    // the Meals layer that today's column has never seen, so the first pass has real work.
+    expect(first, "the first pass placed nothing — arm A cannot prove idempotence").toBeGreaterThan(0);
+    expect(second, "Fill Day re-created rows it had just placed").toBe(0);
   });
 
   it("B — strip them off the column and the sweep puts back exactly seven", () => {
     let removed = 0;
-    const placed = sweep(({ occurrencesById }) => {
+    const { first: placed, second } = sweepTwice(({ occurrencesById }) => {
       const col = Object.values(occurrencesById).find((o) => o.fields?.[SF]?.value === "day-col");
       for (const sid of col.occurrences || []) {
         const slot = occurrencesById[sid];
@@ -79,6 +99,7 @@ describe("the Routine layer merges without duplicating", () => {
     });
     // THE CONTROL. A strip that matched nothing makes "seven placed" a claim about the fixture.
     expect(removed, "the strip matched no routine rows — arm B proves nothing").toBe(7);
-    expect(placed).toBe(7);
+    expect(placed).toBeGreaterThanOrEqual(7);   // the 7 routines, plus anything else newly on a layer
+    expect(second, "the replacements were re-created on the next pass").toBe(0);
   });
 });

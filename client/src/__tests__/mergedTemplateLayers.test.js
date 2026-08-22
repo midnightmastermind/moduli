@@ -33,7 +33,12 @@ const modsById = Object.fromEntries(fx.modules.map((m) => [m.id, m]));
 const lbl = (o) => o?.label || modsById[o?.moduleId]?.label || "?";
 const FRIDAY = "2026-08-21";   // a Friday — the token computes the weekday from the date
 
-const baseOp = fx.operations.find((o) => o.name === "Schedule: Place Weekday");
+// Resolved by EITHER name: `0186` renamed this op `Schedule: Fill Day` to match the
+// architecture the user described (Build Schedule builds, Fill Day fills). A test that
+// pins the label rather than the behaviour breaks on a rename and teaches nothing, so it
+// accepts both and asserts on what the op DOES.
+const baseOp = fx.operations.find((o) => o.name === "Schedule: Fill Day")
+            ?? fx.operations.find((o) => o.name === "Schedule: Place Weekday");
 
 /**
  * The op as the grid carries it. `0177` is APPLIED, so the stored pipeline is
@@ -193,7 +198,10 @@ describe("two layers merge into one day", () => {
     const r = run();
     expect(r.errors).toEqual([]);
     expect(r.meals.length).toBe(8);
-    expect(r.other.map((o) => o.label).sort()).toEqual(["Run", "Stretch"]);
+    // Contains rather than equals: `0185` added a `Routine` layer claiming all seven days,
+    // so a Friday legitimately receives the daily routines alongside the cardio session.
+    // The claim here is that TWO layers contribute, not how many layers exist.
+    expect(r.other.map((o) => o.label)).toEqual(expect.arrayContaining(["Run", "Stretch"]));
   });
 
   it("A/B — un-claim Friday on the meals layer and ONLY the workout arrives", () => {
@@ -211,18 +219,39 @@ describe("two layers merge into one day", () => {
     } });
     expect(r.errors).toEqual([]);
     expect(r.meals.length).toBe(0);
-    expect(r.other.map((o) => o.label).sort()).toEqual(["Run", "Stretch"]);
+    // The workout layer still contributes. NOT asserted as an exact list any more:
+    // `0185` added a `Routine` layer claiming all seven days, so a Friday now also
+    // receives the daily routines. Pinning `other` to exactly [Run, Stretch] pinned
+    // the number of LAYERS that existed the day it was written, which is not what
+    // this A/B is about — the claim is that un-claiming Friday costs the MEALS.
+    const others = r.other.map((o) => o.label);
+    expect(others).toEqual(expect.arrayContaining(["Run", "Stretch"]));
   });
 
-  it("a template carrying NO weekday is never merged in", () => {
-    // The `Day` template sits in the same child list and must be skipped by the
-    // IS_NOT_EMPTY arm — not by anything knowing its name. Its daily routines
-    // (Drink, Hygiene, Journal, Walk) would show up here if it leaked in.
-    const r = run();
-    expect(r.errors).toEqual([]);
-    const leaked = r.other.map((o) => o.label)
-      .filter((n) => ["Drink", "Hygiene", "Journal", "Walk"].includes(n));
-    expect(leaked).toEqual([]);
+  it("the no-weekday template carries nothing to leak, and that is now the invariant", () => {
+    // WHAT THIS TEST USED TO DO, AND WHY IT CANNOT ANY MORE. It watched for `Day`'s daily
+    // routines (Drink / Hygiene / Journal / Walk) leaking into a merge, proving the
+    // IS_NOT_EMPTY arm skipped the one template with no Weekday.
+    //
+    // `0185` moved those rows onto a `Routine` LAYER claiming all seven days, so they now
+    // arrive legitimately AND `Day` holds zero rows — there is nothing left for it to leak.
+    // The old assertion would have passed forever while testing nothing.
+    //
+    // I TRIED TO REPLACE IT WITH A PLANTED CANARY AND COULD NOT MAKE IT DISCRIMINATE.
+    // A synthetic row on a weekday-claiming layer — the positive control — never arrived
+    // through the merge either, so "the one on Day did not arrive" said nothing about the
+    // guard. Rather than keep an assertion of absence with no proof the thing can be
+    // present (the 2026-08-01 (16) trap), the claim is narrowed to what IS checkable and
+    // the gap is written down: **the guard itself is exercised by the two tests above**,
+    // which show that un-claiming a weekday removes that layer's contribution.
+    const occ = Object.fromEntries(fx.occurrences.map((o) => [o.id, o]));
+    const noWeekday = layersOf(occ).filter((l) => !l.days.length);
+    expect(noWeekday.length, "no unclaimed template — nothing to assert about").toBeGreaterThan(0);
+    for (const l of noWeekday) {
+      const rows = (l.occ.occurrences || [])
+        .flatMap((sid) => occ[sid]?.occurrences || []);
+      expect(rows, `${lbl(l.occ)} still carries rows a merge could place`).toEqual([]);
+    }
   });
 
   it("a second pass places nothing new — merge still recognises what it wrote", () => {
