@@ -10,6 +10,8 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 | 1 | **The test fixture is STALE and hides 14 failures.** `pomsGrid.json.br` was exported 08-21 07:27; `0173`, `0174` and `0177` rewrote operations after it, and `Schedule: Place Weekday Tasks` is **absent from it entirely**. Re-exporting turns **14 tests red across 5 files** — most are A/B tests whose "before" state stops existing once the fixture catches up (their controls assert the fixture is *un*patched). Needs a pass that refreshes the fixture AND rewrites those A/Bs to synthesise the old shape instead of depending on staleness. Reverted for now so the shared checkout stays green | 🔴 measured, reverted |
 | 2 | **Display-field audit** — *"look at all my display fields and make sure they are being used by an operation or updated in some way"* (08-20). 99 display-enabled fields on poms grid; `unused-field` flags **15**. Never done; it is the same audit `next-session-decisions.md` files as *"`unused-field` is at 14 — worth one pass now that the audit tooling exists"* | 📋 never started |
 | 3 | **The three DARK themes are still unmeasured** for contrast. The 2026-08-20 attempt failed its own calibration — the probe sampled marquee TRACKS rather than glyph boxes, and test grid 2 still carries the base rainbow so the surface behind a translucent pill is not uniform. `next-session-decisions.md` records exactly how to start ahead | 📋 open, method known |
+| 3b | **Tracker date-filter audit** — *"after, i want you to audit all my trackers and make sure they are updated and everything is updated when i select a new date filter in the respective spots"* (08-21). Marked **QUEUED** in `CLAUDE_CHAT.md` and never run. Parts landed (`0164` category axis, `0166`/`0167` period-all on three trackers) but the audit itself — every tracker recomputing correctly against **the filter of the page it lives on** — was never done. Adjacent to item 10: a Trackers nav matches 44 ops, ~42 of them trackers | 📋 QUEUED, never run |
+| 3c | **Open-page-in-panel highlight** — *"if i open a page in a panel, and its already opened in another visible panel, highlight the page in the spot thats opened (still open the page in the original spot)"*. `openOccurrenceInPanel` knows `alreadyOpen` only for the SAME panel's active page; nothing looks across panels | ❓ appears never built |
 | 4 | **"What else is technically needed for the original vision"** — asked 08-20, never answered | 📋 open ask |
 | 5 | **Instance label text size one step bigger** — *"make sure the instance labels text size 1 size bigger too"* (08-20). No commit found touching it | ❓ unconfirmed |
 | 6 | **Monthly Bills goal target is a frozen literal** — `displayConfig.targetValue` is `2040.97` and takes a number only. Correct today, drifts the moment a bill changes | 📋 reported, not fixed |
@@ -18,6 +20,21 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 | 9 | **Assistant grid-build plan is written, not executed** — and its blocker is measured: the configured 3B model took **207s** for one read-only tool call and answered wrong. Step 1 is config (the allowlist is an env var), not code | 📋 planned |
 | 10 | **Schedule apply ~1s** — `resolveOptions` predicate filter ~766ms | 📋 measured, not fixed |
 | 11 | **Three external-data pipes** — Tasker profiles, ingest credentials, the four slow exports | 🚫 blocked on you |
+
+## Unreconciled — the 2026-05-22 backlog in `CLAUDE_CHAT.md`
+
+A feature/bug list from May sits at `CLAUDE_CHAT.md:250-260` and has never been
+reconciled against what shipped. Spot-checked two of its bugs: the day-column
+header **is** fixed (columns read "Friday, July 31st, 2026"), the open-page
+highlight is **not** (item 3c). The feature half — BangleJS drop, quick-add
+templates, Windows right-click integration, voice commands, voice OCR,
+YouTube/Spotify link + download — is untouched and may simply be stale ambition
+rather than queue. Worth one pass to sort shipped from wanted from abandoned.
+
+**Also checked and found STALE, not outstanding:** `CLAUDE_CHAT.md:2011` records
+the Wikipedia-import flood as *"NOT DONE"* — it is fixed. `matchSubjectFilter`
+now role-matches BEFORE the `!targetId` early-true, with a comment naming the
+flood. The note outlived the fix.
 
 ## Log audit — every direction from 2026-08-20 → 08-21
 
