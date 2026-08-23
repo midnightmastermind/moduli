@@ -6,6 +6,100 @@
 
 ---
 
+### 2026-08-23 — 1,467 COVERS AND NOT ONE ARTIFACT; the sticky panel gets its picker
+
+Picked up the other account's session, which hit its **monthly spend limit** twice — once one
+command into wiring the panel picker (`targetPanelMenu.js` + 9 tests written, untracked, unwired)
+and again on the user's next instruction, which got the limit message instead of an answer:
+***"make all of those image searches. use the urls as the image search, we dont need an artifact for
+each cover."***
+
+**THE MEASUREMENT CHANGED THE COVERS WORK TWICE, and the first change is two thirds of it.** The
+1,030 rows that ALREADY carried a cover were rendering nothing. `0199` put the export's image URL in
+a text field and **said so in as many words** — *"it is NOT rendered as a picture yet"* — and nothing
+had rendered it since. A bookmark's `fileRef` is a WEB PAGE, so the card's own `src` pointed at HTML
+and all 1,467 drew the generic 📄. *Most of the pass was a display fix already sitting in the data.*
+
+**AND THE SPEC'S "IMAGE SEARCH BY TITLE" CANNOT BE DONE ON THIS GRID.** The 437 coverless rows do
+have titles — my first probe read `occurrence.label` (null) and reported "no title", which the second
+probe corrected, because the card draws `occurrence.label ?? module.label`. These are them:
+```
+"Microsoft Word - 2007-109.doc - 2007-109.pdf"
+"Pausanias, Description of Greece, a target="_blank" onclick=..."   <- raw HTML
+"diape search results - PornZog Free Porn Clips"
+```
+Searching images for the third would put pornography on the user's board.
+
+**A 30-ROW SAMPLE WAS TAKEN BEFORE SPENDING THE 437, and it explains the whole result.** Those
+bookmarks are not articles — they are login pages, dashboards, docs, `192.168.3.101`,
+`localhost:8081`. They have no cover because **they are not content**, which is the same reason
+Raindrop could not find one either. Predicted 7% / 57% / 37%; measured:
+```
+1030  from the export        55  a real og:image
+ 151  a declared icon       231  a guessed /favicon.ico      146 pages unreadable
+```
+Reported rather than dressed up: it is a wall of favicons, and the user chose favicon-over-blank
+knowing they would be small. **A content-image fallback was considered and REFUSED** — on a login
+page the largest image is a logo or an ad, no better than the favicon and worse when it is wrong.
+
+**IT IS NOT `primaryMediaOf`, DELIBERATELY.** That resolver refuses a bare string on purpose, so an
+unmigrated media value cannot render and hide the fact that it was never migrated (2026-08-08 (5)).
+Teaching it to accept a URL would reopen that hole **for every grid**. `module.meta.cover` is read by
+`ArtifactCard` exactly the way it already reads `meta.thumb256` — *a different question with its own
+answer, not a fallback inside that one.* The `Cover` FIELD stays authoritative and WINS on every run;
+`meta.cover` is derived. **Stated rather than hidden: until a re-run, an edit to the field is not on
+screen.**
+
+**THE ABORT KEYED ON THE WRONG SIGNAL, and catching that before the run is the save.** With a favicon
+fallback a cover-"miss" is nearly impossible — every URL that parses yields an origin favicon — so
+counting misses made the guard **UNFIREABLE**, and a total network outage would have quietly stamped
+437 rows with a `/favicon.ico` nobody could load. It keys on FETCH failures now, and refuses when the
+first 20 all fail, because that is not twenty dead links. **A single dead link never stops the run:**
+this is a years-old export and 146 pages genuinely could not be read.
+
+**Resumable by construction** — a row is fetched only when it has no cover value, so a run that dies
+at 300 leaves 137. Verified: a second pass plans **0** fetches. **The fetch list is INTERLEAVED BY
+HOST**, because 437 bookmarks are not 437 sites: the export has runs of one domain together, so a
+naive pool puts four requests against one host in flight while idling on the rest.
+
+**A TEST FOUND A REAL BUG IN `absolutize`:** `new URL(ref, base)` throws on a malformed BASE **even
+when `ref` is already absolute** — so a page with a perfectly good og:image lost it because of its
+own URL.
+
+**THE PANEL PICKER: the same walk was about to be written twice.** `ArtifactCard` already collected
+"which occurrences are panels" and walked up to the enclosing one, and the menu needs both to list
+its choices — so `collectPanelOccurrences` / `enclosingPanelId` / `panelChoices` moved into
+`helpers/targetPanel.js` and the card calls them. **The 2026-08-08 (10) rule applied before the
+second copy exists rather than after.** Order comes from `grid.occurrences`, not object iteration — a
+menu whose rows reshuffle between two right-clicks cannot be learned — and the tick rides in the
+ICON, because `ContextMenu` keys rows by LABEL and a "✓ " prefix would make the ticked row a
+*different row*.
+
+**ITS DEPTH-CAP A/B IS UNUSUAL AND WORTH RECORDING: removing the cap HANGS the suite rather than
+failing it.** The walk is synchronous, so an infinite loop blocks the event loop and vitest's own
+timeout can never fire — which is exactly what the defect does to a tab. **My first mutation
+(`i >= 0`) was a semantic no-op and the test "passed" against it**; checked the mutation before
+believing the A/B, per 2026-08-09 (4). A second mutation later **refused to land** and the assert
+said so rather than reporting a pass.
+
+**Read back out of Mongo rather than off the log:** 1467/1467 modules carry `meta.cover`, 1467/1467
+rows carry the field, the two AGREE on all 1467, 0 values are not http(s), and the grid's
+image-artifact count is **unchanged at 338** — no artifact per cover, which was the instruction.
+
+**Verified in the SERVED chunk with a POSITIVE control**, because the strings land in
+`PagePreviewApp` and a grep of `App` reads as a missing feature — the trap this file records twice.
+The first check read 0 for the new strings *and* 0 for the control; `Remove from container` (a
+pre-existing string) reads 0 in `App` and 2 in `PagePreviewApp`, which is what named the right chunk.
+Both chunks sha256-identical to the local build.
+
+30 new tests, each A/B'd. 3103 client + 1161 server tests, build clean, deployed, prod HEAD verified.
+poms grid **1 pre-existing error, 0 new**.
+
+**NOT VERIFIED, and it is the honest gap:** nobody has looked at the Bookmarks board in a browser
+since the covers landed, and the extension still cannot be loaded headlessly.
+
+---
+
 ### 2026-08-21 — ONE SIDEBAR: pinned above the manifest, on the right, and folders start CLOSED
 
 Three asks on one surface — *"make every folder closed by default in the manifest sidebar"*,
