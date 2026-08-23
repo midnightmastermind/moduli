@@ -250,11 +250,14 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
   // Mirror App.jsx's stable non-subscribing getters so hot-path components
   // (ModuleContainer / ModuleInstance) work identically under preview.
   const lookupsRef = useRef({});
-  lookupsRef.current = { occurrencesById, modulesById, childrenByParentId, state: parentState || {} };
+  lookupsRef.current = { occurrencesById, modulesById, childrenByParentId, fieldsById, state: parentState || {} };
   const getOcc = useCallback((id) => (id ? lookupsRef.current.occurrencesById?.[id] || null : null), []);
   const getMod = useCallback((id) => (id ? lookupsRef.current.modulesById?.[id] || null : null), []);
   const getOccMap = useCallback(() => lookupsRef.current.occurrencesById || {}, []);
   const getModMap = useCallback(() => lookupsRef.current.modulesById || {}, []);
+  // Read at CALLBACK time like the maps above. `occurrenceUrl` needs it to rank
+  // url-ish field NAMES, and the row menus must not subscribe to it.
+  const getFieldMap = useCallback(() => lookupsRef.current.fieldsById || {}, []);
   const getParentId = useCallback(() => null, []);
   const getLinkedGroup = useCallback(() => [], []);
   const getState = useCallback(() => lookupsRef.current.state || {}, []);
@@ -262,7 +265,7 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
     dispatch: noop,
     socket: null,
     state: parentState || {},
-    getOcc, getMod, getOccMap, getModMap, getParentId, getLinkedGroup, getState,
+    getOcc, getMod, getOccMap, getModMap, getFieldMap, getParentId, getLinkedGroup, getState,
     occurrencesById,
     modulesById,
     viewsById,
@@ -278,7 +281,7 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
     operationsById,
     linkedGroupIndex: {},
     childrenByParentId,
-  }), [occurrencesById, modulesById, viewsById, fieldsById, containersById, instancesById, artifactsById, textblocksById, leafModulesById, manifestsById, foldersById, operationsById, childrenByParentId, noop, parentState, getOcc, getMod, getOccMap, getModMap, getParentId, getLinkedGroup, getState]);
+  }), [occurrencesById, modulesById, viewsById, fieldsById, containersById, instancesById, artifactsById, textblocksById, leafModulesById, manifestsById, foldersById, operationsById, childrenByParentId, noop, parentState, getOcc, getMod, getOccMap, getModMap, getFieldMap, getParentId, getLinkedGroup, getState]);
 
   const dataValue = useMemo(() => ({ state: parentState || {} }), [parentState]);
   // Preview iframes have their own module graph → their own computedValues

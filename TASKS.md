@@ -252,6 +252,18 @@ the socket on both sides now, so the next occurrence is one grep rather than an 
 | Ticked fields sort to the top of the field picker | `49267930` |
 | `+ Item` was born with no date — it wrote `fields: {}` where the sibling path stamps the filter | `49267930` |
 
+## QUEUED — 2026-08-23: the codex, as PAGES not one import
+
+User, mid-session: *"i want to create a plan to convert all the md files in the
+notes_codex_annotated to pages with textblocks and appropriate occurances, into a codex folder in
+our system"* — source `/home/joshpoms/notebook/notes_codex_annotated`, and *"after the bookmark
+stuff tho"*.
+
+**A PLAN FIRST, not a migration.** `markdownToModuli` already exists and already builds a tree from
+one document; the open questions are about SHAPE at scale — one page per file vs a folder mirroring
+the directory tree, what becomes a textblock vs a container, and what happens to the annotations
+that presumably make these files "annotated". Measure the corpus before designing anything.
+
 ## Sweep #4 — all three accounts, 419 distinct turns, VERIFIED not assumed
 
 The user has now said three times that small asks are missing. This pass re-extracted

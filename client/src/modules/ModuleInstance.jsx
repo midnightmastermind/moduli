@@ -28,10 +28,11 @@ import {
 } from "@/components/ui/popover";
 import { Link2, Unlink, Settings, Copy, Move, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type, FileDown, ChevronDown, Check, PanelRight } from "lucide-react";
 import { convertLeafRole, CONVERTIBLE_LEAF_ROLES } from "../helpers/convertOccurrence";
-import { canConvertLinkToPage, resolveExternalLink, convertLinkToPage } from "../helpers/linkToPage";
+import { convertLinkToPage } from "../helpers/linkToPage";
 import { planConvertRelink } from "../helpers/convertRelink";
 import { toast } from "sonner";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { occurrenceUrl } from "../helpers/occurrenceUrl";
 import { collectPanelOccurrences, panelChoices, getTargetPanelId, targetPanelPatch } from "../helpers/targetPanel";
 import { targetPanelMenuItems, shouldOfferTargetPicker } from "../helpers/targetPanelMenu";
 import {
@@ -1053,6 +1054,7 @@ function ModuleInstance({
   // panel ORDER) only at the moment the menu is built. Subscribing to the grid
   // here would re-render every mounted instance on every filter navigation.
   const getState = useGridActionsSelector(s => s.getState || (() => s.state || {}));
+  const getFieldMap = useGridActionsSelector(s => s.getFieldMap || (() => s.fieldsById || {}));
   // Linked-badge count for THIS instance's group — a number, so Object.is
   // keeps it stable across unrelated writes.
   const linkedGroupCount = useGridActionsSelector(s =>
@@ -1176,6 +1178,11 @@ function ModuleInstance({
     const modsNow = getModMap?.() || {};
     const panelsById = collectPanelOccurrences(occsNow, modsNow);
     const choices = panelChoices(gridNow, panelsById, modsNow);
+    // Resolved once, and WITH the field map — without it `occurrenceUrl` cannot
+    // rank url-ish field names, and a bookmark (which carries both a `URL` and
+    // a `Cover` since 0201) would convert whichever came first in key order.
+    const outwardUrl = occurrenceUrl(occurrence, { module, fieldsById: getFieldMap?.() || {} })?.url || null;
+
     const targetPickerItems = (module?.role === "artifact" && shouldOfferTargetPicker(choices))
       ? [
           { separator: true },
@@ -1229,11 +1236,24 @@ function ModuleInstance({
       // the whole tree from it (user, 2026-08-07). Offered only on a link that
       // points outward: an in-app link already goes somewhere in the grid, so
       // converting it would duplicate a page that exists.
-      canConvertLinkToPage(occurrence, module) && {
+      // ── IT ASKS `occurrenceUrl`, NOT `canConvertLinkToPage` ────────────────
+      // That gate reads `meta.link` and nothing else — a link CHIP — so it
+      // never reached a bookmark, whose URL lives in a FIELD and in `fileRef`.
+      // `occurrenceUrl` is the resolver built for exactly this question and
+      // already covers all three places, which is what makes the iframe view
+      // generic. Using it here is the import-as-page half of the bookmark work
+      // AND removes a second opinion about "what URL does this row point at".
+      //
+      // It widens the offer to any row that genuinely points outward — a Place
+      // with a Website, a Person with a LinkedIn. That is the same action on
+      // the same kind of thing, and the in-app-link rule survives because
+      // `occurrenceUrl` delegates chips to `resolveExternalLink`, which still
+      // refuses `kind:"occurrence"`.
+      outwardUrl && {
         label: "Convert to page",
         icon: FileDown,
         onClick: async () => {
-          const url = resolveExternalLink(occurrence, module);
+          const url = outwardUrl;
           const gridId = occurrence?.gridId;
           if (!url || !gridId) return;
           // A fetch + full import is seconds, not milliseconds — say so, and
@@ -1308,7 +1328,7 @@ function ModuleInstance({
       },
     ].filter(Boolean);
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
-  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket, selection, getOccMap, getParentId, getModMap, getState]);
+  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket, selection, getOccMap, getParentId, getModMap, getState, getFieldMap]);
 
   // Touch: long-press opens the same menu (right-click has no touch equivalent).
   const instanceLongPress = useLongPress(({ x, y }) =>
