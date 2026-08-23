@@ -6,6 +6,59 @@
 
 ---
 
+### 2026-08-23 (9) — the freeze was ONE op scanning 1347 containers for slots it had nothing to put in
+
+(8) shipped a correct optimisation that moved the wall clock by nothing and named
+the real cost. This is that cost, fixed. `Schedule: Fill Day`, 766ms for ZERO
+effects, 40% of the navigation sweep.
+
+```
+3 layers × 49 slots × 1347 containers  =  198,009 predicate evaluations per day
+template slots that actually HOLD items:  13   (Meals 8 · Routine 4 · workout 1)
+```
+The per-slot FIND was guarded only by `$tSlotTime IS_NOT_EMPTY` — true for all 49
+slots — and its predicate is `parentId IS $dayColId AND time IS <slot time>`: a
+scan of every container on the grid to find one of the day column's own children.
+
+**THE GUARD AND THE LOOP READ THE SAME EXPRESSION, WHICH IS WHY THIS CANNOT
+CHANGE BEHAVIOUR.** The body under the FIND is `LOOP over $tSlot.occurrences`; if
+that is empty the loop runs zero times and no APPLY_TEMPLATE happens, so the FIND
+could not have led to any effect. Adding `$tSlot.occurrences IS_NOT_EMPTY` cannot
+skip a slot the loop would have filled — the loop reads the very same value.
+
+**IT ADDS A RULE RATHER THAN RESTRUCTURING, deliberately.** Hoisting the day's 49
+slots into a var and FINDing over that is ~27× and is expressible — but it depends
+on `$dayCol.occurrences` being populated in the overlay at that moment, and if it
+ever is not, **Fill Day silently stops filling the schedule.** This is the user's
+daily schedule; a one-rule change that cannot alter behaviour beats a larger win
+that can. Filed, not built.
+
+**MEASURED ON PROD, same probe and machine:**
+```
+Schedule: Fill Day        766ms  ->  127ms   -83%
+NavigationOp sweep       1873ms  -> 1204ms   -36%
+blocked per navigation   3091ms  -> 2050ms   -34%
+```
+**AND THE SCHEDULE STILL FILLS — the check that actually matters.** Today's column
+read back out of Mongo before and after is identical: 49 slots, 12 filled, 31
+items, same names.
+
+**A/B 2 SAID MY OWN IDEMPOTENCY CHECK GUARDED NOTHING, so it is gone** — `isTarget`
+requires exactly one rule and this adds a second, so a re-run can never match an IF
+it already patched. **Second time today an A/B retired a guard I wrote on reflex**
+(the other was a `fieldsById` level in the options cache). *Writing a guard is
+cheap; proving it can fire is the part that makes it worth keeping.*
+
+**A CORRECTION I OWE, and it is the reusable half.** Mid-investigation I reported
+that `Schedule - Saturday` claimed all seven weekdays and called it a probable
+defect. It is not: my probe printed the MODULE label while the renderer uses the
+OCCURRENCE label, and the row was `Meals` — a layer that correctly applies every
+day. *A label is two fields on this grid, and printing the wrong one invents a bug.*
+
+1330 server + 3179 client tests, poms grid **0 errors**, pm2 restarted.
+
+---
+
 ### 2026-08-23 (8) — 5.6M predicate evaluations removed, THE FREEZE DID NOT MOVE, and the real cause has a name
 
 Item 10, the user's repeated complaint: *"the schedule is still taking way too
