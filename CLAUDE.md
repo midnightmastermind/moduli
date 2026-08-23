@@ -6,6 +6,89 @@
 
 ---
 
+### 2026-08-23 (2) — THE CODEX: 75 annotated notes become 75 pages, and three measurements changed the build
+
+User: *"convert all the md files in the notes_codex_annotated to pages with textblocks and
+appropriate occurances, into a codex folder"*. Plan +
+every number: `docs/superpowers/plans/2026-08-23-codex-import.md`. `0202` + `0203`, applied.
+
+**IT DRIVES THE EXISTING IMPORTER RATHER THAN ADDING A SECOND ONE.** `markdownToModuli` already
+turns markdown into containers and textblocks. The three things it cannot do each got their own
+tested module, and each exists because of a measurement rather than a guess.
+
+**MEASUREMENT 1 — "AN IMAGE SEARCH BY TITLE" HAS AN EQUIVALENT HERE, AND IT IS THE TAG LINE.** All
+75 files open with `#reference #alchemy #daoism`. Left in the body that becomes a textblock reading
+the hashtags at the top of every page. **But 72 files also carry a markdown `# Heading`, and the
+discriminator is one space:** a tag line is `#word` tokens, a heading is `# ` followed by text.
+Matching any leading hash would have eaten 72 titles. Only the FIRST line is read — the annotations
+end with hashtags of their own, and sweeping those in would attach words an LLM chose to the user's
+note as if they were their tags.
+
+**MEASUREMENT 2 — THE IMPORTER WAS TEARING THE LAST SENTENCE OFF 54 ANNOTATIONS.** It splits a
+trailing em-dash clause off a blockquote as an "— attribution" byline, which is right for a
+Wikipedia pull-quote and wrong for prose. Measured on the corpus before and after, with the control
+that makes the difference mean something:
+```
+                                     before   after
+quote blocks                           460      460
+  annotations (bracketed marker)        409      409
+  ordinary quotes                        51       51
+annotations carrying an attribution      54        0
+ordinary quotes carrying one              5        5   <- the control
+```
+That last row is what says this changed the CLASSIFICATION and not the feature. Deleting the split
+would have produced 0 and 0 and looked identical in the first three rows. **And only 409 of the 460
+blockquotes are annotations** — the other 51 are the user's own quoted material, so marking every
+blockquote would have labelled their quotations as machine-written.
+
+**MEASUREMENT 3 — THE CORPUS CONTAINS A FILE LITERALLY NAMED `.md`.** A real note (a saved rewards
+number) whose filename has no stem, so `basename minus .md` leaves an EMPTY STRING and the page
+renders as a blank row in the tree. Its own heading reads `# Untitled (.md)`, which is now the first
+fallback. **The dry run printed `e.g. .md:` and I looked instead of reading past it.**
+
+**A REHEARSAL ON `test grid 2` CAUGHT AN INERT KEY, and the guard it broke was the dangerous one.**
+The folders were minted with `manifestId`, copying `0199` — and **the `Folder` schema has no such
+field**, so Mongoose strict mode strips it silently. `0199` has been writing an inert `manifestId` on
+every folder it makes. Harmless there; here the idempotency check was ALSO manifestId-scoped, so it
+matched nothing, printed the plan instead of "already exists", and the next `--apply` would have
+duplicated all 9 folders. *A log line reading correctly while the query saw nothing.* A folder is
+scoped by its PARENT CHAIN from the manifest's `rootFolderId`, and that is what both the tree and the
+guard ask about now.
+
+**RESUMABLE ON THE RELATIVE PATH, and the basename would not have done.** `Untitled 1/2/3/6/7/8.md`
+each exist TWICE — once at the root, once in `untitled_notes/` — with different content every time.
+A basename signature would make the second copy look already-imported and drop it. A/B'd; the
+basename mutation fails exactly the two tests that describe it.
+
+**ORDER: import, THEN mint the page.** The page is created only once there is a root id to embed —
+minting first leaves an empty page behind every time an import fails, and failures are expected
+across 75 real documents.
+
+**Read back OUT OF MONGO on both grids, not off the log:**
+```
+75 pages · 75 DISTINCT codexPath values · 75 parented to a Codex folder
+75 embedding exactly one root · 75 roots parented back to their page
+75 with a non-empty label · 75 carrying Codex Tags
+409 modules marked meta.codexAnnotation · 0 annotations carrying an attribution
+Codex Tags 135 options · the existing Tags field UNCHANGED
+```
+2,109 occurrences against a census predicting ~2,137 content blocks — within 5%, which is the
+importer's paragraph gathering, not a missing hundred rows. A second pass reports `0 to import, 75
+already done`. poms grid **1 pre-existing error, 0 new**. 3112 client + 1198 server tests.
+
+**The tags got their OWN field**, on the user's call: the existing `Tags` is MIXED — 45 live values,
+nine of them wellness dimensions and the rest board categories that drive real pickers — so 135 more
+would have swelled every board-category dropdown.
+
+**NOT VERIFIED, and it is the same honest gap as the bookmarks above: nobody has seen the Codex
+folder in a browser.** Five probe attempts failed on the tree sidebar and each reported zero WITHOUT
+a positive control, which makes them claims about the probe. What IS established is structural: the
+Codex folder is byte-for-byte the same shape as the `Bookmarks` folder the user already uses — same
+`folderType`, same gridId, same manifest root, holding `role:"page"` occurrences — with 37 root-level
+pages and 8 subfolders exactly matching the corpus.
+
+---
+
 ### 2026-08-23 — 1,467 COVERS AND NOT ONE ARTIFACT; the sticky panel gets its picker
 
 Picked up the other account's session, which hit its **monthly spend limit** twice — once one

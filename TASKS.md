@@ -252,7 +252,7 @@ the socket on both sides now, so the next occurrence is one grep rather than an 
 | Ticked fields sort to the top of the field picker | `49267930` |
 | `+ Item` was born with no date — it wrote `fields: {}` where the sibling path stamps the filter | `49267930` |
 
-## QUEUED — 2026-08-23: the codex, as PAGES not one import
+## DONE — 2026-08-23: the codex, as PAGES not one import (`0202` + `0203`)
 
 User, mid-session: *"i want to create a plan to convert all the md files in the
 notes_codex_annotated to pages with textblocks and appropriate occurances, into a codex folder in
