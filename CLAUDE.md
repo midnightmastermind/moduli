@@ -6,6 +6,53 @@
 
 ---
 
+### 2026-08-23 (3) — ALL 1,467 BOOKMARKS WERE INVISIBLE, and the board looked fine in every other way
+
+Found by RENDERING the board rather than reading it. The rows exist, the covers
+resolve, the modules are right, `checkGrid` is clean — the board simply draws
+nothing.
+
+**`0199` imported each bookmark's Raindrop save-date into the field called
+`Date`, which is the field the GRID FILTER uses.** The grid filters
+`Date = today`, so a link saved in 2021 matches on exactly one day of the year:
+```
+bookmarks carrying a Date     1467
+matching today                   0
+hidden by the filter          1467      <- the whole board, every ordinary day
+```
+**AND IT FILTERED INVISIBLY.** The grid-level `fieldVisibility` (2026-08-11) hides
+`Date` everywhere except Tasks, Trackers and Schedule — so the field doing the
+hiding was not on screen to suspect. Same class as 2026-08-19 (5), where a stale
+date hid 21 timeslots, reached from the IMPORT side instead of a template.
+
+**THE VALUE MOVES RATHER THAN BEING CLEARED, and that is the difference from
+2026-08-19 (5).** That date was wrong; this one is RIGHT — it is when the user
+saved the link, it came out of their own export, and Raindrop shows it. Only the
+field is wrong. `0206` moves all 1,467 to a `Saved` field of their own.
+**Clearing the page's filter instead cannot work and the reason is already
+written down:** a CLEARED date filter means *"show nothing dated"* (2026-08-11),
+so the rows would stay hidden. The value has to LEAVE `Date`.
+
+Read back out of Mongo: 0 still dated, 1,467 carrying `Saved`, 0 modules still
+binding `Date`, and **binding ORDER preserved** — appending instead of swapping in
+place would have moved the date to the end of 1,467 cards. Then verified by
+rendering: **0 rows → 14,670 elements**, first row reading its real title and URL.
+The clip path was checked too and is clean: it sends no date, so a clipped
+bookmark is not born invisible.
+
+**AND ITEM 5 WAS RETIRED BY MEASURING, not built.** *"the fields in trackers font
+sizes didnt change and the rest are too big now"* — already fixed, and the live
+grid says so: instance labels 15px on the Trackers page AND everywhere else,
+display and input fields pinned at 11px in both. The queue row was stale.
+
+**A PROBE READING I NEARLY TOOK AT FACE VALUE.** The Bookmarks container reporting
+0 rows is exactly what the preview app reports for other reasons, and this session
+had already caught it lying twice. What made it a finding rather than a guess was
+going to the DATA for the discriminator — 1,467 dated rows against a filter for
+today — and only then rendering again to confirm the fix.
+
+---
+
 ### 2026-08-23 (2) — THE CODEX: 75 annotated notes become 75 pages, and three measurements changed the build
 
 User: *"convert all the md files in the notes_codex_annotated to pages with textblocks and
