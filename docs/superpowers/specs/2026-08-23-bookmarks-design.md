@@ -314,6 +314,22 @@ rows.
 6. The image search for the 437, as its own re-runnable pass
 7. Right-click → open-in-panel (panel picker) and import-as-page
 8. **The browser extension** — see below
+9. **A third mode: ARCHIVE** — *"add a web archive version in next to web (do
+   that last) where we search for the web archive of the page"* (2026-08-23).
+   `[Reader | Web | Archive]`. Archive asks
+   `https://archive.org/wayback/available?url=…` for the closest snapshot and
+   shows `web.archive.org/web/<timestamp>/<url>`.
+
+   **It earns its place on the two cases the other modes cannot serve**: a dead
+   link, and a page whose live version is paywalled or rewritten. It is also the
+   one mode likely to FRAME without the extension, since archive.org does not
+   send the framing headers the original sites do — worth measuring rather than
+   assuming when it is built.
+
+   Open question for then: whether Archive should be *offered* always, or only
+   once the live fetch fails. Offering it always is one more button on every
+   bookmark; offering it on failure hides it exactly when someone is browsing
+   old links deliberately.
 
 ---
 
