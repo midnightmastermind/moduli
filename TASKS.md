@@ -20,6 +20,19 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 
 ### Closed 2026-08-23 (late afternoon)
 
+- **C4 — `meta.increment` and `meta.multiline` are WIRED, not dropped.** Measuring the values
+  showed a designed feature nobody had connected: the number input read `meta.step`, which
+  **0 fields on any grid carry and nothing writes**, while the seed authors `meta.increment`
+  on 71. Every number field had stepped by 1 — and a step of 1 makes the browser reject a
+  fractional value, so the three 0.1 macro fields were unusable by their own arrows.
+- **C2 — the controls exist.** `Min` · `Max` · `Step` (number), `Multi-line` (text),
+  `Several picks` (select/occurrence). **Two of its four were retired by measuring:**
+  `postfixOptions` is already editable via `AffixEditor`, and `siblingLinks` is a schema
+  default on all 250 fields with exactly TWO configured — a default, not a gap.
+- **C3 remains open** — `Operation.targetOccurrenceId` still has no editor (9 live ops carry
+  it and it decides which page a date-driven op reads).
+
+
 - **`0209`/`0210`/`0211` were INERT ON PRODUCTION for two hours.** They reached Atlas at
   12:59-13:14; prod's process had been up since 11:29 and its warm per-user cache is
   authoritative for reads, so the server kept running the PRE-migration operations.

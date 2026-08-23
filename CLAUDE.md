@@ -6,6 +6,80 @@
 
 ---
 
+### 2026-08-23 (5) — THE NUMBER INPUT ASKED FOR A KEY NOTHING WRITES, so every field stepped by 1
+
+The operations-UI audit's item C4 filed `meta.increment` and `meta.multiline` as
+INERT and offered *"wire them or drop them"*. **Measuring the VALUES answered it
+before any code:** they are not leftovers.
+```
+Steps 500 · Calories 50 · Liquid Amount 8 (a cup) · Amount/Weight/Protein 5
+Set N 1 · three macro fields at 0.1 · one at 0.5
+multiline: Person Notes · Allergies · Interests · How We Met · Excerpt
+```
+Every one is a deliberate authoring decision. Dropping them would have deleted a
+designed feature on the grounds that nobody had connected it.
+
+**AND IT IS A NAME MISMATCH, which is why it survived.** The input reads
+`meta.step` — carried by **0 fields on all six grids and written by nothing** —
+while the seed has always authored `meta.increment`, on **71 fields across four
+grids**. So the attribute has been `undefined` everywhere and every number field
+moved by the browser's default of 1: tapping the arrow on `Steps` moved it by 1
+where its author said 500. *The inert-token class, reached from the READ side —
+a renderer asking for a name the data does not use looks exactly like a feature
+nobody built.*
+
+**THE FRACTIONAL FIELDS ARE THE SHARP END, and they are their own test.** A step
+of 1 makes the browser REJECT a fractional value outright, so the three 0.1 macro
+fields were unusable by their own arrows — not merely coarse.
+
+**`multiline` reached only a `markdown`-TYPED field**, so five prose fields
+rendered as one-line boxes. **Compact is deliberately excluded**: a row's field
+pills share one centreline (2026-07-28) and a growing box breaks it. And
+`handleKeyDown` is NOT wired on the textarea — it commits on Enter, and Enter in a
+textarea is a new line.
+
+**THE CONTROLS EXIST NOW, which is the user's actual ask** (*"make sure i can edit
+everything in the ui"*): `Min` · `Max` · `Step` on a number, `Multi-line` on text,
+`Several picks` on select/occurrence — 46 live fields carry `multiSelect` and
+whether `Ingredient` took one pick or many was a migration-only decision. **An
+empty box stores `null`, never `Number("")`, which is 0** and would silently clamp
+a field to zero; that is its own test.
+
+**TWO OF C2's FOUR WERE RETIRED BY MEASURING rather than built.**
+`postfixOptions` is already editable — `AffixEditor` writes it, so the row was
+stale. And `siblingLinks` is a schema default on all 250 fields with exactly
+**TWO** configured (Daily Question ↔ Answer), so *"247 fields with no control"* is
+a default, not a gap.
+
+**19 tests, every mutation landing and failing EXACTLY its own cases:** reading
+`meta.step` again (3), deleting the multiline branch (1), the clamp block (5), the
+multiSelect box (3), coercing an empty box with `Number()` (1). Every FieldDetail
+assertion is on what LEAVES the component — a control that writes a key nothing
+reads is the class this whole audit is about.
+
+**VERIFIED ON PROD BY LOOKING, and the probe had to be fixed first.** A single-run
+sweep read one field's controls under the NEXT field's name, because clicking the
+Fields TAB while already in a detail is a no-op and the panel never changed. An
+identity assertion (read the detail's own Name box) caught it, so each row below
+is from a run where that field was opened FIRST:
+```
+Steps          number    Min=""  Max=""  Step="500"
+Person Notes   text      Multi-line: on
+Tags           select    Several picks: on
+Completed      boolean   none of the three          <- the control
+```
+3148 client tests, build clean, deployed, prod HEAD verified, and the served
+`CommandCenter` chunk sha256-identical with the new strings present and
+`Flow toggle button` as the positive control — **the first check read 0 for the
+control too**, which is the documented tell that it was the wrong chunk (FieldsTab
+lands in `CommandCenter`, not `index`).
+
+**NOT VERIFIED, and it is the honest gap:** nobody has watched an arrow move
+`Steps` by 500 on the grid. The click-to-edit pill would not materialise its input
+under the probe, so the grid-side reading is unit-covered and unseen.
+
+---
+
 ### 2026-08-23 (4) — `0210` WAS RIGHT AND PRODUCTION COULD NOT SEE IT: three migrations sat inert behind a warm cache
 
 Picked up the other account's session, which ended one line after committing `0211`
