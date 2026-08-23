@@ -68,6 +68,18 @@ export default function ArtifactCard({ module, label, occurrence }) {
   // is the natural fallback in either size.
   const thumb256Src  = module?.meta?.thumb256  ? resolveFileRef(module.meta.thumb256)  : src;
   const thumb1024Src = module?.meta?.thumb1024 ? resolveFileRef(module.meta.thumb1024) : src;
+  // A COVER is a picture OF an artifact whose own content is not one — a
+  // bookmark's `fileRef` is a web page, so `src` points at HTML and every one
+  // of these cards drew the generic 📄.
+  //
+  // It is a plain remote URL on the module, deliberately, and read here the
+  // same way `meta.thumb256` above is (user, 2026-08-23: *"we dont need an
+  // artifact for each cover"*). It is NOT routed through `primaryMediaOf`: that
+  // resolver refuses a bare string on purpose, so an unmigrated media value
+  // cannot render and hide the fact that it was never migrated (2026-08-08 (5)).
+  // Reaching a URL through it would reopen exactly that hole. This is a
+  // different question with its own answer, not a fallback inside that one.
+  const coverSrc = module?.meta?.cover ? resolveFileRef(module.meta.cover) : null;
 
   // WHERE the full-screen view grows out of, and shrinks back into. Captured
   // from the card's own rect at the moment of expand — once expanded the card is
@@ -337,7 +349,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
         <button className="artifact-expand-close" onClick={toggle} aria-label="Collapse">
           <X size={14} />
         </button>
-        {renderExpanded(kind, src, label, thumb1024Src)}
+        {renderExpanded(kind, src, label, thumb1024Src, coverSrc)}
         <div className="artifact-expanded-meta">
           {originalName && <span className="artifact-expanded-name" title={originalName}>{originalName}</span>}
           {sizeLabel && <span className="artifact-expanded-size">{sizeLabel}</span>}
@@ -391,7 +403,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
           {fileSize && <span className="artifact-thumb-info-size">{fileSize}</span>}
         </div>
       )}
-      {renderThumbnail(kind, src, label, thumb256Src)}
+      {renderThumbnail(kind, src, label, thumb256Src, coverSrc)}
       {/* The in-place expand keeps its own affordance — the card's click now
           opens the viewer, and losing "grow it where it sits" entirely would be
           taking a behaviour away rather than adding one. */}
@@ -425,8 +437,24 @@ function formatBytes(bytes) {
 // The PREVIEW half of the card — picture, frame, or type glyph. It never prints
 // the file name: that is the info block's job and it always sits underneath, so
 // printing it here too showed it twice.
-function renderThumbnail(kind, src, label, imgSrc = src) {
+/**
+ * Does a COVER stand in for this kind's own thumbnail?
+ *
+ * Exported so the rule is tested rather than mirrored in a test file that can
+ * drift from it. The rule is one sentence: **a kind that renders its own
+ * content never gives that up for a cover** — an image is its own picture, and
+ * a video/audio/pdf each have a real control or preview that a still would
+ * replace with something less useful. Everything else (a bookmark, an unknown
+ * upload) draws 📄 today and is strictly better off with the cover.
+ */
+export function coverAppliesTo(kind, cover) {
+  if (!cover) return false;
+  return !["image", "video", "audio", "pdf"].includes(kind);
+}
+
+function renderThumbnail(kind, src, label, imgSrc = src, cover = null) {
   if (kind === "image") return <LoadingImage className="artifact-thumb" src={imgSrc} alt={label || "image"} />;
+  if (coverAppliesTo(kind, cover)) return <LoadingImage className="artifact-thumb" src={cover} alt={label || "cover"} />;
   if (kind === "video") return <video className="artifact-thumb" src={src} muted playsInline preload="metadata" />;
   if (kind === "audio") return (
     <div className="artifact-thumb artifact-thumb--audio" onClick={(e) => e.stopPropagation()}>
@@ -446,8 +474,10 @@ function renderThumbnail(kind, src, label, imgSrc = src) {
   );
 }
 
-function renderExpanded(kind, src, label, imgSrc = src) {
+function renderExpanded(kind, src, label, imgSrc = src, cover = null) {
   if (kind === "image") return <LoadingImage className="artifact-expanded-media" src={imgSrc} alt={label || "image"} />;
+  if (coverAppliesTo(kind, cover))
+    return <LoadingImage className="artifact-expanded-media" src={cover} alt={label || "cover"} />;
   if (kind === "video") return <video className="artifact-expanded-media" src={src} controls playsInline />;
   if (kind === "audio") return (
     <div className="artifact-expanded-audio">
