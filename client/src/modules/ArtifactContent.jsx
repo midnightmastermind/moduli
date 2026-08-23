@@ -5,6 +5,7 @@
 // viewType: "code" → syntax-highlighted code block (fetches raw file content)
 // view: passed from Panel — used to trigger scrollAnchor scroll in the editor
 import { runOcr } from "../helpers/ocr";
+import BookmarkView from "./BookmarkView.jsx";
 import { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import { useGridActions } from "../GridActionsContext.js";
 import Editor from "../ui/Editor.jsx";
@@ -499,7 +500,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
 
   // Normalize: if old-style viewType was image/pdf/audio/video, treat as display
   const normalizedArtifactType = artifactType
-    || (["image", "pdf", "audio", "video"].includes(viewType) ? viewType : null);
+    || (["image", "pdf", "audio", "video", "bookmark"].includes(viewType) ? viewType : null);
   const isArtifact = viewType === "display" || normalizedArtifactType;
 
   // Scroll to embedded container by data-occ-id when scrollAnchor changes
@@ -643,6 +644,17 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
 
   const originalName = module?.meta?.originalName || module?.label || null;
   const uploadSize = module?.meta?.uploadSize;
+
+  // A BOOKMARK's `actual` view — the web page its `fileRef` points at.
+  //
+  // One more branch beside image/pdf/audio/video rather than a new surface,
+  // because `role: "artifact"` already is the module type for "a thing with
+  // content of its own" and its cascade already declares the two views the user
+  // asked for: `navOptions: ["preview", "actual"]` — *"an entire page or a
+  // preview of it"*. `preview` is the card and needs no iframe; this is `actual`.
+  if (normalizedArtifactType === "bookmark" && fileRef) {
+    return <BookmarkView occurrence={occurrence} module={module} socket={socket} isActivePage />;
+  }
 
   if (normalizedArtifactType === "image" && fileRef) {
     const childOccIds = Array.isArray(occurrence?.occurrences) ? occurrence.occurrences : [];

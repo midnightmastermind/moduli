@@ -4,7 +4,7 @@
 // to mount, and the parts that regress silently are these — a mode that quietly
 // reverts, or a frame that renders where it should not.
 import { describe, it, expect } from "vitest";
-import { resolveMode, fallbackReason, FRAME_SANDBOX } from "../modules/pages/PageIframe.jsx";
+import { resolveMode, fallbackReason, FRAME_SANDBOX } from "../modules/BookmarkView.jsx";
 
 const ok = (words, usable) => ({ ok: true, words, usable, markdown: "x" });
 

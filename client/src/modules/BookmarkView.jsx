@@ -1,7 +1,19 @@
-// modules/pages/PageIframe.jsx
+// modules/BookmarkView.jsx
 //
-// The IFRAME VIEW — a web page as a first-class surface, so a bookmark or a link
-// opens in a panel like any other page.
+// A BOOKMARK ARTIFACT's `actual` view — the web page itself.
+//
+// CORRECTED TWICE BEFORE LANDING HERE, and the corrections are the useful part.
+// First this was a page KIND, then a URL-bearing instance the panel learned to
+// render. Both were wrong for the same reason: `role: "artifact"` already IS the
+// module type for "a thing that has content of its own", it is kind-bearing, and
+// its cascade already declares exactly the two views the user described —
+//
+//     artifact   dragInView: "actual"   navOptions: ["preview", "actual"]
+//
+// *"the view can be an entire page or a preview of it"* is that line. So a
+// bookmark is an artifact whose `fileRef` is a URL, `preview` is its card and
+// `actual` is this — one more branch beside image, pdf, audio and video in
+// `ArtifactContent`, rather than a new surface.
 //
 // User, 2026-08-23: *"we need a whole iframe view that can go on links and
 // bookmark artifacts so we can open them up in a panel"* / *"it should probably
@@ -34,7 +46,7 @@
 // is the entire reason reader mode exists, and why our controls live in a STRIP
 // above the frame rather than in a context menu over it.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { occurrenceUrl } from "../../helpers/occurrenceUrl";
+import { occurrenceUrl } from "../helpers/occurrenceUrl";
 
 export const FRAME_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-popups";
 
@@ -70,7 +82,7 @@ export function fallbackReason(fetched) {
   return null;
 }
 
-export default function PageIframe({ occurrence, module = null, fieldsById = {}, socket, isActivePage = true }) {
+export default function BookmarkView({ occurrence, module = null, fieldsById = {}, socket, isActivePage = true }) {
   const resolved = useMemo(
     () => occurrenceUrl(occurrence, { module, fieldsById }),
     [occurrence, module, fieldsById],
