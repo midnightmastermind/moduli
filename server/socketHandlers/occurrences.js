@@ -1,5 +1,6 @@
 // socketHandlers/occurrences.js — update_occurrence + break_link + request_textmap
 import { setMaxListeners } from "node:events";
+import { partitionChildRefs, resolveChildRefs } from "../utils/childRefGuard.js";
 import Occurrence from "../models/Occurrence.js";
 import Transaction from "../models/Transaction.js";
 import { nanoid } from "nanoid";
@@ -270,9 +271,37 @@ export function registerOccurrenceHandlers(socket, {
         next.occurrences = merged;
       }
 
+      // ── ABSENCE FROM THE CACHE IS A QUESTION, NOT AN ANSWER ──────────────
+      // This guard used to drop any id the warm cache did not hold. The caches
+      // are keyed by (userId, gridId), so a write landing while `activeGridId`
+      // is not yet this grid is checked against SOMEONE ELSE'S cache and every
+      // id looks unknown. On 2026-08-23 that dropped a live day column off the
+      // Schedule page — `dropped 1 unknown child id(s)`, the id being a column
+      // built half an hour earlier with 49 slots — and the day's schedule
+      // vanished from the screen while sitting intact in Mongo. The log even
+      // recorded the cache it trusted: `GRID CACHE READY: null — Occurrences: 42`.
+      //
+      // The mirror of the 2026-08-04 phantom, where an id IN the cache but not
+      // in Mongo laundered a fake child into persistence. Same misplaced trust,
+      // opposite direction.
+      //
+      // So anything the cache cannot vouch for is now checked against the
+      // DATABASE before it is dropped. Dangling refs are rare, so the query runs
+      // on the exception path only.
       if (Array.isArray(next.occurrences) && next.occurrences.length) {
-        const known = (cid) => cid === id || !!uc.occurrencesById?.[cid];
-        const kept = next.occurrences.filter(known);
+        const inCache = (cid) => !!uc.occurrencesById?.[cid];
+        const { verify } = partitionChildRefs(next.occurrences, id, inCache);
+        let existsInDb = () => false;
+        if (verify.length) {
+          const found = await Occurrence.find({ id: { $in: verify } }).select({ id: 1 }).lean();
+          const live = new Set(found.map((d) => d.id));
+          existsInDb = (cid) => live.has(cid);
+          const rescued = verify.filter(existsInDb);
+          if (rescued.length) {
+            console.log(`🛟  update_occurrence ${id}: cache did not know ${rescued.length} child(ren) — the DATABASE does; kept`);
+          }
+        }
+        const kept = resolveChildRefs(next.occurrences, id, inCache, existsInDb);
         if (kept.length !== next.occurrences.length) {
           const dropped = next.occurrences.length - kept.length;
           console.log(`🧹 update_occurrence ${id}: dropped ${dropped} unknown child id(s)`);
