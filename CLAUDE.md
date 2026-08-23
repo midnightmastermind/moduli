@@ -207,6 +207,75 @@ since the covers landed, and the extension still cannot be loaded headlessly.
 
 ---
 
+### 2026-08-23 (2) — ARCHIVE mode; and the `embed: <uuid>` boxes were `0070`'s residue
+
+Picked up the other account's session, which hit its limit **mid-read on Archive
+mode**, the last item of the bookmarks spec. All nine steps are now shipped.
+
+**ARCHIVE EARNS ITS BUTTON ON A MEASUREMENT, not on the idea.** A Wayback snapshot
+sends **no `x-frame-options` and a CSP carrying no `frame-ancestors`** — so it
+frames where the original refuses, with no extension. Checked against
+`danbrown.com`, the site the user named as unframeable: live SAMEORIGIN, archived
+loads.
+
+**AND MEASURING THE API CAUGHT A DEFECT BEFORE IT SHIPPED.** The availability
+endpoint returns `http://web.archive.org/…`. The grid is https, so framing that is
+MIXED CONTENT: the browser blocks it and the panel shows a blank box
+**indistinguishable from a site refusing to frame** — the failure would have read
+as the exact thing the mode exists to work around. Only the archive's own host is
+upgraded; the captured url lives in the path and names WHICH capture is wanted.
+Second shape: **"never archived" is a 200 whose body is `{"archived_snapshots":{}}`**,
+not a 404 — code checking only `res.ok` reads it as success. Kept distinct from
+"the archive answered 503", because collapsing them tells someone their page is
+not archived when the service was merely down.
+
+**The button is always present; the lookup is not.** A peer button per the user,
+never a fallback that appears once something breaks — but a lookup per bookmark
+OPENED would send a third party a request for a mode most opens never use. A test
+pins that no fetch state can select Archive on the user's behalf. **No SSRF guard,
+and a test is what makes that claim true:** the handler is given `169.254.169.254`
+and the host actually fetched is asserted to be `archive.org`.
+
+---
+
+**THE OTHER ACCOUNT'S OWN TOP GAP IS CLOSED: the 75 codex pages render.** It had
+just fixed one renderer assumption (`0204`, doc→board) and flagged that nobody had
+seen a page BODY. Verified read-only through `?previewOcc=` — which pins nothing,
+so the live grid took no write: `Dads Church Board Letter` 3,761 chars and `Resume`
+11,630, both carrying their expected first sentence, 0 page errors. Structurally,
+all 75 root docs embed **every** child they list (1,959 embeds, 0 broken).
+
+**AND OPENING IT FOUND A REAL DEFECT THE DATA CHECKS HAD NOT: `embed: <uuid>` in a
+dashed box.** 28 dead embed nodes on 17 hosts — ten reachable day columns and two
+Daily Questions. `Monday, August 10th` carries SIX, which dates it exactly:
+`0070` deleted 18 duplicate occurrences on 2026-08-11 and never touched the
+textmaps embedding them. `0205` scrubs them; the reasoning that made it safe is in
+its header, because **this scrub caused a regression once** (2026-08-01 (19)).
+
+**THE COMPANION REPAIR WAS MEASURED AND DROPPED, which is the more useful half.**
+54 children are listed by a doc container and embedded by nothing — the same class
+`0033` repaired for two pages. At 54 the repair is wrong: measured for CONTENT,
+**52 hold nothing at all and 2 hold ONE character**. Re-embedding would add 54
+blank boxes to pages that currently look fine. *A count of "invisible content" is
+a claim about the count until the content has been weighed.*
+
+**MY PROBE'S CONTROL FLUCTUATED 0 → 1 → 12 AND I ALMOST BELIEVED THE ZERO.** The
+preview iframe reported `embed:` placeholders on `Resume`, a page whose every
+embed resolves in Mongo. Waiting for a STABLE reading did not fix it — it settled
+at 12. The explanation is exact rather than hand-waved: `PagePreviewBody` walks
+the CHILD LIST, and the Resume page embeds **exactly 12** occurrences no child
+list reaches. Once the control's number was fully explained, the repaired pages'
+0 became meaningful; before that it was a coin flip. *A probe whose control moves
+cannot prove anything about its target.*
+
+**Reported, not fixed:** 474 embeds across 233 hosts grid-wide are reachable only
+through a textmap, so preview CARDS under-render text-heavy pages. Pre-existing
+and not codex-specific — the third reachability path 2026-08-13 (4) already names.
+
+1278 server + 3115 client tests, poms grid scrubbed and pm2 restarted, deployed.
+
+---
+
 ### 2026-08-21 — ONE SIDEBAR: pinned above the manifest, on the right, and folders start CLOSED
 
 Three asks on one surface — *"make every folder closed by default in the manifest sidebar"*,

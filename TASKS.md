@@ -5,6 +5,24 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 
 ## Open
 
+### Closed 2026-08-23 (afternoon)
+
+- **Bookmarks spec — ALL NINE STEPS SHIPPED.** Archive mode was the last (`062af432`).
+- **"Does a codex page's body render?"** — the other account's flagged gap. **YES**, verified
+  read-only via `?previewOcc=` (no write to the grid): 3,761 and 11,630 chars with the
+  expected text, 0 page errors, and all 75 root docs embed every child they list.
+- **`0205` — 28 dead embeds scrubbed.** They painted `embed: <uuid>` on ten day columns and
+  two Daily Questions; residue from `0070` (2026-08-11). 1,357 live embeds untouched.
+
+### New, reported not fixed
+
+| # | Item | State |
+|---|------|-------|
+| 15 | **54 children are listed by a doc container and embedded by nothing** — invisible in the data sense. **Deliberately NOT re-embedded:** measured for content, 52 hold nothing and 2 hold one character, so the repair would add 54 blank boxes. They are `sweepOrphans` candidates | 📋 measured, left alone |
+| 16 | **Preview CARDS under-render text-heavy pages** — `PagePreviewBody` walks the child list, and **474 embeds across 233 hosts** grid-wide are reachable only through a textmap, so they draw as `embed: <uuid>` in a preview. Pre-existing, not codex-specific. Fix would be to include modules for textmap-referenced occurrences in the preview's filtered state | 📋 reported |
+| 17 | **One dangling `instanceTextblock`** — left alone on purpose: that renderer forces the occurrence live and retries rather than painting an error, so scrubbing would delete a node that recovers itself | 📋 reported |
+| 18 | **The durable half of 2026-08-01 (19) is still open** — nothing stops a builder adding to `occurrences[]` without writing the parent's `moduleEmbed`. The 54 above are what that looks like accumulated over three weeks. Now harmless (they are empty); it wants the builder fixed before something non-empty lands there | 📋 root cause open |
+
 | # | Task | State |
 |---|------|-------|
 | K | **BOOKMARK ARTIFACTS — a Raindrop export becomes a board page of bookmarks** — *"i want to add in a task to look at bookmark artfifacts and start building those out. im going to give you a raindrop export and i want you to create a board page of bookmarks where i can click into and it opens the url inside of the panel or i can right click it and import it as a page"* (08-22). Three parts: **(a)** a Raindrop export importer, **(b)** a bookmark occurrence kind that opens its URL INSIDE the panel rather than a new tab, **(c)** a right-click → import-as-page route. **Pieces that already exist to build on:** the `link-page` / `link-container` / `link-chip` intake shapes and `import_url` (2026-08-07/08-09), `harvestLinks` + the `link_harvest` socket handler, and `markdownToModuli`. **Waiting on the export file** | 📋 new ask, blocked on the file |
