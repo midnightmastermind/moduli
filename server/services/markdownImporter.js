@@ -29,6 +29,7 @@
 // Caller broadcasts the entities via socket so connected tabs sync.
 
 import crypto from "crypto";
+import { annotationLabelOf } from "../utils/codexParse.js";
 import Module from "../models/Module.js";
 import Occurrence from "../models/Occurrence.js";
 
@@ -283,7 +284,7 @@ function buildSectionBody(childIds, { imageChildIds, textblockChildIds, asideId 
 // Produces a tree of { kind, level?, text?, content?, children? } nodes
 // before we mint entities. Lets us decide structure separately from
 // persistence.
-function parseBlocks(markdown) {
+export function parseBlocks(markdown) {
   const lines = markdown.split(/\r?\n/);
   const blocks = [];
   let i = 0;
@@ -365,10 +366,18 @@ function parseBlocks(markdown) {
         i++;
       }
       const text = qLines.join(" ").replace(/\s+/g, " ").trim();
+      // AN ANNOTATION IS NOT A PULL-QUOTE, so it never gets an attribution.
+      // These are prose written ABOUT a note, and prose contains em-dashes:
+      // measured on the codex corpus, 54 of 460 blockquotes end in a short
+      // em-dash clause, and every one would have its last sentence torn off and
+      // rendered as "— …". The bracketed marker is what tells the two apart.
+      const annotation = annotationLabelOf(text);
       let quote = text, attribution = "";
-      const m = /^(.+?)\s*[—–]\s*([^—–]{2,80})$/.exec(text);
-      if (m) { quote = m[1].trim(); attribution = m[2].trim(); }
-      if (quote) blocks.push({ kind: "quote", text: quote, attribution });
+      if (!annotation) {
+        const m = /^(.+?)\s*[—–]\s*([^—–]{2,80})$/.exec(text);
+        if (m) { quote = m[1].trim(); attribution = m[2].trim(); }
+      }
+      if (quote) blocks.push({ kind: "quote", text: quote, attribution, annotation });
       continue;
     }
     // Horizontal rule / blank — skip
@@ -524,14 +533,22 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
   // Quote → a role:"artifact" kind:"quote" occurrence. The quote text +
   // attribution live on module.meta (no fileRef); the client ArtifactCard renders
   // a styled pull-quote block (big quote mark + italic text + "— attribution").
-  function buildArtifactQuote({ text, attribution }) {
+  function buildArtifactQuote({ text, attribution, annotation }) {
     const moduleId = uid();
     const occurrenceId = uid();
     modules.push({
       id: moduleId, userId, gridId,
       role: "artifact", kind: "quote",
       label: (text || "").slice(0, 60),
-      meta: { quote: text || "", attribution: attribution || "" },
+      // `codexAnnotation` is written ONLY when there is one. A key that is
+      // present-and-empty would read as "an annotation with no label", so an
+      // ordinary quote must not carry it at all — that absence is what lets a
+      // later pass filter, collapse or restyle the commentary without parsing
+      // prose again.
+      meta: {
+        quote: text || "", attribution: attribution || "",
+        ...(annotation ? { codexAnnotation: annotation } : {}),
+      },
     });
     occurrences.push({
       id: occurrenceId, userId, gridId,
@@ -708,7 +725,7 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
         // but it's embedded INSIDE the lead-up textblock (the prose that introduces
         // it, e.g. "…who said:") via a moduleEmbed — so the quote flows right after
         // its lead-in instead of becoming a detached sibling block. Does NOT flush.
-        const qId = buildArtifactQuote({ text: c.text, attribution: c.attribution });
+        const qId = buildArtifactQuote({ text: c.text, attribution: c.attribution, annotation: c.annotation });
         pendingPara.push({ type: "moduleEmbed", attrs: { occurrenceId: qId, align: "full" } });
         continue;
       }
