@@ -2,12 +2,31 @@
   "manifest_version": 3,
   "name": "Moduli Companion",
   "version": "0.1.0",
-  "description": "Lets Moduli open web pages inside a panel, and (soon) clip anything into your grid from the right-click menu.",
-  "permissions": ["declarativeNetRequest"],
-  "host_permissions": ["<all_urls>"],
+  "description": "Lets Moduli open web pages inside a panel, and clip anything into your grid from the right-click menu.",
+  "permissions": [
+    "declarativeNetRequest",
+    "contextMenus",
+    "storage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "declarative_net_request": {
     "rule_resources": [
-      { "id": "framing", "enabled": true, "path": "rules.json" }
+      {
+        "id": "framing",
+        "enabled": true,
+        "path": "rules.json"
+      }
     ]
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
   }
 }

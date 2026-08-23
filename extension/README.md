@@ -1,7 +1,7 @@
 # Moduli Companion
 
-A browser extension with one job today: **let Moduli open a web page inside a
-panel.**
+A browser extension with two jobs: **let Moduli open a web page inside a panel**,
+and **clip anything into your grid from the right-click menu.**
 
 ## Why it is needed
 
@@ -76,3 +76,57 @@ The right-click menu — selection → textblock, page → bookmark, link → bo
 image → artifact, posting to `POST /api/v1/ingest`. It is waiting on the
 `Bookmark` module and its fields, which the bookmarks import creates; clipping
 into a shape that does not exist yet would be guesswork.
+
+
+---
+
+## Clipping
+
+Right-click anywhere and send it to Moduli.
+
+| what you right-click | what lands |
+|---|---|
+| selected text | a row with the text in `Excerpt` and the page in `URL` |
+| the page | a bookmark |
+| a link | a bookmark, **without visiting the link** |
+| an image | an image artifact |
+
+### Setting it up
+
+Open the extension's options and fill in:
+
+- **API token** — Command Center → Connections. It needs the `write` scope.
+- **Grid id** — which grid to clip into.
+- **Destination** *(optional)* — a container or page id. Leave it blank and
+  clips are created unfiled; you can move them later.
+
+It posts to `POST /api/v1/ingest`, which is **idempotent on (source,
+externalId)** — so clipping the same page twice updates one row rather than
+making two.
+
+### What it deliberately does not do
+
+- **A selection is not a real textblock yet.** `/ingest` writes `label`,
+  `fields` and `meta`; a textblock's words live in a `textmap`, which is stored
+  compressed and which that endpoint has no way to write. The text is kept in
+  `Excerpt` and nothing is lost — but it is a field value, not a document.
+- **A link clip does not fetch the link.** That is the point of the link
+  context: bookmark it without opening it. It therefore has no cover and no
+  excerpt until you open it in Moduli.
+
+### Verifying it
+
+**None of the clip path can be exercised in this repo's test environment** —
+MV3 extensions do not load headlessly. What IS tested is everything that could
+be decided wrongly:
+
+- `clip.js` — which shape a context produces, what identity it carries, what a
+  missing field id does (21 tests)
+- `settings.js` — what a half-configured extension says instead of failing
+  silently (12 tests)
+- the manifests — that they ask for every permission the code uses, point at
+  files that exist, declare the background as a module, and do not drift from
+  each other (12 tests)
+
+The rest — menu registration, storage, fetch, notifications — is verified by
+installing it and clipping something.

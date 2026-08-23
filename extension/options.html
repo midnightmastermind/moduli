@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Moduli Companion — options</title>
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; max-width: 34rem; margin: 2rem auto; padding: 0 1rem; }
+  h1 { font-size: 1.1rem; margin-bottom: .25rem; }
+  p.hint { color: #666; margin-top: 0; }
+  label { display: block; margin-top: 1rem; font-weight: 600; }
+  input { width: 100%; padding: .45rem .5rem; font: inherit; box-sizing: border-box; }
+  small { color: #666; display: block; margin-top: .2rem; font-weight: 400; }
+  button { margin-top: 1.25rem; padding: .5rem 1rem; font: inherit; }
+  #status { margin-left: .75rem; }
+</style>
+<h1>Moduli Companion</h1>
+<p class="hint">Where your clips go.</p>
+
+<label>Moduli address
+  <input id="baseUrl" placeholder="https://viafluere.com">
+  <small>Leave blank for viafluere.com.</small>
+</label>
+
+<label>API token
+  <input id="token" type="password" placeholder="a token with the write scope">
+  <small>Command Center → Connections. It needs the <code>write</code> scope.</small>
+</label>
+
+<label>Grid id
+  <input id="gridId" placeholder="the grid to clip into">
+</label>
+
+<label>Destination occurrence id <small style="display:inline">(optional)</small>
+  <input id="parentId" placeholder="a container or page id">
+  <small>Leave blank and clips are created unfiled — you can move them later.</small>
+</label>
+
+<button id="save">Save</button><span id="status"></span>
+<script type="module" src="options.js"></script>
