@@ -227,8 +227,37 @@ times, and everything of ours is reachable without competing with it.
 |---|---|
 | **double-click** a bookmark | opens it in a panel. Double, not single — a single click competes with the drag handle |
 | double-click with **no panel set** | opens in the cell the bookmark is on |
-| **right-click → Open in panel** | secondary menu picks WHICH panel |
+| **right-click → Open in panel ›** | picks the TARGET panel, and it STICKS |
 | **right-click → Import as page** | the existing `import_url` path |
+
+### The target panel is a sticky, grid-wide setting
+
+**User:** *"i should be able to set in the right click menu, a panel ... and it
+should be set as that until i turn it off. so when i double click then on the
+bookmark, it opens in the panel i selected. if none is selected, we open in the
+panel we are opening it from."*
+
+One reading panel for the whole grid, held on the grid rather than per row —
+setting it per bookmark would mean 1,467 places to change your mind.
+
+```
+right-click any bookmark → Open in panel ›
+                              • Panel A
+                              ✓ Panel C     <- sticky, until cleared
+                              • Panel D
+                              ─────────
+                              • Clear
+```
+
+**Unset is the default and it is invisible:** with no target, a double-click
+opens in the panel it was clicked FROM. Setting a target is how you say "no,
+over there", so the feature costs nothing until it is wanted.
+
+**A stale target falls back to the same rule.** If the chosen panel is gone, the
+double-click opens where it was clicked rather than failing — the setting quietly
+stops applying instead of swallowing the click. It does NOT re-open a closed
+panel: changing the layout as a side effect of a double-click is a surprise, and
+the click still has somewhere obvious to land.
 
 ## Risks, stated rather than discovered later
 
