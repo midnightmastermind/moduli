@@ -87,8 +87,31 @@ artifacts so we can open them up in a panel"* / *"it should probably work like
 folder does with its views"* / *"the iframe itself acting as a folder view mode
 wise, and we put that view on links and bookmark artifacts"*.
 
-**There is no new mechanism here, which is the point.** `helpers/layoutCascade`
-already declares views per role and kind:
+**CORRECTED 2026-08-23, mid-build.** The first attempt added `iframe` to
+`helpers/layoutCascade`'s kind tables and the tests failed — including the
+CONTROL, which is what exposed it. Those tables do not describe how a surface
+renders. The file says so in its own header:
+
+> `dragInView` — which view a new occurrence renders as **when dropped into this
+> surface**
+
+So `folder: dragInView: "preview"` means *a page dropped into a folder becomes a
+preview card* — that is why folder pages show preview cards at all. It is about
+CHILDREN. An iframe page has no children, so that table has nothing to say
+about it.
+
+**The surface is a KIND, dispatched where the other surfaces are** — `ModulePage`
+already branches on `kind` for canvas, doc, table, folder and board, and
+`ModuleContainer` does the same. `iframe` is one more branch, rendering
+`PageIframe`. The Reader|Web toggle is state on that surface, persisted on the
+occurrence, not a cascade `navOption`.
+
+The user's instinct — *"it should work like folder does with its views"* — was
+still right; the mechanism it points at is the kind dispatch, not the cascade.
+
+---
+
+For reference, `helpers/layoutCascade` declares CHILD behaviour per role and kind:
 
 ```
 folder     dragInView: "preview"   navOptions: ["preview","representation"]
