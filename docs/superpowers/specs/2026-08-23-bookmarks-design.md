@@ -126,31 +126,60 @@ construction rather than by a cap somebody can raise.
 That last one is what keeps `noDomainKnowledge` satisfied: the view is offered
 because a row HAS a url, never because something learned what a "bookmark" is.
 
-### Two modes, and they share one implementation
+### Two modes, READER FIRST
 
-**Browse** — the live site in a frame, fully interactive, navigable. Sandboxed
-`allow-scripts allow-same-origin allow-forms allow-popups`, WITHOUT
-`allow-top-navigation`: links and forms work, and a page cannot navigate your
-grid away.
+**User:** *"can you make sure to open in text preview mode if possible. text
+reader or whatever"* and *"have the iframe have buttons at the top to switch
+between reader and web"*.
 
-**Clip** — the same page fetched server-side through `import_url` and rendered
-as OUR DOM, so selection, right-click and turning text into modules all work
-normally.
+**Reader is the default.** The page is fetched server-side through `import_url`
+and rendered as OUR DOM: faster, no third-party scripts, and selection,
+right-click and turning text into modules all work without a mode switch.
 
-**The framing-refused fallback IS clip mode.** Measured, not assumed:
+**Web** is the live site in a frame — interactive, navigable, and what you switch
+to when you need the real thing (a logged-in view, an app, a video). Sandboxed
+`allow-scripts allow-same-origin allow-forms allow-popups` WITHOUT
+`allow-top-navigation`: links and forms work, and a page cannot navigate the grid
+away.
+
+The strip carries an explicit toggle, so neither mode is a hidden state:
 
 ```
-github.com     x-frame-options: deny        will not frame
-youtube.com    x-frame-options: SAMEORIGIN  /watch blocked, /embed/ fine
-reddit.com     restrictive CSP
-google.com     blocked in practice
-wikipedia.org  frames fine
-devin.ai       frames fine
+┌──────────────────────────────────────────────────┐
+│ ‹ ›  wikipedia.org/wiki/Main_Page  [Reader|Web] ⋮ │  <- ours
+├──────────────────────────────────────────────────┤
+│                                                   │
+└──────────────────────────────────────────────────┘
 ```
 
-Roughly a third of the collection refuses. Those open in clip mode instead of a
-blank box — one implementation serving both the deliberate gesture and the
-failure case.
+### "If possible" is doing real work — measured
+
+Fourteen of the user's own bookmarks, one per domain, fetched server-side:
+
+```
+coffeehousetheology 11,941 words    en.wikipedia.org  12,997
+cslewisinstitute     5,709          danbrown.com       3,896
+prs.org              3,072          eppc.org           3,033
+divinity.uchicago    1,257
+──────────────────────────────────────────────────────────
+devin.ai   429 (HTTP 429)   scribd 195   blog.spl.org 108
+catholiceducation 108       viafluere 116   amazon 62   reddit 29
+```
+
+**About half yield a real read; the rest return a JavaScript shell.** Reddit is
+the clearest — 29 words, because the page builds itself in the browser.
+
+So the default is reader **when the fetch yields enough text**, and web
+otherwise. A reader view showing 29 words of nav chrome is worse than the site.
+
+*Caveat on those numbers:* they came from a crude regex tag-strip, not the app's
+readability extractor, so they are indicative and probably pessimistic. The
+threshold must be calibrated against the REAL parser before it is hardcoded —
+picking a number off this table would be tuning against the wrong instrument.
+
+**The framing-refused fallback is the same code as reader mode.** github, reddit
+and google refuse to frame; in reader-first that mostly stops mattering, because
+the frame is the opt-in rather than the default.
 
 ### What CANNOT work, established by measurement rather than assumed
 
