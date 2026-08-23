@@ -70,7 +70,36 @@ pick this folder.
 → pick `manifest.firefox.json`. (Firefox unloads temporary add-ons on restart;
 signing is needed for a permanent install.)
 
+## Clipping from inside a panel
+
+A bookmark opened in a Moduli panel is an **iframe**, and the right-click menu
+works there — Chrome fires the extension's menu inside frames already.
+
+What did NOT work until 2026-08-23 is what it recorded. Inside a frame,
+`info.pageUrl` and `tab.title` describe the **host** page — which in that
+situation is Moduli itself — so a clip taken from an embedded article was saved
+as *"Moduli"* pointing at `viafluere.com`. Silently, with no error. `clip.js`
+now prefers `info.frameUrl`, and falls back to the frame's URL for the label
+rather than borrowing the host tab's title.
+
+A link's and an image's own URL is left exactly alone: the browser already
+resolved those against the frame's base.
+
+**Identity is unchanged by where you clipped from** — clipping an article inside
+a panel and clipping the same article in a normal tab produce the same
+`externalId`, so you get one row, not two.
+
+**Known limit:** the extension cannot read a cross-origin frame's `<title>`
+without injecting a script into every frame on every site — a much larger
+permission for a nicer label. A framed page clip is therefore named by its URL.
+
 ## Not built yet
+
+- **The clip lands in the grid you CONFIGURED, not the grid you are looking at.**
+  Settings hold one `gridId`. Making a clip follow the open grid means a content
+  script on the Moduli origin reading `moduli-gridId` from `localStorage` and
+  handing it to the worker — small, but it adds a content script and cannot be
+  exercised in this repo (see "NOT VERIFIED HERE").
 
 The right-click menu — selection → textblock, page → bookmark, link → bookmark,
 image → artifact, posting to `POST /api/v1/ingest`. It is waiting on the

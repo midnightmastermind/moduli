@@ -52,11 +52,39 @@ export function clipShapeFor(info = {}) {
   return "page";
 }
 
+/**
+ * True when the click happened inside an IFRAME rather than the page itself.
+ *
+ * This is the case that matters for Moduli: a bookmark opened in a panel is an
+ * embedded frame, and the user asked to *"right click on the stuff inside the
+ * iframe … add new occurances via right click"*. Chrome fires `onClicked` there
+ * already — but `info.pageUrl` and `tab.title` describe the HOST page, which in
+ * that situation is Moduli itself. Clipping without this check records
+ * viafluere.com and the title "Moduli", silently, for an article you were
+ * looking at.
+ */
+export function clipInFrame(info = {}) {
+  const f = info.frameUrl;
+  return typeof f === "string" && !!f && f !== info.pageUrl;
+}
+
+/**
+ * The page a click is ABOUT — the FRAME's page when there is one.
+ *
+ * `frameUrl` first, because it is the more specific answer and is only ever
+ * present when the click really was inside a frame.
+ */
+export function clipSourceUrl(info = {}, tab = {}) {
+  return info.frameUrl || info.pageUrl || tab.url || null;
+}
+
 /** The URL a shape is ABOUT — its identity, and what a click will later open. */
 export function clipUrlFor(shape, info = {}, tab = {}) {
+  // A link's and an image's own URL is already absolute and already correct
+  // inside a frame — the browser resolved it against the frame's own base.
   if (shape === "link") return info.linkUrl || null;
   if (shape === "image") return info.srcUrl || null;
-  return info.pageUrl || tab.url || null;
+  return clipSourceUrl(info, tab);
 }
 
 const trim = (s, n) => {
@@ -72,10 +100,20 @@ const trim = (s, n) => {
  * board of clips from one article would be a column of identical labels.
  */
 export function clipLabelFor(shape, info = {}, tab = {}) {
-  if (shape === "selection") return trim(info.selectionText, 80) || trim(tab.title, 80) || "Clipped text";
+  // INSIDE A FRAME THE TAB TITLE BELONGS TO THE HOST PAGE, not to what you
+  // right-clicked — every clip taken from a bookmark panel would be called
+  // "Moduli". A wrong name is worse than a plain one, so the frame's own URL is
+  // used instead. (An extension cannot read a cross-origin frame's <title>
+  // without injecting a script into every frame on every site, which is a much
+  // larger permission for a nicer label.)
+  const inFrame = clipInFrame(info);
+  const hostTitle = inFrame ? "" : tab.title;
+  const fallback = clipSourceUrl(info, tab);
+
+  if (shape === "selection") return trim(info.selectionText, 80) || trim(hostTitle, 80) || "Clipped text";
   if (shape === "link") return trim(info.linkText || info.selectionText || info.linkUrl, 120) || "Clipped link";
-  if (shape === "image") return trim(tab.title, 120) || "Clipped image";
-  return trim(tab.title, 200) || trim(tab.url, 200) || "Clipped page";
+  if (shape === "image") return trim(hostTitle, 120) || trim(fallback, 120) || "Clipped image";
+  return trim(hostTitle, 200) || trim(fallback, 200) || "Clipped page";
 }
 
 /** role/kind per shape — the same shapes the grid already has. */

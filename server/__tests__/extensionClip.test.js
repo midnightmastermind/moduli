@@ -6,6 +6,7 @@
 import { describe, it, expect } from "vitest";
 import {
   clipShapeFor, clipUrlFor, clipLabelFor, clipModuleShape, buildClipRecord, CLIP_MENUS,
+  clipInFrame, clipSourceUrl,
 } from "../../extension/clip.js";
 
 const tab = { title: "Dan Brown — Official Site", url: "https://danbrown.com/" };
@@ -148,5 +149,73 @@ describe("CLIP_MENUS", () => {
   });
   it("every menu id maps back to a shape", () => {
     for (const m of CLIP_MENUS) expect(clipShapeFor({ menuItemId: m.id })).toBe(m.contexts[0]);
+  });
+});
+
+
+// ── Right-clicking INSIDE an iframe ─────────────────────────────────────────
+// The user's ask: *"right click on the stuff inside the iframe … we should be
+// able to add new occurances via right click"*. A bookmark opened in a Moduli
+// panel is an embedded frame. Chrome already fires `onClicked` there — but
+// `info.pageUrl` and `tab.title` describe the HOST page, which is Moduli. Every
+// assertion below fails against the pre-2026-08-23 code, which read `pageUrl`.
+describe("clipping from inside a frame", () => {
+  // The shape of a real right-click on an article embedded in a Moduli panel.
+  const framed = {
+    pageUrl: "https://viafluere.com/",            // the HOST — Moduli itself
+    frameUrl: "https://en.wikipedia.org/wiki/Eminem",
+  };
+  const moduliTab = { url: "https://viafluere.com/", title: "Moduli" };
+
+  it("knows a click was inside a frame", () => {
+    expect(clipInFrame(framed)).toBe(true);
+    expect(clipInFrame({ pageUrl: "https://x/", frameUrl: "https://x/" })).toBe(false); // same doc
+    expect(clipInFrame({ pageUrl: "https://x/" })).toBe(false);
+    expect(clipInFrame({})).toBe(false);
+  });
+
+  it("clips the FRAME's page, not the page hosting it", () => {
+    expect(clipUrlFor("page", framed, moduliTab)).toBe("https://en.wikipedia.org/wiki/Eminem");
+    expect(clipSourceUrl(framed, moduliTab)).toBe("https://en.wikipedia.org/wiki/Eminem");
+  });
+
+  it("does NOT name the clip after the host tab", () => {
+    // "Moduli" is the tab title in this situation and would be on every clip.
+    expect(clipLabelFor("page", framed, moduliTab)).toBe("https://en.wikipedia.org/wiki/Eminem");
+    expect(clipLabelFor("image", { ...framed, srcUrl: "https://img/a.png" }, moduliTab))
+      .toBe("https://en.wikipedia.org/wiki/Eminem");
+  });
+
+  it("names a framed SELECTION by its own words, as it always did", () => {
+    expect(clipLabelFor("selection", { ...framed, selectionText: "Marshall Bruce Mathers III" }, moduliTab))
+      .toBe("Marshall Bruce Mathers III");
+  });
+
+  // A link's and an image's own URL is already absolute — the browser resolved
+  // it against the frame's base — so those must be left exactly alone.
+  it("leaves a framed link's and image's own URL untouched", () => {
+    expect(clipUrlFor("link", { ...framed, linkUrl: "https://target/" }, moduliTab)).toBe("https://target/");
+    expect(clipUrlFor("image", { ...framed, srcUrl: "https://img/a.png" }, moduliTab)).toBe("https://img/a.png");
+  });
+
+  // Identity is the URL, so a framed clip must be idempotent against the SAME
+  // article clipped from a normal tab — otherwise opening a bookmark in a panel
+  // and clipping it would create a second row for a page you already have.
+  it("gives a framed clip the same identity as the same page clipped normally", () => {
+    const fromFrame = buildClipRecord({ info: framed, tab: moduliTab });
+    const fromTab = buildClipRecord({
+      info: { pageUrl: "https://en.wikipedia.org/wiki/Eminem" },
+      tab: { url: "https://en.wikipedia.org/wiki/Eminem", title: "Eminem - Wikipedia" },
+    });
+    expect(fromFrame.externalId).toBe(fromTab.externalId);
+    expect(fromFrame.externalId).toBe("page:https://en.wikipedia.org/wiki/Eminem");
+    // The normal-tab clip still gets the good title; only the framed one falls back.
+    expect(fromTab.label).toBe("Eminem - Wikipedia");
+  });
+
+  it("an UNFRAMED click is completely unchanged", () => {
+    const tab = { url: "https://here/", title: "Here" };
+    expect(clipUrlFor("page", { pageUrl: "https://here/" }, tab)).toBe("https://here/");
+    expect(clipLabelFor("page", { pageUrl: "https://here/" }, tab)).toBe("Here");
   });
 });
