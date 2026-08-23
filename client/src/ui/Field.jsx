@@ -1148,9 +1148,157 @@ function Field({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handleCommit, value]);
 
+  // The destructure moved ABOVE the guard so the hoisted hooks below can read
+  // `type` and `meta`. `field || {}` keeps it safe for the null case the guard
+  // still handles two lines down — and a dep array is evaluated at RENDER time,
+  // so leaving it below produced `Cannot access 'type' before initialization`,
+  // the TDZ trap `CanvasContent` paid for on 2026-05-21.
+  const { type, name, unit, meta } = field || {};
+
+  // ── HOISTED ABOVE THE FIRST EARLY RETURN (2026-08-23) ────────────────────
+  // These four hooks lived in the DISPLAY-ONLY section, below `if (isEditable)
+  // { … }` and its many returns — so a field rendered as an INPUT called four
+  // fewer hooks than the same field rendered as a DISPLAY. That is only safe if
+  // a mounted Field can never switch, and it can: `inputEnabled`,
+  // `displayEnabled` and `type` are all editable in the Command Center's Fields
+  // tab, and editing one re-renders every Field bound to it. React answers a
+  // changing hook count by taking the component down.
+  //
+  // Same class as the three fixed the same day (ActionConfig, ModuleContainer,
+  // TextblockCard) and as BoundHeader before them.
+  //
+  // Running them for an input field is cheap: `formattedValue` is a pure switch
+  // over the already-computed `rawDisplayValue`, and the three target hooks
+  // short-circuit on `hasTarget`. Their only dependency declared above is
+  // `meta` (line ~1115), which precedes this point.
+  // Formatted value for display
+  const formattedValue = useMemo(() => {
+    if (rawDisplayValue === null || rawDisplayValue === undefined) {
+      // A field may name what its EMPTY state means. `Tracker Date` uses it to
+      // read "Total" when no date filter is set, because an empty period on a
+      // tracker means "aggregate everything" rather than "no data" — so a dash
+      // there is actively misleading. Generic and configured as DATA: nothing
+      // here learns what a tracker is, which `noDomainKnowledge` enforces.
+      // Checked before the numeric defaults so a labelled number field says its
+      // label rather than 0.
+      const empty = field?.meta?.emptyLabel;
+      if (typeof empty === "string" && empty) return empty;
+      // Empty numeric displays read as 0 (e.g. Days Until Due, account
+      // balances); everything else (date/text/select/…) reads as a dash.
+      if (type === "number") return "0";
+      if (type === "duration") return "0m";
+      return compact ? "-" : "—";
+    }
+    switch (type) {
+      case "number": {
+        const num = Number(rawDisplayValue);
+        if (isNaN(num)) return rawDisplayValue;
+        const precision = binding?.display?.precision ?? 2;
+        return Number.isInteger(num) ? num.toString() : num.toFixed(precision);
+      }
+      case "boolean": return rawDisplayValue ? "Yes" : "No";
+      // Reads whichever shape the value is in — a bare string (every address
+      // written before this type existed) or the picker's object.
+      case "address": return addressSummary(rawDisplayValue) || (compact ? "-" : "—");
+      case "date": {
+        // Unreachable for null/undefined (handled above, emptyLabel included);
+        // this catches "" and other falsy shapes a date field can carry.
+        if (!rawDisplayValue) return (typeof field?.meta?.emptyLabel === "string" && field.meta.emptyLabel) || "—";
+        try {
+          const parseLocalDay = (v) => {
+            if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(v + "T00:00:00");
+            return new Date(v);
+          };
+          const date = parseLocalDay(rawDisplayValue);
+          const diff = dayDiffFromToday(rawDisplayValue);   // one definition
+          const dateStr = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+          if (diff === 0) return `${dateStr} · today`;
+          if (diff === 1) return `${dateStr} · tomorrow`;
+          if (diff > 0) return `${dateStr} · in ${diff}d`;
+          if (diff === -1) return `${dateStr} · yesterday`;
+          return `${dateStr} · ${Math.abs(diff)}d overdue`;
+        } catch { return rawDisplayValue; }
+      }
+      case "select": {
+        const options = meta?._resolvedOptions || [];
+        if (Array.isArray(rawDisplayValue)) {
+          return rawDisplayValue.map(v => options.find(o => o.value === v)?.label ?? v).join(", ") || "—";
+        }
+        return options.find(o => o.value === rawDisplayValue)?.label ?? rawDisplayValue;
+      }
+      case "duration": {
+        const totalMin = Number(rawDisplayValue ?? 0);
+        if (isNaN(totalMin)) return rawDisplayValue;
+        const h = Math.floor(totalMin / 60);
+        const m = totalMin % 60;
+        if (h === 0) return `${m}m`;
+        if (m === 0) return `${h}h`;
+        return `${h}h ${m}m`;
+      }
+      case "rating": return rawDisplayValue;
+      case "text": {
+        // Array-history values without a columns renderer in reach: empty →
+        // "—", primitive rows join, object rows summarize (the columnar
+        // branches render the real table when displayConfig.columns is set).
+        if (Array.isArray(rawDisplayValue)) {
+          if (!rawDisplayValue.length) return "—";
+          return rawDisplayValue.every(r => r == null || typeof r !== "object")
+            ? rawDisplayValue.join(", ")
+            : `${rawDisplayValue.length} row${rawDisplayValue.length === 1 ? "" : "s"}`;
+        }
+        return String(rawDisplayValue);
+      }
+      case "occurrence": {
+        const options = meta?._resolvedOptions || [];
+        if (Array.isArray(rawDisplayValue)) {
+          return rawDisplayValue.map(v => options.find(o => o.value === v)?.label ?? v).join(", ") || "—";
+        }
+        return options.find(o => o.value === rawDisplayValue)?.label || rawDisplayValue || "—";
+      }
+      default: return rawDisplayValue !== undefined && rawDisplayValue !== null ? String(rawDisplayValue) : "—";
+    }
+  }, [field, rawDisplayValue, compact, binding, type]);
+
+  // Target/progress calculations
+  const scaledTarget = useMemo(
+    () => hasTarget ? getScaledTargetValue(target, currentTimeFilter, scaleOpts) : null,
+    [hasTarget, target, currentTimeFilter, currentSpan]
+  );
+  const targetMet = useMemo(() => {
+    if (!hasTarget) return null;
+    return checkTarget(rawDisplayValue ?? 0, target, currentTimeFilter, scaleOpts);
+  }, [hasTarget, target, rawDisplayValue, currentTimeFilter, currentSpan]);
+  const targetProgress = useMemo(() => {
+    if (!hasTarget || rawDisplayValue == null) return null;
+    if (typeof target.value !== "number") return null;
+    const current = Number(rawDisplayValue);
+    if (isNaN(current)) return null;
+    const scaledT = getScaledTargetValue(target, currentTimeFilter, scaleOpts);
+    const progress = calculateProgress(current, target, currentTimeFilter, scaleOpts) ?? 0;
+    const met = checkTarget(current, target, currentTimeFilter, scaleOpts) ?? false;
+    return { progress, met, target: scaledT };
+  }, [hasTarget, target, rawDisplayValue, currentTimeFilter, currentSpan]);
+
+  // ── HOISTED (2026-08-23), the fifth of five ──────────────────────────────
+  // This lived inside `case type === "date"` of the INPUT section, so a Field
+  // called one more hook for a date than for anything else — and a field's TYPE
+  // is editable in the Command Center, so switching a field to or from `date`
+  // changed the hook count on every mounted Field bound to it.
+  //
+  // `dayDiffFromToday` is a pure parse, so computing it for a non-date field is
+  // free and the result is simply unread.
+  const relativeDateLabel = useMemo(() => {
+    const diff = dayDiffFromToday(localValue);
+    if (diff === null) return null;
+    if (diff === 0) return { text: "today", color: "#22c55e" };
+    if (diff === 1) return { text: "tomorrow", color: "#22c55e" };
+    if (diff > 0) return { text: `in ${diff} days`, color: diff <= 7 ? "#f59e0b" : "#64748b" };
+    if (diff === -1) return { text: "yesterday", color: "#ef4444" };
+    return { text: `${Math.abs(diff)} days overdue`, color: "#ef4444" };
+  }, [localValue]);
+
   if (!field) return null;
 
-  const { type, name, unit, meta } = field;
   // `affixPrefix` is already row-resolved (pick -> field default) by
   // FieldRenderer; the `?? meta.prefix` keeps every other call site — forms,
   // previews, tests that render <Field> directly — byte-identical.
@@ -1900,15 +2048,6 @@ function Field({
     }
 
     if (type === "date") {
-      const relativeDateLabel = useMemo(() => {
-        const diff = dayDiffFromToday(localValue);
-        if (diff === null) return null;
-        if (diff === 0) return { text: "today", color: "#22c55e" };
-        if (diff === 1) return { text: "tomorrow", color: "#22c55e" };
-        if (diff > 0) return { text: `in ${diff} days`, color: diff <= 7 ? "#f59e0b" : "#64748b" };
-        if (diff === -1) return { text: "yesterday", color: "#ef4444" };
-        return { text: `${Math.abs(diff)} days overdue`, color: "#ef4444" };
-      }, [localValue]);
 
       return (
         <div className="field-input field-input-date" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -2052,113 +2191,6 @@ function Field({
   // DISPLAY-ONLY — READ-ONLY RENDERING
   // ══════════════════════════════════════════════════════════════
 
-  // Formatted value for display
-  const formattedValue = useMemo(() => {
-    if (rawDisplayValue === null || rawDisplayValue === undefined) {
-      // A field may name what its EMPTY state means. `Tracker Date` uses it to
-      // read "Total" when no date filter is set, because an empty period on a
-      // tracker means "aggregate everything" rather than "no data" — so a dash
-      // there is actively misleading. Generic and configured as DATA: nothing
-      // here learns what a tracker is, which `noDomainKnowledge` enforces.
-      // Checked before the numeric defaults so a labelled number field says its
-      // label rather than 0.
-      const empty = field?.meta?.emptyLabel;
-      if (typeof empty === "string" && empty) return empty;
-      // Empty numeric displays read as 0 (e.g. Days Until Due, account
-      // balances); everything else (date/text/select/…) reads as a dash.
-      if (type === "number") return "0";
-      if (type === "duration") return "0m";
-      return compact ? "-" : "—";
-    }
-    switch (type) {
-      case "number": {
-        const num = Number(rawDisplayValue);
-        if (isNaN(num)) return rawDisplayValue;
-        const precision = binding?.display?.precision ?? 2;
-        return Number.isInteger(num) ? num.toString() : num.toFixed(precision);
-      }
-      case "boolean": return rawDisplayValue ? "Yes" : "No";
-      // Reads whichever shape the value is in — a bare string (every address
-      // written before this type existed) or the picker's object.
-      case "address": return addressSummary(rawDisplayValue) || (compact ? "-" : "—");
-      case "date": {
-        // Unreachable for null/undefined (handled above, emptyLabel included);
-        // this catches "" and other falsy shapes a date field can carry.
-        if (!rawDisplayValue) return (typeof field?.meta?.emptyLabel === "string" && field.meta.emptyLabel) || "—";
-        try {
-          const parseLocalDay = (v) => {
-            if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(v + "T00:00:00");
-            return new Date(v);
-          };
-          const date = parseLocalDay(rawDisplayValue);
-          const diff = dayDiffFromToday(rawDisplayValue);   // one definition
-          const dateStr = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-          if (diff === 0) return `${dateStr} · today`;
-          if (diff === 1) return `${dateStr} · tomorrow`;
-          if (diff > 0) return `${dateStr} · in ${diff}d`;
-          if (diff === -1) return `${dateStr} · yesterday`;
-          return `${dateStr} · ${Math.abs(diff)}d overdue`;
-        } catch { return rawDisplayValue; }
-      }
-      case "select": {
-        const options = meta?._resolvedOptions || [];
-        if (Array.isArray(rawDisplayValue)) {
-          return rawDisplayValue.map(v => options.find(o => o.value === v)?.label ?? v).join(", ") || "—";
-        }
-        return options.find(o => o.value === rawDisplayValue)?.label ?? rawDisplayValue;
-      }
-      case "duration": {
-        const totalMin = Number(rawDisplayValue ?? 0);
-        if (isNaN(totalMin)) return rawDisplayValue;
-        const h = Math.floor(totalMin / 60);
-        const m = totalMin % 60;
-        if (h === 0) return `${m}m`;
-        if (m === 0) return `${h}h`;
-        return `${h}h ${m}m`;
-      }
-      case "rating": return rawDisplayValue;
-      case "text": {
-        // Array-history values without a columns renderer in reach: empty →
-        // "—", primitive rows join, object rows summarize (the columnar
-        // branches render the real table when displayConfig.columns is set).
-        if (Array.isArray(rawDisplayValue)) {
-          if (!rawDisplayValue.length) return "—";
-          return rawDisplayValue.every(r => r == null || typeof r !== "object")
-            ? rawDisplayValue.join(", ")
-            : `${rawDisplayValue.length} row${rawDisplayValue.length === 1 ? "" : "s"}`;
-        }
-        return String(rawDisplayValue);
-      }
-      case "occurrence": {
-        const options = meta?._resolvedOptions || [];
-        if (Array.isArray(rawDisplayValue)) {
-          return rawDisplayValue.map(v => options.find(o => o.value === v)?.label ?? v).join(", ") || "—";
-        }
-        return options.find(o => o.value === rawDisplayValue)?.label || rawDisplayValue || "—";
-      }
-      default: return rawDisplayValue !== undefined && rawDisplayValue !== null ? String(rawDisplayValue) : "—";
-    }
-  }, [field, rawDisplayValue, compact, binding, type]);
-
-  // Target/progress calculations
-  const scaledTarget = useMemo(
-    () => hasTarget ? getScaledTargetValue(target, currentTimeFilter, scaleOpts) : null,
-    [hasTarget, target, currentTimeFilter, currentSpan]
-  );
-  const targetMet = useMemo(() => {
-    if (!hasTarget) return null;
-    return checkTarget(rawDisplayValue ?? 0, target, currentTimeFilter, scaleOpts);
-  }, [hasTarget, target, rawDisplayValue, currentTimeFilter, currentSpan]);
-  const targetProgress = useMemo(() => {
-    if (!hasTarget || rawDisplayValue == null) return null;
-    if (typeof target.value !== "number") return null;
-    const current = Number(rawDisplayValue);
-    if (isNaN(current)) return null;
-    const scaledT = getScaledTargetValue(target, currentTimeFilter, scaleOpts);
-    const progress = calculateProgress(current, target, currentTimeFilter, scaleOpts) ?? 0;
-    const met = checkTarget(current, target, currentTimeFilter, scaleOpts) ?? false;
-    return { progress, met, target: scaledT };
-  }, [hasTarget, target, rawDisplayValue, currentTimeFilter, currentSpan]);
 
   const fmt = (v) => typeof v === "number" ? (Number.isInteger(v) ? v : v.toFixed(2)) : v;
   const valueDisplay = hasTarget && scaledTarget !== null
