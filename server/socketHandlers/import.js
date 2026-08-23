@@ -35,6 +35,7 @@ import { persistImportResult } from "../utils/persistImport.js";
 import { fetchPageHtml } from "../utils/safeFetchUrl.js";
 import { fetchLinkPreview } from "../utils/linkPreview.js";
 import { extractMainContent } from "../utils/mainContent.js";
+import { readerFromHtml, readerIsUsable } from "../utils/readerExtract.js";
 import { extractLinks } from "../utils/harvestLinks.js";
 
 // Name the page from its own <title> when the caller didn't supply one, so a
@@ -147,6 +148,41 @@ export function registerImportHandlers(socket, {
   // The links are read from the MAIN CONTENT, not the raw page: a site's nav
   // and footer links belong to the site, not to the article you dropped, and on
   // a typical page they outnumber the real ones several times over.
+  // READER MODE for the iframe view (2026-08-23). Fetch a page and hand back its
+  // readable markdown — CREATES NOTHING.
+  //
+  // It is deliberately not `import_url`: that one builds a page tree in the
+  // grid, which is the right answer to "keep this" and the wrong answer to
+  // "let me read this". It runs the same fetch and the same extractor, so the
+  // text you read is the text you would import.
+  //
+  // `usable` is the whole point of the reply. About half of the user's
+  // bookmarks return a JavaScript shell server-side (reddit 0 words), and a
+  // reader view showing nav chrome is worse than the site — so the client
+  // switches to the live frame when this says false, rather than rendering an
+  // empty page and calling it a feature.
+  socket.on("page_reader", async (payload = {}, ack) => {
+    const { url, title = "", requestId = null } = payload;
+    const reply = (out) => {
+      if (typeof ack === "function") ack(out);
+      socket.emit("page_reader_result", { requestId, ...out });
+    };
+    try {
+      if (!socket.userId) return reply({ ok: false, error: "unauthenticated" });
+      if (!url) return reply({ ok: false, error: "url required" });
+      const fetched = await fetchPageHtml(url);
+      // The guard's reason is handed back verbatim so the strip can say WHY it
+      // fell through to the frame ("timed out", "not a web page") rather than
+      // silently switching modes.
+      if (!fetched.ok) return reply({ ok: false, error: fetched.reason, usable: false });
+      const { markdown, words } = readerFromHtml(fetched.html, title);
+      reply({ ok: true, url: fetched.url, markdown, words, usable: readerIsUsable(words) });
+    } catch (err) {
+      console.error("page_reader error:", err);
+      reply({ ok: false, error: err?.message || "internal error", usable: false });
+    }
+  });
+
   socket.on("link_harvest", async (payload = {}, ack) => {
     const { url, max, requestId = null } = payload;
     const reply = (out) => {
