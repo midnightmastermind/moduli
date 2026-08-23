@@ -131,7 +131,18 @@ export async function fetchPageHtml(raw, {
       }
       // The FINAL url is returned, not the one asked for — it is what the
       // content actually came from.
-      return { ok: true, html, url: v.url.toString() };
+      //
+      // The two framing headers ride along because the iframe view needs to
+      // know whether the page will let itself be framed, and this fetch already
+      // has them — the alternative is guessing from a load timeout. Only the
+      // ENFORCED CSP is passed: `content-security-policy-report-only` blocks
+      // nothing, and treating it as a refusal would withhold the live page from
+      // sites that allow it (google.com and instagram.com both send it).
+      return {
+        ok: true, html, url: v.url.toString(),
+        xFrameOptions: res.headers?.get?.("x-frame-options") || null,
+        csp: res.headers?.get?.("content-security-policy") || null,
+      };
     }
     return { ok: false, reason: `too many redirects (${maxRedirects})` };
   } catch (e) {

@@ -36,6 +36,7 @@ import { fetchPageHtml } from "../utils/safeFetchUrl.js";
 import { fetchLinkPreview } from "../utils/linkPreview.js";
 import { extractMainContent } from "../utils/mainContent.js";
 import { readerFromHtml, readerIsUsable } from "../utils/readerExtract.js";
+import { framingVerdict } from "../utils/framingVerdict.js";
 import { extractLinks } from "../utils/harvestLinks.js";
 
 // Name the page from its own <title> when the caller didn't supply one, so a
@@ -176,7 +177,15 @@ export function registerImportHandlers(socket, {
       // silently switching modes.
       if (!fetched.ok) return reply({ ok: false, error: fetched.reason, usable: false });
       const { markdown, words } = readerFromHtml(fetched.html, title);
-      reply({ ok: true, url: fetched.url, markdown, words, usable: readerIsUsable(words) });
+      // `framable` comes from the headers this fetch already received, so the
+      // client can pick a mode that WORKS instead of framing, waiting, and
+      // discovering a blank box.
+      const frame = framingVerdict({ xFrameOptions: fetched.xFrameOptions, csp: fetched.csp });
+      reply({
+        ok: true, url: fetched.url, markdown, words,
+        usable: readerIsUsable(words),
+        framable: frame.framable, frameBlockedBy: frame.why,
+      });
     } catch (err) {
       console.error("page_reader error:", err);
       reply({ ok: false, error: err?.message || "internal error", usable: false });

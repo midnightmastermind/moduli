@@ -65,3 +65,37 @@ describe("the frame's sandbox", () => {
     expect(FRAME_SANDBOX).not.toContain("allow-top-navigation");
   });
 });
+
+// `framable` comes from the headers the reader fetch already received, so the
+// surface can pick a mode that WORKS instead of framing, waiting, and
+// discovering a blank box. Measured against the real sites: github DENY,
+// youtube/reddit/google/danbrown SAMEORIGIN, wikipedia allows.
+describe("a site that refuses to be framed", () => {
+  const blocked = (usable) => ({ ok: true, usable, framable: false, frameBlockedBy: "x-frame-options: deny" });
+
+  it("is BLOCKED when there is no readable text either — not a blank frame", () => {
+    expect(resolveMode({ fetched: blocked(false) })).toBe("blocked");
+  });
+
+  it("still prefers the READER when there IS text — refusing to frame is irrelevant then", () => {
+    expect(resolveMode({ fetched: blocked(true) })).toBe("reader");
+  });
+
+  it("cannot be forced into a frame by picking Web", () => {
+    // The choice normally wins, but a blank box is a worse answer than saying
+    // the site refuses.
+    expect(resolveMode({ chosen: "web", fetched: blocked(true) })).toBe("blocked");
+  });
+
+  it("a framable site still honours the Web choice — the control", () => {
+    // Without this, a rule that returned "blocked" for every explicit Web pick
+    // would pass the test above.
+    expect(resolveMode({ chosen: "web", fetched: { ok: true, usable: true, framable: true } })).toBe("web");
+  });
+
+  it("an UNKNOWN framable (older reply, no field) still frames", () => {
+    // Fails open: a reply without the field must not withhold the live page.
+    expect(resolveMode({ chosen: "web", fetched: { ok: true, usable: false } })).toBe("web");
+    expect(resolveMode({ fetched: { ok: true, usable: false } })).toBe("web");
+  });
+});

@@ -48,9 +48,18 @@ export const FRAME_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-
  *   - a failed or thin fetch falls through to the frame, never to a blank reader
  */
 export function resolveMode({ chosen = null, fetched = null } = {}) {
-  if (chosen === "web" || chosen === "reader") return chosen;
+  // An explicit choice wins — except that asking for a frame a site refuses
+  // cannot be honoured, and a blank box is a worse answer than saying so.
+  if (chosen === "web") return fetched && fetched.ok && fetched.framable === false ? "blocked" : "web";
+  if (chosen === "reader") return "reader";
   if (!fetched) return "loading";
-  return fetched.ok && fetched.usable ? "reader" : "web";
+  if (fetched.ok && fetched.usable) return "reader";
+  // The reader has nothing to show. The frame is the fallback — unless the site
+  // refuses that too, which the fetch already told us from its own headers
+  // rather than us framing, waiting, and discovering a blank box. Measured:
+  // github DENY, youtube/reddit/google/danbrown SAMEORIGIN, wikipedia allows.
+  if (fetched.ok && fetched.framable === false) return "blocked";
+  return "web";
 }
 
 /** The label the strip shows for why it fell through, or null when it did not. */
@@ -143,6 +152,19 @@ export default function PageIframe({ occurrence, module = null, fieldsById = {},
           <div style={{ height: "100%", overflowY: "auto", padding: "12px 16px", whiteSpace: "pre-wrap",
                         fontSize: 13, lineHeight: 1.55, color: "var(--text-primary)" }}>
             {fetched?.markdown || ""}
+          </div>
+        )}
+        {mode === "blocked" && (
+          // BOTH modes are unavailable: no readable text AND the site refuses to
+          // be framed. Saying so beats a blank frame that looks broken, and the
+          // reason is the site's own header rather than our guess.
+          <div style={{ padding: 20, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
+            <div style={{ marginBottom: 8 }}>
+              This page will not open inside a panel — <code style={{ fontSize: 11 }}>{fetched?.frameBlockedBy || "the site refuses framing"}</code>
+              {fetched?.usable === false && " — and it has no readable text to show instead."}
+            </div>
+            <a href={url} target="_blank" rel="noreferrer noopener"
+               style={{ color: "var(--accent-blue-text, var(--text-primary))" }}>Open it in a new tab ↗</a>
           </div>
         )}
         {mode === "web" && (
