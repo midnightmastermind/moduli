@@ -42,7 +42,18 @@ export function codexTitle(relPath, body = "") {
 export function planCodexPage({ gridId, userId, folderId, tagFieldId, relPath, rootOccurrenceId, tags = [], body = "" }) {
   const label = codexTitle(relPath, body);
   const pageModule = {
-    id: uid(), userId, gridId, role: "page", kind: "doc", label,
+    // `kind: "board"`, NOT "doc", and the difference is the whole page.
+    //
+    // `PageDoc` renders the occurrence's TEXTMAP through a TipTap editor and
+    // never looks at `occurrences[]`. A doc page listing a child therefore
+    // renders BLANK — the content is present in the data and invisible on
+    // screen, which is the listed-but-not-embedded class this repo has repaired
+    // five times. `PageBoard` renders the child containers, which is exactly
+    // what this page holds: one imported root.
+    //
+    // `0199` reached the same answer for the Bookmarks page. I shipped "doc"
+    // anyway and a browser probe caught it.
+    id: uid(), userId, gridId, role: "page", kind: "board", label,
     fieldBindings: tagFieldId ? [{ fieldId: tagFieldId, role: "input" }] : [],
     meta: {},
   };
@@ -55,9 +66,9 @@ export function planCodexPage({ gridId, userId, folderId, tagFieldId, relPath, r
   const pageOcc = {
     id: uid(), userId, gridId, moduleId: pageModule.id,
     parentId: folderId,
-    // EMBEDDED, not merely listed — a doc renders its textmap, and a child that
-    // is listed and not embedded is present in the data and invisible on
-    // screen. This repo has repaired that class from five directions.
+    // LISTED, which is how a BOARD page renders its children. (On a `doc` page
+    // this same array is ignored and the textmap is what draws — see the kind
+    // above.)
     occurrences: [rootOccurrenceId],
     fields,
     // The signature is the RELATIVE path. Basenames repeat across folders with

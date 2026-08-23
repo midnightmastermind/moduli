@@ -15,12 +15,18 @@ describe("planCodexPage", () => {
     expect(planCodexPage(base).pageModule.label).toBe("mental health");
   });
 
-  it("homes the page in its folder and EMBEDS the imported root", () => {
-    // A doc renders its textmap, so listing the root without embedding it is
-    // the listed-but-not-embedded class this repo has repaired five times.
+  it("homes the page in its folder and LISTS the imported root", () => {
     const { pageOcc } = planCodexPage(base);
     expect(pageOcc.parentId).toBe("F");
     expect(pageOcc.occurrences).toEqual(["ROOT"]);
+  });
+
+  it("is a BOARD page, because a DOC page would render blank", () => {
+    // `PageDoc` draws the occurrence's TEXTMAP through TipTap and never reads
+    // `occurrences[]`. A doc page listing a child renders nothing — the content
+    // sits in the data and is invisible on screen. `PageBoard` renders the
+    // child containers, which is what this page holds.
+    expect(planCodexPage(base).pageModule.kind).toBe("board");
   });
 
   it("stamps the tags into the Codex Tags field", () => {
