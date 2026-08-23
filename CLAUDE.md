@@ -80,12 +80,36 @@ already done`. poms grid **1 pre-existing error, 0 new**. 3112 client + 1198 ser
 nine of them wellness dimensions and the rest board categories that drive real pickers — so 135 more
 would have swelled every board-category dropdown.
 
-**NOT VERIFIED, and it is the same honest gap as the bookmarks above: nobody has seen the Codex
-folder in a browser.** Five probe attempts failed on the tree sidebar and each reported zero WITHOUT
-a positive control, which makes them claims about the probe. What IS established is structural: the
-Codex folder is byte-for-byte the same shape as the `Bookmarks` folder the user already uses — same
-`folderType`, same gridId, same manifest root, holding `role:"page"` occurrences — with 37 root-level
-pages and 8 subfolders exactly matching the corpus.
+**AND THEN I OPENED IT IN A BROWSER, WHICH FOUND A DEFECT NO TEST COULD (`0204`).** Every page was
+minted `kind: "doc"` with the imported root in `occurrences[]` — and **`PageDoc` renders the
+occurrence's TEXTMAP and never reads `occurrences[]`**, so all 75 opened as EMPTY EDITORS while their
+content sat in the database, complete and unreachable. *The listed-but-not-embedded class, and
+`0203`'s own commit message quoted it in a comment directly above the line that made the page a doc.*
+
+**No test and no data check could have caught it, because the DATA IS CORRECT** — 75 pages, each
+parented, each listing exactly one root, each root parented back. Only the renderer disagreed. I had
+even compared the Codex folder against the working `Bookmarks` folder and called them identical; that
+comparison covered `folderType` and parentage and **not `kind`**, which is the one field that
+mattered. `0199` had reached the right answer (`kind: "board"`) for the same reason a year of this
+file keeps repeating. Fixed at BOTH ends so a fresh import and a migrated grid cannot drift.
+
+**THE PROBE ONLY BECAME TRUSTWORTHY WHEN IT HAD A POSITIVE CONTROL, and five attempts before that
+were worthless.** Each reported zero rows with nothing to say whether the sidebar had even opened.
+The one that worked reads the renderer's OWN contract (`.manifest-row`, found by reading
+`ManifestTree` instead of guessing) and checks the count against a baseline this file already
+recorded on 2026-08-21:
+```
+sidebar closed            0 rows      <- the probe can report zero for the right reason
+sidebar open             10 rows      <- matches the 2026-08-21 baseline exactly
+Root + Codex expanded    71 rows      <- Codex beside Bookmarks, 8 subfolders, 37 pages by name
+```
+**The bookmark covers are verified the same way**: opening the Bookmarks page draws 3 cover images
+(the rest de-rendered by `content-visibility`), all loaded at real dimensions from the export's
+og:images, **0 error glyphs, 0 page errors**.
+
+**STILL NOT VERIFIED, narrowly:** nobody has watched a codex page's textblocks and annotations draw
+on screen. The row click that opens a page worked for Bookmarks (the control) and did not fire for a
+codex row in the same run, which is a question about the probe, not a claim about the feature.
 
 ---
 
