@@ -379,6 +379,50 @@ export function checkGridIntegrity({ grid = null, occurrences = [], modules = []
     `${dupSections.length} template-applied page(s) hold the same section more than once — the merge ` +
     `could not match an existing section and cloned it`, dupSections);
 
+
+  // 12. A CONTAINER THAT CAN NEVER SHOW ANYTHING — every child filtered out.
+  //
+  //     Found the hard way, twice in one session (2026-08-23). The Raindrop
+  //     import wrote each bookmark's save-date into `Date`, the field the GRID
+  //     FILTER uses — so all 1,467 rows matched on one day of the year and the
+  //     board drew EMPTY on every other. Nothing else was wrong: the rows
+  //     existed, the covers resolved, `checkGrid` was clean. And the field doing
+  //     the hiding is itself hidden on that board, so nothing on screen said why.
+  //
+  //     THE DISCRIMINATOR IS THAT THE CONTAINER IS VISIBLE AND ITS CHILDREN ARE
+  //     NOT. A past day column also has every child hidden — but the column is
+  //     hidden too, so nobody is looking at an empty box. Checking the container
+  //     first is what keeps this quiet on the dozen old day columns every grid
+  //     accumulates; without it the rule cries wolf on day one and gets weakened.
+  //
+  //     A THREE-CHILD FLOOR, deliberately: a container holding one or two dated
+  //     rows is an ordinary day's work, and flagging it would bury the case this
+  //     exists for. Calibrated against the real defect — it fires on the 1,467
+  //     and on a 4-row Tasks container whose rows were all stamped by being
+  //     scheduled, and stays silent on a grid with no filter set.
+  const blindFilterFids = Object.keys(grid?.activeFilterValues || {});
+  if (blindFilterFids.length) {
+    // A value present but not matching hides the row. An ABSENT value does NOT
+    // — that is the "no date, always shows" case the schedule slots rely on.
+    const hiddenByFilter = (o) => blindFilterFids.some((fid) => {
+      const want = grid.activeFilterValues[fid];
+      const have = o?.fields?.[fid]?.value;
+      if (want == null || have == null || have === "") return false;
+      return !String(have).startsWith(String(want));
+    });
+    const blind = [];
+    for (const o of occurrences) {
+      const kids = (o.occurrences || []).map((id) => occById.get(id)).filter(Boolean);
+      if (kids.length < 3) continue;
+      if (hiddenByFilter(o)) continue;
+      if (!kids.every(hiddenByFilter)) continue;
+      blind.push(`${modById.get(o.moduleId)?.label || o.id} (${kids.length} children)`);
+    }
+    if (blind.length) add("error", "container-filtered-empty",
+      `${blind.length} visible container(s) have EVERY child hidden by the grid filter — they render ` +
+      `empty and nothing on screen says why`, blind);
+  }
+
   return findings;
 }
 
