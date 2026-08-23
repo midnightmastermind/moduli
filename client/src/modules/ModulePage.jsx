@@ -33,6 +33,7 @@ import ArtifactContent from "./ArtifactContent.jsx";
 import PageBoard from "./pages/PageBoard.jsx";
 import PageDoc from "./pages/PageDoc.jsx";
 import PageCanvas from "./pages/PageCanvas.jsx";
+import PageIframe from "./pages/PageIframe.jsx";
 import PageDisplay from "./pages/PageDisplay.jsx";
 import PageFolder from "./pages/PageFolder.jsx";
 import ContainerTable from "./containers/ContainerTable.jsx";
@@ -465,6 +466,20 @@ function Page({
     );
   } else if (kind === "doc") {
     content = <PageDoc occurrence={occurrence} dispatch={dispatch} socket={socket} scrollAnchor={scrollAnchor} />;
+  } else if (kind === "iframe") {
+    // A web page as a surface (2026-08-23). One more kind branch, exactly where
+    // canvas/doc/table live — the user's "it should work like folder does with
+    // its views" points here, at the kind dispatch, not at the layout cascade
+    // (whose navOptions describe how CHILDREN render when dropped in).
+    content = (
+      <PageIframe
+        occurrence={occurrence}
+        module={pageModule}
+        fieldsById={fieldsById}
+        socket={socket}
+        isActivePage
+      />
+    );
   } else if (kind === "table") {
     // Table as a page — same layout-only grid as the table container,
     // just hosted directly by the page (mirrors canvas/doc delegation).
