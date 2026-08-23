@@ -11,6 +11,8 @@ import { resolveFileRef } from "../helpers/fileRef";
 import { getUploadController } from "../helpers/uploadWithProgress";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext.js";
+import { toast } from "sonner";
+import { openBookmarkInPanel } from "../helpers/openBookmark";
 import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
 import LoadingImage from "../ui/LoadingImage.jsx";
 import { useClosingGate } from "../helpers/closingGate";
@@ -44,6 +46,14 @@ export default function ArtifactCard({ module, label, occurrence }) {
   const getOcc = useGridActionsSelector(s => s.getOcc || ((oid) => (oid ? s.occurrencesById?.[oid] || null : null)));
   // Only used by the delete path, to tell a PLACEMENT from the file itself.
   const foldersById = useGridActionsSelector(s => s.foldersById);
+  // A BOOKMARK opens in a panel on DOUBLE-click (user, 2026-08-23: *"it should
+  // be double click on it to avoid missing the drag handle"*). Single click is
+  // left alone — it competes with the handle and with selection.
+  const grid = useGridActionsSelector(s => s.state?.grid);
+  const getOccMap = useGridActionsSelector(s => s.getOccMap);
+  const modulesById = useGridActionsSelector(s => s.modulesById);
+  const viewsById = useGridActionsSelector(s => s.viewsById);
+  const isBookmark = module?.role === "artifact" && module?.kind === "bookmark";
   const fileRef = module?.fileRef;
   const kind = module?.kind;
   const status = module?.meta?.uploadStatus;
@@ -115,6 +125,34 @@ export default function ArtifactCard({ module, label, occurrence }) {
     if (insideSpread || !occurrence?.id) { toggle(e); return; }
     openArtifactSpread(occurrence.id, e.currentTarget.getBoundingClientRect());
   }, [occurrence?.id, toggle]);
+
+  // Resolved at CALLBACK time through the non-subscribing getter, so a board of
+  // 1,467 bookmark cards does not re-render on every occurrence write — the
+  // same reason `openViewer` above reads its parent lazily.
+  const openInPanel = useCallback((e) => {
+    if (!isBookmark || !occurrence?.id) return;
+    e?.stopPropagation(); e?.preventDefault();
+    const occurrencesById = getOccMap?.() || {};
+    const panelsById = {};
+    for (const o of Object.values(occurrencesById)) {
+      if (modulesById?.[o?.moduleId]?.role === "panel") panelsById[o.id] = o;
+    }
+    // The panel this card is IN — the fallback when no sticky target is set.
+    let fromPanelOccId = null;
+    let cursor = occurrencesById[occurrence.id];
+    for (let i = 0; i < 40 && cursor; i++) {
+      if (panelsById[cursor.id]) { fromPanelOccId = cursor.id; break; }
+      cursor = occurrencesById[cursor.parentId];
+    }
+    const res = openBookmarkInPanel({
+      occId: occurrence.id, grid, fromPanelOccId, panelsById,
+      occurrencesById, modulesById, viewsById, dispatch, socket,
+    });
+    // Silence is right for the ordinary case; a STALE target is worth a word,
+    // because the setting the user made has quietly stopped applying.
+    if (res.ok && res.via === "stale") toast("That panel is gone — opened here instead");
+    else if (!res.ok) toast.error(res.reason || "Could not open this");
+  }, [isBookmark, occurrence?.id, grid, getOccMap, modulesById, viewsById, dispatch, socket]);
 
   // Full-bleed logo (Viafluere top-middle cell): on first mount, scroll the
   // nearest scrollable ancestor so the LOGO sits vertically centered in the
@@ -348,6 +386,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
       className={showInfo ? "artifact-card artifact-card--with-info" : "artifact-card"}
       data-kind={kind}
       onClick={openViewer}
+      onDoubleClick={isBookmark ? openInPanel : undefined}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openViewer(e); }}
