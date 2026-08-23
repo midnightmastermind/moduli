@@ -6,6 +6,77 @@
 
 ---
 
+### 2026-08-23 (7) — C3: the field deciding which page an op reads its date from had NO editor
+
+The last gap of the user's own audit ask (*"make sure i can edit everything in the
+ui"*). C2 and C4 closed in (5); this closes C3.
+
+**MEASURED RATHER THAN INHERITED — the row was three days old and several filed
+rows have gone stale today.** 9 live ops carry a `targetOccurrenceId`, 8 enabled,
+**0 dangling**. It is load-bearing: `operationExecutor.js:1510` resolves the op's
+working DATE from that occurrence's EFFECTIVE filter — `$activeDate`,
+`$filterDate`, `$activePeriodDates`. It is why a Trackers navigation used to
+rebuild the Schedule for the Schedule's own unchanged dates (2026-08-09 (8)).
+
+**AND THERE IS A NAME COLLISION THAT WOULD SEND THE NEXT READER TO THE WRONG
+KEY.** Every `targetOccurrenceId` match in the client is either
+`commitApplyTemplate`'s unrelated argument or **`cfg.targetOccurrenceId` — a
+per-STEP action config with the same name, which already HAS an editor in
+`OperationsBuilder`.** Two different keys; only the op-level one was unreachable.
+
+**IT IS A PLAIN SELECT BECAUSE `DrilldownPicker` WOULD HAVE BROKEN IT.** That
+picker emits `$allItemsById.<id>` paths, and the executor does a bare
+`occurrencesById[id]` lookup — storing a path resolves to no occurrence, no date,
+and **an op that silently works against today instead of its page.** Exactly the
+class of defect this audit exists to find, so the control matches the Category
+select beside it instead.
+
+**THE LIST IS NOT PAGES-ONLY, and that is what matters on live data.** 155 page
+occurrences are the candidates — but `Mood: Record Selection` targets a
+`container/graph`, and **a select whose value is absent from its options renders
+BLANK and writes null the next time anything else in the editor changes.** So
+opening that op would have silently broken it. The current value is always
+present, pinned first and flagged with its role; a dangling id stays selectable
+and reads `(missing occurrence)` rather than being quietly written away.
+**Restricting to occurrences that CARRY a `filterOverride` would also have been
+wrong — only 4 do, because the executor WALKS the parent chain.**
+
+**A TEST CAUGHT A REAL FLAW AND I FIXED THE CODE, NOT THE EXPECTATION:** sorting
+on the rendered label floats untitled pages to the TOP, because `(` precedes
+every letter. Named pages sort together now; untitled ones sink.
+
+**SCHEMA AND HANDLER CHECKED RATHER THAN ASSUMED** — `targetOccurrenceId` is
+declared (`Operation.js:26`) and `update_operation` spreads wholesale, so it
+persists, `null` included. That check exists because `Operation.priority` was
+stripped by strict mode for months while every seed passed it.
+
+**VERIFIED BY DRIVING IT ON PROD, both cases, with the read-back out of Mongo:**
+```
+Trackers: Date-Prefix Labels   156 options   selected "Trackers"
+  changed to "Tasks", Save     -> Mongo targetOccurrenceId = 9zU5UYHq5FMn  PERSISTED
+  restored                     -> 5zaCM_ScvI7n
+Mood: Record Selection         157 options   selected "Emotions Wheel (container)"
+                                             pinned FIRST, flagged   <- the discriminator
+0 page errors · 0 console errors
+```
+The 156-vs-157 is the control: the pin appears only when it is needed.
+
+**AND THE SERVED-CHUNK CHECK READ 0 FOR THE CONTROL FIRST — the documented tell,
+for the third time in this repo.** The ops UI lands in `CommandCenter`, which is
+lazy-loaded from `App` and **not referenced in `index`**, so a grep driven off
+index.js finds neither the feature nor the control. Fetched by its real name:
+new string 1, control (`Uncategorized`) 2, and the served chunk **sha256-identical**
+to the local build.
+
+**`npm run lint` was run on every edited file** — the rule (6) earned the hard
+way. 3174 client tests, build clean, prod HEAD verified.
+
+**C1 REMAINS OPEN and is genuinely yours:** the tasks goal is TWO coupled fields
+(`Tasks Completed` counts up, `Tasks Left` counts down, both encoding "10"), and
+nothing in the UI says so. Editable twice, if you know.
+
+---
+
 ### 2026-08-23 (6) — the notes body became a FIELD; and I TOOK PROD DOWN with a variable from the other function
 
 User: *"could you make that an automatic thing like our question and answer. could
