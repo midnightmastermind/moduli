@@ -302,6 +302,8 @@ the click still has somewhere obvious to land.
 
 ## Build order
 
+**ALL NINE STEPS SHIPPED** as of 2026-08-23.
+
 **The `iframe` view comes first** — it is the mechanism, the bookmarks are only
 its first consumer, and it is testable on a single link chip instead of 1,467
 rows.
@@ -316,9 +318,13 @@ rows.
    search impossible and the 437 are login pages and dashboards, not articles:
    55 real og:images, 151 declared icons, 231 guessed favicons. Re-runnable.
 7. ~~Right-click → open-in-panel (panel picker)~~ — **DONE.** Double-click opens
-   (`ddde41a0`), the picker sets the sticky target (`9218f590`). **Import-as-page is
-   still open.**
-8. **The browser extension** — see below
+   (`ddde41a0`), the picker sets the sticky target (`9218f590`), and import-as-page
+   reaches a bookmark (`270edd71`).
+8. ~~**The browser extension**~~ — **DONE.** Framing headers stripped for the grid's
+   own frames; right-click clip for selection / page / link / image (`b93884b9`,
+   `dabde719`). **Unverified here and unverifiable here** — an MV3 extension does
+   not load headlessly, which is why every decision it makes sits in a pure tested
+   module. It needs one load-unpacked and one clip by hand.
 9. ~~**A third mode: ARCHIVE**~~ — **DONE.** *"add a web archive version in next
    to web (do that last) where we search for the web archive of the page"* (2026-08-23).
    Built as measured rather than as specified below in one respect: the API hands
