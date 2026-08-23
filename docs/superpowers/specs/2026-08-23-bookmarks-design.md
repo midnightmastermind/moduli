@@ -319,8 +319,15 @@ rows.
    (`ddde41a0`), the picker sets the sticky target (`9218f590`). **Import-as-page is
    still open.**
 8. **The browser extension** — see below
-9. **A third mode: ARCHIVE** — *"add a web archive version in next to web (do
-   that last) where we search for the web archive of the page"* (2026-08-23).
+9. ~~**A third mode: ARCHIVE**~~ — **DONE.** *"add a web archive version in next
+   to web (do that last) where we search for the web archive of the page"* (2026-08-23).
+   Built as measured rather than as specified below in one respect: the API hands
+   back `http://`, which from an https grid is MIXED CONTENT and frames as a
+   silent blank box — the scheme is upgraded in `waybackSnapshot.js`. And the
+   prediction under this entry is now a measurement: a snapshot sends no
+   `x-frame-options` and a CSP with **no `frame-ancestors`**, so Archive frames
+   where the live site refuses. The lookup is LAZY (on pick, not on open); the
+   button is always present.
    `[Reader | Web | Archive]`. Archive asks
    `https://archive.org/wayback/available?url=…` for the closest snapshot and
    shows `web.archive.org/web/<timestamp>/<url>`.

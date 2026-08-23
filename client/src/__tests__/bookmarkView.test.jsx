@@ -99,3 +99,33 @@ describe("a site that refuses to be framed", () => {
     expect(resolveMode({ fetched: { ok: true, usable: false } })).toBe("web");
   });
 });
+
+describe("resolveMode — ARCHIVE", () => {
+  // "add a web arcvhive version in next to web ... make that next to reader
+  // mode and web mode" (2026-08-23).
+  it("is honoured whatever the live site said", () => {
+    // The snapshot is a different page on a different host, so the live site's
+    // own headers say nothing about it. Measured: web.archive.org sends no
+    // x-frame-options and a CSP with no frame-ancestors, so it frames where
+    // the original refuses — which is much of the point.
+    expect(resolveMode({ chosen: "archive", fetched: { ok: true, usable: false, framable: false } })).toBe("archive");
+    expect(resolveMode({ chosen: "archive", fetched: { ok: false, error: "fetch failed (404)" } })).toBe("archive");
+    expect(resolveMode({ chosen: "archive", fetched: null })).toBe("archive");
+  });
+
+  it("is never reached WITHOUT being picked", () => {
+    // A peer button, not a fallback: it must not appear only when something
+    // breaks, and equally must not be selected on someone's behalf. The dead
+    // link is exactly when a silent switch would be most confusing.
+    const states = [
+      { ok: true, usable: true }, { ok: true, usable: false },
+      { ok: true, usable: false, framable: false }, { ok: false, error: "x" }, null,
+    ];
+    for (const fetched of states) expect(resolveMode({ fetched })).not.toBe("archive");
+  });
+
+  it("does not disturb the other two", () => {
+    expect(resolveMode({ chosen: "reader", fetched: { ok: true, usable: false } })).toBe("reader");
+    expect(resolveMode({ chosen: "web", fetched: { ok: true, framable: false } })).toBe("blocked");
+  });
+});

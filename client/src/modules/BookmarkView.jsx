@@ -49,6 +49,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { occurrenceUrl } from "../helpers/occurrenceUrl";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 
+const BTN_TITLES = {
+  reader: "The page as text — selectable, right-clickable",
+  web: "The live site",
+  archive: "The closest Wayback Machine snapshot — for a dead link, or a page that has changed",
+};
+
 export const FRAME_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-popups";
 
 /**
@@ -61,6 +67,13 @@ export const FRAME_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-
  *   - a failed or thin fetch falls through to the frame, never to a blank reader
  */
 export function resolveMode({ chosen = null, fetched = null } = {}) {
+  // ARCHIVE IS UNCONDITIONAL, and that is the difference between it and the
+  // other two. Reader can be empty and Web can be refused, so both are checked
+  // against what the fetch learned; the archive is a DIFFERENT page on a
+  // different host, so nothing the live site said about itself applies to it.
+  // Measured 2026-08-23: a snapshot sends no `x-frame-options` and a CSP with
+  // no `frame-ancestors`, so it frames where the original does not.
+  if (chosen === "archive") return "archive";
   // An explicit choice wins — except that asking for a frame a site refuses
   // cannot be honoured, and a blank box is a worse answer than saying so.
   if (chosen === "web") return fetched && fetched.ok && fetched.framable === false ? "blocked" : "web";
@@ -126,6 +139,28 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
     });
   }, [url, socket]);
 
+  // ── THE ARCHIVE LOOKUP IS LAZY, and that is deliberate ──────────────────
+  //
+  // The button is always on the strip (user: *"make that next to reader mode
+  // and web mode"*) but the lookup only runs when it is PICKED. Asking
+  // archive.org about every bookmark someone opens would send a third party a
+  // request per open for a mode most opens never use.
+  //
+  // Keyed by url so switching back and forth costs one lookup, and reset when
+  // the url changes — the same stale-reply trap the reader fetch guards.
+  const [archive, setArchive] = useState(null);
+  const archiveReqRef = useRef(0);
+  useEffect(() => { setArchive(null); }, [url]);
+  useEffect(() => {
+    if (chosen !== "archive" || !url || !socket || archive) return;
+    const req = ++archiveReqRef.current;
+    setArchive({ loading: true });
+    socket.emit("wayback_lookup", { url, requestId: String(req) }, (out) => {
+      if (archiveReqRef.current !== req) return;
+      setArchive(out || { ok: false, reason: "no reply" });
+    });
+  }, [chosen, url, socket, archive]);
+
   const mode = resolveMode({ chosen, fetched });
   const reason = fallbackReason(fetched);
   const pick = useCallback((m) => setChosen(m), []);
@@ -139,7 +174,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   const btn = (m, label) => (
     <button
       onClick={() => pick(m)}
-      title={m === "reader" ? "The page as text — selectable, right-clickable" : "The live site"}
+      title={BTN_TITLES[m]}
       style={{
         padding: "2px 8px", fontSize: 10, fontFamily: "var(--font-mono)", cursor: "pointer",
         borderRadius: 4, border: "1px solid var(--border-default)",
@@ -167,8 +202,14 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
             reader: {reason}
           </span>
         )}
+        {mode === "archive" && archive?.ok && archive.capturedAt && (
+          <span style={{ fontSize: 9, color: "var(--text-faint)" }} title={archive.capturedAt}>
+            captured {new Date(archive.capturedAt).toLocaleDateString()}
+          </span>
+        )}
         {btn("reader", "Reader")}
         {btn("web", "Web")}
+        {btn("archive", "Archive")}
         <a href={url} target="_blank" rel="noreferrer noopener"
            style={{ fontSize: 10, color: "var(--text-muted)", textDecoration: "none", padding: "2px 4px" }}
            title="Open in a new tab">↗</a>
@@ -198,6 +239,34 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
             <a href={url} target="_blank" rel="noreferrer noopener"
                style={{ color: "var(--accent-blue-text, var(--text-primary))" }}>Open it in a new tab ↗</a>
           </div>
+        )}
+        {mode === "archive" && (
+          archive?.loading || !archive ? (
+            <div className="text-xs text-muted-foreground" style={{ padding: 16 }}>Searching the archive…</div>
+          ) : archive.ok ? (
+            // Framed like the live site, with the SAME sandbox: a snapshot is a
+            // replay of a real page and can carry the same scripts.
+            isActivePage ? (
+              <iframe src={archive.url} title={`Archived ${url}`} sandbox={FRAME_SANDBOX}
+                      style={{ width: "100%", height: "100%", border: 0, display: "block" }} />
+            ) : (
+              <div className="text-xs text-muted-foreground" style={{ padding: 16 }}>
+                Open this page in a panel to load the archived copy
+              </div>
+            )
+          ) : (
+            // NOT AN ERROR STATE for the common case: most private, deep or
+            // recent URLs were simply never crawled. The offer to save it is
+            // the actionable thing, and it is a link rather than a button
+            // because saving is archive.org's write, not ours.
+            <div style={{ padding: 20, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
+              <div style={{ marginBottom: 8 }}>{archive.reason || "no snapshot"}</div>
+              <a href={`https://web.archive.org/save/${url}`} target="_blank" rel="noreferrer noopener"
+                 style={{ color: "var(--accent-blue-text, var(--text-primary))" }}>
+                Ask the Wayback Machine to save it now ↗
+              </a>
+            </div>
+          )
         )}
         {mode === "web" && (
           // A FRAME ONLY WHERE THIS IS A PANEL'S ACTIVE PAGE. `PreviewNode`

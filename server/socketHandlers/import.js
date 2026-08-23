@@ -36,6 +36,7 @@ import { fetchPageHtml } from "../utils/safeFetchUrl.js";
 import { fetchLinkPreview } from "../utils/linkPreview.js";
 import { extractMainContent } from "../utils/mainContent.js";
 import { readerFromHtml, readerIsUsable } from "../utils/readerExtract.js";
+import { waybackQueryUrl, snapshotFrom } from "../utils/waybackSnapshot.js";
 import { framingVerdict } from "../utils/framingVerdict.js";
 import { extractLinks } from "../utils/harvestLinks.js";
 
@@ -189,6 +190,44 @@ export function registerImportHandlers(socket, {
     } catch (err) {
       console.error("page_reader error:", err);
       reply({ ok: false, error: err?.message || "internal error", usable: false });
+    }
+  });
+
+  // ── ARCHIVE MODE: the closest Wayback snapshot of a url ──────────────────
+  //
+  // The third mode beside Reader and Web (user: *"add a web arcvhive version in
+  // next to web"*). It answers the two cases neither other mode can: a DEAD
+  // link, and a page whose live version is paywalled or rewritten.
+  //
+  // READ-ONLY and LAZY. The client asks only when Archive is PICKED — the button
+  // is always on the strip, but a lookup per bookmark opened would send a third
+  // party a request for a mode most opens never use.
+  //
+  // Only archive.org is ever contacted, so this needs no SSRF guard: the
+  // user's url is a QUERY VALUE, not the host. That is why it does not go
+  // through `fetchPageHtml`, which validates a page fetch and would reject the
+  // JSON this returns.
+  socket.on("wayback_lookup", async (payload = {}, ack) => {
+    const { url, requestId = null } = payload;
+    const reply = (out) => {
+      if (typeof ack === "function") ack(out);
+      socket.emit("wayback_lookup_result", { requestId, ...out });
+    };
+    try {
+      if (!socket.userId) return reply({ ok: false, reason: "unauthenticated" });
+      if (!url) return reply({ ok: false, reason: "url required" });
+      const res = await fetch(waybackQueryUrl(url), {
+        signal: AbortSignal.timeout(15000),
+        headers: { "User-Agent": "Moduli/1.0 (+https://viafluere.com)" },
+      });
+      // A NON-200 IS THE ARCHIVE BEING DOWN, which is a different fact from
+      // "this page was never archived" — and the second is reported as a plain
+      // reason, so they must not collapse into one message.
+      if (!res.ok) return reply({ ok: false, reason: `the archive answered ${res.status}` });
+      reply(snapshotFrom(await res.json()));
+    } catch (err) {
+      const timedOut = err?.name === "TimeoutError" || err?.name === "AbortError";
+      reply({ ok: false, reason: timedOut ? "the archive timed out" : (err?.message || "lookup failed") });
     }
   });
 
