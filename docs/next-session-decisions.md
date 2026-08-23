@@ -157,6 +157,43 @@ empty Daily Question found this morning is the kind of thing it would catch.
     `--grid-surface-a: 1`, `bodyBg rgb(243,244,247)`. The surface is flat there, so
     the rainbow problem from attempt 2 is solved by using a plain skin.
 
+  **ATTEMPT 4 (2026-08-23, same day) — THE METHOD NOW WORKS AND CALIBRATES. The
+  remaining blocker is the DATA, not the probe.** Scope decided rather than asked:
+  the filed item asks whether the THEMES are readable, and a container the user
+  painted orange is their own choice, so each sample is classified by comparing
+  its sampled background against the theme's own resolved surface tokens.
+  ```
+                  THEME SURFACES                 stored colours
+  moduli-light    n=18  med 14.05  under4.5 0    n=35  med 2.10  under4.5 33
+  moduli-dark     n=20  med 15.65  under4.5 1    n=33  med 5.73  under4.5 11
+  midnight        n=20  med 16.12  under4.5 1    n=33  med 4.91  under4.5 12
+  vintage-dark    n=21  med 12.11  under4.5 1    n=32  med 4.86  under4.5 11
+  ```
+  **The calibration PASSES for the first time** — `moduli-light` comes back
+  legible where attempt 3 called it 1.8:1.
+
+  **But read the breakdown before believing the counts.** Of each skin's ~20
+  theme-surface samples, **18 are container HEADERS with one identical colour
+  pair** — one measurement repeated 18 times, not 18 measurements. Only ONE
+  `value` sample per skin lands on a theme surface at all, because nearly every
+  value pill on this grid sits inside a user-coloured container. So what attempt 4
+  actually establishes is: **dark-theme HEADERS are legible (12–16:1)**, and value
+  pills remain unmeasured.
+
+  **THE ONE SUB-4.5 SAMPLE IS THE SAME ELEMENT ON ALL THREE DARK THEMES** — text
+  reading `"Completed"` at 3.15–4.13. It may still be a field NAME rather than a
+  value: the `.opacity-70` filter did not exclude it, and a boolean pill renders
+  its label as its own text. Do not act on that number without identifying the
+  element first.
+
+  **WHAT ATTEMPT 5 NEEDS IS A GRID WITH NO STORED COLOURS**, and there is exactly
+  one — `claude-grid`, 0 stored-colour rows — but it belongs to a **different
+  account** (`6a84761b…`, registered on prod 2026-08-18), so this session's token
+  cannot open it: requesting its id silently falls back to poms grid, which pins
+  stardew. Either get that account's credentials, or make a fresh grid on this
+  account with a few uncoloured containers and measure there. Every other grid
+  (poms 424, test grid 1 78, test grid 2 87) paints its containers.
+
 ## Nutrition / fitness build — state at 2026-08-19 end
 
 Shipped: `0146` (Macros / Intake / Workout Goals tiles + macro targets) · `0147` (five dead display
