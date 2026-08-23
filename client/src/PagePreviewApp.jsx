@@ -3,6 +3,7 @@
 // Reads state from window.parent.__moduli_state__ (same origin) — no socket needed.
 // Renders the actual Page component at full size — the parent iframe handles CSS scaling.
 
+import { expandByEmbeds } from "./helpers/textmapEmbeds";
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
 import { GridActionsContext } from "./GridActionsContext";
 import { GridDataContext } from "./GridDataContext";
@@ -114,6 +115,19 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
         if (occ.parentId && seen.has(occ.parentId)) { seen.add(occ.id); changed = true; }
       }
     }
+    // A DOC DRAWS ITS TEXTMAP, and the nodes in it reference other occurrences
+    // by id — a THIRD reachability path beside `occurrences[]` and `parentId`.
+    // Without this pass the preview dropped them and `ModuleEmbedNode` painted
+    // `embed: <uuid>` in a dashed box: measured 2026-08-23, **474 embeds across
+    // 233 hosts grid-wide are reachable only this way**, which is why a
+    // text-heavy page's preview card was full of placeholders while the page
+    // itself rendered fine.
+    //
+    // Transitive, because an embedded doc can embed further docs — and it only
+    // adds ids that RESOLVE, so a dangling embed stays undrawn rather than
+    // becoming a phantom entry the module lookup then misses.
+    expandByEmbeds(seen, occByIdAll);
+
     return seen;
   }, [allOccurrences, occurrenceId, parentState?.folders]);
 
