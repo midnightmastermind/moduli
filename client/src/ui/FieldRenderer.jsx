@@ -16,6 +16,7 @@ import { useGridActionsSelector } from "../GridActionsContext";
 import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
 import { useComputedValueWithFallback } from "../state/computedValuesStore";
 import { resolveOptions } from "../helpers/optionsResolver";
+import { resolveDisplayConfig } from "../helpers/derivedDisplayConfig";
 import { getEffectiveFilterForOccurrence } from "../state/selectors";
 import { planPrefill, prefillFieldsPatch } from "../helpers/prefillFromPick";
 import { resolveAffix, affixMenu, withAffix } from "../helpers/fieldAffix";
@@ -78,9 +79,17 @@ function FieldRenderer({
   // Expose resolved options under _resolvedOptions for select and occurrence
   // fields (other types don't render an options chooser so the meta isn't read).
   const effectiveField = useMemo(() => {
-    if (field?.type !== "select" && field?.type !== "occurrence") return field;
-    return { ...field, meta: { ...field.meta, _resolvedOptions: resolvedOptions, _totalMatched: totalMatched } };
-  }, [field, resolvedOptions, totalMatched]);
+    // A displayConfig value may FOLLOW another field's rather than storing its
+    // own copy (`meta.deriveDisplayFrom`) — the tasks goal is one number, not
+    // two that can silently disagree (audit item C1). Resolved HERE, beside the
+    // options resolution, because both answer the same question: what does this
+    // field actually look like once the rest of the grid is taken into account.
+    // Returns the same object when nothing is derived, so this costs nothing on
+    // the ~99% of fields that declare none.
+    const resolved = resolveDisplayConfig(field, fieldsById);
+    if (resolved?.type !== "select" && resolved?.type !== "occurrence") return resolved;
+    return { ...resolved, meta: { ...resolved.meta, _resolvedOptions: resolvedOptions, _totalMatched: totalMatched } };
+  }, [field, fieldsById, resolvedOptions, totalMatched]);
 
   // Determine field role — module.meta.disabled forces display-only
   const inputEnabled = !disabled && field.inputEnabled !== false;

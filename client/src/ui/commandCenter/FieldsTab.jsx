@@ -3,6 +3,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { FIELD_TYPES } from "../../helpers/fieldTypes.js";
+import { derivationOf } from "../../helpers/derivedDisplayConfig";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { Plus, FolderPlus, ChevronLeft, GripVertical, Trash2 } from "lucide-react";
@@ -483,21 +484,43 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
           the field's displayConfig and is the basis for the progress bar. */}
       {local.displayEnabled === true && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={labelStyle}>Start</span>
-            <input
-              type="number"
-              value={local.displayConfig?.startValue ?? ""}
-              onChange={(e) => {
-                const raw = e.target.value;
-                const v = raw === "" ? null : Number(raw);
-                setLocal((p) => ({ ...p, displayConfig: { ...(p.displayConfig || {}), startValue: Number.isNaN(v) ? null : v } }));
-              }}
-              placeholder="0"
-              style={{ ...inputStyle, width: 70 }}
-              title="0% progress anchor. Counters: 0 (start low, rise to target). Countdowns: same as target's high end (e.g. 10 if you start with 10 tasks). Defaults to 0."
-            />
-          </div>
+          {/* A derived key is shown READ-ONLY and says what it follows. The whole
+              point of the derivation is that there is ONE number to edit — leaving
+              an editable box here would let you type a value that is overwritten
+              on the next render, which is worse than no control at all. */}
+          {(() => {
+            const d = derivationOf(local);
+            const derivedStart = d?.to === "startValue";
+            const srcName = derivedStart ? (fieldsById?.[d.fieldId]?.name || "another field") : null;
+            const srcVal = derivedStart ? fieldsById?.[d.fieldId]?.displayConfig?.[d.from] : null;
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={labelStyle}>Start</span>
+                <input
+                  type="number"
+                  readOnly={derivedStart}
+                  disabled={derivedStart}
+                  value={derivedStart ? (srcVal ?? "") : (local.displayConfig?.startValue ?? "")}
+                  onChange={(e) => {
+                    if (derivedStart) return;
+                    const raw = e.target.value;
+                    const v = raw === "" ? null : Number(raw);
+                    setLocal((p) => ({ ...p, displayConfig: { ...(p.displayConfig || {}), startValue: Number.isNaN(v) ? null : v } }));
+                  }}
+                  placeholder="0"
+                  style={{ ...inputStyle, width: 70, ...(derivedStart ? { opacity: 0.6, cursor: "not-allowed" } : null) }}
+                  title={derivedStart
+                    ? `Follows “${srcName}” — edit the target there and this moves with it.`
+                    : "0% progress anchor. Counters: 0 (start low, rise to target). Countdowns: same as target's high end (e.g. 10 if you start with 10 tasks). Defaults to 0."}
+                />
+                {derivedStart && (
+                  <span style={{ fontSize: 9, color: "var(--text-faint)", maxWidth: 150 }}>
+                    follows “{srcName}”
+                  </span>
+                )}
+              </div>
+            );
+          })()}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={labelStyle}>Target</span>
             <input
