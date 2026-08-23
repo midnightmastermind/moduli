@@ -59,3 +59,28 @@ describe("resolveChildRefs", () => {
     expect(resolveChildRefs(["p"], "p", cache(), db())).toEqual(["p"]);
   });
 });
+
+// Found 2026-08-23 while chasing a different bug: the Day Page column listed
+// four of its sections TWICE — the same occurrence id, not a cloned row. A child
+// listed twice renders twice and can never be right, so the write path refuses
+// it rather than leaving it for an integrity rule to notice later.
+describe("resolveChildRefs dedupes", () => {
+  it("keeps one entry when a child is listed twice", () => {
+    expect(resolveChildRefs(["a", "b", "a"], "p", cache("a", "b"), db())).toEqual(["a", "b"]);
+  });
+
+  it("keeps the FIRST position, not the last", () => {
+    // The running order was built around where the child first appears; moving
+    // it to the end would rotate a day column, which 0137 already repaired once.
+    expect(resolveChildRefs(["a", "b", "a", "c"], "p", cache("a", "b", "c"), db()))
+      .toEqual(["a", "b", "c"]);
+  });
+
+  it("dedupes a child only the DATABASE vouches for", () => {
+    expect(resolveChildRefs(["x", "x"], "p", cache(), db("x"))).toEqual(["x"]);
+  });
+
+  it("leaves a list with no repeats untouched — the control", () => {
+    expect(resolveChildRefs(["a", "b", "c"], "p", cache("a", "b", "c"), db())).toEqual(["a", "b", "c"]);
+  });
+});

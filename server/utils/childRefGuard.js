@@ -48,14 +48,25 @@ export function partitionChildRefs(childIds, parentId, inCache) {
 
 /**
  * The array to store, once the database has answered.
+ *
  * ORDER IS PRESERVED from the incoming array — on a day column the array IS the
  * running order, and rebuilding it from two buckets would leave the schedule
  * rotated (repaired once already, 0137).
+ *
+ * AND IT DEDUPES. Found 2026-08-23 while looking for something else: today's Day
+ * Page column listed `Journal`, `Notes`, `Tasks Completed` and `Highlights`
+ * TWICE each — the same occurrence id, not a cloned row, so
+ * `duplicate-template-section` fired on a column that had merely been appended
+ * to twice. Listing one child twice renders it twice and can never be right,
+ * so the write path is the place to make it impossible. First entry wins,
+ * because that is the one whose position the running order was built around.
  */
 export function resolveChildRefs(childIds, parentId, inCache, existsInDb) {
   const out = [];
+  const seen = new Set();
   for (const cid of childIds || []) {
-    if (cid === parentId || inCache(cid) || existsInDb(cid)) out.push(cid);
+    if (seen.has(cid)) continue;
+    if (cid === parentId || inCache(cid) || existsInDb(cid)) { seen.add(cid); out.push(cid); }
   }
   return out;
 }
