@@ -126,9 +126,18 @@ construction rather than by a cap somebody can raise.
 That last one is what keeps `noDomainKnowledge` satisfied: the view is offered
 because a row HAS a url, never because something learned what a "bookmark" is.
 
-### Framing refusals
+### Two modes, and they share one implementation
 
-Measured, not assumed:
+**Browse** — the live site in a frame, fully interactive, navigable. Sandboxed
+`allow-scripts allow-same-origin allow-forms allow-popups`, WITHOUT
+`allow-top-navigation`: links and forms work, and a page cannot navigate your
+grid away.
+
+**Clip** — the same page fetched server-side through `import_url` and rendered
+as OUR DOM, so selection, right-click and turning text into modules all work
+normally.
+
+**The framing-refused fallback IS clip mode.** Measured, not assumed:
 
 ```
 github.com     x-frame-options: deny        will not frame
@@ -139,9 +148,49 @@ wikipedia.org  frames fine
 devin.ai       frames fine
 ```
 
-Roughly a third of the collection answers an iframe with a blank box. Where the
-site refuses, the view fetches it server-side through the existing `import_url`
-path and renders the readable text, with an "open in a new tab" escape.
+Roughly a third of the collection refuses. Those open in clip mode instead of a
+blank box — one implementation serving both the deliberate gesture and the
+failure case.
+
+### What CANNOT work, established by measurement rather than assumed
+
+```
+frame's contentDocument   ->  null — cross-origin
+frame's getSelection()    ->  SecurityError
+right-click inside frame  ->  the parent receives NOTHING (only window-blur)
+right-click OUTSIDE it    ->  the parent receives contextmenu   <- the control
+an overlay over the frame ->  elementFromPoint returns the overlay
+```
+
+So **"right-click text inside the live frame and make a module" is closed by the
+browser**, not by our code. It is the same wall that stops the framed page
+reading the grid, and no flag opens it. That is the entire reason clip mode
+exists.
+
+**Dragging text OUT of the frame works**, because the browser owns the drag and
+carries it across the boundary itself — it arrives in our `drop` handler as
+ordinary `text/plain`, which `handleExternalDrop` already classifies into a
+textblock. Almost nothing new is needed for the gesture the user asked for first.
+
+*Not verified end to end:* a synthetic drag produced no drop, but this repo
+already records that synthetic drags do not drive the real machinery, so that is
+a claim about the probe. One real drag confirms it.
+
+### The chrome strip
+
+Our controls live ABOVE the frame, outside it, where clicks and right-clicks
+reach us:
+
+```
+┌──────────────────────────────────────────┐
+│ ‹ ›  wikipedia.org/wiki/Main_Page  ✂ ⋮   │  <- ours
+├──────────────────────────────────────────┤
+│          the live page, interactive       │
+└──────────────────────────────────────────┘
+```
+
+No modes to remember and no modifier keys: the page below stays live at all
+times, and everything of ours is reachable without competing with it.
 
 ## Interaction
 
