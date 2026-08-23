@@ -59,6 +59,7 @@
 //   node --env-file=server/.env server/scripts/sweepOrphans.js            # dry run
 //   node --env-file=server/.env server/scripts/sweepOrphans.js --apply
 
+import { strandableChildren, buildParentsByChild } from "../utils/strandableChildren.js";
 import mongoose from "mongoose";
 import fs from "fs";
 import path from "path";
@@ -182,6 +183,7 @@ async function main() {
   // lookup) so a clean sweep clears that error rather than half of it.
   const allMods = await Module.find({ userId }).select({ id: 1, gridId: 1 }).lean();
   const modKeys = new Set(allMods.map(m => `${m.gridId}::${m.id}`));
+  const parentsByChild = buildParentsByChild(allOccs);
   const listedIds = new Set();
   const embeddedIds = new Set();
   for (const o of allOccs) {
@@ -208,7 +210,11 @@ async function main() {
     const why = [];
     if (hasText(o)) why.push("has writing");
     if (hasFieldValue(o)) why.push("has field values");
-    if ((o.occurrences || []).length) why.push("has children");
+    // NOT "has children" but "would deleting it STRAND any". A child listed by
+    // another parent keeps its home; the blunt form refused forever on the dead
+    // day columns that list the same shared child every healthy column lists.
+    const stranded = strandableChildren(o, parentsByChild);
+    if (stranded.length) why.push(`would strand ${stranded.length} child(ren)`);
     if (listedIds.has(o.id)) why.push("a parent lists it");
     if (embeddedIds.has(o.id)) why.push("a textmap embeds it");
     if (why.length) {
