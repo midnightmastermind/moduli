@@ -14,12 +14,33 @@ import path from "node:path";
 const uid = () => Math.random().toString(36).slice(2, 12);
 
 /**
+ * The page's name.
+ *
+ * NOT just `basename minus .md`. The corpus contains a file literally called
+ * `.md` — a real note (a saved rewards number) whose filename has no stem — and
+ * stripping the extension leaves an EMPTY STRING, which renders as a nameless
+ * page: a blank row in the tree that cannot be told from the others.
+ *
+ * The fallbacks are ordered by how much they know about the note: its own first
+ * H1 (that file's says `# Untitled (.md)`, which is what the annotator chose),
+ * then the raw filename, then a constant. Each is better than a blank.
+ */
+export function codexTitle(relPath, body = "") {
+  const stripped = path.basename(relPath, ".md");
+  if (stripped && stripped !== ".md") return stripped;
+  const h1 = /^#\s+(.+)$/m.exec(String(body || ""));
+  if (h1) return h1[1].trim();
+  const raw = path.basename(relPath);
+  return raw || "Untitled";
+}
+
+/**
  * The page wrapper for one already-imported file. Pure.
  *
  * @returns {{ pageModule, pageOcc }}
  */
-export function planCodexPage({ gridId, userId, folderId, tagFieldId, relPath, rootOccurrenceId, tags = [] }) {
-  const label = path.basename(relPath, ".md");
+export function planCodexPage({ gridId, userId, folderId, tagFieldId, relPath, rootOccurrenceId, tags = [], body = "" }) {
+  const label = codexTitle(relPath, body);
   const pageModule = {
     id: uid(), userId, gridId, role: "page", kind: "doc", label,
     fieldBindings: tagFieldId ? [{ fieldId: tagFieldId, role: "input" }] : [],

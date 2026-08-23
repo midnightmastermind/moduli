@@ -44,3 +44,32 @@ describe("planCodexPage", () => {
     expect(planCodexPage(base).pageModule.fieldBindings).toEqual([{ fieldId: "T", role: "input" }]);
   });
 });
+
+// ── THE CORPUS CONTAINS A FILE LITERALLY NAMED `.md` ────────────────────────
+// A real note (a saved rewards number) whose filename has no stem. Stripping
+// the extension leaves an empty string, and a nameless page is a blank row in
+// the tree that cannot be told from any other.
+import { codexTitle } from "../utils/codexPage.js";
+
+describe("codexTitle", () => {
+  it("uses the filename without its extension, normally", () => {
+    expect(codexTitle("writing/mental health.md")).toBe("mental health");
+  });
+
+  it("NEVER returns an empty name for a stemless file", () => {
+    expect(codexTitle(".md", "#reference\n\n# Untitled (.md)\n\nbody")).toBe("Untitled (.md)");
+  });
+
+  it("falls back to the raw filename when there is no heading either", () => {
+    expect(codexTitle(".md", "just prose")).toBe(".md");
+  });
+
+  it("gives a stemless file a real page label rather than a blank one", () => {
+    const { pageModule } = planCodexPage({
+      gridId: "g", userId: "u", folderId: "F", tagFieldId: "T",
+      relPath: ".md", rootOccurrenceId: "R", tags: [], body: "# Untitled (.md)\n",
+    });
+    expect(pageModule.label).toBe("Untitled (.md)");
+    expect(pageModule.label).not.toBe("");
+  });
+});
