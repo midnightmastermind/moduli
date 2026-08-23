@@ -6,6 +6,72 @@
 
 ---
 
+### 2026-08-23 (8) — 5.6M predicate evaluations removed, THE FREEZE DID NOT MOVE, and the real cause has a name
+
+Item 10, the user's repeated complaint: *"the schedule is still taking way too
+long to be applied. it froze for a second."* The 2026-08-07 profile left it
+measured and unfixed — `resolveOptions`'s per-field predicate scan at ~766ms,
+which that entry called *"genuinely different work per field"*.
+
+**IT IS NOT DIFFERENT WORK PER FIELD, AND ONE MEASUREMENT SETTLES IT.**
+`ownerOccurrence` is used for exactly one thing — bound as `$this` so a predicate
+can reference the asking row:
+```
+poms grid    45 find-mode fields · 0 reference $this · 772 rows resolve one
+test grid 2  42 find-mode fields · 0 reference $this · 406 rows
+```
+So 772 rows each ran an INDEPENDENT filter over 7322 records to produce one of
+**45** distinct results — ~5.6M predicate evaluations for 45 answers. Driving the
+REAL resolver over the REAL live maps, one full pass of all 772 renders, with
+only the RESULT cache defeated so the records cache still hits (i.e. exactly the
+shipped behaviour before): **2677ms → 0.3ms**.
+
+**AND THE USER-FACING NUMBER DID NOT MOVE. Say it plainly.** Same probe, same
+machine, prod before and after the deploy, three date navigations each:
+```
+before   blocked 3091ms   (2587 / 3091 / 3304)
+after    blocked 3273ms   (3023 / 3273 / 3461)   <- run noise; no improvement
+```
+**The harness pass is over the WHOLE grid; a browser mounts a fraction of it** —
+114 instance rows, 248 field pills, **1 select** on screen. So `resolveOptions`
+was never what a browser navigation waits on here, whatever the profile of a
+different grid said. The change removes real waste and is correct; it is not the
+fix for the complaint, and offering the 2677ms as if it were would be a lie.
+
+**THE REAL CAUSE HAS A NAME, and the op sweep reports it itself:**
+```
+[op-timing] NavigationOp total=1873ms  ops=46
+    766ms   0fx   Schedule: Fill Day      <- 40% of the sweep, emits NOTHING
+    424ms   3fx   Schedule: Build Schedule
+     89ms   2fx   Day Page: Build
+[op-fire-done] NavigationOp 2246ms  total=184 effects
+```
+`Schedule: Fill Day` is 27 steps, **4 LOOPs and 2 FINDs over `$allContainers`**,
+fires on `onLoad` AND `onFilterChange`, and produces **zero effects** — 766ms of
+work concluding that nothing needs doing. *That its cost coincides with the old
+`resolveOptions` figure is a coincidence and nearly sent me to the wrong place
+twice.* **This is the next thing to fix and it is a STORED pipeline** — migration
+work, on live data, so it wants its own reviewed pass rather than the tail of a
+long session.
+
+**A/B 4 SAID ONE LEVEL OF MY OWN CACHE KEY GUARDED NOTHING, so it is gone.** I had
+`occurrencesById → modulesById → fieldsById → field`; removing the `fieldsById`
+level fails ZERO tests, because the FIELD OBJECT is already the real key and the
+store replaces it whenever its content changes. A cache level nobody has watched
+catch anything is the guard that gets trusted without earning it.
+
+The three that DO discriminate: dropping `modulesById` fails 2 (a rename serves a
+stale label), sharing regardless of `$this` fails 1, and **keying on the
+occurrence COUNT fails 4** — the invalidation test re-parents the world at the
+SAME count precisely so a derived-scalar key cannot pass it. The result is
+FROZEN, because it is now shared across every row rendering that field and one
+caller mutating it would change what every other row sees (all 12 consumer sites
+checked: read-only).
+
+3179 client tests, lint clean on every edited file, prod HEAD verified.
+
+---
+
 ### 2026-08-23 (7) — C3: the field deciding which page an op reads its date from had NO editor
 
 The last gap of the user's own audit ask (*"make sure i can edit everything in the
