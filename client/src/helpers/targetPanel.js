@@ -51,3 +51,62 @@ export function resolveOpenTarget(grid, fromPanelOccId, livePanelIds) {
 export function targetPanelPatch(grid, panelOccId) {
   return { meta: { ...(grid?.meta || {}), [TARGET_PANEL_KEY]: panelOccId || null } };
 }
+
+// ── WHICH PANELS EXIST, and which one am I in ──────────────────────────────
+//
+// Both callers need the same two answers: the card that OPENS a bookmark (to
+// find its fallback panel) and the menu that SETS the target (to list the
+// choices). They were the same walk written twice, which is how the two drift
+// into disagreeing about what counts as a panel.
+//
+// Kept here rather than in either caller because this module already owns the
+// question "which panel", and neither caller owns the other.
+
+/** Every panel occurrence on the grid, keyed by occurrence id. */
+export function collectPanelOccurrences(occurrencesById = {}, modulesById = {}) {
+  const out = {};
+  for (const o of Object.values(occurrencesById || {})) {
+    if (o?.id && modulesById?.[o.moduleId]?.role === "panel") out[o.id] = o;
+  }
+  return out;
+}
+
+/**
+ * The panel an occurrence sits inside, by walking up `parentId`.
+ *
+ * DEPTH-CAPPED at 40: a cycle in the parent chain would otherwise hang the
+ * click, and this grid has had a self-parented occurrence twice (2026-07-30's
+ * board that became its own child). A miss returns null, which the caller reads
+ * as "no fallback panel" rather than as an error.
+ */
+export function enclosingPanelId(occId, occurrencesById = {}, panelsById = {}) {
+  let cursor = occurrencesById?.[occId];
+  for (let i = 0; i < 40 && cursor; i++) {
+    if (panelsById[cursor.id]) return cursor.id;
+    cursor = occurrencesById[cursor.parentId];
+  }
+  return null;
+}
+
+/**
+ * The panels a picker should list: `{ id, label }`, in the grid's own order.
+ *
+ * ORDER COMES FROM `grid.occurrences`, not from object iteration — a menu whose
+ * rows reshuffle between two right-clicks is one nobody can build muscle memory
+ * for. Panels the grid does not list are appended, so a panel that exists is
+ * never unreachable.
+ */
+export function panelChoices(grid, panelsById = {}, modulesById = {}) {
+  const listed = Array.isArray(grid?.occurrences) ? grid.occurrences : [];
+  const seen = new Set();
+  const out = [];
+  const push = (id) => {
+    const occ = panelsById[id];
+    if (!occ || seen.has(id)) return;
+    seen.add(id);
+    out.push({ id, label: occ.label || modulesById?.[occ.moduleId]?.label || "" });
+  };
+  listed.forEach(push);
+  Object.keys(panelsById).forEach(push);
+  return out;
+}

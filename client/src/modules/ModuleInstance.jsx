@@ -26,12 +26,14 @@ import {
   PopoverContent,
   PopoverAnchor,
 } from "@/components/ui/popover";
-import { Link2, Unlink, Settings, Copy, Move, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type, FileDown, ChevronDown } from "lucide-react";
+import { Link2, Unlink, Settings, Copy, Move, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type, FileDown, ChevronDown, Check, PanelRight } from "lucide-react";
 import { convertLeafRole, CONVERTIBLE_LEAF_ROLES } from "../helpers/convertOccurrence";
 import { canConvertLinkToPage, resolveExternalLink, convertLinkToPage } from "../helpers/linkToPage";
 import { planConvertRelink } from "../helpers/convertRelink";
 import { toast } from "sonner";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { collectPanelOccurrences, panelChoices, getTargetPanelId, targetPanelPatch } from "../helpers/targetPanel";
+import { targetPanelMenuItems, shouldOfferTargetPicker } from "../helpers/targetPanelMenu";
 import {
   useDragDrop,
   DragType,
@@ -1047,6 +1049,10 @@ function ModuleInstance({
   // re-render all ~190 mounted instances on every module write — the churn the
   // 2026-07-03 per-id selector migration removed.
   const getModMap = useGridActionsSelector(s => s.getModMap || (() => s.modulesById || {}));
+  // Same reason again: the target picker needs the grid (for `meta` and for the
+  // panel ORDER) only at the moment the menu is built. Subscribing to the grid
+  // here would re-render every mounted instance on every filter navigation.
+  const getState = useGridActionsSelector(s => s.getState || (() => s.state || {}));
   // Linked-badge count for THIS instance's group — a number, so Object.is
   // keeps it stable across unrelated writes.
   const linkedGroupCount = useGridActionsSelector(s =>
@@ -1163,6 +1169,36 @@ function ModuleInstance({
       { label: "Clear selection", icon: X, onClick: () => selection.clear() },
       { separator: true },
     ] : [];
+    // Read at CALLBACK time, like every other map here.
+    const stateNow = getState?.() || {};
+    const gridNow = stateNow.grid || null;
+    const occsNow = getOccMap?.() || {};
+    const modsNow = getModMap?.() || {};
+    const panelsById = collectPanelOccurrences(occsNow, modsNow);
+    const choices = panelChoices(gridNow, panelsById, modsNow);
+    const targetPickerItems = (module?.role === "artifact" && shouldOfferTargetPicker(choices))
+      ? [
+          { separator: true },
+          ...targetPanelMenuItems({ panels: choices, currentId: getTargetPanelId(gridNow) })
+            .map((it) => ({
+              // The tick has to ride in the ICON, not the label: ContextMenu
+              // keys its rows by label, so a "✓ " prefix would make the ticked
+              // row a different row from the unticked one.
+              label: it.clears ? `Don't open in a set panel` : `Open in ${it.label}`,
+              icon: it.checked ? Check : PanelRight,
+              onClick: () => {
+                if (!gridNow?.id && !gridNow?._id) return;
+                CommitHelpers.updateGrid({
+                  dispatch, socket,
+                  gridId: gridNow.id || gridNow._id,
+                  grid: targetPanelPatch(gridNow, it.clears ? null : it.id),
+                  emit: true,
+                });
+              },
+            })),
+        ]
+      : [];
+
     const items = [
       ...bulkItems,
       onInstanceFocus && { label: "Focus", icon: Focus, onClick: () => onInstanceFocus(module, occurrence) },
@@ -1249,6 +1285,20 @@ function ModuleInstance({
           }
         },
       },
+      // ── WHERE A DOUBLE-CLICK OPENS ────────────────────────────────────
+      // User, 2026-08-23: *"i should be able to set in the right click menu, a
+      // panel ... and it should be set as that until i turn it off."*
+      //
+      // SETTING IS NOT OPENING. Picking a row here only records the
+      // destination; the double-click is what navigates. Collapsing the two
+      // would leave no way to change the target without also being taken there.
+      //
+      // Offered on rows that can BE opened this way — an artifact — and only
+      // when there is more than one panel to choose between. The setting is
+      // grid-wide, so a second copy on every row would be the same control
+      // repeated 1,467 times.
+      ...targetPickerItems,
+      targetPickerItems.length ? { separator: true } : null,
       {
         label: "Remove from container", icon: Trash2, danger: true,
         onClick: () => {
@@ -1258,7 +1308,7 @@ function ModuleInstance({
       },
     ].filter(Boolean);
     setCtxMenu({ x: e.clientX, y: e.clientY, items });
-  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket, selection, getOccMap, getParentId, getModMap]);
+  }, [module, occurrence, containerId, containerOccurrence, onInstanceFocus, dispatch, socket, selection, getOccMap, getParentId, getModMap, getState]);
 
   // Touch: long-press opens the same menu (right-click has no touch equivalent).
   const instanceLongPress = useLongPress(({ x, y }) =>

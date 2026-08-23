@@ -13,6 +13,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 import { toast } from "sonner";
 import { openBookmarkInPanel } from "../helpers/openBookmark";
+import { collectPanelOccurrences, enclosingPanelId } from "../helpers/targetPanel";
 import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
 import LoadingImage from "../ui/LoadingImage.jsx";
 import { useClosingGate } from "../helpers/closingGate";
@@ -133,17 +134,9 @@ export default function ArtifactCard({ module, label, occurrence }) {
     if (!isBookmark || !occurrence?.id) return;
     e?.stopPropagation(); e?.preventDefault();
     const occurrencesById = getOccMap?.() || {};
-    const panelsById = {};
-    for (const o of Object.values(occurrencesById)) {
-      if (modulesById?.[o?.moduleId]?.role === "panel") panelsById[o.id] = o;
-    }
+    const panelsById = collectPanelOccurrences(occurrencesById, modulesById);
     // The panel this card is IN — the fallback when no sticky target is set.
-    let fromPanelOccId = null;
-    let cursor = occurrencesById[occurrence.id];
-    for (let i = 0; i < 40 && cursor; i++) {
-      if (panelsById[cursor.id]) { fromPanelOccId = cursor.id; break; }
-      cursor = occurrencesById[cursor.parentId];
-    }
+    const fromPanelOccId = enclosingPanelId(occurrence.id, occurrencesById, panelsById);
     const res = openBookmarkInPanel({
       occId: occurrence.id, grid, fromPanelOccId, panelsById,
       occurrencesById, modulesById, viewsById, dispatch, socket,
