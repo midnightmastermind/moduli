@@ -128,6 +128,35 @@ empty Daily Question found this morning is the kind of thing it would catch.
   Next attempt: keep the light-theme calibration, sample glyph boxes rather than
   marquee tracks, and use a surface with no rainbow behind it.
 
+  **ATTEMPT 3 (2026-08-23) also failed its calibration, and found three things
+  that make attempt 4 much cheaper. Nothing was changed; no grid was written.**
+  - **`resolveSkinId` is `grid?.meta?.skin || storedPreference`, so THE GRID WINS.**
+    Setting `localStorage["moduli-skin"]` on **poms grid** does nothing — it pins
+    `stardew`. The first run reported four skins with BYTE-IDENTICAL numbers, which
+    is the tell: it had measured stardew four times. **test grid 2 and test grid 1
+    pin no skin, so there the browser value is honoured** — and it is browser-local,
+    so measuring costs no write to any grid.
+  - **The ink-picker still grabs the field NAME, not the value.** Samples came back
+    reading `"Completed"`, `"Meal"`, `"Calories"` — the 0.7-opacity labels, exactly
+    the 2026-08-19 (6) failure. Walking to the FIRST text node inside
+    `.field-display` finds the label. It has to target the value node specifically.
+  - **THE TASK AS FILED IS UNDER-SPECIFIED, and this is the useful part.** Under
+    `moduli-light` on test grid 2, sampled backgrounds came back BROWN and ORANGE —
+    not a theme colour and not a bug: `.container-shell` computes
+    `rgb(179,79,36)`, a STORED container colour, painted at full opacity because
+    every plain skin sets `storedColorAlpha: 1`. So "the dark themes' contrast" and
+    "the contrast of a container the user coloured orange" are different questions
+    with different owners, and a single number mixes them. **The 6.05-6.09
+    calibration figure is from poms grid; test grid 2 has different stored colours,
+    so it is not comparable across grids.** Attempt 4 should either measure only
+    surfaces the THEME paints (no stored colour in the ancestor chain), or say up
+    front that it is measuring stored colours too — and it needs a calibration on
+    the SAME grid it measures.
+  - Verified along the way that the theme itself applies correctly on test grid 2:
+    `data-theme=moduli-light`, `dark` class off, `--grid-wallpaper: none`,
+    `--grid-surface-a: 1`, `bodyBg rgb(243,244,247)`. The surface is flat there, so
+    the rainbow problem from attempt 2 is solved by using a plain skin.
+
 ## Nutrition / fitness build — state at 2026-08-19 end
 
 Shipped: `0146` (Macros / Intake / Workout Goals tiles + macro targets) · `0147` (five dead display
