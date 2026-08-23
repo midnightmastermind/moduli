@@ -19,7 +19,7 @@
 // which is what makes "Escape commits nothing" true by construction rather than
 // by remembering to guard each branch.
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import MenuSurface from "./MenuSurface";
 
 // ── Imperative controller ────────────────────────────────────────────────

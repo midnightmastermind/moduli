@@ -9,7 +9,7 @@ import { Lock, Unlock } from "lucide-react";
 import { logCaretInterference } from "../helpers/caretDiag";
 import { requestTextblockFocus, cancelTextblockFocus } from "../helpers/pendingTextblockFocus";
 import { registerProvisionalTextblock, discardProvisionalTextblock, isProvisionalTextblock } from "../helpers/provisionalTextblock";
-import { mintMark, mintStep } from "../helpers/mintDiag";
+import { mintStep } from "../helpers/mintDiag";
 import { useLazyEditor, LAZY_PLACEHOLDER_CLASS } from "../helpers/lazyEditor.js";
 import { afterPaint } from "../helpers/afterPaint";
 

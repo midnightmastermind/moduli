@@ -56,7 +56,6 @@ import {
   X,
   ChevronRight,
   Folder,
-  FileText,
   Layers,
   Maximize2,
   Minimize2,

@@ -52,7 +52,6 @@ import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import {
   getEffectiveFieldVisibilityForOccurrence,
-  fieldPassesVisibility,
   getEffectiveAutoAppliedFieldIds,
   getAutoAppliedRoles,
 } from "../state/selectors";

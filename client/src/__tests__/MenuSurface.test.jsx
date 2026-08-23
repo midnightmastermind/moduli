@@ -1,7 +1,7 @@
 // MenuSurface decides how EVERY floating menu presents itself: anchored on
 // desktop, a bottom drawer on mobile. The decision reads
 // document.body.dataset.layout, which App stamps on every layout change.
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import MenuSurface, { isDrawerLayout } from "../ui/MenuSurface.jsx";

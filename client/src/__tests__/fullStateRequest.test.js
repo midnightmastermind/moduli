@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { bindFullStateRequest } from "../helpers/fullStateRequest";
 
 // A socket stub that records emits and lets a test drive connect/disconnect.

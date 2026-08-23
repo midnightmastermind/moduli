@@ -115,7 +115,6 @@ import { getModuleTypeBadge } from "../helpers/moduleIcons";
 const CONTEXT_ADD_KINDS = tileKindsForRole("instance").filter(
   (k) => k !== "artifact" && k !== "image",
 );
-import FieldRenderer from "../ui/FieldRenderer.jsx";
 import OccurrenceFields from "../ui/OccurrenceFields.jsx";
 import { resolveEditorBinding } from "../state/editorBindings.js";
 

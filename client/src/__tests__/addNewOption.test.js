@@ -9,7 +9,7 @@
 //   4. one-element targets[] → no chooser
 //   5. entry fields (addNew.fieldIds) are bound on the minted module and the
 //      prompted values land on the created occurrence's fields
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   normalizeAddNewTargets,
   targetOptionsForAddNew,

@@ -42,7 +42,7 @@ import { setOccurrenceFieldValue, updateModule, updateField } from "../helpers/C
 import { normalizeAddNewTargets, targetOptionsForAddNew, createOptionUnderParent, promptEntryFields } from "../helpers/addNewOption";
 import { openImagePicker } from "./ImagePickerMenu";
 import { openAddressPicker } from "./AddressPickerMenu";
-import { readAddress, addressSummary, mapLinkFor } from "../helpers/geocode";
+import { readAddress, addressSummary } from "../helpers/geocode";
 import { openArtifactSpread } from "./ArtifactSpreadHost";
 import { primaryMediaOf } from "../helpers/occurrenceMedia";
 import { resolveFileRef } from "../helpers/fileRef";

@@ -5,7 +5,7 @@
 // so each one draws the board icon and lands as an `inert-kind` integrity
 // warning — migration 0003's defect, still being minted. Stripped at the
 // chokepoint so a tenth call site cannot reintroduce it.
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
 function capture() {

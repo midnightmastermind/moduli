@@ -16,7 +16,7 @@ import LoginScreen from "./LoginScreen";
 import { GridDataContext } from "./GridDataContext";
 import { GridActionsContext } from "./GridActionsContext";
 import { GridLiveContext } from "./GridLiveContext";
-import { setActiveCell, setZoomedOut, initActiveCellForGrid, getActiveCell } from "./state/activeCellStore";
+import { initActiveCellForGrid } from "./state/activeCellStore";
 
 import { useBoardState } from "./state/useBoardState";
 

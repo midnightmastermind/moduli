@@ -25,7 +25,7 @@ import SelectionStatusBanner from "./ui/SelectionStatusBanner";
 import FilterNavWidget from "./ui/FilterNavWidgets";
 import { useGridActions } from "./GridActionsContext";
 import * as CommitHelpers from "./helpers/CommitHelpers";
-import { useActiveCell, useZoomedOut, setActiveCell, setZoomedOut } from "./state/activeCellStore";
+import { useActiveCell, useZoomedOut, setZoomedOut } from "./state/activeCellStore";
 
 export default function Toolbar({
   gridId,

@@ -1,6 +1,6 @@
 // state/selectors.js
 // Selectors for working with occurrences and entities in the state
-import { evalRule, evalGroup, evalRuleAgainstRecord, evalGroupAgainstRecord } from "../helpers/operationActions";
+import { evalRule, evalGroup, evalGroupAgainstRecord } from "../helpers/operationActions";
 import { buildParentMap, cachedParentMap, buildParentsMap, reachableAncestors } from "../helpers/dragHitTesting";
 import { buildFeedPredicate } from "../helpers/feedPredicate";
 
