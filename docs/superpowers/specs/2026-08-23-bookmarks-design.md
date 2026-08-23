@@ -311,8 +311,13 @@ rows.
 3. The importer + `Bookmark` shape (a migration, dry-runnable)
 4. The Lookup page — smallest, proves the parse
 5. The board, with covers from the export only
-6. The image search for the 437, as its own re-runnable pass
-7. Right-click → open-in-panel (panel picker) and import-as-page
+6. ~~The image search for the 437~~ — **DONE, `0201`, and it is NOT an image search.**
+   Each page's own og:image with a favicon fallback (user's call). The titles made a
+   search impossible and the 437 are login pages and dashboards, not articles:
+   55 real og:images, 151 declared icons, 231 guessed favicons. Re-runnable.
+7. ~~Right-click → open-in-panel (panel picker)~~ — **DONE.** Double-click opens
+   (`ddde41a0`), the picker sets the sticky target (`9218f590`). **Import-as-page is
+   still open.**
 8. **The browser extension** — see below
 9. **A third mode: ARCHIVE** — *"add a web archive version in next to web (do
    that last) where we search for the web archive of the page"* (2026-08-23).
