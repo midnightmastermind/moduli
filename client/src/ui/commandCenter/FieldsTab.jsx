@@ -408,9 +408,75 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
                 Flow toggle button
               </label>
             )}
+            {/* Multi-line prose (2026-08-23). `meta.multiline` sits on Person
+                Notes / Allergies / Interests / How We Met / Excerpt and was
+                reachable only by writing a migration. Text only — a number or a
+                date has nothing to wrap. */}
+            {local.type === "text" && (
+              <label
+                title="Edit this field in a resizable box instead of a single line. Full-size editors only — a row's compact pill stays one line."
+                style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontFamily: "monospace", color: "var(--text-muted)", cursor: "pointer" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={local.meta?.multiline === true}
+                  onChange={(e) => setMeta("multiline", e.target.checked)}
+                />
+                Multi-line
+              </label>
+            )}
+            {/* One pick or many. 46 live fields carry this and there has never
+                been a control for it — whether `Ingredient` takes a list or a
+                single value was a migration-only decision. The two types are
+                offered together because it is the SAME question: a select picks
+                from a value list, an occurrence dropdown from a board. */}
+            {(local.type === "select" || local.type === "occurrence") && (
+              <label
+                title="Let a row hold several values in this field instead of one."
+                style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontFamily: "monospace", color: "var(--text-muted)", cursor: "pointer" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={local.meta?.multiSelect === true}
+                  onChange={(e) => setMeta("multiSelect", e.target.checked)}
+                />
+                Several picks
+              </label>
+            )}
           </div>
         </div>
       </div>
+
+      {/* The number clamp and the step. `increment` is what the DATA carries —
+          71 fields across four grids — and until 2026-08-23 the input read a
+          `meta.step` nothing writes, so every number field stepped by 1 whatever
+          its author intended. All three are stored as NUMBERS or null: an empty
+          box means "no clamp", and Number("") is 0, which would silently pin a
+          field to zero. */}
+      {local.type === "number" && (
+        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+          {[["min", "Min", "none"], ["max", "Max", "none"], ["increment", "Step", "1"]].map(([key, label, placeholder]) => (
+            <label key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={labelStyle}>{label}</span>
+              <input
+                type="number"
+                step="any"
+                value={local.meta?.[key] ?? ""}
+                placeholder={placeholder}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  const n = raw === "" ? null : Number(raw);
+                  setMeta(key, raw === "" || Number.isNaN(n) ? null : n);
+                }}
+                style={{ ...inputStyle, width: 80 }}
+              />
+            </label>
+          ))}
+          <span style={{ fontSize: 9.5, color: "var(--text-faint)", alignSelf: "center" }}>
+            Step is how far one tap of the arrows moves the value — 500 for Steps, 50 for Calories, 0.1 for a macro.
+          </span>
+        </div>
+      )}
 
       {/* Display config — target value + period for displayEnabled fields. Operations
           publish a value via UPDATE $display.<fieldId>.<itemId>; the target lives on

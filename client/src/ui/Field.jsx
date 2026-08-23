@@ -1613,7 +1613,13 @@ function Field({
                 style={{ color: "inherit" }}
                 onChange={e => handleChange(e.target.value === "" ? null : Number(e.target.value))}
                 onBlur={handleCommit} onKeyDown={handleKeyDown}
-                min={meta?.min} max={meta?.max} step={meta?.step} />
+                // `increment` is the key the DATA carries — 71 fields across four
+                // grids (Steps 500, Calories 50, Liquid Amount 8, macros 0.1). This
+                // read used to ask for `meta.step`, which NOTHING writes and 0 fields
+                // carry, so every number field silently stepped by the browser's
+                // default of 1 — and a 0.1 field was unusable, since a step of 1
+                // makes the browser reject a fractional value outright.
+                min={meta?.min} max={meta?.max} step={meta?.increment} />
               {canPickPostfix && (
                 <AffixSegment value={postfix} options={affixPostfixMenu} side="postfix"
                   onPick={(v) => onAffixChange("postfix", v)} compact={compact} disabled={disabled} />
@@ -1656,6 +1662,39 @@ function Field({
                 : <ImagePlus style={{ width: 14, height: 14, opacity: 0.7 }} />}
               <span>{src ? "Files…" : "Add a file…"}</span>
             </button>
+          </div>
+        );
+      }
+      // Prose wants room. `meta.multiline` sits on Person Notes / Allergies /
+      // Interests / How We Met / Excerpt and was read by nothing — only a
+      // `markdown`-TYPED field ever got a textarea, so every one of those
+      // rendered as a single-line box.
+      //
+      // COMPACT is deliberately excluded: a row's field pills share one
+      // centreline (2026-07-28) and a growing box breaks that alignment, so
+      // multiline is a full-size-editor affordance. The compact pill's own
+      // click-to-edit still opens the value for editing.
+      //
+      // handleKeyDown is NOT wired here, unlike the single-line input: it
+      // commits on Enter, which in a textarea is the key that makes a new line.
+      if (meta?.multiline && !compact) {
+        return (
+          <div className="field-input field-input-text field-input-text-multiline" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            {showLabel && <span style={inputLabelStyle}>{name}</span>}
+            <textarea
+              value={localValue ?? ""}
+              disabled={disabled}
+              rows={meta?.rows || 3}
+              onChange={e => handleChange(e.target.value)}
+              onBlur={handleCommit}
+              style={{
+                width: "100%", resize: "vertical", padding: "4px 8px",
+                fontSize: 12, fontFamily: "var(--font-mono)",
+                background: "var(--input-bg)", border: "1px solid var(--input-border)",
+                borderRadius: 4, color: "var(--text-primary)", outline: "none",
+                lineHeight: 1.5, minHeight: 60,
+              }}
+            />
           </div>
         );
       }
