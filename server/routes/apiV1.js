@@ -958,13 +958,25 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         const label = rec.moduleLabel || body.moduleLabel;
         if (!label) return null;
         const role = rec.moduleRole || body.moduleRole || "instance";
-        const key = `label:${role}:${label}`;
+        // A `fileRef` IS the module's identity when it has one — a bookmark is a
+        // `role:"artifact"` module whose fileRef is the page URL (0200), and two
+        // different articles both titled "Home" are two different things. Keying
+        // those by LABEL would collapse them into one module carrying whichever
+        // URL arrived first, and every card and reader would open the wrong
+        // page. Without a fileRef the key stays the label, so every existing
+        // producer is byte-identical.
+        const fileRef = rec.moduleFileRef || body.moduleFileRef || null;
+        const key = fileRef ? `ref:${role}:${fileRef}` : `label:${role}:${label}`;
         if (moduleCache.has(key)) return moduleCache.get(key);
-        let mod = await Module.findOne({ userId: req.userId, gridId, label, role }).lean();
+        let mod = await Module.findOne({
+          userId: req.userId, gridId, role,
+          ...(fileRef ? { fileRef } : { label }),
+        }).lean();
         if (!mod) {
           const created = await Module.create({
             id: uid(), userId: req.userId, gridId, label, role,
             ...(rec.moduleKind || body.moduleKind ? { kind: rec.moduleKind || body.moduleKind } : {}),
+            ...(fileRef ? { fileRef } : {}),
             meta: { ingestSource: source },
           });
           mod = created.toObject();

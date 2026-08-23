@@ -367,6 +367,63 @@ describe("POST /ingest", () => {
     expect(db.occurrences.get("parent-1").occurrences).toHaveLength(3);
   });
 
+  // ── A CLIPPED PAGE IS AN ARTIFACT, AND ITS IDENTITY IS ITS URL ──────────
+  // `0200` made a bookmark a `role:"artifact" kind:"bookmark"` module whose
+  // `fileRef` IS the page URL — that is what the reader and the card both read.
+  // Without `moduleFileRef` the browser extension could only mint a bare module
+  // and its clips would be a DIFFERENT SHAPE from every imported bookmark on
+  // the same board.
+  it("mints a module carrying moduleFileRef, so a clip is the same shape as an import", async () => {
+    const router = makeRouter();
+    seedParent();
+
+    await call(router, "POST", "/ingest", {
+      gridId: GRID, source: "clip", parentId: "parent-1",
+      records: [{
+        externalId: "https://danbrown.com/", label: "Dan Brown",
+        moduleLabel: "Dan Brown", moduleRole: "artifact", moduleKind: "bookmark",
+        moduleFileRef: "https://danbrown.com/",
+      }],
+    });
+
+    const mod = [...db.modules.values()][0];
+    expect(mod).toMatchObject({ role: "artifact", kind: "bookmark", fileRef: "https://danbrown.com/" });
+  });
+
+  it("keys the module by fileRef, so two pages sharing a TITLE do not share a module", async () => {
+    // The find-or-mint key is normally the label. Two different articles called
+    // "Home" would then collapse into one module whose fileRef is whichever
+    // arrived first — and every card and reader would open the wrong page.
+    const router = makeRouter();
+    seedParent();
+
+    await call(router, "POST", "/ingest", {
+      gridId: GRID, source: "clip", parentId: "parent-1",
+      records: [
+        { externalId: "u1", label: "Home", moduleLabel: "Home", moduleRole: "artifact", moduleKind: "bookmark", moduleFileRef: "https://a.com/" },
+        { externalId: "u2", label: "Home", moduleLabel: "Home", moduleRole: "artifact", moduleKind: "bookmark", moduleFileRef: "https://b.com/" },
+      ],
+    });
+
+    expect(db.modules.size).toBe(2);
+    expect([...db.modules.values()].map(m => m.fileRef).sort()).toEqual(["https://a.com/", "https://b.com/"]);
+  });
+
+  it("still shares ONE module across a batch when the fileRef is the same", async () => {
+    // The control: keying by fileRef must not turn every record into its own
+    // module when they genuinely are the same thing.
+    const router = makeRouter();
+    seedParent();
+
+    await call(router, "POST", "/ingest", {
+      gridId: GRID, source: "clip", parentId: "parent-1",
+      moduleLabel: "Same", moduleRole: "artifact", moduleKind: "bookmark", moduleFileRef: "https://same.com/",
+      records: [{ externalId: "x" }, { externalId: "y" }],
+    });
+
+    expect(db.modules.size).toBe(1);
+  });
+
   it("reuses an existing module rather than minting a duplicate type", async () => {
     const router = makeRouter();
     seedParent(); seedModule("m-existing");
