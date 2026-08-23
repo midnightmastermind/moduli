@@ -6,6 +6,72 @@
 
 ---
 
+### 2026-08-23 (4) — `0210` WAS RIGHT AND PRODUCTION COULD NOT SEE IT: three migrations sat inert behind a warm cache
+
+Picked up the other account's session, which ended one line after committing `0211`
+with the note *"deploy blocked (other session on import.js)"*. **Nothing was owed
+to prod as CODE — and something much worse was owed.**
+
+**THE DEPLOY DIFF SAID "NOTHING TO SHIP", AND IT WAS TELLING THE TRUTH.** Thirteen
+commits ahead of prod HEAD, and `git diff --name-only <prodHEAD>..HEAD` splits as
+7 migrations · 8 test files · 2 docs · and **two server utilities reached only by
+`checkGrid` / `sweepOrphans`** — scripts, not the request path. The 2026-08-13 (3)
+rule ("a stale prod HEAD is not evidence of an undeployed feature; diff the paths")
+answers correctly here and answers the WRONG QUESTION.
+
+**BECAUSE A MIGRATION IS NOT SHIPPED WHEN IT REACHES ATLAS.** `0209` (Pay Bill),
+`0210` (the stamp gate) and `0211` (202 bindings) all wrote to the shared database
+between 12:59 and 13:14. Prod's process had been up since **11:29**, and this
+server holds a warm per-user cache that is authoritative for reads. So for two
+hours production served the PRE-migration operations to the only person using it.
+*This file has recorded "restart pm2 after a migration" seven times, always about a
+cache re-serving a value. This is the same rule from the other end: the migration
+was not merely invisible, it was INERT — the fixed op was still the broken op.*
+
+**MEASURED RATHER THAN ASSUMED, and the discriminator was an op nobody was looking
+for.** Driving a real checkbox on prod and reading the field back out of Mongo:
+```
+                          prod (stale cache)      local (fresh server)
+tick `Organize files`     Completed=true          Completed=true
+  -> Completed On         NEVER WRITTEN           "2026-08-23"
+ops evaluated                     26                       27
+`Bills: Mark Paid`            ABSENT                  present     <- 0209 minted it
+```
+That 26-vs-27 is the whole proof. **The op count is what named the cache**; the
+missing value alone would have read as a bug in `0210`, which is where I would have
+spent the afternoon.
+
+**FOUR PROBES, AND THE FIRST THREE EACH EXONERATED A LAYER.** The executor emits
+the effect over LIVE data (all 69 ops, one `UPDATE_ITEM_FIELD`, nothing countering
+it). The browser console says the op FIRES and emits
+(`[op-effects] "Schedule: Stamp Completed On" UPDATE_ITEM_FIELD=1`). The socket
+trace says **no `update_occurrence` carrying the field ever leaves the tab**. So
+the callee was right, the caller was right, and the write vanished between them —
+which is only possible if the op prod was running was not the op in the database.
+
+**AND MY FRAME FILTER LIED FIRST.** It did `payload.slice(0, 900)` and THEN asked
+`includes(<fieldId>)`, on an occurrence whose serialized fields run past 1,000
+characters — so "the frame does not carry it" was a claim about the slice. Re-run
+unsliced it gave the same answer, which is the only reason it is quotable. *Check
+the probe before believing the failure — and check it again when it happens to
+agree with you.*
+
+**THE PROBE IS TICK -> READ -> UNTICK -> READ, which is both the discriminator and
+the cleanup.** The ELSE branch must clear the date, or a corrected tick leaves a
+completion date describing nothing; and `Organize files` starts and ends at
+`Completed=false`. Read back: row restored, **0 occurrences created in the last 40
+minutes**, poms grid **0 integrity errors**.
+
+**Prod is now at HEAD and restarted.** 3129 client + 1324 server tests.
+
+**STILL OPEN, and it is the user's call — now with the evidence it was missing:**
+what window the `Completed` container should use. `Completed On` demonstrably
+populates from now on, but its three current rows carry none, so any window drops
+them. That is what the complaint asks for (*"something i completed days ago"*) and
+it is still a choice rather than a fix.
+
+---
+
 ### 2026-08-23 (3) — ALL 1,467 BOOKMARKS WERE INVISIBLE, and the board looked fine in every other way
 
 Found by RENDERING the board rather than reading it. The rows exist, the covers

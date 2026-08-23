@@ -18,10 +18,24 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
   filter field `Date`; moved to a `Saved` field. Board went 0 rows → 14,670 elements.
 - **Item 5 (font sizes) retired by measurement** — see the row below, marked stale.
 
+### Closed 2026-08-23 (late afternoon)
+
+- **`0209`/`0210`/`0211` were INERT ON PRODUCTION for two hours.** They reached Atlas at
+  12:59-13:14; prod's process had been up since 11:29 and its warm per-user cache is
+  authoritative for reads, so the server kept running the PRE-migration operations.
+  The deploy diff correctly said no code was owed — a cache flush was. Prod synced to
+  HEAD and pm2 restarted; the tick now stamps `Completed On` on prod, read back out of
+  Mongo, grid restored, 0 integrity errors.
+- **`Schedule: Stamp Completed On` is verified END TO END at last** — the gap `0210`
+  left. A real checkbox ticked in a real browser writes `Completed On = 2026-08-23`,
+  and unticking clears it (the ELSE branch, which is the discriminator). Previously
+  proven only through the executor over a synthetic pipeline.
+
 ### New, reported not fixed
 
 | # | Item | State |
 |---|------|-------|
+| 21 | **What window should the `Completed` container use?** — the user's *"why is complete in the schedule under tasks, something i completed days ago"*. The feed has no time window at all, so anything ever ticked stays forever. `0210`/`0211` made `Completed On` writable and it is now **proven to populate on prod**, so a window is expressible. The catch, measured: its three current rows carry no stamp (they were ticked while the op was dead), so ANY window drops them. That is what the complaint asks for, but it is a choice — and the second question is which window (today / this week / last N days) | ❓ your call, mechanism ready |
 | 20 | **A general "relink unlisted children" repair is UNSAFE — measured and abandoned.** Saturday Aug 22's day column is parented to the Day Page board and not listed by it (empty, so nothing was lost), and an unlisted column is what lets `Day Page: Build` mint a duplicate for that date. But the obvious general fix — adopt any child whose `parentId` names a parent that does not list it — matches **265 children across 16 parents**, and **232 of those have `page/doc` parents where being absent from `occurrences[]` is CORRECT** (a doc renders its textmap). It would also relink 8 old day columns that were deliberately swept from the board. Named expectation was 1; the dry run said 265, so nothing was applied. A safe version needs "board-kind parent AND not reachable through the parent's textmap", and the old-columns half is the still-open question from 2026-08-13 (3) — do past day columns belong back on the board? | ❓ your call, selector measured |
 | 19 | ~~**A task you ever SCHEDULED disappears from the Tasks page forever**~~ — **RETRACTED 2026-08-23. My figure of "7 of 20 hidden" was wrong: I computed visibility by hand instead of driving `isOccurrenceVisible`.** Through the REAL selector over live data: the Tasks page's `filterOverride: {}` **CLEARS the effective filter outright** (an empty override is not "inherit" — `selectors.js:335`), so the page is already not date-filtered, which is what the user asked for. **18 of 20 rows are visible.** The 2 that are not — `Talk to Angela` (completed) and `Sign up for peer support mentor class` (incomplete, overdue) — resolve an effective filter of `{Date: today}` **because they are MULTI-PARENTED** (Tasks *and* a day-column Todo) and `getEffectiveFilterForOccurrence` walks a parent map that is last-writer-wins, so their chain resolves through the dated column instead of through Tasks. That is the 2026-08-11 (4) ambiguity, not a Tasks-page defect. Fixing it means changing how a multi-parented occurrence picks its filter chain — a core selector, its own reviewed pass | 📋 retracted; 1 real row, different cause |
 | 15 | **54 children are listed by a doc container and embedded by nothing** — invisible in the data sense. **Deliberately NOT re-embedded:** measured for content, 52 hold nothing and 2 hold one character, so the repair would add 54 blank boxes. They are `sweepOrphans` candidates | 📋 measured, left alone |
