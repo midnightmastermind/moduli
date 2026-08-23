@@ -47,6 +47,7 @@
 // above the frame rather than in a context menu over it.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { occurrenceUrl } from "../helpers/occurrenceUrl";
+import { useGridActionsSelector } from "../GridActionsContext.js";
 
 export const FRAME_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-popups";
 
@@ -82,10 +83,29 @@ export function fallbackReason(fetched) {
   return null;
 }
 
-export default function BookmarkView({ occurrence, module = null, fieldsById = {}, socket, isActivePage = true }) {
+export default function BookmarkView({ occurrence, module = null, fieldsById = null, socket, isActivePage = true }) {
+  // ── THE FIELD MAP IS NOT OPTIONAL HERE, and it took a live probe to see it ──
+  //
+  // `occurrenceUrl` ranks url-ish field NAMES so a row with several links opens
+  // the right one. Without the map there is no ranking, and every candidate
+  // falls back to `Object.entries` order.
+  //
+  // That was harmless until covers landed: a bookmark now carries TWO http
+  // fields — `URL` and `Cover` — so unranked, the reader could open the cover
+  // IMAGE instead of the page. Probing the 400 live rows returned the right URL
+  // every time, and for the wrong reason: `0199` happened to write `URL` first,
+  // and object key order is insertion order. That is a coin flip sitting in the
+  // reader path, decided by a migration's field ordering.
+  //
+  // Read from the store rather than threaded as a prop: this renders once per
+  // OPEN bookmark, not once per row, so the subscription is not a hot path —
+  // and `ArtifactContent`, the only caller, holds no grid state to pass down.
+  // An explicit prop still wins, which is what keeps it testable.
+  const ctxFields = useGridActionsSelector(s => s.fieldsById);
+  const fields = fieldsById || ctxFields || {};
   const resolved = useMemo(
-    () => occurrenceUrl(occurrence, { module, fieldsById }),
-    [occurrence, module, fieldsById],
+    () => occurrenceUrl(occurrence, { module, fieldsById: fields }),
+    [occurrence, module, fields],
   );
   const url = resolved?.url || null;
   const [chosen, setChosen] = useState(null);

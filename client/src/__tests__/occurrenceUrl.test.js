@@ -74,3 +74,37 @@ describe("occurrenceUrl", () => {
     expect(hasViewableUrl({ fields: {} }, ctx)).toBe(false);
   });
 });
+
+// ── A BOOKMARK CARRIES TWO http FIELDS SINCE COVERS LANDED ──────────────────
+//
+// `0201` put the page's og:image URL in a `Cover` field beside the `URL` one.
+// Unranked, the winner is whichever `Object.entries` yields first — so the
+// reader could open the cover IMAGE instead of the page. A live probe over 400
+// real rows returned the right URL every time and for the WRONG reason: `0199`
+// happened to write `URL` first, and key order is insertion order.
+describe("occurrenceUrl — a row with a URL and a Cover", () => {
+  const fieldsById = {
+    fUrl: { id: "fUrl", name: "URL" },
+    fCover: { id: "fCover", name: "Cover" },
+  };
+  // Cover FIRST in key order, which is the arrangement that goes wrong.
+  const occ = {
+    id: "b1",
+    fields: {
+      fCover: { value: "https://cdn.example.com/og.png" },
+      fUrl: { value: "https://example.com/the-article" },
+    },
+  };
+
+  it("opens the URL, not the cover image", () => {
+    expect(occurrenceUrl(occ, { fieldsById }).url).toBe("https://example.com/the-article");
+    expect(occurrenceUrl(occ, { fieldsById }).fieldId).toBe("fUrl");
+  });
+
+  it("and it is the NAME that decides, not the key order — the discriminator", () => {
+    // Same occurrence, no field map: the answer becomes key order, which is
+    // exactly the coin flip this pins. Asserting the wrong answer here is what
+    // proves the test above is measuring the ranking rather than the ordering.
+    expect(occurrenceUrl(occ, { fieldsById: {} }).url).toBe("https://cdn.example.com/og.png");
+  });
+});
