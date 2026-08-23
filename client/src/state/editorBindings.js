@@ -59,14 +59,12 @@ export function resolveEditorBinding({ occurrence, module, slot, gridDefault = n
 // applied. Role-gated because this row shell is NOT instance-only — textblock
 // cards and artifact cards compose it too (see ModuleInstance's `canHaveBody`),
 // and a textblock is already its own body.
-export function resolveInstanceBodyBinding({ occurrence, module, grid }) {
+// Takes the RESOLVED default rather than the grid, so the caller can subscribe
+// to the stable field-id STRING instead of the grid object — every instance row
+// mounts this, and the grid object's identity changes on every write.
+export function resolveInstanceBodyBinding({ occurrence, module, gridDefault }) {
   if (module?.role !== "instance") return null;
-  return resolveEditorBinding({
-    occurrence,
-    module,
-    slot: "body",
-    gridDefault: grid?.meta?.instanceBodyLink ?? null,
-  });
+  return resolveEditorBinding({ occurrence, module, slot: "body", gridDefault: gridDefault ?? null });
 }
 
 export function sameLinkValue(a, b) {

@@ -1096,9 +1096,19 @@ function ModuleInstance({
   // "every X" in a migration means every X that existed when it ran and a
   // module minted afterwards would silently miss it (the 0043 / 0064 / 0120
   // class). A module or occurrence binding still wins over it.
+  // Subscribe to the field-id STRING, never to `grid` — this is the outer
+  // wrapper, mounted once per row, and it deliberately subscribes only to
+  // slices that are Object.is-stable across unrelated writes (see the note at
+  // the top of InstanceInner). `ctxGrid` belongs to InstanceInner and is NOT in
+  // scope here; reaching for it is what took every panel down on 2026-08-23.
+  const bodyFieldId = useGridActionsSelector(
+    s => s.state?.grid?.meta?.instanceBodyLink?.selfField ?? null
+  );
   const bodyBinding = useMemo(
-    () => resolveInstanceBodyBinding({ occurrence, module, grid: ctxGrid }),
-    [occurrence, module, ctxGrid]
+    () => resolveInstanceBodyBinding({
+      occurrence, module, gridDefault: bodyFieldId ? { selfField: bodyFieldId } : null,
+    }),
+    [occurrence, module, bodyFieldId]
   );
   const showDoc = hasBody && showDocRaw;
   const toggleDoc = hasBody ? toggleDocRaw : null;

@@ -126,11 +126,11 @@ describe("resolveEditorBinding", () => {
 });
 
 describe("resolveInstanceBodyBinding", () => {
-  const grid = { meta: { instanceBodyLink: { selfField: "notes" } } };
+  const gridDefault = { selfField: "notes" };
 
   it("applies the grid default to an instance", () => {
     expect(
-      resolveInstanceBodyBinding({ occurrence: {}, module: { role: "instance" }, grid })
+      resolveInstanceBodyBinding({ occurrence: {}, module: { role: "instance" }, gridDefault })
     ).toEqual({ selfField: "notes" });
   });
 
@@ -138,7 +138,7 @@ describe("resolveInstanceBodyBinding", () => {
   // ArtifactCard call site compose it. A textblock is already its own body.
   it("does NOT apply to a textblock or an artifact", () => {
     for (const role of ["textblock", "artifact", "container", "page", "panel"]) {
-      expect(resolveInstanceBodyBinding({ occurrence: {}, module: { role }, grid })).toBeNull();
+      expect(resolveInstanceBodyBinding({ occurrence: {}, module: { role }, gridDefault })).toBeNull();
     }
   });
 
@@ -148,21 +148,21 @@ describe("resolveInstanceBodyBinding", () => {
       resolveInstanceBodyBinding({
         occurrence: {},
         module: { role: "instance", meta: { bodyLink: m } },
-        grid,
+        gridDefault,
       })
     ).toBe(m);
   });
 
   it("returns null with no grid default set", () => {
     expect(
-      resolveInstanceBodyBinding({ occurrence: {}, module: { role: "instance" }, grid: { meta: {} } })
+      resolveInstanceBodyBinding({ occurrence: {}, module: { role: "instance" }, gridDefault: null })
     ).toBeNull();
   });
 
   it("is null-safe on a missing module or grid", () => {
-    expect(resolveInstanceBodyBinding({ occurrence: {}, module: null, grid })).toBeNull();
+    expect(resolveInstanceBodyBinding({ occurrence: {}, module: null, gridDefault })).toBeNull();
     expect(
-      resolveInstanceBodyBinding({ occurrence: {}, module: { role: "instance" }, grid: null })
+      resolveInstanceBodyBinding({ occurrence: {}, module: { role: "instance" }, gridDefault: undefined })
     ).toBeNull();
   });
 });
