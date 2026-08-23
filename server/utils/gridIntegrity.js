@@ -410,12 +410,44 @@ export function checkGridIntegrity({ grid = null, occurrences = [], modules = []
       if (want == null || have == null || have === "") return false;
       return !String(have).startsWith(String(want));
     });
+    // ── AND THE CHECK IS SKIPPED WHERE A `filterOverride` IS IN PLAY ────────
+    //
+    // Added after this rule raised a FALSE POSITIVE on the Tasks page's
+    // `Emotional` container: it reported every child hidden while the REAL
+    // `isOccurrenceVisible` showed 3 of 4 visible. The reason is that
+    // `filterOverride: {}` on an ancestor CLEARS the effective filter outright
+    // (`selectors.js` — an empty override is not "inherit"), and this rule was
+    // comparing against `grid.activeFilterValues` as though nothing could
+    // override it.
+    //
+    // The fix is deliberately NOT to reimplement the cascade here. That walk
+    // handles empty-clears, per-key mutes, `_ownsLocalFilter`, and a parent map
+    // built from `occurrences[]` with a `parentId` fallback — a second copy of
+    // it on the server is a twin that drifts, which is the failure this repo
+    // keeps paying for. So the rule declines to judge any chain that carries an
+    // override at all, and keeps its answer for the plain case it was written
+    // for: 1,467 bookmarks hidden under no override whatsoever.
+    const parentOf = new Map();
+    for (const p of occurrences) for (const c of p.occurrences || []) if (!parentOf.has(c)) parentOf.set(c, p.id);
+    const overriddenAnywhere = (occ) => {
+      let cur = occ, n = 0;
+      const seen = new Set();
+      while (cur && n++ < 40 && !seen.has(cur.id)) {
+        seen.add(cur.id);
+        if (cur.filterOverride != null) return true;
+        const up = parentOf.get(cur.id) || cur.parentId;
+        cur = up ? occById.get(up) : null;
+      }
+      return false;
+    };
+
     const blind = [];
     for (const o of occurrences) {
       const kids = (o.occurrences || []).map((id) => occById.get(id)).filter(Boolean);
       if (kids.length < 3) continue;
       if (hiddenByFilter(o)) continue;
       if (!kids.every(hiddenByFilter)) continue;
+      if (overriddenAnywhere(o) || kids.some(overriddenAnywhere)) continue;
       blind.push(`${modById.get(o.moduleId)?.label || o.id} (${kids.length} children)`);
     }
     if (blind.length) add("error", "container-filtered-empty",

@@ -55,3 +55,44 @@ describe("container-filtered-empty", () => {
     expect(codes(occ)).not.toContain("container-filtered-empty");
   });
 });
+
+describe("container-filtered-empty — filterOverride declines the judgement", () => {
+  // Added after a live FALSE POSITIVE: the rule reported every child of the
+  // Tasks page's `Emotional` container hidden, while the REAL
+  // `isOccurrenceVisible` showed 3 of 4 visible. `filterOverride: {}` on an
+  // ancestor CLEARS the filter outright — an empty override is not "inherit".
+  const kidsHidden = (extra = {}) => ([
+    { id: "box", moduleId: "m", occurrences: ["a","b","c"], fields: {}, ...extra },
+    dated("a","2021-01-01"), dated("b","2021-01-02"), dated("c","2021-01-03"),
+  ]);
+
+  it("still FIRES when nothing in the chain overrides — the control", () => {
+    // Without this the skip could disable the rule entirely and look fine.
+    expect(codes(kidsHidden())).toContain("container-filtered-empty");
+  });
+
+  it("declines when the CONTAINER carries an override", () => {
+    expect(codes(kidsHidden({ filterOverride: {} }))).not.toContain("container-filtered-empty");
+  });
+
+  it("declines when an ANCESTOR carries an override", () => {
+    const occ = [
+      { id: "page", moduleId: "m", occurrences: ["box"], filterOverride: {}, fields: {} },
+      ...kidsHidden(),
+    ];
+    expect(codes(occ)).not.toContain("container-filtered-empty");
+  });
+
+  it("declines when a CHILD carries an override", () => {
+    const occ = kidsHidden();
+    occ[1] = { ...occ[1], filterOverride: { other: "x" } };
+    expect(codes(occ)).not.toContain("container-filtered-empty");
+  });
+
+  it("is not fooled by a cycle in the parent chain", () => {
+    const occ = kidsHidden();
+    occ[0] = { ...occ[0], parentId: "a" };
+    occ[1] = { ...occ[1], occurrences: ["box"] };
+    expect(() => codes(occ)).not.toThrow();
+  });
+});
