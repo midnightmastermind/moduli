@@ -44,6 +44,8 @@ import { resolveInstanceStyle, styleToCSS } from "../helpers/StyleHelpers";
 import { runMatchingOperations } from "../helpers/operationExecutor";
 import { setComputedValuesAction } from "../state/actions";
 import { DocContent } from "./DocContent.jsx";
+import BoundBody from "./BoundBody.jsx";
+import { resolveInstanceBodyBinding } from "../state/editorBindings.js";
 import { hexToRgba } from "../helpers/colorHelpers.js";
 import { CellEmbedContext } from "../docs/CellEmbedContext.js";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
@@ -1086,6 +1088,18 @@ function ModuleInstance({
   // ONE predicate covers BOTH surfaces: nulling `toggleDoc` removes the row
   // button and the radial's "Toggle doc" item together, so the two cannot drift.
   const hasBody = canHaveBody(module);
+  // THE NOTES BODY IS FIELD-BACKED when a binding resolves (user 2026-08-23:
+  // *"could you make that an automatic thing like our question and answer.
+  // could you let the instances child textmap be a notes field on them"*).
+  // `grid.meta.instanceBodyLink` is the automatic half — a GRID-level default
+  // rather than a binding written onto all 861 instance modules, because
+  // "every X" in a migration means every X that existed when it ran and a
+  // module minted afterwards would silently miss it (the 0043 / 0064 / 0120
+  // class). A module or occurrence binding still wins over it.
+  const bodyBinding = useMemo(
+    () => resolveInstanceBodyBinding({ occurrence, module, grid: ctxGrid }),
+    [occurrence, module, ctxGrid]
+  );
   const showDoc = hasBody && showDocRaw;
   const toggleDoc = hasBody ? toggleDocRaw : null;
   const isSelected = occId ? selection.isSelected(occId) : false;
@@ -1418,7 +1432,16 @@ function ModuleInstance({
             className="instance-doc-body"
             style={{ "--body-accent": hexToRgba(bg, 0.45) ?? "rgba(255,255,255,0.10)" }}
           >
-            <DocContent occurrence={occurrence} dispatch={dispatch} socket={socket} hideToolbar={true} />
+            {/* BoundBody falls back to `children` when the bound field cannot
+                be resolved, so a grid default naming a deleted field degrades
+                to today's textmap body rather than an empty pocket. */}
+            {bodyBinding ? (
+              <BoundBody hostOccurrence={occurrence} binding={bodyBinding}>
+                <DocContent occurrence={occurrence} dispatch={dispatch} socket={socket} hideToolbar={true} />
+              </BoundBody>
+            ) : (
+              <DocContent occurrence={occurrence} dispatch={dispatch} socket={socket} hideToolbar={true} />
+            )}
           </div>
         );
       })()}

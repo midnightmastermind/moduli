@@ -6040,6 +6040,16 @@ export async function createLiveData(userId, options = {}) {
     "meta.assistantSeedId": uid(),
     ...(protectedHoldsDefault ? {} : { "meta.defaultGrid": true }),
     "meta.scheduleFieldIds": { dateFieldId, timeslotFieldId, scheduleFormatFieldId, pageOccurrenceId: schedPageOccId },
+    // The instance row's notes body ("Show notes") writes into the `Notes` FIELD
+    // rather than the occurrence's own textmap — the same `bodyLink` mechanism
+    // the Daily Question / Answer pair uses. Grid-level so every instance gets
+    // it, including ones minted later; a module or occurrence `meta.bodyLink`
+    // still overrides it. Migration `0212` is the twin of this line.
+    //
+    // NO `link` KEY, deliberately. A link is the JOIN identity for cross-
+    // occurrence sync; every instance row carries this same field, so a link
+    // here would paste one row's note onto every row sharing the link value.
+    "meta.instanceBodyLink": { selfField: fields.notes.id },
   } });
 
   // ── STEP 12: Operations ─────────────────────────────────────────────────────

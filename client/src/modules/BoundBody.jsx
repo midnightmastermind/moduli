@@ -1,8 +1,11 @@
 // BoundBody — renders/edits a HOST occurrence's own field value in the
 // textblock body position. The binding declares { selfField, link }:
 //   - selfField: the field on the host whose value IS the body content
-//   - link:      JOIN identity for cross-occurrence sync (propagation on
-//                write to siblings sharing host.fields[link].value)
+//   - link:      OPTIONAL. JOIN identity for cross-occurrence sync (propagation
+//                on write to siblings sharing host.fields[link].value). Omitted
+//                means the body is PER-OCCURRENCE and never fans out — the
+//                instance notes body, where a link would paste one row's note
+//                onto every row sharing the link value.
 //
 // Type-dispatched:
 //   - text selfField: live TipTap editor (StarterKit). Edits write back to
@@ -22,12 +25,27 @@ import { findLinkedSiblings } from "../state/editorBindings.js";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
 const LINK_PROBE = Symbol("link-probe");
-function BindingBadge({ field, isLinked }) {
-  const Icon = isLinked ? Link2 : Unlink2;
+
+// THREE states, not two. A binding that declares no `link` is per-occurrence
+// BY DESIGN (the instance notes body) — reporting it as a "Broken link" would
+// tell the user something is wrong with a body that is working exactly as
+// authored. It still names the field, because the point of the badge is that
+// this body is FIELD-BACKED rather than the occurrence's own textmap.
+export function badgeState({ binding, isLinked }) {
+  if (!binding?.link) return "unlinked";
+  return isLinked ? "linked" : "broken";
+}
+
+function BindingBadge({ field, state }) {
+  const Icon = state === "linked" ? Link2 : state === "broken" ? Unlink2 : null;
+  const title =
+    state === "linked" ? `Linked: ${field?.name || ""}`
+    : state === "broken" ? `Broken link: ${field?.name || ""}`
+    : field?.name || "";
   return (
     <span
       className="bound-binding-badge"
-      title={isLinked ? `Linked: ${field?.name || ""}` : `Broken link: ${field?.name || ""}`}
+      title={title}
       style={{
         position: "absolute",
         top: 4,
@@ -37,12 +55,12 @@ function BindingBadge({ field, isLinked }) {
         gap: 3,
         fontSize: 9,
         opacity: 0.65,
-        color: isLinked ? "var(--text-muted, #888)" : "var(--text-faint, #b06a6a)",
+        color: state === "broken" ? "var(--text-faint, #b06a6a)" : "var(--text-muted, #888)",
         pointerEvents: "none",
         whiteSpace: "nowrap",
       }}
     >
-      <Icon size={10} />
+      {Icon ? <Icon size={10} /> : null}
       <span>{field?.name || ""}</span>
     </span>
   );
@@ -98,7 +116,7 @@ export default function BoundBody({ hostOccurrence, binding, children }) {
   const field = fieldsById?.[binding?.selfField];
 
   const isLinked = useMemo(() => {
-    if (!binding || !hostOccurrence || !occurrencesById) return false;
+    if (!binding?.link || !hostOccurrence || !occurrencesById) return false;
     if (hostOccurrence?.fields?.[binding.link]?.value == null) return false;
     return findLinkedSiblings({ binding, hostOccurrence, occurrencesById, nextValue: LINK_PROBE }).length > 0;
   }, [binding, hostOccurrence, occurrencesById]);
@@ -107,6 +125,8 @@ export default function BoundBody({ hostOccurrence, binding, children }) {
 
   const value = hostOccurrence.fields?.[binding.selfField]?.value;
 
+  const state = badgeState({ binding, isLinked });
+
   if (field.type === "text") {
     return (
       <BoundTextEditor
@@ -114,7 +134,7 @@ export default function BoundBody({ hostOccurrence, binding, children }) {
         binding={binding}
         value={value}
         field={field}
-        isLinked={isLinked}
+        badge={state}
         occurrencesById={occurrencesById}
         dispatch={dispatch}
         socket={socket}
@@ -126,12 +146,12 @@ export default function BoundBody({ hostOccurrence, binding, children }) {
   return (
     <div className="bound-body bound-body-text" style={{ position: "relative" }}>
       {text}
-      <BindingBadge field={field} isLinked={isLinked} />
+      <BindingBadge field={field} state={state} />
     </div>
   );
 }
 
-function BoundTextEditor({ host, binding, value, field, isLinked, occurrencesById, dispatch, socket }) {
+function BoundTextEditor({ host, binding, value, field, badge, occurrencesById, dispatch, socket }) {
   const writeRef = useRef(() => {});
   writeRef.current = useMemo(
     () => makeFieldWriter({ host, binding, occurrencesById, dispatch, socket }),
@@ -145,7 +165,9 @@ function BoundTextEditor({ host, binding, value, field, isLinked, occurrencesByI
     {
       extensions: [
         StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
-        Placeholder.configure({ placeholder: "Answer…" }),
+        // Data-driven, so the notes field can prompt "Add notes..." while the
+        // Daily Answer keeps its own wording. The seed already authors it.
+        Placeholder.configure({ placeholder: field?.meta?.placeholder || "Answer…" }),
       ],
       content: initialDoc,
       onUpdate: ({ editor }) => {
@@ -180,7 +202,7 @@ function BoundTextEditor({ host, binding, value, field, isLinked, occurrencesByI
   return (
     <div className="bound-body bound-body-text bound-body-editor" style={{ position: "relative" }}>
       <EditorContent editor={editor} />
-      <BindingBadge field={field} isLinked={isLinked} />
+      <BindingBadge field={field} state={badge} />
     </div>
   );
 }

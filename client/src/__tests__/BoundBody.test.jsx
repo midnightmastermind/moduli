@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { GridActionsContext } from "../GridActionsContext";
-import BoundBody, { makeFieldWriter } from "../modules/BoundBody.jsx";
+import BoundBody, { makeFieldWriter, badgeState } from "../modules/BoundBody.jsx";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
 vi.mock("../helpers/CommitHelpers", () => ({
@@ -172,5 +172,23 @@ describe("makeFieldWriter (self-field model)", () => {
     const second = CommitHelpers.updateOccurrence.mock.calls[1][0];
     expect(second.occurrence.id).toBe("sib1");
     expect(second.occurrence.fields.aF.value).toBe("synced value");
+  });
+});
+
+
+// THREE states, not two. A binding with no `link` is per-occurrence BY DESIGN
+// (the instance notes body) — calling that a "Broken link" tells the user
+// something is wrong with a body that is working exactly as authored.
+describe("badgeState", () => {
+  it("reports 'unlinked' when the binding declares no link", () => {
+    expect(badgeState({ binding: { selfField: "notes" }, isLinked: false })).toBe("unlinked");
+    // isLinked cannot be true without a link, but it must not flip the answer.
+    expect(badgeState({ binding: { selfField: "notes" }, isLinked: true })).toBe("unlinked");
+    expect(badgeState({ binding: { selfField: "notes", link: "" }, isLinked: false })).toBe("unlinked");
+  });
+
+  it("still distinguishes linked from broken when a link IS declared", () => {
+    expect(badgeState({ binding: { selfField: "a", link: "d" }, isLinked: true })).toBe("linked");
+    expect(badgeState({ binding: { selfField: "a", link: "d" }, isLinked: false })).toBe("broken");
   });
 });
