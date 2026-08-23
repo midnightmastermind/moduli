@@ -97,6 +97,12 @@ const EMAIL = process.argv.includes("--user")
 // missing is operator choice, not protection.
 // Pass 1 (true orphans) is unscoped by design — it only matches documents whose
 // gridId names a grid that no longer exists, and a live grid is never that.
+// `--list <file>` writes what a sweep WOULD delete, without deleting it. Asked
+// for by the user 2026-08-23 when a sweep proposed 135 orphan modules and "just
+// the 7 I approved" and "all of them" were both wrong answers to look at blind.
+// It reports the SWEEPER'S OWN plan — not a second predicate that could drift.
+const LIST_FILE = process.argv.includes("--list")
+  ? process.argv[process.argv.indexOf("--list") + 1] : null;
 const GRID_NAME = process.argv.includes("--grid")
   ? process.argv[process.argv.indexOf("--grid") + 1] : null;
 
@@ -241,6 +247,19 @@ async function main() {
     occurrences: allOccs.filter(o => !doomedIds.has(String(o._id))),
     referencedIds,
   });
+  if (LIST_FILE) {
+    const rows = orphanMods.map((m) => ({
+      id: m.id, label: m.label ?? null, role: m.role ?? null, kind: m.kind ?? null,
+      createdAt: m.createdAt ?? null,
+      bindsFields: (m.fieldBindings || []).length,
+    }));
+    const kept = orphanModsKept.map(({ mod, why }) => ({ id: mod.id, label: mod.label ?? null, why }));
+    fs.writeFileSync(LIST_FILE, JSON.stringify({
+      grid: GRID_NAME, at: new Date().toISOString(),
+      wouldDelete: rows.length, wouldKeep: kept.length, wouldDeleteRows: rows, keptRows: kept,
+    }, null, 2));
+    console.log(`\n   \u{1F4C4} wrote the plan for ${rows.length} orphan module(s) to ${LIST_FILE} (nothing deleted)`);
+  }
   if (orphanMods.length || orphanModsKept.length) {
     console.log(`\n   ORPHAN MODULES: ${orphanMods.length} placed by no occurrence ` +
                 `(deleting)${orphanModsKept.length ? `, ${orphanModsKept.length} kept` : ""}`);
