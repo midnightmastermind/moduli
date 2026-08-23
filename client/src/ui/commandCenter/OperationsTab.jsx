@@ -13,6 +13,7 @@ import { PipelineEditor } from "../../blocks";
 import { executePipeline } from "../../helpers/operationExecutor";
 import Field from "../Field";
 import OperationLogPanel from "./OperationLogPanel";
+import { buildTargetOccurrenceOptions } from "../../helpers/operationTargetOptions";
 
 // Shared style helpers
 const labelStyle = {
@@ -531,6 +532,17 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
     commitTriggerObjects(triggerObjects.filter((_, i) => i !== idx));
   };
 
+  // Candidates for the op-level target. Pages, plus whatever this op already
+  // points at — `Mood: Record Selection` targets a container/graph, and a select
+  // whose value is absent from its options renders blank and writes null on the
+  // next change, which would silently break that op just by opening the editor.
+  const targetOptions = useMemo(
+    () => buildTargetOccurrenceOptions({
+      occurrencesById, modulesById, currentId: local?.targetOccurrenceId || null,
+    }),
+    [occurrencesById, modulesById, local?.targetOccurrenceId]
+  );
+
   // Container + panel options for onDrop config
   const getRole = useCallback((m) => m.role || "instance", []);
   const allContainers = useMemo(() => Object.values(modulesById || {}).filter(m => getRole(m) === "container"), [modulesById, getRole]);
@@ -570,6 +582,26 @@ export function OperationEditor({ operation, fields, onSave, onDelete, onRun, ca
             </select>
           </div>
         )}
+        {/* THE OP-LEVEL TARGET. It decides which page's date filter this operation
+            works against — the executor resolves $activeDate / $activePeriodDates
+            from this occurrence's effective filter. 9 live ops carry one and it had
+            no editor anywhere in the app, so it was reachable only by migration. */}
+        <div>
+          <span style={labelStyle}>Reads its date from</span>
+          <select
+            value={local.targetOccurrenceId || ""}
+            onChange={(e) => setLocal((p) => ({ ...p, targetOccurrenceId: e.target.value || null }))}
+            style={{ ...inputStyle, width: "auto", minWidth: 150, maxWidth: 220 }}
+            title="Which page's date filter this operation works against ($activeDate / $activePeriodDates). Leave unset for ops that do not depend on a date."
+          >
+            <option value="">— none —</option>
+            {targetOptions.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}{o.offList ? ` (${o.role || "missing"})` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* ── Schedule (time-based) ── */}
