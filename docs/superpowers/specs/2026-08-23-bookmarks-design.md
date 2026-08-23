@@ -80,16 +80,53 @@ a real trail: *hand of mysteries · the fibinacci sequence · gnosis nomind wu w
 
 ---
 
-## Interaction
+## The `iframe` view — the piece this is really built on
 
-| gesture | behaviour |
-|---|---|
-| **double-click** a bookmark | opens it in a panel. Double, not single — a single click competes with the drag handle |
-| double-click with **no panel set** | opens in an iframe in the cell the bookmark is on |
-| **right-click → Open in panel** | secondary menu picks WHICH panel |
-| **right-click → Import as page** | the existing `import_url` path |
+**User:** *"we need a whole iframe view that can go on links and bookmark
+artifacts so we can open them up in a panel"* / *"it should probably work like
+folder does with its views"* / *"the iframe itself acting as a folder view mode
+wise, and we put that view on links and bookmark artifacts"*.
 
-### Framing, and the fallback that makes it honest
+**There is no new mechanism here, which is the point.** `helpers/layoutCascade`
+already declares views per role and kind:
+
+```
+folder     dragInView: "preview"   navOptions: ["preview","representation"]
+artifact   dragInView: "actual"    navOptions: ["preview","actual"]
+board/doc  dragInView: "actual"    navOptions: ["preview","representation","actual"]
+```
+
+So `iframe` becomes an entry in that same table, shaped like `folder`, and links
+and bookmark artifacts declare it. The header switcher that already flips a
+folder page between preview and representation is the control.
+
+**For a bookmark, `actual` IS the web page** (user's call). Its own fields are
+what you see on the row; the actual content is the site.
+
+### The limit, and it is not optional
+
+`modules/PreviewNode.jsx` records that preview cards USED to be iframes
+(`<iframe src="/?previewOcc=X">`) and were replaced on 2026-05-25 because
+**11 on screen pegged the browser**. 1,467 bookmark rows as live frames is not a
+thing that can be allowed to happen by accident.
+
+**So a frame renders only where the occurrence is the ACTIVE page of a panel.**
+Anywhere else — a row on the board, a card in a container, a node on a canvas —
+it draws its cover and title. Five panels means at most five frames, by
+construction rather than by a cap somebody can raise.
+
+### What carries it
+
+- **bookmark artifacts** — the 1,467
+- **link chips in documents** — the inline `meta.link` nodes the intake shapes
+  already mint
+- **any occurrence carrying a URL field** — a Place with a website, a Person's
+  LinkedIn
+
+That last one is what keeps `noDomainKnowledge` satisfied: the view is offered
+because a row HAS a url, never because something learned what a "bookmark" is.
+
+### Framing refusals
 
 Measured, not assumed:
 
@@ -102,13 +139,18 @@ wikipedia.org  frames fine
 devin.ai       frames fine
 ```
 
-Roughly a third of the collection is on domains that answer an iframe with a
-blank box. So: **try to frame; where the site refuses, fetch it server-side
-through `import_url` and render the readable text in the panel**, with an
-"open in a new tab" escape. The user stays inside Moduli either way, and nothing
-silently shows an empty panel.
+Roughly a third of the collection answers an iframe with a blank box. Where the
+site refuses, the view fetches it server-side through the existing `import_url`
+path and renders the readable text, with an "open in a new tab" escape.
 
----
+## Interaction
+
+| gesture | behaviour |
+|---|---|
+| **double-click** a bookmark | opens it in a panel. Double, not single — a single click competes with the drag handle |
+| double-click with **no panel set** | opens in the cell the bookmark is on |
+| **right-click → Open in panel** | secondary menu picks WHICH panel |
+| **right-click → Import as page** | the existing `import_url` path |
 
 ## Risks, stated rather than discovered later
 
@@ -121,17 +163,23 @@ silently shows an empty panel.
    others none is worse than one with no covers.
 3. **~1,470 new occurrences and ~1,470 new modules** on a grid holding 3,455 and
    3,204. Every `full_state` carries them. Accepted knowingly.
-4. **An iframe in a panel is a new render surface.** Sandbox attributes,
-   scrolling, and what happens on navigation inside the frame are unspecified
-   here and need their own pass.
+4. **Sandboxing is unspecified.** What `sandbox` attributes the frame carries,
+   whether scripts run, and what happens when the user navigates INSIDE the
+   frame are not settled here. A frame that lets a page break out of it is a
+   security question, not a layout one.
 
 ---
 
 ## Build order
 
-1. The importer + `Bookmark` module/field shape (a migration, dry-runnable)
-2. The Lookup page — smallest, proves the parse
-3. The board, with covers from the export only
-4. The image search for the 437, as its own re-runnable pass
-5. Double-click → panel, with the framing fallback
-6. Right-click → open-in-panel (panel picker) and import-as-page
+**The `iframe` view comes first** — it is the mechanism, the bookmarks are only
+its first consumer, and it is testable on a single link chip instead of 1,467
+rows.
+
+1. The `iframe` view in the layout cascade + the active-page-only rule
+2. The framing fallback (refused → server-side fetch → reader)
+3. The importer + `Bookmark` shape (a migration, dry-runnable)
+4. The Lookup page — smallest, proves the parse
+5. The board, with covers from the export only
+6. The image search for the 437, as its own re-runnable pass
+7. Right-click → open-in-panel (panel picker) and import-as-page
