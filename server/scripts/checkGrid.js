@@ -12,6 +12,7 @@ import Operation from "../models/Operation.js";
 import Folder from "../models/Folder.js";
 import User from "../models/User.js";
 import { checkGridIntegrity, reportGridIntegrity } from "../utils/gridIntegrity.js";
+import { decompressTextmap } from "../utils/textmapCompression.js";
 
 const arg = (k, d = null) => { const i = process.argv.indexOf(k); return i > -1 ? process.argv[i + 1] : d; };
 const ALL = process.argv.includes("--all");
@@ -52,7 +53,12 @@ async function main() {
       Field.find({ gridId: gid }).lean(), Operation.find({ gridId: gid }).lean(),
       Folder.find({ gridId: gid }).lean(),
     ]);
-    ok = reportGridIntegrity(checkGridIntegrity({ grid: g, occurrences, modules, fields, operations, folders }),
+    // Textmaps are DECOMPRESSED here and handed in: a textmap can embed a
+    // module, so the orphan-module rule skips entirely without them rather
+    // than flagging live modules as dead. The caller owns decompression — the
+    // same contract `collectReferencedModuleIds` already has.
+    const textmaps = occurrences.map((o) => decompressTextmap(o.textmap)).filter(Boolean);
+    ok = reportGridIntegrity(checkGridIntegrity({ grid: g, occurrences, modules, fields, operations, folders, textmaps }),
       { label: `"${g.name || "(unnamed)"}"` }) && ok;
   }
   if (!ok) process.exitCode = 1;

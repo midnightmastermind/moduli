@@ -5,7 +5,7 @@
 // the checker is that none of them can be silent again — so the tests assert
 // both that a real defect is caught AND that the legitimate look-alike is not.
 import { describe, it, expect } from "vitest";
-import { checkGridIntegrity, reportGridIntegrity } from "../utils/gridIntegrity.js";
+import { checkGridIntegrity, reportGridIntegrity, ORPHAN_MODULE_ERROR_AT } from "../utils/gridIntegrity.js";
 
 const mod = (id, extra = {}) => ({ id, role: "instance", label: id, fieldBindings: [], ...extra });
 const occ = (id, moduleId, extra = {}) => ({ id, moduleId, occurrences: [], fields: {}, ...extra });
@@ -493,5 +493,67 @@ describe("unreachable-board", () => {
     const w = pair({ listed: false });
     w.modules = [pageMod("m-page"), mod("m-board", { role: "container", kind: "doc" })];
     expect(codes(checkGridIntegrity(w))).not.toContain("unreachable-board");
+  });
+});
+
+// ── orphan-module ──────────────────────────────────────────────────────────
+// The INVERSE of `module-less-occurrence`: a module no occurrence places.
+// There was no rule for it, which is how poms grid reached 135 unnoticed
+// (user, 2026-08-23: "why do we keep having so many of them"). Two causes feed
+// it — placing a row CLONES its module, and only the runtime delete path
+// sweeps the clone, so migrations leave theirs behind.
+describe("orphan-module", () => {
+  const M = (id, extra = {}) => ({ id, label: id, ...extra });
+  const O = (id, moduleId) => ({ id, moduleId, fields: {} });
+  const find = (f, code) => f.find(x => x.code === code);
+  const run = (args) => checkGridIntegrity({ modules: [], occurrences: [], fields: [], operations: [], textmaps: [], ...args });
+
+  it("flags a module nothing places", () => {
+    const f = run({ modules: [M("dead"), M("live")], occurrences: [O("o1", "live")] });
+    const hit = find(f, "orphan-module");
+    expect(hit).toBeTruthy();
+    expect(hit.ids).toContain("dead");
+    expect(hit.ids).not.toContain("live");
+  });
+
+  it("stays silent when every module is placed — the control", () => {
+    // Without this, a rule that flagged everything would pass the test above.
+    const f = run({ modules: [M("live")], occurrences: [O("o1", "live")] });
+    expect(find(f, "orphan-module")).toBeFalsy();
+  });
+
+  it("SKIPS ENTIRELY when the caller supplies no textmaps", () => {
+    // A textmap can embed a module. A caller that cannot decompress them would
+    // make this rule flag live modules — the cry-wolf guard that gets weakened
+    // the first time it fires. Reporting nothing beats reporting a number
+    // nobody can stand behind.
+    const f = checkGridIntegrity({ modules: [M("dead")], occurrences: [], fields: [], operations: [] });
+    expect(find(f, "orphan-module")).toBeFalsy();
+  });
+
+  it("does not flag a module a TEXTMAP embeds", () => {
+    const f = run({ modules: [M("dead")], occurrences: [],
+      textmaps: [{ type: "doc", content: [{ type: "moduleEmbed", attrs: { moduleId: "dead" } }] }] });
+    expect(find(f, "orphan-module")).toBeFalsy();
+  });
+
+  it("does not flag a module an OPERATION names", () => {
+    const f = run({ modules: [M("dead")], occurrences: [],
+      operations: [{ name: "X", pipeline: { steps: [{ config: { expr: "$allItemsById.dead" } }] } }] });
+    expect(find(f, "orphan-module")).toBeFalsy();
+  });
+
+  it("does not flag a TEMPLATE ROOT — having no placement is its normal state", () => {
+    const f = run({ modules: [M("tpl", { meta: { templateModule: true } })], occurrences: [] });
+    expect(find(f, "orphan-module")).toBeFalsy();
+  });
+
+  it("warns below the threshold and ERRORS above it", () => {
+    // A handful is the ordinary residue of a few deletes. A hundred has stopped
+    // being incidental, and a warning is exactly what let the last 135 pile up.
+    const few = run({ modules: Array.from({ length: 3 }, (_, i) => M(`d${i}`)) });
+    expect(find(few, "orphan-module").level).toBe("warn");
+    const many = run({ modules: Array.from({ length: ORPHAN_MODULE_ERROR_AT }, (_, i) => M(`d${i}`)) });
+    expect(find(many, "orphan-module").level).toBe("error");
   });
 });

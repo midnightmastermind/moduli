@@ -28,7 +28,7 @@
 // a weaker test, it was the wrong lever. Removing the row's **Movement pick** fails
 // exactly arm B while arm A's control still passes — a movement is what this op matches
 // on, and the pick is the only thing the assertion is really about.
-import { describe, it, expect, beforeAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -41,9 +41,34 @@ import { runMatchingOperations } from "../helpers/operationExecutor";
 vi.setConfig({ testTimeout: 60000 });
 const say=()=>{};
 
+// PINNED TO THE FIXTURE'S OWN DAY COLUMN.
+//
+// These assertions are about "today's column", and the ops resolve `$today` from
+// the wall clock — so an unpinned suite is green the day the fixture is exported
+// and red the next morning. All three files that read this fixture went red at
+// midnight on 2026-08-23, which is the failure CLAUDE.md 2026-08-20 (2) records:
+// *"a suite that fails by the calendar gets disabled rather than read."*
+//
+// The anchor is the DATE THE FIXTURE'S DAY COLUMN CARRIES, not `_exportedAt` and
+// not a hardcoded day. `_exportedAt` makes the tests depend on which weekday
+// somebody last ran the exporter (2026-08-21, when a Friday export left a column
+// with no movements); the column's own date is a fact about the data in front of
+// them, and it survives a re-export taken on any day.
+function fixtureDayFrom(fx) {
+  const SF = fx.fields.find((f) => f.name === "Schedule Format")?.id;
+  const DATE = fx.fields.find((f) => f.name === "Date" && f.type === "date")?.id;
+  const col = fx.occurrences.find((o) => o.fields?.[SF]?.value === "day-col" && o.fields?.[DATE]?.value);
+  const d = col?.fields?.[DATE]?.value;
+  if (!d) throw new Error("fixture carries no dated day column — cannot pin the clock to it");
+  return String(d).slice(0, 10);
+}
+
 let fx;
 beforeAll(() => { const here = path.dirname(fileURLToPath(import.meta.url));
-  fx = JSON.parse(brotliDecompressSync(readFileSync(path.join(here, "fixtures", "pomsGrid.json.br"))).toString("utf8")); });
+  fx = JSON.parse(brotliDecompressSync(readFileSync(path.join(here, "fixtures", "pomsGrid.json.br"))).toString("utf8"));
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(`${fixtureDayFrom(fx)}T12:00:00`));
+});
 
 function run(mutate) {
   const operations = fx.operations.filter(o => o.enabled !== false);
@@ -61,6 +86,8 @@ function run(mutate) {
     .map(u => `${fieldsById[u.fieldId]?.name || (u.metaPath ? "meta:"+u.metaPath.join(".") : "fieldVisibility")} = ${JSON.stringify(u.value)?.slice(0,80)}`);
   return { writes, fieldsById, occurrencesById };
 }
+
+afterAll(() => { vi.useRealTimers(); });
 
 describe("Workouts: Today's Session — does it fill when a movement IS on today's column?", () => {
   it("A: today as it really is (Saturday, a rest day)", () => {

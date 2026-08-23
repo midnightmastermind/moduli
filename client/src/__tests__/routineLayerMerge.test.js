@@ -19,7 +19,7 @@
 // counted creates by reading `effect.name`, which a merge's `CREATE_ITEM` does not carry, so
 // a correct run looked like an op that placed nothing. The op's own emit count said 7 the
 // whole time. Check the probe before believing the failure.
-import { describe, it, expect, beforeAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { brotliDecompressSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
@@ -28,10 +28,34 @@ import { runMatchingOperations, applyEffectsToLiveOccs } from "../helpers/operat
 
 vi.setConfig({ testTimeout: 60000 });
 
+// PINNED TO THE FIXTURE'S OWN DAY COLUMN.
+//
+// These assertions are about "today's column", and the ops resolve `$today` from
+// the wall clock — so an unpinned suite is green the day the fixture is exported
+// and red the next morning. All three files that read this fixture went red at
+// midnight on 2026-08-23, which is the failure CLAUDE.md 2026-08-20 (2) records:
+// *"a suite that fails by the calendar gets disabled rather than read."*
+//
+// The anchor is the DATE THE FIXTURE'S DAY COLUMN CARRIES, not `_exportedAt` and
+// not a hardcoded day. `_exportedAt` makes the tests depend on which weekday
+// somebody last ran the exporter (2026-08-21, when a Friday export left a column
+// with no movements); the column's own date is a fact about the data in front of
+// them, and it survives a re-export taken on any day.
+function fixtureDayFrom(fx) {
+  const SF = fx.fields.find((f) => f.name === "Schedule Format")?.id;
+  const DATE = fx.fields.find((f) => f.name === "Date" && f.type === "date")?.id;
+  const col = fx.occurrences.find((o) => o.fields?.[SF]?.value === "day-col" && o.fields?.[DATE]?.value);
+  const d = col?.fields?.[DATE]?.value;
+  if (!d) throw new Error("fixture carries no dated day column — cannot pin the clock to it");
+  return String(d).slice(0, 10);
+}
+
 let fx;
 beforeAll(() => {
   const here = path.dirname(fileURLToPath(import.meta.url));
   fx = JSON.parse(brotliDecompressSync(readFileSync(path.join(here, "fixtures", "pomsGrid.json.br"))).toString("utf8"));
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(`${fixtureDayFrom(fx)}T12:00:00`));
 });
 
 // Run the sweep, APPLY what it emitted, and run it again. The second pass is the real
@@ -69,6 +93,8 @@ function sweep(mutate, twice) {
 }
 
 const SF = "vQ0ELZP_zxnx";
+
+afterAll(() => { vi.useRealTimers(); });
 
 describe("the Routine layer merges without duplicating", () => {
   it("A — a column that already holds its layers gets NOTHING new", () => {

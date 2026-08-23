@@ -16,9 +16,17 @@
 // rather than restating it, because a second copy of exactly this is what let
 // the 2026-07-29 kind removal come back (the CREATE action was fixed and the
 // effect applier, which had its own copy of the default, was not).
+import { planOrphanModules, collectReferencedModuleIds } from "./orphanModules.js";
+
+// Above this many orphan modules the finding is an ERROR, not a warning: it has
+// stopped being the ordinary residue of a few deletes. Chosen against the live
+// number (135) and the count a single day's schedule rebuild can strand (~50),
+// so one bad day warns and a month of them fails.
+export const ORPHAN_MODULE_ERROR_AT = 100;
+
 export const KIND_BEARING_ROLES = new Set(["container", "page", "artifact", "textblock"]);
 
-export function checkGridIntegrity({ grid = null, occurrences = [], modules = [], fields = [], operations = [], folders = [] } = {}) {
+export function checkGridIntegrity({ grid = null, occurrences = [], modules = [], fields = [], operations = [], folders = [], textmaps = null } = {}) {
   const findings = [];
   const add = (level, code, message, ids) => findings.push({ level, code, message, ...(ids?.length ? { ids: ids.slice(0, 12) } : {}) });
 
@@ -113,6 +121,47 @@ export function checkGridIntegrity({ grid = null, occurrences = [], modules = []
     .map(f => f.name);
   if (deadFields.length) add("warn", "unused-field",
     `${deadFields.length} field(s) are never bound, never valued and referenced by no operation`, deadFields);
+
+  // 4b. Modules that no occurrence places. THE INVERSE of rule 1 — that one
+  //     catches an occurrence whose module is gone; this one catches a module
+  //     nothing renders. There was no rule for it, which is exactly how poms
+  //     grid reached **135** of them unnoticed (user, 2026-08-23: "why do we
+  //     keep having so many of them").
+  //
+  //     TWO CAUSES, and the count is the symptom of both. Placing a row CLONES
+  //     its module (`cloneSubtree` mints one per node), so the grid carries
+  //     ~1 module per occurrence — `Eat` alone had 78 for one concept. And
+  //     removing a placement only sweeps the clone on the RUNTIME path
+  //     (`delete_occurrence`); a migration writes straight to Mongo and skips
+  //     it, so 31 occurrence-deleting migrations mostly leave the modules.
+  //
+  //     IT REUSES `planOrphanModules` — the predicate the sweeper deletes by —
+  //     rather than asking the same question a second way. A preview computed
+  //     differently is a preview of something else, and its refusals (a
+  //     template root is MEANT to have no placement; an op or textmap
+  //     reference makes a module reachable; a module minted seconds ago may
+  //     have a placement still in flight) are the whole safety of the number.
+  //
+  //     IT SKIPS ENTIRELY WITHOUT `textmaps`. A textmap can embed a module, so
+  //     a caller that cannot decompress them would make this rule flag live
+  //     modules — the cry-wolf guard that gets weakened the first time it
+  //     fires. Reporting nothing is better than reporting a number nobody can
+  //     stand behind; `scripts/checkGrid.js` supplies them.
+  if (Array.isArray(textmaps)) {
+    const modIds = new Set(modules.map((m) => m.id));
+    const referencedIds = collectReferencedModuleIds(
+      [...operations, ...textmaps, ...(grid?.meta ? [{ meta: grid.meta }] : [])], modIds);
+    const { drop } = planOrphanModules({ modules, occurrences, referencedIds });
+    if (drop.length) {
+      // WARN below the threshold: an orphan renders nothing and corrupts
+      // nothing — it is waste, not damage. ERROR above it, because at that
+      // point it has stopped being incidental and a warning is what let the
+      // last 135 accumulate in silence.
+      const names = [...new Set(drop.map((m) => m.label || "(unlabelled)"))].slice(0, 12);
+      add(drop.length >= ORPHAN_MODULE_ERROR_AT ? "error" : "warn", "orphan-module",
+        `${drop.length} module(s) are placed by no occurrence — nothing renders them`, names);
+    }
+  }
 
   // 5. Duplicate field names. WARN, not error (user 2026-07-29: "we can have
   //    duplicate field labels but not the actual variable name"). The name is a

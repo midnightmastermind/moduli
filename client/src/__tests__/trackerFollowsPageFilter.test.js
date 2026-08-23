@@ -10,7 +10,7 @@
 //
 // Keyed on OP NAME, not tile label: this grid has two modules labelled
 // "Workout Log", and resolving a tile by label picks the wrong one (2026-08-03).
-import { describe, it, expect, beforeAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { brotliDecompressSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
@@ -18,12 +18,36 @@ import path from "node:path";
 import { runMatchingOperations } from "../helpers/operationExecutor";
 
 vi.setConfig({ testTimeout: 90000, hookTimeout: 120000 });   // two full 51-op sweeps over 3,455 occurrences run in the beforeAll — the default 10s hook cap fails only under the FULL suite, where the file competes for the pool
+// PINNED TO THE FIXTURE'S OWN DAY COLUMN.
+//
+// These assertions are about "today's column", and the ops resolve `$today` from
+// the wall clock — so an unpinned suite is green the day the fixture is exported
+// and red the next morning. All three files that read this fixture went red at
+// midnight on 2026-08-23, which is the failure CLAUDE.md 2026-08-20 (2) records:
+// *"a suite that fails by the calendar gets disabled rather than read."*
+//
+// The anchor is the DATE THE FIXTURE'S DAY COLUMN CARRIES, not `_exportedAt` and
+// not a hardcoded day. `_exportedAt` makes the tests depend on which weekday
+// somebody last ran the exporter (2026-08-21, when a Friday export left a column
+// with no movements); the column's own date is a fact about the data in front of
+// them, and it survives a re-export taken on any day.
+function fixtureDayFrom(fx) {
+  const SF = fx.fields.find((f) => f.name === "Schedule Format")?.id;
+  const DATE = fx.fields.find((f) => f.name === "Date" && f.type === "date")?.id;
+  const col = fx.occurrences.find((o) => o.fields?.[SF]?.value === "day-col" && o.fields?.[DATE]?.value);
+  const d = col?.fields?.[DATE]?.value;
+  if (!d) throw new Error("fixture carries no dated day column — cannot pin the clock to it");
+  return String(d).slice(0, 10);
+}
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATE = "Eh7oi4HKdbHB";
 let fx;
 beforeAll(() => {
   fx = JSON.parse(brotliDecompressSync(
     readFileSync(path.join(here, "fixtures", "pomsGrid.json.br"))).toString("utf8"));
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(`${fixtureDayFrom(fx)}T12:00:00`));
 });
 
 /** The load sweep with the date filter moved the way the user moves it. */
@@ -54,6 +78,8 @@ const movedFor = (a, b, opName) => {
   const keys = [...a.keys()].filter(k => k.startsWith(opName + "::"));
   return { wrote: keys.length, moved: keys.filter(k => a.get(k) !== b.get(k)).length };
 };
+
+afterAll(() => { vi.useRealTimers(); });
 
 describe("a tracker follows the date filter on the page it lives on", () => {
   let onDay, offDay;
