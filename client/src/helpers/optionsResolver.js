@@ -74,6 +74,63 @@ function enrichedRecords(occurrencesById, modulesById) {
   return entry;
 }
 
+// ── Find-mode RESULT cache ──────────────────────────────────────────────────
+// `enrichedRecords` above shares the RECORDS between fields. What it cannot
+// share is the per-field predicate scan, and that is where the time went:
+// measured on poms grid, 772 occurrences each ran an INDEPENDENT filter over
+// 7322 records, producing one of only 45 distinct results — ~5.6M predicate
+// evaluations where 45 computations would do (~766ms of a date navigation,
+// 2026-08-07 profile).
+//
+// The rows can share because the result does not depend on WHICH row is asking
+// — with ONE exception. `ownerOccurrence` is used for exactly one thing: it is
+// bound as `$this` so a predicate can reference the asking row
+// (`fields.category.value IS $this.fields.type.value`). A predicate that uses
+// it is NEVER cached. Measured before relying on it: 0 of 45 find-mode
+// predicates on poms grid reference `$this`, and 0 of 42 on test grid 2 — but
+// the guard is what makes that a fact about today's data rather than an
+// assumption baked into the code.
+//
+// Keyed the same way `enrichedRecords` is, and for the same reason: the OBJECT
+// IDENTITY of every map the answer derives from, plus the FIELD object (whose
+// identity changes when its predicate is edited, because the store replaces
+// `fieldsById`). NOTHING keys on a count or a length — a tree can be re-parented
+// or a value edited with the count unchanged, and a derived-scalar key would
+// serve the stale answer. A wrongly-keyed cache here fails SILENTLY, as zero
+// options in a dropdown (2026-07-07), which is why the invalidation cases are
+// tested by moving the world WITHOUT changing its size.
+const _resultCache = new WeakMap(); // occurrencesById → modulesById → field → result
+const _usesThisCache = new WeakMap(); // predicate object → boolean
+
+function predicateUsesThis(predicate) {
+  if (!predicate || typeof predicate !== "object") return false;
+  const hit = _usesThisCache.get(predicate);
+  if (hit !== undefined) return hit;
+  let uses = false;
+  try {
+    uses = JSON.stringify(predicate).includes("$this");
+  } catch {
+    uses = true; // unserialisable → assume it does, and never share it
+  }
+  _usesThisCache.set(predicate, uses);
+  return uses;
+}
+
+// Walks/creates the nested WeakMap chain. Returns the leaf holder.
+//
+// There is deliberately NO `fieldsById` level: the FIELD OBJECT is the leaf key,
+// and the store replaces that object whenever its content changes, so a level
+// keyed on the map it came from discriminates nothing. A/B'd — adding it back
+// fails zero tests, and a cache level nobody has watched catch anything is
+// exactly the kind of guard that gets trusted without earning it.
+function resultSlot(occurrencesById, modulesById) {
+  let byModules = _resultCache.get(occurrencesById);
+  if (!byModules) { byModules = new WeakMap(); _resultCache.set(occurrencesById, byModules); }
+  let byField = byModules.get(modulesById);
+  if (!byField) { byField = new WeakMap(); byModules.set(modulesById, byField); }
+  return byField;
+}
+
 function buildCollection(over, ctx) {
   const { occurrencesById = {}, modulesById = {}, fieldsById = {} } = ctx;
   const filter = COLLECTION_KEYS[over];
@@ -121,8 +178,25 @@ export function resolveOptions(field, ctx, ownerOccurrence = null) {
     // flat shape ({ mode: "find", over, predicate, ... }).
     const cfg = src.find || src;
     const over = cfg.over || "$allOccurrences";
-    const records = buildCollection(over, ctx);
     const predicate = cfg.predicate || { rules: [] };
+
+    // Shareable only when the answer does not depend on the asking row.
+    const shareable = !predicateUsesThis(predicate);
+    let slot = null;
+    if (shareable) {
+      const { occurrencesById, modulesById } = ctx || {};
+      // WeakMap keys must be objects; a caller passing a primitive or nothing
+      // simply does not get a cache rather than throwing.
+      if (occurrencesById && typeof occurrencesById === "object"
+          && modulesById && typeof modulesById === "object"
+          && field && typeof field === "object") {
+        slot = resultSlot(occurrencesById, modulesById);
+        const hit = slot.get(field);
+        if (hit) return hit;
+      }
+    }
+
+    const records = buildCollection(over, ctx);
     // Pass ownerOccurrence as $this so predicates can reference the instance
     // whose field is being resolved — e.g. `fields.category.value IS $this.fields.type.value`.
     const $vars = ownerOccurrence ? { $this: ownerOccurrence } : {};
@@ -160,7 +234,13 @@ export function resolveOptions(field, ctx, ownerOccurrence = null) {
     const limit = typeof cfg.limit === "number" && cfg.limit > 0 ? cfg.limit : 100;
     const options = deduped.slice(0, limit).map(({ _record, ...rest }) => rest);
 
-    return { options, totalMatched };
+    // Frozen because it is now SHARED across every row rendering this field —
+    // one caller mutating it would change what every other row sees. Every
+    // consumer today only reads (`.map` / `.find` / indexing); this makes that
+    // a guarantee rather than an audit.
+    const result = Object.freeze({ options: Object.freeze(options), totalMatched });
+    if (slot) slot.set(field, result);
+    return result;
   }
 
   return { options: [], totalMatched: 0 };

@@ -529,3 +529,97 @@ describe("resolveOptions — ancestor-scoped predicates (2026-07-07 regression)"
     });
   });
 });
+
+// ── Result cache ────────────────────────────────────────────────────────────
+// MEASURED on poms grid: 0 of 45 find-mode predicates reference `$this`, and
+// 772 occurrences each ran an INDEPENDENT scan over 7322 records producing one
+// of 45 distinct results. Sharing the result across rows is the whole win, so
+// the identity assertions below are the feature, not an implementation detail.
+describe("resolveOptions — find-mode result cache", () => {
+  const makeWorld = (label = "Apple") => {
+    const modulesById = { m1: { id: "m1", role: "instance", label } };
+    const occurrencesById = {
+      o1: { id: "o1", moduleId: "m1", fields: { tag: { value: "food" } } },
+      o2: { id: "o2", moduleId: "m1", fields: { tag: { value: "other" } } },
+    };
+    return { occurrencesById, modulesById, fieldsById: {}, foldersById: {} };
+  };
+  const makeField = () => ({
+    type: "occurrence",
+    meta: { optionsSource: { mode: "find", over: "$allOccurrences",
+      predicate: { rules: [{ left: "fields.tag.value", comparator: "IS", right: "food" }] } } },
+  });
+
+  it("returns the SAME object for the same field and maps (the cross-row win)", () => {
+    const ctx = makeWorld();
+    const field = makeField();
+    const a = resolveOptions(field, ctx, { id: "rowA" });
+    const b = resolveOptions(field, ctx, { id: "rowB" });
+    expect(a.options).toHaveLength(1);
+    expect(b).toBe(a);            // identity — not merely deep-equal
+    expect(b.options).toBe(a.options);
+  });
+
+  // THE INVALIDATION THAT A DERIVED-SCALAR KEY WOULD PASS. The occurrence COUNT
+  // is unchanged; only a field value moved. A cache keyed on a count or a length
+  // would serve the stale answer — the 2026-08-07 lesson, restated.
+  it("recomputes when occurrencesById is replaced, even at the same COUNT", () => {
+    const ctx = makeWorld();
+    const field = makeField();
+    const before = resolveOptions(field, ctx, null);
+    expect(before.options.map(o => o.value)).toEqual(["o1"]);
+
+    const next = {
+      ...ctx,
+      occurrencesById: {
+        o1: { id: "o1", moduleId: "m1", fields: { tag: { value: "other" } } },
+        o2: { id: "o2", moduleId: "m1", fields: { tag: { value: "food" } } },
+      },
+    };
+    const after = resolveOptions(field, next, null);
+    expect(after).not.toBe(before);
+    expect(after.options.map(o => o.value)).toEqual(["o2"]);
+  });
+
+  it("recomputes when modulesById is replaced (a rename must not serve a stale label)", () => {
+    const ctx = makeWorld("Apple");
+    const field = { ...makeField() };
+    field.meta.optionsSource.labelPath = "label";
+    const before = resolveOptions(field, ctx, null);
+    expect(before.options[0].label).toBe("Apple");
+
+    const renamed = { ...ctx, modulesById: { m1: { id: "m1", role: "instance", label: "Banana" } } };
+    const after = resolveOptions(field, renamed, null);
+    expect(after).not.toBe(before);
+    expect(after.options[0].label).toBe("Banana");
+  });
+
+  it("recomputes when the FIELD object is replaced (its predicate was edited)", () => {
+    const ctx = makeWorld();
+    const before = resolveOptions(makeField(), ctx, null);
+    const edited = {
+      type: "occurrence",
+      meta: { optionsSource: { mode: "find", over: "$allOccurrences",
+        predicate: { rules: [{ left: "fields.tag.value", comparator: "IS", right: "other" }] } } },
+    };
+    const after = resolveOptions(edited, ctx, null);
+    expect(after).not.toBe(before);
+    expect(after.options.map(o => o.value)).toEqual(["o2"]);
+  });
+
+  // CORRECTNESS OVER SPEED. `$this` is the ONE thing that makes the result
+  // depend on WHICH row is asking, so a predicate using it is never shared.
+  it("does NOT cache a predicate that references $this", () => {
+    const ctx = makeWorld();
+    const field = {
+      type: "occurrence",
+      meta: { optionsSource: { mode: "find", over: "$allOccurrences",
+        predicate: { rules: [{ left: "fields.tag.value", comparator: "IS", right: "$this.fields.want.value" }] } } },
+    };
+    const a = resolveOptions(field, ctx, { id: "rowA", fields: { want: { value: "food" } } });
+    const b = resolveOptions(field, ctx, { id: "rowB", fields: { want: { value: "other" } } });
+    expect(a).not.toBe(b);
+    expect(a.options.map(o => o.value)).toEqual(["o1"]);   // rowA wants food
+    expect(b.options.map(o => o.value)).toEqual(["o2"]);   // rowB wants other
+  });
+});
