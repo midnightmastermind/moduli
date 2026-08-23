@@ -18,6 +18,24 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
   filter field `Date`; moved to a `Saved` field. Board went 0 rows → 14,670 elements.
 - **Item 5 (font sizes) retired by measurement** — see the row below, marked stale.
 
+### Closed 2026-08-23 (evening)
+
+- **The instance notes body is a `Notes` FIELD now** — *"could you make that an automatic
+  thing like our question and answer. could you let the instances child textmap be a notes
+  field on them."* It reuses `bodyLink`, the mechanism the Daily Question ↔ Answer pair
+  already ships. `grid.meta.instanceBodyLink` is the automatic half — a GRID-level default
+  rather than a binding written onto 1021 instance modules, because "every X" in a migration
+  means every X that existed when it ran. `0212` + the seed are twins.
+- **NOTHING was stranded**, measured through `decompressTextmap`: of 1145 instance
+  occurrences exactly 1 carried a textmap and it held **0 characters**.
+- **It declares NO `link`, deliberately** — a link is the JOIN identity for sync, and every
+  instance row carries this same field, so one would paste a row's note onto every row
+  sharing the link value. Verified on prod: a typed note lands on **1** occurrence.
+- **I TOOK PROD DOWN for ~7 minutes** with `ReferenceError: ctxGrid is not defined` — a
+  variable belonging to `InstanceInner` used in the outer `ModuleInstance`. Tests AND the
+  build both passed (no test mounts that component; a build resolves imports, not undefined
+  locals). **`npm run lint` catches it and always could** — see the new standing rule.
+
 ### Closed 2026-08-23 (late afternoon)
 
 - **C4 — `meta.increment` and `meta.multiline` are WIRED, not dropped.** Measuring the values
@@ -48,6 +66,7 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 
 | # | Item | State |
 |---|------|-------|
+| 22 | **`npm run lint` exits non-zero on clean code** — 6 pre-existing `react-hooks/exhaustive-deps` "rule not found" errors (the plugin is referenced but not registered), which is very likely why nobody runs it. That matters now: lint is the ONLY check that catches an undefined local, and it caught the `ctxGrid` crash exactly. Registering the plugin would also surface the 33 documented `exhaustive-deps` violations, so it is your call whether to fix the config, silence that rule, or leave `grep no-undef` as the usable signal | ❓ your call |
 | 21 | ~~**What window should the `Completed` container use?**~~ — **DECIDED 2026-08-23: leave it UNWINDOWED, and invent no dates.** The mechanism is now in place either way (`0210`/`0211`, `Completed On` proven to populate on prod), so a window is a one-migration change whenever it is wanted. The three rows ticked while the op was dead stay unstamped rather than being backfilled with a completion date that is not true | ✅ decided, declined |
 | 20 | **A general "relink unlisted children" repair is UNSAFE — measured and abandoned.** Saturday Aug 22's day column is parented to the Day Page board and not listed by it (empty, so nothing was lost), and an unlisted column is what lets `Day Page: Build` mint a duplicate for that date. But the obvious general fix — adopt any child whose `parentId` names a parent that does not list it — matches **265 children across 16 parents**, and **232 of those have `page/doc` parents where being absent from `occurrences[]` is CORRECT** (a doc renders its textmap). It would also relink 8 old day columns that were deliberately swept from the board. Named expectation was 1; the dry run said 265, so nothing was applied. A safe version needs "board-kind parent AND not reachable through the parent's textmap", and the old-columns half is the still-open question from 2026-08-13 (3) — do past day columns belong back on the board? | ❓ your call, selector measured |
 | 19 | ~~**A task you ever SCHEDULED disappears from the Tasks page forever**~~ — **RETRACTED 2026-08-23. My figure of "7 of 20 hidden" was wrong: I computed visibility by hand instead of driving `isOccurrenceVisible`.** Through the REAL selector over live data: the Tasks page's `filterOverride: {}` **CLEARS the effective filter outright** (an empty override is not "inherit" — `selectors.js:335`), so the page is already not date-filtered, which is what the user asked for. **18 of 20 rows are visible.** The 2 that are not — `Talk to Angela` (completed) and `Sign up for peer support mentor class` (incomplete, overdue) — resolve an effective filter of `{Date: today}` **because they are MULTI-PARENTED** (Tasks *and* a day-column Todo) and `getEffectiveFilterForOccurrence` walks a parent map that is last-writer-wins, so their chain resolves through the dated column instead of through Tasks. That is the 2026-08-11 (4) ambiguity, not a Tasks-page defect. Fixing it means changing how a multi-parented occurrence picks its filter chain — a core selector, its own reviewed pass | 📋 retracted; 1 real row, different cause |

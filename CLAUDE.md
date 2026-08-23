@@ -6,6 +6,127 @@
 
 ---
 
+### 2026-08-23 (6) — the notes body became a FIELD; and I TOOK PROD DOWN with a variable from the other function
+
+User: *"could you make that an automatic thing like our question and answer. could
+you let the instances child textmap be a notes field on them."*
+
+**THE MECHANISM ALREADY SHIPPED AND ONE SURFACE NEVER USED IT.** `bodyLink` is
+what makes the Daily Answer's editor write into a FIELD instead of the
+occurrence's own textmap — 26 modules carry one, every one a `Daily Answer`. The
+instance notes body ("Show notes") rendered `DocContent` over
+`occurrence.textmap`, so whatever was typed there was unreachable by operations,
+field pills and search. This points it at the same mechanism.
+
+**NOTHING WAS STRANDED, and that is measured at FULL DEPTH rather than assumed.**
+```
+instance occurrences        1145
+  carrying a textmap           1     `Cook`
+  carrying any TEXT            0     <- read through decompressTextmap
+`Notes` field              exists    XRf7_mPqrd26, bound by 0 modules, 0 values
+```
+A raw scan reports "no text" for every row on the grid — textmaps are stored
+COMPRESSED — so the count means nothing until it is decompressed. That is the
+`0032` rule, and here it is what made the migration safe rather than a guess.
+
+**IT IS A GRID-LEVEL DEFAULT, NOT A BINDING ON 1021 INSTANCE MODULES.** *"Every
+X"* in a migration means every X that existed when it ran, so a module minted
+next month would silently miss it — the `0043` / `0064` / `0120` class this repo
+keeps paying for. One key covers every instance that will ever exist, and a
+module or occurrence binding still overrides it.
+
+**IT DECLARES NO `link`, AND THAT IS THE LOAD-BEARING DECISION.** A binding's
+`link` is the JOIN identity for cross-occurrence sync — Daily Answer links on the
+DATE so a day's answers stay in step. Reusing that here would be **data
+destruction**: every instance row carries this same field, so typing a note on
+one row would paste it onto every other row sharing the link value.
+`findLinkedSiblings` refuses a link-less binding outright.
+
+**AND THE GRID DEFAULT IS OPT-IN AT THE CALL SITE, which is its whole safety.**
+`ModuleTextblock` resolves its body through the SAME function; a default read
+from the grid inside the resolver would replace all 1161 textblock bodies with an
+empty field — their text IS their own textmap, and nothing would render it.
+
+**MY FIRST GUARD TEST DID NOT DISCRIMINATE, and the A/B is the only reason I
+know.** With `link` undefined the ordinary path already bails on
+`linkVal == null`, so a plain fixture passes with or without the guard — 37/37
+green against the mutation. The shape where the guard bites is real rather than
+contrived: **`fields[undefined]` is stored under the STRING key `"undefined"`,
+and reading `fields[link]` with link undefined FINDS it** — so an occurrence
+carrying that key makes every other one a sibling. Rewritten to that, it fails
+for exactly its own reason, with a control proving the same fixture DOES match
+once a link is declared.
+
+---
+
+**AND THEN I SHIPPED A `ReferenceError` AND EVERY PANEL ON PROD CRASHED.**
+`ModuleInstance.jsx` holds TWO components — `InstanceInner` (line 89), which
+declares `ctxGrid`, and the outer `ModuleInstance` wrapper (line 1012), where I
+put the new memo. It read a variable belonging to the other function.
+
+**THE TEST SUITE PASSED AND THE BUILD PASSED, AND BOTH ARE THE DOCUMENTED REASON
+THIS CLASS SURVIVES.** No test mounts `ModuleInstance` — its own header says why
+(1300 lines, needs the whole grid store) — and **a build resolves IMPORTS, not
+undefined locals.** 2026-08-01 (6) records this exact shape (`watchRegion is not
+defined`) and the rule it wrote was *"run `npm run build` before deploying a
+cross-module edit"* — which is precisely the check that cannot see it.
+
+**`npm run lint` CATCHES IT, AND THE GUARD WAS ALREADY THERE.** Verified by
+reintroducing the defect rather than assuming:
+```
+with the defect    1109:40  error  'ctxGrid' is not defined   no-undef
+after the fix      (gone)
+```
+`no-undef: "error"` has been in `client/eslint.config.mjs` since the 2026-07-14
+dead-code pass. **THE STANDING RULE IS THEREFORE WRONG AND IS REPLACED: run
+`npm run lint` on every file you edited before deploying — the build cannot see
+an undefined local, and the test suite does not mount this component.**
+*Reported, not fixed:* lint exits non-zero on clean code (6 pre-existing
+`react-hooks/exhaustive-deps` "rule not found" errors), which is very likely why
+nobody runs it — `grep no-undef` is the usable signal until that config is fixed.
+
+**THE ON-SCREEN TEXT WAS IDENTICAL IN BOTH STATES, and only the CONSOLE told the
+truth.** The crashed page and the healthy page produced the same `innerText`
+(toolbar, grid name, 48 slot labels), so a text-based probe would have reported
+success. My first probe read `.container-shell` and got **0** — and I nearly
+called that a selector problem; the class tally is what showed
+`lucide-triangle-alert` + `refresh-cw` and named it an error boundary. *A probe
+that reports zero is a claim about the probe — until you ask what IS on screen.*
+
+**The fix is not just scope.** The outer wrapper deliberately subscribes only to
+slices that are `Object.is`-stable across unrelated writes — it is mounted once
+per row, and `grid` changes identity on every write, so subscribing to it would
+re-render every instance whenever anything moved. It takes the field-id STRING,
+the same pattern the file already uses for `linkedGroupCount` and the activeId
+BOOLEAN; `resolveInstanceBodyBinding` therefore takes the RESOLVED default rather
+than the grid.
+
+**VERIFIED BY DRIVING IT ON PROD, and the fan-out check is the one that matters:**
+```
+114 instance rows on screen · 68 body buttons
+body shape   boundEditor TRUE   plainDocEditor FALSE   badge "Notes"
+             placeholder "Add notes..."   <- data-driven from the field's own meta
+typed a note -> occurrences carrying it: 1     <- never more, out of 1145
+page errors 0 · probe note swept · Notes values back to 0
+```
+The badge reads `Notes`, not `Broken link: Notes` — a link-less binding is
+per-occurrence BY DESIGN, and calling that broken tells the user something is
+wrong with a body working exactly as authored. Third state, not two.
+
+`0212` and the seed are twins written in the same pass so a fresh grid and a
+migrated grid cannot drift. Resolved by name AND TYPE, refusing if ambiguous
+(this grid carries duplicate field names); `Person Notes` is untouched.
+Rehearsed on test grid 2, forced re-run reports *"already points at Notes"*.
+Four A/Bs, each mutation asserted to LAND first. 3165 client + 1324 server tests,
+poms grid **0 errors**, prod HEAD verified, `PagePreviewApp` chunk sha256-identical
+with the new key present and `Broken link` reading 2 as the control.
+
+**REPORTED, NOT FIXED:** `checkGrid` still lists `Notes` under `unused-field` —
+it counts bindings, values and operation references, and cannot see a field
+referenced from `grid.meta`. It becomes "used" the moment anyone types a note.
+
+---
+
 ### 2026-08-23 (5) — THE NUMBER INPUT ASKED FOR A KEY NOTHING WRITES, so every field stepped by 1
 
 The operations-UI audit's item C4 filed `meta.increment` and `meta.multiline` as
