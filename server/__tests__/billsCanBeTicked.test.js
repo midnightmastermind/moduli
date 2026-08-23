@@ -40,3 +40,20 @@ describe("planBindingAppend", () => {
     expect(orig).toHaveLength(1);
   });
 });
+
+describe("planBindingAppend — the options 0211 reuses", () => {
+  it("defaults to a VISIBLE input, so 0208 is byte-identical", () => {
+    expect(planBindingAppend([], C)[0]).toEqual({ fieldId: C, order: 0, role: "input", hidden: false });
+  });
+
+  it("can bind HIDDEN metadata — what `Completed On` needs", () => {
+    // 0211 binds `Completed On` to 202 modules; a visible date pill on all of
+    // them would be a change nobody asked for. The 14 existing bindings are all
+    // `role: "input", hidden: true`, and this copies that exactly.
+    expect(planBindingAppend([], C, { role: "input", hidden: true })[0].hidden).toBe(true);
+  });
+
+  it("still refuses to duplicate, whatever the options", () => {
+    expect(planBindingAppend([{ fieldId: C }], C, { hidden: true })).toBeNull();
+  });
+});

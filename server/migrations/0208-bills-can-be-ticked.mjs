@@ -40,12 +40,17 @@ export const description =
 
 export const BILLS_PAGE_LABEL = "Bills";
 
-/** Append a binding unless the module already has one for that field. PURE. */
-export function planBindingAppend(bindings, fieldId) {
+/**
+ * Append a binding unless the module already has one for that field. PURE.
+ * `opts` defaults to a VISIBLE input, which is what a bill's checkbox has to be;
+ * `0211` reuses this for hidden metadata rather than writing a second copy.
+ */
+export function planBindingAppend(bindings, fieldId, opts = {}) {
+  const { role = "input", hidden = false } = opts;
   const list = Array.isArray(bindings) ? bindings : [];
   if (list.some((b) => b?.fieldId === fieldId)) return null;      // already bound
   const maxOrder = list.reduce((m, b) => Math.max(m, Number(b?.order) || 0), -1);
-  return [...list, { fieldId, order: maxOrder + 1, role: "input", hidden: false }];
+  return [...list, { fieldId, order: maxOrder + 1, role, hidden }];
 }
 
 export async function up({ gridId, models, log, dryRun }) {
