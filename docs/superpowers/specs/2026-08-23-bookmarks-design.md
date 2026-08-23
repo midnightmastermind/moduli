@@ -168,11 +168,11 @@ away.
 The strip carries an explicit toggle, so neither mode is a hidden state:
 
 ```
-┌──────────────────────────────────────────────────┐
-│ ‹ ›  wikipedia.org/wiki/Main_Page  [Reader|Web] ⋮ │  <- ours
-├──────────────────────────────────────────────────┤
-│                                                   │
-└──────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│ ‹ ›  wikipedia.org/…  [Reader|Web|Archive]  ✂  ⋮         │  <- ours
+├──────────────────────────────────────────────────────────┤
+│                                                           │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ### "If possible" is doing real work — measured
@@ -326,10 +326,10 @@ rows.
    send the framing headers the original sites do — worth measuring rather than
    assuming when it is built.
 
-   Open question for then: whether Archive should be *offered* always, or only
-   once the live fetch fails. Offering it always is one more button on every
-   bookmark; offering it on failure hides it exactly when someone is browsing
-   old links deliberately.
+   **A PEER BUTTON, always present** — *"make that next to reader mode and web
+   mode"*. Not a fallback that appears only when the live fetch fails: hiding it
+   until something breaks would hide it exactly when someone is deliberately
+   browsing old links.
 
 ---
 
