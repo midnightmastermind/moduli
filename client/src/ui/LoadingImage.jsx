@@ -21,6 +21,17 @@ import { Spinner } from "../components/ui/spinner";
 // event never fires again. Without this check a re-opened dropdown — every
 // picture already in cache — would spin forever on images that are right there.
 //
+// ── `fallback` IS A REPLACEMENT, AND THAT IS THE EXCEPTION TO THE RULE ABOVE ─
+// The status is an overlay so the frame never resizes mid-load. A `fallback` is
+// different in kind: it is not a transient state, it is the final answer that
+// this picture does not exist. A caller with something better to draw than a
+// broken-image glyph — a bookmark that still has its own 📄 thumbnail — says so
+// here, and gets it INSTEAD of the img. Nothing reflows twice, because the
+// image never arrives.
+//
+// It is opt-in: without one, a dead image still says so, which is the whole
+// point of this component.
+//
 // `frameStyle` positions the status: the wrapper is what `inset: 0` resolves
 // against, so a caller that wants the overlay centred on the picture gives the
 // wrapper the picture's box. `display: contents` opts out entirely and lets an
@@ -36,6 +47,7 @@ export default function LoadingImage({
   spinnerSize = "sm",
   errorSize = 14,
   title,
+  fallback = null,
 }) {
   const ref = useRef(null);
   const [state, setState] = useState("loading");
@@ -45,6 +57,9 @@ export default function LoadingImage({
     const el = ref.current;
     if (el && el.complete) setState(el.naturalWidth > 0 ? "ok" : "error");
   }, [src]);
+
+  // After every hook, never before one.
+  if (state === "error" && fallback) return fallback;
 
   return (
     <span className="img-load-wrap" style={frameStyle}>
