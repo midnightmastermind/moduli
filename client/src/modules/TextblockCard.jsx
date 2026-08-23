@@ -52,6 +52,22 @@ export default function TextblockCard({ occurrence, module }) {
   const isInline = module?.kind === "inline";
   const link = resolveLink(occurrence, module);
 
+  // ── HOISTED ABOVE THE LINK EARLY-RETURN (2026-08-23) ──────────────────────
+  // These two hooks used to sit BELOW `if (link …) return <chip>`, so a
+  // textblock rendered FOUR hooks as prose and TWO as a link chip. That is only
+  // safe if a given textblock can never change which it is — and it can:
+  // `helpers/convertRelink` writes `meta.link` onto EXISTING chips when a page
+  // is imported, and `resolveLink` reads exactly that. React refuses a changing
+  // hook count ("Rendered fewer hooks than during the previous render"), so a
+  // relink would have crashed every textblock it touched.
+  //
+  // Hoisting is free: `eager` short-circuits the memo to `[]` for a chip, and
+  // `useLazyEditor` with `eager: true` mounts nothing and observes nothing.
+  const hasContent = !!(occurrence?.textmap && typeof occurrence.textmap === "object");
+  const eager = isInline || !!link || !hasContent;
+  const blocks = useMemo(() => (eager ? [] : textmapBlocks(occurrence.textmap)), [eager, occurrence?.textmap]);
+  const { live, ref: cardRef, goLive } = useLazyEditor({ eager, occurrenceId: occurrence?.id });
+
   // Block-wrap (project_block_wrap_redesign): when this textblock is a wrapGroup
   // HOST, the wrap CSS clips `.textblock-card` to the L via the `--wrap-host-clip`
   // var WrapGroupNode measures from the floated neighbor — no work needed here.
@@ -117,11 +133,6 @@ export default function TextblockCard({ occurrence, module }) {
   // The observer/eager/registration logic lives in helpers/lazyEditor so the doc
   // BLOCK path can share it rather than growing a second copy.
   // Inline chips + empty blocks mount eagerly: small, and editable immediately.
-  const hasContent = !!(occurrence?.textmap && typeof occurrence.textmap === "object");
-  const eager = isInline || !hasContent;
-  const blocks = useMemo(() => (eager ? [] : textmapBlocks(occurrence.textmap)), [eager, occurrence?.textmap]);
-  const { live, ref: cardRef, goLive } = useLazyEditor({ eager, occurrenceId: occurrence?.id });
-
   if (!live) {
     return (
       <div

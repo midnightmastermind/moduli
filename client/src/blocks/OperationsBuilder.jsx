@@ -805,10 +805,27 @@ function IfStep({ step, onUpdate, onRemove, fields, varOptions, localVars = [], 
 }
 
 // ---- Action Config (field config rendered below action type) ----
-function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [] }) {
+// Exported for the hook-order regression test: mounting the whole editor needs
+// the grid store, and the defect lived in THIS component's hook count.
+export function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars = [], modulesById, occurrencesById, fieldsById, operationsById, sources = [] }) {
   const allContainers = useMemo(() => Object.values(modulesById).filter(m => m.role === "container"), [modulesById]);
   const allInstances = useMemo(() => Object.values(modulesById).filter(m => m.role === "instance"), [modulesById]);
   const allOps = useMemo(() => Object.values(operationsById), [operationsById]);
+  // HOISTED OUT OF `case "FIND"` (2026-08-23). It lived inside the switch, so
+  // this component called FOUR hooks for a FIND step and THREE for every other
+  // kind — and `<ActionConfig>` is rendered WITHOUT a key, so React reuses the
+  // instance when you change a step's action type. Changing a step to or from
+  // FIND therefore threw "Rendered fewer hooks than during the previous
+  // render" and took the operations editor down. Changing an action type is a
+  // thing the editor explicitly supports (it deliberately KEEPS the config —
+  // CLAUDE.md 2026-08-19), so this was reachable by ordinary use.
+  //
+  // Computing it for every action type is free: `buildRecordKeyPickerConfig`
+  // is a pure lookup, and only the FIND branch reads the result.
+  const leftConfig = useMemo(
+    () => buildRecordKeyPickerConfig(cfg?.over || "$allOccurrences"),
+    [cfg?.over]
+  );
 
   const fl = text => <span style={labelSt}>{text}</span>;
   // Centralized props for the path-aware expression input.
@@ -913,7 +930,6 @@ function ActionConfig({ actionType, cfg, setCfg, fields, varOptions, localVars =
       // by `cfg.over` — picked values are bare record keys (no $-prefix). The
       // executor evaluates each rule against the current record during
       // iteration, so authors never type or pick `$item.X` in the editor.
-      const leftConfig = useMemo(() => buildRecordKeyPickerConfig(over), [over]);
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={rowStyle}>

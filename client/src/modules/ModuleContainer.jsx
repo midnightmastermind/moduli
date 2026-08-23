@@ -870,8 +870,23 @@ function Container({
   // page PreviewNode pattern and doesn't apply at the inline container
   // level — falls through to Actual here.
   const containerViewMode = getEffectiveViewMode(containerOccurrence, "default");
-  if (containerViewMode === "representation") {
-    return (
+  // ── THE RETURN MOVED BELOW THE HOOKS (2026-08-23) ────────────────────────
+  // This was an early `return`, and TWO hooks sit below it — so a container
+  // rendered N hooks as a representation chip and N+2 as itself. That is only
+  // safe if a mounted container can never change mode, and it CAN: the
+  // view-mode switcher in the header dropdown writes `meta.viewMode` on the
+  // occurrence and `getEffectiveViewMode` reads exactly that. React refuses a
+  // changing hook count, so toggling a container to or from Representation
+  // crashed it — the same class that crashed BoundHeader (2026-08-11) and the
+  // operations editor (same day as this).
+  //
+  // The JSX is captured here and returned after the last hook. Nothing in
+  // between is a hook or a side effect — the span is `const`s and function
+  // definitions (checked with the linter, which reports hooks only at the two
+  // sites below) — so representation mode now builds a few closures it does not
+  // use. That is the price of correct hook order, and it is cheap.
+  const representationView = containerViewMode !== "representation" ? null : (
+
       <div
         data-container-id={module.id}
         data-occ-id={containerOccurrence?.id}
@@ -884,8 +899,8 @@ function Container({
           onJump={() => jumpToOccurrence(containerOccurrence?.id)}
         />
       </div>
-    );
-  }
+  );
+
 
   // Build the container context menu at a given screen point. Called by the
   // mouse handler (right-click) AND the touch long-press hook.
@@ -1007,6 +1022,9 @@ function Container({
       color: "bg-teal-700 hover:bg-teal-600",
     }));
   }, [module, containerOccurrence, dispatch, socket]);
+
+  // Deferred from above, now that every hook has run.
+  if (representationView) return representationView;
 
   return (
     <div
