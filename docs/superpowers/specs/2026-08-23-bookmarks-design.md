@@ -261,3 +261,58 @@ rows.
 5. The board, with covers from the export only
 6. The image search for the 437, as its own re-runnable pass
 7. Right-click → open-in-panel (panel picker) and import-as-page
+8. **The browser extension** — see below
+
+---
+
+## 8. The browser extension
+
+**User:** *"add a windows menu shortcut so i can right click on the stuff inside
+the iframe"* / *"ive seen raindrop do this"* / *"how does raindrop get away with
+it"*.
+
+**Windows has nothing to do with it, and that is the useful correction.** The
+Windows shell context menu only appears over Explorer and the desktop. What
+appears over a web page is the BROWSER's menu — styled to look native on
+Windows, which is why "Save to Raindrop.io" reads like a shell item. It is an
+entry Raindrop's EXTENSION contributes through `chrome.contextMenus`.
+
+**And that is exactly why it works inside an iframe.** An extension declares
+`"all_frames": true` with host permissions, so its content script is injected
+INTO the framed document — it is a resident of that page, not an outsider
+reaching in. Our parent page is the outsider, which is why it gets
+`SecurityError` on `contentWindow.getSelection()`.
+
+So the extension is not a workaround for the thing we could not build. It is the
+same thing Raindrop does, and the only design that could ever have worked.
+
+**It also makes the iframe less load-bearing.** Clipping from any tab is more
+useful than clipping from a panel, so the in-app view becomes a convenience
+rather than the only route to capture. Worth knowing before spending on it.
+
+### The menu
+
+| context | action |
+|---|---|
+| selected text | → textblock |
+| the page | → bookmark (title, url, og:image) |
+| a link | → bookmark, without visiting it |
+| an image | → artifact |
+
+### Where a clip lands
+
+**The `Imports` folder** — it already exists (`efefe286-…`) with a shared
+find-or-create helper (`helpers/importsFolder.js`), so this reuses the
+destination every other intake path uses rather than inventing one. Opening a
+clip afterwards targets a panel the user picks, the same secondary menu the
+bookmark rows use.
+
+### The receiving end already exists
+
+`POST /api/v1/ingest` — token auth with scopes, idempotent on
+`(source, externalId)`, batches of up to 200, 18 tests, and a written guide
+whose own worked example is a Raindrop bookmark. The extension is a thin client
+over an endpoint that already works; it needs no tab open and no socket.
+
+**Chrome/Edge and Firefox both** — one codebase, two manifests. The difference
+is the background service worker vs event page model.
