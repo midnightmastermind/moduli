@@ -277,6 +277,16 @@
      wash: for stardew that resolves to about rgb(120,76,33) against a
      rgb(164,157,133) surface. Dark themes do not set this and keep the wash. */
   --occ-pill-border: color-mix(in srgb, rgb(var(--occ-pill)) 55%, hsl(var(--foreground-1)));
+  /* THE FILTER PILL'S INK, darkened for a light surface (2026-08-23).
+     User: "on the star dew theme, the filter text colors cant be seen at all."
+     `HeaderChevron` painted rgba(80,150,100,.85) text on a rgba(80,150,100,.10)
+     fill — the ink and the fill were the SAME HUE, which reads on a dark surface
+     and vanishes on cream. Same shape as the 2026-08-19 (7) value-pill fix, which
+     never reached these because they were hardcoded RGB rather than tokens.
+     The FILL and RING are untouched: the pill still reads green/red, only the
+     text darkens. Dark themes define none of this and stay byte-identical. */
+  --filter-pill-ink: color-mix(in srgb, rgb(80 150 100) 45%, black);
+  --filter-pill-ink-off: color-mix(in srgb, rgb(170 90 90) 45%, black);
   --occ-pill-text: hsl(var(--foreground-1));
   --figure-well: 12 53 70;
 
@@ -539,6 +549,16 @@
      wash: for stardew that resolves to about rgb(120,76,33) against a
      rgb(164,157,133) surface. Dark themes do not set this and keep the wash. */
   --occ-pill-border: color-mix(in srgb, rgb(var(--occ-pill)) 55%, hsl(var(--foreground-1)));
+  /* THE FILTER PILL'S INK, darkened for a light surface (2026-08-23).
+     User: "on the star dew theme, the filter text colors cant be seen at all."
+     `HeaderChevron` painted rgba(80,150,100,.85) text on a rgba(80,150,100,.10)
+     fill — the ink and the fill were the SAME HUE, which reads on a dark surface
+     and vanishes on cream. Same shape as the 2026-08-19 (7) value-pill fix, which
+     never reached these because they were hardcoded RGB rather than tokens.
+     The FILL and RING are untouched: the pill still reads green/red, only the
+     text darkens. Dark themes define none of this and stay byte-identical. */
+  --filter-pill-ink: color-mix(in srgb, rgb(80 150 100) 45%, black);
+  --filter-pill-ink-off: color-mix(in srgb, rgb(170 90 90) 45%, black);
   --occ-pill-text: hsl(var(--foreground-1));
   --figure-well: 179 166 143;
 
@@ -6820,6 +6840,16 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
      wash: for stardew that resolves to about rgb(120,76,33) against a
      rgb(164,157,133) surface. Dark themes do not set this and keep the wash. */
   --occ-pill-border: color-mix(in srgb, rgb(var(--occ-pill)) 55%, hsl(var(--foreground-1)));
+  /* THE FILTER PILL'S INK, darkened for a light surface (2026-08-23).
+     User: "on the star dew theme, the filter text colors cant be seen at all."
+     `HeaderChevron` painted rgba(80,150,100,.85) text on a rgba(80,150,100,.10)
+     fill — the ink and the fill were the SAME HUE, which reads on a dark surface
+     and vanishes on cream. Same shape as the 2026-08-19 (7) value-pill fix, which
+     never reached these because they were hardcoded RGB rather than tokens.
+     The FILL and RING are untouched: the pill still reads green/red, only the
+     text darkens. Dark themes define none of this and stay byte-identical. */
+  --filter-pill-ink: color-mix(in srgb, rgb(80 150 100) 45%, black);
+  --filter-pill-ink-off: color-mix(in srgb, rgb(170 90 90) 45%, black);
   --occ-pill-text: hsl(var(--foreground-1));
   --figure-well: 217 187 143;
 

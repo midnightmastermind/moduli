@@ -9,9 +9,27 @@ import { summarizeSelection } from "./filterSummary";
 // active: any filter is effectively applied at this occurrence
 // deactivated: occurrence has filters declared but all are muted / cleared
 // none: no filter touches this occurrence — render default
+// ── THE INK AND THE FILL WERE THE SAME HUE ─────────────────────────────────
+//
+// User, 2026-08-23: *"on the star dew theme, the filter text colors cant be seen
+// at all."* Measured on the live grid: the pill rendered
+// `color: rgba(80,150,100,0.85)` over `background: rgba(80,150,100,0.10)` — green
+// ink on a 10% tint of ITSELF. Over a dark surface that reads fine; over
+// Stardew's cream it composites to roughly rgb(103,161,115) on rgb(231,226,200)
+// and all but disappears.
+//
+// This is the defect 2026-08-19 (7) fixed one control over, where `moduli-light`'s
+// green ink was `--signal-pos` EXACTLY — "guaranteed illegible, by construction,
+// on any light surface". These were hardcoded RGB rather than tokens, so that
+// pass never reached them.
+//
+// TOKENS NOW, WITH TODAY'S VALUES AS THE FALLBACK — every dark theme is
+// byte-identical by construction, and only the three light themes override the
+// ink (index.css). The FILL and RING stay put: the pill should still read as
+// green/red, it is only the text that has to darken.
 const STATE_COLOR = {
-  active:      "rgba(80, 150, 100, 0.85)",  // muted green
-  deactivated: "rgba(170, 90, 90, 0.85)",   // muted red
+  active:      "var(--filter-pill-ink, rgba(80, 150, 100, 0.85))",
+  deactivated: "var(--filter-pill-ink-off, rgba(170, 90, 90, 0.85))",
   none:        null,
 };
 
@@ -154,8 +172,8 @@ export default function HeaderChevron({ onClick, isOpen, occurrence = null }) {
             fontSize: 9, lineHeight: 1, whiteSpace: "nowrap",
             fontFamily: "var(--font-mono)",
             color: STATE_COLOR.active,
-            background: "rgba(80, 150, 100, 0.10)",
-            border: `1px solid rgba(80, 150, 100, 0.25)`,
+            background: "var(--filter-pill-bg, rgba(80, 150, 100, 0.10))",
+            border: "1px solid var(--filter-pill-ring, rgba(80, 150, 100, 0.25))",
             borderRadius: 999,
             cursor: "pointer", userSelect: "none",
           }}
