@@ -22,6 +22,7 @@
 //          extractFieldValuesFiltered, executeActionItem
 // ============================================================
 
+import { pickReusableModuleId, stampCloneOrigin } from "./cloneModuleReuse";
 import { applyAggregation, extractFieldValues } from "./CalculationHelpers";
 import { applyUpdate, substituteTextmapTokens } from "./applyUpdate";
 import { slotsCovered } from "./slotSpan";
@@ -3253,7 +3254,19 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           }
         }
 
-        const cloneModId = newId();
+        // ── ONE MODULE, MANY OCCURRENCES — the premise, at the clone site ────
+        // This minted a FRESH module for every clone, so `Day Page: Build` made
+        // a new Journal / Notes / Tasks Completed module every morning: 924
+        // modules across 198 signatures on the live grid that should be 198.
+        // The first apply still mints (the SOURCE is a template and must not be
+        // placed); it stamps `clonedFromModuleId`, and every later apply of the
+        // same node reuses it. See helpers/cloneModuleReuse.js for why a renamed
+        // root, a renamed clone, and a trashed one are all refused.
+        const reusedModId = pickReusableModuleId({
+          modulesById, srcModId, srcMod,
+          isRoot, rootLabelOverride: (isRoot && rootLabelOverride) ? rootLabelOverride : null,
+        });
+        const cloneModId = reusedModId || newId();
         const cloneOccId = newId();
         occRemap.set(srcOccId, cloneOccId);
         if (srcModId) modRemap.set(srcModId, cloneModId);
@@ -3289,7 +3302,9 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         }
 
         // Strip templateModule marker on apply, attach appliedFromTemplateId on root
-        const newModuleMeta = { ...(srcMod.meta || {}), templateModule: false };
+        // Stamped so the NEXT apply of this template node can find and reuse
+        // this module instead of minting another.
+        const newModuleMeta = stampCloneOrigin({ ...(srcMod.meta || {}), templateModule: false }, srcModId);
         const newOccMeta = isRoot
           ? { ...(srcOcc.meta || {}), appliedFromTemplateId: templateRef }
           : { ...(srcOcc.meta || {}) };
