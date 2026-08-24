@@ -72,9 +72,31 @@ guard earning its keep: a build resolves imports but not undefined locals, and n
 test mounts these components. TDZ checked too (the deps are declared at 99-101,
 the effect at 329).
 
-**REPORTED, NOT FIXED: 4 of 11 search providers return a bare name.** All 11 are
-enabled; Supplement (DSLD, shipped an hour earlier), Podcasts Listened, Song and
-Purchase Item carry NO field map.
+**THE 4 UNMAPPED SEARCH PROVIDERS ARE UNMAPPABLE TODAY, and measuring is what
+says so.** All 11 are enabled; Supplement (DSLD), Podcasts Listened (iTunes),
+Song (MusicBrainz) and Purchase Item (Open Food Facts) carry no field map — and
+authoring one for any of them would ship something inert or wrong:
+```
+Song           MB gives Artist/Released/Type      Artist + Album are type OCCURRENCE
+Purchase Item  OFF gives Brand/Categories/Quantity Quantity is a NUMBER; OFF sends "454 g"
+Supplement     DSLD gives Brand/Form/Ingredients…  none of those fields EXIST on the grid
+Podcasts       iTunes gives Publisher/Genre/…      none of those fields EXIST on the grid
+```
+**`occurrence` is not in `WRITABLE_TYPES`** (text/number/duration/select/rating/
+address/date), so mapping MusicBrainz's `Artist` — a NAME STRING — onto the Song
+board's Artist field would produce a map `mapProviderFields` silently SKIPS. And
+OFF's `Quantity` is the case 2026-08-24 already refused: a package size where ours
+is the shopping total, into a number field that cannot hold `"454 g"` anyway.
+**Two of the four need fields MINTED before a map means anything**, which is a
+product decision rather than a migration's — the `Latitude`/`Longitude` call from
+2026-08-24, reached from the other side.
+
+**AND MY FIRST PROBE ANSWERED THE WRONG QUESTION CONFIDENTLY** — it matched every
+occurrence that merely CARRIES `Board Category` and hit its own 400-row cap on
+Books, so all four boards came back reporting `Author, ISBN, Series`. The tell was
+`modules=1` on four unrelated boards. Read the dropdown's real predicate
+(`CONTAINS "supplement"`, `IS "podcast"`, an OR of seven for Purchase Item) and
+the counts became 7 / 5 / 5490 / 61.
 
 **A PROBE THAT LIED, and the control is what said so.** The served-CSS check read
 "fix gone" AND "control missing" — both absent is the documented tell. Two faults:
