@@ -644,7 +644,12 @@ export async function createTestGrid(userId, options = {}) {
   // Delegated to liveSystemBuilders (faithful extraction of the prior inline
   // construction). buildTemplatesManifest mints the Templates folder + manifest
   // and returns the root folder id the two template subtrees parent to.
-  const { tplManifestRootFolderId } = await buildTemplatesManifest({ userId, gridId, Folder, Manifest });
+  // `userRootFolderId` was MISSING here, and `buildTemplatesManifest` throws
+  // without it — so this script could not complete a single run. Found
+  // 2026-08-23 trying to mint a throwaway grid for a contrast measurement.
+  // `Manifest` is not a parameter it takes; `rootFolderId` (line ~173, saved
+  // just above) is.
+  const { tplManifestRootFolderId } = await buildTemplatesManifest({ userId, gridId, Folder, userRootFolderId: rootFolderId });
 
   // Per-slot routine items: which routine instances live in which slot label.
   // Kept here as the caller-supplied arg (Drink Water 6/7am, Take Medication
@@ -819,6 +824,10 @@ export async function createTestGrid(userId, options = {}) {
   // occurrence(s) for that date → LOOP over each occurrence's moviesWatched array → LOOP over library
   // instances → build a comma-joined label string → UPDATE the text display field.
   await new Operation({
+    // `id` is required by the schema and was missing — the second thing
+    // stopping this script from completing a run (2026-08-23). Every other
+    // seeded operation in the repo mints one.
+    id: uid(),
     userId, gridId, priority: 3,
     name: "Tracker: Movies Watched",
     description: "Build a label list of movies watched today and update the Movies Watched goal display.",
