@@ -81,8 +81,12 @@ describe("searchProviderConfig — the authored toggle", () => {
   const cfg = (sp) => ({ meta: { optionsSource: { searchProvider: sp } } });
 
   it("reads an enabled provider", () => {
+    // `valueAliases` joined the contract when wger's exercise categories turned
+    // out to be its own vocabulary — six of eight match `Muscle Group`, and
+    // Abs/Calves need an authored translation. It defaults to {} so a config
+    // written before it existed reads identically.
     expect(searchProviderConfig(cfg({ enabled: true, provider: "wikipedia", fieldMap: { a: "b" } })))
-      .toEqual({ provider: "wikipedia", fieldMap: { a: "b" } });
+      .toEqual({ provider: "wikipedia", fieldMap: { a: "b" }, valueAliases: {} });
   });
 
   it("OFF means off even with a provider and a mapping still stored", () => {
@@ -152,5 +156,48 @@ describe("selectOptionValues", () => {
   it("flattens both option shapes to bare values", () => {
     expect(selectOptionValues({ meta: { optionsSource: { values: [{ value: "a", label: "A" }, "b"] } } }))
       .toEqual(["a", "b"]);
+  });
+});
+
+describe("valueAliases — an authored translation of a provider's vocabulary", () => {
+  // wger's exercise Category is its own vocabulary: Chest/Legs/Back/Arms/
+  // Shoulders/Cardio land on `Muscle Group`'s options by name, Abs and Calves
+  // do not. Measured against the live API, 6 of 8.
+  const muscle = {
+    id: "mg", name: "Muscle Group", type: "select",
+    meta: { optionsSource: { values: [
+      { value: "chest", label: "Chest" }, { value: "legs", label: "Legs" },
+      { value: "core", label: "Core" }] } },
+  };
+  const by = { mg: muscle };
+  const map = { Category: "mg" };
+  const aliases = { Category: { Abs: "core", Calves: "legs" } };
+
+  it("translates a value the select does not offer into one it does", () => {
+    expect(mapProviderFields({ Category: "Abs" }, map, by, aliases).values.mg)
+      .toEqual({ value: "core", flow: "in" });
+  });
+
+  it("leaves a value that already matches alone", () => {
+    expect(mapProviderFields({ Category: "Chest" }, map, by, aliases).values.mg)
+      .toEqual({ value: "chest", flow: "in" });
+  });
+
+  it("matches the alias key case-insensitively", () => {
+    expect(mapProviderFields({ Category: "abs" }, map, by, aliases).values.mg)
+      .toEqual({ value: "core", flow: "in" });
+  });
+
+  it("still REFUSES a value with no alias and no option — the guard is not bypassed", () => {
+    // An alias table must not become a way to write arbitrary strings into a
+    // fixed select; anything unaliased still meets the option check.
+    const r = mapProviderFields({ Category: "Shoulders" }, map, by, aliases);
+    expect(r.values).toEqual({});
+    expect(r.skipped[0].why).toMatch(/not an option/);
+  });
+
+  it("is optional — no aliases behaves exactly as before", () => {
+    expect(mapProviderFields({ Category: "Chest" }, map, by).values.mg)
+      .toEqual({ value: "chest", flow: "in" });
   });
 });

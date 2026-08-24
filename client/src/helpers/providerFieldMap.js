@@ -72,7 +72,7 @@ export function parseLeadingNumber(s) {
  * @param fieldsById      { [fieldId]: field } so a value can be checked against its type
  * @returns { values, wrote, skipped } — `values` is `{ [fieldId]: {value, flow:"in"} }`
  */
-export function mapProviderFields(providerFields, fieldMap, fieldsById = {}) {
+export function mapProviderFields(providerFields, fieldMap, fieldsById = {}, valueAliases = {}) {
   const values = {}, wrote = [], skipped = [];
   for (const [providerKey, fieldId] of Object.entries(fieldMap || {})) {
     if (!fieldId) continue;                      // mapped to nothing — the "off" state
@@ -84,6 +84,16 @@ export function mapProviderFields(providerFields, fieldMap, fieldsById = {}) {
     if (!WRITABLE_TYPES.has(type)) { skipped.push({ providerKey, why: `cannot write a ${type} field` }); continue; }
 
     let value = String(raw).trim();
+    // AN AUTHORED ALIAS, NOT AN INFERENCE. wger's exercise categories are its
+    // own vocabulary: six of its eight land on `Muscle Group`'s options by
+    // name, and `Abs`/`Calves` do not. A translation someone WROTE is data the
+    // same way the field map is; guessing at a near-match would be the thing
+    // the select guard below exists to prevent.
+    const alias = valueAliases?.[providerKey];
+    if (alias && typeof alias === "object") {
+      const hit = Object.entries(alias).find(([k]) => k.toLowerCase() === value.toLowerCase());
+      if (hit) value = hit[1];
+    }
     if (type === "select") {
       // A SELECT WITH A FIXED LIST IS NOT A TEXT FIELD. wger answers
       // "Pectoralis major" and `Muscle Group`'s options are chest/back/legs —
@@ -127,5 +137,5 @@ export function providerKeysFromSamples(samples) {
 export function searchProviderConfig(field) {
   const cfg = field?.meta?.optionsSource?.searchProvider;
   if (!cfg?.enabled || !cfg?.provider) return null;
-  return { provider: cfg.provider, fieldMap: cfg.fieldMap || {} };
+  return { provider: cfg.provider, fieldMap: cfg.fieldMap || {}, valueAliases: cfg.valueAliases || {} };
 }

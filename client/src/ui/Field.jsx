@@ -207,6 +207,12 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
   // parent occurrences, "+" first asks WHICH occurrence to create under
   // (labels resolved live — see helpers/addNewOption.js).
   const [choosingDest, setChoosingDest] = useState(false);
+  // A PROVIDER RESULT AWAITING ITS DESTINATION. The typed "+ Add new" has asked
+  // which board since 2026-07-25; picking a search result minted straight into
+  // `targets[0]` without asking — so on `Purchase Item` (7 candidate boards)
+  // typing a name asked and picking the same name from a provider did not.
+  // One question, whichever way the row arrived.
+  const [pendingImport, setPendingImport] = useState(null);
   const selectedOptions = useMemo(() => options.filter(o => selected.includes(o.value)), [options, selected]);
   // ── SEARCHING YOUR GRID AND A PROVIDER AT ONCE ──────────────────────────
   // User, 2026-08-23: *"we still have our search for our own occurances merged
@@ -231,9 +237,21 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
   }, [newValue, selected, onChange, onAddOption]);
   const handleAddNew = useCallback(() => {
     if (!newValue.trim()) return;
+    setPendingImport(null);
     if ((addNewTargets?.length || 0) > 1) { setChoosingDest(true); return; }
     doAdd(addNewTargets?.[0]?.id ?? null);
   }, [newValue, addNewTargets, doAdd]);
+  /** Commit a picked provider result to a chosen parent. */
+  const doImport = useCallback((r, parentOccurrenceId = null) => {
+    setPendingImport(null);
+    setChoosingDest(false);
+    setNewValue("");
+    onImportResult?.(r, parentOccurrenceId);
+  }, [onImportResult]);
+  const handlePickRemote = useCallback((r) => {
+    if ((addNewTargets?.length || 0) > 1) { setPendingImport(r); setChoosingDest(true); return; }
+    doImport(r, addNewTargets?.[0]?.id ?? null);
+  }, [addNewTargets, doImport]);
   return (
     <div className={compact ? "field-input field-input-select-multi inline-flex" : "field-input field-input-select-multi"}>
       {showLabel && <Label className="text-xs text-muted-foreground mb-1">{name}</Label>}
@@ -299,9 +317,12 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
                 </div>
                 {choosingDest && (
                   <div className="mt-1">
-                    <div className="text-[10px] text-muted-foreground px-1 py-0.5">Add “{newValue.trim()}” to:</div>
+                    <div className="text-[10px] text-muted-foreground px-1 py-0.5">
+                      Add “{pendingImport ? pendingImport.title : newValue.trim()}” to:
+                    </div>
                     {(addNewTargets || []).map(t => (
-                      <button key={t.id} type="button" onClick={() => doAdd(t.id)}
+                      <button key={t.id} type="button"
+                        onClick={() => (pendingImport ? doImport(pendingImport, t.id) : doAdd(t.id))}
                         className="w-full px-2 py-1 rounded-sm text-left text-xs hover:bg-muted">
                         {t.label}
                       </button>
@@ -350,7 +371,7 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
                   )}
                   {sections.external.map(r => (
                     <button key={`${r.provider}:${r.externalId || r.title}`} type="button"
-                      onClick={() => onImportResult?.(r)}
+                      onClick={() => handlePickRemote(r)}
                       className="w-full flex items-center gap-2 px-2 py-1.5 rounded-sm text-left text-xs hover:bg-muted">
                       <Plus className="h-3 w-3 flex-shrink-0 opacity-60" />
                       <span className="truncate">
@@ -1743,7 +1764,7 @@ function Field({
         // Picking a provider row IMPORTS: it mints the option and stamps the
         // provider identity so the same result is not offered again.
         const importResult = (occAddNew && searchProviderId)
-          ? async (r) => {
+          ? async (r, parentOccurrenceId = null) => {
               // A SEARCH result carries no fields — only `detail()` does — so the
               // mapped values need a second request, made once, at the moment of
               // import rather than for every row in the list.
@@ -1756,7 +1777,7 @@ function Field({
                     + `&externalId=${encodeURIComponent(r?.externalId ?? "")}`,
                     { headers: { Accept: "application/json" } },
                   ).then((x) => x.json());
-                  mapped = mapProviderFields(j?.result?.fields, spCfg.fieldMap, fieldsById).values;
+                  mapped = mapProviderFields(j?.result?.fields, spCfg.fieldMap, fieldsById, spCfg.valueAliases).values;
                 } catch {
                   // The row is still worth minting. Losing the prefill is a
                   // smaller failure than losing the pick the user just made.
@@ -1764,6 +1785,10 @@ function Field({
               }
               occAddNew({
                 label: r?.title,
+                // The CHOSEN board, when the dropdown asked. Without threading
+                // it the question is asked and then ignored, which is worse
+                // than never asking.
+                parentOccurrenceId,
                 occMeta: { searchProvider: r?.provider, searchExternalId: r?.externalId ?? null },
                 extraFields: mapped,
               });
@@ -2241,7 +2266,7 @@ function Field({
         // Picking a provider row IMPORTS: it mints the option and stamps the
         // provider identity so the same result is not offered again.
         const importResult = (occAddNew && searchProviderId)
-          ? async (r) => {
+          ? async (r, parentOccurrenceId = null) => {
               // A SEARCH result carries no fields — only `detail()` does — so the
               // mapped values need a second request, made once, at the moment of
               // import rather than for every row in the list.
@@ -2254,7 +2279,7 @@ function Field({
                     + `&externalId=${encodeURIComponent(r?.externalId ?? "")}`,
                     { headers: { Accept: "application/json" } },
                   ).then((x) => x.json());
-                  mapped = mapProviderFields(j?.result?.fields, spCfg.fieldMap, fieldsById).values;
+                  mapped = mapProviderFields(j?.result?.fields, spCfg.fieldMap, fieldsById, spCfg.valueAliases).values;
                 } catch {
                   // The row is still worth minting. Losing the prefill is a
                   // smaller failure than losing the pick the user just made.
@@ -2262,6 +2287,10 @@ function Field({
               }
               occAddNew({
                 label: r?.title,
+                // The CHOSEN board, when the dropdown asked. Without threading
+                // it the question is asked and then ignored, which is worse
+                // than never asking.
+                parentOccurrenceId,
                 occMeta: { searchProvider: r?.provider, searchExternalId: r?.externalId ?? null },
                 extraFields: mapped,
               });

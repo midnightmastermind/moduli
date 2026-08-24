@@ -88,3 +88,43 @@ describe("the occurrence dropdown's provider search is wired at the call site", 
     expect(SRC.split("searchProvider: r?.provider").length - 1).toBe(handlers);
   });
 });
+
+describe("a picked provider result asks WHERE it goes, like the typed one does", () => {
+  // The typed "+ Add new" has asked which board since 2026-07-25. Picking a
+  // provider result called `onImportResult(r)` with no parent, so it minted
+  // into `targets[0]` silently — on `Purchase Item` (7 candidate boards) typing
+  // a name asked and picking the same name from a provider did not.
+
+  it("routes the remote row through the chooser, not straight to onImportResult", () => {
+    // The defect verbatim was `onClick={() => onImportResult?.(r)}`.
+    expect(SRC).not.toMatch(/onClick=\{\(\)\s*=>\s*onImportResult\?\.\(r\)\}/);
+    expect(SRC).toMatch(/onClick=\{\(\)\s*=>\s*handlePickRemote\(r\)\}/);
+  });
+
+  it("asks only when there is a CHOICE — one target still commits directly", () => {
+    // A question with one answer is a click nobody needs.
+    const fn = SRC.slice(SRC.indexOf("const handlePickRemote"), SRC.indexOf("const handlePickRemote") + 320);
+    expect(fn).toMatch(/addNewTargets\?\.\length\s*\|\|\s*0\)\s*>\s*1/);
+    expect(fn).toMatch(/doImport\(r,\s*addNewTargets\?\.\[0\]\?\.id/);
+  });
+
+  it("THREADS the chosen parent to the mint — asking and ignoring is worse than not asking", () => {
+    // The whole point: `occAddNew` has always accepted `parentOccurrenceId`,
+    // and the import path passed none.
+    for (const site of SRC.split("occAddNew({").slice(1)) {
+      const call = site.slice(0, site.indexOf("});"));
+      if (!call.includes("searchProvider:")) continue;      // only the import path
+      expect(call).toMatch(/parentOccurrenceId/);
+    }
+  });
+
+  it("every importResult callback accepts the parent argument", () => {
+    const sigs = SRC.match(/\?\s*async \(r[^)]*\)\s*=>/g) || [];
+    expect(sigs.length).toBeGreaterThan(0);
+    for (const s of sigs) expect(s).toMatch(/parentOccurrenceId/);
+  });
+
+  it("the chooser names the thing it is placing, whichever way it arrived", () => {
+    expect(SRC).toMatch(/pendingImport \? pendingImport\.title : newValue\.trim\(\)/);
+  });
+});
