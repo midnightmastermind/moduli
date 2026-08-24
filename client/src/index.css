@@ -3102,27 +3102,32 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
     margin-right: 14px !important;
   }
 
-  /* Instance fields stack below label on mobile.
-     The inline styles assume a ROW: .instance-content has
-     justify-content:space-between and .instance-fields has flex:1 1 160px.
-     Flipping to a column turns that 160px into a tall flex-basis that GROWS
-     and space-between shoves label/fields to opposite ends → giant empty
-     cards. Pin justify-content to the start and stop the fields block from
-     growing vertically so the card collapses to its natural height. */
-  .instance-content {
-    flex-direction: column !important;
-    align-items: stretch !important;
-    justify-content: flex-start !important;
-  }
+  /* ── THIS BLOCK DESCRIBED THE PRE-2026-08-24 DOM ──────────────────────────
+     It used to flip `.instance-content` to a column so the fields would stack
+     under the label, because the row was `[handle][label][fields]` and the
+     fields sat BESIDE the label.
+
+     The row is `[handle][textcol: label over fields]` now, so stacking is the
+     default at every width and this override no longer says what it meant: with
+     `.instance-textcol` as the only text child, `flex-direction: column` stacks
+     the DRAG HANDLE above the text instead — the same defect `3040cf4b` fixed
+     for tracker tiles on desktop, where an inherited `childContentDirection`
+     put the whole text column beneath the handle. On a phone that hit EVERY row.
+
+     `.instance-content:has(> .instance-fields)` went with it: `.instance-fields`
+     is no longer a DIRECT child of `.instance-content` (it is inside the
+     textcol), so that rule had silently stopped matching anything.
+
+     What is KEPT is the part that is still true — the fields block must not
+     grow along the column's main axis, which is what made rows ~225px tall. */
   .instance-fields {
     flex: 0 0 auto !important;
     justify-content: flex-start !important;
-    /* The desktop lift centres the first field line on the LABEL line; in this
-       column mode the fields are ALWAYS their own row under the label, so the
-       lift (and the row-gap that pays it back) would only distort the spacing. */
+    /* The desktop lift centres the first field line on the LABEL line; the
+       fields are always their own row under the label now, so the lift would
+       only distort the spacing. */
     margin-top: 0 !important;
   }
-  .instance-content:has(> .instance-fields) { row-gap: 4px !important; }
 
   /* Disable hover effects on mobile — prevent sticky :hover on touch */
   .instance-wrap:hover > .instance-row { box-shadow: 0 2px 10px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.04) inset !important; }
