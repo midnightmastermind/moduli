@@ -99,6 +99,24 @@ export function getProvider(id) {
   return PROVIDERS[id] || null;
 }
 
+/**
+ * Why this provider cannot be used right now, or null if it can.
+ *
+ * `availableProviders` hides a keyed provider from the PICKER, but a field
+ * stamped with one before the key existed still names it — and `getProvider`
+ * still returns it, so the route would call it and surface the thrown
+ * "TMDB_API_KEY is not set" as a generic 502 upstream error on every keystroke.
+ * That reads as "the movie database is down" when the truth is "this deployment
+ * was never given a key", and those want different responses from the reader.
+ */
+export function providerUnavailableReason(provider, env = process.env) {
+  if (!provider) return null;
+  if (provider.requiresEnv && !env[provider.requiresEnv]) {
+    return `"${provider.label}" needs ${provider.requiresEnv} to be set on the server.`;
+  }
+  return null;
+}
+
 /** Which providers are usable right now — a keyed one with no key is NOT offered. */
 export function availableProviders(env = process.env) {
   return Object.values(PROVIDERS)

@@ -52,9 +52,15 @@ export async function handleProvidersList(req, res) {
 /** GET …/search/:provider?q=&limit=&have= */
 export async function handleProviderSearch(req, res) {
   try {
-    const { getProvider, dropAlreadyOnGrid } = await registry();
+    const { getProvider, dropAlreadyOnGrid, providerUnavailableReason } = await registry();
     const p = getProvider(req.params.provider);
     if (!p) return fail(res, 404, "not_found", `No search provider "${req.params.provider}"`);
+    // CONFIGURATION, not upstream. A field can name a keyed provider before the
+    // key exists — say the day TMDB is chosen and the key is still being made —
+    // and the honest answer is that this server was never given one, not a 502
+    // that reads as "the movie database is down".
+    const why = providerUnavailableReason(p);
+    if (why) return fail(res, 503, "provider_unconfigured", why);
 
     const q = String(req.query.q || "").trim();
     // An empty query returns an empty list rather than searching for "" — every
@@ -82,10 +88,12 @@ export async function handleProviderSearch(req, res) {
 /** GET …/search/:provider/detail?title=&externalId= */
 export async function handleProviderDetail(req, res) {
   try {
-    const { getProvider } = await registry();
+    const { getProvider, providerUnavailableReason } = await registry();
     const p = getProvider(req.params.provider);
     if (!p) return fail(res, 404, "not_found", `No search provider "${req.params.provider}"`);
     if (typeof p.detail !== "function") return fail(res, 400, "unsupported", "That provider has no detail step");
+    const why = providerUnavailableReason(p);
+    if (why) return fail(res, 503, "provider_unconfigured", why);
     const out = await p.detail({ title: req.query.title, externalId: req.query.externalId });
     if (!out) return fail(res, 404, "not_found", "Nothing to import for that result");
     res.json({ ok: true, result: out });
