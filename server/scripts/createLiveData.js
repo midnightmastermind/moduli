@@ -8629,7 +8629,10 @@ export async function createLiveData(userId, options = {}) {
     dateFieldId, timeslotFieldId, durationFieldId: fields.duration.id,
     dueFieldId, completedOnFieldId, scheduleFormatFieldId,
     schedulePageOccId: schedPageOccId,
-    appointmentTemplateId: actionInstances.appointment.id,
+    // The MARKER, not the module: an appointment is a row whose module binds
+    // "Appointment Type". Passing one template id silently misses every
+    // appointment created with its own module, which is how they are made.
+    appointmentMarkerFieldId: fields.appointmentType.id,
   })).save();
   // Extend Stamp Date & Time Slot to also stamp lastSeen on every dropped occurrence.
   // dayPageTemplateOccId is picker-direct: resolving the template by

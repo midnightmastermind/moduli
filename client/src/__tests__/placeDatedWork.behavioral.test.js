@@ -22,6 +22,8 @@ const DATE = "f-date", TIMESLOT = "f-timeslot", DURATION = "f-duration";
 const DUE = "f-due", COMPLETED_ON = "f-completedon", SCHED_FMT = "f-schedfmt";
 const COMPLETED = "f-completed";
 const APPT_TPL = "mod-appointment";
+const APPT_TPL2 = "mod-appt-own";      // an appointment made by hand, with its own module
+const APPT_MARKER = "f-appt-type";     // the "Appointment Type" binding that identifies one
 const SCHED_PAGE = "occ-schedule-page";
 
 const DAY = "2026-08-10";
@@ -101,7 +103,7 @@ const placeOp = () => makeSchedulePlaceDatedWorkOp({
   userId: "u", gridId: "g",
   dateFieldId: DATE, timeslotFieldId: TIMESLOT, durationFieldId: DURATION,
   dueFieldId: DUE, completedOnFieldId: COMPLETED_ON, scheduleFormatFieldId: SCHED_FMT,
-  schedulePageOccId: SCHED_PAGE, appointmentTemplateId: APPT_TPL,
+  schedulePageOccId: SCHED_PAGE, appointmentMarkerFieldId: APPT_MARKER,
 });
 
 let dayCol;
@@ -109,7 +111,15 @@ let dayCol;
 beforeEach(() => {
   occurrencesById = {};
   modulesById = {
-    [APPT_TPL]: { id: APPT_TPL, label: "Appointment", role: "instance", fieldBindings: [] },
+    // WHAT MAKES A ROW AN APPOINTMENT IS THIS BINDING, not which module it is.
+    // The live defect: `Therapy with Keith` was created with its OWN module, so
+    // a predicate naming one template id skipped it — and it was the only
+    // appointment that ever fell on a "today". So the harness now has TWO
+    // appointment modules, and the second one is the regression.
+    [APPT_TPL]: { id: APPT_TPL, label: "Appointment", role: "instance",
+                  fieldBindings: [{ fieldId: APPT_MARKER }] },
+    [APPT_TPL2]: { id: APPT_TPL2, label: "Therapy with Keith", role: "instance",
+                   fieldBindings: [{ fieldId: APPT_MARKER }] },
     "mod-task": { id: "mod-task", label: "Task", role: "instance", fieldBindings: [] },
     "mod-due": { id: "mod-due", label: "Todo", role: "container", kind: "board", fieldBindings: [] },
   };
@@ -157,6 +167,42 @@ describe("Place Dated Work — an appointment covers every slot it spans", () =>
     // The whole point of multi-parenting: no new rows exist, so ticking it in
     // one slot is ticking THE appointment.
     expect(Object.keys(occurrencesById).length).toBe(before);
+  });
+
+  it("places an appointment made with its OWN module — the 2026-08-24 defect", () => {
+    // User: *"my aug 24th task didnt get put into the schedule"* / *"its not a
+    // due date, its a normal date."* `Therapy with Keith` carried module
+    // `jb0tg0odtt` rather than the shared `Appointment`, because it was created
+    // by hand. The predicate named ONE template id, so it was skipped — and it
+    // was the only appointment that had ever fallen on a "today", which is why
+    // the op reported no error and had never once placed anything.
+    occ("appt-own", {
+      role: "instance", moduleId: APPT_TPL2, label: "Therapy with Keith",
+      fields: { [DATE]: DAY, [TIMESLOT]: "3:00pm", [DURATION]: 60 },
+    });
+    run(placeOp());
+    expect(childrenOf(slotAt(dayCol.slotIds, "3:00pm"))).toContain("appt-own");
+    expect(childrenOf(slotAt(dayCol.slotIds, "3:30pm"))).toContain("appt-own");
+  });
+
+  it("SWEEPS one of its own module too — or a moved one is listed forever", () => {
+    // The keep-test IS the placement decision. If the sweep still matched on the
+    // module while placement matched on the binding, this row would be placed at
+    // 3:00pm and never unlinked when it moved.
+    occ("appt-own2", {
+      role: "instance", moduleId: APPT_TPL2,
+      fields: { [DATE]: DAY, [TIMESLOT]: "3:00pm", [DURATION]: 30 },
+    });
+    run(placeOp());
+    expect(childrenOf(slotAt(dayCol.slotIds, "3:00pm"))).toContain("appt-own2");
+
+    occurrencesById["appt-own2"] = {
+      ...occurrencesById["appt-own2"],
+      fields: { ...occurrencesById["appt-own2"].fields, [TIMESLOT]: { value: "5:00pm", flow: "in" } },
+    };
+    run(placeOp());
+    expect(childrenOf(slotAt(dayCol.slotIds, "5:00pm"))).toContain("appt-own2");
+    expect(childrenOf(slotAt(dayCol.slotIds, "3:00pm"))).not.toContain("appt-own2");
   });
 
   it("is idempotent — a second run adds nothing", () => {

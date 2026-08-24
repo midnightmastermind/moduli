@@ -3576,8 +3576,8 @@ export function makeStampCompletedOnOp({ userId, gridId, completedFieldId, compl
 // on it. The keep-test IS the placement decision, so the two cannot drift —
 // the pattern `Day Page: Build Tasks Completed` already uses.
 //
-// The sweeps are deliberately NARROW. Phase 1 only ever unlinks occurrences of
-// the Appointment template; phase 2 only ever unlinks children that carry a due
+// The sweeps are deliberately NARROW. Phase 1 only ever unlinks rows whose
+// module binds the appointment marker field; phase 2 only unlinks children that carry a due
 // date. Anything else a user or another op put in a slot or in Due — a Pay Bill
 // copy, a dragged task — is not this op's to remove. REMOVE_CHILD unlinks and
 // never deletes, which matters because these rows are multi-parented: reaching
@@ -3585,9 +3585,9 @@ export function makeStampCompletedOnOp({ userId, gridId, completedFieldId, compl
 export function makeSchedulePlaceDatedWorkOp({
   userId, gridId,
   dateFieldId, timeslotFieldId, durationFieldId, dueFieldId, completedOnFieldId,
-  scheduleFormatFieldId, schedulePageOccId, appointmentTemplateId,
+  scheduleFormatFieldId, schedulePageOccId, appointmentMarkerFieldId,
 }) {
-  const need = { dateFieldId, timeslotFieldId, durationFieldId, dueFieldId, completedOnFieldId, scheduleFormatFieldId, schedulePageOccId, appointmentTemplateId };
+  const need = { dateFieldId, timeslotFieldId, durationFieldId, dueFieldId, completedOnFieldId, scheduleFormatFieldId, schedulePageOccId, appointmentMarkerFieldId };
   for (const [k, v] of Object.entries(need)) {
     if (!v) throw new Error(`makeSchedulePlaceDatedWorkOp: ${k} required`);
   }
@@ -3682,7 +3682,17 @@ export function makeSchedulePlaceDatedWorkOp({
                     body: [{
                       id: uid(), type: "if",
                       condition: { operator: "AND", rules: [
-                        { id: uid(), left: "$appt.templateId",              comparator: "IS",         right: appointmentTemplateId },
+                        // WHAT MAKES A ROW AN APPOINTMENT IS THE MODULE'S BINDING,
+                        // NOT WHICH MODULE IT IS. Matching one template id looks
+                        // right and silently misses every appointment created
+                        // with its own module — which is how they are actually
+                        // made: measured on the live grid, `Therapy with Keith`
+                        // has module `jb0tg0odtt` while the other two share
+                        // `Appointment`, so the only appointment that ever fell
+                        // on a "today" was the one the op could not see.
+                        // Binding-based is the 2026-07-11 idiom, and it is exact
+                        // here: 2 modules bind this field, 0 routine rows do.
+                        { id: uid(), left: "$appt._boundFieldIds",         comparator: "ARRAY_INCLUDES", right: appointmentMarkerFieldId },
                         { id: uid(), left: `$appt.${f(dateFieldId)}`,       comparator: "SAME_DAY",   right: "$day" },
                         { id: uid(), left: `$appt.${f(timeslotFieldId)}`,   comparator: "IS_NOT_EMPTY", right: "" },
                         // A feed copy carries its source's fields, so without
@@ -3734,7 +3744,11 @@ export function makeSchedulePlaceDatedWorkOp({
                     body: [{
                       id: uid(), type: "if",
                       condition: { operator: "AND", rules: [
-                        { id: uid(), left: "$placed.templateId",   comparator: "IS",           right: appointmentTemplateId },
+                        // The keep-test IS the placement decision (see the header),
+                        // so this moves in lockstep with the rule above — a sweep
+                        // matching on the module while placement matches on the
+                        // binding would leave a moved appointment listed forever.
+                        { id: uid(), left: "$placed._boundFieldIds", comparator: "ARRAY_INCLUDES", right: appointmentMarkerFieldId },
                         { id: uid(), left: "$placed._ancestors",   comparator: "HAS_ANCESTOR", right: "$dayColId" },
                       ]},
                       then: [{

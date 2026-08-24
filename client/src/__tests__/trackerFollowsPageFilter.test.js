@@ -74,6 +74,18 @@ function sweepAt(day) {
       } });
   return out;
 }
+/** The day this fixture's schedule was actually built for. */
+function builtDay() {
+  const fmt = fx.fields.find(f => f.name === "Schedule Format")?.id;
+  const date = fx.fields.find(f => f.name === "Date" && f.type === "date")?.id;
+  const cols = fx.occurrences
+    .filter(o => o.fields?.[fmt]?.value === "day-col")
+    .map(o => String(o.fields?.[date]?.value || "").slice(0, 10))
+    .filter(Boolean).sort();
+  if (!cols.length) throw new Error("fixture has no day column — nothing to sweep for");
+  return cols[cols.length - 1];      // the newest column the export caught
+}
+
 const movedFor = (a, b, opName) => {
   const keys = [...a.keys()].filter(k => k.startsWith(opName + "::"));
   return { wrote: keys.length, moved: keys.filter(k => a.get(k) !== b.get(k)).length };
@@ -84,7 +96,12 @@ afterAll(() => { vi.useRealTimers(); });
 describe("a tracker follows the date filter on the page it lives on", () => {
   let onDay, offDay;
   beforeAll(() => {
-    onDay = sweepAt("2026-08-22");    // the day the schedule is built for
+    // DERIVED FROM THE FIXTURE, never hardcoded. The fixture is one day's
+    // snapshot of a live grid that rebuilds its day column every morning, so a
+    // literal date silently stops matching any column the next time the fixture
+    // is re-exported — and the controls below then read 0 and every claim after
+    // them is vacuous. That is exactly how this suite broke on 2026-08-24.
+    onDay = sweepAt(builtDay());
     offDay = sweepAt("2026-07-04");   // no column, no rows
   });
 

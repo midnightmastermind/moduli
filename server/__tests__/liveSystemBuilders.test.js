@@ -966,7 +966,7 @@ describe("build ops are scoped to their own page (D7)", () => {
     const op = makeSchedulePlaceDatedWorkOp({
       userId: "u1", gridId: "g1", dateFieldId: "f-date", timeslotFieldId: "f-slot",
       durationFieldId: "f-dur", dueFieldId: "f-due", completedOnFieldId: "f-done",
-      scheduleFormatFieldId: "f-fmt", schedulePageOccId: "sched-1", appointmentTemplateId: "appt-1",
+      scheduleFormatFieldId: "f-fmt", schedulePageOccId: "sched-1", appointmentMarkerFieldId: "f-appt-type",
     });
     expect(op.targetOccurrenceId).toBe("sched-1");
     const flat = [];
@@ -979,6 +979,37 @@ describe("build ops are scoped to their own page (D7)", () => {
     } };
     walk(op.pipeline.steps);
     expect(flat.sort()).toEqual(["IS:$schedPage.id", "IS_EMPTY:"].sort());
+  });
+
+  it("decides what an appointment IS by the module's BINDING, in BOTH the placement and the sweep", () => {
+    // The live defect this replaced: the predicate named ONE template id, so
+    // `Therapy with Keith` — an appointment created with its own module, which
+    // is how they are actually made — was silently skipped. It was the only
+    // appointment that ever fell on a "today", so the op had never visibly run.
+    const op = makeSchedulePlaceDatedWorkOp({
+      userId: "u1", gridId: "g1", dateFieldId: "f-date", timeslotFieldId: "f-slot",
+      durationFieldId: "f-dur", dueFieldId: "f-due", completedOnFieldId: "f-done",
+      scheduleFormatFieldId: "f-fmt", schedulePageOccId: "sched-1", appointmentMarkerFieldId: "f-appt-type",
+    });
+    const marks = [];
+    const walk = (steps) => { for (const st of steps || []) {
+      const dig = (grp) => { for (const r of grp?.rules || []) {
+        if (Array.isArray(r.rules)) dig(r);
+        else if (/_boundFieldIds$/.test(r.left || "")) marks.push(`${r.left}|${r.comparator}|${r.right}`);
+      } };
+      dig(st?.condition); walk(st?.then); walk(st?.else); walk(st?.body);
+    } };
+    walk(op.pipeline.steps);
+    // BOTH arms — placement AND the sweep. A sweep still matching on the module
+    // while placement matches on the binding would leave a moved appointment
+    // listed in its old slot forever; the header calls the keep-test and the
+    // placement decision the same decision, so they must move together.
+    expect(marks.sort()).toEqual([
+      "$appt._boundFieldIds|ARRAY_INCLUDES|f-appt-type",
+      "$placed._boundFieldIds|ARRAY_INCLUDES|f-appt-type",
+    ].sort());
+    // And the template id it used to name is gone, not merely unused.
+    expect(JSON.stringify(op.pipeline)).not.toContain("templateId\",\"comparator\":\"IS\",\"right\":\"appt-1");
   });
 
   it("neither op still resolves the goals page — the var is gone, not just unused", () => {
