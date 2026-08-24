@@ -24,7 +24,12 @@
 /** Load the registry with every built-in provider registered. */
 async function registry() {
   const mod = await import("./searchProviders.js");
-  await import("./providers/wikipedia.js");   // registers itself on import
+  // Every built-in provider, each registering itself on import.
+  await import("./providers/wikipedia.js");
+  await import("./providers/wger.js");
+  await import("./providers/openlibrary.js");
+  await import("./providers/musicbrainz.js");
+  await import("./providers/openfoodfacts.js");
   return mod;
 }
 

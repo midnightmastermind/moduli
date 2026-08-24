@@ -94,3 +94,39 @@ describe("optionProviderKey / localProviderKeys", () => {
       .toEqual(["p:1"]);
   });
 });
+
+// ── "add new" must survive the provider sections ────────────────────────────
+// User, 2026-08-24: *"make sure add new works if i select one from the new lists
+// or if its new completely (not on a list)."* Two paths through one box: the
+// text you type is BOTH the provider query and the label a plain add-new would
+// use, so a term that matches nothing anywhere must still leave you able to
+// create it.
+describe("typing something that is on no list", () => {
+  it("leaves both sections empty rather than inventing a match", () => {
+    const { local, external } = splitSections({
+      options: [{ value: "a", label: "Bench Press" }],
+      query: "Zzzq Custom Thing",
+      remote: [],
+      remoteState: "done",
+    });
+    expect(local).toEqual([]);
+    expect(external).toEqual([]);
+  });
+
+  it("reports `done` rather than `searching`, so empty reads as an ANSWER", () => {
+    // The distinction is the whole reason `remoteState` is surfaced: an empty
+    // list under "searching…" means wait, and under a finished search it means
+    // nothing was found and add-new is the way forward.
+    const { remoteState } = splitSections({
+      options: [], query: "Zzzq", remote: [], remoteState: "done",
+    });
+    expect(remoteState).toBe("done");
+  });
+
+  it("an empty query never asks the provider anything", () => {
+    const { remoteState } = splitSections({
+      options: [], query: "   ", remote: [], remoteState: "searching",
+    });
+    expect(remoteState).toBe("idle");
+  });
+});
