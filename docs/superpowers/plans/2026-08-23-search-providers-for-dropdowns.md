@@ -59,6 +59,44 @@ record onto the new occurrence's fields.**
 
 ---
 
+## 2b. THE LIST IS MERGED, NEVER REPLACED
+
+**User, 2026-08-23:** *"i want to make sure we are looping the search options in.
+we still have our search for our own occurances merged in there."*
+
+This is the load-bearing constraint and it shapes the UI more than the providers
+do. A dropdown already searches YOUR OWN occurrences — the board's rows, resolved
+by `optionsSource.find`'s predicate. A provider **adds a second source to the same
+list**; it does not take the list over.
+
+```
+  type "inception"
+  ┌─────────────────────────────────────────────┐
+  │ ON YOUR GRID                                │   <- always first, always shown,
+  │   Inception            Movies board         │      even when a provider is slow
+  │   Inception (2010) …   Watchlist            │      or offline
+  ├─────────────────────────────────────────────┤
+  │ FROM WIKIPEDIA              ⟳               │   <- arrives late, appended
+  │   Inception — 2010 film by C. Nolan         │
+  │   Inception (soundtrack)                    │
+  └─────────────────────────────────────────────┘
+```
+
+Three rules fall out of that, and each is a way this could go wrong:
+
+- **Your own rows resolve LOCALLY and render immediately.** They must never wait on
+  a network call. A provider that is slow, rate-limited or down degrades to
+  today's behaviour exactly — the list still works.
+- **A provider result that ALREADY EXISTS on your grid is not offered twice.**
+  Matched on the identity the provider gives (a TMDB id, an ISBN, a Wikipedia
+  page id) stored on the occurrence when it was imported — never on the title,
+  because "Inception" the film and "Inception" the soundtrack are different rows
+  and `0035` is what a title match costs.
+- **The two sections are visibly different**, because picking one does something
+  different: your own row is SELECTED, a provider row is IMPORTED — it mints an
+  occurrence and fills its fields. A single undifferentiated list would make the
+  second look like the first and quietly grow the board.
+
 ## 3. Shape
 
 **A provider is DATA on the field**, the way `optionsSource` and `addNew` already
