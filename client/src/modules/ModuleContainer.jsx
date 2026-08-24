@@ -828,7 +828,14 @@ function Container({
             module={mod}
             occurrenceOverride={occ}
             panelId={pid}
-            embedded={mod.kind === "doc"}
+            // A nested DOC has always drawn as a card. A nested BOARD has not —
+            // and there are 539 of them on the live grid, every schedule time
+            // slot among them, so flipping this on for all nested containers
+            // would box the entire Schedule. So it is DATA: a container opts in
+            // with `meta.cardChrome`, exactly the way `0124` let a timeslot opt
+            // OUT of the rainbow band without the renderer learning what a
+            // timeslot is. `noDomainKnowledge` stays satisfied.
+            embedded={mod.kind === "doc" || mod.meta?.cardChrome === true}
             addInstanceToContainer={addInstanceToContainer}
             dispatch={dispatch}
             socket={socket}
