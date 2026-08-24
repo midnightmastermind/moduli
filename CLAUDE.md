@@ -6,6 +6,106 @@
 
 ---
 
+### 2026-08-24 — the 503 was THEIRS, and `address` was writable all along
+
+Picked up the other account's session, which hit its **monthly spend limit**
+mid-probe with two threads open. `0229` had shipped the first field maps and
+closed with a list of what it deliberately did not map. **Measuring retired one
+of its stated reasons and REVERSED the other.**
+
+**THE OPEN FOOD FACTS 503 IS THEIR SERVICE, NOT OUR REQUEST SHAPE.** `0229`
+recorded Ingredient as unmappable because *"Open Food Facts is answering 503 — no
+key list to map from"*, and the session was checking whether we were asking
+wrongly when it ran out. Six identical curls of the URL our own provider builds:
+```
+503 200 200 200 503 503        node's fetch behaves identically
+```
+So the query was always fine and the same one succeeds on the next attempt. Half
+of every grocery search was reaching the user as `openfoodfacts 503`.
+
+**MUSICBRAINZ HAD ALREADY GROWN THIS RULE THREE TIMES BY HAND**, which is the tell
+that it was never provider-specific — the 2026-08-08 (10) rule applied before a
+fourth copy exists rather than after. One `withRetry`, and **its `run` seam is
+load-bearing**: MusicBrainz retries THROUGH its 1.1s gate, because an immediate
+retry against a 1/sec limit is the very thing that produced the 503. Sleep is
+injected, so the tests do not wait.
+
+**A 500 IS DELIBERATELY NOT RETRYABLE.** 429/502/503/504 mean *ask again*; an
+ambiguous server error is not a promise of a different answer, and retrying one
+triples the load we put on someone else's service for the same reply.
+```
+live, 8 grocery searches:  7 ok / 1 failed      was ~50%
+```
+The residual is honest rather than dressed up: the service can be down for a
+stretch, and three attempts is the cap because this runs at a keystroke.
+
+**AND `address` WAS NEVER UNWRITABLE — THAT WAS OUR OWN ALLOWLIST.** `0229`'s
+other exclusion read *"`Address` is type `address`, which the mapper cannot
+write"*. The field can: `readAddress` documents a bare STRING as one of its two
+legal shapes, and **ten People rows on poms grid have carried exactly that shape
+since long before any provider existed** — that header even says so. A missing
+entry in `WRITABLE_TYPES` had been written down as a property of the field.
+*A reason recorded in a migration header is a claim about today's code.*
+
+**THE COORDINATES ARE DROPPED, AND THAT COSTS NOTHING TODAY** — the mini-map was
+deleted at the user's own request (*"we dont need an image for it"*) and no
+surface reads lat/lon. Composing the object would mean this mapper reading
+SIBLING keys of the one it was handed: an implicit contract between two files.
+
+**ONLY `Address` IS MAPPED, out of the provider's four keys.** poms grid has no
+`Latitude` / `Longitude` / `Kind` field, and minting fields to hold numbers
+nothing renders is authoring a feature nobody asked for.
+
+**END TO END OVER LIVE DATA — real provider, the STORED config, the shipped
+mapper:**
+```
+Froedtert Hospital        -> Address = 9200 West Wisconsin Avenue, Milwaukee…
+Sixteenth Street Clinic   -> Address = 2906 South 20th Street, Milwaukee…
+Milwaukee Public Library  -> Address = 2566 South Kinnickinnic Avenue…
+```
+**The second one is the point.** 2026-08-20 (2) left that address deliberately
+blank because *"Sixteenth Street has several Milwaukee sites, and a plausible
+address on a medical appointment is indistinguishable from one the user
+entered."* It arrives now because a person PICKED that clinic — which is exactly
+the difference between a guess and a choice.
+
+`0230` **imports `0229`'s authoring loop rather than copying it** — that loop
+carries the refusals that matter (a field configured for another provider is
+skipped, an existing map is never overwritten) and two copies would drift.
+Rehearsed on test grid 2, where `Location` carries no provider and it correctly
+**skipped**, which is the fail-closed case.
+
+**A whitespace-only provider answer is now refused for EVERY type**, not just
+address: writing it produces a field that renders empty while REPORTING as
+written — the inert-token class, from the write side. A/B'd; so is the allowlist
+entry, each failing exactly its own tests.
+
+**REPORTED, NOT BUILT — and it is the user's call.** Ingredient's map stays empty
+and **the reason has changed from "the API is down" to a measured one**: Open
+Food Facts answers **per 100g** and the Ingredients board's Calories / Protein /
+Carbs / Fats describe **a SERVING** (2026-08-13 (7): *"keep ingrediants at the
+quantity of what it needs for a meal. so half cup for brown rice"*). Mapping them
+is the vitamin-D IU/mcg mismatch again — plausible on screen and wrong. Its
+`Quantity` is a package size (`"454 g"`) where ours is the shopping total, so
+that one is wrong too. What would make it mappable is per-100g fields on the
+board, which is a product decision rather than a migration's.
+
+**THE STANDING UNIQUE-FIELD-NAMES RULE IS RETIRED BY THE USER** — *"fields dont
+have to be unique name based by the way"*, superseding 2026-07-14 (4). **Two
+surfaces still enforce it and now contradict them:** `FieldsTab` rejects a
+colliding name on Save, and `gridIntegrity` warns `duplicate-field-name`. Flagged
+rather than ripped out, because removing a guard is its own decision.
+
+1532 server + 3291 client tests, lint clean on every edited file (one
+**pre-existing** unused import cleared on the way), build clean, prod HEAD
+verified, served chunk **sha256-identical** to the local build with the new
+strings present, two positive controls non-zero and a zero-control at 0. poms
+grid **0 errors**, 1 pre-existing warning.
+
+**NOT LOGGED HERE, and worth saying:** the other account's whole 2026-08-24 —
+Spotify (8,428 rows), the book library, migrations `0219`-`0229` — left no
+CLAUDE.md entries. The commits carry the reasoning; this file does not.
+
 ### 2026-08-23 (9) — the freeze was ONE op scanning 1347 containers for slots it had nothing to put in
 
 (8) shipped a correct optimisation that moved the wall clock by nothing and named
