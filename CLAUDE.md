@@ -6,6 +6,96 @@
 
 ---
 
+### 2026-08-24 (2) — I ran the user's OWN DATA through a provider that was only meant for new adds
+
+User, after `0232` shipped: *"wait you didnt have to run my stuff through there.
+this was just for future adds."* **They are right and the call was mine.**
+
+The ask was to wire a provider so a NEWLY picked medication arrives filled.
+`0232` did that — and then went further and wrote openFDA's answer onto three
+rows they had entered by hand. The values were correct; that is not the point.
+**Reaching into existing data is a different act from configuring what happens
+next**, and nothing in the request covered it. `0234` clears the values and the
+bindings and **keeps the fields and the map**, so tomorrow's pick still arrives
+filled and the board carries only what the user put there.
+
+*The reusable half: when a request is "wire this up", the blast radius is the
+NEXT thing that happens — not the rows already sitting there.*
+
+**AND "idk why vitamin d isnt in there though" WAS A CATEGORY MISMATCH.** `0219`
+paired Supplement with openFDA, which indexes FDA-regulated **DRUG** labels.
+Dietary supplements are regulated as FOOD, so they have no drug label and are
+not in that database at all. The answers were not noise — they were correctly
+indexed drugs answered to a supplement query:
+```
+"Creatine"  -> Colotox                 a homeopathic remedy
+"Vitamin D" -> Silicea                 a homeopathic remedy
+"Fish Oil"  -> Benzalkonium Chloride   antibacterial hand soap
+"Magnesium" -> Esomeprazole Magnesium  an acid reducer
+"Zinc"      -> Zinc Oxide              diaper cream
+```
+**Open Food Facts was measured as the alternative and is only HALF right** —
+Creatine is perfect there, Vitamin D returns fruit juice and protein bars. So
+the answer was a third database rather than either of the two already wired:
+the NIH Dietary Supplement Label Database, free and keyless.
+
+**TWO DECISIONS IN THE NEW PROVIDER, BOTH FROM MEASURING 25 HITS PER QUERY:**
+```
+query        hits   on-market   after dedupe
+creatine       25      14           12
+vitamin d      25       4            3
+fish oil       25      15            9
+```
+**DSLD is an archive as much as a catalogue** — most of what it returns is
+discontinued, and offering a supplement nobody sells is worse than offering
+nothing because it looks exactly like a real answer. **It FAILS OPEN**: if the
+filter empties the list the archived rows come back flagged `discontinued`,
+because a niche product that exists only in the archive is still the right
+answer and silence is not. And **the same product is listed twice** — `Creatine
+Alkaline · BPI Sports` is both a current label and an archived one — so rows are
+deduped on brand + name, which collapses `fish oil` from 15 to 9.
+
+**THE UNIQUE-FIELD-NAME RULE IS RETIRED IN BOTH PLACES IT WAS ENFORCED.** User:
+*"fields dont have to be unique name based by the way"*. `FieldsTab` rejected a
+colliding name on Save; `gridIntegrity` warned `duplicate-field-name` — and that
+one had been firing on every grid for weeks **on the intended state**. *A checker
+that reports what you meant is one people learn to scroll past.* The EMPTY-name
+check stays: a nameless field renders as a blank label. What the warning was
+really protecting is unchanged — resolving a field BY NAME still matches on name
+AND TYPE and refuses when ambiguous.
+
+**The test was INVERTED rather than deleted** (`fieldsTabUniqueName` ->
+`fieldsTabNameSave`): the collision case now asserts the save goes through, and
+the integrity test gained the discriminating pair — a duplicate OPERATION name
+is still an ERROR, because `RUN_OPERATION` resolves by name and that one IS
+identity. *A test file that quietly disappears takes the contract with it.*
+
+**The macro-tracker question from 08-22 is answered and needed no code:** it
+keeps counting only TICKED meals, so the number keeps meaning "what I ate".
+
+**A TWO-DAY AUDIT ACROSS ALL THREE ACCOUNTS produced the open list**, and
+measuring retired most of it: the weekday multi-select, the `Routine` layer and
+`Time 1-3` on planks had all already shipped. **And my first probe reported
+`Schedule - Saturday` claiming all seven weekdays** — the exact false defect
+2026-08-23 (9) records itself making, for the same reason: it printed the MODULE
+label where the renderer uses the OCCURRENCE label. The row is `Meals`. *The only
+reason I caught it is that this file had written the correction down.*
+
+**REPORTED, NOT DIAGNOSED — one probe, worth a look:** no occurrence on the grid
+carries a `meta.fieldVisibility` override any more. `0071` put them on Tasks,
+Trackers and Schedule so `Date` would show there while hidden grid-wide. Only
+the grid-level rule survives. Stated as a lead rather than a finding.
+
+**Also worth recording: every migration now costs ~10 minutes of pre-migration
+snapshot** — the grid is 43MB since the Spotify and book imports. Run them in
+the background.
+
+1576 server + 3308 client tests, 0 lint errors on every edited file, prod HEAD
+verified with the served chunk sha256-identical and controls non-zero, poms grid
+**0 errors**.
+
+---
+
 ### 2026-08-24 — the 503 was THEIRS, and `address` was writable all along
 
 Picked up the other account's session, which hit its **monthly spend limit**
