@@ -61,11 +61,40 @@ adopted it. The viewer reserves the real box from `meta.width`/`meta.height`
 (stamped by the server's EXIF pass) and **falls back to a square floor rather than
 guessing an aspect** — a guessed ratio jumps just as badly, the other way.
 
-**MEASURED AND RETIRED: the Atlas throughput is not a batching artifact.** The
-cold-load hang was diagnosed as Serverless throttling; re-measured at 86-105
-docs/s, and the obvious next theory — 101-doc cursor batches — is WRONG: ping is
-31ms and total time is flat across batchSize 101 / 1000 / 5000. It is genuine
-server-side throttling, so the fix is a tier, not code.
+**THE ATLAS THROTTLE IS BYTES, NOT DOCUMENTS — and that has a code fix after
+all.** `a5ef85aa` left "a tier upgrade or a `full_state` that ships less" as the
+only remedies. Two theories died on the way to a third: cursor BATCHING is not it
+(ping 31ms, total flat across batchSize 101 / 1000 / 5000), and the throttle is
+not per-document either — throughput is flat in KB/s and scales with payload:
+```
+full documents        107 docs/s      projection (8 keys)   246 docs/s   2.3x
+projection (id only) 2404 docs/s      countDocuments        39ms / 18,177 (covered)
+```
+~100 KB/s in every arm. 18,177 x 849B = 15.4MB, i.e. ~180s. **Measured FROM THE
+DROPLET too — 99 docs/s, 102 KB/s, projected 184s — which is what rules out a
+laptop's network and pins it on the cluster.** Prod's own log agrees to the
+second: `Occurrence query: 178139ms (18177)`.
+
+**PROJECTION IS NOT THE LEVER, and measuring said so before any was written.**
+The weight is `fields` 28% + `meta` 18% + `textmap` 10%, all needed to render;
+the keys the client provably never reads (`_id`, `timestamp` — grep 0 sites,
+while `userId`/`gridId`/`createdAt` ARE read) are ~8%. 180s to 165s is not a fix.
+
+**SO THE FIX IS WHEN THE READ HAPPENS.** `full_state` is served entirely from the
+warm cache, so the cold read only happens when that cache is empty — and both
+ways it empties were avoidable. The server now PREWARMS the most recently updated
+grid at boot, and the TTL went **30 minutes -> 12 hours**. That second half is the
+bigger one for daily use: the old value meant coming back from lunch cost a full
+cold read, to reclaim 15MB.
+
+**THE DEDUPE IS WHAT MAKES PREWARM SAFE, and prod demonstrated it live** — a tab
+reconnected first and the prewarm JOINED its in-flight load rather than starting a
+competing read: `loadGridIntoCache START` appears exactly **once** since boot,
+followed by `🔥 prewarm done`. For that grid a prewarm can never be slower.
+
+**Said plainly: this does not make the read faster.** 184s of Atlas time is still
+spent — spent while nobody waits on it. A genuinely cold, urgently wanted grid
+still waits, and THAT still wants an un-throttled tier or a lighter `full_state`.
 
 **LINT CAUGHT A MISSING `useEffect` IMPORT before it shipped** — the 2026-08-23 (6)
 guard earning its keep: a build resolves imports but not undefined locals, and no
