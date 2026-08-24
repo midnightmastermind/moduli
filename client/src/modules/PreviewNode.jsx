@@ -30,6 +30,7 @@ import RepresentationView from "../ui/RepresentationView";
 import ContextMenu from "../ui/ContextMenu";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { PagePreviewBody } from "../PagePreviewApp.jsx";
+import { requestPreviewSlot } from "../helpers/previewAdmission.js";
 
 // Inline preview — mounts PagePreviewBody directly in the parent React tree.
 // Scaled to fit the card via CSS transform; pointer-events:none keeps it
@@ -170,6 +171,24 @@ export default function PreviewNode({
     return () => io.disconnect();
   }, [hasBeenVisible]);
 
+  // ── AND THEN WAIT FOR A TURN ───────────────────────────────────────────────
+  // Visibility alone is not enough, and that is the whole reason this second
+  // gate exists. The observer above fires for EVERY card above the fold in the
+  // same tick, so without a queue they all flip `hasBeenVisible` in one React
+  // commit and all mount a full `PagePreviewBody` inside one synchronous task —
+  // the browser cannot paint or dispatch a click until it ends, which is the
+  // freeze the user reported ("i should be able to click on any of them before
+  // waiting"). The card's own chrome and click target are already on screen by
+  // this point; only the preview BODY waits.
+  const [hasSlot, setHasSlot] = useState(false);
+  useEffect(() => {
+    if (!hasBeenVisible || hasSlot) return;
+    // `loadIndex` orders the queue (reading order), it does not time it —
+    // see helpers/previewAdmission.js. Cancelling on unmount matters: a card
+    // scrolled away must give up its turn or it delays one that is visible.
+    return requestPreviewSlot(loadIndex, () => setHasSlot(true));
+  }, [hasBeenVisible, hasSlot, loadIndex]);
+
   // Drag setup
   useEffect(() => {
     if (!ref.current || !module) return;
@@ -188,7 +207,7 @@ export default function PreviewNode({
 
   const canDrillDown = role === "page" || kind === "folder";
   const isLandscape = kind === "folder";
-  const shouldLoadIframe = loadPreview && hasBeenVisible;
+  const shouldLoadIframe = loadPreview && hasBeenVisible && hasSlot;
 
   // F2 — per-card cover override. When `occurrence.meta.cover` is set
   // (URL or fileRef string), render it INSTEAD of the iframe preview.

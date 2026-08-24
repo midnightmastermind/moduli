@@ -3,7 +3,7 @@
 // Outside shell: drag handle + radial menu + page name (like a doc).
 // Inside: routes to content based on page kind (board, canvas, doc, display).
 
-import React, { useRef, useMemo, useState, useCallback, useLayoutEffect, useContext } from "react";
+import React, { useRef, useMemo, useState, useCallback, useEffect, useLayoutEffect, useContext } from "react";
 import { toast } from "../state/notificationStore";
 import RadialMenu from "../ui/RadialMenu";
 import ContextMenu from "../ui/ContextMenu";
@@ -55,6 +55,7 @@ import {
   applyLocalSort,
 } from "../helpers/LayoutHelpers";
 import { runPasteClipboard } from "../helpers/pasteClipboard";
+import { ensureFolderPageOcc } from "../helpers/importsFolder";
 import {
   useDragDrop,
   useDroppable,
@@ -276,6 +277,73 @@ function Page({
     return [...directChildren, ...subFolderPageOccs]
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   });
+
+  // ── SUB-FOLDERS WITH NO FOLDER-PAGE OCCURRENCE ────────────────────────────
+  // `folderChildOccs` can only render a sub-folder that CONTAINS a
+  // `kind:"folder" role:"page"` occurrence — that occurrence is the card, and
+  // what a click drills into. A folder created by a migration (or by any path
+  // that did not mint one) is therefore INVISIBLE on its parent's folder page
+  // while still showing in the sidebar tree, which reads `foldersById`
+  // directly. Measured on poms grid 2026-08-24: 39 of 54 folders had none,
+  // including `Root/Documents` and `Boards/Media` — the user's report that they
+  // could not see the Documents or Media folders.
+  //
+  // Minting on view is the pattern this codebase already uses for exactly this
+  // gap: `ManifestTree.handleFolderClick` calls `ensureFolderPageOcc` when you
+  // click a folder, and `PageFolder.handleDrillDown` calls
+  // `ensureArtifactPageOcc` when you click an artifact card. This is the same
+  // idea reached from the parent's side, so a folder becomes visible without
+  // having to be clicked in the tree first.
+  //
+  // THE PREDICATE MUST MATCH THE RENDERER'S, NOT `ensureFolderPageOcc`'s.
+  // That helper identifies an existing page by `meta.folderPage === true`,
+  // while `folderChildOccs` above identifies it by the MODULE's kind+role —
+  // two tests for one thing. Minting off the helper's test would duplicate a
+  // page for any folder whose existing occurrence lacks the meta flag, so the
+  // gap is computed with the renderer's test and only genuinely card-less
+  // folders are minted.
+  const missingFolderPages = useGridActionsSelectorShallow(s => {
+    if (kind !== "folder") return EMPTY_ARR;
+    const folderId = occurrence?.parentId;
+    if (!folderId) return EMPTY_ARR;
+    const out = [];
+    for (const f of Object.values(s.foldersById || {})) {
+      if (f.parentId !== folderId) continue;
+      if (f.folderType === "category") continue; // not a tree node — never a card
+      const kids = s.childrenByParentId?.[f.id] || [];
+      const hasPage = kids.some(occ => {
+        const mod = s.modulesById?.[occ.moduleId];
+        return mod?.kind === "folder" && mod?.role === "page";
+      });
+      // Packed as "id\u0000name" rather than an object: this selector is
+      // shallow-compared ELEMENT-WISE, and a fresh object per run would never
+      // be Object.is-equal, so the effect below would re-fire on every
+      // unrelated write. Strings compare by value.
+      if (!hasPage) out.push(`${f.id}\u0000${f.name || "Folder"}`);
+    }
+    return out.length ? out : EMPTY_ARR;
+  });
+
+  // Deliberately an EFFECT, never render: minting during render is a write in
+  // a render pass, and this one runs on a page every viewer opens.
+  useEffect(() => {
+    if (!missingFolderPages.length) return;
+    const occMap = getOccMap();
+    for (const packed of missingFolderPages) {
+      const sep = packed.indexOf("\u0000");
+      const folderId = sep === -1 ? packed : packed.slice(0, sep);
+      const label = sep === -1 ? "Folder" : packed.slice(sep + 1);
+      ensureFolderPageOcc({
+        folderId,
+        label,
+        gridId: ctxGridId,
+        userId: ctxUserId,
+        occurrencesById: occMap,
+        dispatch,
+        socket,
+      });
+    }
+  }, [missingFolderPages, getOccMap, ctxGridId, ctxUserId, dispatch, socket]);
 
   // Display pages (artifact viewers, 2026-07-12): the page's first child (or
   // meta.artifactPage) is the ARTIFACT occurrence to show full screen.
