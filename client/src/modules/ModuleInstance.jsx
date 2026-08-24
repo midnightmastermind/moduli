@@ -712,8 +712,8 @@ function InstanceInner({
           // universalFieldIds safe to ship everywhere at once.
           flexDirection: "var(--instance-content-direction, row)",
           flexWrap: "var(--instance-content-wrap, wrap)",
-          justifyContent: "var(--instance-content-justify, space-between)",
-          alignItems: "var(--instance-content-align, stretch)",
+          justifyContent: "var(--instance-content-justify, flex-start)",
+          alignItems: "var(--instance-content-align, flex-start)",
           gap: 2,
           rowGap: 4,
           minWidth: 0,
@@ -728,7 +728,7 @@ function InstanceInner({
           // AutoMarquee detect overflow) whenever space is tight. No flex-grow
           // so wide layouts are visually unchanged (group sizes to content,
           // fields take the remainder exactly as before).
-          : { display: "flex", flexDirection: "row", alignItems: hasInlineThumb ? "flex-start" : "center", gap: 4, minWidth: 0 }
+          : { display: "flex", flexDirection: "row", alignItems: "flex-start", gap: 4, flexShrink: 0 }
         }>
           <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
             <PopoverAnchor asChild>
@@ -770,6 +770,58 @@ function InstanceInner({
               />
             </PopoverContent>
           </Popover>
+            {/* The image sits in the HANDLE group now — "image top left next to
+                it" — rather than inside the label's conditional, where it was
+                only rendered when the label was. It guards itself through the
+                flag that already expresses the same four terms. */}
+            {hasInlineThumb && (
+              <img
+                className="instance-media-inline"
+                src={mediaSrc}
+                alt={label || "media"}
+                // Clicking the thumbnail opens the artifact viewer (user,
+                // 2026-08-14). The viewer was only ever reachable from a media
+                // FIELD PILL — an inline thumb had no handler at all, so on a
+                // row whose media binding is hidden (which is the whole point
+                // of an inline thumb) there was no way to see the full image.
+                // stopPropagation so it does not reach the row's own
+                // select/drag handling; double-click-to-rename lives on the
+                // label beside it and is untouched.
+                role="button"
+                title={`Open ${mediaBinding?.field?.name || "media"}`}
+                style={{ cursor: "zoom-in" }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (occurrence?.id) openArtifactSpread(occurrence.id, e.currentTarget.getBoundingClientRect());
+                }}
+              />
+            )}
+        </div>{/* end handle + image group */}
+
+        {/* THE LABEL SITS OVER THE FIELDS, NOT BESIDE THEM.
+            User, 2026-08-23: *"drag handle top left. then image top left next to
+            it, then to the immediate right of the picture (or the drag handle if
+            no pic), there should be the label ... stacked on top of the fields,
+            and the fields are aligned left."* Asked twice — 2026-08-11 said the
+            same thing ("the drag handle and the title should be on top of
+            fields. right now its stacked left to right for all of them") and it
+            was only ever honoured under wrap.
+
+            This is a DOM change, not a CSS one, which is why the existing
+            `--instance-content-direction` var could not deliver it: the label
+            has to LEAVE the handle group and join the fields in a column, and no
+            custom property moves a node between parents. */}
+        <div className="instance-textcol" style={{
+          display: "flex", flexDirection: "column", alignItems: "flex-start",
+          gap: 2, minWidth: 0,
+          // BASIS 0, not auto. `auto` makes the basis the column's own content
+          // width — wide enough, with the handle beside it, to overflow the row
+          // and WRAP, which put the handle on a line of its own ABOVE the label
+          // instead of beside it. Measured: handle top 682 / label top 707 on a
+          // row that should share one line.
+          flex: "1 1 0",
+        }}>
           {effectiveShowLabel && (hasLabel || !renderBody) && (
             isEditingLabel ? (
               <input
@@ -787,36 +839,13 @@ function InstanceInner({
                 style={{
                   flex: "0 1 auto", minWidth: 0,
                   background: "transparent", border: "none", outline: "none",
-                  fontSize: 12, color: "var(--text-primary)",
+                  fontSize: 13, color: "var(--text-primary)",
                   paddingTop: 0, paddingLeft: 2,
                   fontFamily: "inherit",
                 }}
               />
             ) : (
               <>
-              {showMedia && mediaInline && mediaSrc && mediaTag === "img" && (
-                <img
-                  className="instance-media-inline"
-                  src={mediaSrc}
-                  alt={label || "media"}
-                  // Clicking the thumbnail opens the artifact viewer (user,
-                  // 2026-08-14). The viewer was only ever reachable from a media
-                  // FIELD PILL — an inline thumb had no handler at all, so on a
-                  // row whose media binding is hidden (which is the whole point
-                  // of an inline thumb) there was no way to see the full image.
-                  // stopPropagation so it does not reach the row's own
-                  // select/drag handling; double-click-to-rename lives on the
-                  // label beside it and is untouched.
-                  role="button"
-                  title={`Open ${mediaBinding?.field?.name || "media"}`}
-                  style={{ cursor: "zoom-in" }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (occurrence?.id) openArtifactSpread(occurrence.id, e.currentTarget.getBoundingClientRect());
-                  }}
-                />
-              )}
               <div
                 className="instance-label"
                 onDoubleClick={(e) => { e.stopPropagation(); startLabelEdit(); }}
@@ -824,7 +853,10 @@ function InstanceInner({
                   flex: "0 1 auto",
                   minWidth: 0,
                   overflow: "hidden",
-                  fontSize: 12,
+                  // One size up: it is the row's title now that it sits over the
+                  // fields rather than in line with them (user: "which we can
+                  // make a font size bigger").
+                  fontSize: 13,
                   color: "var(--text-primary)",
                   paddingTop: 0,
                   paddingLeft: 2,
@@ -848,7 +880,7 @@ function InstanceInner({
               </>
             )
           )}
-        </div>{/* end label+radial wrapper */}
+
 
         {/* Custom body — used by ArtifactCard / TextblockCard. Replaces fields layout when provided.
             The .instance-row sets user-select:none (so dragging an instance doesn't smear-select
@@ -873,12 +905,21 @@ function InstanceInner({
           <div
             className={"instance-fields" + (renderBody ? " instance-fields--under-body" : "")}
             style={{
-              flex: renderBody ? "1 1 100%" : "1 1 160px",
+              // `1 1 160px` was a WIDTH basis when this sat beside the label in
+              // a row. It now sits UNDER the label in a column, where the main
+              // axis is vertical — so that basis became a 160px HEIGHT and every
+              // row grew from ~65px to ~225px. Natural height, full width.
+              flex: renderBody ? "1 1 100%" : "0 0 auto",
+              ...(renderBody ? null : { width: "100%" }),
               minWidth: 0,
               display: "flex",
               flexWrap: "wrap",
               gap: 4,
-              justifyContent: renderBody ? "flex-end" : "flex-end",
+              // LEFT, not right. Both arms read `flex-end` — the fields sat
+              // against the row's right edge, which is the half of the ask that
+              // is not about stacking ("the fields are aligned left inside of
+              // right"). A container can still override via the var.
+              justifyContent: "var(--instance-fields-justify, flex-start)",
               alignItems: "center",
               // A BODY-RENDERED card (textblock / artifact) has NO label row to
               // sit under, so its fields go top-right instead — user 2026-08-10:
@@ -913,6 +954,8 @@ function InstanceInner({
             ))}
           </div>
         )}
+
+        </div>{/* end label-over-fields column */}
 
         {/* Media section — full-width row below label + fields. Board/list
             only (showMedia gate). Doubles as an artifact drop target.
