@@ -34,6 +34,16 @@
 
 /* Shared font tokens + brand (always present) */
 :root {
+  /* FIELD CAPTION — the small field-NAME text inside a value pill.
+     It was a hardcoded 0.7 in two places, compounding with a pill-text colour
+     that already carries alpha. Measured 2026-08-23 across all four skins with
+     the user's stored container colours neutralised: the caption was the ONLY
+     thing under 4.5:1 anywhere, and `moduli-light` was the worst of the four
+     (16 of 18 samples, min 1.76) while midnight was 6 of 18. Labels and headers
+     read 12-16:1 everywhere, so this was never a dark-theme defect — it was one
+     global number. The caption still recedes: it is 10px and takes the muted
+     pill-text colour; it is only no longer dimmed on top of that. */
+  --field-caption-alpha: 1;
   /* Inline mini-textblock chips (imported bullet items, link chips). ONE token
      rather than the eighteen copies of the literal `134, 239, 172` this file
      carried — the 2026-08-19 lesson, where a pill border was fixed at the three

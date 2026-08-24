@@ -237,7 +237,14 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
               {/* occurrence field-pill: always show the field name so it reads
                   as a labelled pill (fixes "occurrence selects show no field
                   name / no pill"). */}
-              {fieldName && <span className="text-[10px] mr-1 flex-shrink-0" style={{ opacity: 0.7 }}>{fieldName}:</span>}
+              {/* The caption's dimming is a TOKEN, not a number. Measured
+                  2026-08-23: this 0.7 compounds with a pill-text colour that
+                  already carries alpha, putting the field name at 1.76:1 on
+                  moduli-light and ~3.1 on midnight — below readable on every
+                  skin, while the VALUE beside it was fine. A theme can now
+                  lift it; the default is today's value, so nothing moves
+                  until a theme says so. */}
+              {fieldName && <span className="text-[10px] mr-1 flex-shrink-0" style={{ opacity: "var(--field-caption-alpha, 0.7)" }}>{fieldName}:</span>}
               {selectedOptions.length === 0
                 ? <span className="text-muted-foreground">{compact ? (fieldName ? "—" : name) : "Select..."}</span>
                 : <div className="flex flex-wrap gap-1 items-center overflow-hidden">
@@ -1414,7 +1421,8 @@ function Field({
           {src
             ? <img src={src} alt="" style={{ width: 14, height: 18, objectFit: "cover", borderRadius: 2 }} />
             : <ImagePlus style={{ width: 10, height: 10, opacity: 0.7 }} />}
-          {!hideName && name && <span className="opacity-70">{name}</span>}
+          {/* Same caption, same token — see the note above. */}
+          {!hideName && name && <span style={{ opacity: "var(--field-caption-alpha, 0.7)" }}>{name}</span>}
         </button>
       );
     }
