@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { mapProviderFields, parseLeadingNumber, providerKeysFromSamples, searchProviderConfig }
+import { mapProviderFields, parseLeadingNumber, providerKeysFromSamples, searchProviderConfig,
+         selectOptionValues, matchSelectOption }
   from "../helpers/providerFieldMap.js";
 
 const F = { t: { id: "t", type: "text" }, n: { id: "n", type: "number" },
@@ -94,5 +95,62 @@ describe("searchProviderConfig — the authored toggle", () => {
   it("a field that never configured one is null, not a default provider", () => {
     expect(searchProviderConfig({ meta: {} })).toBeNull();
     expect(searchProviderConfig(null)).toBeNull();
+  });
+});
+
+describe("a SELECT with a fixed list is not a text field", () => {
+  // wger answers "Pectoralis major"; `Muscle Group`'s options are chest/back/legs.
+  // Writing the string stores a value absent from the list, which renders BLANK
+  // and gets written away as null on the next edit (CLAUDE.md 2026-08-23 (7)).
+  const muscle = {
+    id: "mg", name: "Muscle Group", type: "select",
+    meta: { optionsSource: { values: [
+      { value: "chest", label: "Chest" }, { value: "back", label: "Back" }, { value: "legs", label: "Legs" }] } },
+  };
+  const fieldsById = { mg: muscle };
+
+  it("REFUSES a value the select does not offer, and says why", () => {
+    const r = mapProviderFields({ Muscles: "Pectoralis major" }, { Muscles: "mg" }, fieldsById);
+    expect(r.values).toEqual({});
+    expect(r.wrote).toEqual([]);
+    expect(r.skipped[0].why).toMatch(/not an option on Muscle Group/);
+  });
+
+  it("accepts an option matched on its LABEL and stores the VALUE", () => {
+    // A source says "Chest"; the option is {value:"chest", label:"Chest"} —
+    // the same answer in the field's own vocabulary.
+    const r = mapProviderFields({ Muscles: "Chest" }, { Muscles: "mg" }, fieldsById);
+    expect(r.values.mg).toEqual({ value: "chest", flow: "in" });
+  });
+
+  it("matches case-insensitively on the value too", () => {
+    expect(mapProviderFields({ Muscles: "LEGS" }, { Muscles: "mg" }, fieldsById).values.mg)
+      .toEqual({ value: "legs", flow: "in" });
+  });
+
+  it("lets anything through when the select declares NO fixed list", () => {
+    // A free-form select is a text field wearing a different control; refusing
+    // there would break every provider mapping into one.
+    const free = { id: "s", name: "Tag", type: "select", meta: {} };
+    expect(mapProviderFields({ K: "anything" }, { K: "s" }, { s: free }).values.s)
+      .toEqual({ value: "anything", flow: "in" });
+  });
+
+  it("reads options from meta.options too, the other shape the grid uses", () => {
+    const alt = { id: "s", name: "Library", type: "select", meta: { options: ["book", "movie"] } };
+    expect(mapProviderFields({ K: "book" }, { K: "s" }, { s: alt }).values.s)
+      .toEqual({ value: "book", flow: "in" });
+    expect(mapProviderFields({ K: "album" }, { K: "s" }, { s: alt }).skipped).toHaveLength(1);
+  });
+});
+
+describe("selectOptionValues", () => {
+  it("returns null for a select with no fixed list, so callers can tell", () => {
+    expect(selectOptionValues({ meta: {} })).toBeNull();
+    expect(selectOptionValues({ meta: { options: [] } })).toBeNull();
+  });
+  it("flattens both option shapes to bare values", () => {
+    expect(selectOptionValues({ meta: { optionsSource: { values: [{ value: "a", label: "A" }, "b"] } } }))
+      .toEqual(["a", "b"]);
   });
 });

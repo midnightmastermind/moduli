@@ -33,6 +33,31 @@
 /** Fields whose value we can honestly write from a provider's string. */
 const WRITABLE_TYPES = new Set(["text", "number", "duration", "select", "rating"]);
 
+/** A select field's allowed values, in either of the two shapes the grid uses.
+ *  `null` means "this select declares no fixed list", where anything goes. */
+export function selectOptionValues(field) {
+  const raw = field?.meta?.optionsSource?.values ?? field?.meta?.options;
+  if (!Array.isArray(raw) || !raw.length) return null;
+  return raw.map((v) => (v && typeof v === "object" ? v.value : v)).filter((v) => v != null);
+}
+
+/** Match a provider string against a select's options, case-insensitively and
+ *  against the LABEL as well as the value — a source says "Chest", the option
+ *  is `{value:"chest", label:"Chest"}`, and those are the same answer. */
+export function matchSelectOption(field, raw) {
+  const opts = field?.meta?.optionsSource?.values ?? field?.meta?.options;
+  if (!Array.isArray(opts) || !opts.length) return { ok: true, value: raw };
+  const want = String(raw).trim().toLowerCase();
+  for (const o of opts) {
+    const value = o && typeof o === "object" ? o.value : o;
+    const label = o && typeof o === "object" ? o.label : o;
+    if (String(value).toLowerCase() === want || String(label ?? "").toLowerCase() === want) {
+      return { ok: true, value };
+    }
+  }
+  return { ok: false, value: null };
+}
+
 /** "148 minutes" -> 148 · "$12.5m" -> 12.5 · "unknown" -> null */
 export function parseLeadingNumber(s) {
   const m = String(s ?? "").replace(/,/g, "").match(/-?\d+(\.\d+)?/);
@@ -59,6 +84,17 @@ export function mapProviderFields(providerFields, fieldMap, fieldsById = {}) {
     if (!WRITABLE_TYPES.has(type)) { skipped.push({ providerKey, why: `cannot write a ${type} field` }); continue; }
 
     let value = String(raw).trim();
+    if (type === "select") {
+      // A SELECT WITH A FIXED LIST IS NOT A TEXT FIELD. wger answers
+      // "Pectoralis major" and `Muscle Group`'s options are chest/back/legs —
+      // writing the string stores a value absent from the list, which renders
+      // BLANK and is written away as null the next time anything else in the
+      // row is edited (CLAUDE.md 2026-08-23 (7)). Refused, with the reason, so
+      // an unmappable vocabulary shows up instead of quietly emptying a field.
+      const m = matchSelectOption(f, value);
+      if (!m.ok) { skipped.push({ providerKey, why: `"${value}" is not an option on ${f?.name || "this select"}` }); continue; }
+      value = m.value;
+    }
     if (type === "number" || type === "duration" || type === "rating") {
       const n = parseLeadingNumber(value);
       // REFUSED rather than coerced: `Number("148 minutes")` is NaN, and a NaN
