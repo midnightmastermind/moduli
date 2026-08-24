@@ -4,7 +4,7 @@
 // produced a new Journal / Notes / Tasks Completed module every morning —
 // 924 modules across 198 signatures on the live grid that should be 198.
 import { describe, it, expect } from "vitest";
-import { pickReusableModuleId, stampCloneOrigin, CLONE_OF } from "../helpers/cloneModuleReuse";
+import { pickReusableModuleId, stampCloneOrigin, CLONE_OF } from "../../../server/utils/cloneModuleReuse.js";
 
 const SRC = "m-template-journal";
 const srcMod = { id: SRC, label: "Journal", role: "container", kind: "doc", meta: { templateModule: true } };

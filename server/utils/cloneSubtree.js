@@ -1,4 +1,5 @@
 // server/utils/cloneSubtree.js
+import { pickReusableModuleId, stampCloneOrigin } from "./cloneModuleReuse.js";
 import { randomUUID } from "node:crypto";
 import Module from "../models/Module.js";
 import Occurrence from "../models/Occurrence.js";
@@ -70,13 +71,27 @@ export async function cloneSubtree({
     const srcMod = uc.modulesById[src.moduleId];
     if (!srcMod) return null;
 
-    const cloneModId = newId();
+    // ── ONE MODULE, MANY OCCURRENCES — the same rule the client clone uses ──
+    // This minted a fresh module for every clone, so applying a template twice
+    // produced two identical modules. The client's APPLY_TEMPLATE was fixed
+    // first (it is the high-traffic path — `Day Page: Build` runs every
+    // morning); this is its twin, and it imports the SAME decision rather than
+    // restating it, because two copies of a rule are how they drift.
+    //
+    // The first apply still mints: the source is a template and pointing a clone
+    // at it would place the template itself. It stamps `clonedFromModuleId`, and
+    // every later apply of that node reuses it.
+    const reusedModId = pickReusableModuleId({
+      modulesById: uc.modulesById, srcModId: src.moduleId, srcMod,
+      isRoot, rootLabelOverride: (isRoot && rootLabel) ? rootLabel : null,
+    });
+    const cloneModId = reusedModId || newId();
     const cloneOccId = newId();
 
     const newMod = {
       ...srcMod,
       id: cloneModId,
-      meta: { ...(srcMod.meta || {}), ...moduleMetaPatch },
+      meta: stampCloneOrigin({ ...(srcMod.meta || {}), ...moduleMetaPatch }, src.moduleId),
     };
     if (isRoot && rootLabel) newMod.label = rootLabel;
     delete newMod._id;

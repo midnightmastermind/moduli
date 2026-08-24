@@ -249,3 +249,63 @@ describe("mergeSubtreeInto", () => {
     expect(r.updatedParentIds).toHaveLength(0);
   });
 });
+
+describe("cloneSubtree — one module, many occurrences", () => {
+  // "shouldnt the module too be one, isnt that what the premise of the site is"
+  // (user, 2026-08-23). Applying a template twice used to produce two identical
+  // modules. The client's APPLY_TEMPLATE was fixed first; this is its twin, and
+  // it imports the SAME decision rather than restating it.
+  //
+  // A clone WRITTEN into `uc.modulesById` is what the next apply sees, so these
+  // mirror the real flow: clone, publish, clone again.
+  const publish = (uc, persist) => { for (const m of persist.modules) uc.modulesById[m.id] = m; };
+
+  it("the SECOND apply reuses the module the first one minted", async () => {
+    const uc = ucTwoLevel();
+    const p1 = fakePersist();
+    await cloneSubtree({ rootOccurrenceId: "o-p", userId: "u", gridId: "g1", uc, persist: p1 });
+    publish(uc, p1);
+    const p2 = fakePersist();
+    await cloneSubtree({ rootOccurrenceId: "o-p", userId: "u", gridId: "g1", uc, persist: p2 });
+
+    // Same ids both times — the second apply minted no new module.
+    const ids1 = p1.modules.map((m) => m.id).sort();
+    const ids2 = p2.modules.map((m) => m.id).sort();
+    expect(ids2).toEqual(ids1);
+    // …while the OCCURRENCES are still fresh: two placements, one module each.
+    expect(p2.occurrences.map((o) => o.id).sort()).not.toEqual(p1.occurrences.map((o) => o.id).sort());
+  });
+
+  it("the FIRST apply still mints — the source is a template and must not be placed", async () => {
+    const uc = ucTwoLevel();
+    const persist = fakePersist();
+    await cloneSubtree({ rootOccurrenceId: "o-p", userId: "u", gridId: "g1", uc, persist });
+    for (const m of persist.modules) expect(["m-p", "m-c"]).not.toContain(m.id);
+  });
+
+  it("stamps the origin so the next apply can find it", async () => {
+    const uc = ucTwoLevel();
+    const persist = fakePersist();
+    await cloneSubtree({ rootOccurrenceId: "o-p", userId: "u", gridId: "g1", uc, persist });
+    expect(persist.modules.map((m) => m.meta?.clonedFromModuleId).sort()).toEqual(["m-c", "m-p"]);
+  });
+
+  it("a root carrying its own rootLabel is NEVER shared", async () => {
+    // `rootLabel` renames the root per apply, so sharing one would give every
+    // apply the same name. NOTE: what actually enforces this is the LABEL
+    // comparison in `pickReusableModuleId` — a clone named "Day A" no longer
+    // matches the source's own label. A/B'd: removing the explicit
+    // `isRoot && rootLabelOverride` refusal fails no test, so that line is a
+    // second lock rather than the one doing the work.
+    const uc = ucTwoLevel();
+    const p1 = fakePersist();
+    await cloneSubtree({ rootOccurrenceId: "o-p", userId: "u", gridId: "g1", uc, persist: p1, rootLabel: "Day A" });
+    publish(uc, p1);
+    const p2 = fakePersist();
+    await cloneSubtree({ rootOccurrenceId: "o-p", userId: "u", gridId: "g1", uc, persist: p2, rootLabel: "Day B" });
+    const root1 = p1.modules.find((m) => m.role === "page");
+    const root2 = p2.modules.find((m) => m.role === "page");
+    expect(root2.id).not.toBe(root1.id);
+    expect(root2.label).toBe("Day B");
+  });
+});

@@ -54,6 +54,13 @@ export const CLONE_OF = "clonedFromModuleId";
 export function pickReusableModuleId({ modulesById, srcModId, srcMod, isRoot = false, rootLabelOverride = null } = {}) {
   if (!srcModId || !srcMod) return null;
   // A renamed root is a different thing each time it is applied.
+  //
+  // HONEST NOTE: A/B'd on both call sites, and removing this line fails NO test —
+  // the label comparison below already covers every caller today, because a clone
+  // renamed "Day Page - 2026-08-23" no longer matches the source's own label and
+  // is therefore never a candidate. It is kept as a second lock and labelled as
+  // one: if the label comparison is ever loosened, this is what still stops every
+  // day column sharing a name.
   if (isRoot && rootLabelOverride) return null;
   const want = srcMod.label ?? srcMod.name ?? null;
   for (const m of Object.values(modulesById || {})) {
