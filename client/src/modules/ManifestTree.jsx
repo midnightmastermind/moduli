@@ -223,7 +223,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
       <div style={{ marginLeft: depth * 8 }}>
         <div style={{ paddingRight: 2, display: "flex", alignItems: "center", gap: 2 }}>
           {hasChildren ? (
-            <span onClick={toggleOpen} style={{ fontSize: 8, color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, width: 10, textAlign: "center", userSelect: "none", padding: "4px 2px" }}>
+            <span onClick={toggleOpen} style={{ fontSize: 12, color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, width: 10, textAlign: "center", userSelect: "none", padding: "4px 2px" }}>
               {open ? "▾" : "▸"}
             </span>
           ) : <span style={{ width: 10, flexShrink: 0 }} />}
@@ -282,7 +282,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
             }}
             onClick={(e) => e.stopPropagation()}
             style={{
-              flex: 1, minWidth: 0, fontSize: 11, padding: "2px 6px",
+              flex: 1, minWidth: 0, fontSize: 12, padding: "2px 6px",
               background: "var(--input-bg)", color: "var(--text-primary)",
               border: "1px solid var(--accent-blue)", borderRadius: 4,
               fontFamily: "var(--font-mono)",
@@ -320,7 +320,7 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
           })()}
         >
           {defaultOccurrenceId === occ.id && (
-            <span style={{ fontSize: 8, color: "var(--text-faint)", flexShrink: 0 }} title="Default page">&#x1F4CC;</span>
+            <span style={{ fontSize: 12, color: "var(--text-faint)", flexShrink: 0 }} title="Default page">&#x1F4CC;</span>
           )}
         </NodePill>
         )}
@@ -405,7 +405,7 @@ function FolderCoverEditor({ folder, dispatch, socket, position, onClose }) {
         background: "var(--surface, #1f2125)",
         border: "1px solid var(--border-default)", borderRadius: 6,
         boxShadow: "var(--menu-shadow-1)",
-        fontSize: 11, fontFamily: "var(--font-mono)",
+        fontSize: 12, fontFamily: "var(--font-mono)",
       }}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -417,7 +417,7 @@ function FolderCoverEditor({ folder, dispatch, socket, position, onClose }) {
             flex: 1, padding: "3px 6px", borderRadius: 3,
             background: tab === "color" ? "var(--input-bg)" : "transparent",
             border: "1px solid var(--border-subtle)",
-            color: "var(--text-primary)", cursor: "pointer", fontSize: 10,
+            color: "var(--text-primary)", cursor: "pointer", fontSize: 12,
           }}
         >Color</button>
         <button
@@ -427,7 +427,7 @@ function FolderCoverEditor({ folder, dispatch, socket, position, onClose }) {
             flex: 1, padding: "3px 6px", borderRadius: 3,
             background: tab === "image" ? "var(--input-bg)" : "transparent",
             border: "1px solid var(--border-subtle)",
-            color: "var(--text-primary)", cursor: "pointer", fontSize: 10,
+            color: "var(--text-primary)", cursor: "pointer", fontSize: 12,
           }}
         >Image</button>
       </div>
@@ -463,13 +463,13 @@ function FolderCoverEditor({ folder, dispatch, socket, position, onClose }) {
               padding: "6px 10px", borderRadius: 3,
               background: "var(--input-bg)", border: "1px solid var(--border-subtle)",
               color: "var(--text-primary)", cursor: uploading ? "default" : "pointer",
-              fontSize: 10,
+              fontSize: 12,
             }}
           >
             {uploading ? "Uploading…" : "Choose image…"}
           </button>
           {folder.meta?.cover?.kind === "image" && (
-            <div style={{ marginTop: 4, fontSize: 9, color: "var(--text-faint)", wordBreak: "break-all" }}>
+            <div style={{ marginTop: 4, fontSize: 12, color: "var(--text-faint)", wordBreak: "break-all" }}>
               Current: {folder.meta.cover.value}
             </div>
           )}
@@ -801,7 +801,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
               onKeyDown={handleRenameKeyDown}
               onBlur={commitRename}
               onClick={(e) => e.stopPropagation()}
-              style={{ flex: 1, background: "transparent", border: "none", fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--text-primary)", outline: "none", minWidth: 0 }}
+              style={{ flex: 1, background: "transparent", border: "none", fontSize: 12, fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--text-primary)", outline: "none", minWidth: 0 }}
             />
           </div>
         ) : (
@@ -1495,7 +1495,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                 One collapsed row you drill into (user's pick over "sections
                 open"). Every folder inside starts closed too — see FolderNode. */}
             {(!manifest || !rootFolder) ? (
-                <div style={{ fontSize: 11, color: "var(--text-faint)", padding: "0 8px" }}>No files</div>
+                <div style={{ fontSize: 12, color: "var(--text-faint)", padding: "0 8px" }}>No files</div>
               ) : (
                 <FolderNode
                   folder={rootFolder}

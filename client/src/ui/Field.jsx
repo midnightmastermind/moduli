@@ -821,12 +821,12 @@ function OccurrenceOption({ occId, fallbackLabel, maps, chipDisplay = null, onSe
       )}
       <div style={{ minWidth: 0, flex: 1 }}>
         {label != null && (
-          <div style={{ fontWeight: 600, fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</div>
+          <div style={{ fontWeight: 600, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</div>
         )}
         {card?.fieldVals?.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
             {card.fieldVals.map((fv, i) => (
-              <span key={i} style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
+              <span key={i} style={{ fontSize: 12, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
                 {fv.name}: {String(fv.value)}
               </span>
             ))}
@@ -1845,13 +1845,13 @@ function Field({
             )}
             <div style={{ maxHeight: 200, overflowY: "auto" }}>
               {options.length === 0
-                ? <div style={{ padding: "16px 0", textAlign: "center", fontSize: 11, color: "var(--text-faint)" }}>No occurrences available</div>
+                ? <div style={{ padding: "16px 0", textAlign: "center", fontSize: 12, color: "var(--text-faint)" }}>No occurrences available</div>
                 : options.map(o => (
                     <button key={o.value} type="button"
                       onClick={() => { handleChange(o.value); onCommit?.(o.value); }}
                       style={{
                         width: "100%", display: "flex", alignItems: "center", padding: "4px 8px",
-                        borderRadius: 4, fontSize: 11, fontFamily: "var(--font-mono)",
+                        borderRadius: 4, fontSize: 12, fontFamily: "var(--font-mono)",
                         background: localValue === o.value ? "rgba(var(--occ-pill) / 0.15)" : "transparent",
                         color: localValue === o.value ? "var(--occ-pill-text)" : "var(--text-muted)",
                         border: "none", cursor: "pointer", textAlign: "left",
@@ -1908,7 +1908,7 @@ function Field({
                   onPick={(v) => onAffixChange("postfix", v)} compact={compact} disabled={disabled} />
               )}
             </div>
-            {showUnit && <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{unit}</span>}
+            {showUnit && <span style={{ fontSize: 12, color: "var(--text-faint)" }}>{unit}</span>}
           </div>
         </div>
       );
@@ -2033,7 +2033,7 @@ function Field({
               <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                 {addr.label && <span style={{ fontWeight: 600 }}>{addr.label}</span>}
                 {addr.address && (
-                  <span style={{ opacity: 0.75, fontSize: 10.5 }}>{addr.address}</span>
+                  <span style={{ opacity: 0.75, fontSize: 12.5 }}>{addr.address}</span>
                 )}
               </span>
             ) : (
@@ -2075,13 +2075,13 @@ function Field({
             <>
               <Switch checked={!!localValue} disabled={disabled}
                 onCheckedChange={v => { handleChange(v); onCommit?.(v); }} />
-              {showLabel && <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{name}</span>}
+              {showLabel && <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{name}</span>}
             </>
           ) : (
             <>
               <Checkbox checked={!!localValue} disabled={disabled}
                 onCheckedChange={v => { handleChange(v); onCommit?.(v); }} />
-              {showLabel && <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{name}</span>}
+              {showLabel && <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{name}</span>}
             </>
           )}
         </div>
@@ -2135,7 +2135,7 @@ function Field({
                       onChange={(e) => setSelectQuery(e.target.value)}
                       placeholder="Filter options…"
                       style={{
-                        width: "100%", height: 28, fontSize: 11, fontFamily: "monospace",
+                        width: "100%", height: 28, fontSize: 12, fontFamily: "monospace",
                         background: "var(--input-bg)", border: "1px solid var(--input-border)",
                         borderRadius: 5, color: "var(--text-primary)", padding: "0 8px",
                         outline: "none", marginBottom: 6,
@@ -2143,7 +2143,7 @@ function Field({
                     />
                   )}
                   {filteredOpts.length === 0 ? (
-                    <div style={{ fontSize: 10, fontStyle: "italic", color: "var(--text-faint)", padding: 6 }}>
+                    <div style={{ fontSize: 12, fontStyle: "italic", color: "var(--text-faint)", padding: 6 }}>
                       No matches — check the field's options source
                     </div>
                   ) : (
@@ -2192,7 +2192,7 @@ function Field({
               className={compact ? "h-6 text-xs" : "h-7 text-sm"}
               onChange={e => handleChange(e.target.value)} onBlur={handleCommit} />
             {relativeDateLabel && (
-              <span style={{ fontSize: 10, color: relativeDateLabel.color, whiteSpace: "nowrap", fontWeight: 500 }}>
+              <span style={{ fontSize: 12, color: relativeDateLabel.color, whiteSpace: "nowrap", fontWeight: 500 }}>
                 {relativeDateLabel.text}
               </span>
             )}
@@ -2241,13 +2241,13 @@ function Field({
               style={{ color: "inherit" }}
               onChange={e => updateDuration(parseInt(e.target.value) || 0, minutes)}
               onBlur={handleCommit} onKeyDown={handleKeyDown} />
-            <span style={{ fontSize: 10, opacity: 0.7 }}>h</span>
+            <span style={{ fontSize: 12, opacity: 0.7 }}>h</span>
             <Input type="number" value={minutes} disabled={disabled} min={0} max={59} step={5} placeholder="0"
               className={`border-0 rounded-none bg-transparent ${compact ? "h-6 text-xs w-12" : "h-7 text-sm w-14"}`}
               style={{ color: "inherit" }}
               onChange={e => updateDuration(hours, parseInt(e.target.value) || 0)}
               onBlur={handleCommit} onKeyDown={handleKeyDown} />
-            <span style={{ fontSize: 10, opacity: 0.7, paddingRight: 6 }}>m</span>
+            <span style={{ fontSize: 12, opacity: 0.7, paddingRight: 6 }}>m</span>
           </div>
         </div>
       );
@@ -2333,7 +2333,7 @@ function Field({
               )}
               <div style={{ maxHeight: 280, overflowY: "auto" }}>
                 {options.length === 0
-                  ? <div style={{ padding: "16px 0", textAlign: "center", fontSize: 11, color: "var(--text-faint)" }}>No occurrences available</div>
+                  ? <div style={{ padding: "16px 0", textAlign: "center", fontSize: 12, color: "var(--text-faint)" }}>No occurrences available</div>
                   : options.map(o => (
                       <button key={o.value} type="button"
                         onClick={() => { handleChange(o.value); onCommit?.(o.value); setSelectOpen(false); }}
@@ -2357,7 +2357,7 @@ function Field({
       );
     }
 
-    return <div style={{ fontSize: 11, color: "var(--text-faint)" }}>Unknown field type: {type}</div>;
+    return <div style={{ fontSize: 12, color: "var(--text-faint)" }}>Unknown field type: {type}</div>;
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -2490,19 +2490,19 @@ function Field({
       const gridTemplateColumns = compactColumns.map(c => c.width ? `${c.width}px` : "auto").join(" ");
       return (
         <div className="field-display field-display-compact" style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-          {!hideName && name && <span style={{ fontSize: 10, opacity: 0.6, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{name}:</span>}
+          {!hideName && name && <span style={{ fontSize: 12, opacity: 0.6, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{name}:</span>}
           {/* When the columns overflow the tile, the WHOLE table box marquees
               (AutoMarquee is static when it fits) — width:max-content lets the
               grid take its natural width so the overflow is measurable. */}
           <AutoMarquee>
           <div style={{
             display: "grid", gridTemplateColumns, columnGap: 6,
-            fontSize: 10, fontFamily: "var(--font-mono)",
+            fontSize: 12, fontFamily: "var(--font-mono)",
             background: "var(--input-bg)", border: "1px solid var(--border-subtle)",
             borderRadius: 4, padding: "3px 6px", width: "max-content",
           }}>
             {compactColumns.map((c, i) => (
-              <div key={`h${i}`} style={{ fontWeight: 600, opacity: 0.55, fontSize: 9, color: "var(--text-muted)", paddingBottom: 1 }}>
+              <div key={`h${i}`} style={{ fontWeight: 600, opacity: 0.55, fontSize: 12, color: "var(--text-muted)", paddingBottom: 1 }}>
                 {c.header || c.path}
               </div>
             ))}
@@ -2573,7 +2573,7 @@ function Field({
     return (
       <div className="field-display" style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Switch checked={!!rawDisplayValue} disabled />
-        {showLabel && <span style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{name}</span>}
+        {showLabel && <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{name}</span>}
       </div>
     );
   }
@@ -2603,9 +2603,9 @@ function Field({
         {showLabel && <span style={labelStyle}>{name}</span>}
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <div style={{ ...roBox, minWidth: 36, justifyContent: "center" }}>{dh}</div>
-          <span style={{ fontSize: 10, color: "var(--text-faint)" }}>h</span>
+          <span style={{ fontSize: 12, color: "var(--text-faint)" }}>h</span>
           <div style={{ ...roBox, minWidth: 36, justifyContent: "center" }}>{dm}</div>
-          <span style={{ fontSize: 10, color: "var(--text-faint)" }}>m</span>
+          <span style={{ fontSize: 12, color: "var(--text-faint)" }}>m</span>
         </div>
       </div>
     );
@@ -2627,7 +2627,7 @@ function Field({
           display: "grid",
           gridTemplateColumns,
           columnGap: 8,
-          fontSize: 11,
+          fontSize: 12,
           fontFamily: "var(--font-mono)",
           background: "var(--input-bg)",
           border: "1px solid var(--border-subtle)",
@@ -2636,7 +2636,7 @@ function Field({
           width: "max-content",
         }}>
           {cols.map((c, i) => (
-            <div key={`h${i}`} style={{ fontWeight: 600, opacity: 0.55, fontSize: 10, color: "var(--text-muted)", paddingBottom: 2 }}>
+            <div key={`h${i}`} style={{ fontWeight: 600, opacity: 0.55, fontSize: 12, color: "var(--text-muted)", paddingBottom: 2 }}>
               {c.header || c.path}
             </div>
           ))}
@@ -2672,7 +2672,7 @@ function Field({
           {ruleDisplayNC ?? valueDisplay}
           {ruleSuffixNC && <span style={{ marginLeft: 4, opacity: 0.7 }}>{ruleSuffixNC}</span>}
         </div>
-        {showUnit && <span style={{ fontSize: 11, color: "var(--text-faint)" }}>{unit}</span>}
+        {showUnit && <span style={{ fontSize: 12, color: "var(--text-faint)" }}>{unit}</span>}
       </div>
       {targetProgress && (
         <div style={{ marginTop: 3 }}>
@@ -2684,7 +2684,7 @@ function Field({
               transition: "width 0.3s",
             }} />
           </div>
-          <span style={{ fontSize: 9, color: "var(--text-faint)", marginTop: 2, display: "block" }}>
+          <span style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 2, display: "block" }}>
             {targetProgress.met ? "✓ target met" : `target: ${targetProgress.target}${unit ? ` ${unit}` : ""}`}
           </span>
         </div>

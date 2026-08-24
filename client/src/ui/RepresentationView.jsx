@@ -310,9 +310,9 @@ function RepresentationHoverPopup({ occurrence, module, x, y, popupFieldIds, onM
 }
 
 const SIZE_MAP = {
-  sm: { gap: 3, padding: "1px 5px", radius: 3, fontSize: 9,  icon: 9,  thumb: 14 },
-  md: { gap: 4, padding: "3px 7px", radius: 4, fontSize: 11, icon: 11, thumb: 18 },
-  lg: { gap: 5, padding: "4px 9px", radius: 5, fontSize: 13, icon: 14, thumb: 24 },
+  sm: { gap: 3, padding: "1px 5px", radius: 3, fontSize: 12,  icon: 9,  thumb: 14 },
+  md: { gap: 4, padding: "3px 7px", radius: 4, fontSize: 13, icon: 11, thumb: 18 },
+  lg: { gap: 5, padding: "4px 9px", radius: 5, fontSize: 14, icon: 14, thumb: 24 },
 };
 
 // Compact display of an arbitrary field value for the inline chip. Handles

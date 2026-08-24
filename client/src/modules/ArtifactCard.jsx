@@ -295,7 +295,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
   if (!src) {
     return (
       <div className="artifact-card artifact-card--empty">
-        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{label || "No file"}</span>
+        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{label || "No file"}</span>
       </div>
     );
   }
@@ -501,7 +501,7 @@ function renderExpanded(kind, src, label, imgSrc = src, cover = null) {
   if (kind === "audio") return (
     <div className="artifact-expanded-audio">
       <audio src={src} controls autoPlay style={{ width: "100%" }} />
-      <span style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8 }}>{label}</span>
+      <span style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}>{label}</span>
     </div>
   );
   if (kind === "pdf") return <iframe className="artifact-expanded-media" src={src} title={label || "pdf"} />;

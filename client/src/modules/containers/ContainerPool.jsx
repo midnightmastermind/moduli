@@ -44,7 +44,7 @@ export default function ContainerPool({ itemsWithOccurrences, dispatch, socket, 
             value={poolSearch}
             onChange={e => setPoolSearch(e.target.value)}
             placeholder="search…"
-            style={{ background: "none", border: "none", outline: "none", fontSize: 10, color: "var(--text-primary)", fontFamily: "var(--font-mono)", flex: 1, minWidth: 0 }}
+            style={{ background: "none", border: "none", outline: "none", fontSize: 12, color: "var(--text-primary)", fontFamily: "var(--font-mono)", flex: 1, minWidth: 0 }}
             onPointerDown={e => e.stopPropagation()}
           />
           {poolSearch && (
@@ -65,17 +65,17 @@ export default function ContainerPool({ itemsWithOccurrences, dispatch, socket, 
                 e.stopPropagation();
               }}
               placeholder="new item…"
-              style={{ fontSize: 10, fontFamily: "var(--font-mono)", background: "var(--input-bg)", border: "1px solid rgba(99,102,241,0.4)", borderRadius: 5, padding: "2px 6px", color: "var(--text-primary)", outline: "none", width: 100 }}
+              style={{ fontSize: 12, fontFamily: "var(--font-mono)", background: "var(--input-bg)", border: "1px solid rgba(99,102,241,0.4)", borderRadius: 5, padding: "2px 6px", color: "var(--text-primary)", outline: "none", width: 100 }}
               onPointerDown={e => e.stopPropagation()}
             />
-            <button onClick={handlePoolAdd} style={{ background: "rgba(99,102,241,0.3)", border: "1px solid rgba(99,102,241,0.5)", borderRadius: 4, cursor: "pointer", padding: "2px 5px", color: "rgba(180,190,255,0.9)", fontSize: 10 }}>Add</button>
+            <button onClick={handlePoolAdd} style={{ background: "rgba(99,102,241,0.3)", border: "1px solid rgba(99,102,241,0.5)", borderRadius: 4, cursor: "pointer", padding: "2px 5px", color: "rgba(180,190,255,0.9)", fontSize: 12 }}>Add</button>
             <button onClick={() => { setIsPoolAdding(false); setPoolAddLabel(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 2 }}><X size={10} /></button>
           </div>
         ) : (
           <button
             onClick={() => setIsPoolAdding(true)}
             onPointerDown={e => e.stopPropagation()}
-            style={{ display: "flex", alignItems: "center", gap: 3, background: "rgba(99,102,241,0.18)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 5, padding: "3px 7px", cursor: "pointer", color: "rgba(180,190,255,0.85)", fontSize: 10, fontFamily: "var(--font-mono)", flexShrink: 0 }}
+            style={{ display: "flex", alignItems: "center", gap: 3, background: "rgba(99,102,241,0.18)", border: "1px solid rgba(99,102,241,0.3)", borderRadius: 5, padding: "3px 7px", cursor: "pointer", color: "rgba(180,190,255,0.85)", fontSize: 12, fontFamily: "var(--font-mono)", flexShrink: 0 }}
           >
             <Plus size={9} /> Add
           </button>
@@ -96,7 +96,7 @@ export default function ContainerPool({ itemsWithOccurrences, dispatch, socket, 
           />
         ))}
         {itemsWithOccurrences.length === 0 && (
-          <div style={{ fontSize: 10, color: "var(--text-faint)", fontFamily: "var(--font-mono)", padding: "8px 4px", width: "100%" }}>
+          <div style={{ fontSize: 12, color: "var(--text-faint)", fontFamily: "var(--font-mono)", padding: "8px 4px", width: "100%" }}>
             Empty pool — add items or drag here
           </div>
         )}

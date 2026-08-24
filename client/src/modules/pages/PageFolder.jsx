@@ -246,10 +246,10 @@ export default function PageFolder({
           const isLast = i === scopeLabels.length - 1;
           return (
             <React.Fragment key={crumb.occId}>
-              {i > 0 && <span style={{ color: "var(--text-faint)", fontSize: 9, flexShrink: 0 }}>›</span>}
+              {i > 0 && <span style={{ color: "var(--text-faint)", fontSize: 12, flexShrink: 0 }}>›</span>}
               <span
                 style={{
-                  fontSize: 10, fontFamily: "var(--font-mono)",
+                  fontSize: 12, fontFamily: "var(--font-mono)",
                   color: isLast ? "var(--text-primary)" : "var(--accent-blue, #38bdf8)",
                   cursor: isLast ? "default" : "pointer",
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
@@ -312,7 +312,7 @@ export default function PageFolder({
           >
             <ChevronLeft size={12} />
           </button>
-          <span style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "var(--font-mono)", userSelect: "none" }}>
+          <span style={{ fontSize: 12, color: "var(--text-faint)", fontFamily: "var(--font-mono)", userSelect: "none" }}>
             {currentSiblingIndex + 1}/{siblingOccs.length}
           </span>
           <button
@@ -367,7 +367,7 @@ export default function PageFolder({
             background: "transparent",
             border: "none", outline: "none",
             color: "var(--text-primary)",
-            fontSize: 11, fontFamily: "var(--font-mono)",
+            fontSize: 12, fontFamily: "var(--font-mono)",
           }}
         />
         <select
@@ -378,7 +378,7 @@ export default function PageFolder({
             background: "var(--input-bg)",
             border: "1px solid var(--border-subtle)", borderRadius: 3,
             color: "var(--text-muted)",
-            fontSize: 9, padding: "1px 3px",
+            fontSize: 12, padding: "1px 3px",
             fontFamily: "var(--font-mono)",
           }}
         >
@@ -392,7 +392,7 @@ export default function PageFolder({
             onClick={() => setSearchQuery("")}
             style={{
               background: "transparent", border: "none", cursor: "pointer",
-              color: "var(--text-faint)", fontSize: 11, padding: "0 4px",
+              color: "var(--text-faint)", fontSize: 12, padding: "0 4px",
             }}
             title="Clear search"
           >×</button>
@@ -508,10 +508,10 @@ function FolderItem({ occ, mod, index, viewLayout, onDrillDown, onReorder, isAni
         <span style={{ fontSize: 12, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {label}
         </span>
-        <span style={{ fontSize: 10, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
+        <span style={{ fontSize: 12, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
           {fmtSize(size)}
         </span>
-        <span style={{ fontSize: 10, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
+        <span style={{ fontSize: 12, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
           {date}
         </span>
         {edgeHint === "top" && <div style={{ position: "absolute", left: 0, right: 0, top: -1, height: 2, background: "var(--accent-blue, #38bdf8)" }} />}

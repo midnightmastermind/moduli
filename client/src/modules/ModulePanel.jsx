@@ -171,7 +171,7 @@ function TreePanelContent({ resolvedView, activeOcc, activeOccView, dispatch, so
             flexShrink: 0, height: 20, width: "100%",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
             background: "var(--surface-card)", border: "none", borderBottom: "1px solid var(--border-default)",
-            color: "var(--text-muted)", fontSize: 10, cursor: "pointer",
+            color: "var(--text-muted)", fontSize: 12, cursor: "pointer",
           }}
         >
           <ChevronRight size={10} style={{ transform: treeCollapsed ? "rotate(90deg)" : "rotate(-90deg)", transition: "transform 0.15s" }} />
@@ -969,7 +969,7 @@ function Panel({
               {/* Active page name — flex-grows to fill space between handle and actions */}
               <span style={{
                 flex: 1, minWidth: 0,
-                fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)",
+                fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)",
                 letterSpacing: "0.03em", overflow: "hidden",
                 userSelect: "none",
               }}>
@@ -1020,7 +1020,7 @@ function Panel({
                       title="Cycle panels in this cell"
                     >
                       <Layers size={9} />
-                      <span style={{ fontSize: 9, fontWeight: 600 }}>{stack.length}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600 }}>{stack.length}</span>
                     </button>
                   );
                 })()}

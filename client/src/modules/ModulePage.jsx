@@ -794,13 +794,13 @@ function Page({
                 style={{
                   flex: 1, minWidth: 0,
                   background: "transparent", border: "none", outline: "none",
-                  color: "var(--text-muted)", fontSize: 11, fontFamily: "var(--font-mono)",
+                  color: "var(--text-muted)", fontSize: 12, fontFamily: "var(--font-mono)",
                   letterSpacing: "0.03em",
                 }}
               />
             ) : (
               <span
-                style={{ flex: 1, minWidth: 0, overflow: "hidden", fontSize: 11, color: "var(--text-faint)", fontFamily: "var(--font-mono)", letterSpacing: "0.03em", cursor: "text", userSelect: "none" }}
+                style={{ flex: 1, minWidth: 0, overflow: "hidden", fontSize: 12, color: "var(--text-faint)", fontFamily: "var(--font-mono)", letterSpacing: "0.03em", cursor: "text", userSelect: "none" }}
                 onDoubleClick={startEdit}
               >
                 <AutoMarquee>{pageModule.label || "Untitled"}</AutoMarquee>

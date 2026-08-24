@@ -28,11 +28,11 @@ export function FilterOverridePopup({ pos, occurrence, activeFilterValues, onClo
         background: "var(--surface-card)", border: "1px solid var(--border-default)",
         borderRadius: 8, padding: 8, minWidth: 200,
         boxShadow: "var(--menu-shadow-2)",
-        fontSize: 11, fontFamily: "var(--font-mono)",
+        fontSize: 12, fontFamily: "var(--font-mono)",
       }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div style={{ marginBottom: 6, color: "var(--text-muted)", fontSize: 9, textTransform: "uppercase", letterSpacing: "0.06em" }}>Filter Override</div>
+      <div style={{ marginBottom: 6, color: "var(--text-muted)", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>Filter Override</div>
       {[
         { label: "Inherit from parent", desc: "Uses parent panel / grid filter", active: isInherit, value: null },
         { label: "Show All", desc: "Ignore all filters — show everything", active: isShowAll, value: {} },
@@ -50,8 +50,8 @@ export function FilterOverridePopup({ pos, occurrence, activeFilterValues, onClo
             color: opt.active ? "rgba(180,200,255,0.9)" : "var(--text-primary)",
           }}
         >
-          <span style={{ fontWeight: 600, fontSize: 11 }}>{opt.label}</span>
-          <span style={{ fontSize: 9, opacity: 0.55 }}>{opt.desc}</span>
+          <span style={{ fontWeight: 600, fontSize: 12 }}>{opt.label}</span>
+          <span style={{ fontSize: 12, opacity: 0.55 }}>{opt.desc}</span>
         </button>
       ))}
     </div>

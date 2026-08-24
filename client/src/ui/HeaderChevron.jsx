@@ -169,7 +169,7 @@ export default function HeaderChevron({ onClick, isOpen, occurrence = null }) {
           style={{
             display: "inline-flex", alignItems: "center",
             height: 18, padding: "0 6px",
-            fontSize: 9, lineHeight: 1, whiteSpace: "nowrap",
+            fontSize: 12, lineHeight: 1, whiteSpace: "nowrap",
             fontFamily: "var(--font-mono)",
             color: STATE_COLOR.active,
             background: "var(--filter-pill-bg, rgba(80, 150, 100, 0.10))",

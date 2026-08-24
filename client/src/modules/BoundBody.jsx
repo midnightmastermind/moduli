@@ -53,7 +53,7 @@ function BindingBadge({ field, state }) {
         display: "inline-flex",
         alignItems: "center",
         gap: 3,
-        fontSize: 9,
+        fontSize: 12,
         opacity: 0.65,
         color: state === "broken" ? "var(--text-faint, #b06a6a)" : "var(--text-muted, #888)",
         pointerEvents: "none",

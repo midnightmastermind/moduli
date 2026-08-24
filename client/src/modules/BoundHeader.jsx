@@ -35,7 +35,7 @@ function BindingBadge({ field, isLinked }) {
         gap: 3,
         marginLeft: "auto",
         paddingLeft: 6,
-        fontSize: 9,
+        fontSize: 12,
         opacity: 0.65,
         color: isLinked ? "var(--text-muted, #888)" : "var(--text-faint, #b06a6a)",
         whiteSpace: "nowrap",

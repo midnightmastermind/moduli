@@ -1325,7 +1325,7 @@ function Container({
               /* Attached header field — inline editable markdown textarea */
               <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }} onPointerDown={e => e.stopPropagation()}>
                 {attachedHeaderFields[0] && (
-                  <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", fontFamily: "var(--font-mono)", lineHeight: 1, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", fontFamily: "var(--font-mono)", lineHeight: 1, textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     {attachedHeaderFields[0].name}
                   </span>
                 )}
@@ -1448,7 +1448,7 @@ function Container({
         /* Attached body field — markdown textarea replaces the body editor */
         <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "4px 8px 8px 8px", gap: 2 }}>
           {attachedBodyFields[0] && (
-            <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
               {attachedBodyFields[0].name}
             </span>
           )}

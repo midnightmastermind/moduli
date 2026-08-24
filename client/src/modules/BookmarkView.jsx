@@ -176,7 +176,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
       onClick={() => pick(m)}
       title={BTN_TITLES[m]}
       style={{
-        padding: "2px 8px", fontSize: 10, fontFamily: "var(--font-mono)", cursor: "pointer",
+        padding: "2px 8px", fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer",
         borderRadius: 4, border: "1px solid var(--border-default)",
         background: mode === m ? "var(--accent-blue)" : "var(--input-bg)",
         color: mode === m ? "var(--on-accent)" : "var(--text-muted)",
@@ -192,18 +192,18 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
       <div style={{
         display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", flexShrink: 0,
         borderBottom: "1px solid var(--border-subtle)", background: "var(--input-bg)",
-        fontSize: 11, fontFamily: "var(--font-mono)",
+        fontSize: 12, fontFamily: "var(--font-mono)",
       }}>
         <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-muted)" }} title={url}>
           {url.replace(/^https?:\/\/(www\.)?/, "")}
         </span>
         {reason && mode === "web" && (
-          <span style={{ fontSize: 9, color: "var(--text-faint)" }} title={`Reader unavailable: ${reason}`}>
+          <span style={{ fontSize: 12, color: "var(--text-faint)" }} title={`Reader unavailable: ${reason}`}>
             reader: {reason}
           </span>
         )}
         {mode === "archive" && archive?.ok && archive.capturedAt && (
-          <span style={{ fontSize: 9, color: "var(--text-faint)" }} title={archive.capturedAt}>
+          <span style={{ fontSize: 12, color: "var(--text-faint)" }} title={archive.capturedAt}>
             captured {new Date(archive.capturedAt).toLocaleDateString()}
           </span>
         )}
@@ -211,7 +211,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
         {btn("web", "Web")}
         {btn("archive", "Archive")}
         <a href={url} target="_blank" rel="noreferrer noopener"
-           style={{ fontSize: 10, color: "var(--text-muted)", textDecoration: "none", padding: "2px 4px" }}
+           style={{ fontSize: 12, color: "var(--text-muted)", textDecoration: "none", padding: "2px 4px" }}
            title="Open in a new tab">↗</a>
       </div>
 
@@ -233,7 +233,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
           // reason is the site's own header rather than our guess.
           <div style={{ padding: 20, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
             <div style={{ marginBottom: 8 }}>
-              This page will not open inside a panel — <code style={{ fontSize: 11 }}>{fetched?.frameBlockedBy || "the site refuses framing"}</code>
+              This page will not open inside a panel — <code style={{ fontSize: 12 }}>{fetched?.frameBlockedBy || "the site refuses framing"}</code>
               {fetched?.usable === false && " — and it has no readable text to show instead."}
             </div>
             <a href={url} target="_blank" rel="noreferrer noopener"

@@ -71,7 +71,7 @@ function OpDisplayPill({ binding, op }) {
     <span
       title={binding.displayName || op.name}
       style={{
-        fontSize: 11, fontFamily: "monospace", padding: "2px 8px",
+        fontSize: 12, fontFamily: "monospace", padding: "2px 8px",
         borderRadius: 999, background: "var(--accent-green-bg)",
         border: "1px solid var(--accent-green-border)", color: "var(--accent-green-text)",
       }}
@@ -1019,7 +1019,7 @@ function InstanceInner({
                   title={`Run: ${binding.displayName || op.name}`}
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 4,
-                    padding: "2px 8px", borderRadius: 999, fontSize: 11,
+                    padding: "2px 8px", borderRadius: 999, fontSize: 12,
                     fontFamily: "monospace", cursor: "pointer",
                     background: "var(--accent-blue-bg)", border: "1px solid var(--accent-blue-border)",
                     color: "var(--accent-blue-text)",

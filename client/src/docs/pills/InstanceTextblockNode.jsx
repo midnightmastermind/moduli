@@ -422,7 +422,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
           // under the pointer.
           <div style={{ minHeight: 22, padding: "4px 8px" }} aria-hidden="true" />
         ) : (
-          <span style={{ opacity: 0.25, fontSize: 11, padding: "4px 8px", display: "block" }}>—</span>
+          <span style={{ opacity: 0.25, fontSize: 12, padding: "4px 8px", display: "block" }}>—</span>
         )}
       </div>
     </NodeViewWrapper>

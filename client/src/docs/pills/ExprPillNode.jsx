@@ -17,7 +17,7 @@ const PILL = {
   padding: "2px 6px", borderRadius: 999,
   border: "1px solid rgba(250,204,21,0.25)",
   background: "rgba(250,204,21,0.08)",
-  fontSize: 10, fontFamily: "var(--font-mono)",
+  fontSize: 12, fontFamily: "var(--font-mono)",
   color: "rgba(250,204,21,0.85)", flexShrink: 0,
   cursor: "default", userSelect: "none",
   transition: "border-color 0.15s, background 0.15s",
@@ -138,7 +138,7 @@ export default function ExprPillNode({ node, updateAttributes, selected, deleteN
               e.stopPropagation();
             }}
             onClick={(e) => e.stopPropagation()}
-            style={{ background: "transparent", border: "none", outline: "none", color: "rgba(250,204,21,0.9)", fontFamily: "var(--font-mono)", fontSize: 10, width: `${Math.max(editDraft.length, 4) + 1}ch`, minWidth: 30 }}
+            style={{ background: "transparent", border: "none", outline: "none", color: "rgba(250,204,21,0.9)", fontFamily: "var(--font-mono)", fontSize: 12, width: `${Math.max(editDraft.length, 4) + 1}ch`, minWidth: 30 }}
           />
         ) : (
           <>

@@ -19,7 +19,7 @@ const PILL_STYLE = {
   padding: "2px 6px", borderRadius: 999,
   border: "1px solid rgba(134,239,172,0.25)",
   background: "rgba(134,239,172,0.08)",
-  fontSize: 10, fontFamily: "var(--font-mono)",
+  fontSize: 12, fontFamily: "var(--font-mono)",
   color: "rgba(134,239,172,0.85)", flexShrink: 0,
   cursor: "pointer", userSelect: "none",
   transition: "border-color 0.15s, background 0.15s",
@@ -191,7 +191,7 @@ export default function FieldPillNode({ node, selected, deleteNode }) {
               e.stopPropagation();
             }}
             onClick={(e) => e.stopPropagation()}
-            style={{ background: "transparent", border: "none", outline: "none", color: "inherit", fontFamily: "var(--font-mono)", fontSize: 10, width: `${Math.max(editValue.length, 3)}ch`, minWidth: 30 }}
+            style={{ background: "transparent", border: "none", outline: "none", color: "inherit", fontFamily: "var(--font-mono)", fontSize: 12, width: `${Math.max(editValue.length, 3)}ch`, minWidth: 30 }}
           />
         )}
 

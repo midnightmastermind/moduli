@@ -38,7 +38,7 @@ export const PoolContent = React.memo(function PoolContent({ instanceModule, occ
         border: `1px solid ${isDragging ? "rgba(99,102,241,0.6)" : "var(--input-border)"}`,
         borderRadius: 20,
         cursor: "grab",
-        fontSize: 11,
+        fontSize: 12,
         fontFamily: "var(--font-mono)",
         color: "var(--text-primary)",
         userSelect: "none",

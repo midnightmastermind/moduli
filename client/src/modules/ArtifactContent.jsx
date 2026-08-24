@@ -54,7 +54,7 @@ function ArtifactDownloadBadge({ fileRef, originalName, size, style }) {
         background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
         color: "rgba(255,255,255,0.92)", textDecoration: "none",
-        fontFamily: "var(--font-mono)", fontSize: 10,
+        fontFamily: "var(--font-mono)", fontSize: 12,
         border: "1px solid rgba(255,255,255,0.18)",
         ...(style || {}),
       }}
@@ -168,7 +168,7 @@ function PdfViewer({ src, title }) {
       <div style={{
         display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
         background: "rgba(0,0,0,0.45)", color: "var(--text-muted, rgba(255,255,255,0.7))",
-        fontFamily: "var(--font-mono)", fontSize: 11, flexShrink: 0,
+        fontFamily: "var(--font-mono)", fontSize: 12, flexShrink: 0,
         borderBottom: "1px solid var(--border-subtle, rgba(255,255,255,0.08))",
       }}>
         <button type="button" onClick={() => go(-1)} disabled={pageNum <= 1} style={pdfNavBtn}>←</button>
@@ -184,7 +184,7 @@ function PdfViewer({ src, title }) {
               width: 48, padding: "1px 4px", textAlign: "center",
               background: "rgba(255,255,255,0.06)", color: "inherit",
               border: "1px solid rgba(255,255,255,0.12)", borderRadius: 4,
-              fontFamily: "inherit", fontSize: 11,
+              fontFamily: "inherit", fontSize: 12,
             }}
           />
           &nbsp;/&nbsp;{totalPages || "?"}
@@ -199,7 +199,7 @@ function PdfViewer({ src, title }) {
         {pdfjs && totalPages > 0 ? (
           <canvas ref={canvasRef} style={{ background: "white", boxShadow: "var(--menu-shadow-1)" }} />
         ) : (
-          <div style={{ color: "var(--text-faint)", fontFamily: "var(--font-mono)", fontSize: 11, padding: 32 }}>
+          <div style={{ color: "var(--text-faint)", fontFamily: "var(--font-mono)", fontSize: 12, padding: 32 }}>
             Loading PDF…
           </div>
         )}
@@ -211,7 +211,7 @@ const pdfNavBtn = {
   padding: "2px 8px", borderRadius: 4,
   background: "rgba(255,255,255,0.06)", color: "inherit",
   border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer",
-  fontFamily: "inherit", fontSize: 11,
+  fontFamily: "inherit", fontSize: 12,
 };
 
 // Audio waveform viewer (files audit gap #11). Lazy-loads wavesurfer.js
@@ -292,12 +292,12 @@ function AudioWaveform({ src }) {
             background: ready && !error ? "rgb(96,165,250)" : "rgba(255,255,255,0.06)",
             color: ready && !error ? "white" : "var(--text-muted)",
             border: "none", cursor: ready && !error ? "pointer" : "default",
-            fontFamily: "var(--font-mono)", fontSize: 11,
+            fontFamily: "var(--font-mono)", fontSize: 12,
           }}
         >
           {playing ? "Pause" : "Play"}
         </button>
-        <span style={{ flex: 1, fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-faint)" }}>
+        <span style={{ flex: 1, fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-faint)" }}>
           {error ? `Error: ${error}` : (ready ? "" : "Loading waveform…")}
         </span>
         {/* Native audio control as a "raw access" fallback. Useful when
@@ -362,7 +362,7 @@ function CodeViewer({ fileRef, label, originalName, size }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       {(label || fileRef) && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 10px", fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-faint)", borderBottom: "1px solid var(--border-subtle)", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 10px", fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-faint)", borderBottom: "1px solid var(--border-subtle)", flexShrink: 0 }}>
           <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {label || ""}{ext ? ` · .${ext}` : ""}{lang ? ` · ${lang}` : ""}{sizeLabel ? ` · ${sizeLabel}` : ""}
           </span>
@@ -461,7 +461,7 @@ function OcrButton({ imageUrl, hostOccurrence, dispatch, socket, gridId, userId,
         background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
         color: "rgba(255,255,255,0.92)",
-        fontFamily: "var(--font-mono)", fontSize: 10,
+        fontFamily: "var(--font-mono)", fontSize: 12,
         border: "1px solid rgba(255,255,255,0.18)",
         cursor: running ? "wait" : "pointer", opacity: running ? 0.7 : 1,
         ...(style || {}),
@@ -613,7 +613,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
                 onKeyDown={(e) => { if (e.key === "Enter") handleSaveName(); if (e.key === "Escape") setEditingName(false); }}
                 style={{
                   background: "var(--input-bg)", border: "1px solid var(--border-default)",
-                  borderRadius: 3, padding: "2px 8px", fontSize: 11, fontFamily: "var(--font-mono)",
+                  borderRadius: 3, padding: "2px 8px", fontSize: 12, fontFamily: "var(--font-mono)",
                   color: "var(--text-primary)", outline: "none", flex: 1,
                 }}
                 placeholder="Document name"
@@ -624,7 +624,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
 
           {/* Doc label badge — top right */}
           {docLabel && !editingName && (
-            <div style={{ position: "absolute", top: 2, right: 10, zIndex: 10, fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-faint)", userSelect: "none", pointerEvents: "none", letterSpacing: "0.03em" }}>
+            <div style={{ position: "absolute", top: 2, right: 10, zIndex: 10, fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-faint)", userSelect: "none", pointerEvents: "none", letterSpacing: "0.03em" }}>
               {docLabel}
             </div>
           )}
@@ -725,7 +725,7 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
               background: "rgba(0,0,0,0.55)", backdropFilter: "blur(8px)",
               WebkitBackdropFilter: "blur(8px)",
               color: "rgba(255,255,255,0.92)",
-              fontFamily: "var(--font-mono)", fontSize: 10,
+              fontFamily: "var(--font-mono)", fontSize: 12,
               border: "1px solid rgba(255,255,255,0.18)",
               cursor: "pointer",
             }}

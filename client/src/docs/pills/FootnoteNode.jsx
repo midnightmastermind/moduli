@@ -134,7 +134,7 @@ export default function FootnoteNode({ node, updateAttributes, getPos, editor, d
             verticalAlign: "baseline",
           }}
         >
-          <div style={{ fontSize: 9, color: "var(--text-muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.4 }}>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.4 }}>
             Footnote {number}
           </div>
           <textarea
@@ -156,13 +156,13 @@ export default function FootnoteNode({ node, updateAttributes, getPos, editor, d
               resize: "vertical",
             }}
           />
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, fontSize: 9, color: "var(--text-faint)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6, fontSize: 12, color: "var(--text-faint)" }}>
             <span>⌘↵ save · Esc cancel · ⌫ (empty) deletes</span>
             <button
               type="button"
               onClick={commit}
               style={{
-                fontSize: 10,
+                fontSize: 12,
                 padding: "2px 8px",
                 background: "var(--accent-blue-bg)",
                 border: "1px solid var(--accent-blue-border)",

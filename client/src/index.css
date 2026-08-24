@@ -1668,7 +1668,7 @@ body[data-drag-kind="panel"] .container-shell {
      "its still bigger than the #### header"). One step was not enough — #### is
      12, so body has to clear it: 13 → 11, and the heading scale is now even
      2px steps (18/16/14/12) so every level stays distinguishable. */
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
   /* Tighten the gap between words across the whole doc by ~1px (per user). */
   word-spacing: -1px;
@@ -2550,7 +2550,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   right: 50%;
   transform: translate(-14px, -50%);  /* clear the centered "+" glyph */
   white-space: nowrap;
-  font-size: 11px;
+  font-size: 12px;
   font-style: italic;
   color: var(--text-muted);
   opacity: 0;                /* label fades in on container hover */
@@ -2745,7 +2745,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 }
 .delta-popup {
   position: absolute;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   pointer-events: none;
   z-index: 100;
@@ -3054,7 +3054,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   }
 
   button {
-    font-size: 9px;
+    font-size: 12px;
   }
 
   .grid-wrapper {
@@ -3062,7 +3062,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   }
 
   .instance-row {
-    font-size: 10px;
+    font-size: 12px;
   }
 
   .panel-shell {
@@ -3356,7 +3356,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   gap: 4px;
   padding: 6px 8px;
   border-top: 1px solid var(--border-default);
-  font-size: 10px;
+  font-size: 12px;
   font-family: var(--font-mono);
   /* `--text-secondary` is defined by nothing — the scale here is
      primary / muted / faint. With no fallback the declaration was invalid and
@@ -3489,7 +3489,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   overflow: hidden;
 }
 .artifact-thumb-info-name {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: var(--text-primary);
   /* The alt/caption wraps to show the full text in the space (not a single
@@ -3502,7 +3502,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 }
 .artifact-thumb-info-dim,
 .artifact-thumb-info-size {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
   font-family: var(--font-mono);
 }
@@ -3664,7 +3664,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   text-align: center;
 }
 .artifact-card--fullbleed .artifact-fullbleed-name {
-  font-size: 10px;
+  font-size: 12px;
   font-family: var(--font-mono, monospace);
   color: var(--text-muted);
 }
@@ -3732,7 +3732,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   padding: 4px 10px;
   background: rgba(0, 0, 0, 0.55);
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-family: var(--font-mono);
   color: rgba(255, 255, 255, 0.92);
   pointer-events: none;
@@ -3774,7 +3774,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   border-radius: 6px;
 }
 .artifact-upload-caption {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
   flex: 1;
   overflow: hidden;
@@ -3792,7 +3792,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 }
 .artifact-upload-pct {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
   min-width: 32px;
   text-align: right;
@@ -4249,7 +4249,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 /* The nested "Info" header → very tiny. */
 .wrap-group--on .wrap-group-content > * > :not(:last-child) .container-shell .container-shell .container-header,
 .wrap-group--on .wrap-group-content > * > :not(:last-child) .container-shell .container-shell .container-header span {
-  font-size: 9px !important;
+  font-size: 12px !important;
   font-weight: 600 !important;
 }
 /* Top padding INSIDE the infobox (above its content). */
@@ -4363,7 +4363,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   border: 1px solid rgba(96,165,250,0.45);
   background: var(--body-bg, #0b1220);
   color: rgba(147,197,253,0.9);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1;
   display: none;
   align-items: center;
@@ -4444,7 +4444,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .lwrap-figure-ph {
   display: flex; align-items: center; justify-content: center;
   min-height: 80px; border: 1px dashed var(--border-default); border-radius: 6px;
-  color: var(--text-faint); font-size: 11px;
+  color: var(--text-faint); font-size: 12px;
 }
 .lwrap-figure-cap {
   margin-top: 4px; text-align: center; font-style: italic;
@@ -4995,7 +4995,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   display: flex; align-items: center; line-height: 1;
 }
 .table-sort-btn:hover { background: var(--border-default); color: var(--text-primary); }
-.table-sort-inactive { font-size: 10px; opacity: 0.5; }
+.table-sort-inactive { font-size: 12px; opacity: 0.5; }
 
 /* Table-level sort overlay (top-left of header row) */
 .table-sort-overlay-btn {
@@ -5014,7 +5014,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   min-width: 180px; padding: 6px;
 }
 .table-sort-overlay-title {
-  font-size: 10px; color: var(--text-muted); text-transform: uppercase;
+  font-size: 12px; color: var(--text-muted); text-transform: uppercase;
   letter-spacing: 0.5px; padding: 2px 4px 6px 4px;
 }
 .table-sort-overlay-row {
@@ -5039,7 +5039,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .table-sort-overlay-clear {
   display: block; width: 100%; padding: 6px 8px; margin-top: 4px;
   background: none; border: none; border-top: 1px solid var(--border-default);
-  text-align: left; cursor: pointer; font-size: 11px; color: #e05c5c;
+  text-align: left; cursor: pointer; font-size: 12px; color: #e05c5c;
 }
 .table-sort-overlay-clear:hover { background: rgba(224,92,92,0.12); }
 
@@ -5060,7 +5060,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   overflow: visible;
 }
 .table-kebab-section-label {
-  font-size: 9px; text-transform: uppercase; letter-spacing: 0.6px;
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px;
   color: var(--text-faint);
   padding: 4px 8px 2px 8px;
   font-family: var(--font-mono);
@@ -5073,7 +5073,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   display: flex; align-items: center; gap: 6px;
   width: 100%; padding: 6px 8px;
   background: none; border: none; text-align: left; cursor: pointer;
-  font-size: 11px; color: var(--text-primary);
+  font-size: 12px; color: var(--text-primary);
   border-radius: 3px;
   line-height: 1.3;
 }
@@ -5116,7 +5116,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 }
 .table-add-col-btn {
   background: none; border: 1px dashed var(--border-subtle);
-  color: var(--text-muted); font-size: 11px; border-radius: 4px;
+  color: var(--text-muted); font-size: 12px; border-radius: 4px;
   padding: 3px 8px; cursor: pointer; white-space: nowrap;
 }
 .table-add-col-btn:hover { border-color: var(--border-default); color: var(--text-primary); }
@@ -5241,7 +5241,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   background: rgba(96,165,250,0.07);
 }
 .instance-media-placeholder {
-  font-size: 10px;
+  font-size: 12px;
   font-family: var(--font-mono);
   color: var(--text-faint);
   letter-spacing: 0.4px;
@@ -5524,7 +5524,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    the two dropdowns are the same pill. */
 .field-input-select-multi .rounded-full button,
 .field-input-select-multi .rounded-full button * {
-  font-size: 10px;
+  font-size: 12px;
   line-height: 15px;
 }
 .field-input-select-multi .rounded-full button svg { width: 10px; height: 10px; }
@@ -5556,7 +5556,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .table-fill-mode {
   position: absolute; bottom: -18px; right: 0;
   background: var(--input-bg); border: 1px solid var(--border-default);
-  border-radius: 999px; font-size: 9px; color: var(--text-muted);
+  border-radius: 999px; font-size: 12px; color: var(--text-muted);
   padding: 1px 5px; cursor: pointer; z-index: 6; white-space: nowrap;
   line-height: 1.4;
 }
@@ -5714,7 +5714,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .occ-search-field-icon { color: var(--text-faint); flex-shrink: 0; }
 .occ-search-input {
   flex: 1; min-width: 0; background: transparent; border: none; outline: none;
-  font-size: 11px; font-family: var(--font-mono); color: var(--text-primary);
+  font-size: 12px; font-family: var(--font-mono); color: var(--text-primary);
 }
 .occ-search-clear {
   display: flex; align-items: center; border: none; background: transparent;
@@ -5739,12 +5739,12 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .occ-search-row-label mark { background: rgba(96,165,250,0.35); color: inherit; border-radius: 2px; }
 .occ-search-row-path,
 .occ-search-row-why {
-  font-size: 10px; color: var(--text-faint); font-family: var(--font-mono);
+  font-size: 12px; color: var(--text-faint); font-family: var(--font-mono);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .occ-search-row-why { color: var(--text-muted); font-style: italic; }
 .occ-search-empty,
-.occ-search-more { padding: 6px; font-size: 10px; color: var(--text-faint); text-align: center; }
+.occ-search-more { padding: 6px; font-size: 12px; color: var(--text-faint); text-align: center; }
 
 /* Close-this-page button in the page header (right of the name). Hover-revealed
    like the manifest tree's close button — the same action, at the page. */
@@ -6037,7 +6037,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 }
 .artifact-spread-count,
 .artifact-spread-hint {
-  font-size: 10px;
+  font-size: 12px;
   font-family: var(--font-mono, monospace);
   color: var(--text-faint);
   white-space: nowrap;
@@ -6268,7 +6268,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   border: 1px solid var(--border-subtle);
   background: var(--input-bg);
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
   font-family: var(--font-mono, monospace);
   cursor: pointer;
 }
@@ -6301,7 +6301,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .container-graph-empty {
   display: flex; align-items: center; justify-content: center; gap: 6px;
   flex: 1; min-height: 120px; padding: 20px;
-  font-size: 11px; color: var(--text-faint); text-align: center;
+  font-size: 12px; color: var(--text-faint); text-align: center;
 }
 
 /* Surfaced rather than swallowed — "this row contributed nothing" is exactly
@@ -6309,7 +6309,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .container-graph-warnings {
   flex: 0 0 auto;
   padding: 2px 6px;
-  font-size: 9px;
+  font-size: 12px;
   font-family: var(--font-mono, monospace);
   color: var(--text-faint);
   cursor: help;
@@ -6317,7 +6317,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 
 .echart-failed {
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  min-height: 120px; font-size: 11px; color: var(--text-faint);
+  min-height: 120px; font-size: 12px; color: var(--text-faint);
 }
 .echart-failed button {
   padding: 2px 8px; border-radius: 4px;
@@ -7114,7 +7114,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 :root[data-skin="blueprint"] .field-display *,
 :root[data-skin="blueprint"] .field-input,
 :root[data-skin="blueprint"] .field-input * {
-  font-size: 11px !important;
+  font-size: 12px !important;
 }
 
 /* (4) — doc headers and prose go near-black. */

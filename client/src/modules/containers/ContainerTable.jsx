@@ -52,7 +52,7 @@ function FilterValueWidget({ comparator, value, onChange }) {
       style={{
         width: "100%",
         height: 22,
-        fontSize: 10,
+        fontSize: 12,
         fontFamily: "var(--font-mono)",
         padding: "0 5px",
         borderRadius: 3,
@@ -1420,7 +1420,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                         ) : filterPickerCol === c ? (
                           /* ── Per-column filter editor ── */
                           <div className="table-kebab-filter-picker" style={{ padding: "6px 8px", minWidth: 160 }}>
-                            <div style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 4, fontFamily: "var(--font-mono)" }}>
+                            <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4, fontFamily: "var(--font-mono)" }}>
                               Filter this column
                             </div>
                             {/* Comparator dropdown — shared COMPARATOR_OPTIONS (also used by GridSettingsTab) */}
@@ -1434,7 +1434,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                               style={{
                                 width: "100%",
                                 height: 22,
-                                fontSize: 10,
+                                fontSize: 12,
                                 fontFamily: "var(--font-mono)",
                                 padding: "0 4px",
                                 borderRadius: 3,
@@ -1477,14 +1477,14 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                         ) : fieldVisibilityPickerCol === c ? (
                           /* ── Per-column field filter editor (show/hide which fields render inside the cell embed) ── */
                           <div className="table-kebab-fieldvis-picker" style={{ padding: "6px 8px", minWidth: 200 }}>
-                            <div style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 4, fontFamily: "var(--font-mono)" }}>
+                            <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 4, fontFamily: "var(--font-mono)" }}>
                               Fields visible in cell embed
                             </div>
                             {/* Inherit = use the table's HeaderDropdown field
                                 visibility (which itself cascades from the
                                 page/grid). Show / Hide = per-column override. */}
                             {!col.fieldVisibility && (
-                              <div style={{ fontSize: 9, color: "var(--text-faint)", marginBottom: 6 }}>
+                              <div style={{ fontSize: 12, color: "var(--text-faint)", marginBottom: 6 }}>
                                 Inheriting: {tableFieldVisibility
                                   ? `${tableFieldVisibility.mode === "show" ? "Show only" : "Hide"} ${(tableFieldVisibility.fieldIds || []).length} field${(tableFieldVisibility.fieldIds || []).length === 1 ? "" : "s"}`
                                   : "all fields"}
@@ -1500,7 +1500,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                                     key={m}
                                     onClick={() => handleSetFieldVisibilityMode(c, m)}
                                     style={{
-                                      flex: 1, height: 20, fontSize: 9, fontFamily: "var(--font-mono)",
+                                      flex: 1, height: 20, fontSize: 12, fontFamily: "var(--font-mono)",
                                       borderRadius: 3, border: "1px solid var(--input-border)",
                                       background: isActive ? "var(--accent-blue-bg, rgba(96,165,250,0.18))" : "var(--input-bg)",
                                       color: isActive ? "var(--accent-blue, #60a5fa)" : "var(--text-muted)",
@@ -1516,14 +1516,14 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                             {col.fieldVisibility && col.fieldVisibility.mode && col.fieldVisibility.mode !== "off" && (
                               <div style={{ maxHeight: 160, overflowY: "auto", border: "1px solid var(--border-subtle)", borderRadius: 3, padding: 2 }}>
                                 {allFields.length === 0 && (
-                                  <div style={{ fontSize: 10, color: "var(--text-faint)", padding: 4 }}>No fields available</div>
+                                  <div style={{ fontSize: 12, color: "var(--text-faint)", padding: 4 }}>No fields available</div>
                                 )}
                                 {allFields.map(f => {
                                   const checked = (col.fieldVisibility.fieldIds || []).includes(f.id);
                                   return (
                                     <label
                                       key={f.id}
-                                      style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 4px", fontSize: 10, cursor: "pointer", borderRadius: 2 }}
+                                      style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 4px", fontSize: 12, cursor: "pointer", borderRadius: 2 }}
                                       onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
                                       onMouseLeave={e => e.currentTarget.style.background = "transparent"}
                                     >
@@ -1534,7 +1534,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
                                         style={{ margin: 0, width: 10, height: 10 }}
                                       />
                                       <span style={{ flex: 1, color: "var(--text-primary)" }}>{f.name || "(unnamed)"}</span>
-                                      <span style={{ fontSize: 9, color: "var(--text-faint)" }}>{f.type}</span>
+                                      <span style={{ fontSize: 12, color: "var(--text-faint)" }}>{f.type}</span>
                                     </label>
                                   );
                                 })}

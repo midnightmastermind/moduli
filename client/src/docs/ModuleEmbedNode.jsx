@@ -212,7 +212,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
   if (!mod) {
     return (
       <NodeViewWrapper contentEditable={false} data-occ-id={occurrenceId}>
-        <div style={{ padding: "4px 8px", fontSize: 11, color: "var(--text-faint)", fontFamily: "var(--font-mono)", borderRadius: 4, border: "1px dashed var(--border-default)", margin: "2px 0" }}>
+        <div style={{ padding: "4px 8px", fontSize: 12, color: "var(--text-faint)", fontFamily: "var(--font-mono)", borderRadius: 4, border: "1px dashed var(--border-default)", margin: "2px 0" }}>
           embed: {occurrenceId || "missing"}
         </div>
       </NodeViewWrapper>
