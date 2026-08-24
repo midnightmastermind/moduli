@@ -31,6 +31,9 @@ async function registry() {
   await import("./providers/musicbrainz.js");
   await import("./providers/openfoodfacts.js");
   await import("./providers/itunes.js");
+  await import("./providers/places.js");
+  await import("./providers/openfda.js");
+  await import("./providers/tmdb.js");
   return mod;
 }
 
@@ -58,7 +61,16 @@ export async function handleProviderSearch(req, res) {
     // provider treats that differently and none of them usefully.
     if (!q) return res.json({ ok: true, query: "", results: [] });
 
-    const results = await p.search(q, { limit: Math.min(20, Number(req.query.limit) || 6) });
+    // Location bias, forwarded to any provider that can use it. `places` is the
+    // one that does today: measured, an unbiased "Whole Foods" answers Los Gatos
+    // before Milwaukee, and "Central Park" surfaces a stadium in Scotland. The
+    // address field's own route has taken these two params since `0054`; this is
+    // the same pair reaching the same geocoder by a different door.
+    const num = (v) => (v === undefined || v === "" ? undefined : Number(v));
+    const results = await p.search(q, {
+      limit: Math.min(20, Number(req.query.limit) || 6),
+      lat: num(req.query.lat), lon: num(req.query.lon),
+    });
     // THE MERGE RULE. The caller passes the keys its grid already holds, so a
     // result already on the board is not offered a second time — matched on the
     // provider's own identity, never on a title.

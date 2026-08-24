@@ -81,6 +81,26 @@ describe("GET /search/:provider", () => {
     expect(searchCalls[0].opts.limit).toBe(20);
   });
 
+  it("forwards location bias as NUMBERS, for the provider that can use it", async () => {
+    // Measured live: unbiased, "Whole Foods" answers Los Gatos before Milwaukee
+    // and "Central Park" surfaces a stadium in Scotland. The geocoder has taken
+    // this pair since `0054`; only the adapter and the route dropped it.
+    await call(makeRouter(), "/search/stub?q=a&lat=43.0389&lon=-87.9065");
+    expect(searchCalls[0].opts.lat).toBe(43.0389);
+    expect(searchCalls[0].opts.lon).toBe(-87.9065);
+  });
+
+  it("passes UNDEFINED when the caller does not know where the user is", async () => {
+    // The discriminating case: `Number(undefined)` is NaN and `Number("")` is 0 —
+    // and 0,0 is a real coordinate in the Gulf of Guinea. Either would bias every
+    // unlocated search toward the wrong hemisphere instead of not biasing at all.
+    await call(makeRouter(), "/search/stub?q=a");
+    expect(searchCalls[0].opts.lat).toBeUndefined();
+    await call(makeRouter(), "/search/stub?q=a&lat=&lon=");
+    expect(searchCalls[1].opts.lat).toBeUndefined();
+    expect(searchCalls[1].opts.lon).toBeUndefined();
+  });
+
   it("404s an unknown provider rather than guessing one", async () => {
     const r = await call(makeRouter(), "/search/nope?q=a");
     expect(r.status).toBe(404);
