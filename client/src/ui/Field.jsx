@@ -11,6 +11,8 @@
 // - compact=false → full input controls (was FieldInput)
 // ============================================================
 
+import { splitSections, localProviderKeys } from "../helpers/mergedOptionSearch";
+import { useProviderSearch } from "../hooks/useProviderSearch";
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -188,7 +190,7 @@ function RandomizeSegment({ onClick, disabled, compact }) {
 }
 
 // ─── MultiSelectWithAdd ─────────────────────────────────────────
-function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, disabled, compact, showLabel, randomize, renderOption, fieldName, addNewTargets = null }) {
+function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, disabled, compact, showLabel, randomize, renderOption, fieldName, addNewTargets = null, searchProvider = null, onImportResult = null }) {
   const [isOpen, setIsOpen] = useState(false);
   const [newValue, setNewValue] = useState("");
   // Multi-target addNew: when the field's addNew declares SEVERAL candidate
@@ -196,6 +198,19 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
   // (labels resolved live — see helpers/addNewOption.js).
   const [choosingDest, setChoosingDest] = useState(false);
   const selectedOptions = useMemo(() => options.filter(o => selected.includes(o.value)), [options, selected]);
+  // ── SEARCHING YOUR GRID AND A PROVIDER AT ONCE ──────────────────────────
+  // User, 2026-08-23: *"we still have our search for our own occurances merged
+  // in there."* The "Add new…" box doubles as the search box: the local list
+  // filters SYNCHRONOUSLY as you type and the provider's results are APPENDED
+  // when they arrive. A provider that is slow or down degrades to exactly the
+  // behaviour this dropdown had before — the local half never waits on it.
+  const haveKeys = useMemo(() => [...localProviderKeys(options)], [options]);
+  const { results: remoteResults, state: remoteState } =
+    useProviderSearch({ provider: searchProvider, query: newValue, haveKeys, enabled: !!searchProvider });
+  const sections = useMemo(
+    () => splitSections({ options, query: newValue, remote: remoteResults, remoteState }),
+    [options, newValue, remoteResults, remoteState],
+  );
   const toggle = useCallback((v) => onChange(selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v]), [selected, onChange]);
   const doAdd = useCallback((parentOccurrenceId = null) => {
     const value = newValue.toLowerCase().replace(/\s+/g, "_");
@@ -286,9 +301,15 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
               </div>
             )}
             <div className="max-h-48 overflow-y-auto p-1">
-              {options.length === 0
+              {/* A HEADING ONLY WHEN THERE ARE TWO SOURCES. With no provider
+                  configured this renders exactly as it always did — one plain
+                  list, no ceremony. */}
+              {searchProvider && sections.local.length > 0 && (
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-2 pt-1 pb-0.5">On your grid</div>
+              )}
+              {sections.local.length === 0 && !searchProvider
                 ? <div className="py-4 text-center text-xs text-muted-foreground">No options available</div>
-                : options.map(o => (
+                : sections.local.map(o => (
                     <button key={o.value} type="button" onClick={() => toggle(o.value)}
                       className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-sm text-left text-xs transition-colors
                         ${selected.includes(o.value) ? "bg-primary/10 text-primary" : "hover:bg-muted"}`}>
@@ -299,6 +320,37 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
                       {renderOption ? renderOption(o) : <span className="truncate">{o.label}</span>}
                     </button>
                   ))}
+              {/* THE PROVIDER SECTION. Visibly separate because picking here
+                  IMPORTS — it mints an occurrence and fills its fields — while
+                  picking above merely SELECTS one you already have. One
+                  undifferentiated list would make the second look like the
+                  first and quietly grow the board. */}
+              {searchProvider && newValue.trim() && (
+                <>
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-2 pt-2 pb-0.5 border-t border-border/40 mt-1">
+                    From {searchProvider}
+                    {sections.remoteState === "searching" && <span className="ml-1 opacity-60">searching…</span>}
+                    {sections.remoteState === "error" && <span className="ml-1 opacity-60">unavailable</span>}
+                  </div>
+                  {/* "searching" is why an empty list is not "nothing found" —
+                      a distinction the user has to see, or a slow provider
+                      looks like a wrong answer. */}
+                  {sections.remoteState === "done" && sections.external.length === 0 && (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">Nothing found</div>
+                  )}
+                  {sections.external.map(r => (
+                    <button key={`${r.provider}:${r.externalId || r.title}`} type="button"
+                      onClick={() => onImportResult?.(r)}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-sm text-left text-xs hover:bg-muted">
+                      <Plus className="h-3 w-3 flex-shrink-0 opacity-60" />
+                      <span className="truncate">
+                        {r.title}
+                        {r.subtitle && <span className="opacity-60"> — {String(r.subtitle).slice(0, 60)}</span>}
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
           </PopoverContent>
         </Popover>
