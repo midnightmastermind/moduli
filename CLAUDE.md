@@ -6,6 +6,92 @@
 
 ---
 
+### 2026-08-24 (3) — CSS that outlived its DOM, twice; and 39 folders that could not draw a card
+
+Four user reports on one surface, picked up from the other account's session.
+**Two of them are the same class of defect: a stylesheet still describing the DOM
+that this morning's instance restructure replaced.**
+
+**THE PHONE WAS UNUSABLE BECAUSE `flex-direction: column` NOW MEANS SOMETHING
+ELSE.** The `max-width: 600px` block flipped `.instance-content` to a column so
+fields would stack under the label — correct when the row was
+`[handle][label][fields]`. `b165d33c` made it `[handle][textcol]`, so stacking is
+the default at every width and that override now stacks the **DRAG HANDLE above
+the text**. Measured against the BUILT stylesheet at 390px, with the deleted rule
+re-injected as the control:
+```
+BEFORE (live)   dir=column   label 22px BELOW handle   rowH=72
+AFTER  (fixed)  dir=row      same line                 rowH=50
+```
+Every row 44% taller, a whole line spent on the handle. **This is the third place
+today CSS outlived its DOM** — `549e779b` fixed the wrap tile's header, `3040cf4b`
+fixed tracker tiles, and this is the same defect on every phone row.
+`.instance-content:has(> .instance-fields)` went with it and had ALREADY stopped
+matching: the fields are inside the textcol now, not a direct child.
+
+**"NOT SEEING THE DOCUMENTS OR MEDIA FOLDERS" WAS NOT DATA LOSS.** A sub-folder
+renders as a card only if it CONTAINS a `kind:"folder" role:"page"` occurrence —
+that occurrence IS the card. Measured on poms grid:
+```
+folders 54   with a folder-page occurrence 15   MISSING one 39
+```
+Root/Documents, Boards/Media, Media/Music, Media/Books, all 11 Interests, all 8
+Codex subfolders. **The sidebar reads `foldersById` directly, so the tree showed
+all 54 while the folder page showed 15** — which is exactly why it read as loss.
+Minted on view now, the pattern `handleFolderClick` and `ensureArtifactPageOcc`
+already use. **The gap is computed with the RENDERER's predicate, not
+`ensureFolderPageOcc`'s** — that helper keys on `meta.folderPage`, the renderer on
+module kind+role, and minting off the helper's test would duplicate a page for
+any folder whose occurrence lacks the flag.
+
+**THE FOLDER PAGE FROZE BECAUSE AN INERT PROP WAS NEVER WIRED.** The
+IntersectionObserver fires for every card above the fold in ONE tick, so all of
+them mount a full `PagePreviewBody` in one synchronous task and nothing can paint
+or take a click. `loadIndex` had been passed by `PageFolder` and read by nothing.
+**A shared queue, not a per-card `setTimeout(index * N)`**: a per-card delay is a
+GUESS at how long the card ahead takes — guess low and the mounts overlap again.
+The first version shifted the entry off the queue at SCHEDULE time, so a card
+that scrolled away could never give up its turn; its own test caught it.
+
+**A BARE `<img>` LAYS OUT AT THE SIZE OF ITS ALT TEXT.** That is both halves of
+*"placeholder text instead of a loading circle"* and *"the loading box should be
+the size of the image"* — one line of markup. `LoadingImage` already existed and
+`ArtifactCard` already used it; the image PICKER and the full-size VIEWER never
+adopted it. The viewer reserves the real box from `meta.width`/`meta.height`
+(stamped by the server's EXIF pass) and **falls back to a square floor rather than
+guessing an aspect** — a guessed ratio jumps just as badly, the other way.
+
+**MEASURED AND RETIRED: the Atlas throughput is not a batching artifact.** The
+cold-load hang was diagnosed as Serverless throttling; re-measured at 86-105
+docs/s, and the obvious next theory — 101-doc cursor batches — is WRONG: ping is
+31ms and total time is flat across batchSize 101 / 1000 / 5000. It is genuine
+server-side throttling, so the fix is a tier, not code.
+
+**LINT CAUGHT A MISSING `useEffect` IMPORT before it shipped** — the 2026-08-23 (6)
+guard earning its keep: a build resolves imports but not undefined locals, and no
+test mounts these components. TDZ checked too (the deps are declared at 99-101,
+the effect at 329).
+
+**REPORTED, NOT FIXED: 4 of 11 search providers return a bare name.** All 11 are
+enabled; Supplement (DSLD, shipped an hour earlier), Podcasts Listened, Song and
+Purchase Item carry NO field map.
+
+**A PROBE THAT LIED, and the control is what said so.** The served-CSS check read
+"fix gone" AND "control missing" — both absent is the documented tell. Two faults:
+the shell cwd had persisted into `client/`, and **the minifier rewrites
+`flex: 0 0 auto` to `flex:none`**, which the control regex never matched.
+
+3312 client tests, build clean, deployed and verified — prod HEAD matched, index
+and bundle 200, served CSS **sha256-identical** to the local build with the fixed
+rule absent and two controls present.
+
+**NOT DONE, and it needs a decision: the 12px floor.** Most sub-12px text is
+Command Center chrome rather than grid writing, and the heading scale steps down
+through 13 to 12 — so a 12px body floor flattens the bottom of the hierarchy
+unless the scale moves with it.
+
+---
+
 ### 2026-08-24 (2) — I ran the user's OWN DATA through a provider that was only meant for new adds
 
 User, after `0232` shipped: *"wait you didnt have to run my stuff through there.
