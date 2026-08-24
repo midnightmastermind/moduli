@@ -3272,3 +3272,23 @@ No new mechanism is needed.
 - **The merge defect this layer would have hit was fixed today** (`85b0989e`): two layers claiming
   one slot lost the first layer's rows to a stale whole-array write. `Routine` + `Meals` both
   claiming 7:00am is precisely that case, so this is now safe to build where a week ago it was not.
+
+---
+
+### 2026-08-24 — a floor on grid type
+
+> "dont make any of the writing on the grid less than 12px btw"
+
+**A STANDING RULE, not a one-off fix.** Nothing rendered on the grid may set a
+font size below 12px. This supersedes several deliberate choices already in the
+file — 2026-08-01 (7) set body text to **11px** on purpose ("body is 11 now")
+and the instance/field pills sit at 9-11px throughout, so this is a real reversal
+rather than a cleanup of strays.
+
+**The consequences to check while doing it, because the file already records
+them:** a row's field pills share one centreline (2026-07-28) and the compact
+pill is a fixed 21px box, so raising the text inside it changes row geometry;
+the heading scale (18/16/14/13) currently steps *down* to 13 and 12, which
+collides with a 12px floor for body text and would flatten the hierarchy the
+2026-08-01 (7) pass built.
+
