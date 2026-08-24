@@ -61,6 +61,7 @@ import { registerTemplateHandlers } from "./socketHandlers/templates.js";
 import { registerImportHandlers } from "./socketHandlers/import.js";
 import { makeApiV1Router } from "./routes/apiV1.js";
 import { createOpRunBridge } from "./utils/opRunBridge.js";
+import { handleProvidersList, handleProviderSearch, handleProviderDetail } from "./utils/searchRouteHandlers.js";
 
 
 // ========================================================
@@ -997,6 +998,16 @@ async function searchImagesWikipedia(q, max = 8) {
       source: `https://en.wikipedia.org/wiki/${encodeURIComponent(p.title)}`,
     }));
 }
+// ── Search providers, app-internal ────────────────────────────────────────
+// The SAME handlers `/api/v1/search/*` serves, mounted without the Bearer-token
+// guard because the browser has no API token — it authenticates over the socket
+// — and the field editor + the occurrence dropdown call these from the page.
+// Same auth class as `/api/images/search` directly below: a keyless proxy to a
+// public API, on behalf of this app's own UI.
+app.get("/api/search/providers", handleProvidersList);
+app.get("/api/search/:provider", handleProviderSearch);
+app.get("/api/search/:provider/detail", handleProviderDetail);
+
 app.get("/api/images/search", async (req, res) => {
   const q = String(req.query.q || "").trim();
   if (!q) return res.status(400).json({ error: "q required" });

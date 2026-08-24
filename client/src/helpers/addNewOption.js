@@ -77,20 +77,28 @@ export function buildStampFields(field, parentOcc) {
 // Mint the new option occurrence under the chosen parent. Binds the stamp
 // fields HIDDEN (identity tags never render inline) and any addNew.fieldIds
 // as visible inputs. Returns { moduleId, occurrenceId, entryFieldIds }.
-export function createOptionUnderParent({ field, parentOcc, label, dispatch, socket, gridId, userId, occMeta = null }) {
+export function createOptionUnderParent({ field, parentOcc, label, dispatch, socket, gridId, userId, occMeta = null, extraFields = null }) {
   if (!field || !parentOcc || !label?.trim()) return null;
   const addNew = field.meta?.optionsSource?.addNew || {};
   const stamp = buildStampFields(field, parentOcc);
   const entryFieldIds = Array.isArray(addNew.fieldIds) ? addNew.fieldIds.filter(Boolean) : [];
+  // Values mapped in from a search provider. They are BOUND as well as written:
+  // a value with no binding is stored and renders nowhere, which is the
+  // stamped-but-invisible half of the `0047` defect ("an ingredient module did
+  // not BIND the macro fields at all"). Visible, because unlike the identity
+  // stamp these are facts the user wants to see and correct.
+  const extra = extraFields && typeof extraFields === "object" ? extraFields : {};
+  const extraIds = Object.keys(extra).filter((fid) => !stamp[fid] && !entryFieldIds.includes(fid));
   const fieldBindings = [
     ...Object.keys(stamp).map((fid, i) => ({ fieldId: fid, role: "input", order: i, hidden: true })),
     ...entryFieldIds.map((fid, i) => ({ fieldId: fid, role: "input", order: 100 + i })),
+    ...extraIds.map((fid, i) => ({ fieldId: fid, role: "input", order: 200 + i })),
   ];
   const res = createLeafInstanceInParent({
     dispatch, socket, gridId, userId,
     parentOccurrence: parentOcc,
     label: label.trim(),
-    initialFields: stamp,
+    initialFields: { ...extra, ...stamp },
     fieldBindings,
     occMeta,
   });

@@ -41,6 +41,7 @@ import { runOperationServerSide } from "../services/serverExecutor.js";
 import { buildOpenApiDoc } from "./apiV1OpenApi.js";
 import { verifyToken } from "../utils/jwts.js";
 import ApiToken from "../models/ApiToken.js";
+import { handleProvidersList, handleProviderSearch, handleProviderDetail } from "../utils/searchRouteHandlers.js";
 
 // Loopback base for the assistant's self-calls (see header comment).
 const SELF_BASE_URL =
@@ -1385,49 +1386,12 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   //
   // Every provider lives server-side: keys must not ship in a bundle, several
   // forbid browser CORS, and a rate limit belongs in one place — `0054` had to
-  // learn that twice.
-  router.get("/search/providers", authAndLimit({ requireScope: "read" }), async (req, res) => {
-    try {
-      const { availableProviders } = await import("../utils/searchProviders.js");
-      await import("../utils/providers/wikipedia.js");        // registers itself
-      // A KEYED provider with no key is not listed at all — the failure belongs
-      // at configuration, not at the user's keystroke.
-      res.json({ ok: true, providers: availableProviders() });
-    } catch (e) { err(res, 500, "internal_error", e.message); }
-  });
-
-  router.get("/search/:provider", authAndLimit({ requireScope: "read" }), async (req, res) => {
-    try {
-      const { getProvider, dropAlreadyOnGrid } = await import("../utils/searchProviders.js");
-      await import("../utils/providers/wikipedia.js");
-      const p = getProvider(req.params.provider);
-      if (!p) return err(res, 404, "not_found", `No search provider "${req.params.provider}"`);
-      const q = String(req.query.q || "").trim();
-      // An empty query returns an empty list rather than searching for "" —
-      // every provider treats that differently and none of them usefully.
-      if (!q) return res.json({ ok: true, query: "", results: [] });
-
-      const results = await p.search(q, { limit: Math.min(20, Number(req.query.limit) || 6) });
-      // THE MERGE RULE. The caller passes the keys its grid already holds, so a
-      // result already on the board is not offered a second time — matched on
-      // the provider's own identity, never on a title.
-      const already = new Set(String(req.query.have || "").split(",").filter(Boolean));
-      res.json({ ok: true, query: q, results: dropAlreadyOnGrid(results, already) });
-    } catch (e) { err(res, 502, "provider_error", e.message); }
-  });
-
-  router.get("/search/:provider/detail", authAndLimit({ requireScope: "read" }), async (req, res) => {
-    try {
-      const { getProvider } = await import("../utils/searchProviders.js");
-      await import("../utils/providers/wikipedia.js");
-      const p = getProvider(req.params.provider);
-      if (!p) return err(res, 404, "not_found", `No search provider "${req.params.provider}"`);
-      if (typeof p.detail !== "function") return err(res, 400, "unsupported", "That provider has no detail step");
-      const out = await p.detail({ title: req.query.title, externalId: req.query.externalId });
-      if (!out) return err(res, 404, "not_found", "Nothing to import for that result");
-      res.json({ ok: true, result: out });
-    } catch (e) { err(res, 502, "provider_error", e.message); }
-  });
+  // learn that twice. The handlers are SHARED with the app-internal
+  // `/api/search/*` mount (see utils/searchRouteHandlers.js); only the auth
+  // differs, and a second copy of them would drift.
+  router.get("/search/providers", authAndLimit({ requireScope: "read" }), handleProvidersList);
+  router.get("/search/:provider", authAndLimit({ requireScope: "read" }), handleProviderSearch);
+  router.get("/search/:provider/detail", authAndLimit({ requireScope: "read" }), handleProviderDetail);
 
   router.get("/research/wikipedia/search", authAndLimit({ requireScope: "read" }), async (req, res) => {
     try {

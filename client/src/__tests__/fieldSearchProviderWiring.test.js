@@ -59,8 +59,18 @@ describe("the occurrence dropdown's provider search is wired at the call site", 
     }
   });
 
-  it("the provider is DATA on the field, never a hardcoded name", () => {
-    expect(SRC).toContain("field?.meta?.searchProvider?.provider");
+  it("the provider is DATA on the field, read through the ONE shared reader", () => {
+    // It lives at `meta.optionsSource.searchProvider` — beside the query it
+    // belongs to, which is where the editor writes it. Read via
+    // `searchProviderConfig` rather than inline, so the editor's notion of
+    // "enabled" and the dropdown's cannot drift.
+    expect(SRC).toContain("searchProviderConfig(field)");
+    expect(SRC).not.toContain("meta?.searchProvider");   // the old, bypassable path
+  });
+
+  it("the import USES the authored mapping, or the mapping is decoration", () => {
+    expect(SRC).toContain("mapProviderFields(");
+    expect(SRC).toContain("extraFields");
   });
 
   it("EVERY import handler records WHERE the row came from", () => {

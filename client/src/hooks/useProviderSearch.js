@@ -48,7 +48,7 @@ export function useProviderSearch({ provider, query, haveKeys = [], enabled = tr
       abortRef.current = ctrl;
       try {
         const doFetch = fetchImpl || ((url, opts) => fetch(url, opts));
-        const url = `/api/v1/search/${encodeURIComponent(provider)}`
+        const url = `/api/search/${encodeURIComponent(provider)}`
           + `?q=${encodeURIComponent(q)}&have=${encodeURIComponent(haveKey)}`;
         const res = await doFetch(url, { signal: ctrl.signal, headers: { Accept: "application/json" } });
         if (seqRef.current !== seq) return;              // a newer query is in flight

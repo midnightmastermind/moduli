@@ -55,6 +55,7 @@ import { useGridActionsSelector } from "../GridActionsContext";
 import { runMatchingOperations } from "../helpers/operationExecutor";
 import { setComputedValuesAction } from "../state/actions";
 import LoadingImage from "./LoadingImage.jsx";
+import { searchProviderConfig, mapProviderFields } from "../helpers/providerFieldMap.js";
 
 // ─── FlowToggle (popover with 3 flow options) ─────────────────
 // Whole-control tints per flow (2026-07-11, per user): the control CARRYING a
@@ -1118,7 +1119,7 @@ function Field({
   // calls onChange([...selected, slug]) with the slug. We capture localValue BEFORE
   // the onChange fires, then call handleChange again with the real occurrence ID to
   // overwrite the intermediate slug state.
-  const handleOccurrenceAddNew = useCallback(({ label: newLabel, parentOccurrenceId = null, occMeta = null } = {}) => {
+  const handleOccurrenceAddNew = useCallback(({ label: newLabel, parentOccurrenceId = null, occMeta = null, extraFields = null } = {}) => {
     if (!occurrenceAddNewCfg || !newLabel?.trim()) return;
     // Multi-target addNew (2026-07-25): the caller passes the CHOSEN parent
     // occurrence id; a single-target config falls back to its only entry.
@@ -1137,6 +1138,8 @@ function Field({
       // provider. Nothing else reads it; the dropdown does, to avoid offering the
       // same result again.
       occMeta,
+      // Values the field's authored provider mapping asked for.
+      extraFields,
       field, parentOcc, label: newLabel,
       dispatch, socket, gridId, userId,
     });
@@ -1726,14 +1729,36 @@ function Field({
         const occAddNew = occurrenceAddNewCfg ? handleOccurrenceAddNew : null;
         // A provider is DATA on the field. Absent, the dropdown behaves exactly
         // as it always has — no heading, no second section.
-        const searchProviderId = field?.meta?.searchProvider?.provider || null;
+        const spCfg = searchProviderConfig(field);
+        const searchProviderId = spCfg?.provider || null;
         // Picking a provider row IMPORTS: it mints the option and stamps the
         // provider identity so the same result is not offered again.
         const importResult = (occAddNew && searchProviderId)
-          ? (r) => occAddNew({
-              label: r?.title,
-              occMeta: { searchProvider: r?.provider, searchExternalId: r?.externalId ?? null },
-            })
+          ? async (r) => {
+              // A SEARCH result carries no fields — only `detail()` does — so the
+              // mapped values need a second request, made once, at the moment of
+              // import rather than for every row in the list.
+              let mapped = null;
+              if (Object.keys(spCfg.fieldMap || {}).length) {
+                try {
+                  const j = await fetch(
+                    `/api/search/${encodeURIComponent(searchProviderId)}/detail`
+                    + `?title=${encodeURIComponent(r?.title || "")}`
+                    + `&externalId=${encodeURIComponent(r?.externalId ?? "")}`,
+                    { headers: { Accept: "application/json" } },
+                  ).then((x) => x.json());
+                  mapped = mapProviderFields(j?.result?.fields, spCfg.fieldMap, fieldsById).values;
+                } catch {
+                  // The row is still worth minting. Losing the prefill is a
+                  // smaller failure than losing the pick the user just made.
+                }
+              }
+              occAddNew({
+                label: r?.title,
+                occMeta: { searchProvider: r?.provider, searchExternalId: r?.externalId ?? null },
+                extraFields: mapped,
+              });
+            }
           : null;
         return (
           <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}
@@ -2202,14 +2227,36 @@ function Field({
         const occAddNew = occurrenceAddNewCfg ? handleOccurrenceAddNew : null;
         // A provider is DATA on the field. Absent, the dropdown behaves exactly
         // as it always has — no heading, no second section.
-        const searchProviderId = field?.meta?.searchProvider?.provider || null;
+        const spCfg = searchProviderConfig(field);
+        const searchProviderId = spCfg?.provider || null;
         // Picking a provider row IMPORTS: it mints the option and stamps the
         // provider identity so the same result is not offered again.
         const importResult = (occAddNew && searchProviderId)
-          ? (r) => occAddNew({
-              label: r?.title,
-              occMeta: { searchProvider: r?.provider, searchExternalId: r?.externalId ?? null },
-            })
+          ? async (r) => {
+              // A SEARCH result carries no fields — only `detail()` does — so the
+              // mapped values need a second request, made once, at the moment of
+              // import rather than for every row in the list.
+              let mapped = null;
+              if (Object.keys(spCfg.fieldMap || {}).length) {
+                try {
+                  const j = await fetch(
+                    `/api/search/${encodeURIComponent(searchProviderId)}/detail`
+                    + `?title=${encodeURIComponent(r?.title || "")}`
+                    + `&externalId=${encodeURIComponent(r?.externalId ?? "")}`,
+                    { headers: { Accept: "application/json" } },
+                  ).then((x) => x.json());
+                  mapped = mapProviderFields(j?.result?.fields, spCfg.fieldMap, fieldsById).values;
+                } catch {
+                  // The row is still worth minting. Losing the prefill is a
+                  // smaller failure than losing the pick the user just made.
+                }
+              }
+              occAddNew({
+                label: r?.title,
+                occMeta: { searchProvider: r?.provider, searchExternalId: r?.externalId ?? null },
+                extraFields: mapped,
+              });
+            }
           : null;
         return (
           <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}

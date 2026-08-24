@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { providerKeysFromSamples } from "../../helpers/providerFieldMap.js";
 import DrilldownPicker from "../DrilldownPicker";
 import { COLLECTION_PICKER_CONFIG, buildRecordKeyPickerConfig } from "../categoryRegistry";
 import ConditionGroup from "../../blocks/ConditionGroup";
@@ -49,6 +50,12 @@ export default function SelectOptionsSourceEditor({ source, onChange, fieldType 
           options-source mode (works in both find & manual modes) so the
           editor lives at the bottom of the panel. */}
       {fieldType === "occurrence" && <ChipDisplayBody source={source} onChange={onChange} />}
+      {/* Looping in an outside search is a property of WHERE THE OPTIONS COME
+          FROM, so it lives beside the query rather than in a settings panel of
+          its own. Occurrence-only for the same reason the select call site in
+          Field.jsx is unwired: an import MINTS A ROW, and a select field stores
+          strings. */}
+      {fieldType === "occurrence" && <SearchProviderBody source={source} onChange={onChange} />}
     </div>
   );
 }
@@ -352,6 +359,172 @@ function FindBody({ source, onChange }) {
           </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── SearchProviderBody — loop an outside search into this dropdown ──────────
+// User, 2026-08-23: *"where we make the query for the dropdown in general, lets
+// set that as a toggle with underneath being a mapping selection from the
+// fields those searches give, to our own fields. these should be built out as
+// optional things to loop in."*
+//
+// Persists to `source.searchProvider = { enabled, provider, fieldMap }`.
+// Absent or `enabled:false` and the dropdown behaves exactly as it always has —
+// one list, your own occurrences, no second request. THAT is what makes this
+// optional rather than a mode.
+//
+// **THE PROVIDER LIST COMES FROM THE SERVER, never from a constant here.** A
+// provider that needs a key and has none is not listed at all, so the failure
+// lands at configuration instead of at the user's keystroke — and a hardcoded
+// list would offer one this deployment cannot serve. Custom providers are not
+// offered yet (user: *"we will have custom at somepoint but just currently give
+// the option to loop in the example services we have"*), so there is no
+// free-text entry: every option here is a service the server registered.
+function SearchProviderBody({ source, onChange }) {
+  const { fieldsById } = useGridActions();
+  const cfg = source?.searchProvider || null;
+  const enabled = !!cfg?.enabled;
+
+  const [providers, setProviders] = useState([]);
+  const [sample, setSample] = useState({ q: "", state: "idle", keys: [], error: null });
+
+  const ourFields = useMemo(
+    () => Object.values(fieldsById || {})
+      .filter(f => !f.trashed)
+      .sort((a, b) => (a.name || "").localeCompare(b.name || "")),
+    [fieldsById]
+  );
+
+  // Only asked for once the section is switched on — an off toggle costs nothing.
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    fetch("/api/search/providers", { headers: { Accept: "application/json" } })
+      .then(r => r.json())
+      .then(j => { if (alive && j?.ok) setProviders(j.providers || []); })
+      .catch(() => { /* offline: the picker just stays empty and says so */ });
+    return () => { alive = false; };
+  }, [enabled]);
+
+  function patch(p) {
+    onChange({ ...source, searchProvider: { ...(cfg || { fieldMap: {} }), ...p } });
+  }
+
+  function toggle() {
+    if (enabled) {
+      // Switched OFF keeps the authored mapping rather than deleting it — turning
+      // it back on should not mean re-doing the work.
+      patch({ enabled: false });
+    } else {
+      patch({ enabled: true, provider: cfg?.provider || providers[0]?.id || "wikipedia", fieldMap: cfg?.fieldMap || {} });
+    }
+  }
+
+  // The provider's field NAMES are per-result ("Directed by" for a film,
+  // "Authors" for a book), so they cannot be listed in advance. A sample lookup
+  // is the honest way to populate the mapping UI: search once, read back the
+  // keys that result actually carried.
+  async function runSample() {
+    const q = sample.q.trim();
+    if (!q || !cfg?.provider) return;
+    setSample(s => ({ ...s, state: "loading", error: null }));
+    try {
+      const sr = await fetch(`/api/search/${encodeURIComponent(cfg.provider)}?q=${encodeURIComponent(q)}&limit=1`)
+        .then(r => r.json());
+      const first = sr?.results?.[0];
+      if (!first) { setSample(s => ({ ...s, state: "done", keys: [], error: "no results for that query" })); return; }
+      const dr = await fetch(
+        `/api/search/${encodeURIComponent(cfg.provider)}/detail?title=${encodeURIComponent(first.title)}`
+        + `&externalId=${encodeURIComponent(first.externalId || "")}`
+      ).then(r => r.json());
+      const keys = providerKeysFromSamples([dr?.result].filter(Boolean));
+      setSample(s => ({ ...s, state: "done", keys, error: keys.length ? null : "that result carried no fields" }));
+    } catch (e) {
+      setSample(s => ({ ...s, state: "done", keys: [], error: e.message }));
+    }
+  }
+
+  const fieldMap = cfg?.fieldMap || {};
+  // Show every key the sample found PLUS anything already mapped, so a mapping
+  // authored against a different article does not silently vanish from the UI.
+  const rows = useMemo(() => {
+    const seen = new Map(sample.keys.map(k => [k.key, k]));
+    for (const k of Object.keys(fieldMap)) if (!seen.has(k)) seen.set(k, { key: k, seen: 0 });
+    return [...seen.values()];
+  }, [sample.keys, fieldMap]);
+
+  return (
+    <div style={{ borderTop: "1px solid var(--input-border)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontFamily: "monospace", color: "var(--text-muted)", cursor: "pointer" }}>
+        <input type="checkbox" checked={enabled} onChange={toggle} />
+        Also search an outside service
+      </label>
+
+      {enabled && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)" }}>service</span>
+            <select
+              value={cfg?.provider || ""}
+              onChange={e => patch({ provider: e.target.value })}
+              style={{ fontSize: 11, fontFamily: "monospace", background: "var(--input-bg)", color: "var(--text-primary)", border: "1px solid var(--input-border)", borderRadius: 4, padding: "2px 6px" }}
+            >
+              {providers.length === 0 && <option value="">(none available)</option>}
+              {providers.map(p => <option key={p.id} value={p.id}>{p.label || p.id}</option>)}
+            </select>
+          </div>
+          <div style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)", lineHeight: 1.4 }}>
+            Your own occurrences still come first — this adds a second section underneath them.
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <input
+              value={sample.q}
+              onChange={e => setSample(s => ({ ...s, q: e.target.value }))}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); runSample(); } }}
+              placeholder="try a search to see what it returns…"
+              style={{ flex: 1, fontSize: 11, fontFamily: "monospace", background: "var(--input-bg)", color: "var(--text-primary)", border: "1px solid var(--input-border)", borderRadius: 4, padding: "2px 6px" }}
+            />
+            <button type="button" onClick={runSample} disabled={sample.state === "loading"} style={pillStyle(false)}>
+              {sample.state === "loading" ? "…" : "check"}
+            </button>
+          </div>
+          {sample.error && (
+            <div style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)" }}>{sample.error}</div>
+          )}
+
+          {rows.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <div style={{ fontSize: 10, fontFamily: "monospace", color: "var(--text-muted)" }}>
+                fill these fields on an imported row
+              </div>
+              {rows.map(({ key }) => (
+                <div key={key} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ flex: "0 0 44%", fontSize: 10, fontFamily: "monospace", color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={key}>
+                    {key}
+                  </span>
+                  <span style={{ fontSize: 10, color: "var(--text-muted)" }}>→</span>
+                  <select
+                    value={fieldMap[key] || ""}
+                    onChange={e => {
+                      const next = { ...fieldMap };
+                      // Mapping to nothing REMOVES the entry rather than storing
+                      // an empty string, so the stored config says what it means.
+                      if (e.target.value) next[key] = e.target.value; else delete next[key];
+                      patch({ fieldMap: next });
+                    }}
+                    style={{ flex: 1, fontSize: 10, fontFamily: "monospace", background: "var(--input-bg)", color: "var(--text-primary)", border: "1px solid var(--input-border)", borderRadius: 4, padding: "1px 4px" }}
+                  >
+                    <option value="">— don't import —</option>
+                    {ourFields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
