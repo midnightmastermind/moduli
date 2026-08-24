@@ -226,6 +226,37 @@ mongoose.connect(MONGO_URI, {
       }
     }
   } catch (e) { console.error("folder migration error:", e); }
+
+  // ── PREWARM, so the cold read happens while nobody is waiting ──────────────
+  // `full_state` is served ENTIRELY from the warm cache, so a pm2 restart — every
+  // deploy, every migration — puts the ~184s cold read directly in front of the
+  // next person to open the app. Starting it at boot moves that off the critical
+  // path: by the time a browser connects the cache is warm, or the browser joins
+  // the load already in flight.
+  //
+  // JOINING is what makes this safe rather than a second concurrent read:
+  // `loadUserIntoCache` already dedupes on `cacheLoadingPromise[key]`, so a
+  // connection arriving mid-prewarm attaches to the SAME promise and waits
+  // exactly as long as it would have. It can never be slower for that grid.
+  //
+  // ONE grid, deliberately. Atlas is the scarce resource here (~100 KB/s), so
+  // warming grids nobody asked for would compete for bandwidth with the grid
+  // somebody is actually opening — the opposite of the point. `updatedAt` is the
+  // right signal: it moves on navigation and on every write, so the most recently
+  // updated grid is the one in use.
+  if (process.env.PREWARM_GRID !== "0") {
+    try {
+      const recent = await Grid.find({}).sort({ updatedAt: -1 }).limit(1).lean();
+      for (const g of recent) {
+        const gid = String(g._id);
+        console.log(`🔥 prewarming grid "${g.name}" (${gid}) in the background`);
+        // Deliberately NOT awaited: the server must accept connections now.
+        loadUserIntoCache(g.userId, gid)
+          .then(() => console.log(`🔥 prewarm done: "${g.name}"`))
+          .catch((e) => console.error("prewarm failed:", e?.message || e));
+      }
+    } catch (e) { console.error("prewarm lookup failed:", e?.message || e); }
+  }
 }).catch((err) => console.error("🔴 MongoDB connect error:", err));
 console.log("🧪 Using MONGO_URI:", MONGO_URI);
 
@@ -235,7 +266,18 @@ console.log("🧪 Using MONGO_URI:", MONGO_URI);
 const cacheByUser = Object.create(null);       // "userId:gridId" → cache object
 const cacheLastAccess = Object.create(null);   // "userId:gridId" → timestamp
 const cacheLoadingPromise = Object.create(null); // "userId:gridId" → Promise
-const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+// ── WHY THIS IS HOURS AND NOT MINUTES ────────────────────────────────────────
+// Evicting a grid means the next read is COLD, and a cold read of poms grid was
+// measured on 2026-08-24 at ~184s: Atlas Serverless is throttling this cluster
+// to ~100 KB/s (99 docs/s over 0.9KB documents, measured identically from the
+// droplet and from a laptop, so it is the cluster and not a network). The cache
+// it is reclaiming is ~15MB.
+//
+// Trading 15MB of RSS for a three-minute stall in front of the user is a bad
+// trade at 30 minutes and an obviously bad one at any interval shorter than a
+// working day — the old value meant coming back from lunch cost a cold read.
+// The TTL still exists so an abandoned grid is not pinned forever.
+const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 function gridCacheKey(userId, gridId) { return `${userId}:${gridId}`; }
 
