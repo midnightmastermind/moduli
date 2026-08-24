@@ -34,6 +34,7 @@ async function registry() {
   await import("./providers/places.js");
   await import("./providers/openfda.js");
   await import("./providers/tmdb.js");
+  await import("./providers/dsld.js");
   return mod;
 }
 

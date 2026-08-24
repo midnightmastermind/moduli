@@ -134,12 +134,21 @@ describe("unused fields", () => {
 });
 
 describe("duplicate names", () => {
-  it("WARNS on duplicate field names — they are labels, not identity", () => {
-    // 2026-07-29: duplicate labels are allowed ("Protein" the per-meal input and
-    // "Protein" the day's total); only the id must be unique. Still surfaced,
-    // because it makes [Field] label tokens ambiguous.
+  it("says NOTHING about duplicate field names — the rule is retired", () => {
+    // User, 2026-08-24: *"fields dont have to be unique name based by the way"*.
+    // The name is a LABEL and identity is the id. This warned for weeks on every
+    // grid, on the intended state — and a checker that reports what you meant is
+    // one people learn to scroll past.
     const f = checkGridIntegrity({ fields: [{ id: "a", name: "Water" }, { id: "b", name: "water" }] });
-    expect(f.find(x => x.code === "duplicate-field-name").level).toBe("warn");
+    expect(codes(f)).not.toContain("duplicate-field-name");
+  });
+
+  it("still flags a duplicate OPERATION name — that one IS identity", () => {
+    // The discriminating pair: `RUN_OPERATION` resolves by NAME, so two
+    // operations sharing one makes which runs a coin flip. Retiring the field
+    // rule must not quietly retire this one.
+    const f = checkGridIntegrity({ operations: [op("Same"), op("Same")] });
+    expect(f.find(x => x.code === "duplicate-operation-name").level).toBe("error");
   });
 
   it("flags duplicate operation names — RUN_OPERATION resolves by name", () => {

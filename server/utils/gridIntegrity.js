@@ -163,22 +163,21 @@ export function checkGridIntegrity({ grid = null, occurrences = [], modules = []
     }
   }
 
-  // 5. Duplicate field names. WARN, not error (user 2026-07-29: "we can have
-  //    duplicate field labels but not the actual variable name"). The name is a
-  //    LABEL — two fields may legitimately read "Protein" (the per-meal input
-  //    and the day's total) or "Due". Identity is the id, which is unique by
-  //    construction. Still surfaced, because a duplicate makes `[Field]` label
-  //    tokens ambiguous (labelTokens falls back to the field the occurrence
-  //    actually carries) and makes pickers harder to read.
-  const byName = new Map();
-  for (const f of fields) {
-    const k = String(f.name || "").trim().toLowerCase();
-    if (!k) continue;
-    byName.set(k, (byName.get(k) || 0) + 1);
-  }
-  const dupNames = [...byName].filter(([, n]) => n > 1).map(([k]) => k);
-  if (dupNames.length) add("warn", "duplicate-field-name",
-    `${dupNames.length} field name(s) are used more than once (ids are still unique)`, dupNames);
+  // 5. RETIRED — duplicate field names are NOT a finding.
+  //
+  //    This warned until 2026-08-24, when the user retired the rule outright:
+  //    *"fields dont have to be unique name based by the way"*. It had already
+  //    been softened once (2026-07-29, "we can have duplicate field labels but
+  //    not the actual variable name") and was still noise: the name is a LABEL,
+  //    identity is the id, and two fields legitimately read "Protein" (the
+  //    per-meal input and the day's total) or "Due" (a display number and a
+  //    real date). A checker that reports the intended state as a problem is
+  //    one people learn to scroll past — and this one had been firing on every
+  //    grid for weeks.
+  //
+  //    What the warning was really protecting is unchanged and lives where it
+  //    belongs: anything resolving a field BY NAME must match on name AND TYPE
+  //    and refuse when ambiguous, the way `0053` does.
 
   // 6. Duplicate operation names — RUN_OPERATION resolves by NAME, so a
   //    duplicate makes which one runs a coin flip.

@@ -12,10 +12,11 @@ import { foodFields } from "../utils/providers/openfoodfacts.js";
 import { placeFields, osmUrl } from "../utils/providers/places.js";
 import { drugFields, dedupeByName } from "../utils/providers/openfda.js";
 import { filmFields } from "../utils/providers/tmdb.js";
+import { rankAndDedupe } from "../utils/providers/dsld.js";
 
 beforeAll(async () => {
   for (const m of ["wikipedia", "wger", "openlibrary", "musicbrainz", "openfoodfacts", "itunes",
-                   "places", "openfda", "tmdb"]) {
+                   "places", "openfda", "tmdb", "dsld"]) {
     await import(`../utils/providers/${m}.js`);
   }
 });
@@ -25,7 +26,7 @@ describe("the registry", () => {
     const ids = availableProviders().map((p) => p.id).sort();
     // tmdb is REGISTERED but not LISTED — it declares requiresEnv, and no key is
     // set in the test environment. That absence is the contract, not an omission.
-    expect(ids).toEqual(["itunes", "musicbrainz", "openfda", "openfoodfacts",
+    expect(ids).toEqual(["dsld", "itunes", "musicbrainz", "openfda", "openfoodfacts",
                         "openlibrary", "places", "wger", "wikipedia"]);
     expect(getProvider("tmdb")).toBeTruthy();
   });

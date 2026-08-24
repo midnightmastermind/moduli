@@ -281,20 +281,18 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
 
   const setMeta = (key, val) => setLocal(p => ({ ...p, meta: { ...(p.meta || {}), [key]: val } }));
 
-  // Field names are UNIQUE (user rule 2026-07-14: "there shouldnt be duplicate
-  // field names") — duplicates break every name-based lookup (label tokens,
-  // pickers, tests). Reject a save whose name collides with ANOTHER field.
+  // FIELD NAMES DO NOT HAVE TO BE UNIQUE. The 2026-07-14 rule ("there shouldnt
+  // be duplicate field names") was RETIRED by the user on 2026-08-24 — this tab
+  // rejected a colliding name on Save, which contradicted it. The grid already
+  // carries deliberate duplicates in practice (two `Due` fields — a display
+  // number and a real date), and every lookup that matters resolves by id, or
+  // by name AND TYPE and refuses when ambiguous, the way `0053` does.
+  //
+  // The EMPTY check stays: a nameless field renders as a blank label with no
+  // way to tell it from its neighbour, which is a different problem entirely.
   const handleSave = () => {
     const wanted = (local.name || "").trim();
     if (!wanted) { setNameError("Name can't be empty."); return; }
-    const clash = Object.values(fieldsById || {}).find(
-      f => f && f.id !== local.id && !f.trashed &&
-        (f.name || "").trim().toLowerCase() === wanted.toLowerCase()
-    );
-    if (clash) {
-      setNameError(`A field named "${clash.name}" already exists — field names must be unique.`);
-      return;
-    }
     setNameError(null);
     onSave({ ...local, name: wanted });
   };
