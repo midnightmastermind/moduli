@@ -79,6 +79,7 @@ export async function up({ models, gridId, dryRun, log }) {
   const artistField = await Field.findOne({ gridId: gid, name: "Artist", type: "occurrence" }).lean();
   const albumField = await Field.findOne({ gridId: gid, name: "Album", type: "occurrence" }).lean();
   const songsField = await Field.findOne({ gridId: gid, name: "Songs", type: "occurrence" }).lean();
+  const urlField = await Field.findOne({ gridId: gid, name: "URL", type: "text" }).lean();
   if (!tagField || !artistField || !albumField || !songsField) {
     throw new Error("0221 has not run on this grid — Board Category / Artist / Album / Songs missing");
   }
@@ -115,8 +116,8 @@ export async function up({ models, gridId, dryRun, log }) {
 
   const userId = boards.song.userId;
 
-  async function sharedModule(label, bindings) {
-    const found = await Module.findOne({ gridId: gid, label, role: "instance", "meta.spotifyRow": true }).lean();
+  async function sharedModule(label, kind, bindings) {
+    const found = await Module.findOne({ gridId: gid, label, "meta.spotifyRow": true }).lean();
     if (found) {
       // A re-run after `0221` gained a field must WIDEN the module, or the new
       // control has no binding and the value it holds renders nowhere.
@@ -130,15 +131,18 @@ export async function up({ models, gridId, dryRun, log }) {
       return found.id;
     }
     const mid = uid();
-    await Module.create({ id: mid, userId, gridId: gid, label, role: "instance",
+    await Module.create({ id: mid, userId, gridId: gid, label, role: "artifact", kind,
       fieldBindings: bindings, meta: { spotifyRow: true } });
     log(`  minted shared module "${label}" (${mid})`);
     return mid;
   }
   const bind = (fid) => ({ fieldId: fid });
-  const artistModId = await sharedModule("Artist", [bind(tagField.id)]);
-  const albumModId  = await sharedModule("Album",  [bind(tagField.id), bind(artistField.id), bind(songsField.id)]);
-  const songModId   = await sharedModule("Song",   [bind(tagField.id), bind(artistField.id), bind(albumField.id)]);
+  // ARTIFACT role — the measured decision, see 0221's feed comment. `kind`
+  // distinguishes them the way `bookmark` distinguishes a saved link.
+  const u = urlField ? [bind(urlField.id)] : [];
+  const artistModId = await sharedModule("Artist", "artist", [bind(tagField.id), ...u]);
+  const albumModId  = await sharedModule("Album",  "album",  [bind(tagField.id), bind(artistField.id), bind(songsField.id), ...u]);
+  const songModId   = await sharedModule("Song",   "song",   [bind(tagField.id), bind(artistField.id), bind(albumField.id), ...u]);
 
   // Rows already present, keyed the way the CSV keys them, so a RESUMED run
   // links to what an earlier pass created rather than re-minting it.
@@ -162,25 +166,56 @@ export async function up({ models, gridId, dryRun, log }) {
       log(`  ${kind}: ${Math.min(i + CHUNK, rows.length)}/${rows.length}`);
     }
   }
+  // ── THE LINK GOES IN THE `URL` FIELD, NOT IN `fileRef` ──────────────────
+  //
+  // A bookmark is an artifact whose MODULE carries `fileRef` — one module per
+  // bookmark, so that works there. These 8,428 rows SHARE three modules, so a
+  // per-row link cannot live on the module.
+  //
+  // And it cannot live on the occurrence either: `fileRef` is declared on
+  // `Module` and NOWHERE on `Occurrence`, so Mongoose strict mode would drop it
+  // on save without a word — the exact class that hid `Operation.priority` for
+  // months and stripped `Folder.manifestId` from every folder `0199` minted.
+  // Checked the schema rather than assuming, because the write would have
+  // "succeeded" every time.
+  //
+  // `URL` is a real text field (minted by `0061` for the bookmark intake, and
+  // currently unused), so the link is visible, clickable and editable.
+  const SPOTIFY_PATH = { artist: "artist", album: "album", song: "track" };
   const base = (moduleId, tag, label, eid, fields, meta) => ({
     id: uid(), userId, gridId: gid, moduleId, parentId: boards[tag].id, occurrences: [], label,
     fields: { [tagField.id]: { value: [tag], flow: "in" }, ...fields },
     meta: { searchProvider: PROVIDER, searchExternalId: eid, ...meta },
     filterOverride: {},
   });
+  /** The Spotify page for a row, when the export gave us a real id.
+   *  A DERIVED row (a credited artist, a fetched track) has none — its `eid` is
+   *  our own `artist:<name>` key, and turning that into a URL would produce a
+   *  link that 404s. No fileRef is the honest answer there. */
+  const spotifyRef = (tag, eid) =>
+    eid && !eid.includes(":") ? `https://open.spotify.com/${SPOTIFY_PATH[tag]}/${eid}` : null;
+  const withUrl = (doc, tag, eid) => {
+    const ref = spotifyRef(tag, eid);
+    if (ref && urlField) doc.fields[urlField.id] = { value: ref, flow: "in" };
+    return doc;
+  };
 
   // ORDER: artists, then albums (they link an artist), then songs (both).
   await insertAll(plan.artists, (a) => {
-    const doc = base(artistModId, "artist", a.name, extId.artist(a), {}, { spotifyFavorite: a.favorite });
+    const eid = extId.artist(a);
+    const doc = base(artistModId, "artist", a.name, eid, {}, { spotifyFavorite: a.favorite });
+    withUrl(doc, "artist", eid);
     idFor.artist.set(a.key, doc.id);
     return doc;
   }, "artist");
 
   await insertAll(plan.albums, (al) => {
     const aid = idFor.artist.get(al.artistKey) || null;
-    const doc = base(albumModId, "album", al.title, extId.album(al),
+    const eid = extId.album(al);
+    const doc = base(albumModId, "album", al.title, eid,
       aid ? { [artistField.id]: { value: aid, flow: "in" } } : {},
       { spotifyArtist: al.artist, spotifyFavorite: al.favorite });
+    withUrl(doc, "album", eid);
     idFor.album.set(al.key, doc.id);
     return doc;
   }, "album");
@@ -194,6 +229,7 @@ export async function up({ models, gridId, dryRun, log }) {
     if (bid) f[albumField.id] = { value: bid, flow: "in" };
     const doc = base(songModId, "song", s.title, s.spotifyId, f,
       { spotifyArtist: s.artist, spotifyAlbum: s.album, isrc: s.isrc || undefined });
+    withUrl(doc, "song", s.spotifyId);
     if (bid) songIdByAlbumKey.set(s.albumKey, (songIdByAlbumKey.get(s.albumKey) || []).concat(doc.id));
     return doc;
   }, "song");

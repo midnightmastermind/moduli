@@ -842,7 +842,7 @@ function InstanceInner({
                   // MATCHES the rendered label exactly. This is the edit box
                   // that REPLACES it on double-click, so any difference makes
                   // the text visibly resize the moment you start renaming.
-                  fontSize: 15, color: "var(--text-primary)",
+                  fontSize: 16, color: "var(--text-primary)",
                   paddingTop: 0, paddingLeft: 2,
                   fontFamily: "inherit",
                 }}
@@ -856,12 +856,11 @@ function InstanceInner({
                   flex: "0 1 auto",
                   minWidth: 0,
                   overflow: "hidden",
-                  // One size up AGAIN (user, 2026-08-24: "the labels can be a
-                  // font size bigger"). It is the row's TITLE now that it sits
-                  // over the fields rather than in line with them, and at 13 it
-                  // still read as body text beside the 11px field pills. 15
-                  // keeps a full step of hierarchy over them.
-                  fontSize: 15,
+                  // Bumped twice on 2026-08-24 — 11 -> 13 -> 15 -> 16 — because
+                  // the user kept reading it as body text. It is the row's
+                  // TITLE now that it sits over the fields rather than in line
+                  // with them, so it should read like one.
+                  fontSize: 16,
                   color: "var(--text-primary)",
                   paddingTop: 0,
                   paddingLeft: 2,

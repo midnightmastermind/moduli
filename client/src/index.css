@@ -5435,15 +5435,30 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 }
 /* The header — drag handle + label. NEVER scrolls away. */
 .container-items--wrap > .instance-wrap .instance-content > div:first-child:not(.instance-body):not(.instance-fields) {
+  /* THE FIRST CHILD IS THE DRAG HANDLE NOW, NOT THE HANDLE+LABEL GROUP.
+     This rule used to say `width: 100%`, which was right when the label lived
+     inside this element: it gave the title the tile's width instead of the
+     shrink-to-content width a flex row hands it.
+     After the 2026-08-24 restructure the label moved OUT into
+     `.instance-textcol`, so `width: 100%` was stretching the HANDLE across the
+     tile and pushing the label and fields onto the line below it — user:
+     *"the trackers tiles have the label and fields underneath the drag handle
+     which shouldnt be the case"*. Every tracker tile is a wrap tile, so every
+     one of them showed it.
+     The handle sizes to itself again; the text column beside it takes the rest
+     (below). */
   flex: 0 0 auto !important;
-  align-self: stretch !important;
-  width: 100% !important;        /* the label gets the tile's width, not the
-                                    shrink-to-content width a row gave it */
   min-width: 0;
-  /* The group is an inline flex ROW carrying `alignItems: "center"`, which in a
-     tall tile floats the title down to the middle — user 2026-08-11: "the title
-     is vertically in the middle". It belongs at the top edge with the handle. */
   align-items: flex-start !important;
+}
+/* The text column — title over fields — takes the width the handle does not.
+   `flex: 1 1 0` (basis ZERO) rather than `auto`: an auto basis is the column's
+   own content width, which with the handle beside it overflows a 184px tile and
+   wraps, putting the label back under the handle. */
+.container-items--wrap > .instance-wrap .instance-content > .instance-textcol {
+  flex: 1 1 0 !important;
+  min-width: 0;
+  align-self: stretch;
 }
 /* The fields — take the rest and scroll within it. */
 .container-items--wrap > .instance-wrap .instance-fields {

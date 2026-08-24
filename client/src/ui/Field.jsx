@@ -60,9 +60,11 @@ import { searchProviderConfig, mapProviderFields } from "../helpers/providerFiel
 // The type size of a field on a row — its pill and its caption. ONE constant,
 // because these were scattered inline literals and an inline style is exactly
 // what this repo keeps losing an hour to when a size "silently does nothing".
-// 10 -> 12 (user, 2026-08-24: "you can one up fields to 12px"), which still
-// sits a clear step under the 15px instance label above it.
-const FIELD_FONT_PX = 12;
+// 10 -> 12 -> 13 (user, 2026-08-24: "you can one up fields to 12px", then
+// reporting it still read unchanged on a tracker tile). 13 sits a clear step
+// under the 16px instance label above it and is unmistakably larger than the
+// 10 it replaced.
+const FIELD_FONT_PX = 13;
 
 // ─── FlowToggle (popover with 3 flow options) ─────────────────
 // Whole-control tints per flow (2026-07-11, per user): the control CARRYING a

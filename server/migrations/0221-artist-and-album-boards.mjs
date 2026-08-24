@@ -139,8 +139,25 @@ export async function up({ models, gridId, dryRun, log }) {
     await Occurrence.create({ id: contOccId, userId: songContainer.userId, gridId: gid,
       moduleId: contModId, parentId: null, occurrences: [],
       fields: { [tagField.id]: { value: [tag], flow: "in" } },
+      // ARTIFACT, not instance — and this is a PERFORMANCE decision measured on
+      // the real grid, not a taxonomy one. 34 of the 66 enabled operations
+      // iterate `$allInstances`, so every row minted as an instance is scanned
+      // by all of them on every sweep. Measured on the poms fixture with 8,428
+      // music rows added:
+      //
+      //     role=instance   +5191ms per load sweep
+      //     role=artifact   +1196ms                 <- what bookmarks already are
+      //
+      // The user asked the right question — *"i dont understand how the music
+      // one blows up more than the bookmarks and the codex"* — and the answer is
+      // exactly this: their 1,467 bookmarks are `artifact/bookmark` and their
+      // codex is textblocks, so neither is visible to those 34 ops.
+      //
+      // It is also honest rather than a dodge: a bookmark is an artifact whose
+      // `fileRef` is a URL, and a Spotify row is the same thing pointing at
+      // open.spotify.com.
       feed: { enabled: true, conditions: [{ fieldId: tagField.id, comparator: "CONTAINS", value: tag }],
-              roles: ["instance"], sort: null, limit: 5000 },
+              roles: ["artifact"], sort: null, limit: 5000 },
       meta: {}, filterOverride: {},
     });
     await Occurrence.create({ id: pageOccId, userId: songPage.userId, gridId: gid,
@@ -169,7 +186,10 @@ export async function up({ models, gridId, dryRun, log }) {
         // An album holds MANY songs; an artist/album link is one.
         multiSelect: name === "Songs",
         optionsSource: {
-          mode: "find", over: "$allInstances",
+          // `$allOccurrences`, because the rows these offer are ARTIFACT-role
+          // (see the feed above) and `$allInstances` would resolve to nothing —
+          // the silent-empty-dropdown class this repo has shipped twice.
+          mode: "find", over: "$allOccurrences",
           predicate: { operator: "AND", rules: [
             { id: uid(), left: `fields.${tagField.id}.value`, comparator: "CONTAINS", right: tag },
             { id: uid(), left: "meta.feedSourceId", comparator: "IS_EMPTY", right: "" },
