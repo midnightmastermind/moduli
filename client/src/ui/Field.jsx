@@ -172,7 +172,7 @@ function FlowToggle({ flow = "in", onChange, compact = false, disabled = false, 
             >
               <OptIcon className={`w-3 h-3 ${flow === key ? "" : "opacity-60"}`} />
               <span>{opt.label}</span>
-              <span className="text-[9px] text-muted-foreground ml-auto">{opt.desc}</span>
+              <span className="text-[12px] text-muted-foreground ml-auto">{opt.desc}</span>
             </button>
           );
         })}
@@ -272,7 +272,7 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
           <PopoverTrigger asChild>
             <Button variant="outline" role="combobox" disabled={disabled}
               className={compact
-                ? "justify-between font-normal border-0 rounded-none h-auto px-1.5 py-0.5 text-[10px]"
+                ? "justify-between font-normal border-0 rounded-none h-auto px-1.5 py-0.5 text-[12px]"
                 : "w-full justify-between font-normal border-0 rounded-none h-7 text-sm"}
               style={fieldName
                 ? { background: compact ? "transparent" : "rgba(var(--occ-pill) / 0.08)", color: "var(--occ-pill-text)" }
@@ -287,19 +287,19 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
                   skin, while the VALUE beside it was fine. A theme can now
                   lift it; the default is today's value, so nothing moves
                   until a theme says so. */}
-              {fieldName && <span className="text-[10px] mr-1 flex-shrink-0" style={{ opacity: "var(--field-caption-alpha, 0.7)" }}>{fieldName}:</span>}
+              {fieldName && <span className="text-[12px] mr-1 flex-shrink-0" style={{ opacity: "var(--field-caption-alpha, 0.7)" }}>{fieldName}:</span>}
               {selectedOptions.length === 0
                 ? <span className="text-muted-foreground">{compact ? (fieldName ? "—" : name) : "Select..."}</span>
                 : <div className="flex flex-wrap gap-1 items-center overflow-hidden">
                     {selectedOptions.slice(0, 2).map(o => (
-                      <span key={o.value} className="inline-flex items-center gap-0.5 px-1.5 py-0 text-[10px] rounded-full"
+                      <span key={o.value} className="inline-flex items-center gap-0.5 px-1.5 py-0 text-[12px] rounded-full"
                         style={{ background: OCC_CHIP.bg, color: OCC_CHIP.text,
                                  border: `1px solid ${OCC_PILL.border}` }}>
                         {o.label}
                         <X className="h-2.5 w-2.5 cursor-pointer" onClick={e => { e.stopPropagation(); onChange(selected.filter(v => v !== o.value)); }} />
                       </span>
                     ))}
-                    {selectedOptions.length > 2 && <span className="text-[10px] text-muted-foreground">+{selectedOptions.length - 2}</span>}
+                    {selectedOptions.length > 2 && <span className="text-[12px] text-muted-foreground">+{selectedOptions.length - 2}</span>}
                   </div>}
               <ChevronDown className="h-3 w-3 opacity-50 flex-shrink-0" />
             </Button>
@@ -317,7 +317,7 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
                 </div>
                 {choosingDest && (
                   <div className="mt-1">
-                    <div className="text-[10px] text-muted-foreground px-1 py-0.5">
+                    <div className="text-[12px] text-muted-foreground px-1 py-0.5">
                       Add “{pendingImport ? pendingImport.title : newValue.trim()}” to:
                     </div>
                     {(addNewTargets || []).map(t => (
@@ -336,7 +336,7 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
                   configured this renders exactly as it always did — one plain
                   list, no ceremony. */}
               {searchProvider && sections.local.length > 0 && (
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-2 pt-1 pb-0.5">On your grid</div>
+                <div className="text-[12px] uppercase tracking-wide text-muted-foreground px-2 pt-1 pb-0.5">On your grid</div>
               )}
               {sections.local.length === 0 && !searchProvider
                 ? <div className="py-4 text-center text-xs text-muted-foreground">No options available</div>
@@ -358,7 +358,7 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
                   first and quietly grow the board. */}
               {searchProvider && newValue.trim() && (
                 <>
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-2 pt-2 pb-0.5 border-t border-border/40 mt-1">
+                  <div className="text-[12px] uppercase tracking-wide text-muted-foreground px-2 pt-2 pb-0.5 border-t border-border/40 mt-1">
                     From {searchProvider}
                     {sections.remoteState === "searching" && <span className="ml-1 opacity-60">searching…</span>}
                     {sections.remoteState === "error" && <span className="ml-1 opacity-60">unavailable</span>}
@@ -424,7 +424,7 @@ function AddNewOccurrenceRow({ targets, onAdd }) {
       </div>
       {choosing && (
         <div className="mt-1">
-          <div className="text-[10px] text-muted-foreground px-1 py-0.5">Add “{text.trim()}” to:</div>
+          <div className="text-[12px] text-muted-foreground px-1 py-0.5">Add “{text.trim()}” to:</div>
           {(targets || []).map(t => (
             <button key={t.id} type="button" onClick={() => go(t.id)}
               className="w-full px-2 py-1 rounded-sm text-left text-xs hover:bg-muted">
@@ -1502,7 +1502,7 @@ function Field({
               openArtifactSpread(hostOccurrence.id, e.currentTarget.getBoundingClientRect());
             }
           }}
-          className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full border transition-all
+          className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[12px] rounded-full border transition-all
             ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
           style={{ background: "rgba(var(--occ-pill) / 0.1)", borderColor: "var(--occ-pill-border, rgba(var(--occ-pill) / 0.25))", color: "var(--occ-pill-text)" }}
           title={`${name}: ${localValue || "no image"} — click to set`}
@@ -1577,7 +1577,7 @@ function Field({
       if (isClickEditing) {
         return withFlowToggle(
           <div className={`field-input editing inline-flex items-center gap-0.5 ${showFlowToggle ? "px-1" : ""}`}>
-            {inlinePrefix && <span className="text-[10px] text-muted-foreground">{inlinePrefix}</span>}
+            {inlinePrefix && <span className="text-[12px] text-muted-foreground">{inlinePrefix}</span>}
             <Input ref={inputRef} type={type === "number" ? "number" : "text"}
               value={localValue ?? ""}
               onChange={(e) => handleChange(type === "number" ? (e.target.value === "" ? null : Number(e.target.value)) : e.target.value)}
@@ -1585,7 +1585,7 @@ function Field({
               // TEXT gets a wide, left-aligned box (2026-07-25, per user: editing
               // an email in a 56px centered box was unusable). Numbers/durations
               // keep the narrow centered field — they're a few glyphs wide.
-              className={`${compact ? "h-5 text-[10px]" : "h-6 text-xs"} ${
+              className={`${compact ? "h-5 text-[12px]" : "h-6 text-xs"} ${
                 type === "number" ? (compact ? "w-14" : "w-16") + " text-center" : "w-full text-left"
               } px-1 ${showFlowToggle ? "border-0 bg-transparent" : ""}`}
               style={{
@@ -1593,7 +1593,7 @@ function Field({
                 ...(type === "number" ? {} : { maxWidth: "min(420px, 60vw)" }),
                 ...(showFlowToggle ? { color: "inherit" } : {}),
               }} />
-            {inlinePostfix && <span className="text-[10px] text-muted-foreground">{inlinePostfix}</span>}
+            {inlinePostfix && <span className="text-[12px] text-muted-foreground">{inlinePostfix}</span>}
           </div>
         );
       }
@@ -1602,7 +1602,7 @@ function Field({
         <button type="button" disabled={disabled}
           onClick={() => !disabled && setIsClickEditing(true)}
           className={`field-input inline-flex items-center gap-1
-            ${compact ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-1 text-xs"}
+            ${compact ? "px-1.5 py-0.5 text-[12px]" : "px-2 py-1 text-xs"}
             ${showFlowToggle ? "" : "rounded-full border"} transition-all
             ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
           style={showFlowToggle
@@ -1648,7 +1648,7 @@ function Field({
         <Popover>
           <PopoverTrigger asChild>
             <button type="button" disabled={disabled}
-              className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full border transition-all
+              className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[12px] rounded-full border transition-all
                 ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
               style={{ background: OCC_PILL.bg, borderColor: OCC_PILL.border, color: OCC_PILL.text }}
               title={`${name}: ${currentLabel}`}
@@ -1711,7 +1711,7 @@ function Field({
         }
       };
       return (
-        <label className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] rounded-full border transition-all
+        <label className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[12px] rounded-full border transition-all
           cursor-pointer hover:brightness-110
           ${disabled ? "opacity-50 pointer-events-none" : ""}`}
           style={{ background: OCC_PILL.bg, borderColor: OCC_PILL.border, color: OCC_PILL.text }}
@@ -1811,7 +1811,7 @@ function Field({
         <Popover>
           <PopoverTrigger asChild>
             <button type="button" disabled={disabled}
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] transition-all
+              className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[12px] transition-all
                 ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer hover:brightness-110"}`}
               style={{ background: "transparent", border: "none", color: "var(--occ-pill-text)" }}
               title={`${name}: ${currentLabel}`}

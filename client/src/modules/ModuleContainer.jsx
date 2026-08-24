@@ -1555,7 +1555,7 @@ function Container({
                 <React.Fragment key={item.occurrence?.id || item.instance.id}>
                   <ChevronRight className="w-2.5 h-2.5 text-muted-foreground/30 shrink-0" />
                   <button
-                    className={`text-[10px] px-1 py-0.5 rounded ${idx === focusedStack.length - 1 ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground"}`}
+                    className={`text-[12px] px-1 py-0.5 rounded ${idx === focusedStack.length - 1 ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground"}`}
                     onClick={() => { setFocusedStack(s => s.slice(0, idx + 1)); setHistoryExpanded(false); }}
                   >
                     {item.instance.label || "…"}
@@ -1569,7 +1569,7 @@ function Container({
               {/* PRIMARY DOC */}
               <div className="shrink-0" style={{ minHeight: 120 }}>
                 <div className="px-2 pt-2 pb-0.5 flex items-center gap-1">
-                  <span className="text-[9px] font-mono text-muted-foreground/60 uppercase tracking-wide">{fi.label || "Note"}</span>
+                  <span className="text-[12px] font-mono text-muted-foreground/60 uppercase tracking-wide">{fi.label || "Note"}</span>
                 </div>
                 <DocEditorShell occurrence={fo} dispatch={dispatch} socket={socket} />
               </div>
@@ -1580,9 +1580,9 @@ function Container({
                 return (
                   <div key={sib.id} className="border-t border-border/30 shrink-0" style={{ minHeight: 100 }}>
                     <div className="px-2 pt-1.5 pb-0.5 flex items-center gap-1">
-                      <span className="text-[9px] font-mono text-muted-foreground/60 uppercase tracking-wide">{sib.label || "Linked"}</span>
+                      <span className="text-[12px] font-mono text-muted-foreground/60 uppercase tracking-wide">{sib.label || "Linked"}</span>
                       <button
-                        className="ml-auto text-[9px] text-muted-foreground/40 hover:text-muted-foreground px-1"
+                        className="ml-auto text-[12px] text-muted-foreground/40 hover:text-muted-foreground px-1"
                         onClick={() => { if (sibOcc) handleInstanceFocusLocal(sib, sibOcc); }}
                         title="Drill into linked item"
                       >↗</button>
@@ -1590,7 +1590,7 @@ function Container({
                     {sibOcc ? (
                       <DocEditorShell occurrence={sibOcc} dispatch={dispatch} socket={socket} />
                     ) : (
-                      <div className="px-2 pb-2 text-[10px] text-muted-foreground/40 italic">No entry for this period</div>
+                      <div className="px-2 pb-2 text-[12px] text-muted-foreground/40 italic">No entry for this period</div>
                     )}
                   </div>
                 );
@@ -1603,7 +1603,7 @@ function Container({
                 return (
                   <div className="border-t border-border/30 shrink-0">
                     <div className="px-2 pt-1.5 pb-0.5 flex items-center gap-1">
-                      <span className="text-[9px] font-mono text-muted-foreground/60 uppercase tracking-wide">Sub-items ({childInstances.length})</span>
+                      <span className="text-[12px] font-mono text-muted-foreground/60 uppercase tracking-wide">Sub-items ({childInstances.length})</span>
                     </div>
                     {childInstances.map(child => {
                       const childOccs = allOccurrences.filter(o => o.moduleId === child.id);
@@ -1617,9 +1617,9 @@ function Container({
                       }
                       return (
                         <div key={child.id} className="border-t border-border/20 flex items-center gap-1 px-2 py-1.5 hover:bg-muted/10">
-                          <span className="text-[10px] text-foreground/70 flex-1 truncate">{child.label || "Untitled"}</span>
+                          <span className="text-[12px] text-foreground/70 flex-1 truncate">{child.label || "Untitled"}</span>
                           <button
-                            className="text-[9px] text-muted-foreground/40 hover:text-muted-foreground px-1 flex-shrink-0"
+                            className="text-[12px] text-muted-foreground/40 hover:text-muted-foreground px-1 flex-shrink-0"
                             onClick={() => { if (childOcc) setFocusedStack(s => [...s, { instance: child, occurrence: childOcc }]); }}
                             title={childOcc ? "Drill into sub-item" : "No occurrence found"}
                             disabled={!childOcc}
@@ -1634,7 +1634,7 @@ function Container({
               {/* HISTORY */}
               <div className="border-t border-border/40 shrink-0">
                 <button
-                  className="w-full flex items-center gap-1 px-2 py-1.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
+                  className="w-full flex items-center gap-1 px-2 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted/20 transition-colors"
                   onClick={() => setHistoryExpanded(h => !h)}
                 >
                   <ChevronRight className={`w-3 h-3 transition-transform ${historyExpanded ? "rotate-90" : ""}`} />
@@ -1644,7 +1644,7 @@ function Container({
                 {historyExpanded && (
                   <div className="divide-y divide-border/20">
                     {historyOccs.length === 0 ? (
-                      <div className="px-3 py-2 text-[10px] text-muted-foreground/50 italic">No history yet</div>
+                      <div className="px-3 py-2 text-[12px] text-muted-foreground/50 italic">No history yet</div>
                     ) : historyOccs.map(hOcc => {
                       const dateLabel = formatHistoryDate(hOcc);
                       const selfPreview = extractDocText(hOcc.textmap, 120).trim();
@@ -1659,16 +1659,16 @@ function Container({
                       return (
                         <div key={hOcc.id} className="px-3 py-2 hover:bg-muted/20">
                           <div className="flex items-center gap-1.5 mb-1">
-                            <span className="text-[10px] font-medium text-foreground/70">{dateLabel}</span>
+                            <span className="text-[12px] font-medium text-foreground/70">{dateLabel}</span>
                           </div>
                           {selfPreview
-                            ? <p className="text-[10px] text-muted-foreground leading-relaxed mb-0.5">{selfPreview}</p>
-                            : <p className="text-[10px] text-muted-foreground/30 italic">No content</p>
+                            ? <p className="text-[12px] text-muted-foreground leading-relaxed mb-0.5">{selfPreview}</p>
+                            : <p className="text-[12px] text-muted-foreground/30 italic">No content</p>
                           }
                           {siblingPreviews.map(({ sib, text }) => (
                             <div key={sib.id} className="mt-0.5 pl-2 border-l border-border/30">
-                              <span className="text-[9px] text-muted-foreground/50">{sib.label}: </span>
-                              <span className="text-[10px] text-muted-foreground/70">{text}</span>
+                              <span className="text-[12px] text-muted-foreground/50">{sib.label}: </span>
+                              <span className="text-[12px] text-muted-foreground/70">{text}</span>
                             </div>
                           ))}
                         </div>

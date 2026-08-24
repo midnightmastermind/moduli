@@ -729,8 +729,8 @@ function Page({
             onPointerDown={(e) => e.stopPropagation()}
           >
             <div className="px-3 pt-3 pb-2 border-b border-border flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-foreground/80">Page settings</span>
-              <span className="text-[10px] text-muted-foreground font-mono">{kind}</span>
+              <span className="text-[12px] font-semibold text-foreground/80">Page settings</span>
+              <span className="text-[12px] text-muted-foreground font-mono">{kind}</span>
             </div>
             <div className="px-3 py-2 max-h-[60vh] overflow-y-auto">
               <StyleEditor

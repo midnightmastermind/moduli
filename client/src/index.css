@@ -2195,7 +2195,7 @@ body[data-layout="mobile"] .page-shell:not(.page-shell--nested) {
   border-radius: 6px;
   padding: 10px 14px;
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.65;
   overflow-x: auto;
   margin: 0.5em 0;
@@ -2879,8 +2879,12 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    vertical text stacked under the chevron; up/down = horizontal beside it. */
 .mobile-rail-left, .mobile-rail-right { flex-direction: column; gap: 4px; padding: 6px 0; }
 .mobile-rail-up, .mobile-rail-down { gap: 6px; }
+/* 12px floor (user, 2026-08-24). Safe to raise from 10 because this label is
+   already constrained on both axes — overflow:hidden + ellipsis + max-width on
+   the horizontal rails, max-height on the vertical ones — so it TRUNCATES
+   rather than pushing the rail wider. */
 .mobile-rail-label {
-  font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
   color: rgb(205,228,255); overflow: hidden; line-height: 1.05;
 }
 .mobile-rail-up .mobile-rail-label, .mobile-rail-down .mobile-rail-label {
@@ -3030,7 +3034,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   }
 
   .toolbar * {
-    font-size: 8px !important;
+    font-size: 12px !important;
   }
 
   .toolbar .grid-select {
@@ -3069,7 +3073,7 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
     margin: 0px 20px;
   }
   .panel-header button {
-    font-size: 8px !important;
+    font-size: 12px !important;
   }
 
   .panel-select button {
