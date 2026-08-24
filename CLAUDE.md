@@ -85,10 +85,33 @@ the shell cwd had persisted into `client/`, and **the minifier rewrites
 and bundle 200, served CSS **sha256-identical** to the local build with the fixed
 rule absent and two controls present.
 
-**NOT DONE, and it needs a decision: the 12px floor.** Most sub-12px text is
-Command Center chrome rather than grid writing, and the heading scale steps down
-through 13 to 12 — so a 12px body floor flattens the bottom of the hierarchy
-unless the scale moves with it.
+**AND THE 12px FLOOR SHIPPED IN THE SAME SESSION — 138 SITES** (105 inline, 33
+CSS), scoped to the grid surface and NOT to Command Center / editor chrome, which
+is not writing on the grid. **The single most important one is a CSS rule:**
+`.doc-editor-content.ProseMirror` was 11px — the body text of every doc and
+textblock on the grid, i.e. the literal subject of the request.
+
+**A BLANKET BUMP FLATTENED A TYPE SCALE, caught by reading the diff.**
+`RepresentationView`'s variants went `sm: 9 → 12` and `md: 11 → 12`, so the three
+sizes stopped being a type scale and became a padding scale. The floor is a
+FLOOR, so the upper steps moved with it: 12 / 13 / 14.
+
+**THE HEADING SCALE IS DELIBERATELY UNTOUCHED** — `{1:18 … 5:12, 6:12}` has
+nothing BELOW 12, so it already satisfies the rule. Clearing h5/h6 off body text
+would mean pushing h1 back toward 22, which 2026-07-31 (6) lowered to 18 because
+it marqueed continuously in a 360px column. Trading a known regression for a rule
+already met is a bad trade; the flattening is recorded rather than fixed silently.
+
+**THREE RULES LEFT AND NAMED:** `.toolbar *` (8px), `.panel-header button` (8px),
+`.mobile-rail-label` (10px) — app chrome, and the first two live in the 390px
+block whose job is fitting the toolbar, where a 50% type increase risks
+overflowing the thing it compresses. The user's call, not a silent widening.
+
+**VERIFIED WITH A CONTROL THAT PROVES THE PROBE CAN FAIL:** 13 grid surfaces read
+12px against the BUILT stylesheet at 390px while the excluded toolbar button read
+**8px** in the same run. Its first pass mislabelled that control (keyed on
+`className`, the control carried an `id`), so a correct 8px reading was filed as
+a grid failure — the number was right and the classification was wrong.
 
 ---
 
