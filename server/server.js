@@ -167,10 +167,36 @@ mongoose.connect(MONGO_URI, {
   // Without these, a Mongo response that never arrives (e.g. mid-write when the
   // client F5'd) holds a connection forever and starves every later query —
   // request_full_state then hangs at Grid.findOne and the app spins.
-  socketTimeoutMS: 20000,        // kill in-flight ops if Mongo goes silent for 20s
+  //
+  // ── 2026-08-24: RAISED, AND IT IS A STOPGAP, NOT A DESIGN ────────────────
+  //
+  // The database is an Atlas SERVERLESS instance and its read throughput
+  // collapsed to ~114 docs/s (measured on an indexed query over 0.9KB
+  // documents; a healthy tier does tens of thousands). poms grid holds 18,172
+  // occurrences, so its `full_state` read needs ~160s — and at 20s it was
+  // killed every time. The symptom is total: the handler throws
+  // `MongoNetworkTimeoutError`, no `full_state` is ever emitted, and the app
+  // sits on its spinner forever with nothing in the console.
+  //
+  // Prod's own timing log is the evidence. test grid 1 (859 occurrences)
+  // completes in 8,881ms; on poms grid the Manifest/View/Folder/Field/Operation
+  // queries all return and **the Module and Occurrence queries never log at
+  // all** — they are cut off mid-flight.
+  //
+  // WHAT THIS COSTS, said plainly: the guard above is real, and a genuinely
+  // hung connection now occupies a pool slot for five minutes instead of
+  // twenty seconds. With `maxPoolSize: 20` that is survivable, and it is
+  // strictly better than an app that cannot load at all. **The actual fixes are
+  // a database tier that is not throttled, or a `full_state` that stops
+  // shipping every occurrence** — this only buys the grid back until one of
+  // those happens.
+  socketTimeoutMS: 300000,       // ~160s read + headroom; see the note above
   serverSelectionTimeoutMS: 10000, // fail fast if Mongo is unreachable
   maxPoolSize: 20,                 // a few writers can run concurrently while reads stay snappy
-  bufferTimeoutMS: 8000,           // don't sit in Mongoose buffer forever waiting for a connection
+  // Raised with it: a slow read holds its connection far longer now, so a
+  // queued operation must be willing to wait for a slot rather than failing
+  // while the pool is legitimately busy.
+  bufferTimeoutMS: 60000,
 }).then(async () => {
   console.log("🟢 MongoDB connected");
   // One-time migration: stamp gridId on all untagged folders by BFS from each manifest
