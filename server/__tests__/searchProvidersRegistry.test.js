@@ -11,7 +11,7 @@ import { rankReleaseGroups } from "../utils/providers/musicbrainz.js";
 import { foodFields } from "../utils/providers/openfoodfacts.js";
 
 beforeAll(async () => {
-  for (const m of ["wikipedia", "wger", "openlibrary", "musicbrainz", "openfoodfacts"]) {
+  for (const m of ["wikipedia", "wger", "openlibrary", "musicbrainz", "openfoodfacts", "itunes"]) {
     await import(`../utils/providers/${m}.js`);
   }
 });
@@ -19,7 +19,7 @@ beforeAll(async () => {
 describe("the registry", () => {
   it("lists every built-in provider", () => {
     const ids = availableProviders().map((p) => p.id).sort();
-    expect(ids).toEqual(["musicbrainz", "openfoodfacts", "openlibrary", "wger", "wikipedia"]);
+    expect(ids).toEqual(["itunes", "musicbrainz", "openfoodfacts", "openlibrary", "wger", "wikipedia"]);
   });
 
   it("every listed provider can search AND is keyless today", () => {
@@ -116,6 +116,18 @@ describe("openfoodfacts — macros carry their basis", () => {
   });
   it("omits a nutrient the product does not carry", () => {
     expect(foodFields({ nutriments: {} })).toEqual({});
+  });
+});
+
+describe("itunes — podcasts", () => {
+  it("names the publisher, genre and episode count", async () => {
+    const { podcastFields } = await import("../utils/providers/itunes.js");
+    expect(podcastFields({ artistName: "Dan Carlin", primaryGenreName: "History", trackCount: 13 }))
+      .toEqual({ Publisher: "Dan Carlin", Genre: "History", Episodes: "13" });
+  });
+  it("keeps an episode count of ZERO — a new show is not a missing show", async () => {
+    const { podcastFields } = await import("../utils/providers/itunes.js");
+    expect(podcastFields({ trackCount: 0 }).Episodes).toBe("0");
   });
 });
 

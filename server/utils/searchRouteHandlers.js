@@ -30,6 +30,7 @@ async function registry() {
   await import("./providers/openlibrary.js");
   await import("./providers/musicbrainz.js");
   await import("./providers/openfoodfacts.js");
+  await import("./providers/itunes.js");
   return mod;
 }
 
