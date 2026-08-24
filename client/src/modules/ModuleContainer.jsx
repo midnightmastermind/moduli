@@ -1736,6 +1736,16 @@ function Container({
                     module={instance}
                     occurrenceOverride={occurrence}
                     panelId={panelId}
+                    // OPT-IN CARD CHROME. This site passed no `embedded` at all,
+                    // so every nested container in a board drew as a bare run —
+                    // which is what "why arent the workout trackers boxes like
+                    // the rest" was describing. It is a FLAG rather than `true`
+                    // because there are 539 nested board containers on the live
+                    // grid, every schedule time slot among them; boxing all of
+                    // them is a change nobody asked for. `0215` sets it on the
+                    // four tracker groups. (The canvas renderer above honours
+                    // the same flag.)
+                    embedded={instance?.meta?.cardChrome === true}
                     pageOccurrenceId={pageOccurrenceId || null}
                     // Without this a NESTED container's own "+ → Item" throws
                     // `addInstanceToContainer is not a function` and adds
