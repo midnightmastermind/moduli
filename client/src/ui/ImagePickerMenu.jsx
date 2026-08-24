@@ -17,6 +17,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Search, Upload, Link2, X, Loader2, ImageOff } from "lucide-react";
+import LoadingImage from "./LoadingImage.jsx";
 
 // ── Imperative controller ────────────────────────────────────────────────
 // Call sites live inside popovers/dropdowns that unmount on outside clicks —
@@ -236,12 +237,23 @@ export default function ImagePickerMenu({
                         aspectRatio: "2 / 3", display: "block",
                       }}
                     >
-                      <img
+                      {/* The bare <img> here rendered its ALT — the search
+                          result's TITLE — as placeholder text for the whole
+                          fetch, which is what the user saw instead of a loading
+                          circle. Search thumbnails come from arbitrary remote
+                          hosts, so that window is long and some never resolve.
+                          The tile already reserves its box (`aspectRatio: 2/3`
+                          on the button), so only the STATUS needed fixing; the
+                          wrapper takes that box so the spinner centres on the
+                          picture rather than on whatever positioned ancestor
+                          `display: contents` would have resolved against. */}
+                      <LoadingImage
                         src={r.thumbnail || r.image}
                         alt={r.title || ""}
-                        loading="lazy"
-                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                        onError={(e) => { e.currentTarget.parentElement.style.display = "none"; }}
+                        title={r.title || undefined}
+                        spinnerSize="sm"
+                        frameStyle={{ position: "relative", display: "block", width: "100%", height: "100%" }}
+                        imgStyle={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                       />
                     </button>
                   ))}

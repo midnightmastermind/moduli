@@ -12,6 +12,7 @@ import Editor from "../ui/Editor.jsx";
 import { hexToRgba } from "../helpers/colorHelpers.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
 import { resolveFileRef } from "../helpers/fileRef.js";
+import LoadingImage from "../ui/LoadingImage.jsx";
 // The global image picker (search / upload / URL). Its single host is mounted in
 // App.jsx and call sites open it imperatively — the same way ui/QuickAddMenu does.
 // The "Replace" button below called this WITHOUT the import, so clicking it threw
@@ -662,15 +663,38 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
       .map(id => occurrencesById?.[id])
       .filter(o => o && modulesById?.[o.moduleId]?.role === "textblock");
     const imgSrc = resolveFileRef(fileRef);
+    // Stamped by the server's EXIF pass on upload (server gap #12). Absent for
+    // remote-ref images — a Wikipedia drop never went through that path.
+    const natW = Number(module?.meta?.width) || 0;
+    const natH = Number(module?.meta?.height) || 0;
     return (
       <div style={{ position: "relative", display: "flex", flexDirection: "column", height: "100%", overflow: "auto" }}>
         {/* Media — flex:0 so it sizes to its natural height; child textblocks
             stack underneath instead of being pushed off-screen. */}
         <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", padding: 16, flex: "0 0 auto" }}>
-          <img
+          {/* A BARE <img> COLLAPSES TO ITS ALT TEXT WHILE LOADING. That is both
+              halves of the user's 2026-08-24 report: the frame showed the label
+              as PLACEHOLDER TEXT rather than a loading circle, and the box was
+              the size of that text rather than the size of the picture — so the
+              layout jumped when the image arrived.
+
+              `meta.width`/`meta.height` are stamped on every image upload by the
+              server's EXIF pass, so the real box is usually KNOWN before a byte
+              of the image has loaded: reserving it as an aspect-ratio makes the
+              frame the picture's size from the first frame. Falling back to a
+              square floor rather than guessing an aspect keeps an image with no
+              stored dimensions from reserving a WRONG shape, which would jump
+              just as badly in the other direction. */}
+          <LoadingImage
             src={imgSrc}
             alt={module?.label || fileRef}
-            style={{ maxWidth: "100%", maxHeight: "min(70vh, 800px)", objectFit: "contain" }}
+            spinnerSize="lg"
+            imgStyle={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+            frameStyle={
+              natW > 0 && natH > 0
+                ? { position: "relative", display: "block", aspectRatio: `${natW} / ${natH}`, maxWidth: "100%", maxHeight: "min(70vh, 800px)" }
+                : { position: "relative", display: "block", minWidth: 160, minHeight: 160, maxWidth: "100%", maxHeight: "min(70vh, 800px)" }
+            }
           />
           <ArtifactDownloadBadge fileRef={fileRef} originalName={originalName} size={uploadSize} />
           <OcrButton
