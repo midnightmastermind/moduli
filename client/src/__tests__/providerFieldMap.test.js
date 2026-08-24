@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mapProviderFields, parseLeadingNumber, providerKeysFromSamples, searchProviderConfig,
-         selectOptionValues, matchSelectOption }
+         selectOptionValues }
   from "../helpers/providerFieldMap.js";
 
 const F = { t: { id: "t", type: "text" }, n: { id: "n", type: "number" },
@@ -199,5 +199,44 @@ describe("valueAliases — an authored translation of a provider's vocabulary", 
   it("is optional — no aliases behaves exactly as before", () => {
     expect(mapProviderFields({ Category: "Chest" }, map, by).values.mg)
       .toEqual({ value: "chest", flow: "in" });
+  });
+});
+
+// ── AN `address` FIELD TAKES A PROVIDER'S STRING ───────────────────────────
+//
+// `0229` recorded the Location map as unmappable — *"`Address` is type
+// `address`, which the mapper cannot write"*. That was a property of OUR
+// allowlist, not of the field: `readAddress` (helpers/geocode.js) documents a
+// bare STRING as one of the two shapes it accepts, and TEN People rows on poms
+// grid already store exactly that shape today.
+describe("an address field", () => {
+  const addrField = { id: "fAddr", name: "Address", type: "address" };
+  const fieldsById = { fAddr: addrField };
+
+  it("writes the provider's string — the shape ten live rows already carry", () => {
+    const { values, wrote, skipped } = mapProviderFields(
+      { Address: "9200 West Wisconsin Avenue, Milwaukee, WI, 53226, United States" },
+      { Address: "fAddr" }, fieldsById);
+    expect(values.fAddr.value).toBe("9200 West Wisconsin Avenue, Milwaukee, WI, 53226, United States");
+    expect(wrote).toHaveLength(1);
+    expect(skipped).toEqual([]);
+  });
+
+  it("trims, and refuses a whitespace-only address rather than storing a blank", () => {
+    // The discriminating case: `readAddress("")` is null, so a blank string is a
+    // field that renders empty while REPORTING as written — the inert-token
+    // class from the write side.
+    const { values, skipped } = mapProviderFields({ Address: "   " }, { Address: "fAddr" }, fieldsById);
+    expect(values.fAddr).toBeUndefined();
+    expect(skipped[0].why).toMatch(/nothing|empty/i);
+  });
+
+  it("still refuses the types nothing can honestly write", () => {
+    // `occurrence` is the one 0229 named beside address — a Song's `Artist` is a
+    // POINTER at a row, and a string is not one. That stays refused.
+    const occField = { id: "fOcc", name: "Artist", type: "occurrence" };
+    const { values, skipped } = mapProviderFields({ Artist: "Radiohead" }, { Artist: "fOcc" }, { fOcc: occField });
+    expect(values).toEqual({});
+    expect(skipped[0].why).toMatch(/cannot write an? occurrence/);
   });
 });

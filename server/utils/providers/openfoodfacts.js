@@ -17,7 +17,7 @@
 // unit is implied is the class this repo has already paid for once (the vitamin
 // D target that was IU while every stored value was mcg).
 
-import { normalizeResult, registerProvider } from "../searchProviders.js";
+import { normalizeResult, registerProvider, statusError, withRetry } from "../searchProviders.js";
 
 const API = "https://world.openfoodfacts.org/cgi/search.pl";
 const UA = { "User-Agent": "Moduli/1.0 (+https://viafluere.com)", Accept: "application/json" };
@@ -58,14 +58,25 @@ const toResult = (p) => normalizeResult({
   fields: foodFields(p),
 });
 
+// THE SERVICE IS INTERMITTENT AND THE REQUEST IS NOT WHAT FAILS. Measured
+// 2026-08-24: six identical curls of the URL below answered
+// `503 200 200 200 503 503`. Half of every grocery search reached the user as
+// "openfoodfacts 503" while the same query succeeded on the next attempt.
 async function call(url) {
-  const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(20000) });
-  if (!res.ok) throw new Error(`openfoodfacts ${res.status}`);
-  const text = await res.text();
-  // The endpoint answers HTML when it is unhappy; say so rather than letting
-  // JSON.parse throw something that reads like a bug in this file.
-  if (text.trimStart().startsWith("<")) throw new Error("openfoodfacts returned HTML, not JSON");
-  return JSON.parse(text);
+  const once = async () => {
+    const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(20000) });
+    if (!res.ok) throw statusError("openfoodfacts", res.status);
+    const text = await res.text();
+    // The endpoint answers HTML when it is unhappy; say so rather than letting
+    // JSON.parse throw something that reads like a bug in this file. Retryable
+    // for the same reason the 503 is — with the contact header now in place, an
+    // HTML body is the service being unhappy rather than us being impolite.
+    if (text.trimStart().startsWith("<")) {
+      throw Object.assign(new Error("openfoodfacts returned HTML, not JSON"), { retryable: true });
+    }
+    return JSON.parse(text);
+  };
+  return withRetry(once, { attempts: 3, delayMs: 400 });
 }
 
 export const openFoodFactsProvider = {

@@ -12,7 +12,7 @@
 // not authority ranking (MusicBrainz exposes none), and it is a large
 // improvement over the order the API hands back.
 
-import { normalizeResult, registerProvider } from "../searchProviders.js";
+import { normalizeResult, registerProvider, statusError, withRetry } from "../searchProviders.js";
 
 const API = "https://musicbrainz.org/ws/2/release-group/";
 // MusicBrainz REQUIRES a contact in the User-Agent and rate-limits to ~1/sec.
@@ -47,7 +47,12 @@ const toResult = (g) => {
 // answers 503 rather than 429 when you exceed it — which reads like the service
 // being down instead of us being impolite. A search followed immediately by a
 // detail lookup is two requests, so back-to-back calls tripped it every time.
-// Serialised through one chain with a 1.1s spacing, and one retry on a 503.
+// Serialised through one chain with a 1.1s spacing, and one retry on a 503 —
+// the SHARED `withRetry`, whose `run` is this gate, because an immediate retry
+// against a 1/sec limit is the very thing that produced the 503. This rule was
+// written here three times by hand before it was shared; `statusError` also
+// treats 429/502/504 as transient, which this file's own header says
+// MusicBrainz does not send — so that is a widening nothing here relies on.
 let gate = Promise.resolve();
 const MIN_GAP_MS = 1100;
 function throttled(fn) {
@@ -61,12 +66,10 @@ async function query(lucene, limit) {
   const url = `${API}?query=${encodeURIComponent(lucene)}&fmt=json&limit=${limit}`;
   const once = async () => {
     const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(20000) });
-    if (res.status === 503) { const e = new Error("musicbrainz 503"); e.retryable = true; throw e; }
-    if (!res.ok) throw new Error(`musicbrainz ${res.status}`);
+    if (!res.ok) throw statusError("musicbrainz", res.status);
     return (await res.json())["release-groups"] || [];
   };
-  try { return await throttled(once); }
-  catch (e) { if (!e.retryable) throw e; return throttled(once); }
+  return withRetry(once, { run: throttled });
 }
 
 // ── TRACKLISTS ────────────────────────────────────────────────────────────
@@ -101,15 +104,13 @@ export async function releaseTracks(releaseId) {
   const url = `${RELEASE}/${encodeURIComponent(releaseId)}?inc=recordings&fmt=json`;
   const once = async () => {
     const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(20000) });
-    if (res.status === 503) { const e = new Error("musicbrainz 503"); e.retryable = true; throw e; }
-    if (!res.ok) throw new Error(`musicbrainz ${res.status}`);
+    if (!res.ok) throw statusError("musicbrainz", res.status);
     const j = await res.json();
     return (j.media || []).flatMap((m) => m.tracks || [])
       .map((t) => ({ position: t.position, title: t.title, lengthMs: t.length || null }))
       .filter((t) => t.title);
   };
-  try { return await throttled(once); }
-  catch (e) { if (!e.retryable) throw e; return throttled(once); }
+  return withRetry(once, { run: throttled });
 }
 
 /** Find the release for an album and return its tracks. `[]` when unknown. */
@@ -146,13 +147,10 @@ async function tracksForTitle(title, artist, trackHint) {
   const url = `${RELEASE}/?query=${encodeURIComponent(lucene)}&fmt=json&limit=5`;
   const once = async () => {
     const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(20000) });
-    if (res.status === 503) { const e = new Error("musicbrainz 503"); e.retryable = true; throw e; }
-    if (!res.ok) throw new Error(`musicbrainz ${res.status}`);
+    if (!res.ok) throw statusError("musicbrainz", res.status);
     return (await res.json()).releases || [];
   };
-  let releases;
-  try { releases = await throttled(once); }
-  catch (e) { if (!e.retryable) throw e; releases = await throttled(once); }
+  const releases = await withRetry(once, { run: throttled });
   const pick = pickRelease(releases, { trackHint });
   if (!pick) return { tracks: [], releaseId: null };
   return { tracks: await releaseTracks(pick.id), releaseId: pick.id };

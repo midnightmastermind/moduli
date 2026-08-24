@@ -61,7 +61,16 @@ export function resolveMap(entry, fieldsByName) {
   return { fieldMap, aliases: entry.aliases || {}, missing };
 }
 
-export async function up({ models, gridId, dryRun, log }) {
+/**
+ * Author a set of entries against one grid. Exported because `0230` authors the
+ * Location map the same way — the loop below is the RULE (refuse a mismatched
+ * provider, never overwrite an existing map, report a missing target), and a
+ * second copy of it is how the two would drift.
+ *
+ * The behaviour is byte-identical to what `0229` executed; only the seam moved.
+ */
+export async function authorFieldMaps({ entries, models, gridId, dryRun, log }) {
+  const AUTHORED = entries;
   const { Field } = models;
   const gid = String(gridId);
   const fields = await Field.find({ gridId: gid }).lean();
@@ -100,4 +109,8 @@ export async function up({ models, gridId, dryRun, log }) {
   }
   log(`authored ${plan.length} field map(s)`);
   return { authored: plan.length };
+}
+
+export async function up(ctx) {
+  return authorFieldMaps({ entries: AUTHORED, ...ctx });
 }

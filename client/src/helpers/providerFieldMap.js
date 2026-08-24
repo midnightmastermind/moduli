@@ -31,7 +31,18 @@
 // paying for.
 
 /** Fields whose value we can honestly write from a provider's string. */
-const WRITABLE_TYPES = new Set(["text", "number", "duration", "select", "rating"]);
+// `address` IS one of these, and 0229 said otherwise. Its value has two legal
+// shapes (helpers/geocode.js `readAddress`): the picker's object WITH
+// coordinates, and a bare STRING — which is what ten People rows on poms grid
+// have carried since long before any provider existed. So a geocoder's
+// one-line address is a first-class value for the field, not a coercion.
+//
+// It stores the STRING form, so the coordinates the provider also returns are
+// dropped. That costs nothing today: the mini-map was deleted at the user's
+// request ("we dont need an image for it", 2026-08-08 (2)) and no surface reads
+// lat/lon. Composing the object would mean this mapper reading SIBLING keys of
+// the one it was given, which is an implicit contract between two files.
+const WRITABLE_TYPES = new Set(["text", "number", "duration", "select", "rating", "address"]);
 
 /** A select field's allowed values, in either of the two shapes the grid uses.
  *  `null` means "this select declares no fixed list", where anything goes. */
@@ -84,6 +95,10 @@ export function mapProviderFields(providerFields, fieldMap, fieldsById = {}, val
     if (!WRITABLE_TYPES.has(type)) { skipped.push({ providerKey, why: `cannot write a ${type} field` }); continue; }
 
     let value = String(raw).trim();
+    // A whitespace-only answer is the provider returning nothing, said less
+    // clearly. Writing it produces a field that renders empty while REPORTING
+    // as written — the inert-token class, from the write side.
+    if (!value) { skipped.push({ providerKey, why: "provider returned nothing" }); continue; }
     // AN AUTHORED ALIAS, NOT AN INFERENCE. wger's exercise categories are its
     // own vocabulary: six of its eight land on `Muscle Group`'s options by
     // name, and `Abs`/`Calves` do not. A translation someone WROTE is data the
