@@ -1377,6 +1377,58 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   // RESEARCH — Wikipedia tools for Jarvis. See docs/assistant-guide.md.
   // ====================================================================
 
+  // ── SEARCH PROVIDERS ───────────────────────────────────────────────────────
+  //
+  // A dropdown's "+ Add new" can search an outside source and mint the picked
+  // result WITH ITS FIELDS FILLED (user, 2026-08-23). The provider is DATA on
+  // the field (`meta.searchProvider`), so these routes never learn a domain.
+  //
+  // Every provider lives server-side: keys must not ship in a bundle, several
+  // forbid browser CORS, and a rate limit belongs in one place — `0054` had to
+  // learn that twice.
+  router.get("/search/providers", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const { availableProviders } = await import("../utils/searchProviders.js");
+      await import("../utils/providers/wikipedia.js");        // registers itself
+      // A KEYED provider with no key is not listed at all — the failure belongs
+      // at configuration, not at the user's keystroke.
+      res.json({ ok: true, providers: availableProviders() });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  router.get("/search/:provider", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const { getProvider, dropAlreadyOnGrid } = await import("../utils/searchProviders.js");
+      await import("../utils/providers/wikipedia.js");
+      const p = getProvider(req.params.provider);
+      if (!p) return err(res, 404, "not_found", `No search provider "${req.params.provider}"`);
+      const q = String(req.query.q || "").trim();
+      // An empty query returns an empty list rather than searching for "" —
+      // every provider treats that differently and none of them usefully.
+      if (!q) return res.json({ ok: true, query: "", results: [] });
+
+      const results = await p.search(q, { limit: Math.min(20, Number(req.query.limit) || 6) });
+      // THE MERGE RULE. The caller passes the keys its grid already holds, so a
+      // result already on the board is not offered a second time — matched on
+      // the provider's own identity, never on a title.
+      const already = new Set(String(req.query.have || "").split(",").filter(Boolean));
+      res.json({ ok: true, query: q, results: dropAlreadyOnGrid(results, already) });
+    } catch (e) { err(res, 502, "provider_error", e.message); }
+  });
+
+  router.get("/search/:provider/detail", authAndLimit({ requireScope: "read" }), async (req, res) => {
+    try {
+      const { getProvider } = await import("../utils/searchProviders.js");
+      await import("../utils/providers/wikipedia.js");
+      const p = getProvider(req.params.provider);
+      if (!p) return err(res, 404, "not_found", `No search provider "${req.params.provider}"`);
+      if (typeof p.detail !== "function") return err(res, 400, "unsupported", "That provider has no detail step");
+      const out = await p.detail({ title: req.query.title, externalId: req.query.externalId });
+      if (!out) return err(res, 404, "not_found", "Nothing to import for that result");
+      res.json({ ok: true, result: out });
+    } catch (e) { err(res, 502, "provider_error", e.message); }
+  });
+
   router.get("/research/wikipedia/search", authAndLimit({ requireScope: "read" }), async (req, res) => {
     try {
       const { search } = await import("../services/wikipediaTools.js");
