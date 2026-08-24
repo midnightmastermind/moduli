@@ -40,8 +40,9 @@
 // because the liked-song row and the catalogue row are the same track under two
 // spellings ("Nikes on My Feet" vs "Nikes On My Feet").
 
-import { albumTracks } from "../utils/providers/musicbrainz.js";
+import { albumTracks, baseTitle } from "../utils/providers/musicbrainz.js";
 import { normName } from "../utils/spotifyLibrary.js";
+import { sharedModuleQuery } from "./0222-import-spotify-library.mjs";
 
 export const id = "0223-liked-album-full-tracklist";
 export const description = "Fill each starred album with its complete tracklist from MusicBrainz";
@@ -80,11 +81,25 @@ export async function up({ models, gridId, dryRun, log }) {
   const songBoard = occs.find((o) => tagOf(o).includes("song") && o.feed?.enabled);
   if (!songBoard) throw new Error("no song board on this grid");
 
-  const songModule = await Module.findOne({ gridId: gid, label: "Song", role: "instance", "meta.spotifyRow": true }).lean();
+  // The MINTER's own predicate, imported rather than restated. Written out
+  // here it read `role: "instance"`, which stopped matching the moment the perf
+  // pass made these modules `artifact` — and the failure was this migration
+  // announcing that `0222` had never run, on a grid where it demonstrably had.
+  const songModule = await Module.findOne(sharedModuleQuery(gid, "Song")).lean();
   if (!songModule) throw new Error("0222 has not run — no shared Song module");
 
   const starred = occs.filter((o) => tagOf(o).includes("album") && o.meta?.spotifyFavorite);
-  const todo = starred.filter((a) => !a.meta?.tracklistFetchedAt);
+  // A row fetched by a version that did NOT try the stripped title, which came
+  // back empty and whose title carries a strippable qualifier, is the one case
+  // worth asking again — `"Parallel Universe (Deluxe Edition)"` returned
+  // nothing and `"Parallel Universe"` returns 14 tracks. At most ONE retry:
+  // the stamp below marks the row as having had the better lookup, so a record
+  // that is genuinely absent is still never asked about twice.
+  const retryable = (a) =>
+    a.meta?.tracklistCount === 0 && !a.meta?.tracklistBaseFallback && !!baseTitle(a.label);
+  const todo = starred.filter((a) => !a.meta?.tracklistFetchedAt || retryable(a));
+  const retries = todo.filter((a) => a.meta?.tracklistFetchedAt).length;
+  if (retries) log(`  (${retries} of those are empty results being re-asked with the qualifier stripped)`);
   log(`starred albums: ${starred.length} · already fetched: ${starred.length - todo.length} · to fetch: ${todo.length}`);
   if (dryRun) return { albums: todo.length };
   if (!todo.length) { log("nothing to fetch"); return { albums: 0, songs: 0 };  }
@@ -144,6 +159,9 @@ export async function up({ models, gridId, dryRun, log }) {
       [`fields.${songsField.id}`]: { value: [...existingIds, ...docs.map((d) => d.id)], flow: "in" },
       "meta.tracklistFetchedAt": new Date().toISOString(),
       "meta.tracklistCount": tracks.length,
+      // "this row was looked up by a version that also tries the stripped
+      // title" — what stops the retry above firing a second time.
+      "meta.tracklistBaseFallback": true,
     } });
 
     if (fetched % 25 === 0) log(`  ${fetched}/${todo.length} albums · ${created} songs added`);

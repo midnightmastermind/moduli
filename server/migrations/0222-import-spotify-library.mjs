@@ -69,6 +69,14 @@ export const rowKey = (occ) =>
   occ?.meta?.searchProvider && occ?.meta?.searchExternalId
     ? `${occ.meta.searchProvider}:${occ.meta.searchExternalId}` : null;
 
+/** How a shared row module is IDENTIFIED — the one predicate, used by the
+ *  minter below and by every later migration that has to find what it minted.
+ *  It names no `role`: `0223` added one on its own and the perf pass moved
+ *  these modules from `instance` to `artifact`, so the finder stopped finding
+ *  what the minter makes while both halves still read correctly. */
+export const sharedModuleQuery = (gid, label) =>
+  ({ gridId: String(gid), label, "meta.spotifyRow": true });
+
 export async function up({ models, gridId, dryRun, log }) {
   const { Module, Occurrence, Field } = models;
   const gid = String(gridId);
@@ -117,7 +125,7 @@ export async function up({ models, gridId, dryRun, log }) {
   const userId = boards.song.userId;
 
   async function sharedModule(label, kind, bindings) {
-    const found = await Module.findOne({ gridId: gid, label, "meta.spotifyRow": true }).lean();
+    const found = await Module.findOne(sharedModuleQuery(gid, label)).lean();
     if (found) {
       // A re-run after `0221` gained a field must WIDEN the module, or the new
       // control has no binding and the value it holds renders nowhere.

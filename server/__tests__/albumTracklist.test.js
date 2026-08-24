@@ -1,8 +1,9 @@
 // 0223 — the two decisions in "a liked album brings its whole tracklist",
 // driven dry. Both are exported from what ships, so the test cannot drift.
 import { describe, it, expect } from "vitest";
-import { pickRelease } from "../utils/providers/musicbrainz.js";
+import { pickRelease, baseTitle } from "../utils/providers/musicbrainz.js";
 import { missingTracks } from "../migrations/0223-liked-album-full-tracklist.mjs";
+import { sharedModuleQuery } from "../migrations/0222-import-spotify-library.mjs";
 
 describe("pickRelease — WHICH pressing of an album to believe", () => {
   // Measured live: MusicBrainz answers "K.I.D.S." by Mac Miller with a
@@ -83,5 +84,104 @@ describe("missingTracks — what the album does not already have", () => {
     // the migration still stamps it so it is never looked up again.
     expect(missingTracks([], ["A"])).toEqual([]);
     expect(missingTracks(null, ["A"])).toEqual([]);
+  });
+});
+
+describe("sharedModuleQuery — the finder and the minter are one predicate", () => {
+  // `0223` restated the lookup instead of importing it, and wrote `role:
+  // "instance"` into its copy. The perf pass then made these modules
+  // `artifact`, so the finder stopped matching what the minter makes — and the
+  // symptom was `0223` reporting that `0222` had never run, on a grid carrying
+  // all 8,428 of its rows. Both halves read correctly the whole time.
+  it("matches a module shaped the way 0222 mints one, WHATEVER role it carries", () => {
+    const q = sharedModuleQuery("g1", "Song");
+    const minted = { gridId: "g1", label: "Song", role: "artifact", kind: "song", meta: { spotifyRow: true } };
+    expect(matches(q, minted)).toBe(true);
+    // The role this migration used to demand is the one thing that must NOT
+    // decide the match, or the next role change silently breaks it again.
+    expect(matches(q, { ...minted, role: "instance" })).toBe(true);
+    expect(q.role).toBeUndefined();
+  });
+
+  it("still discriminates — a same-labelled module that is not a spotify row does not match", () => {
+    const q = sharedModuleQuery("g1", "Song");
+    expect(matches(q, { gridId: "g1", label: "Song", meta: {} })).toBe(false);
+    expect(matches(q, { gridId: "g2", label: "Song", meta: { spotifyRow: true } })).toBe(false);
+    expect(matches(q, { gridId: "g1", label: "Album", meta: { spotifyRow: true } })).toBe(false);
+  });
+
+  it("takes the gridId as a STRING, since that is what a Mongo match needs", () => {
+    expect(sharedModuleQuery({ toString: () => "g1" }, "Song").gridId).toBe("g1");
+  });
+});
+
+/** The subset of Mongo matching this predicate uses: equality, plus one
+ *  dotted path. Enough to answer "would this query find that document". */
+function matches(query, doc) {
+  return Object.entries(query).every(([k, v]) =>
+    k.split(".").reduce((o, part) => (o == null ? o : o[part]), doc) === v);
+}
+
+describe("baseTitle — the Spotify qualifier MusicBrainz does not carry", () => {
+  // Measured against the live API on the starred albums that returned nothing:
+  //   "Parallel Universe (Deluxe Edition)" 0 -> "Parallel Universe" 14 tracks
+  //   "Love Is Like (Deluxe)"              0 -> "Love Is Like"      10
+  //   "Baggage (feat. Ren)"                0 -> "Baggage"            1
+  it("strips a trailing qualifier, whatever the qualifier says", () => {
+    expect(baseTitle("Parallel Universe (Deluxe Edition)")).toBe("Parallel Universe");
+    expect(baseTitle("Love Is Like (Deluxe)")).toBe("Love Is Like");
+    expect(baseTitle("Baggage (feat. Ren)")).toBe("Baggage");
+    expect(baseTitle("Kid A [Explicit]")).toBe("Kid A");
+  });
+
+  it("KEEPS a leading parenthetical — that one is part of the record's name", () => {
+    // "(What's the Story) Morning Glory?" is the album's actual title. Stripping
+    // it would search for a record that does not exist and lose one that does.
+    expect(baseTitle("(What's the Story) Morning Glory?")).toBeNull();
+  });
+
+  it("returns null when there is nothing to strip, so the caller can tell", () => {
+    // null is the "no fallback available" signal: `albumTracks` must not spend
+    // a second request re-asking the identical question.
+    expect(baseTitle("Blonde")).toBeNull();
+    expect(baseTitle("K.I.D.S.")).toBeNull();
+    expect(baseTitle("")).toBeNull();
+    expect(baseTitle(null)).toBeNull();
+  });
+
+  it("never strips a title down to nothing", () => {
+    // A title that is ONLY a parenthetical has no base to fall back to; the
+    // regex requires a non-space character before the bracket.
+    expect(baseTitle("(Deluxe)")).toBeNull();
+    expect(baseTitle("[]")).toBeNull();
+  });
+});
+
+describe("the empty-result retry — which rows are worth asking twice", () => {
+  // `0223` stamps a row even when the lookup found nothing, so unknown records
+  // are not re-fetched on every future run. That is right, and it also froze
+  // the rows that failed only because of a qualifier. This is the exemption.
+  const retryable = (a) =>
+    a.meta?.tracklistCount === 0 && !a.meta?.tracklistBaseFallback && !!baseTitle(a.label);
+
+  it("re-asks an empty result whose title has a strippable qualifier", () => {
+    expect(retryable({ label: "Love Is Like (Deluxe)", meta: { tracklistCount: 0 } })).toBe(true);
+  });
+
+  it("leaves an empty result alone when stripping cannot help", () => {
+    // "Father Mountain" carries no qualifier and returned nothing: it is simply
+    // not in the catalogue, and asking again every run costs a request forever.
+    expect(retryable({ label: "Father Mountain", meta: { tracklistCount: 0 } })).toBe(false);
+  });
+
+  it("retries at MOST once — the fallback stamp closes it", () => {
+    // "FUNCTIONAL (Sugarshack Sessions)" returns nothing under either spelling.
+    // Without this it would be re-asked on every single run, forever.
+    expect(retryable({ label: "FUNCTIONAL (Sugarshack Sessions)",
+                       meta: { tracklistCount: 0, tracklistBaseFallback: true } })).toBe(false);
+  });
+
+  it("never re-asks a row that FOUND something", () => {
+    expect(retryable({ label: "Parallel Universe (Deluxe Edition)", meta: { tracklistCount: 14 } })).toBe(false);
   });
 });

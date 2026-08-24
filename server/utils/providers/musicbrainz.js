@@ -113,7 +113,31 @@ export async function releaseTracks(releaseId) {
 }
 
 /** Find the release for an album and return its tracks. `[]` when unknown. */
-export async function albumTracks(title, artist, { trackHint = 0 } = {}) {
+/** The album title WITHOUT its trailing parenthetical qualifier, or null when
+ *  there is nothing to strip.
+ *
+ *  A Spotify export carries qualifiers a MusicBrainz release title does not —
+ *  "(Deluxe Edition)", "(Deluxe)", "(feat. Ren)", "(Sugarshack Sessions)".
+ *  Measured against the live API on the starred albums that came back empty:
+ *
+ *      "Parallel Universe (Deluxe Edition)"  0  ->  "Parallel Universe"  14
+ *      "Love Is Like (Deluxe)"               0  ->  "Love Is Like"       10
+ *      "Baggage (feat. Ren)"                 0  ->  "Baggage"             1
+ *      "FUNCTIONAL (Sugarshack Sessions)"    0  ->  "FUNCTIONAL"          0
+ *
+ *  That last row is the CONTROL: stripping is not a cure-all, and a record
+ *  genuinely absent from the catalogue stays absent. PURE. */
+export function baseTitle(title) {
+  const t = String(title || "").trim();
+  // TRAILING only. "(What's the Story) Morning Glory?" opens with one and must
+  // keep it — that parenthetical is part of the record's name.
+  const m = t.match(/^(.*\S)\s*[([][^()[\]]*[)\]]\s*$/);
+  const base = m?.[1]?.trim();
+  return base && base !== t ? base : null;
+}
+
+/** One release search + tracklist fetch for an EXACT title. */
+async function tracksForTitle(title, artist, trackHint) {
   const esc = (v) => String(v || "").replace(/["\\]/g, " ").trim();
   if (!esc(title)) return { tracks: [], releaseId: null };
   const lucene = esc(artist)
@@ -132,6 +156,17 @@ export async function albumTracks(title, artist, { trackHint = 0 } = {}) {
   const pick = pickRelease(releases, { trackHint });
   if (!pick) return { tracks: [], releaseId: null };
   return { tracks: await releaseTracks(pick.id), releaseId: pick.id };
+}
+
+export async function albumTracks(title, artist, { trackHint = 0 } = {}) {
+  const exact = await tracksForTitle(title, artist, trackHint);
+  if (exact.releaseId) return exact;
+  // ONLY once the exact title has found nothing. A record whose real name
+  // carries a parenthetical matches on that name above and never gets here, so
+  // the fallback cannot rename an album that was already resolving.
+  const base = baseTitle(title);
+  if (!base) return exact;
+  return tracksForTitle(base, artist, trackHint);
 }
 
 export const musicBrainzProvider = {
