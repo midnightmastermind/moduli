@@ -839,7 +839,10 @@ function InstanceInner({
                 style={{
                   flex: "0 1 auto", minWidth: 0,
                   background: "transparent", border: "none", outline: "none",
-                  fontSize: 13, color: "var(--text-primary)",
+                  // MATCHES the rendered label exactly. This is the edit box
+                  // that REPLACES it on double-click, so any difference makes
+                  // the text visibly resize the moment you start renaming.
+                  fontSize: 15, color: "var(--text-primary)",
                   paddingTop: 0, paddingLeft: 2,
                   fontFamily: "inherit",
                 }}
