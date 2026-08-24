@@ -17,6 +17,12 @@ is a separate decision taken once the report exists.
 **Duplicates (user's call): FLAG, NEVER AUTO-DELETE.** The manifest marks duplicates and lists every
 path; the user decides case by case. These are real book files and there is no undo.
 
+**Scope (user's call, 2026-08-24):**
+- **`big_books` IS in scope** — all 792. The manifest covers all five libraries, ~1,816 books.
+- **`archived_files_unorganized` (305) is EXCLUDED ENTIRELY**, the same treatment as `work_files`.
+  The count is still reported so the user knows what was skipped — an exclusion nobody can see is
+  indistinguishable from a survey that missed them. **This retires Task 5's first bullet.**
+
 ---
 
 ## What was measured BEFORE this plan was written
@@ -87,8 +93,8 @@ is a genuine grab-bag that may hold real books (Task 5).
 ## Task 0 — Establish the corpus, and prove the exclusions
 
 - [ ] Enumerate all seven locations; classify each file `book` / `not-book` / `unsure`.
-- [ ] **Exclude `work_files` and `archived_files_unorganized` by FOLDER, and report the count
-      excluded** — never silently. The 3,194 are the reason this task exists.
+- [ ] **Exclude `work_files` (3,194) and `archived_files_unorganized` (305) by FOLDER, and report
+      both counts** — never silently. The 3,194 are the reason this task exists.
 - [ ] Sample 20 from each excluded folder and record what they actually are, so the exclusion is
       evidence rather than an assumption.
 - [ ] **Positive control:** the corpus must contain a title the user can name from memory. A survey
@@ -143,12 +149,11 @@ extension list or the folder exclusions are wrong — stop and re-measure.
 
 ## Task 5 — Report the judgement calls, do not make them
 
-- [ ] `archived_files_unorganized` (305): list any that look like books and **ask**, rather than
-      including or excluding them silently.
+- [x] ~~`archived_files_unorganized` (305): ask before including~~ — **SETTLED: excluded entirely**
+      (user, 08-24). The count is reported, never silently dropped.
 - [ ] Files whose metadata cannot be read at all — listed, counted, never guessed at.
 - [ ] Format conflicts (same work as EPUB and PDF) — listed as a choice, not resolved.
-- [ ] **`big_books` is the largest library and the ask did not mention it.** Confirm it is in scope
-      before the manifest treats it as the user's own collection.
+- [x] ~~Confirm `big_books` is in scope~~ — **SETTLED: in scope** (user, 08-24), all 792.
 
 ## Explicitly NOT in this plan
 
