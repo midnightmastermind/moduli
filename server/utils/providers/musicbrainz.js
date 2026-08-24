@@ -69,6 +69,71 @@ async function query(lucene, limit) {
   catch (e) { if (!e.retryable) throw e; return throttled(once); }
 }
 
+// ── TRACKLISTS ────────────────────────────────────────────────────────────
+//
+// User, 2026-08-24: *"if i liked the album, do all the songs from the album."*
+// A Spotify library export lists the tracks you liked INDIVIDUALLY, so a
+// starred album arrives with only the handful you happened to like — 81 of the
+// 199 arrived with none at all. MusicBrainz is the catalogue that can say what
+// the record actually contains.
+//
+// It goes through the SAME 1-req/sec gate as the search above, because the
+// limit is per SERVICE and not per feature. A second client with its own timer
+// is how `0054` got two geocoders sharing one queue and paying 2.2s a lookup.
+
+const RELEASE = "https://musicbrainz.org/ws/2/release";
+
+/** Which candidate release to believe. PURE, so the choice is testable dry. */
+export function pickRelease(releases, { trackHint = 0 } = {}) {
+  const rs = (releases || []).filter((r) => (r?.["track-count"] || 0) > 0);
+  if (!rs.length) return null;
+  // Prefer the release closest to the track count we expect when we have one;
+  // otherwise the SMALLEST, because a deluxe/compilation edition pads a record
+  // with alternate takes the user did not ask for. MusicBrainz's own `score`
+  // is not used: it ranks title similarity, and every candidate here already
+  // has the same title.
+  const score = (r) => (trackHint ? Math.abs(r["track-count"] - trackHint) : r["track-count"]);
+  return rs.slice().sort((a, b) => score(a) - score(b))[0];
+}
+
+/** Every track title on a release, in order. */
+export async function releaseTracks(releaseId) {
+  const url = `${RELEASE}/${encodeURIComponent(releaseId)}?inc=recordings&fmt=json`;
+  const once = async () => {
+    const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(20000) });
+    if (res.status === 503) { const e = new Error("musicbrainz 503"); e.retryable = true; throw e; }
+    if (!res.ok) throw new Error(`musicbrainz ${res.status}`);
+    const j = await res.json();
+    return (j.media || []).flatMap((m) => m.tracks || [])
+      .map((t) => ({ position: t.position, title: t.title, lengthMs: t.length || null }))
+      .filter((t) => t.title);
+  };
+  try { return await throttled(once); }
+  catch (e) { if (!e.retryable) throw e; return throttled(once); }
+}
+
+/** Find the release for an album and return its tracks. `[]` when unknown. */
+export async function albumTracks(title, artist, { trackHint = 0 } = {}) {
+  const esc = (v) => String(v || "").replace(/["\\]/g, " ").trim();
+  if (!esc(title)) return { tracks: [], releaseId: null };
+  const lucene = esc(artist)
+    ? `release:"${esc(title)}" AND artist:"${esc(artist)}"`
+    : `release:"${esc(title)}"`;
+  const url = `${RELEASE}/?query=${encodeURIComponent(lucene)}&fmt=json&limit=5`;
+  const once = async () => {
+    const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(20000) });
+    if (res.status === 503) { const e = new Error("musicbrainz 503"); e.retryable = true; throw e; }
+    if (!res.ok) throw new Error(`musicbrainz ${res.status}`);
+    return (await res.json()).releases || [];
+  };
+  let releases;
+  try { releases = await throttled(once); }
+  catch (e) { if (!e.retryable) throw e; releases = await throttled(once); }
+  const pick = pickRelease(releases, { trackHint });
+  if (!pick) return { tracks: [], releaseId: null };
+  return { tracks: await releaseTracks(pick.id), releaseId: pick.id };
+}
+
 export const musicBrainzProvider = {
   id: "musicbrainz", label: "MusicBrainz (music)", needsKey: false,
   async search(q, { limit = 6 } = {}) {
