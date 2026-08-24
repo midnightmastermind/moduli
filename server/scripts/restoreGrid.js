@@ -58,15 +58,47 @@ function parseArgs(argv) {
   return out;
 }
 
+/**
+ * Why this backup may not be restored the way it was asked for, or null.
+ * PURE, so the rule is testable without a database.
+ *
+ * A PARTIAL backup can only roll a grid BACK onto itself. Cloning one into a
+ * fresh database would produce a grid holding nothing but the collections it
+ * captured — a page with no occurrences, which reads as catastrophic data loss
+ * rather than the half-backup it actually is.
+ */
+export function restoreRefusal({ partial, collections = [], intoDb = null }) {
+  if (partial && intoDb) {
+    return `This is a PARTIAL backup (${collections.join(", ")}). It can restore those `
+      + "collections onto the grid it came from, but it cannot clone a whole grid into "
+      + "another database — use a full backup for --into-db.";
+  }
+  return null;
+}
+
 export function readBackup(dir) {
   const mPath = path.join(dir, "manifest.json");
   if (!fs.existsSync(mPath)) throw new Error(`No manifest.json in ${dir} — not a backup directory`);
   const manifest = JSON.parse(fs.readFileSync(mPath, "utf8"));
   const grid = JSON.parse(fs.readFileSync(path.join(dir, "grid.json"), "utf8"));
+  // WHICH COLLECTIONS THIS BACKUP CAN SPEAK FOR.
+  //
+  // A backup taken with `only` captures a subset. Reading an absent file as
+  // `[]` and carrying on is the dangerous path: the restore below deletes every
+  // document of a collection before inserting the backup's, so an uncaptured
+  // `occurrences.json` would DELETE THE WHOLE GRID and insert nothing.
+  //
+  // Older backups predate the manifest field entirely — those are full, and
+  // `collections` falls back to the complete list so they behave exactly as
+  // they always did.
+  const collections = Array.isArray(manifest.collections) && manifest.collections.length
+    ? manifest.collections
+    : BACKUP_COLLECTIONS.map((c) => c.name);
   const data = {};
-  for (const { name } of BACKUP_COLLECTIONS) {
+  for (const name of collections) {
     const p = path.join(dir, `${name}.json`);
-    data[name] = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")) : [];
+    if (!fs.existsSync(p)) throw new Error(`Backup names "${name}" but ${name}.json is missing — refusing to restore`);
+    data[name] = JSON.parse(fs.readFileSync(p, "utf8"));
   }
   // The backup's own integrity check: the manifest counts must match the files
   // on disk. A truncated write is caught HERE, not after we have deleted the
@@ -77,7 +109,7 @@ export function readBackup(dir) {
     if ((data[name]?.length ?? 0) !== n) mismatched.push(`${name}: manifest=${n} file=${data[name]?.length ?? 0}`);
   }
   if (mismatched.length) throw new Error(`Backup is inconsistent — ${mismatched.join("; ")}`);
-  return { manifest, grid, data };
+  return { manifest, grid, data, collections, partial: !!manifest.partial };
 }
 
 /**
@@ -124,7 +156,10 @@ async function main() {
   const targetDb = conn.name;
   const GridM = conn.model("Grid", Grid.schema);
 
-  const { manifest, grid, data } = readBackup(args.from);
+  const { manifest, grid, data, collections, partial } = readBackup(args.from);
+
+  const refusal = restoreRefusal({ partial, collections, intoDb: args.intoDb });
+  if (refusal) throw new Error(refusal);
   const gridId = manifest.grid.id;
 
   console.log(`📦 Backup : "${manifest.grid.name}"  ${manifest.takenAt}${manifest.label ? `  [${manifest.label}]` : ""}`);
@@ -189,7 +224,8 @@ async function main() {
 
   const plan = [
     ["grid", 1],
-    ...BACKUP_COLLECTIONS.map(({ name }) => [name, data[name].length]),
+    ...BACKUP_COLLECTIONS.filter(({ name }) => collections.includes(name))
+                         .map(({ name }) => [name, data[name].length]),
   ];
   console.log("   Would write:");
   for (const [name, n] of plan) console.log(`     ${name.padEnd(13)} ${n}`);
@@ -198,15 +234,22 @@ async function main() {
   if (!args.apply) { console.log("\nDRY RUN — nothing written. Re-run with --apply."); return; }
 
   if (occupied.length) {
+    // ONLY what this backup captured. A partial backup cannot speak for the
+    // collections it never read, and deleting them here would turn a rollback
+    // of a field's config into the loss of every occurrence on the grid.
     for (const { name, model } of BACKUP_COLLECTIONS) {
+      if (!collections.includes(name)) continue;
       await conn.model(model.modelName, model.schema).deleteMany({ gridId });
     }
     await GridM.deleteOne({ _id: gridId });
-    console.log("\n   🗑️  Cleared the existing grid");
+    console.log(partial
+      ? `\n   🗑️  Cleared ONLY: ${collections.join(", ")} (partial backup — everything else left untouched)`
+      : "\n   🗑️  Cleared the existing grid");
   }
 
   await GridM.collection.insertOne({ ...grid, _id: new mongoose.Types.ObjectId(gridId) });
   for (const { name, model } of BACKUP_COLLECTIONS) {
+    if (!collections.includes(name)) continue;
     const docs = data[name];
     if (!docs.length) continue;
     // insertMany on the raw collection: the documents are already schema-shaped

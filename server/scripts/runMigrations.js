@@ -63,9 +63,29 @@ export async function loadMigrations(dir = MIGRATIONS_DIR) {
       throw new Error(`${f} must export an \`id\` and an \`up\` function`);
     }
     if (out.some(m => m.id === mod.id)) throw new Error(`Duplicate migration id: ${mod.id}`);
-    out.push({ id: mod.id, describe: mod.describe || "(no description)", up: mod.up, file: f });
+    // `touches` MUST be carried through. It was dropped here in the first
+    // version of the scoped-snapshot change, so `m.touches` was undefined for
+    // every migration and the scope could never fire — the runner printed
+    // "full grid" and read all 18,000 occurrences anyway. Nothing failed; it
+    // simply did not work. Found by running it, not by reading it.
+    out.push({ id: mod.id, describe: mod.describe || "(no description)", up: mod.up, file: f,
+               touches: Array.isArray(mod.touches) ? mod.touches : null });
   }
   return out;
+}
+
+/**
+ * Which collections the pre-migration snapshot needs, or null for ALL.
+ * PURE, and exported so the rule is testable — the first version of it lived
+ * inline and was inert for a reason no test could see.
+ *
+ * FAILS SAFE: the scope applies only when EVERY pending migration declares
+ * `touches`. One that says nothing gets the full snapshot.
+ */
+export function snapshotScope(pending) {
+  if (!pending?.length) return null;
+  if (!pending.every((m) => Array.isArray(m.touches) && m.touches.length)) return null;
+  return [...new Set(pending.flatMap((m) => m.touches))];
 }
 
 /** Which of `migrations` still need to run against this grid. */
@@ -120,12 +140,30 @@ async function main() {
 
   // Snapshot BEFORE any write, with no flag needed to get it. If a migration
   // corrupts the grid, the path printed on failure is the way back.
+  //
+  // ── SCOPED WHEN EVERY PENDING MIGRATION SAYS WHAT IT TOUCHES ─────────────
+  //
+  // The full snapshot reads every occurrence on the grid. On poms grid that is
+  // ~18,000 documents, and on 2026-08-24 six migrations in one afternoon each
+  // paid it — a meaningful share of the read volume that got the database
+  // throttled to the point the app stopped loading. A migration that only
+  // rewrites a field's `searchProvider` config does not need a rollback of
+  // every occurrence.
+  //
+  // **IT FAILS SAFE BY CONSTRUCTION:** the scope is used only when EVERY
+  // pending migration declares `touches`. One that says nothing gets the full
+  // snapshot, which is what an unaudited migration should get.
+  const only = snapshotScope(pending);
   const { dir } = await backupGrid(grid, {
     outDir: resolve(REPO_ROOT, "backups"),
     label: `pre-migration-${pending[0].id}`,
     userEmail: args.user,
+    only,
   });
-  console.log(`\n💾 Snapshot: ${dir}\n`);
+  console.log(`\n💾 Snapshot: ${dir}`);
+  console.log(only
+    ? `   scoped to ${only.join(", ")} — every pending migration declared what it touches\n`
+    : `   full grid\n`);
 
   const done = [];
   for (const m of pending) {

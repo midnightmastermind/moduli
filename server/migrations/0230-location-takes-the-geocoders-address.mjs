@@ -47,6 +47,11 @@
 
 import { authorFieldMaps } from "./0229-author-the-field-maps.mjs";
 
+/** Only `fields` documents are written, so the pre-migration snapshot does not
+ *  need to read every occurrence on the grid. The runner scopes it only when
+ *  EVERY pending migration declares this. */
+export const touches = ["fields"];
+
 export const id = "0230-location-takes-the-geocoders-address";
 export const description = "Map the places provider's Address onto the Address field";
 

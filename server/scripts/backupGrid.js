@@ -100,7 +100,16 @@ function parseArgs(argv) {
  * Throws if a non-optional collection is empty — a silently empty backup is
  * worse than no backup, because it reads as success.
  */
-export async function backupGrid(gridDoc, { outDir, label = null, userEmail = null } = {}) {
+/**
+ * @param only  collection names to capture, or null for ALL. A PARTIAL backup
+ *              is for a migration that provably touches nothing else — the
+ *              full one reads every occurrence on the grid, which on a large
+ *              grid is minutes of database I/O for a rollback of a field's
+ *              config. The manifest records the restriction, and `restoreGrid`
+ *              REFUSES to treat an uncaptured collection as empty, because
+ *              that path deletes it.
+ */
+export async function backupGrid(gridDoc, { outDir, label = null, userEmail = null, only = null } = {}) {
   const gridId = gridDoc._id.toString();
   const dirName = [stampNow(), label ? slugify(label) : null].filter(Boolean).join("_");
   const dir = path.join(outDir, slugify(gridDoc.name || gridId), dirName);
@@ -112,7 +121,16 @@ export async function backupGrid(gridDoc, { outDir, label = null, userEmail = nu
   fs.writeFileSync(path.join(dir, "grid.json"), JSON.stringify(gridDoc, null, 2));
   counts.grid = 1;
 
-  for (const { name, model, optional } of BACKUP_COLLECTIONS) {
+  const wanted = Array.isArray(only) && only.length ? new Set(only) : null;
+  if (wanted) {
+    const unknown = [...wanted].filter((n) => !BACKUP_COLLECTIONS.some((c) => c.name === n));
+    // A typo here would silently capture NOTHING and still write a manifest
+    // that looks like a backup. Fail instead.
+    if (unknown.length) throw new Error(`backupGrid: unknown collection(s) ${unknown.join(", ")}`);
+  }
+  const captured = BACKUP_COLLECTIONS.filter((c) => !wanted || wanted.has(c.name));
+
+  for (const { name, model, optional } of captured) {
     const docs = await model.find({ gridId }).lean();
     fs.writeFileSync(path.join(dir, `${name}.json`), JSON.stringify(docs, null, 2));
     counts[name] = docs.length;
@@ -124,6 +142,11 @@ export async function backupGrid(gridDoc, { outDir, label = null, userEmail = nu
     userId: gridDoc.userId,
     userEmail,
     counts,
+    // The load-bearing pair. `restoreGrid` reads these to know which
+    // collections this backup can speak for — everything else it must leave
+    // alone rather than restore as empty.
+    partial: !!wanted,
+    collections: captured.map((c) => c.name),
     label: label || null,
     takenAt: new Date().toISOString(),
     gitHead: gitHead(),

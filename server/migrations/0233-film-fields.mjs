@@ -40,6 +40,11 @@
 
 const uid = () => Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
 
+/** Only `fields` documents are written, so the pre-migration snapshot does not
+ *  need to read every occurrence on the grid. The runner scopes it only when
+ *  EVERY pending migration declares this. */
+export const touches = ["fields"];
+
 export const id = "0233-film-fields";
 export const description = "Film fields on the Movies board, and the TMDB map that fills them";
 

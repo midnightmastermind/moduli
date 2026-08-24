@@ -32,6 +32,11 @@
 // Brand / Form / Product type / Net contents / Ingredients whenever fields
 // exist to hold them.
 
+/** Only `fields` documents are written, so the pre-migration snapshot does not
+ *  need to read every occurrence on the grid. The runner scopes it only when
+ *  EVERY pending migration declares this. */
+export const touches = ["fields"];
+
 export const id = "0235-supplements-use-the-supplement-database";
 export const description = "Repoint the Supplement dropdown from openFDA (drug labels) to the NIH supplement database";
 

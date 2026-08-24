@@ -34,6 +34,11 @@
 
 const uid = () => Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
 
+/** Only `fields` documents are written, so the pre-migration snapshot does not
+ *  need to read every occurrence on the grid. The runner scopes it only when
+ *  EVERY pending migration declares this. */
+export const touches = ["fields"];
+
 export const id = "0231-per-100g-macros";
 export const description = "Four per-100g macro fields, and the Ingredient map that fills them";
 
