@@ -1267,6 +1267,10 @@ export function createChildInContainer({
 export function createLeafInstanceInParent({
   dispatch, socket, gridId, userId, parentOccurrence, label = "", initialFields = {},
   panelId = null, containerLabel = "", fieldBindings = null,
+  // Meta for the new OCCURRENCE. The search-provider import uses it to record
+  // WHERE a row came from (`searchProvider` + `searchExternalId`), which is what
+  // stops the same result being offered again next time the dropdown is opened.
+  occMeta = null,
 }) {
   if (!gridId || !userId || !parentOccurrence) return null;
   const moduleId = crypto?.randomUUID?.() || `li-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -1283,6 +1287,7 @@ export function createLeafInstanceInParent({
     ...(Array.isArray(fieldBindings) && fieldBindings.length ? { fieldBindings } : {}),
   };
   const occurrence = {
+    ...(occMeta ? { meta: occMeta } : {}),
     id: occurrenceId, userId, gridId,
     moduleId,
     parentId: parentOccurrence.id,

@@ -77,7 +77,7 @@ export function buildStampFields(field, parentOcc) {
 // Mint the new option occurrence under the chosen parent. Binds the stamp
 // fields HIDDEN (identity tags never render inline) and any addNew.fieldIds
 // as visible inputs. Returns { moduleId, occurrenceId, entryFieldIds }.
-export function createOptionUnderParent({ field, parentOcc, label, dispatch, socket, gridId, userId }) {
+export function createOptionUnderParent({ field, parentOcc, label, dispatch, socket, gridId, userId, occMeta = null }) {
   if (!field || !parentOcc || !label?.trim()) return null;
   const addNew = field.meta?.optionsSource?.addNew || {};
   const stamp = buildStampFields(field, parentOcc);
@@ -92,6 +92,7 @@ export function createOptionUnderParent({ field, parentOcc, label, dispatch, soc
     label: label.trim(),
     initialFields: stamp,
     fieldBindings,
+    occMeta,
   });
   if (!res) return null;
   return { ...res, entryFieldIds };

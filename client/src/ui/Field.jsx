@@ -1118,7 +1118,7 @@ function Field({
   // calls onChange([...selected, slug]) with the slug. We capture localValue BEFORE
   // the onChange fires, then call handleChange again with the real occurrence ID to
   // overwrite the intermediate slug state.
-  const handleOccurrenceAddNew = useCallback(({ label: newLabel, parentOccurrenceId = null } = {}) => {
+  const handleOccurrenceAddNew = useCallback(({ label: newLabel, parentOccurrenceId = null, occMeta = null } = {}) => {
     if (!occurrenceAddNewCfg || !newLabel?.trim()) return;
     // Multi-target addNew (2026-07-25): the caller passes the CHOSEN parent
     // occurrence id; a single-target config falls back to its only entry.
@@ -1133,6 +1133,10 @@ function Field({
     // the dropdown's predicate fields (the run-time tag mechanism — a board
     // container carries its own boardCategory value).
     const result = createOptionUnderParent({
+      // Records WHERE this row came from when it was imported from a search
+      // provider. Nothing else reads it; the dropdown does, to avoid offering the
+      // same result again.
+      occMeta,
       field, parentOcc, label: newLabel,
       dispatch, socket, gridId, userId,
     });
@@ -1720,12 +1724,24 @@ function Field({
         const selectedValues = Array.isArray(localValue) ? localValue : localValue ? [localValue] : [];
         // When addNew is configured, wire handleOccurrenceAddNew (accepts { value, label, parentOccurrenceId } from MultiSelectWithAdd).
         const occAddNew = occurrenceAddNewCfg ? handleOccurrenceAddNew : null;
+        // A provider is DATA on the field. Absent, the dropdown behaves exactly
+        // as it always has — no heading, no second section.
+        const searchProviderId = field?.meta?.searchProvider?.provider || null;
+        // Picking a provider row IMPORTS: it mints the option and stamps the
+        // provider identity so the same result is not offered again.
+        const importResult = (occAddNew && searchProviderId)
+          ? (r) => occAddNew({
+              label: r?.title,
+              occMeta: { searchProvider: r?.provider, searchExternalId: r?.externalId ?? null },
+            })
+          : null;
         return (
           <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}
             onChange={vals => { handleChange(vals); onCommit?.(vals); }}
             onAddOption={occAddNew} disabled={disabled} compact={compact}
             showLabel={showLabel} randomize={randomize} renderOption={renderOccurrenceOption} fieldName={name}
-            addNewTargets={addNewTargetOptions} />
+            addNewTargets={addNewTargetOptions}
+            searchProvider={searchProviderId} onImportResult={importResult} />
         );
       }
       const currentLabel = options.find(o => o.value === localValue)?.label || localValue || "—";
@@ -2184,12 +2200,24 @@ function Field({
       if (isMulti) {
         const selectedValues = Array.isArray(localValue) ? localValue : localValue ? [localValue] : [];
         const occAddNew = occurrenceAddNewCfg ? handleOccurrenceAddNew : null;
+        // A provider is DATA on the field. Absent, the dropdown behaves exactly
+        // as it always has — no heading, no second section.
+        const searchProviderId = field?.meta?.searchProvider?.provider || null;
+        // Picking a provider row IMPORTS: it mints the option and stamps the
+        // provider identity so the same result is not offered again.
+        const importResult = (occAddNew && searchProviderId)
+          ? (r) => occAddNew({
+              label: r?.title,
+              occMeta: { searchProvider: r?.provider, searchExternalId: r?.externalId ?? null },
+            })
+          : null;
         return (
           <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}
             onChange={vals => { handleChange(vals); onCommit?.(vals); }}
             onAddOption={occAddNew} disabled={disabled} compact={compact}
             showLabel={showLabel} randomize={randomize} renderOption={renderOccurrenceOption} fieldName={name}
-            addNewTargets={addNewTargetOptions} />
+            addNewTargets={addNewTargetOptions}
+            searchProvider={searchProviderId} onImportResult={importResult} />
         );
       }
       return (
