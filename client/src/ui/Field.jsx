@@ -57,6 +57,13 @@ import { setComputedValuesAction } from "../state/actions";
 import LoadingImage from "./LoadingImage.jsx";
 import { searchProviderConfig, mapProviderFields } from "../helpers/providerFieldMap.js";
 
+// The type size of a field on a row — its pill and its caption. ONE constant,
+// because these were scattered inline literals and an inline style is exactly
+// what this repo keeps losing an hour to when a size "silently does nothing".
+// 10 -> 12 (user, 2026-08-24: "you can one up fields to 12px"), which still
+// sits a clear step under the 15px instance label above it.
+const FIELD_FONT_PX = 12;
+
 // ─── FlowToggle (popover with 3 flow options) ─────────────────
 // Whole-control tints per flow (2026-07-11, per user): the control CARRYING a
 // flow toggle is colored by the flow — green=in(+), blue=replace, red=out(−).
@@ -1600,7 +1607,7 @@ function Field({
           <Switch checked={isOn} disabled={disabled}
             onCheckedChange={v => { handleChange(v); onCommit?.(v); }} />
           {!hideName && name && (
-            <span style={{ fontSize: 10, color: isOn ? "var(--accent-green-text)" : "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+            <span style={{ fontSize: FIELD_FONT_PX, color: isOn ? "var(--accent-green-text)" : "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
               {name}
             </span>
           )}
@@ -1703,7 +1710,7 @@ function Field({
       const currentRating = localValue ?? 0;
       return (
         <div className="field-input inline-flex items-center gap-0.5" title={`${name}: ${currentRating}/${maxRating}`}>
-          {!hideName && name && <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)", marginRight: 2 }}>{name}:</span>}
+          {!hideName && name && <span style={{ fontSize: FIELD_FONT_PX, color: "var(--text-muted)", fontFamily: "var(--font-mono)", marginRight: 2 }}>{name}:</span>}
           {Array.from({ length: maxRating }, (_, i) => i + 1).map(star => (
             <button key={star} type="button" disabled={disabled}
               style={{ padding: 1, cursor: disabled ? "not-allowed" : "pointer" }}
@@ -1838,7 +1845,7 @@ function Field({
     }
 
     // Shared label style for full (non-compact) inputs
-    const inputLabelStyle = { fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)", marginBottom: 2 };
+    const inputLabelStyle = { fontSize: FIELD_FONT_PX, color: "var(--text-muted)", fontFamily: "var(--font-mono)", marginBottom: 2 };
 
     // Full input controls. The flow toggle is ATTACHED to the input (divided
     // leading segment, randomizer-style) and the whole input is tinted by the
@@ -2357,7 +2364,7 @@ function Field({
     fontFamily: "var(--font-mono)",
     flexShrink: 0,
   };
-  const labelStyle = { fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)", marginBottom: 2 };
+  const labelStyle = { fontSize: FIELD_FONT_PX, color: "var(--text-muted)", fontFamily: "var(--font-mono)", marginBottom: 2 };
 
   if (compact) {
     // Compact display pill color precedence:
@@ -2390,7 +2397,7 @@ function Field({
       padding: "2px 6px", borderRadius: 999,
       border: `1px solid ${pillBorder}`,
       background: pillColor,
-      fontSize: 10, fontFamily: "var(--font-mono)",
+      fontSize: FIELD_FONT_PX, fontFamily: "var(--font-mono)",
       color: pillText, flexShrink: 0,
     };
 

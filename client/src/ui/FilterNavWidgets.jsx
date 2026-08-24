@@ -6,6 +6,14 @@ import { resolveOptions } from "../helpers/optionsResolver";
 import NavPickerPopover from "./NavPickerPopover.jsx";
 import { summarizeSelection } from "./filterSummary";
 
+// The type size of the filter controls that sit in a page/panel HEADER — the
+// option chips, the select and the text box. One constant rather than three
+// inline literals, for the reason `FIELD_FONT_PX` exists: an inline size is
+// what this repo loses time to when a stylesheet bump "silently does nothing".
+// 11 -> 12 (user, 2026-08-24: "make the filter button pill in the headrs one
+// font size bigger too"), matching the field pills beneath them.
+const FILTER_FONT_PX = 12;
+
 // Period units exposed in the D/W/M/Y toggle. Stepping uses Date#setDate /
 // setMonth / setFullYear (NOT fixed ms deltas — month/year vary in length).
 const UNIT_ORDER = ["day", "week", "month", "year"];
@@ -222,7 +230,7 @@ function PillsWidget({ filter, value, options, dispatch, onNav }) {
           key={String(opt)}
           onClick={() => write(opt)}
           style={{
-            padding: "2px 8px", borderRadius: 999, fontSize: 11,
+            padding: "2px 8px", borderRadius: 999, fontSize: FILTER_FONT_PX,
             border: "1px solid var(--panel-border, #374151)",
             background: opt === value ? "var(--accent, #14b8a6)" : "transparent",
             color: "inherit", cursor: "pointer",
@@ -244,7 +252,7 @@ function SelectWidget({ filter, value, options, dispatch, onNav }) {
       value={value ?? ""}
       onChange={(e) => write(e.target.value || null)}
       style={{
-        padding: "2px 6px", fontSize: 11,
+        padding: "2px 6px", fontSize: FILTER_FONT_PX,
         background: "transparent", color: "inherit",
         border: "1px solid var(--panel-border, #374151)", borderRadius: 4,
         minWidth: 96, maxWidth: 200,
@@ -273,7 +281,7 @@ function InputWidget({ filter, value, dispatch, onNav }) {
     <input
       value={local} onChange={onChange}
       style={{
-        padding: "2px 6px", fontSize: 11,
+        padding: "2px 6px", fontSize: FILTER_FONT_PX,
         background: "transparent", color: "inherit",
         border: "1px solid var(--panel-border, #374151)", borderRadius: 4, width: 140,
       }}

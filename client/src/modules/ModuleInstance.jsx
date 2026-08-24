@@ -853,10 +853,12 @@ function InstanceInner({
                   flex: "0 1 auto",
                   minWidth: 0,
                   overflow: "hidden",
-                  // One size up: it is the row's title now that it sits over the
-                  // fields rather than in line with them (user: "which we can
-                  // make a font size bigger").
-                  fontSize: 13,
+                  // One size up AGAIN (user, 2026-08-24: "the labels can be a
+                  // font size bigger"). It is the row's TITLE now that it sits
+                  // over the fields rather than in line with them, and at 13 it
+                  // still read as body text beside the 11px field pills. 15
+                  // keeps a full step of hierarchy over them.
+                  fontSize: 15,
                   color: "var(--text-primary)",
                   paddingTop: 0,
                   paddingLeft: 2,

@@ -713,11 +713,21 @@ function Container({
   // reaches exactly one level, which is the scope we want — it is not a
   // cascade). `ModuleInstance` reads these through `var()` on its own inline
   // style, so no `!important` is involved and a container that sets nothing
-  // renders exactly as before. Defaults to "column" under wrap, because a
-  // square tile has no room for a side-by-side title, and that was the
-  // hardcoded behaviour this replaces.
-  const childContentDir = layoutCascade?.resolved?.childContentDirection
-    || (childWrap ? "column" : null);
+  // renders exactly as before.
+  //
+  // NO IMPLICIT "column" UNDER WRAP ANY MORE. That default predates the row
+  // restructure: back then the label sat IN LINE with the fields, so a square
+  // tile genuinely had no room for it beside the handle. The row is now
+  // `[handle][label over fields]`, and forcing `column` on top of that stacked
+  // the whole text column BENEATH the drag handle — user, 2026-08-24: *"the
+  // trackers tiles have the label and fields underneath the drag handle which
+  // shouldnt be the case"* (tracker tiles are wrap tiles, so every one of them
+  // hit this).
+  //
+  // It is still fully settable — `childContentDirection` is in the layout
+  // cascade and the Layout menu edits it — so nothing is lost; only the
+  // GUESS is gone.
+  const childContentDir = layoutCascade?.resolved?.childContentDirection || null;
 
   // Occurrence controls order — pass containerOccurrence so ordering reads from occurrence.occurrences.
   // When `module.meta.allowChildContainers` is set, fall back to the full modulesById lookup so
