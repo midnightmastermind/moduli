@@ -5,6 +5,8 @@ Maintained by Claude. Newest direction lands here first; the reasoning lives in
 
 ## Open
 
+
+| L | **SEARCH PROVIDERS on an occurrence dropdown** — *"loop in diff search queries for the multi select box… imdb search… workout one, food one, book one, music one"* / *"it would be like looping in search providers and we have prefilled fields that come with those new occurances"* (08-23). **PLANNED, not built:** `docs/superpowers/plans/2026-08-23-search-providers-for-dropdowns.md`. Answer to *"do we need special indexers"*: **Wikipedia covers "does this exist and what is it called" and its infobox parser already ships — but it cannot give per-serving macros, muscle groups or ISBN-level editions.** Those need domain sources (TMDB · Open Library · USDA / Open Food Facts · MusicBrainz · wger). Three quarters of the mechanism already exists (`optionsSource`, `addNew`, `prefill`, the images proxy, `wikipediaTools`) — what is missing is a search step before the mint and a provider-record → field map | 📋 planned, after the current fixes |
 ### Closed 2026-08-23 (afternoon)
 
 - **Bookmarks spec — ALL NINE STEPS SHIPPED.** Archive mode was the last (`062af432`).
