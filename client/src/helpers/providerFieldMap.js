@@ -42,7 +42,7 @@
 // request ("we dont need an image for it", 2026-08-08 (2)) and no surface reads
 // lat/lon. Composing the object would mean this mapper reading SIBLING keys of
 // the one it was given, which is an implicit contract between two files.
-const WRITABLE_TYPES = new Set(["text", "number", "duration", "select", "rating", "address"]);
+const WRITABLE_TYPES = new Set(["text", "number", "duration", "select", "rating", "address", "date"]);
 
 /** A select field's allowed values, in either of the two shapes the grid uses.
  *  `null` means "this select declares no fixed list", where anything goes. */
@@ -119,6 +119,17 @@ export function mapProviderFields(providerFields, fieldMap, fieldsById = {}, val
       const m = matchSelectOption(f, value);
       if (!m.ok) { skipped.push({ providerKey, why: `"${value}" is not an option on ${f?.name || "this select"}` }); continue; }
       value = m.value;
+    }
+    if (type === "date") {
+      // ONLY an ISO day. Measured: all thirteen `date` fields on poms grid store
+      // a plain "YYYY-MM-DD" string, and every date comparator (`SAME_DAY`,
+      // `DATE_IN_PERIOD`, `DATE_BEFORE`) parses that string. A bare year — which
+      // is what TMDB answers for an unreleased film — stores fine and is
+      // invisible to every one of them, which is worse than not writing it.
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value))) {
+        skipped.push({ providerKey, why: `"${value}" is not a date (YYYY-MM-DD)` });
+        continue;
+      }
     }
     if (type === "number" || type === "duration" || type === "rating") {
       const n = parseLeadingNumber(value);

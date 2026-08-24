@@ -7,7 +7,9 @@ describe("tileKindsForRole — create tiles per role", () => {
   });
 
   it("page → adds folder", () => {
-    expect(tileKindsForRole("page")).toEqual(["board", "doc", "canvas", "table", "folder"]);
+    // `wikipedia` is a SEARCH tile, not a blank create — it opens a sub-step and
+    // imports the chosen article through the same path "Convert to page" uses.
+    expect(tileKindsForRole("page")).toEqual(["board", "doc", "canvas", "table", "folder", "wikipedia"]);
   });
 
   it("panel → board only", () => {
@@ -19,6 +21,9 @@ describe("tileKindsForRole — create tiles per role", () => {
       "instance", "textblock", "artifact", "image",
       "board", "doc", "table", "canvas",
       "page-board", "page-doc", "page-table", "page-canvas", "page-folder",
+      // A search tile rather than a blank create: it opens the Wikipedia
+      // sub-step and imports the chosen article as a page under the host.
+      "wikipedia",
     ]);
   });
 });
@@ -55,7 +60,9 @@ describe("create-page menu parity (page-folder)", () => {
   });
 
   it("page role is unchanged — still its own bare folder tile, no duplicate page-folder", () => {
-    expect(tileKindsForRole("page")).toEqual(["board", "doc", "canvas", "table", "folder"]);
+    // `wikipedia` is a SEARCH tile, not a blank create — it opens a sub-step and
+    // imports the chosen article through the same path "Convert to page" uses.
+    expect(tileKindsForRole("page")).toEqual(["board", "doc", "canvas", "table", "folder", "wikipedia"]);
   });
 });
 

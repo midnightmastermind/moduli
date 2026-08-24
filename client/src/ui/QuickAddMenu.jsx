@@ -17,6 +17,10 @@ import { templatesByKind, templateLabelOf } from "../helpers/templateHelpers";
 import { commitApplyTemplate } from "../helpers/CommitHelpers";
 import { getModuleTypeBadge } from "../helpers/moduleIcons";
 import { openImagePicker } from "./ImagePickerMenu";
+import { useProviderSearch } from "../hooks/useProviderSearch.js";
+import { convertLinkToPage } from "../helpers/linkToPage.js";
+import { wikipediaUrlOf, pageTitleOf, buildWikipediaImport } from "../helpers/wikipediaPage.js";
+import { toast } from "../state/notificationStore";
 
 import { siblingFieldBindings, splitDisplayInput, typeableFields, toInitialFields } from "../helpers/siblingFieldBindings.js";
 import Field from "./Field.jsx";
@@ -43,6 +47,11 @@ export const KIND_TILE = {
   textblock: { label: "Textblock", desc: "Inline rich-text snippet" },
   artifact:  { label: "Artifact",  desc: "File-backed content" },
   image:     { label: "Image",     desc: "Search the web / upload / URL" },
+  // User, 2026-08-24: *"a wikipedia page button on the quick add menu so i can
+  // search for wikipedia articles to turn into pages on the fly"*. It reuses
+  // the SAME importer "convert this link to a page" uses, so a searched article
+  // and a dropped link cannot produce two different pages.
+  wikipedia: { label: "Wikipedia",  desc: "Search Wikipedia and import the article as a page" },
   // PAGE tiles (2026-07-29, per user). Distinct from the bare kinds above,
   // which create nested CONTAINERS: these mint a real page — filed in the
   // manifest tree — and place a preview of it where you clicked +.
@@ -94,6 +103,7 @@ export function tileKindsForRole(targetRole) {
     "instance", "textblock", "artifact", "image",
     "board", "doc", "table", "canvas",
     "page-board", "page-doc", "page-table", "page-canvas", "page-folder",
+    "wikipedia",
   ];
   if (targetRole === "container") return ["board", "doc", "canvas", "table"];
   // Page role already offers "folder" as a bare kind (it IS the page being
@@ -103,7 +113,7 @@ export function tileKindsForRole(targetRole) {
   // that expect it (CommitHelpers.createChildInContainer); ModulePanel's own
   // page-creation path does not, so a "page-folder" tile here would persist
   // a literal (invalid) `kind: "page-folder"` on the created page.
-  if (targetRole === "page") return ["board", "doc", "canvas", "table", "folder"];
+  if (targetRole === "page") return ["board", "doc", "canvas", "table", "folder", "wikipedia"];
   return ["board"]; // panel
 }
 
@@ -129,6 +139,12 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   // with no fields chosen yet. Only opens for the instance Item tile when the
   // grid has at least one field.
   const [pickingFields, setPickingFields] = useState(null);
+  // Wikipedia sub-step: null = closed. Same shape as `pickingFields` above —
+  // the menu stays OPEN and swaps its body, so Escape/back returns here rather
+  // than throwing the gesture away.
+  const [wikiOpen, setWikiOpen] = useState(false);
+  const [wikiQuery, setWikiQuery] = useState("");
+  const [wikiBusy, setWikiBusy] = useState(null);
   const [fieldSearch, setFieldSearch] = useState("");
   // The role each prefilled field was bound with on its siblings, so a `display`
   // field does not arrive as a typable input on the new row. Hand-picked fields
@@ -190,6 +206,9 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     setPickingFields(null);
     setPickingValues({});
     setFieldSearch("");
+    setWikiOpen(false);
+    setWikiQuery("");
+    setWikiBusy(null);
   }, []);
 
   // Sorted, search-filtered field list in THREE sections (user, 2026-08-22:
@@ -279,6 +298,9 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   const createOfKind = useCallback((kind) => {
     // Artifact: open the OS file picker; the upload fires on file-select (onFilePicked).
     if (kind === "artifact") { fileInputRef.current?.click(); return; }
+    // Wikipedia: a SEARCH step, not an instant create — there is nothing to
+    // create until an article is chosen.
+    if (kind === "wikipedia") { setWikiQuery(""); setWikiBusy(null); setWikiOpen(true); return; }
     // Image: the global ImagePicker (Search / Upload / URL). The pick hands a
     // URL to the host, which mints a remote-ref image artifact — no OS dialog.
     if (kind === "image") {
@@ -441,6 +463,40 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, manifestsById, foldersById, modulesById, getOccMap, gridId, allowedKinds, hostOccurrence, targetRole, onCreatePageFromTemplate]);
 
+  // Dormant unless the sub-step is open — `provider: null` makes the hook do
+  // nothing at all, so every other QuickAddMenu on the grid (one per header)
+  // costs no request.
+  const wiki = useProviderSearch({ provider: wikiOpen ? "wikipedia" : null, query: wikiQuery });
+
+  /**
+   * Import the chosen article as a page, under whatever the "+" was clicked on.
+   *
+   * It calls `convertLinkToPage` — the SAME server import the right-click
+   * "Convert to page" uses — rather than a second importer. A searched article
+   * and a dropped link must produce the same page, and 2026-08-08 (10) is the
+   * rule: when two paths would do the same write, they share the callee.
+   */
+  const importWikipedia = useCallback(async (result) => {
+    // The payload is built by a PURE function so it can be asserted without
+    // mounting this menu — see its header for why that matters here.
+    const req = buildWikipediaImport(result, { gridId, hostOccurrence });
+    // The tile says Wikipedia; a result that is not one is refused rather than
+    // imported under a button that promised otherwise.
+    if (!req) { toast?.("That result has no Wikipedia article to import."); return; }
+    const { url, title } = req;
+    setWikiBusy(url);
+    // NOT closed yet, deliberately: the fetch-and-build is seconds long, and a
+    // menu that vanishes on click leaves the user with no sign anything is
+    // happening — the `progressIntake` lesson (2026-08-08 (9)), where silence
+    // was indistinguishable from a drop that did nothing.
+    const res = await convertLinkToPage({ socket, ...req });
+    setWikiBusy(null);
+    if (res?.ok) { toast?.success?.(`Imported “${title}”`) ?? toast?.(`Imported “${title}”`); closeMenu(); }
+    // The server hands back WHY (`safeFetchUrl`'s own reason), so the failure
+    // says "timed out" or "not a web page" rather than a generic shrug.
+    else toast?.(`Could not import “${title}”${res?.error ? `: ${res.error}` : ""}`);
+  }, [socket, gridId, hostOccurrence, closeMenu]);
+
   const picking = pickingFields != null;
 
   return (
@@ -476,7 +532,60 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
             boxShadow: "var(--menu-shadow-2)", fontFamily: "var(--font-mono)",
           }}
         >
-          {picking ? (
+          {wikiOpen ? (
+            // ── Wikipedia sub-step ──────────────────────────────────────────
+            <>
+              <button onClick={() => { setWikiOpen(false); setWikiQuery(""); }} style={backBtnStyle}>
+                <ChevronLeft size={10} /> Back
+              </button>
+              <div style={{ position: "relative", borderBottom: "1px solid var(--border-subtle)" }}>
+                <Search size={11} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "var(--text-faint)" }} />
+                <input
+                  autoFocus value={wikiQuery} onChange={(e) => setWikiQuery(e.target.value)}
+                  placeholder="Search Wikipedia…"
+                  style={{ width: "100%", padding: "7px 8px 7px 24px", background: "none", border: "none", outline: "none",
+                           color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)" }}
+                />
+              </div>
+              <div style={{ overflowY: "auto", flex: 1 }}>
+                {/* An empty list DURING a search is never rendered as "nothing
+                    found" — the hook keeps the two states apart on purpose. */}
+                {wiki.state === "searching" && <div style={emptyStyle}>Searching Wikipedia…</div>}
+                {wiki.state === "error" && <div style={emptyStyle}>Wikipedia search is unavailable.</div>}
+                {wiki.state === "done" && wiki.results.length === 0 && (
+                  <div style={emptyStyle}>No articles match “{wikiQuery.trim()}”</div>
+                )}
+                {wiki.state === "idle" && !wikiQuery.trim() && (
+                  <div style={emptyStyle}>Type to search Wikipedia.</div>
+                )}
+                {wiki.results.map((r) => {
+                  const busy = wikiBusy && wikiBusy === wikipediaUrlOf(r);
+                  return (
+                    <button
+                      key={`${r.provider}:${r.externalId ?? r.url}`}
+                      disabled={!!wikiBusy}
+                      onClick={() => importWikipedia(r)}
+                      style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%", padding: "6px 9px",
+                               background: "none", border: "none", cursor: wikiBusy ? "default" : "pointer",
+                               opacity: wikiBusy && !busy ? 0.45 : 1,
+                               color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)", textAlign: "left" }}
+                      onMouseEnter={(e) => { if (!wikiBusy) e.currentTarget.style.background = "var(--input-bg)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
+                    >
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {busy ? "Importing…" : pageTitleOf(r)}
+                      </span>
+                      {r.subtitle && (
+                        <span style={{ fontSize: 9, color: "var(--text-faint)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {r.subtitle}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : picking ? (
             // ── Field-picker sub-step (instance create) ──────────────────────
             <>
               <button

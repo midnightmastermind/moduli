@@ -240,3 +240,37 @@ describe("an address field", () => {
     expect(skipped[0].why).toMatch(/cannot write an? occurrence/);
   });
 });
+
+// ── A `date` FIELD TAKES AN ISO DAY, AND ONLY AN ISO DAY ───────────────────
+//
+// Measured on poms grid: every one of the thirteen `date` fields stores a plain
+// `"YYYY-MM-DD"` STRING (`Date` = "2026-07-28", `Due` = "2026-08-11"), and TMDB
+// answers `Released` in exactly that shape. So the write is honest — but only
+// for that shape: every date comparator on this grid (`SAME_DAY`,
+// `DATE_IN_PERIOD`, `DATE_BEFORE`) parses the stored string, and a value it
+// cannot parse is a filter that silently matches nothing.
+describe("a date field", () => {
+  const dateField = { id: "fRel", name: "Released", type: "date" };
+  const fieldsById = { fRel: dateField };
+
+  it("writes an ISO day — the shape all thirteen live date fields carry", () => {
+    const { values, wrote } = mapProviderFields({ Released: "2010-07-15" }, { Released: "fRel" }, fieldsById);
+    expect(values.fRel.value).toBe("2010-07-15");
+    expect(wrote).toHaveLength(1);
+  });
+
+  it("REFUSES a year alone, which is what a partial release date looks like", () => {
+    // The discriminating case: TMDB answers "2010" for an unreleased film, and
+    // "2010" stored in a date field is a row that no date filter can see.
+    const { values, skipped } = mapProviderFields({ Released: "2010" }, { Released: "fRel" }, fieldsById);
+    expect(values.fRel).toBeUndefined();
+    expect(skipped[0].why).toMatch(/not a date/i);
+  });
+
+  it("REFUSES prose, rather than storing something no comparator can parse", () => {
+    for (const bad of ["July 15, 2010", "coming soon", "15/07/2010", "2010-13-45"]) {
+      const { values } = mapProviderFields({ Released: bad }, { Released: "fRel" }, fieldsById);
+      expect(values.fRel).toBeUndefined();
+    }
+  });
+});
