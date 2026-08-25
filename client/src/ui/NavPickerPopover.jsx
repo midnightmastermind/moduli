@@ -313,7 +313,12 @@ export default function NavPickerPopover({ value, onCommit, constraints, trigger
         style={{
           display: "inline-flex", alignItems: "center", gap: 4,
           padding: triggerLabel ? "1px 8px" : "1px 6px",
-          fontSize: triggerLabel ? 12 : 10,
+          // The date pill in a page/panel header. 12/10 -> 13/11 (user,
+          // 2026-08-25: "the pill for the filters (the date in the example)
+          // should be bigger as well", then "make those 12s be 13s"). It sits
+          // beside the chips FilterNavWidgets draws at `FILTER_FONT_PX`, so the
+          // two have to move together or the header reads at two sizes.
+          fontSize: triggerLabel ? 13 : 11,
           minWidth: triggerLabel ? 96 : "auto",
           justifyContent: "center",
           background: "transparent", color: "inherit",

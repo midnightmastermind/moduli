@@ -7145,18 +7145,29 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    `*` and `!important` on both, because the text inside a pill sits on children
    carrying their own explicit `text-[10px]` classes and inline `pillBase`
    styles; a rule on the pill alone reaches neither. */
-/* THE INSTANCE LABEL, bigger (user: "make the labels bigger for the
-   instances", then 2026-08-19: "make the instance labels text size 1 size
-   bigger too"). Safe to raise in a way it was not the first time: the field
-   pills are pinned by the rule below, so bumping the row's label can no longer
-   cascade into them — which is exactly what made the earlier attempt read as
-   "the rest are too big". 13 -> 14 -> 15. */
-:root[data-skin="stardew"] .instance-content > div > .auto-marquee,
-:root[data-skin="stardew"] .instance-content .auto-marquee-inner,
-:root[data-skin="blueprint"] .instance-content > div > .auto-marquee,
-:root[data-skin="blueprint"] .instance-content .auto-marquee-inner {
-  font-size: 15px;
-}
+/* THE INSTANCE LABEL IS SIZED IN JS NOW — `INSTANCE_LABEL_PX` in
+   ModuleInstance.jsx — and the skin rule that used to do it is RETIRED.
+   It read:
+
+     :root[data-skin="stardew"]  .instance-content > div > .auto-marquee,
+     :root[data-skin="stardew"]  .instance-content .auto-marquee-inner,
+     :root[data-skin="blueprint"] … { font-size: 15px; }
+
+   Two things were wrong with it by 2026-08-25, and both are what the user was
+   reporting ("the fields should also be the same size", "the containers fields
+   are way too big … it should be the same size anywhere we have fields"):
+
+   1. THE SECOND SELECTOR WAS NOT THE LABEL. `.auto-marquee-inner` matches ANY
+      marquee'd text inside an instance row — field pill text included. So a
+      field that happened to overflow rendered 15px while the identical field
+      that fit rendered 13px. Same field, two sizes, decided by string length.
+   2. IT ONLY EXISTED ON TWO SKINS, so the label was 15px on Stardew and
+      Blueprint and whatever the inline style said everywhere else — measured
+      2026-08-25: the label declared 17px inline and painted 15px, because this
+      rule won two levels down inside the marquee.
+
+   A size that a stylesheet can silently take back is the trap this repo has
+   now paid for from both directions; the constant is the single authority. */
 
 /* REVISED AGAIN (user: "the display field text size and the input field text
    size should match. make it the size of the input field text size"). The two
@@ -7164,7 +7175,15 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    both at the input size they simply agree, which is what a row of mixed
    display and input pills should look like.
 
-   Both custom skins, not just one: they share a font and the same problem. */
+   Both custom skins, not just one: they share a font and the same problem.
+
+   THE NUMBER IS NO LONGER WRITTEN HERE. `--field-font-px` is published by App
+   from `FIELD_FONT_PX`, so this rule RESTATES the JS constant onto children
+   that carry their own explicit sizes rather than competing with it. Before
+   this, the hardcoded 12px beat the constant outright on the two skins that
+   have it — measured 2026-08-25: the constant said 13 and the pills painted 12,
+   which is why "make the fields bigger" appeared to do nothing. The literal
+   stays only as the pre-mount fallback. */
 :root[data-skin="stardew"] .field-display,
 :root[data-skin="stardew"] .field-display *,
 :root[data-skin="stardew"] .field-input,
@@ -7173,7 +7192,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 :root[data-skin="blueprint"] .field-display *,
 :root[data-skin="blueprint"] .field-input,
 :root[data-skin="blueprint"] .field-input * {
-  font-size: 12px !important;
+  font-size: var(--field-font-px, 13px) !important;
 }
 
 /* (4) — doc headers and prose go near-black. */

@@ -58,10 +58,21 @@ function pump() {
     // up its turn, and re-reading the queue at admission time is also what lets
     // a lower `loadIndex` registered late still go first.
     const next = queue.shift();
-    if (next) next.cb();
-    // The admitted card mounts during this callback's own task; pump again
-    // afterwards so the next one waits for the paint that follows it.
-    pump();
+    // A THROWING CARD MUST NOT STOP THE QUEUE. `cb` is a React setState, and a
+    // component torn down between its turn being scheduled and this callback
+    // can throw from it. Without the `finally`, `pump()` below never runs and
+    // `running` is already false, so nothing re-pumps: every card after the
+    // thrower waits forever, which reads exactly like the page giving up
+    // part-way down. Nobody has watched this fire — it is the one path out of
+    // this function that leaves the queue permanently parked, so it is guarded
+    // rather than left to be discovered by a blank folder page.
+    try {
+      if (next) next.cb();
+    } finally {
+      // The admitted card mounts during this callback's own task; pump again
+      // afterwards so the next one waits for the paint that follows it.
+      pump();
+    }
   });
 }
 

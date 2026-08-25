@@ -44,6 +44,7 @@ import { useAnimations } from "./hooks/useAnimations";
 import { useScheduler } from "./state/useScheduler";
 import { useTheme } from "./helpers/useTheme";
 import { SURFACE_ALPHA } from "./helpers/StyleHelpers";
+import { FIELD_FONT_PX } from "./ui/Field.jsx";
 import { useSkin } from "./hooks/useSkin";
 import { useMobileDetect } from "./hooks/useMobileDetect";
 import { useLayoutRuleMode } from "./hooks/useLayoutRuleMode";
@@ -293,6 +294,14 @@ export default function App() {
   // effect is the pre-skin fallback; `useSkin` below runs after it and wins.
   useEffect(() => {
     document.documentElement.style.setProperty("--grid-surface-a", String(SURFACE_ALPHA));
+    // ONE AUTHORITY FOR FIELD TYPE SIZE, for exactly the same reason.
+    // `FIELD_FONT_PX` sizes every field pill from JS — and the Stardew and
+    // Blueprint skins carry `.field-display *, .field-input * { font-size: …
+    // !important }`, which beats it outright. So on the skin the user actually
+    // runs, changing the constant did nothing at all: measured 2026-08-25, the
+    // pills painted 12px while the constant said 13. Publishing the number
+    // means the skin rule RESTATES it rather than overriding it.
+    document.documentElement.style.setProperty("--field-font-px", `${FIELD_FONT_PX}px`);
   }, []);
 
   // WHICH SKIN THIS GRID RENDERS IN — per grid, so switching grids re-skins.

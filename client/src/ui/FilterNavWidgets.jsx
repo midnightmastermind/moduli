@@ -11,8 +11,11 @@ import { summarizeSelection } from "./filterSummary";
 // inline literals, for the reason `FIELD_FONT_PX` exists: an inline size is
 // what this repo loses time to when a stylesheet bump "silently does nothing".
 // 11 -> 12 (user, 2026-08-24: "make the filter button pill in the headrs one
-// font size bigger too"), matching the field pills beneath them.
-const FILTER_FONT_PX = 12;
+// font size bigger too"), then 12 -> 13 (user, 2026-08-25: "the pill for the
+// filters (the date in the example) should be bigger as well" — one step). It
+// tracks `FIELD_FONT_PX` deliberately: the pill sits directly above the field
+// pills, and the two reading at different sizes is what both reports were about.
+const FILTER_FONT_PX = 13;
 
 // Period units exposed in the D/W/M/Y toggle. Stepping uses Date#setDate /
 // setMonth / setFullYear (NOT fixed ms deltas — month/year vary in length).

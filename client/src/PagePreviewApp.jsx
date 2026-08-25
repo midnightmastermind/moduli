@@ -10,6 +10,7 @@ import { GridDataContext } from "./GridDataContext";
 import { GridLiveContext } from "./GridLiveContext";
 import { publishComputedValues } from "./state/computedValuesStore";
 import { buildLookup } from "./helpers/LayoutHelpers";
+import { occurrenceIndexFor, collectSubtreeIds } from "./helpers/previewSubtreeIndex";
 import { useTheme } from "./helpers/useTheme";
 
 import Page from "./modules/ModulePage.jsx";
@@ -68,53 +69,35 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
   const allModules = parentState?.modules || [];
 
   // Step 1: collect the occurrence subtree (walk down).
-  const subtreeOccurrenceIds = useMemo(() => {
-    const occByIdAll = buildLookup(allOccurrences);
-    const seen = new Set();
-    const queue = [occurrenceId];
-    while (queue.length) {
-      const id = queue.shift();
-      if (!id || seen.has(id)) continue;
-      seen.add(id);
-      const occ = occByIdAll[id];
-      if (!occ) continue;
-      const children = Array.isArray(occ.occurrences) ? occ.occurrences : [];
-      for (const cid of children) if (!seen.has(cid)) queue.push(cid);
-      // Also fan out via parentId reverse edge (some occurrences link via
-      // parentId only — e.g. artifact occurrences under a folder page).
-      // Look up reverse via a scan once and cache.
-    }
-    // FOLDER pages hold nothing in `occurrences[]` — their cards are the
-    // occurrences parented under the FOLDER itself (see ModulePage's
-    // folderChildOccs). A folder is not an occurrence, so the walk above can
-    // never reach them and the preview rendered empty (2026-07-25: "if i click
-    // on mind, its filled with boards but doesnt show it in the preview").
-    // Seed the folder's contents, plus the folder-page occurrences of any
-    // CHILD folder so nested folders show as cards too.
-    const rootOcc = occByIdAll[occurrenceId];
-    const rootFolderId = rootOcc?.parentId;
-    if (rootFolderId) {
-      const childFolderIds = new Set(
-        (parentState?.folders || [])
-          .filter(f => f.parentId === rootFolderId && f.folderType !== "category")
-          .map(f => f.id)
-      );
-      for (const occ of allOccurrences) {
-        if (!occ.id || seen.has(occ.id)) continue;
-        if (occ.parentId === rootFolderId || childFolderIds.has(occ.parentId)) seen.add(occ.id);
-      }
-    }
+  //
+  // Structural reachability (`occurrences[]` + `parentId`) is delegated to
+  // `helpers/previewSubtreeIndex`, which builds ONE reverse index per
+  // occurrences array and shares it across every card on the page. What used
+  // to live here was a fixpoint scan over the WHOLE grid, per card — see that
+  // file's header for the measurement and why it stopped scaling.
+  const occIndex = useMemo(() => occurrenceIndexFor(allOccurrences), [allOccurrences]);
 
-    // One parentId-reverse pass: include any occurrence whose parentId is
-    // already in `seen` (handles parentId-linked artifacts/textblocks).
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const occ of allOccurrences) {
-        if (!occ.id || seen.has(occ.id)) continue;
-        if (occ.parentId && seen.has(occ.parentId)) { seen.add(occ.id); changed = true; }
-      }
-    }
+  // FOLDER pages hold nothing in `occurrences[]` — their cards are the
+  // occurrences parented under the FOLDER itself (see ModulePage's
+  // folderChildOccs). A folder is not an occurrence, so a walk from the page
+  // can never reach them (2026-07-25: "if i click on mind, its filled with
+  // boards but doesnt show it in the preview"). Seed the folder's own
+  // contents, plus any CHILD folder's, so nested folders show as cards too.
+  const seedFolderIds = useMemo(() => {
+    const rootFolderId = occIndex.byId[occurrenceId]?.parentId;
+    if (!rootFolderId) return [];
+    const kids = (parentState?.folders || [])
+      .filter(f => f.parentId === rootFolderId && f.folderType !== "category")
+      .map(f => f.id);
+    return [rootFolderId, ...kids];
+  }, [occIndex, occurrenceId, parentState?.folders]);
+
+  const subtreeOccurrenceIds = useMemo(() => {
+    const seen = collectSubtreeIds({
+      rootOccurrenceId: occurrenceId,
+      index: occIndex,
+      folderIds: seedFolderIds,
+    });
     // A DOC DRAWS ITS TEXTMAP, and the nodes in it reference other occurrences
     // by id — a THIRD reachability path beside `occurrences[]` and `parentId`.
     // Without this pass the preview dropped them and `ModuleEmbedNode` painted
@@ -126,16 +109,22 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
     // Transitive, because an embedded doc can embed further docs — and it only
     // adds ids that RESOLVE, so a dangling embed stays undrawn rather than
     // becoming a phantom entry the module lookup then misses.
-    expandByEmbeds(seen, occByIdAll);
-
+    expandByEmbeds(seen, occIndex.byId);
     return seen;
-  }, [allOccurrences, occurrenceId, parentState?.folders]);
+  }, [occIndex, occurrenceId, seedFolderIds]);
 
+  // Built from the SUBTREE, not by scanning the grid: the shared index already
+  // resolves an id, so this costs the size of the card's own contents. A
+  // dangling child ref (an id the walk kept but no occurrence carries) is
+  // dropped here, which is what the walk relies on.
   const occurrencesById = useMemo(() => {
     const out = Object.create(null);
-    for (const occ of allOccurrences) if (subtreeOccurrenceIds.has(occ.id)) out[occ.id] = occ;
+    for (const id of subtreeOccurrenceIds) {
+      const occ = occIndex.byId[id];
+      if (occ) out[id] = occ;
+    }
     return out;
-  }, [allOccurrences, subtreeOccurrenceIds]);
+  }, [occIndex, subtreeOccurrenceIds]);
 
   // Step 2: collect modules referenced by the subtree occurrences.
   // Templates referenced by `meta.appliedFromTemplateId` aren't strictly

@@ -61,6 +61,21 @@ describe("previewAdmission — one preview at a time", () => {
     expect(admitted).toEqual(["visible"]);
   });
 
+  it("a THROWING card does not park the queue forever", () => {
+    // The one path that leaves the queue permanently stuck: `cb` throws, the
+    // trailing `pump()` never runs, and `running` is already false, so nothing
+    // re-pumps. Every card behind the thrower waits forever — which is
+    // indistinguishable from the folder page giving up part-way down.
+    const admitted = [];
+    requestPreviewSlot(0, () => { throw new Error("torn down mid-turn"); });
+    requestPreviewSlot(1, () => admitted.push("behind-the-thrower"));
+
+    expect(() => tick()).toThrow(/torn down mid-turn/);
+    tick();
+
+    expect(admitted).toEqual(["behind-the-thrower"]);
+  });
+
   it("a card registered later still gets admitted", () => {
     const admitted = [];
     requestPreviewSlot(0, () => admitted.push("first"));

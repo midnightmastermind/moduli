@@ -85,6 +85,18 @@ function OpDisplayPill({ binding, op }) {
 // ============================================================
 // INSTANCE INNER ROW — label, field pills, operation widgets
 // ============================================================
+// The row's TITLE size. Read by BOTH the rendered label and the inline edit box
+// that replaces it on double-click — a difference between the two makes the
+// text visibly resize the moment you start renaming, which is why this is a
+// constant rather than the same literal written twice.
+//
+// 11 -> 13 -> 15 -> 16 (2026-08-24, the user kept reading it as body text),
+// then 16 -> 17 (2026-08-25: "the instance label and input/display fields need
+// to be bigger", clarified as "one size bigger"). The fields beneath it went
+// 10-12 -> 13 in the same pass, so the title moves with them by the same one
+// step or it stops reading as the title.
+const INSTANCE_LABEL_PX = 17;
+
 function InstanceInner({
   id,
   label,
@@ -842,7 +854,7 @@ function InstanceInner({
                   // MATCHES the rendered label exactly. This is the edit box
                   // that REPLACES it on double-click, so any difference makes
                   // the text visibly resize the moment you start renaming.
-                  fontSize: 16, color: "var(--text-primary)",
+                  fontSize: INSTANCE_LABEL_PX, color: "var(--text-primary)",
                   paddingTop: 0, paddingLeft: 2,
                   fontFamily: "inherit",
                 }}
@@ -860,7 +872,11 @@ function InstanceInner({
                   // the user kept reading it as body text. It is the row's
                   // TITLE now that it sits over the fields rather than in line
                   // with them, so it should read like one.
-                  fontSize: 16,
+                  // 16 -> 18 (user, 2026-08-25: "the instance label and
+                  // input/display fields need to be bigger"). The fields under
+                  // it went 10-13 -> 14 in the same pass, so the title has to
+                  // move with them or it stops reading as the title.
+                  fontSize: INSTANCE_LABEL_PX,
                   color: "var(--text-primary)",
                   paddingTop: 0,
                   paddingLeft: 2,

@@ -3292,3 +3292,25 @@ the heading scale (18/16/14/13) currently steps *down* to 13 and 12, which
 collides with a 12px floor for body text and would flatten the hierarchy the
 2026-08-01 (7) pass built.
 
+
+---
+
+### 2026-08-25 (3) — seven asks after the media import: previews stall, ops throw, type is too small
+
+1. **"the folder page previews are crashing. i navigate to the root folder and it gets to loading
+   daypages folder preview and stops. i suspect an infinite loop."**
+2. **Console on load:** `[operationExecutor] error in operation "Day Page: Build": Error: $col is
+   not a record (no .id) — UPDATE needs a FOUND occurrence`. Same shape as `0240`'s Rotator throw
+   — a FIND binding an ARRAY. Also `[op-timing] null total=3019ms ops=52` and
+   `runMatchingOperations: 3026ms — 70 ops, 207 effects`.
+3. **"the instance label and input/display fields need to be bigger. also the pill for the filters
+   (the date in the example) should be bigger as well. the fields should also be the same size."**
+4. **"the movie tiles are off layout wise. it should be label, image, then fields stacked. and the
+   movie images arent loading."**
+5. **"the containers fields are way too big in size and should be whatever size it is for
+   instances. it should be the same size anywhere we have fields."**
+6. **"there are pages that dont belong in the music folder currently like movies and tv shows."**
+7. **"we should make a button on the folders that opens up that folder page instead of clicking the
+   full thing. clicking on it should go back to expanding the children again."**
+
+Screenshot: `screenshots/Screenshot 2026-08-25 111140.png`.
