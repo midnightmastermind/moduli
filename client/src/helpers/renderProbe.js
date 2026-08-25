@@ -97,3 +97,18 @@ export function diffAttrs(prev) {
   }
   return out;
 }
+
+// ── Console accessor ───────────────────────────────────────────────────────
+// The tallies above have always been collected and were reachable only from
+// inside DragProvider's drop stopwatch, so a question like "how much of the
+// grid re-renders when I tick a checkbox?" could not be asked from the
+// console. `window.__renderTally()` returns a snapshot; call it either side of
+// an interaction and diff. Zero cost (the counters increment regardless), and
+// the same opt-in-diagnostic shape as `window.__gapStuck()`.
+if (typeof window !== "undefined") {
+  window.__renderTally = () => ({ renders: snapshotRenders(), ops: snapshotOps() });
+  window.__renderDiff = (prev) => ({
+    renders: diffRenders(prev?.renders),
+    ops: diffOps(prev?.ops),
+  });
+}
