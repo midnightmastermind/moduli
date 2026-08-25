@@ -1709,7 +1709,14 @@ function Container({
           <div
             role="list"
             aria-label={`${module.label || "Container"} items`}
-            className={childWrap ? "container-items container-items--wrap" : "container-items"}
+            className={"container-items"
+              + (childWrap ? " container-items--wrap" : "")
+              // The TILE shape: picture on top, then title, then fields.
+              // A class as well as the CSS vars because the rest of the
+              // shape is selector work — the media block has to move ABOVE
+              // the text column (it is authored after it, for the row
+              // layout) and the drag handle has to stop consuming a row.
+              + (childContentDir === "column" ? " container-items--content-column" : "")}
             style={{
               // Board containers get +2px top + bottom over the list default —
               // the kanban-style column rows were too squished against the

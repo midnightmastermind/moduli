@@ -5469,6 +5469,61 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   min-width: 0;
   align-self: stretch;
 }
+/* ── CONTENT COLUMN — the TILE shape: picture on top, title, then fields ────
+   `childContentDirection: "column"` (layout cascade → Layout menu → "Child
+   content: Title above fields"). `ModuleContainer` supplies
+   `--instance-content-direction: column`, which stacks `.instance-content`;
+   what a stack alone does NOT give you is a tile, for two reasons:
+
+   1. THE MEDIA BLOCK IS AUTHORED LAST. In the row layout it is a full-width
+      band UNDER the label and fields, so in source order it follows
+      `.instance-textcol`. Stacking it therefore puts the picture at the
+      BOTTOM. `order: -1` lifts it without moving a node — the row layout,
+      which relies on flex-wrap to drop it onto its own line, is untouched.
+
+   2. THE DRAG HANDLE WOULD EAT A ROW. It is the first flex child, so in a
+      column it takes a full line of its own and pushes the picture down —
+      the same defect `3040cf4b` fixed for tracker tiles and the mobile row
+      fix hit again on 2026-08-24. It floats to the corner instead, which is
+      what `floatHandle` already does for canvas-style cards.
+
+   Scoped to the class so a row-layout container cannot be reached by any of
+   it. */
+.container-items--content-column .instance-wrap > .instance-row { position: relative; }
+
+.container-items--content-column .instance-content > div:first-child:not(.instance-body):not(.instance-fields):not(.instance-textcol) {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  z-index: 3;
+  flex: 0 0 auto !important;
+}
+
+/* The picture, on top and full width. `order` only reorders the PAINT and the
+   flex line — the DOM, and therefore the drop target and the artifact-viewer
+   click handler, are unchanged. */
+.container-items--content-column .instance-media {
+  order: -1;
+  width: 100%;
+  margin-top: 0;
+}
+
+/* Title and fields take the tile's width rather than the shrink-to-content
+   width a flex ROW hands them. */
+.container-items--content-column .instance-content > .instance-textcol,
+.container-items--content-column .instance-fields {
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+/* The title clears the floated handle ONLY when there is no picture for the
+   handle to sit on. With media present the handle overlays the image's corner
+   (measured: handle top 5, label top 85), so indenting the title there would be
+   a 22px gap explaining nothing. */
+.container-items--content-column .instance-content:not(:has(.instance-media)) .instance-label {
+  padding-left: 22px;
+}
+
 /* The fields — take the rest and scroll within it. */
 .container-items--wrap > .instance-wrap .instance-fields {
   flex: 1 1 auto !important;
