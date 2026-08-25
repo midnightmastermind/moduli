@@ -79,7 +79,18 @@ export default function ArtifactCard({ module, label, occurrence }) {
   // cannot render and hide the fact that it was never migrated (2026-08-08 (5)).
   // Reaching a URL through it would reopen exactly that hole. This is a
   // different question with its own answer, not a fallback inside that one.
-  const coverSrc = module?.meta?.cover ? resolveFileRef(module.meta.cover) : null;
+  //
+  // THE OCCURRENCE WINS OVER THE MODULE, and on this grid that is the only
+  // thing that works. A bookmark has one module per bookmark, so `0201` could
+  // put the cover on the module. The media.md import (`0238`) mints ONE SHARED
+  // module per kind — measured: 993 movie rows, `movie: 1` module — so a cover
+  // on the module would give every film the same poster. Per-placement beats
+  // template here exactly as it does for field bindings, view mode and styles,
+  // and `PreviewNode` already reads `occurrence.meta.cover` for its own
+  // per-card override. The module fallback keeps the 1,467 bookmarks working.
+  const coverSrc = occurrence?.meta?.cover
+    ? resolveFileRef(occurrence.meta.cover)
+    : (module?.meta?.cover ? resolveFileRef(module.meta.cover) : null);
 
   // WHERE the full-screen view grows out of, and shrinks back into. Captured
   // from the card's own rect at the moment of expand — once expanded the card is
