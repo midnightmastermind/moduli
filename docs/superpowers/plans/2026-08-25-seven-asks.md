@@ -7,7 +7,7 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blo
 | 1 | Folder page previews stall — root folder stops at the Day Pages preview | `[x]` **fixed + A/B'd** |
 | 2 | `Day Page: Build` throws `$col is not a record` on every load | `[x]` **fixed** — `0242` applied, 0 errors on a real load |
 | 3 | Instance label + input/display fields bigger; filter date pill bigger; all fields one size | `[x]` **done + measured on screen** |
-| 4 | Picture row: **picture → label → fields** stacked; placeholder no longer squished | `[x]` **layout done** — images themselves still missing (no cover art in the data) |
+| 4 | Picture row: **picture → label → fields** stacked; placeholder no longer squished | `[x]` **done** — layout + `0245` TMDB posters (1172/1180) + `0246` each poster is a real file the row owns |
 | 5 | Container fields too big — must match instance field size everywhere | `[x]` **done** — one authority for every field text site |
 | 6 | Pages in the Music folder that do not belong (movies, tv shows) | `[x]` **done** — `0244` |
 | 7 | Folder card: a button opens the folder page; clicking the card expands children | `[ ]` |
@@ -16,6 +16,59 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blo
 | 10 | Toggling the `Completed` field true/false has a strong lag | `[ ]` not started |
 | 11 | Infinite loop — Trackers folder inside Trackers, all the way down | `[x]` **fixed** — `0243` + renderer + mint latch |
 | 12 | Auto-marquee off in preview cards · container labels a size smaller · instance-label marquee | `[x]` **done** |
+
+---
+
+## 4 (continued) — "make it have the fileRef" · "it should able to hold multiple files"
+
+`0245` put each poster on the OCCURRENCE as `meta.cover`, which draws the card. The follow-up
+ask was for a real file, and for a row that can hold more than one.
+
+**`fileRef` CANNOT GO ON THE ROW, and that is the whole shape of `0246`.** `fileRef` lives on the
+MODULE, and `0238` mints **one shared module per kind** — measured: 993 movie occurrences,
+**`movie: 1` module**. Writing the poster there gives all 993 films the same picture: the exact
+trap `0245` already hit one level up with `meta.cover`.
+
+So the poster becomes its OWN artifact — a module with a real `fileRef` plus an occurrence of it,
+**parented to the row AND listed in the row's `occurrences[]`**. That answers both halves at once.
+
+**Why a child rather than the `Files` field.** `occurrenceMedia.filesOf` collects from THREE
+sources — the media field, the `Files` field, and `occ.occurrences`. The child list needs no
+field, no binding and no `role:"files"` plumbing on a shared module, and it is already how `0061`
+attached a favicon to a bookmark: *"parented to the bookmark AND listed in its `occurrences[]` …
+An instance does not render its children, so it stays out of the row while appearing in the
+bookmark's own file spread."* Adding a second poster later is one more child.
+
+**Both edges matter.** The delete cascade walks the child LIST, so a parented-only poster is
+orphaned the moment the row goes; a listed-only one has no home.
+
+**The card face is deliberately unchanged.** `meta.cover` still draws the thumbnail;
+`primaryMediaOf` reads the media-role BINDING, not children, so clearing the cover here would
+blank 1,172 cards to buy nothing. The cover is the face, the child is the file.
+
+**Read back out of Mongo, not off the log:**
+```
+poster modules 1172   all with an https://image.tmdb.org fileRef   all role:artifact kind:image
+poster occurrences 1172   parented 1172 · listed by that parent 1172 · BOTH 1172
+covered rows with no artifact child   0
+rows owning MORE than one poster      0      <- a double-run would show here
+```
+A forced re-run plans **0**. poms grid **0 errors**, 1 pre-existing `unused-field` warning.
+
+**Verified in a browser, which is the check that matters here:** on the live grid, 80 movie rows
+on screen, **80 TMDB images, all 80 loaded**, `1` artifact card per row, and **0 of the 1,172
+poster occurrences render as a row anywhere** — attached and invisible, exactly as `0061`
+predicted. 0 page errors. The row draws picture → label → fields.
+
+7 planner tests, **4 A/Bs, every mutation asserted to LAND first** — dropping the already-owns
+guard, dropping the no-cover refusal, counting any child rather than an artifact child, and
+preferring the shared module's label each fail EXACTLY one test.
+
+**The 8 rows with no poster keep none** — comedy specials, lecture series and one `_FAILED_`
+download name. TMDB does not have them, and an empty file is worse than no file.
+
+**No client code changed, so no bundle is owed** (the `git diff --name-only` rule); pm2 was
+restarted because the warm cache is authoritative for reads.
 
 ---
 

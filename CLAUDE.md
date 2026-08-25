@@ -6,6 +6,70 @@
 
 ---
 
+### 2026-08-25 (3) — `fileRef` LIVES ON THE MODULE, and there is one module for 993 films
+
+User, after the TMDB posters landed: *"make it have the fileRef"* and *"it should able to hold
+multiple files"*.
+
+**THE OBVIOUS PLACE IS IMPOSSIBLE, AND MEASURING IS WHAT SAID SO.** `fileRef` is a MODULE field,
+and `0238` mints ONE SHARED module per kind:
+```
+occurrences   movie 993 · series 187          artifact modules by kind   movie 1 · series 1
+```
+Writing the poster there gives all 993 films the same picture — the exact trap `0245` hit one
+level up, which is why the cover went on the OCCURRENCE. So the ask cannot be answered by putting
+a value on the row; it needs a per-row thing to put it ON.
+
+**SO THE POSTER BECOMES ITS OWN ARTIFACT, and that answers BOTH halves at once** (`0246`): a module
+with a real `fileRef`, plus an occurrence of it **parented to the row AND listed in the row's
+`occurrences[]`**. A real file, and a row that holds N of them.
+
+**IT IS A CHILD RATHER THAN THE `Files` FIELD, and reading the resolver is what decided that.**
+`occurrenceMedia.filesOf` collects from THREE sources — the media field, the `Files` field, **and
+`occ.occurrences`**. The child list needs no field, no binding and no `role:"files"` plumbing on a
+module 993 rows share — and it is already how `0061` attached a favicon to a bookmark:
+*"parented to the bookmark AND listed in its `occurrences[]` … An instance does not render its
+children, so it stays out of the row while appearing in the bookmark's own file spread."*
+
+**BOTH EDGES ARE WRITTEN, and neither is decoration.** The delete cascade walks the child LIST, so
+a parented-only poster is orphaned the moment the row goes; a listed-only one has no home.
+
+**THE CARD FACE IS DELIBERATELY UNTOUCHED.** `meta.cover` still draws the thumbnail —
+`primaryMediaOf` reads the media-role BINDING, not children, so clearing it here would blank 1,172
+cards to buy nothing. **The cover is the FACE; the child is the FILE.** Two questions, two answers.
+
+**READ BACK OUT OF MONGO RATHER THAN OFF THE LOG:**
+```
+poster modules 1172   every one an https://image.tmdb.org fileRef, role:artifact kind:image
+poster occurrences    parented 1172 · listed by that parent 1172 · BOTH 1172
+covered rows with no artifact child   0
+rows owning MORE than one poster      0      <- where a double-run would show
+```
+A forced re-run plans **0**. poms grid **0 errors**, 1 pre-existing warning.
+
+**AND A BROWSER IS WHAT CHECKS THE PART THAT MATTERS — the row must not GROW.** Attaching a file to
+every row is only safe if nothing renders it inline. On the live grid: 80 movie rows on screen, **80
+TMDB images all loaded, exactly 1 artifact card per row, and 0 of the 1,172 poster occurrences
+rendering as a row anywhere.** Attached and invisible, which is what `0061` predicted and what no
+assertion in the suite could have seen.
+
+**MY FIRST TWO PROBES BOTH READ ZERO, AND BOTH WERE THE PROBE.** `?previewOcc=` mounts
+`PagePreviewApp` — a different app that never sets `__moduli_state__` — so "0 movie rows" was a
+statement about which bundle I had loaded. *A zero is a claim about the probe until it has been
+shown reporting non-zero*, for the Nth time.
+
+**THE 8 ROWS WITH NO POSTER KEEP NONE** — comedy specials, lecture series, one `_FAILED_` download
+name. TMDB does not have them, and an empty file is worse than no file.
+
+The selection rule is an exported pure planner (the `0048` shape) rather than inline in `up()`, and
+the extraction was verified faithful by re-running the dry run to the same 0 / 8 / 1172. 7 tests,
+**4 A/Bs with every mutation asserted to LAND first** — dropping the already-owns guard, dropping
+the no-cover refusal, counting any child rather than an artifact child, and preferring the shared
+module's label each fail EXACTLY one. 1,667 server tests. **No client code changed, so no bundle is
+owed** (the 2026-08-13 (3) rule); pm2 restarted, since the warm cache is authoritative for reads.
+
+---
+
 ### 2026-08-25 (2) — media.md becomes boards; and the ops question found a bug the import did not cause
 
 Picked up the other account's session, which hit its limit mid-edit on
