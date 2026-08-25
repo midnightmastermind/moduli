@@ -7,7 +7,7 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blo
 | 1 | Folder page previews stall — root folder stops at the Day Pages preview | `[x]` **fixed + A/B'd** |
 | 2 | `Day Page: Build` throws `$col is not a record` on every load | `[x]` **fixed** — `0242` applied, 0 errors on a real load |
 | 3 | Instance label + input/display fields bigger; filter date pill bigger; all fields one size | `[x]` **done + measured on screen** |
-| 4 | Movie tiles: label → image → fields stacked; images not loading; placeholder box squished | `[ ]` |
+| 4 | Picture row: **picture → label → fields** stacked; placeholder no longer squished | `[x]` **layout done** — images themselves still missing (no cover art in the data) |
 | 5 | Container fields too big — must match instance field size everywhere | `[x]` **done** — one authority for every field text site |
 | 6 | Pages in the Music folder that do not belong (movies, tv shows) | `[x]` **done** — `0244` |
 | 7 | Folder card: a button opens the folder page; clicking the card expands children | `[ ]` |
@@ -15,7 +15,7 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blo
 | 9 | The `Now` tracker tile lost its time fields — current time + time left | `[ ]` not started |
 | 10 | Toggling the `Completed` field true/false has a strong lag | `[ ]` not started |
 | 11 | Infinite loop — Trackers folder inside Trackers, all the way down | `[x]` **fixed** — `0243` + renderer + mint latch |
-| 12 | Turn auto-marquee OFF in preview cards; marquee not working on instance labels | `[ ]` not started |
+| 12 | Auto-marquee off in preview cards · container labels a size smaller · instance-label marquee | `[x]` **done** |
 
 ---
 
@@ -230,3 +230,41 @@ Root/Boards/Media/Music  Songs · Artists · Albums
 
 Only `parentId` moves — rows hang off the board CONTAINER, so nothing else changes. No
 folder invented and `Music` not renamed: the ask was about misfiled pages, not a taxonomy.
+
+
+---
+
+## 12 + 4 — the field strip was floating OVER the title (FIXED)
+
+The marquee complaint and the movie-tile complaint were **one defect**.
+
+`.instance-fields--under-body` is `position: absolute`, applied whenever a row `renderBody`. Its
+own comment says what the float is for — 2026-08-10, *"make sure anything without a heading
+(textblocks) shows up in the top right"*: a body-rendered card with **no heading** has no label row
+for the fields to sit under. The gate was `renderBody` alone, which is true for any row carrying a
+body **including one that also has a label**. A Movies row is exactly that — a title AND a poster.
+
+```
+.instance-label               left 123 -> right 271   (box 247, text 245)
+.instance-fields--under-body  left 196 -> right 334   position: absolute
+                                       ^^^ 75px of overlap
+```
+
+Being absolute it is OUT OF FLOW, so the label never learned it had less room and never shrank —
+**which is also why it never marqueed.** AutoMarquee measured 245px of text in a 247px box,
+correctly found no overflow, and stayed static. The label was never clipped; it was painted
+underneath the pills. Two symptoms, one cause.
+
+`fieldsFloatTopRight = renderBody && !labelRowRendered`, where `labelRowRendered` mirrors the
+label's own render gate rather than restating it. Verified on the real row: strip
+`absolute -> static`, label 986–1001, strip 1052–1102, vertically separated.
+
+**And the row now stacks picture → title → fields** (`order: -1` on the body, scoped by
+`:has(> .artifact-card)` so a textblock's prose still sits BELOW its title). The width half is the
+squashed-placeholder report: `.instance-body` carries an inline `flex: 1` which in a COLUMN sets
+the HEIGHT, so the card shrank to its content — and with an unloaded poster "its content" is the
+alt text. Measured **27px -> 343px**.
+
+**STILL NOT FIXED, and it is data not layout:** the posters do not load because the media.md import
+carries no cover art (the same gap the Spotify and Calibre imports have). The box is now the right
+shape for one. Fetching covers is the `0201` bookmark-cover job, one board over.
