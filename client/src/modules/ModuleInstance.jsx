@@ -629,6 +629,36 @@ function InstanceInner({
   const hasLabel = !!label;
   const hasFields = instanceFields.length > 0;
 
+  // ── DOES THIS ROW ACTUALLY PAINT A LABEL? ────────────────────────────────
+  // Mirrors the render gate at the label itself — keep the two in step, or the
+  // fields strip decides its layout from a label that is not there (or floats
+  // over one that is). The strip below reads this to choose flow vs float.
+  const labelRowRendered = effectiveShowLabel && (hasLabel || !renderBody);
+
+  // THE FIELDS STRIP FLOATS TOP-RIGHT ONLY WHEN THERE IS NO LABEL TO SIT UNDER.
+  //
+  // That float exists for one case, and its own comment says so: 2026-08-10,
+  // *"make sure anything without a heading (textblocks) shows up in the top
+  // right"* — a body-rendered card with no heading has no label row for the
+  // fields to go under. It was gated on `renderBody` alone, which is TRUE for
+  // any row carrying a body, INCLUDING one that also has a label.
+  //
+  // A Movies row is exactly that: a title AND a poster. The strip went
+  // `position: absolute`, so it left the flow, the label never learned it had
+  // less room, and the two overlapped — measured on prod, "The Hobbit_ The
+  // Desolation of Smaug":
+  //
+  //     .instance-label               left 123 -> right 271   (box 247, text 245)
+  //     .instance-fields--under-body  left 196 -> right 334   position: absolute
+  //                                            ^^^ 75px of overlap
+  //
+  // And it is ALSO why that title never marqueed: the label box was never
+  // squeezed, so `AutoMarquee` measured 245px of text in a 247px box, correctly
+  // found no overflow, and stayed static. The label was not clipped — it was
+  // painted underneath the pills. Fixing the float fixes both symptoms, which
+  // is the tell that they were one defect.
+  const fieldsFloatTopRight = renderBody && !labelRowRendered;
+
   // Per-occurrence view-mode handling. Most instances render as Actual
   // (the full row below). Representation mode replaces the row with a
   // compact RepresentationView chip — used by mind-map nodes, value-
@@ -834,7 +864,7 @@ function InstanceInner({
           // row that should share one line.
           flex: "1 1 0",
         }}>
-          {effectiveShowLabel && (hasLabel || !renderBody) && (
+          {labelRowRendered && (
             isEditingLabel ? (
               <input
                 value={labelDraft}
@@ -923,14 +953,14 @@ function InstanceInner({
             byte-identical. */}
         {hasFields && (renderBody || embedHideLabel || showLabel) && (
           <div
-            className={"instance-fields" + (renderBody ? " instance-fields--under-body" : "")}
+            className={"instance-fields" + (fieldsFloatTopRight ? " instance-fields--under-body" : "")}
             style={{
               // `1 1 160px` was a WIDTH basis when this sat beside the label in
               // a row. It now sits UNDER the label in a column, where the main
               // axis is vertical — so that basis became a 160px HEIGHT and every
               // row grew from ~65px to ~225px. Natural height, full width.
-              flex: renderBody ? "1 1 100%" : "0 0 auto",
-              ...(renderBody ? null : { width: "100%" }),
+              flex: fieldsFloatTopRight ? "1 1 100%" : "0 0 auto",
+              ...(fieldsFloatTopRight ? null : { width: "100%" }),
               minWidth: 0,
               display: "flex",
               flexWrap: "wrap",
@@ -947,7 +977,7 @@ function InstanceInner({
               // the top right"*. Absolute, so a textblock's prose does not
               // reflow around them and the hover reveal cannot move anything.
               // The row is `position: relative` already (`.instance-row`).
-              ...(renderBody
+              ...(fieldsFloatTopRight
                 ? { position: "absolute", top: 2, right: 4, zIndex: 2, maxWidth: "60%", flex: "0 0 auto" }
                 : null),
             }}

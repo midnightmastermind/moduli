@@ -5489,6 +5489,39 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 
    Scoped to the class so a row-layout container cannot be reached by any of
    it. */
+/* ── A PICTURE ROW STACKS: PICTURE -> TITLE -> FIELDS ────────────────────
+   User, 2026-08-25: *"make the layout be picture, label, then fields. its going
+   to be a col layout opposite of the instances that sit in schedule."*
+
+   `.instance-textcol` is already a column, but its source order is
+   label -> body -> fields, so the poster rendered UNDER the title. `order: -1`
+   lifts the body without moving a node — the same one-property move the
+   `--content-column` media block above uses, and for the same reason: the row
+   layout depends on source order and must not change.
+
+   SCOPED BY `:has(> .artifact-card)`, NOT BY `renderBody`. Every body-rendered
+   row would match a `renderBody` gate — including a TEXTBLOCK, whose body is
+   prose and whose title belongs above it. Only a body that actually holds a
+   picture-style card flips. That is the distinction the JS could not make
+   cheaply and CSS can.
+
+   The width half matters as much as the order: `.instance-body` carries an
+   inline `flex: 1, minWidth: 0`, which in a COLUMN sets the main axis (height)
+   — the WIDTH then comes from `align-items`, so the card shrank to its content.
+   With a poster that has not loaded, "its content" is the alt text, which is
+   why the placeholder measured 27px wide and read as squished (user: "the image
+   placements that say movie ... should be the same size as the normal image,
+   not squished like that"). Stretching the body gives the card a real box to
+   fill whether or not the image ever arrives. */
+.instance-textcol > .instance-body:has(> .artifact-card) {
+  order: -1;
+  align-self: stretch;
+  width: 100%;
+}
+.instance-textcol > .instance-body:has(> .artifact-card) > .artifact-card {
+  width: 100%;
+}
+
 .container-items--content-column .instance-wrap > .instance-row { position: relative; }
 
 .container-items--content-column .instance-content > div:first-child:not(.instance-body):not(.instance-fields):not(.instance-textcol) {
