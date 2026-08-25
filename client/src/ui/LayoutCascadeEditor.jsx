@@ -108,7 +108,7 @@ export default function LayoutCascadeEditor({
       {cascade?.levels && cascade.levels.length > 0 ? (
         <div style={{
           padding: 6, borderRadius: 4,
-          background: "var(--surface, rgba(255,255,255,0.02))",
+          background: "var(--surface-overlay)",
           border: "1px solid var(--border-subtle)",
           display: "flex", flexDirection: "column", gap: 3,
           fontSize: 9, fontFamily: "var(--font-mono)",

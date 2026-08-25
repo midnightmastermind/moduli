@@ -402,7 +402,7 @@ function FolderCoverEditor({ folder, dispatch, socket, position, onClose }) {
       style={{
         position: "fixed", left: position.x, top: position.y, zIndex: 1200,
         minWidth: 200, padding: 8,
-        background: "var(--surface, #1f2125)",
+        background: "var(--surface-overlay)",
         border: "1px solid var(--border-default)", borderRadius: 6,
         boxShadow: "var(--menu-shadow-1)",
         fontSize: 12, fontFamily: "var(--font-mono)",

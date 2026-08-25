@@ -1194,7 +1194,7 @@ export const CanvasContent = React.memo(function CanvasContent({
           <div style={{
             position: "absolute", top: "calc(100% + 4px)", right: 0, zIndex: 100,
             minWidth: 180, padding: 6, borderRadius: 5,
-            background: "var(--surface, #1f2125)",
+            background: "var(--surface-overlay)",
             border: "1px solid var(--border-default)",
             boxShadow: "var(--menu-shadow-1)",
             display: "flex", flexDirection: "column", gap: 3,

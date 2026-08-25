@@ -99,7 +99,7 @@ export function describeIntakePayload(payload = {}) {
 const wrapSt = {
   width: 320,
   maxWidth: "100%",
-  background: "var(--surface, #1f2125)",
+  background: "var(--surface-overlay)",
   border: "1px solid var(--border-default, rgba(255,255,255,0.12))",
   borderRadius: 10,
   boxShadow: "var(--menu-shadow-3)",

@@ -436,7 +436,7 @@ function itemsForLevel(chain, ctx, categories, recordShape) {
 // explicit list bg the open panel reads as transparent against the editor.
 const dropdownSt = {
   position: "fixed", zIndex: 9999,
-  background: "var(--surface, #1f2125)",
+  background: "var(--surface-overlay)",
   border: "1px solid var(--border-default)",
   borderRadius: 8, boxShadow: "var(--menu-shadow-2)",
   minWidth: 320, maxHeight: 420, overflow: "hidden",

@@ -22,7 +22,7 @@ function AlarmRow({ op, onPatch, onDelete }) {
     <div className="flex items-center gap-2 rounded-lg border px-2 py-1.5"
       style={{ background: "var(--input-bg)", borderColor: "var(--border-subtle, rgba(255,255,255,0.08))", opacity: op.enabled ? 1 : 0.55 }}>
       <label className="relative cursor-pointer select-none" title="Change time">
-        <span className="text-xl font-light tabular-nums" style={{ color: "var(--text-strong, #fff)" }}>{t}</span>
+        <span className="text-xl font-light tabular-nums" style={{ color: "var(--text-primary)" }}>{t}</span>
         <span className="text-[10px] ml-1 text-text-muted">{ampm}</span>
         <input type="time" value={alarm.time || "08:00"}
           onChange={(e) => e.target.value && onPatch({ time: e.target.value })}

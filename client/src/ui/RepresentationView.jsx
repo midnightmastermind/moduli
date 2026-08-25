@@ -288,7 +288,7 @@ function RepresentationHoverPopup({ occurrence, module, x, y, popupFieldIds, onM
         maxWidth: 360,
         minWidth: 240,
         padding: 8,
-        background: "var(--surface, #1f2125)",
+        background: "var(--surface-overlay)",
         border: "1px solid var(--border-default, rgba(255,255,255,0.12))",
         borderRadius: 8,
         boxShadow: "var(--menu-shadow-2)",

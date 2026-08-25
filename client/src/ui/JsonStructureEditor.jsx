@@ -139,7 +139,7 @@ function TypePill({ value, onChange }) {
           <div onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 99 }} />
           <div style={{
             position: "absolute", top: "calc(100% + 2px)", left: 0, zIndex: 100,
-            background: "var(--surface, #1f2125)", border: "1px solid var(--border-default)",
+            background: "var(--surface-overlay)", border: "1px solid var(--border-default)",
             borderRadius: 4, padding: 2, display: "flex", flexDirection: "column", gap: 1,
             boxShadow: "var(--menu-shadow-1)",
           }}>

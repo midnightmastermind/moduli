@@ -123,7 +123,7 @@ export default function FootnoteNode({ node, updateAttributes, getPos, editor, d
             left: 0,
             marginTop: 4,
             zIndex: 50,
-            background: "var(--surface, #1f2125)",
+            background: "var(--surface-overlay)",
             border: "1px solid var(--border-default, rgba(255,255,255,0.12))",
             borderRadius: 6,
             padding: 8,

@@ -102,7 +102,14 @@ export default function ToolbarFilterDropdown() {
             position: "fixed", top: anchor.bottom + 4, left: anchor.left,
             zIndex: 1100, minWidth: 280, maxWidth: 340,
             background: "var(--panel-bg, #1f2937)",
-            color: "var(--panel-fg, #f3f4f6)",
+            // `--panel-fg` WAS NEVER DEFINED — not in index.css, not in the skin
+            // registry, nowhere. So this always fell through to its hardcoded
+            // fallback, a near-white grey: correct on a dark theme by accident,
+            // and invisible on the three light skins. Measured on prod with the
+            // menu open under Stardew, every inheriting row painted that near-white
+            // on a cream surface. `--text-primary` is defined by every theme and
+            // resolves to 12.31:1 there.
+            color: "var(--text-primary)",
             border: "1px solid var(--panel-border, #374151)",
             borderRadius: 8, padding: 12,
             boxShadow: "var(--menu-shadow-2)",

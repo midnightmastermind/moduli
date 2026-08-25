@@ -65,7 +65,7 @@ const DAY_LABELS        = ["S","M","T","W","T","F","S"];
 
 const FRAME = {
   display: "inline-flex", flexDirection: "column",
-  background: "var(--surface, #1f2125)",
+  background: "var(--surface-overlay)",
   border: "1px solid var(--border-default)",
   borderRadius: 8, padding: 8, gap: 6,
   fontFamily: "var(--font-mono)", fontSize: 11,

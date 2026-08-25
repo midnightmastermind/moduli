@@ -77,6 +77,47 @@ describe("floating menus carry no literal colours", () => {
     expect(offenders).toEqual([]);
   });
 
+  // A FALLBACK TO A TOKEN NOBODY DEFINES IS NOT A FALLBACK — IT IS THE VALUE.
+  //
+  // The check above strips `var(--token, literal)` on the reasoning that a
+  // fallback is what a fallback is for. That reasoning holds only while the
+  // token EXISTS. `HeaderDropdown` and `ToolbarFilterDropdown` both read
+  // `var(--panel-fg, <near-white>)`, and `--panel-fg` was defined nowhere —
+  // not in index.css, not in the skin registry — so every menu painted that
+  // near-white unconditionally: right on a dark theme by accident, invisible
+  // on all three light skins. It passed this suite for as long as it shipped.
+  //
+  // The inert-token class, reached from the FALLBACK side.
+  it("no floating surface falls back on a token nothing defines", () => {
+    const defined = new Set();
+    const cssText = fs.readFileSync(path.join(SRC, "index.css"), "utf8");
+    for (const m of cssText.matchAll(/(--[a-zA-Z0-9-]+)\s*:/g)) defined.add(m[1]);
+    // Tokens published from JS at runtime (applySkin and friends) count too.
+    for (const f of walk(SRC).concat(
+      fs.readdirSync(path.join(SRC, "helpers")).map((n) => path.join(SRC, "helpers", n)),
+    )) {
+      if (!/\.(jsx?|css)$/.test(f)) continue;
+      const t = fs.readFileSync(f, "utf8");
+      for (const m of t.matchAll(/setProperty\(\s*["'`](--[a-zA-Z0-9-]+)/g)) defined.add(m[1]);
+      for (const m of t.matchAll(/["'`](--[a-zA-Z0-9-]+)["'`]\s*:/g)) defined.add(m[1]);
+    }
+    // The control: a token this app certainly defines must be seen as defined.
+    expect(defined.has("--text-primary")).toBe(true);
+    expect(defined.size).toBeGreaterThan(30);
+
+    const offenders = [];
+    for (const p2 of files) {
+      const rel = path.relative(SRC, p2).replace(/\\/g, "/");
+      const t = fs.readFileSync(p2, "utf8");
+      for (const m of t.matchAll(/var\(\s*(--[a-zA-Z0-9-]+)\s*,([^)]*)\)/g)) {
+        if (!m[2].trim()) continue;          // no fallback, nothing to hide behind
+        if (defined.has(m[1])) continue;     // a real token with a real fallback
+        offenders.push(`${rel}: var(${m[1]}, …) — ${m[1]} is defined nowhere`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
   it("no floating surface hardcodes its own drop shadow", () => {
     // The shadow scale is the one that was worst: TEN arbitrary geometries and a
     // black smudge on every light skin.

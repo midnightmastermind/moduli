@@ -29,7 +29,7 @@ function Tile({ node, onBodyClick, onPickThis }) {
         cursor: "pointer",
         minHeight: 38,
       }}
-      onMouseOver={(e) => { e.currentTarget.style.background = "var(--surface-hover, rgba(255,255,255,0.04))"; }}
+      onMouseOver={(e) => { e.currentTarget.style.background = "var(--input-bg)"; }}
       onMouseOut={(e) => { e.currentTarget.style.background = "var(--input-bg)"; }}
     >
       {Icon ? (
@@ -210,7 +210,7 @@ export default function ActionPicker({ value, onChange, placeholder = "Pick acti
             position: "fixed", top: pos.top, left: pos.left,
             zIndex: 10000,
             width: 340, maxHeight: 420,
-            background: "var(--surface, #1f2125)",
+            background: "var(--surface-overlay)",
             border: "1px solid var(--border-default)",
             borderRadius: 6,
             boxShadow: "var(--menu-shadow-2)",

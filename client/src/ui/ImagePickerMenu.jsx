@@ -215,7 +215,7 @@ export default function ImagePickerMenu({
                 </button>
               </div>
 
-              {error && <div style={{ fontSize: 12, color: "var(--accent-red-text, #fca5a5)", marginBottom: 8 }}>{error}</div>}
+              {error && <div style={{ fontSize: 12, color: "var(--signal-neg)", marginBottom: 8 }}>{error}</div>}
 
               {results !== null && !busy && results.length === 0 && !error && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, opacity: 0.6, padding: 20, justifyContent: "center" }}>
@@ -279,7 +279,7 @@ export default function ImagePickerMenu({
               {busy
                 ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Loader2 size={14} className="animate-spin" /> Uploading…</span>
                 : <><Upload size={18} style={{ display: "block", margin: "0 auto 8px" }} />Click or drop an image file here</>}
-              {error && <div style={{ fontSize: 12, color: "var(--accent-red-text, #fca5a5)", marginTop: 10 }}>{error}</div>}
+              {error && <div style={{ fontSize: 12, color: "var(--signal-neg)", marginTop: 10 }}>{error}</div>}
             </div>
           )}
 
