@@ -216,7 +216,7 @@ export default function FieldVisibilitySection({ occurrence }) {
             return (
               <div
                 key={f.id}
-                style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 4px", fontSize: 11, borderRadius: 2 }}
+                style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 4px", fontSize: 12, borderRadius: 2 }}
                 onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
                 onMouseLeave={e => e.currentTarget.style.background = "transparent"}
               >

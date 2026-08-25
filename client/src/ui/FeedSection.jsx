@@ -163,7 +163,7 @@ const inputStyle = {
   width: "100%", boxSizing: "border-box",
   background: "var(--input-bg, rgba(0,0,0,0.25))",
   border: "1px solid var(--border-subtle)", borderRadius: 4,
-  color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)",
+  color: "var(--text-primary)", fontSize: 12, fontFamily: "var(--font-mono)",
   padding: "3px 6px",
 };
 

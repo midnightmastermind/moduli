@@ -98,7 +98,7 @@ export default function SortSection({ occurrence, entity, onPersistSort, labelOv
             borderRadius: 4,
             background: "var(--input-bg, transparent)",
             color: localSort ? "var(--text-primary)" : "var(--text-muted)",
-            fontSize: 11, fontFamily: "var(--font-mono)",
+            fontSize: 12, fontFamily: "var(--font-mono)",
             cursor: "pointer",
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}
@@ -150,7 +150,7 @@ export default function SortSection({ occurrence, entity, onPersistSort, labelOv
               padding: "5px 8px",
               background: localSort?.fieldId === "label" ? "var(--input-bg)" : "transparent",
               border: "none", color: "var(--text-primary)",
-              cursor: "pointer", fontSize: 11, fontFamily: "var(--font-mono)",
+              cursor: "pointer", fontSize: 12, fontFamily: "var(--font-mono)",
               borderRadius: 3,
             }}
           >
@@ -166,7 +166,7 @@ export default function SortSection({ occurrence, entity, onPersistSort, labelOv
                 padding: "5px 8px",
                 background: localSort?.fieldId === f.id ? "var(--input-bg)" : "transparent",
                 border: "none", color: "var(--text-primary)",
-                cursor: "pointer", fontSize: 11, fontFamily: "var(--font-mono)",
+                cursor: "pointer", fontSize: 12, fontFamily: "var(--font-mono)",
                 borderRadius: 3,
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               }}
@@ -175,7 +175,7 @@ export default function SortSection({ occurrence, entity, onPersistSort, labelOv
             </button>
           ))}
           {fields.length === 0 && (
-            <div style={{ padding: "5px 8px", fontSize: 11, color: "var(--text-muted)" }}>
+            <div style={{ padding: "5px 8px", fontSize: 12, color: "var(--text-muted)" }}>
               (no fields)
             </div>
           )}

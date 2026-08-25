@@ -366,7 +366,7 @@ export default function FiltersSection({ occurrence }) {
   }, [filters, navConfig, grid?.activeFilterId, occurrence?.filters, ownEffectiveFilter]);
 
   const rowStyle = { display: "flex", alignItems: "center", gap: 8, padding: "4px 0" };
-  const labelStyle = { flex: 1, fontSize: 11, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+  const labelStyle = { flex: 1, fontSize: 12, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
   const sectionHeader = { ...MENU_CAPTION, letterSpacing: "0.06em", marginTop: 8, marginBottom: 4 };
 
   return (
@@ -584,7 +584,7 @@ export default function FiltersSection({ occurrence }) {
       {/* ── Local filters ────────────────────────────── */}
       <div style={sectionHeader}>Local Filters</div>
       {localRows.length === 0 && (
-        <div style={{ fontSize: 11, opacity: 0.8, padding: "4px 0" }}>No local filters set.</div>
+        <div style={{ fontSize: 12, opacity: 0.8, padding: "4px 0" }}>No local filters set.</div>
       )}
       {localRows.map(row => {
         const isDeclared = row.kind === "declared";
@@ -635,7 +635,7 @@ export default function FiltersSection({ occurrence }) {
       <button
         onClick={() => { setEditingFilterId(null); setEditorOpen(true); }}
         style={{
-          marginTop: 6, fontSize: 11, padding: "3px 8px",
+          marginTop: 6, fontSize: 12, padding: "3px 8px",
           background: "transparent", color: "inherit",
           border: "1px dashed var(--panel-border, #374151)",
           borderRadius: 4, cursor: "pointer",
