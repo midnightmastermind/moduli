@@ -713,6 +713,17 @@ function Container({
   const childW = Number.isFinite(layoutCascade?.resolved?.childMinWidth) && layoutCascade.resolved.childMinWidth > 0
     ? layoutCascade.resolved.childMinWidth
     : 132;
+  // THE TILE'S MAX WIDTH — user, 2026-08-25: *"make the media tiles have a max
+  // width and layout row with wrap"*. `childMaxWidth` was a declared cascade
+  // key (the Layout menu offers it as "Col max width") that only PageBoard ever
+  // read, so on a container's wrap tiles it was INERT — set it and nothing
+  // moved. It is published now, and its DEFAULT is `100%` rather than the fixed
+  // `--child-w`: a tile is a fixed width so the grid lines up in columns, but a
+  // 150px tile inside a narrower column used to overflow it rather than shrink.
+  // Capping at 100% is what makes "max width" true at every panel width.
+  const childMaxW = Number.isFinite(layoutCascade?.resolved?.childMaxWidth) && layoutCascade.resolved.childMaxWidth > 0
+    ? `${layoutCascade.resolved.childMaxWidth}px`
+    : "100%";
   const childGap = Number.isFinite(layoutCascade?.resolved?.childGap) && layoutCascade.resolved.childGap >= 0
     ? layoutCascade.resolved.childGap
     : 8;
@@ -1755,7 +1766,7 @@ function Container({
               // existing Layout menu already edits it. The two numbers ride as
               // CSS vars because the rest of the shape (aspect ratio, hiding the
               // between-item insert gaps) is CSS.
-              ...(childWrap ? { "--child-w": `${childW}px`, "--child-h": `${childH}px`, "--child-gap": `${childGap}px` } : null),
+              ...(childWrap ? { "--child-w": `${childW}px`, "--child-max-w": childMaxW, "--child-h": `${childH}px`, "--child-gap": `${childGap}px` } : null),
               ...(childContentDir === "column"
                 ? {
                     "--instance-content-direction": "column",

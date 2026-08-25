@@ -16,7 +16,7 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blo
 | 10 | Toggling the `Completed` field true/false has a strong lag | `[ ]` not started |
 | 11 | Infinite loop — Trackers folder inside Trackers, all the way down | `[x]` **fixed** — `0243` + renderer + mint latch |
 | 12 | Auto-marquee off in preview cards · container labels a size smaller · instance-label marquee | `[x]` **done** |
-| 13 | Media tiles: a **max width**, laid out as a **row that wraps** | `[ ]` not started |
+| 13 | Media tiles: a **max width**, laid out as a **row that wraps** | `[x]` **done** — `0248` tiles Movies + TV Series; `childMaxWidth` was inert on containers |
 
 ---
 
@@ -384,3 +384,52 @@ panel pin, so migrating alone would let a reseeded grid mint it straight back (t
 drift rule). Three stale summary lines that still advertised `Schedule Canvas: Build` went with
 it. **No client code changed, so no bundle is owed;** pm2 restarted, since the warm cache is
 authoritative for reads.
+
+---
+
+## 13 — the media boards become poster tiles, and `childMaxWidth` was INERT
+
+User: *"could you also make the media tiles have a max width and layout row with wrap"*
+
+**THE MECHANISM ALREADY EXISTED — `mode: "wrap"` has laid children out as a wrapping row of
+tiles since 2026-08-10**, driven by the same layout cascade the Layout menu edits. So this is a
+DATA change plus one real code gap, not a new feature.
+
+**WHICH BOARDS IS A MEASUREMENT, AND `0245` CHANGED THE ANSWER.** 2026-08-25 refused to tile the
+music and book boards on a rule worth keeping — *"a tile with no picture is a taller row"*. The
+TMDB posters changed that fact for exactly two boards. Re-measured counting a picture through
+**every** route that can draw one (occurrence `meta.cover`, module `meta.cover`, module
+`fileRef`, an artifact CHILD carrying one — `0246`'s shape — and a media-role field value):
+```
+Movies      993   989 pictured  100%   <- tiled
+TV Series   187   183            98%   <- tiled
+Games         4     0             0%   <- REFUSED
+Comics        5     0             0%   <- REFUSED
+Songs      5489     5             0%   ·  Albums 3027  0%  ·  Artists 1679  0%  ·  Books 877  0%
+```
+**Games and Comics are the discriminating case.** Same import, same `0238` mint, same folder,
+and the word "media" describes them perfectly — but TMDB is a film/TV database, so neither has a
+poster. Selecting on the WORD would have turned 9 rows into empty boxes; selecting on PICTURES
+does not. The selector is structural (media KIND + measured coverage), so a rename cannot break
+it and a board that gains art later qualifies on its next run.
+
+**AND `childMaxWidth` WAS AN INERT KEY — the ask names the exact gap.** It is a declared cascade
+key, the Layout menu offers it as "Col max width", and **only `PageBoard` ever read it**: set it
+on a container's wrap tiles and nothing moved. `ModuleContainer` publishes `--child-max-w` now.
+Its default is `100%` rather than the fixed `--child-w`, which also fixes a case nobody had
+configured around — a 150px tile inside a narrower panel column used to OVERFLOW it instead of
+shrinking. That default is what makes "max width" true at every panel width.
+
+**REPORTED, NOT DONE — Bookmarks.** All 1,467 carry a `meta.cover`, so by coverage alone the
+board qualifies. It is not a media-import kind, it was not what the ask named, and 2026-08-23
+measured those covers as mostly FAVICONS — "a wall of favicons" reads very differently at tile
+size than a poster does. Reshaping a 1,467-row board nobody mentioned is the user's call.
+
+Every number (`childMinWidth` 150 · `childMaxWidth` 150 · `childMaxHeight` 320 · `childGap` 10)
+is a cascade key the Layout menu already edits, written to `meta.layoutCascadeOverride` — the
+slot `0237` used — and MERGED over whatever the board already carries, so a re-run is a no-op.
+
+10 tests, 5 A/Bs each failing exactly its own cases — dropping the coverage gate (2), the
+media-kind gate (1), counting `meta.cover` only (2), the min-rows floor (1), replacing instead
+of merging (1). 3,330 client tests pass; **the 8 failures in `weekdayTasks` + `trackerFollowsPageFilter`
+are PRE-EXISTING and A/B'd against stashed source this session — identical 8.**

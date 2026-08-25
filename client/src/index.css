@@ -5399,6 +5399,12 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 
 .container-items--wrap > .instance-wrap {
   width: var(--child-w, 160px);
+  /* …but never wider than the room it has. `--child-max-w` comes from the
+     `childMaxWidth` cascade key, which until 2026-08-25 only PageBoard read —
+     on a container tile it was inert. Defaulting to 100% also fixes a case
+     nobody had configured around: a fixed-width tile in a narrower panel
+     column overflowed it instead of shrinking. */
+  max-width: var(--child-max-w, 100%);
   /* A SQUARE, and the content scrolls inside it. The first version of this was
      `aspect-ratio: 1/1` + `overflow: hidden`, which CLIPPED a tile carrying
      more fields than fit — user 2026-08-11: *"the entire tracker is getting cut
