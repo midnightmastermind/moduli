@@ -251,8 +251,9 @@ mongoose.connect(MONGO_URI, {
         const gid = String(g._id);
         console.log(`🔥 prewarming grid "${g.name}" (${gid}) in the background`);
         // Deliberately NOT awaited: the server must accept connections now.
+        pinnedCacheKeys.add(gridCacheKey(g.userId, gid));
         loadUserIntoCache(g.userId, gid)
-          .then(() => console.log(`🔥 prewarm done: "${g.name}"`))
+          .then(() => console.log(`🔥 prewarm done and PINNED: "${g.name}"`))
           .catch((e) => console.error("prewarm failed:", e?.message || e));
       }
     } catch (e) { console.error("prewarm lookup failed:", e?.message || e); }
@@ -281,10 +282,18 @@ const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 function gridCacheKey(userId, gridId) { return `${userId}:${gridId}`; }
 
+// Grids the eviction sweep must never reclaim. The prewarmed grid is pinned so
+// the ~184s cold read happens ONCE per process rather than once per idle gap —
+// user's call, 2026-08-25: "keep it warm indefinitely". One grid is ~15MB, which
+// is the whole cost; the TTL still governs every OTHER grid, so an abandoned one
+// is not pinned forever just because it was opened.
+const pinnedCacheKeys = new Set();
+
 // Periodic cache eviction — runs every 5 minutes
 setInterval(() => {
   const now = Date.now();
   for (const key of Object.keys(cacheLastAccess)) {
+    if (pinnedCacheKeys.has(key)) continue;
     if (now - cacheLastAccess[key] > CACHE_TTL_MS) {
       delete cacheByUser[key];
       delete cacheLastAccess[key];
