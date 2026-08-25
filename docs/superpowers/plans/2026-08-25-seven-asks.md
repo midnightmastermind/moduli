@@ -10,10 +10,10 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blo
 | 4 | Picture row: **picture → label → fields** stacked; placeholder no longer squished | `[x]` **done** — layout + `0245` TMDB posters (1172/1180) + `0246` each poster is a real file the row owns |
 | 5 | Container fields too big — must match instance field size everywhere | `[x]` **done** — one authority for every field text site |
 | 6 | Pages in the Music folder that do not belong (movies, tv shows) | `[x]` **done** — `0244` |
-| 7 | Folder card: a button opens the folder page; clicking the card expands children | `[ ]` |
+| 7 | Folder card: a button opens the folder page; clicking the card expands children | `[x]` **done** — both folder rows |
 | 8 | Delete the Schedule Canvas page and its op | `[x]` **done** — `0247` applied; there was no op left to delete |
 | 9 | The `Now` tracker tile lost its time fields — current time + time left | `[x]` **done** — `0249`; they were never minted on this grid |
-| 10 | Toggling the `Completed` field true/false has a strong lag | `[ ]` not started |
+| 10 | Toggling the `Completed` field true/false has a strong lag | `[!]` **measured + root-caused, NOT fixed** — needs its own pass |
 | 11 | Infinite loop — Trackers folder inside Trackers, all the way down | `[x]` **fixed** — `0243` + renderer + mint latch |
 | 12 | Auto-marquee off in preview cards · container labels a size smaller · instance-label marquee | `[x]` **done** |
 | 13 | Media tiles: a **max width**, laid out as a **row that wraps** | `[x]` **done** — `0248` tiles Movies + TV Series; `childMaxWidth` was inert on containers |
@@ -487,3 +487,76 @@ reporting non-zero.
 
 **No client code changed, so no bundle is owed;** pm2 restarted, since the warm cache is
 authoritative for reads.
+
+---
+
+## 7 — the folder pill expands; a button opens the page
+
+User: *"we should make a button on the folders that opens up that folder page instead of clicking
+the full thing. clicking on it should go back to expanding the children again."*
+
+**IT WAS EXACTLY INVERTED.** In the tree, the whole folder pill called `handleFolderClick` (open
+the folder page) while expansion lived on a **chevron 8px wide at 0.35 opacity** — so the common
+action was a pixel-hunt and the rare one fired on any stray click.
+
+Now the pill toggles and a `Layout` button opens the page. **A folder with NO children falls back
+to opening the page**: there is nothing to expand, its chevron is hidden by `hasChildren`, and a
+click that visibly does nothing reads as broken.
+
+**THE BUTTON IS ALWAYS VISIBLE, unlike the `+` beside it** — it is now the ONLY route to a folder
+page, and a hover-only control is unreachable on a touch device. The `+` stays hover-gated because
+it is a secondary action with other routes.
+
+**BOTH folder rows changed, not just the obvious one.** `LocalFolderGroup` (the Pinned section
+header) has its own copy of this handler, and its own comment says it *"mirrors
+FolderNode.handleFolderClick so the local tree behaves the same as the root tree"*. Two folder rows
+behaving differently is worse than either behaviour on its own.
+
+---
+
+## 10 — the `Completed` lag: MEASURED and ROOT-CAUSED, deliberately NOT fixed
+
+User: *"hitting the completed field and switching it to true or false has a very strong lag to it"*
+
+**REPRODUCED ON THE LIVE GRID, and it is worse than it sounds:**
+```
+click -> paint        4117ms / 6425ms
+total blocked         6653ms / 6055ms
+long tasks            104, summing 10547ms — ONE of 3605ms, then ~103 of 60-200ms
+DOM mutations         4163, for toggling one checkbox
+```
+
+**THE TRIGGER LAYER IS ALREADY CORRECT — that was the first suspect and it is exonerated.**
+Every `onChange` trigger on the grid is field-scoped, and **zero** ops fire without a target:
+```
+27  field:Completed      7  field:Amount      4  field:Duration      3  field:Protein …
+ 0  NO TARGET -> fires on every field change
+```
+So the 27 ops that run are exactly the 27 that declare an interest in `Completed`. They are
+legitimate work — every tracker that counts completed things must recompute — and they are **only
+1225ms of the ~6500ms**. Roughly 80% of the cost is NOT operations.
+
+**WHERE IT ACTUALLY GOES — mutations attributed by panel:**
+```
+mounted: 148 instance rows · 80 TMDB images · 3 panels
+toggling ONE checkbox in panel U18hAEwP mutates
+   U18hAEwP  2337     <- the panel that owns the row
+   _PkuNAJp  1458     <- an unrelated panel
+   u07qnz_n  1123     <- another unrelated panel
+```
+**52% of the work happens in panels that have nothing to do with the row.** This is the documented
+"frame-1 storm" / app-wide re-render docket item (2026-08-07: *"every occurrence write still pays
+it"*), now with numbers — and the media import made it materially worse, because an open media
+board keeps 80 image tiles mounted that re-render on every unrelated write.
+
+**NOT FIXED, AND THAT IS DELIBERATE.** A real fix is batching effect application into one commit
+and cutting the cross-panel render fan-out — a change to the shared write path this repo has
+"repeatedly been damaged by", which wants its own reviewed pass with A/Bs rather than the tail of a
+long session. The next probe to run is render attribution (`window.__RENDER_ATTR`, already in
+`helpers/renderProbe.js`) to name which components re-render in the unrelated panels.
+
+**PROBE DEBRIS, REPORTED NOT HIDDEN:** the first measurement ticked two live schedule rows
+(`Hygiene` 7:30am and `Drink` 6:00am) because the untick re-queried the DOM after a re-render and
+found a *different* switch. Both were put back through the UI so the tracker ops reversed, and read
+back out of Mongo: `Completed=false`, `Completed On=null` on both. *A probe that edits is a probe
+that can damage.*

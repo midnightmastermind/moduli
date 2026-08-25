@@ -807,7 +807,17 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
         ) : (
           <NodePill
             module={{ kind: "folder", label: folder.name }}
-            onClick={handleFolderClick}
+            // THE PILL EXPANDS; THE BUTTON OPENS THE PAGE (user, 2026-08-25:
+            // *"we should make a button on the folders that opens up that folder
+            // page instead of clicking the full thing. clicking on it should go
+            // back to expanding the children again."*). The chevron is 8px and
+            // half-transparent, so "expand" was a pixel-hunt while the whole
+            // pill navigated away.
+            //
+            // A folder with NO children falls back to opening the page: there is
+            // nothing to expand, its chevron is hidden, and a click that
+            // visibly does nothing reads as broken.
+            onClick={hasChildren ? () => setOpen(v => !v) : handleFolderClick}
             isActive={isDragOver}
             depth={depth}
             dragData={{
@@ -815,6 +825,17 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
             }}
             style={{ flex: 1 }}
           >
+            <span
+              onClick={(e) => { e.stopPropagation(); handleFolderClick(); }}
+              onPointerDown={(e) => e.stopPropagation()}
+              title="Open folder page"
+              // ALWAYS VISIBLE, unlike the `+` beside it — this is now the ONLY
+              // route to a folder page, and a hover-only control is unreachable
+              // on a touch device. The `+` stays hover-gated because it is a
+              // secondary action with other routes to it.
+              style={{ display: "flex", alignItems: "center", color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, lineHeight: 1, padding: "4px 5px" }}
+              className="folder-open-btn"
+            ><Layout size={10} /></span>
             <span
               onClick={(e) => { e.stopPropagation(); handleNewDoc(e); }}
               title="New document"
@@ -1085,7 +1106,10 @@ function LocalFolderGroup({ folder, pageOccIds, occurrencesById, modulesById, ch
         </span>
         <NodePill
           module={{ kind: "folder", label: folder.name }}
-          onClick={openFolderAsPage}
+          // Same rule as FolderNode above — this header's own comment says it
+          // must mirror the root tree, and two folder rows behaving differently
+          // is worse than either behaviour.
+          onClick={hasChildren ? () => setOpen(v => !v) : openFolderAsPage}
           style={{ flex: 1 }}
           leadingSlot={
             onClosePage ? (
@@ -1103,7 +1127,15 @@ function LocalFolderGroup({ folder, pageOccIds, occurrencesById, modulesById, ch
               </span>
             ) : null
           }
-        />
+        >
+          <span
+            onClick={(e) => { e.stopPropagation(); openFolderAsPage(); }}
+            onPointerDown={(e) => e.stopPropagation()}
+            title="Open folder page"
+            style={{ display: "flex", alignItems: "center", color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, lineHeight: 1, padding: "4px 5px" }}
+            className="folder-open-btn"
+          ><Layout size={10} /></span>
+        </NodePill>
       </div>
       {open && hasChildren && (
         <div>
