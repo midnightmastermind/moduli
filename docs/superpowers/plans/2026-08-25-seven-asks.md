@@ -12,7 +12,7 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blo
 | 6 | Pages in the Music folder that do not belong (movies, tv shows) | `[x]` **done** — `0244` |
 | 7 | Folder card: a button opens the folder page; clicking the card expands children | `[ ]` |
 | 8 | Delete the Schedule Canvas page and its op | `[x]` **done** — `0247` applied; there was no op left to delete |
-| 9 | The `Now` tracker tile lost its time fields — current time + time left | `[ ]` not started |
+| 9 | The `Now` tracker tile lost its time fields — current time + time left | `[x]` **done** — `0249`; they were never minted on this grid |
 | 10 | Toggling the `Completed` field true/false has a strong lag | `[ ]` not started |
 | 11 | Infinite loop — Trackers folder inside Trackers, all the way down | `[x]` **fixed** — `0243` + renderer + mint latch |
 | 12 | Auto-marquee off in preview cards · container labels a size smaller · instance-label marquee | `[x]` **done** |
@@ -433,3 +433,57 @@ slot `0237` used — and MERGED over whatever the board already carries, so a re
 media-kind gate (1), counting `meta.cover` only (2), the min-rows floor (1), replacing instead
 of merging (1). 3,330 client tests pass; **the 8 failures in `weekdayTasks` + `trackerFollowsPageFilter`
 are PRE-EXISTING and A/B'd against stashed source this session — identical 8.**
+
+---
+
+## 9 — the `Now` tile gets its clock back, and nothing had been deleted (`0249`)
+
+User: *"what happened to my time fields as well"* / *"those are gone from the now tracker tile"* /
+*"like current time"* / *"and time left"*
+
+**NOTHING WAS DELETED — THEY WERE NEVER MINTED ON THIS GRID, and the contrast with a fresh grid
+is the whole diagnosis:**
+```
+test grid 2   183 fields   carrying meta.liveSource: 2   "Now" · "Time Left"
+poms grid     290 fields   carrying meta.liveSource: 0   <- none, at all
+```
+The seed authors two LIVE-CLOCK fields and binds both to the `Now` module. poms grid's `Now`
+(`sUy5zKLg9O31`) is **not the seed's** — it was minted by the 2026-07-30 Stats restructure — and
+carried only the two bindings later passes gave every tracker tile (`Category`, and `Tracker
+Date` from `0072`). So it has been a `Now` with no time in it since the day it was made. A
+migration was owed, not a repair.
+
+**THEY ARE NOT INERT, AND THAT WAS CHECKED BEFORE MINTING ANYTHING** — a field carrying a key
+nothing reads is this repo's most-repeated defect. `Field.jsx:497 useLiveFieldValue` implements
+both sources, ticks on a `setInterval` (1s, or 30s at "minutes" granularity) and overrides the
+displayed value with no operation, no socket write and no stored value.
+
+**RESOLVED BY `meta.liveSource`, NOT BY NAME** — the field is called "Now", and so are the module
+and the occurrence. A decoy field named "Now" carrying no `liveSource` satisfies nothing, which
+is its own test.
+
+**THE CLOCK BINDS FIRST AND THE EXISTING BINDINGS SURVIVE.** Binding order is render order and
+the clock is what the tile is FOR, so it takes orders 0 and 1 — but `Category` and `Tracker Date`
+shift down rather than being replaced: *an instruction about two fields is not permission to drop
+the others*. A clock field the tile somehow already had is never double-bound.
+
+10 tests, 6 A/Bs each failing its own cases — resolving by name (1), dropping the ambiguity
+refusal (1), replacing instead of keeping bindings (2), appending the clock last (3), skipping the
+dedupe (1), minting the clock as an INPUT field (1).
+
+**Read back out of Mongo:** poms grid now matches a fresh grid — 2 `liveSource` fields, both bound
+to `Now`, 4 bindings total. **And verified TICKING on the live grid, which is the check that
+matters**, behind a control proving the probe can see anything at all:
+```
+control  80 instance labels on screen
+Now         2:41:15 PM  ->  2:41:18 PM     counting up
+Time Left   09:18:44    ->  09:18:41       counting down
+Tracker Date  Aug 25 · today                preserved
+0 page errors
+```
+**My first probe read `labels: []` and that was the probe** — I had restarted pm2 seconds earlier,
+so the load hit the cold Atlas read. A zero is a claim about the probe until it has been shown
+reporting non-zero.
+
+**No client code changed, so no bundle is owed;** pm2 restarted, since the warm cache is
+authoritative for reads.
