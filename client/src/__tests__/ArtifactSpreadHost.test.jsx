@@ -108,6 +108,45 @@ describe("ArtifactSpreadHost arranges the spread as a grid", () => {
     expect(healed.meta.spreadFor).toBe(OWNER.id);
   });
 
+  it("PRUNES the owner out of its own spread page", () => {
+    // `filesOf` used to push the owner when it was itself role:"artifact" —
+    // every media row since the 0222 import. The mint snapshots `files` INTO
+    // the page, so that phantom was PERSISTED on first open, and the top-up is
+    // additive by design and cannot retract it: the row drew a second card
+    // from its own cover, i.e. the same poster twice, over "2 files".
+    const spread = {
+      id: "occ-spread", moduleId: "mod-spread",
+      meta: { spreadFor: OWNER.id, layoutCascade: { mode: "wrap" } },
+      occurrences: [OWNER.id, FILE_OCC.id],          // the owner listed as its own file
+    };
+    setGrid({
+      occurrencesById: { [OWNER.id]: { ...OWNER, meta: { spreadPageId: spread.id } }, [spread.id]: spread },
+      modulesById: { "mod-owner": { id: "mod-owner", label: "Zucchini" }, "mod-spread": { id: "mod-spread", kind: "board" } },
+    });
+    openFor(OWNER.id);
+
+    const pruned = commits.updateOccurrence.mock.calls
+      .map((c) => c[0].occurrence)
+      .find((o) => o?.id === spread.id);
+    expect(pruned).toBeTruthy();
+    expect(pruned.occurrences).toEqual([FILE_OCC.id]);
+  });
+
+  it("CONTROL — a page that does NOT list its owner is left alone", () => {
+    // Without this the prune could be a blanket rewrite and still pass above.
+    const spread = {
+      id: "occ-spread", moduleId: "mod-spread",
+      meta: { spreadFor: OWNER.id, layoutCascade: { mode: "wrap" } },
+      occurrences: [FILE_OCC.id],
+    };
+    setGrid({
+      occurrencesById: { [OWNER.id]: { ...OWNER, meta: { spreadPageId: spread.id } }, [spread.id]: spread },
+      modulesById: { "mod-owner": { id: "mod-owner", label: "Zucchini" }, "mod-spread": { id: "mod-spread", kind: "board" } },
+    });
+    openFor(OWNER.id);
+    expect(commits.updateOccurrence).not.toHaveBeenCalled();
+  });
+
   it("the layout it writes is the one ModuleContainer READS (real resolver)", () => {
     // The write above is worthless if the key is not the key the renderer
     // reads — the "shipped and inert" class. So this drives the REAL cascade

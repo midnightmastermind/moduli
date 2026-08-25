@@ -187,18 +187,35 @@ export function ArtifactSpreadHost() {
     // default that re-asserts itself on every open is a lock, not a default.
     const needsLayout = !spreadOcc.meta?.layoutCascade?.mode;
 
-    if (missing.length === 0 && !needsLayout) return;
+    // (3) A SPREAD PAGE MUST NEVER LIST ITS OWN OWNER.
+    //
+    // `filesOf` used to push the owner unconditionally when it was itself
+    // role:"artifact" — true of every media row since the 0222 import, whose
+    // rows own a poster child without carrying a file themselves. The mint
+    // above snapshots `files` INTO the page, so that phantom was persisted the
+    // first time such a row was opened, and (1) is additive by design and
+    // cannot retract it: the row rendered as a second card drawing its own
+    // cover, i.e. the same poster twice, over a header that said "2 files".
+    //
+    // Narrow ON PURPOSE — it drops the OWNER'S OWN id and nothing else. The
+    // additive rule exists so a picture a migration replaced stays listed, and
+    // pruning anything absent from `filesOf` would throw that away. An owner
+    // listing itself is unambiguous: it is not one of its own files.
+    const selfListed = (spreadOcc.occurrences || []).includes(ownerOcc?.id);
+
+    if (missing.length === 0 && !needsLayout && !selfListed) return;
     CommitHelpers.updateOccurrence({
       dispatch, socket,
       occurrence: {
         ...spreadOcc,
-        occurrences: [...(spreadOcc.occurrences || []), ...missing],
+        occurrences: [...(spreadOcc.occurrences || []), ...missing]
+          .filter(id => id !== ownerOcc?.id),
         ...(needsLayout
           ? { meta: { ...(spreadOcc.meta || {}), layoutCascade: { ...SPREAD_LAYOUT } } }
           : null),
       },
     });
-  }, [req, spreadOcc, files, dispatch, socket]);
+  }, [req, spreadOcc, files, dispatch, socket, ownerOcc?.id]);
 
   const handleModeChange = useCallback((next) => {
     if (!spreadModule) return;
