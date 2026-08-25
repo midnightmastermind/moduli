@@ -16,7 +16,7 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blo
 | 10 | Toggling the `Completed` field true/false has a strong lag | `[~]` **improved, not fixed** — 104 long tasks -> 33; the remaining 3.4s is the render fan-out |
 | 11 | Infinite loop — Trackers folder inside Trackers, all the way down | `[x]` **fixed** — `0243` + renderer + mint latch |
 | 12 | Auto-marquee off in preview cards · container labels a size smaller · instance-label marquee | `[x]` **done** |
-| 13 | Media tiles: a **max width**, laid out as a **row that wraps** | `[x]` **done** — `0248` tiles Movies + TV Series; `childMaxWidth` was inert on containers |
+| 13 | Media tiles: max width, row+wrap; **same size as trackers**; Games+Comics tiled too | `[x]` `0248`+`0250`+`0251` — see the height note under 13c |
 
 ---
 
@@ -618,3 +618,52 @@ data to render, so the fix is narrowing that subscription to the panel's own sub
 3 `byIdCached` tests + 3 strict toast tests — the label is asserted to still carry the module
 label, the field name AND the walked parent chain, which is the positive control for the two
 "pushes nothing" cases. Four A/Bs, each failing exactly one test.
+
+---
+
+## 13b — the media tiles take the HOUSE tile shape (`0250`), and Games + Comics join (`0251`)
+
+User: *"make sure the media tiles are tiles though. same size as trackers"*, then *"games and
+comics should be tiles too"*.
+
+**THE SIZE IS READ OFF THE TRACKER TILES, NOT RESTATED.** `0248` used numbers I picked for a 2:3
+poster (150 x 320), which made the media boards the only tiles on the grid with their own
+dimensions. `0250` groups every wrap-mode container by its size keys and takes the largest group —
+on poms grid that is the **15 `Today's …` tracker containers at `childMinWidth: 184`** (height and
+gap unset, so the renderer's 200 / 8). **A media board cannot vote for its own shape**, or the two
+being rewritten would elect themselves; that exclusion is its own test. It REFUSES if no shape has
+a clear majority rather than guessing.
+
+`childContentDirection: "column"` is deliberately NOT copied from the trackers — it is what stacks
+picture -> title -> fields, and a tracker tile has no picture to put on top. The ask was size
+parity, not composition parity.
+
+**GAMES AND COMICS ARE TILED AT THE USER'S EXPLICIT INSTRUCTION (`0251`), overriding `0248`'s
+measured refusal.** The concern was raised (`0/4` and `0/5` rows have cover art — TMDB is a film/TV
+database) and the user's answer was explicit, so it is theirs. **The coverage rule is NOT deleted**:
+`0251` names the two KINDS the user asked for rather than dropping the threshold, which would have
+swept in Songs (5,489 rows) and Albums (3,027) with it.
+
+**Verified on the live grid** — all four boards read `mode=wrap · w=184 · maxw=184 · h unset->200 ·
+gap unset->8 · dir=column`, and the Movies board renders `flex-direction: row`, `flex-wrap: wrap`,
+tiles measuring **184 x 200** with `max-width: 184px` — identical to the tracker tiles beside them.
+0 page errors.
+
+## 13c — REPORTED, NOT DECIDED: at tracker size the title and fields do not fit
+
+A tracker tile has no picture, so 184 x 200 holds its label and fields comfortably. A media tile
+does, and the poster alone is taller than the whole tile:
+
+```
+tile height   200px          actual content height   432px      overflow: hidden
+poster        top 12,  h 218   -> clipped at the bottom
+title         top 261          -> BELOW the cap, invisible
+fields        top 288, h 144   -> invisible (Owned · Drive · Size)
+```
+
+So the tiles are exactly the size that was asked for, and the consequence is that a media tile
+currently shows **only a cropped poster** — the title and every field are unreachable, and
+`overflow: hidden` means they cannot be scrolled to either. This is one number
+(`childMaxHeight`), it is data rather than code, and it is editable from the Layout menu — but
+which trade the user wants is theirs, so it is reported rather than quietly changed:
+~260px shows poster + title, ~430px shows everything.
