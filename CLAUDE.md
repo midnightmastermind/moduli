@@ -6,6 +6,85 @@
 
 ---
 
+### 2026-08-25 — the column layout was never a TILE; and the media with no pictures
+
+**THE AUDIT THE USER ASKED FOR, and it found the option present and its meaning
+broken.** `childContentDirection` is a `SURFACE_SHAPE_KEYS` cascade key, the
+Layout menu edits it ("Title beside fields" / "Title above fields"), and
+`ModuleContainer` publishes `--instance-content-direction`. But since
+`b165d33c` the row is `[handle][textcol: label over fields]` — so "title above
+fields" IS the default, and choosing `column` stacked the DRAG HANDLE above the
+text. Third time in two days that CSS outlived the DOM it was written for.
+
+**A STACK IS NOT A TILE, and both gaps are CSS rather than DOM.** The media block
+is authored LAST (in a row it is a full-width band under the fields), so stacking
+put the picture at the BOTTOM — `order: -1` lifts it; and the handle is the first
+flex child, so in a column it eats a line — it floats to the corner, which is
+what `floatHandle` already does for canvas cards. Measured against the BUILT
+stylesheet, with the row arm as the control:
+```
+ROW     label -> handle -> media   labelW 172     (unchanged)
+COLUMN  media -> handle -> label   labelW 194     picture on top ✓
+```
+
+**WHICH BOARDS GET TILES IS A MEASUREMENT, NOT THE WORD "MEDIA".** A tile with no
+picture is a taller row:
+```
+Readings   9 rows   7 with artwork  -> tiled      song   5490   5 -> NO
+Courses    4        4               -> tiled      album  2757   0 -> NO
+                                                  artist 1595   0 -> NO
+                                                  book    666   0 -> NO
+```
+The Spotify and Calibre imports carry NO cover art, so tiling them would be ten
+thousand empty boxes. **And the Library board is excluded too, which looks like an
+omission and is not:** it holds the 8 movies and 5 podcasts, all with artwork —
+beside **117 reflection questions**. One board, one layout.
+
+**MOVIES DO NOT LIVE WHERE THEY LOOK LIKE THEY LIVE.** They are not a board
+category at all: they are `Library = "movie"`, the same field podcasts use.
+`"tv show"` is a declared option with ZERO rows. So "books, tv shows, movies,
+music" spans two different systems, and only part of it is tileable today.
+
+**THE TAGS GET THEIR OWN FIELD** (`Media Tags`, 25 options). `Tags` is MIXED — 45
+live values, nine wellness dimensions and the rest board categories driving real
+pickers — so "sci-fi" would swell every one of those dropdowns. Same call the
+Codex import made on 2026-08-23. **Authoring the values is allowed here for a
+reason that does not generalise:** a genre is a stable public property OF THE
+WORK, the class `0123` used to justify a food's vitamin content while refusing
+its price. Never overwrites, so a re-run fills gaps only.
+
+**Read back out of Mongo:** 39/39 tagged, **39/39 modules BIND the field** (a
+value with no binding renders nowhere — the `0047` half), **0 stored values
+absent from the option list** (which would render blank and be written away), and
+the Library control still reads `mode=-`.
+
+**A TEST FAILED AND IT WAS A TIMEOUT.** `loadMigrations` imports every migration —
+245 now — and crossed the 5s default under parallel load when 0236/0237 landed. It
+passes in isolation, so the budget was raised rather than the assertion trimmed.
+*A red test is a claim about the test until you have read WHY it went red.*
+
+**AND `0236` CLOSED THE PROVIDER GAP — one mapping would have shipped INERT.**
+iTunes' `Rating` is `contentAdvisoryRating` ("Clean"/"Explicit"), not stars, so
+pointing it at the 1-5 `Rating` field would be refused on every pick while reading
+as configured. A/B'd through the real mapper against the live config:
+```
+SHIPPED (Content rating)   wrote=1  -> "Explicit"
+NAIVE  (star Rating)       wrote=0  -> SKIPPED: "Explicit" is not a number
+```
+**I proposed the naive mapping myself**, in the question I asked the user. The
+key's NAME is not evidence about its VALUE.
+
+**AND THE COLD READ IS OFF THE CRITICAL PATH.** The prewarmed grid is PINNED
+against eviction (user: *"keep it warm indefinitely"*), so the ~184s Atlas read
+happens once per PROCESS rather than once per idle gap — the 12h TTL still meant
+most mornings paid it. Verified on prod: `🔥 prewarm done and PINNED`.
+
+**REPORTED, NOT DONE — the user's call:** movies and podcasts need boards of their
+own before they can be tiles, and the music/Calibre boards need cover art fetched
+before tiling them means anything.
+
+---
+
 ### 2026-08-24 (3) — CSS that outlived its DOM, twice; and 39 folders that could not draw a card
 
 Four user reports on one surface, picked up from the other account's session.
