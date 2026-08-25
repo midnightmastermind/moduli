@@ -649,21 +649,33 @@ gap unset->8 · dir=column`, and the Movies board renders `flex-direction: row`,
 tiles measuring **184 x 200** with `max-width: 184px` — identical to the tracker tiles beside them.
 0 page errors.
 
-## 13c — REPORTED, NOT DECIDED: at tracker size the title and fields do not fit
+## 13c — the tile grows to fit its fields (`0252`)
 
-A tracker tile has no picture, so 184 x 200 holds its label and fields comfortably. A media tile
-does, and the poster alone is taller than the whole tile:
-
+At exact tracker size (184 x 200) a media tile showed **only a cropped poster**. Measured on the
+live board:
 ```
-tile height   200px          actual content height   432px      overflow: hidden
-poster        top 12,  h 218   -> clipped at the bottom
-title         top 261          -> BELOW the cap, invisible
-fields        top 288, h 144   -> invisible (Owned · Drive · Size)
+tile height   200px        actual content   432px       overflow: hidden
+poster        top  12,  h 218   -> clipped
+title         top 261          -> below the cap, invisible
+fields        top 288,  h 144  -> invisible (Owned · Drive · Size)
 ```
+A tracker tile has no picture, so 200px holds its label and fields comfortably; a media tile's
+poster alone is taller than the whole tile. And `overflow: hidden` sits on the tile, so the fields
+could not be scrolled to either — **unreachable, not merely cramped.**
 
-So the tiles are exactly the size that was asked for, and the consequence is that a media tile
-currently shows **only a cropped poster** — the title and every field are unreachable, and
-`overflow: hidden` means they cannot be scrolled to either. This is one number
-(`childMaxHeight`), it is data rather than code, and it is editable from the Layout menu — but
-which trade the user wants is theirs, so it is reported rather than quietly changed:
-~260px shows poster + title, ~430px shows everything.
+User: *"make it larger than to see the fields"*. `childMaxHeight` is now **440** — the tiles' own
+rendered `scrollHeight` on the live Movies board (p90 and max both **432**) plus slack, so the
+number is measured rather than picked. It is an ordinary cascade key the Layout menu edits.
+
+**ONLY THE PICTURED BOARDS.** Games and Comics are tiled too (`0251`) but carry no cover art, so
+their rows are title + fields and already fit the 200 the trackers use — raising them would leave
+two boards of two-thirds-empty tiles. The split is `0248`'s coverage rule, IMPORTED rather than
+restated so the two cannot disagree.
+
+**Verified on the live grid** — 184 x 437, content 437 (nothing clipped), 2 per row, and the
+screenshot shows the full poster, `John Wick`, and every field: `Owned · Drive: Odin ·
+Size: 45.0 GB · File Path · Year · Board Category`. **0 page errors.**
+
+**Not seen on screen:** Games and Comics. Their tree rows were not reachable from the Media folder
+under Boards, so their tiling is confirmed in the DATA (`mode=wrap · w=184`) and has not been
+looked at. Their rows carry no picture, so they compose exactly like a tracker tile.
