@@ -15,8 +15,20 @@ vi.mock("../state/notificationStore", () => ({
   pushOpNotification: () => {},
   notify: () => {},
 }));
+// Records every sweep so "did the echo re-fire operations?" is observable.
+vi.mock("../helpers/operationExecutor", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    runMatchingOperations: (ops, transactionType, ...rest) => {
+      fired.push(transactionType);
+      return actual.runMatchingOperations(ops, transactionType, ...rest);
+    },
+  };
+});
 import { byIdCached, bindSocketToStore } from "../state/bindSocketToStore";
 
+const fired = [];
 vi.stubGlobal("localStorage", {
   getItem: () => null, setItem: () => {}, removeItem: () => {},
 });
@@ -110,6 +122,38 @@ describe("transaction toast — the label is unchanged by the lazy rewrite", () 
       },
     });
     expect(pushed).toEqual([]);
+  });
+
+  test("a MeasureOp transaction does NOT re-fire operations — occurrence_updated owns that", () => {
+    // The echo cannot match a field-scoped trigger anyway (it has
+    // operations[].measure, not a `fields` map), so firing it only spins the
+    // matcher over every operation on the grid. Measured: 90 sweeps / 3551ms
+    // for one toggle before this guard.
+    const socket = bind();
+    expect(socket._has("transaction_created")).toBe(true);
+    fired.length = 0;
+    socket._trigger("transaction_created", {
+      transaction: {
+        id: "t4", type: "MeasureOp",
+        operations: [{ type: "measure", measure: { occurrenceId: "o-row", fieldId: "f1", previousValue: false, value: true } }],
+      },
+    });
+    expect(fired.filter(f => f === "MeasureOp")).toEqual([]);
+  });
+
+  test("CONTROL — a NON-MeasureOp transaction still fires operations", () => {
+    // Without this the test above is vacuous: an empty `fired` would prove
+    // nothing if the harness never reaches runMatchingOperations at all.
+    const socket = bind();
+    expect(socket._has("transaction_created")).toBe(true);
+    fired.length = 0;
+    socket._trigger("transaction_created", {
+      transaction: {
+        id: "t5", type: "EntityOp",
+        operations: [{ type: "entity", entity: { action: "update", entityType: "module", entityId: "m-row" } }],
+      },
+    });
+    expect(fired).toContain("EntityOp");
   });
 
   test("a SnapshotOp is still ignored outright — it is an undo record, not an event", () => {

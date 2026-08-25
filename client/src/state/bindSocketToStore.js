@@ -1892,7 +1892,30 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // TransactionHistory has its own `transaction_created` listener and still
     // live-updates from these.
     if (transaction.type === "SnapshotOp") return;
-    fireOperations(transaction.type, transaction);
+
+    // ── A MeasureOp TRANSACTION MUST NOT RE-FIRE OPERATIONS ───────────────
+    // A MeasureOp transaction is the RECORD of a field write. The write itself
+    // already fired operations through `occurrence_updated` above, which builds
+    // the compound `{ fields: { [fid]: value } }` transaction and is guarded by
+    // `optimisticFiredSet` so a local write fires exactly once.
+    //
+    // Firing again from the echo is not merely redundant, it is INERT: a
+    // field-scoped trigger matches on `transaction.fields[targetId]`
+    // (matchSubjectFilter, subjectType "field"), and a transaction record has
+    // `operations[].measure`, no `fields` map at all. So the matcher walks
+    // every operation on the grid and can match none of them.
+    //
+    // Measured on poms grid: ONE `Completed` toggle produces 51 MeasureOp
+    // transactions, and `window.__renderTally()` reported **90 sweeps of
+    // runMatchingOperations totalling 3551ms** for that click — against a
+    // longest task of ~3.4s. Only 2 of those sweeps logged `[op-timing]`,
+    // i.e. only 2 did any work; the rest spun the matcher over ~70 operations
+    // for a shape that cannot match.
+    //
+    // Remote changes are unaffected: another window's field write reaches this
+    // client as `occurrence_updated` too, which fires the correctly-shaped
+    // MeasureOp. Every other transaction type still fires as before.
+    if (transaction.type !== "MeasureOp") fireOperations(transaction.type, transaction);
 
     // ── Toast lookups: LAZY, and O(1) where they used to be O(grid) ───────
     // This block used to run UNCONDITIONALLY on every transaction, before it
