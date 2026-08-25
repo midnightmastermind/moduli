@@ -6,6 +6,106 @@
 
 ---
 
+### 2026-08-25 (4) — the op that was already gone, tiles the data earned, a clock that never existed, and a lag that is not the ops
+
+Picked up the other account's session, which hit its limit mid-probe on item 8 with an audit
+script written and never run. Four queue items closed, one filed with numbers.
+
+**ITEM 8 — "get rid of the schedule canvas AND THE OP FOR IT", and there was no op.** `Canvas:
+Build` was retired 2026-07-07 for an occurrence FEED, and the seed still says so in its own
+comment. Measured rather than trusted: **no operation on poms grid mentions the canvas at all** —
+not by name, not by occurrence id, not by module id, not by any of its 29 children's ids. The
+thing that still RAN for that page was the `feed`, and **a feed is a field ON the occurrence**, so
+deleting the page deleted the op. Worth stating plainly, because hunting for an Operation record
+and finding none reads exactly like a missed step.
+
+**DELETING 29 CHILDREN DESTROYED NOTHING, and the control is what makes that claim worth
+anything.** All 29 are feed copies whose sources live outside the canvas, and every copy's fields
+are byte-equal to its source — but comparing copies to their own sources read `0 differ`, and so
+did the Schedule Table arm. **Both arms zero is the documented tell.** Re-run with each copy paired
+against the NEXT copy's source: **27 differ**. Only then did the 29/29 mean anything.
+
+**AND AN A/B RETIRED A GUARD I WROTE ON REFLEX.** `orphanModuleId = placements === 1 ? … : null`
+fails **0 of 11** tests when removed — provably subsumed, since any second placement of that module
+is itself a `page/canvas` labelled "Schedule Canvas" and the ambiguity refusal returns first. Gone,
+with the reasoning left in its place. Panels unlisted with `$pull`, never a whole-array write.
+
+**ITEM 13 (new, mid-session) — media tiles, and the DATA had changed the answer.** `mode: "wrap"`
+has laid children out as a wrapping row since 2026-08-10, so this was data plus one real gap.
+2026-08-25 refused to tile the music and book boards on a rule worth keeping — *"a tile with no
+picture is a taller row"* — and `0245`'s posters changed that fact for exactly two boards:
+```
+Movies 993 · 989 pictured 100%   TV Series 187 · 183  98%   <- tiled
+Games    4 ·   0            0%   Comics      5 ·   0   0%   <- REFUSED
+```
+**Games and Comics are the discriminating case.** Same import, same folder, and the word "media"
+describes them perfectly — TMDB is a film/TV database, so neither has a poster. Selecting on the
+WORD would have turned 9 rows into empty boxes; selecting on PICTURES does not.
+
+**AND `childMaxWidth` WAS INERT — the ask named the exact gap.** A declared cascade key the Layout
+menu offers as "Col max width", read by **`PageBoard` only**: set it on a container's wrap tiles
+and nothing moved. Published now, defaulting to `100%` rather than the fixed `--child-w`, which
+also fixes a case nobody had configured around — a 150px tile in a narrower panel column
+OVERFLOWED it instead of shrinking. Verified live: `flex-direction: row`, `flex-wrap: wrap`,
+`max-width: 150px`, 160/160 posters loaded, 0 page errors.
+
+**ITEM 9 — "what happened to my time fields" — NOTHING WAS DELETED, THEY NEVER EXISTED HERE.**
+The contrast with a fresh grid is the whole diagnosis:
+```
+test grid 2   183 fields   carrying meta.liveSource: 2   "Now" · "Time Left"
+poms grid     290 fields   carrying meta.liveSource: 0   <- none, at all
+```
+poms grid's `Now` module is **not the seed's** — it was minted by the 2026-07-30 Stats restructure
+— so it only ever carried the bindings later passes gave every tracker tile. **The renderer was
+read BEFORE minting anything**, because a field carrying a key nothing reads is this repo's
+most-repeated defect: `Field.jsx:497 useLiveFieldValue` implements both sources and ticks on a
+`setInterval`. Resolved by `meta.liveSource`, **not by name** — the field, the module and the
+occurrence are all called "Now". Verified ticking on the live grid: `2:41:15 PM -> 2:41:18 PM`,
+`Time Left 09:18:44 -> 09:18:41`. **My first probe read `labels: []` and that was the probe** — I
+had restarted pm2 seconds earlier, so the load hit the cold Atlas read.
+
+**ITEM 10 — THE LAG IS NOT THE OPERATIONS, and the trigger layer is exonerated.** Reproduced:
+```
+click -> paint 4117ms / 6425ms    total blocked ~6.5s
+104 long tasks summing 10547ms — ONE of 3605ms, then ~103 of 60-200ms
+4163 DOM mutations, for toggling one checkbox
+```
+The first suspect was spurious op fires. It is wrong: **every `onChange` trigger is field-scoped
+and ZERO fire without a target**, so the 27 ops that run are exactly the 27 that declare an
+interest in `Completed` — and they are only **1225ms of ~6500ms**. Attributing the mutations by
+panel names the real cost:
+```
+toggling ONE checkbox in panel U18hAEwP mutates
+  U18hAEwP 2337   <- owns the row      _PkuNAJp 1458   u07qnz_n 1123   <- unrelated panels
+```
+**52% of the work lands in panels that have nothing to do with the row.** That is the documented
+frame-1 / app-wide re-render docket item with numbers on it at last, and the media import made it
+worse: an open media board keeps 80 image tiles mounted that re-render on every unrelated write.
+**Filed, not fixed** — batching effect application and cutting the render fan-out is a change to
+the shared write path this repo has repeatedly been damaged by.
+
+**AND MY PROBE DAMAGED LIVE DATA, reported rather than hidden.** The untick re-queried the DOM
+after a re-render and found a DIFFERENT switch, so two schedule rows were left ticked. Both were
+put back through the UI so the tracker ops reversed, and read back out of Mongo: `Completed=false`,
+`Completed On=null`. *A probe that edits is a probe that can damage* — and the fix is to target the
+occurrence id, never "the first matching switch".
+
+**ITEM 7 — the folder pill was exactly inverted.** The whole pill navigated to the folder page
+while expansion lived on a chevron **8px wide at 0.35 opacity**, so the common action was a
+pixel-hunt and the rare one fired on any stray click. The pill toggles now and a `Layout` button
+opens the page; **a folder with no children falls back to opening the page**, since there is
+nothing to expand and a click that visibly does nothing reads as broken. The button is **always
+visible** unlike the `+` beside it — it is the only route to a folder page and a hover-only control
+is unreachable on touch. **Both folder rows changed**: `LocalFolderGroup`'s own comment says it must
+mirror `FolderNode`.
+
+`0247` · `0248` · `0249` applied, each read back out of Mongo. 1,678 server tests; 3,297 client
+(**the 8 failures in `weekdayTasks` + `trackerFollowsPageFilter` are PRE-EXISTING and A/B'd against
+stashed source — identical 8**). poms grid **0 errors**, 1 pre-existing warning. Deployed twice,
+prod HEAD verified, `--child-max-w` present in the served CSS with `--child-w` as the control.
+
+---
+
 ### 2026-08-25 (3) — `fileRef` LIVES ON THE MODULE, and there is one module for 993 films
 
 User, after the TMDB posters landed: *"make it have the fileRef"* and *"it should able to hold
