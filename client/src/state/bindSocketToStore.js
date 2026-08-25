@@ -10,6 +10,7 @@ import { runMatchingOperations, executeOperation, executePipeline, setOpApplying
 import { kindForNewModule } from "../helpers/operationActions";
 import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
 import { toast, pushTxNotification } from "./notificationStore";
+import { afterPaint } from "../helpers/afterPaint";
 import { makeOpNotificationCallbacks } from "../helpers/opResultSummary";
 import { syncAllFeeds } from "../helpers/feedSync";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
@@ -1652,11 +1653,36 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   const optimisticFiredSet = new Set();
 
   function fireOperationsOptimistic(transactionType, transaction, options) {
-    // Mark as optimistically fired so onOccurrenceUpdated skips the duplicate
+    // Mark as optimistically fired so onOccurrenceUpdated skips the duplicate.
+    // THIS STAYS SYNCHRONOUS even when the fire below is deferred: the server
+    // echo can beat a deferred fire, and if the set were not populated yet
+    // `onOccurrenceUpdated` would fire its own MeasureOp and we would have
+    // DOUBLED the work instead of moving it.
     if (transaction.occurrenceId) {
       optimisticFiredSet.add(transaction.occurrenceId);
       // Clear after 5s (server echo should arrive well before this)
       setTimeout(() => optimisticFiredSet.delete(transaction.occurrenceId), 5000);
+    }
+
+    // ── A FIELD WRITE PAINTS FIRST, THEN RECOMPUTES ───────────────────────
+    // `setOccurrenceFieldValue` dispatches the optimistic value and then calls
+    // this synchronously, so the browser cannot paint the tick until every
+    // matching operation has run. Measured on poms grid: one `Completed`
+    // toggle is ~2.0s of operations inside a ~3.9s click-to-paint — the user
+    // watches a frozen checkbox for the whole sweep.
+    //
+    // Deferring past the paint is the shape `helpers/afterPaint.js` was built
+    // for (the textblock mint went 1000ms -> 30ms the same way). Nothing is
+    // skipped: the trackers still recompute, one frame later, while the tick
+    // the user clicked is already on screen.
+    //
+    // Scoped to MeasureOp deliberately. NavigationOp rides this same function
+    // through `fireOperationsBatch`, and the filter cascade depends on running
+    // before the render it is scoping — deferring that would be a different
+    // change with a different risk.
+    if (transactionType === "MeasureOp") {
+      afterPaint(() => fireOperations(transactionType, transaction, options));
+      return;
     }
     fireOperations(transactionType, transaction, options);
   }

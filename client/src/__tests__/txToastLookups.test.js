@@ -26,7 +26,7 @@ vi.mock("../helpers/operationExecutor", async (importOriginal) => {
     },
   };
 });
-import { byIdCached, bindSocketToStore } from "../state/bindSocketToStore";
+import { byIdCached, bindSocketToStore, operationsBridge } from "../state/bindSocketToStore";
 
 const fired = [];
 vi.stubGlobal("localStorage", {
@@ -162,5 +162,25 @@ describe("transaction toast — the label is unchanged by the lazy rewrite", () 
     pushed.length = 0;
     socket._trigger("transaction_created", { transaction: { id: "t3", type: "SnapshotOp", operations: [] } });
     expect(pushed).toEqual([]);
+  });
+});
+
+// ─── a field write paints before it recomputes ──────────────────────────────
+describe("MeasureOp fires AFTER the paint, not during the click", () => {
+  it("does not run the matcher synchronously, and does run it a frame later", async () => {
+    bind();                                   // publishes operationsBridge.fireOperations
+    fired.length = 0;
+    operationsBridge.fireOperations("MeasureOp", { occurrenceId: "o-row", fields: { f1: { value: true } } });
+    // The click handler returns here — the browser must be free to paint.
+    expect(fired).toEqual([]);
+    await new Promise((r) => setTimeout(r, 60));
+    expect(fired).toContain("MeasureOp");     // nothing is skipped, only moved
+  });
+
+  it("CONTROL — a NavigationOp still fires synchronously", () => {
+    bind();
+    fired.length = 0;
+    operationsBridge.fireOperations("NavigationOp", { type: "NavigationOp" });
+    expect(fired).toContain("NavigationOp");  // the filter cascade must not be deferred
   });
 });
