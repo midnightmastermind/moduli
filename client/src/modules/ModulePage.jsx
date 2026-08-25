@@ -16,6 +16,7 @@ import HeaderChevron from "../ui/HeaderChevron";
 import { bumpRender } from "../helpers/renderProbe";
 import { markLoadOnce } from "../helpers/loadDiag";
 import HeaderDropdown from "../ui/HeaderDropdown";
+import MenuTabs from "../ui/MenuTabs";
 import FiltersSection from "../ui/FiltersSection";
 import FeedSection from "../ui/FeedSection";
 import GraphSection from "../ui/GraphSection";
@@ -918,14 +919,30 @@ function Page({
 
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
-          <FiltersSection occurrence={occurrence} />
-          <FeedSection occurrence={occurrence} />
-          <GraphSection occurrence={occurrence} />
-          <SortSection occurrence={occurrence} />
-          <FieldVisibilitySection occurrence={occurrence} />
-          <FieldBindingsSection occurrence={occurrence} />
-          <ViewModeSection occurrence={occurrence} />
-          <LayoutCascadeSection occurrence={occurrence} />
+          <MenuTabs
+            tabs={[
+              { id: "filter", label: "Filter", content: <FiltersSection occurrence={occurrence} /> },
+              { id: "sort",   label: "Sort",   content: <SortSection occurrence={occurrence} /> },
+              { id: "data",   label: "Data",   content: (
+                <>
+                  <FeedSection occurrence={occurrence} />
+                  <GraphSection occurrence={occurrence} />
+                </>
+              ) },
+              { id: "fields", label: "Fields", content: (
+                <>
+                  <FieldVisibilitySection occurrence={occurrence} />
+                  <FieldBindingsSection occurrence={occurrence} />
+                </>
+              ) },
+              { id: "layout", label: "Layout", content: (
+                <>
+                  <ViewModeSection occurrence={occurrence} />
+                  <LayoutCascadeSection occurrence={occurrence} />
+                </>
+              ) },
+            ]}
+          />
         </HeaderDropdown>
       )}
       {templatesAnchor && (

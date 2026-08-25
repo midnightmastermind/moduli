@@ -68,6 +68,7 @@ import Page from "./ModulePage.jsx";
 import { CanvasDrawSection } from "./CanvasContent.jsx";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
+import MenuTabs from "../ui/MenuTabs";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import OccurrenceSearch from "../ui/OccurrenceSearch.jsx";
 import { openOccurrenceInPanel } from "../helpers/openOccurrenceInPanel";
@@ -1237,10 +1238,14 @@ function Panel({
 
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
-          <FiltersSection occurrence={panelOccurrence} />
-          <SortSection occurrence={panelOccurrence} />
-          <FieldVisibilitySection occurrence={panelOccurrence} />
-          <LayoutCascadeSection occurrence={panelOccurrence} />
+          <MenuTabs
+            tabs={[
+              { id: "filter", label: "Filter", content: <FiltersSection occurrence={panelOccurrence} /> },
+              { id: "sort",   label: "Sort",   content: <SortSection occurrence={panelOccurrence} /> },
+              { id: "fields", label: "Fields", content: <FieldVisibilitySection occurrence={panelOccurrence} /> },
+              { id: "layout", label: "Layout", content: <LayoutCascadeSection occurrence={panelOccurrence} /> },
+            ]}
+          />
         </HeaderDropdown>
       )}
       {templatesAnchor && (
