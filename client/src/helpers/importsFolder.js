@@ -141,12 +141,34 @@ export function openPanelOnRootFolderPage({ panelOccId, grid, gridId, manifestsB
 // folder so it renders as a card in the parent folder page. Idempotent via a
 // `meta.folderPage` self-identifying tag (the only occurrence we mint with it).
 // Returns the occurrence id.
+// FOLDERS THIS SESSION HAS ALREADY MINTED A PAGE FOR.
+//
+// The `existing` lookup below reads the occurrence map it is HANDED, so two
+// callers that resolved their map in the same tick both see "no page yet" and
+// both mint. That is not hypothetical: `ModulePage` mints missing folder pages
+// from an effect, and two panels showing the same folder page fire it in one
+// commit. Measured on poms grid 2026-08-25 — 8 folders holding exactly 2
+// folder-page occurrences apiece — and the user's symptom was a folder page
+// listing ITSELF, endlessly: "a trackers folder with trackers inside the
+// trackers folder and its like that all the way down."
+//
+// A latch keyed on the folder closes the same-tick window. It deliberately does
+// NOT expire: within one session, one mint per folder is the whole contract, and
+// the caller gets the id back either way. It cannot help ACROSS tabs — that
+// needs a server-side uniqueness guard — which is exactly why the renderer
+// (`ModulePage.folderChildOccs`) drops folder pages of its own folder by KIND
+// rather than by id, so a duplicate that does arrive cannot loop.
+const _mintedFolderPages = new Map();
+
 export function ensureFolderPageOcc({ folderId, label, gridId, occurrencesById, dispatch, socket, userId }) {
   if (!folderId) return null;
   const existing = Object.values(occurrencesById || {}).find(
     (o) => o && o.parentId === folderId && o.meta?.folderPage === true
   );
   if (existing) return existing.id;
+  const latchKey = `${gridId || ""}::${folderId}`;
+  const alreadyMinted = _mintedFolderPages.get(latchKey);
+  if (alreadyMinted) return alreadyMinted;
   const modId = crypto.randomUUID();
   const occId = crypto.randomUUID();
   CommitHelpers.createModule({
@@ -160,7 +182,13 @@ export function ensureFolderPageOcc({ folderId, label, gridId, occurrencesById, 
       parentId: folderId, sortOrder: -1, iteration: { mode: "persistent" }, fields: {}, meta: { folderPage: true },
     }, emit: true,
   });
+  _mintedFolderPages.set(latchKey, occId);
   return occId;
+}
+
+// Test seam only — production never calls this.
+export function __resetFolderPageLatch() {
+  _mintedFolderPages.clear();
 }
 
 // Artifact-module kind → View routing fields. The client twin of the server's

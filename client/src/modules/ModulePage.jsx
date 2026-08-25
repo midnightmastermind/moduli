@@ -245,11 +245,29 @@ function Page({
     const folderId = occurrence?.parentId;
     if (!folderId) return EMPTY_ARR;
 
-    // Direct children: occurrences whose parentId matches this folder
+    // Direct children: occurrences whose parentId matches this folder.
+    //
+    // A FOLDER PAGE PARENTED TO THIS FOLDER IS THIS FOLDER'S OWN CARD, and it
+    // must never appear on it. Excluding `occurrence.id` alone was not enough:
+    // that is a SINGLE-ID check, so when a folder ends up with TWO folder-page
+    // occurrences each one renders the OTHER as a card, clicking it opens the
+    // same folder, and you get "a trackers folder with trackers inside the
+    // trackers folder and its like that all the way down" (user, 2026-08-25).
+    // Measured on poms grid: 8 folders had exactly 2, every pair minted 11
+    // seconds apart — `missingFolderPages` below raced itself across two loads.
+    //
+    // The duplicates are repaired by `0243`, but the renderer is where this has
+    // to be closed: a folder page for THIS folder is by definition this page or
+    // a copy of it, so drop them by KIND rather than by id and a future
+    // duplicate can never reopen the loop. Genuine sub-folder cards are
+    // unaffected — those are parented to the SUB-folder and come in through
+    // `subFolderPageOccs` below.
     const directChildren = (s.childrenByParentId?.[folderId] || [])
       .filter(occ => {
         if (occ.id === occurrence.id) return false;
         if (occ.meta?.isTemplate) return false;
+        const mod = s.modulesById?.[occ.moduleId];
+        if (mod?.kind === "folder" && mod?.role === "page") return false;
         return true;
       });
 

@@ -9,11 +9,13 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blo
 | 3 | Instance label + input/display fields bigger; filter date pill bigger; all fields one size | `[x]` **done + measured on screen** |
 | 4 | Movie tiles: label → image → fields stacked; images not loading; placeholder box squished | `[ ]` |
 | 5 | Container fields too big — must match instance field size everywhere | `[x]` **done** — one authority for every field text site |
-| 6 | Pages in the Music folder that do not belong (movies, tv shows) | `[ ]` |
+| 6 | Pages in the Music folder that do not belong (movies, tv shows) | `[x]` **done** — `0244` |
 | 7 | Folder card: a button opens the folder page; clicking the card expands children | `[ ]` |
 | 8 | Delete the Schedule Canvas page and its op | `[ ]` |
 | 9 | The `Now` tracker tile lost its time fields — current time + time left | `[ ]` not started |
 | 10 | Toggling the `Completed` field true/false has a strong lag | `[ ]` not started |
+| 11 | Infinite loop — Trackers folder inside Trackers, all the way down | `[x]` **fixed** — `0243` + renderer + mint latch |
+| 12 | Turn auto-marquee OFF in preview cards; marquee not working on instance labels | `[ ]` not started |
 
 ---
 
@@ -182,3 +184,49 @@ date pill             12px              ->  13px
 ```
 The 16 remaining 12px readings inside instance rows are the `alt` text of the broken movie
 posters — not fields. That is item 4.
+
+
+---
+
+## 11 — a folder page listed ITSELF, endlessly (FIXED)
+
+User: *"we have an infinite loop going with trackers. theres a trackers folder with trackers
+inside the trackers folder and its like that all the way down."*
+
+`ModulePage.folderChildOccs` excluded the folder's own card with
+`occ.id === occurrence.id` — **a SINGLE-ID check**. A folder's card IS a
+`role:"page" kind:"folder"` occurrence parented to that folder, so with TWO of them page A
+excludes A and renders B; clicking B opens the same folder, which excludes B and renders A.
+Every level looks legitimate.
+
+```
+poms grid   70 folders · 31 folder-page occurrences · 8 folders with TWO
+  Day Pages · Library · Files · Interests · Lookup · Projects · Trackers · Documents
+  every pair created 14:35:01 and 14:35:12 — 11 seconds apart
+test grid 1  0     test grid 2  0     contrast scratch  0
+```
+
+Same 14:35 window as `0242`'s duplicate day columns. `ensureFolderPageOcc` decides "does one
+exist" from the occurrence map it is HANDED, so two callers resolving that map before either
+write lands both mint — two panels on one folder page do it in a single commit.
+
+**All three halves ship, because none is sufficient alone:**
+- `0243` removes the 8 duplicates (all empty; refuses any copy holding children, listed
+  elsewhere, carrying text, or named by an operation). Applied — 0 duplicates, poms grid
+  **0 errors**, 8 orphan modules swept.
+- `ensureFolderPageOcc` gains a per-folder/per-grid latch, closing the same-tick window.
+  A/B'd: removing it fails exactly the same-tick test.
+- **`folderChildOccs` now drops folder pages of its OWN folder by KIND, not by id** — the
+  durable one. A duplicate that arrives from another tab can no longer loop.
+
+## 6 — Movies/TV/Games/Comics were filed under Music (FIXED, `0244`)
+
+`0238` parented all five new boards beside the Spotify boards. Now:
+
+```
+Root/Boards/Media        Bookmarks · Movies · TV Series · Games · Comics
+Root/Boards/Media/Music  Songs · Artists · Albums
+```
+
+Only `parentId` moves — rows hang off the board CONTAINER, so nothing else changes. No
+folder invented and `Music` not renamed: the ask was about misfiled pages, not a taxonomy.

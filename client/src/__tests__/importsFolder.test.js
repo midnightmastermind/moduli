@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { ensureImportsFolder, ensureImportsFolderAndPage, createImportsDocPage, shouldWrapImportOutput, ensureArtifactPageOcc } from "../helpers/importsFolder";
+import { ensureImportsFolder, ensureImportsFolderAndPage, createImportsDocPage, shouldWrapImportOutput, ensureArtifactPageOcc, ensureFolderPageOcc, __resetFolderPageLatch } from "../helpers/importsFolder";
 
 vi.mock("../helpers/CommitHelpers", () => ({
   createFolder: vi.fn(),
@@ -16,7 +16,49 @@ const grid = { _id: "grid-1", manifestId: "mfst-1" };
 const manifests = [{ id: "mfst-1", rootFolderId: "root-1" }];
 const baseArgs = { grid, manifests, dispatch: vi.fn(), socket: {}, userId: "u1" };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => { vi.clearAllMocks(); __resetFolderPageLatch(); });
+
+describe("ensureFolderPageOcc — one folder page per folder", () => {
+  const args = { gridId: "grid-1", userId: "u1", dispatch: vi.fn(), socket: {} };
+
+  it("mints a folder page when the folder has none", () => {
+    const id = ensureFolderPageOcc({ ...args, folderId: "f1", label: "Trackers", occurrencesById: {} });
+    expect(id).toBeTruthy();
+    expect(CommitHelpers.createOccurrence).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns the EXISTING page without minting", () => {
+    const occurrencesById = { a: { id: "a", parentId: "f1", meta: { folderPage: true } } };
+    expect(ensureFolderPageOcc({ ...args, folderId: "f1", occurrencesById })).toBe("a");
+    expect(CommitHelpers.createOccurrence).not.toHaveBeenCalled();
+  });
+
+  it("SAME-TICK second caller does not mint a second page", () => {
+    // THE DISCRIMINATING CASE. Both callers resolved the occurrence map before
+    // either write landed, so both see "no page yet" — which is how 8 folders
+    // on poms grid ended up with two apiece, and a folder page then listed
+    // ITSELF forever. Passing the SAME stale map to both is the whole point.
+    const stale = {};
+    const first = ensureFolderPageOcc({ ...args, folderId: "f1", occurrencesById: stale });
+    const second = ensureFolderPageOcc({ ...args, folderId: "f1", occurrencesById: stale });
+    expect(second).toBe(first);
+    expect(CommitHelpers.createOccurrence).toHaveBeenCalledTimes(1);
+  });
+
+  it("the latch is PER FOLDER — a different folder still mints", () => {
+    const stale = {};
+    ensureFolderPageOcc({ ...args, folderId: "f1", occurrencesById: stale });
+    ensureFolderPageOcc({ ...args, folderId: "f2", occurrencesById: stale });
+    expect(CommitHelpers.createOccurrence).toHaveBeenCalledTimes(2);
+  });
+
+  it("the latch is PER GRID — the same folder id on another grid still mints", () => {
+    const stale = {};
+    ensureFolderPageOcc({ ...args, gridId: "grid-1", folderId: "f1", occurrencesById: stale });
+    ensureFolderPageOcc({ ...args, gridId: "grid-2", folderId: "f1", occurrencesById: stale });
+    expect(CommitHelpers.createOccurrence).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe("shouldWrapImportOutput", () => {
   it("wraps a real import (root present, not a dry run)", () => {
