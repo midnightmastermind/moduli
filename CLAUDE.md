@@ -6,6 +6,138 @@
 
 ---
 
+### 2026-08-25 (2) — media.md becomes boards; and the ops question found a bug the import did not cause
+
+Picked up the other account's session, which hit its limit mid-edit on
+`parseMediaMd.mjs` under the standing instruction *"use the ~/media.md file to fill
+in the remaining medias"*. **Its in-flight edit was two lines from done and inert
+until finished:** it had declared an `IGNORE` symbol and written the comment
+explaining why three states are needed — and never assigned it. So 73 "unparsed
+tables" were really the DATA ROWS of tables it correctly skipped. Assigned, and the
+parse now matches the document's own totals exactly: 994 movies, 192 series, 147
+artists, 4 games, 1,849 documentaries, 0 unknown tables.
+
+**MY FIRST OVERLAP PROBE WAS WRONG BY 442 ROWS, AND IT WAS CONFIDENT.** It reported
+**44** of media.md's 676 books already on the grid. media.md truncates book titles
+at ~34 characters and appends a `(NNN)` count:
+```
+grid  "Watchmen"                              media.md  "Watchmen (217)"
+grid  "Become What You Are: Expanded Edition"  media.md  "Become What You Are_ Expanded Editi (152)"
+```
+Re-measured with a truncation-aware prefix match: **227 exact + 237 prefix = 464
+present, 212 new.** Importing on the first number would have doubled a board that
+already holds a clean catalogue. *A count is a claim about the NORMALISER until both
+sides have been read side by side.*
+
+**AND THE OBVIOUS FIX WAS WORSE THAN THE BUG — the test caught it.** Stripping the
+trailing parenthetical everywhere deletes the YEAR:
+```
+movie titles ending in a year   865 of 994      grid movies  none exist
+album titles ending in a year   298 of 299      grid albums  0 of 2,757
+book titles with a trailing (N) 869 of 1,108    grid books   0 of 666
+```
+A blanket strip merges `The Ring (2002)` into `The Ring (1927)`. **So the LABEL and
+the MATCH KEY are different things** — which is also what the user's *"dont put the
+year in the title in our system"* needs. The title loses the suffix (and that
+matches what the Books and Albums boards already look like); films keep it in the
+KEY because there the year is identity; and it lands in a `Year` field rather than
+being deleted off 1,163 rows. Four A/Bs, each failing exactly its own tests.
+
+**3,579 ROWS, AND WHAT MERGES IS AS DELIBERATE AS WHAT DOES NOT.** Movies, TV
+Series, Documentaries, Games and Comics get boards; books, artists and albums merge
+into the boards that already hold them, because a second Books board beside the
+Calibre one splits one library in two. `artifact`, not `instance`, inheriting
+`0222`'s measured decision. **`Files` and `Location` are NOT reused despite the
+names** — both are `occurrence` fields, so a path written there stores a string
+where a row reference belongs.
+
+**READ BACK OUT OF MONGO, NOT OFF THE LOG — and that is what found the defect.**
+18,177 -> 21,766 occurrences: 3,579 rows plus exactly the 10 occurrences of five
+boards; 0 unlabelled, 0 unparented, 0 duplicate keys; 3 of 3,579 labels still end in
+a number and all three are genuine title text. **And 8 documentary rows carried a
+`Year` on a module that does not bind Year** — stored, reported as written,
+rendering nowhere. `0238` now writes Year only where it is bound, and `0239` sweeps
+the CLASS rather than patching the 8.
+
+**THE TRACKER IS ONE PASS, NOT SEVEN** (`0239`, user: *"put how much media i own of
+what"*). Seven counts as seven ops is the shape `Schedule: Fill Day` had — 198,009
+evaluations for zero effects. One loop, seven counters, gated on `Owned IS true` so
+the tag checks only run for rows that already qualify, and **onLoad only**: a media
+count is a fact about the library, not about the date on screen.
+```
+Movies 749 · TV Series 103 · Documentaries 1822 · Games 4 · Comics 5 · Books 878 · Albums 271
+```
+**Albums counts the 271 local rips, not the 2,757 Spotify rows** — those are a
+streaming library rather than files, and the field name is what keeps that honest.
+The 666 Calibre books ARE backfilled, because `0226`'s source was the same kind of
+thing: a survey of files on disk.
+
+---
+
+**"MAKE SURE THE OPS STILL WORK FOR IT" — MEASURED, AND IT FOUND A LIVE BUG THE
+IMPORT DID NOT CAUSE.** Regenerating the fixture and running the suite failed with
+`Daily Question Rotator: $journalingInst is not a record (no .id)`.
+
+**The import provably cannot be the cause**, and the reason is the artifact
+decision: the op FINDs over `$allInstances`, which is ROLE-FILTERED.
+```
+occurrences of the "Journal" module    committed fixture 1 -> binds a record
+                                       today             2 -> binds an ARRAY, UPDATE throws
+```
+The second is `9:00pm < Routine < Schedule Template` — the Routine layer. **So the
+op was always wrong:** `FIND templateId IS <module>` unscoped asks *"THE occurrence
+of this module"* of a RECURRING ROUTINE. `0240` pins it to the occurrence it already
+resolved to for as long as it worked, picker-direct, resolved STRUCTURALLY and
+refusing if ambiguous. **It restores rather than chooses** — which Journal should
+carry the question is the user's call.
+
+**WHICH OPS ACTUALLY PAY FOR THE IMPORT, measured rather than asserted:**
+```
+collection        sites  ops   rows walked   media rows in it
+$allInstances        66    34          1168   0      <- unaffected
+$allContainers       61    16          1381   5      <- just the new boards
+$allItems            24    19         21766   3,579  <- 143,160 extra iterations/sweep
+$allOccurrences      16     4         21766   3,579
+```
+**THE OBVIOUS OPTIMISATION IS WRONG, AND CHECKING IS WHAT SAID SO.** Switching those
+23 ops to `$allInstances` would drop the media rows AND the ~13,000 pre-existing
+artifacts, leaving the sweep faster than before. But under one scope **50 of 77
+matched rows are `container`** — the swap would silently stop those loops seeing
+containers. Per-op work, filed with the measurement rather than done hastily.
+
+**AND A TEST ASSERTED THE WRONG INVARIANT**, found by `0240` failing it.
+`partialBackup` required every scoped migration's `touches` to CONTAIN `"fields"` —
+true only because every migration so far happened to. `0240` rewrites an operation
+and touches no field. It now checks what `backupGrid` actually requires, which is
+STRICTLY STRONGER: the old form passed `["fields","occurrance"]`, the new one
+rejects it.
+
+**THE REFRESHED FIXTURE IS RED IN TWO SUITES, AND THAT IS REPORTED RATHER THAN
+HIDDEN.** The committed fixture predated ~30 migrations (`0219`-`0237`), so
+refreshing it surfaced drift unrelated to this work: `weekdayTasks` (6) and
+`trackerFollowsPageFilter` (2). **Ruled out as mine three ways** — the imported rows
+are artifacts while those ops walk `$allInstances`/`$allContainers`; the failures
+reproduce on a fixture built BEFORE `0239`/`0240` ran; and the source row, day
+column, ancestry, roles, named filters and the `weekday:` token are identical or
+correct across both. `Schedule: Place Weekday Tasks` emits **0 effects** with no
+error, and every gate checks out individually — that is where it stands, and it
+wants its own session. Committing the stale fixture instead would have been a green
+suite over a grid that no longer exists.
+
+**AND THE COLD READ DID NOT GET WORSE — the projection was worst-case.** I predicted
+~225s from the ~100 KB/s throttle. Prod's own boot log, same day:
+```
+Occurrence query: 178396ms (18177)   an earlier boot, BEFORE the import
+Occurrence query:   2816ms (21849)   this boot, AFTER it
+```
+The throttle is bursty rather than constant. `🔥 prewarm done and PINNED`.
+
+1,652 server tests, poms grid ops suite **16/16**, poms grid **0 errors** (1
+pre-existing `unused-field` warning), pm2 restarted. **No client code changed, so no
+bundle is owed** — the `git diff --name-only` rule from 2026-08-13 (3).
+
+---
+
 ### 2026-08-25 — the column layout was never a TILE; and the media with no pictures
 
 **THE AUDIT THE USER ASKED FOR, and it found the option present and its meaning
