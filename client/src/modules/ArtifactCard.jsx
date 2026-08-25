@@ -303,7 +303,19 @@ export default function ArtifactCard({ module, label, occurrence }) {
     );
   }
 
-  if (!src) {
+  // NO FILE **AND** NO COVER. A cover is a picture OF an artifact whose own
+  // content is not one, so it is a perfectly good reason to draw a card — this
+  // guard used to read `if (!src)` and bailed before the cover was ever
+  // consulted.
+  //
+  // `0201`'s bookmarks never hit it: a bookmark HAS a `fileRef` (the web page),
+  // so `src` was truthy and the cover branch downstream was reached. The
+  // media.md import mints rows with **`fileRef: null`** — measured, all 993
+  // movies — so every one of them took this early return and rendered the empty
+  // card carrying the kind name. That is the literal word "Movie" the user kept
+  // seeing, and it is why 1,172 correct TMDB URLs sat in the store rendering
+  // nothing.
+  if (!src && !coverSrc) {
     return (
       <div className="artifact-card artifact-card--empty">
         <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{label || "No file"}</span>
