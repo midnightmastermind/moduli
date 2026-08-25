@@ -6,6 +6,81 @@
 
 ---
 
+### 2026-08-25 (6) — the tiles take the HOUSE shape; and a CORRECTION to (4)'s "unrelated panels"
+
+**A CORRECTION I OWE, and it is the reusable half.** Entry (4) reported that toggling `Completed`
+put *"52% of the DOM mutations in panels that have nothing to do with the row"*. That framing was
+wrong, and naming the panels is what showed it:
+```
+panels open   _PkuNAJp "Routines" (216 inputs) · u07qnz_n "Trackers" (70) · U18hAEwP "Schedule" (180)
+```
+The toggle happened in **Routines**; the two panels that "had nothing to do with it" were
+**Trackers** — displaying the very tracker tiles the write had just changed — and **Schedule**,
+which holds the same routine rows. *They were not unrelated; they were showing affected data.*
+
+**THE WASTE THAT IS REAL, measured rather than asserted.** The mutations in those panels are
+**1,701 attribute writes on `<input>`**: `name` 1134 + `type` 567, an exact 2:1 — React's
+controlled-input update path, which blanks and restores `name`. So **~567 inputs updated**, roughly
+3 passes over every input in the panel, when only a couple of values changed. Almost no `childList`
+churn, so nothing is remounting. *A count of "unrelated work" is a claim about the WORD unrelated
+until the panels have been named.*
+
+**AND THE HOT-PATH COMPONENTS ARE ALREADY MEMOIZED** — `ModuleInstance`, `Field`, `FieldRenderer`,
+`ModuleContainer`, `ModulePage` are all `React.memo`, and all on per-slice selectors. `ModulePanel`
+does subscribe to `occurrencesById` (rebuilt every write), but it needs occurrence data to render,
+so narrowing it is a real refactor of a 1,200-line component rather than the one-line swap (4)
+implied. Still the lead; still not done.
+
+---
+
+**THE TILES TAKE THE HOUSE SHAPE (`0250`).** User: *"make sure the media tiles are tiles though.
+same size as trackers"*. `0248` had sized them with numbers I picked for a 2:3 poster (150 x 320),
+making the media boards **the only tiles on the grid with their own dimensions**. `0250` groups
+every wrap-mode container by its size keys and takes the largest group — the **15 `Today's …`
+tracker containers at `childMinWidth: 184`**. **A media board cannot vote for its own shape** (its
+own test), and it REFUSES if no shape has a clear majority rather than guessing.
+`childContentDirection: "column"` is deliberately not copied: it stacks picture -> title -> fields,
+and a tracker tile has no picture to put on top. **Size parity, not composition parity.**
+
+**GAMES AND COMICS ARE TILED AT THE USER'S EXPLICIT INSTRUCTION (`0251`)** — *"games and comics
+should be tiles too"* — overriding `0248`'s measured refusal (`0/4` and `0/5` rows have cover art;
+TMDB is a film/TV database). The concern was raised, the answer was explicit, so it is theirs.
+**The coverage rule is NOT deleted**: `0251` names the two KINDS asked for rather than dropping the
+threshold, which would have swept in Songs (5,489 rows) and Albums (3,027).
+
+**AND EXACT SIZE PARITY BROKE THE TILES, WHICH ONLY MEASURING THE INSIDES CAUGHT (`0252`).** At
+184 x 200 a media tile showed **only a cropped poster**:
+```
+tile height 200px      actual content 432px      overflow: hidden
+poster  top  12, h 218  -> clipped     title top 261 -> INVISIBLE
+fields  top 288, h 144  -> INVISIBLE (Owned · Drive · Size)
+```
+A tracker tile has no picture, so 200px holds its label and fields; a media tile's poster alone is
+taller than the whole tile — and `overflow: hidden` meant the fields were **unreachable, not merely
+cramped**. Reported to the user, who chose *"make it larger than to see the fields"*.
+`childMaxHeight` is now **440**, taken from the tiles' own rendered `scrollHeight` (p90 and max both
+**432**) rather than picked — and **only the pictured boards are raised**, because Games and Comics
+have no artwork and already fit the tracker height. That split IMPORTS `0248`'s coverage rule
+rather than restating it.
+
+**Verified by looking, which is what a layout claim needs:** 184 x 437, content 437 with nothing
+clipped, 2 per row, and the full poster, `John Wick`, and every field on screen — `Owned · Drive:
+Odin · Size: 45.0 GB · File Path · Year · Board Category`. **0 page errors.**
+
+**A PROBE BUG OF MY OWN, worth recording:** `page.waitForFunction(fn, { timeout })` passes the
+options object as the **ARGUMENT** — the signature is `(fn, arg, options)` — so every "240s
+timeout" in these probes had silently been the 30s default. It only bit once a pm2 restart put the
+grid into a cold Atlas read. And a tree walk clicked the *pinned* "Media" folder instead of the one
+under Boards, which is why three boards read "no tree row" before the walk was indexed.
+
+**NOT SEEN ON SCREEN, and stated plainly:** Games and Comics. Their tree rows were not reachable
+from Boards/Media, so their tiling is confirmed in the DATA (`mode=wrap · w=184`) and has not been
+looked at. Their rows carry no picture, so they compose exactly like a tracker tile.
+
+1,719 server tests, poms grid **0 errors**, pm2 restarted.
+
+---
+
 ### 2026-08-25 (5) — ONE TOGGLE DID O(GRID) WORK 51 TIMES, and the fix is real but is NOT the fix
 
 Continued item 10. The lag was root-caused further, a genuine cause was removed, and **the
