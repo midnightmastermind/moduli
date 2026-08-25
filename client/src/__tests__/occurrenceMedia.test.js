@@ -259,3 +259,57 @@ describe("primaryMediaOf — main on Files beats the media binding", () => {
     expect(got?.occ.id).toBe("art-main");
   });
 });
+
+// ── A FILE-LESS ARTIFACT ROW MUST NOT COUNT AS ITS OWN FILE ────────────────
+// The media import (0222) made every media row role:"artifact", and 0246 hung
+// a poster artifact off each as a real child. So a movie row is an artifact
+// that OWNS a file without BEING one — measured on prod, `John Wick` is
+// role:"artifact" kind:"movie" with fileRef "" and one child holding the
+// poster. `filesOf` used to push self unconditionally, so the spread rendered
+// a file-less card (drawn from the row's cover) beside the real poster and
+// reported "2 files".
+describe("filesOf — an artifact row that carries no file of its own", () => {
+  // role:"artifact" with an EMPTY fileRef, the shape the media import makes.
+  function mediaRow(id, childIds = []) {
+    return {
+      module: { id: `m-${id}`, role: "artifact", kind: "movie", fileRef: "", label: id },
+      occ: { id, moduleId: `m-${id}`, fields: {}, occurrences: childIds },
+    };
+  }
+
+  it("does not render the row itself beside its only poster", () => {
+    const poster = artifact("art-poster", "https://image.tmdb.org/t/p/w500/x.jpg");
+    const row = mediaRow("movie-1", ["art-poster"]);
+    const got = filesOf(row.occ, ctxOf({
+      occurrences: [row.occ, poster.occ],
+      modules: [row.module, poster.module],
+    }));
+    expect(got.map(e => e.occ.id)).toEqual(["art-poster"]);
+  });
+
+  it("CONTROL — an artifact that DOES have a file is still its own file", () => {
+    const img = artifact("art-solo", "user/2026-08/solo.jpg");
+    const got = filesOf(img.occ, ctxOf({ occurrences: [img.occ], modules: [img.module] }));
+    expect(got.map(e => e.occ.id)).toEqual(["art-solo"]);
+    expect(got[0].source).toBe("self");
+  });
+
+  it("CONTROL — a file-less artifact with nothing else still opens as itself", () => {
+    // Otherwise the viewer would open EMPTY, which is what the self-push was
+    // written to prevent in the first place.
+    const row = mediaRow("movie-empty", []);
+    const got = filesOf(row.occ, ctxOf({ occurrences: [row.occ], modules: [row.module] }));
+    expect(got.map(e => e.occ.id)).toEqual(["movie-empty"]);
+  });
+
+  it("keeps BOTH when a row genuinely owns two different files", () => {
+    const a = artifact("art-a", "user/a.jpg");
+    const b2 = artifact("art-b", "user/b.jpg");
+    const row = mediaRow("movie-2", ["art-a", "art-b"]);
+    const got = filesOf(row.occ, ctxOf({
+      occurrences: [row.occ, a.occ, b2.occ],
+      modules: [row.module, a.module, b2.module],
+    }));
+    expect(got.map(e => e.occ.id)).toEqual(["art-a", "art-b"]);
+  });
+});

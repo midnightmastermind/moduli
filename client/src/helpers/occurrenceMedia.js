@@ -147,12 +147,35 @@ export function filesOf(occ, ctx) {
     if (resolved) ordered.push({ ...resolved, source, isPrimary: id === primaryId });
   };
 
-  // AN ARTIFACT IS ITS OWN FILE. Without this, opening the spread on an artifact
-  // occurrence resolves nothing — an artifact carries no Poster, no Files and no
-  // children — so clicking a picture would open an EMPTY viewer. Pushed FIRST so
-  // a single artifact opens as a one-window view of itself (user, 2026-08-16:
-  // "single artifacts would still only open up that one in the view").
-  push(occ?.id, "self");
+  // AN ARTIFACT IS ITS OWN FILE — BUT ONLY IF IT HAS ONE.
+  //
+  // This exists so opening the spread ON an artifact resolves something:
+  // an image artifact carries no Poster, no Files and no children, so without
+  // it clicking a picture opened an EMPTY viewer. Pushed FIRST so a single
+  // artifact opens as a one-window view of itself (user, 2026-08-16: "single
+  // artifacts would still only open up that one in the view").
+  //
+  // ITS PREMISE — "an artifact carries no children" — STOPPED BEING TRUE.
+  // `0222` imported every media row as role:"artifact" rather than "instance",
+  // and `0246` then hung a poster artifact off each one as a real child. So a
+  // movie row is an artifact that owns a file WITHOUT BEING ONE: measured on
+  // prod, `John Wick` is role:"artifact" kind:"movie" with `fileRef: ""` and
+  // one child, `John Wick poster`, holding the TMDB url.
+  //
+  // Pushing self there contributed a file-less entry that the card then drew
+  // from the row's own cover — so the spread showed the SAME poster twice and
+  // said "2 files" (user, 2026-08-25: "the movie posters are showing up twice
+  // when i click on the media previewer").
+  //
+  // So self is pushed when it HAS a file, or when nothing else would render —
+  // which keeps the empty-viewer case it was written for, and drops the
+  // duplicate. Deliberately NOT a dedupe on fileRef: two DIFFERENT artifacts
+  // that happen to share a url are still two attachments, and collapsing them
+  // would hide a real double-attach instead of fixing one.
+  const selfArtifact = resolveArtifact(occ?.id, ctx);
+  const othersExist = [primaryId, ...attachedIds, ...childIds]
+    .some(id => id && id !== occ?.id && resolveArtifact(id, ctx));
+  if (selfArtifact && (selfArtifact.src || !othersExist)) push(occ?.id, "self");
   if (primaryId) push(primaryId, attachedIds.includes(primaryId) ? "field" : "child");
   for (const id of attachedIds) push(id, "field");
   for (const id of childIds) push(id, "child");
