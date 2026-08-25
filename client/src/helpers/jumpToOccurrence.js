@@ -1,4 +1,5 @@
-// helpers/jumpToOccurrence.js
+
+import { requestRenderAll } from "./renderWindow";// helpers/jumpToOccurrence.js
 //
 // Shared "jump to + highlight" helper. Used by:
 //   - ManifestTree anchor chip clicks (already had this logic inline).
@@ -64,6 +65,12 @@ export function jumpToOccurrence(occurrenceId, opts = {}) {
     scrollAndFlash(el, { highlightMs, scrollBlock });
     return true;
   }
+  // A long container renders a bounded WINDOW of its rows, so a row past the
+  // window is in the data and not yet in the DOM. Without this, searching for
+  // movie #800 would report "filtered out" — a lie, and exactly the kind a
+  // windowed list invites. Ask every window to open, then fall into the retry
+  // below, which is what finds it on the next frame.
+  requestRenderAll();
   if (onActivatePage || retries > 0) {
     onActivatePage?.(occurrenceId);
     // Retry once the page swap has had a chance to mount the target.
@@ -77,6 +84,11 @@ export function jumpToOccurrence(occurrenceId, opts = {}) {
     setTimeout(attempt, retryMs);
     return true;
   }
+  // retries:0 callers ("the page is already open, a miss means filtered out")
+  // still deserve one look after the windows expand — the row may simply have
+  // been past the seam.
+  const afterExpand = findOccurrenceElement(occurrenceId, root);
+  if (afterExpand) { scrollAndFlash(afterExpand, { highlightMs, scrollBlock }); return true; }
   return false;
 }
 

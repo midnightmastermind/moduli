@@ -117,6 +117,7 @@ const CONTEXT_ADD_KINDS = tileKindsForRole("instance").filter(
 );
 import OccurrenceFields from "../ui/OccurrenceFields.jsx";
 import { resolveEditorBinding } from "../state/editorBindings.js";
+import { useRenderWindow } from "../helpers/renderWindow";
 
 // Minimum children before a list opts into the browser off-screen skip.
 // Below this the skip costs more than it saves (see .container-list--long).
@@ -777,6 +778,15 @@ function Container({
   );
 
   const items = useMemo(() => itemsWithOccurrences.map(item => item.instance), [itemsWithOccurrences]);
+
+  // A BOUNDED WINDOW FOR VERY LONG LISTS. Measured on the 993-row Movies board:
+  // rendering every row costs 74,592 nodes, 7,377 ResizeObservers and 645 MB of
+  // heap in ONE 6.5s task — which kills a tablet outright and starves every
+  // other panel until it finishes. `content-visibility` cannot help here: it
+  // skips layout and paint, not node creation. Short containers are untouched
+  // (the hook returns the full count below its threshold), so this changes
+  // nothing for the ~1,300 containers on this grid holding a handful of rows.
+  const renderWindow = useRenderWindow(itemsWithOccurrences.length, { resetKey: childOccsKey });
 
   const toggleContainerDragModeQuick = useCallback(() => {
     const nextMode = containerDragMode === "move" ? "copy" : "move";
@@ -1740,7 +1750,7 @@ function Container({
                 : null),
             }}
           >
-            {itemsWithOccurrences.map(({ instance, occurrence }, idx) => {
+            {itemsWithOccurrences.slice(0, renderWindow.count).map(({ instance, occurrence }, idx) => {
               const role = instance?.role;
               // Container-in-container: when the parent has allowChildContainers,
               // a role:"container" child mounts its own <Container> instead of a
@@ -1838,8 +1848,22 @@ function Container({
                 </React.Fragment>
               );
             })}
+            {/* THE WINDOW'S SEAM. A sentinel after the last rendered row asks
+               for the next chunk as it approaches the viewport, so a long board
+               stays fully browsable — nothing here is permanently unreachable.
+               The count is announced because a silent cap reads as missing data,
+               which is the one thing worse than a slow board. */}
+            {renderWindow.hidden > 0 && (
+              <div
+                ref={renderWindow.sentinelRef}
+                className="container-window-seam"
+                style={{ padding: "6px 4px", fontSize: 12, opacity: 0.6, textAlign: "center" }}
+              >
+                {renderWindow.hidden} more — scroll to load
+              </div>
+            )}
             {/* Trailing gap — append-at-end insert point. */}
-            {containerOccurrence && items.length > 0 && (
+            {containerOccurrence && items.length > 0 && renderWindow.hidden === 0 && (
               <InsertGap parentOccurrence={containerOccurrence} index={itemsWithOccurrences.length} hostOccurrence={containerOccurrence} panelId={panelId} containerLabel={module?.label || ""} />
             )}
             {/* Empty container still gets the insert-here / quick-add bar so you
