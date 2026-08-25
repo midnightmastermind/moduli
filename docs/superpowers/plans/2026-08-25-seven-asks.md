@@ -11,11 +11,12 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blo
 | 5 | Container fields too big — must match instance field size everywhere | `[x]` **done** — one authority for every field text site |
 | 6 | Pages in the Music folder that do not belong (movies, tv shows) | `[x]` **done** — `0244` |
 | 7 | Folder card: a button opens the folder page; clicking the card expands children | `[ ]` |
-| 8 | Delete the Schedule Canvas page and its op | `[ ]` |
+| 8 | Delete the Schedule Canvas page and its op | `[x]` **done** — `0247` applied; there was no op left to delete |
 | 9 | The `Now` tracker tile lost its time fields — current time + time left | `[ ]` not started |
 | 10 | Toggling the `Completed` field true/false has a strong lag | `[ ]` not started |
 | 11 | Infinite loop — Trackers folder inside Trackers, all the way down | `[x]` **fixed** — `0243` + renderer + mint latch |
 | 12 | Auto-marquee off in preview cards · container labels a size smaller · instance-label marquee | `[x]` **done** |
+| 13 | Media tiles: a **max width**, laid out as a **row that wraps** | `[ ]` not started |
 
 ---
 
@@ -321,3 +322,65 @@ alt text. Measured **27px -> 343px**.
 **STILL NOT FIXED, and it is data not layout:** the posters do not load because the media.md import
 carries no cover art (the same gap the Spotify and Calibre imports have). The box is now the right
 shape for one. Fetching covers is the `0201` bookmark-cover job, one board over.
+
+---
+
+## 8 — the Schedule Canvas goes, and "the op for it" was already gone (`0247`)
+
+User: *"you can get rid of the schedule canvas and the op for it btw"*
+
+**THERE IS NO OP, AND THE SEED SAYS SO IN ITS OWN COMMENT.** `Canvas: Build` was retired on
+2026-07-07 in favour of an occurrence FEED. Measured rather than trusted — on poms grid **no
+operation mentions the canvas at all**:
+
+```
+"Schedule Canvas" -> (none)     z9lntG03zNIP -> (none)
+module 9ROzuzrNcw7Q -> (none)   any of its 29 children -> (none)
+```
+
+So the thing that still RAN for this page was the `feed`, and a feed is a FIELD ON the occurrence.
+**Deleting the page deleted the op.** Worth stating plainly, because hunting for an Operation
+record and finding none reads exactly like a missed step.
+
+**DELETING 29 CHILDREN DESTROYS NOTHING, and that is measured on both edges:**
+```
+parented children 29   feed copies 29   NOT copies 0
+sources outside the canvas 29   inside 0   missing 0
+copies having children 0
+copies whose fields MATCH their source exactly   29 / 29
+```
+
+**AND THAT LAST ZERO ONLY MEANT SOMETHING ONCE THE PROBE WAS SHOWN REPORTING NON-ZERO.**
+Comparing each copy to its own source read "0 differ", and so did the Schedule Table control —
+both arms zero is the documented tell. Re-run with each copy paired against the NEXT copy's
+source: **27 differ**. The comparator works, so the 29/29 is a finding rather than a blind spot.
+
+**IT REFUSES RATHER THAN ORPHANS.** A child that is not a feed copy is something a person put
+there, and deleting the page under it would strand it — so the migration refuses the whole
+removal and reports. Zero such children exist today; the guard is for the next grid.
+
+**BOTH PANELS ARE UNLISTED, AND NEITHER IS LEFT EMPTY** — Panel C 17 -> 16, Panel D 4 -> 3. The
+unlist is a `$pull`, not a whole-array write: a read-modify-write on `occurrences[]` is exactly
+what a connected client's stale echo clobbers (2026-08-13 (2)).
+
+**AN A/B RETIRED A GUARD I WROTE ON REFLEX.** `orphanModuleId = placements === 1 ? ... : null`
+fails **0 of 11** tests when removed — it is provably subsumed, since any second placement of that
+module is itself a `page/canvas` labelled "Schedule Canvas" and the ambiguity refusal returns
+first. Gone, with the reasoning left in its place. The other five mutations each fail exactly
+their own tests (dropping the feed-copy refusal fails 2 — it also disables the `else` branch that
+catches a source living inside the canvas, which is the honest explanation rather than a flaw).
+
+**Read back out of Mongo, not off the log:**
+```
+canvas occurrence / module   gone      children still parented   0     anyone still listing it   none
+Panel C 16 · Panel D 3       dangling ids 0 / 0
+sources of the deleted copies   29/29 still present
+Schedule Table untouched     29 children
+```
+poms grid **0 errors**, 1 pre-existing `unused-field` warning. 1,678 server tests.
+
+**THE SEED HALF SHIPS IN THE SAME PASS** — `createLiveData.js` minted the page, its feed and a
+panel pin, so migrating alone would let a reseeded grid mint it straight back (the `0043`/`0064`
+drift rule). Three stale summary lines that still advertised `Schedule Canvas: Build` went with
+it. **No client code changed, so no bundle is owed;** pm2 restarted, since the warm cache is
+authoritative for reads.

@@ -5710,33 +5710,12 @@ export async function createLiveData(userId, options = {}) {
     },
   });
 
-  // ── Schedule Canvas page (kind:"canvas", standalone in Interfaces tree) ────
-  // Mirror of the Schedule into a canvas layout. Each task on the active day
-  // gets ONE copy-linked occurrence parented under this canvas page with
-  // meta.x/y stamped by Schedule Canvas: Build so the cards land in a tidy
-  // column. filterOverride:{} so the canvas is always visible regardless of
-  // date navigation (its rows represent a specific built day, and the
-  // canvas page is intentionally outside the daily date cascade).
-  const schedCanvasPageModId = uid(); const schedCanvasPageOccId = uid();
-  await new Module({ id: schedCanvasPageModId, userId, gridId, role: "page", kind: "canvas", label: "Schedule Canvas" }).save();
-  await mkOcc({
-    id: schedCanvasPageOccId, moduleId: schedCanvasPageModId,
-    parentId: interfacesFolderId, sortOrder: 3,
-    occurrences: [], // the FEED below populates at runtime (feedSync engine)
-    iteration: { mode: "persistent" }, fields: {},
-    // Inherits the date cascade (see Schedule Table above).
-    filterOverride: null, filterNavConfig: { filter_daily: { visible: false } },
-    // FEED (2026-07-07, replaces Canvas: Build): active-period Schedule tasks
-    // as copy-linked canvas cards; drag positions live on the copies' meta.x/y.
-    feed: {
-      enabled: true,
-      conditions: [],
-      roles: ["instance"],
-      scope: schedPageOccId,
-      sort: { fieldId: timeslotFieldId, dir: "asc" },
-      limit: 100,
-    },
-  });
+  // ── Schedule Canvas — REMOVED 2026-08-25 (migration 0247) ─────────────────
+  // User: "you can get rid of the schedule canvas and the op for it btw".
+  // There was no op left to remove: `Canvas: Build` was retired 2026-07-07 in
+  // favour of an occurrence FEED, and the feed was a field on the page — so
+  // deleting the page deleted the op. The Schedule Table mirror above stays.
+  // Do not reintroduce this page here without also un-writing 0247.
 
   // ── Folder-page defaults (card-grid landing tabs) ──────────────────────────
   // Each hub panel opens to a folder-page (role:"page" kind:"folder") that
@@ -5907,7 +5886,7 @@ export async function createLiveData(userId, options = {}) {
   // (2026-07-03, per user: "make the top middle panel extend to the bottom
   // middle … start it off as the description site image page"). The Viafluere
   // description/logo page is the default active tab; Schedule / Interfaces
-  // folder-page / Canvas / Schedule Table / Schedule Canvas stay pinned.
+  // folder-page / Schedule Table stay pinned (Schedule Canvas removed 2026-08-25).
   const notebookHubViewId = uid();
   // SCHEDULE is the center panel's default tab (2026-07-25, per user) — the
   // Viafluere description page stays pinned as a tab beside it.
@@ -5976,7 +5955,7 @@ export async function createLiveData(userId, options = {}) {
   // pages (Task 11) are NOT pinned — they live only under notesFolderId.
   await Occurrence.findOneAndUpdate({ id: panelOccIds.toolkit },  { $set: { occurrences: [toolkitFolderPageOccId, ...wellnessPageOccList] } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.todo },     { $set: { occurrences: [tasksPageOccId] } });
-  await Occurrence.findOneAndUpdate({ id: panelOccIds.notebook }, { $set: { occurrences: [logoPageOccId, schedPageOccId, notebookFolderPageOccId, schedCanvasPageOccId, examplesPageOccId].filter(Boolean) } });
+  await Occurrence.findOneAndUpdate({ id: panelOccIds.notebook }, { $set: { occurrences: [logoPageOccId, schedPageOccId, notebookFolderPageOccId, examplesPageOccId].filter(Boolean) } });
   await Occurrence.findOneAndUpdate({ id: panelOccIds.goals },    { $set: { occurrences: [goalsPageOccId] } });
   // The Accounts page is folded into Trackers — the freed panel opens the
   // Boards drill-down (Boards → life area → board).
@@ -9433,10 +9412,10 @@ async function main() {
     console.log(`   Notebook docs:  ${notebookCount} (${Object.keys(result.notebookDocOccIds || {}).join(", ")})`);
     console.log(`   Folders:        Root + 5 children (Tasks/Trackers/Interfaces/Notes/Day Pages)`);
     console.log(`   Templates:      Daily Routine (6-pick) + Day Page under Templates manifest`);
-    console.log(`   Operations:     26 (19 trackers + 1 daily question rotator + 4 schedule/day-page + Schedule Table: Build + Schedule Canvas: Build)`);
+    console.log(`   Operations:     26 (19 trackers + 1 daily question rotator + 4 schedule/day-page + Schedule Table feed)`);
     console.log(`   Panels:         ${Object.keys(result.panelOccIds || {}).join(", ")}`);
-    console.log(`   Pages:          Daily Toolkit folder (11 wellness pages: Physical, Phys-Fitness, Phys-Nutrition, Intellectual, Emotional, Social, Spiritual, Occupational, Financial, Environmental, Creative) + Todo List + Goals + Accounts + Schedule + Canvas + Schedule Table + Library + Daily Journal Questions + Bills`);
-    console.log(`   Notebook hub:   View ${result.notebookHubViewId} active=Schedule (${result.schedPageOccId}); tabs=[Schedule, Interfaces, Canvas, Schedule Canvas]; logo board pinned above in the middle column`);
+    console.log(`   Pages:          Daily Toolkit folder (11 wellness pages: Physical, Phys-Fitness, Phys-Nutrition, Intellectual, Emotional, Social, Spiritual, Occupational, Financial, Environmental, Creative) + Todo List + Goals + Accounts + Schedule + Schedule Table + Library + Daily Journal Questions + Bills`);
+    console.log(`   Notebook hub:   View ${result.notebookHubViewId} active=Schedule (${result.schedPageOccId}); tabs=[Schedule, Interfaces]; logo board pinned above in the middle column`);
     console.log(`   Toolkit hub:    active=Daily Toolkit folder-page (${result.toolkitFolderPageOccId}); tabs=[Daily Toolkit, ...11 wellness pages]`);
     console.log("=".repeat(50));
 
