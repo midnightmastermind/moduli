@@ -63,6 +63,23 @@ export function applySetFilterEffect(effect, state) {
   };
 }
 
+// ── id-map cache, keyed on the SOURCE ARRAY's identity ──────────────────────
+// The reducer swaps `state.fields` / `state.modules` for a new array on every
+// write, so array identity IS the version — no invalidation to get wrong, and
+// a WeakMap lets a superseded array be collected. Used by the transaction-toast
+// path, which was rebuilding these maps on every single transaction (51 of them
+// for one `Completed` toggle on poms grid, over 6,557 modules each time).
+const _byIdCache = new WeakMap();
+export function byIdCached(arr) {
+  if (!Array.isArray(arr)) return {};
+  const hit = _byIdCache.get(arr);
+  if (hit) return hit;
+  const out = {};
+  for (const x of arr) if (x?.id) out[x.id] = x;
+  _byIdCache.set(arr, out);
+  return out;
+}
+
 export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) {
   // Wrap dispatch to tag all socket-originated actions
   // This prevents BroadcastChannel from re-broadcasting server events
@@ -1877,40 +1894,62 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (transaction.type === "SnapshotOp") return;
     fireOperations(transaction.type, transaction);
 
-    // Toast per transaction
+    // ── Toast lookups: LAZY, and O(1) where they used to be O(grid) ───────
+    // This block used to run UNCONDITIONALLY on every transaction, before it
+    // knew whether a toast would even be shown — building fieldsById,
+    // modulesById, a FULL SPREAD of occurrencesById and a parent reverse map.
+    //
+    // Measured on poms grid, 2026-08-25: ONE `Completed` toggle produces
+    // **51 MeasureOp transactions** (26 outbound writes -> 127 inbound frames),
+    // so that was ~51 x (6,557 module iterations + a **21,000-key object
+    // allocation** + a 21,000-occurrence reverse-map walk) — millions of
+    // operations and 51 large short-lived objects of GC churn, per click.
+    //
+    // The handler's own SnapshotOp early-return above already says this work
+    // is too expensive to do per transaction; MeasureOps simply went straight
+    // through it. Nothing below changes what a toast SAYS — only when the
+    // lookups are built.
     const state = stateRef.current || {};
-    const fieldsById = {};
-    for (const f of state.fields || []) fieldsById[f.id] = f;
-    const modulesById = {};
-    for (const m of state.modules || []) modulesById[m.id] = m;
-    const occurrencesById = { ...state.occurrencesById, ...localOccsById };
+    // Keyed on the identity of the array it came from: the reducer swaps these
+    // arrays on every write, so array identity IS the version — the same trick
+    // helpers/previewSubtreeIndex.js uses.
+    const fieldsById = () => byIdCached(state.fields);
+    const modulesById = () => byIdCached(state.modules);
+    // The merged map was only ever used for single-id lookups, so it does not
+    // need to exist. Local (optimistic) rows win, exactly as the old spread
+    // `{ ...state.occurrencesById, ...localOccsById }` made them win.
+    const occById = (id) => (id ? (localOccsById?.[id] ?? state.occurrencesById?.[id] ?? null) : null);
 
     // Resolve a human-readable name for any occurrence id by walking
-    // occurrence → targetId → module.label. Falls back to the
-    // occurrence's own label if the module isn't loaded yet, or to a
-    // short id tail if neither is available.
+    // occurrence → module.label. Falls back to the occurrence's own label if
+    // the module isn't loaded yet, or to a short id tail if neither is.
     const nameForOcc = (id) => {
       if (!id) return "";
-      const occ = occurrencesById[id];
+      const occ = occById(id);
       if (!occ) return id.slice(0, 6);
-      return (
-        modulesById[occ.moduleId]?.label ||
-        modulesById[occ.moduleId]?.label ||
-        occ.label ||
-        id.slice(0, 6)
-      );
+      return modulesById()[occ.moduleId]?.label || occ.label || id.slice(0, 6);
     };
     const nameForModule = (id) => {
       if (!id) return "";
-      return modulesById[id]?.label || id.slice(0, 6);
+      return modulesById()[id]?.label || id.slice(0, 6);
     };
 
-    // Build a parent reverse map so we can walk an occurrence up to its
-    // container + page for "chain" display in toasts.
-    const parentByChild = {};
-    for (const occ of Object.values(occurrencesById)) {
-      for (const childId of occ?.occurrences || []) parentByChild[childId] = occ.id;
-    }
+    // The parent reverse map exists ONLY for `chainForOcc`, which is called
+    // from the toast branches — so it is built at most once per transaction,
+    // and only when a toast is actually being written.
+    let _parentByChild = null;
+    const parentOf = (id) => {
+      if (!_parentByChild) {
+        _parentByChild = {};
+        for (const occ of Object.values(state.occurrencesById || {})) {
+          for (const childId of occ?.occurrences || []) _parentByChild[childId] = occ.id;
+        }
+        for (const occ of Object.values(localOccsById || {})) {
+          for (const childId of occ?.occurrences || []) _parentByChild[childId] = occ.id;
+        }
+      }
+      return _parentByChild[id];
+    };
     // Returns "Page › Container" (or whatever non-grid ancestors exist)
     // for an occurrence id, omitting the occurrence itself. Stops at the
     // first ancestor whose module has role:"page" so the chain stays short
@@ -1918,20 +1957,20 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     const chainForOcc = (id) => {
       if (!id) return "";
       const labels = [];
-      let cur = parentByChild[id] || occurrencesById[id]?.parentId;
+      let cur = parentOf(id) || occById(id)?.parentId;
       const seen = new Set();
       let depth = 0;
       while (cur && !seen.has(cur) && depth++ < 8) {
         seen.add(cur);
-        const occ = occurrencesById[cur];
+        const occ = occById(cur);
         if (!occ) break;
-        const mod = modulesById[occ.moduleId];
+        const mod = modulesById()[occ.moduleId];
         const label = mod?.label || occ.label;
         if (label) labels.unshift(label);
         // Stop after we've passed the page level so we don't surface the
         // panel/grid scaffolding.
         if (mod?.role === "page") break;
-        cur = parentByChild[cur] || occ.parentId;
+        cur = parentOf(cur) || occ.parentId;
       }
       return labels.join(" › ");
     };
@@ -1940,7 +1979,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (transaction.type === "MeasureOp" && ops.length > 0) {
       const op = ops[0];
       const m = op?.measure || {};
-      const field = fieldsById[m.fieldId];
+      const field = fieldsById()[m.fieldId];
       const fieldName = field?.name || "Field";
       const prev = m.previousValue;
       const next = m.value;
