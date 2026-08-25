@@ -58,6 +58,20 @@ import { buildLayoutCascadeContext, resolveLayoutCascade } from "../helpers/layo
 // declared size (measured 11 against a declared 12), which tied it with 11px
 // body text. 13 clears body either way and still sits clearly under ### (14).
 const HEADING_SIZES = { 1: 18, 2: 16, 3: 14, 4: 13, 5: 12, 6: 12 };
+
+// A container header that declares NO heading level — "Movies", "Trackers",
+// "Today's Stats". One step smaller (user, 2026-08-25: "make the headers a size
+// smaller"): board 0.95rem -> 14px, everything else 0.9rem -> 13px. Measured on
+// prod at 15.2px before, which sat between heading levels 2 and 3; 14 IS level
+// 3, so the standard header now lands on the scale instead of beside it.
+//
+// READ BY THE RENAME BOX TOO, and that is not tidiness — the box that replaces
+// the header on double-click was 0.8rem/0.75rem against a 0.95rem/0.9rem
+// header, so the text visibly shrank the moment you started renaming. Same
+// mistake the instance label had; a constant is the only thing that keeps the
+// two honest. Headings are untouched: that scale was set deliberately and the
+// user named the plain headers.
+const CONTAINER_HEADER_PX = { board: 14, other: 13 };
 const HEADING_WEIGHTS = { 1: 700, 2: 650, 3: 550, 4: 500, 5: 500, 6: 500 };
 
 // Container-header label overflow behavior, configurable per-occurrence via
@@ -1363,7 +1377,8 @@ function Container({
                     flex: "1 1 auto", minWidth: 0,
                     background: "transparent", border: "none", outline: "none",
                     padding: module.kind === "board" ? "2px 0" : 0,
-                    fontSize: module.kind === "board" ? "0.8rem" : "0.75rem",
+                    // MATCHES the rendered header exactly — see CONTAINER_HEADER_PX.
+                    fontSize: module.kind === "board" ? CONTAINER_HEADER_PX.board : CONTAINER_HEADER_PX.other,
                     fontWeight: module.kind === "board" ? 500 : 500,
                     color: "var(--text-primary)", fontFamily: "inherit",
                   }}
@@ -1385,7 +1400,7 @@ function Container({
                     // the `##` sections nested inside it.
                     fontSize: module?.meta?.headingLevel
                       ? headerFontSize
-                      : (module.kind === "board" ? "0.95rem" : "0.9rem"),
+                      : (module.kind === "board" ? CONTAINER_HEADER_PX.board : CONTAINER_HEADER_PX.other),
                     fontWeight: module?.meta?.headingLevel ? headerFontWeight : 500,
                     display: "flex", alignItems: "center", gap: 4, position: "relative",
                     // The -1px nudge is for the small fixed-height headers; a

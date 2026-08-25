@@ -12,6 +12,7 @@ import { publishComputedValues } from "./state/computedValuesStore";
 import { buildLookup } from "./helpers/LayoutHelpers";
 import { occurrenceIndexFor, collectSubtreeIds } from "./helpers/previewSubtreeIndex";
 import { useTheme } from "./helpers/useTheme";
+import { StaticTextContext } from "./ui/AutoMarquee.jsx";
 
 import Page from "./modules/ModulePage.jsx";
 import Container from "./modules/ModuleContainer.jsx";
@@ -309,6 +310,10 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
     <GridActionsContext.Provider value={actionsValue}>
       <GridDataContext.Provider value={dataValue}>
         <GridLiveContext.Provider value={liveValue}>
+        {/* Everything drawn in a preview card renders its text STATIC — see
+            ui/AutoMarquee. One provider covers every label, pill, cell and
+            header in the subtree, so no call site has to remember. */}
+        <StaticTextContext.Provider value={true}>
           <div style={{
             width: "100%", height: "100%",
             overflow: "hidden",
@@ -345,6 +350,7 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
               />
             )}
           </div>
+        </StaticTextContext.Provider>
         </GridLiveContext.Provider>
       </GridDataContext.Provider>
     </GridActionsContext.Provider>
