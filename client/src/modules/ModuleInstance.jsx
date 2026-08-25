@@ -897,6 +897,29 @@ function InstanceInner({
                 style={{
                   flex: "0 1 auto",
                   minWidth: 0,
+                  // WITHOUT THIS CAP THE LABEL SIZES TO ITS TEXT AND NOTHING
+                  // EVER MARQUEES. This box is a fit-content item in a COLUMN
+                  // flex (`.instance-textcol`, align-items:flex-start), and the
+                  // `white-space: nowrap` inside it makes its MIN-content width
+                  // equal the full text width — so it cannot shrink to the
+                  // space available. Measured on prod, a 184px media tile:
+                  //
+                  //   .auto-marquee     box 266  content 266  -> overflow 0
+                  //   .instance-label   width 268   max-width NONE
+                  //   .instance-textcol width 164   scrollWidth 268
+                  //   .instance-wrap    width 184   overflow: hidden  <- clips
+                  //
+                  // AutoMarquee's own `max-width: 100%` resolved against that
+                  // 268, so its box always equalled its content and it
+                  // correctly found nothing to scroll, while the text was
+                  // clipped 104px further out by a box it cannot see. A
+                  // percentage max-width does not feed intrinsic sizing, so it
+                  // only ever CAPS: 268 -> 164, overflow 0 -> 83, and the title
+                  // scrolls. (Same failure the note at the top of this file
+                  // records for the absolutely-positioned field strip — a
+                  // marquee that "never fired" is nearly always a box that was
+                  // never squeezed.)
+                  maxWidth: "100%",
                   overflow: "hidden",
                   // Bumped twice on 2026-08-24 — 11 -> 13 -> 15 -> 16 — because
                   // the user kept reading it as body text. It is the row's
