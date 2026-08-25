@@ -6,6 +6,63 @@
 
 ---
 
+### 2026-08-25 (5) — ONE TOGGLE DID O(GRID) WORK 51 TIMES, and the fix is real but is NOT the fix
+
+Continued item 10. The lag was root-caused further, a genuine cause was removed, and **the
+complaint is still not fixed — said plainly rather than dressed up.**
+
+**THE AMPLIFIER, MEASURED OVER THE WIRE.** One `Completed` toggle:
+```
+outbound  26 update_occurrence
+inbound  127 frames — 76 transaction_created · 26 occurrence_persisted · 25 occurrence_updated
+           of those transactions: MeasureOp 51 · SnapshotOp 27
+```
+**Every one of the 51 MeasureOps ran the toast block, which is O(GRID)** — `fieldsById`,
+`modulesById` (**6,557** modules), a **21,000-key spread** of `occurrencesById` and a
+**21,000-occurrence parent reverse map**, built BEFORE the code knew whether a toast would be
+shown at all. Millions of operations and 51 large short-lived allocations of GC churn per click.
+
+**THE HANDLER HAD ALREADY DIAGNOSED ITSELF.** Its `SnapshotOp` early-return says *"the toast
+machinery below is O(grid) per transaction … that work would run on every keystroke-debounced doc
+save"* — and MeasureOps went straight through it. *A guard written for one type is a guard for one
+type; the comment naming the cost is not the fix.*
+
+Lookups are LAZY now, `fieldsById`/`modulesById` are cached **on the identity of the array they
+came from** (the reducer swaps those arrays per write, so identity IS the version —
+`previewSubtreeIndex`'s trick), and the 21k spread is **gone**: it only ever served single-id
+lookups.
+```
+                  BEFORE          AFTER
+click -> paint    4117ms          3468ms       -16%
+long tasks        104 / 10547ms   33 / 9492ms  -68% by count
+longest task      3605ms          3392ms       barely moved
+DOM mutations     4163            3275         -21%
+```
+**THE USER STILL WAITS ~3.5 SECONDS.** Two thirds of the long tasks are gone and the thing they
+complained about is not fixed. Offering the 68% as the answer would be a lie.
+
+**TWO OF MY OWN THEORIES DIED BY MEASUREMENT, and recording them saves the next session the trip:**
+- *"the 51 echoes each re-fire the op sweep"* — **2** sweeps per toggle (979ms + 102ms).
+  The executor's cycle breaker already handles it.
+- *"a hot-path component subscribes to a churning slice"* — `ModuleInstance`, `ModuleContainer`,
+  `Field`, `FieldRenderer`, `ArtifactCard` are all already on per-slice selectors, and the
+  suspicious `s.getOccMap || (() => …)` fallbacks never fire, because `App` provides a stable
+  `useCallback([])` getter.
+
+**WHAT REMAINS, NAMED PRECISELY:** the longest task is ~3.4s, of which ~1.1s is legitimate ops — so
+**~2.3s is React render + effect application in ONE synchronous task**. The lead is `ModulePanel`,
+which subscribes to **`occurrencesById`** (rebuilt on every occurrence write), so all three mounted
+panels re-render on each of the ~26 writes — which is exactly why 52% of the DOM mutations landed
+in panels unrelated to the toggled row. It genuinely needs occurrence data, so the fix is narrowing
+that subscription to the panel's own subtree, not swapping in a non-reactive getter.
+
+6 tests (3 cache, 3 strict toast — the label still carries the module label, the field name AND the
+walked chain, which is the positive control for the two "pushes nothing" cases). Four A/Bs, each
+failing exactly one test. 3,336 client tests; the same 8 pre-existing failures. Deployed, prod HEAD
+verified.
+
+---
+
 ### 2026-08-25 (4) — the op that was already gone, tiles the data earned, a clock that never existed, and a lag that is not the ops
 
 Picked up the other account's session, which hit its limit mid-probe on item 8 with an audit

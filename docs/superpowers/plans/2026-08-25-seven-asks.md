@@ -13,7 +13,7 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blo
 | 7 | Folder card: a button opens the folder page; clicking the card expands children | `[x]` **done** — both folder rows |
 | 8 | Delete the Schedule Canvas page and its op | `[x]` **done** — `0247` applied; there was no op left to delete |
 | 9 | The `Now` tracker tile lost its time fields — current time + time left | `[x]` **done** — `0249`; they were never minted on this grid |
-| 10 | Toggling the `Completed` field true/false has a strong lag | `[!]` **measured + root-caused, NOT fixed** — needs its own pass |
+| 10 | Toggling the `Completed` field true/false has a strong lag | `[~]` **improved, not fixed** — 104 long tasks -> 33; the remaining 3.4s is the render fan-out |
 | 11 | Infinite loop — Trackers folder inside Trackers, all the way down | `[x]` **fixed** — `0243` + renderer + mint latch |
 | 12 | Auto-marquee off in preview cards · container labels a size smaller · instance-label marquee | `[x]` **done** |
 | 13 | Media tiles: a **max width**, laid out as a **row that wraps** | `[x]` **done** — `0248` tiles Movies + TV Series; `childMaxWidth` was inert on containers |
@@ -560,3 +560,61 @@ long session. The next probe to run is render attribution (`window.__RENDER_ATTR
 found a *different* switch. Both were put back through the UI so the tracker ops reversed, and read
 back out of Mongo: `Completed=false`, `Completed On=null` on both. *A probe that edits is a probe
 that can damage.*
+
+---
+
+## 10 (continued) — one toggle did O(grid) work 51 times, and that is now gone
+
+**THE CHAIN, MEASURED END TO END.** One `Completed` toggle on poms grid:
+```
+outbound  26 update_occurrence
+inbound  127 frames — 76 transaction_created · 26 occurrence_persisted · 25 occurrence_updated
+           of the transaction_created: MeasureOp 51 · SnapshotOp 27
+spread over 3699ms .. 10468ms
+```
+
+**AND EVERY ONE OF THOSE 51 MeasureOps RAN THE TOAST BLOCK, which is O(GRID).** Before it knew
+whether a toast would even be shown it built `fieldsById`, `modulesById` (**6,557** modules), a
+**full 21,000-key spread** of `occurrencesById`, and a **21,000-occurrence parent reverse map** —
+millions of operations and 51 large short-lived objects of GC churn, per click.
+
+**The handler's own comment had already diagnosed it** — the `SnapshotOp` early-return above it
+says in as many words that *"the toast machinery below is O(grid) per transaction … that work
+would run on every keystroke-debounced doc save"*. MeasureOps simply went straight through it.
+
+The lookups are LAZY now (built only when a toast is actually written), `fieldsById` and
+`modulesById` are cached on **the identity of the array they came from** (the reducer swaps those
+arrays on every write, so identity IS the version — `previewSubtreeIndex`'s trick), and the 21k
+spread is **gone entirely**: it was only ever used for single-id lookups.
+
+```
+                  BEFORE          AFTER
+click -> paint    4117ms          3468ms       -16%
+long tasks        104 / 10547ms   33 / 9492ms  -68% by count
+longest task      3605ms          3392ms       barely moved
+DOM mutations     4163            3275         -21%
+```
+
+**SAID PLAINLY: THIS IS NOT THE FIX FOR THE COMPLAINT.** It removes real waste — two thirds of the
+long tasks — and the user still waits ~3.5s. Offering the 68% as if it solved the lag would be a
+lie.
+
+**AND TWO OF MY OWN THEORIES DIED ON THE WAY, both by measurement rather than reasoning:**
+- *"the 51 echoes each re-fire the op sweep"* — they do not. Instrumented: **2** sweeps per toggle,
+  979ms + 102ms. The executor's cycle breaker already handles it.
+- *"a hot-path component subscribes to a slice that churns"* — `ModuleInstance`, `ModuleContainer`,
+  `Field`, `FieldRenderer` and `ArtifactCard` are all already on per-slice selectors, and the
+  suspicious `s.getOccMap || (() => …)` fallbacks never fire because `App` provides a stable
+  `useCallback([])` getter.
+
+**WHAT IS ACTUALLY LEFT, named precisely for the next pass:** the longest task is ~3.4s of which
+~1.1s is legitimate operations, so **~2.3s is React render + effect application in ONE synchronous
+task**. The lead is `ModulePanel`, which subscribes to **`occurrencesById`** — rebuilt on every
+occurrence write — so all three mounted panels re-render on each of the ~26 writes, which is what
+put 52% of the DOM mutations in panels unrelated to the toggled row. It genuinely needs occurrence
+data to render, so the fix is narrowing that subscription to the panel's own subtree (the shape
+`previewSubtreeIndex` used for preview cards), not swapping in a non-reactive getter.
+
+3 `byIdCached` tests + 3 strict toast tests — the label is asserted to still carry the module
+label, the field name AND the walked parent chain, which is the positive control for the two
+"pushes nothing" cases. Four A/Bs, each failing exactly one test.
