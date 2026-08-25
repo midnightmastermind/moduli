@@ -79,6 +79,7 @@ describe("the count check still runs", () => {
 // printed "full grid" and read all 18,000 occurrences. Only running it found
 // that, so the rule is a pure function now and the loader is pinned below.
 import { snapshotScope, loadMigrations } from "../scripts/runMigrations.js";
+import { BACKUP_COLLECTIONS } from "../scripts/backupGrid.js";
 
 describe("snapshotScope", () => {
   it("scopes when EVERY pending migration declares what it touches", () => {
@@ -112,8 +113,22 @@ describe("loadMigrations", () => {
   it("CARRIES `touches` through — the field the first version silently dropped", async () => {
     const all = await loadMigrations();
     const scoped = all.filter((m) => Array.isArray(m.touches));
+    // THIS is the guard: if the loader drops `touches`, every entry is
+    // undefined and nothing is scoped. It is what the test is named for.
     expect(scoped.length).toBeGreaterThan(0);
-    for (const m of scoped) expect(m.touches).toContain("fields");
+    // Each declaration must be usable by `backupGrid`, which REFUSES an unknown
+    // collection name — so a typo like "occurrance" would abort a real run.
+    //
+    // This used to assert `toContain("fields")`, which passed only because every
+    // migration so far happened to touch fields. `0240` rewrites an operation's
+    // pipeline and touches no field at all; declaring "fields" to satisfy the
+    // test would make its snapshot read a collection it never writes. The
+    // assertion was about the MIGRATIONS, not about the loader it is named for.
+    const known = new Set(BACKUP_COLLECTIONS.map((c) => c.name));
+    for (const m of scoped) {
+      expect(m.touches.length).toBeGreaterThan(0);
+      for (const name of m.touches) expect(known).toContain(name);
+    }
   }, 20000);
 });
 
