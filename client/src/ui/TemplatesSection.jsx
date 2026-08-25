@@ -92,7 +92,7 @@ export default function TemplatesSection({ occurrence }) {
 
   return (
     <section style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--panel-border, #374151)" }}>
-      <header style={{ fontSize: 11, opacity: 0.7, marginBottom: 6 }}>Templates</header>
+      <header style={{ fontSize: 11, opacity: 0.85, marginBottom: 6 }}>Templates</header>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 8 }}>
         {!root && (
@@ -135,7 +135,7 @@ export default function TemplatesSection({ occurrence }) {
                 onClick={() => setMode(m.value)}
                 title={m.hint}
                 style={{
-                  fontSize: 10, padding: "3px 8px", borderRadius: 4,
+                  fontSize: 12, padding: "3px 8px", borderRadius: 4,
                   border: "1px solid var(--panel-border, #374151)",
                   background: mode === m.value ? "var(--accent-blue-bg, #1e3a5f)" : "transparent",
                   color: "inherit", cursor: "pointer",

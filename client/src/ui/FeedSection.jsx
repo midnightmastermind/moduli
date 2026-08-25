@@ -45,7 +45,7 @@ function OperatorToggle({ operator, onChange }) {
         background: isOr ? "rgba(250,204,96,0.18)" : "rgba(96,165,250,0.14)",
         color: isOr ? "rgb(250,224,160)" : "rgb(186,214,255)",
         border: "1px solid var(--border-subtle)", borderRadius: 4,
-        fontSize: 9, fontFamily: "var(--font-mono)", padding: "1px 6px", cursor: "pointer",
+        fontSize: 12, fontFamily: "var(--font-mono)", padding: "1px 6px", cursor: "pointer",
       }}
     >
       match {isOr ? "any" : "all"}
@@ -60,7 +60,7 @@ function AddButton({ onClick, children }) {
       style={{
         display: "flex", alignItems: "center", gap: 4,
         background: "none", border: "1px dashed var(--border-subtle)", borderRadius: 4,
-        color: "var(--text-muted)", fontSize: 10, fontFamily: "var(--font-mono)",
+        color: "var(--text-muted)", fontSize: 12, fontFamily: "var(--font-mono)",
         padding: "2px 8px", cursor: "pointer",
       }}
     >
@@ -80,7 +80,7 @@ function ConditionList({ entries, operator, onEntries, onOperator, fields, depth
       {entries.length > 1 && (
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <OperatorToggle operator={operator} onChange={onOperator} />
-          <span style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
+          <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
             of the {entries.length} below
           </span>
         </div>
@@ -107,7 +107,7 @@ function ConditionList({ entries, operator, onEntries, onOperator, fields, depth
           <button
             onClick={() => removeAt(i)}
             title="Remove group"
-            style={{ background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", padding: 2 }}
+            style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 2 }}
           >
             <X size={11} />
           </button>
@@ -142,7 +142,7 @@ function ConditionList({ entries, operator, onEntries, onOperator, fields, depth
           <button
             onClick={() => removeAt(i)}
             title="Remove condition"
-            style={{ background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", padding: 2 }}
+            style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 2 }}
           >
             <X size={11} />
           </button>
@@ -219,12 +219,12 @@ export default function FeedSection({ occurrence }) {
       }}>
         <div style={{
           display: "flex", alignItems: "center", gap: 5,
-          fontSize: 10, fontWeight: 600, color: "var(--text-muted)",
+          fontSize: 12, fontWeight: 600, color: "var(--text-primary)",
           fontFamily: "var(--font-mono)", letterSpacing: "0.05em", textTransform: "uppercase",
         }}>
           <Rss size={11} /> Feed
           {matchCount != null && (
-            <span style={{ color: "var(--text-faint)", textTransform: "none", letterSpacing: 0 }}>
+            <span style={{ color: "var(--text-muted)", textTransform: "none", letterSpacing: 0 }}>
               · {matchCount} match{matchCount === 1 ? "" : "es"} now
             </span>
           )}
@@ -232,7 +232,7 @@ export default function FeedSection({ occurrence }) {
         <button
           onClick={() => patch({ enabled: !feed?.enabled })}
           style={{
-            fontSize: 10, fontFamily: "var(--font-mono)", cursor: "pointer",
+            fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer",
             padding: "2px 8px", borderRadius: 10,
             border: `1px solid ${feed?.enabled ? "rgba(96,165,250,0.5)" : "var(--border-subtle)"}`,
             background: feed?.enabled ? "rgba(96,165,250,0.18)" : "transparent",
@@ -258,13 +258,13 @@ export default function FeedSection({ occurrence }) {
           {/* The token is stored verbatim (the value coercion leaves a "$" string
               alone) and resolved at match time by helpers/feedTokens. Without this
               line it works but nobody would ever guess it exists. */}
-          <span style={{ fontSize: 9, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
+          <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
             date comparators accept <code>$today</code> as a value
           </span>
 
           {/* Roles */}
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: 10, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>pull:</span>
+            <span style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>pull:</span>
             {ROLE_OPTIONS.map(role => {
               const on = (feed.roles || ["instance"]).includes(role);
               return (
@@ -277,11 +277,11 @@ export default function FeedSection({ occurrence }) {
                     patch({ roles: [...cur] });
                   }}
                   style={{
-                    fontSize: 10, fontFamily: "var(--font-mono)", cursor: "pointer",
+                    fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer",
                     padding: "1px 7px", borderRadius: 9,
                     border: `1px solid ${on ? "rgba(96,165,250,0.5)" : "var(--border-subtle)"}`,
                     background: on ? "rgba(96,165,250,0.15)" : "transparent",
-                    color: on ? "rgb(186,214,255)" : "var(--text-faint)",
+                    color: on ? "rgb(186,214,255)" : "var(--text-muted)",
                   }}
                 >
                   {role}

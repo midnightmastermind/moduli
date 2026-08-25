@@ -15,6 +15,7 @@ import FilterNavWidget from "./FilterNavWidgets";
 import FilterEditor from "./FilterEditor";
 import { getEffectiveFilterForOccurrence, getParentOccurrence } from "../state/selectors";
 import { buildParentMap } from "../helpers/dragHitTesting";
+import { MENU_CAPTION } from "./menuText";
 
 function Switch({ checked, onChange, label, title }) {
   const button = (
@@ -43,7 +44,7 @@ function Switch({ checked, onChange, label, title }) {
   );
   if (!label) return button;
   return (
-    <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, opacity: 0.75, cursor: "pointer", flexShrink: 0 }}>
+    <label style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, opacity: 0.85, cursor: "pointer", flexShrink: 0 }}>
       <span>{label}</span>
       {button}
     </label>
@@ -366,7 +367,7 @@ export default function FiltersSection({ occurrence }) {
 
   const rowStyle = { display: "flex", alignItems: "center", gap: 8, padding: "4px 0" };
   const labelStyle = { flex: 1, fontSize: 11, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-  const sectionHeader = { fontSize: 9, opacity: 0.55, textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 8, marginBottom: 4 };
+  const sectionHeader = { ...MENU_CAPTION, letterSpacing: "0.06em", marginTop: 8, marginBottom: 4 };
 
   return (
     <section style={{ marginBottom: 8 }}>
@@ -423,7 +424,7 @@ export default function FiltersSection({ occurrence }) {
               : undefined;
             return (
               <div key={filter.id} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                {navLabel && <span style={{ fontSize: 10, opacity: 0.7 }}>{navLabel}:</span>}
+                {navLabel && <span style={{ fontSize: 12, opacity: 0.7 }}>{navLabel}:</span>}
                 <FilterNavWidget
                   filter={fieldId && !filter.primaryDateFieldId ? { ...filter, primaryDateFieldId: fieldId } : filter}
                   navConfig={cfg}
@@ -583,7 +584,7 @@ export default function FiltersSection({ occurrence }) {
       {/* ── Local filters ────────────────────────────── */}
       <div style={sectionHeader}>Local Filters</div>
       {localRows.length === 0 && (
-        <div style={{ fontSize: 11, opacity: 0.5, padding: "4px 0" }}>No local filters set.</div>
+        <div style={{ fontSize: 11, opacity: 0.8, padding: "4px 0" }}>No local filters set.</div>
       )}
       {localRows.map(row => {
         const isDeclared = row.kind === "declared";

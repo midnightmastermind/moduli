@@ -26,6 +26,7 @@ import {
 } from "../state/selectors";
 import { buildParentMap } from "../helpers/dragHitTesting";
 import FieldRenderer from "./FieldRenderer";
+import { MENU_CAPTION } from "./menuText";
 
 const MODES = [
   { key: "inherit", label: "Inherit" },
@@ -131,7 +132,7 @@ export default function FieldVisibilitySection({ occurrence }) {
     return `${fv.mode === "show" ? "Show only" : "Hide"} ${n} field${n === 1 ? "" : "s"}`;
   };
 
-  const sectionHeader = { fontSize: 9, opacity: 0.55, textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 8, marginBottom: 4 };
+  const sectionHeader = { ...MENU_CAPTION, letterSpacing: "0.06em", marginTop: 8, marginBottom: 4 };
   const showList = currentMode === "show" || currentMode === "hide";
 
   return (
@@ -148,7 +149,7 @@ export default function FieldVisibilitySection({ occurrence }) {
               type="button"
               onClick={() => setMode(m.key)}
               style={{
-                flex: 1, height: 22, fontSize: 10, fontFamily: "var(--font-mono)",
+                flex: 1, height: 22, fontSize: 12, fontFamily: "var(--font-mono)",
                 borderRadius: 3, border: "1px solid var(--input-border, #374151)",
                 background: isActive ? "var(--accent-blue-bg, rgba(96,165,250,0.18))" : "var(--input-bg, transparent)",
                 color: isActive ? "var(--accent-blue, #60a5fa)" : "var(--text-muted, #888)",
@@ -162,7 +163,7 @@ export default function FieldVisibilitySection({ occurrence }) {
       </div>
 
       {/* Effective readout — what actually applies here + where it came from */}
-      <div style={{ fontSize: 10, opacity: 0.7, marginBottom: showList ? 6 : 0 }}>
+      <div style={{ fontSize: 12, opacity: 0.85, marginBottom: showList ? 6 : 0 }}>
         Effective: <strong>{describe(effective)}</strong>
         {effective ? ` · ${effectiveSource}` : ""}
         {currentMode === "inherit" && inherited && (
@@ -181,7 +182,7 @@ export default function FieldVisibilitySection({ occurrence }) {
               type="button"
               onClick={() => setReveal(m.key)}
               style={{
-                flex: 1, height: 22, fontSize: 10, fontFamily: "var(--font-mono)",
+                flex: 1, height: 22, fontSize: 12, fontFamily: "var(--font-mono)",
                 borderRadius: 3, border: "1px solid var(--input-border, #374151)",
                 background: isActive ? "var(--accent-blue-bg, rgba(96,165,250,0.18))" : "var(--input-bg, transparent)",
                 color: isActive ? "var(--accent-blue, #60a5fa)" : "var(--text-muted, #888)",
@@ -193,7 +194,7 @@ export default function FieldVisibilitySection({ occurrence }) {
           );
         })}
       </div>
-      <div style={{ fontSize: 10, opacity: 0.7, marginBottom: showList ? 6 : 0 }}>
+      <div style={{ fontSize: 12, opacity: 0.85, marginBottom: showList ? 6 : 0 }}>
         Effective: <strong>{effectiveReveal === "hover" ? "On hover" : "Always"}</strong>
         {` · ${revealMode === "inherit" ? "Ancestor" : "Local"}`}
       </div>
@@ -207,7 +208,7 @@ export default function FieldVisibilitySection({ occurrence }) {
       {showList && (
         <div style={{ maxHeight: 260, overflowY: "auto", border: "1px solid var(--border-subtle, #374151)", borderRadius: 3, padding: 2 }}>
           {allFields.length === 0 && (
-            <div style={{ fontSize: 10, opacity: 0.5, padding: 4 }}>No fields available</div>
+            <div style={{ fontSize: 12, opacity: 0.8, padding: 4 }}>No fields available</div>
           )}
           {allFields.map(f => {
             const checked = ownFieldIds.includes(f.id);
@@ -243,7 +244,7 @@ export default function FieldVisibilitySection({ occurrence }) {
                     compact
                   />
                 </div>
-                <span style={{ fontSize: 9, opacity: 0.5, flex: "0 0 auto" }}>{f.type}</span>
+                <span style={{ fontSize: 12, opacity: 0.8, flex: "0 0 auto" }}>{f.type}</span>
               </div>
             );
           })}

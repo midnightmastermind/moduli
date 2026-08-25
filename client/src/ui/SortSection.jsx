@@ -13,6 +13,7 @@ import React, { useMemo, useState } from "react";
 import { ArrowUp, ArrowDown, X, ChevronDown } from "lucide-react";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { MENU_CAPTION } from "./menuText";
 
 // SortSection reads `entity.meta.localSort` and persists either via the
 // default occurrence update (when `entity` looks like an occurrence with
@@ -70,7 +71,7 @@ export default function SortSection({ occurrence, entity, onPersistSort, labelOv
   return (
     <div className="header-dropdown-section" style={{ padding: "6px 8px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-        <span style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: 0.6, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
+        <span style={MENU_CAPTION}>
           {labelOverride || "Sort children"}
         </span>
         {localSort && (
@@ -117,7 +118,7 @@ export default function SortSection({ occurrence, entity, onPersistSort, labelOv
             border: "1px solid var(--border-default, #374151)",
             borderRadius: 4,
             background: localSort ? "var(--input-bg)" : "transparent",
-            color: localSort ? "var(--text-primary)" : "var(--text-faint)",
+            color: localSort ? "var(--text-primary)" : "var(--text-muted)",
             cursor: localSort ? "pointer" : "not-allowed",
             display: "inline-flex", alignItems: "center",
           }}
@@ -174,7 +175,7 @@ export default function SortSection({ occurrence, entity, onPersistSort, labelOv
             </button>
           ))}
           {fields.length === 0 && (
-            <div style={{ padding: "5px 8px", fontSize: 11, color: "var(--text-faint)" }}>
+            <div style={{ padding: "5px 8px", fontSize: 11, color: "var(--text-muted)" }}>
               (no fields)
             </div>
           )}

@@ -35,7 +35,7 @@ const inputStyle = {
   padding: "3px 6px",
 };
 const labelStyle = {
-  fontSize: 9, color: "var(--text-faint)", fontFamily: "var(--font-mono)",
+  fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)",
   textTransform: "uppercase", letterSpacing: "0.05em",
 };
 
@@ -196,12 +196,12 @@ export default function GraphSection({ occurrence }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={{
           display: "flex", alignItems: "center", gap: 5,
-          fontSize: 10, fontWeight: 600, color: "var(--text-muted)",
+          fontSize: 12, fontWeight: 600, color: "var(--text-primary)",
           fontFamily: "var(--font-mono)", letterSpacing: "0.05em", textTransform: "uppercase",
         }}>
           <BarChart3 size={11} /> Graph
           {readout && !readout.error && (
-            <span style={{ color: "var(--text-faint)", textTransform: "none", letterSpacing: 0 }}>
+            <span style={{ color: "var(--text-muted)", textTransform: "none", letterSpacing: 0 }}>
               · {readout.roots} root{readout.roots === 1 ? "" : "s"} · {readout.rows} row{readout.rows === 1 ? "" : "s"}
               {readout.depth > 1 ? ` · ${readout.depth} deep` : ""}
             </span>
@@ -209,7 +209,7 @@ export default function GraphSection({ occurrence }) {
         </div>
         {!spec && (
           <button onClick={() => write(DEFAULT_SPEC)} style={{
-            fontSize: 10, fontFamily: "var(--font-mono)", cursor: "pointer",
+            fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer",
             padding: "2px 8px", borderRadius: 10,
             border: "1px solid var(--border-subtle)", background: "transparent", color: "var(--text-muted)",
           }}>Configure</button>
@@ -325,7 +325,7 @@ export default function GraphSection({ occurrence }) {
               />
               <button
                 onClick={() => patch({ literals: literals.filter((_, j) => j !== i) })}
-                style={{ background: "none", border: "none", color: "var(--text-faint)", cursor: "pointer", padding: 2 }}
+                style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 2 }}
               >
                 <X size={11} />
               </button>
@@ -335,12 +335,12 @@ export default function GraphSection({ occurrence }) {
           {/* Surfaced, never swallowed — "this row contributed nothing" is
               exactly the kind of thing a chart cannot show you. */}
           {readout?.error && (
-            <div style={{ fontSize: 10, color: "rgb(248,113,113)", fontFamily: "var(--font-mono)" }}>
+            <div style={{ fontSize: 12, color: "rgb(248,113,113)", fontFamily: "var(--font-mono)" }}>
               {readout.error}
             </div>
           )}
           {readout?.warnings?.length > 0 && (
-            <div style={{ fontSize: 10, color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
+            <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
               {readout.warnings.length} row{readout.warnings.length === 1 ? "" : "s"} contributed nothing
               <div style={{ marginTop: 2, opacity: 0.8 }}>
                 {readout.warnings.slice(0, 3).map((w, i) => <div key={i}>· {w.why}</div>)}

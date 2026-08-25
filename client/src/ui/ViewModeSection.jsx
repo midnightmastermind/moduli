@@ -50,7 +50,7 @@ export default function ViewModeSection({ occurrence, contextTag = "default" }) 
   return (
     <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)" }}>
       <div style={{
-        fontSize: 10, fontWeight: 600, color: "var(--text-muted)",
+        fontSize: 12, fontWeight: 600, color: "var(--text-muted)",
         fontFamily: "var(--font-mono)", letterSpacing: "0.05em",
         textTransform: "uppercase", marginBottom: 6,
       }}>
