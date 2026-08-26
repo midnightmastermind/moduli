@@ -13,7 +13,7 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blo
 | 7 | Folder card: a button opens the folder page; clicking the card expands children | `[x]` **done** — both folder rows |
 | 8 | Delete the Schedule Canvas page and its op | `[x]` **done** — `0247` applied; there was no op left to delete |
 | 9 | The `Now` tracker tile lost its time fields — current time + time left | `[x]` **done** — `0249`; they were never minted on this grid |
-| 10 | Toggling the `Completed` field true/false has a strong lag | `[~]` **materially better** — click→paint 3333ms → 2333ms on one row; ~1.1s of ops remain |
+| 10 | Toggling the `Completed` field true/false has a strong lag | `[x]` **fixed** — the tick paints in ~30ms (was ~2333ms); ops run after |
 | 11 | Infinite loop — Trackers folder inside Trackers, all the way down | `[x]` **fixed** — `0243` + renderer + mint latch |
 | 12 | Auto-marquee off in preview cards · container labels a size smaller · instance-label marquee | `[x]` **done** |
 | 13 | Media tiles: max width, row+wrap; **same size as trackers**; Games+Comics tiled too | `[x]` `0248`+`0250`+`0251` — see the height note under 13c |
@@ -724,3 +724,47 @@ rather than by the write itself — and batching those is its own pass.
 **Probe debris: none.** Every toggle was reverted by occurrence id and read back: **0 rows carry
 `Completed = true`** out of 2,389 occurrences touched in the last six hours. Two rows an earlier
 probe stranded (`Hygiene`, `Drink`) were reverted the same way. poms grid **0 errors**.
+
+---
+
+## 10 (fixed) — the tick paints in 30ms, because the CONTROL now repaints before the write
+
+User: *"even if it does, it should mark the toggle as complete before running the ops"* — and they
+were right, it did not.
+
+**WHY MOVING THE OPS OFF THE CLICK WAS NOT ENOUGH.** `Field.handleChange` sets the control's LOCAL
+state, so the switch is ready to paint immediately. But React batches that setState with
+`FieldRenderer.handleCommit`'s store dispatch, and that dispatch re-renders the app — so the
+browser still could not paint the tick until the re-render finished. Deferring the OPERATIONS
+(the previous pass) took the sweep off the critical path and left this behind:
+```
+before   switch flips with the batch · first paint 2333ms
+after    switch flips at 1ms         · first paint 28-32ms
+```
+
+`handleCommit` defers its body past the paint now. The control repaints from its own state, then
+the occurrence write and its operation cascade run a frame later. `afterPaint` is FIFO, so writes
+are not reordered.
+
+**UNDO IS UNAFFECTED, and that was the thing worth checking rather than assuming.**
+`CommitHelpers.updateOccurrence` opens its OWN scope via `withAction`, so the action id is minted
+when the deferred write runs and still groups that write with its whole cascade into one undo step.
+An AMBIENT scope would have been lost across the deferral and the write recorded as `derived` —
+i.e. silently un-undoable.
+
+**AND MY OWN EDIT HAD THE TDZ TRAP THIS REPO ALREADY RECORDS.** `handleCommit`'s dep array named
+`_commitNow`, which was declared below it — and a `useCallback` dep array is evaluated at RENDER
+time, so it throws before the callback ever runs. `no-undef` cannot see it (the const exists).
+Reordered so `_commitNow` is declared first.
+
+**VERIFIED END TO END ON THE LIVE GRID — the deferred write still lands AND still fires its ops:**
+```
+tick    "Walk"  ->  Completed = true   ·  Completed On = "2026-08-25"   <- the op stamped it
+untick  "Walk"  ->  Completed = false  ·  Completed On = null           <- the else branch fired
+```
+3 runs, 0 page errors, and the row was restored by occurrence id.
+
+**WHAT REMAINS:** ~3.0s of operation work per toggle, now entirely off the critical path — the
+grid keeps responding while it runs. Attributed for the next pass: **80 sweeps per toggle, 52 at
+depth 1 and 28 at depth 2**, so the depth-1 fires (echo-driven, one per occurrence the cascade
+writes) are where a batching pass should start.
