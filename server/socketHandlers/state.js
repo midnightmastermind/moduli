@@ -4,7 +4,6 @@
 import Grid from "../models/Grid.js";
 import User from "../models/User.js";
 import { getOccurrencesForGrid } from "../utils/occurrenceHelpers.js";
-import { ensureTemplatesManifest } from "../utils/templatesManifest.js";
 import { ensureUserManifest } from "../utils/userManifest.js";
 
 export function registerStateHandlers(socket, {
@@ -66,8 +65,15 @@ export function registerStateHandlers(socket, {
         : await loadUserIntoCache(userId, gridId);
       mark(`cache ${cacheWarm ? "WARM" : "COLD"}`);
 
-      // Ensure every grid has a templates manifest (idempotent, deterministic IDs)
-      await ensureTemplatesManifest({ gridId, userId, uc });
+      // NO TEMPLATES MANIFEST ANY MORE (2026-08-26). `0035` retired it: a
+      // template is identified by LOCATION — the children of the one PROTECTED
+      // "Templates" folder under the USER manifest — and both ends already
+      // agree on that (server utils/templatesFolder.js findTemplatesFolder,
+      // client helpers/templateHelpers.js templatesFolderFor, each keying on
+      // `meta.protected` + the name). Nothing reads a `manifestType:"templates"`
+      // manifest; this call only kept minting a second, empty, top-level
+      // "Templates" folder beside the real one on every bootstrap — which is
+      // why deleting it never stuck.
       // …and a user manifest + root folder (grids minted outside the seed had
       // none, which killed the manifest tree + folder pages + panel defaults).
       await ensureUserManifest({ gridId, userId, uc, gridDoc });
