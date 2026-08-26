@@ -32,6 +32,23 @@ import { Spinner } from "../components/ui/spinner";
 // It is opt-in: without one, a dead image still says so, which is the whole
 // point of this component.
 //
+// ── THE IMG IS HIDDEN UNTIL IT HAS FULLY DECODED ────────────────────────────
+// A remote JPEG/PNG paints AS ITS BYTES ARRIVE — progressive files sharpen in
+// passes, baseline ones fill in top-down — so a visible <img> mid-fetch shows a
+// half-drawn picture "printing down" the frame, with the spinner floating over
+// the part that has not arrived. Holding it at `opacity: 0` until it is decoded
+// means a picture appears whole or not at all.
+//
+// It is OPACITY rather than not rendering the img, for the same reason the
+// status is an overlay: the element must keep its box the whole time or every
+// row reflows the moment a picture lands.
+//
+// `decode()` and not just `onLoad` — onLoad fires when the BYTES are in, and
+// the decode still happens on the main thread at first paint, which on a wall
+// of tiles is exactly the hitch this removes. It is awaited off the event, and
+// a rejection (a removed node, a format the browser will not decode) falls
+// through to showing the img anyway rather than hiding it forever.
+//
 // `frameStyle` positions the status: the wrapper is what `inset: 0` resolves
 // against, so a caller that wants the overlay centred on the picture gives the
 // wrapper the picture's box. `display: contents` opts out entirely and lets an
@@ -52,10 +69,22 @@ export default function LoadingImage({
   const ref = useRef(null);
   const [state, setState] = useState("loading");
 
+  // Reveal only once the bitmap is ready to paint. Guarded by the src it was
+  // started for, so a fast re-point cannot reveal the previous picture.
+  const reveal = (el, forSrc) => {
+    const done = () => {
+      if (ref.current === el && el.getAttribute("src") === forSrc) setState("ok");
+    };
+    if (typeof el.decode === "function") el.decode().then(done, done);
+    else done();
+  };
+
   useEffect(() => {
     setState("loading");
     const el = ref.current;
-    if (el && el.complete) setState(el.naturalWidth > 0 ? "ok" : "error");
+    if (!el || !el.complete) return;
+    if (el.naturalWidth > 0) reveal(el, el.getAttribute("src"));
+    else setState("error");
   }, [src]);
 
   // After every hook, never before one.
@@ -69,8 +98,12 @@ export default function LoadingImage({
         src={src}
         alt={alt}
         title={title}
-        style={imgStyle}
-        onLoad={() => setState("ok")}
+        style={{
+          ...imgStyle,
+          opacity: state === "ok" ? (imgStyle?.opacity ?? 1) : 0,
+          transition: "opacity 120ms ease-out",
+        }}
+        onLoad={(e) => reveal(e.currentTarget, e.currentTarget.getAttribute("src"))}
         onError={() => setState("error")}
       />
       {state === "loading" && (

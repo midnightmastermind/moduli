@@ -62,6 +62,85 @@ describe("LoadingImage", () => {
     expect(container.querySelector("img")).toBeTruthy();
   });
 
+  // ── HIDDEN UNTIL DECODED ──────────────────────────────────────────────────
+  // A remote JPEG paints as its bytes arrive, so a visible <img> mid-fetch
+  // "prints down" the frame. These pin that it is invisible until the bitmap
+  // is ready, and that nothing can leave it invisible forever.
+
+  it("keeps the img invisible while it is still loading", () => {
+    const { container } = render(<LoadingImage src="/a.png" />);
+    expect(container.querySelector("img").style.opacity).toBe("0");
+  });
+
+  it("reveals the img once it has loaded", () => {
+    const { container } = render(<LoadingImage src="/a.png" />);
+    act(() => { fireEvent.load(container.querySelector("img")); });
+    expect(container.querySelector("img").style.opacity).toBe("1");
+  });
+
+  // The discriminating case for awaiting decode() rather than trusting onLoad:
+  // the bytes are in, the bitmap is not. Revealing here is exactly the hitch
+  // this removes.
+  it("stays invisible between load and decode, then reveals", async () => {
+    const proto = window.HTMLImageElement.prototype;
+    const had = Object.getOwnPropertyDescriptor(proto, "decode");
+    let settle;
+    proto.decode = () => new Promise((res) => { settle = res; });
+    try {
+      const { container } = render(<LoadingImage src="/a.png" />);
+      act(() => { fireEvent.load(container.querySelector("img")); });
+      expect(container.querySelector("img").style.opacity).toBe("0");
+      await act(async () => { settle(); });
+      expect(container.querySelector("img").style.opacity).toBe("1");
+    } finally {
+      if (had) Object.defineProperty(proto, "decode", had);
+      else delete proto.decode;
+    }
+  });
+
+  // A format the browser will not decode must not leave a loaded picture
+  // hidden forever — a rejection falls through to showing it.
+  it("reveals anyway when decode rejects", async () => {
+    const proto = window.HTMLImageElement.prototype;
+    const had = Object.getOwnPropertyDescriptor(proto, "decode");
+    proto.decode = () => Promise.reject(new Error("nope"));
+    try {
+      const { container } = render(<LoadingImage src="/a.png" />);
+      await act(async () => { fireEvent.load(container.querySelector("img")); });
+      expect(container.querySelector("img").style.opacity).toBe("1");
+    } finally {
+      if (had) Object.defineProperty(proto, "decode", had);
+      else delete proto.decode;
+    }
+  });
+
+  // A decode that resolves AFTER the caller re-pointed the img would otherwise
+  // reveal a picture that has not arrived yet.
+  it("does not reveal a picture the src has already moved off", async () => {
+    const proto = window.HTMLImageElement.prototype;
+    const had = Object.getOwnPropertyDescriptor(proto, "decode");
+    let settle;
+    proto.decode = () => new Promise((res) => { settle = res; });
+    try {
+      const { container, rerender } = render(<LoadingImage src="/a.png" />);
+      act(() => { fireEvent.load(container.querySelector("img")); });
+      rerender(<LoadingImage src="/b.png" />);
+      await act(async () => { settle(); });
+      expect(container.querySelector("img").style.opacity).toBe("0");
+    } finally {
+      if (had) Object.defineProperty(proto, "decode", had);
+      else delete proto.decode;
+    }
+  });
+
+  // A caller that deliberately dims a picture keeps its own value — the reveal
+  // restores what the caller asked for, not a hardcoded 1.
+  it("restores the caller's own opacity rather than forcing 1", () => {
+    const { container } = render(<LoadingImage src="/a.png" imgStyle={{ opacity: 0.5 }} />);
+    act(() => { fireEvent.load(container.querySelector("img")); });
+    expect(container.querySelector("img").style.opacity).toBe("0.5");
+  });
+
   it("lets the caller own the frame box, so the overlay can be positioned", () => {
     const { container } = render(
       <LoadingImage src="/a.png" frameStyle={{ position: "relative", width: 18, height: 18 }} />,

@@ -5511,6 +5511,31 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   flex: 1 1 0 !important;
   min-width: 0;
   align-self: stretch;
+  /* AND `min-height: 0`, which is what makes the field block above actually
+     scroll. A flex item defaults to `min-height: auto` — it refuses to shrink
+     below its content — so the text column grew to its full content height
+     inside the capped tile and the bounded height never reached the fields:
+
+       wrap     max-height 200px · overflow hidden
+       row      clientH 198   content 469      <- bounded, correct
+       content  clientH 192                    <- bounded, correct
+       textcol  clientH 466   min-height AUTO  <- the chain breaks HERE
+       fields   clientH 439   overflow-y auto  <- never overflows, never scrolls
+
+     269px of a tracker tile was clipped away with no way to reach it, which is
+     the other half of *"long instances arent scrolling downward"*. The scroll
+     the rule below promises only works if every ancestor between it and the
+     cap is allowed to shrink. */
+  min-height: 0;
+  /* …and `align-self: stretch` above is NOT the bound, which is the part that
+     only measuring shows. `.instance-content` is `flex-wrap: wrap` (the row
+     layout needs it so the media block can drop onto its own line), and in a
+     MULTI-LINE flex container an item stretches to its own LINE's cross size —
+     a line whose height is set by the tallest item in it, i.e. by this column
+     itself. Stretch is a no-op here. The parent's height IS definite (192px,
+     resolved from the capped wrap), so a percentage cap is what actually binds
+     it and lets the field block below overflow and scroll. */
+  max-height: 100%;
 }
 /* ── CONTENT COLUMN — the TILE shape: picture on top, title, then fields ────
    `childContentDirection: "column"` (layout cascade → Layout menu → "Child
@@ -6829,9 +6854,53 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.03),
     inset 0 12px 24px -6px rgba(0, 0, 0, 0.5);
-  /* A hairline in the container's own accent ties the pocket to its board. */
+  /* A hairline in the container's own accent ties the pocket to its board.
+     The TOP edge carries it too (user 2026-08-26: "and put a border above that
+     body area"). It is the same accent rather than a neutral rule, so the
+     pocket still reads as this row opening — a hard slab edge is the thing the
+     square top corners and the missing top margin exist to avoid. */
+  border-top: 1px solid var(--body-accent, rgba(255, 255, 255, 0.10));
   border-left: 2px solid var(--body-accent, rgba(255, 255, 255, 0.10));
   padding: 2px 5px 4px 5px;
+}
+
+/* ── AN OPEN BODY IS NOT PART OF THE TILE'S CAP ────────────────────────────
+   User 2026-08-26: *"long instances arent scrolling downward and their body
+   that expands open isnt showing an area to type"*. Both halves are ONE
+   defect, and it is measurable rather than a matter of taste. A wrap tile is
+   `max-height: var(--child-h)` + `overflow: hidden` (the cap that keeps the
+   grid even), and the pocket is a SIBLING of the row inside that same wrapper
+   — so opening a body on a tile put the whole typing area past the clip:
+
+     tile   wrap h 155 · max-height 200px · overflow hidden · scrollH 190
+            pocket top 840 · wrap bottom 840   -> 30px PAST the edge, invisible
+     row    wrap h  98 · max-height none  · overflow visible
+            pocket bottom 580 · wrap bottom 585 -> fully visible   <- the control
+
+   A page-wide scan for content that is genuinely unreachable (overflow hidden
+   AND taller than its box) reports **0 with no body open and exactly 1 the
+   moment a tile body opens** — so this is the only place anything was being
+   cut off, and the tile's own `.instance-fields` scroll never covered it
+   because the pocket is not inside the field block.
+
+   The cap is about the FIELDS. A body the user just opened is a deliberate
+   disclosure, so the wrapper is let out of the cap — which is what its own
+   comment in `ModuleInstance` already claims happens ("this wrapper grows to
+   contain the open body"). `:has(> .instance-doc-body)` IS "the body is open":
+   the pocket is only rendered when it is. */
+.container-items--wrap > .instance-wrap:has(> .instance-doc-body) {
+  max-height: none;
+  overflow: visible;
+}
+/* …but BOUNDED, or one tile with a long note becomes ten times its neighbours
+   and the whole wrapping line grows with it. The note scrolls inside the
+   pocket instead — which is the "scrolling downward" that was missing. Only in
+   a tile: an ordinary row's wrapper is free to grow, so a long note there
+   lengthens the row and the page scrolls, exactly as a doc does. */
+.container-items--wrap > .instance-wrap > .instance-doc-body {
+  max-height: 160px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* ============================================================
