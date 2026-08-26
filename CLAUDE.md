@@ -69,13 +69,29 @@ The middle line alone proves nothing — an always-dead marquee passes it. The
 first and third are what make it a measurement, the `0206`/`(16)` rule about
 verifying an absence, applied to a perf change.
 
-**WHAT REMAINS, ATTRIBUTED RATHER THAN GUESSED:** killing marquee animation
-outright reached ~2300ms on the same machine, so **roughly two thirds of the
-headroom is still there.** It is NOT the three visible marquees — three
-animations cannot cost a second. It is the layer CHURN of arming and disarming
-animations as rows cross the viewport edge during the gesture, and it wants its
-own pass. Entry (5)'s other lead — the day column at 5,871 nodes — is untouched
-and still stands.
+**WHAT REMAINS — AND I GUESSED IT WRONG TWICE IN ONE AFTERNOON, WHICH IS THE
+REUSABLE HALF.** Killing marquee animation outright still reaches ~2334ms
+against the shipped build's ~3446ms, so **three visible marquee animations cost
+about 1,100ms across the gesture** and two thirds of the headroom is untaken. I
+filed a hypothesis for it — *"the layer CHURN of arming and disarming
+animations as rows cross the viewport edge"* — and docketed three fixes against
+it. **Counting the transitions killed it: 3 arms, ZERO disarms, peak 3
+concurrent.** There is no thrash, so a hysteresis band, a shared observer and a
+class-toggle would all have been built for a mechanism that does not exist.
+Second guess, same fate: `translateX(var(--mq-shift))` in a keyframe is a known
+way to lose the compositor thread, and an arm using a literal `translateX`
+instead read **[3381, 3936, 3246] against the shipped [3446, 3132, 3712]** —
+fully overlapping, costs nothing.
+
+**AND IT IS NOT `Layerize`,** which is what makes it strange, since that WAS the
+mechanism for the 46 off-screen ones: shipped 1197ms vs ceiling 1163ms. Ranking
+every trace event, the named children account for ~167ms of the ~708ms gap;
+**~540ms sits inside `RunTask` attributed to nothing.** Docketed in
+`client/src/CLAUDE.md` with the next step — widen the trace categories and
+separate the confound that a cheaper frame shortens the whole 60-step gesture —
+rather than a third guess. *A docketed hypothesis is a guess with a citation.*
+Entry (5)'s other lead — the day column at 5,871 nodes — is untouched and still
+stands.
 
 3,379 client tests (the same 8 pre-existing in `weekdayTasks` +
 `trackerFollowsPageFilter`), lint clean on the edited file, poms grid **0

@@ -563,39 +563,73 @@ guess at intrinsic size. **Lesson: before proposing an optimisation, grep whethe
 there.** Three headless probes also failed to reproduce this (details below); the device did it in
 one scroll.
 
-## DOCKET — scroll paint: the marquee LAYER CHURN, ~2/3 of the headroom, still open (2026-08-26)
+## DOCKET — scroll paint: 3 marquees cost ~1,100ms and NOBODY KNOWS WHY (2026-08-26)
 
 Shipped in the same pass: `AutoMarquee` no longer emits its animation while the box is out of view
 (`6f63765a`). That removed **46 of 50 running animations** and took the main thread during a
 60-step scroll from **3834ms -> 3355ms (-12%)**, `Layerize` 1766 -> 1290ms, `RecalcStyle`
 239 -> 74ms. Ranges did not overlap; a null arm read as baseline.
 
-**WHAT IS LEFT, AND IT IS THE BIGGER HALF.** Killing marquee animation outright
-(`.auto-marquee-inner{animation:none !important}`) reached **~2300ms** on the same machine. So the
-shipped fix captures roughly a third of what is available, and the rest is NOT the three marquees
-that are legitimately on screen — three animations cannot cost 1,000ms.
+**WHAT IS LEFT.** Killing marquee animation outright (`.auto-marquee-inner{animation:none}`) still
+reaches **~2334ms** against the shipped build's **~3446ms** on the same machine, ranges separated.
+So **three visible marquee animations cost roughly 1,100ms across a 60-step scroll** — and that is
+the whole remaining prize.
 
-**THE HYPOTHESIS, stated as a hypothesis:** it is the layer CHURN of arming and disarming
-animations as rows cross the viewport edge during the gesture. Each arm mints a composited layer
-and a compositing reason; each disarm tears one down; a 1,200px scroll drags dozens of labels
-across the boundary. If that is right, the levers are (a) a hysteresis band so a label near the
-edge does not thrash, (b) a single shared IntersectionObserver so callbacks batch into one
-delivery instead of ~46, or (c) toggling a class on the DOM node rather than going through React
-state, which removes the re-render entirely. **None of these is measured. Measure before
-building — the last two rounds on this surface both lost to guessing.**
+**I FILED A HYPOTHESIS HERE THIS MORNING AND IT WAS WRONG. IT IS RETRACTED.** The entry said the
+cost was "the layer CHURN of arming and disarming animations as rows cross the viewport edge" and
+proposed three fixes (a hysteresis band, a shared IntersectionObserver, a class toggle instead of
+React state). **All three target churn, and there is no churn.** Counting the running-animation set
+once per scroll step, twice:
+```
+arms during the whole gesture      3
+DISARMS                            0        <- there is no thrash to damp
+peak concurrent                    3
+```
+*Every one of those three proposed fixes would have been built against a mechanism that does not
+exist.* A docketed hypothesis is a guess with a citation; count the thing before building for it.
 
-**THE INSTRUMENT THAT WORKS, and use this one.** `_marqueetrace.mjs` (repo root, gitignored):
-CDP `Tracing` over `disabled-by-default-devtools.timeline`, summing `Layerize` / `Paint` /
-`UpdateLayoutTree` / `RunTask` across 60 rAF scroll steps at 4x CPU throttle, plus a deterministic
-count of running animations split on/off screen. **Two things are non-negotiable with it:**
-- **Interleave the arms and swap the BUILT BUNDLE between runs.** Measuring two builds in separate
+**THE SECOND HYPOTHESIS IS ALSO DEAD.** `auto-marquee-scroll` resolves its endpoint through
+`translateX(var(--mq-shift))`, and a custom property in a keyframe is a known way to lose the
+compositor thread — which would put the animation on the main one and explain everything. An arm
+replacing it with a LITERAL `translateX(-150px)`, same holds, same motion:
+```
+as shipped   [3446, 3132, 3712]   med 3446
+novar        [3381, 3936, 3246]   med 3381   <- fully overlapping. costs nothing.
+no-marquee   [2133, 2334, 2356]   med 2334   <- separated from both
+```
+
+**AND IT IS NOT `Layerize` EITHER**, which is what makes this genuinely odd — that was the whole
+mechanism for the 46 off-screen ones. Ranking every trace event by summed duration, shipped build
+against the ceiling:
+```
+RunTask                  2914   2206   +708      <- the difference
+Layerize                 1197   1163    +34      <- essentially identical
+UpdateLayoutTree           66     23    +43
+FireAnimationFrame         86     50    +36
+PrePaint                   51     28    +23
+IntersectionObserver…     137    136     +1      <- the new observers cost nothing
+```
+The named children account for ~167ms of a ~708ms gap. **~540ms is inside `RunTask` and attributed
+to nothing.** Either the trace category set is missing it, or it is `RunTask` self time.
+
+**WHERE TO START, and it is not a fix.** Widen the trace categories (`blink`, `cc`, `gpu`,
+`disabled-by-default-devtools.timeline.frame`) and find the missing ~540ms before writing a line of
+code. Worth checking whether the gesture simply COMPLETES FASTER in the ceiling arm — the probe
+drives 60 rAF steps, so a cheaper frame shortens the whole gesture and `RunTask` total conflates
+per-frame cost with gesture duration. That confound has not been separated.
+
+**THE INSTRUMENT, and use this one.** `_marqueetrace.mjs` / `_scrollattr.mjs` (repo root,
+gitignored): CDP `Tracing` over `disabled-by-default-devtools.timeline`, summed across 60 rAF
+scroll steps at 4x CPU throttle, plus a deterministic count of running animations split on/off
+screen. **Two rules are non-negotiable:**
+- **Interleave the arms, and swap the BUILT BUNDLE between runs.** Measuring two builds in separate
   server sessions drifted 14-25% and reported -26% for a -12% change. Build both, keep them as
   `dist-baseline` / `dist-fixed`, `cp` one over `client/dist` per run.
 - **Keep a NULL arm in the set.** The 2026-08-26 (5) attempt died because a mutation that changed
   nothing won by 24%. If the null arm moves like the real ones, the run is over.
 
-Counts (`document.getAnimations()`, on/off screen) are deterministic and can be quoted on a single
-run. Timings cannot.
+Counts (`document.getAnimations()`, arm/disarm transitions) are deterministic and can be quoted from
+a single run. Timings cannot — every timing above is a median of three.
 
 ## DOCKET — mobile Routines scroll: MEASURED 2026-08-03, fix candidate not shipped [SUPERSEDED]
 User: *"slowish when i scroll the first time and shows blank containers waiting for content"* —
