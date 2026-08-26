@@ -6,6 +6,49 @@
 
 ---
 
+### 2026-08-26 (3) — THREE folders called Templates, and deleting two would not have STUCK
+
+User: *"also move the more inner templates folder contents to the boards section and delete that
+templates folder"*, then the correction that reshaped it: *"i meant the library templates but there
+shouldnt be two templates in the root folder either. they should be merged"*.
+
+**MEASURING TURNED A MOVE INTO A DELETION.** There are three:
+```
+Root/Library/Templates   mAif5lIvNpXI       0 occ · 0 sub · not protected
+Templates (TOP LEVEL)    PLySXSQBJrGx       0 occ · the ROOT of a manifestType:"templates"
+Root/Templates           tpl-folder-<grid>  4 occ · PROTECTED   <- the real one
+```
+**Both strays are EMPTY**, so "move the contents" moves nothing — the whole ask is the deletion.
+
+**AND DELETING THE TOP-LEVEL ONE WOULD NOT HAVE STUCK, which is the half worth recording.**
+`socketHandlers/state.js` called `ensureTemplatesManifest` on **every grid bootstrap**, and that
+helper find-or-mints the manifest AND its root folder. Delete it, load the page, and it is back —
+a repair that reads as a migration silently failing. The call is removed here, so the two halves
+**cannot ship apart**.
+
+**NOTHING READS THAT MANIFEST, and that is grepped rather than assumed.** `0035` retired it and
+both ends resolve templates by LOCATION now — `utils/templatesFolder.js` says so in its own header
+(*"Location is the ONLY marker … There is no templates manifest"*), and `findTemplatesFolder`
+plus the client's `templatesFolderFor` both key on `meta.protected` + the name.
+
+**The survivor is chosen by `meta.protected`** — the marker both ends already use, not "the first
+one found" — and the migration REFUSES to delete a folder that holds an occurrence or a
+sub-folder, is protected, or is a user manifest's root. 7 tests, **4 A/Bs each failing exactly one**
+(deleting a non-empty folder, keeping the first-named instead of the protected one, deleting the
+user manifest root, deleting every templates manifest rather than the doomed one).
+
+**VERIFIED BY LOADING THE GRID, which is the only check that could see the bootstrap:**
+```
+after a REAL page load   manifests ["user"]   Templates folders 1   0 page errors
+Mongo, after that load   exactly 1
+the 4 templates          Schedule Template · Project: {ProjectName} · Day Page · Templates
+```
+**My first probe read `templateChildren: 0` and it was the PROBE** — the client store holds FLAT
+ARRAYS (`occurrences`/`modules`/`fields`), and I read `occurrencesById`. That exact trap is
+recorded in this file from 2026-07-29 (3), and the server saying 4 is what caught it.
+
+---
+
 ### 2026-08-26 (2) — ARTWORK: 24 albums become 2,423, and an abort guard that could not see a 403
 
 User: *"can you look into giving the rest of the media images"* -> *"they need artwork wtf"*.
