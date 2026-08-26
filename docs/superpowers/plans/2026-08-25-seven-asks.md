@@ -851,3 +851,26 @@ not the tail of this one.
 collecting into the four buckets. ~4x on this op with no semantic change — but it is a
 restructure, which is exactly the trade `Schedule: Fill Day` declined in favour of a rule that
 could not alter behaviour. Measure before choosing.
+
+---
+
+## 10 (faster) — the ops themselves: 2x, from work that was already meant to be cached
+
+User: *"theres got to be a way to speed up these ops so its more instant"*.
+
+```
+main sweep (27 ops)   1514ms -> ~850ms
+total op time        ~3270ms -> ~1640ms
+click -> paint         27-46ms  (already instant, unchanged)
+```
+
+**Two rebuilds the surrounding code had already decided to cache, and then did not.**
+1. `$allItems` is cached on the sweep context; everything DERIVED from it was rebuilt inside
+   `executePipeline`, i.e. **once per operation** — four filters plus two 21,766-key maps, 27 times
+   per toggle.
+2. Every fire rebuilt `Object.assign({}, _cachedBaseOccsById, localOccsById)` — a 21,766-key copy,
+   ~80 times per toggle. **This one never showed in `[op-timing]`**, which is why I had earlier
+   concluded the empty sweeps "cost ~30ms". They cost ~1.9s.
+
+**Still open:** `Schedule: Place Dated Work` (~500ms, five runs of ~100ms) — see the filing above;
+its `Completed On` trigger is load-bearing and dedup would change semantics for all 67 ops.

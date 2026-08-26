@@ -6,6 +6,52 @@
 
 ---
 
+### 2026-08-25 (9) — the ops get 2x faster: work that was CACHED PER SWEEP was rebuilt PER OP
+
+User: *"theres got to be a way to speed up these ops so its more instant"*. There was — two
+rebuilds that the surrounding code had already decided to cache, and then didn't.
+
+**FIND 1 — `$allItems` WAS CACHED; EVERYTHING DERIVED FROM IT WAS NOT.** The sweep context has
+cached the enriched `$allItems` read model since the onLoad-sweep work. But `executePipeline` —
+which runs **once per operation** — rebuilt everything derived from it: four full `.filter()` passes
+(`$allContainers`, `$allPages`, `$allPanels`, `$allInstances`) plus **two separately-built
+21,766-key maps** (`$allItemsById` and `$allOccurrencesById`, byte-identical contents). ~130k
+operations per op, **27 times** for one `Completed` toggle — ~3.4M operations and 52 large
+short-lived objects per sweep, before a single predicate ran. Now one pass, cached on the identity
+of the `allItems` array (which IS the version — the sweep discards `_allItemsCache` the moment an
+op mutates structure), and the two id maps are one object.
+
+**FIND 2 — AND THE BIGGER ONE WAS HIDING OUTSIDE `[op-timing]` ENTIRELY.** Every fire ran
+```js
+const occurrencesById = Object.assign({}, _cachedBaseOccsById, localOccsById);
+```
+Every other map on that path is keyed on an array identity; this last merge was not, and it copies
+**21,766 keys**. One toggle produces ~80 fires — ~1.7M property copies. It never appeared in a
+per-op total, which is why it survived: I had subtracted the logged sweeps from the tally and
+concluded the empty sweeps "cost ~30ms". They cost ~1.9s, and the arithmetic only worked once
+`window.__renderTally()` gave a figure the `[op-timing]` lines could be checked against.
+```
+main sweep (27 ops)   1514ms -> ~850ms
+total op time        ~3270ms -> ~1640ms      (the 1628ms drop matches the measured merge overhead)
+click -> paint         27-46ms               (unchanged — already instant)
+```
+
+**THE MERGE CACHE IS FINGERPRINTED, NOT VERSION-COUNTED, and that is the load-bearing decision.**
+`localOccsById` has ~20 mutation sites; bumping a counter at each means a missed bump serves
+operations a STALE occurrence map — a correctness bug, not a slow one. Instead the cache compares
+the base map's identity plus the key list and value identities of the LOCAL overlay, which is tiny
+and whose every mutation site assigns a NEW object.
+
+**BOTH STALENESS GUARDS ARE A/B'd, and the second one took three attempts to test honestly.**
+Ignoring value identity fails immediately. Ignoring the BASE identity passed every test I had —
+because an occurrence event mutates the local overlay too, so its fingerprint rebuilt the cache and
+masked the bug. It needed a fire that touches NO local occurrence: a `NavigationOp` from a grid
+filter change. *A guard is untested until the test isolates the case only that guard covers.*
+
+3,356 client tests (the same 8 pre-existing), poms grid **0 errors**, 0 rows left ticked.
+
+---
+
 ### 2026-08-25 (8) — the toggle is FIXED: 2333ms -> 30ms, because the CONTROL repaints before the write
 
 User: *"even if it does, it should mark the toggle as complete before running the ops"*. They were
