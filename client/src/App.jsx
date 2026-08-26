@@ -992,6 +992,9 @@ export default function App() {
           onCreateNewGrid={handleCreateNewGrid}
           grid={state?.grid}
           fieldsById={fieldsById}
+          onUndo={undo}
+          canUndo={canUndo}
+          undoBusy={isProcessing}
           onCommandCenter={() => setCommandCenterOpen((prev) => !prev)}
           commandCenterOpen={commandCenterOpen}
           onHistory={() => setHistoryOpen((prev) => !prev)}

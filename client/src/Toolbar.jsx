@@ -16,7 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, X } from "lucide-react";
+import { Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, X, Undo2 } from "lucide-react";
 import ToolbarFilterDropdown from "./ui/ToolbarFilterDropdown";
 import SocketStatusBanner from "./ui/SocketStatusBanner";
 import TransactionNotificationStack from "./ui/TransactionNotificationStack";
@@ -34,6 +34,13 @@ export default function Toolbar({
 
   onGridChange,
   onCreateNewGrid,
+  // Undo. The machinery has been in `App` since the undo/redo rebuild — but
+  // the only way to reach it was Ctrl+Z, which a tablet does not have. So on
+  // the surface the user is most often on, undo was unreachable entirely.
+  onUndo,
+  canUndo = false,
+  undoBusy = false,
+
   // Command Center
   onCommandCenter,
   commandCenterOpen = false,
@@ -281,6 +288,22 @@ const gridOptions = useMemo(
               </Button>
             </>
           )}
+
+          {/* Undo — beside the command center, and ALWAYS VISIBLE rather than
+              desktop-only: the keyboard shortcut already covers desktop, and
+              this exists for the surface that has no keyboard. Disabled rather
+              than hidden when there is nothing to undo, so its place in the
+              toolbar does not move under the thumb. */}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onUndo}
+            disabled={!canUndo || undoBusy}
+            title={canUndo ? "Undo (Ctrl+Z)" : "Nothing to undo"}
+            style={{ height: 26, width: 26, padding: 0, opacity: canUndo && !undoBusy ? 1 : 0.35 }}
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+          </Button>
 
           {/* Terminal / Command Center — always visible */}
           <Button
