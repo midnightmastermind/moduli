@@ -265,3 +265,51 @@ describe("the cached merge also follows the BASE map", () => {
     expect(after.occurrencesById["base-2"]).toBeTruthy();        // …and the base is fresh
   });
 });
+
+// ─── getAncestorChain caches its maps; they must not go stale ──────────────
+describe("getAncestorChain", () => {
+  it("re-parenting with an UNCHANGED key set still returns a fresh chain", async () => {
+    // The key set must stay identical, or the cheap length/key comparison
+    // rebuilds the map and the value-identity check is never exercised — which
+    // is exactly how the first version of this test passed against a broken
+    // cache.
+    const ref = { current: { ...STATE } };
+    const socket = makeSocket();
+    bindSocketToStore(socket, () => {}, ref);
+    const send = (o) => socket._trigger("occurrence_updated", { occurrence: o });
+
+    send({ id: "par",  moduleId: "m-slot", fields: {}, occurrences: ["kid"] });
+    send({ id: "par2", moduleId: "m-page", fields: {}, occurrences: [] });
+    send({ id: "kid",  moduleId: "m-row",  fields: {}, occurrences: [] });
+    await new Promise((r) => setTimeout(r, 60));
+    const first = operationsBridge.getAncestorChain("kid");
+    expect(first.ids).toEqual(expect.arrayContaining(["kid", "par"]));   // control: it walks
+    expect(first.labels).toContain("7:30am");                            // …and reads labels
+    expect(first.ids).not.toContain("par2");
+
+    // Same three keys, different VALUES — the kid moves from par to par2.
+    send({ id: "par",  moduleId: "m-slot", fields: {}, occurrences: [] });
+    send({ id: "par2", moduleId: "m-page", fields: {}, occurrences: ["kid"] });
+    await new Promise((r) => setTimeout(r, 60));
+    const second = operationsBridge.getAncestorChain("kid");
+    expect(second.ids).toContain("par2");
+    expect(second.ids).not.toContain("par");
+  });
+
+  it("picks up a RENAMED module — the label map follows the modules array", () => {
+    // The module map is cached on the modules ARRAY identity. Without that
+    // check a rename would never reach the chain labels, and the labels are
+    // what ancestor-label rules match on.
+    const ref = { current: { ...STATE } };
+    const socket = makeSocket();
+    bindSocketToStore(socket, () => {}, ref);
+    socket._trigger("occurrence_updated", { occurrence: { id: "kid", moduleId: "m-row", fields: {}, occurrences: [] } });
+    expect(operationsBridge.getAncestorChain("kid").labels).toContain("Hygiene");   // control
+
+    // A NEW modules array with the row renamed — a reducer swap.
+    ref.current = { ...ref.current, modules: STATE.modules.map(m => m.id === "m-row" ? { ...m, label: "Renamed" } : m) };
+    const after = operationsBridge.getAncestorChain("kid").labels;
+    expect(after).toContain("Renamed");
+    expect(after).not.toContain("Hygiene");
+  });
+});

@@ -1880,22 +1880,51 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // `transaction._ancestorIds`/`_ancestorLabels` to gate match. Walks via
   // each occurrence's `occurrences[]` reverse map (with parentId fallback) so
   // page/panel parents (which usually have no parentId) are still seen.
+  // ── BOTH MAPS ARE CACHED; THIS WALKS <=20 ANCESTORS ───────────────────────
+  // This used to rebuild a full module map (6,557 entries on poms grid) AND a
+  // parent-by-child map from the whole local overlay on EVERY CALL — to walk at
+  // most 20 links. It is called once per `occurrence_updated`, ~80 times for one
+  // `Completed` toggle, so the module map alone was ~524k iterations. A CPU
+  // profile put `getAncestorChain` at **440ms** of the toggle, which is what
+  // sent me here; `_cachedModulesById` was already sitting in this same closure.
+  //
+  // Modules are keyed on the ARRAY identity (the reducer swaps it on a write).
+  // The overlay is fingerprinted the same way the occurrence merge above is, and
+  // for the same reason: its ~20 mutation sites all assign a NEW object, so
+  // comparing key list + value identity catches every write without hooking
+  // them and hoping none is missed.
+  let _acModsFrom = null, _acModsById = null;
+  let _acParentKeys = null, _acParentVals = null, _acParentMap = null;
   operationsBridge.getAncestorChain = (occId) => {
     const ids = [];
     const labels = [];
     if (!occId) return { ids, labels };
-    // Build a parent-by-child reverse map from the live overlay.
-    const parentByChildId = {};
-    for (const o of Object.values(localOccsById)) {
-      for (const childId of o?.occurrences || []) {
-        parentByChildId[childId] = o.id;
+
+    const mods = stateRef.current?.modules;
+    if (mods !== _acModsFrom) {
+      _acModsById = {};
+      if (Array.isArray(mods)) for (const m of mods) if (m?.id) _acModsById[m.id] = m;
+      _acModsFrom = mods;
+    }
+    const modById = _acModsById;
+
+    const _keys = Object.keys(localOccsById);
+    let _same = _acParentKeys && _acParentKeys.length === _keys.length;
+    if (_same) {
+      for (let i = 0; i < _keys.length; i++) {
+        if (_acParentKeys[i] !== _keys[i] || _acParentVals[i] !== localOccsById[_keys[i]]) { _same = false; break; }
       }
     }
-    const mods = stateRef.current?.modules;
-    const modById = {};
-    if (Array.isArray(mods)) {
-      for (const m of mods) if (m?.id) modById[m.id] = m;
+    if (!_same) {
+      _acParentMap = {};
+      for (const o of Object.values(localOccsById)) {
+        for (const childId of o?.occurrences || []) _acParentMap[childId] = o.id;
+      }
+      _acParentKeys = _keys;
+      _acParentVals = _keys.map((k) => localOccsById[k]);
     }
+    const parentByChildId = _acParentMap;
+
     let cur = localOccsById[occId];
     const seen = new Set();
     let depth = 0;
