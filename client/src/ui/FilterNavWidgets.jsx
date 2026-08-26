@@ -16,6 +16,8 @@ import { summarizeSelection } from "./filterSummary";
 // tracks `FIELD_FONT_PX` deliberately: the pill sits directly above the field
 // pills, and the two reading at different sizes is what both reports were about.
 const FILTER_FONT_PX = 13;
+// See ui/Field.jsx — the value lives in index.css so it follows the breakpoints.
+const FILTER_FONT = `var(--filter-font-px, ${FILTER_FONT_PX}px)`;
 
 // Period units exposed in the D/W/M/Y toggle. Stepping uses Date#setDate /
 // setMonth / setFullYear (NOT fixed ms deltas — month/year vary in length).
@@ -233,7 +235,7 @@ function PillsWidget({ filter, value, options, dispatch, onNav }) {
           key={String(opt)}
           onClick={() => write(opt)}
           style={{
-            padding: "2px 8px", borderRadius: 999, fontSize: FILTER_FONT_PX,
+            padding: "2px 8px", borderRadius: 999, fontSize: FILTER_FONT,
             border: "1px solid var(--panel-border, #374151)",
             background: opt === value ? "var(--accent, #14b8a6)" : "transparent",
             color: "inherit", cursor: "pointer",
@@ -255,7 +257,7 @@ function SelectWidget({ filter, value, options, dispatch, onNav }) {
       value={value ?? ""}
       onChange={(e) => write(e.target.value || null)}
       style={{
-        padding: "2px 6px", fontSize: FILTER_FONT_PX,
+        padding: "2px 6px", fontSize: FILTER_FONT,
         background: "transparent", color: "inherit",
         border: "1px solid var(--panel-border, #374151)", borderRadius: 4,
         minWidth: 96, maxWidth: 200,
@@ -284,7 +286,7 @@ function InputWidget({ filter, value, dispatch, onNav }) {
     <input
       value={local} onChange={onChange}
       style={{
-        padding: "2px 6px", fontSize: FILTER_FONT_PX,
+        padding: "2px 6px", fontSize: FILTER_FONT,
         background: "transparent", color: "inherit",
         border: "1px solid var(--panel-border, #374151)", borderRadius: 4, width: 140,
       }}

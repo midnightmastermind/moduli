@@ -96,6 +96,10 @@ function OpDisplayPill({ binding, op }) {
 // 10-12 -> 13 in the same pass, so the title moves with them by the same one
 // step or it stops reading as the title.
 const INSTANCE_LABEL_PX = 17;
+// Declared in index.css so it shrinks below tablet width (2026-08-26); the
+// number here is the desktop MAX and the var()'s fallback. Inline styles must
+// use the var, not the number — see ui/Field.jsx.
+const INSTANCE_LABEL = `var(--instance-label-px, ${INSTANCE_LABEL_PX}px)`;
 
 function InstanceInner({
   id,
@@ -884,7 +888,7 @@ function InstanceInner({
                   // MATCHES the rendered label exactly. This is the edit box
                   // that REPLACES it on double-click, so any difference makes
                   // the text visibly resize the moment you start renaming.
-                  fontSize: INSTANCE_LABEL_PX, color: "var(--text-primary)",
+                  fontSize: INSTANCE_LABEL, color: "var(--text-primary)",
                   paddingTop: 0, paddingLeft: 2,
                   fontFamily: "inherit",
                 }}
@@ -929,7 +933,7 @@ function InstanceInner({
                   // input/display fields need to be bigger"). The fields under
                   // it went 10-13 -> 14 in the same pass, so the title has to
                   // move with them or it stops reading as the title.
-                  fontSize: INSTANCE_LABEL_PX,
+                  fontSize: INSTANCE_LABEL,
                   color: "var(--text-primary)",
                   paddingTop: 0,
                   paddingLeft: 2,

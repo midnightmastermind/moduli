@@ -225,20 +225,26 @@ export default function RadialMenu({
 
   // Size configurations
   // ✅ increased radius for spacing
+  // ONE SIZE BIGGER ACROSS THE BOARD (user, 2026-08-26: *"could you make all the
+  // drag handles one size bigger as well"* / *"like the entire radial menu"*).
+  // `sm` takes what `md` used to be and `md` steps up, so the two stay a step
+  // apart and every caller moves together — the handle is the drag affordance
+  // AND the menu trigger, so a bigger radius with the old handle would have
+  // made the target harder to hit, not easier.
   const sizes = {
     sm: {
-      handle: "h-5",            // height only; width is custom for tab
-      handleIcon: "w-2.5 h-2.5",
-      menu: "w-6 h-6",
-      menuIcon: "w-3 h-3",
-      radius: 34,
-    },
-    md: {
-      handle: "h-6",
+      handle: "h-6",            // height only; width is custom for tab
       handleIcon: "w-3 h-3",
       menu: "w-7 h-7",
       menuIcon: "w-3.5 h-3.5",
-      radius: 42,               // was 30
+      radius: 42,
+    },
+    md: {
+      handle: "h-7",
+      handleIcon: "w-3.5 h-3.5",
+      menu: "w-8 h-8",
+      menuIcon: "w-4 h-4",
+      radius: 50,
     },
   };
 

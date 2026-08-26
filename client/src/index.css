@@ -1409,14 +1409,17 @@ body[data-clipboard-active="true"] {
 
 /* The radial handle button — no circle, just the icon */
 .module-drag-handle .radial-handle {
-  width: 18px !important;
-  height: 18px !important;
+  /* 18 -> 22 (user, 2026-08-26: one size bigger). This is the drag affordance
+     and the menu trigger, so it is also the hit target; the 2026-08-05 mobile
+     pass already found 22px inset 4px was under a thumb. */
+  width: 22px !important;
+  height: 22px !important;
   padding: 0 !important;
   border-radius: 50% !important;
   border: none !important;
   flex: none !important;
   min-width: unset !important;
-  max-width: 18px !important;
+  max-width: 22px !important;
   align-self: center !important;
   background: transparent;
   cursor: grab !important;
@@ -5372,6 +5375,40 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    clicks through to the editor underneath; each pill takes its own events. */
 .instance-fields--under-body { pointer-events: none; }
 .instance-fields--under-body > * { pointer-events: auto; }
+
+/* ── GRID TYPE SIZE: desktop is the MAX, it shrinks below it ───────────────
+   User, 2026-08-26: *"the fields and labels need to decrease size as the screen
+   does. have the fontsize we have be the max, but it should shrink after this
+   when it hits tablet"*.
+
+   THE VALUE LIVES HERE, NOT IN JS, and that is the whole reason this works.
+   `App` used to publish `--field-font-px` with
+   `documentElement.style.setProperty` — an INLINE style on :root, which beats
+   every stylesheet rule including a media query, so no breakpoint could ever
+   have shrunk it. The JS constants are `var()` references now and this is the
+   single authority; the skin rules that carry
+   `font-size: var(--field-font-px) !important` restate it rather than fighting it.
+
+   FLOORED AT 12px, which is the standing rule from 2026-08-24 ("dont make any
+   of the writing on the grid less than 12px"). That caps how far a FIELD can
+   shrink — 13 -> 12 is the whole range it has. The label has real room. */
+:root {
+  --field-font-px: 13px;
+  --instance-label-px: 17px;
+  --filter-font-px: 13px;
+}
+@media (max-width: 1024px) {
+  :root {
+    --field-font-px: 12px;
+    --instance-label-px: 15px;
+    --filter-font-px: 12px;
+  }
+}
+@media (max-width: 640px) {
+  :root {
+    --instance-label-px: 14px;
+  }
+}
 
 /* ── Container children as a WRAPPING GRID of squares ─────────────────────
    Opt-in via the layout cascade (`mode: "wrap"`), so a page sets it once and
