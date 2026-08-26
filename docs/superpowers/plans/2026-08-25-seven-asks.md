@@ -768,3 +768,40 @@ untick  "Walk"  ->  Completed = false  ·  Completed On = null           <- the 
 grid keeps responding while it runs. Attributed for the next pass: **80 sweeps per toggle, 52 at
 depth 1 and 28 at depth 2**, so the depth-1 fires (echo-driven, one per occurrence the cascade
 writes) are where a batching pass should start.
+
+---
+
+## 10 (verified) — the deferral checked across field types, and the remainder re-measured
+
+**THE DEFERRAL APPLIES TO EVERY FIELD, not just the checkbox, so it was verified that way** — a
+commit that silently stopped landing for text or number fields would be a far worse bug than the
+lag it fixed. Driven on the live grid and read back out of Mongo each time:
+```
+boolean  "Walk"   tick   -> Completed = true  · Completed On = "2026-08-25"   (the op stamped it)
+                  untick -> Completed = false · Completed On = null           (the else branch)
+text     "Drive"  edit   -> "Odin" -> "OdinPROBE"  persisted, then restored to "Odin"
+click-to-edit still opens an input · 0 page errors throughout
+```
+
+**AND THE REMAINING COST IS RE-MEASURED, because my earlier filing was wrong about its shape.** I
+had filed it as "~80 sweeps per toggle, batch them". Attributed properly:
+```
+52 depth-1 fires · 51 of them emit NOTHING and cost ~30ms in total
+ 1 sweep does the real work: 27 ops, 71 effects, 1514ms
+ 5 redundant runs of `Schedule: Place Dated Work`, ~110ms each, 0 effects every time
+```
+So the sweep COUNT was never the cost — one sweep is. **Batching the fires would have bought
+~30ms.** The real targets, in order:
+
+1. **`Schedule: Place Dated Work` runs 5x per toggle for nothing** (~550ms). It triggers on
+   `Completed On`, which `Schedule: Stamp Completed On` writes — once per row the cascade stamps —
+   and each run loops `$activePeriodDates` doing a `FIND over $allContainers`. Its guard is the
+   2026-08-09 source guard, which passes for a MeasureOp. This is the `Schedule: Fill Day` shape
+   (766ms for zero effects) and wants the same treatment: a rule that cannot change behaviour.
+2. **The one real sweep, 1514ms across 27 ops.** The media import put 3,579 rows into the
+   collections 19-24 ops walk (`$allItems` is 21,766 now), which is the documented per-op
+   `$allInstances` question from 2026-08-25 (2) — *"per-op work, filed with the measurement"*.
+
+Both are stored-pipeline changes on the user's live schedule, so they want their own reviewed pass
+rather than the tail of this one. **All of it now runs off the critical path**, so the grid stays
+responsive while it happens.
