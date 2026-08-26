@@ -6,6 +6,88 @@
 
 ---
 
+### 2026-08-26 (7) — the tablet sidebar full-screened because ONE FLAG ANSWERED TWO QUESTIONS
+
+Three asks on the manifest sidebar, one root cause worth writing down.
+
+**`isMobileLayout` IS NOT "IS THERE ROOM".** The sidebar chose overlay-vs-push
+from that flag, and the flag is:
+```
+(isTouch && (isPortrait || width < 980)) || width <= 600
+```
+So a **TABLET IN PORTRAIT is "mobile layout" at 800-1180px wide** — and the
+sidebar rendered `position:absolute; width:100%; maxHeight:50%`, a full-width
+half-height slab dropped over the page it was meant to sit beside. User:
+*"on tablet, make the manifest tree sidebar open in the same way as desktop.
+right now it full screens and makes it look weird."*
+
+*"Is this session phone-shaped"* and *"does a fixed 222px box fit"* are two
+different questions. Answering the second with the first is the whole defect,
+and it is the same shape as the 2026-08-24 `flex-direction: column` bug — a
+condition that was true for its original reason and kept being asked after the
+reason moved.
+
+**THE THRESHOLD IS DERIVED FROM THE SIDEBAR, NOT PICKED.** The page keeps at
+least TWICE what the sidebar takes, so the minimum viewport is `ROOT_TREE_W * 3`.
+Change the sidebar width and the rule follows instead of quietly becoming wrong
+— the same trick as `LABEL_MIN_ARC_PX = LABEL_FONT_PX * 1.8`. It lives in
+`helpers/rootTreeLayout.js` because mounting `ModulePanel` needs the whole grid
+store and this predicate is where the bug was.
+```
+measured at 820x1180, the viewport that broke:
+  before   position absolute · width 100%
+  after    position relative · width 220 · fullWidth false
+```
+
+**PINNED IS FLAT NOW** (*"remove the folders from the pinned tree. just show a
+flat list of the pinned files"*). It had been building folder subtrees for
+pinned folder pages and folder headers grouping the rest — **a second, shallower
+copy of the manifest that renders directly beneath it.** A pinned FOLDER page
+STAYS, as one flat row: dropping it would make a pinned page unreachable from
+the sidebar, which is a bigger surprise than a row you can ignore. What is gone
+is its SUBTREE, which is what the ask is about and what made Pinned redraw the
+manifest in the first place. `LocalFolderGroup` had no callers left and is
+deleted rather than left to rot. Verified live: **`distinctIndents [0, 12]`** —
+the PINNED header at 0 and all 13 pages at ONE indent, 0 page errors.
+
+**THE OPEN PAGE WAS HIGHLIGHTED, JUST NOT VISIBLY — and the numbers are why
+this was worth measuring rather than "adding" a highlight.** Read off the live
+sidebar, the active row differed from its neighbours only in the HUE of a tint
+too faint to carry it:
+```
+active    bg rgba(167,139,250,0.08)   border rgba(167,139,250,0.9)
+inactive  bg rgba( 90, 58,28,0.08)    border rgba( 90, 58,28,0.34)
+```
+**Same lightness.** On a wallpapered sidebar that reads as no highlight at all,
+which is exactly what the user reported (*"make the one thats open be
+highlighted if it isnt"* — the conditional was well founded). The FILL carries
+it now (0.08 -> 0.22) with the weight agreeing rather than the border doing the
+work alone. After: exactly ONE row in the section is distinct and every other is
+byte-identical, **which is the control** — "the active row has a border" means
+nothing until the inactive ones are shown not to. Weight rather than a darker
+colour, because the label already renders in the module's own colour and
+darkening it collides with the light-theme contrast work from 2026-08-19.
+
+**AND THE FLATTENING HAS A COST, reported rather than buried:** folder grouping
+was also DISAMBIGUATION. This grid pins two pages called `Examples` and two
+called `Tasks`; grouped under different folders they read as different rows, and
+flat they are visually identical. The user asked for flat, so it is flat — but
+if that bites, the fix is a parent-folder suffix on the row, not the folders
+coming back.
+
+11 tests, both A/Bs discriminating (re-picking the threshold as a literal fails
+the tablet widths; "always push" fails the phone control). 3,383 client tests —
+the same 8 pre-existing in `weekdayTasks` + `trackerFollowsPageFilter`. Deployed,
+prod HEAD verified, served `App` chunk **sha256-identical** with `PINNED` as the
+positive control and the retired `LocalFolderGroup` at 0.
+
+**A PROBE NOTE THAT COST TWO COMMITS:** `pkill -f "server/server.js"` matches
+the SHELL RUNNING IT, so the command dies before its own next statement. Twice
+this session a commit silently did not happen for that reason. Use the repo's
+own `fuser -k 5000/tcp`.
+
+---
+
 ### 2026-08-26 (6) — THE SCROLL PAINT IS ATTRIBUTED AT LAST: 46 of 50 running animations were OFF SCREEN
 
 Entry (5) left the scroll complaint measured and unfixed, and named what the
