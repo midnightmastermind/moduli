@@ -10,6 +10,7 @@ import { runMatchingOperations, executeOperation, executePipeline, setOpApplying
 import { kindForNewModule } from "../helpers/operationActions";
 import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
 import { toast, pushTxNotification } from "./notificationStore";
+import { afterPaint } from "../helpers/afterPaint";
 import { makeOpNotificationCallbacks } from "../helpers/opResultSummary";
 import { syncAllFeeds } from "../helpers/feedSync";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
@@ -1663,25 +1664,45 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       setTimeout(() => optimisticFiredSet.delete(transaction.occurrenceId), 5000);
     }
 
-    // NOT DEFERRED, AND THE MEASUREMENT IS WHY. Running this fire past the
-    // paint (helpers/afterPaint.js, the textblock-mint trick) DOES cut
-    // click-to-paint — median 3985ms -> 3403ms — but it was a bad trade,
-    // measured over four runs each on poms grid:
+    // ── A FIELD WRITE PAINTS FIRST, THEN RECOMPUTES ───────────────────────
+    // `setOccurrenceFieldValue` dispatches the optimistic value and then calls
+    // this synchronously, so the browser cannot paint the tick until every
+    // matching operation has run — the user watches a frozen checkbox for the
+    // whole sweep. Deferring past the paint is what helpers/afterPaint.js was
+    // built for (the textblock mint went 1000ms -> 30ms the same way).
     //
-    //     op sweeps      30 / 2047ms  ->  80 / 2999ms
-    //     DOM mutations       2510    ->     ~4100
-    //     total blocked      ~6000ms  ->    ~7300ms
+    // MEASURED ON ONE ROW, four runs each — comparing across DIFFERENT rows is
+    // what made me briefly conclude this was a bad trade, because a cheaper row
+    // fires far fewer operations:
     //
-    // The paint gain sits inside the run-to-run spread (2178-3536ms) while the
-    // extra work is consistent, so the app is unresponsive LONGER overall to
-    // win a number that may be noise. And deferring nested fires (which is what
-    // made it fastest, 2535ms) resets `_fireDepth`, so the op-loop depth cap
-    // below can never accumulate — the guard stops working exactly when a
-    // runaway op needs it.
+    //     no deferral        paint 3333ms · longest 3308ms · blocked ~6800ms
+    //     top-level only     paint 3403ms · longest 3269ms · blocked ~7300ms
+    //     nested too         paint 2535ms · longest 2218ms · blocked ~6100ms
     //
-    // Kept as a comment rather than deleted: the shape is right, the accounting
-    // is not, and the next attempt should batch the echo-driven sweeps rather
-    // than move the one sweep that matters.
+    // The win comes from deferring the NESTED fires — an operation writing a
+    // field during a cascade — not the outermost one. Restricting it to
+    // `_fireDepth === 0` buys nothing.
+    //
+    // AND THE DEPTH IS CARRIED ACROSS THE DEFERRAL, which is the whole reason
+    // this is safe. `_fireDepth` is incremented synchronously around each fire,
+    // so a naively deferred nested fire would run at depth 0 and the
+    // `_FIRE_DEPTH_LIMIT` cap could never accumulate — a runaway op loop would
+    // spin forever in separate tasks instead of tripping the guard, which is
+    // exactly when the guard is needed. Restoring the depth keeps both the cap
+    // and the depth-1 cascade dedup behaving as they do synchronously.
+    if (transactionType === "MeasureOp") {
+      const savedDepth = _fireDepth;
+      afterPaint(() => {
+        const prev = _fireDepth;
+        _fireDepth = savedDepth;
+        try {
+          fireOperations(transactionType, transaction, options);
+        } finally {
+          _fireDepth = prev;
+        }
+      });
+      return;
+    }
     fireOperations(transactionType, transaction, options);
   }
 

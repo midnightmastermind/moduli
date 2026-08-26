@@ -22,13 +22,19 @@ vi.mock("../helpers/operationExecutor", async (importOriginal) => {
     ...actual,
     runMatchingOperations: (ops, transactionType, ...rest) => {
       fired.push(transactionType);
+      if (reFire.on) {
+        // Stand in for an operation that writes the very field it triggers on —
+        // the runaway loop _FIRE_DEPTH_LIMIT exists to stop.
+        reFire.fn?.();
+      }
       return actual.runMatchingOperations(ops, transactionType, ...rest);
     },
   };
 });
-import { byIdCached, bindSocketToStore } from "../state/bindSocketToStore";
+import { byIdCached, bindSocketToStore, operationsBridge } from "../state/bindSocketToStore";
 
 const fired = [];
+const reFire = { on: false, fn: null };
 vi.stubGlobal("localStorage", {
   getItem: () => null, setItem: () => {}, removeItem: () => {},
 });
@@ -162,5 +168,46 @@ describe("transaction toast — the label is unchanged by the lazy rewrite", () 
     pushed.length = 0;
     socket._trigger("transaction_created", { transaction: { id: "t3", type: "SnapshotOp", operations: [] } });
     expect(pushed).toEqual([]);
+  });
+});
+
+// ─── a field write paints before it recomputes ──────────────────────────────
+describe("MeasureOp fires AFTER the paint, not during the click", () => {
+  it("does not run the matcher synchronously, and does run it a frame later", async () => {
+    bind();
+    fired.length = 0;
+    operationsBridge.fireOperations("MeasureOp", { occurrenceId: "o-row", fields: { f1: { value: true } } });
+    expect(fired).toEqual([]);                 // the click handler is free to paint
+    await new Promise((r) => setTimeout(r, 60));
+    expect(fired).toContain("MeasureOp");      // nothing is skipped, only moved
+  });
+
+  it("CONTROL — a NavigationOp still fires synchronously", () => {
+    bind();
+    fired.length = 0;
+    operationsBridge.fireOperations("NavigationOp", { type: "NavigationOp" });
+    expect(fired).toContain("NavigationOp");   // the filter cascade must not be deferred
+  });
+
+  it("THE DEPTH CAP STILL TRIPS across the deferral — a runaway op loop stops", async () => {
+    // This is the reason the deferral carries `_fireDepth`. Without it every
+    // deferred fire restarts at depth 0 and _FIRE_DEPTH_LIMIT can never
+    // accumulate, so a self-triggering operation spins forever in separate
+    // tasks instead of being capped.
+    bind();
+    fired.length = 0;
+    reFire.on = true;
+    reFire.fn = () => operationsBridge.fireOperations("MeasureOp", { occurrenceId: "o-row", fields: { f1: { value: true } } });
+    try {
+      operationsBridge.fireOperations("MeasureOp", { occurrenceId: "o-row", fields: { f1: { value: true } } });
+      await new Promise((r) => setTimeout(r, 400));
+      // Measured: depth carried -> 8 (exactly _FIRE_DEPTH_LIMIT, the cap
+      // tripping). Depth reset to 0 -> 23 and still climbing. A loose bound
+      // here passes either way, which is how this test was vacuous at first.
+      expect(fired.length).toBeGreaterThan(0);   // it really ran (not vacuous)
+      expect(fired.length).toBeLessThanOrEqual(10);
+    } finally {
+      reFire.on = false; reFire.fn = null;
+    }
   });
 });
