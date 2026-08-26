@@ -6,6 +6,65 @@
 
 ---
 
+### 2026-08-26 (2) — ARTWORK: 24 albums become 2,423, and an abort guard that could not see a 403
+
+User: *"can you look into giving the rest of the media images"* -> *"they need artwork wtf"*.
+
+```
+            before   after
+album           0 -> 2,423 / 3,027   80%
+song            0 -> 4,952 / 5,484   90%
+book            0 ->   222 /   877   25%
+artist          0 ->   161 / 1,679   10%
+movie/series        989/993 · 183/187   (already done by 0245)
+```
+
+**EXACT IDS FIRST (`0254`), because an id cannot fetch the wrong picture** — a Spotify URL
+(oEmbed, no key) and an ISBN. That covered only 731 rows: the Spotify import stored a URL on 199
+of 3,027 albums, and 369 of 877 books have an ISBN.
+
+**AND OPEN LIBRARY WILL HAND YOU SOMEONE ELSE'S BOOK.** Probed before writing: a bogus all-zeros
+ISBN returns **HTTP 200, a real 19,683-byte jpeg, and a real book record**. So "the ISBN resolved"
+is no evidence the cover belongs to this book. Every book must clear a normalised title match —
+**it refused 13 covers on live data.**
+
+**THE SEARCH FALLBACK NEEDED THE ARTIST, and the album already knew it.** 2,707 uncovered albums
+carry an `Artist` reference, so the query is "<album> <artist>" and BOTH sides of the answer are
+checked. Sampled 30 first: **22 matched on title+artist, and ZERO matched on title alone** — which
+is what says the double check is not decoration.
+
+**THEN `0257` WROTE 37 OF 2,707, AND THE SOURCE WAS NOT THE PROBLEM.** The hit count froze inside
+the first thousand rows. Checked immediately: `itunes.apple.com -> HTTP 403`, three times. iTunes
+throttled after ~40 requests and the run walked the remaining 2,670 albums against a closed door.
+
+**IT DID THAT BECAUSE THE ABORT GUARD KEYED ON *THROWN* ERRORS.** A 403 does not throw — `res.ok`
+is false, the helper returns `null`, and `null` is the SAME VALUE a genuine "nobody made that
+album" produces. Every refusal was counted as a miss, so the guard could never fire. `0201` records
+this class from the other direction (*"counting MISSES made the guard UNFIREABLE"*); the sharper
+statement is that **a refusal and a miss must be different VALUES, not both null**. `0258` throws
+on a non-ok response, and on Deezer's error payload — which arrives with HTTP 200.
+
+Deezer was measured before switching (12 rapid requests, 12x 200, and it returns the artist
+alongside the title so the same double check applies) and took albums to 80%, songs to 90% by
+inheritance — **a song's art is its album's, so 4,952 songs cost zero requests.**
+
+**LEFT BLANK, DELIBERATELY:** 1,516 artists — iTunes' `musicArtist` returns **no artwork at all**,
+and using one of their album sleeves as an artist photo is the plausible-and-wrong trade `0201`
+already refused. 508 books have no ISBN and Open Library's title search returned 0 for a real one.
+308 albums have no confident Deezer match.
+
+**AND I ANSWERED THE WRONG QUESTION FIRST.** Asked *"did you do books too / and tv shows"* I went
+off and measured legacy seed rows instead of coverage. Recorded because the correction cost a whole
+exchange: **when a follow-up names a noun already in play, it is almost always about the thing just
+done, not a new investigation.**
+
+**Probe debris, found and swept:** deleting the 5 seeded song rows (`0256`, the user's call) left
+their 5 one-off MODULES orphaned — deleting an occurrence never removes its module, the same thing
+`0108` left behind. `sweepOrphans` took them with a dump; poms grid back to **0 errors, 1
+pre-existing warning**. 1,760 server tests.
+
+---
+
 ### 2026-08-26 — `getAncestorChain` rebuilt a 6,557-entry map to walk 20 links
 
 A CPU profile is what found this one, and it is the third instance of the same
