@@ -13,7 +13,7 @@ Status legend: `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blo
 | 7 | Folder card: a button opens the folder page; clicking the card expands children | `[x]` **done** — both folder rows |
 | 8 | Delete the Schedule Canvas page and its op | `[x]` **done** — `0247` applied; there was no op left to delete |
 | 9 | The `Now` tracker tile lost its time fields — current time + time left | `[x]` **done** — `0249`; they were never minted on this grid |
-| 10 | Toggling the `Completed` field true/false has a strong lag | `[~]` **improved, not fixed** — 104 long tasks -> 33; the remaining 3.4s is the render fan-out |
+| 10 | Toggling the `Completed` field true/false has a strong lag | `[~]` **materially better** — click→paint 3333ms → 2333ms on one row; ~1.1s of ops remain |
 | 11 | Infinite loop — Trackers folder inside Trackers, all the way down | `[x]` **fixed** — `0243` + renderer + mint latch |
 | 12 | Auto-marquee off in preview cards · container labels a size smaller · instance-label marquee | `[x]` **done** |
 | 13 | Media tiles: max width, row+wrap; **same size as trackers**; Games+Comics tiled too | `[x]` `0248`+`0250`+`0251` — see the height note under 13c |
@@ -679,3 +679,48 @@ Size: 45.0 GB · File Path · Year · Board Category`. **0 page errors.**
 **Not seen on screen:** Games and Comics. Their tree rows were not reachable from the Media folder
 under Boards, so their tiling is confirmed in the DATA (`mode=wrap · w=184`) and has not been
 looked at. Their rows carry no picture, so they compose exactly like a tracker tile.
+
+---
+
+## 10 (final) — the tick paints in a third less time, and TWO of my own conclusions were wrong
+
+**THE REAL COST WAS THE CLICK'S SYNCHRONOUS PATH.** `setOccurrenceFieldValue` dispatches the
+optimistic value and then calls `fireOperations` **synchronously**, so the browser cannot paint the
+tick until every matching operation has run. Deferring past the paint is what
+`helpers/afterPaint.js` was built for (the textblock mint went 1000ms -> 30ms the same way).
+
+**MEASURED LIKE-FOR-LIKE, four runs each on ONE row:**
+```
+no deferral        paint 3333ms · longest 3308ms · ops 79/3040ms · blocked ~6800ms
+top-level only     paint 3403ms · longest 3269ms · ops 80/2999ms · blocked ~7300ms
+nested too         paint 2333ms · longest 2296ms · ops 80/3018ms · blocked ~6600ms
+```
+So the win comes from deferring the **nested** fires, and gating on `_fireDepth === 0` buys
+nothing.
+
+**MISTAKE 1 — I REVERTED THIS ON A CROSS-ROW COMPARISON.** I measured "30 sweeps / 2047ms" without
+the deferral and "80 / 3108ms" with it, concluded the deferral tripled the work, and reverted. The
+two numbers were taken on **different rows** — a cheaper row simply fires fewer operations. On one
+row the op count is unchanged (79 vs 80). *A before/after is a claim about the change only if both
+halves ran against the same thing.*
+
+**MISTAKE 2 — MY DEPTH-CAP TEST WAS VACUOUS, and the A/B is the only reason I know.** Deferring
+nested fires is exactly what makes it unsafe: `_fireDepth` is incremented synchronously around each
+fire, so a deferred nested fire restarts at 0 and `_FIRE_DEPTH_LIMIT` can never accumulate — a
+self-triggering op spins forever in separate tasks instead of tripping the guard. The deferral now
+saves and restores the depth. My first test of that asserted `fired.length < 40` and **passed
+against the broken version**. Measured through the real handler:
+```
+depth CARRIED   -> 8    exactly _FIRE_DEPTH_LIMIT, the cap tripping
+depth RESET     -> 23   and still climbing
+```
+It asserts `<= 10` now and fails against both mutations (dropping the depth carry, and dropping the
+deferral).
+
+**WHAT IS LEFT, unchanged:** ~3.0s of operation time still runs, now off the click's critical path.
+The next lever is the ~80 sweeps a single toggle provokes — most of them driven by server echoes
+rather than by the write itself — and batching those is its own pass.
+
+**Probe debris: none.** Every toggle was reverted by occurrence id and read back: **0 rows carry
+`Completed = true`** out of 2,389 occurrences touched in the last six hours. Two rows an earlier
+probe stranded (`Hygiene`, `Drink`) were reverted the same way. poms grid **0 errors**.

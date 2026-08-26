@@ -6,6 +6,47 @@
 
 ---
 
+### 2026-08-25 (7) — the tick paints 30% sooner; and TWO of my own conclusions were wrong
+
+Continued item 10. `setOccurrenceFieldValue` dispatches the optimistic value and then fires
+operations **synchronously**, so the browser cannot paint the tick until the whole sweep finishes —
+the user watches a frozen checkbox. `helpers/afterPaint.js` already exists for exactly this (the
+textblock mint went 1000ms -> 30ms).
+
+**MEASURED LIKE-FOR-LIKE, four runs each on ONE row:**
+```
+no deferral        paint 3333ms · longest 3308ms · ops 79/3040ms
+top-level only     paint 3403ms · longest 3269ms · ops 80/2999ms
+nested too         paint 2333ms · longest 2296ms · ops 80/3018ms   <- shipped
+```
+The win is in deferring the **nested** fires; gating on `_fireDepth === 0` buys nothing.
+
+**I REVERTED THIS ONCE, ON A CROSS-ROW COMPARISON.** I had "30 sweeps/2047ms" without the deferral
+against "80/3108ms" with it, concluded it tripled the op work, wrote the revert commit, and shipped
+it. Those two numbers came from **different rows** — a cheaper row fires fewer ops. Same row, the
+count is unchanged. *A before/after measures the change only if both halves ran against the same
+thing* — and I had even printed the occurrence id in both logs.
+
+**AND THE GUARD I ADDED TO MAKE IT SAFE WAS UNTESTED BY MY OWN TEST.** Deferring nested fires
+resets `_fireDepth`, so `_FIRE_DEPTH_LIMIT` can never accumulate and a self-triggering op spins
+forever in separate tasks rather than tripping the cap — the guard stops working precisely when it
+is needed. The deferral carries the depth now. My first test asserted `fired.length < 40` and
+**passed against the broken version**; driven through the real handler:
+```
+depth CARRIED -> 8     exactly _FIRE_DEPTH_LIMIT
+depth RESET   -> 23    and still climbing
+```
+`<= 10` now, and it fails against both mutations. *A loose bound is how a test about a runaway loop
+becomes a test about nothing.*
+
+**STILL OPEN:** ~3.0s of operation work per toggle, now off the critical path. The next lever is
+the ~80 sweeps one toggle provokes — mostly server-echo driven — which wants its own pass.
+
+3,348 client tests (the same 8 pre-existing). poms grid **0 errors**; every probe toggle reverted
+by occurrence id and read back — **0 rows left `Completed = true`** out of 2,389 touched.
+
+---
+
 ### 2026-08-25 (6) — the tiles take the HOUSE shape; and a CORRECTION to (4)'s "unrelated panels"
 
 **A CORRECTION I OWE, and it is the reusable half.** Entry (4) reported that toggling `Completed`
