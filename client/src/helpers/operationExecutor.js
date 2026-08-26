@@ -1369,6 +1369,47 @@ export function applyEffectsToLiveOccs(liveOccs, effects) {
  * @param {Object} [transaction] — triggering transaction (exposed as $trigger)
  * @returns {Array} updates — [{ fieldId, value }] or [{ _effect, ... }]
  */
+// ── DERIVED COLLECTIONS, CACHED ON THE $allItems ARRAY'S IDENTITY ──────────
+// `$allItems` itself has been cached on the sweep context since the onLoad-sweep
+// work, but the collections DERIVED from it were rebuilt inside every
+// `executePipeline` call — i.e. once per OPERATION. On poms grid that is four
+// full filters plus two 21,766-key maps, ~130k operations, rebuilt 27 times for
+// a single `Completed` toggle (~3.4M operations and 52 large short-lived
+// objects per sweep).
+//
+// Keyed on the identity of the `allItems` array, which IS the version: the
+// sweep context discards `_allItemsCache` the moment an op mutates structure,
+// so a new array means a new derivation. Same trick as
+// helpers/previewSubtreeIndex.js.
+//
+// Sharing them by reference is safe for the reason already recorded above the
+// `_allItemsCache` itself: pipelines REASSIGN `$vars.$allItems` to fresh arrays
+// on CREATE/UPDATE, they never mutate the array or its items in place.
+//
+// `$allItemsById` and `$allOccurrencesById` were two separately-built maps with
+// byte-identical contents; they are one object now.
+const _derivedCollections = new WeakMap();
+export function derivedCollectionsFor(allItems) {
+  if (!Array.isArray(allItems)) return { containers: [], pages: [], panels: [], instances: [], byId: {} };
+  const hit = _derivedCollections.get(allItems);
+  if (hit) return hit;
+  const containers = [], pages = [], panels = [], instances = [], byId = {};
+  // ONE pass instead of four filters plus two maps.
+  for (const i of allItems) {
+    if (i?.id !== undefined) byId[i.id] = i;
+    switch (i?.role) {
+      case "container": containers.push(i); break;
+      case "page": pages.push(i); break;
+      case "panel": panels.push(i); break;
+      case "instance": instances.push(i); break;
+      default: break;
+    }
+  }
+  const out = { containers, pages, panels, instances, byId };
+  _derivedCollections.set(allItems, out);
+  return out;
+}
+
 export function executePipeline(operation, context, transaction, extraVars, externalLogger) {
   const pipeline = operation.pipeline;
   if (!pipeline) return [];
@@ -1483,6 +1524,10 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       context._allItemsIndex = new Map(allItems.map(it => [it.id, it]));
     }
   }
+
+  // Derived collections + the id map, built once per `allItems` array rather
+  // than once per operation. See derivedCollectionsFor above.
+  const _derived = derivedCollectionsFor(allItems);
 
   // ---- Build $vars ----
   const _nowDate = new Date();
@@ -1623,18 +1668,18 @@ export function executePipeline(operation, context, transaction, extraVars, exte
     // was incorrectly filtering "panel", missing every page-role module.
     $allItems: allItems,
     $allOccurrences: allItems,
-    $allContainers: allItems.filter(i => i.role === "container"),
-    $allPages: allItems.filter(i => i.role === "page"),
-    $allPanels: allItems.filter(i => i.role === "panel"),
-    $allInstances: allItems.filter(i => i.role === "instance"),
+    $allContainers: _derived.containers,
+    $allPages: _derived.pages,
+    $allPanels: _derived.panels,
+    $allInstances: _derived.instances,
     // Id-keyed lookup maps — let an op resolve a known occurrence id
     // without LOOPing or FINDing. Path resolver splits on "." only, so
     // UUIDs with dashes work as keys: `$allItemsById.<uuid>` walks to the
     // value directly. Lets DrilldownPicker emit stable id paths
     // (e.g. for tracker `$goalItem = $allItemsById.<goalId>`) without
     // bottling the id into the predicate's right side.
-    $allItemsById: Object.fromEntries(allItems.map(i => [i.id, i])),
-    $allOccurrencesById: Object.fromEntries(allItems.map(i => [i.id, i])),
+    $allItemsById: _derived.byId,
+    $allOccurrencesById: _derived.byId,
     $allTemplates: allTemplates,
     $allFields: Object.values(fieldsById),
     $allOperations: (() => {
