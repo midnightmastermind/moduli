@@ -60,6 +60,15 @@ export default function RadialMenu({
 
   // Delete/remove action
   onDelete = null,
+  // WHAT `onDelete` MEANS DEPENDS ON THE CALLER, which is why this is a prop
+  // and not a constant. On a row it deletes the occurrence (and cascades to
+  // anything parented to it); on a doc PILL or an embed it only takes the node
+  // out of the prose and the occurrence lives on. One static word cannot be
+  // true for both, and the word it used to be — "Remove" — was the wrong one
+  // exactly where the damage is (user 2026-08-26: *"i cant find the delete in
+  // the radial menu"*; it was there, called something else).
+  // Defaults to "Remove", so every caller that does not name it is unchanged.
+  deleteLabel = "Remove",
 
   // Extra items appended after all computed items (used by embed context to inject alignment/pill actions)
   extraItems = null,
@@ -353,7 +362,7 @@ export default function RadialMenu({
       if (onDelete) {
         defaultItems.push({
           icon: Trash2,
-          label: "Remove",
+          label: deleteLabel,
           onClick: onDelete,
           color: "bg-red-700 hover:bg-red-600",
         });
@@ -362,7 +371,7 @@ export default function RadialMenu({
       const angles = getAnglesForDirection(openDirection, defaultItems.length);
       return defaultItems.map((item, i) => ({ ...item, angle: angles[i] }));
     },
-    [items, extraItems, dragMode, onSettings, onToggleDragMode, onToggleCollapse, isCollapsed, onToggleHeader, showHeader, onFilter, onTemplate, onHistory, onToggleDoc, onDelete, openDirection, getAnglesForDirection]
+    [items, extraItems, dragMode, onSettings, onToggleDragMode, onToggleCollapse, isCollapsed, onToggleHeader, showHeader, onFilter, onTemplate, onHistory, onToggleDoc, onDelete, deleteLabel, openDirection, getAnglesForDirection]
   );
 
   // PORTALED arc menu

@@ -326,15 +326,21 @@ export default function InstanceForm({
           size="sm"
           className="w-full text-xs"
           onClick={() => {
+            // The old wording said the opposite of what happens: this calls
+            // `removeOccurrence`, which emits `delete_occurrence` and lets the
+            // server cascade to everything parented to this row. "Remove from
+            // the container" reads as unlinking, so a container row could be
+            // destroyed by someone who believed they were tidying a placement.
+            // The module really does survive — that half was true and is kept.
             const ok = window.confirm(
-              `Remove this instance from the container? The module will remain in the Command Center.`
+              `Delete this item? Anything inside it is deleted too. The module stays in the Command Center.`
             );
             if (!ok) return;
             onDeleteInstance?.();
           }}
           disabled={!onDeleteInstance}
         >
-          Remove from container
+          Delete
         </Button>
       </div>
     </div>

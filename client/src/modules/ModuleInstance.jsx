@@ -793,6 +793,9 @@ function InstanceInner({
                   onToggleHeader={!occurrence?.linkedGroupId ? () => setShowLabel(v => !v) : undefined}
                   showHeader={showLabel}
                   onToggleDoc={toggleDoc || undefined}
+                  // An embed's delete only unhooks the node from the prose; a
+                  // row's deletes the occurrence. Same button, two verbs.
+                  deleteLabel={embedOnDelete ? "Remove" : "Delete"}
                   onDelete={embedOnDelete ?? (() => {
                     if (!occurrence?.id) return;
                     CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, occurrence, parentOccurrence: containerOccurrence || null, emit: true });
@@ -1463,7 +1466,12 @@ function ModuleInstance({
       ...targetPickerItems,
       targetPickerItems.length ? { separator: true } : null,
       {
-        label: "Remove from container", icon: Trash2, danger: true,
+        // "Delete", because that is what this does. It called itself "Remove
+        // from container" while emitting `delete_occurrence` — the occurrence
+        // is gone and the server cascades everything parented to it. The bulk
+        // item a few lines up already said "Delete N selected" and calls THIS
+        // SAME function, so the two now agree.
+        label: "Delete", icon: Trash2, danger: true,
         onClick: () => {
           if (!occurrence?.id) return;
           CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, occurrence, parentOccurrence: containerOccurrence || null, emit: true });
