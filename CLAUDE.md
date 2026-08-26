@@ -6,6 +6,108 @@
 
 ---
 
+### 2026-08-26 (5) — delete had four names; the undo button that never existed; and a scroll probe that measured nothing
+
+**"HOW DO WE DELETE OCCURANCES ATM" / "I CANT FIND THE DELETE IN THE RADIAL
+MENU."** It was there under another word. `CommitHelpers.removeOccurrence`
+dispatches a delete, emits `delete_occurrence`, and the server cascades
+everything parented to the row — and four surfaces offered it:
+```
+radial menu       "Remove"
+row context menu  "Remove from container"
+settings sheet    "Remove from container"  + "The module will remain…"
+bulk selection    "Delete N selected"      <- the SAME function, named right
+```
+So the honest name already existed and had never reached a single row. **Worse
+than undiscoverable, the wording was backwards where the damage is**: "remove
+from the container" reads as unlinking a placement, and a container row deleted
+under that sentence takes its whole subtree with it.
+
+**IT IS A PROP, NOT A RENAME, and that is the load-bearing part.** On a doc PILL
+or an embed the same handler really does only take the node out of the prose —
+the occurrence lives on — so "Remove" is correct there. One static word cannot
+be true for both, which is presumably how the vague one won. `RadialMenu` takes
+a `deleteLabel` defaulting to "Remove" (every existing caller unchanged) and the
+row passes `embedOnDelete ? "Remove" : "Delete"`.
+
+**REPORTED, NOT BUILT:** nothing in the UI can UNLIST a multi-parented row from
+one container without deleting it everywhere — the action the old label
+described. `REMOVE_CHILD` exists in the pipeline; no control reaches it.
+
+---
+
+**THE UNDO BUTTON: THE FEATURE HAD SHIPPED AND THE CONTROL NEVER HAD.** User:
+*"put a back undo button in next to the command center"*. `App` has held
+`undo`/`canUndo`/`isProcessing` since the undo/redo rebuild and Ctrl+Z is bound
+— **but a tablet has no Ctrl+Z, so on the surface this grid is most used on,
+undo could not be reached at all.** Disabled rather than hidden when there is
+nothing to undo (a control that appears and disappears shifts every button
+beside it, which on a thumb-sized toolbar means mis-taps), and deliberately NOT
+inside the `!isMobileLayout` block its neighbours live in.
+
+**AND I CLAIMED DELETES WERE NOT UNDOABLE, WHICH WAS WRONG.** I queried the
+transaction log for a `type`/`actionLabel` shape that does not exist, got zero,
+and reported that deletes are never recorded. They are: `crud.js` snapshots
+every node of a cascade BEFORE deleting it and calls `recordChange(… after:
+null)`, which lands as a **`SnapshotOp` whose `docs[].after` is null** — 100 of
+them on this grid. *A zero is a claim about the QUERY until the shape it
+searched for has been shown to exist.*
+
+---
+
+**A RESTORE, AND THE BACKUP THAT MADE IT EXACT.** The user deleted the
+**`Physical` dimension off the Routines page** at 12:27 — Nutrition, Fitness,
+Rest and Care with every routine under them. Recovered by diffing the 09:50
+pre-migration snapshot against live and **subtracting the 755 documents I had
+swept myself**, which left 21 real rows (44 feed copies excluded as churn). The
+7 missing modules came from the 04:17 nightly; **0 were missing anywhere**.
+Re-listed at index 0, where it had sat. Verified live: nine dimensions, Physical
+first, Cook · Nutrition 3 · Fitness 5 · Rest 3 · Care 4, **0 integrity errors**.
+
+**The debris sweep either side of it was scoped and guarded.** 755 documents
+(two stranded day columns — one mine, 73 rows whose module and parent never
+persisted; one a 49-slots-x-12-copies duplicate that predated the session).
+Guards: nothing shared with the live column (checked — **0 overlap**), nothing
+carrying a textmap, the Schedule page not in the set, and one survivor's
+`parentId` repointed at its live lister rather than left dangling.
+
+---
+
+**THE SCROLL COMPLAINT IS PAINT-BOUND, AND MY ATTRIBUTION PROBE MEASURED
+NOTHING.** User: *"scroll is too slow on mobile tablet … and the painting is too
+slow for scroll"*. Measured on a 1280x800 tablet viewport at 4x CPU throttle,
+60 rAF scroll steps:
+```
+Task total   3459ms
+RecalcStyle   412ms (118 recalcs)     Layout 173ms (53)     Script 177ms
+                                      -> ~2.7s is paint / raster / compositing
+React renders during the scroll   0        op runs   0
+on screen  ~20,400 nodes · 105 containers · 184 rows
+heaviest single container: "Schedule - Wednesday" at 5,871 nodes (29%)
+```
+So it is NOT the app's JavaScript — `__renderTally()` reports **zero** renders
+across the whole gesture, which rules out the render path outright.
+
+**AND THEN THE A/B PROVED ONLY THAT THE INSTRUMENT IS NOISE-DOMINATED.** Six
+arms (content-visibility, wallpaper, shadows, images, radii) all landed INSIDE
+the gap between two baseline runs (31.6 -> 28.5 fps). Interleaved with three
+passes each it looked like signal — until the census said **there was exactly 1
+image on screen**, which makes "no images" a NULL MUTATION, and it "won" by 24%.
+*An arm that changes nothing must be in the set, and when it moves as much as
+the real ones the run is over.* Nothing is attributed, and no fix was shipped on
+a guess.
+
+**WHAT THE NEXT PASS NEEDS:** a real paint trace (tracing with paint records)
+rather than `Performance.getMetrics` deltas, and ideally the user's own device —
+a desktop GPU at 4x CPU throttle is not a tablet, and paint is the one cost that
+does not scale with the CPU knob. The lead worth starting from is the day column
+at 5,871 nodes, not the media boards.
+
+3,375 client tests (the same 8 pre-existing), four deploys, prod HEAD verified
+each time, poms grid **0 errors**.
+
+---
+
 ### 2026-08-26 (4) — pictures appear whole; and I SHIPPED A REGRESSION that collapsed every media tile
 
 The other account's last four UI items, all on one surface. Two of them turned
