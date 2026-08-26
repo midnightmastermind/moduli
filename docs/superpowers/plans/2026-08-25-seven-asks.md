@@ -924,3 +924,45 @@ real difference in that data, not a bug in the fetch.
 **Left blank and reported:** Games (4), Comics (5) and the 8 films TMDB never
 matched — an image search on *"Invincible, main run #000–#144 (2003–2018)"* is a
 guess, and `0201` already recorded what guessed covers look like.
+
+---
+
+## 15 — "songs should be connected to albumn and artist" (`0255`)
+
+**THE 5,484 IMPORTED SONGS ALREADY WERE, and measuring said so before anything
+changed** — every edge resolves and nothing dangles:
+```
+song -> Album   5,484 / 5,484 set · 0 dangling
+song -> Artist  5,294 / 5,484 set · 0 dangling
+album -> Artist 2,727 · album -> Songs 2,738 · 0 dangling
+"Cosmic Joe" -> "Vision Songs, Vol.1" -> "Laraaji"
+```
+
+**WHAT IS WRONG IS THE TOP OF THE BOARD.** The Songs board holds **5,489** rows:
+the 5,484 imported ones plus **five from the original 2026-07-25 seed** — and
+those five sort FIRST. They are one-off modules, one per song, whose only
+bindings are `Board Category(h)`, `Poster(h)`, `Files(h)`, **every one hidden**.
+Confirmed by looking rather than inferring: the first three rows render with
+**zero field pills**. So the first thing on screen is five songs with no album
+and no artist, which is exactly the report.
+
+**THREE OF THEM HAVE A TWIN THAT KNOWS THE ANSWER:**
+```
+Hallelujah · Blackbird · Redbone   duplicates -> Artist + Album copied from the import
+Clair de Lune · Take Five          no twin    -> fields added, values left empty
+```
+
+**NOTHING IS DELETED, AND THAT IS THE DELIBERATE PART.** The obvious tidy-up is
+to drop the three duplicates. Each carries a `Poster` + `Files` artifact — real
+artwork the imported rows do not have; **these five are the only songs on the
+grid with a picture** — and deleting the row runs the child cascade over that
+artifact. Two bindings answer the ask without risking anything; merging the
+duplicates is a separate destructive decision and it is the user's.
+
+7 tests, 2 A/Bs. The type-guard test needed a second pass: the text field of the
+same name has to be listed FIRST in the fixture, or a name-only lookup finds the
+right field anyway and the guard is never exercised.
+
+**Read back:** all five now carry Artist + Album bindings; Hallelujah, Blackbird
+and Redbone carry values; Clair de Lune and Take Five are ready to fill. poms
+grid **0 errors**.
