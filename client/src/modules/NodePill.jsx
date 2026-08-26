@@ -86,8 +86,16 @@ export default function NodePill({
         border: isActive
           ? `1px solid ${color}`
           : `1px solid ${isEntity ? "var(--border-default)" : "transparent"}`,
+        // THE OPEN ROW HAS TO READ AS OPEN AT A GLANCE. This was 0.08, and
+        // measured against its neighbours on the live sidebar the active row
+        // differed only in the HUE of a tint that faint — active
+        // `rgba(167,139,250,0.08)` beside inactive `var(--input-bg)`
+        // `rgba(90,58,28,0.08)`. Same lightness, so on a wallpapered sidebar
+        // it read as "no highlight" (user, 2026-08-26: "make the one thats open
+        // be highlighted if it isnt"). The FILL carries it now; the border and
+        // the weight below agree with it rather than doing the work alone.
         background: isActive
-          ? `${color.replace(/[\d.]+\)$/, "0.08)")}`
+          ? `${color.replace(/[\d.]+\)$/, "0.22)")}`
           : (isEntity ? "var(--input-bg)" : "transparent"),
         cursor: "pointer",
         userSelect: "none",
@@ -109,6 +117,10 @@ export default function NodePill({
           whiteSpace: "nowrap",
           fontSize: isEntity ? 11 : 10,
           fontFamily: "var(--font-mono)",
+          // Weight, not colour: the label already renders in the module's own
+          // colour, and darkening it further collides with the light themes
+          // this repo has twice had to fix for contrast (Stardew, 2026-08-19).
+          fontWeight: isActive ? 600 : 400,
         }}
       >
         {label}

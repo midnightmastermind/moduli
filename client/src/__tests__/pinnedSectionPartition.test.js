@@ -1,73 +1,51 @@
-// The Pinned section must never re-draw the manifest that sits below it.
+// The Pinned section is a FLAT list of the panel's pinned pages.
 //
-// Since the two sidebars merged (2026-08-21) the full manifest renders directly
-// under Pinned. A panel holding the ROOT folder page — which is exactly what
-// clicking `Root` in that very tree pins — made Pinned expand the whole manifest
-// a second time (user: "its also pinning all of root right now whioch shouldnt
-// happen"). Measured on poms grid before the fix: Panel C pins `Root`, whose
-// folder IS `manifest.rootFolderId`.
+// It used to build a tree: folder subtrees for pinned folder pages, folder
+// headers grouping the rest. That was removed (user, 2026-08-26: "remove the
+// folders from the pinned tree. just show a flat list of the pinned files") —
+// the whole manifest, folders and all, renders directly underneath Pinned, so
+// the grouping was a second, shallower copy of the thing below it.
 //
-// The discriminating case is the NON-root folder page beside it: Boards/Imports
-// must still render their subtree, so a blanket "no folder nodes in Pinned"
-// would pass the first test and break the feature this branch exists for.
+// The ORIGINAL bug this file was written for still cannot come back, and that
+// is the case worth keeping: a panel fronted by the ROOT folder page made
+// Pinned expand the entire manifest a second time. With no subtrees there is
+// nothing to expand — asserted below rather than assumed.
 import { describe, it, expect } from "vitest";
-import { partitionPinnedPages } from "../modules/ManifestTree.jsx";
+import { flattenPinnedPages } from "../modules/ManifestTree.jsx";
 
 const ROOT = "0QU2baW0EjIb";
-const folders = {
-  [ROOT]: { id: ROOT, name: "Root" },
-  imports: { id: "imports", name: "Imports" },
-  health: { id: "health", name: "Health" },
-};
-const modules = {
-  "m-folder": { id: "m-folder", role: "page", kind: "folder" },
-  "m-doc": { id: "m-doc", role: "page", kind: "doc" },
-};
 const folderPage = (id, parentId) => ({ id, moduleId: "m-folder", parentId });
 const docPage = (id, parentId) => ({ id, moduleId: "m-doc", parentId });
 
-const run = (pinned) => partitionPinnedPages({
-  pinned, modulesById: modules, foldersById: folders, rootFolderId: ROOT,
-});
-
-describe("partitionPinnedPages", () => {
-  it("drops a pinned ROOT folder page — the manifest below already draws it", () => {
-    const out = run([folderPage("p1", ROOT)]);
-    expect(out.folderNodes).toEqual([]);
-    expect(out.folderGroups).toEqual([]);
-    expect(out.rootPages).toEqual([]);
+describe("flattenPinnedPages", () => {
+  it("returns every pinned page as one flat row, in pin order", () => {
+    const out = flattenPinnedPages({
+      pinned: [docPage("p1", "health"), docPage("p2", null), docPage("p3", "imports")],
+    });
+    // Pin order, NOT grouped by parent folder — p1 and p3 sit in different
+    // folders and still come out adjacent to p2.
+    expect(out).toEqual(["p1", "p2", "p3"]);
   });
 
-  it("KEEPS a pinned non-root folder page as a full subtree", () => {
-    const out = run([folderPage("p2", "imports")]);
-    expect(out.folderNodes.map(f => f.id)).toEqual(["imports"]);
+  it("a pinned FOLDER page is one row, not a subtree", () => {
+    // The regression that named this file: this used to expand the whole
+    // manifest underneath Pinned.
+    const out = flattenPinnedPages({ pinned: [folderPage("f1", ROOT), docPage("p1", "health")] });
+    expect(out).toEqual(["f1", "p1"]);
+    // A row, not a tree — the output is ids only, so there is no subtree for
+    // the renderer to walk. That is the structural guarantee.
+    expect(out.every((x) => typeof x === "string")).toBe(true);
   });
 
-  it("drops only the root one when both are pinned", () => {
-    const out = run([folderPage("p1", ROOT), folderPage("p2", "imports")]);
-    expect(out.folderNodes.map(f => f.id)).toEqual(["imports"]);
+  it("keeps a pinned folder page rather than dropping it", () => {
+    // Dropping it would make a pinned page unreachable from the sidebar, which
+    // is a bigger surprise than a row you can ignore.
+    expect(flattenPinnedPages({ pinned: [folderPage("f1", ROOT)] })).toEqual(["f1"]);
   });
 
-  it("groups ordinary pages under their parent folder", () => {
-    const out = run([docPage("d1", "health"), docPage("d2", "health")]);
-    expect(out.folderGroups).toHaveLength(1);
-    expect(out.folderGroups[0].pages).toEqual(["d1", "d2"]);
-    expect(out.rootPages).toEqual([]);
-  });
-
-  it("lists a folderless page flat", () => {
-    const out = run([docPage("d3", null)]);
-    expect(out.rootPages).toEqual(["d3"]);
-  });
-
-  it("never lists a folder's pages twice when the folder is also a full node", () => {
-    const out = run([folderPage("p2", "imports"), docPage("d4", "imports")]);
-    expect(out.folderNodes.map(f => f.id)).toEqual(["imports"]);
-    expect(out.folderGroups).toEqual([]);
-  });
-
-  it("a root folder page whose parent folder is missing is still not a node", () => {
-    const out = run([folderPage("p5", "gone")]);
-    expect(out.folderNodes).toEqual([]);
+  it("empty in, empty out — the section hides itself rather than drawing a header", () => {
+    expect(flattenPinnedPages({ pinned: [] })).toEqual([]);
+    expect(flattenPinnedPages({})).toEqual([]);
+    expect(flattenPinnedPages({ pinned: null })).toEqual([]);
   });
 });

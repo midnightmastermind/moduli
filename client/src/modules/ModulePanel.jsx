@@ -78,6 +78,8 @@ import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import LayoutCascadeSection from "../ui/LayoutCascadeSection";
 import TemplatesSection from "../ui/TemplatesSection";
 import { openPanelOnRootFolderPage } from "../helpers/importsFolder";
+import { useMinWidth } from "../hooks/useMinWidth";
+import { ROOT_TREE_W, ROOT_TREE_PUSH_MIN_W } from "../helpers/rootTreeLayout";
 
 // ============================================================
 // LAYOUT HELPERS
@@ -333,6 +335,7 @@ function Panel({
   const foldersById = useGridActionsSelector(s => s.foldersById);
   const { state } = useContext(GridDataContext);
   const { isMobileLayout, isTouch } = useContext(GridLiveContext);
+  const rootTreeCanPush = useMinWidth(ROOT_TREE_PUSH_MIN_W);
 
   // ── Staged content (docs/superpowers/plans/2026-08-06-staged-loading.md) ──
   // The panel's CHROME renders immediately; its CONTENT waits for a frame so the
@@ -1087,9 +1090,11 @@ function Panel({
                 <div style={{ flex: 1, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                   {contentReady ? pageContent : stagedHold}
                 </div>
-                {/* Root tree sidebar — RIGHT, pushes content on desktop, overlays on mobile */}
+                {/* Root tree sidebar — RIGHT. Pushes the page wherever there is
+                    room for it (desktop AND tablet, portrait included); overlays only
+                    on a genuinely narrow viewport. See ROOT_TREE_PUSH_MIN_W. */}
                 {rootTreeOpen && (
-                  isMobileLayout ? (
+                  !rootTreeCanPush ? (
                     <div style={{
                       position: "absolute", top: 0, right: 0, bottom: 0, zIndex: 100,
                       width: "100%", maxHeight: "50%",
@@ -1104,7 +1109,7 @@ function Panel({
                     </div>
                   ) : (
                     <div style={{
-                      flexShrink: 0, width: 222,
+                      flexShrink: 0, width: ROOT_TREE_W,
                       display: "flex", flexDirection: "column",
                       background: "var(--surface-card)",
                       borderLeft: "1px solid var(--border-default)",

@@ -24,48 +24,30 @@ import NodePill from "./NodePill.jsx";
 
 
 /**
- * Partition a panel's pinned pages into what the sidebar's Pinned section draws.
+ * The pinned section's contents: a FLAT list of the panel's pinned page ids.
  *
  * Exported and pure because mounting `ManifestTree` needs the whole grid store,
  * and this predicate is where the "Pinned drew the whole manifest" bug lived.
  *
- * - a pinned FOLDER page renders as its real folder subtree (a panel fronted by
- *   the Boards folder page is fully browsable from the sidebar) —
- * - EXCEPT the folder this sidebar already renders in full below, which would
- *   otherwise draw the entire manifest twice;
- * - every other pinned page is grouped under its parent folder, or listed flat
- *   when it has none;
- * - a folder already drawn as a full node never ALSO appears as a flat group,
- *   or its pages would be listed twice.
+ * IT USED TO BUILD A TREE — folder subtrees for pinned folder pages, folder
+ * headers grouping the rest — and that is exactly what was removed (user,
+ * 2026-08-26: *"remove the folders from the pinned tree. just show a flat list
+ * of the pinned files"*). Pinned is the panel's own open pages; the whole
+ * manifest, with its folders, renders directly underneath it, so the grouping
+ * was a second, shallower copy of the thing below.
+ *
+ * A PINNED FOLDER PAGE STAYS, as one flat row like any other. It is a page the
+ * user pinned, and dropping it would make a pinned page unreachable from the
+ * sidebar — a bigger surprise than a row they can ignore. What is gone is its
+ * SUBTREE, which is what "remove the folders" is about and what made Pinned
+ * redraw the manifest.
+ *
+ * Order is the panel's own `occurrences[]` order, i.e. pin order — the same
+ * rule `collectPanelOccurrences` uses, so a list nobody can predict does not
+ * reshuffle between two looks at it.
  */
-export function partitionPinnedPages({ pinned, modulesById, foldersById, rootFolderId }) {
-  const folderNodes = [];
-  const pageOccs = [];
-  for (const occ of pinned || []) {
-    if (modulesById?.[occ.moduleId]?.kind === "folder") {
-      const folder = occ.parentId ? foldersById?.[occ.parentId] : null;
-      if (folder && folder.id !== rootFolderId) folderNodes.push(folder);
-    } else {
-      pageOccs.push(occ);
-    }
-  }
-  const folderMap = new Map();
-  const rootPages = [];
-  for (const occ of pageOccs) {
-    const folder = occ.parentId ? foldersById?.[occ.parentId] : null;
-    if (folder) {
-      if (!folderMap.has(folder.id)) folderMap.set(folder.id, { folder, pages: [] });
-      folderMap.get(folder.id).pages.push(occ.id);
-    } else {
-      rootPages.push(occ.id);
-    }
-  }
-  const nodeIds = new Set(folderNodes.map(f => f.id));
-  return {
-    folderGroups: [...folderMap.values()].filter(g => !nodeIds.has(g.folder.id)),
-    rootPages,
-    folderNodes,
-  };
+export function flattenPinnedPages({ pinned }) {
+  return (pinned || []).map((occ) => occ.id);
 }
 
 // Extract first heading text from a TipTap textmap — strips markdown, ignores field pills
@@ -1058,109 +1040,6 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurre
   );
 }
 
-// ─── LocalFolderGroup — folder header + pinned pages, mirrors FolderNode style ──
-function LocalFolderGroup({ folder, pageOccIds, occurrencesById, modulesById, childrenByParentId, view, onOpenPage, onClosePage, onSelect, onScrollTo }) {
-  const { dispatch, socket, state } = useGridActions();
-  const [open, setOpen] = useState(true);
-  const hasChildren = pageOccIds.length > 0;
-
-  // Find an existing folder-page occurrence under this folder, or mint one on
-  // demand. Mirrors FolderNode.handleFolderClick so the local tree behaves the
-  // same as the root tree. Calls onOpenPage SYNCHRONOUSLY after dispatch — the
-  // optimistic createOccurrence dispatch lands the new occ in the store before
-  // openPage runs, so a setTimeout grace window is unnecessary (and was masking
-  // the case where openPage's `currentView` closure was stale by 50ms).
-  const openFolderAsPage = useCallback(() => {
-    const navigate = onOpenPage || onSelect;
-    if (!navigate) return;
-    const allChildren = childrenByParentId?.[folder.id] || [];
-    const folderPageOcc = allChildren.find(occ => {
-      const mod = modulesById?.[occ.moduleId];
-      return mod?.kind === "folder" && mod?.role === "page";
-    });
-    if (folderPageOcc) {
-      navigate(folderPageOcc.id);
-      return;
-    }
-    const userId = state?.userId;
-    const gridId = state?.grid?._id || state?.gridId;
-    if (!dispatch || !socket || !userId || !gridId) return;
-    const modId = crypto.randomUUID();
-    const occId = crypto.randomUUID();
-    CommitHelpers.createModule({ dispatch, socket, module: { id: modId, userId, gridId, role: "page", kind: "folder", label: folder.name }, emit: true });
-    // moduleId is the schema-canonical pointer the rest of the client reads
-    // (pagesList / activePageEntry / role lookups all do `occurrencesById[id].moduleId`).
-    // Without it the new folder page is invisible to ModulePanel.pagesList → falls back to pagesList[0] (Schedule).
-    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: occId, userId, gridId, moduleId: modId, targetId: modId, targetType: "module", parentId: folder.id, sortOrder: -1, iteration: { mode: "persistent" }, fields: {}, meta: {} }, emit: true });
-    navigate(occId);
-  }, [onOpenPage, onSelect, childrenByParentId, folder.id, folder.name, modulesById, dispatch, socket, state]);
-
-  return (
-    <div style={{ marginLeft: 0, paddingRight: 2 }}>
-      <div style={{ display: "flex", alignItems: "center" }} className="manifest-row">
-        <span
-          style={{ display: "flex", alignItems: "center", flexShrink: 0, padding: "4px 2px", cursor: hasChildren ? "pointer" : "default", opacity: hasChildren ? 1 : 0, pointerEvents: hasChildren ? "auto" : "none" }}
-          onClick={(e) => { if (hasChildren) { e.stopPropagation(); setOpen(v => !v); } }}
-        >
-          <ChevronRight size={8} style={{ opacity: 0.35, transform: open ? "rotate(90deg)" : "none", transition: "transform 0.12s" }} />
-        </span>
-        <NodePill
-          module={{ kind: "folder", label: folder.name }}
-          // Same rule as FolderNode above — this header's own comment says it
-          // must mirror the root tree, and two folder rows behaving differently
-          // is worse than either behaviour.
-          onClick={hasChildren ? () => setOpen(v => !v) : openFolderAsPage}
-          style={{ flex: 1 }}
-          leadingSlot={
-            onClosePage ? (
-              <span
-                onClick={(e) => { e.stopPropagation(); pageOccIds.forEach(id => onClosePage(id)); }}
-                onPointerDown={(e) => e.stopPropagation()}
-                title="Close all pages in folder"
-                className="manifest-row-x-slot"
-                style={{
-                  flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "var(--text-muted)", borderRadius: 3, cursor: "pointer",
-                }}
-              >
-                <X size={9} />
-              </span>
-            ) : null
-          }
-        >
-          <span
-            onClick={(e) => { e.stopPropagation(); openFolderAsPage(); }}
-            onPointerDown={(e) => e.stopPropagation()}
-            title="Open folder page"
-            style={{ display: "flex", alignItems: "center", color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, lineHeight: 1, padding: "4px 5px" }}
-            className="folder-open-btn"
-          ><Layout size={10} /></span>
-        </NodePill>
-      </div>
-      {open && hasChildren && (
-        <div>
-          {pageOccIds.map(pageOccId => (
-            <PageTreeNode
-              key={pageOccId}
-              pageOccId={pageOccId}
-              activeOccId={view?.activeOccurrenceId}
-              activeOccurrenceId={view?.activeOccurrenceId}
-              onOpenPage={onOpenPage}
-              onClosePage={onClosePage}
-              occurrencesById={occurrencesById}
-              modulesById={modulesById}
-              childrenByParentId={childrenByParentId}
-              onSelect={onSelect}
-              onScrollTo={onScrollTo}
-              depth={1}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── AnchorChip — draggable anchor inside PageTreeNode (local tree mode) ──
 function AnchorChip({ contOcc, modulesById, onOpenPage, pageOccId }) {
   const contMod = modulesById?.[contOcc.moduleId];
@@ -1321,21 +1200,16 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
     CommitHelpers.createFolder({ dispatch, socket, folder, emit: true });
   }, [state, socket, dispatch, manifest]);
 
-  // Open pages list for the local section — grouped by parent folder for B2.
-  // The partition itself is `partitionPinnedPages` above: pure, exported, and
-  // tested, because that is where the manifest-drawn-twice bug lived.
-  const localTreeData = useMemo(() => {
-    if (!isPagePanel) return { folderGroups: [], rootPages: [], folderNodes: [] };
+  // The pinned section's contents — a FLAT list of page ids. `flattenPinnedPages`
+  // above is pure, exported and tested, because that is where the
+  // manifest-drawn-twice bug lived.
+  const pinnedPageIds = useMemo(() => {
+    if (!isPagePanel) return [];
     const pinned = (panelOccurrence.occurrences || [])
       .map(id => occurrencesById?.[id])
       .filter(occ => occ && modulesById?.[occ.moduleId]?.role === "page");
-    return partitionPinnedPages({
-      pinned,
-      modulesById,
-      foldersById,
-      rootFolderId: manifest?.rootFolderId ?? null,
-    });
-  }, [isPagePanel, panelOccurrence?.occurrences, occurrencesById, modulesById, foldersById, manifest?.rootFolderId]);
+    return flattenPinnedPages({ pinned });
+  }, [isPagePanel, panelOccurrence?.occurrences, occurrencesById, modulesById]);
 
   // Touch drag to open/close sidebar
   const handleThumbTouchStart = useCallback((e) => {
@@ -1441,7 +1315,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                 a line. Still wrapped in its own collapsible root so the whole
                 pinned set can be hidden; it defaults OPEN, unlike the manifest
                 below it. */}
-            {isPagePanel && !(localTreeData.rootPages.length === 0 && localTreeData.folderGroups.length === 0 && localTreeData.folderNodes.length === 0) && (
+            {isPagePanel && pinnedPageIds.length > 0 && (
                 /* The two sections are DIVIDED, not merely stacked (user, 2026-08-21:
                    "also keep pinned and root looking seperate in the sidebar"). Merging
                    the two trees left them reading as one list of two sibling folders,
@@ -1466,43 +1340,10 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
                   </div>
                   {localRootOpen && (
                   <div style={{ marginLeft: 12 }}>
-                  {/* Pinned FOLDER pages render their real folder subtree, so a
-                      panel fronted by a folder page (Boards) is fully browsable. */}
-                  {localTreeData.folderNodes.map(folder => (
-                    <FolderNode
-                      key={folder.id}
-                      folder={folder}
-                      scope="pinned"
-                      depth={0}
-                      foldersById={foldersById}
-                      occurrencesById={occurrencesById}
-                      modulesById={modulesById}
-                      childrenByParentId={childrenByParentId}
-                      activeOccurrenceId={view?.activeOccurrenceId}
-                      onSelect={handleSelect}
-                      onScrollTo={handleScrollTo}
-                      onOpenPage={handleOpenPage}
-                      onOpenPageAndClose={handleOpenPage}
-                    />
-                  ))}
-                  {/* Folder groups — chevron + folder pill, pages indented underneath (same as FolderNode) */}
-                  {localTreeData.folderGroups.map(({ folder, pages }) => (
-                    <LocalFolderGroup
-                      key={folder.id}
-                      folder={folder}
-                      pageOccIds={pages}
-                      occurrencesById={occurrencesById}
-                      modulesById={modulesById}
-                      childrenByParentId={childrenByParentId}
-                      view={view}
-                      onOpenPage={handleOpenPage}
-                      onClosePage={onClosePage}
-                      onSelect={handleSelect}
-                      onScrollTo={handleScrollTo}
-                    />
-                  ))}
-                  {/* Root-level pages (no parent folder) — flat, like root tree's flat pages */}
-                  {localTreeData.rootPages.map(pageOccId => (
+                  {/* FLAT — no folder headers, no folder subtrees. The whole
+                      manifest with its folders is directly below this section;
+                      grouping here was a second, shallower copy of it. */}
+                  {pinnedPageIds.map(pageOccId => (
                     <PageTreeNode
                       key={pageOccId}
                       pageOccId={pageOccId}
