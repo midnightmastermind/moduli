@@ -91,6 +91,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // onChange operations always see the latest occurrence values even when the
   // React render cycle hasn't completed yet.
   const localOccsById = {};
+  // Cache slots for the base+local merge built in _fireOperationsInner. See the
+  // comment there for why this is fingerprinted rather than version-counted.
+  let _mergedOccsById = null;
+  let _mergedBase = null;
+  let _mergedLocalKeys = null;
+  let _mergedLocalVals = null;
 
   // ── EXECUTOR CYCLE BREAKER (2026-05-25) ───────────────────────────────────
   // Durable suppression set for occurrences CREATED or DELETED by operation
@@ -1569,7 +1575,40 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // Deleted occurrences are NOT re-injected here — a delete transaction
     // carries its own `_occurrenceSnapshot` for $trigger.occurrence enrichment
     // (operationExecutor), so tracker recounts see post-delete state.
-    const occurrencesById = Object.assign({}, _cachedBaseOccsById, localOccsById);
+    //
+    // ── THE MERGE IS CACHED, because it was the largest cost in the sweep ──
+    // Everything above this line is already keyed on an array identity; this
+    // last step was not, and it copies **21,766 keys** on poms grid. One
+    // `Completed` toggle produces ~80 fires, so that was ~1.7M property copies
+    // and 80 large short-lived objects — measured as ~1.9s of the ~3.2s of
+    // operation time, sitting OUTSIDE the per-op `[op-timing]` totals, which is
+    // why it hid for so long.
+    //
+    // The cache is keyed on the base map's identity plus a fingerprint of the
+    // LOCAL overlay — which is tiny (a couple of dozen entries during a
+    // cascade) and, crucially, whose every mutation site ASSIGNS A NEW OBJECT
+    // (`localOccsById[id] = { ...occ, … }`). So comparing key list + value
+    // identity catches every write without having to hook ~20 call sites and
+    // hope none is ever missed — a missed bump would serve operations stale
+    // occurrences, which is a correctness bug, not a perf one.
+    const _localKeys = Object.keys(localOccsById);
+    let _localSame = _mergedBase === _cachedBaseOccsById
+      && _mergedLocalKeys
+      && _mergedLocalKeys.length === _localKeys.length;
+    if (_localSame) {
+      for (let i = 0; i < _localKeys.length; i++) {
+        if (_mergedLocalKeys[i] !== _localKeys[i] || _mergedLocalVals[i] !== localOccsById[_localKeys[i]]) {
+          _localSame = false; break;
+        }
+      }
+    }
+    if (!_localSame) {
+      _mergedOccsById = Object.assign({}, _cachedBaseOccsById, localOccsById);
+      _mergedBase = _cachedBaseOccsById;
+      _mergedLocalKeys = _localKeys;
+      _mergedLocalVals = _localKeys.map((k) => localOccsById[k]);
+    }
+    const occurrencesById = _mergedOccsById;
 
     // ── DIAG: fire entry log ────────────────────────────────────────────────
     // Each top-level fire (depth=1) logs trigger + matched-op preview so the

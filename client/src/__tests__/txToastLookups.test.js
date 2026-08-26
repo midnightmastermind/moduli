@@ -22,6 +22,7 @@ vi.mock("../helpers/operationExecutor", async (importOriginal) => {
     ...actual,
     runMatchingOperations: (ops, transactionType, ...rest) => {
       fired.push(transactionType);
+      seenCtx.push(rest[1]);          // the context, so tests can read occurrencesById
       if (reFire.on) {
         // Stand in for an operation that writes the very field it triggers on —
         // the runaway loop _FIRE_DEPTH_LIMIT exists to stop.
@@ -35,6 +36,7 @@ import { byIdCached, bindSocketToStore, operationsBridge } from "../state/bindSo
 
 const fired = [];
 const reFire = { on: false, fn: null };
+const seenCtx = [];
 vi.stubGlobal("localStorage", {
   getItem: () => null, setItem: () => {}, removeItem: () => {},
 });
@@ -209,5 +211,57 @@ describe("MeasureOp fires AFTER the paint, not during the click", () => {
     } finally {
       reFire.on = false; reFire.fn = null;
     }
+  });
+});
+
+// ─── the base+local occurrence merge is cached; it must NOT go stale ────────
+describe("the cached occurrencesById merge", () => {
+  it("serves a FRESH value after a local occurrence changes", async () => {
+    const socket = makeSocket();
+    bindSocketToStore(socket, () => {}, { current: STATE });
+    seenCtx.length = 0;
+
+    // v1 lands in localOccsById via the real occurrence handler…
+    socket._trigger("occurrence_updated", { occurrence: { id: "o-row", moduleId: "m-row", fields: { f1: { value: 1 } }, occurrences: [] } });
+    await new Promise((r) => setTimeout(r, 60));
+    // …then v2, a DIFFERENT object for the same id.
+    socket._trigger("occurrence_updated", { occurrence: { id: "o-row", moduleId: "m-row", fields: { f1: { value: 2 } }, occurrences: [] } });
+    await new Promise((r) => setTimeout(r, 60));
+
+    const withRow = seenCtx.filter((c) => c?.occurrencesById?.["o-row"]);
+    expect(withRow.length).toBeGreaterThan(0);          // positive control: fires happened
+    const last = withRow[withRow.length - 1].occurrencesById["o-row"];
+    expect(last.fields.f1.value).toBe(2);               // the cache did not serve v1
+  });
+});
+
+describe("the cached merge also follows the BASE map", () => {
+  it("a fire that does NOT touch the local overlay still sees a new base map", async () => {
+    // This is the case the base-identity check exists for. An occurrence event
+    // mutates localOccsById too, so its fingerprint alone would rebuild the
+    // cache and mask the bug. A NavigationOp fire (grid filter change) touches
+    // no local occurrence — if the base identity were ignored, operations would
+    // run against the PREVIOUS occurrence map.
+    const ref = { current: { ...STATE, gridId: "g1", grid: { _id: "g1" },
+      occurrences: [{ id: "base-1", moduleId: "m-row", fields: {}, occurrences: [] }] } };
+    const socket = makeSocket();
+    bindSocketToStore(socket, () => {}, ref);
+
+    seenCtx.length = 0;
+    socket._trigger("grid_updated", { gridId: "g1", grid: { activeFilterValues: { d: "2026-08-25" } } });
+    const first = seenCtx.filter(Boolean).pop();
+    expect(first?.occurrencesById?.["base-1"]).toBeTruthy();   // control: it fired and saw the base
+    expect(first?.occurrencesById?.["base-2"]).toBeFalsy();
+
+    // New occurrences ARRAY — a reducer swap — and NO local occurrence write.
+    ref.current = { ...ref.current, occurrences: [
+      { id: "base-1", moduleId: "m-row", fields: {}, occurrences: [] },
+      { id: "base-2", moduleId: "m-row", fields: {}, occurrences: [] },
+    ] };
+    seenCtx.length = 0;
+    socket._trigger("grid_updated", { gridId: "g1", grid: { activeFilterValues: { d: "2026-08-26" } } });
+    const after = seenCtx.filter(Boolean).pop();
+    expect(after).toBeTruthy();                                 // it fired again
+    expect(after.occurrencesById["base-2"]).toBeTruthy();        // …and the base is fresh
   });
 });
