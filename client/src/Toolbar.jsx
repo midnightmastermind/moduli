@@ -16,7 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, X, Undo2 } from "lucide-react";
+import { Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, X, Undo2, RotateCw } from "lucide-react";
 import ToolbarFilterDropdown from "./ui/ToolbarFilterDropdown";
 import SocketStatusBanner from "./ui/SocketStatusBanner";
 import TransactionNotificationStack from "./ui/TransactionNotificationStack";
@@ -40,6 +40,13 @@ export default function Toolbar({
   onUndo,
   canUndo = false,
   undoBusy = false,
+
+  // Reload. A hard reload, not a re-sync: the states this exists for are the
+  // ones where the TAB's own copy is the stale thing — an `occurrences[]` array
+  // echoed back over a migration, a bundle from before a deploy. This file's
+  // history is full of "restart pm2 AND reload the tab"; asking the server
+  // again would fix neither. Injectable so a test does not reload the runner.
+  onReload,
 
   // Command Center
   onCommandCenter,
@@ -303,6 +310,18 @@ const gridOptions = useMemo(
             style={{ height: 26, width: 26, padding: 0, opacity: canUndo && !undoBusy ? 1 : 0.35 }}
           >
             <Undo2 className="h-3.5 w-3.5" />
+          </Button>
+
+          {/* Reload — beside undo, same reasoning: always visible, because the
+              surface with no keyboard also has no easy browser reload. */}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => (onReload ? onReload() : window.location.reload())}
+            title="Reload"
+            style={{ height: 26, width: 26, padding: 0 }}
+          >
+            <RotateCw className="h-3.5 w-3.5" />
           </Button>
 
           {/* Terminal / Command Center — always visible */}

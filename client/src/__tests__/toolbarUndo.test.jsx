@@ -61,3 +61,37 @@ describe("Toolbar undo button", () => {
     expect(screen.getByTitle("Undo (Ctrl+Z)")).toBeTruthy();
   });
 });
+
+// Reload sits beside it. The states it exists for are the ones where the TAB is
+// the stale thing — a stale `occurrences[]` echoed back, a pre-deploy bundle —
+// so it is a real reload rather than a re-sync, and it is never disabled: there
+// is no such thing as "nothing to reload".
+describe("Toolbar reload button", () => {
+  it("sits between undo and the command center", () => {
+    const { container } = render(<Toolbar {...base} onUndo={() => {}} canUndo onReload={() => {}} />);
+    const order = [...container.querySelectorAll("button")].map(b => b.getAttribute("title"));
+    const u = order.indexOf("Undo (Ctrl+Z)");
+    const r = order.indexOf("Reload");
+    const c = order.findIndex(t => t && /command center/i.test(t));
+    expect(u).toBeGreaterThanOrEqual(0);
+    expect(r).toBe(u + 1);
+    expect(c).toBe(r + 1);
+  });
+
+  it("calls onReload", () => {
+    const onReload = vi.fn();
+    render(<Toolbar {...base} onReload={onReload} />);
+    fireEvent.click(screen.getByTitle("Reload"));
+    expect(onReload).toHaveBeenCalledTimes(1);
+  });
+
+  it("is never disabled — there is no 'nothing to reload'", () => {
+    render(<Toolbar {...base} onReload={() => {}} />);
+    expect(screen.getByTitle("Reload").disabled).toBe(false);
+  });
+
+  it("is offered on a mobile layout too", () => {
+    render(<Toolbar {...base} onReload={() => {}} isMobileLayout />);
+    expect(screen.getByTitle("Reload")).toBeTruthy();
+  });
+});
