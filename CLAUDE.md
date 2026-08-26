@@ -6,6 +6,130 @@
 
 ---
 
+### 2026-08-26 (4) — pictures appear whole; and I SHIPPED A REGRESSION that collapsed every media tile
+
+The other account's last four UI items, all on one surface. Two of them turned
+out to be the same defect, one of my fixes broke a second surface in
+production, and the debris sweep at the end REFUSED — correctly.
+
+**"HAVE THEM JUST APPEAR INSTEAD OF LAGGING THROUGH THE LOAD."** A remote JPEG
+paints AS ITS BYTES ARRIVE, so a visible `<img>` mid-fetch prints down the frame
+under its own spinner. `LoadingImage` holds it at `opacity: 0` until `decode()`
+resolves — **opacity rather than not rendering it**, for the same reason the
+status is an overlay: the element must keep its box or every row reflows the
+moment a picture lands. `decode()` and not just `onLoad`, because onLoad fires
+when the BYTES are in and the decode still happens at first paint.
+
+**MEASURED ON PROD, SAME PROBE AND URL, EITHER SIDE OF THE DEPLOY** — a 120 KB/s
+throttle applied the INSTANT the grid hydrates, which is the only window in
+which posters can be watched arriving (throttling later is useless, they are
+already decoded):
+```
+                        before      after
+images on screen           160       3358
+painted while loading       80          0      <- the defect
+caught mid-load, hidden      0       1589      <- the positive control
+```
+That second row is the claim; the third is what makes it mean anything.
+
+---
+
+**"LONG INSTANCES ARENT SCROLLING DOWNWARD" AND "THEIR BODY THAT EXPANDS OPEN
+ISNT SHOWING AN AREA TO TYPE" ARE ONE DEFECT.** The pocket is a SIBLING of the
+row inside `.instance-wrap`, and a wrap tile caps that wrapper and hides its
+overflow — so opening a body on a tile put the whole typing area past the clip:
+```
+tile   wrap h 155 · max-height 200px · overflow hidden
+       pocket top 840 · wrap bottom 840   -> 30px PAST the edge, invisible
+row    wrap h  98 · max-height none  · overflow visible
+       pocket bottom 580 · wrap bottom 585 -> visible        <- the control
+```
+**A page-wide scan for genuinely unreachable content (overflow hidden AND taller
+than its box) reads 0 with no body open and exactly 1 the moment a tile body
+opens** — so that was the only thing being cut off, and the tile's own
+`.instance-fields` scroll never covered it because the pocket is not inside the
+field block. The cap is about the FIELDS; a body the user just opened is let out
+of it, bounded at 160px and scrolling instead.
+
+**AND THE FIELD BLOCK NEVER SCROLLED EITHER.** The tile promises "the scroll
+lives on the field block", and `.instance-textcol` sat at `min-height: auto`:
+```
+wrap 200 hidden · row 198 · content 192 · textcol 466 AUTO · fields 439 auto
+```
+The bounded height never reached the fields, so `overflow-y: auto` had nothing
+to do and 269px of a tracker tile was unreachable. **`align-self: stretch` is
+NOT the bound, and only measuring shows it** — `.instance-content` is
+`flex-wrap: wrap`, and in a MULTI-LINE flex container an item stretches to its
+own LINE's cross size, a line this column itself sets. A/B'd: without the two
+properties the same three tiles read **123 / 34 / 270px unreachable and 0
+scrollable**; with them, 0 unreachable, 3 scrollable, and the block moves
+(`scrollTop 0 -> 116`).
+
+---
+
+**THEN I SHIPPED IT AND EVERY PICTURE TILE COLLAPSED TO 10px.** Caught by
+probing prod after the deploy, not before it:
+```
+wrap rectH 10 (was 276) · content 0 · textcol 0 · fields 0
+the poster, 182px, overflowing a 10px tile        — 34 of 37 tiles in view
+```
+**THE TWO TILE SHAPES NEED OPPOSITE THINGS FROM THAT ELEMENT.** A tracker tile
+lays out as a ROW, so the column's cross axis is height and `min-height: 0` is
+what lets the cap reach the fields. A media tile is `--content-column`, so the
+SAME column is `flex: 1 1 0` along the MAIN axis inside a wrap whose height is
+auto — there `min-height: 0` lets it fall to its zero basis with no free space
+to grow back into. Scoped to `:not(.container-items--content-column)` now.
+
+**WHY I DID NOT CATCH IT LOCALLY, and this is the reusable half: my dev server
+had been up since Aug 25 and its WARM CACHE was serving a stale
+`activeOccurrenceId` per panel** — so every local probe rendered the tracker
+boards and never mounted a single media board. Two tile shapes exist; I verified
+one and shipped for both. *A local server holding a warm cache is a claim about
+the grid AS IT WAS WHEN IT STARTED.* Restarting it put the media boards back on
+screen and the regression reproduced in one run.
+
+Re-verified on prod after the correction: picture tiles **276 / 302 / 276 —
+byte-identical to the pre-change baseline**, 0 collapsed, 0 unreachable; the
+tall tracker tile at 0 unreachable with its field block scrolling `0 -> 34`;
+schedule rendering 49 slots; **0 page errors** on every load.
+
+**THE BORDER ABOVE THE BODY** is in the container's own accent rather than a
+neutral rule, so the pocket still reads as this row opening rather than a slab
+parked under it — which is what the square top corners and the missing top
+margin were written for.
+
+---
+
+**AND MY OWN PROBES LEFT DEBRIS I DELIBERATELY DID NOT SWEEP.** ~15 grid loads
+stranded one container (`z9lntG03zNIP`, 73 routine rows) whose module and parent
+never persisted — the documented create/disconnect asymmetry, from closing a
+browser mid-burst. It is unreachable (no module, no parent, listed by nobody,
+and no child listed anywhere else), so it renders nowhere, and it is the only
+`missing-module` on a 22,019-occurrence grid.
+
+**THE SWEEP REFUSED, AND IT WAS RIGHT TO.** One of the 73 is a `Drink` carrying
+`Completed: true` with `Completed On` stamped **07:48 — before this session
+started**: a completion the USER made this morning, copied into a row a later
+rebuild minted. Deleting a real completion to clear an integrity warning is the
+damage, not the fix (the `0038` rule from the other direction). Left in place
+and reported. If it is ever swept, the guards that matter are: the root's module
+AND parent both absent, nothing listing it, and no child that has children, is
+listed elsewhere, carries text, or holds a TRUE field — that last one is the
+guard that fired here.
+
+**Separately, and NOT mine: a second column carrying today's label**
+(`f1d45c40`, created 06:35, **588 children = 49 slots x 12 copies each**) is
+parented to the Schedule page and listed by nobody, so it is already invisible.
+It predates this session. The column the page DOES list is clean at 49 slots.
+
+6 tests, 3 A/Bs each failing exactly its own cases (revealing on onLoad without
+awaiting decode fails 2, dropping the src guard fails 1, forcing opacity 1 fails
+1). 3,364 client tests — the same 8 pre-existing in `weekdayTasks` +
+`trackerFollowsPageFilter`. Two deploys, prod HEAD verified, served CSS
+**sha256-identical** to the local build with both new rules present.
+
+---
+
 ### 2026-08-26 (3) — THREE folders called Templates, and deleting two would not have STUCK
 
 User: *"also move the more inner templates folder contents to the boards section and delete that
