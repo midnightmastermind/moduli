@@ -6,6 +6,88 @@
 
 ---
 
+### 2026-08-26 (6) — THE SCROLL PAINT IS ATTRIBUTED AT LAST: 46 of 50 running animations were OFF SCREEN
+
+Entry (5) left the scroll complaint measured and unfixed, and named what the
+next pass needed: *"a real paint trace (tracing with paint records) rather than
+`Performance.getMetrics` deltas."* That trace was taken, and it named a cause
+the fps A/B could never have found.
+
+**THE ANIMATIONS NEVER STOP, AND ALMOST NONE OF THEM ARE ON SCREEN.** On the
+live grid at 1280x800:
+```
+running CSS animations            50      of them OFF SCREEN   46
+.auto-marquee-inner on screen   1039      running               49
+Layerize, over a 60-step scroll   1766ms of a 3834ms main thread    <- 46%
+```
+Every running transform animation is its own compositing reason, so the
+compositor never goes quiet at rest — **still 50 after four idle seconds.**
+`AutoMarquee` only animates when a label overflows, so 1,039 marquees produce
+49 animations; what nothing checked was whether the label was in view.
+
+**THE FIX DOES NOT PAUSE — IT DOES NOT EMIT.** `animation-play-state: paused`
+keeps the layer AND the compositing reason, which is most of the cost. The
+animation is simply absent from the style while the box is out of view. The
+IntersectionObserver is created only when there is overflow to scroll, so a
+static label still costs nothing, and it fails OPEN: with no
+IntersectionObserver the marquee behaves exactly as it did before.
+
+**THE MEASUREMENT NEEDED THE BUNDLE SWAPPED BETWEEN RUNS, and that is the half
+worth keeping.** The first before/after put the two builds in separate server
+sessions and reported **-26%**. A drift check — re-running the CEILING arm on
+the new build — showed the whole machine had moved: `no-marquee` went
+2010 -> 2284ms and the fixed build 2776 -> 3460ms between sessions, 14-25% for
+free. Rebuilt both bundles once, swapped `client/dist` between every run, three
+interleaved passes against ONE server:
+```
+                    baseline                 fixed
+main-thread task    3834ms [3823,4258]       3355ms [3125,3525]    -12%, NO overlap
+Layerize            1766ms                   1290ms                -27%
+RecalcStyle          239ms                     74ms                -69%
+running animations      50                        4
+off-screen ones         46                        0
+```
+**-12%, not -26%.** *A before/after measures the change only if both halves ran
+against the same thing* — this file has recorded that rule since 2026-08-25 (7),
+and here it was worth half the reported win.
+
+**AND THE INSTRUMENT WAS SHOWN TO DISCRIMINATE BEFORE ANY ARM WAS BELIEVED.**
+(5) abandoned its A/B because a NULL MUTATION won by 24%. So a null arm — a CSS
+rule matching no element on the grid — ran interleaved with the others: it read
+**3288ms against baseline's 3750ms**, inside baseline's own spread, while the
+ceiling arm sat at 2010ms with no overlap at all. *An arm that changes nothing
+must be in the set, and this time it behaved.*
+
+**THE FEATURE IS PROVEN ALIVE, WHICH IS THE CHECK A PERF PASS SKIPS.** A fix
+that silently stopped every label scrolling would improve every number above.
+```
+on screen      3 animating   transform moved -151.192px -> -194.392px over 1.2s
+off screen     0 animating
+scrolled in    1 animating       <- re-entry re-arms
+```
+The middle line alone proves nothing — an always-dead marquee passes it. The
+first and third are what make it a measurement, the `0206`/`(16)` rule about
+verifying an absence, applied to a perf change.
+
+**WHAT REMAINS, ATTRIBUTED RATHER THAN GUESSED:** killing marquee animation
+outright reached ~2300ms on the same machine, so **roughly two thirds of the
+headroom is still there.** It is NOT the three visible marquees — three
+animations cannot cost a second. It is the layer CHURN of arming and disarming
+animations as rows cross the viewport edge during the gesture, and it wants its
+own pass. Entry (5)'s other lead — the day column at 5,871 nodes — is untouched
+and still stands.
+
+3,379 client tests (the same 8 pre-existing in `weekdayTasks` +
+`trackerFollowsPageFilter`), lint clean on the edited file, poms grid **0
+errors** with the one documented `unused-field` warning.
+
+**A probe note, because it cost a rebuild:** the session scratchpad was wiped
+mid-run and took the auth token with it. A token is mintable locally with the
+server's own `JWT_SECRET` — `server/scripts/apiDemoClient.js` already does
+exactly that — so a lost probe token is a one-line recovery, not a re-login.
+
+---
+
 ### 2026-08-26 (5) — delete had four names; the undo button that never existed; and a scroll probe that measured nothing
 
 **"HOW DO WE DELETE OCCURANCES ATM" / "I CANT FIND THE DELETE IN THE RADIAL
