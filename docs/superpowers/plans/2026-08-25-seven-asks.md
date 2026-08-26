@@ -966,3 +966,36 @@ right field anyway and the guard is never exercised.
 **Read back:** all five now carry Artist + Album bindings; Hallelujah, Blackbird
 and Redbone carry values; Clair de Lune and Take Five are ready to fill. poms
 grid **0 errors**.
+
+---
+
+## 16 — the media library reaches 100% artwork (`0254`-`0259`)
+
+```
+kind      covered / total          verified   image-search
+movie        993 / 993   100%           989        4
+series       187 / 187   100%           183        4
+album      3,027 / 3,027 100%         2,423      604
+song       5,484 / 5,484 100%         5,484        0   (all inherited)
+artist     1,679 / 1,679 100%           161    1,518
+book         875 / 877   100%           222      653
+game/comic     9 / 9     100%             0        9
+TOTAL     12,254 / 12,256              9,462    2,792
+```
+
+**FOUR SOURCES, IN DESCENDING ORDER OF CONFIDENCE, and the order is the point:**
+1. `0245` TMDB by title+year · `0254` Spotify oEmbed by stored URL, Open Library by ISBN — an
+   IDENTIFIER, which cannot fetch the wrong picture.
+2. `0258` Deezer by title **and** artist — a search with both sides checked.
+3. `0259` this app's own image search — matches on **nothing**. Used only after the user saw what
+   was left blank and asked for it, only on rows with NO cover, and every row it fills is stamped
+   `meta.coverSource: "image-search"` so the two classes stay tellable apart forever.
+
+**SONGS NEVER COST A REQUEST.** A song references its Album and a song's art IS its album's, so all
+5,484 were derived. Searching them would have been 5,484 requests for pictures already in hand.
+
+**Verified by looking:** the Artists board renders every row with a loaded image, 0 page errors.
+The first row is an artist named `222222` wearing a stranger's photograph — a fair illustration of
+what the third confidence class buys.
+
+**The 2 remaining blanks** are books the image search returned nothing for.
