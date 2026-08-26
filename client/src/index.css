@@ -5525,16 +5525,43 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
      269px of a tracker tile was clipped away with no way to reach it, which is
      the other half of *"long instances arent scrolling downward"*. The scroll
      the rule below promises only works if every ancestor between it and the
-     cap is allowed to shrink. */
+     cap is allowed to shrink — see the ROW-ONLY rule below, which is where
+     that bound lives. */
+}
+
+/* ── THE BOUND THAT MAKES THE FIELD BLOCK SCROLL — ROW TILES ONLY ──────────
+   A tracker tile lays its content out as a ROW ([handle][text column]); a
+   media tile is `--content-column` (picture over title over fields). The two
+   need OPPOSITE things from this element, which is why the scope is not the
+   whole wrap mode.
+
+   ROW tile — the column must be allowed to shrink to the capped tile, or the
+   bounded height never reaches `.instance-fields` and its `overflow-y: auto`
+   has nothing to do. Measured before this rule existed:
+
+     wrap 200 hidden · row 198 · content 192 · textcol 466 (min-height AUTO)
+     fields 439, overflow auto, never overflowing   -> 269px unreachable
+
+   And `align-self: stretch` is NOT that bound, which only measuring shows:
+   `.instance-content` is `flex-wrap: wrap`, and in a MULTI-LINE flex container
+   an item stretches to its own LINE's cross size — a line this column itself
+   sets. The parent's height IS definite (192px, from the capped wrap), so the
+   percentage cap is what actually binds it.
+
+   COLUMN tile — THE SAME TWO PROPERTIES COLLAPSE IT, and this shipped for one
+   deploy before a prod probe caught it. There the column is `flex: 1 1 0` along
+   the MAIN axis (height) inside a wrap whose own height is auto, so
+   `min-height: 0` lets it fall to its zero basis with no free space to grow
+   back into. Every picture tile became a 10px sliver:
+
+     wrap rectH 10 (was 276) · content 0 · textcol 0 · fields 0
+     with the poster, 182px, overflowing a 10px tile
+
+   Those tiles already fit inside their own 440px cap (0 unreachable, measured
+   both before and after), so they need no bound at all. */
+.container-items--wrap:not(.container-items--content-column)
+  > .instance-wrap .instance-content > .instance-textcol {
   min-height: 0;
-  /* …and `align-self: stretch` above is NOT the bound, which is the part that
-     only measuring shows. `.instance-content` is `flex-wrap: wrap` (the row
-     layout needs it so the media block can drop onto its own line), and in a
-     MULTI-LINE flex container an item stretches to its own LINE's cross size —
-     a line whose height is set by the tallest item in it, i.e. by this column
-     itself. Stretch is a no-op here. The parent's height IS definite (192px,
-     resolved from the capped wrap), so a percentage cap is what actually binds
-     it and lets the field block below overflow and scroll. */
   max-height: 100%;
 }
 /* ── CONTENT COLUMN — the TILE shape: picture on top, title, then fields ────
