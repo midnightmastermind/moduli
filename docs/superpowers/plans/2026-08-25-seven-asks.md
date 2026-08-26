@@ -874,3 +874,53 @@ click -> paint         27-46ms  (already instant, unchanged)
 
 **Still open:** `Schedule: Place Dated Work` (~500ms, five runs of ~100ms) — see the filing above;
 its `Completed On` trigger is load-bearing and dedup would change semantics for all 67 ops.
+
+---
+
+## 14 — cover art for the music and book libraries (`0254`)
+
+User: *"can you look into giving the rest of the media images"*.
+
+**WHAT LANDED**
+```
+                rows   had art   now   source
+album          3,027         0     24   Spotify oEmbed (exact URL)
+artist         1,679         0    161   Spotify oEmbed (exact URL)
+book             877         0    222   Open Library by ISBN, title-gated
+song           5,484         0    196   DERIVED from the album — no network
+```
+603 rows gained art. **13 books were REFUSED as the wrong book** by the title gate.
+
+**THE TRAP THAT GATE EXISTS FOR, found by probing before writing.** A deliberately
+bogus ISBN of all zeros does not 404 on Open Library — it returns HTTP 200, a
+19,683-byte real jpeg, and a real book record. So "the ISBN resolved" is no
+evidence the cover belongs to this book. Every book must clear a normalised
+title match against its own label; it fired 13 times on live data.
+
+**SONGS COST NOTHING.** A song references its Album, and a song's artwork IS its
+album's — so they are derived after the albums land. Fetching them individually
+would have been 5,484 requests for art already in hand.
+
+**WHY THE NUMBERS ARE SMALL, said plainly.** Only 731 of ~11,000 rows carry a
+usable identifier at all:
+```
+album   199 of 3,027 have a Spotify URL      artist 163 of 1,679
+book    369 of   877 have an ISBN
+```
+The rest came from a local-rip / Calibre import that stored no id. And of the 199
+album URLs only 24 resolved through oEmbed, against 161 of 163 artist URLs — a
+real difference in that data, not a bug in the fetch.
+
+**THE FALLBACKS WERE PROBED AND ARE NOT GOOD ENOUGH YET:**
+- **iTunes album search** returns ambiguous hits without the artist — "Drum Show"
+  gave two unrelated singles. Albums DO carry an Artist reference (2,727 of
+  them), so a title+artist query with a match guard is the viable next step, and
+  it would unlock most of the 5,288 songs too, since songs inherit.
+- **iTunes has NO artist artwork** (`musicArtist` returns none), so the 1,516
+  URL-less artists have no source at all.
+- **Open Library title search returned 0** for a real book, so the 508 ISBN-less
+  books will not resolve that way.
+
+**Left blank and reported:** Games (4), Comics (5) and the 8 films TMDB never
+matched — an image search on *"Invincible, main run #000–#144 (2003–2018)"* is a
+guess, and `0201` already recorded what guessed covers look like.
