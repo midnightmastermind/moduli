@@ -805,3 +805,49 @@ So the sweep COUNT was never the cost — one sweep is. **Batching the fires wou
 Both are stored-pipeline changes on the user's live schedule, so they want their own reviewed pass
 rather than the tail of this one. **All of it now runs off the critical path**, so the grid stays
 responsive while it happens.
+
+---
+
+## 10 (filed) — `Schedule: Place Dated Work`: analysed, and NOT changed, with the reasons
+
+The last ~550ms of the toggle. Investigated to the point of a fix and deliberately stopped there;
+everything below is what the next pass needs so it does not re-derive it.
+
+**WHAT IT COSTS.** Five separate runs per toggle, ~110ms each, **every one emitting zero effects**.
+Per day in `$activePeriodDates` the pipeline walks `$allContainers` twice and `$allInstances`
+**four** times — appointments, the appointment sweep (with a nested `$allContainers` loop), due
+tasks, and the due sweep — roughly 7,400 predicate evaluations plus ancestor walks.
+
+**THE OBVIOUS FIX IS WRONG, AND CHECKING `isDueOn` IS WHAT SAID SO.** The op is triggered by
+`Completed On`, which `Schedule: Stamp Completed On` writes on every tick — so removing that
+trigger would delete five scans per toggle. It cannot be removed: `helpers/dueSpan.js` reads it as
+the *whole* completion rule —
+```js
+const done = dayKey(task?.completedOn);
+if (done) return d <= done;   // completed: never after that day
+```
+Drop the trigger and a completed task keeps being placed into every following day's Due container.
+*A trigger that looks redundant because the op emits nothing today is load-bearing on the day the
+data differs.*
+
+**THE `Schedule: Fill Day` GUARD SHAPE DOES NOT TRANSFER.** That fix worked because the guard and
+the loop read the SAME expression, so it provably could not change behaviour. This op has no
+equivalent cheap signal: it is a reconciler whose "is there anything to do" answer requires the
+scan itself.
+
+**WHAT IS TRUE AND USEFUL: the op is TRIGGER-INDEPENDENT.** Its pipeline references `$trigger`
+exactly twice, both `$trigger.sourceOccurrenceId`, both inside the 2026-08-09 source guard. So for
+any run that passes that guard the effects depend only on grid state — which makes the 2nd-5th runs
+in one cascade provably redundant, and dedup the right lever rather than a guard.
+
+**WHY THAT WAS NOT SHIPPED.** Deduping needs "run this op once per user action", and the existing
+`_navCascadeFiredOps` only spans a single `fireOperationsBatch` burst — these are five separate
+depth-1 sweeps in five separate tasks. Keying it on the action id instead would change op execution
+semantics for **all 67 operations**, and 46 of them DO read `$trigger`, so the dedup would have to
+be conditional on an introspection rule I would be inventing. That is a reviewed pass of its own,
+not the tail of this one.
+
+**Cheaper option worth measuring first:** the four `$allInstances` walks per day could be one pass
+collecting into the four buckets. ~4x on this op with no semantic change — but it is a
+restructure, which is exactly the trade `Schedule: Fill Day` declined in favour of a rule that
+could not alter behaviour. Measure before choosing.
