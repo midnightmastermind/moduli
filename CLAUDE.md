@@ -6,6 +6,49 @@
 
 ---
 
+### 2026-08-25 (8) — the toggle is FIXED: 2333ms -> 30ms, because the CONTROL repaints before the write
+
+User: *"even if it does, it should mark the toggle as complete before running the ops"*. They were
+right — moving the operations off the click (entry (7)) was necessary and not sufficient.
+
+**WHY.** `Field.handleChange` sets the control's LOCAL state, so the switch is ready to paint at
+once. React then batches that setState with `FieldRenderer.handleCommit`'s store dispatch, and that
+dispatch re-renders the app — so the browser still could not paint the tick until the re-render
+finished. `handleCommit` defers its body past the paint now: the control repaints from its own
+state, then the write and its cascade run a frame later (`afterPaint` is FIFO, so nothing is
+reordered).
+```
+before   switch flips with the batch · first paint 2333ms
+after    switch flips at 1ms         · first paint 28-32ms      (3 runs)
+```
+
+**UNDO IS UNAFFECTED, checked rather than assumed** — and this was the one thing that could have
+made the change silently destructive. `CommitHelpers.updateOccurrence` opens its OWN scope via
+`withAction`, so the action id is minted when the deferred write runs and still groups it with its
+whole cascade into ONE undo step. An AMBIENT scope would have been lost across the deferral and the
+write recorded as `derived`, which the undo stack skips.
+
+**VERIFIED END TO END ON LIVE DATA — the deferred write lands AND its ops still fire:**
+```
+tick    "Walk"  ->  Completed = true   ·  Completed On = "2026-08-25"   <- the op stamped it
+untick  "Walk"  ->  Completed = false  ·  Completed On = null           <- the else branch fired
+```
+
+**AND MY OWN EDIT CARRIED THE TDZ TRAP THIS FILE ALREADY RECORDS.** `handleCommit`'s dep array
+named `_commitNow`, declared below it — and a `useCallback` dep array is evaluated at RENDER time,
+so it throws before the callback ever runs. **`no-undef` cannot see it**, because the const does
+exist; only reading the diff catches it. Reordered.
+
+**WHAT REMAINS, attributed for the next pass:** ~3.0s of operation work per toggle, now entirely
+off the critical path — the grid keeps responding while it runs. One toggle is **80 sweeps: 52 at
+depth 1, 28 at depth 2**, so the depth-1 fires (one per occurrence the cascade writes, echo-driven)
+are where a batching pass should start.
+
+3,349 client tests (the same 8 pre-existing). poms grid **0 errors**, every probe row restored by
+occurrence id and read back out of Mongo.
+
+---
+
 ### 2026-08-25 (7) — the tick paints 30% sooner; and TWO of my own conclusions were wrong
 
 Continued item 10. `setOccurrenceFieldValue` dispatches the optimistic value and then fires
