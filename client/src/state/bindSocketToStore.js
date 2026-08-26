@@ -10,7 +10,6 @@ import { runMatchingOperations, executeOperation, executePipeline, setOpApplying
 import { kindForNewModule } from "../helpers/operationActions";
 import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
 import { toast, pushTxNotification } from "./notificationStore";
-import { afterPaint } from "../helpers/afterPaint";
 import { makeOpNotificationCallbacks } from "../helpers/opResultSummary";
 import { syncAllFeeds } from "../helpers/feedSync";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
@@ -1664,32 +1663,25 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       setTimeout(() => optimisticFiredSet.delete(transaction.occurrenceId), 5000);
     }
 
-    // ── A FIELD WRITE PAINTS FIRST, THEN RECOMPUTES ───────────────────────
-    // `setOccurrenceFieldValue` dispatches the optimistic value and then calls
-    // this synchronously, so the browser cannot paint the tick until every
-    // matching operation has run. Measured on poms grid: one `Completed`
-    // toggle is ~2.0s of operations inside a ~3.9s click-to-paint — the user
-    // watches a frozen checkbox for the whole sweep.
+    // NOT DEFERRED, AND THE MEASUREMENT IS WHY. Running this fire past the
+    // paint (helpers/afterPaint.js, the textblock-mint trick) DOES cut
+    // click-to-paint — median 3985ms -> 3403ms — but it was a bad trade,
+    // measured over four runs each on poms grid:
     //
-    // Deferring past the paint is the shape `helpers/afterPaint.js` was built
-    // for (the textblock mint went 1000ms -> 30ms the same way). Nothing is
-    // skipped: the trackers still recompute, one frame later, while the tick
-    // the user clicked is already on screen.
+    //     op sweeps      30 / 2047ms  ->  80 / 2999ms
+    //     DOM mutations       2510    ->     ~4100
+    //     total blocked      ~6000ms  ->    ~7300ms
     //
-    // Scoped to MeasureOp deliberately. NavigationOp rides this same function
-    // through `fireOperationsBatch`, and the filter cascade depends on running
-    // before the render it is scoping — deferring that would be a different
-    // change with a different risk.
-    // ONLY THE TOP-LEVEL FIRE IS DEFERRED (`_fireDepth === 0`), the same test
-    // the drop batch above uses. A nested fire is an operation writing a field
-    // DURING a cascade; deferring those turns each one into its own depth-0
-    // sweep and defeats the nesting, which measured as 30 sweeps -> 80 and
-    // ~2.0s -> ~3.1s of operation time for one toggle. The user-facing paint
-    // still improves either way; this keeps the work that backs it honest.
-    if (transactionType === "MeasureOp" && _fireDepth === 0) {
-      afterPaint(() => fireOperations(transactionType, transaction, options));
-      return;
-    }
+    // The paint gain sits inside the run-to-run spread (2178-3536ms) while the
+    // extra work is consistent, so the app is unresponsive LONGER overall to
+    // win a number that may be noise. And deferring nested fires (which is what
+    // made it fastest, 2535ms) resets `_fireDepth`, so the op-loop depth cap
+    // below can never accumulate — the guard stops working exactly when a
+    // runaway op needs it.
+    //
+    // Kept as a comment rather than deleted: the shape is right, the accounting
+    // is not, and the next attempt should batch the echo-driven sweeps rather
+    // than move the one sweep that matters.
     fireOperations(transactionType, transaction, options);
   }
 
