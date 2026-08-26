@@ -1680,7 +1680,13 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // through `fireOperationsBatch`, and the filter cascade depends on running
     // before the render it is scoping — deferring that would be a different
     // change with a different risk.
-    if (transactionType === "MeasureOp") {
+    // ONLY THE TOP-LEVEL FIRE IS DEFERRED (`_fireDepth === 0`), the same test
+    // the drop batch above uses. A nested fire is an operation writing a field
+    // DURING a cascade; deferring those turns each one into its own depth-0
+    // sweep and defeats the nesting, which measured as 30 sweeps -> 80 and
+    // ~2.0s -> ~3.1s of operation time for one toggle. The user-facing paint
+    // still improves either way; this keeps the work that backs it honest.
+    if (transactionType === "MeasureOp" && _fireDepth === 0) {
       afterPaint(() => fireOperations(transactionType, transaction, options));
       return;
     }
