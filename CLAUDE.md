@@ -6,6 +6,47 @@
 
 ---
 
+### 2026-08-26 — `getAncestorChain` rebuilt a 6,557-entry map to walk 20 links
+
+A CPU profile is what found this one, and it is the third instance of the same
+shape in two days: **work the surrounding code had already decided to cache, rebuilt on every
+call.**
+
+`operationsBridge.getAncestorChain(occId)` walks at most 20 ancestors. To do it, it rebuilt a
+FULL module map (**6,557 entries** on poms grid) and a parent-by-child map over the whole local
+overlay — **every call**. It runs once per `occurrence_updated`, ~80 times for one `Completed`
+toggle: ~524k iterations for the module map alone. A CDP `Profiler` run over one toggle put it at
+**440ms**, and `_cachedModulesById` was already sitting in the same closure.
+
+Modules are now keyed on the array identity; the overlay is fingerprinted exactly like the
+occurrence merge, and for the same reason — its ~20 mutation sites all ASSIGN A NEW OBJECT, so key
+list + value identity catches every write without hooking twenty call sites and hoping none is ever
+missed.
+
+**BOTH GUARDS NEEDED A SECOND ATTEMPT TO TEST HONESTLY, which is the reusable half.**
+- The re-parent test first ADDED a key, so the cheap length comparison rebuilt the cache and the
+  value-identity bug was masked. Isolated by moving a child between two parents that BOTH already
+  exist — same key set, different values.
+- The modules-map guard was covered by nothing at all: no test swapped the modules array. It needed
+  a rename, asserting the chain's LABELS follow.
+
+*A guard is untested until the test isolates the case only that guard covers* — twice in one pass.
+
+**MEASUREMENT, AND THE HONEST CAVEAT.** Across this and the two previous passes, on comparable
+runs: operation time ~3,270ms -> ~2,500ms, and the main 27-op sweep 1,514ms -> ~850ms. **Run-to-run
+variance is large because which row the probe picks changes the op set** (a cheap row fires ~30
+sweeps, an expensive one ~80), so these are ranges rather than a precise percentage — the
+like-for-like figure I trust most is the main sweep, which is the same 27 ops every time.
+Click-to-paint stays 30-250ms.
+
+3,358 client tests (the same 8 pre-existing), poms grid **0 errors**.
+
+**Two `Drink` rows read Completed on the live grid and are NOT probe debris** — that occurrence id
+appears in no probe run this session, and every probe restored the row to the state it found. Left
+alone: deleting a real completion to tidy a report is the damage, not the fix.
+
+---
+
 ### 2026-08-25 (9) — the ops get 2x faster: work that was CACHED PER SWEEP was rebuilt PER OP
 
 User: *"theres got to be a way to speed up these ops so its more instant"*. There was — two
