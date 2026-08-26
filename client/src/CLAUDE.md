@@ -563,73 +563,59 @@ guess at intrinsic size. **Lesson: before proposing an optimisation, grep whethe
 there.** Three headless probes also failed to reproduce this (details below); the device did it in
 one scroll.
 
-## DOCKET — scroll paint: 3 marquees cost ~1,100ms and NOBODY KNOWS WHY (2026-08-26)
+## CLOSED — scroll paint: the marquee is NOT the problem, and `will-change` is a trap (2026-08-26)
 
-Shipped in the same pass: `AutoMarquee` no longer emits its animation while the box is out of view
-(`6f63765a`). That removed **46 of 50 running animations** and took the main thread during a
-60-step scroll from **3834ms -> 3355ms (-12%)**, `Layerize` 1766 -> 1290ms, `RecalcStyle`
-239 -> 74ms. Ranges did not overlap; a null arm read as baseline.
+Shipped: `AutoMarquee` no longer emits its animation while its box is out of view (`6f63765a`) —
+**46 of 50 running animations gone**, main-thread task 3834 -> 3355ms, `Layerize` 1766 -> 1290ms.
+That part is real and is live. **Everything I then filed about the REMAINING cost was wrong, three
+times over, and the docket is closed rather than left as bait.**
 
-**WHAT IS LEFT.** Killing marquee animation outright (`.auto-marquee-inner{animation:none}`) still
-reaches **~2334ms** against the shipped build's **~3446ms** on the same machine, ranges separated.
-So **three visible marquee animations cost roughly 1,100ms across a 60-step scroll** — and that is
-the whole remaining prize.
-
-**I FILED A HYPOTHESIS HERE THIS MORNING AND IT WAS WRONG. IT IS RETRACTED.** The entry said the
-cost was "the layer CHURN of arming and disarming animations as rows cross the viewport edge" and
-proposed three fixes (a hysteresis band, a shared IntersectionObserver, a class toggle instead of
-React state). **All three target churn, and there is no churn.** Counting the running-animation set
-once per scroll step, twice:
+**THE ~1,100ms RESIDUAL WAS AN ARTEFACT OF MEASURING THE WRONG THING.** Every earlier round quoted
+total main-thread task time across a 60-step rAF gesture. That conflates per-frame cost with how
+long the gesture took — a cheaper frame ends the gesture sooner, so the total falls twice for one
+cause. Measured as FRAME INTERVALS, which is what "scroll is too slow" actually means:
 ```
-arms during the whole gesture      3
-DISARMS                            0        <- there is no thrash to damp
-peak concurrent                    3
+arm            medFrame    p95     max   >32ms   gesture
+baseline           31.1   36.7    46.8      20      1896
+null-control       32.4   41.3    43.9      33      1996   <- WORSE than baseline
+willchange         31.4   39.6    46.0      27      1966
+no-marquee         27.5   33.9    39.2       5      1684   <- the ceiling
+wc-blanket         87.9  105.3   137.1      60      5422   <- see below
 ```
-*Every one of those three proposed fixes would have been built against a mechanism that does not
-exist.* A docketed hypothesis is a guess with a citation; count the thing before building for it.
+**Task total said the marquee was worth 32%. Frame time says 12%** — 31.1ms vs 27.5ms, about
+3.6ms per frame at 4x CPU throttle, so **under 1ms per frame at normal speed.** And the null arm
+(32.4) is *worse* than baseline while `willchange` (31.4) sits between them, so the instrument
+cannot separate those three at all. Only the ceiling and the blanket arm clear the noise.
+*The marquee is not what makes this grid scroll badly.*
 
-**THE SECOND HYPOTHESIS IS ALSO DEAD.** `auto-marquee-scroll` resolves its endpoint through
-`translateX(var(--mq-shift))`, and a custom property in a keyframe is a known way to lose the
-compositor thread — which would put the animation on the main one and explain everything. An arm
-replacing it with a LITERAL `translateX(-150px)`, same holds, same motion:
-```
-as shipped   [3446, 3132, 3712]   med 3446
-novar        [3381, 3936, 3246]   med 3381   <- fully overlapping. costs nothing.
-no-marquee   [2133, 2334, 2356]   med 2334   <- separated from both
-```
+**`will-change: transform` BUYS NOTHING** — the third hypothesis, dead like the other two (layer
+churn: 3 arms / 0 disarms; `var()` in the keyframe: fully overlapping). Applied to exactly the
+marquees that are animating: 31.4ms against a 31.1ms baseline, raw medians [31.4, 30.7, 33.7] vs
+[27.6, 31.1, 35.7].
 
-**AND IT IS NOT `Layerize` EITHER**, which is what makes this genuinely odd — that was the whole
-mechanism for the 46 off-screen ones. Ranking every trace event by summed duration, shipped build
-against the ceiling:
-```
-RunTask                  2914   2206   +708      <- the difference
-Layerize                 1197   1163    +34      <- essentially identical
-UpdateLayoutTree           66     23    +43
-FireAnimationFrame         86     50    +36
-PrePaint                   51     28    +23
-IntersectionObserver…     137    136     +1      <- the new observers cost nothing
-```
-The named children account for ~167ms of a ~708ms gap. **~540ms is inside `RunTask` and attributed
-to nothing.** Either the trace category set is missing it, or it is `RunTask` self time.
+**AND THE BLANKET VERSION IS A THREE-TIMES REGRESSION — this is the finding worth keeping.**
+`.auto-marquee-inner{will-change:transform}` over all 1,039 boxes: **median frame 31 -> 88ms, the
+gesture 1896 -> 5422ms, every one of the 60 frames over 50ms.** That is `index.css:2791`
+reproducing exactly — a permanent `will-change` promoting a whole subtree to its own composited
+layers — from a new direction. **It also settles the "should we adopt a marquee package" question:
+the common perf advice is to add `will-change`, so a library that sets it per instance would be
+~3x WORSE here than what we already have.** The libraries are otherwise the same technique
+(`react-fast-marquee`: CSS transform keyframes; `react-marquee-text`: CSS animation gated on
+IntersectionObserver — i.e. precisely what `6f63765a` now does).
 
-**WHERE TO START, and it is not a fix.** Widen the trace categories (`blink`, `cc`, `gpu`,
-`disabled-by-default-devtools.timeline.frame`) and find the missing ~540ms before writing a line of
-code. Worth checking whether the gesture simply COMPLETES FASTER in the ceiling arm — the probe
-drives 60 rAF steps, so a cheaper frame shortens the whole gesture and `RunTask` total conflates
-per-frame cost with gesture duration. That confound has not been separated.
+**DO NOT reopen this by removing the marquee.** Under 1ms per frame does not justify degrading a
+feature the user actively wants, and two separate designs for doing so (finite iterations,
+click-to-reveal) were proposed off the inflated task-total number and correctly rejected. If this
+surface is still slow, the lead is entry (5)'s other one — **the day column at 5,871 nodes** — not
+the marquee.
 
-**THE INSTRUMENT, and use this one.** `_marqueetrace.mjs` / `_scrollattr.mjs` (repo root,
-gitignored): CDP `Tracing` over `disabled-by-default-devtools.timeline`, summed across 60 rAF
-scroll steps at 4x CPU throttle, plus a deterministic count of running animations split on/off
-screen. **Two rules are non-negotiable:**
-- **Interleave the arms, and swap the BUILT BUNDLE between runs.** Measuring two builds in separate
-  server sessions drifted 14-25% and reported -26% for a -12% change. Build both, keep them as
-  `dist-baseline` / `dist-fixed`, `cp` one over `client/dist` per run.
-- **Keep a NULL arm in the set.** The 2026-08-26 (5) attempt died because a mutation that changed
-  nothing won by 24%. If the null arm moves like the real ones, the run is over.
-
-Counts (`document.getAnimations()`, arm/disarm transitions) are deterministic and can be quoted from
-a single run. Timings cannot — every timing above is a median of three.
+**THE INSTRUMENT, and the three rules it took all day to earn.** `_framewc.mjs` / `_marqueetrace.mjs`
+(repo root, gitignored):
+- **Measure frame intervals, not task totals.** Task total overstated this by ~3x.
+- **Interleave the arms and swap the BUILT BUNDLE between runs.** Two builds in separate server
+  sessions drifted 14-25% and reported -26% for a -12% change.
+- **Keep a NULL arm.** Here it read *worse* than baseline, which is exactly how you learn the three
+  middle arms are indistinguishable instead of publishing a 1% "win".
 
 ## DOCKET — mobile Routines scroll: MEASURED 2026-08-03, fix candidate not shipped [SUPERSEDED]
 User: *"slowish when i scroll the first time and shows blank containers waiting for content"* —

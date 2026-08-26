@@ -86,10 +86,18 @@ fully overlapping, costs nothing.
 **AND IT IS NOT `Layerize`,** which is what makes it strange, since that WAS the
 mechanism for the 46 off-screen ones: shipped 1197ms vs ceiling 1163ms. Ranking
 every trace event, the named children account for ~167ms of the ~708ms gap;
-**~540ms sits inside `RunTask` attributed to nothing.** Docketed in
-`client/src/CLAUDE.md` with the next step — widen the trace categories and
-separate the confound that a cheaper frame shortens the whole 60-step gesture —
-rather than a third guess. *A docketed hypothesis is a guess with a citation.*
+**~540ms sits inside `RunTask` attributed to nothing.** **Then the confound turned out to be
+the whole story.** Measured as FRAME INTERVALS rather than task totals — which
+is what "scroll is too slow" actually means — the marquee is worth **12%, not
+32%**: median frame 31.1ms against a 27.5ms ceiling, i.e. ~3.6ms per frame at
+4x throttle and **under 1ms at normal speed**, with a null arm reading 32.4ms,
+WORSE than baseline. *Task total counted a cheaper frame twice, because it also
+shortens the gesture.* A third guess — `will-change: transform`, the hint every
+marquee library reaches for — was tested and buys nothing (31.4ms). **And the
+blanket form is a 3x REGRESSION: 31 -> 88ms median frame, all 60 frames over
+50ms**, which is `index.css:2791` reproducing and is also the answer to "should
+we just use a package": one that sets `will-change` per instance would be far
+worse than what we have. Closed in `client/src/CLAUDE.md`; the marquee stays. *A docketed hypothesis is a guess with a citation.*
 Entry (5)'s other lead — the day column at 5,871 nodes — is untouched and still
 stands.
 
