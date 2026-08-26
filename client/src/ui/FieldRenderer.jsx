@@ -10,6 +10,7 @@
 // ============================================================
 
 import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import { afterPaint } from "../helpers/afterPaint";
 import Field from "./Field";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext";
@@ -205,7 +206,7 @@ function FieldRenderer({
   }, [displayValue]);
 
   // Commit callback (only provided when inputEnabled)
-  const handleCommit = useCallback((newValue, flowOverride) => {
+  const _commitNow = useCallback((newValue, flowOverride) => {
     if (!occurrence?.id || !field?.id || !inputEnabled) return;
     const flow = flowOverride || currentFlow || field?.meta?.flow || "in";
     // Build full updated occurrence so localOccsById has the new value before executor runs
@@ -241,6 +242,32 @@ function FieldRenderer({
       ],
     });
   }, [occurrence, field, currentFlow, inputEnabled, dispatch, socket, getOccMap, modulesById, fieldsById]);
+  const handleCommit = useCallback((newValue, flowOverride) => {
+    if (!occurrence?.id || !field?.id || !inputEnabled) return;
+    // ── THE CONTROL UPDATES FIRST, THE WRITE HAPPENS A FRAME LATER ────────
+    // User, 2026-08-25: *"even if it does, it should mark the toggle as
+    // complete before running the ops"*.
+    //
+    // `Field.handleChange` has already set the control's LOCAL state by the
+    // time this runs, so the switch/pill is ready to paint. What stopped it was
+    // this function: React batches the local setState with the store dispatch
+    // below, so the browser could not paint the tick until an app-wide
+    // re-render (and, before the previous pass, the whole op sweep) had
+    // finished — measured at ~2.3s on poms grid.
+    //
+    // Deferring past the paint splits that in two: the control repaints from
+    // its own state immediately, then the occurrence write and its operations
+    // run. Nothing is skipped and nothing is reordered relative to other
+    // writes, because afterPaint is FIFO.
+    //
+    // UNDO IS UNAFFECTED, which was the thing worth checking: `updateOccurrence`
+    // opens its own scope via `withAction`, so the action id is minted when the
+    // deferred write runs and still groups that write with its whole operation
+    // cascade into ONE undo step. (An ambient scope would have been lost across
+    // the deferral and the write would have been recorded as `derived`.)
+    afterPaint(() => _commitNow(newValue, flowOverride));
+  }, [occurrence?.id, field?.id, inputEnabled, _commitNow]);
+
 
   const handleFlowChange = useCallback((newFlow) => {
     if (!occurrence?.id || !field?.id || !inputEnabled) return;
