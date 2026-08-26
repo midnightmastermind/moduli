@@ -563,6 +563,40 @@ guess at intrinsic size. **Lesson: before proposing an optimisation, grep whethe
 there.** Three headless probes also failed to reproduce this (details below); the device did it in
 one scroll.
 
+## DOCKET — scroll paint: the marquee LAYER CHURN, ~2/3 of the headroom, still open (2026-08-26)
+
+Shipped in the same pass: `AutoMarquee` no longer emits its animation while the box is out of view
+(`6f63765a`). That removed **46 of 50 running animations** and took the main thread during a
+60-step scroll from **3834ms -> 3355ms (-12%)**, `Layerize` 1766 -> 1290ms, `RecalcStyle`
+239 -> 74ms. Ranges did not overlap; a null arm read as baseline.
+
+**WHAT IS LEFT, AND IT IS THE BIGGER HALF.** Killing marquee animation outright
+(`.auto-marquee-inner{animation:none !important}`) reached **~2300ms** on the same machine. So the
+shipped fix captures roughly a third of what is available, and the rest is NOT the three marquees
+that are legitimately on screen — three animations cannot cost 1,000ms.
+
+**THE HYPOTHESIS, stated as a hypothesis:** it is the layer CHURN of arming and disarming
+animations as rows cross the viewport edge during the gesture. Each arm mints a composited layer
+and a compositing reason; each disarm tears one down; a 1,200px scroll drags dozens of labels
+across the boundary. If that is right, the levers are (a) a hysteresis band so a label near the
+edge does not thrash, (b) a single shared IntersectionObserver so callbacks batch into one
+delivery instead of ~46, or (c) toggling a class on the DOM node rather than going through React
+state, which removes the re-render entirely. **None of these is measured. Measure before
+building — the last two rounds on this surface both lost to guessing.**
+
+**THE INSTRUMENT THAT WORKS, and use this one.** `_marqueetrace.mjs` (repo root, gitignored):
+CDP `Tracing` over `disabled-by-default-devtools.timeline`, summing `Layerize` / `Paint` /
+`UpdateLayoutTree` / `RunTask` across 60 rAF scroll steps at 4x CPU throttle, plus a deterministic
+count of running animations split on/off screen. **Two things are non-negotiable with it:**
+- **Interleave the arms and swap the BUILT BUNDLE between runs.** Measuring two builds in separate
+  server sessions drifted 14-25% and reported -26% for a -12% change. Build both, keep them as
+  `dist-baseline` / `dist-fixed`, `cp` one over `client/dist` per run.
+- **Keep a NULL arm in the set.** The 2026-08-26 (5) attempt died because a mutation that changed
+  nothing won by 24%. If the null arm moves like the real ones, the run is over.
+
+Counts (`document.getAnimations()`, on/off screen) are deterministic and can be quoted on a single
+run. Timings cannot.
+
 ## DOCKET — mobile Routines scroll: MEASURED 2026-08-03, fix candidate not shipped [SUPERSEDED]
 User: *"slowish when i scroll the first time and shows blank containers waiting for content"* —
 **the ROUTINES page**, not the Schedule (my first probe measured the wrong surface and found zero
