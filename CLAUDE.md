@@ -66,18 +66,42 @@ writes, 13 inbound `occurrence_persisted`, ZERO inbound `occurrence_updated`.**
 The loop was entirely client-side. *A handoff's diagnosis is a claim; the
 symptom it explains is not evidence that it is the cause.*
 
-**THE ACTION-SCOPE HALF IS REAL AND PARTIAL, said plainly.** The other account's
-in-flight fix — carrying the ambient action across the deferred cascade, the
-same omission the deferral already fixed for `_fireDepth` — was finished and
-A/B'd ON THE WIRE (counting `__actionId` on outbound writes, no instrumentation
-in shipped code):
+**THE ACTION-SCOPE HALF: ONE GESTURE IS ONE UNDO STEP — and my first number
+was my own probe's fault.** The other account's in-flight fix carries the
+ambient action across the deferred cascade, the same omission the deferral
+already fixed for `_fireDepth`. I first reported it as `59 -> 34` and
+"partial". **Both arms were counting the page-LOAD sweep's writes**, because
+the probe armed after a fixed websocket-quiet window and the sweep was
+sometimes still draining. Re-run with the probe waiting for the sweep's own
+`[full_state-client] applied effects` line, and the carry toggled at RUNTIME so
+both arms are the SAME BUILD and the same page:
 ```
-                        without        with
-distinct action ids     59             34
+                            carry OFF       carry ON
+mutating writes             33              33
+distinct undo actions       32              2
+setOccurrenceFieldValue     0 join/29 mint  29 join/0 mint
+deferrals that captured     0 of 30         30 of 30
 ```
-**It halves the count; it does not reach one-action-per-gesture.** 34 writes
-still escape their action and are NOT on the deferral path. Open, and not
-claimed as fixed.
+**The write count is IDENTICAL in both arms**, which is the shape a grouping
+A/B has to have — it changed how the writes are grouped, not how many there
+are. *A before/after measures the change only if both halves ran against the
+same thing, and "the app is quiet" is not the same as "the load sweep has
+finished".*
+
+**AND I BUILT A FIX FOR A DEFECT THAT DOES NOT EXIST, then reverted it.** I
+read the transaction log as `t.derived` — **a field that does not exist**; it
+is stored at `meta.derived` (`txRecorder.js:217`) — saw `derived=false` on the
+~30 transactions a page load creates, and concluded every load pushed 30
+undoable steps on top of whatever the user last did. It does not. Queried on
+the right key, a load produces **0 undoable and 30 derived**, and did so before
+any change. A `runDerived` scope and its 10 tests were written, wired at the
+load sweep and the scheduler, measured to change nothing, and **reverted rather
+than shipped as a guard nothing has been shown to need** — the same call this
+file records twice for guards written on reflex.
+
+*This file already says a ZERO is a claim about the query until the shape it
+searched for has been shown to exist. A `false` is the same claim, and I paid
+for the inverse.*
 
 **THE TILE TITLE GETS ITS ROOM** (user: *"put a little bit of padding below the
 label for those media tiles"* — asked of the other account, interrupted by a
