@@ -5617,6 +5617,33 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   width: 100%;
 }
 
+/* ── A TILE THAT IS TOO TALL SCROLLS ITSELF ─────────────────────────────
+   User, 2026-08-27: *"i cant scroll individual book instances ... if they are
+   too big"*. Measured on the Books board — the tile is capped and CLIPPED:
+
+     wrap  h 440 · scrollH 544 · overflow HIDDEN   -> 104px unreachable
+     textcol h 539 · min-height auto · max-height none · overflow visible
+     fields  min-height 0 · overflow-y auto        <- ready, never reached
+
+   The fields block already has its scroll setup; the bounded height never
+   reaches it because `.instance-textcol` above it is unbounded. That is the
+   same shape as the tracker tile fixed on 2026-08-26 (4).
+
+   THE TRACKER FIX CANNOT BE REUSED HERE, and that is why this rule exists
+   separately. There the cure is `min-height: 0` on the textcol — and in a
+   CONTENT COLUMN those exact two properties collapsed every picture tile to a
+   10px sliver, because the column is `flex: 1 1 0` along the MAIN axis and
+   min-height:0 lets it fall to its zero basis. That regression shipped once
+   already; the rule above is scoped `:not(--content-column)` because of it.
+
+   So the scroll goes on the WRAP, which already has the definite height
+   (`--child-max-h`, 440px) and is already the thing doing the clipping. It
+   touches no flex basis and no min-height, so it cannot reproduce the
+   collapse. `auto`, so a tile that fits is visually identical. */
+.container-items--content-column > .instance-wrap {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .container-items--content-column .instance-wrap > .instance-row { position: relative; }
 
 .container-items--content-column .instance-content > div:first-child:not(.instance-body):not(.instance-fields):not(.instance-textcol) {
