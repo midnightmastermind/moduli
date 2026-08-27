@@ -211,6 +211,20 @@ export async function up({ gridId, models, log, dryRun }) {
   }
   if (dryRun) { log("DRY RUN — nothing written."); return; }
   const ids = groups.flatMap((g) => g.drop.map((d) => d.id));
+
+  // UNLIST BEFORE DELETING. A row is reachable two ways — its own `parentId`
+  // and its parent's `occurrences[]` — and deleting the document leaves the
+  // array pointing at nothing. That is the `dangling-child-ref` class this repo
+  // has swept five times (2026-07-29 … 2026-08-04), and the first version of
+  // this migration produced 257 of them in one run. `$pull $in` is atomic, per
+  // the 2026-08-04 finding that a read-modify-write of the whole array races
+  // any concurrent write to the same parent.
+  const unlist = await Occurrence.updateMany(
+    { gridId, occurrences: { $in: ids } },
+    { $pull: { occurrences: { $in: ids } } }
+  );
+  log(`unlisted from ${unlist.modifiedCount} parent(s) before deleting.`);
+
   await Occurrence.deleteMany({ gridId, id: { $in: ids } });
   log(`removed ${ids.length} duplicate book row(s).`);
 }
