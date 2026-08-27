@@ -6,6 +6,105 @@
 
 ---
 
+### 2026-08-27 (3) — UNDO WAS BROKEN A SECOND WAY: every page LOAD pushed 26 steps
+
+Picked up the other account's session, which hit its limit **one command before
+its live proof**. Its diagnosis, its tests and its A/B were intact; what was
+missing was the measurement — and taking it found a bigger defect than the one
+it was written for.
+
+**THE INHERITED FIX IS SOUND AND ITS LIVE READING IS A CONTROL, NOT A WIN.**
+`closeAction` debounces 250ms and `flushAction` then DELETES the buffer, so the
+next write carrying the same action id became a SECOND transaction. A flush for
+an action that already produced one now MERGES into it. Measured same build,
+same page, the merge stashed out and back, one tick through the real UI:
+```
+                              merge OFF     merge ON
+distinct action ids               1            1
+transactions on the undo stack    1            1
+contains the toggled row        YES          YES
+Ctrl+Z                       reverts it   reverts it
+```
+**IDENTICAL — because that row's whole cascade fits ONE buffer, so the merge
+path never executes.** That is exactly what the fix must do to the single-flush
+case, so it is the control rather than a failure. The multi-flush arm rests on
+the unit tests (4 discriminating / 4 controls). **The 29-transaction row it was
+written for is not tickable on this grid today: of 592 switches only 3 are OFF,
+and none is tracker-bearing** — said plainly rather than dressed up.
+
+**AND CHASING WHY MY COUNTS KEPT DRIFTING FOUND THE REAL BUG.** A page load with
+NOTHING clicked, twice, the second immediately after the first:
+```
+                              load A    load B      after the fix
+transactions written            55        52            38
+ON THE UNDO STACK               29        26             0
+derived                          0         0            20
+distinct action ids             29        26             0
+occurrences touched              6         2             0
+```
+**So after any reload, Ctrl+Z reverted a tracker recomputation instead of the
+last thing the user did.** The writes are the op sweep recomputing `Workout Log`
+and `Workouts`. **Load B is the control that killed the obvious explanation** —
+a second load on a settled grid still wrote 26, so this is not the sweep
+catching up on stale state.
+
+**THE MECHANISM IS ONE LINE.** `derived = !actionId` (`txRecorder.js:162`) is
+the only rule keeping a write off the stack, and every write helper opens its
+own action — so the app's own bookkeeping minted action ids and became undo
+steps. `runDerived` suppresses `beginAction` rather than clearing the ambient
+id, so a helper's `withAction` becomes a pass-through, and it is **carried
+across the paint deferral by `captureAction`/`runInAction` for exactly the
+reason the action id is**: the load sweep defers its cascade, so without that
+the guard would cover only the synchronous half of the very sweep it was
+written for.
+
+**THIS SUPERSEDES THE RETRACTION ONE ENTRY BELOW.** That entry reverted
+`runDerived` as *"a guard nothing has been shown to need"*, having measured a
+load at 0 undoable / 30 derived. Today the same query reads **26 undoable / 0
+derived**. The retraction was right about the evidence it had; the evidence
+moved. *An open item is a claim about today\'s code — and so is a closed one.*
+
+**THE ZERO IS ONLY MEANINGFUL BECAUSE A REAL GESTURE STILL MAKES A STEP.** Same
+build, one tick through the UI, read back out of Mongo: **1 transaction on the
+stack, 3 docs, containing the toggled row, and Ctrl+Z moves the switch back.**
+Verifying an absence without first proving the thing can be present is the trap
+this file records; here the positive control ran in the same session.
+
+**ADDITIVE BY CHOICE, and the failure modes are asymmetric.** Suppressing an
+action can only ever move a write OFF the stack, so a site that forgets the
+scope keeps today\'s noise. The inverse design — undoable only inside an explicit
+gesture — fails the other way, silently making a real edit un-undoable, which
+reads as data loss. **Redo stays off at the user\'s own instruction** (*"can we
+disable redo for the moment"*), so it was not in scope.
+
+**FOUR PROBES LIED BEFORE ANY NUMBER WAS TRUSTWORTHY, and each is reusable.**
+(1) A switch tagged once with a data attribute reads `undefined` after the
+cascade — the row re-renders and the attribute goes with it, which looks exactly
+like "undo did nothing". Re-resolve by occurrence id every read. (2) The row is
+FILTERED OFF SCREEN once ticked, so a DOM-only probe reports `present:false` for
+a row that is fine; the STORE is the witness that does not depend on painting.
+(3) Discovering the bound field BEFORE the tick finds nothing — the field does
+not exist until it is ticked. (4) A restore tool compared documents with
+`JSON.stringify(obj, keyArray)`, whose key filter applies RECURSIVELY, so it
+compared two near-empty objects and would have reported differences that do not
+exist while hiding ones that do.
+
+**PROBE DEBRIS: NONE.** `Text Terrell` was toggled and undone repeatedly and
+reads back with no `Completed` and no `Completed On` — its exact pre-probe
+state. `Text Shelly` was never touched.
+
+3,445 client tests (the 2 failures are the documented pre-existing
+`trackerFollowsPageFilter` pair, **A/B\'d against stashed source — identical 2**),
+1,870 server tests, 0 lint errors on every edited file, build clean with chunks
+at their documented sizes.
+
+**NOT DEPLOYED, deliberately and at the user\'s call.** The merge fix alone
+changes nothing a user can see; the two ship together now that undo works end to
+end. **The cold Atlas read is also worth watching: 353-443s for 21k occurrences
+this session, against the ~180s this file records.**
+
+---
+
 ### 2026-08-27 (2) — ONE CHECKBOX TICK WROTE FOREVER, every 2.2 seconds, and the data was never wrong
 
 Picked up the other account's session, which hit its 5-hour limit at 14:04
