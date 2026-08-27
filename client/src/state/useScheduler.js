@@ -23,6 +23,7 @@
 // ============================================================
 import { useEffect, useRef } from "react";
 import { executePipeline } from "../helpers/operationExecutor";
+import { runDerived } from "../helpers/actionScope";
 import { setComputedValuesAction, updateOperationAction } from "./actions";
 import { operationsBridge } from "./bindSocketToStore";
 import { safeEmit } from "../helpers/offlineQueue";
@@ -123,7 +124,13 @@ export function useScheduler({ state, dispatch, socket, fieldsById, operationsBy
                 `persistent effects. Use minute+ cadence for socket-writing pipelines.`
               );
             } else if (typeof operationsBridge.applyEffect === "function") {
-              for (const eff of effects) operationsBridge.applyEffect(eff);
+              // A scheduled fire has no user behind it — its writes must not
+              // become undo steps. Without this each one opens its own action
+              // (`derived = !actionId`) and a tick that writes N occurrences
+              // puts N steps on the stack for something nobody did.
+              runDerived(() => {
+                for (const eff of effects) operationsBridge.applyEffect(eff);
+              });
             }
           }
 

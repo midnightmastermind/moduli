@@ -13,12 +13,17 @@
 // while one is open; the server buffers all writes sharing that id into ONE
 // transaction (server/utils/txRecorder.js).
 //
-// Writes with no action open (the scheduler, feed sync) carry no id and are
-// recorded as `derived` — the undo stack skips them.
+// Writes with no action open carry no id and are recorded as `derived` — the
+// undo stack skips them. That USED to describe the load sweep, the scheduler
+// and feed sync by accident, and stopped being true once every write helper
+// opened an action of its own: a page load was measured writing 26 undo steps.
+// They are explicit now — see `runDerived`.
 
 let currentActionId = null;
 let currentLabel = null;
 let depth = 0;
+// > 0 while a DERIVED scope is running — see `runDerived`.
+let derivedDepth = 0;
 let autoCloseTimer = null;
 // Actions with DEFERRED work still to come, by id, with an outstanding count.
 // See `captureAction` below for why the close signal has to wait on these.
@@ -39,6 +44,10 @@ function mintId() {
  * @returns the action id.
  */
 export function beginAction(label = null) {
+  // A derived scope never opens an action. Without this the load sweep's own
+  // writes each open one, and `derived = !actionId` (server/utils/txRecorder.js)
+  // then records every one of them as an undo step.
+  if (derivedDepth > 0) return null;
   depth += 1;
   if (!currentActionId) {
     currentActionId = mintId();
@@ -53,6 +62,7 @@ export function beginAction(label = null) {
 
 /** Close the innermost scope; the action ends when the outermost one closes. */
 export function endAction() {
+  if (derivedDepth > 0) return;
   if (depth > 0) depth -= 1;
   if (depth === 0) forceEndAction();
 }
@@ -119,8 +129,63 @@ export function withAction(label, fn) {
 // unrelated work: between continuations the ambient id is null, so `beginAction`
 // mints a fresh one. Only the continuations themselves re-enter the old id.
 
+// ── WRITES WITH NO USER BEHIND THEM ────────────────────────────────────────
+//
+// The load sweep, the scheduler and feed sync are the app recomputing itself.
+// Their writes must not be undo steps: `derived = !actionId`, and every write
+// helper opens its own action, so each recomputation became one.
+//
+// MEASURED ON THE LIVE GRID — a page load with NOTHING clicked, twice, the
+// second immediately after the first with nothing changed in between:
+//
+//                              load A    load B
+//   transactions written         55        52
+//   ON THE UNDO STACK            29        26     <- Ctrl+Z pops one of these
+//   derived                       0         0
+//   distinct action ids          29        26
+//   docs per transaction          1         1
+//   occurrences touched           6         2     -> the tracker tiles
+//
+// So after any reload Ctrl+Z reverted a tracker recomputation instead of the
+// last thing the user did. Load B is the control: a second load on a settled
+// grid still writes 26, so this is not the sweep catching up on stale state.
+//
+// This is ADDITIVE on purpose. Suppressing an action can only ever move a
+// write OFF the stack, so a site that forgets the scope keeps today's noise;
+// the inverse design — undoable only inside an explicit gesture — fails the
+// other way, silently making a real edit un-undoable, which reads as data loss.
+// `derivedNoUndoStep.test.js` fails if a load sweep produces an action id.
+
+/** Run `fn` as the app's own bookkeeping: its writes carry no action id. */
+export function runDerived(fn) {
+  derivedDepth += 1;
+  const prevId = currentActionId, prevLabel = currentLabel, prevDepth = depth;
+  currentActionId = null;
+  currentLabel = null;
+  depth = 0;
+  try {
+    return fn();
+  } finally {
+    derivedDepth -= 1;
+    currentActionId = prevId;
+    currentLabel = prevLabel;
+    depth = prevDepth;
+  }
+}
+
+/** True while the app is writing on its own behalf. */
+export function isDerived() {
+  return derivedDepth > 0;
+}
+
 /** Snapshot the ambient action so a deferred continuation can re-enter it. */
 export function captureAction() {
+  // A derived scope has to be carried across a deferral for exactly the reason
+  // the action id does: the load sweep defers its cascade past the paint, so
+  // without this the continuation runs at derivedDepth 0 and every write it
+  // makes opens an action again — the guard would cover only the synchronous
+  // half of the very sweep it was written for.
+  if (derivedDepth > 0) return { derived: true };
   return currentActionId ? { id: currentActionId, label: currentLabel } : null;
 }
 
@@ -148,6 +213,7 @@ export function releaseAction(captured) {
  * is re-entering an action, not opening one.
  */
 export function runInAction(captured, fn) {
+  if (captured?.derived) return runDerived(fn);
   if (!captured?.id) return fn();
   const prevId = currentActionId, prevLabel = currentLabel, prevDepth = depth;
   currentActionId = captured.id;
@@ -166,5 +232,6 @@ export function runInAction(captured, fn) {
 export function _resetActionScope() {
   closeHook = null;
   retained.clear();
+  derivedDepth = 0;
   forceEndAction();
 }

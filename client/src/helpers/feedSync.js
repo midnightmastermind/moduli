@@ -21,6 +21,7 @@
 // - Sweeps use fireTrigger:false (derived data — tracker re-aggregation over
 //   a swept mirror is pure waste; trackers also exclude feed copies by rule).
 import * as CommitHelpers from "./CommitHelpers";
+import { runDerived } from "./actionScope";
 import { isPullOnlyFeed } from "./feedPull";
 import * as LayoutHelpers from "./LayoutHelpers";
 import {
@@ -167,7 +168,15 @@ export function syncFeed(feedOcc, { state, occurrencesById, modulesById, dispatc
 // Sync EVERY enabled feed on the grid. Called after full_state settles and
 // (debounced) after filter changes / occurrence CRUD — the same moments the
 // old Build ops' trigger objects covered, minus the per-op wiring.
-export function syncAllFeeds({ state, occurrencesById, modulesById, dispatch, socket }) {
+export function syncAllFeeds(args) {
+  // Feed sync materialises a query — it is the app keeping a view in step, not
+  // something the user did, so its mints and sweeps must never be undo steps.
+  // Each write helper opens its own action (`derived = !actionId`), so without
+  // this a sync that mints 20 copies puts 20 steps on the stack.
+  return runDerived(() => _syncAllFeeds(args));
+}
+
+function _syncAllFeeds({ state, occurrencesById, modulesById, dispatch, socket }) {
   let minted = 0, swept = 0, feeds = 0;
   // `window.__feedDiag = true` prints a per-feed breakdown. A feed that mints
   // nothing is indistinguishable from a feed that never ran, which is exactly

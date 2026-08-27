@@ -27,7 +27,7 @@ import {
   ensureModuleBindingsForOccurrenceFields,
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
-import { beginAction, endAction, setActionCloseHook, captureAction, retainAction, releaseAction, runInAction } from "../helpers/actionScope";
+import { beginAction, endAction, setActionCloseHook, captureAction, retainAction, releaseAction, runInAction, runDerived } from "../helpers/actionScope";
 import { requestForceSync, commitForceSync } from "../helpers/editorSyncSignal";
 import { startLoadDiag, markLoad, timeLoad } from "../helpers/loadDiag";
 import { whenStagedFirstRelease } from "../helpers/stagedMount";
@@ -276,7 +276,20 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // the pixels landed" — and with the sweep costing 0.5s (2.5s throttled) that
     // difference is the whole wait. Measured with a CDP screencast: the chrome
     // was committed and unpainted for 7.7s because this ran first.
-    whenStagedFirstRelease(() => requestAnimationFrame(() => setTimeout(() => {
+    // ── THE LOAD SWEEP IS THE APP'S OWN BOOKKEEPING, NOT A USER ACTION ────
+    //
+    // Every write helper opens an action, so each tracker tile this sweep
+    // recomputes became its own undo step. Measured on the live grid, a page
+    // load with NOTHING clicked: 26-29 transactions on the undo stack, 0
+    // derived, one document each — so after a reload Ctrl+Z reverted a tracker
+    // recomputation instead of the last thing the user did. A second load
+    // immediately after the first still wrote 26, which is the control that
+    // rules out the sweep merely catching up on stale state.
+    //
+    // `runDerived` covers the deferred cascade too: `captureAction` carries
+    // the derived scope across the paint boundary exactly as it carries an
+    // action id, so the continuation cannot re-open one.
+    whenStagedFirstRelease(() => requestAnimationFrame(() => setTimeout(() => runDerived(() => {
       const tOps0 = performance.now();
       // Overlay localOccsById on top of the payload snapshot. Between full_state
       // dispatch and this deferred callback, React's filterNavState useEffect
@@ -331,7 +344,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       flushOfflineQueue(socket);
       // Materialize feeds once the load sweep's creates have settled.
       scheduleFeedSync(400);
-    }, 50)));
+    }), 50)));
   }
 
   socket.on("full_state", onFullState);
