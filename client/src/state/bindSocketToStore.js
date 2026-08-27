@@ -27,7 +27,7 @@ import {
   ensureModuleBindingsForOccurrenceFields,
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
-import { beginAction, endAction, setActionCloseHook } from "../helpers/actionScope";
+import { beginAction, endAction, setActionCloseHook, captureAction, retainAction, releaseAction, runInAction } from "../helpers/actionScope";
 import { requestForceSync, commitForceSync } from "../helpers/editorSyncSignal";
 import { startLoadDiag, markLoad, timeLoad } from "../helpers/loadDiag";
 import { whenStagedFirstRelease } from "../helpers/stagedMount";
@@ -1788,15 +1788,28 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // spin forever in separate tasks instead of tripping the guard, which is
     // exactly when the guard is needed. Restoring the depth keeps both the cap
     // and the depth-1 cascade dedup behaving as they do synchronously.
+    //
+    // AND THE ACTION IS CARRIED THE SAME WAY, for exactly the reason the depth
+    // is. `withAction` closes synchronously, so a cascade that runs a task later
+    // wrote outside it and every write minted an action of its own. Measured on
+    // the live grid: one toggle produced 40-54 transactions across 201 DISTINCT
+    // action ids, one document each — so Ctrl+Z undid the last derived write
+    // rather than the toggle, which is why undo looked like it did nothing.
+    // `retainAction` also holds back the close signal until the last
+    // continuation drains, or the server would flush the buffer early and the
+    // tail would become a second transaction.
     if (transactionType === "MeasureOp") {
       const savedDepth = _fireDepth;
+      const captured = captureAction();
+      retainAction(captured);
       afterPaint(() => {
         const prev = _fireDepth;
         _fireDepth = savedDepth;
         try {
-          fireOperations(transactionType, transaction, options);
+          runInAction(captured, () => fireOperations(transactionType, transaction, options));
         } finally {
           _fireDepth = prev;
+          releaseAction(captured);
         }
       });
       return;

@@ -20,6 +20,9 @@ let currentActionId = null;
 let currentLabel = null;
 let depth = 0;
 let autoCloseTimer = null;
+// Actions with DEFERRED work still to come, by id, with an outstanding count.
+// See `captureAction` below for why the close signal has to wait on these.
+const retained = new Map();
 
 // Backstop. An action is normally closed when the op cascade drains, but a
 // throw between begin and end must not leave it open — every later write would
@@ -64,7 +67,10 @@ export function forceEndAction() {
   // of waiting out its 1500ms idle timer. Without this the transaction is not
   // undoable until 1.5s after the write, so a quick Ctrl+Z targeted the
   // PREVIOUS one. Never let a hook throw unwind the scope reset above.
-  if (closed && closeHook) {
+  // NOT while deferred work is still pending: the server flushes this action's
+  // buffer on the signal, and anything arriving afterwards would start a SECOND
+  // transaction. `releaseAction` sends it when the last continuation drains.
+  if (closed && closeHook && !retained.has(closed)) {
     try { closeHook(closed); } catch { /* the scope is already closed; a failed signal only costs latency */ }
   }
 }
@@ -95,8 +101,70 @@ export function withAction(label, fn) {
   }
 }
 
+// ── DEFERRED CONTINUATIONS OF THE SAME ACTION ──────────────────────────────
+//
+// `withAction` is SYNCHRONOUS: it closes in a `finally`. But a field write
+// defers its operation cascade past the paint (2026-08-25 (7)), so every write
+// that cascade makes lands after the scope has shut and opens an action of its
+// own. Measured on the live grid: one checkbox toggle produced 40-54
+// transactions across **201 distinct action ids, one document each** — so
+// Ctrl+Z undid the last derived write instead of the thing the user did, which
+// is why undo appeared not to work at all.
+//
+// This is the same omission the fire deferral already fixed for `_fireDepth`,
+// and for the same reason: ambient scope does not survive a task boundary
+// unless it is carried. Depth was carried; the action id was not.
+//
+// A NEW GESTURE IS STILL ITS OWN ACTION, which is what stops this swallowing
+// unrelated work: between continuations the ambient id is null, so `beginAction`
+// mints a fresh one. Only the continuations themselves re-enter the old id.
+
+/** Snapshot the ambient action so a deferred continuation can re-enter it. */
+export function captureAction() {
+  return currentActionId ? { id: currentActionId, label: currentLabel } : null;
+}
+
+/** Hold the close signal: this action has work that has not run yet. */
+export function retainAction(captured) {
+  if (!captured?.id) return;
+  retained.set(captured.id, (retained.get(captured.id) || 0) + 1);
+}
+
+/** One continuation finished. The last one out sends the close signal. */
+export function releaseAction(captured) {
+  const id = captured?.id;
+  if (!id) return;
+  const n = (retained.get(id) || 0) - 1;
+  if (n > 0) { retained.set(id, n); return; }
+  retained.delete(id);
+  if (closeHook) {
+    try { closeHook(id); } catch { /* a failed signal only costs latency */ }
+  }
+}
+
+/**
+ * Run `fn` with `captured` as the ambient action, then restore what was there.
+ * Deliberately does NOT touch the auto-close timer or fire the close hook — it
+ * is re-entering an action, not opening one.
+ */
+export function runInAction(captured, fn) {
+  if (!captured?.id) return fn();
+  const prevId = currentActionId, prevLabel = currentLabel, prevDepth = depth;
+  currentActionId = captured.id;
+  currentLabel = captured.label;
+  depth = 1;
+  try {
+    return fn();
+  } finally {
+    currentActionId = prevId;
+    currentLabel = prevLabel;
+    depth = prevDepth;
+  }
+}
+
 /** Test seam. */
 export function _resetActionScope() {
   closeHook = null;
+  retained.clear();
   forceEndAction();
 }

@@ -10,7 +10,7 @@
 //   * reads are never stamped.
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { safeEmit } from "../helpers/offlineQueue";
-import { beginAction, endAction, getActionId, setActionCloseHook, _resetActionScope } from "../helpers/actionScope";
+import { beginAction, endAction, getActionId, setActionCloseHook, _resetActionScope, captureAction, retainAction, releaseAction, runInAction, withAction } from "../helpers/actionScope";
 
 function fakeSocket() {
   return { connected: true, emit: vi.fn() };
@@ -154,5 +154,83 @@ describe("the action-close signal", () => {
     beginAction("x");
     expect(() => endAction()).not.toThrow();
     expect(getActionId()).toBeNull();
+  });
+});
+
+// ─── DEFERRED CONTINUATIONS ────────────────────────────────────────────────
+//
+// `withAction` closes synchronously, but a field write defers its operation
+// cascade past the paint — so every write that cascade made landed OUTSIDE the
+// action and opened one of its own. Measured on the live grid: one checkbox
+// toggle produced 40-54 transactions across 201 DISTINCT action ids, one
+// document each, which is why Ctrl+Z undid a derived write instead of the
+// toggle and undo appeared not to work.
+
+describe("an action survives a deferred cascade", () => {
+  beforeEach(() => _resetActionScope());
+
+  it("a continuation writes under the SAME action id", () => {
+    let captured = null, inside = null;
+    const outer = withAction("Toggled", () => {
+      captured = captureAction();
+      return getActionId();
+    });
+    expect(getActionId()).toBeNull();          // the synchronous scope is shut
+    runInAction(captured, () => { inside = getActionId(); });
+    expect(inside).toBe(outer);
+  });
+
+  it("restores what was there afterwards — it re-enters, it does not open", () => {
+    const captured = { id: "act-1", label: "x" };
+    runInAction(captured, () => {});
+    expect(getActionId()).toBeNull();
+  });
+
+  it("holds the CLOSE signal until the last continuation drains", () => {
+    // The server flushes the buffer on this signal; anything arriving after it
+    // becomes a second transaction, which is the defect from the other side.
+    const closed = [];
+    setActionCloseHook((id) => closed.push(id));
+    let captured = null;
+    withAction("Toggled", () => { captured = captureAction(); retainAction(captured); });
+    expect(closed).toEqual([]);                       // NOT closed yet
+    releaseAction(captured);
+    expect(closed).toEqual([captured.id]);            // closed exactly once
+  });
+
+  it("several continuations close it ONCE, not once each", () => {
+    const closed = [];
+    setActionCloseHook((id) => closed.push(id));
+    let captured = null;
+    withAction("Toggled", () => {
+      captured = captureAction();
+      retainAction(captured); retainAction(captured); retainAction(captured);
+    });
+    releaseAction(captured); releaseAction(captured);
+    expect(closed).toEqual([]);
+    releaseAction(captured);
+    expect(closed).toEqual([captured.id]);
+  });
+
+  it("A NEW GESTURE BETWEEN CONTINUATIONS IS ITS OWN ACTION — the control", () => {
+    // The hazard this design has to avoid: a long cascade swallowing the next
+    // thing the user does, so one Ctrl+Z reverts both. Between continuations
+    // the ambient id is null, so `beginAction` mints a fresh one.
+    let captured = null;
+    withAction("Toggled", () => { captured = captureAction(); retainAction(captured); });
+    const second = withAction("Something else", () => getActionId());
+    expect(second).not.toBe(captured.id);
+    releaseAction(captured);
+  });
+
+  it("a capture with no action open is inert, and cannot close anything", () => {
+    const closed = [];
+    setActionCloseHook((id) => closed.push(id));
+    const captured = captureAction();
+    expect(captured).toBeNull();
+    retainAction(captured);
+    releaseAction(captured);
+    expect(closed).toEqual([]);
+    expect(runInAction(captured, () => "ran")).toBe("ran");
   });
 });
