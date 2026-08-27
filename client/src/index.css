@@ -5508,7 +5508,6 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    own content width, which with the handle beside it overflows a 184px tile and
    wraps, putting the label back under the handle. */
 .container-items--wrap > .instance-wrap .instance-content > .instance-textcol {
-  flex: 1 1 0 !important;
   min-width: 0;
   align-self: stretch;
   /* AND `min-height: 0`, which is what makes the field block above actually
@@ -5527,6 +5526,42 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
      the rule below promises only works if every ancestor between it and the
      cap is allowed to shrink — see the ROW-ONLY rule below, which is where
      that bound lives. */
+}
+
+/* THE TEXT COLUMN'S FLEX, moved out of an inline style so the axis can decide.
+   Basis ZERO is the default and it is a ROW-axis choice: an `auto` basis is the
+   column's own content width, wide enough with the handle beside it to overflow
+   the row and WRAP the handle onto its own line above the label (measured:
+   handle top 682 / label top 707).
+
+   It lived on the element as `style={{ flex: "1 1 0" }}`, which beats every
+   stylesheet rule regardless of specificity — so the column tile below could
+   not opt out of it, and every picture tile collapsed to 10px. */
+.instance-textcol {
+  flex: 1 1 0;
+}
+
+/* THE BASIS-ZERO HALF IS ABOUT WIDTH, SO IT IS ROW TILES ONLY.
+   The comment above argues it from width — "an auto basis is the column's own
+   content width … overflows a 184px tile and wraps". In a `--content-column`
+   tile this element sits on the MAIN axis, where `flex: 1 1 0` means a zero
+   HEIGHT basis, and with `min-height: 0` beside it the column falls to nothing:
+   every picture tile a 10px sliver, which is the regression this file already
+   records from 2026-08-26 (4).
+
+   It carried `!important`, so scoping `min-height` away from column tiles (the
+   rule below) was not enough on its own — the moment a later pass gave a column
+   tile `min-height: 0` to make its fields scroll, the collapse came straight
+   back. Measured on the Books board before this split:
+
+     wrapH 10 · textcol computed `1 1 0px` · textcolH 0 · fieldsH 0
+
+   A column tile gets `flex: 1 1 auto` instead (see the content-column block
+   below): it starts at its content height and shrinks only when the tile is
+   actually over its cap. */
+.container-items--wrap:not(.container-items--content-column)
+  > .instance-wrap .instance-content > .instance-textcol {
+  flex: 1 1 0 !important;
 }
 
 /* ── THE BOUND THAT MAKES THE FIELD BLOCK SCROLL — ROW TILES ONLY ──────────
@@ -5641,8 +5676,30 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    touches no flex basis and no min-height, so it cannot reproduce the
    collapse. `auto`, so a tile that fits is visually identical. */
 .container-items--content-column > .instance-wrap {
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  /* The wrap CLIPS; it does not scroll. Scrolling the wrap scrolled the whole
+     tile, so the cover slid away the moment you went looking for a field —
+     user, 2026-08-27, picking "the cover and title stay put, only the fields
+     scroll". The scroll lives on `.instance-fields` below. */
+  overflow: hidden;
+}
+/* Pass the tile's bounded height DOWN to the fields. Every link in the chain
+   has to be allowed to shrink or the bound stops at the first one that cannot,
+   which is exactly why the fields' own `overflow-y: auto` had nothing to do:
+
+     wrap 440 (capped) · row 434 · content 428 · textcol 539 FLEX 0 0 AUTO
+     fields 234, overflow auto, never overflowing  -> 104px unreachable
+
+   `flex: 1 1 auto`, NOT `1 1 0`. That distinction is the whole safety: basis 0
+   is what let the column fall to nothing and collapsed every picture tile to a
+   10px sliver (2026-08-26 (4)). With basis `auto` the column starts at its
+   content height and shrinks only when the tile is actually over its cap. */
+.container-items--content-column > .instance-wrap > .instance-row,
+.container-items--content-column > .instance-wrap .instance-content {
+  min-height: 0;
+}
+.container-items--content-column .instance-content > .instance-textcol {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .container-items--content-column .instance-wrap > .instance-row { position: relative; }
 
@@ -5668,7 +5725,6 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 .container-items--content-column .instance-content > .instance-textcol,
 .container-items--content-column .instance-fields {
   width: 100%;
-  flex: 0 0 auto;
 }
 
 /* The title clears the floated handle ONLY when there is no picture for the

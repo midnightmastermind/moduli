@@ -432,6 +432,13 @@ function itemsForLevel(chain, ctx, categories, recordShape) {
   return { label: currentLabel, items: currentItems };
 }
 
+// The dropdown's own height, and the row height it lists at. `SEARCH_MIN_ITEMS`
+// is derived from the two so "more than fits on screen" cannot drift from what
+// actually fits.
+const DROPDOWN_MAX_H = 420;
+const ROW_H = 30;
+export const SEARCH_MIN_ITEMS = Math.floor(DROPDOWN_MAX_H / ROW_H);
+
 // ---- Styles ----
 // The dropdown layers two surfaces: the panel itself (`--surface` / fallback to
 // the dark editor bg) and a slightly lighter list area inside. Without an
@@ -444,7 +451,7 @@ const dropdownSt = {
   background: "var(--surface-overlay)",
   border: "1px solid var(--border-default)",
   borderRadius: 8, boxShadow: "var(--menu-shadow-2)",
-  minWidth: 320, maxHeight: 420, overflow: "hidden",
+  minWidth: 320, maxHeight: DROPDOWN_MAX_H, overflow: "hidden",
   display: "flex", flexDirection: "column",
 };
 const breadcrumbSt = {
@@ -556,6 +563,10 @@ export default function DrilldownPicker({
 
   const [open, setOpen] = useState(false);
   const [drillChain, setDrillChain] = useState([]); // values of items chosen on the way down
+  // Narrows the CURRENT level only. Cleared on every drill in or out, because a
+  // query carried into a level it was not typed for shows an empty list and
+  // reads as "there is nothing here".
+  const [query, setQuery] = useState("");
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const triggerRef = useRef(null);
   const dropRef = useRef(null);
@@ -566,9 +577,14 @@ export default function DrilldownPicker({
     const top = Math.min(r.bottom + 4, window.innerHeight - 440);
     const left = Math.min(r.left, window.innerWidth - 340);
     setPos({ top, left });
-    setDrillChain([]);
+    // A LEVEL WITH ONE CHOICE IS NOT A CHOICE. `FieldBindingsEditor` declares a
+    // single flat category on purpose — its own comment says "a field is picked
+    // in one click, no drilling" — and the picker still opened onto a list of
+    // one row you had to click before the fields (and their search) appeared.
+    setDrillChain(categories.length === 1 ? [categories[0].id] : []);
+    setQuery("");
     setOpen(true);
-  }, []);
+  }, [categories]);
 
   // Outside-click closes
   useEffect(() => {
@@ -607,6 +623,7 @@ export default function DrilldownPicker({
 
   const handleBodyClick = useCallback((item) => {
     if (item.hasChildren) {
+      setQuery("");
       setDrillChain(prev => [...prev, item.value]);
     } else {
       commitChain(item.value);
@@ -616,6 +633,27 @@ export default function DrilldownPicker({
   const handlePickThis = useCallback((item) => {
     commitChain(item.value);
   }, [commitChain]);
+
+  // ── SEARCH, AND ONLY WHERE IT IS EARNED ───────────────────────────────────
+  //
+  // User, 2026-08-27: *"there should be a search for adding new fields onto an
+  // occurance too in the quick add menu."* Binding a field means finding one
+  // among the 292 this grid carries, in a list you can only scroll.
+  //
+  // The threshold is DERIVED from the box rather than picked: the dropdown caps
+  // at 420px and a row is ~30px, so `SEARCH_MIN_ITEMS` is how many fit without
+  // scrolling. If you would have to scroll to see them all, you get a search
+  // box — and a level of three items does not grow one. Change the cap and the
+  // rule follows instead of quietly becoming wrong.
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return level.items;
+    return level.items.filter((it) =>
+      String(it.title || "").toLowerCase().includes(q) ||
+      String(it.sub || "").toLowerCase().includes(q) ||
+      String(it.value || "").toLowerCase().includes(q));
+  }, [level.items, query]);
+  const showSearch = level.items.length > SEARCH_MIN_ITEMS;
 
   // Closed-state chip rendering. Split on `.` but keep `field:xxx` together.
   const chipSegments = useMemo(() => {
@@ -639,7 +677,7 @@ export default function DrilldownPicker({
     return out;
   }, [value]);
 
-  const goToDepth = useCallback((depth) => setDrillChain(prev => prev.slice(0, depth)), []);
+  const goToDepth = useCallback((depth) => { setQuery(""); setDrillChain(prev => prev.slice(0, depth)); }, []);
 
   const breadcrumbs = useMemo(() => {
     const rootLabel = recordShape ? "Record" : "Categories";
@@ -708,13 +746,37 @@ export default function DrilldownPicker({
               </React.Fragment>
             ))}
           </div>
+          {showSearch && (
+            <div style={{ padding: "6px 8px", borderBottom: "1px solid var(--border-subtle)" }}>
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={`Search ${level.items.length}…`}
+                style={{
+                  width: "100%", padding: "4px 6px", fontSize: 11,
+                  fontFamily: "var(--font-mono)",
+                  background: "var(--input-bg, rgba(255,255,255,0.04))",
+                  border: "1px solid var(--border-subtle)", borderRadius: 4,
+                  color: "var(--text-default)", outline: "none",
+                }}
+              />
+            </div>
+          )}
           <div style={{ overflowY: "auto", padding: 4, display: "flex", flexDirection: "column", gap: 1 }}>
             {level.items.length === 0 && (
               <div style={{ padding: "10px 12px", fontSize: 11, color: "var(--text-faint)", fontStyle: "italic" }}>
                 Nothing to drill into here. Pick a higher level or add a Source binding.
               </div>
             )}
-            {level.items.map((item, i) => (
+            {/* A query that matches nothing says so. Falling back to the whole
+                list would read as the search being broken. */}
+            {level.items.length > 0 && filtered.length === 0 && (
+              <div style={{ padding: "10px 12px", fontSize: 11, color: "var(--text-faint)", fontStyle: "italic" }}>
+                Nothing matches “{query.trim()}”.
+              </div>
+            )}
+            {filtered.map((item, i) => (
               <Tile
                 key={`${item.value}-${i}`}
                 item={item}

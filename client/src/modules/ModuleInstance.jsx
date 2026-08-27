@@ -861,15 +861,24 @@ function InstanceInner({
             `--instance-content-direction` var could not deliver it: the label
             has to LEAVE the handle group and join the fields in a column, and no
             custom property moves a node between parents. */}
+        {/* `flex` IS DELIBERATELY NOT SET HERE — see `.instance-textcol` in
+            index.css. It used to be `flex: "1 1 0"` inline, and basis 0 is a
+            ROW-axis decision: the comment justifying it argued from WIDTH (an
+            auto basis is the column's own content width, wide enough with the
+            handle beside it to overflow the row and wrap the handle onto its
+            own line — measured, handle top 682 / label top 707).
+
+            A `--content-column` TILE stacks this element on the MAIN axis,
+            where basis 0 means zero HEIGHT: every picture tile collapsed to a
+            10px sliver, 128 of 128 on the Books board. An INLINE style beats
+            every stylesheet rule regardless of specificity, so no CSS could
+            correct it per axis while it lived here — the trap this repo has
+            now recorded six times. The axis is knowable in CSS (the container
+            carries `.container-items--content-column`) and not knowable here,
+            so the decision belongs there. */}
         <div className="instance-textcol" style={{
           display: "flex", flexDirection: "column", alignItems: "flex-start",
           gap: 2, minWidth: 0,
-          // BASIS 0, not auto. `auto` makes the basis the column's own content
-          // width — wide enough, with the handle beside it, to overflow the row
-          // and WRAP, which put the handle on a line of its own ABOVE the label
-          // instead of beside it. Measured: handle top 682 / label top 707 on a
-          // row that should share one line.
-          flex: "1 1 0",
         }}>
           {labelRowRendered && (
             isEditingLabel ? (
