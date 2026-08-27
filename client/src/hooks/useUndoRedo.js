@@ -15,6 +15,26 @@ import { pushTxNotification } from "../state/notificationStore";
  * @param {string} gridId - Current grid ID
  * @param {Function} onUndoAnimation - Callback for handling undo animations
  */
+
+// ── REDO IS OFF, ON PURPOSE (user, 2026-08-27: "can we disable redo for the
+//    moment and just keep undo — redo complicates things more atm") ─────────
+//
+// It is also DEMONSTRABLY BROKEN, which is what makes turning it off the honest
+// move rather than a shortcut. Driven end to end on a live row:
+//
+//   toggle -> true      undo -> false (REVERTED)      redo -> false (NOT reapplied)
+//
+// and A/B'd against a build predating the undo-speed work, which produces the
+// identical result — so this is not a regression from that change, it is a
+// standing defect. A control that looks live and does nothing is the class this
+// repo keeps paying for, so it stops being offered until it works.
+//
+// ONE FLAG, read by the button and the keyboard path alike. The server handler,
+// the stack resolution and the tests all stay: flipping this back is the whole
+// of re-enabling it, and `nextRedoable`'s ascending-sort fix (2026-08-01 (21))
+// is not something to rediscover.
+export const REDO_ENABLED = false;
+
 export function useUndoRedo(socket, gridId, onUndoAnimation) {
   // `canUndo` / `canRedo` drive the BUTTONS only. Neither the keyboard path nor
   // the buttons send an id any more — the server owns stack resolution — so the
@@ -34,7 +54,9 @@ export function useUndoRedo(socket, gridId, onUndoAnimation) {
 
     const handleUndoState = ({ canUndo, canRedo }) => {
       setCanUndo(canUndo);
-      setCanRedo(canRedo);
+      // Gated here rather than at the button, so every consumer of `canRedo`
+      // agrees — App, Grid, the canvas and the history panel all read it.
+      setCanRedo(REDO_ENABLED && canRedo);
     };
 
     const handleUndoResult = ({ success, transactionId, reversedOps, animate, error }) => {
@@ -133,7 +155,12 @@ export function useUndoRedo(socket, gridId, onUndoAnimation) {
   }, [socket, isProcessing, gridId]);
 
   // Redo the most recently undone transaction — same reasoning, server-resolved.
+  //
+  // Gated at the ACTION, not only at the button: `canRedo` hides the control,
+  // but Ctrl+Y / Ctrl+Shift+Z call this directly and would still fire. Turning
+  // off a feature by hiding its button is how it stays reachable.
   const redo = useCallback(() => {
+    if (!REDO_ENABLED) return;
     if (!socket || isProcessing) return;
 
     setIsProcessing(true);

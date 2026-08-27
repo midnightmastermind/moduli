@@ -360,7 +360,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   }
   socket.on("textmaps_loaded", onTextmapsLoaded);
 
-  // Undo/redo: server emits sync_state after applying — re-request full state to sync client.
+  // Undo/redo, SLOW PATH: the server could not express the restore as a keyed
+  // patch (a grid snapshot, an unknown model) and asks for a full re-hydrate.
   // Mark a force-sync pending so mounted editors accept the reverted content
   // when it lands; without it their echo guards (focus / recently-typed) reject
   // an undo outright and the revert never reaches the screen.
@@ -369,6 +370,64 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     socket.emit("request_full_state");
   };
   socket.on("sync_state", onSyncState);
+
+  // Undo/redo, FAST PATH — the documents that actually changed.
+  //
+  // This used to BE `sync_state` for every undo, and undoing one checkbox took
+  // ~26 seconds to settle: a 21,039-occurrence cache reload, a full_state
+  // re-hydrate, and then the onLoad op sweep it provokes writing ~30
+  // occurrences back, each minting a transaction and echoing.
+  //
+  // ── IT DELIBERATELY FIRES NO OPERATIONS ──────────────────────────────────
+  // `onOccurrenceUpdated` fires a MeasureOp on any field change, which is right
+  // for someone else's edit and WRONG here: a write and its whole operation
+  // cascade are one action, so the snapshots being restored already contain
+  // everything those operations derived. Re-running them recomputes what the
+  // undo just reverted, and their writes mint new transactions the user never
+  // made. So this applies to the store directly rather than reusing the CRUD
+  // handlers.
+  const UNDO_DISPATCH = {
+    occurrence: (doc) => ({ type: ActionTypes.UPDATE_OCCURRENCE, payload: { occurrence: doc } }),
+    field:      (doc) => ({ type: ActionTypes.UPDATE_FIELD,      payload: { field: doc } }),
+    view:       (doc) => ({ type: ActionTypes.UPDATE_VIEW,       payload: { view: doc } }),
+    folder:     (doc) => ({ type: ActionTypes.UPDATE_FOLDER,     payload: { folder: doc } }),
+    manifest:   (doc) => ({ type: ActionTypes.UPDATE_MANIFEST,   payload: { manifest: doc } }),
+    operation:  (doc) => ({ type: ActionTypes.UPDATE_OPERATION,  payload: { operation: doc } }),
+  };
+  const UNDO_DELETE = {
+    occurrence: (id) => ({ type: ActionTypes.DELETE_OCCURRENCE, payload: { occurrenceId: id } }),
+    field:      (id) => ({ type: ActionTypes.DELETE_FIELD,      payload: { fieldId: id } }),
+    view:       (id) => ({ type: ActionTypes.DELETE_VIEW,       payload: { viewId: id } }),
+    folder:     (id) => ({ type: ActionTypes.DELETE_FOLDER,     payload: { folderId: id } }),
+    manifest:   (id) => ({ type: ActionTypes.DELETE_MANIFEST,   payload: { manifestId: id } }),
+    operation:  (id) => ({ type: ActionTypes.DELETE_OPERATION,  payload: { operationId: id } }),
+  };
+  const onUndoApplied = ({ docs } = {}) => {
+    // No list means the server could not describe the restore. Fall back to the
+    // slow path rather than silently applying nothing — an undo that does not
+    // reach the screen reads as an undo that did not happen.
+    if (!Array.isArray(docs) || docs.length === 0) { onSyncState(); return; }
+    requestForceSync();
+    for (const { model, id, doc } of docs) {
+      if (!id) continue;
+      if (doc == null) {
+        if (model === "module") { socketDispatch(deleteModuleAction(id)); continue; }
+        const del = UNDO_DELETE[model];
+        if (del) socketDispatch(del(id));
+        if (model === "occurrence") delete localOccsById[id];
+        continue;
+      }
+      if (model === "module") { socketDispatch(updateModuleAction(doc)); continue; }
+      const make = UNDO_DISPATCH[model];
+      if (!make) continue;
+      // Keep the local overlay current before React re-renders from it — the
+      // same order `onOccurrenceUpdated` uses.
+      if (model === "occurrence") localOccsById[id] = doc;
+      socketDispatch(make(doc));
+    }
+    scheduleFeedSync();
+  };
+  socket.on("undo_applied", onUndoApplied);
 
   // ======================================================
   // MODULES (unified CRUD — replaces container/instance/panel handlers)
@@ -2392,6 +2451,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     socket.off("priority_state", onPriorityState);
     socket.off("textmaps_loaded", onTextmapsLoaded);
     socket.off("sync_state", onSyncState);
+    socket.off("undo_applied", onUndoApplied);
 
     socket.off("module_created", onModuleCreated);
     socket.off("module_updated", onModuleUpdated);

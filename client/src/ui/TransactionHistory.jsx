@@ -40,6 +40,7 @@ import { useGridActions } from "../GridActionsContext";
 import { getTransactions, undoTransaction, redoTransaction } from "../helpers/TransactionHelpers";
 import { pushTxNotification } from "../state/notificationStore";
 import { formatDistanceToNow } from "date-fns";
+import { REDO_ENABLED } from "../hooks/useUndoRedo";
 
 // Transaction operation type icons and colors
 const OP_CONFIG = {
@@ -87,7 +88,9 @@ function TransactionRow({
   // silently does nothing.
   const hasSnapshots = Array.isArray(transaction.docs) && transaction.docs.length > 0;
   const canUndo = UNDO_REDO_ENABLED && hasSnapshots && (transaction.state === "applied" || transaction.state === "redone");
-  const canRedo = UNDO_REDO_ENABLED && hasSnapshots && transaction.state === "undone";
+  // Redo is off grid-wide (see hooks/useUndoRedo.js REDO_ENABLED) — the history
+  // panel is a second surface offering it and would otherwise stay reachable.
+  const canRedo = REDO_ENABLED && UNDO_REDO_ENABLED && hasSnapshots && transaction.state === "undone";
 
   const timestamp = transaction.timestamp
     ? formatDistanceToNow(new Date(transaction.timestamp), { addSuffix: true })

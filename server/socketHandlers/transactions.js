@@ -1,6 +1,8 @@
 // socketHandlers/transactions.js — get_transactions, undo, redo, get_undo_state, get_field_history
 import Transaction from "../models/Transaction.js";
 import { closeAction, flushAll } from "../utils/txRecorder.js";
+import { planUndoSync, CACHE_KEY_BY_MODEL } from "../utils/undoSync.js";
+import { decompressTextmap } from "../utils/textmapCompression.js";
 
 export function registerTransactionHandlers(socket, {
   io, ensureUserCache, userCacheReady, loadUserIntoCache,
@@ -67,10 +69,61 @@ export function registerTransactionHandlers(socket, {
         applied.push({ type: "deleted", model: d.model, id: d.id });
       } else {
         await Model.findOneAndUpdate(filter, { $set: target }, { upsert: true });
-        applied.push({ type: "restored", model: d.model, id: d.id });
+        // The DOCUMENT rides along, so the cache and the client can be patched
+        // from what was just written instead of re-reading the whole grid.
+        applied.push({ type: "restored", model: d.model, id: d.id, doc: target });
       }
     }
     return applied;
+  }
+
+  /**
+   * Patch ONE document into the warm cache, shaped the way `loadUserIntoCache`
+   * shapes it — textmaps decompressed, `id` normalised, a module's null label
+   * defaulted. Divergence here is a cache that disagrees with a fresh load, so
+   * the two must keep saying the same thing about the same document.
+   */
+  function patchCache(uc, model, id, doc) {
+    const key = CACHE_KEY_BY_MODEL[model];
+    if (!uc || !key) return;
+    if (doc == null) { delete uc[key][id]; return; }
+    if (model === "occurrence") {
+      uc[key][id] = doc.textmap ? { ...doc, id, textmap: decompressTextmap(doc.textmap) } : { ...doc, id };
+    } else if (model === "module") {
+      uc[key][id] = { ...doc, id, label: doc.label ?? "" };
+    } else {
+      uc[key][id] = { ...doc, id };
+    }
+  }
+
+  /**
+   * Publish the result of an undo/redo.
+   *
+   * The fast path patches the cache for the documents that actually changed and
+   * hands the client the same list. The slow path — an unusual snapshot set —
+   * is exactly what this handler did for every undo before: reload everything
+   * and make the client re-hydrate. See utils/undoSync.js for why it fails
+   * closed in that direction.
+   */
+  async function publishRestore(applied, gId) {
+    const plan = planUndoSync(applied);
+    if (!plan.incremental) {
+      console.log(`↩️  undo: full resync (${plan.reason})`);
+      await loadUserIntoCache(userId, gId);
+      io.to(userRoom(userId)).emit("sync_state", {});
+      return;
+    }
+    // The cache must exist before it can be patched; if it does not, the load
+    // IS the patch.
+    if (!userCacheReady(userId, gId)) {
+      await loadUserIntoCache(userId, gId);
+    } else {
+      const uc = ensureUserCache(userId, gId);
+      for (const d of plan.docs) patchCache(uc, d.model, d.id, d.doc);
+    }
+    // userRoom — NOT io.to(userId). Include this socket: it has to re-read
+    // state it did not write itself.
+    io.to(userRoom(userId)).emit("undo_applied", { docs: plan.docs });
   }
 
   /**
@@ -118,12 +171,9 @@ export function registerTransactionHandlers(socket, {
 
       const applied = await applySnapshots(tx.docs, "before");
       await Transaction.findOneAndUpdate({ id: tx.id }, { $set: { state: "undone", undoneAt: new Date(), undoneBy: userId } });
-      await loadUserIntoCache(userId, gId);
 
       socket.emit("undo_result", { success: true, transactionId: tx.id, description: tx.description, applied });
-      // userRoom — NOT io.to(userId). Include this socket: it has to re-read
-      // state it did not write itself.
-      io.to(userRoom(userId)).emit("sync_state", {});
+      await publishRestore(applied, gId);
     } catch (err) {
       console.error("undo_transaction error:", err);
       socket.emit("undo_result", { success: false, error: err.message });
@@ -145,10 +195,11 @@ export function registerTransactionHandlers(socket, {
 
       const applied = await applySnapshots(tx.docs, "after");
       await Transaction.findOneAndUpdate({ id: tx.id }, { $set: { state: "redone", redoneAt: new Date(), redoneBy: userId } });
-      await loadUserIntoCache(userId, gId);
 
       socket.emit("redo_result", { success: true, transactionId: tx.id, description: tx.description, applied });
-      io.to(userRoom(userId)).emit("sync_state", {});
+      // Redo is undo in the other direction and pays the same cost — it went
+      // through the identical full reload.
+      await publishRestore(applied, gId);
     } catch (err) {
       console.error("redo_transaction error:", err);
       socket.emit("redo_result", { success: false, error: err.message });
