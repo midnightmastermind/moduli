@@ -937,8 +937,15 @@ export function setOccurrenceFieldValue({ dispatch, socket, occurrences, occurre
       [fieldId]: { value, flow, timestamp: Date.now() },
     },
   };
-  // One undo step for the edit AND the tracker cascade it triggers. The fire
-  // below is synchronous, so everything it writes is stamped with this action.
+  // One undo step for the edit AND the tracker cascade it triggers.
+  //
+  // THIS COMMENT USED TO SAY "the fire below is synchronous, so everything it
+  // writes is stamped with this action". That stopped being true when op fires
+  // were deferred past the paint (2026-08-25 (7)) — the cascade now runs a task
+  // later, outside this scope. It still lands in the same undo step, but for a
+  // different reason: `fireOperationsOptimistic` CAPTURES this action and
+  // re-enters it in the continuation (state/bindSocketToStore.js). Verified —
+  // one toggle, 29 of 29 cascade writes join this action rather than minting.
   beginAction("Changed a value");
   try {
     dispatch?.(updateOccurrenceAction(updatedOcc));
