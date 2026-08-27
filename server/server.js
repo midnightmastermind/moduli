@@ -2,6 +2,7 @@
 // All socket handlers are in server/socketHandlers/
 
 import express from "express";
+import { withoutMongoId } from "./utils/mongoId.js";
 import http from "http";
 import cors from "cors";
 import compression from "compression";
@@ -337,24 +338,31 @@ async function loadUserIntoCache(userId, gridId) {
       Operation.find({ userId, gridId }).lean().then(r => { console.log(`  ↳ Operation query: ${Date.now()-t0}ms (${r.length})`); return r; }),
     ]);
     console.log(`📥 All queries done: ${Date.now()-t0}ms total`);
+    // `withoutMongoId` on every cache entry: these documents are handed
+    // straight back to `findOneAndUpdate` as UPDATE PAYLOADS by the write
+    // handlers (`next = { ...cached, ...payload }`), and a lean doc carries
+    // `_id` — so every write was `$set`ting it. Inert while it matches the live
+    // document, and an ImmutableField rejection that LOSES THE USER'S EDIT the
+    // moment they diverge. Nothing reads `_id` off these entries.
     uc.modulesById = {};
-    modules.forEach((m) => { const id = m.id || m._id.toString(); uc.modulesById[id] = { ...m, id, label: m.label ?? "" }; });
+    modules.forEach((m) => { const id = m.id || m._id.toString(); uc.modulesById[id] = { ...withoutMongoId(m), id, label: m.label ?? "" }; });
     uc.occurrencesById = {};
     occurrences.forEach((o) => {
       const id = o.id || o._id.toString();
-      const occ = o.textmap ? { ...o, id, textmap: decompressTextmap(o.textmap) } : { ...o, id };
+      const bare = withoutMongoId(o);
+      const occ = o.textmap ? { ...bare, id, textmap: decompressTextmap(o.textmap) } : { ...bare, id };
       uc.occurrencesById[id] = occ;
     });
     uc.fieldsById = {};
-    fields.forEach((f) => { const id = f.id || f._id.toString(); uc.fieldsById[id] = { ...f, id }; });
+    fields.forEach((f) => { const id = f.id || f._id.toString(); uc.fieldsById[id] = { ...withoutMongoId(f), id }; });
     uc.manifestsById = {};
-    manifests.forEach((m) => { const id = m.id || m._id.toString(); uc.manifestsById[id] = { ...m, id }; });
+    manifests.forEach((m) => { const id = m.id || m._id.toString(); uc.manifestsById[id] = { ...withoutMongoId(m), id }; });
     uc.viewsById = {};
-    views.forEach((v) => { const id = v.id || v._id.toString(); uc.viewsById[id] = { ...v, id }; });
+    views.forEach((v) => { const id = v.id || v._id.toString(); uc.viewsById[id] = { ...withoutMongoId(v), id }; });
     uc.foldersById = {};
-    folders.forEach((f) => { const id = f.id || f._id.toString(); uc.foldersById[id] = { ...f, id }; });
+    folders.forEach((f) => { const id = f.id || f._id.toString(); uc.foldersById[id] = { ...withoutMongoId(f), id }; });
     uc.operationsById = {};
-    operations.forEach((o) => { const id = o.id || o._id.toString(); uc.operationsById[id] = { ...o, id }; });
+    operations.forEach((o) => { const id = o.id || o._id.toString(); uc.operationsById[id] = { ...withoutMongoId(o), id }; });
     uc._loaded = true;
     console.log(`✅ GRID CACHE READY: ${gridId} — Modules: ${Object.keys(uc.modulesById).length}, Occurrences: ${Object.keys(uc.occurrencesById).length}, Folders: ${Object.keys(uc.foldersById).length}`);
     return uc;

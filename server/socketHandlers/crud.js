@@ -1,5 +1,6 @@
 // socketHandlers/crud.js — CRUD for Grid, Module, Occurrence (simple), Field, Operation, Folder + genericCRUD
 import { setMaxListeners } from "node:events";
+import { withoutMongoId } from "../utils/mongoId.js";
 import Grid from "../models/Grid.js";
 import Module from "../models/Module.js";
 import Occurrence from "../models/Occurrence.js";
@@ -164,7 +165,7 @@ export function registerCrudHandlers(socket, {
       // An explicit gridId always wins: a template or import writing into
       // another grid must not be re-homed to the one on screen.
       const gridId = moduleData?.gridId ?? uc.modulesById[id]?.gridId ?? socket.data.activeGridId;
-      const next = { ...(uc.modulesById[id] || {}), ...moduleData, id, userId, ...(gridId ? { gridId } : {}) };
+      const next = { ...withoutMongoId(uc.modulesById[id] || {}), ...withoutMongoId(moduleData), id, userId, ...(gridId ? { gridId } : {}) };
       uc.modulesById[id] = next;
       await Module.findOneAndUpdate({ id, userId }, next, { upsert: true });
       socket.to(userRoom(userId)).emit("module_created", { module: next });
@@ -180,7 +181,7 @@ export function registerCrudHandlers(socket, {
       const uc = await getUc();
       const id = moduleData?.id;
       if (!id) return;
-      const next = { ...(uc.modulesById[id] || {}), ...moduleData, id, userId };
+      const next = { ...withoutMongoId(uc.modulesById[id] || {}), ...withoutMongoId(moduleData), id, userId };
       uc.modulesById[id] = next;
       await Module.findOneAndUpdate({ id, userId }, next, { upsert: true });
       socket.to(userRoom(userId)).emit("module_updated", { module: next });
@@ -211,7 +212,7 @@ export function registerCrudHandlers(socket, {
         for (const occ of Object.values(uc.occurrencesById || {})) {
           if (!Array.isArray(occ.occurrences)) continue;
           if (!occ.occurrences.some(occId => occurrenceIds.includes(occId))) continue;
-          const next = { ...occ, occurrences: occ.occurrences.filter(occId => !occurrenceIds.includes(occId)) };
+          const next = { ...withoutMongoId(occ), occurrences: occ.occurrences.filter(occId => !occurrenceIds.includes(occId)) };
           uc.occurrencesById[next.id] = next;
           affected.push(next);
         }

@@ -1,5 +1,6 @@
 // socketHandlers/occurrences.js — update_occurrence + break_link + request_textmap
 import { setMaxListeners } from "node:events";
+import { withoutMongoId } from "../utils/mongoId.js";
 import { partitionChildRefs, resolveChildRefs } from "../utils/childRefGuard.js";
 import Occurrence from "../models/Occurrence.js";
 import Transaction from "../models/Transaction.js";
@@ -197,7 +198,12 @@ export function registerOccurrenceHandlers(socket, {
       // partial-shape updates from FieldRenderer, the outer catch bailed out, and
       // the field change never persisted (looked like "nothing is being saved").
       const txGridId = occurrence.gridId || prev.gridId || socket.data.activeGridId;
-      const next = { ...prev, ...occWithoutTextmap, id, userId, ...(txGridId ? { gridId: txGridId } : {}) };
+      // `withoutMongoId` on BOTH sides: `next` becomes the update payload, and a
+      // `_id` in it is `$set` on an immutable path. The cache is stripped at load
+      // now, but a tab opened before that shipped still holds `_id` from its
+      // `full_state` and echoes it back on every write — which the loader fix
+      // cannot reach. See utils/mongoId.js.
+      const next = { ...withoutMongoId(prev), ...withoutMongoId(occWithoutTextmap), id, userId, ...(txGridId ? { gridId: txGridId } : {}) };
       // Bump fieldUpdatedAt for every field we actually accepted into
       // this write so the next collision check sees the latest stamps.
       if (occurrence.fields && Object.keys(occurrence.fields).length > 0) {
