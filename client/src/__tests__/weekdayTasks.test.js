@@ -113,17 +113,51 @@ describe("the fixture's own shape — the controls", () => {
     expect(carriers).toEqual([]);
   });
 
-  it("the day column's Todo container is the one `0172` repairs", () => {
-    // The live defect, pinned: the marker every Todo lookup resolves by is null
-    // on the column, which is why due placement had been a silent no-op.
+  it("the day column's Todo container CARRIES its marker — `0172` has landed", () => {
+    // INVERTED 2026-08-26, not deleted. This used to pin the live defect: the
+    // marker every Todo lookup resolves by was null on the column, which is why
+    // due placement was a silent no-op. `0172` repaired it, the fixture was
+    // refreshed off the healthy grid, and the assertion was still describing
+    // the bug — so it failed for the best possible reason.
+    //
+    // It is kept, pointing the other way, because the marker is what every Todo
+    // lookup resolves by: if it goes null again, placement silently stops and
+    // this is the test that says so.
     const column = fx.occurrences.find((o) => o.fields?.[FORMAT]?.value === "day-col");
     const todo = (column.occurrences || [])
       .map((id) => fx.occurrences.find((o) => o.id === id))
       .find((o) => lbl(o) === "Todo");
     expect(todo).toBeTruthy();
-    expect(todo.fields?.[TS]?.value ?? null).toBeNull();
+    expect(todo.fields?.[TS]?.value).toBe("Todo");
   });
 });
+
+// ── WHERE THE REMAINING 5 FAILURES STAND (2026-08-26) ──────────────────────
+// Traced, not guessed at, and NOT yet fixed. What is established:
+//
+//   the op is NOT inert — it runs the whole pipeline cleanly, 0 errors
+//   $activePeriodDates resolves to the faked date        ["2026-08-24"]
+//   $dayColId found · $wd = "Monday" · $todoId FIND runs
+//   the task loop iterates $allInstances                 1169 items
+//   "Text Tim" IS among those 1169                       verified directly
+//   all THREE predicate rules are true for it:
+//       Weekday CONTAINS "Monday"   -> true
+//       Date IS_EMPTY               -> true
+//       meta.feedSourceId IS_EMPTY  -> true
+//   ...and the pipeline still emits 0 effects.
+//
+// So the failure is downstream of the match, in the THEN branch — the merge or
+// the placement target — not in the trigger, the date, or the predicate.
+//
+// TWO THINGS THAT COST TIME AND ARE WORTH INHERITING:
+//   1. The executor CAPS loop logging at 50 iterations. A probe that asks the
+//      run log "did the loop see this row" reads false on a 1169-item loop and
+//      it is a claim about the LOG. Compute membership directly.
+//   2. This feature has NEVER run on real data: poms grid has 0 instances
+//      carrying a Weekday (all 8 carriers are the workout/meal/routine
+//      CONTAINERS, which a different op merges). So these tests are the only
+//      evidence about it, and "it works live" is NOT available as a reassurance
+//      — the thing that works live is the template merge, not this.
 
 describe("Schedule: Place Weekday Tasks", () => {
   // 2026-08-24 is a Monday, 2026-08-25 a Tuesday.
