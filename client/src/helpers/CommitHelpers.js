@@ -346,7 +346,29 @@ function _updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerF
     if (localPrev) {
       const nowIso = new Date().toISOString();
       const nowMs = Date.now();
-      const patch = { ...localPrev, updatedAt: nowIso };
+      // THE WRITE ITSELF GOES IN, not just its timestamp. `localOccsById` is
+      // merged OVER Redux (`Object.assign(occs, localOccsById)` in
+      // bindSocketToStore.scheduleFeedSync), so an entry this never refreshes
+      // does not merely go stale — it OVERRULES the correct value, and the
+      // block below re-stamps it as fresh.
+      //
+      // Spreading only `...localPrev` froze every key the write changed, and
+      // the server never corrects it: `occurrence_updated` is broadcast with
+      // `socket.to(userRoom())`, which EXCLUDES the sender, so the originating
+      // tab gets a timestamp-only ack and nothing ever puts the new value in.
+      // For a child-list write that is unbounded: feedSync's re-link step read
+      // the frozen list, concluded a copy it had just minted was unlisted, and
+      // re-linked it — once every 2.2 seconds for as long as the tab stayed
+      // open. Measured on the live grid, one checkbox tick: 104 writes in 240s
+      // and still going, `parentOccUsed=15 reduxParent=16 reduxListsCopy=true`,
+      // with the server logging `dropped 1 unknown child id(s)` 104 times.
+      //
+      // The merge is the SERVER'S, deliberately: `{ ...prev, ...payload }`
+      // (socketHandlers/occurrences.js) is a SHALLOW spread, so a partial patch
+      // replaces the keys it carries and leaves the rest. Matching it is what
+      // stops the two ends disagreeing about what a write meant — a deep merge
+      // here would keep fields the server has already dropped.
+      const patch = { ...localPrev, ...occurrence, updatedAt: nowIso };
       if (occurrence.fields && Object.keys(occurrence.fields).length > 0) {
         const nextFieldTs = { ...(localPrev.fieldUpdatedAt || {}) };
         for (const fid of Object.keys(occurrence.fields)) nextFieldTs[fid] = nowMs;
