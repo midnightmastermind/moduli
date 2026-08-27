@@ -20,16 +20,25 @@ const SRC = readFileSync(
   "utf-8",
 );
 
-/** Every `<MultiSelectWithAdd …/>` element, as its own source slice. */
-function callSites(src) {
+/** Every element of `tag`, as its own source slice. */
+function elements(src, tag) {
   const out = [];
-  let i = src.indexOf("<MultiSelectWithAdd");
+  let i = src.indexOf(`<${tag}`);
   while (i !== -1) {
     out.push(src.slice(i, src.indexOf("/>", i) + 2));
-    i = src.indexOf("<MultiSelectWithAdd", i + 1);
+    i = src.indexOf(`<${tag}`, i + 1);
   }
   return out;
 }
+const callSites = (src) => elements(src, "MultiSelectWithAdd");
+
+// THE PROBE USED TO LOOK AT ONE TAG, AND THAT IS WHY IT MISSED THE GAP.
+// It only ever read `<MultiSelectWithAdd>`, so it had nothing to say about the
+// SINGLE-select occurrence dropdown — which rendered its own plain list and
+// never got a provider at all. Measured 2026-08-27: `Location` and `Song` carry
+// an enabled provider that nothing rendered, out of 33 single-select occurrence
+// fields with no search box between them.
+const listSites = elements(SRC, "OptionSearchList");
 
 describe("the occurrence dropdown's provider search is wired at the call site", () => {
   const sites = callSites(SRC);
@@ -73,18 +82,29 @@ describe("the occurrence dropdown's provider search is wired at the call site", 
     expect(SRC).toContain("extraFields");
   });
 
-  it("EVERY import handler records WHERE the row came from", () => {
+  it("every SINGLE-select occurrence dropdown passes them too", () => {
+    // The half this suite could not see. `OptionSearchList` is the shared body
+    // of both dropdowns, so every site of it must carry the wiring — including
+    // `MultiSelectWithAdd`'s own pass-through.
+    expect(listSites.length).toBeGreaterThanOrEqual(3);   // control
+    for (const site of listSites) {
+      expect(site).toContain("searchProvider=");
+      expect(site).toContain("onImportResult=");
+    }
+  });
+
+  it("there is ONE import handler, and it records WHERE the row came from", () => {
     // `dropAlreadyOnGrid` keys on `${provider}:${externalId}` — an import that
     // does not stamp both is offered again on the next search, forever.
     //
-    // COUNTED, not merely present: a bare `toContain` is satisfied by one
-    // surviving site, so it cannot see a regression at the other. That is not
-    // hypothetical — the first A/B of this test mutated one of the two handlers
-    // and the assertion stayed green.
+    // It used to be COUNTED per call site, because the handler was written
+    // inline twice and a bare `toContain` was satisfied by one surviving copy.
+    // It is hoisted to one now, which is the stronger property: there is no
+    // second copy to drift, and the single-select branches could only reach it
+    // once it stopped living inside the multi-select branch.
     const handlers = SRC.split("occMeta: {").length - 1;
-    const stamped = SRC.split("searchExternalId: r?.externalId").length - 1;
-    expect(handlers).toBe(occurrenceSites.length);   // one handler per wired site
-    expect(stamped).toBe(handlers);                  // and every one stamps
+    expect(handlers).toBe(1);
+    expect(SRC.split("searchExternalId: r?.externalId").length - 1).toBe(handlers);
     expect(SRC.split("searchProvider: r?.provider").length - 1).toBe(handlers);
   });
 });

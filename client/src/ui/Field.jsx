@@ -226,26 +226,59 @@ function RandomizeSegment({ onClick, disabled, compact }) {
 }
 
 // ─── MultiSelectWithAdd ─────────────────────────────────────────
-function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, disabled, compact, showLabel, randomize, renderOption, fieldName, addNewTargets = null, searchProvider = null, onImportResult = null }) {
-  const [isOpen, setIsOpen] = useState(false);
+// ─── OptionSearchList ───────────────────────────────────────────
+// THE BODY OF AN OCCURRENCE DROPDOWN: the "Add new…" box that doubles as a
+// SEARCH box, the destination chooser, your own options, and a provider's
+// results — for single-select and multi-select alike.
+//
+// ── WHY THIS IS ONE COMPONENT AND NOT TWO ──────────────────────────────────
+//
+// It used to be two. `MultiSelectWithAdd` grew the merged grid+provider search
+// on 2026-08-23; the single-select dropdown kept `AddNewOccurrenceRow`, which
+// can only type a plain value. So the search reached the multi-select fields
+// and no others — measured on this grid:
+//
+//   occurrence fields          48       multi 15      single 33
+//   single WITH a provider      2       Song, Location      <- search unreachable
+//   single with addNew         31                           <- no search box at all
+//
+// User, 2026-08-27: *"the adding new item to select isnt giving me the location
+// search (the one that grabs it from that api), it just lets me add plain
+// values."* `Location` is single-select, so its provider had never been
+// reachable — the config was right and nothing rendered it.
+//
+// ── WHAT STAYS DIFFERENT, AND WHY ──────────────────────────────────────────
+//
+// `multi` draws the tick box and nothing else. The SELECT-vs-APPEND decision
+// belongs to the caller (`onPick`), and so does the optimistic slug write after
+// an add (`onAdded`) — the multi-select fires one because its own `onChange`
+// carries the array, while the single path lets `handleOccurrenceAddNew` write
+// the real occurrence id directly. Folding those in here is how the two would
+// drift again.
+function OptionSearchList({
+  options,
+  selected = [],
+  onPick,
+  multi = false,
+  onAddOption = null,
+  onAdded = null,
+  addNewTargets = null,
+  searchProvider = null,
+  onImportResult = null,
+  renderOption = null,
+  emptyText = "No options available",
+}) {
   const [newValue, setNewValue] = useState("");
-  // Multi-target addNew: when the field's addNew declares SEVERAL candidate
-  // parent occurrences, "+" first asks WHICH occurrence to create under
-  // (labels resolved live — see helpers/addNewOption.js).
   const [choosingDest, setChoosingDest] = useState(false);
   // A PROVIDER RESULT AWAITING ITS DESTINATION. The typed "+ Add new" has asked
   // which board since 2026-07-25; picking a search result minted straight into
-  // `targets[0]` without asking — so on `Purchase Item` (7 candidate boards)
-  // typing a name asked and picking the same name from a provider did not.
-  // One question, whichever way the row arrived.
+  // `targets[0]` without asking. One question, whichever way the row arrived.
   const [pendingImport, setPendingImport] = useState(null);
-  const selectedOptions = useMemo(() => options.filter(o => selected.includes(o.value)), [options, selected]);
+
   // ── SEARCHING YOUR GRID AND A PROVIDER AT ONCE ──────────────────────────
-  // User, 2026-08-23: *"we still have our search for our own occurances merged
-  // in there."* The "Add new…" box doubles as the search box: the local list
-  // filters SYNCHRONOUSLY as you type and the provider's results are APPENDED
-  // when they arrive. A provider that is slow or down degrades to exactly the
-  // behaviour this dropdown had before — the local half never waits on it.
+  // The local list filters SYNCHRONOUSLY as you type; the provider's results
+  // are APPENDED when they arrive. A provider that is slow or down degrades to
+  // exactly the behaviour this dropdown had before.
   const haveKeys = useMemo(() => [...localProviderKeys(options)], [options]);
   const { results: remoteResults, state: remoteState } =
     useProviderSearch({ provider: searchProvider, query: newValue, haveKeys, enabled: !!searchProvider });
@@ -253,31 +286,130 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
     () => splitSections({ options, query: newValue, remote: remoteResults, remoteState }),
     [options, newValue, remoteResults, remoteState],
   );
-  const toggle = useCallback((v) => onChange(selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v]), [selected, onChange]);
+
   const doAdd = useCallback((parentOccurrenceId = null) => {
     const value = newValue.toLowerCase().replace(/\s+/g, "_");
     onAddOption?.({ value, label: newValue.trim(), parentOccurrenceId });
-    onChange([...selected, value]);
+    onAdded?.(value);
     setNewValue("");
     setChoosingDest(false);
-  }, [newValue, selected, onChange, onAddOption]);
+  }, [newValue, onAddOption, onAdded]);
+
   const handleAddNew = useCallback(() => {
     if (!newValue.trim()) return;
     setPendingImport(null);
     if ((addNewTargets?.length || 0) > 1) { setChoosingDest(true); return; }
     doAdd(addNewTargets?.[0]?.id ?? null);
   }, [newValue, addNewTargets, doAdd]);
-  /** Commit a picked provider result to a chosen parent. */
+
   const doImport = useCallback((r, parentOccurrenceId = null) => {
     setPendingImport(null);
     setChoosingDest(false);
     setNewValue("");
     onImportResult?.(r, parentOccurrenceId);
   }, [onImportResult]);
+
   const handlePickRemote = useCallback((r) => {
     if ((addNewTargets?.length || 0) > 1) { setPendingImport(r); setChoosingDest(true); return; }
     doImport(r, addNewTargets?.[0]?.id ?? null);
   }, [addNewTargets, doImport]);
+
+  return (
+    <>
+      {onAddOption && (
+        <div className="p-2 border-b border-border" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center gap-1">
+            <Input type="text" value={newValue} onChange={e => setNewValue(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleAddNew()}
+              className="h-6 text-xs flex-1"
+              placeholder={searchProvider ? `Search or add…` : "Search or add…"} />
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleAddNew} disabled={!newValue.trim()}>
+              <Plus className="h-3 w-3" />
+            </Button>
+          </div>
+          {choosingDest && (
+            <div className="mt-1">
+              <div className="text-[12px] text-muted-foreground px-1 py-0.5">
+                Add “{pendingImport ? pendingImport.title : newValue.trim()}” to:
+              </div>
+              {(addNewTargets || []).map(t => (
+                <button key={t.id} type="button"
+                  onClick={() => (pendingImport ? doImport(pendingImport, t.id) : doAdd(t.id))}
+                  className="w-full px-2 py-1 rounded-sm text-left text-xs hover:bg-muted">
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      <div className="max-h-48 overflow-y-auto p-1">
+        {/* A HEADING ONLY WHEN THERE ARE TWO SOURCES. With no provider
+            configured this renders exactly as it always did — one plain list,
+            no ceremony. */}
+        {searchProvider && sections.local.length > 0 && (
+          <div className="text-[12px] uppercase tracking-wide text-muted-foreground px-2 pt-1 pb-0.5">On your grid</div>
+        )}
+        {sections.local.length === 0 && !searchProvider
+          ? <div className="py-4 text-center text-xs text-muted-foreground">{emptyText}</div>
+          : sections.local.map(o => (
+              <button key={o.value} type="button" onClick={() => onPick?.(o.value)}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-sm text-left text-xs transition-colors
+                  ${selected.includes(o.value) ? "bg-primary/10 text-primary" : "hover:bg-muted"}`}>
+                {multi && (
+                  <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0
+                    ${selected.includes(o.value) ? "bg-primary border-primary" : "border-muted-foreground/30"}`}>
+                    {selected.includes(o.value) && <Check className="h-3 w-3 text-primary-foreground" />}
+                  </div>
+                )}
+                {renderOption ? renderOption(o) : <span className="truncate">{o.label}</span>}
+              </button>
+            ))}
+        {/* THE PROVIDER SECTION. Visibly separate because picking here IMPORTS
+            — it mints an occurrence and fills its fields — while picking above
+            merely SELECTS one you already have. One undifferentiated list would
+            make the second look like the first and quietly grow the board. */}
+        {searchProvider && newValue.trim() && (
+          <>
+            <div className="text-[12px] uppercase tracking-wide text-muted-foreground px-2 pt-2 pb-0.5 border-t border-border/40 mt-1">
+              From {searchProvider}
+              {sections.remoteState === "searching" && <span className="ml-1 opacity-60">searching…</span>}
+              {sections.remoteState === "error" && <span className="ml-1 opacity-60">unavailable</span>}
+            </div>
+            {/* "searching" is why an empty list is not "nothing found" — a
+                distinction the user has to see, or a slow provider looks like a
+                wrong answer. */}
+            {sections.remoteState === "done" && sections.external.length === 0 && (
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">Nothing found</div>
+            )}
+            {sections.external.map(r => (
+              <button key={`${r.provider}:${r.externalId || r.title}`} type="button"
+                onClick={() => handlePickRemote(r)}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-sm text-left text-xs hover:bg-muted">
+                <Plus className="h-3 w-3 flex-shrink-0 opacity-60" />
+                <span className="truncate">
+                  {r.title}
+                  {r.subtitle && <span className="opacity-60"> — {String(r.subtitle).slice(0, 60)}</span>}
+                </span>
+              </button>
+            ))}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, disabled, compact, showLabel, randomize, renderOption, fieldName, addNewTargets = null, searchProvider = null, onImportResult = null }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedOptions = useMemo(() => options.filter(o => selected.includes(o.value)), [options, selected]);
+  const toggle = useCallback(
+    (v) => onChange(selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v]),
+    [selected, onChange],
+  );
+  // The search box, the destination chooser and the provider section all live
+  // in `OptionSearchList` now — the single-select dropdown renders the same one
+  // rather than a second copy that never grew the search.
   return (
     <div className={compact ? "field-input field-input-select-multi inline-flex" : "field-input field-input-select-multi"}>
       {showLabel && <Label className="text-xs text-muted-foreground mb-1">{name}</Label>}
@@ -331,84 +463,21 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-56 p-0" align="start">
-            {onAddOption && (
-              <div className="p-2 border-b border-border">
-                <div className="flex items-center gap-1">
-                  <Input type="text" value={newValue} onChange={e => setNewValue(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && handleAddNew()}
-                    className="h-6 text-xs flex-1" placeholder="Add new..." />
-                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleAddNew} disabled={!newValue.trim()}>
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-                {choosingDest && (
-                  <div className="mt-1">
-                    <div className="text-[12px] text-muted-foreground px-1 py-0.5">
-                      Add “{pendingImport ? pendingImport.title : newValue.trim()}” to:
-                    </div>
-                    {(addNewTargets || []).map(t => (
-                      <button key={t.id} type="button"
-                        onClick={() => (pendingImport ? doImport(pendingImport, t.id) : doAdd(t.id))}
-                        className="w-full px-2 py-1 rounded-sm text-left text-xs hover:bg-muted">
-                        {t.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-            <div className="max-h-48 overflow-y-auto p-1">
-              {/* A HEADING ONLY WHEN THERE ARE TWO SOURCES. With no provider
-                  configured this renders exactly as it always did — one plain
-                  list, no ceremony. */}
-              {searchProvider && sections.local.length > 0 && (
-                <div className="text-[12px] uppercase tracking-wide text-muted-foreground px-2 pt-1 pb-0.5">On your grid</div>
-              )}
-              {sections.local.length === 0 && !searchProvider
-                ? <div className="py-4 text-center text-xs text-muted-foreground">No options available</div>
-                : sections.local.map(o => (
-                    <button key={o.value} type="button" onClick={() => toggle(o.value)}
-                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-sm text-left text-xs transition-colors
-                        ${selected.includes(o.value) ? "bg-primary/10 text-primary" : "hover:bg-muted"}`}>
-                      <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0
-                        ${selected.includes(o.value) ? "bg-primary border-primary" : "border-muted-foreground/30"}`}>
-                        {selected.includes(o.value) && <Check className="h-3 w-3 text-primary-foreground" />}
-                      </div>
-                      {renderOption ? renderOption(o) : <span className="truncate">{o.label}</span>}
-                    </button>
-                  ))}
-              {/* THE PROVIDER SECTION. Visibly separate because picking here
-                  IMPORTS — it mints an occurrence and fills its fields — while
-                  picking above merely SELECTS one you already have. One
-                  undifferentiated list would make the second look like the
-                  first and quietly grow the board. */}
-              {searchProvider && newValue.trim() && (
-                <>
-                  <div className="text-[12px] uppercase tracking-wide text-muted-foreground px-2 pt-2 pb-0.5 border-t border-border/40 mt-1">
-                    From {searchProvider}
-                    {sections.remoteState === "searching" && <span className="ml-1 opacity-60">searching…</span>}
-                    {sections.remoteState === "error" && <span className="ml-1 opacity-60">unavailable</span>}
-                  </div>
-                  {/* "searching" is why an empty list is not "nothing found" —
-                      a distinction the user has to see, or a slow provider
-                      looks like a wrong answer. */}
-                  {sections.remoteState === "done" && sections.external.length === 0 && (
-                    <div className="px-2 py-1.5 text-xs text-muted-foreground">Nothing found</div>
-                  )}
-                  {sections.external.map(r => (
-                    <button key={`${r.provider}:${r.externalId || r.title}`} type="button"
-                      onClick={() => handlePickRemote(r)}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-sm text-left text-xs hover:bg-muted">
-                      <Plus className="h-3 w-3 flex-shrink-0 opacity-60" />
-                      <span className="truncate">
-                        {r.title}
-                        {r.subtitle && <span className="opacity-60"> — {String(r.subtitle).slice(0, 60)}</span>}
-                      </span>
-                    </button>
-                  ))}
-                </>
-              )}
-            </div>
+            <OptionSearchList
+              options={options}
+              selected={selected}
+              onPick={toggle}
+              multi
+              onAddOption={onAddOption}
+              // The optimistic SLUG write stays here: `handleOccurrenceAddNew`
+              // overwrites it with the real occurrence id in a microtask, and
+              // that dance is the multi-select caller's, not the list's.
+              onAdded={(value) => onChange([...selected, value])}
+              addNewTargets={addNewTargets}
+              searchProvider={searchProvider}
+              onImportResult={onImportResult}
+              renderOption={renderOption}
+            />
           </PopoverContent>
         </Popover>
         {randomize && options.length > 0 && (
@@ -416,49 +485,6 @@ function MultiSelectWithAdd({ name, options, selected, onChange, onAddOption, di
             onClick={() => { const p = options[Math.floor(Math.random() * options.length)]; if (p) onChange([p.value]); }} />
         )}
       </div>
-    </div>
-  );
-}
-
-// ─── AddNewOccurrenceRow ────────────────────────────────────────
-// "+ Add new" row for SINGLE-select occurrence dropdowns (2026-07-25 — the
-// multi-select popover has its own row inside MultiSelectWithAdd). When the
-// field's addNew declares several candidate parents, the row asks WHICH
-// occurrence to create under (select-an-occurrence, labels resolved live).
-function AddNewOccurrenceRow({ targets, onAdd }) {
-  const [text, setText] = useState("");
-  const [choosing, setChoosing] = useState(false);
-  const go = (parentOccurrenceId) => {
-    onAdd({ label: text.trim(), parentOccurrenceId });
-    setText("");
-    setChoosing(false);
-  };
-  const plus = () => {
-    if (!text.trim()) return;
-    if ((targets?.length || 0) > 1) { setChoosing(true); return; }
-    go(targets?.[0]?.id ?? null);
-  };
-  return (
-    <div className="p-1 border-b border-border" onClick={e => e.stopPropagation()}>
-      <div className="flex items-center gap-1">
-        <Input type="text" value={text} onChange={e => setText(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && plus()}
-          className="h-6 text-xs flex-1" placeholder="Add new..." />
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={plus} disabled={!text.trim()}>
-          <Plus className="h-3 w-3" />
-        </Button>
-      </div>
-      {choosing && (
-        <div className="mt-1">
-          <div className="text-[12px] text-muted-foreground px-1 py-0.5">Add “{text.trim()}” to:</div>
-          {(targets || []).map(t => (
-            <button key={t.id} type="button" onClick={() => go(t.id)}
-              className="w-full px-2 py-1 rounded-sm text-left text-xs hover:bg-muted">
-              {t.label}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -1226,6 +1252,49 @@ function Field({
   // Candidate destinations for the add flow, labeled by LIVE occurrence data.
   const addNewTargetOptions = occurrenceAddNewCfg ? targetOptionsForAddNew(occurrenceAddNewCfg, occMaps) : null;
 
+  // ── THE PROVIDER WIRING, ONCE ────────────────────────────────────────────
+  // A provider is DATA on the field. Absent, every occurrence dropdown behaves
+  // exactly as it always has — no heading, no second section.
+  //
+  // This used to be written inline in the two MULTI-select branches, which is
+  // why the two SINGLE-select branches had no provider at all: `Location` and
+  // `Song` carry an enabled provider that nothing rendered.
+  const occSearchCfg = searchProviderConfig(field);
+  const occSearchProvider = occSearchCfg?.provider || null;
+  const occAddNewFn = occurrenceAddNewCfg ? handleOccurrenceAddNew : null;
+  // Picking a provider row IMPORTS: it mints the option and stamps the provider
+  // identity so the same result is not offered again.
+  const importProviderResult = (occAddNewFn && occSearchProvider)
+    ? async (r, parentOccurrenceId = null) => {
+        // A SEARCH result carries no fields — only `detail()` does — so the
+        // mapped values need a second request, made once, at the moment of
+        // import rather than for every row in the list.
+        let mapped = null;
+        if (Object.keys(occSearchCfg.fieldMap || {}).length) {
+          try {
+            const j = await fetch(
+              `/api/search/${encodeURIComponent(occSearchProvider)}/detail`
+              + `?title=${encodeURIComponent(r?.title || "")}`
+              + `&externalId=${encodeURIComponent(r?.externalId ?? "")}`,
+              { headers: { Accept: "application/json" } },
+            ).then((x) => x.json());
+            mapped = mapProviderFields(j?.result?.fields, occSearchCfg.fieldMap, fieldsById, occSearchCfg.valueAliases).values;
+          } catch {
+            // The row is still worth minting. Losing the prefill is a smaller
+            // failure than losing the pick the user just made.
+          }
+        }
+        occAddNewFn({
+          label: r?.title,
+          // The CHOSEN board, when the dropdown asked. Without threading it the
+          // question is asked and then ignored, which is worse than never asking.
+          parentOccurrenceId,
+          occMeta: { searchProvider: r?.provider, searchExternalId: r?.externalId ?? null },
+          extraFields: mapped,
+        });
+      }
+    : null;
+
   // Quick-add for SELECT fields (tags pattern): a select with
   // `meta.allowNewOptions` lets the user type a new option straight into the
   // multi-select pill — the option is persisted onto the FIELD (manual
@@ -1783,50 +1852,13 @@ function Field({
         const selectedValues = Array.isArray(localValue) ? localValue : localValue ? [localValue] : [];
         // When addNew is configured, wire handleOccurrenceAddNew (accepts { value, label, parentOccurrenceId } from MultiSelectWithAdd).
         const occAddNew = occurrenceAddNewCfg ? handleOccurrenceAddNew : null;
-        // A provider is DATA on the field. Absent, the dropdown behaves exactly
-        // as it always has — no heading, no second section.
-        const spCfg = searchProviderConfig(field);
-        const searchProviderId = spCfg?.provider || null;
-        // Picking a provider row IMPORTS: it mints the option and stamps the
-        // provider identity so the same result is not offered again.
-        const importResult = (occAddNew && searchProviderId)
-          ? async (r, parentOccurrenceId = null) => {
-              // A SEARCH result carries no fields — only `detail()` does — so the
-              // mapped values need a second request, made once, at the moment of
-              // import rather than for every row in the list.
-              let mapped = null;
-              if (Object.keys(spCfg.fieldMap || {}).length) {
-                try {
-                  const j = await fetch(
-                    `/api/search/${encodeURIComponent(searchProviderId)}/detail`
-                    + `?title=${encodeURIComponent(r?.title || "")}`
-                    + `&externalId=${encodeURIComponent(r?.externalId ?? "")}`,
-                    { headers: { Accept: "application/json" } },
-                  ).then((x) => x.json());
-                  mapped = mapProviderFields(j?.result?.fields, spCfg.fieldMap, fieldsById, spCfg.valueAliases).values;
-                } catch {
-                  // The row is still worth minting. Losing the prefill is a
-                  // smaller failure than losing the pick the user just made.
-                }
-              }
-              occAddNew({
-                label: r?.title,
-                // The CHOSEN board, when the dropdown asked. Without threading
-                // it the question is asked and then ignored, which is worse
-                // than never asking.
-                parentOccurrenceId,
-                occMeta: { searchProvider: r?.provider, searchExternalId: r?.externalId ?? null },
-                extraFields: mapped,
-              });
-            }
-          : null;
         return (
           <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}
             onChange={vals => { handleChange(vals); onCommit?.(vals); }}
             onAddOption={occAddNew} disabled={disabled} compact={compact}
             showLabel={showLabel} randomize={randomize} renderOption={renderOccurrenceOption} fieldName={name}
             addNewTargets={addNewTargetOptions}
-            searchProvider={searchProviderId} onImportResult={importResult} />
+            searchProvider={occSearchProvider} onImportResult={importProviderResult} />
         );
       }
       const currentLabel = options.find(o => o.value === localValue)?.label || localValue || "—";
@@ -1865,28 +1897,25 @@ function Field({
               <ChevronDown style={{ width: 10, height: 10, opacity: 0.5 }} />
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-48 p-1" align="start" side="bottom">
-            {occurrenceAddNewCfg && (
-              <AddNewOccurrenceRow targets={addNewTargetOptions} onAdd={handleOccurrenceAddNew} />
-            )}
-            <div style={{ maxHeight: 200, overflowY: "auto" }}>
-              {options.length === 0
-                ? <div style={{ padding: "16px 0", textAlign: "center", fontSize: FIELD_FONT, color: "var(--text-faint)" }}>No occurrences available</div>
-                : options.map(o => (
-                    <button key={o.value} type="button"
-                      onClick={() => { handleChange(o.value); onCommit?.(o.value); }}
-                      style={{
-                        width: "100%", display: "flex", alignItems: "center", padding: "4px 8px",
-                        borderRadius: 4, fontSize: FIELD_FONT, fontFamily: "var(--font-mono)",
-                        background: localValue === o.value ? "rgba(var(--occ-pill) / 0.15)" : "transparent",
-                        color: localValue === o.value ? "var(--occ-pill-text)" : "var(--text-muted)",
-                        border: "none", cursor: "pointer", textAlign: "left",
-                      }}
-                    >
-                      <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps} chipDisplay={chipDisplay} onSetImage={handleSetOptionImage} />
-                    </button>
-                  ))}
-            </div>
+          {/* THE SAME LIST THE MULTI-SELECT RENDERS. It used to be a plain
+              option list under a type-a-value row, so the search — local AND
+              provider — reached the 15 multi-select occurrence fields and none
+              of the 33 single ones. */}
+          <PopoverContent className="w-56 p-0" align="start" side="bottom">
+            <OptionSearchList
+              options={options}
+              selected={localValue ? [localValue] : []}
+              onPick={(v) => { handleChange(v); onCommit?.(v); }}
+              onAddOption={occAddNewFn}
+              addNewTargets={addNewTargetOptions}
+              searchProvider={occSearchProvider}
+              onImportResult={importProviderResult}
+              emptyText="No occurrences available"
+              renderOption={(o) => (
+                <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps}
+                  chipDisplay={chipDisplay} onSetImage={handleSetOptionImage} />
+              )}
+            />
           </PopoverContent>
         </Popover>
         {randomize && options.length > 1 && (
@@ -2285,50 +2314,13 @@ function Field({
       if (isMulti) {
         const selectedValues = Array.isArray(localValue) ? localValue : localValue ? [localValue] : [];
         const occAddNew = occurrenceAddNewCfg ? handleOccurrenceAddNew : null;
-        // A provider is DATA on the field. Absent, the dropdown behaves exactly
-        // as it always has — no heading, no second section.
-        const spCfg = searchProviderConfig(field);
-        const searchProviderId = spCfg?.provider || null;
-        // Picking a provider row IMPORTS: it mints the option and stamps the
-        // provider identity so the same result is not offered again.
-        const importResult = (occAddNew && searchProviderId)
-          ? async (r, parentOccurrenceId = null) => {
-              // A SEARCH result carries no fields — only `detail()` does — so the
-              // mapped values need a second request, made once, at the moment of
-              // import rather than for every row in the list.
-              let mapped = null;
-              if (Object.keys(spCfg.fieldMap || {}).length) {
-                try {
-                  const j = await fetch(
-                    `/api/search/${encodeURIComponent(searchProviderId)}/detail`
-                    + `?title=${encodeURIComponent(r?.title || "")}`
-                    + `&externalId=${encodeURIComponent(r?.externalId ?? "")}`,
-                    { headers: { Accept: "application/json" } },
-                  ).then((x) => x.json());
-                  mapped = mapProviderFields(j?.result?.fields, spCfg.fieldMap, fieldsById, spCfg.valueAliases).values;
-                } catch {
-                  // The row is still worth minting. Losing the prefill is a
-                  // smaller failure than losing the pick the user just made.
-                }
-              }
-              occAddNew({
-                label: r?.title,
-                // The CHOSEN board, when the dropdown asked. Without threading
-                // it the question is asked and then ignored, which is worse
-                // than never asking.
-                parentOccurrenceId,
-                occMeta: { searchProvider: r?.provider, searchExternalId: r?.externalId ?? null },
-                extraFields: mapped,
-              });
-            }
-          : null;
         return (
           <MultiSelectWithAdd name={showLabel ? name : ""} options={options} selected={selectedValues}
             onChange={vals => { handleChange(vals); onCommit?.(vals); }}
             onAddOption={occAddNew} disabled={disabled} compact={compact}
             showLabel={showLabel} randomize={randomize} renderOption={renderOccurrenceOption} fieldName={name}
             addNewTargets={addNewTargetOptions}
-            searchProvider={searchProviderId} onImportResult={importResult} />
+            searchProvider={occSearchProvider} onImportResult={importProviderResult} />
         );
       }
       return (
@@ -2353,25 +2345,20 @@ function Field({
                 <ChevronDown style={{ width: 12, height: 12, opacity: 0.5, flexShrink: 0 }} />
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-72 p-1" align="start" side="bottom">
-              {occurrenceAddNewCfg && (
-                <AddNewOccurrenceRow targets={addNewTargetOptions} onAdd={handleOccurrenceAddNew} />
-              )}
-              <div style={{ maxHeight: 280, overflowY: "auto" }}>
-                {options.length === 0
-                  ? <div style={{ padding: "16px 0", textAlign: "center", fontSize: FIELD_FONT, color: "var(--text-faint)" }}>No occurrences available</div>
-                  : options.map(o => (
-                      <button key={o.value} type="button"
-                        onClick={() => { handleChange(o.value); onCommit?.(o.value); setSelectOpen(false); }}
-                        style={{
-                          width: "100%", display: "flex", alignItems: "center", padding: "5px 6px",
-                          borderRadius: 4, border: "none", cursor: "pointer", textAlign: "left",
-                          background: localValue === o.value ? "rgba(var(--occ-pill) / 0.15)" : "transparent",
-                        }}>
-                        <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps} />
-                      </button>
-                    ))}
-              </div>
+            <PopoverContent className="w-72 p-0" align="start" side="bottom">
+              <OptionSearchList
+                options={options}
+                selected={localValue ? [localValue] : []}
+                onPick={(v) => { handleChange(v); onCommit?.(v); setSelectOpen(false); }}
+                onAddOption={occAddNewFn}
+                addNewTargets={addNewTargetOptions}
+                searchProvider={occSearchProvider}
+                onImportResult={importProviderResult}
+                emptyText="No occurrences available"
+                renderOption={(o) => (
+                  <OccurrenceOption occId={o.value} fallbackLabel={o.label} maps={occMaps} />
+                )}
+              />
             </PopoverContent>
           </Popover>
           {randomize && options.length > 1 && (
