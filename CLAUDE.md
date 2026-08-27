@@ -88,6 +88,52 @@ are. *A before/after measures the change only if both halves ran against the
 same thing, and "the app is quiet" is not the same as "the load sweep has
 finished".*
 
+**AND "ONE GESTURE IS ONE UNDO STEP" IS STILL WRONG — I measured the wrong
+UNIT.** An `__actionId` is not an undo step; a TRANSACTION is, and that is what
+Ctrl+Z pops. Counted against the transaction log, one toggle is:
+```
+distinct action ids                    1     <- the client groups perfectly
+transactions created                  31
+  of them UNDOABLE                    29     (28 holding ONE doc, 1 holding 3)
+```
+**So the client is not the problem any more and the SERVER is.**
+`closeAction` debounces 250ms and then `flushAction` **deletes the buffer** —
+so the next write carrying the same action id opens a fresh buffer and becomes
+a SECOND transaction. A tracker cascade runs ~30 seconds with pauses far longer
+than 250ms, so one gesture flushes ~29 times.
+
+**REPRODUCED THROUGH THE UI, which is what makes it the user's bug rather than
+a number:** tick a row, press Ctrl+Z, and the switch does not move —
+```
+undo_result  transactionId=da5PaA4uPimd  docs=1  occurrence 1ve8fwc6c7k
+                                         contains the toggled row? NO
+```
+`1ve8fwc6c7k` is the **Workouts tracker tile**. Undo popped the last fragment
+of the cascade — a derived-looking tracker write — instead of the thing the
+user did. Redo then answered `Nothing to redo`, because a later write had
+already `superseded` that branch.
+
+**THE SERVER MECHANICS THEMSELVES ARE FINE, and that is worth stating because
+the previous session recorded redo as broken.** Driven directly through the
+real handlers on live data, a full round trip is clean:
+```
+write -> true    undo -> false (state "undone")    redo -> true (state "redone")
+```
+Same transaction id both ways. **Redo is not broken; it is starved** — by the
+time you press it, the fragment you meant to redo has been superseded. The
+`REDO_ENABLED = false` gate is therefore hiding a working feature whose input
+is wrong, not a broken one.
+
+**NOT FIXED, and specified rather than guessed at.** The fix belongs on the
+server: a flush for an action id that has already produced a transaction must
+MERGE into it (same docKey collapse — first `before`, latest `after`) rather
+than insert a second one, so the grouping cannot depend on how long the cascade
+runs or how many closes arrive. Raising `CLOSE_FLUSH_MS` is the tempting
+version and is wrong: it is a picked constant racing a cascade whose length is
+data-dependent. This is the write path this file records being damaged
+repeatedly, so it wants its own reviewed pass rather than the tail of a long
+session.
+
 **AND I BUILT A FIX FOR A DEFECT THAT DOES NOT EXIST, then reverted it.** I
 read the transaction log as `t.derived` — **a field that does not exist**; it
 is stored at `meta.derived` (`txRecorder.js:217`) — saw `derived=false` on the
