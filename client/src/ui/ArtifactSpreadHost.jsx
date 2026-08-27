@@ -104,13 +104,34 @@ export function registerArtifactSpreadHost(fn) {
  */
 export function planSpreadSync({ listed, fileIds, ownerId, needsLayout }) {
   const have = new Set(listed || []);
-  // The owner is not one of its own files. `filesOf` pushes it when the owner
-  // is itself role:"artifact" with a src (every media row since `0222`), and
-  // the write below strips it — so it must not count as MISSING either.
-  const missing = (fileIds || []).filter((id) => id !== ownerId && !have.has(id));
-  const selfListed = (listed || []).includes(ownerId);
-  if (!missing.length && !needsLayout && !selfListed) return null;
-  return [...(listed || []), ...missing].filter((id) => id !== ownerId);
+
+  // ── ASK `filesOf`, DO NOT SECOND-GUESS IT ────────────────────────────────
+  //
+  // Whether the owner is one of its own files is `filesOf`'s decision and it
+  // already makes it carefully: it pushes self when the owner CARRIES a src,
+  // or when nothing else would render — that second arm exists precisely so a
+  // row whose only picture is its own cover opens onto something rather than
+  // an empty window.
+  //
+  // Stripping the owner unconditionally overruled that arm, and it is not a
+  // rare shape: 11,559 artifact rows on this grid have no artifact child and
+  // no fileRef of their own — every book, album, song and artist — and 10,795
+  // of them carry a cover the card draws from `occurrence.meta.cover`. All of
+  // them opened onto "0 files" (user, 2026-08-27: *"images arent loading at
+  // all when focused in the artifact viewer … just fails to load"*).
+  //
+  // So: when `filesOf` reports the owner, it is a file and it stays. When it
+  // does NOT, the owner is a PHANTOM persisted by an older mint and is pruned
+  // — which is the movie double-poster case `504fc3ca` was written for, kept
+  // intact.
+  const ownerIsAFile = (fileIds || []).includes(ownerId);
+
+  const missing = (fileIds || []).filter((id) => !have.has(id));
+  const phantomSelf = !ownerIsAFile && (listed || []).includes(ownerId);
+  if (!missing.length && !needsLayout && !phantomSelf) return null;
+
+  const next = [...(listed || []), ...missing];
+  return ownerIsAFile ? next : next.filter((id) => id !== ownerId);
 }
 
 export function openArtifactSpread(occurrenceId, originRect = null) {
