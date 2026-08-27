@@ -36,18 +36,29 @@ import NodePill from "./NodePill.jsx";
  * manifest, with its folders, renders directly underneath it, so the grouping
  * was a second, shallower copy of the thing below.
  *
- * A PINNED FOLDER PAGE STAYS, as one flat row like any other. It is a page the
- * user pinned, and dropping it would make a pinned page unreachable from the
- * sidebar — a bigger surprise than a row they can ignore. What is gone is its
- * SUBTREE, which is what "remove the folders" is about and what made Pinned
- * redraw the manifest.
+ * A PINNED FOLDER PAGE IS DROPPED, and that is a correction. The first pass
+ * kept it as a flat row, reasoning that dropping a pinned page would make it
+ * unreachable. Measured on the live grid, that was wrong about what these rows
+ * ARE: every collision was a folder page sitting beside the ordinary page of
+ * the same name in the same folder —
+ *     "Examples"  board 0iMXvPr1UZEl  +  folder bd78caab-…   both in pVWbc-c4-HJT
+ *     "Tasks"     board 9zU5UYHq5FMn  +  folder db822a9e-…   both in HN6TJ5MlVux6
+ * — so the row was not a destination the user would otherwise lose, it was a
+ * second row for a place already listed. They are minted ON VIEW (2026-08-24
+ * (3)) rather than pinned deliberately, which is why they accumulate. User:
+ * *"i should only have 1 tasks and 1 example correct"*.
+ *
+ * The folder itself is still reachable: the whole manifest renders directly
+ * below this section.
  *
  * Order is the panel's own `occurrences[]` order, i.e. pin order — the same
  * rule `collectPanelOccurrences` uses, so a list nobody can predict does not
  * reshuffle between two looks at it.
  */
-export function flattenPinnedPages({ pinned }) {
-  return (pinned || []).map((occ) => occ.id);
+export function flattenPinnedPages({ pinned, modulesById }) {
+  return (pinned || [])
+    .filter((occ) => modulesById?.[occ.moduleId]?.kind !== "folder")
+    .map((occ) => occ.id);
 }
 
 // Extract first heading text from a TipTap textmap — strips markdown, ignores field pills
@@ -1208,7 +1219,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
     const pinned = (panelOccurrence.occurrences || [])
       .map(id => occurrencesById?.[id])
       .filter(occ => occ && modulesById?.[occ.moduleId]?.role === "page");
-    return flattenPinnedPages({ pinned });
+    return flattenPinnedPages({ pinned, modulesById });
   }, [isPagePanel, panelOccurrence?.occurrences, occurrencesById, modulesById]);
 
   // Touch drag to open/close sidebar

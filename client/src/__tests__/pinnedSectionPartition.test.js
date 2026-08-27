@@ -14,38 +14,48 @@ import { describe, it, expect } from "vitest";
 import { flattenPinnedPages } from "../modules/ManifestTree.jsx";
 
 const ROOT = "0QU2baW0EjIb";
+const modules = {
+  "m-folder": { id: "m-folder", role: "page", kind: "folder" },
+  "m-board": { id: "m-board", role: "page", kind: "board" },
+  "m-doc": { id: "m-doc", role: "page", kind: "doc" },
+};
 const folderPage = (id, parentId) => ({ id, moduleId: "m-folder", parentId });
+const boardPage = (id, parentId) => ({ id, moduleId: "m-board", parentId });
 const docPage = (id, parentId) => ({ id, moduleId: "m-doc", parentId });
+const run = (pinned) => flattenPinnedPages({ pinned, modulesById: modules });
 
 describe("flattenPinnedPages", () => {
   it("returns every pinned page as one flat row, in pin order", () => {
-    const out = flattenPinnedPages({
-      pinned: [docPage("p1", "health"), docPage("p2", null), docPage("p3", "imports")],
-    });
     // Pin order, NOT grouped by parent folder — p1 and p3 sit in different
     // folders and still come out adjacent to p2.
-    expect(out).toEqual(["p1", "p2", "p3"]);
+    expect(run([docPage("p1", "health"), docPage("p2", null), docPage("p3", "imports")]))
+      .toEqual(["p1", "p2", "p3"]);
   });
 
-  it("a pinned FOLDER page is one row, not a subtree", () => {
-    // The regression that named this file: this used to expand the whole
-    // manifest underneath Pinned.
-    const out = flattenPinnedPages({ pinned: [folderPage("f1", ROOT), docPage("p1", "health")] });
-    expect(out).toEqual(["f1", "p1"]);
-    // A row, not a tree — the output is ids only, so there is no subtree for
-    // the renderer to walk. That is the structural guarantee.
-    expect(out.every((x) => typeof x === "string")).toBe(true);
+  it("DROPS a folder page that duplicates a real page of the same name", () => {
+    // The live shape: "Examples" was a board page AND a folder page in the same
+    // folder, so the flat list showed the same word twice (user: "i should only
+    // have 1 tasks and 1 example correct"). Folder pages are minted ON VIEW,
+    // not pinned deliberately, which is why they accumulate.
+    expect(run([boardPage("examples-board", "lib"), folderPage("examples-folder", "lib")]))
+      .toEqual(["examples-board"]);
   });
 
-  it("keeps a pinned folder page rather than dropping it", () => {
-    // Dropping it would make a pinned page unreachable from the sidebar, which
-    // is a bigger surprise than a row you can ignore.
-    expect(flattenPinnedPages({ pinned: [folderPage("f1", ROOT)] })).toEqual(["f1"]);
+  it("drops a pinned folder page even when nothing else shares its name", () => {
+    // The rule is about what the row IS, not about collision — the manifest
+    // below already lists every folder.
+    expect(run([folderPage("f1", ROOT)])).toEqual([]);
+  });
+
+  it("keeps every NON-folder page, which is the control", () => {
+    // Without this the previous two would pass for "return nothing".
+    expect(run([boardPage("b1", ROOT), docPage("d1", null), folderPage("f1", ROOT)]))
+      .toEqual(["b1", "d1"]);
   });
 
   it("empty in, empty out — the section hides itself rather than drawing a header", () => {
-    expect(flattenPinnedPages({ pinned: [] })).toEqual([]);
-    expect(flattenPinnedPages({})).toEqual([]);
-    expect(flattenPinnedPages({ pinned: null })).toEqual([]);
+    expect(run([])).toEqual([]);
+    expect(flattenPinnedPages({ modulesById: modules })).toEqual([]);
+    expect(flattenPinnedPages({ pinned: null, modulesById: modules })).toEqual([]);
   });
 });
