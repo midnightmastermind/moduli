@@ -18,7 +18,16 @@ vi.mock("../models/Transaction.js", () => {
     constructor(doc) { Object.assign(this, doc); }
     async save() { saved.push(this); return this; }
     toJSON() { return { ...this }; }
-    static findOne() {
+    static findOne(filter = {}) {
+      // The MERGE lookup is keyed by actionId and is AWAITED DIRECTLY (real
+      // Mongoose returns a thenable Query resolving to a doc or null). The
+      // chainable stub below is truthy when awaited, so without this branch a
+      // flush would think a transaction already existed and merge into the
+      // stub instead of saving — every assertion here would see an empty
+      // `saved`. Nothing in THIS file pre-stores a transaction, so null is the
+      // honest answer; the merge path has its own suite
+      // (txRecorderMerge.test.js).
+      if (filter.actionId !== undefined) return Promise.resolve(null);
       // Chainable stub for the sequence seed + prune lookups.
       const chain = {
         sort: () => chain, skip: () => chain, select: () => chain,

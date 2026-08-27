@@ -185,6 +185,47 @@ export function recordDoc({ userId, gridId, actionId, model, id, before, after, 
   return key;
 }
 
+/**
+ * A write that changed nothing is not an undo step — and "nothing" has to
+ * ignore the timestamps the server bumps on every write, or every no-op save
+ * becomes a step that visibly does nothing when undone.
+ */
+function changedSomething(d) {
+  if (d.before === null && d.after === null) return false;
+  return meaningfulJson(d.before) !== meaningfulJson(d.after);
+}
+
+/**
+ * Fold a later flush of the SAME action into the transaction it already made.
+ *
+ * Same collapse `recordDoc` applies inside one buffer: the FIRST `before` is
+ * where undo has to return to, the LATEST `after` is what is stored now.
+ */
+async function mergeIntoTransaction(tx, incoming) {
+  const byKey = new Map();
+  for (const d of tx.docs || []) byKey.set(`${d.model}:${d.id}`, d);
+  for (const d of incoming) {
+    const key = `${d.model}:${d.id}`;
+    const prev = byKey.get(key);
+    if (prev) prev.after = d.after;
+    else byKey.set(key, d);
+  }
+  const merged = [...byKey.values()].filter(changedSomething);
+  if (!merged.length) {
+    // The action netted back to where it started. Keeping an empty step would
+    // make Ctrl+Z a visible no-op, which is the very thing VOLATILE_KEYS and
+    // the filter above exist to prevent.
+    await Transaction.deleteOne({ id: tx.id });
+    return null;
+  }
+  tx.docs = merged;
+  // The `after` above is mutated in place on a subdocument, which Mongoose
+  // does not detect on its own.
+  tx.markModified?.("docs");
+  await tx.save();
+  return tx.toJSON();
+}
+
 /** Write the buffered docs as ONE transaction. No-op when nothing buffered. */
 export async function flushAction(actionId) {
   const buf = buffers.get(actionId);
@@ -192,16 +233,41 @@ export async function flushAction(actionId) {
   buffers.delete(actionId);
   if (buf.timer) clearTimeout(buf.timer);
 
-  const docs = [...buf.docs.values()].filter(d => {
-    // A write that changed nothing is not an undo step — and "nothing" has to
-    // ignore the timestamps the server bumps on every write, or every no-op
-    // save becomes a step that visibly does nothing when undone.
-    if (d.before === null && d.after === null) return false;
-    return meaningfulJson(d.before) !== meaningfulJson(d.after);
-  });
+  const docs = [...buf.docs.values()].filter(changedSomething);
   if (!docs.length) return null;
 
   try {
+    // ── A LATE WRITE JOINS THE TRANSACTION ITS ACTION ALREADY CREATED ──────
+    //
+    // `closeAction` debounces 250ms and this function then DELETES the buffer,
+    // so the next write carrying the same actionId opened a fresh one and
+    // became a second transaction. A tracker cascade runs ~30 SECONDS with
+    // pauses far longer than 250ms, so one gesture flushed over and over.
+    // Measured on the live grid, one checkbox tick: **1 distinct action id and
+    // 29 undoable transactions, 28 of them holding a single document.**
+    //
+    // That is what "undo is broken" actually was — Ctrl+Z popped the last
+    // FRAGMENT of the cascade (a tracker tile) instead of the row the user
+    // ticked, and redo then answered "Nothing to redo" because a later
+    // fragment had already superseded the branch.
+    //
+    // Fixed HERE rather than on the timer: raising CLOSE_FLUSH_MS is a picked
+    // constant racing a cascade whose length is data-dependent, and it would
+    // still be wrong for the next slower grid. Keyed on the indexed `actionId`
+    // rather than an in-memory map, so nothing leaks and no window has to be
+    // guessed.
+    //
+    // `state: "applied"` is the guard that matters: merging into a step the
+    // user has already UNDONE would silently change what redo replays and
+    // resurrect a reversal.
+    if (!buf.derived) {
+      const existing = await Transaction.findOne({
+        actionId, userId: buf.userId, gridId: buf.gridId, state: "applied",
+      });
+      // The redo branch is NOT re-superseded — the first flush already did it,
+      // and re-running it would also kill anything undone in between.
+      if (existing) return await mergeIntoTransaction(existing, docs);
+    }
     const sequence = await nextSequence(buf.userId, buf.gridId);
     const tx = new Transaction({
       id: nanoid(12),
