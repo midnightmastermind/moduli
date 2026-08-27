@@ -6,6 +6,111 @@
 
 ---
 
+### 2026-08-27 (2) — ONE CHECKBOX TICK WROTE FOREVER, every 2.2 seconds, and the data was never wrong
+
+Picked up the other account's session, which hit its 5-hour limit at 14:04
+mid-probe. It had shipped the undo PERF work (26s -> 3s) and was chasing what it
+called "the bigger half of undo is broken": one toggle minting 40-54
+transactions. **That symptom had a much larger cause than action grouping.**
+
+**MEASURED TO REAL QUIET RATHER THAN TO A CAP, which is what found it.** One
+tick of a task with trackers:
+```
+                                  before        after
+writes for one tick               136           32
+distinct undo actions             106           2
+writes to the "Completed" board   104           1
+settled after                     NEVER*        23.8s
+   * still writing at the 240s probe cap, one write every 2.174s
+```
+**AN IDLE CONTROL SAYS IT IS THE TICK:** with no toggle at all, 60 seconds of
+idle produced **0 writes**. And unticking converges — only the ON direction
+loops, which is exactly why it read as intermittent.
+
+**THE OVERLAY DOES NOT GO STALE, IT OVERRULES.** `scheduleFeedSync` merges
+`Object.assign(occs, localOccsById)` — the local overlay WINS over Redux. So an
+entry nothing refreshes is not a missing update, it is a **wrong answer that
+beats the right one**:
+```
+[feedDiag] RELINK copy=1787860129457-8ndxm8uxj
+           parentOccUsed=15   reduxParent=16   reduxListsCopy=true
+```
+Redux held the correct 16-entry child list. The overlay's frozen 15 won, so
+feedSync's re-link step concluded a copy it had just minted was unlisted and
+re-linked it — and `_updateOccurrence` refreshed the overlay by spreading
+`{ ...localPrev, updatedAt }`, **the timestamps only**, so the next pass reached
+the identical conclusion. Nothing else ever corrects it either:
+`occurrence_updated` is broadcast with `socket.to(userRoom())`, which EXCLUDES
+the sender, so the originating tab gets a timestamp-only ack forever.
+
+**THE DATA WAS NEVER DAMAGED, WHICH IS WHY THIS SURVIVED.** Mongo read
+16 listed / 16 children / 0 mismatch throughout — the server's own
+`mergeStaleChildArray` restored the child on every pass while logging
+`dropped 1 unknown child id(s)`, **104 times, matching the 104 writes exactly**.
+*Two correct guards fighting: the client re-attacking a list the server kept
+repairing, with the write rate as the only symptom.*
+
+**THE MERGE IS THE SERVER'S, deliberately** — `{ ...prev, ...payload }` is a
+SHALLOW spread, so a partial patch replaces the keys it carries and leaves the
+rest. A deep merge would keep fields the server has already dropped. Both
+directions are pinned, and the control that matters most is that an ABSENT
+overlay entry is not seeded: a partial would then start overruling Redux's
+complete one.
+
+**AND I INHERITED A HYPOTHESIS THAT WAS WRONG, which is the reusable half.**
+The handoff said the cascade was "echo-driven — the server echoes each write
+back and the client fires ops from that echo". One grep retires it:
+`occurrence_updated` excludes the sender and `occurrence_persisted` fires no
+ops. Measured on the wire, 30 seconds of the steady-state loop: **13 outbound
+writes, 13 inbound `occurrence_persisted`, ZERO inbound `occurrence_updated`.**
+The loop was entirely client-side. *A handoff's diagnosis is a claim; the
+symptom it explains is not evidence that it is the cause.*
+
+**THE ACTION-SCOPE HALF IS REAL AND PARTIAL, said plainly.** The other account's
+in-flight fix — carrying the ambient action across the deferred cascade, the
+same omission the deferral already fixed for `_fireDepth` — was finished and
+A/B'd ON THE WIRE (counting `__actionId` on outbound writes, no instrumentation
+in shipped code):
+```
+                        without        with
+distinct action ids     59             34
+```
+**It halves the count; it does not reach one-action-per-gesture.** 34 writes
+still escape their action and are NOT on the deferral path. Open, and not
+claimed as fixed.
+
+**THE TILE TITLE GETS ITS ROOM** (user: *"put a little bit of padding below the
+label for those media tiles"* — asked of the other account, interrupted by a
+data-loss report, never landed). Measured first: **31px above the title, 2px
+below**, so it read as attached to the fields rather than heading them. Derived
+rather than picked — `0.35em`, so it follows `--instance-label-px` through both
+breakpoints — and TILES ONLY, because in a ROW the label shares one centreline
+with its field pills. A/B'd in ONE run with the rule removed via CSSOM so both
+arms are the same page: tile label `0 -> 5.95px`, **ROW label 0 -> 0 (the
+control)**, tile height 440 -> 440 with 0 clipped.
+
+**PROBE DEBRIS, FOUND AND RESTORED — including the other account's.** Both
+`Text Terrell` (19:02, its probe) and `Text Shelly` (19:09, mine) were left
+carrying `Completed` + `Completed On`. The transaction log recorded only one of
+the two transitions, so the **10:59 pre-migration backup** settled it: both rows
+had NEITHER field before today. Cleared, read back, and the pm2 restart cleared
+the warm cache that was still serving them. *A probe that edits is a probe that
+can damage — and toggling a row twice does not restore it, because the op stamps
+a date the untick does not always clear.*
+
+3,432 client tests (the 2 failures are the documented pre-existing
+`trackerFollowsPageFilter` pair), 0 lint errors on every edited file, deployed,
+prod HEAD verified, served CSS **sha256-identical** to the local build with the
+new rule present.
+
+**A DEPLOY THAT REPORTED SUCCESS AND SHIPPED NOTHING, for the second time in
+this file:** `deploy.sh` ssh'es to the server, which runs
+`git pull --ff-only origin master` — so committing without PUSHING rebuilds and
+restarts prod on the OLD code, with `✅ Deployed.` printed. Prod HEAD was the
+only thing that said so. *Verify prod HEAD, never the script's output.*
+
+---
+
 ### 2026-08-27 — FOUR BUGS, THREE OF THEM MINE FROM THIS MORNING; and an inline style beats CSS for the SIXTH time
 
 Picked up the other account's session, which hit its limit mid-fix on the book
