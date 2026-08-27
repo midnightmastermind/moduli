@@ -89,6 +89,30 @@ export function registerArtifactSpreadHost(fn) {
  * @param {DOMRect|object} originRect  the thumbnail's rect, so the overlay
  *   animates out of the thing you clicked rather than appearing from nowhere
  */
+/**
+ * What the spread page's child list should become — or `null` for "leave it".
+ *
+ * Exported and pure because mounting the host needs the whole grid store, and
+ * this is where an infinite render loop lived: the convergence check and the
+ * write disagreed about the OWNER'S OWN id, so the effect rewrote the same
+ * value forever (React #185, blank app, reported as "clicking on one of the
+ * covers crashed the entire app").
+ *
+ * The invariant a test can hold onto: **whatever this returns, feeding it back
+ * in must return null.** An effect that cannot say "nothing left to do" about
+ * its own output is an infinite loop waiting for the right data.
+ */
+export function planSpreadSync({ listed, fileIds, ownerId, needsLayout }) {
+  const have = new Set(listed || []);
+  // The owner is not one of its own files. `filesOf` pushes it when the owner
+  // is itself role:"artifact" with a src (every media row since `0222`), and
+  // the write below strips it — so it must not count as MISSING either.
+  const missing = (fileIds || []).filter((id) => id !== ownerId && !have.has(id));
+  const selfListed = (listed || []).includes(ownerId);
+  if (!missing.length && !needsLayout && !selfListed) return null;
+  return [...(listed || []), ...missing].filter((id) => id !== ownerId);
+}
+
 export function openArtifactSpread(occurrenceId, originRect = null) {
   if (!_hostListener) {
     console.warn("[ArtifactSpread] no host mounted — is <ArtifactSpreadHost/> in App?");
@@ -177,39 +201,23 @@ export function ArtifactSpreadHost() {
     // (1) Artifacts the owner has gained since the page was minted (a new Files
     // pick, a new child). Additive only — the ORDER inside the page is the
     // user's arrangement and is never rewritten from the field.
-    const listed = new Set(spreadOcc.occurrences || []);
-    const missing = files.map(f => f.occ.id).filter(id => !listed.has(id));
-
-    // (2) A page minted before the spread had a layout at all. Fixing only the
-    // mint would leave every spread opened before today stacked forever — the
-    // "shipped and does nothing" class. Healed only when NO arrangement is set:
-    // the board⇄canvas switch and the Layout menu both write here, and a
-    // default that re-asserts itself on every open is a lock, not a default.
+    // (1) Artifacts the owner has gained since the page was minted, (2) a page
+    // minted before the spread had a layout, (3) an owner that must never list
+    // itself. All three decided by `planSpreadSync` above — pure, exported and
+    // tested, because this is where an infinite render loop lived.
     const needsLayout = !spreadOcc.meta?.layoutCascade?.mode;
-
-    // (3) A SPREAD PAGE MUST NEVER LIST ITS OWN OWNER.
-    //
-    // `filesOf` used to push the owner unconditionally when it was itself
-    // role:"artifact" — true of every media row since the 0222 import, whose
-    // rows own a poster child without carrying a file themselves. The mint
-    // above snapshots `files` INTO the page, so that phantom was persisted the
-    // first time such a row was opened, and (1) is additive by design and
-    // cannot retract it: the row rendered as a second card drawing its own
-    // cover, i.e. the same poster twice, over a header that said "2 files".
-    //
-    // Narrow ON PURPOSE — it drops the OWNER'S OWN id and nothing else. The
-    // additive rule exists so a picture a migration replaced stays listed, and
-    // pruning anything absent from `filesOf` would throw that away. An owner
-    // listing itself is unambiguous: it is not one of its own files.
-    const selfListed = (spreadOcc.occurrences || []).includes(ownerOcc?.id);
-
-    if (missing.length === 0 && !needsLayout && !selfListed) return;
+    const nextList = planSpreadSync({
+      listed: spreadOcc.occurrences || [],
+      fileIds: files.map((f) => f.occ.id),
+      ownerId: ownerOcc?.id,
+      needsLayout,
+    });
+    if (!nextList) return;
     CommitHelpers.updateOccurrence({
       dispatch, socket,
       occurrence: {
         ...spreadOcc,
-        occurrences: [...(spreadOcc.occurrences || []), ...missing]
-          .filter(id => id !== ownerOcc?.id),
+        occurrences: nextList,
         ...(needsLayout
           ? { meta: { ...(spreadOcc.meta || {}), layoutCascade: { ...SPREAD_LAYOUT } } }
           : null),
