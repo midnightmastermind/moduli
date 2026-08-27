@@ -15,6 +15,22 @@ describe("normalisation", () => {
     expect(titleKeys("Ryan Holiday - The Obstacle Is the Way")).toContain("the obstacle is the way");
     expect(titleKeys("Our Oriental Heritage - Will Durant")).toContain("our oriental heritage");
   });
+  it("NEVER emits the author's own name as a key", () => {
+    // "bernie sanders" is 14 characters and clears MIN_KEY_LEN, so emitting
+    // both sides of an "Author - Title" split made every book by an author
+    // match every other. On live data it chained "Our Revolution" to "The
+    // Speech", and two Karl Pilkington books, and two V. Anton Spraul books.
+    expect(titleKeys("Bernie Sanders - The Speech: A Historic Filibuster"))
+      .not.toContain("bernie sanders");
+    expect(titleKeys("The Further Adventures of an Idiot - Karl Pilkington"))
+      .not.toContain("karl pilkington");
+  });
+
+  it("keeps the TITLE side whichever end the author is written at", () => {
+    expect(titleKeys("Ryan Holiday - The Obstacle Is the Way")).toContain("the obstacle is the way");
+    expect(titleKeys("Our Oriental Heritage - Will Durant")).toContain("our oriental heritage");
+  });
+
   it("never emits a key short enough to match half the shelf", () => {
     expect(titleKeys("Bob - Yes").every((k) => k.length >= MIN_KEY_LEN)).toBe(true);
   });
@@ -114,6 +130,29 @@ describe("planBookDedupe", () => {
     expect(groups).toEqual([]);
     expect(refusals.length).toBeGreaterThan(0);
     expect(refusals.some((r) => r.ambiguous?.length)).toBe(true);
+  });
+
+  it("REFUSES a companion work — a journal is not a duplicate of the book", () => {
+    // "The Daily Stoic" and "The Daily Stoic Journal: 366 Days" are different
+    // books, and the second is a clean word-boundary extension of the first —
+    // exactly the shape this merges. Without this guard it deletes a real book.
+    const { groups, refusals } = run([
+      row("book", "The Daily Stoic", 6),
+      row("journal", "The Daily Stoic Journal 366 Days", 5),
+    ]);
+    expect(groups).toEqual([]);
+    expect(refusals[0].companions.map((c) => c.id)).toEqual(["journal"]);
+  });
+
+  it("does NOT refuse when the survivor carries the same word — the control", () => {
+    // "The Pragmatist's Guide to Life" vs a truncated "The Pragmatist's Guide"
+    // is one book. One-directional, or every subtitle becomes a refusal.
+    const { groups } = run([
+      row("full", "The Pragmatists Guide to Life A Guide to Creating Your Own", 7),
+      row("cut", "The Pragmatists Guide", 5),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].drop[0].id).toBe("cut");
   });
 
   it("a lone title is never a group", () => {

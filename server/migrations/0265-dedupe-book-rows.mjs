@@ -67,6 +67,24 @@ export const MIN_KEY_LEN = 14;
 // the boundary is still required. The window is deliberately narrow.
 export const TRUNC_MIN = 28;
 export const TRUNC_MAX = 32;
+// A COMPANION WORK IS NOT A DUPLICATE.
+//
+// "The Daily Stoic" and "The Daily Stoic Journal: 366 Days" are different
+// books, and the second is a clean word-boundary prefix extension of the first
+// — exactly the shape this migration merges. Same for a workbook, a study
+// guide or an omnibus. When a DOOMED row carries one of these words and the
+// survivor does not, the extra word is the whole point of that edition and the
+// group is refused.
+//
+// One-directional on purpose: a survivor that says "Guide" while a truncated
+// copy does not ("The Pragmatist's Guide to Life" vs "The Pragmatist's Guide")
+// is still one book.
+export const COMPANION_WORDS = [
+  "journal", "workbook", "companion", "notebook", "planner", "diary",
+  "study guide", "omnibus", "box set", "boxed set", "collection",
+  "annotated", "illustrated edition", "audiobook",
+];
+
 export const USER_FIELD_WORDS = ["rating", "read", "completed", "notes", "status", "owned", "progress", "started", "finished", "review"];
 
 export function normaliseTitle(s) {
@@ -78,15 +96,35 @@ export function normaliseTitle(s) {
     .trim();
 }
 
-/** The whole title, plus it with a leading or trailing " - " segment removed. */
+/**
+ * The whole title, plus it with the AUTHOR segment removed.
+ *
+ * Calibre writes the author at either end (`Ryan Holiday - The Obstacle…`,
+ * `Our Oriental Heritage_ Being a - Will Durant`), so a " - " split has to be
+ * tried both ways. But only the LONGER side is kept, and that is a correction.
+ *
+ * Emitting BOTH sides emits the author's own name as a key — "bernie sanders"
+ * is 14 characters and clears MIN_KEY_LEN — so every book by that author
+ * matched every other. Measured on live data, it chained
+ *     "Our Revolution: A Future to Believe In"
+ *     "The Speech: A Historic Filibuster on Corporate Greed"
+ * into one group, and did the same to two Karl Pilkington books and two
+ * V. Anton Spraul books. The ambiguity guard caught all three and refused them,
+ * which is the only reason they were not merged.
+ *
+ * The title is the substantive half of "Author - Title" in either order, so the
+ * longer side is the one worth matching on. Keeping only it removes the false
+ * links without losing a single real one.
+ */
 export function titleKeys(raw) {
   const keys = new Set();
   const add = (s) => { const n = normaliseTitle(s); if (n.length >= MIN_KEY_LEN) keys.add(n); };
   add(raw);
   const parts = String(raw || "").split(" - ");
   if (parts.length > 1) {
-    add(parts.slice(1).join(" - "));      // "Ryan Holiday - Title" -> "Title"
-    add(parts.slice(0, -1).join(" - "));  // "Title - Will Durant" -> "Title"
+    const head = parts.slice(0, -1).join(" - ");
+    const tail = parts.slice(1).join(" - ");
+    add(normaliseTitle(head).length >= normaliseTitle(tail).length ? head : tail);
   }
   return [...keys];
 }
@@ -157,6 +195,16 @@ export function planBookDedupe({ rows }) {
       refusals.push({ keep, drop, lost: [], ambiguous });
       continue;
     }
+    // A companion work (journal / workbook / omnibus) is a DIFFERENT book that
+    // happens to extend the survivor's title.
+    const keepWords = COMPANION_WORDS.filter((w) => keep.norm.includes(w));
+    const companions = drop.filter((d) =>
+      COMPANION_WORDS.some((w) => d.norm.includes(w) && !keepWords.includes(w)));
+    if (companions.length) {
+      refusals.push({ keep, drop, lost: [], companions });
+      continue;
+    }
+
     // Anything the user typed on a doomed row that the survivor does not have.
     const lost = [];
     for (const d of drop) for (const f of d.userFields) if (!keep.userFields.has(f)) lost.push({ row: d, field: f });
@@ -197,10 +245,14 @@ export async function up({ gridId, models, log, dryRun }) {
   const doomed = groups.reduce((a, g) => a + g.drop.length, 0);
   log(`book rows: ${rows.length}`);
   const ambigRefusals = refusals.filter((r) => r.ambiguous?.length);
+  const compRefusals = refusals.filter((r) => r.companions?.length);
   const dataRefusals = refusals.filter((r) => r.lost?.length);
   log(`groups: ${groups.length}  ·  rows to remove: ${doomed}`);
   log(`REFUSED — ambiguous (a cut title fits more than one book): ${ambigRefusals.length}`);
+  log(`REFUSED — a companion work, not a duplicate: ${compRefusals.length}`);
   log(`REFUSED — would lose user-entered data: ${dataRefusals.length}`);
+  for (const r of compRefusals)
+    log(`  COMPANION "${r.keep.title.slice(0, 46)}" — ${r.companions.map((c) => `"${c.title.slice(0, 40)}"`).join(", ")} is a different work`);
   for (const r of ambigRefusals)
     log(`  AMBIGUOUS "${r.keep.title.slice(0, 46)}" — ${r.ambiguous.map((a) => `"${a.title.slice(0, 34)}"`).join(", ")} also fits another book`);
   for (const r of dataRefusals)
