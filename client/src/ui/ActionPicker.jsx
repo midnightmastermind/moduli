@@ -11,6 +11,7 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { Z_PORTAL_MENU } from "../helpers/zLayers";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 import { ACTION_TREE, findActionPath, findActionLeaf } from "./actionTree";
 
@@ -208,7 +209,9 @@ export default function ActionPicker({ value, onChange, placeholder = "Pick acti
           ref={dropRef}
           style={{
             position: "fixed", top: pos.top, left: pos.left,
-            zIndex: 10000,
+            // Was 10000 — TIED with the popover, so which one won was decided
+            // by portal insertion order rather than by intent.
+            zIndex: Z_PORTAL_MENU,
             width: 340, maxHeight: 420,
             background: "var(--surface-overlay)",
             border: "1px solid var(--border-default)",

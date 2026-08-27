@@ -27,6 +27,7 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { Z_PORTAL_MENU } from "../helpers/zLayers";
 import { ChevronRight } from "lucide-react";
 import { CATEGORIES } from "./categoryRegistry";
 import { clickedInsidePortalLayer } from "../helpers/outsideClick";
@@ -436,7 +437,10 @@ function itemsForLevel(chain, ctx, categories, recordShape) {
 // the dark editor bg) and a slightly lighter list area inside. Without an
 // explicit list bg the open panel reads as transparent against the editor.
 const dropdownSt = {
-  position: "fixed", zIndex: 9999,
+  // Above the popover this picker is usually opened from — the settings
+  // sheet mounts it, and at 9999 against the sheet's 10000 the dropdown
+  // painted behind it and could not be reached. See helpers/zLayers.js.
+  position: "fixed", zIndex: Z_PORTAL_MENU,
   background: "var(--surface-overlay)",
   border: "1px solid var(--border-default)",
   borderRadius: 8, boxShadow: "var(--menu-shadow-2)",

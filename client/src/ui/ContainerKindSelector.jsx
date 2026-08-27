@@ -7,6 +7,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { Z_PORTAL_MENU } from "../helpers/zLayers";
 import { FileText, LayoutGrid, PenTool, Table } from "lucide-react";
 import { clickedInsidePortalLayer } from "../helpers/outsideClick";
 
@@ -121,8 +122,11 @@ export default function ContainerKindSelector({
   return createPortal(
     <div
       ref={popupRef}
-      className="container-kind-selector fixed z-[9999] bg-background border border-border rounded-lg shadow-xl overflow-hidden"
+      className="container-kind-selector fixed bg-background border border-border rounded-lg shadow-xl overflow-hidden"
       style={{
+        // Above a popover it may be opened from. It used to carry its own
+        // hardcoded level, one below the popover's, and painted behind it.
+        zIndex: Z_PORTAL_MENU,
         top: anchor.top,
         left: anchor.left,
         minWidth: 200,
