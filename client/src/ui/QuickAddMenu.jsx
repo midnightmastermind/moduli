@@ -25,6 +25,7 @@ import { toast } from "../state/notificationStore";
 import { siblingFieldBindings, splitDisplayInput, typeableFields, toInitialFields } from "../helpers/siblingFieldBindings.js";
 import Field from "./Field.jsx";
 import { resolveOptions } from "../helpers/optionsResolver";
+import { clickedInsidePortalLayer } from "../helpers/outsideClick";
 // Anchor-relative menu placement. Opens below the anchor; flips above when the
 // menu would overflow the viewport bottom (phone + on-screen keyboard). Pure —
 // unit-tested in __tests__/quickAddMenu.test.js.
@@ -366,6 +367,7 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
   useEffect(() => {
     if (!open) return;
     const handle = (e) => {
+      if (clickedInsidePortalLayer(e.target)) return;
       if (menuRef.current && !menuRef.current.contains(e.target) && !btnRef.current?.contains(e.target)) {
         closeMenu();
       }

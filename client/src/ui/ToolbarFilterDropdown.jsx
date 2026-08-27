@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import HeaderChevron from "./HeaderChevron.jsx";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { clickedInsidePortalLayer } from "../helpers/outsideClick";
 
 function Switch({ checked, onChange, title }) {
   return (
@@ -56,6 +57,7 @@ export default function ToolbarFilterDropdown() {
     if (!open) return;
     const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
     const onClick = (e) => {
+      if (clickedInsidePortalLayer(e.target)) return;
       if (popRef.current && popRef.current.contains(e.target)) return;
       if (btnRef.current && btnRef.current.contains(e.target)) return;
       setOpen(false);

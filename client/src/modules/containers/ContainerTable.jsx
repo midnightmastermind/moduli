@@ -31,6 +31,7 @@ import ModuleInstance from "../ModuleInstance.jsx";
 import ModuleContainer from "../ModuleContainer.jsx";
 import { CellEmbedContext } from "../../docs/CellEmbedContext.js";
 import AutoMarquee from "../../ui/AutoMarquee.jsx";
+import { clickedInsidePortalLayer } from "../../helpers/outsideClick";
 
 // ── FilterValueWidget ─────────────────────────────────────────────────────────
 // Minimal inline value-input for the column filter popover.
@@ -1079,6 +1080,7 @@ export default function ContainerTable({ occurrence, dispatch, socket }) {
   React.useEffect(() => {
     if (!kebabOpen) return;
     const handler = (e) => {
+      if (clickedInsidePortalLayer(e.target)) return;
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         setKebabOpen(null);
         setFieldPickerCol(null);

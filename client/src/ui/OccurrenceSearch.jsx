@@ -15,6 +15,7 @@ import { Search, X } from "lucide-react";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 import { getSearchIndex, searchOccurrences } from "../helpers/occurrenceSearch";
 import { getModuleTypeIcon } from "../helpers/moduleIcons";
+import { clickedInsidePortalLayer } from "../helpers/outsideClick";
 
 const MENU_W = 340;
 const MENU_MAX_H = 380;
@@ -106,7 +107,10 @@ export default function OccurrenceSearch({
     // Reposition rather than close — the 2026-06-09 QuickAddMenu lesson: closing
     // on scroll fires on the menu's own internal scrolling.
     const onScroll = () => reposition();
-    const onDown = (e) => { if (!wrapRef.current?.contains(e.target)) close(); };
+    const onDown = (e) => {
+      if (clickedInsidePortalLayer(e.target)) return;
+      if (!wrapRef.current?.contains(e.target)) close();
+    };
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", onScroll);
     document.addEventListener("mousedown", onDown);

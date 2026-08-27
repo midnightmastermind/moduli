@@ -29,6 +29,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { createPortal } from "react-dom";
 import { ChevronRight } from "lucide-react";
 import { CATEGORIES } from "./categoryRegistry";
+import { clickedInsidePortalLayer } from "../helpers/outsideClick";
 
 // Shape descriptors used when drilling past level 2 in path mode.
 // Each entry is the set of keys exposed on that shape and what a follow-on
@@ -569,6 +570,7 @@ export default function DrilldownPicker({
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
+      if (clickedInsidePortalLayer(e.target)) return;
       if (dropRef.current?.contains(e.target) || triggerRef.current?.contains(e.target)) return;
       setOpen(false);
     };

@@ -8,6 +8,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { FileText, LayoutGrid, PenTool, Table } from "lucide-react";
+import { clickedInsidePortalLayer } from "../helpers/outsideClick";
 
 // Canonical kind set used everywhere the user picks a new container/page kind.
 // Mirrors the category tiles QuickAddMenu shows for existing modules, so add-
@@ -86,6 +87,7 @@ export default function ContainerKindSelector({
     if (!open) return;
 
     const handleClick = (e) => {
+      if (clickedInsidePortalLayer(e.target)) return;
       if (popupRef.current && !popupRef.current.contains(e.target)) {
         onClose?.();
       }

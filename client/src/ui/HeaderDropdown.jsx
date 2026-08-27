@@ -1,6 +1,7 @@
 // client/src/ui/HeaderDropdown.jsx
 import React, { useEffect, useRef, useState, useLayoutEffect } from "react";
 import MenuSurface, { isDrawerLayout } from "./MenuSurface.jsx";
+import { clickedInsidePortalLayer } from "../helpers/outsideClick";
 
 const VIEWPORT_MARGIN = 8;
 const DEFAULT_WIDTH = 320;
@@ -17,7 +18,10 @@ export default function HeaderDropdown({ anchorRect, onClose, children }) {
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose?.(); };
-    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose?.(); };
+    const onClick = (e) => {
+      if (clickedInsidePortalLayer(e.target)) return;
+      if (ref.current && !ref.current.contains(e.target)) onClose?.();
+    };
     window.addEventListener("keydown", onKey);
     window.addEventListener("mousedown", onClick);
     return () => {
