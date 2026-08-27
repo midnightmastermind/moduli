@@ -6,6 +6,105 @@
 
 ---
 
+### 2026-08-27 — FOUR BUGS, THREE OF THEM MINE FROM THIS MORNING; and an inline style beats CSS for the SIXTH time
+
+Picked up the other account's session, which hit its limit mid-fix on the book
+tile. Its queue plus three new reports.
+
+**THE ADD-FIELD MENU LOST BY EXACTLY ONE.** User: *"add field button to add a
+field to an occurance is opening an unreachable menu behind the instance
+settings menu."* Two numbers in two files:
+```
+settings sheet (components/ui/popover.jsx)   z-[10000]
+the menu it opens (DrilldownPicker)          zIndex 9999
+```
+The Radix popper wrapper carries `z-index: auto`, so it creates NO stacking
+context and the content's 10000 competes in the ROOT one. A direct comparison,
+and nothing subtle happens.
+
+**GREP THE TOKEN, NOT THE CALL SITE** — surveying every portalled surface found
+two more: `ContainerKindSelector` at 9999 (the same defect, unreported) and
+`ActionPicker` at **10000, TIED**, surviving only on portal insertion order.
+`helpers/zLayers.js` states the rule the numbers were violating —
+`PORTAL_MENU = POPOVER + 10` — so a menu opened FROM a popover is above it by
+construction. The guard greps source TEXT and fired on my own comment quoting
+the old value; **reworded rather than narrowed**.
+
+---
+
+**THE VIEWER EMPTIED ITSELF FOR 10,795 ROWS, AND MY OWN CRASH FIX DID IT.**
+User: *"images arent loading at all when focused in the artifact viewer."*
+Reproduced with the control built in — clicked a cover whose picture was
+demonstrably loaded on the board, and got `0 files · 0 imgs`. Not the network:
+every one of the 92 image hosts answers 200.
+
+**`504fc3ca` PICKED THE WRONG SIDE OF A DISAGREEMENT.** `filesOf` decides
+whether the owner is one of its own files, carefully: self is pushed when the
+owner CARRIES a src, **or when nothing else would render** — that second arm
+exists so a row whose only picture is its own cover opens onto something.
+`planSpreadSync` then stripped the owner unconditionally. Both stop the React
+#185 loop; only one keeps the picture:
+```
+artifact rows whose only file is THEMSELVES   11,559
+  of those, carrying a cover to draw          10,795   <- opened onto "0 files"
+  genuinely blank                                764
+```
+And the row that crashed this morning — `A Theory of Human Motivation` — is a
+book with `fileRef: null` and NO children, so it fired the `!othersExist` arm.
+That commit's note about "carrying a src" named the wrong arm. **Two tests
+INVERTED rather than deleted**, with the reason in place.
+
+---
+
+**THE DROPDOWN SEARCH REACHED 15 FIELDS AND MISSED 33.** User: *"the adding new
+item to select isnt giving me the location search."* The config was right and
+nothing rendered it — the merged grid+provider search lives in
+`MultiSelectWithAdd`, and a SINGLE-select occurrence dropdown is a different
+control that kept a type-a-plain-value row:
+```
+occurrence fields   48      multi 15     single 33
+single WITH a provider  2   Song, Location   <- unreachable, always
+single with addNew     31                    <- no search box at all
+```
+`OptionSearchList` is the shared body now; the import handler was written INLINE
+inside each multi branch and is hoisted, which is *why* the single branches could
+not have it. **The test suite was blind to exactly the half that was broken** —
+written to catch inert wiring, it read only `<MultiSelectWithAdd>` sites.
+
+---
+
+**AND THE TILE FIX WAS INERT BECAUSE OF AN INLINE STYLE — the SIXTH time.**
+The other account's uncommitted CSS gave `.instance-textcol` `flex: 1 1 auto;
+min-height: 0` and its comment correctly said basis 0 is what collapses a media
+tile. It changed nothing: the element carried `style={{ flex: "1 1 0" }}`, and
+an inline style beats every stylesheet rule regardless of specificity.
+```
+before   wrapH 10 · textcol computed `1 1 0px` · fieldsH 0 · collapsed 128 of 128
+after    wrapH 440 · textcol `1 1 auto`        · fieldsH 182 · collapsed 0
+```
+That is the 10px sliver of 2026-08-26 (4) reproduced exactly. **My first attempt
+was a CSS scope change that could never have won, and the browser is what said
+so: `hits: []` — no stylesheet rule matched the element at all.** Basis zero is a
+ROW-axis decision (the inline comment argued it from WIDTH); the axis is knowable
+in CSS and not in `ModuleInstance`, so the decision moved to the stylesheet.
+
+**Option A stated as a measurement:** scrolling the fields moves the fields
+(`scrollTop 0 -> 52`) and NOT the cover (`img top 161 -> 161`), 0 unreachable.
+**The control is the row tile**, where `handleTop === labelTop` (659/659) — the
+wrap defect basis-0 exists to prevent has not returned.
+
+**The field picker gets a search** (user: *"there should be a search for adding
+new fields onto an occurance too"*), with the threshold DERIVED —
+`SEARCH_MIN_ITEMS = DROPDOWN_MAX_H / ROW_H`, so a level that fits grows no box —
+and a first level offering ONE category is skipped rather than shown.
+
+3,416 client tests (the 2 failures are the pre-existing `trackerFollowsPageFilter`
+pair), 0 lint errors, deployed, prod HEAD verified, served CSS **sha256-identical**
+to the local build. Every fix re-measured against PRODUCTION afterwards, not just
+locally.
+
+---
+
 ### 2026-08-26 (7) — the tablet sidebar full-screened because ONE FLAG ANSWERED TWO QUESTIONS
 
 Three asks on the manifest sidebar, one root cause worth writing down.
