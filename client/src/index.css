@@ -5727,6 +5727,24 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
   width: 100%;
 }
 
+/* THE TITLE HEADS THE FIELDS, so it needs room under it — on a TILE only.
+   Measured on a media tile before this rule: 31px above the title, 2px below,
+   so it read as attached to the field list rather than heading it (user: "put
+   a little bit of padding below the label for those media tiles").
+
+   DERIVED FROM THE LABEL'S OWN SIZE rather than picked, so it follows
+   `--instance-label-px` through both breakpoints instead of quietly becoming
+   wrong at one of them — the `LABEL_MIN_ARC_PX = LABEL_FONT_PX * 1.8` trick.
+   0.35em is a conventional heading bottom margin; at the desktop 17px that is
+   ~6px, which is "a little bit" rather than the 31px above it.
+
+   TILES ONLY, and that scope is load-bearing: in a ROW the label shares one
+   centreline with its field pills (2026-07-28), and bottom padding there would
+   push the title off it — the alignment three separate passes have fixed. */
+.container-items--content-column .instance-content > .instance-textcol > .instance-label {
+  padding-bottom: 0.35em;
+}
+
 /* The title clears the floated handle ONLY when there is no picture for the
    handle to sit on. With media present the handle overlays the image's corner
    (measured: handle top 5, label top 85), so indenting the title there would be
