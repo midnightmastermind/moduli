@@ -64,7 +64,21 @@ function run(isoDate, mutate, opts = {}) {
   // which is the live defect `0172` exists for, and is asserted below.
   const todo = (column.occurrences || []).map((id) => occ[id])
     .find((o) => o && lbl(o) === "Todo");
-  if (todo && !opts.leaveTodoBroken) todo.fields = { ...(todo.fields || {}), [TS]: { value: "Todo", flow: "in" } };
+  if (todo) {
+    if (opts.leaveTodoBroken) {
+      // ACTIVELY CLEAR it. This used to work by merely declining to SET the
+      // marker, which was enough while the fixture carried a null one — that
+      // was the live defect `0172` exists for. `0172` repaired it and the
+      // fixture was refreshed off the healthy grid, so "don't set it" now
+      // leaves a perfectly good marker in place and the arm stopped testing
+      // anything. The broken state has to be produced, not assumed.
+      const f = { ...(todo.fields || {}) };
+      delete f[TS];
+      todo.fields = f;
+    } else {
+      todo.fields = { ...(todo.fields || {}), [TS]: { value: "Todo", flow: "in" } };
+    }
+  }
 
   mutate?.(occ);
 

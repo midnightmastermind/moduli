@@ -137,9 +137,27 @@ export function buildWeekdayTaskPipeline({ DATE, TS, FMT, WD, schedPageId }) {
             condition: { operator: "AND", rules: [r("$dayColId", "IS_NOT_EMPTY")] },
             then: [
               act({ type: "SET_VAR", name: "$wd", value: "${weekday:$day}" }),
+              // `parentId IS`, NOT `_ancestors HAS_ANCESTOR` — and that is the
+              // whole reason this op never placed anything.
+              //
+              // The day column's Todo is the Schedule's OWN container
+              // multi-parented into the column (2026-07-30 (7)); on poms grid
+              // it is listed by the Schedule day column AND the Day Page
+              // column. `_ancestors` is derived from `buildParentMap`, which
+              // keys child -> ONE parent, LAST WRITER WINS — so the chain
+              // resolved through the Day Page and `HAS_ANCESTOR $dayColId`
+              // was false. `$todoId` came back null, `$targetId` fell back to
+              // nothing, and the APPLY_TEMPLATE was gated out. Silently: no
+              // error, no effects, a clean run every time.
+              //
+              // 2026-08-11 (4) records this exact failure for two OTHER
+              // ancestor-scoped FINDs and fixed both the same way — "the
+              // precise test for a direct child". The slot FIND in `perTask`
+              // above already uses `parentId IS $dayColId`; this one did not,
+              // in the same file, for the same container.
               act({ type: "FIND", over: "$allContainers", itemIdVar: "$todoId",
                 predicate: { operator: "AND", rules: [
-                  r("_ancestors", "HAS_ANCESTOR", "$dayColId"),
+                  r("parentId", "IS", "$dayColId"),
                   r(`fields.${TS}.value`, "IS", "Todo"),
                 ] } }),
               { id: uid(), type: "if",
