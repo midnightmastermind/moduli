@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { cleanBookTitle, looksUnrecoverable } from "../migrations/0270-clean-book-titles.mjs";
 
-const AUTHORS = new Set(["george orwell", "carl sagan", "alan w watts", "unknown", "karl pilkington"]);
+const AUTHORS = new Set(["george orwell", "carl sagan", "alan w watts", "alan watts", "unknown", "karl pilkington"]);
 const clean = (t) => cleanBookTitle(t, AUTHORS);
 
 describe("cleanBookTitle — removes import debris", () => {
@@ -26,6 +26,33 @@ describe("cleanBookTitle — removes import debris", () => {
     expect(clean("Carl Sagan - Cosmos")).toBe("Cosmos");
     // Not in the pool: left completely alone rather than guessed at.
     expect(clean("Some Title - Nigel Notinthepool")).toBe("Some Title - Nigel Notinthepool");
+  });
+});
+
+describe("cleanBookTitle — the gaps a surviving duplicate exposed", () => {
+  it("strips a publisher followed by a YEAR parenthetical", () => {
+    // Anchoring the publisher at `$` alone missed every "-Publisher (2012)",
+    // which is how a fourth copy of Tao: The Watercourse Way survived.
+    expect(cleanBookTitle("Tao: the Watercourse Way-Souvenir Press (2012_2010)", AUTHORS))
+      .toBe("Tao: the Watercourse Way");
+  });
+
+  it("recognises an author written 'Last, First'", () => {
+    // Calibre writes it both ways; only "Alan Watts" was ever tested, so
+    // "Watts, Alan - Tao…" kept its author and stayed a separate book.
+    expect(cleanBookTitle("Watts, Alan - Tao: the Watercourse Way", AUTHORS))
+      .toBe("Tao: the Watercourse Way");
+  });
+
+  it("collapses a subtitle that repeats verbatim", () => {
+    expect(clean("Tao: The Watercourse Way: The Watercourse Way"))
+      .toBe("Tao: The Watercourse Way");
+  });
+
+  it("does NOT collapse a subtitle that merely resembles the title", () => {
+    // The control: only an EXACT repeat collapses.
+    const t = "Tao: The Watercourse Way: A Study";
+    expect(clean(t)).toBe(t);
   });
 });
 

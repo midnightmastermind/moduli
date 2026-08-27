@@ -85,10 +85,13 @@ export function cleanBookTitle(raw, knownAuthors = new Set()) {
   // 5. a trailing hash blob a downloader appended: "_VSB5ASBCMOFDOZ5TTY2…"
   t = t.replace(/_[A-Z0-9]{12,}\s*$/, "");
   // 6. a publisher glued on with a hyphen.
+  // A publisher may be followed by a YEAR parenthetical — Calibre writes
+  // "-Souvenir Press (2012_2010)". Anchoring at `$` alone missed every one of
+  // those, which is how a fourth copy of Tao: The Watercourse Way survived.
+  const TAIL = "(?:\\s*\\((?:19|20)\\d\\d[^)]*\\))?\\s*$";
   for (const pub of PUBLISHERS) {
     const esc = pub.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    t = t.replace(new RegExp(`\\s*-\\s*${esc}\\s*$`, "i"), "");
-    t = t.replace(new RegExp(`-${esc}\\s*$`, "i"), "");
+    t = t.replace(new RegExp(`\\s*[-–]\\s*${esc}${TAIL}`, "i"), "");
   }
   // 7. underscores standing in for a character Calibre could not put in a
   //    filename. Only the two shapes that are unambiguous.
@@ -100,11 +103,27 @@ export function cleanBookTitle(raw, knownAuthors = new Set()) {
     const parts = t.split(" - ");
     if (parts.length > 1) {
       const norm = (s) => s.toLowerCase().replace(/[^a-z ]/g, "").replace(/\s+/g, " ").trim();
+      // Calibre writes an author BOTH ways — "Alan Watts" and "Watts, Alan".
+      // Only the first form was ever tested, so "Watts, Alan - Tao…" kept its
+      // author and stayed a separate book.
+      const known = (seg) => {
+        const n = norm(seg);
+        if (knownAuthors.has(n)) return true;
+        const comma = String(seg).split(",");
+        if (comma.length === 2) {
+          const flipped = norm(`${comma[1]} ${comma[0]}`);
+          if (knownAuthors.has(flipped)) return true;
+        }
+        return false;
+      };
       const head = parts[0], tail = parts[parts.length - 1];
-      if (knownAuthors.has(norm(head))) t = parts.slice(1).join(" - ");
-      else if (knownAuthors.has(norm(tail))) t = parts.slice(0, -1).join(" - ");
+      if (known(head)) t = parts.slice(1).join(" - ");
+      else if (known(tail)) t = parts.slice(0, -1).join(" - ");
     }
   }
+  // "Tao: The Watercourse Way: The Watercourse Way" — the subtitle repeats
+  // verbatim, which is an import artefact and is visible on the tile.
+  t = t.replace(/^(.*?):\s*([^:]+?):\s*\2\s*$/i, "$1: $2");
   t = t.replace(/\s{2,}/g, " ").replace(/\s*[-–—:,]\s*$/, "").trim();
 
   // Never empty a title, and never make one unrecognisable.
