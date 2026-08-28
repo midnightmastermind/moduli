@@ -6,6 +6,125 @@
 
 ---
 
+### 2026-08-28 (6) — the kanban STACKED its columns, because `flex-row` was inert on a container
+
+Picked up the other account's session, which hit its limit at 15:20 one grep into
+the last open item of (5). Its shipped work (`0277`/`0278`) was already at HEAD.
+Then the user redirected, four times in four minutes, and that is what shipped:
+*"make the projects kanban look more like a kanban ... columns going across fixed
+height, no wrap"* -> *"right now they are stacked"* -> *"then make the container a
+certain min width with scroll for layout"* -> *"switch the kan ban and project
+scope around"* -> *"make the project scope textblocks fit our doc container ->
+doc container -> textblock type schema. instead of one big textblock"*.
+
+**THE COLUMNS STACKED BECAUSE A DECLARED MODE WAS NEVER CONSUMED, and that is
+the `childMaxWidth` class of 2026-08-25 one mode over.** `mode: "flex-row"` has
+been in the layout-cascade vocabulary all along — `PageBoard` has laid the
+Schedule's day columns out with it since 2026-07-31, and `layoutToSurfaceShape`
+already maps the rich Layout editor's *"flex, no wrap"* straight onto it. But
+**only PageBoard ever read it**, so on a CONTAINER it was inert: set it and
+nothing moved. `0278` had just made the six columns render; they rendered as six
+full-width strips down the page.
+
+```
+                      reads mode        wrap    flex-row
+PageBoard (a PAGE)    yes               n/a     day columns since 07-31
+ModuleContainer       wrap ONLY         tiles   INERT   <- the whole defect
+```
+
+**`wrap` AND `flex-row` ARE OPPOSITES ON EXACTLY ONE AXIS, which is why their
+defaults cannot be shared.** Both lay children out across; a wrap tile flows onto
+the next line and a kanban column must not. The tile default is 132px, and a
+132px column is useless — `flex-row` takes PageBoard's own 280/360 instead. The
+decision is a pure `resolveContainerChildLayout`, because mounting
+`ModuleContainer` needs the whole grid store and the per-mode defaults are
+exactly where a bug would hide. **The regression guard that matters most is that
+an unconfigured container returns no class and no vars** — 539 nested board
+containers, every schedule time slot among them, go through this.
+
+**THE SELECTOR NAMES NO LABEL AND NO SIGNATURE, AND MEASURING IS WHY.** The
+obvious key is `identitySignature: "project:Kanban"`, and it is WRONG here:
+```
+project: signatures on poms grid   4
+  Project: {ProjectName}   kanban + scope   signed
+  Paul's Clown Website     kanban + scope   signed
+  Via Fluere               NOTHING          <- cloned by the CLIENT, long ago
+```
+A signature selector reads clean and **silently skips a real project**. Matching
+the label `"Kanban"` is the other trap — one rename from wrong, and this file
+records a migration that moved a real page because a copied marker looked
+authoritative. So a kanban is identified by WHAT IT IS: a board container whose
+child containers' labels are the **Status field's own option set**, read off the
+field rather than restated. A/B'd — the signature selector fails exactly the
+unsigned case.
+
+---
+
+**THE SCOPE WAS A DOCUMENT PRETENDING TO HAVE STRUCTURE (`0280`).** One
+`role:"textblock"` occurrence carrying eleven nodes: an H1, then five H2 headings
+each followed by its body. The sections were HEADINGS, so **nothing could address
+one** — not reorder it, style it, filter it, embed it elsewhere or give it a
+field. They are `doc container -> doc container -> textblock` now, the shape
+`Journal -> Daily Question -> the answer textblock` already uses.
+
+**NO TEXT IS LOST AND THE MIGRATION PROVES IT BEFORE IT WRITES.** Every character
+of non-heading prose must reappear in some section body, or that scope is
+REPORTED AND SKIPPED rather than converted — this is the user's own writing, and
+a migration does not get to tidy it. The H2 text moves into the container LABEL,
+so the words survive as identity rather than as prose; the guard is written to
+know that, or it would refuse every scope on the grid. **A title is dropped only
+when the preamble is nothing but headings** — anything else above the first
+section is carried into it WHOLE rather than guessed at, and my own test asserted
+the clever behaviour before the conservative one. The code was right.
+
+**Read back out of Mongo:** Via Fluere's 392 characters verbatim in its Overview
+textblock, 15 section containers each holding its own textblock, both forced
+re-runs report *"already converged"*, poms grid **0 errors**.
+
+**AND IT IS VERIFIED BY RENDERING, on prod, with the template as the control:**
+```
+6 columns · distinctY 1 · distinctX 6      <- ACROSS, not stacked
+flex-direction row · flex-wrap nowrap      <- the "no wrap" ask
+overflow-x auto · scrollWidth 1816 > clientWidth 1359   <- the scroll is real
+every column 260 wide · 420 tall           <- fixed width AND height
+order: Project Scope @36 · Kanban @620     <- swapped
+0 dead embeds · 0 page errors
+TEMPLATE still shows {ProjectScope} unreplaced          <- the control
+```
+Screenshotted (`screenshots/2026-08-28-project-kanban.png`) — a layout claim is a
+visual claim.
+
+**A GUARD CAUGHT MY OWN TYPO BEFORE IT WROTE ANYTHING:** `touches = ["occurrance"]`
+was rejected by `backupGrid` with *"unknown collection(s)"*. That check exists
+because a typo there would capture NOTHING and still write a manifest that looks
+like a backup (2026-08-25 (2)); it earned its keep on the first apply.
+
+Seed and migrations are twins written in one pass — `PROJECT_KANBAN_LAYOUT` and
+`scopeSectionKey` are EXPORTED and read by both, so a fresh grid and a migrated
+one cannot drift on the shape or on the signatures merge matches on. 3,519 client
++ 2,020 server tests, every guard A/B'd, lint 0 errors, build clean at the
+documented chunk sizes, deployed, prod HEAD verified, the new CSS rule present in
+the SERVED stylesheet with the wrap rule as the positive control.
+
+**REPORTED, NOT FIXED — and it is the item (5) left open, now measured.**
+*"Nobody has dragged a card between columns."* Doing so writes **nothing**:
+```
+ops that mention Status        2   Project: Status Router · Sync To Todo List
+their trigger                  onChange · field · Status   (BOTH)
+ops triggering on a MOVE       1   Schedule: Clear Date on Move-Out
+```
+A drag emits `OccurrenceMoveOp`; **no op listens for one on a kanban card**, so
+dragging a card to another column moves it on screen and leaves `Status` stale.
+The board and the field then disagree, and the Router yanks the card back to the
+column its Status names the first time anything touches it — which is what
+2026-08-28 (4)'s *"0 status/column mismatches"* control was quietly protecting.
+The precedent for the fix already exists (`makeStampDateTimeSlotOp` stamps a
+field from `$trigger.containerLabel` on a drop into a schedule slot); it wants
+its own pass rather than the tail of a long session. **The 12 live cards are all
+consistent today** — measured, not assumed.
+
+---
+
 ### 2026-08-28 (5) — I OPENED IT, and the trello board had NEVER rendered its columns
 
 Continued (4) by closing its own honest gap: *"nobody has clicked a card in a
