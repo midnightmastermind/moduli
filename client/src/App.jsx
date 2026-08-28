@@ -57,6 +57,7 @@ import { openPanelOnRootFolderPage } from "./helpers/importsFolder";
 import { buildLookup } from "./helpers/LayoutHelpers";
 
 import { normalizeFieldBindings } from "./helpers/siblingFieldBindings.js";
+import { installFastWheel } from "./helpers/wheelScroll.js";
 function findNextOpenPosition(panels = [], rows = 1, cols = 1) {
   const taken = new Set(panels.map((p) => `${p.row}-${p.col}`));
   for (let r = 0; r < rows; r++) {
@@ -103,6 +104,11 @@ export default function App() {
   // `[scroll]` diagnostic for the mobile Routines report — arms once, records
   // the first few scroll bursts, then stops. Mute: window.__scrollDiag = false.
   useEffect(() => { armScrollDiag(); }, []);
+
+  // A mouse-wheel notch travels further (user, 2026-08-28). Trackpads and touch
+  // are deliberately untouched, and the drag autoscroll is a different system
+  // (`helpers/autoscrollMath.js`) — see the helper's header.
+  useEffect(() => installFastWheel(document), []);
 
   useEffect(() => {
     if (!("BroadcastChannel" in window)) return;
