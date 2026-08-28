@@ -50,9 +50,68 @@ beforeAll(() => {
   vi.setSystemTime(new Date(`${fixtureDayFrom(fx)}T12:00:00`));
 });
 
+
+// ── THE HARNESS CONSTRUCTS THE CONDITION IT MEASURES ───────────────────────
+//
+// This suite went red on 2026-08-25 when the fixture was refreshed, and the
+// reason was NOT the ops. Measured: on the fixture's own day column the two
+// trackers write real values and every one of them is ZERO —
+//
+//     column 2026-08-24 · 49 children · 87 rows in the subtree
+//     Eat rows 8 · Eat rows COMPLETED 0 · anything completed at all 1
+//
+// so they summed 0 on the built day AND 0 on the empty day, and "does it move"
+// was unanswerable. The exporter simply ran on a day the user had not ticked
+// anything. The Eat rows already carry their macros (Calories 150, Protein 32,
+// …) — they are just not complete.
+//
+// That is the failure CLAUDE.md 2026-08-20 (6) records, inverted: *"the fixture
+// is a snapshot of a grid that changes hour to hour; any test whose premise is
+// 'this column starts empty' is a coin flip on export timing."* Here the premise
+// was "this column has completed meals". So the harness TICKS them itself and a
+// control asserts the tick landed — a setup that silently matched nothing would
+// put every assertion below straight back at the mercy of the exporter's clock.
+//
+// The SAME mutation is applied at both dates, so the only difference between the
+// two sweeps is still the filter — which is what these tests are about.
+function completeMealsOn(occurrencesById, fx, day) {
+  const F = (name, type) => fx.fields.find(f => f.name === name && (!type || f.type === type))?.id;
+  const DATEF = F("Date", "date"), FMT = F("Schedule Format"), COMP = F("Completed");
+  if (!DATEF || !FMT || !COMP) throw new Error("fixture is missing Date / Schedule Format / Completed");
+  const modLabel = Object.fromEntries(fx.modules.map(m => [m.id, m.label]));
+  const col = Object.values(occurrencesById).find(o =>
+    o.fields?.[FMT]?.value === "day-col" && String(o.fields?.[DATEF]?.value || "").slice(0, 10) === day);
+  if (!col) return 0;
+  let ticked = 0;
+  const seen = new Set(), stack = [...(col.occurrences || [])];
+  while (stack.length) {
+    const id = stack.pop();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const o = occurrencesById[id];
+    if (!o) continue;
+    const label = o.label || modLabel[o.moduleId] || "";
+    // Eat is the row `Meal Nutrition` is scoped to; the micronutrient op reads
+    // the same completed meals. Matched on the row's own label, the way the
+    // renderer resolves it (module label when the occurrence overrides nothing).
+    if (/^eat$/i.test(label) && o.fields?.[COMP]?.value !== true) {
+      o.fields = { ...o.fields, [COMP]: { ...(o.fields?.[COMP] || {}), value: true } };
+      ticked++;
+    }
+    for (const c of (o.occurrences || [])) stack.push(c);
+  }
+  return ticked;
+}
+
 /** The load sweep with the date filter moved the way the user moves it. */
+let _ticked = null;   // how many meals the setup completed — asserted as a control
 function sweepAt(day) {
   const occurrencesById = Object.fromEntries(fx.occurrences.map(o => [o.id, structuredClone(o)]));
+  // Applied at BOTH dates, so the only difference between the sweeps stays the
+  // filter. Ticking is keyed to the day the fixture was built for, which is the
+  // only day whose column exists.
+  const n = completeMealsOn(occurrencesById, fx, builtDay());
+  _ticked = _ticked === null ? n : _ticked;
   const modulesById = Object.fromEntries(fx.modules.map(m => [m.id, m]));
   const fieldsById = Object.fromEntries(fx.fields.map(f => [f.id, f]));
   const operations = fx.operations.filter(o => o.enabled !== false);
@@ -103,6 +162,13 @@ describe("a tracker follows the date filter on the page it lives on", () => {
     // them is vacuous. That is exactly how this suite broke on 2026-08-24.
     onDay = sweepAt(builtDay());
     offDay = sweepAt("2026-07-04");   // no column, no rows
+  });
+
+  it("CONTROL — the harness actually completed the meals it measures", () => {
+    // Without this, an export whose Eat rows are named differently would tick
+    // NOTHING and every "moved" assertion below would be vacuous again — which
+    // is precisely how this suite spent three days red.
+    expect(_ticked).toBeGreaterThan(0);
   });
 
   it("CONTROL — both sweeps produced a real body of writes", () => {
