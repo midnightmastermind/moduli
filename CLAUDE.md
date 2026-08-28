@@ -6,6 +6,94 @@
 
 ---
 
+### 2026-08-28 (7) — a DRAG wrote nothing: the Status Router had no inverse
+
+The open item (5) left and (6) measured, now built. User's call, asked directly:
+*"drag sets Status, and + does too."*
+
+**MEASURED FIRST, WHICH IS WHAT MADE IT A NAMED DEFECT RATHER THAN A FEATURE:**
+```
+ops that mention Status    2   Status Router · Sync To Todo List
+their trigger              onChange · field · Status   (BOTH)
+ops triggering on a MOVE   1   Schedule: Clear Date on Move-Out
+```
+A drag emits `OccurrenceMoveOp` and **nothing listened for one on a kanban card.**
+The card moved on screen, `Status` stayed stale, and the Router yanked it back to
+the column its Status named the first time anything touched it — which is exactly
+what (4)'s *"0 status/column mismatches"* control was quietly protecting.
+
+**THE GATE IS A MARKER FIELD, AND BOTH OBVIOUS ALTERNATIVES ARE TRAPS.** Matching
+the destination's LABEL against the status options is one rename from wrong. And
+the tempting shortcut — putting the STATUS value on the column itself — is
+actively DANGEROUS: `Sync To Todo List` fires on ANY Status change and would try
+to COPY_LINK the column onto the Tasks page as though it were a task. So a column
+carries its own `Kanban Column` marker, exactly as a schedule slot carries
+`Time Slot` and a day column carries `Schedule Format`. The op then knows nothing
+about kanbans or projects: **a container carrying a status marker defines the
+status of whatever is dropped into it.**
+
+**ONE OP, TWO GESTURES:** a drag carries `toContainerId`, a card created with the
+column's "+" carries `containerId`. Both resolve, so a new card is born with its
+column's status instead of starting blank and never mirroring.
+
+**AND THERE IS NO ELSE BRANCH, DELIBERATELY.** `makeStampDateTimeSlotOp` CLEARS
+its field off a non-slot destination — a copied row would otherwise keep a time it
+no longer sits in. The opposite is right here: a task dragged out of the board and
+onto the schedule is still at whatever stage it was, and clearing Status would
+drop it out of the Todo mirror silently. **The A/B proves it is a decision rather
+than an omission:** adding the clearing ELSE fails exactly the two tests that
+describe it.
+
+**DRIVEN THROUGH THE REAL EXECUTOR over the real fixture**, not asserted from the
+pipeline — the discipline (4) paid for. 6 behavioural cases, including the two
+carrying the risk (a destination with no marker writes NOTHING; an existing Status
+survives a drag out of the board), plus one running the op **alongside the grid's
+own 80+ ops**, because a pipeline that only works when nothing else runs is not
+shipped.
+
+**THE COLUMN HEADERS GET THEIR LABELS BACK (`0282`).** At 260px they read
+*"Backburn"*, *"Working I"*, *"In Revie"* — truncated by a filter pill printing
+the same INHERITED date six times, in the six places with the least room for it.
+`hideFilterPill` suppresses the value and keeps the funnel, which matters: the
+icon is the only route into a column's own menu. A VIEW key rather than a shape
+key, so one setting on the board reaches all six columns. **`0282` DELEGATES to
+`0279`** rather than repeating it — one definition of what a project kanban looks
+like — and is a separate migration because `0279` has executed and a ledger entry
+has to describe what ran (the `0276`→`0274` pattern).
+
+**Read back out of Mongo:** 18 columns marked, marker == own label on all 18, all
+18 BOUND (a value with no binding renders nowhere — the `0047` half), 0
+non-containers marked, hidden grid-wide, the op live and referencing both fields,
+both forced re-runs report *"already converged"*, poms grid **0 errors**. On prod:
+six headers reading their full labels, **6 of 6 funnels surviving** — the control
+that says the pill was suppressed rather than the chevron deleted.
+
+**A CONTROL OF MINE PROVED NOTHING AND I SAY SO RATHER THAN COUNTING IT.** The
+"other containers still show their pill" check read 0 on the scope sections AND 0
+on the Tasks page — the preview renders no pills at all, so a zero there is a
+statement about the probe. What stands is a before/after on the same probe (the
+earlier screenshot shows the truncated labels and the pills) plus the funnel
+count. *An absence is only evidence once the thing has been shown able to appear.*
+
+**The seed CALLS `0281`** rather than reimplementing it, the way it already calls
+0064 / 0067 / 0164 — the seed IS the migration, so a fresh grid and a migrated one
+cannot drift on the marker, its bindings or the op.
+
+3,525 client + 2,020 server tests, every guard A/B'd, lint 0 errors, build clean,
+deployed, prod HEAD verified. `partialBackup`'s `loadMigrations` budget went
+20s → 45s: it imports every migration (292 now), takes ~6s alone and crosses only
+under parallel load — the same call as 2026-08-25, raise the budget rather than
+trim what it checks.
+
+**STILL NOT VERIFIED, and it is the honest gap: nobody has dragged a card with a
+mouse.** The op is proven through the real executor over the real fixture and the
+columns are proven to paint, but the gesture itself is unexercised — a drag probe
+writes to live data, and `DragProvider` resolves its target from a `pointerRef` a
+synthetic drag never moves, so a green synthetic result would be a claim about the
+probe. One real drag settles it.
+
+---
+
 ### 2026-08-28 (6) — the kanban STACKED its columns, because `flex-row` was inert on a container
 
 Picked up the other account's session, which hit its limit at 15:20 one grep into
