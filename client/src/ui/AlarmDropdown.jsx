@@ -66,6 +66,28 @@ export default function AlarmDropdown() {
   const ringing = useSyncExternalStore(subscribeAlarmRing, getAlarmRing, () => null);
   const alarms = useMemo(() => listAlarmOperations(operationsById, gridId), [operationsById, gridId]);
 
+  // THE PANEL OPENS ITSELF WHEN AN ALARM STARTS RINGING.
+  //
+  // Stop and Snooze live INSIDE this panel, and nothing opened it — a ringing
+  // alarm only shook the button. So the one control the user needs at the one
+  // moment they need it was behind a click they had to know to make. An alarm
+  // interrupting what you are doing is the entire point of an alarm.
+  //
+  // KEYED ON THE RING'S IDENTITY, NOT ON "is it ringing" — the difference is
+  // what stops this becoming a trap. Opening while `ringing` is truthy would
+  // re-open the panel every render, so a user who closed it during a long ring
+  // could never keep it closed. One open per ring; close it and it stays closed,
+  // with the shaking button still saying the alarm is going.
+  //
+  // A snooze re-ring mints a new `ringId`, so it opens again — which is what a
+  // snooze is for.
+  const lastRingIdRef = useRef(null);
+  useEffect(() => {
+    const id = ringing?.ringId ?? null;
+    if (id != null && id !== lastRingIdRef.current) setOpen(true);
+    lastRingIdRef.current = id;
+  }, [ringing]);
+
   // Outside press / Escape close (capture-phase pointerdown covers touch too).
   useEffect(() => {
     if (!open) return;

@@ -10,9 +10,10 @@ import { ringAlarm, stopAlarm } from "../helpers/alarmSound";
 const RING_EVERY_MS = 3500;   // re-trigger the ring so it's continuous
 const RING_BURSTS = 4;        // shorter burst per loop tick
 
-let _ringing = null;          // { label, startedAt } | null
+let _ringing = null;          // { label, startedAt, ringId } | null
 let _loopTimer = null;
 let _snoozeTimer = null;
+let _ringSeq = 0;             // monotonic — see `ringId` below
 const _subs = new Set();
 
 function _emit() { for (const fn of _subs) { try { fn(); } catch { /* ignore */ } } }
@@ -20,11 +21,25 @@ function _emit() { for (const fn of _subs) { try { fn(); } catch { /* ignore */ 
 export function subscribeAlarmRing(fn) { _subs.add(fn); return () => _subs.delete(fn); }
 export function getAlarmRing() { return _ringing; }
 
-// Start (or restart) a persistent ring for `alarm` ({ label }). Idempotent while
-// already ringing the same alarm — it just keeps the loop going.
+// Start (or restart) a persistent ring for `alarm` ({ label }).
+//
+// IDEMPOTENT WHILE ALREADY RINGING THE SAME ALARM, and it now actually is. The
+// comment here has always said so; the code reassigned `_ringing` with a fresh
+// `startedAt`, restarted the loop (re-triggering a burst) and emitted, on EVERY
+// call. Harmless while nothing watched the identity — and not harmless now that
+// the dropdown opens itself on a NEW ring: a repeat call would re-open a panel
+// the user had just closed while the same alarm was still going.
+//
+// `ringId` is a monotonic counter rather than the timestamp, because two rings
+// inside one millisecond would share a `startedAt` and read as the same ring.
 export function startAlarmRing(alarm = {}) {
   if (_snoozeTimer) { clearTimeout(_snoozeTimer); _snoozeTimer = null; }
-  _ringing = { label: alarm.label || "Alarm", startedAt: Date.now() };
+  const label = alarm.label || "Alarm";
+
+  // Same alarm, already going: keep the ring's identity and let the loop run on.
+  if (_ringing && _ringing.label === label && _loopTimer) return;
+
+  _ringing = { label, startedAt: Date.now(), ringId: ++_ringSeq };
   if (_loopTimer) clearInterval(_loopTimer);
   ringAlarm({ bursts: RING_BURSTS });
   _loopTimer = setInterval(() => ringAlarm({ bursts: RING_BURSTS }), RING_EVERY_MS);
