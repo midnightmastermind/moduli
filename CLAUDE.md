@@ -6,6 +6,97 @@
 
 ---
 
+### 2026-08-28 (2) — "NONE OF MY DOCUMENTS ARE SHOWING UP": a folder with no CARD is invisible
+
+User, on the live grid. Nothing was lost — and the shape of the report is what
+named it: *"they show up just not on folder page."*
+
+**A SUB-FOLDER RENDERS ONLY IF IT CONTAINS A CARD.** That card is a
+`role:"page" kind:"folder"` occurrence parented to the sub-folder. The sidebar
+reads `foldersById` DIRECTLY, so the tree shows every folder while the page shows
+only carded ones. **That asymmetry is the entire reason this reads as data loss**,
+and the user's own correction proves it: *"Documents dont have empty folders
+though Notes and Codex both should be full."* They are —
+```
+Notes  8 doc pages        Codex  37 board pages + 8 sub-folders
+Media  5 board pages      Codex's children: 3, 13, 2, 4, 5, 7, 2, 2
+```
+`0272` minted the 15 missing cards: **52 non-category folders, 37 carded -> 52**,
+`Documents` 0 -> 2, `Codex` 0 -> 8, `Interests` 11 of 11. **The control that
+matters is 0 folders carrying MORE than one card** — two cards make each render
+the OTHER as a sub-folder, the infinite drill-down of 2026-08-25.
+
+**AND THE PREDICATE IS THE RENDERER'S, NOT THE MINT HELPER'S.**
+`ensureFolderPageOcc` identifies a card by `meta.folderPage === true`; the
+renderer identifies it by the MODULE's kind+role. Minting off the helper's test
+would DUPLICATE a card for any folder whose occurrence lacks the flag — a test
+pins that an unflagged occurrence still counts.
+
+**THEN THE USER ASKED FOR THE CAUSE, NOT THE DATA — and they were right.** The
+client mints a card on view, but only for the DIRECT children of the folder on
+screen, so a grandchild stays card-less and its parent's PREVIEW renders empty:
+*"empty folders inside of another folder requires me to open up the parent folder
+to see those in the preview."* **Fixed at the CHOKEPOINT — the server's
+`create_folder` — because there are SEVEN client call sites plus the assistant's
+`create_folder` tool**, and adding a mint to each is the "the eighth caller
+forgets" trap this file keeps paying for. That handler already stamps
+`userId`/`gridId` for exactly that reason (2026-08-18). A folder created by a
+MIGRATION bypasses the socket, which is why the mint-on-view stays as the net.
+
+**`io` IS NOT IN SCOPE IN `crud.js`** — my first draft used `io.to(...)` and
+would have thrown a ReferenceError at runtime, the class this file records twice
+(`watchRegion`, `ctxGrid`). Caught by reading what `registerCrudHandlers`
+destructures instead of assuming. **Both emits are needed**: `socket.to(room)`
+EXCLUDES the sender, so without a self-emit the tab that made the folder never
+learns about its card — the same exclusion behind the 2026-08-07 navigation bug.
+
+**THE UNOPENABLE, UNDELETABLE ROW.** *"theres a random Untitled.md inside of
+Documents that I cant open or delete … i clicked the add new on the manifests
+tiles."* `FolderNode`'s "+" minted `role:"container" kind:"artifact"`, and
+**nothing can open that** — `ensureArtifactPageOcc` owns the drill-in and gates on
+`role === "artifact"`, so the click fell through in silence. The shape was STALE,
+not chosen: `migrateArtifactRole.js` moved artifacts off container roles long ago
+and this call site was never updated. The data says it was unique:
+```
+inside folders:  artifact/image 336 · page/board 131 · page/folder 52 · page/doc 15
+                 container/artifact 1     <- the row that button had just made
+```
+**So the "+" ASKS now instead of guessing** (user: *"that should open up the quick
+add menu"*) — `QuickAddMenu` with `targetRole="page"`, which is already the right
+palette for a folder. A button that does not pick a shape cannot pick a wrong one.
+And `PreviewNode`'s context menu gains a confirmed **Delete**, routed through
+`CommitHelpers.deleteOccurrence` so it cascades and unlinks from the parent's
+`occurrences[]` — skipping that is the dangling-ref class swept five times here.
+
+**"IM MISSING MOST OF MY TASKS TOO" — NOTHING WAS DELETED, and the pre-migration
+snapshot is what settles it rather than my own reasoning.** Diffed live against
+this morning's 01:25 snapshot:
+```
+TASKS PAGE   before 33   now 33     Physical 4->4 · Emotional 5->5 · Social 5->5
+                                    Financial 1->1 · Completed 15->15
+```
+Identical, container by container. The 148 occurrences deleted since then are
+**yesterday's day column and its 49 timeslots** — the daily rebuild, which is the
+design (2026-08-07: *"the op deletes the previous day column and rebuilds it"*).
+**Where they are missing FROM is still unanswered**, and the two candidates need
+different fixes, so it is not guessed at here.
+
+**QUEUED, at the user's instruction:** *"configuring the graph should not live in
+filters, it should go in the graph occurances settings."* Diagnosed but NOT built.
+`ModulePage` already separates these into `MenuTabs` (Filter / Sort / **Data** /
+Fields / Layout) with `GraphSection` under Data — but `ModuleContainer`, and a
+graph IS a container, renders every section in one flat `HeaderDropdown` opened
+from `HeaderChevron`, the FILTER chevron (`ModuleContainer.jsx:1453`). That is why
+it reads as living in filters. The fix is to give the container the same tabbed
+structure the page already has; `MenuTabs` is imported by ModulePage today and
+would need importing there.
+
+3,448 client + 1,906 server tests, 0 lint errors on every edited file, build clean.
+Four deploys, prod HEAD verified each time, and **prod's error log has not been
+written since 2026-08-26** — no server error from any of them.
+
+---
+
 ### 2026-08-28 — "FIX ALL THE BUGS": the Todo list had been invisible for ten days, and two red tests were never a defect
 
 Inventory first, because "all the bugs" is not a list until it is measured:
