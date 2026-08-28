@@ -6,6 +6,93 @@
 
 ---
 
+### 2026-08-28 (8) — the alarm rang with its OFF SWITCH behind a click
+
+User: *"make sure the alarm dropdown opens when the alarm is going."*
+
+**STOP AND SNOOZE LIVE INSIDE THE PANEL, AND NOTHING OPENED IT.** A ringing alarm
+shook the toolbar button and turned it red; the two controls that actually
+silence it sat behind a click the user had to know to make. An alarm interrupting
+what you are doing is the entire point of an alarm.
+
+**KEYED ON THE RING'S IDENTITY, NOT ON "is it ringing", and that difference is
+the whole design.** Opening while `ringing` is truthy would re-open the panel on
+every render — a user who closed it during a long ring could never keep it
+closed. One open per ring: close it and it stays closed, with the shaking button
+still saying the alarm is going. A snooze re-ring mints a new id, so it opens
+again, which is what a snooze is for.
+
+**WHICH EXPOSED THAT `startAlarmRing` WAS NOT IDEMPOTENT — though its own comment
+had always said it was** (*"Idempotent while already ringing the same alarm — it
+just keeps the loop going"*). It reassigned `_ringing` with a fresh `startedAt`,
+restarted the loop (re-triggering a burst) and emitted, on EVERY call. Inert
+while nothing watched the identity, and **not** inert once the panel opens itself:
+a repeat NOTIFY would re-open a panel the user had just closed on the same alarm.
+*A comment asserting an invariant is not the invariant — this file's own line,
+paid again.*
+
+**`ringId` IS A COUNTER, NOT THE TIMESTAMP.** Two rings inside one millisecond
+share a `startedAt` and read as the same ring; the A/B deriving the id from the
+clock fails three tests, the snooze re-ring among them.
+
+**AND THE AUDIO CAN NO LONGER COST US THE BANNER.** `startAlarmRing` called
+`ringAlarm` before `_emit()`. `alarmSound` promises it is *"safe to call from
+anywhere … the notification still shows"* and returns false rather than throwing
+for the case it knows about — but it schedules WebAudio nodes, and the banner is
+now the only thing putting Stop and Snooze on screen. A throw would have silenced
+the alarm AND hidden the way to dismiss it. Both the first burst and the loop tick
+are isolated. A/B'd: removing the guard fails exactly its own test.
+
+**VERIFIED END TO END ON PROD, with the closing done BY HAND** — which is the
+half that matters, since the risk is a panel that re-opens forever:
+```
+armed a temporary alarm for 17:16 · CLOSED THE PANEL BY HAND
++18s   panelOpen true · "Ringing…" · Stop present · Snooze present
+Stop   banner gone
+```
+Screenshotted. Then cleaned up: both probe alarms deleted through the UI, leaving
+exactly the user's own two (`5 PM`, `6:30 AM`), read back out of Mongo.
+
+**MY PROBE LEFT DEBRIS AND I SWEPT IT.** A fired alarm drops an instance onto
+today's Schedule (2026-07-20, by design), so three probe rings left three
+`⏰ Alarm` rows on the user's real day column. Removed — **unlinked from the
+parent BEFORE deletion**, or the repair mints the dangling-child-ref class this
+file has swept five times — dumped to `backups/orphans/` first, pm2 restarted so
+the warm cache stopped serving them. **Their three FEED COPIES needed no pass:**
+`feedSync` is a scan-based self-healing diff, so a copy whose source is gone is
+swept on the next client load — measured, one load later all six were gone.
+**Left alone deliberately: the `⏰ 5 PM` row from the user's OWN alarm firing at
+5 PM.** That is a true record of a real alarm at its real time; deleting it to
+tidy my own mess would be the damage, not the fix.
+
+**FOUR PROBE FAULTS BEFORE ONE NUMBER WAS TRUSTWORTHY, and every one is the
+documented shape.** (1) Setting only `moduli-token` mounts the app — `hasSession`
+needs only the token — but leaves it on the LOGIN gate, so the toolbar was absent
+and I nearly filed it as "the grid does not render for a probe". It needs
+`moduli-userId` and `moduli-gridId` too. (2) I counted alarms off
+`state.operationsById`; **the client store holds FLAT ARRAYS** (`operations`,
+73 of them) — the exact trap recorded on 2026-07-29 (3) and again on 2026-08-26
+(3), read for the third time. It reported `0 alarms` while the panel rendered four
+rows. (3) The first live run aborted after creating an alarm and left it behind.
+(4) My "other containers still show their filter pill" control read 0 for the
+wrong reason. *A zero is a claim about the probe until it has been shown
+reporting non-zero.*
+
+**AND IT CLOSED THE OTHER OPEN ITEM BY ACCIDENT.** The screenshot shows the Via
+Fluere kanban behind the alarm panel, its cards reading `Project: Via Fluere` — a
+resolved LABEL, not the raw occurrence id the PREVIEW shows. (5)'s *"reported, not
+fixed"* preview-scoping diagnosis is confirmed **by looking**, which is what it
+was missing.
+
+8 tests on the ring store, all three guards A/B'd — and the same-alarm guard has
+its own inverse beside it (a DIFFERENT alarm mints a new id and does open) so it
+cannot degrade into *"never open twice"*. The component seam is not mounted:
+`AlarmDropdown` needs the whole grid store, so the decision lives where it can be
+tested and the effect is three lines. 3,532 client tests, lint 0 errors, build
+clean, deployed, prod HEAD verified, poms grid **0 errors**.
+
+---
+
 ### 2026-08-28 (7) — a DRAG wrote nothing: the Status Router had no inverse
 
 The open item (5) left and (6) measured, now built. User's call, asked directly:
