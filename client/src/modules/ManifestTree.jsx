@@ -718,22 +718,51 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
     });
   }, [folder.id, folder.name, childOccIds]);
 
-  const handleNewDoc = useCallback((e) => {
-    e.stopPropagation();
+  // ── THE FOLDER'S "+" ASKS WHAT TO MAKE ────────────────────────────────────
+  //
+  // It used to mint one hardcoded thing: a module with
+  // `role:"container" kind:"artifact"`, labelled "Untitled". NOTHING can open
+  // that — `ensureArtifactPageOcc` owns the drill-in and gates on
+  // `role === "artifact"`, so the click fell through in silence and left a row
+  // that could be neither opened nor deleted (user 2026-08-28).
+  //
+  // The shape was stale rather than considered: `scripts/migrateArtifactRole.js`
+  // moved artifacts off container roles long ago and this call site was never
+  // updated. Measured on poms grid, what actually lives inside a folder is
+  // `artifact/image` 336 · `page/board` 131 · `page/folder` 52 · `page/doc` 15
+  // — and `container/artifact` ONE, the row this button had just made.
+  //
+  // So it opens the QuickAddMenu instead of guessing (user: *"that should open
+  // up the quick add menu"*). `targetRole="page"` is already the right palette
+  // for a folder — board / doc / canvas / table / folder — and the menu owns
+  // every shape decision, so this button can never invent an eighth one.
+  const [addTrigger, setAddTrigger] = useState(0);
+
+  const createInFolder = useCallback(({ kind } = {}) => {
     const userId = state?.userId;
     const gridId = state?.grid?._id;
-    if (!userId || !gridId || !dispatch || !socket) return;
+    if (!userId || !gridId || !dispatch || !socket || !kind) return;
     const modId = crypto.randomUUID();
     const occId = crypto.randomUUID();
     const maxOrder = allChildOccs.reduce((m, o) => Math.max(m, o.sortOrder ?? 0), -1);
-    CommitHelpers.createModule({ dispatch, socket, module: { id: modId, userId, gridId, role: "container", kind: "artifact", label: "Untitled" }, emit: true });
-    // moduleId is the schema-canonical pointer that PageFolder / pagesList /
-    // role lookups read; targetId is the legacy alias still used by server
-    // createOccurrenceData. Without moduleId, the new doc renders as
-    // `modulesById[undefined]` → blank PreviewNode card in the folder page
-    // grid. (Symptomatically: "Folder page renders no instances" even though
-    // the doc is parented under the folder.)
-    CommitHelpers.createOccurrence({ dispatch, socket, occurrence: { id: occId, userId, gridId, moduleId: modId, targetId: modId, targetType: "module", parentId: folder.id, sortOrder: maxOrder + 1, iteration: { mode: "persistent" }, textmap: { type: "doc", content: [{ type: "paragraph" }] } }, emit: true });
+    CommitHelpers.createModule({
+      dispatch, socket,
+      module: { id: modId, userId, gridId, role: "page", kind, label: "Untitled" }, emit: true,
+    });
+    // `moduleId` is the schema-canonical pointer PageFolder / pagesList / role
+    // lookups read; `targetId` is the legacy alias the server's
+    // createOccurrenceData still uses. Without moduleId the new page renders as
+    // `modulesById[undefined]` — a blank card in the folder grid.
+    CommitHelpers.createOccurrence({
+      dispatch, socket,
+      occurrence: {
+        id: occId, userId, gridId, moduleId: modId, targetId: modId, targetType: "module",
+        parentId: folder.id, sortOrder: maxOrder + 1, iteration: { mode: "persistent" },
+        // A doc page renders its OWN textmap (`PageDoc`), so it needs one to
+        // open into; the other kinds render children and must not carry one.
+        ...(kind === "doc" ? { textmap: { type: "doc", content: [{ type: "paragraph" }] } } : {}),
+      }, emit: true,
+    });
     setOpen(true);
     onSelect(occId);
   }, [state, socket, dispatch, folder.id, allChildOccs, onSelect]);
@@ -830,13 +859,26 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
               className="folder-open-btn"
             ><Layout size={10} /></span>
             <span
-              onClick={(e) => { e.stopPropagation(); handleNewDoc(e); }}
-              title="New document"
+              onClick={(e) => { e.stopPropagation(); setAddTrigger(n => n + 1); }}
+              title="Add to this folder"
               style={{ fontSize: 13, color: "var(--text-faint)", cursor: "pointer", flexShrink: 0, opacity: 0, transition: "opacity 0.15s", lineHeight: 1, padding: "4px 6px" }}
               className="folder-add-btn"
             >+</span>
           </NodePill>
         )}
+      </div>
+
+      {/* Mounted hidden: the "+" bumps `addTrigger` and the menu opens itself.
+          Same imperative-open pattern ModuleContainer uses for its long-press
+          "Add item…", so there is one QuickAddMenu contract rather than two. */}
+      <div style={{ display: "none" }}>
+        <QuickAddMenu
+          targetRole="page"
+          openTrigger={addTrigger}
+          createLabel="Add to folder"
+          onCreateNew={createInFolder}
+          onSelect={createInFolder}
+        />
       </div>
 
       {ctxMenu && (

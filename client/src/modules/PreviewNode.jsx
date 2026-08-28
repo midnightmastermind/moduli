@@ -18,7 +18,7 @@
 // main.jsx still works for any outstanding iframe consumers.
 
 import React, { useRef, useEffect, useState, useCallback } from "react";
-import { File, Image as ImageIcon, X } from "lucide-react";
+import { File, Image as ImageIcon, X, Trash2 } from "lucide-react";
 import { draggable } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { useGridActions } from "../GridActionsContext.js";
 import { getModuleTypeIcon, getModuleTypeColor } from "../helpers/moduleIcons";
@@ -247,6 +247,34 @@ export default function PreviewNode({
     });
   }, [occurrence?.id, occurrence?.meta, dispatch, socket]);
 
+  // DELETE FROM THE CARD ITSELF.
+  //
+  // A folder page is a grid of cards and had no way to remove one — a row that
+  // could not be opened could not be deleted either, so a bad mint (see
+  // ManifestTree's "+", which used to produce an unopenable
+  // `role:"container" kind:"artifact"`) was stuck there for good. User
+  // 2026-08-28: *"we should have a right click on the folder page preview tiles
+  // to delete."*
+  //
+  // Routed through `CommitHelpers.deleteOccurrence`, which is the ONE delete
+  // path: it cascades the subtree, unlinks the id from its parent's
+  // `occurrences[]` (skipping that is the dangling-child-ref class this repo
+  // has swept five times) and sweeps a module left with no placement.
+  //
+  // CONFIRMED FIRST, and it names what it is deleting: this is the user's own
+  // document, the card gives no undo affordance of its own, and the count of
+  // children is the part they cannot see from the tile.
+  const handleDelete = useCallback(() => {
+    if (!occurrence?.id) return;
+    const kids = occurrence.occurrences?.length || 0;
+    const what = module?.label || occurrence.label || "this item";
+    const msg = kids
+      ? `Delete "${what}" and its ${kids} item${kids === 1 ? "" : "s"}?`
+      : `Delete "${what}"?`;
+    if (typeof window !== "undefined" && !window.confirm(msg)) return;
+    CommitHelpers.deleteOccurrence({ dispatch, socket, occurrenceId: occurrence.id, occurrence });
+  }, [occurrence, module?.label, dispatch, socket]);
+
   const handleContextMenu = useCallback((e) => {
     if (!occurrence?.id) return;
     e.preventDefault();
@@ -256,9 +284,11 @@ export default function PreviewNode({
       items: [
         { label: coverSrc ? "Change cover image…" : "Set cover image…", icon: ImageIcon, onClick: handleSetCover },
         coverSrc ? { label: "Clear cover", icon: X, onClick: handleClearCover, danger: true } : null,
+        { separator: true },
+        { label: "Delete", icon: Trash2, onClick: handleDelete, danger: true },
       ].filter(Boolean),
     });
-  }, [occurrence?.id, coverSrc, handleSetCover, handleClearCover]);
+  }, [occurrence?.id, coverSrc, handleSetCover, handleClearCover, handleDelete]);
 
   // Representation mode renders a single chip (no iframe, no preview
   // body) — the user can still drill in by clicking it.
