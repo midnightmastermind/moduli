@@ -6,6 +6,181 @@
 
 ---
 
+### 2026-08-28 (4) — TWO PROJECTS, and every op behind the trello board was UNREACHABLE
+
+Picked up the other account's session, which hit its limit at 11:42 one command
+into the Projects measurement. Its three shipped items (`0273`, the field-reorder
+arrows, the wheel-scroll multiplier) were already deployed; the queued ask was
+not started. User: *"set up a plan to use the Project template and make a project
+for Pauls Clown Website and Via Fluere. make sure to include the ops and adding
+the tasks to schedule (set up starter tasks). we have a trello board in the
+template"* -> *"they should go in a Projects folder"* -> *"in root"*.
+
+**MEASURING THE OPS FIRST TURNED "WIRE UP TWO PROJECTS" INTO "THE WIRING IS
+DEAD", TWICE OVER — and neither defect is visible from reading a pipeline.**
+
+**`Project: Create` HAS BEEN INERT SINCE 2026-08-03, and the data says so
+exactly.** It resolved its template with
+`FIND $allOccurrences where meta.templateName IS "Project Page"`:
+```
+occurrences carrying meta.templateName == "Project Page"   0
+occurrences carrying ANY meta.templateName                 6   <- all "Day Page", stale day columns
+the template root FZ-uqepntDle carries instead             meta.templateModule: true
+```
+`0035` **unset** `meta.templateName` on template roots. So the FIND bound
+nothing, the guard failed, APPLY_TEMPLATE never ran — and the op is `onLoad`, so
+it fired on every page load for 25 days and emitted nothing. **A FRESH SEED WAS
+FINE**, because `buildProjectTemplate` still writes the key: only a MIGRATED grid
+was broken. That is the `0043` / `0064` class exactly — a key one side retired
+and the other kept writing.
+
+**The remedy was already written one op over.** `makeDayPageBuildOp` THROWS
+without `dayPageTemplateOccId`, with a comment saying a `meta.templateName` lookup
+matches every CLONE (APPLY_TEMPLATE copies meta) and a multi-match FIND binds an
+ARRAY that APPLY_TEMPLATE cannot use. `Project: Create` never got the treatment.
+It is picker-direct now. **Its onLoad arm goes with it, and that is not
+cosmetic:** it stamped a hardcoded `Moduli v1 Launch`, so fixing the lookup ALONE
+would wake a 25-day-dormant op that MINTS A PAGE on the next load. It converged
+only because of the label-collision guard below it — luck, not design.
+
+**AND NOTHING BOUND `Status`, SO BOTH ROUTING OPS WERE UNREACHABLE.**
+```
+modules binding Status (OWQdY4aV7o5v)   0
+```
+`Project: Status Router` and `Project: Sync To Todo List` both trigger on
+`onChange · field · Status`. No occurrence could carry it, so **neither had ever
+fired.** The kanban was six containers you could drag between with nothing behind
+them.
+
+**THREE DECISIONS WERE THE USER'S, asked before anything was written**, because
+each produces materially different data: Via Fluere **RENAMES** the existing
+`Moduli v1 Launch` rather than minting a second overlapping project; the Todo
+mirror gets **one container per project**; `Work on Paul's website` is
+**copy-linked** into the kanban.
+
+**THE RENAME IS SAFE BECAUSE IT WAS MEASURED — all six of its kanban columns were
+EMPTY**, and the migration REFUSES if any column holds a task. Labels live on the
+MODULES here (`occurrence.label` is null on both the page and the board row), so
+it is two module labels plus the scope textmap, not an occurrence write.
+
+**THE MIRROR CONTAINER IS KEYED, NOT LABELLED.** `Sync To Todo List` finds a
+task's Tasks-page container by that container's own `Project` VALUE — not its
+label (one rename from wrong) and not a per-project id baked into the pipeline
+(which needs editing for every new project, the "eighth caller forgets" trap). It
+FAILS OPEN to `Occupational`, the old hardcoded destination, because dropping a
+mirror reads as the sync silently breaking.
+
+**AND `Sync To Todo List` WAS EXTRACTED FROM THE SEED INTO A BUILDER.** It lived
+INLINE in `createLiveData`, which is exactly how a stored pipeline and its author
+drift; a migration could not share it. `makeProjectSyncToTodoOp` now, so the seed
+and the migration regenerate from one source.
+
+**NO STARTER TASK IS STAMPED WITH A `Date` VALUE.** The grid filters on `Date`, so
+a row carrying one is visible on exactly one day of the year — the
+1,467-invisible-bookmarks defect of 2026-08-23 (3), and a project board is
+precisely where it would go unnoticed. The FIELD is bound (so a task dragged onto
+the schedule behaves like every other task); the VALUE is absent. **A `Due` is
+what puts a task on the schedule** — `Place Dated Work` phase 2 already does it,
+and no new mechanism was invented.
+
+---
+
+**THEN THE OPS WERE DRIVEN THROUGH THE REAL EXECUTOR FOR THE FIRST TIME IN THEIR
+LIVES, AND TWO OF THE THREE THINGS `Sync To Todo List` CLAIMS TO DO DID NOT
+HAPPEN.** The mirror minted into the FALLBACK container although its project's
+own container existed, and it was never deleted when Status advanced.
+
+**A FIND RULE'S `left` IS A RECORD PATH, NOT AN EXPRESSION.** Isolated with a
+three-arm probe over live data, only the rule set changing:
+```
+A  [_ancestors HAS_ANCESTOR <tasks>, fields.<proj>.value IS $projKey]      MATCHED
+B  A + [$projKey IS_NOT_EMPTY]                                             NO MATCH
+C  [fields.<proj>.value IS "<literal>", _ancestors HAS_ANCESTOR <tasks>]   MATCHED
+```
+B is A plus one guard rule. `$projKey` on the LEFT looks for a record key
+literally named `$projKey`, finds none, and `IS_NOT_EMPTY` is false for every
+candidate — **so the whole FIND matches nothing.** A `$var` on the RIGHT resolves
+fine, which is what makes this so easy to write: the same var two rules apart
+behaves completely differently.
+
+**ONE OF THE TWO WAS PRE-EXISTING, in the seed from the day it was written** — the
+`$lgId` guard, which is why the mirror was never found and never deleted.
+**Nobody knew because the op could not fire.** *A pipeline that has never run is
+not a pipeline that works; it is one nobody has checked.* The guards are real —
+without `$lgId IS_NOT_EMPTY`, `linkedGroupId IS $lgId` with a null `$lgId` matches
+every unlinked occurrence on the grid — so each MOVED into an `if`, where `left`
+IS evaluated against `$vars`. **`0276` is a second migration rather than an edit
+to `0274`, because `0274` has executed and a ledger entry has to describe what
+ran; it delegates to `0274`'s own `up`.**
+
+**A CLASS GUARD SHIPPED WITH IT:** a test walks both builders' pipelines and fails
+on any `$var` sitting on a FIND rule's `left`, **with a control proving the walker
+finds a planted one** (and two proving it does NOT flag a `$var` on the RIGHT, or
+on an IF condition, where it belongs).
+
+**READ BACK OUT OF MONGO rather than off the log:**
+```
+2 project pages · 6 columns each · 12 tasks · 12 binding Status (was 0)
+0 tasks carrying a Date value        <- the control that matters
+0 status/column mismatches           <- a mismatch is a card the Router moves on first touch
+the copy-linked pair: one module, one linkedGroupId, both at Docket
+the TEMPLATE untouched — 0 tasks, still carrying its {ProjectName} token
+0 occurrences still labelled "Moduli v1 Launch"
+```
+
+**THE REHEARSAL FOUND TWO LEFTOVERS NO TEST WOULD HAVE.** Applied for real
+against `test grid 2` and read back: the renamed page still carried
+`meta.templateModule` — so a LIVE project read as a template root, which is what
+`gridIntegrity` keys on — and its poster ARTIFACT was still labelled
+`Moduli v1 Launch`. Both fixed, and the poster is found through the row's own
+media BINDING rather than by matching the old NAME, which would also hit anything
+else called that. *A dry run prints what it intends; only the applied state shows
+what it left behind.*
+
+**AND `0274` REPORTED A REWRITE ON EVERY RUN until `shapeOf` stripped generated
+step ids** — the builders mint a fresh `uid()` per step, so a raw JSON compare can
+never match and the migration would churn every step id forever. Stripping ids is
+what makes *"already converged"* mean something.
+
+**TWO FIXTURE TESTS WENT RED ON THE REFRESH AND WERE NOT MINE — proven, not
+asserted.** Re-exporting the fixture (mandatory after any migration that rewrites
+an op) turned `mealTrackers` and `routineLayerMerge` red. The discriminator:
+**0 of the 92 rows under the day column carry `Status`**, so nothing these
+migrations wrote is in there. Both premises were calendar-dependent —
+`mealTrackers` required SEVERAL meals on *today's* column (today has one) and
+`routineLayerMerge` required exactly **7** merged rows (`auto:` is `signatureOf`'s
+FALLBACK, stamped on ANY unsigned merged node, so the count grows with every
+layer — it read 23). Both now measure the durable fact instead: meals span more
+than one module GRID-WIDE, and the sweep puts back what you strip. **My first
+rewrite of the meal fact was wrong too** — I asserted one module per row and
+measured **29 rows over 3 modules**, because `pickReusableModuleId` reuses a
+clone's module. That is the third time this file has paid the 2026-08-20 (6)
+lesson: *any assertion whose premise is one day of one grid is a coin flip on
+export timing.*
+
+10 behavioural tests driving both ops over the live grid's own pipelines, **A/B'd:
+restoring the `$var` guards fails exactly the 2 mirror tests.** 32 + 22 unit
+tests, every guard A/B'd. 3,513 client + 1,976 server tests, lint clean, build
+clean **with every chunk hash unchanged — no client source moved, so no bundle
+was owed**; the deploy was for the pm2 restart, since the warm cache is
+authoritative for reads and would otherwise re-serve the old pipelines. Prod HEAD
+verified, served chunks sha256-identical, poms grid **0 errors** with the one
+documented `unused-field` warning.
+
+**A PROBE OF MINE REPORTED A DEFECT THAT WAS NOT THERE, and it is the usual
+shape:** the mirror test read `u.parentId` / `u.occurrence.parentId`, but
+`COPY_LINK` emits `CREATE_ITEM` whose home is on **`instance.parentId`**. It
+reported an empty set, which looks exactly like *"the mirror never landed"*. The
+fix carries a control asserting some `CREATE_ITEM` carried a parent at all.
+
+**REPORTED, NOT FIXED:** the starter tasks are placeholders — the user asked for
+starters, not their real backlog. And the fixture is now **1.9 MB brotli** (21,089
+occurrences, up from 292 KB / 3,280 when it was introduced); it is committed, but
+it is worth deciding whether a fixture that grows with the grid is still the right
+artifact.
+
+---
+
 ### 2026-08-28 (3) — TWELVE TASKS A PROBE TICKED, and the page was never broken
 
 Picked up the other account's session, which hit its limit at 10:22 one grep
