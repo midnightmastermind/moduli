@@ -36,10 +36,11 @@
 // ============================================================
 
 import React, { useCallback, useMemo } from "react";
-import { X, Eye, EyeOff, Hash, Link2 } from "lucide-react";
+import { X, Eye, EyeOff, Hash, Link2, ChevronUp, ChevronDown } from "lucide-react";
 import DrilldownPicker from "./DrilldownPicker";
 import { useGridActions } from "../GridActionsContext";
 import { gridAutoAppliedFieldIds } from "../helpers/autoAppliedFields";
+import { sortBindingsForDisplay, moveBinding } from "../helpers/fieldBindingOrder";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 
 /**
@@ -121,6 +122,16 @@ export default function FieldBindingsEditor({
     commit(bindings.filter((b) => b.fieldId !== fieldId));
   }, [bindings, commit]);
 
+  // Move a field one place. `moveBinding` renumbers the WHOLE module rather than
+  // swapping two values — against this grid's real data (287 modules with
+  // duplicate orders, 464 with gaps, 80 with none at all) a swap moves a row an
+  // unpredictable distance. It returns null for a no-op, which is what keeps a
+  // press on a disabled edge from minting a transaction.
+  const moveField = useCallback((fieldId, delta) => {
+    const next = moveBinding(bindings, fieldId, delta);
+    if (next) commit(next);
+  }, [bindings, commit]);
+
   // Make the grid's default explicit on THIS module so it can be shown/ordered.
   // Born visible, because binding it by hand is the act of asking for it —
   // unlike the grid default, which lands on every occurrence at once and must
@@ -131,7 +142,11 @@ export default function FieldBindingsEditor({
 
   if (!module?.id) return null;
 
-  const realBindings = bindings.filter((b) => b.fieldId);
+  // LISTED IN RENDER ORDER, not array order. The occurrence sorts by
+  // `binding.order`; this list used to sort by nothing, so on 104 of poms grid's
+  // 2,136 multi-field modules it showed a different order than the screen. That
+  // is tolerable in a read-only list and not tolerable next to an arrow.
+  const realBindings = sortBindingsForDisplay(bindings).filter((b) => b.fieldId);
 
   return (
     <div className="py-2">
@@ -150,7 +165,7 @@ export default function FieldBindingsEditor({
 
       {realBindings.length > 0 && (
         <div className="mt-3 space-y-1">
-          {realBindings.map((binding) => {
+          {realBindings.map((binding, i) => {
             const field = fieldsById?.[binding.fieldId];
             if (!field) return null;
             return (
@@ -158,6 +173,9 @@ export default function FieldBindingsEditor({
                 key={binding.fieldId}
                 field={field}
                 binding={binding}
+                isFirst={i === 0}
+                isLast={i === realBindings.length - 1}
+                onMove={(delta) => moveField(binding.fieldId, delta)}
                 onUpdateBinding={(updates) => updateBinding(binding.fieldId, updates)}
                 onRemove={() => removeBinding(binding.fieldId)}
               />
@@ -189,8 +207,8 @@ export default function FieldBindingsEditor({
   );
 }
 
-/** A real binding: hide/show and unbind. No field editing — that is Command Center. */
-function FieldBindingRow({ field, binding, onUpdateBinding, onRemove }) {
+/** A real binding: reorder, hide/show and unbind. No field editing — that is Command Center. */
+function FieldBindingRow({ field, binding, isFirst, isLast, onMove, onUpdateBinding, onRemove }) {
   const pillColor = "bg-blue-500/20 text-blue-300 border-blue-500/30";
   return (
     <div className="border border-border rounded-md overflow-hidden">
@@ -201,6 +219,28 @@ function FieldBindingRow({ field, binding, onUpdateBinding, onRemove }) {
           </span>
           <span className="text-[10px] text-muted-foreground">{field.type}</span>
         </div>
+        {/* Arrows sit FIRST, in the reading order of the thing they move. Both
+            stay mounted and go disabled at the ends — a control that disappears
+            at the edge of a list re-lays the row out under the pointer and the
+            next press lands on the wrong button. */}
+        <button
+          type="button"
+          title={isFirst ? "Already first" : "Move up"}
+          disabled={isFirst}
+          className="ml-1 p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-25 disabled:pointer-events-none"
+          onClick={(e) => { e.stopPropagation(); onMove?.(-1); }}
+        >
+          <ChevronUp className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          title={isLast ? "Already last" : "Move down"}
+          disabled={isLast}
+          className="p-0.5 rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-25 disabled:pointer-events-none"
+          onClick={(e) => { e.stopPropagation(); onMove?.(1); }}
+        >
+          <ChevronDown className="h-3 w-3" />
+        </button>
         <button
           type="button"
           title={binding.hidden ? "Show field" : "Hide field"}

@@ -37,6 +37,8 @@
 // it, like any ordinary binding.
 // ============================================================
 
+import { compareBindingOrder } from "./fieldBindingOrder";
+
 /**
  * The GRID-level auto-applied ids, defensively — `meta` is Mixed.
  *
@@ -158,5 +160,8 @@ export function resolveOccurrenceFields({
     }
   }
 
-  return out.sort((a, b) => (a.binding.order || 0) - (b.binding.order || 0));
+  // The comparator is SHARED with the Fields editor (`helpers/fieldBindingOrder`)
+  // rather than restated here. Two copies of this rule is how the editor came to
+  // list 104 modules in an order that did not match what they rendered.
+  return out.sort((a, b) => compareBindingOrder(a.binding, b.binding));
 }

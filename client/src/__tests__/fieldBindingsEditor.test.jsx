@@ -175,3 +175,73 @@ describe("FieldBindingsEditor — refusals", () => {
     expect(screen.getAllByTitle("Unbind field")).toHaveLength(1);
   });
 });
+
+// The arrows are the whole point of the ordering work: `moveBinding` is unit
+// tested on its own, so what these cover is the WIRING — that a press reaches
+// the commit at all, and that the list the arrows act on is the one the
+// occurrence renders. That call-site seam is where this repo's changes have
+// repeatedly shipped inert.
+describe("FieldBindingsEditor — reordering with the arrows", () => {
+  const three = {
+    id: "m1",
+    fieldBindings: [
+      { fieldId: "f-water", order: 0 },
+      { fieldId: "f-tags", order: 1 },
+      { fieldId: "f-date", order: 2 },
+    ],
+  };
+  const upBtns = () => screen.getAllByTitle(/Move up|Already first/);
+  const downBtns = () => screen.getAllByTitle(/Move down|Already last/);
+
+  it("moves a field DOWN and commits the renumbered list", () => {
+    render(<FieldBindingsEditor module={three} />);
+    fireEvent.click(downBtns()[0]);
+    expect(lastBindings().map((b) => b.fieldId)).toEqual(["f-tags", "f-water", "f-date"]);
+    expect(lastBindings().map((b) => b.order)).toEqual([0, 1, 2]);
+  });
+
+  it("moves a field UP", () => {
+    render(<FieldBindingsEditor module={three} />);
+    fireEvent.click(upBtns()[2]);
+    expect(lastBindings().map((b) => b.fieldId)).toEqual(["f-water", "f-date", "f-tags"]);
+  });
+
+  it("disables the edges, and pressing one COMMITS NOTHING", () => {
+    render(<FieldBindingsEditor module={three} />);
+    expect(upBtns()[0]).toBeDisabled();
+    expect(downBtns()[2]).toBeDisabled();
+    expect(upBtns()[1]).not.toBeDisabled();
+    fireEvent.click(upBtns()[0]);
+    fireEvent.click(downBtns()[2]);
+    expect(updateModule).not.toHaveBeenCalled();
+  });
+
+  it("LISTS IN RENDER ORDER, not array order — so an arrow moves the row you see", () => {
+    // Array order [date, water, tags]; the occurrence renders water, tags, date.
+    render(<FieldBindingsEditor module={{
+      id: "m1",
+      fieldBindings: [
+        { fieldId: "f-date", order: 2 },
+        { fieldId: "f-water", order: 0 },
+        { fieldId: "f-tags", order: 1 },
+      ],
+    }} />);
+    const shown = screen.getAllByText(/^(Water|Tags|Date)$/).map((n) => n.textContent);
+    expect(shown).toEqual(["Water", "Tags", "Date"]);
+    // The FIRST row is Water, so its Up must be the disabled edge.
+    expect(upBtns()[0]).toBeDisabled();
+  });
+
+  it("commits ONLY id + fieldBindings, so a reorder cannot clobber another module key", () => {
+    render(<FieldBindingsEditor module={{ ...three, meta: { keep: 1 }, label: "Eat" }} />);
+    fireEvent.click(downBtns()[0]);
+    expect(Object.keys(updateModule.mock.calls.at(-1)[0].module).sort()).toEqual(["fieldBindings", "id"]);
+  });
+
+  it("renders no arrows for a single binding — there is nowhere to move", () => {
+    render(<FieldBindingsEditor module={{ id: "m1", fieldBindings: [{ fieldId: "f-water", order: 0 }] }} />);
+    fireEvent.click(upBtns()[0]);
+    fireEvent.click(downBtns()[0]);
+    expect(updateModule).not.toHaveBeenCalled();
+  });
+});
