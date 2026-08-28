@@ -775,6 +775,12 @@ export const PROJECT_KANBAN_LAYOUT = Object.freeze({
   // FIXED HEIGHT: the board keeps one baseline however many cards a column
   // holds, and a full column scrolls inside itself.
   childMaxHeight: 420,
+  // Don't print the inherited date in the column headers. A VIEW key, so it
+  // cascades to all six columns from this one place. At 260px the pill ate the
+  // label — "Backburn", "Working I", "In Revie" — and it was six copies of one
+  // fact that is set on the PAGE, not on any column. The funnel icon stays, so
+  // each column's own menu is still reachable.
+  hideFilterPill: true,
 });
 
 // ── Project template ─────────────────────────────────────────────────────────
@@ -3481,6 +3487,127 @@ export function makeProjectSyncToTodoOp({ userId, gridId, statusFieldId, project
               type: "DELETE",
               itemIdExpr: "$mirrorId",
             }},
+          ],
+          else: [],
+        },
+      ],
+    },
+  };
+}
+
+// ── Project: Stamp Status From Column ────────────────────────────────────────
+// THE INVERSE OF THE STATUS ROUTER, and until now it did not exist.
+//
+// `Project: Status Router` moves a card when its Status changes. Nothing did the
+// opposite: dragging a card between kanban columns wrote NOTHING. Measured
+// 2026-08-28 — of the ops that mention Status, both trigger `onChange · field ·
+// Status`, and the only op listening for a move is `Schedule: Clear Date on
+// Move-Out`. So the card moved on screen, `Status` stayed stale, the board and
+// the field disagreed, and the Router yanked the card back to the column its
+// Status named the first time anything touched it. On a kanban, dragging IS the
+// gesture; a board you cannot drag on is decoration.
+//
+// ── THE GATE IS A MARKER FIELD, NOT A LABEL ────────────────────────────────
+// The destination has to be recognised as a kanban column. Matching its LABEL
+// against the status options is the trap this file records repeatedly (one
+// rename from wrong), and the obvious shortcut — putting the STATUS value on the
+// column itself — is worse: `Project: Sync To Todo List` triggers on any Status
+// change and would try to mirror the COLUMN onto the Tasks page as if it were a
+// task.
+//
+// So a column carries its own `Kanban Column` marker, exactly the way a schedule
+// slot carries `Time Slot` and a day column carries `Schedule Format` — the
+// data-driven discriminator `makeStampDateTimeSlotOp`, `makeAlarmOp` and
+// `Pomodoro: Start` all already use. The value IS the status that column
+// represents, so the op needs to know nothing about kanbans, projects or column
+// names: **a container carrying a status marker defines the status of whatever
+// is dropped into it.**
+//
+// ── ONE OP, TWO GESTURES ───────────────────────────────────────────────────
+// A DRAG fires `OccurrenceMoveOp`, which carries `toContainerId`. A card created
+// with the column's "+" fires `OccurrenceCreateOp`, which carries `containerId`.
+// The destination is resolved from whichever is present, so a card is born with
+// its column's status instead of starting blank and never mirroring.
+//
+// ── AND THERE IS NO ELSE BRANCH, DELIBERATELY ──────────────────────────────
+// `makeStampDateTimeSlotOp` CLEARS its field when the destination is not a slot,
+// because a copied row would otherwise keep a time it no longer sits in. The
+// opposite is right here: a task dragged out of the kanban and onto the schedule
+// is still at whatever stage it was. Clearing Status there would silently drop
+// it out of the Todo mirror. Moving a card OUT of the board is a placement, not
+// a stage change.
+export function makeProjectStampStatusFromColumnOp({ userId, gridId, statusFieldId, kanbanColumnFieldId }) {
+  if (!statusFieldId)       throw new Error("makeProjectStampStatusFromColumnOp: statusFieldId required — it is what gets written");
+  if (!kanbanColumnFieldId) throw new Error("makeProjectStampStatusFromColumnOp: kanbanColumnFieldId required — it is the gate; without it this would stamp every container's label as a status");
+  return {
+    id: uid(), userId, gridId, priority: 2,
+    name: "Project: Stamp Status From Column",
+    description:
+      "When a card is dropped into (or created in) a container carrying a Kanban Column marker, set its Status to that " +
+      "column's status. The inverse of Status Router, so dragging a card between columns is a real move. Never clears " +
+      "Status: a card dragged out of the board keeps its stage.",
+    triggerTypes: ["onMove", "onCreate"],
+    triggerObjects: [
+      // Broad, and gated in the pipeline — the same shape `Schedule: Clear Date
+      // on Move-Out` uses, because a move carries no field to scope on.
+      { eventType: "onMove",   subjectType: "occurrence", targetId: "", priority: 2 },
+      // Role-scoped: only an INSTANCE create is a card. An unscoped create
+      // trigger fires on every textblock and container an import mints — the
+      // flood this file records from the Wikipedia importer.
+      { eventType: "onCreate", subjectType: "module", subjectRole: "instance", targetId: "", priority: 2 },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        // ── The destination, from whichever gesture fired ──────────────────
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$destId", expr: "$trigger.toContainerId" } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$destId", comparator: "IS_EMPTY", right: "" }] },
+          then: [
+            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$destId", expr: "$trigger.containerId" } },
+          ],
+          else: [],
+        },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [{ id: uid(), left: "$destId", comparator: "IS_NOT_EMPTY", right: "" }] },
+          then: [
+            { id: uid(), type: "action", config: {
+                type: "FIND", over: "$allOccurrences",
+                predicate: { operator: "AND", rules: [
+                  { id: uid(), left: "id", comparator: "IS", right: "$destId" },
+                ]},
+                itemVar: "$destCol", itemIdVar: "$destColFoundId",
+            }},
+            // THE GATE. No marker → this is not a kanban column → do nothing at
+            // all (not even a clear).
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$destColFoundId", comparator: "IS_NOT_EMPTY", right: "" },
+                { id: uid(), left: `$destCol.fields.${kanbanColumnFieldId}.value`, comparator: "IS_NOT_EMPTY", right: "" },
+              ]},
+              then: [
+                { id: uid(), type: "action", config: {
+                    type: "FIND",
+                    predicate: { operator: "AND", rules: [
+                      { id: uid(), left: "id", comparator: "IS", right: "$trigger.occurrenceId" },
+                    ]},
+                    itemVar: "$card", itemIdVar: "$cardFoundId",
+                }},
+                { id: uid(), type: "if",
+                  condition: { operator: "AND", rules: [{ id: uid(), left: "$cardFoundId", comparator: "IS_NOT_EMPTY", right: "" }] },
+                  then: [
+                    { id: uid(), type: "action", config: {
+                        type: "UPDATE",
+                        path: `$card.fields.${statusFieldId}.value`,
+                        value: `$destCol.fields.${kanbanColumnFieldId}.value`,
+                    }},
+                  ],
+                  else: [],
+                },
+              ],
+              else: [],
+            },
           ],
           else: [],
         },

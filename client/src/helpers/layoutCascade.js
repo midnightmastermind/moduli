@@ -50,6 +50,10 @@ import { buildParentMap, cachedParentMap } from "./dragHitTesting";
 // back, because the leaf layer only looks at `meta.layoutCascadeOverride`.
 // View-mode keys are deliberately NOT here: a container saying "my children
 // render as chips" must not turn ITSELF into a chip.
+// `hideFilterPill` is deliberately NOT a shape key. It is a statement ABOUT
+// DESCENDANTS ("do not print the inherited filter value in headers below me"),
+// which is exactly what the view keys are for — set it once on a kanban board
+// and all six columns inherit it, the way `dragInView` and `locked` work.
 export const SURFACE_SHAPE_KEYS = Object.freeze([
   "mode", "columns", "childGap", "hideChildIds", "sortChildrenByField", "childMaxHeight",
   "childMinWidth", "childMaxWidth",

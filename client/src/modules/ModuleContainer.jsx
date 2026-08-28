@@ -1435,7 +1435,14 @@ function Container({
                   cluster rather than after it, so the whole group stays
                   right-aligned and the order reads fields → filter → add. */}
               {!isBodyCollapsed && <OccurrenceFields {...ownFieldsProps} />}
-              <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={containerOccurrence} />
+              <HeaderChevron
+                onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={containerOccurrence}
+                // `hideFilterPill` is a VIEW key, so it cascades: set once on a
+                // kanban board and every column under it inherits it. The
+                // funnel itself always stays — it is the only route into the
+                // container's own menu.
+                showPill={layoutCascade?.resolved?.hideFilterPill !== true}
+              />
               <QuickAddMenu
                 targetRole="instance"
                 onSelect={handleQuickAddInstance}

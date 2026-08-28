@@ -102,7 +102,15 @@ function computeFilterState(occurrence, grid, ownEffectiveFilter) {
   return "deactivated";
 }
 
-export default function HeaderChevron({ onClick, isOpen, occurrence = null }) {
+// `showPill` — whether to print the filter VALUE beside the icon.
+//
+// The icon always stays: it is the only way into a container's own menu, so
+// hiding it would make the container unconfigurable. Only the value text is
+// suppressed. User, 2026-08-28: on the project kanban the six columns each
+// printed the same inherited date, eating the column label at 260px
+// ("Backburn", "Working I", "In Revie") — six copies of one fact, none of them
+// set on the column itself.
+export default function HeaderChevron({ onClick, isOpen, occurrence = null, showPill = true }) {
   const ctx = useGridActions();
   const grid = ctx?.state?.grid;
   const occurrencesById = ctx?.occurrencesById;
@@ -129,11 +137,12 @@ export default function HeaderChevron({ onClick, isOpen, occurrence = null }) {
   // Only renders when the filter is effectively ACTIVE (deactivated /
   // none state means there's nothing meaningful to surface).
   const pillEntries = useMemo(() => {
+    if (!showPill) return [];
     if (state !== "active" || !ownEffectiveFilter) return [];
     return Object.entries(ownEffectiveFilter)
       .map(([fid, val]) => ({ fid, label: formatFilterValue(fid, val, fieldsById) }))
       .filter(e => e.label);
-  }, [state, ownEffectiveFilter, fieldsById]);
+  }, [showPill, state, ownEffectiveFilter, fieldsById]);
 
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>

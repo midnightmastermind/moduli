@@ -9450,6 +9450,31 @@ async function main() {
       });
     }
 
+    // ── The kanban DRAG (migration 0281) ─────────────────────────────────────
+    //
+    // Without this a fresh grid's kanban is a board you can drag on that records
+    // nothing: `Project: Status Router` moves a card when Status changes, and
+    // until 0281 there was no op going the other way, so the card moved and the
+    // field went stale. CALLED rather than reimplemented, for the reason 0064 /
+    // 0067 / 0164 are called here — the seed IS the migration, so a fresh grid
+    // and a migrated one cannot drift on the marker, its bindings or the op.
+    //
+    // Runs AFTER the project template exists (it finds columns structurally, by
+    // the Status option set) and after the ops are registered, so its "already
+    // exists" checks are truthful.
+    {
+      const { up: kanbanDrag } = await import("../migrations/0281-a-drag-that-wrote-nothing.mjs");
+      console.log("\n🎯 Kanban drag writes Status (migration 0281, shared with the live grid)…");
+      const freshGrid = await Grid.findById(result.gridId).lean();
+      await kanbanDrag({
+        gridId: result.gridId,
+        grid: freshGrid,
+        models: { Occurrence, Module, Field, Folder, Grid, Operation },
+        log: (m) => console.log(`   ${m}`),
+        dryRun: false,
+      });
+    }
+
     // ── The CATEGORY axis (migration 0164) ───────────────────────────────────
     //
     // The second half of "sum/count/track across any time window AND category".

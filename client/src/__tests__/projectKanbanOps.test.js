@@ -206,3 +206,144 @@ describe("Project: Sync To Todo List — the mirror follows the project", () => 
     expect(errs).toEqual([]);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Project: Stamp Status From Column — THE INVERSE, added 2026-08-28.
+//
+// Measured before it was written: of the ops that mention Status, BOTH trigger
+// `onChange · field · Status`, and the only op listening for a move is
+// `Schedule: Clear Date on Move-Out`. So dragging a card between columns wrote
+// nothing — the card moved, Status went stale, and the Router moved it back on
+// first touch.
+//
+// The op is built from its own builder and injected into the fixture's op set,
+// because it is not in the committed fixture until the migration ships. Every
+// assertion is on an effect that LEAVES the executor.
+// ─────────────────────────────────────────────────────────────────────────────
+import { makeProjectStampStatusFromColumnOp } from "../../../server/utils/liveSystemBuilders.js";
+
+const KANBAN_COL_FID = "test-kanban-col-marker";
+
+/** Stamp the marker on a page's six columns, the way the migration will. */
+function markColumns(pageLabel) {
+  const kanban = childNamed(projectPage(pageLabel), "Kanban");
+  for (const cid of kanban.occurrences) {
+    const col = occurrencesById[cid];
+    occurrencesById[cid] = {
+      ...col,
+      fields: { ...(col.fields || {}), [KANBAN_COL_FID]: { value: nameOf(col), flow: "in" } },
+    };
+  }
+  return kanban;
+}
+
+function fireMove({ occurrenceId, toContainerId, only = true }) {
+  const op = makeProjectStampStatusFromColumnOp({
+    userId: "u", gridId: grid?._id, statusFieldId: STATUS, kanbanColumnFieldId: KANBAN_COL_FID,
+  });
+  const errors = [];
+  const ops = only ? [op] : [...operations, op];
+  const updates = runMatchingOperations(
+    ops, "OccurrenceMoveOp",
+    { type: "OccurrenceMoveOp", occurrenceId, instanceId: occurrencesById[occurrenceId]?.moduleId,
+      fromContainerId: occurrencesById[occurrenceId]?.parentId, toContainerId,
+      fields: occurrencesById[occurrenceId]?.fields || {} },
+    buildCtx(),
+    { onError: (n, e) => errors.push(`${n}: ${e?.message || e}`) },
+  );
+  return { updates, errors };
+}
+
+function fireCreate({ occurrenceId, containerId }) {
+  const op = makeProjectStampStatusFromColumnOp({
+    userId: "u", gridId: grid?._id, statusFieldId: STATUS, kanbanColumnFieldId: KANBAN_COL_FID,
+  });
+  const errors = [];
+  const updates = runMatchingOperations(
+    [op], "OccurrenceCreateOp",
+    { type: "OccurrenceCreateOp", occurrenceId, instanceId: occurrencesById[occurrenceId]?.moduleId,
+      containerId, containerLabel: nameOf(occurrencesById[containerId]), _occRole: "instance" },
+    buildCtx(),
+    { onError: (n, e) => errors.push(`${n}: ${e?.message || e}`) },
+  );
+  return { updates, errors };
+}
+
+const statusWrites = (updates) => (updates || [])
+  .filter((u) => u._effect === "UPDATE_ITEM_FIELD" && u.fieldId === STATUS)
+  .map((u) => ({ itemId: u.itemId, value: u.value }));
+
+describe("Project: Stamp Status From Column — a DRAG is a real move", () => {
+  it("dropping a card into a column writes that column's status", () => {
+    // Via Fluere's board, because the Status Router cases above MUTATE the
+    // shared fixture (they move Paul's cards between columns). Asserting a
+    // starting value here would be asserting test order.
+    markColumns("Project: Via Fluere");
+    const docket = columnOf("Project: Via Fluere", "Docket");
+    const test   = columnOf("Project: Via Fluere", "Test");
+    const taskId = docket.occurrences[0];
+
+    const { updates, errors } = fireMove({ occurrenceId: taskId, toContainerId: test.id });
+    expect(errors).toEqual([]);
+    expect(statusWrites(updates)).toEqual([{ itemId: taskId, value: "Test" }]);
+  });
+
+  it("a card created with the column's + is born with that column's status", () => {
+    markColumns("Project: Via Fluere");
+    const backburner = columnOf("Project: Via Fluere", "Backburner");
+    const review     = columnOf("Project: Via Fluere", "In Review");
+    const taskId = backburner.occurrences[0];
+
+    const { updates, errors } = fireCreate({ occurrenceId: taskId, containerId: review.id });
+    expect(errors).toEqual([]);
+    expect(statusWrites(updates)).toEqual([{ itemId: taskId, value: "In Review" }]);
+  });
+
+  // THE GATE. Every container on the grid receives moves; only a marked one may
+  // write a status. Without this the op would stamp a page or container NAME as
+  // a status — the exact defect the Time Slot gate was written to fix in 2026-07-30.
+  it("writes NOTHING when the destination carries no marker", () => {
+    markColumns("Project: Via Fluere");
+    const docket = columnOf("Project: Via Fluere", "Docket");
+    const scope  = childNamed(projectPage("Project: Via Fluere"), "Project Scope");
+    const taskId = docket.occurrences[0];
+
+    const { updates, errors } = fireMove({ occurrenceId: taskId, toContainerId: scope.id });
+    expect(errors).toEqual([]);
+    expect(statusWrites(updates)).toEqual([]);
+  });
+
+  // AND IT DOES NOT CLEAR. `makeStampDateTimeSlotOp` clears its field off a
+  // non-slot destination; the opposite is right here — a task dragged onto the
+  // schedule is still at whatever stage it was, and clearing Status would drop
+  // it out of the Todo mirror silently.
+  it("leaves an existing Status alone when a card is dragged OUT of the board", () => {
+    markColumns("Project: Via Fluere");
+    const docket = columnOf("Project: Via Fluere", "Docket");
+    const taskId = docket.occurrences[0];
+    const before = occurrencesById[taskId].fields?.[STATUS]?.value;
+
+    const { updates } = fireMove({ occurrenceId: taskId, toContainerId: projectPage("Project: Paul's Clown Website").id });
+    expect(statusWrites(updates)).toEqual([]);
+    expect(occurrencesById[taskId].fields?.[STATUS]?.value).toBe(before);
+  });
+
+  it("is idempotent — re-dropping a card into the column it already sits in rewrites the same value", () => {
+    markColumns("Project: Via Fluere");
+    const docket = columnOf("Project: Via Fluere", "Docket");
+    const taskId = docket.occurrences[0];
+    const { updates } = fireMove({ occurrenceId: taskId, toContainerId: docket.id });
+    expect(statusWrites(updates)).toEqual([{ itemId: taskId, value: "Docket" }]);
+  });
+
+  // Alongside every OTHER op the grid has, not in isolation — a pipeline that
+  // only works when nothing else runs is not shipped.
+  it("runs cleanly among the grid's own 80+ ops", () => {
+    markColumns("Project: Via Fluere");
+    const docket = columnOf("Project: Via Fluere", "Docket");
+    const test   = columnOf("Project: Via Fluere", "Test");
+    const { updates, errors } = fireMove({ occurrenceId: docket.occurrences[0], toContainerId: test.id, only: false });
+    expect(errors).toEqual([]);
+    expect(statusWrites(updates)).toContainEqual({ itemId: docket.occurrences[0], value: "Test" });
+  });
+});

@@ -104,12 +104,12 @@ describe("snapshotScope", () => {
 });
 
 describe("loadMigrations", () => {
-  // 20s, not the 5s default: this dynamically imports EVERY migration in the
-  // directory — 245 of them as of 2026-08-25 — and the cost grows by one file
-  // per migration. Alone the whole file runs in ~2s; under the parallel suite
-  // it crossed 5s when 0236/0237 landed. The assertion below was never the
-  // problem (it passes in isolation), so raising the budget is the honest fix
-  // rather than trimming what it checks.
+  // 45s, not the 5s default: this dynamically imports EVERY migration in the
+  // directory — 292 as of 2026-08-28 — and the cost grows by one file per
+  // migration. It crossed 5s when 0236/0237 landed (raised to 20s) and crossed
+  // 20s when 0279-0282 landed. The assertion below has never been the problem —
+  // it takes ~6s in isolation and only fails under parallel load — so raising
+  // the budget is the honest fix rather than trimming what it checks.
   it("CARRIES `touches` through — the field the first version silently dropped", async () => {
     const all = await loadMigrations();
     const scoped = all.filter((m) => Array.isArray(m.touches));
@@ -129,7 +129,7 @@ describe("loadMigrations", () => {
       expect(m.touches.length).toBeGreaterThan(0);
       for (const name of m.touches) expect(known).toContain(name);
     }
-  }, 20000);
+  }, 45000);
 });
 
 // A partial backup can roll its own grid back. It cannot clone one — that would
