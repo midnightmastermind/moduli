@@ -6,6 +6,95 @@
 
 ---
 
+### 2026-08-28 — "FIX ALL THE BUGS": the Todo list had been invisible for ten days, and two red tests were never a defect
+
+Inventory first, because "all the bugs" is not a list until it is measured:
+`checkGrid --all`, both suites, and the standing open items.
+
+**THE LIVE ONE: THE USER'S TODO LIST WAS HIDDEN ON EVERY DAY BUT AUG 18.**
+`gridIntegrity`'s `dated-copy-link-source` rule — added alongside `0145` so a
+recurrence would be LOUD rather than silently costing somebody a morning —
+fired again ten days later:
+```
+SOURCE LnLC5V1KIMt_ "Todo" (container/board) in "Schedule: Layout"
+  Date = 2026-08-18                <- the grid FILTERS on Date
+  6 copies, and ALL SIX inherited it
+```
+**THE CONTROL IS WHAT MAKES IT UNAMBIGUOUS:** of the source's 48 siblings under
+the same slot template, **48 carry no date and exactly one does.** The healthy
+shape is no date at all — which is why the remedy is to CLEAR rather than
+re-stamp with something better; stamping works today and goes stale tomorrow,
+the trade 2026-08-11 (2) already refused.
+
+**WHY `0145` DID NOT COVER IT, and it is a general shape.** `0145` clears the
+SOURCE, so the next copy is not born wrong. The copies that already exist were
+`0144`'s job — and `0144` was written against ONE specific day's column. **The
+pair only ever repaired one day.** `0271` does both in one pass, which is the
+rule 2026-07-30 (2) states outright: *"repair the masters and the copies in the
+same pass, or rebuild the copies."*
+
+**THE DISCRIMINATOR IS THE WHOLE DESIGN:** a copy is cleared ONLY when its value
+EQUALS its source's — that is what "inherited" means. A copy whose value differs
+was set deliberately, and is KEPT and REPORTED. Without it this migration is data
+loss; the A/B removing it fails exactly that test. Read back out of Mongo: 0 of 7
+still dated, **Time Slot identity marker intact on all 7** (Build Schedule, Alarm
+and Pomodoro: Start all FIND by it), 571 -> 564 dated occurrences — exactly the 7
+cleared, no collateral.
+
+**THE TWO RED TESTS WERE NEVER A DEFECT, and thirteen sessions carried them as
+"pre-existing".** `trackerFollowsPageFilter` went red when the fixture was
+refreshed on 2026-08-25. Measured on the fixture's own day column:
+```
+column 2026-08-24 · 49 children · 87 rows in the subtree
+Eat rows 8 · Eat rows COMPLETED 0 · anything completed at all 1
+
+Meal Nutrition                       4 writes, every value onDay=0 offDay=0
+Nutrition: Today's Micronutrients   16 writes, every value onDay=0 offDay=0
+```
+**Both trackers summed ZERO on the built day and zero on the empty day** — nothing
+can move from 0 to 0, so "does it follow the filter" was unanswerable. The
+exporter simply ran on a day the user had ticked nothing; the Eat rows already
+carry their macros. **And both failures were `moved: 0`, not `wrote: 0`** — reading
+the ASSERTION that failed rather than the test's name is what solved it, after I
+first went looking for a renamed or disabled op.
+
+That is 2026-08-20 (6) inverted (*"any test whose premise is 'this column starts
+empty' is a coin flip on export timing"*), and it takes the same remedy: **the
+harness now constructs the condition it measures** — it ticks the built day's Eat
+rows itself, at BOTH dates so the only difference between the sweeps is still the
+filter, with a **new control asserting the tick landed**. A setup that silently
+matched nothing would put every assertion straight back at the mercy of the
+exporter's clock. A/B'd: breaking the matcher fails 3 — the control AND both
+tracker tests.
+
+**3,448 client tests, 285 files, 0 failures — the first fully green client run
+since 2026-08-25.** 1,874 server tests.
+
+**WHAT WAS DELIBERATELY NOT "FIXED", each with its reason.** `sweepOrphans`
+REFUSED test grid 2's 3 module-less occurrences — *"has field values, a parent
+lists it"* — which is the guard working, not a failure; a reseed is the user's
+call on the seed's own target grid. test grid 1's 6 unsigned template nodes are
+the frozen ARCHIVE, left alone on purpose since 2026-07-31 (4). The 34
+`unused-field` warnings are the deliberate palette fields. **poms grid ends at
+0 errors.**
+
+**AND ONE REAL PROBLEM REPORTED RATHER THAN ACTED ON, because it is a retention
+decision and not a bug fix.** The transaction log is **87.7 MB — twice the size
+of the grid itself** — and growing without bound:
+```
+37,840 documents across 49.6 days
+  prunable (sequenced / SnapshotOp)     812
+  NEVER pruned (unsequenced MeasureOp) 37,028   ~746/day  -> ~272,000/year
+```
+`pruneLater` keeps `KEEP_PER_GRID = 200` and prunes by `sequence` — which **only
+SnapshotOps carry** — so MeasureOps accumulate for ever. Grepped both readers
+before proposing anything: the history panel (`limit 100`) and the undo stack
+(SnapshotOps only). **No tracker or aggregation reads the transaction log** — they
+walk `$allItems` live — so a retention window is functionally safe. It would still
+delete 37k records of the user's own activity, so the window is theirs to pick.
+
+---
+
 ### 2026-08-27 (4) — EVERY WRITE `$set` MONGO'S `_id`, AND THE REJECTED WRITE LOST THE EDIT
 
 User: *"chase it"* — the four `update_occurrence` errors in prod's log that the
