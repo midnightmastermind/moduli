@@ -778,7 +778,16 @@ export async function buildProjectTemplate({
   await new Module({
     id: tplProjectKanbanModId, userId, gridId,
     role: "container", kind: "board", label: "Kanban",
-    meta: { templateModule: true },
+    // WITHOUT THIS THE SIX COLUMNS DO NOT RENDER. A board container draws its
+    // children from `occurrences[]`, and `ModuleContainer` draws child
+    // CONTAINERS only when the module says so — the same flag whose absence
+    // read as "you got rid of my trackers" (2026-07-31 (2)). The columns are
+    // containers, so the kanban has always needed it and never had it: the
+    // template, and every project ever cloned from it, rendered an EMPTY board
+    // that offered "Add new item". Found by rendering one (2026-08-28 (5)).
+    // Measured on poms grid: 22 board containers holding containers carry the
+    // flag, and the only 3 that did not were these kanbans.
+    meta: { templateModule: true, allowChildContainers: true },
   }).save();
 
   // ── 6 kanban column container modules ─────────────────────────────────────

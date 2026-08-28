@@ -32,6 +32,46 @@ export function signatureOf(occ) {
   return occ?.identitySignature || (occ?.id ? `auto:${occ.id}` : null);
 }
 
+
+/**
+ * Rewrite a cloned node's embedded child references to point at the CLONES.
+ *
+ * A doc page renders its children through `moduleEmbed` / `instanceTextblock` /
+ * `instancePill` nodes in its OWN textmap, keyed by the child's `occurrenceId`
+ * (and `instanceId` = the child's module id). `walk` below regenerates
+ * `occurrences[]` with fresh ids but carried the textmap over verbatim — so a
+ * cloned page kept pointing at the TEMPLATE's children and rendered the
+ * template's content, or nothing at all.
+ *
+ * THIS IS THE TWIN OF `remapEmbeddedRefs` in the client's APPLY_TEMPLATE
+ * (`client/src/helpers/operationActions.js`), which has done this since it was
+ * written. The two clone paths had drifted: everything that clones through the
+ * SERVER — `apply_template`, `clone_subtree_as_template`, `save_over_template`,
+ * the v1 API route and any migration — produced pages whose embeds named the
+ * source's children. Found by rendering a freshly cloned project page and
+ * getting nothing (2026-08-28 (5)).
+ *
+ * Depth-first order is what makes it work: children are cloned before their
+ * parent's textmap is built, so both maps are complete by the time a parent
+ * needs them. Mutates a COPY — never the source textmap, which is shared.
+ */
+export function remapEmbeddedRefs(textmap, occRemap, modRemap) {
+  if (textmap == null || (occRemap.size === 0 && modRemap.size === 0)) return textmap;
+  const out = JSON.parse(JSON.stringify(textmap));
+  const walk = (node) => {
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (!node || typeof node !== "object") return;
+    const a = node.attrs;
+    if (a && typeof a === "object") {
+      if (a.occurrenceId && occRemap.has(a.occurrenceId)) a.occurrenceId = occRemap.get(a.occurrenceId);
+      if (a.instanceId && modRemap.has(a.instanceId)) a.instanceId = modRemap.get(a.instanceId);
+    }
+    if (Array.isArray(node.content)) node.content.forEach(walk);
+  };
+  walk(out);
+  return out;
+}
+
 /**
  * Clone a subtree rooted at `rootOccurrenceId`. For each node:
  *   - mint new module (carries over module fields; optional metaPatch)
@@ -60,6 +100,9 @@ export async function cloneSubtree({
   persist = mongoPersist,
 }) {
   const created = { occurrenceIds: [], moduleIds: [] };
+  // Filled as each node is cloned; read when a parent's textmap is rebuilt.
+  const occRemap = new Map();   // source occurrence id → clone id
+  const modRemap = new Map();   // source module id     → clone id
 
   async function walk(occId, parentId, isRoot) {
     const src = uc.occurrencesById[occId];
@@ -96,6 +139,7 @@ export async function cloneSubtree({
     if (isRoot && rootLabel) newMod.label = rootLabel;
     delete newMod._id;
     uc.modulesById[cloneModId] = newMod;
+    modRemap.set(src.moduleId, cloneModId);
     await persist.saveModule(newMod);
     created.moduleIds.push(cloneModId);
 
@@ -105,12 +149,17 @@ export async function cloneSubtree({
       if (childClone) childIds.push(childClone);
     }
 
+    occRemap.set(src.id, cloneOccId);
     const newOcc = {
       ...src,
       id: cloneOccId,
       moduleId: cloneModId,
       parentId,
       occurrences: childIds,
+      // Point the clone's embeds at the CLONES. Children are already walked at
+      // this point, so both maps are complete. Without this a cloned doc page
+      // renders the SOURCE's children, or an `embed: <uuid>` box.
+      textmap: remapEmbeddedRefs(src.textmap, occRemap, modRemap),
       meta: { ...(src.meta || {}), ...(isRoot ? occMetaPatch : {}) },
     };
     if (stampSignatures) newOcc.identitySignature = signatureOf(src);
