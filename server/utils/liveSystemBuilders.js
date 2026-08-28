@@ -735,6 +735,48 @@ export async function buildDayPageTemplate({
   return tplDayPageRootOccId;
 }
 
+// A scope section's identity key, derived from its LABEL.
+//
+// EXPORTED because two places mint these signatures — this builder (a fresh
+// grid) and the migration that restructures the scope on existing grids — and
+// `identitySignature` is what APPLY_TEMPLATE's merge matches on. Two spellings
+// of the same section would make a migrated grid and a seeded one disagree
+// about what "the Overview section" is, which is exactly the twin drift this
+// file keeps paying for.
+export function scopeSectionKey(label) {
+  return String(label || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+// ── Project kanban layout ────────────────────────────────────────────────────
+// How the Kanban container arranges its six columns. EXPORTED so the seed and
+// the migration that carries this to existing grids read one definition — the
+// twin rule this file keeps paying for when the two halves are written
+// separately.
+//
+// User, 2026-08-28: *"columns going across fixed height, no wrap"* and *"make
+// the container a certain min width with scroll for layout"*. `flex-row` is the
+// existing cascade vocabulary (PageBoard has laid the Schedule's day columns
+// out with it since 2026-07-31; `layoutToSurfaceShape` already maps the Layout
+// menu's "flex, no wrap" onto it) — it was simply never CONSUMED by
+// ModuleContainer, so on a container it was inert and the columns fell to the
+// default vertical stack.
+//
+// Written to `meta.layoutCascade`, the same slot the header's Layout menu
+// writes, so the user can change any of this in-app afterwards and their choice
+// replaces it rather than fighting an op.
+export const PROJECT_KANBAN_LAYOUT = Object.freeze({
+  mode: "flex-row",
+  childGap: 10,
+  // A column is a fixed width so the board reads as columns rather than as
+  // whatever fits; the row overflows into a horizontal scroll instead of
+  // squashing them. min === max here on purpose — a kanban's columns are even.
+  childMinWidth: 260,
+  childMaxWidth: 260,
+  // FIXED HEIGHT: the board keeps one baseline however many cards a column
+  // holds, and a full column scrolls inside itself.
+  childMaxHeight: 420,
+});
+
 // ── Project template ─────────────────────────────────────────────────────────
 // User-defined template subtree for kanban-style project pages. The
 // shape mirrors the Day Page template: real modules + occurrences in
@@ -745,13 +787,15 @@ export async function buildDayPageTemplate({
 // every future Project: Create from it picks up the edits.
 //
 // Layout:
-//   Project: {ProjectName}     (role:page, kind:doc)
-//     ├─ Kanban                (role:container, kind:board)
-//     │   ├─ Backburner / Docket / Working On / In Review / Test / Complete
-//     │   │   (role:container, kind:list — each carries identitySignature
-//     │   │    so APPLY_TEMPLATE merge mode doesn't dupe columns on re-apply)
-//     └─ Project Scope         (role:textblock, kind:doc)
-//        textmap: H1 + intro paragraph using {ProjectScope} token
+//   Project: {ProjectName}       (role:page, kind:doc)
+//     ├─ Project Scope         (role:container, kind:doc)
+//     │   ├─ Overview          (role:container, kind:doc)
+//     │   │   └─ textblock     {ProjectScope} token
+//     │   ├─ Goals / Milestones / Risks / Success Criteria — same shape
+//     └─ Kanban                (role:container, kind:board)
+//         ├─ Backburner / Docket / Working On / In Review / Test / Complete
+//             (role:container, kind:board — each carries identitySignature
+//              so APPLY_TEMPLATE merge mode doesn't dupe columns on re-apply)
 //
 // Returns the root template occurrence id so callers can reference it
 // in operation cfg.templateId.
@@ -817,13 +861,79 @@ export async function buildProjectTemplate({
     }).save();
   }
 
-  // ── Project scope textblock module ────────────────────────────────────────
+  // ── Project scope: doc container → doc container → textblock ──────────────
+  // User, 2026-08-28: *"make the project scope textblocks fit our doc container
+  // -> doc container -> textblock type schema. instead of one big textblock"*.
+  //
+  // It used to be ONE `role:"textblock"` occurrence carrying eleven nodes — an
+  // H1, then five H2 headings each followed by its body. That is a document
+  // pretending to have structure: the sections were HEADINGS, so nothing could
+  // address one. As containers they are real occurrences — each can be
+  // reordered, styled, filtered, embedded elsewhere, or given fields — which is
+  // the shape the rest of the grid already uses (Journal → Daily Question →
+  // the answer textblock).
+  //
+  // THE HEADINGS ARE GONE ON PURPOSE, not lost: a container renders its own
+  // label as its header, so keeping the H2 would print every section title
+  // twice. The H1 goes for the same reason one level up — the page is already
+  // titled "Project: <name>".
+  const PROJECT_SCOPE_SECTIONS = [
+    // `body` is the section's textmap content. Overview carries the
+    // {ProjectScope} token APPLY_TEMPLATE replaces at instantiation.
+    { label: "Overview", body: [
+      { type: "paragraph", content: [{ type: "text", text: "{ProjectScope}" }] },
+    ]},
+    { label: "Goals", body: [
+      { type: "bulletList", content: [
+        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Goal 1" }] }] },
+        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Goal 2" }] }] },
+      ]},
+    ]},
+    { label: "Milestones", body: [
+      { type: "bulletList", content: [
+        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "M1" }] }] },
+      ]},
+    ]},
+    { label: "Risks", body: [
+      { type: "paragraph", content: [{ type: "text", text: "—" }] },
+    ]},
+    { label: "Success Criteria", body: [
+      { type: "paragraph", content: [{ type: "text", text: "—" }] },
+    ]},
+  ];
+
   const tplProjectScopeModId = uid();
   await new Module({
     id: tplProjectScopeModId, userId, gridId,
-    role: "textblock", kind: "doc", label: "Project Scope",
-    meta: { templateModule: true },
+    role: "container", kind: "doc", label: "Project Scope",
+    // The five sections are CONTAINERS, and a container renders child
+    // containers only when its module says so — the flag whose absence kept the
+    // kanban blank for its whole life (2026-08-28 (5)). Stated here rather than
+    // discovered there a second time.
+    meta: { templateModule: true, allowChildContainers: true },
   }).save();
+
+  const tplScopeSecModIds = {};
+  const tplScopeSecOccIds = {};
+  const tplScopeBodyModIds = {};
+  const tplScopeBodyOccIds = {};
+  for (const sec of PROJECT_SCOPE_SECTIONS) {
+    const key = scopeSectionKey(sec.label);
+    tplScopeSecModIds[key]  = uid();
+    tplScopeSecOccIds[key]  = uid();
+    tplScopeBodyModIds[key] = uid();
+    tplScopeBodyOccIds[key] = uid();
+    await new Module({
+      id: tplScopeSecModIds[key], userId, gridId,
+      role: "container", kind: "doc", label: sec.label,
+      meta: { templateModule: true },
+    }).save();
+    await new Module({
+      id: tplScopeBodyModIds[key], userId, gridId,
+      role: "textblock", kind: "doc", label: sec.label,
+      meta: { templateModule: true },
+    }).save();
+  }
 
   // ── Occurrences ───────────────────────────────────────────────────────────
   // Top-down: root → kanban → columns (empty), then scope textblock.
@@ -858,14 +968,52 @@ export async function buildProjectTemplate({
     parentId: tplProjectPageOccId,
     identitySignature: "project:Kanban",
     iteration: { mode: "persistent" }, fields: {},
+    // Columns across, fixed height, no wrap — see PROJECT_KANBAN_LAYOUT.
+    meta: { layoutCascade: { ...PROJECT_KANBAN_LAYOUT } },
     occurrences: PROJECT_KANBAN_COLS.map(c => tplKanbanColOccIds[c.key]),
   });
 
-  // Project scope textblock — H1 + skeleton sections + {ProjectScope}
-  // placeholder. APPLY_TEMPLATE's `replacements` cfg swaps tokens at
-  // instantiation; everything else (the section headings + structure)
-  // is preserved so every new project page lands with a scope skeleton
-  // ready to fill in.
+  // Project scope — the container tree described above. Built bottom-up so a
+  // parent is only ever written once its children exist.
+  //
+  // EVERY NODE IS SIGNED. `identitySignature` is what APPLY_TEMPLATE's merge
+  // mode matches on, and signing a node WITHOUT signing its subtree just moves
+  // the duplication one level down — the 23-duplicate-wrappers bug of
+  // 2026-07-31 (3), which cost a migration to clean up.
+  for (const sec of PROJECT_SCOPE_SECTIONS) {
+    const key = scopeSectionKey(sec.label);
+    await mkOcc({
+      id: tplScopeBodyOccIds[key],
+      moduleId: tplScopeBodyModIds[key],
+      targetId: tplScopeBodyModIds[key], targetType: "module",
+      parentId: tplScopeSecOccIds[key],
+      identitySignature: `projectScope:${key}/body`,
+      iteration: { mode: "persistent" }, fields: {},
+      textmap: { type: "doc", content: sec.body },
+      occurrences: [],
+    });
+    await mkOcc({
+      id: tplScopeSecOccIds[key],
+      moduleId: tplScopeSecModIds[key],
+      targetId: tplScopeSecModIds[key], targetType: "module",
+      parentId: tplProjectScopeOccId,
+      identitySignature: `projectScope:${key}`,
+      iteration: { mode: "persistent" }, fields: {},
+      // A doc container renders its TEXTMAP, not its child list — listing the
+      // body without embedding it is the "present in the data, invisible on
+      // screen" class this file has repaired from six directions. A TEXTBLOCK
+      // child is embedded with `instanceTextblock` (a CONTAINER child uses
+      // `moduleEmbed`); `instanceId` is the module id.
+      textmap: { type: "doc", content: [
+        { type: "instanceTextblock", attrs: {
+          instanceId: tplScopeBodyModIds[key],
+          occurrenceId: tplScopeBodyOccIds[key],
+        }},
+      ]},
+      occurrences: [tplScopeBodyOccIds[key]],
+    });
+  }
+
   await mkOcc({
     id: tplProjectScopeOccId,
     moduleId: tplProjectScopeModId,
@@ -873,44 +1021,28 @@ export async function buildProjectTemplate({
     parentId: tplProjectPageOccId,
     identitySignature: "project:Project Scope",
     iteration: { mode: "persistent" }, fields: {},
-    textmap: {
-      type: "doc",
-      content: [
-        { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Project Scope — {ProjectName}" }] },
-        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Overview" }] },
-        { type: "paragraph", content: [{ type: "text", text: "{ProjectScope}" }] },
-        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Goals" }] },
-        { type: "bulletList", content: [
-          { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Goal 1" }] }] },
-          { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Goal 2" }] }] },
-        ]},
-        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Milestones" }] },
-        { type: "bulletList", content: [
-          { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "M1" }] }] },
-        ]},
-        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Risks" }] },
-        { type: "paragraph", content: [{ type: "text", text: "—" }] },
-        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Success Criteria" }] },
-        { type: "paragraph", content: [{ type: "text", text: "—" }] },
-      ],
-    },
-    occurrences: [],
+    textmap: { type: "doc", content: PROJECT_SCOPE_SECTIONS.map(sec => (
+      { type: "moduleEmbed", attrs: { occurrenceId: tplScopeSecOccIds[scopeSectionKey(sec.label)] } }
+    ))},
+    occurrences: PROJECT_SCOPE_SECTIONS.map(sec => tplScopeSecOccIds[scopeSectionKey(sec.label)]),
   });
 
-  // Root project page occurrence — its `occurrences[]` lists kanban
-  // first, then the scope textblock. textmap embeds them in the same
-  // order so the rendered doc body reads kanban → scope.
+  // Root project page occurrence — SCOPE FIRST, then the kanban (user,
+  // 2026-08-28: *"switch the kan ban and project scope around"*). `occurrences[]`
+  // and the textmap are written in the SAME order: a doc page renders its
+  // textmap, and letting the two disagree is how a child ends up listed but not
+  // drawn.
   await mkOcc({
     id: tplProjectPageOccId,
     moduleId: tplProjectPageModId,
     targetId: tplProjectPageModId, targetType: "module",
     parentId: tplManifestRootFolderId,
-    occurrences: [tplProjectKanbanOccId, tplProjectScopeOccId],
+    occurrences: [tplProjectScopeOccId, tplProjectKanbanOccId],
     textmap: {
       type: "doc",
       content: [
-        { type: "moduleEmbed", attrs: { occurrenceId: tplProjectKanbanOccId } },
         { type: "moduleEmbed", attrs: { occurrenceId: tplProjectScopeOccId } },
+        { type: "moduleEmbed", attrs: { occurrenceId: tplProjectKanbanOccId } },
       ],
     },
     meta: { templateName: "Project Page", templateModule: true },

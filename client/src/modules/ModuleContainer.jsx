@@ -43,6 +43,7 @@ import AutoMarquee from "../ui/AutoMarquee.jsx";
 import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
 import { buildLayoutCascadeContext, resolveLayoutCascade } from "../helpers/layoutCascade";
+import { resolveContainerChildLayout } from "../helpers/containerChildLayout";
 
 // Embedded-container header font size by section-hierarchy level (meta.headingLevel).
 // 1 = article title (H1) … 6. Smaller + cascading; containers without a level
@@ -709,31 +710,15 @@ function Container({
   // a new per-container flag, so the Trackers PAGE can set it once and every
   // container under it follows — and so the existing Layout menu already edits
   // it. `childMinWidth` doubles as the square's side.
-  const childWrap = layoutCascade?.resolved?.mode === "wrap";
-  const childW = Number.isFinite(layoutCascade?.resolved?.childMinWidth) && layoutCascade.resolved.childMinWidth > 0
-    ? layoutCascade.resolved.childMinWidth
-    : 132;
-  // THE TILE'S MAX WIDTH — user, 2026-08-25: *"make the media tiles have a max
-  // width and layout row with wrap"*. `childMaxWidth` was a declared cascade
-  // key (the Layout menu offers it as "Col max width") that only PageBoard ever
-  // read, so on a container's wrap tiles it was INERT — set it and nothing
-  // moved. It is published now, and its DEFAULT is `100%` rather than the fixed
-  // `--child-w`: a tile is a fixed width so the grid lines up in columns, but a
-  // 150px tile inside a narrower column used to overflow it rather than shrink.
-  // Capping at 100% is what makes "max width" true at every panel width.
-  const childMaxW = Number.isFinite(layoutCascade?.resolved?.childMaxWidth) && layoutCascade.resolved.childMaxWidth > 0
-    ? `${layoutCascade.resolved.childMaxWidth}px`
-    : "100%";
-  const childGap = Number.isFinite(layoutCascade?.resolved?.childGap) && layoutCascade.resolved.childGap >= 0
-    ? layoutCascade.resolved.childGap
-    : 8;
-  // The tile's HEIGHT CAP — its own value, not derived from the width (user
-  // 2026-08-11: "not width. height"). Read from `childMaxHeight`, a cascade key
-  // that already exists and is already in the Layout menu, so this is
-  // configurable rather than a hardcoded number.
-  const childH = Number.isFinite(layoutCascade?.resolved?.childMaxHeight) && layoutCascade.resolved.childMaxHeight > 0
-    ? layoutCascade.resolved.childMaxHeight
-    : 200;
+  // HOW THIS CONTAINER ARRANGES ITS OWN CHILDREN — stack (the default), `wrap`
+  // (a wrapping grid of tiles) or `flex-row` (a NON-wrapping row that scrolls
+  // horizontally: kanban columns). All three read the same layout-cascade keys
+  // the Layout menu already edits, so a page can state it once and every
+  // container under it follows. The decision lives in a pure helper because
+  // mounting this component needs the whole grid store, and the per-mode
+  // defaults it picks are exactly where a bug would hide.
+  const childLayout = resolveContainerChildLayout(layoutCascade?.resolved);
+
   // HOW EACH CHILD COMPOSES ITSELF — title above its fields, or beside them.
   // A CONTAINER decides this for its DIRECT children (a CSS custom property
   // reaches exactly one level, which is the scope we want — it is not a
@@ -1746,7 +1731,7 @@ function Container({
             role="list"
             aria-label={`${module.label || "Container"} items`}
             className={"container-items"
-              + (childWrap ? " container-items--wrap" : "")
+              + (childLayout.className ? ` ${childLayout.className}` : "")
               // The TILE shape: picture on top, then title, then fields.
               // A class as well as the CSS vars because the rest of the
               // shape is selector work — the media block has to move ABOVE
@@ -1766,7 +1751,9 @@ function Container({
               // existing Layout menu already edits it. The two numbers ride as
               // CSS vars because the rest of the shape (aspect ratio, hiding the
               // between-item insert gaps) is CSS.
-              ...(childWrap ? { "--child-w": `${childW}px`, "--child-max-w": childMaxW, "--child-h": `${childH}px`, "--child-gap": `${childGap}px` } : null),
+              // Per-mode CSS vars (null for stack, so an unconfigured
+              // container is byte-identical to before).
+              ...(childLayout.vars || null),
               ...(childContentDir === "column"
                 ? {
                     "--instance-content-direction": "column",

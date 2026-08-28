@@ -5413,6 +5413,54 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 /* ── Container children as a WRAPPING GRID of squares ─────────────────────
    Opt-in via the layout cascade (`mode: "wrap"`), so a page sets it once and
    its containers follow. `--child-w` doubles as the square's side.          */
+/* A NON-WRAPPING ROW that scrolls horizontally — kanban columns (user,
+   2026-08-28: *"columns going across fixed height, no wrap"* / *"make the
+   container a certain min width with scroll for layout"*).
+
+   This is `wrap`'s opposite on exactly one axis, and the difference is the
+   whole feature: a wrap tile flows onto the next line, a kanban column must
+   not. `flex-wrap: nowrap` + `overflow-x: auto` is the same pairing PageBoard
+   has always used for the Schedule's day columns — the row sizes to its
+   content and the overflow becomes a horizontal scroll rather than a second
+   line. */
+.container-items--row {
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: flex-start;
+  gap: var(--child-gap, 12px);
+  overflow-x: auto;
+  /* The COLUMNS scroll vertically inside themselves (below); the row itself
+     must not, or a tall column would produce two nested vertical scrollbars. */
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+/* Each nested CONTAINER is a column: a fixed width so the board reads as
+   columns, and a fixed height so the board keeps one baseline however many
+   cards a column holds — the column scrolls inside itself instead of
+   stretching the row. `flex: 0 0 auto` is what stops flexbox shrinking the
+   columns to fit; without it they compress instead of overflowing, and there
+   is nothing to scroll. */
+.container-items--row > .container-shell,
+.container-items--row > [data-container-id] {
+  flex: 0 0 auto !important;
+  width: var(--child-w, 280px);
+  min-width: var(--child-w, 280px);
+  max-width: var(--child-max-w, 360px);
+  height: var(--child-h, 420px);
+  max-height: var(--child-h, 420px);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+/* A LEAF child in a row-mode container (a card dropped straight onto the board
+   rather than into a column) sits beside the columns rather than stretching —
+   the same rule, without the height cap, since a card is as tall as it is. */
+.container-items--row > .instance-wrap {
+  flex: 0 0 auto;
+  width: var(--child-w, 280px);
+  max-width: var(--child-max-w, 360px);
+}
+
 .container-items--wrap {
   flex-direction: row !important;
   flex-wrap: wrap;
