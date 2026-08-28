@@ -6,6 +6,119 @@
 
 ---
 
+### 2026-08-28 (3) — TWELVE TASKS A PROBE TICKED, and the page was never broken
+
+Picked up the other account's session, which hit its limit at 10:22 one grep
+into *"did you ever find those tasks, they still arent showing up for me"*. Its
+inherited diagnosis was that the DATE filter hid them — 22 shown, 11 hidden.
+**The screen said otherwise, and that disagreement is what solved it.**
+
+**THE HARNESS AND THE BROWSER DISAGREED, AND SOCIAL IS THE DISCRIMINATOR.** The
+inherited measurement drove the real `isOccurrenceVisible` over a dump and read
+`Physical 3 shown`, `Social 5 shown`. The user's screenshot shows **Physical 1**
+and Social starting at its THIRD child. The date filter cannot produce that:
+every Social row carries no `Date` at all, so it passes for all five. What is
+skipped is exactly the two completed rows above `Text Terrell`.
+*Driving the selectors proves what the selectors do; the DOM is what the user
+has.*
+
+**THE PAGE IS WORKING AS AUTHORED, and establishing that FIRST is what stopped
+this becoming a hunt through the filter cascade.** Every dimension container
+carries its own local filter:
+```
+hide-completed-43e3jgcueai   active:true  hides:true
+  rule  $occ.fields.tZWiPDQUDP74.value IS_NOT true      (tZWiPDQUDP74 = "Completed")
+```
+and `Completed` is a feed on `Completed IS true`, holding 15 feed copies. So a
+ticked task LEAVES its dimension by design. **Measured across every backup, not
+assumed: those filters have been on all ten containers since 2026-08-22.**
+
+**THE DEFECT IS THAT TWELVE OF THEM WERE NEVER TICKED BY THE USER, and the
+backups date it to the minute:**
+```
+every snapshot 08-25 .. 08-27T15:59Z    21 rows in page,  3 dimension tasks complete
+08-28T01:25Z snapshot                   33 rows in page, 15 dimension tasks complete
+```
+All twelve flips land between **17:28Z and 19:13Z on 2026-08-27** — inside the
+probe session recorded two entries below, which hit its limit at 19:04Z. **That
+entry's own debris sweep found and restored `Text Terrell` (19:02Z) and
+`Text Shelly` (19:09Z) — THE LAST TWO ROWS IT TOUCHED.** The dozen ticked
+earlier in the same session were never audited. Two independent probe signatures
+confirm the shape: `Text Shelly` toggled **eight times at ~2-minute intervals**
+that evening, `Organize files` the same way on 08-22 and 08-23.
+
+*A probe that edits is a probe that can damage — and a debris sweep that only
+checks the rows you remember touching is a sweep of your memory, not of the grid.*
+
+**`actionId` LOOKS LIKE THE DISCRIMINATOR AND IS NOT, which cost a pass.** A
+user gesture mints an action id and a derived write does not (`derived =
+!actionId`), so `actionId: null` reads as *"an op did this"*. But these are
+**MeasureOps, and a MeasureOp carries no `actionId` at all** — the null is a
+property of the RECORD TYPE. Every flip on the grid reads null, the user's own
+included. *A field that is constant across both arms cannot separate them* —
+the same shape as the `createdAt` probe that could not work (2026-08-27 (4)).
+
+**THREE INDEPENDENT CONDITIONS GATE EVERY RESTORE (`0273`), and any row failing
+one is KEPT and REPORTED:** the pre-damage snapshot says the row was not
+complete, the row is complete NOW, and `fieldUpdatedAt[Completed]` falls inside
+the window. **The third is the one that matters** — it protects a task the user
+has genuinely ticked SINCE, whose value would otherwise look identical to the
+damage. Deleting a real completion to tidy a report is the damage, not the fix.
+
+**IT RESTORES RATHER THAN CLEARS.** An absent key is `$unset`; a stored `false`
+is written back as `false`. Clearing both alike would erase the difference
+between *never touched* and *explicitly un-ticked*, which is a live distinction
+here — `Text Shelly` carries a deliberate `false` from the previous sweep.
+
+**ONE ROW THE SNAPSHOT MISSES BY SIX MINUTES, and the guard correctly refused to
+guess.** `Appointment with Physical Therapist` was created at 16:05:01Z, after
+the 15:59:02Z snapshot, so the snapshot has nothing to say about it. The pruned
+transaction log states its prior value outright:
+```
+17:09:24Z  Date, Location, Type, Time Slot, 60m set    — no Completed
+17:32:58Z  tZWiPDQUDP74 = true   prev=undefined        <- the tick
+17:34:03Z  "Completed On" = 2026-08-27                 <- the op's stamp
+```
+So it gets an **explicitly-cited exception rather than the guard being loosened
+for everything** — a strict guard with one documented exception is auditable, a
+widened one is not, and three tests pin that the exception bypasses NEITHER of
+the other two guards. (Its `Date` is 2026-08-28: marked complete the day BEFORE
+the appointment, which is its own tell.)
+
+**THE FEED COPIES NEED NO PASS OF THEIR OWN.** `Completed` is a materialized
+feed and `feedSync` is a scan-based self-healing diff, so a copy whose source
+stops matching is swept on the next client load. Minting a removal here would
+fight the engine that already owns it — the 2026-08-13 lesson about pushing into
+a feed's `occurrences[]`.
+
+**Read back out of Mongo rather than off the log:**
+```
+                 before -> after (visible)
+Physical            1  ->  4      Emotional   0 -> 3     Social  2 -> 5
+Environmental       0  ->  2      Paul's Web  0 -> 1
+33 rows in the page, unchanged · 0 rows carrying a `Completed On` with no `Completed`
+KEPT: Talk to Angela · Psych appointment · Sign up for foodstamps  (complete BEFORE the window)
+```
+A forced re-run reports *"already converged"*. 16 tests, **each guard A/B'd —
+the window guard fails exactly 3, already-complete 2, snapshot-absent 1**, and
+the CONTROL (a mixed set of probe rows, a since-ticked row, an already-complete
+row and an untouched one) separates cleanly. 1,922 server tests, poms grid **0
+errors** with the one documented `unused-field` warning, pm2 restarted.
+
+**THE QUEUED GRAPH ITEM ONE ENTRY BELOW IS BUILT, and that note is now stale.**
+`0e583eca` gave `ModuleContainer`'s header dropdown the same `MenuTabs`
+structure the page already had (Filter / Sort / Data / Fields / Layout) and
+moved `GraphSection` out of it into the graph occurrence's own settings sheet
+(`ContainerForm`, a 4th "Chart" tab gated on `kind === "graph"`), at the user's
+instruction. Deployed and prod HEAD verified this session.
+
+**No client code changed here, so no bundle is owed** — `git diff --name-only`
+against prod HEAD is two server paths (the 2026-08-13 (3) rule). The **pm2
+restart is still owed and was done**, because the warm cache is authoritative
+for reads and would otherwise re-serve the ticked rows.
+
+---
+
 ### 2026-08-28 (2) — "NONE OF MY DOCUMENTS ARE SHOWING UP": a folder with no CARD is invisible
 
 User, on the live grid. Nothing was lost — and the shape of the report is what
