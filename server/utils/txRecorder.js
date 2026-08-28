@@ -64,6 +64,43 @@ function meaningfulJson(doc) {
 // is for undo + a readable trail, not an archive.
 const KEEP_PER_GRID = 200;
 
+// ── AND THE HISTORY-ONLY TRANSACTIONS NEED THEIR OWN RETENTION ─────────────
+//
+// The cap above prunes by `sequence`, which ONLY the snapshot transactions this
+// file writes ever carry. `MeasureOp` rows — written by the occurrence handler
+// on every field change — have none, so the prune could never see them and they
+// accumulated for ever. Measured on poms grid 2026-08-28:
+//
+//     37,840 transactions across 49.6 days · 87.7 MB   (the grid itself is 43 MB)
+//       prunable (sequenced)                    812
+//       NEVER pruned (unsequenced MeasureOp) 37,028   ~746/day -> ~272,000/year
+//
+// The predicate is "carries no `docs`" rather than `type: "MeasureOp"`, because
+// what actually matters is that the undo stack can never use it — `STACK_FILTER`
+// (socketHandlers/transactions.js) requires a non-empty `docs`. Keying on the
+// capability rather than on a type name means a future doc-less transaction type
+// is covered without anyone remembering to add it.
+//
+// SAFE BECAUSE NOTHING COMPUTES FROM THEM, grepped rather than assumed: the only
+// readers are the history panel (`get_transactions`, limit 100) and the undo
+// stack (snapshots only). Trackers and aggregations walk `$allItems` live.
+//
+// A WINDOW ALONE DOES NOT BOUND IT, which the distribution says outright.
+// Measured 2026-08-28 on a 31,285-row collection:
+//
+//     older than  1 day   22,547        <- so 8,738 rows landed in ONE day
+//     older than  3 days   4,986        <- 17,561 of them are 1-3 days old
+//     older than  7 days   3,373
+//     older than 30 days       0
+//
+// The long-run average is ~746/day; an ACTIVE day is 8,000-22,000. A period is a
+// promise about how far back the trail reaches, and on a quiet week it prunes
+// nothing while a single busy day adds 20,000 rows. So there are two limits and
+// the tighter one wins: the window states the retention promise, the per-grid
+// cap bounds a burst. Each is one number.
+const KEEP_HISTORY_DAYS = 7;    // the user's call, 2026-08-28: "do it after a week"
+const KEEP_HISTORY_PER_GRID = 1000;
+
 /** actionId -> buffer */
 const buffers = new Map();
 /** `${userId}:${gridId}` -> last allocated sequence (seeded lazily from the DB) */
@@ -351,6 +388,21 @@ function describeDocs(docs) {
   return `${docs.length} changes`;
 }
 
+/**
+ * A transaction the undo stack can never use: no `docs` to restore. Mirrors
+ * `STACK_FILTER` in socketHandlers/transactions.js — the two must agree, or the
+ * prune would delete something Ctrl+Z still needs.
+ */
+export const HISTORY_ONLY = { $or: [{ docs: { $exists: false } }, { docs: { $size: 0 } }] };
+
+/** The oldest timestamp worth keeping for the readable trail. */
+export function historyCutoff(now = Date.now()) {
+  return new Date(now - KEEP_HISTORY_DAYS * 86400000);
+}
+
+/** How many history-only rows a grid keeps regardless of age. */
+export const HISTORY_CAP = KEEP_HISTORY_PER_GRID;
+
 let pruneTimer = null;
 function pruneLater(userId, gridId) {
   if (pruneTimer) return;
@@ -361,6 +413,23 @@ function pruneLater(userId, gridId) {
         .sort({ sequence: -1 }).skip(KEEP_PER_GRID).select({ sequence: 1 }).lean();
       if (cutoff?.sequence) {
         await Transaction.deleteMany({ userId, gridId, sequence: { $lte: cutoff.sequence } });
+      }
+      // History-only rows age out instead of accumulating for ever. Scoped to
+      // (user, grid) like the cap above, so one grid never prunes another's.
+      await Transaction.deleteMany({
+        userId, gridId,
+        timestamp: { $lt: historyCutoff() },
+        ...HISTORY_ONLY,
+      });
+      // …and a per-grid cap, because a single busy day can add 20,000 rows and
+      // the window would not touch them for a fortnight. Same shape as the
+      // sequence cap above: find the Nth newest, delete from there down.
+      const histCut = await Transaction.findOne({ userId, gridId, ...HISTORY_ONLY })
+        .sort({ timestamp: -1 }).skip(KEEP_HISTORY_PER_GRID).select({ timestamp: 1 }).lean();
+      if (histCut?.timestamp) {
+        await Transaction.deleteMany({
+          userId, gridId, timestamp: { $lte: histCut.timestamp }, ...HISTORY_ONLY,
+        });
       }
     } catch { /* pruning is housekeeping — never surface it */ }
   }, 5000);
