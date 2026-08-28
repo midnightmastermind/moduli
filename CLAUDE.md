@@ -6,6 +6,97 @@
 
 ---
 
+### 2026-08-27 (4) — EVERY WRITE `$set` MONGO'S `_id`, AND THE REJECTED WRITE LOST THE EDIT
+
+User: *"chase it"* — the four `update_occurrence` errors in prod's log that the
+deploy check turned up. Root-caused, reproduced, fixed, deployed.
+
+**THE STACK NAMED THE LINE AND THE CODE EXPLAINED ITSELF.**
+`loadUserIntoCache` stores `{ ...leanDoc, id }` (`server.js:344`) and a lean
+document carries `_id`. The write handlers build
+`next = { ...cachedDoc, ...clientPayload }` and hand `next` to
+`findOneAndUpdate` **as the update** — Mongoose casts a plain object to `$set`,
+so **every occurrence and module write was `$set`ting `_id`**:
+```
+update_occurrence error: MongoServerError: Plan executor error during
+findAndModify :: caused by :: Performing an update on the path '_id' would
+modify the immutable field '_id'          (code 66, ImmutableField)
+  at Socket.<anonymous> (server/socketHandlers/occurrences.js:377)
+```
+**Inert while the cached `_id` matches, and the moment they diverge Mongo
+rejects the ENTIRE write — the user's edit is LOST**, because the handler throws
+before the parent `$push` and everything after it. The same class the E11000
+fallback three lines below already guards against.
+
+**REPRODUCED IN ISOLATION BEFORE ANYTHING WAS CHANGED**, against a scratch
+database that was dropped afterwards — same code and message as prod:
+```
+dbDoc carries _id  -> ImmutableField (code 66)
+_id stripped       -> WROTE OK
+```
+**And my first repro proved nothing:** it used the raw driver, which rejects a
+non-atomic update outright, so BOTH arms failed with the same error. It has to
+go through `$set` the way Mongoose does. *An A/B whose arms fail identically is
+a broken probe, not a result.*
+
+**TWO HYPOTHESES DIED, AND THE THIRD IS THE KEEPER.** Duplicate documents
+sharing one app id: impossible, `id_1` is UNIQUE, 0 duplicates collection-wide.
+Undo writing a stale `_id` back through `patchCache`: 400 stored snapshots
+examined, **0 carry `_id`** — because **`txRecorder.js:80` already documents this
+exact hazard** (*"`_id`/`__v` stripped: `$set: { _id }` on restore is rejected by
+Mongo"*) and strips it. *The undo path learned this lesson; the write path never
+did.*
+
+**FIXED AT THE ROOT AND ONE LAYER OUT, because they cover different inputs.**
+The cache loader no longer stores `_id` — one place, every consumer, cannot be
+forgotten by a call site that does not exist yet. The occurrence and module
+handlers strip it from the payload too, which the loader fix CANNOT reach: **a
+tab opened before this shipped still holds `_id` from its own `full_state` and
+echoes it back on every write.** Measured, prod against local on the same data:
+```
+                  occurrences carrying _id    modules carrying _id
+prod, old code        21055 / 21055              7734 / 7734
+local, fixed              0 / 21055                 0 / 7734
+```
+Identical counts, so nothing was dropped — only `_id` went.
+
+**`Grid` IS DELIBERATELY UNTOUCHED, and that is the reason this is not a global
+strip:** a grid's identity IS its `_id`, and `update_grid` passes
+`{ _id: gridId, ... }` on purpose so an upsert creates the document with that
+id. A blanket rule would have broken grid creation.
+
+**THE TRIGGER FOR THE DIVERGENCE IS NOT ESTABLISHED, and the reason is worth
+more than the answer would have been.** `id` is unique, so a mismatch means the
+document was REPLACED. Chasing that:
+- **An ObjectId-vs-`createdAt` gap finds nothing, and the probe CANNOT work** —
+  Mongoose stamps `createdAt` on insert, so a re-inserted document gets a fresh
+  one and the gap I searched for cannot exist. Wrong instrument, not a clean zero.
+- **The `_id` mint histogram DID find something:** exactly **one** document minted
+  at `2026-08-26T21:00Z` — the same second as the first failure — a new
+  `role:instance` "Visited" under Physical > Nutrition. No mass re-insert
+  anywhere, so no restore ran.
+- **AND MY OWN "no undos, no deletes in that window" IS RETRACTED.** It read 0
+  SnapshotOps and I nearly filed it as evidence. **`pruneLater` keeps only
+  `KEEP_PER_GRID = 200` snapshots** and prunes by `sequence` — which only
+  SnapshotOps carry — so 2026-08-26's were long gone while all 30,383
+  unsequenced MeasureOps survived from July. The count is **exactly 200**, which
+  is what named it. *A zero from a capped log is a claim about the cap.*
+
+**TWO FACTS ABOUT THE SYSTEM THAT FELL OUT OF THAT, neither previously written
+down: undo can only reach back 200 transactions per grid, and MeasureOps are
+never pruned at all** (30,383 and counting, since 2026-07-28).
+
+4 tests driving the REAL handlers, **two of them controls asserting the mock
+rejects a CHANGED `_id` and accepts an unchanged one** — without those the tests
+pass against the bug. A/B'd: each handler layer fails exactly its own case.
+1,874 server tests. Deployed; prod HEAD verified, index + bundles 200, and the
+served chunks **sha256-identical to the local build — which is the check that
+matters for a SERVER-only change**: the bundle must not move. Confirmed live on
+prod afterwards: 21,055 occurrences and 7,734 modules, **0 carrying `_id`**, 647
+rows, 0 page errors.
+
+---
+
 ### 2026-08-27 (3) — UNDO WAS BROKEN A SECOND WAY: every page LOAD pushed 26 steps
 
 Picked up the other account's session, which hit its limit **one command before
