@@ -5,6 +5,7 @@ import FormInput from "./FormInput";
 import { Button } from "@/components/ui/button";
 import StyleEditor from "./StyleEditor";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import GraphSection from "./GraphSection";
 import { useGridActions } from "../GridActionsContext";
 import { getOtherOccurrences } from "../state/selectors";
 import EditorBindingSection from "./EditorBindingSection.jsx";
@@ -40,6 +41,11 @@ export default function ContainerForm({
   // Cascade context for the StyleEditor — shows what every ancestor
   // (Grid → Panel → Page) is pushing down so the user can see WHY this
   // container looks the way it does before overriding. The walk starts
+  // The chart editor lives in this sheet (the Chart tab below) rather than in
+  // the header's filter dropdown. Read off the MODULE's kind, which is what
+  // `ContainerGraph` itself switches on.
+  const isGraph = container?.kind === "graph";
+
   // from THIS container occurrence and buckets ancestors by role.
   const cascadeForContainer = useMemo(() => {
     if (!occurrence) return null;
@@ -117,10 +123,13 @@ export default function ContainerForm({
 
       {/* Tabs */}
       <Tabs defaultValue="settings">
-        <TabsList className="grid grid-cols-3 mx-2 mt-1.5 h-7">
+        {/* CHART is a fourth tab only on a graph, so the row stays 3-up for
+            every other container and nothing shifts for them. */}
+        <TabsList className={`grid ${isGraph ? "grid-cols-4" : "grid-cols-3"} mx-2 mt-1.5 h-7`}>
           <TabsTrigger value="settings" className="text-[10px]">Settings</TabsTrigger>
           <TabsTrigger value="style" className="text-[10px]">Style</TabsTrigger>
           <TabsTrigger value="fields" className="text-[10px]">Fields</TabsTrigger>
+          {isGraph && <TabsTrigger value="chart" className="text-[10px]">Chart</TabsTrigger>}
         </TabsList>
 
         {/* SETTINGS TAB */}
@@ -376,6 +385,20 @@ export default function ContainerForm({
         <TabsContent value="fields" className="max-h-[55vh] overflow-y-auto px-3 pb-2 mt-1">
           <FieldBindingsEditor module={container} />
         </TabsContent>
+
+        {/* CHART TAB — how this graph is DRAWN is a property of the occurrence,
+            not of filtering. It lived in the header dropdown, which opens from
+            `HeaderChevron` (the FILTER chevron), so every chart setting read as
+            part of the filter menu: user 2026-08-28, *"the graph config should
+            go in the graph occurances settings, not the filter dropdown."*
+            Gated on the module's kind — `ContainerGraph` renders only
+            `kind:"graph"`, so on anything else these controls configure a chart
+            nothing draws. */}
+        {isGraph && (
+          <TabsContent value="chart" className="max-h-[55vh] overflow-y-auto px-3 pb-2 mt-1">
+            <GraphSection occurrence={occurrence} />
+          </TabsContent>
+        )}
 
       </Tabs>
 

@@ -926,7 +926,10 @@ function Page({
               { id: "data",   label: "Data",   content: (
                 <>
                   <FeedSection occurrence={occurrence} />
-                  <GraphSection occurrence={occurrence} />
+                  {/* Only on a graph — `ContainerGraph`/`PageGraph` render only
+                      `kind:"graph"`, so offering chart type / label / value on
+                      any other page is configuring something nothing draws. */}
+                  {kind === "graph" && <GraphSection occurrence={occurrence} />}
                 </>
               ) },
               { id: "fields", label: "Fields", content: (

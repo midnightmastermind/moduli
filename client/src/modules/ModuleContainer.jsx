@@ -38,7 +38,7 @@ import HeaderChevron from "../ui/HeaderChevron";
 import HeaderDropdown from "../ui/HeaderDropdown";
 import FiltersSection from "../ui/FiltersSection";
 import FeedSection from "../ui/FeedSection";
-import GraphSection from "../ui/GraphSection";
+import MenuTabs from "../ui/MenuTabs";
 import AutoMarquee from "../ui/AutoMarquee.jsx";
 import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
@@ -1941,13 +1941,43 @@ function Container({
 
       {dropdownAnchor && (
         <HeaderDropdown anchorRect={dropdownAnchor} onClose={closeDropdown}>
-          <FiltersSection occurrence={containerOccurrence} />
-          <FeedSection occurrence={containerOccurrence} />
-          <GraphSection occurrence={containerOccurrence} />
-          <SortSection occurrence={containerOccurrence} />
-          <FieldVisibilitySection occurrence={containerOccurrence} />
-          <ViewModeSection occurrence={containerOccurrence} />
-          <LayoutCascadeSection occurrence={containerOccurrence} />
+          {/* TABBED, like a page's. This dropdown opens from `HeaderChevron` —
+              the FILTER chevron — and rendered every section in one flat column,
+              so sorting, feeds, fields, layout and the chart editor all read as
+              part of "the filter menu" (user 2026-08-28: *"the graph stuff is in
+              the main filter tab"* / *"that should be seperated into tabs as
+              well"*). `ModulePage` has had exactly these tabs since MenuTabs
+              landed; the container never got them.
+
+              AND THE CHART EDITOR LEFT ENTIRELY. It was rendered here
+              unconditionally, so every ordinary container offered chart type /
+              label field / value field for a chart it does not draw — *"its
+              shown when i click the filter button on a container header that
+              isnt a graph."* It now lives in ContainerForm's "Chart" tab, gated
+              on `kind === "graph"`: how a graph is drawn belongs to the
+              occurrence's settings, not to filtering. */}
+          <MenuTabs
+            tabs={[
+              { id: "filter", label: "Filter", content: <FiltersSection occurrence={containerOccurrence} /> },
+              { id: "sort",   label: "Sort",   content: <SortSection occurrence={containerOccurrence} /> },
+              { id: "data",   label: "Data",   content: (
+                <>
+                  <FeedSection occurrence={containerOccurrence} />
+                  {/* The chart editor is NOT here: it moved to ContainerForm's
+                      "Chart" tab — the occurrence's own settings sheet — because
+                      this dropdown opens from the FILTER chevron and how a graph
+                      is drawn is not a filtering concern. */}
+                </>
+              ) },
+              { id: "fields", label: "Fields", content: <FieldVisibilitySection occurrence={containerOccurrence} /> },
+              { id: "layout", label: "Layout", content: (
+                <>
+                  <ViewModeSection occurrence={containerOccurrence} />
+                  <LayoutCascadeSection occurrence={containerOccurrence} />
+                </>
+              ) },
+            ]}
+          />
         </HeaderDropdown>
       )}
       {templatesAnchor && (
