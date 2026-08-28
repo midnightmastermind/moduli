@@ -85,6 +85,20 @@ describe("alarmRingStore — a ring's identity", () => {
     expect(getAlarmRing().ringId).not.toBe(first);
   });
 
+  // THE AUDIO MUST NOT BE ABLE TO COST US THE BANNER. `alarmSound` says it is
+  // "safe to call from anywhere — the notification still shows", and the banner
+  // is now the only thing that puts Stop and Snooze on screen. If a WebAudio
+  // throw could take the ring state with it, a failed sound would leave an
+  // alarm the user cannot dismiss.
+  it("still rings VISUALLY when the sound throws", () => {
+    ringAlarm.mockImplementationOnce(() => { throw new Error("AudioContext blew up"); });
+    const sub = vi.fn();
+    subscribeAlarmRing(sub);
+    expect(() => startAlarmRing({ label: "⏰ 5 PM" })).not.toThrow();
+    expect(getAlarmRing()?.label).toBe("⏰ 5 PM");
+    expect(sub).toHaveBeenCalled();          // subscribers heard about it
+  });
+
   // WHY THE ID IS A COUNTER AND NOT `startedAt`: two rings inside one
   // millisecond would share a timestamp and read as the same ring.
   it("two rings in the same millisecond still have different ids", () => {

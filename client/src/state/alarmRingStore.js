@@ -41,8 +41,16 @@ export function startAlarmRing(alarm = {}) {
 
   _ringing = { label, startedAt: Date.now(), ringId: ++_ringSeq };
   if (_loopTimer) clearInterval(_loopTimer);
-  ringAlarm({ bursts: RING_BURSTS });
-  _loopTimer = setInterval(() => ringAlarm({ bursts: RING_BURSTS }), RING_EVERY_MS);
+  // THE AUDIO MUST NOT BE ABLE TO COST US THE BANNER. `alarmSound` promises it
+  // is "safe to call from anywhere … the notification still shows", and it
+  // returns false rather than throwing for the case it knows about (no
+  // AudioContext). But it is scheduling WebAudio nodes, and the visual path is
+  // now the one that carries Stop and Snooze onto the screen — so a throw here
+  // would silence the alarm AND hide the only way to dismiss it.
+  try { ringAlarm({ bursts: RING_BURSTS }); } catch { /* the banner still shows */ }
+  _loopTimer = setInterval(() => {
+    try { ringAlarm({ bursts: RING_BURSTS }); } catch { /* keep the loop alive */ }
+  }, RING_EVERY_MS);
   _emit();
 }
 
