@@ -52,6 +52,7 @@ import {
   makeDayPageBuildOp,
   makeProjectCreateOp,
   makeProjectStatusRouterOp,
+  makeProjectSyncToTodoOp,
   makeDayPageBuildTasksCompletedOp,
   makeStampCompletedOnOp,
   makeSchedulePlaceDatedWorkOp,
@@ -4990,7 +4991,10 @@ export async function createLiveData(userId, options = {}) {
   // at instantiation time. Mirrors the Day Page template / Daily Routine
   // pattern. Tasks aren't seeded — the user adds them after the project
   // page is minted.
-  await buildProjectTemplate({
+  // Returns the template ROOT occurrence id — `Project: Create` takes it
+  // picker-direct rather than re-finding it by a meta marker (0035 retired the
+  // marker it used to find, which left the op inert for 25 days).
+  const projectTemplateOccId = await buildProjectTemplate({
     userId, gridId, tplManifestRootFolderId, mkOcc, Module,
     statusFieldId, projectFieldId,
   });
@@ -8638,7 +8642,7 @@ export async function createLiveData(userId, options = {}) {
   // triggerType:"manual" so it only fires when the user explicitly runs
   // it (no spontaneous activity). Mirrors Day Page: Build's
   // idempotency-by-label pattern.
-  await new Operation({ ...makeProjectCreateOp({ userId, gridId, projectsFolderId }), folderId: opCategoryIds.projects }).save();
+  await new Operation({ ...makeProjectCreateOp({ userId, gridId, projectsFolderId, projectTemplateOccId }), folderId: opCategoryIds.projects }).save();
   // Project: Status Router — onChange of statusFieldId moves the task between
   // kanban columns on the same project page. Idempotent + same-project-only
   // (anchored on the task's kanban board, not a global routing table).
@@ -8650,130 +8654,18 @@ export async function createLiveData(userId, options = {}) {
   // leaves Backburner/Docket, the Todo List copy is deleted so the view
   // stays focused on "what's not yet in motion". The kanban task itself
   // is untouched by this op (Status Router handles kanban moves).
+  // Project: Sync To Todo List — see makeProjectSyncToTodoOp for the shape.
+  // The mirror lands in the Tasks-page container carrying the task's own
+  // Project value; Occupational is the fail-open fallback.
   await new Operation({
-    id: uid(), userId, gridId, priority: 5, folderId: opCategoryIds.projects,
-    name: "Project: Sync To Todo List",
-    description: "Mirror kanban tasks into Todo List Backburner/Docket containers via COPY_LINK when their status hits those values, and remove the mirror when status moves elsewhere. Field sync is automatic through linkedGroupId.",
-    triggerTypes: ["onChange"],
-    triggerObjects: [
-      { eventType: "onChange", subjectType: "field", targetId: statusFieldId, priority: 5 },
-    ],
-    enabled: true,
-    pipeline: {
-      sources: [],
-      steps: [
-        // Bind the task that changed.
-        { id: uid(), type: "action", config: {
-          type: "FIND",
-          predicate: { operator: "AND", rules: [
-            { id: uid(), left: "id", comparator: "IS", right: "$trigger.occurrenceId" },
-          ]},
-          itemVar: "$task",
-        }},
-        // Read the task's linkedGroupId — if absent, the task isn't a
-        // copylink yet; COPY_LINK below will mint one and stamp the
-        // source. Treat undefined / null as "no group" so the find for
-        // an existing mirror returns empty.
-        { id: uid(), type: "action", config: {
-          type: "INIT_VAR", name: "$lgId",
-          expr: "$task.linkedGroupId",
-        }},
-        // Look for an existing Todo List mirror — any instance under
-        // todoPage sharing the task's linkedGroupId. Skips itself
-        // because the task lives on the kanban, not under todoPage.
-        { id: uid(), type: "action", config: {
-          type: "FIND",
-          over: "$allInstances",
-          predicate: { operator: "AND", rules: [
-            { id: uid(), left: "linkedGroupId", comparator: "IS", right: "$lgId" },
-            { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: tasksPageOccId },
-            { id: uid(), left: "$lgId", comparator: "IS_NOT_EMPTY", right: "" },
-          ]},
-          itemVar: "$mirror",
-          itemIdVar: "$mirrorId",
-        }},
-        // Status went to Backburner → mirror in todoBackburner container.
-        // MeasureOp carries `fields: { [fid]: { value, flow } }` (coalesced
-        // shape), so the new status value lives at `$trigger.fields.<fid>.value`.
-        { id: uid(), type: "if",
-          condition: { operator: "AND", rules: [
-            { id: uid(), left: `$trigger.fields.${statusFieldId}.value`, comparator: "IS", right: "Backburner" },
-          ]},
-          then: [
-            { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [
-                { id: uid(), left: "$mirrorId", comparator: "IS_EMPTY", right: "" },
-              ]},
-              then: [
-                // No mirror yet — mint a fresh COPY_LINK into Backburner.
-                { id: uid(), type: "action", config: {
-                  type: "COPY_LINK",
-                  sourceId: "$task.id",
-                  parent: taskContOccIds.taskOccupational,
-                }},
-              ],
-              else: [
-                // Mirror exists — make sure it's in Backburner. MOVE is a
-                // no-op when it's already the right parent.
-                { id: uid(), type: "action", config: {
-                  type: "MOVE_OCCURRENCE",
-                  occurrenceIdExpr: "$mirrorId",
-                  toContainerId: taskContOccIds.taskOccupational,
-                }},
-              ],
-            },
-          ],
-          else: [],
-        },
-        // Status went to Docket → mirror in todoDocket container.
-        { id: uid(), type: "if",
-          condition: { operator: "AND", rules: [
-            { id: uid(), left: `$trigger.fields.${statusFieldId}.value`, comparator: "IS", right: "Docket" },
-          ]},
-          then: [
-            { id: uid(), type: "if",
-              condition: { operator: "AND", rules: [
-                { id: uid(), left: "$mirrorId", comparator: "IS_EMPTY", right: "" },
-              ]},
-              then: [
-                { id: uid(), type: "action", config: {
-                  type: "COPY_LINK",
-                  sourceId: "$task.id",
-                  parent: taskContOccIds.taskOccupational,
-                }},
-              ],
-              else: [
-                { id: uid(), type: "action", config: {
-                  type: "MOVE_OCCURRENCE",
-                  occurrenceIdExpr: "$mirrorId",
-                  toContainerId: taskContOccIds.taskOccupational,
-                }},
-              ],
-            },
-          ],
-          else: [],
-        },
-        // Status moved OUT of Backburner/Docket → drop the mirror. The
-        // kanban task stays put (Status Router handles its column move);
-        // we just clean up the Todo List view so it only shows pre-
-        // active work.
-        { id: uid(), type: "if",
-          condition: { operator: "AND", rules: [
-            { id: uid(), left: `$trigger.fields.${statusFieldId}.value`, comparator: "IS_NOT", right: "Backburner" },
-            { id: uid(), left: `$trigger.fields.${statusFieldId}.value`, comparator: "IS_NOT", right: "Docket" },
-            { id: uid(), left: "$mirrorId", comparator: "IS_NOT_EMPTY", right: "" },
-          ]},
-          then: [
-            { id: uid(), type: "action", config: {
-              type: "DELETE",
-              itemIdExpr: "$mirrorId",
-            }},
-          ],
-          else: [],
-        },
-      ],
-    },
+    ...makeProjectSyncToTodoOp({
+      userId, gridId, statusFieldId, projectFieldId,
+      tasksPageOccId,
+      fallbackContainerOccId: taskContOccIds.taskOccupational,
+    }),
+    folderId: opCategoryIds.projects,
   }).save();
+
   await new Operation(makeStampDateTimeSlotOp({ userId, gridId, timeslotFieldId, dateFieldId, lastSeenFieldId, scheduleFormatFieldId, hubPanelModuleId: panelModuleIds.notebook })).save();
   await new Operation(makeClearDateOnMoveOutOp({ userId, gridId, dateFieldId, timeslotFieldId, schedulePageOccId: schedPageOccId })).save();
 

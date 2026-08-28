@@ -3005,61 +3005,49 @@ export function makeMediaHistoryOp({
     enabled: true,
   };
 }
-export function makeProjectCreateOp({ userId, gridId, projectsFolderId }) {
-  // Demo scope text — used on onLoad. Single paragraph string that
-  // fills the {ProjectScope} token in the template's Overview section.
-  // The rest of the scope skeleton (Goals / Milestones / Risks / Success
-  // Criteria) is structural and lives in the template.
-  const DEMO_PROJECT_SCOPE = "Ship the Moduli v1 release: assistant drawer in every workspace, public REST API at /api/v1, drilldown date picker, display rules system, project kanban demo. The launch is a deliverable, not a moment — every feature has to survive the hard edges of real day-to-day use before it counts as shipped.";
+export function makeProjectCreateOp({ userId, gridId, projectsFolderId, projectTemplateOccId }) {
+  // PICKER-DIRECT, for the reason `makeDayPageBuildOp` already states three
+  // steps down: resolving this template by `meta.templateName` is a marker a
+  // migration is free to retire — and `0035` DID retire it, which left this op
+  // finding nothing and emitting nothing on every load for 25 days. It also
+  // matches every CLONE (APPLY_TEMPLATE copies meta), and a multi-match FIND
+  // returns an ARRAY that APPLY_TEMPLATE cannot use.
+  if (!projectTemplateOccId) throw new Error("makeProjectCreateOp: projectTemplateOccId required — resolving the Project Page template by meta.templateName is a retired marker (0035) and matches the CLONES too");
 
   return {
     id: uid(), userId, gridId, name: "Project: Create",
-    description: "Mint a new project page from the Project Page template. onLoad → seeds an example 'Moduli v1 Launch' project (idempotent). Manual → GET_USER_INPUT prompts for name + scope, then APPLY_TEMPLATEs with those replacements. Same {token} replacement technique as Day Page.",
+    description: "Mint a new project page from the Project Page template, into the Projects folder. Manual only — GET_USER_INPUT prompts for name + scope, then APPLY_TEMPLATEs with those replacements. Idempotent by page label. Same {token} replacement technique as Day Page.",
+    // MANUAL ONLY. The onLoad arm used to seed a hardcoded demo project
+    // ("Moduli v1 Launch") on every page load. That is a seed artifact, not a
+    // behaviour: an op that mints a page nobody asked for is one rename away
+    // from minting a SECOND one, and the only thing that made it converge was
+    // the label-collision guard below — luck, not design.
     triggerType: "manual",
-    triggerTypes: ["manual", "onLoad"],
-    triggerObjects: [
-      { eventType: "onLoad", subjectType: "grid", targetId: "", priority: 5 },
-    ],
+    triggerTypes: ["manual"],
+    triggerObjects: [],
     enabled: true,
     pipeline: {
       sources: [],
       steps: [
-        // ── Branch on trigger type ─────────────────────────────────────────
-        // onLoad → hardcoded demo values. Manual → prompt the user.
-        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$triggerType", expr: "$trigger.type" } },
-        {
-          id: uid(), type: "if",
-          condition: { operator: "AND", rules: [
-            { id: uid(), left: "$triggerType", comparator: "IS", right: "onLoad" },
-          ]},
-          then: [
-            // onLoad path — stamp the demo values directly.
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectName",  expr: "literal:Moduli v1 Launch" } },
-            { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projectScope", expr: `literal:${DEMO_PROJECT_SCOPE}` } },
-          ],
-          else: [
-            // Manual path — prompt for name, then scope. Each
-            // GET_USER_INPUT suspends the pipeline until the user
-            // submits the modal; the response binds to resultVar and
-            // the next step runs.
-            { id: uid(), type: "action", config: {
-                type: "GET_USER_INPUT",
-                title: "Create Project",
-                question: "What's the project name?",
-                inputType: "text",
-                defaultValue: "Untitled",
-                resultVar: "$projectName",
-            }},
-            { id: uid(), type: "action", config: {
-                type: "GET_USER_INPUT",
-                title: "Create Project",
-                question: "Brief scope / overview (one paragraph)?",
-                inputType: "text",
-                defaultValue: "—",
-                resultVar: "$projectScope",
-            }},
-          ],
-        },
+        // Prompt for name, then scope. Each GET_USER_INPUT suspends the
+        // pipeline until the user submits the modal; the response binds to
+        // resultVar and the next step runs.
+        { id: uid(), type: "action", config: {
+            type: "GET_USER_INPUT",
+            title: "Create Project",
+            question: "What's the project name?",
+            inputType: "text",
+            defaultValue: "Untitled",
+            resultVar: "$projectName",
+        }},
+        { id: uid(), type: "action", config: {
+            type: "GET_USER_INPUT",
+            title: "Create Project",
+            question: "Brief scope / overview (one paragraph)?",
+            inputType: "text",
+            defaultValue: "—",
+            resultVar: "$projectScope",
+        }},
         // Defensive fallbacks if either var ended up empty (e.g. the
         // user cancelled a modal). Use the literal: prefix so the
         // resolveExpr fallback path doesn't try to look up a $-var.
@@ -3088,13 +3076,14 @@ export function makeProjectCreateOp({ userId, gridId, projectsFolderId }) {
           id: uid(), type: "if",
           condition: { operator: "AND", rules: [{ id: uid(), left: "$existingProjectPageId", comparator: "IS_EMPTY", right: "" }] },
           then: [
-            // Locate the Project Page template root.
+            // The Project Page template root, picker-direct. See the guard at
+            // the top of this factory for why this is not a FIND.
             { id: uid(), type: "action", config: {
-                type: "FIND", over: "$allOccurrences",
-                predicate: { operator: "AND", rules: [
-                  { id: uid(), left: "meta.templateName", comparator: "IS", right: "Project Page" },
-                ]},
-                itemIdVar: "$projectTplId",
+                type: "INIT_VAR", name: "$projectTpl",
+                expr: `$allItemsById.${projectTemplateOccId}`,
+            }},
+            { id: uid(), type: "action", config: {
+                type: "INIT_VAR", name: "$projectTplId", expr: "$projectTpl.id",
             }},
             {
               id: uid(), type: "if",
@@ -3147,6 +3136,218 @@ export function makeProjectCreateOp({ userId, gridId, projectsFolderId }) {
 // time-ordered rendering, a future SORT_BY primitive would walk
 // `$schedPage.occurrences` (slot containers in time order) and inner-loop
 // each slot's children. Filed as TODO; the unsorted list is still useful.
+
+// ── Project: Sync To Todo List ───────────────────────────────────────────────
+// Mirrors a kanban task onto the Tasks page while its Status is Backburner or
+// Docket — the two "not yet in motion" columns — and deletes the mirror once
+// Status moves on. Field sync between the two is automatic: COPY_LINK gives
+// them a shared `linkedGroupId` and the server's `update_occurrence` fans out.
+//
+// EXTRACTED FROM THE SEED (2026-08-28) so a migration can regenerate this
+// pipeline from the same source the seed uses. It lived inline in
+// createLiveData, which is exactly how a stored pipeline and its author drift.
+//
+// `fallbackContainerOccId` is where a mirror lands when the task names no
+// project, or its project has no container of its own yet. It FAILS OPEN on
+// purpose — dropping the mirror instead reads as the sync silently breaking.
+export function makeProjectSyncToTodoOp({ userId, gridId, statusFieldId, projectFieldId, tasksPageOccId, fallbackContainerOccId }) {
+  if (!statusFieldId)         throw new Error("makeProjectSyncToTodoOp: statusFieldId required — it is the trigger");
+  if (!projectFieldId)        throw new Error("makeProjectSyncToTodoOp: projectFieldId required — it is how the mirror finds its container");
+  if (!tasksPageOccId)        throw new Error("makeProjectSyncToTodoOp: tasksPageOccId required — the mirror's ancestor scope");
+  if (!fallbackContainerOccId) throw new Error("makeProjectSyncToTodoOp: fallbackContainerOccId required — the fail-open destination");
+  return {
+    id: uid(), userId, gridId, priority: 5,
+    name: "Project: Sync To Todo List",
+    description: "Mirror a kanban task onto the Tasks page via COPY_LINK while its Status is Backburner or Docket, and remove the mirror once Status moves on. The mirror lands in the container carrying the SAME Project value as the task, falling back to Occupational. Field sync is automatic through linkedGroupId.",
+    triggerTypes: ["onChange"],
+    triggerObjects: [
+      { eventType: "onChange", subjectType: "field", targetId: statusFieldId, priority: 5 },
+    ],
+    enabled: true,
+    pipeline: {
+      sources: [],
+      steps: [
+        // Bind the task that changed.
+        { id: uid(), type: "action", config: {
+          type: "FIND",
+          predicate: { operator: "AND", rules: [
+            { id: uid(), left: "id", comparator: "IS", right: "$trigger.occurrenceId" },
+          ]},
+          itemVar: "$task",
+        }},
+        // Read the task's linkedGroupId — if absent, the task isn't a
+        // copylink yet; COPY_LINK below will mint one and stamp the
+        // source. Treat undefined / null as "no group" so the find for
+        // an existing mirror returns empty.
+        { id: uid(), type: "action", config: {
+          type: "INIT_VAR", name: "$lgId",
+          expr: "$task.linkedGroupId",
+        }},
+        // Look for an existing Todo List mirror — any instance under
+        // todoPage sharing the task's linkedGroupId. Skips itself
+        // because the task lives on the kanban, not under todoPage.
+        // A FIND rule's `left` is a RECORD PATH, never an expression — so the
+        // `$lgId IS_NOT_EMPTY` guard that used to live INSIDE this predicate
+        // looked for a record key literally called "$lgId", found none, and made
+        // the FIND match NOTHING. That is why the mirror was never found and
+        // never deleted. The guard is real and still needed (a null `$lgId`
+        // would otherwise match every unlinked occurrence on the grid) — it just
+        // belongs in an IF, where `left` IS evaluated against `$vars`.
+        //
+        // `$mirrorId` is seeded empty first so the IS_EMPTY branches below still
+        // read correctly on the path where the FIND is skipped entirely.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$mirrorId", expr: "literal:" } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: "$lgId", comparator: "IS_NOT_EMPTY", right: "" },
+          ]},
+          then: [
+            { id: uid(), type: "action", config: {
+              type: "FIND",
+              over: "$allInstances",
+              predicate: { operator: "AND", rules: [
+                { id: uid(), left: "linkedGroupId", comparator: "IS", right: "$lgId" },
+                { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: tasksPageOccId },
+              ]},
+              itemVar: "$mirror",
+              itemIdVar: "$mirrorId",
+            }},
+          ],
+          else: [],
+        },
+        // WHERE the mirror lands. A project's work belongs with that project,
+        // so the Tasks page carries one container per project — identified by
+        // the container's own `Project` value, NOT by its label (a container
+        // is one rename from wrong) and NOT by a per-project id baked into
+        // this pipeline (which would need editing for every new project).
+        { id: uid(), type: "action", config: {
+          type: "INIT_VAR", name: "$projKey",
+          expr: `$task.fields.${projectFieldId}.value`,
+        }},
+        // Same shape as the mirror FIND above, and for the same reason: the
+        // `$projKey IS_NOT_EMPTY` guard has to be an IF, not a rule. Inside the
+        // predicate it silently emptied this FIND, and every mirror fell back to
+        // the fallback container while every log line read correctly.
+        { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$projContId", expr: "literal:" } },
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: "$projKey", comparator: "IS_NOT_EMPTY", right: "" },
+          ]},
+          then: [
+            { id: uid(), type: "action", config: {
+              type: "FIND", over: "$allContainers",
+              predicate: { operator: "AND", rules: [
+                { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: tasksPageOccId },
+                { id: uid(), left: `fields.${projectFieldId}.value`, comparator: "IS", right: "$projKey" },
+              ]},
+              itemIdVar: "$projContId",
+            }},
+          ],
+          else: [],
+        },
+        // FAILS OPEN, deliberately: a task with no project, or a project with
+        // no container of its own yet, still gets its mirror — into
+        // Occupational, which is where every project mirror used to land.
+        // Dropping the mirror instead would read as the sync silently breaking.
+        { id: uid(), type: "action", config: {
+          type: "INIT_VAR", name: "$mirrorParent",
+          expr: `literal:${fallbackContainerOccId}`,
+        }},
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: "$projContId", comparator: "IS_NOT_EMPTY", right: "" },
+          ]},
+          then: [
+            { id: uid(), type: "action", config: {
+              type: "INIT_VAR", name: "$mirrorParent", expr: "$projContId",
+            }},
+          ],
+          else: [],
+        },
+        // Status went to Backburner → mirror in todoBackburner container.
+        // MeasureOp carries `fields: { [fid]: { value, flow } }` (coalesced
+        // shape), so the new status value lives at `$trigger.fields.<fid>.value`.
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: `$trigger.fields.${statusFieldId}.value`, comparator: "IS", right: "Backburner" },
+          ]},
+          then: [
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$mirrorId", comparator: "IS_EMPTY", right: "" },
+              ]},
+              then: [
+                // No mirror yet — mint a fresh COPY_LINK into Backburner.
+                { id: uid(), type: "action", config: {
+                  type: "COPY_LINK",
+                  sourceId: "$task.id",
+                  parent: "$mirrorParent",
+                }},
+              ],
+              else: [
+                // Mirror exists — make sure it's in Backburner. MOVE is a
+                // no-op when it's already the right parent.
+                { id: uid(), type: "action", config: {
+                  type: "MOVE_OCCURRENCE",
+                  occurrenceIdExpr: "$mirrorId",
+                  toContainerIdExpr: "$mirrorParent",
+                }},
+              ],
+            },
+          ],
+          else: [],
+        },
+        // Status went to Docket → mirror in todoDocket container.
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: `$trigger.fields.${statusFieldId}.value`, comparator: "IS", right: "Docket" },
+          ]},
+          then: [
+            { id: uid(), type: "if",
+              condition: { operator: "AND", rules: [
+                { id: uid(), left: "$mirrorId", comparator: "IS_EMPTY", right: "" },
+              ]},
+              then: [
+                { id: uid(), type: "action", config: {
+                  type: "COPY_LINK",
+                  sourceId: "$task.id",
+                  parent: "$mirrorParent",
+                }},
+              ],
+              else: [
+                { id: uid(), type: "action", config: {
+                  type: "MOVE_OCCURRENCE",
+                  occurrenceIdExpr: "$mirrorId",
+                  toContainerIdExpr: "$mirrorParent",
+                }},
+              ],
+            },
+          ],
+          else: [],
+        },
+        // Status moved OUT of Backburner/Docket → drop the mirror. The
+        // kanban task stays put (Status Router handles its column move);
+        // we just clean up the Todo List view so it only shows pre-
+        // active work.
+        { id: uid(), type: "if",
+          condition: { operator: "AND", rules: [
+            { id: uid(), left: `$trigger.fields.${statusFieldId}.value`, comparator: "IS_NOT", right: "Backburner" },
+            { id: uid(), left: `$trigger.fields.${statusFieldId}.value`, comparator: "IS_NOT", right: "Docket" },
+            { id: uid(), left: "$mirrorId", comparator: "IS_NOT_EMPTY", right: "" },
+          ]},
+          then: [
+            { id: uid(), type: "action", config: {
+              type: "DELETE",
+              itemIdExpr: "$mirrorId",
+            }},
+          ],
+          else: [],
+        },
+      ],
+    },
+  };
+}
+
 // ── Project: Status Router ───────────────────────────────────────────────────
 // onChange trigger on the statusFieldId. When a task in any project's kanban
 // gets its status field set to one of the 6 column labels (Backburner /

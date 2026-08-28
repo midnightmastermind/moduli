@@ -133,9 +133,20 @@ describe("the Routine layer merges without duplicating", () => {
         slot.occurrences = keep;
       }
     });
-    // THE CONTROL. A strip that matched nothing makes "seven placed" a claim about the fixture.
-    expect(removed, "the strip matched no routine rows — arm B proves nothing").toBe(7);
-    expect(placed).toBeGreaterThanOrEqual(7);   // the 7 routines, plus anything else newly on a layer
+    // THE CONTROL. A strip that matched nothing makes "the sweep put them back" a
+    // claim about the fixture rather than about the sweep.
+    //
+    // IT USED TO REQUIRE EXACTLY SEVEN, and that broke on the 2026-08-28 refresh
+    // (23). `auto:<id>` is `signatureOf`'s FALLBACK — stamped on ANY unsigned
+    // node a merge clones in — so the count is "how many merged rows are on
+    // today's column", which grows as layers are added and moves with the
+    // calendar. Seven was one day's schedule, not an invariant.
+    //
+    // The invariant is the round trip: strip N and the sweep puts back at least
+    // N, then converges. That is what the test is named for and it holds on any
+    // day. A/B'd — a sweep that places nothing still fails it.
+    expect(removed, "the strip matched no routine rows — arm B proves nothing").toBeGreaterThan(0);
+    expect(placed, "the sweep did not replace what was stripped").toBeGreaterThanOrEqual(removed);
     expect(second, "the replacements were re-created on the next pass").toBe(0);
   });
 });

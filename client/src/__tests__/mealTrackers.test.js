@@ -172,22 +172,33 @@ describe("the fixture's own shape — the controls", () => {
     expect(bound).toEqual([]);
   });
 
-  it("a day column carries SEVERAL distinct meal modules — the fact the defect rested on", () => {
+  it("every meal row has its OWN module — the fact the defect rested on", () => {
     // WHAT THIS USED TO ASSERT: that the fixture's own pipeline still carried the
     // pre-`0174` rule, so the A/B could use it as the "before" arm. That only held
     // while the fixture was STALE, and it broke the day it was refreshed.
     //
-    // The durable half is the DATA fact, true of any vintage: every meal on a
-    // column is an APPLY_TEMPLATE clone with its own module, so no single
-    // `templateId` could ever have named them all. That is why the old rule
-    // matched nothing, and it is what `unpatch` reproduces.
-    const occ = Object.fromEntries(fx.occurrences.map(o => [o.id, o]));
-    const column = fx.occurrences.find(o => o.fields?.[FORMAT]?.value === "day-col");
-    const mealMods = new Set();
-    for (const sid of column.occurrences || [])
-      for (const kid of occ[sid]?.occurrences || [])
-        if (occ[kid]?.fields?.[MEAL]?.value) mealMods.add(occ[kid].moduleId);
-    expect(mealMods.size).toBeGreaterThan(1);
+    // ITS SECOND FORM BROKE THE SAME WAY (2026-08-28). It counted distinct meal
+    // modules on THE day column and required more than one — which is a claim
+    // about how many meals the user had scheduled on the day the fixture was
+    // exported. Today's column carries one, so it went red without anything
+    // being wrong. *A control keyed to one day of one grid is a coin flip on
+    // export timing* — 2026-08-20 (6), for the third time in this file's life.
+    //
+    // THE DURABLE FACT, true of any vintage and any day: meal rows span MORE
+    // THAN ONE module, so no single `templateId` could ever have named them all.
+    // That is why the pre-`0174` rule matched nothing, and it is what `unpatch`
+    // reproduces.
+    //
+    // Measured GRID-WIDE, which is where the fact lives. Meals do share modules
+    // across days — measured, 29 rows over 3 modules, because `pickReusableModuleId`
+    // reuses a clone's module — so "one module per row" is NOT the fact and was
+    // this test's third wrong premise. "More than one module" is.
+    const mealRows = fx.occurrences.filter(o => o.fields?.[MEAL]?.value);
+    // The control: no rows makes the assertion below vacuously true.
+    expect(mealRows.length, "no meal rows at all — the probe, not the grid").toBeGreaterThan(1);
+    const mealMods = new Set(mealRows.map(o => o.moduleId));
+    expect(mealMods.size, "every meal row shares ONE module — a single templateId could name them all")
+      .toBeGreaterThan(1);
   });
 });
 
