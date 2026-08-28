@@ -6,6 +6,121 @@
 
 ---
 
+### 2026-08-28 (5) — I OPENED IT, and the trello board had NEVER rendered its columns
+
+Continued (4) by closing its own honest gap: *"nobody has clicked a card in a
+browser."* Opening it found two defects, and **the DATA was correct in every
+check anyone would run for both of them.**
+
+**FIRST, MY OWN PROBE WAS WRONG THREE TIMES, and the tell is the documented one.**
+`?previewOcc=` read `painted=false containers=0` on all three project pages —
+including the one whose data was demonstrably fine and the TEMPLATE. *Three arms
+zero is the both-arms-zero tell.* `PagePreviewApp` says so in its own second line:
+**"Reads state from `window.parent.__moduli_state__` (same origin) — no socket
+needed."** It only works INSIDE AN IFRAME whose parent is the loaded grid; opened
+top-level there is no parent state, so it renders nothing. The working probe loads
+the grid, then injects an iframe at `/?previewOcc=<id>` and reads inside it.
+
+---
+
+**DEFECT 1 — A CLONED PAGE EMBEDDED THE TEMPLATE'S CHILDREN (`0277`).** A
+`page/doc` renders its TEXTMAP, not its `occurrences[]`:
+```
+"Project: {ProjectName}"   children Kanban(4v_m43IA) Scope(hZG80mJ-)
+                           embeds   Kanban(4v_m43IA) Scope(hZG80mJ-)   ok
+"Project: Via Fluere"      children Kanban(5951c745) Scope(d501a168)
+                           embeds   Kanban(5951c745) Scope(d501a168)   ok
+"Project: Paul's Clown…"   children Kanban(fcfb85e1) Scope(1acf5093)
+                           embeds   Kanban(4v_m43IA) Scope(hZG80mJ-)   <- THE TEMPLATE'S
+```
+`cloneSubtree` regenerates the child list with fresh ids and carried the textmap
+over verbatim.
+
+**THE ROOT CAUSE IS A DRIFTED TWIN, AND IT IS NOT MINE.** The CLIENT's
+APPLY_TEMPLATE has carried `remapEmbeddedRefs` since it was written, with a
+comment stating the consequence exactly — *"else it still references the
+template's textblock (renders the original or nothing)"*. The SERVER's
+`cloneSubtree` never had it. So **everything that clones through the server** —
+`apply_template`, `clone_subtree_as_template`, `save_over_template`, the v1 API
+route and every cloning migration — has been producing pages whose embeds name
+the SOURCE's children. `Via Fluere` is intact only because the CLIENT cloned it,
+long ago. *Two implementations of one decision, and only one of them was ever
+fixed — the class this file records repeatedly, found here from the render side.*
+
+**THE REPAIR IS POSITIONAL AND MUST NOT BE A SWEEP.** "Embeds something that is
+not its child" is a LEGITIMATE, common shape: 2026-08-23 (2) measured **474
+embeds across 233 hosts reachable only through a textmap**. So it fires only on an
+occurrence carrying `meta.appliedFromTemplateId`, and REFUSES when the two child
+lists differ in length, because then position is not identity. Scope: **45 clones
+carry a textmap, exactly 1 was broken.**
+
+---
+
+**DEFECT 2 — THE TRELLO BOARD HAS NEVER RENDERED ITS COLUMNS (`0278`).** With the
+embeds fixed all three pages painted — and the Kanban drew EMPTY, offering
+"Add new item", on the template, on the pre-existing project and on the new clone
+alike. **`ModuleContainer` draws child CONTAINERS only when the module carries
+`meta.allowChildContainers`, and the six kanban columns ARE containers.** The flag
+has never been on the Kanban module. The board this whole feature is named for has
+been blank since `buildProjectTemplate` was written; nobody noticed because nobody
+had a project with tasks in it to look at.
+
+This is the defect that read as *"you got rid of my trackers"* on 2026-07-31 (2),
+where the tiles were correctly parented and simply did not draw.
+
+**THE SCOPE IS STRUCTURAL AND THE CONTROL IS WHAT MAKES IT SAFE.** Containers that
+HOLD container children:
+```
+board, WITH the flag       22      <- the healthy shape, 22 times over
+board, WITHOUT             3       <- all three are "Kanban"
+doc,   WITH               127
+doc,   WITHOUT             89      <- correctly untouched
+```
+**The 89 doc containers are excluded on purpose, and that is the whole safety of
+the migration:** a `kind:"doc"` container renders its TEXTMAP, so the flag is
+meaningless there and setting it would change how 89 live containers behave to fix
+a problem they do not have. The rule names no module and no label. The SEED is
+fixed in the same commit, so a fresh grid is born right.
+
+---
+
+**VERIFIED BY RENDERING, on prod, with a control that had to fail differently:**
+```
+Via Fluere   painted 7 containers · 6 rows · 0 dead embeds · 0 page errors
+Paul's       painted 7 containers · 8 rows · 0 dead embeds · 0 page errors
+TEMPLATE     painted 7 containers · 1 row  · six EMPTY columns   <- the control
+```
+Each page shows its OWN scope prose; **the template still shows `{ProjectScope}`
+unreplaced**, which is what makes the token replacement a measurement rather than
+an assertion.
+
+**A MUTATION THAT SILENTLY DID NOT LAND, and it was the guard that mattered
+most.** A/B-ing `0278`, the arm removing the board-only scope reported
+`8 passed` — reading as "the doc-container exclusion is untested". The Python
+replacement had a broken escape and never applied. Re-run with an `assert` that
+the mutation landed, it fails exactly its own test. *This file already says to
+check that the mutation landed before believing an A/B; I paid for it again, and
+the cheap remedy is to make the mutation script ASSERT rather than eyeball it.*
+
+**AND `0274` REPORTED A REWRITE ON EVERY RUN** until `shapeOf` stripped generated
+step ids — the builders mint a fresh `uid()` per step, so a raw JSON compare can
+never match and the migration would churn every step id forever.
+
+16 + 8 tests, every guard A/B'd. 3,513 client + 2,000 server tests. Deployed, prod
+HEAD verified, site 200 after the documented restart window (index 502 + bundle
+200 is that tell, not an outage), poms grid **0 errors**.
+
+**REPORTED, NOT FIXED:** in the PREVIEW the `Project` field renders a raw
+occurrence id, because `readableValue` resolves it straight out of
+`occurrencesById` and the preview scopes its state to the page's own subtree —
+the Projects BOARD row lives outside it. The full app holds every occurrence, so
+it resolves there; **that has not been watched on the real page.** And nobody has
+dragged a card between columns with a mouse: the ops are proven through the real
+executor over live data, and the columns are proven to paint, but the gesture
+itself is still unexercised.
+
+---
+
 ### 2026-08-28 (4) — TWO PROJECTS, and every op behind the trello board was UNREACHABLE
 
 Picked up the other account's session, which hit its limit at 11:42 one command
