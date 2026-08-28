@@ -739,6 +739,68 @@ export function registerCrudHandlers(socket, {
       }
       socket.emit("folder_created", folderData);
       socket.to(userRoom(userId)).emit("folder_created", folderData);
+
+      // ── A FOLDER IS BORN WITH ITS CARD ────────────────────────────────────
+      //
+      // A sub-folder renders on its parent's folder PAGE only if it CONTAINS a
+      // `role:"page" kind:"folder"` occurrence — that occurrence IS the card,
+      // and what a click drills into. A folder created without one is INVISIBLE
+      // on its parent's page while still showing in the sidebar tree, which
+      // reads `foldersById` directly. That asymmetry is why it reads as data
+      // loss when nothing is lost (users reported it 2026-08-24 and again
+      // 2026-08-28: *"none of my documents are showing up"*).
+      //
+      // The client mints one lazily when you VIEW a folder — but only for the
+      // DIRECT children of the folder on screen, so a grandchild stays card-less
+      // and its parent's preview renders empty until you open that parent too.
+      //
+      // FIXED HERE BECAUSE THIS IS THE CHOKEPOINT. There are seven client call
+      // sites for `createFolder` plus the assistant's `create_folder` tool, and
+      // adding a mint to each is the "every X means every X that existed when it
+      // ran" trap this file keeps paying for — the eighth caller forgets and the
+      // bug returns. The server already stamps `userId`/`gridId` here for
+      // exactly that reason (2026-08-18). A folder created by a MIGRATION writes
+      // straight to Mongo and bypasses this, which is why the client's
+      // mint-on-view stays as the net for legacy rows.
+      //
+      // Best-effort: a folder that exists without its card is the old behaviour,
+      // recoverable on view. Failing the folder itself over its card would be
+      // strictly worse.
+      try {
+        const gid = folderData.gridId;
+        // `folderType: "category"` folders are not tree nodes and never render
+        // as a card — the same exemption ModulePage and 0272 both make.
+        if (gid && folderData.folderType !== "category") {
+          const modId = crypto.randomUUID();
+          const occId = crypto.randomUUID();
+          const cardMod = {
+            id: modId, userId, gridId: gid,
+            role: "page", kind: "folder", label: folderData.name || "Folder",
+          };
+          const cardOcc = {
+            id: occId, userId, gridId: gid, moduleId: modId, targetId: modId,
+            targetType: "module", parentId: folderData.id, sortOrder: -1,
+            iteration: { mode: "persistent" }, fields: {}, meta: { folderPage: true },
+          };
+          if (!uc.modulesById) uc.modulesById = {};
+          if (!uc.occurrencesById) uc.occurrencesById = {};
+          uc.modulesById[modId] = cardMod;
+          uc.occurrencesById[occId] = cardOcc;
+          await Module.findOneAndUpdate({ id: modId, userId }, cardMod, { upsert: true });
+          await Occurrence.findOneAndUpdate({ id: occId, userId }, cardOcc, { upsert: true });
+          // BOTH emits, the pattern this file already uses: `socket.to(room)`
+          // EXCLUDES the sender, so the originating tab would not learn about
+          // the card its own click just created and the folder would look
+          // empty until a reload. (That exclusion is the same one behind the
+          // 2026-08-07 "the schedule isn't created when I navigate" bug.)
+          socket.emit("module_created", { module: cardMod });
+          socket.emit("occurrence_created", { occurrence: cardOcc });
+          socket.to(userRoom(userId)).emit("module_created", { module: cardMod });
+          socket.to(userRoom(userId)).emit("occurrence_created", { occurrence: cardOcc });
+        }
+      } catch (cardErr) {
+        console.error("create_folder: folder-page card failed (folder itself is fine):", cardErr?.message || cardErr);
+      }
     } catch (err) {
       console.error("create_folder error:", err);
       socket.emit("server_error", "Failed to create folder");
