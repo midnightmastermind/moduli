@@ -78,20 +78,61 @@ the frozen ARCHIVE, left alone on purpose since 2026-07-31 (4). The 34
 `unused-field` warnings are the deliberate palette fields. **poms grid ends at
 0 errors.**
 
-**AND ONE REAL PROBLEM REPORTED RATHER THAN ACTED ON, because it is a retention
-decision and not a bug fix.** The transaction log is **87.7 MB — twice the size
+**AND THE TRANSACTION LOG IS BOUNDED AT LAST** (user: *"we should prune those
+after a certain period"* / *"do it after a week"*). It was **87.7 MB — twice the
+size of the grid** — because `pruneLater` keys on `sequence`, which only the
+snapshot rows carry; `MeasureOp` has none, so the prune could never see them.
+
+**A WINDOW ALONE DOES NOT BOUND IT, and the distribution is what said so:**
+```
+older than  1 day   22,547     <- 8,738 rows landed in ONE day
+older than  3 days   4,986     <- 17,561 of them are 1-3 days old
+older than  7 days   3,373
+older than 30 days       0     <- a 30-day window would prune NOTHING
+```
+The long-run rate is ~746/day; an ACTIVE day is 8,000-22,000. So there are two
+limits and the tighter wins: a **7-day window** (the retention promise) and a
+**1,000-row per-grid cap** (which bounds a burst the window will not touch for a
+week). My first attempt shipped the window alone and pruned 324 rows — the user
+said *"thats too little to prune"*, and they were right.
+
+**THE PREDICATE IS "THE UNDO STACK CAN NEVER USE THIS" — no `docs` — not
+`type: "MeasureOp"`.** Keying on the capability covers a future doc-less type
+without anyone remembering, and it mirrors `STACK_FILTER`, which a test pins so
+the two cannot drift. Safe because nothing computes from them: grepped, the only
+readers are the history panel (limit 100) and the undo stack.
+
+**PLUS 6,299 ROWS WHOSE GRID NO LONGER EXISTS** — 6,256 from one dead grid, the
+exact figure this file flagged on 2026-08-01 and never actioned. A per-grid prune
+can never reach them and nothing can read them.
+```
+37,840 docs · 87.7 MB  ->  1,814 docs · 5.8 MB
+snapshots (undo) still present  800   <- untouched, by construction
+poms grid ON THE UNDO STACK       1   <- unchanged
+```
+**29,471 rows DUMPED before deletion**, and deleted by explicit id from the
+dumped list rather than by a "not in this list" query — that shape is one bad
+list away from erasing a live grid's trail. **Honest limit: after a heavy day the
+1,000-row cap reaches back about five hours; on an ordinary day ~32.**
+
+**EVERY GRID IS AT 0 ERRORS** — the first time this file records that. `0024` was
+re-run on test grid 1 (the frozen archive), signing the 8 Project-template nodes
+whose unsigned state would have cloned six kanban columns on the next merge; and
+test grid 2's 3 module-less occurrences were cleared — module gone, no children,
+so nothing could ever render them — **unlinked from their parents BEFORE deletion**,
+or the repair would have minted the dangling-child-ref class this file has swept
+five times.
+
+**WHAT IS STILL NOT "FIXED", and is not a bug:** The transaction log is **87.7 MB — twice the size
 of the grid itself** — and growing without bound:
 ```
 37,840 documents across 49.6 days
   prunable (sequenced / SnapshotOp)     812
   NEVER pruned (unsequenced MeasureOp) 37,028   ~746/day  -> ~272,000/year
 ```
-`pruneLater` keeps `KEEP_PER_GRID = 200` and prunes by `sequence` — which **only
-SnapshotOps carry** — so MeasureOps accumulate for ever. Grepped both readers
-before proposing anything: the history panel (`limit 100`) and the undo stack
-(SnapshotOps only). **No tracker or aggregation reads the transaction log** — they
-walk `$allItems` live — so a retention window is functionally safe. It would still
-delete 37k records of the user's own activity, so the window is theirs to pick.
+the 34 `unused-field` warnings on poms grid are the deliberate palette fields
+(`Tags` was seeded for the feed field-check), and deleting a user's fields to
+quiet a report is the damage, not the fix.
 
 ---
 
