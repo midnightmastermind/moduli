@@ -31,6 +31,7 @@ import { buildDropContext, buildRawDropEvent, DROP_TARGET_KIND, collectMemberCar
 import { snapshotRenders, diffRenders, snapshotAttrs, diffAttrs } from "./renderProbe";
 import { dragPerf } from "./dragPerf";
 import { computeAutoscroll, autoscrollSpeed, pointerNearRect, canScrollFurther, maxScrollTopFor } from "./autoscrollMath";
+import { attachDragTouchGuards, shouldGuardTouch } from "./dragTouchGuards";
 import { getActiveCell, setActiveCell as storeSetActiveCell } from "../state/activeCellStore";
 
 // ============================================================
@@ -1048,17 +1049,28 @@ export function DragProvider({
         e.stopPropagation();
       }
     };
+    // dragover/dragenter stay attached for the whole session: an OS/HTML5 drop
+    // arrives unannounced and has to be claimed whether or not an in-app drag is
+    // running. Neither blocks scrolling.
     document.addEventListener('dragover', preventDrag, { passive: false });
     document.addEventListener('dragenter', preventDrag, { passive: false });
-    document.addEventListener('touchmove', preventTouch, { passive: false });
-    document.addEventListener('touchstart', preventEdgeTouch, { capture: true, passive: false });
+
+    // THE TWO TOUCH GUARDS ARE SCOPED TO AN ACTIVE DRAG — see
+    // helpers/dragTouchGuards.js for why that is both necessary and safe.
+    // Attached for the whole session (which is what they were), a non-passive
+    // touch listener on `document` stops the browser handing ANY swipe to the
+    // compositor: it must run JS first. That is the sticky, momentum-less scroll
+    // reported on tablet.
+    const detachTouch = shouldGuardTouch(isTouch, isDragging)
+      ? attachDragTouchGuards(document, { onTouchMove: preventTouch, onTouchStart: preventEdgeTouch })
+      : null;
+
     return () => {
       document.removeEventListener('dragover', preventDrag);
       document.removeEventListener('dragenter', preventDrag);
-      document.removeEventListener('touchmove', preventTouch);
-      document.removeEventListener('touchstart', preventEdgeTouch, { capture: true });
+      detachTouch?.();
     };
-  }, [isTouch]);
+  }, [isTouch, isDragging]);
 
   // Recovery: if Android triggers split-screen despite prevention, cancel the drag
   useEffect(() => {
