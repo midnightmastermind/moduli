@@ -71,9 +71,44 @@ const isTouchDevice = () => typeof window !== "undefined"
 const on = () => {
   if (typeof window === "undefined") return false;
   if (window.__scrollDiag === false) return false;
-  return window.__scrollDiag === true || isTouchDevice();
+  return window.__scrollDiag === true || isTouchDevice() || urlOrStoredVerbose();
 };
-const verbose = () => typeof window !== "undefined" && window.__scrollDiag === true;
+// VERBOSE = the on-screen overlay. It used to require setting a global from a
+// console — which is exactly what the device that needs it does not have. A
+// tablet is the whole reason this file exists, so it is reachable by URL now:
+// visit `?scrollDiag=1`, scroll the list that feels wrong, read the summary.
+// The flag is remembered for the tab so a reload (or the app's own navigation)
+// keeps it on; `?scrollDiag=0` clears it. The explicit global still wins, so
+// nothing that already sets it changes behaviour.
+export const SCROLL_DIAG_KEY = "moduli-scroll-diag";
+
+/**
+ * The decision, pure so it can be tested without a browser: given the query
+ * string and what was remembered, is the overlay on?
+ * @returns {{ on: boolean, remember: "set"|"clear"|null }}
+ */
+export function scrollDiagFlagFrom(search, stored) {
+  const q = new URLSearchParams(search || "").get("scrollDiag");
+  if (q === "0" || q === "false") return { on: false, remember: "clear" };
+  if (q === "1" || q === "true") return { on: true, remember: "set" };
+  return { on: stored === "1", remember: null };
+}
+
+function urlOrStoredVerbose() {
+  if (typeof window === "undefined") return false;
+  try {
+    const { on, remember } = scrollDiagFlagFrom(window.location.search, sessionStorage.getItem(SCROLL_DIAG_KEY));
+    if (remember === "set") sessionStorage.setItem(SCROLL_DIAG_KEY, "1");
+    if (remember === "clear") sessionStorage.removeItem(SCROLL_DIAG_KEY);
+    return on;
+  } catch { return false; }   // storage denied — the global still works
+}
+const verbose = () => {
+  if (typeof window === "undefined") return false;
+  if (window.__scrollDiag === true) return true;
+  if (window.__scrollDiag === false) return false;
+  return urlOrStoredVerbose();
+};
 
 const MAX_SESSIONS = 4;        // baseline + one per suspect (see ARMS)
 
