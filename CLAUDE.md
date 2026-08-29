@@ -6,6 +6,40 @@
 
 ---
 
+### 2026-08-29 (12) — THE SAME 42,000-KEY MERGE, FOURTH SITE — and this one was in a CALLBACK
+
+Re-profiling after (11) promoted a new top app frame, and it is the defect this
+day has now paid for four times.
+```
+before (11)   598ms  resolveExpr             <- fixed
+after  (11)   470ms  bindSocketToStore.js:371  <- the new leader
+```
+Line 371 is the load sweep's own notification getter:
+`() => ({ fieldsById, occurrencesById: Object.assign({}, occurrencesById, localOccsById), modulesById })`.
+
+**A CALLBACK, WHICH IS WHAT MAKES IT WORSE THAN IT LOOKS.** At load both maps
+hold all 21,207 occurrences, so that is a 42,414-property copy — rebuilt EVERY
+TIME the toast machinery asked for a lookup, not once. The `overlay` two lines
+above it is the same merge, paid once.
+
+**FOURTH SITE TODAY, one helper.** 2026-08-25 (9) cached this merge in
+`_fireOperationsInner`; (6) found the seven rebuilds in `applyOperationEffect`
+and the third copy in `getAncestorChain`; this is the fourth, in the file that
+already exports the fix. *A shared helper only stops the drift at the call sites
+that actually call it — grepping the SHAPE is what finds the rest.* There are
+now zero `Object.assign({}, occurrencesById, localOccsById)` left in the client.
+
+**SHARING THE CACHED INSTANCE IS SAFE, AND THAT WAS CHECKED RATHER THAN
+ASSUMED** — the previous three sites are reads, and this one hands the map to
+the EXECUTOR, which is a different question. `executePipeline` takes its own
+copy before mutating anything (`const liveOccs = { ...(context.occurrencesById
+|| {}) }`, operationExecutor.js:975) and the toast lookups are reads, so no
+caller can write through the shared object.
+
+3,611 client tests, lint 0 errors.
+
+---
+
 ### 2026-08-29 (11) — SOURCE-MAPPED THE PROFILE, and the pipeline language checked its rare shapes first
 
 (10) closed saying the prod profile was unreadable — minification turned the

@@ -365,10 +365,22 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // pass mutates localOccsById with its optimistic CREATE_ITEM stubs.
       // Without this overlay, the onLoad fire below reads stale occurrences
       // and re-creates the same items the NavigationOp pass already created.
-      const overlay = Object.assign({}, occurrencesById, localOccsById);
+      // Both of these were `Object.assign({}, occurrencesById, localOccsById)` —
+      // a 42,000-property copy on this path, because at load BOTH maps hold
+      // every occurrence on the grid. The notification getter is worse than it
+      // looks: it is a CALLBACK, so it rebuilt that merge every time the toast
+      // machinery asked for a lookup. A source-mapped profile put this line at
+      // 470ms of self time, the largest app frame left in the sweep.
+      //
+      // Same defect, fourth site today — see helpers/occOverlay.js. Safe to
+      // share the cached instance rather than hand out fresh copies: the
+      // executor takes its own `liveOccs = { ...context.occurrencesById }`
+      // before mutating anything (operationExecutor.js:975), and the toast
+      // lookups are reads.
+      const overlay = mergedOccsOverlay(occurrencesById);
       markLoad("ops:start", { ops: operations.length });
       const allUpdates = runMatchingOperations(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById: overlay, modulesById },
-        makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById, occurrencesById: Object.assign({}, occurrencesById, localOccsById), modulesById })));
+        makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById, occurrencesById: mergedOccsOverlay(occurrencesById), modulesById })));
       const tOps1 = performance.now();
       markLoad("ops:end", { ms: +(tOps1 - tOps0).toFixed(1) });
       const displayUpdates = allUpdates.filter(u => !u._effect);
