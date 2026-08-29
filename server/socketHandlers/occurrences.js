@@ -1,5 +1,6 @@
 // socketHandlers/occurrences.js — update_occurrence + break_link + request_textmap
 import { setMaxListeners } from "node:events";
+import { withoutFilterFields } from "../utils/filterFields.js";
 import { withoutMongoId } from "../utils/mongoId.js";
 import { partitionChildRefs, resolveChildRefs } from "../utils/childRefGuard.js";
 import Occurrence from "../models/Occurrence.js";
@@ -435,15 +436,22 @@ export function registerOccurrenceHandlers(socket, {
         });
       }
 
-      // Propagate to copy-linked occurrences
+      // Propagate to copy-linked occurrences — EXCEPT the fields the grid
+      // FILTERS on, which are per-PLACEMENT and must be free to differ.
+      //
+      // Sharing them is what put a Todo copy in the "Wednesday, August 26th"
+      // column carrying a Date of 2026-08-29, and what re-dates the template's
+      // copy-link SOURCE every morning so `0145`/`0271` keep having to clear
+      // the same occurrence. See utils/filterFields.js for the measurement.
       if (next.linkedGroupId) {
         const linkedOccs = Object.values(uc.occurrencesById || {}).filter(
           o => o.linkedGroupId === next.linkedGroupId && o.id !== id
         );
+        const fanFields = withoutFilterFields(occurrence.fields, uc.filterFieldIds);
         for (const linked of linkedOccs) {
           const patch = {};
-          if (occurrence.fields && Object.keys(occurrence.fields).length > 0) {
-            patch.fields = { ...(linked.fields || {}), ...occurrence.fields };
+          if (fanFields && Object.keys(fanFields).length > 0) {
+            patch.fields = { ...(linked.fields || {}), ...fanFields };
           }
           if (textmap !== undefined) patch.textmap = textmap;
           if (Object.keys(patch).length === 0) continue;

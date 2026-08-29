@@ -2,6 +2,7 @@
 // Loads ALL data for the requested grid (grid-scoped cache).
 // No priority_state / lazy viewport traversal — everything ships in one emission.
 import Grid from "../models/Grid.js";
+import { filterFieldIdsOf } from "../utils/filterFields.js";
 import { splitFullState } from "../utils/splitFullState.js";
 
 // How long to wait for the client's post-paint request before pushing the
@@ -89,6 +90,12 @@ export function registerStateHandlers(socket, {
         ? ensureUserCache(userId, gridId)
         : await loadUserIntoCache(userId, gridId);
       mark(`cache ${cacheWarm ? "WARM" : "COLD"}`);
+
+      // WHICH FIELDS THIS GRID FILTERS ON — read once here, where the grid
+      // document is already in hand, so the occurrence WRITE path never pays a
+      // query for it. Consumed by the copy-link fan-out, which must not
+      // propagate a per-placement field across placements (utils/filterFields.js).
+      uc.filterFieldIds = filterFieldIdsOf(gridDoc);
 
       // NO TEMPLATES MANIFEST ANY MORE (2026-08-26). `0035` retired it: a
       // template is identified by LOCATION — the children of the one PROTECTED

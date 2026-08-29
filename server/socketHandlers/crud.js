@@ -1,5 +1,6 @@
 // socketHandlers/crud.js — CRUD for Grid, Module, Occurrence (simple), Field, Operation, Folder + genericCRUD
 import { setMaxListeners } from "node:events";
+import { filterFieldIdsOf } from "../utils/filterFields.js";
 import { withoutMongoId } from "../utils/mongoId.js";
 import Grid from "../models/Grid.js";
 import Module from "../models/Module.js";
@@ -78,6 +79,41 @@ export function registerCrudHandlers(socket, {
     }
   });
 
+  // ── ONE DOOR FOR EVERY WRITE THAT CAN CHANGE WHAT THE GRID FILTERS ON ────
+  // Three handlers can (`update_grid`, `update_grid_filter`,
+  // `update_grid_named_filters`), and the copy-link fan-out reads the answer
+  // out of the user cache on the write path. Refreshing it at each of the
+  // three separately is the "eighth caller forgets" trap this repo keeps
+  // paying for, so they all go through here.
+  //
+  // The cached grid-filter SOURCE is kept beside the derived set because a
+  // patch carries only the half it changes — a namedFilters replacement says
+  // nothing about activeFilterValues, and re-deriving from the patch alone
+  // would drop the other half's fields.
+  async function writeGridPatch(gridId, patch) {
+    const updated = await Grid.findOneAndUpdate({ _id: gridId, userId }, patch);
+    if (!updated) return null;
+    try {
+      const uc = ensureUserCache(userId, gridId);
+      if (uc) {
+        const src = uc.gridFilterSource || {};
+        if (patch.activeFilterValues !== undefined) src.activeFilterValues = patch.activeFilterValues;
+        if (patch.namedFilters !== undefined) src.namedFilters = patch.namedFilters;
+        uc.gridFilterSource = src;
+        // Only recompute when the patch actually touched a filter — an
+        // unrelated grid write (a layout resize, a rename) must not clobber a
+        // set that state.js derived from the full document.
+        if (patch.activeFilterValues !== undefined || patch.namedFilters !== undefined) {
+          uc.filterFieldIds = filterFieldIdsOf({
+            activeFilterValues: src.activeFilterValues,
+            namedFilters: src.namedFilters,
+          });
+        }
+      }
+    } catch { /* the refresh must never break the write it follows */ }
+    return updated;
+  }
+
   socket.on("update_grid", async (payload) => {
     try {
       if (!userId) return;
@@ -91,7 +127,7 @@ export function registerCrudHandlers(socket, {
       // resurrect it as a zombie doc — that's how duplicate "Live Grid"s were
       // born (2026-07-11: a reconnected tab's layoutTree write re-created the
       // grid the reseed had just deleted).
-      const updated = await Grid.findOneAndUpdate({ _id: gridId, userId }, updatePatch);
+      const updated = await writeGridPatch(gridId, updatePatch);
       if (!updated) return;
       socket.to(userRoom(userId)).emit("grid_updated", { gridId, grid: updatePatch });
     } catch (err) {
@@ -918,7 +954,7 @@ export function registerCrudHandlers(socket, {
       if (activeFilterId !== undefined) patch.activeFilterId = activeFilterId;
       if (activeFilterValues !== undefined) patch.activeFilterValues = activeFilterValues;
       if (!Object.keys(patch).length) return;
-      await Grid.findOneAndUpdate({ _id: gridId, userId }, patch);
+      await writeGridPatch(gridId, patch);
       socket.to(userRoom(userId)).emit("grid_updated", { gridId, grid: patch });
     } catch (err) {
       console.error("update_grid_filter error:", err);
@@ -930,7 +966,7 @@ export function registerCrudHandlers(socket, {
   socket.on("update_grid_named_filters", async ({ gridId, namedFilters } = {}) => {
     try {
       if (!userId || !gridId || !Array.isArray(namedFilters)) return;
-      await Grid.findOneAndUpdate({ _id: gridId, userId }, { namedFilters });
+      await writeGridPatch(gridId, { namedFilters });
       socket.to(userRoom(userId)).emit("grid_updated", { gridId, grid: { namedFilters } });
     } catch (err) {
       console.error("update_grid_named_filters error:", err);

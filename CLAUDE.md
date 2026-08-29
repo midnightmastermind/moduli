@@ -6,6 +6,90 @@
 
 ---
 
+### 2026-08-29 (7) — THE TODO LIST KEEPS GETTING RE-DATED, and it is the COPY-LINK FAN-OUT
+
+`gridIntegrity` reported `dated-copy-link-source` again — on the SAME occurrence
+`0271` cleared 24 hours earlier. Chased, root-caused, reproduced, fixed.
+
+**IT IS NOT PROBE DEBRIS, and that was the first thing to establish** since I had
+loaded the grid ~20 times today:
+```
+stamped at   2026-08-29T13:14:05Z = 08:14 CDT
+my session   started 11:04 CDT
+```
+Three hours before I touched anything.
+
+**THE FIRST SUSPECT DIED ON A CONTROL.** `APPLY_TEMPLATE`'s `defaultFields`
+became a DENYLIST on 2026-08-05 and now stamps containers, which looks exactly
+like the cause. It is not: of the `Day` template's **49 children, exactly ONE
+carries a Date** — and a template-wide stamp would have dated all 49. *The same
+control shape 2026-08-28 used: 48 siblings carry no date and one does.*
+
+**THE LIVE DATA THEN NAMED THE MECHANISM.**
+```
+linked group lg-LnLC5V1KIMt_    8 members (the source + 7 copies)
+distinct Date values            1  ->  "2026-08-29"
+one member's parent             "Wednesday, August 26th, 2026"
+```
+**A copy sitting in the AUG 26 column carrying AUG 29.** No per-column stamp can
+produce that. `update_occurrence` fans EVERY field of a write out to every other
+member of a copy-link group (`socketHandlers/occurrences.js:439`) — and the grid
+FILTERS on `Date`, so the field that decides *which column a placement is in* was
+being shared across placements. Grid-wide: 327 linked groups, 114 carry a filter
+value, and only **3** still disagree — the rest are already flattened.
+
+**REPRODUCED THROUGH THE REAL HANDLER, not asserted from the pipeline.** Three
+linked members across two day columns; writing `Date` on one overwrites the
+others and the template source. **The control is what makes it a measurement:**
+`Completed` fans out correctly in the same test, so this is not "nothing
+propagates" — it is one field class that must not.
+
+**WHICH IS WHY `0145` AND `0271` COULD NEVER HOLD.** They repair the data; the
+next morning's stamp fans straight back in. Two migrations, ten days apart, on
+one occurrence, each correct and each temporary. *A repair that the write path
+undoes is not a fix, and the third one would have been the tell.*
+
+**THE FIX READS THE GRID, NOT A LIST.** `utils/filterFields.js` derives the
+filter fields from `activeFilterValues` + `namedFilters[].conditions[].fieldId`
+— the same source `gridIntegrity` uses for the rule that CATCHES this — so
+nothing learns the word "Date". Only those fields are withheld; everything else
+still syncs, which is what the feature is for.
+
+**IT FAILS OPEN, AND THE DIRECTION IS A DECISION.** An unknown filter set
+propagates everything, i.e. today's behaviour. The inverse — withholding
+everything when the set is unknown — would silently stop a copy-link group
+sharing `Completed`, which is a worse failure than the one being fixed and an
+invisible one. Pinned by its own test.
+
+**AND THE THREE FILTER WRITERS GO THROUGH ONE DOOR.** `update_grid`,
+`update_grid_filter` and `update_grid_named_filters` can all change what the grid
+filters on, and the write path reads the answer out of the user cache. Refreshing
+it at each of the three is the *"eighth caller forgets"* trap this file keeps
+paying for, so they share one `writeGridPatch`. The set itself is derived ONCE in
+`state.js`, where the grid document is already in hand — so the occurrence write
+path never pays a query for it.
+
+**`0283` DELEGATES TO `0271`** rather than repeating its remedy (CLEAR, never
+re-stamp — *"stamping works today and goes stale tomorrow"*) or its safety
+discriminator (a copy is cleared only when its value EQUALS its source's; one
+that differs was set deliberately and is KEPT and REPORTED). A separate migration
+because `0271` has executed and a ledger entry has to describe what ran — the
+`0276`→`0274` pattern. Dry run named exactly what was measured independently:
+1 source, 7 inherited copies, no keepers.
+
+**A GUARD CAUGHT MY OWN TYPO, AND I HAD COPIED IT OUT OF THIS FILE.**
+`touches = ["occurrance"]` — the exact misspelling 2026-08-28 (6) records itself
+making — was rejected by `partialBackup`'s check that every scoped migration
+names real collections. *A war story in a CLAUDE.md entry is also a copy-paste
+hazard; the mechanical guard is what caught it both times.*
+
+13 tests (6 driving the real handler, 7 on the extracted helper), **A/B'd:
+restoring the unguarded fan-out fails exactly 4** — the three defect cases plus
+the filter-only write — while the CONTROL and the fail-open case still pass.
+2,042 server tests, lint 0 errors.
+
+---
+
 ### 2026-08-29 (6) — THE EFFECT LOOP WAS COPYING 21,000 KEYS PER EFFECT, and it was the 08-25 (9) fix applied to one of three places
 
 The docket item, taken. The lever it named — batch the 195 effects into one
