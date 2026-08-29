@@ -6,6 +6,80 @@
 
 ---
 
+### 2026-08-29 (4) — SWEEP CHUNKING: the first attempt made it WORSE, and the measurement is the entry
+
+User: *"keep going with the sweep chunking."* Shipped, reverted, re-shipped
+corrected — and the useful output is the attribution, not the code.
+
+**FIRST, THE ATTRIBUTION NOBODY HAD.** Long tasks on the page's own clock, with
+the app's milestones on that same clock, warm:
+```
+@ 2097ms   801ms   bundle eval + mount
+@ 3221ms   843ms   initial render (5,499 occurrences)
+@ 6370ms  3606ms   <- the catalogue merge + op sweep + effects, ONE task
+@10376ms  1090ms   feedSync
+                   20 tasks, 8,468ms total
+```
+The ~9 seconds is not one thing. **The dominant block is a single 3.6s task**, and
+the sweep's own log splits it: `runMatchingOperations 1,958ms` then
+`applied effects 1,648ms`, back to back with nothing between them.
+
+**ATTEMPT ONE MADE IT WORSE, AND THE TELL WAS IN ITS OWN LOG LINE.** Slicing the
+effect loop at an 8ms budget:
+```
+before   ops 2076ms · effects 1766ms · 9 seconds >200ms after paint
+after    ops 1962ms · effects 4807ms across 194 slice(s) · 11 seconds >200ms
+```
+**194 slices for 195 effects.** Every effect measures ~9ms, so every one blew an
+8ms budget and the loop yielded after each — ~3s of pure scheduling, for nothing.
+Reverted, helper included: a mechanism nothing has been shown to need is removed,
+not parked for later.
+
+**A BUDGET IS ONLY USEFUL STRICTLY BETWEEN ONE ITEM'S COST AND 50ms** — above the
+item cost so a slice batches several, below the threshold a browser calls a long
+task so no slice becomes the thing it was meant to prevent. At ~9ms an item, 32ms
+batches three or four. Re-applied:
+```
+longest task   3606ms -> 2028ms     (and 2,028 IS the op sweep — the floor)
+total          8468ms -> 8852ms     (+380ms of yields, the honest price)
+```
+Both the useful budget AND the pathological one-slice-per-item degeneracy are
+pinned by tests, so that failure is recognisable rather than mysterious next time.
+
+**AND THE RE-MEASUREMENT NAMES THE NEXT WALL, which slicing cannot reach.** Three
+~1,000ms tasks survive AFTER the sweep. A 32ms slice becoming a 1,000ms task means
+**the budget measures the effect APPLICATION and not the React render each one
+provokes** — the render is synchronous at dispatch, so it is outside the loop's
+control entirely. The tally on a load with NOTHING clicked:
+```
+field 1,329 · container 359 · instance 307 · panel 81 · page 33
+```
+195 effects, ~7 field renders each. **That is 2026-08-25 (5)'s docket item reached
+from a new direction** — *"`ModulePanel` subscribes to `occurrencesById`, rebuilt
+on every occurrence write, so all three mounted panels re-render on each"* — and
+it is now the largest remaining cost with a number against it.
+
+**SO THE NEXT LEVER IS FEWER STORE WRITES, NOT MORE YIELDS.** 195 effects are 195
+dispatches and 195 fan-outs; applying them as one batched write would COLLAPSE the
+renders rather than redistribute them. That is a change to the shared write path
+and it wants its own pass.
+
+**THE DERIVED SCOPE IS CARRIED ACROSS THE YIELDS**, via `captureAction` taken
+synchronously while the scope is still live and `runInAction` per item. Without it
+the continuation resumes at derivedDepth 0 and every write opens an undo action —
+the 2026-08-27 (3) defect where a page load pushed 26 undo steps and Ctrl+Z
+reverted a tracker recomputation instead of the user's last edit.
+
+Verified on prod after: 21,207 occurrences · 7,816 modules · 71 ops · 70
+containers · 105 rows · **0 page errors**. 3,558 client tests.
+
+**A MEASUREMENT NOTE THAT COST TWO RUNS, TWICE:** first paint read 197,998ms and
+then 3,096ms for the same build. A deploy restarts pm2, so the next load pays the
+documented ~180s cold Atlas read. *Every load number here is from a warmed server;
+one taken right after a deploy measures the cache, not the code.*
+
+---
+
 ### 2026-08-29 (3) — THE DEVICE ANSWERED: 9 seconds of blocked main thread after the grid paints
 
 The tablet ran the diagnostic and settled what no probe here could. Two arms
