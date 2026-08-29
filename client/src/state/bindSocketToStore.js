@@ -256,6 +256,13 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (payload.deferredCount > 0) {
       pendingFullState = payload;
       armRestFallback();
+      // ASK FOR THE REST ONLY ONCE THE GRID HAS PAINTED. Pushed in the same tick
+      // instead, the catalogue's frames arrive back to back and their PARSE
+      // competes with the very frame this split exists to free — measured, 16.73
+      // MB was already received by first paint. `afterPaint` is rAF THEN a
+      // macrotask, because a rAF callback still runs before the paint (the trap
+      // the textblock-mint work paid for).
+      afterPaint(() => safeEmit(socket, "request_full_state_rest", { gridId: payload.gridId }));
       return;
     }
     runLoadSweep(payload);

@@ -3,6 +3,30 @@
 // No priority_state / lazy viewport traversal — everything ships in one emission.
 import Grid from "../models/Grid.js";
 import { splitFullState } from "../utils/splitFullState.js";
+
+// How long to wait for the client's post-paint request before pushing the
+// deferred half anyway. Generous: it is a safety net, not a schedule.
+const REST_PUSH_FALLBACK_MS = 6000;
+
+/**
+ * Emit the artifact catalogue. Chunked so one 16 MB frame does not simply move
+ * the stall from parse to inflate; every module rides with the FIRST chunk,
+ * because a placement whose module has not arrived renders nothing while the
+ * reverse never happens.
+ */
+function emitDeferred({ socket, gridId, deferred, deferredModules }) {
+  const CHUNK = 4000;
+  const chunks = Math.ceil(deferred.length / CHUNK);
+  for (let i = 0; i < chunks; i++) {
+    socket.emit("full_state_rest", {
+      gridId,
+      occurrences: deferred.slice(i * CHUNK, (i + 1) * CHUNK),
+      modules: i === 0 ? deferredModules : [],
+      chunk: i + 1, chunks, done: i === chunks - 1,
+    });
+  }
+  console.log(`[full_state] deferred ${deferred.length} artifact occurrences + ${deferredModules.length} modules in ${chunks} chunk(s)`);
+}
 import User from "../models/User.js";
 import { getOccurrencesForGrid } from "../utils/occurrenceHelpers.js";
 import { ensureUserManifest } from "../utils/userManifest.js";
@@ -132,23 +156,23 @@ export function registerStateHandlers(socket, {
       });
 
       if (deferred.length) {
-        // Same tick — this is a paint-order change, not a lazy load. Chunked so
-        // one 16 MB frame does not simply move the stall from parse to inflate.
-        const CHUNK = 4000;
-        const chunks = Math.ceil(deferred.length / CHUNK);
-        for (let i = 0; i < chunks; i++) {
-          socket.emit("full_state_rest", {
-            gridId,
-            occurrences: deferred.slice(i * CHUNK, (i + 1) * CHUNK),
-            // Every module rides with the FIRST chunk: a placement whose module
-            // has not arrived renders nothing, and the reverse never happens.
-            modules: i === 0 ? deferredModules : [],
-            chunk: i + 1,
-            chunks,
-            done: i === chunks - 1,
-          });
-        }
-        console.log(`[full_state] deferred ${deferred.length} artifact occurrences + ${deferredModules.length} modules in ${chunks} chunk(s)`);
+        // THE CLIENT ASKS FOR THESE ONCE IT HAS PAINTED, and that is the point.
+        // Pushing them in the same tick measured 16.73 MB already received by
+        // first paint: the frames arrive back to back and their PARSE competes
+        // with the very frame we were trying to free. The client re-requests
+        // from `afterPaint`, so the ordering is caused rather than hoped for —
+        // no picked delay racing a payload whose size is data-dependent.
+        //
+        // FAIL OPEN: if no request arrives (an older tab, a client that never
+        // paints) they are pushed anyway. A grid missing its catalogue forever
+        // is far worse than one that loads it a beat early.
+        const send = () => emitDeferred({ socket, gridId, deferred, deferredModules });
+        let sent = false;
+        const once = () => { if (sent) return; sent = true; clearTimeout(safety); socket.off("request_full_state_rest", onAsk); send(); };
+        const onAsk = (p = {}) => { if (!p.gridId || p.gridId === gridId) once(); };
+        socket.once("request_full_state_rest", onAsk);
+        const safety = setTimeout(once, REST_PUSH_FALLBACK_MS);
+        socket.once("disconnect", () => clearTimeout(safety));
       }
 
     } catch (err) {
