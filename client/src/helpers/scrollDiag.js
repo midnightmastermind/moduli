@@ -161,8 +161,51 @@ function median(xs) {
   return Math.round(s[Math.floor(s.length / 2)]);
 }
 
-function verdictFor(s) {
-  if (s.rowsAdded > 0) {
+// ── HOW MUCH SCROLLING THIS BURST ACTUALLY DID ─────────────────────────────
+// Every arm is a separate hand-scroll, so nothing forces two of them to be the
+// same gesture — and on 2026-08-29 they were not. Baseline flung the WHOLE page
+// (15,364px of 15,374 in 5,240ms ≈ 2,930px/s) while the three "fixed" arms
+// crawled 425-2,580px at 207-348px/s. Read naively that says the marquee costs
+// 92ms a frame. It says nothing of the kind: the arms differ by 8-14x in how
+// fast they moved, which is the only variable big enough to explain the gap.
+// So the rate is printed, and an arm too far from baseline is MARKED, because
+// this repo's history is one long record of a before/after that measured two
+// different things.
+export function scrollRate(s) {
+  if (!s || !s.durationMs) return 0;
+  return Math.round(Math.abs(s.endTop - s.startTop) / (s.durationMs / 1000));
+}
+export function comparability(rate, baseRate, tolerance = 2) {
+  if (!rate || !baseRate) return "unknown";
+  const ratio = rate > baseRate ? rate / baseRate : baseRate / rate;
+  return ratio <= tolerance ? "comparable" : "not comparable";
+}
+
+// ── A MOUNT VERDICT NEEDS ENOUGH MOUNTING TO EXPLAIN THE BURST ─────────────
+// This fired on `rowsAdded > 0`, so ONE row crowned MOUNT and shadowed the real
+// story. It did exactly that on 2026-08-29: a full-page fling that was 86%
+// main-thread blocked (16 long tasks, 4,481ms of 5,240ms, median frame 109ms)
+// reported MOUNT because a single row landed mid-gesture — while the
+// progressive catalogue load was still growing the page underneath it. One row
+// is not why a five-second gesture stuttered, and crowning it sends the next
+// round after the mount path instead of the main thread.
+//
+// The floor is DERIVED rather than picked: "rows were missing as I scrolled"
+// means at least a screenful arrived late, and the session already records both
+// numbers, so the threshold follows the device's own geometry instead of a
+// constant that is wrong on the next screen size.
+export function mountFloor(s) {
+  const perScreen = s && s.realPx > 0 ? Math.round(s.clientHeight / s.realPx) : 0;
+  return Math.max(2, perScreen);
+}
+
+export function verdictFor(s) {
+  // A sub-threshold mount is REPORTED rather than hidden — the count still
+  // matters, it just cannot be the headline.
+  const minor = s.rowsAdded > 0
+    ? ` (${s.rowsAdded} row(s) also entered the DOM — too few to explain it)`
+    : "";
+  if (s.rowsAdded >= mountFloor(s)) {
     return {
       code: "MOUNT",
       text: `${s.rowsAdded} rows entered the DOM DURING the scroll — they really were missing.`,
@@ -174,7 +217,7 @@ function verdictFor(s) {
     return {
       code: "SKIPPED",
       text: `${s.unskipped} rows were un-skipped mid-scroll — content-visibility (index.css:954) `
-        + `deferred their layout to the moment you reached them.`,
+        + `deferred their layout to the moment you reached them.` + minor,
     };
   }
   // requestAnimationFrame runs ON the main thread, so a long gap between two
@@ -183,22 +226,22 @@ function verdictFor(s) {
   if (s.frameMedian > 100) {
     return {
       code: "MAIN-THREAD",
-      text: `frames ${s.frameMedian}ms apart with nothing added to the DOM — the main thread `
-        + `was blocked in style/layout/paint${SUPPORTS_LONGTASK ? "" : " (longtask API unavailable here, so JS vs paint is not separable)"}.`,
+      text: `frames ${s.frameMedian}ms apart — the main thread was blocked in `
+        + `style/layout/paint${SUPPORTS_LONGTASK ? ` (${s.longTasks} long task(s), ${Math.round(s.longTaskMs)}ms of ${s.durationMs}ms)` : " (longtask API unavailable here, so JS vs paint is not separable)"}.` + minor,
     };
   }
   if (SUPPORTS_LONGTASK && s.longTaskMs > s.durationMs * 0.3) {
     return {
       code: "PAINT",
-      text: `DOM was complete; main thread blocked ${s.longTaskMs}ms of ${s.durationMs}ms.`,
+      text: `Main thread blocked ${Math.round(s.longTaskMs)}ms of ${s.durationMs}ms.` + minor,
     };
   }
   if (s.slowFrames > 0) {
     return {
       code: SUPPORTS_LONGTASK ? "RASTER" : "UNKNOWN",
       text: SUPPORTS_LONGTASK
-        ? `DOM complete and main thread mostly idle, yet ${s.slowFrames} frames missed — GPU/raster bound.`
-        : `${s.slowFrames} frames missed, but this browser reports no long-task data, so the cause is not attributable.`,
+        ? `DOM complete and main thread mostly idle, yet ${s.slowFrames} frames missed — GPU/raster bound.${minor}`
+        : `${s.slowFrames} frames missed, but this browser reports no long-task data, so the cause is not attributable.${minor}`,
     };
   }
   return { code: "CLEAN", text: "Nothing anomalous recorded in this burst." };
@@ -250,6 +293,9 @@ function endSession() {
       verdict: verdict.code,
       arm: s.arm,
       note: verdict.text,
+      // Without the rate a server-side report is uncomparable in exactly the way
+      // the overlay was: two arms at 2,930px/s and 207px/s look like an A/B.
+      ratePxPerSec: scrollRate(s),
       ua: navigator.userAgent,
       supportsLongTask: SUPPORTS_LONGTASK,
       supportsCvEvent: SUPPORTS_CV_EVENT,
@@ -384,7 +430,12 @@ function renderOverlay() {
     "box-shadow:0 6px 24px rgba(0,0,0,0.5)", "max-height:52vh", "overflow:auto",
   ].join(";"));
 
+  // The A/B rests entirely on the arms being the same gesture, so baseline's
+  // rate is the yardstick every later arm is measured against.
+  const baseRate = scrollRate(sessions[0]);
   const rows = sessions.map((s) => {
+    const rate = scrollRate(s);
+    const cmp = s.index === 1 ? "baseline" : comparability(rate, baseRate);
     const colour = s.verdict.code === "MOUNT" ? "#ffd479"
       : s.verdict.code === "SKIPPED" ? "#c9a0ff"
       : s.verdict.code === "PAINT" ? "#ff9d9d"
@@ -403,7 +454,8 @@ function renderOverlay() {
         seed <b style="color:${seedBad ? "#ffd479" : "#9ae6b4"}">${s.seedPx || "?"}px</b> vs real <b>${s.realPx || "?"}px</b><br>
         frames: median <b>${s.frameMedian}ms</b>, missed <b>${s.slowFrames}</b>/${s.frames.length} ·
         long tasks <b>${s.longTasks}</b> (<b>${s.longTaskMs}ms</b>)<br>
-        scrolled <b>${Math.abs(s.endTop - s.startTop)}px</b> of ${s.scrollHeight - s.clientHeight} · ${s.durationMs}ms
+        scrolled <b>${Math.round(Math.abs(s.endTop - s.startTop))}px</b> of ${s.scrollHeight - s.clientHeight} · ${s.durationMs}ms ·
+        <b>${rate}px/s</b> <span style="color:${cmp === "not comparable" ? "#ffd479" : "#9ae6b4"}">${cmp}</span>
       </div>`;
   }).join("");
 
@@ -413,7 +465,10 @@ function renderOverlay() {
       <span style="opacity:.65">tap to dismiss</span>
     </div>${rows}
     <div style="margin-top:8px;opacity:.6">
-      Scroll again — each pass disables one suspect (marquee / backdrop / shadow).<br>The pass whose frame median drops is the cause. ${sessions.length}/${MAX_SESSIONS} done.
+      Scroll again — each pass disables one suspect (marquee / backdrop / shadow).<br>
+      The pass whose frame median drops is the cause — but ONLY among arms marked
+      <b>comparable</b>: scroll each one the same way, or the rate is the variable
+      you measured. ${sessions.length}/${MAX_SESSIONS} done.
     </div>`;
   box.addEventListener("click", () => box.remove());
   document.body.appendChild(box);

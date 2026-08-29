@@ -6,6 +6,84 @@
 
 ---
 
+### 2026-08-29 (5) — THE DEVICE ANSWERED AGAIN, and the INSTRUMENT misread two of its four arms
+
+Four `scrollDiag` arms off the tablet. The app's numbers are useful; the
+diagnostic's own verdicts are not, and that is the finding.
+
+```
+arm           verdict    median  missed   blocked   scrolled        px/s   vs base
+baseline      MOUNT       109ms  14/23      86%   15365 of 15374    2932     1.0x
+no-marquee    MOUNT        17ms  11/179     40%    1946 of 17250     348     8.4x
+no-backdrop   PAINT        17ms  24/340     42%    2580 of 17616     207    14.2x
+no-shadow     RASTER       16ms   2/72       4%     425 of 18112     310     9.5x
+```
+
+**THE A/B IS VOID, AND NOTHING ON SCREEN SAID SO.** The arms exist to neutralise
+one suspect each and compare frame medians — but **baseline scrolled 8-14x
+faster than every other arm**, and it is the only one that flung the WHOLE page.
+Read naively the table says the marquee costs 92ms a frame. It says nothing of
+the kind: gesture velocity is the only variable big enough to explain the gap.
+*This file has recorded "a before/after measures the change only if both halves
+ran against the same thing" since 2026-08-25 (7), and the previous entry's own
+capture failed the same way (two arms at 266px and 0px). The instrument had
+never been taught to notice.*
+
+**AND `MOUNT` FIRED ON ONE ROW.** `verdictFor` crowned MOUNT on `rowsAdded > 0`,
+so the baseline arm — a textbook main-thread block, **16 long tasks, 4,481ms of
+a 5,240ms gesture, 14 of 23 frames missed** — was reported as *"1 rows entered
+the DOM DURING the scroll — they really were missing."* One row is not why a
+five-second fling stuttered, and crowning it sends the next round after the
+mount path. **The row is explained**: the scrollable height grew 15,374 →
+17,250 → 17,616 → 18,112px ACROSS the four arms, so the progressive catalogue
+load was still landing content under every one of them.
+
+**THE FLOOR IS DERIVED, NOT PICKED.** "Rows were missing as I scrolled" means at
+least a screenful arrived late, and the session already records the row height
+and the viewport — so `mountFloor` is `clientHeight / realPx` (≈4 here) and
+follows the device instead of a constant that is wrong on the next screen. A
+sub-threshold mount is **reported inside whatever verdict wins** rather than
+hidden, and `MAIN-THREAD` stops asserting *"nothing added to the DOM"*, which
+was a flat lie whenever a row had landed.
+
+**WHAT IS ATTRIBUTABLE WITHOUT A CLEAN A/B, said plainly:**
+- **A full-page fling runs at ~9fps** — 23 frames in 5,240ms, median 109ms,
+  **86% of the gesture inside a long task.** That is the "sticky" complaint with
+  a number on it.
+- **Even the gentle arms are ~40% blocked** (2,234ms/5,597 and 5,284ms/12,450),
+  so this is chronic, not fling-only.
+- **`content-visibility` is contributing NOTHING here** — `skipped at start 0`
+  and `un-skipped 0` on all four arms, so the `.container-list--long` gate never
+  engaged and the `seed ?px` reading is moot for these rows.
+- **Every arm ran inside the documented post-paint load tail**, which is what the
+  growing scroll height proves. So all four measure *scrolling against a main
+  thread already committed to the load sweep* — not steady-state scroll cost.
+  **The next capture is only worth taking after the grid goes quiet**, and the
+  overlay now prints the rate so the arms can be checked before they are trusted.
+
+**THE LEVER IS UNCHANGED and is the previous entry's docket item**: the block is
+main-thread JavaScript during the load tail, and the measured next wall is the
+195 effects becoming 195 dispatches and 195 render fan-outs (field 1,329 ·
+container 359 · instance 307 on a load with nothing clicked). Batching them into
+one write collapses the renders rather than redistributing them. Not built here
+— it is the shared write path this file records being damaged repeatedly.
+
+11 tests on the two pure helpers, **both A/B'd with the mutation asserted to
+land**: restoring the unconditional MOUNT fails exactly 2, making
+`comparability` always agree fails exactly 1. The positive controls matter more
+than usual — one asserts a real screenful of late rows STILL reports MOUNT (or
+the fix degrades into "never report MOUNT"), one asserts an arm CAN read
+"comparable" (or the flag is a label nailed to every row), and one pins that a
+0px arm reads "unknown" rather than dividing by zero into a finding. **Honest
+gap:** the branch printing the long-task figure is unreachable under jsdom
+(`PerformanceObserver.supportedEntryTypes` is unimplemented), so it is verified
+only on the device; the reachable fallback — which must never let an absent API
+read as zero long tasks — is the one under test.
+
+3,570 client tests, lint 0 errors, build clean at the documented chunk sizes.
+
+---
+
 ### 2026-08-29 (4) — SWEEP CHUNKING: the first attempt made it WORSE, and the measurement is the entry
 
 User: *"keep going with the sweep chunking."* Shipped, reverted, re-shipped
