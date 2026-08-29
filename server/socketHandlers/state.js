@@ -2,6 +2,7 @@
 // Loads ALL data for the requested grid (grid-scoped cache).
 // No priority_state / lazy viewport traversal — everything ships in one emission.
 import Grid from "../models/Grid.js";
+import { splitFullState } from "../utils/splitFullState.js";
 import User from "../models/User.js";
 import { getOccurrencesForGrid } from "../utils/occurrenceHelpers.js";
 import { ensureUserManifest } from "../utils/userManifest.js";
@@ -103,19 +104,52 @@ export function registerStateHandlers(socket, {
         } catch { socket.data.userEmail = null; }
       }
 
+      // PROGRESSIVE: the working surfaces first, the artifact catalogue right
+      // behind them. Measured 2026-08-29 at a tablet viewport, full_state was
+      // 28.74 MB decompressed and 16.15 MB of that was songs/albums/bookmarks/
+      // artists — a catalogue nobody has open, parsed on the main thread on
+      // every load. NOTHING IS WITHHELD: the second message follows immediately,
+      // so the 19 ops that walk `$allItems` see exactly what they saw before.
+      // See utils/splitFullState.js for the measurement and the role rule.
+      const { core, deferred, coreModules, deferredModules } =
+        splitFullState(allGridOccs, gridModules);
+
       socket.emit("full_state", {
         gridId,
         userEmail: socket.data.userEmail,
         grid: gridDoc,
-        modules: gridModules,
-        occurrences: allGridOccs,
+        modules: coreModules,
+        occurrences: core,
         fields: Object.values(uc.fieldsById),
         manifests: Object.values(uc.manifestsById),
         views: Object.values(uc.viewsById),
         folders: Object.values(uc.foldersById),
         operations: Object.values(uc.operationsById),
         grids,
+        // The client holds its load sweep until the rest lands, so it must know
+        // whether to expect a second message at all. 0 = this IS everything.
+        deferredCount: deferred.length,
       });
+
+      if (deferred.length) {
+        // Same tick — this is a paint-order change, not a lazy load. Chunked so
+        // one 16 MB frame does not simply move the stall from parse to inflate.
+        const CHUNK = 4000;
+        const chunks = Math.ceil(deferred.length / CHUNK);
+        for (let i = 0; i < chunks; i++) {
+          socket.emit("full_state_rest", {
+            gridId,
+            occurrences: deferred.slice(i * CHUNK, (i + 1) * CHUNK),
+            // Every module rides with the FIRST chunk: a placement whose module
+            // has not arrived renders nothing, and the reverse never happens.
+            modules: i === 0 ? deferredModules : [],
+            chunk: i + 1,
+            chunks,
+            done: i === chunks - 1,
+          });
+        }
+        console.log(`[full_state] deferred ${deferred.length} artifact occurrences + ${deferredModules.length} modules in ${chunks} chunk(s)`);
+      }
 
     } catch (err) {
       console.error("request_full_state error:", err);

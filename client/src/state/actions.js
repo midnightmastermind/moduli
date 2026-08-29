@@ -5,6 +5,9 @@
 
 export const ActionTypes = {
   FULL_STATE: "FULL_STATE",
+  // The artifact catalogue, sent right behind full_state so the grid can paint
+  // first. Additive only — see the reducer case.
+  FULL_STATE_REST: "FULL_STATE_REST",
   PRIORITY_STATE: "PRIORITY_STATE",
 
   SET_USER_ID: "SET_USER_ID",

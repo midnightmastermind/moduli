@@ -63,6 +63,45 @@ function reduce(state, action) {
         // ======================================================
         // FULL STATE HYDRATE
         // ======================================================
+        // ======================================================
+        // THE DEFERRED HALF OF full_state
+        // ======================================================
+        // The server sends the working surfaces first and the artifact
+        // catalogue immediately behind (server/utils/splitFullState.js).
+        //
+        // STRICTLY ADDITIVE — it only inserts ids the store does not already
+        // hold, and touches nothing that is there. A merge that overwrote could
+        // clobber a write made in the gap between the two messages, which is the
+        // stale-echo class this codebase has been damaged by repeatedly.
+        //
+        // Returns the SAME state object when there is nothing new, so a
+        // duplicate or empty chunk costs no re-render.
+        case ActionTypes.FULL_STATE_REST: {
+            const { occurrences: incomingOccs = [], modules: incomingMods = [] } = action.payload || {};
+            const haveOcc = new Set((state.occurrences || []).map(o => o?.id));
+            const addOccs = incomingOccs.filter(o => o?.id && !haveOcc.has(o.id));
+            const haveMod = new Set((state.modules || []).map(m => m?.id));
+            const addMods = incomingMods.filter(m => m?.id && !haveMod.has(m.id));
+            if (!addOccs.length && !addMods.length) return state;
+
+            const modules = addMods.length ? [...(state.modules || []), ...addMods] : state.modules;
+            // The role arrays are derived from modules, so they only move when
+            // modules do.
+            const derived = addMods.length ? deriveRoleArrays(modules) : null;
+            return {
+                ...state,
+                modules,
+                ...(derived ? {
+                    panels: derived.panels,
+                    containers: derived.containers,
+                    instances: derived.instances,
+                    artifacts: derived.artifacts,
+                    textblocks: derived.textblocks,
+                } : {}),
+                occurrences: addOccs.length ? [...(state.occurrences || []), ...addOccs] : state.occurrences,
+            };
+        }
+
         case ActionTypes.FULL_STATE:
         case ActionTypes.PRIORITY_STATE: {
             const {

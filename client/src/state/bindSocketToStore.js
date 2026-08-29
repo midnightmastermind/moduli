@@ -248,6 +248,60 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
     markFS(`reducer dispatched (${(payload.occurrences || []).length} occs, ${(payload.modules || []).length} mods)`);
 
+    // PROGRESSIVE LOAD: the server sends the working surfaces first and the
+    // artifact catalogue immediately behind it (server/utils/splitFullState.js —
+    // 16.15 MB of a 28.74 MB payload was songs/albums/bookmarks/artists). The
+    // grid has already painted from the dispatch above; the LOAD SWEEP waits, so
+    // every op still sees the complete grid exactly as it did before.
+    if (payload.deferredCount > 0) {
+      pendingFullState = payload;
+      armRestFallback();
+      return;
+    }
+    runLoadSweep(payload);
+  }
+
+  // ── The deferred half ──────────────────────────────────────────────────────
+  //
+  // FAIL OPEN, and that is the important half: if the rest never arrives the
+  // sweep must still run. An op sweep that never fires is a grid whose trackers,
+  // schedule build and feeds all silently stop — far worse than one that ran
+  // without the media catalogue.
+  let pendingFullState = null;
+  let restFallbackTimer = null;
+  const REST_FALLBACK_MS = 15000;
+
+  function armRestFallback() {
+    if (restFallbackTimer) clearTimeout(restFallbackTimer);
+    restFallbackTimer = setTimeout(() => {
+      if (!pendingFullState) return;
+      console.warn("[full_state] deferred chunks never completed — running the load sweep anyway");
+      const p = pendingFullState; pendingFullState = null;
+      runLoadSweep(p);
+    }, REST_FALLBACK_MS);
+  }
+
+  function onFullStateRest(rest = {}) {
+    // A late chunk for a grid the user has already navigated away from must not
+    // be merged into the new one.
+    if (rest.gridId && pendingFullState?.gridId && rest.gridId !== pendingFullState.gridId) return;
+    socketDispatch({ type: ActionTypes.FULL_STATE_REST, payload: rest });
+
+    // Accumulate onto the pending payload so the sweep below sees the WHOLE
+    // grid — the executor builds its maps from this object, not from the store.
+    if (pendingFullState) {
+      if (rest.occurrences?.length) pendingFullState.occurrences = pendingFullState.occurrences.concat(rest.occurrences);
+      if (rest.modules?.length) pendingFullState.modules = pendingFullState.modules.concat(rest.modules);
+    }
+    if (!rest.done) return;
+
+    if (restFallbackTimer) { clearTimeout(restFallbackTimer); restFallbackTimer = null; }
+    const p = pendingFullState;
+    pendingFullState = null;
+    if (p) runLoadSweep(p);
+  }
+
+  function runLoadSweep(payload) {
     // Fire onLoad/onNavigation operations after hydration (via microtask so state is updated first)
     const operations = payload.operations || [];
     const fieldsById = {};
@@ -347,7 +401,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     }), 50)));
   }
 
+
   socket.on("full_state", onFullState);
+  socket.on("full_state_rest", onFullStateRest);
 
   // Priority state — renders the visible grid immediately with the viewport slice.
   // No operations fired here; full_state (arriving right after) handles that.
@@ -2474,6 +2530,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     clearInterval(scheduleInterval);
     if (bc) { bc.close(); bc = null; }
     socket.off("full_state", onFullState);
+    socket.off("full_state_rest", onFullStateRest);
     socket.off("priority_state", onPriorityState);
     socket.off("textmaps_loaded", onTextmapsLoaded);
     socket.off("sync_state", onSyncState);
