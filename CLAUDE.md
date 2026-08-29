@@ -6,6 +6,71 @@
 
 ---
 
+### 2026-08-29 (11) — SOURCE-MAPPED THE PROFILE, and the pipeline language checked its rare shapes first
+
+(10) closed saying the prod profile was unreadable — minification turned the
+app's own frames into `pe` / `xS` / `Mo`, and *"ranking mangled names would be
+guessing with a decimal point on it."* User's call: source maps.
+
+**RESOLVED AGAINST THE PRODUCTION BUNDLE, not a dev build.** Profiling an
+unminified dev bundle would name the frames and change the code being measured;
+the local `dist` is byte-identical to what is served (sha256-checked on every
+deploy), so its `.map` files resolve the real profile offline. `source-map-js`
+was already a dependency.
+```
+ 598ms  7.6%  resolveExpr            src/helpers/operationActions.js:120   <- largest APP frame
+ 460ms  5.8%  (anon)                 src/state/bindSocketToStore.js:371
+ 253ms  3.2%  collectFindCandidates  src/helpers/operationExecutor.js:302
+ 182ms  2.3%  get scrollWidth        (vm)                                  <- forced layout
+ 160ms  2.0%  executeSteps · 155ms resolveRecordPath · 144ms executePipeline
+```
+`resolveExpr` alone is ~26% of the ~2,270ms sweep.
+
+**IT CHECKED THE RARE SHAPES FIRST.** Every call ran eight `startsWith` probes
+and an `includes` before reaching what the string actually was. Counted across
+poms grid's OWN enabled pipelines — 9,991 strings:
+```
+7,018  plain literal   <- fell through EVERY check to `return expr`
+2,869  $path
+   44  literal:  ·  34  ${}  ·  26  json:
+```
+**The two shapes that are 99% of the traffic were the two paying the most.**
+Both are identifiable from the first character plus one scan, and none of the
+prefixed forms begins with `$`.
+
+**AND THE REORDERING WAS ONLY A THIRD OF IT.** At the measured mix:
+```
+before                          62ms / 400k calls
++ first-character dispatch      53ms      -15%
++ memoised path split           23ms      -63% overall
+```
+The `split(".")` per `$path` was the larger half — an array allocated on every
+call for a string drawn from a fixed set. Bounded at 5,000 entries because `${}`
+substitution can mint new expression strings at run time, so the set is *small
+and fixed* only for authored pipelines.
+
+**PURE REORDERING, WHICH IS WHY THE TESTS CANNOT DISCRIMINATE — and the A/B is
+against PLAUSIBLE WRONG VERSIONS instead.** Every shape must resolve exactly as
+before, so a passing suite proves equivalence rather than vigilance. Three
+mutations that a careless reordering would actually produce, each caught by
+exactly the right test: the `$` fast path skipping the `${` check (an
+interpolation like `"$allItemsById.${$childId}"` walked as a literal path)
+fails 1; the literal fast path skipping `${` fails 1; the literal fast path
+skipping the COLON check fails 2. *When a change is a no-op by construction, the
+A/B has to mutate toward the bug, not away from the fix.*
+
+The colon guard is the load-bearing one: this grid is full of `"9:00am"`, a
+plain literal that CONTAINS a colon, so the fast path must bail on it and let it
+fall through to the prefix checks it will not match.
+
+12 tests, including the two that pin the shared parts array — a repeat call must
+give the same answer, and crossing the cache bound must lose speed and never
+accuracy.
+
+3,611 client tests, lint 0 errors.
+
+---
+
 ### 2026-08-29 (10) — THE OP SWEEP, PROFILED: no easy win, and one of my own numbers retracted
 
 User's pick after (9). Measured rather than optimised, and the useful output is

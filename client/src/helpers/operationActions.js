@@ -117,6 +117,33 @@ function parseLocalDate(value) {
   return new Date(value);
 }
 
+// Walk arbitrary depth: "$item.fields.water.value" → $vars["$item"]["fields"]["water"]["value"]
+// Extracted so the first-character fast path in `resolveExpr` and its ordinary
+// tail share ONE copy of the walk rather than drifting apart.
+const _pathParts = new Map();
+function partsOf(expr) {
+  let p = _pathParts.get(expr);
+  if (p === undefined) {
+    // Expression strings come from STORED pipelines, so the distinct set is
+    // small and fixed — but `${}` substitution can mint new ones at run time,
+    // so the cache is bounded rather than unbounded.
+    if (_pathParts.size > 5000) _pathParts.clear();
+    p = expr.slice(1).split(".");
+    _pathParts.set(expr, p);
+  }
+  return p;
+}
+function walkVarPath(expr, $vars) {
+  const parts = partsOf(expr);
+  let cur = $vars[`$${parts[0]}`];
+  if (cur == null) return null;
+  for (let i = 1; i < parts.length; i++) {
+    if (cur == null) return null;
+    cur = cur[parts[i]];
+  }
+  return cur ?? null;
+}
+
 export function resolveExpr(expr, $vars) {
   if (expr == null) return null;
   // Value Builder reference sentinel: { __ref: "$path" } — resolve as the
@@ -130,6 +157,33 @@ export function resolveExpr(expr, $vars) {
   // Non-string values (numbers, booleans) are literals — return as-is
   if (typeof expr !== "string") return expr;
   if (expr === "") return null;
+
+  // ── DISPATCH ON THE FIRST CHARACTER ──────────────────────────────────────
+  // This is the hot path of the whole pipeline language. A source-mapped CPU
+  // profile of the prod load sweep put `resolveExpr` at **598ms of self time,
+  // the largest app frame in the profile** — roughly a quarter of the ~2,270ms
+  // sweep — because every call ran eight `startsWith` probes and an `includes`
+  // before reaching the shape it actually was.
+  //
+  // The mix, counted across poms grid's own enabled pipelines (9,991 strings):
+  //     7,018  plain literal      <- fell through EVERY check to `return expr`
+  //     2,869  $path
+  //        44  literal:  ·  34  ${}  ·  26  json:
+  //
+  // So the two shapes that are 99% of the traffic were the two paying the most.
+  // Both are identifiable from the first character plus one scan, and NONE of
+  // the prefixed forms begins with "$". Pure reordering — every branch below is
+  // reachable on exactly the inputs it was before.
+  const c0 = expr.charCodeAt(0);
+  if (c0 === 36 /* "$" */) {
+    // Interpolation is checked FIRST below and must stay first: a string like
+    // `"$allItemsById.${$childId}"` is an interpolation, not a path.
+    if (expr.indexOf("${") < 0) return walkVarPath(expr, $vars);
+  } else if (expr.indexOf(":") < 0 && expr.indexOf("${") < 0) {
+    // Every prefixed form carries a colon and every interpolation carries "${",
+    // so a string with neither cannot be anything but a literal.
+    return expr;
+  }
   if (expr.startsWith("literal:")) {
     const raw = expr.slice(8);
     // Coerce well-known scalar literals so UPDATE on boolean/number
@@ -259,18 +313,7 @@ export function resolveExpr(expr, $vars) {
     return substituted;
   }
 
-  if (expr.startsWith("$")) {
-    // Walk arbitrary depth: "$item.fields.water.value" → $vars["$item"]["fields"]["water"]["value"]
-    const parts = expr.slice(1).split(".");
-    const varName = `$${parts[0]}`;
-    let cur = $vars[varName];
-    if (cur == null) return null;
-    for (let i = 1; i < parts.length; i++) {
-      if (cur == null) return null;
-      cur = cur[parts[i]];
-    }
-    return cur ?? null;
-  }
+  if (expr.startsWith("$")) return walkVarPath(expr, $vars);
 
   return expr; // literal
 }
