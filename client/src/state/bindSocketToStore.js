@@ -29,6 +29,7 @@ import {
 import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
 import { beginAction, endAction, setActionCloseHook, captureAction, retainAction, releaseAction, runInAction, runDerived } from "../helpers/actionScope";
 import { runSliced } from "../helpers/sliceWork";
+import { makeOccOverlay } from "../helpers/occOverlay";
 import { requestForceSync, commitForceSync } from "../helpers/editorSyncSignal";
 import { startLoadDiag, markLoad, timeLoad } from "../helpers/loadDiag";
 import { whenStagedFirstRelease } from "../helpers/stagedMount";
@@ -91,13 +92,18 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // BEFORE React re-renders stateRef.current. Used by fireOperations so that
   // onChange operations always see the latest occurrence values even when the
   // React render cycle hasn't completed yet.
-  const localOccsById = {};
-  // Cache slots for the base+local merge built in _fireOperationsInner. See the
-  // comment there for why this is fingerprinted rather than version-counted.
-  let _mergedOccsById = null;
-  let _mergedBase = null;
-  let _mergedLocalKeys = null;
-  let _mergedLocalVals = null;
+  // ── THE LOCAL OVERLAY AND ITS ONE CACHED MERGE ───────────────────────────
+  // The decision lives in `helpers/occOverlay.js` — see that file for the 8.3
+  // million property copies this removes and for why it is a write chokepoint
+  // rather than a fingerprint. READS still go straight to `localOccsById`;
+  // every WRITE must go through setLocalOcc / dropLocalOcc / resetLocalOccs, and
+  // `occOverlayChokepoint.test.js` greps this file to keep it that way.
+  const _occOverlay = makeOccOverlay();
+  const localOccsById = _occOverlay.map;
+  const setLocalOcc = (id, occ) => _occOverlay.set(id, occ);
+  const dropLocalOcc = (id) => _occOverlay.drop(id);
+  const resetLocalOccs = () => _occOverlay.reset();
+  const mergedOccsOverlay = (base) => _occOverlay.merged(base);
 
   // ── EXECUTOR CYCLE BREAKER (2026-05-25) ───────────────────────────────────
   // Durable suppression set for occurrences CREATED or DELETED by operation
@@ -318,7 +324,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     for (const o of operations) operationsById[o.id] = o;
     // Build occurrencesById from the payload array for the pipeline executor
     // Also repopulate localOccsById so subsequent fireOperations have fresh data
-    for (const key in localOccsById) delete localOccsById[key];
+    resetLocalOccs();
     const occurrencesById = {};
     const modulesById = {};
     for (const m of payload.modules || []) { if (m?.id) modulesById[m.id] = m; }
@@ -327,7 +333,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       if (id) {
         const occ = { ...o, id };
         occurrencesById[id] = occ;
-        localOccsById[id] = occ;
+        setLocalOcc(id, occ);
       }
     }
     const hydratedState = { ...stateRef.current, ...payload, occurrencesById, operations, fields: payload.fields || [] };
@@ -441,7 +447,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // Seed localOccsById so any interim fireOperations calls see the viewport data
     for (const o of payload.occurrences || []) {
       const id = o.id || o._id?.toString?.();
-      if (id) localOccsById[id] = { ...o, id };
+      if (id) setLocalOcc(id, { ...o, id });
     }
     socketDispatch({ type: ActionTypes.PRIORITY_STATE, payload });
     // Operations intentionally skipped — full_state fires them with the complete dataset
@@ -452,7 +458,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   function onTextmapsLoaded(updates = []) {
     for (const { id, textmap } of updates) {
       if (!id || !textmap) continue;
-      if (localOccsById[id]) localOccsById[id] = { ...localOccsById[id], textmap };
+      if (localOccsById[id]) setLocalOcc(id, { ...localOccsById[id], textmap });
       socketDispatch({ type: ActionTypes.UPDATE_OCCURRENCE, payload: { occurrence: { id, textmap } } });
     }
   }
@@ -512,7 +518,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         if (model === "module") { socketDispatch(deleteModuleAction(id)); continue; }
         const del = UNDO_DELETE[model];
         if (del) socketDispatch(del(id));
-        if (model === "occurrence") delete localOccsById[id];
+        if (model === "occurrence") dropLocalOcc(id);
         continue;
       }
       if (model === "module") { socketDispatch(updateModuleAction(doc)); continue; }
@@ -520,7 +526,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       if (!make) continue;
       // Keep the local overlay current before React re-renders from it — the
       // same order `onOccurrenceUpdated` uses.
-      if (model === "occurrence") localOccsById[id] = doc;
+      if (model === "occurrence") setLocalOcc(id, doc);
       socketDispatch(make(doc));
     }
     scheduleFeedSync();
@@ -584,7 +590,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (!occurrence?.id) return;
 
     // Keep local cache current before React re-renders stateRef
-    localOccsById[occurrence.id] = occurrence;
+    setLocalOcc(occurrence.id, occurrence);
 
     socketDispatch({
       type: ActionTypes.CREATE_OCCURRENCE,
@@ -635,7 +641,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     const prevOcc = localOccsById[occurrence.id];
 
     // Keep local cache current before React re-renders stateRef
-    localOccsById[occurrence.id] = occurrence;
+    setLocalOcc(occurrence.id, occurrence);
 
     socketDispatch({
       type: ActionTypes.UPDATE_OCCURRENCE,
@@ -678,7 +684,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     const removedOcc = localOccsById[occurrenceId];
 
     // Remove from local cache immediately
-    delete localOccsById[occurrenceId];
+    dropLocalOcc(occurrenceId);
 
     socketDispatch({
       type: ActionTypes.DELETE_OCCURRENCE,
@@ -732,7 +738,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // know their edit was lost.
   function onOccurrenceStale({ occurrence } = {}) {
     if (!occurrence?.id) return;
-    localOccsById[occurrence.id] = occurrence;
+    setLocalOcc(occurrence.id, occurrence);
     socketDispatch({ type: ActionTypes.UPDATE_OCCURRENCE, payload: { occurrence } });
     try {
       toast?.("Refreshed — another window had a newer edit.", { duration: 3500 });
@@ -754,7 +760,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (!prev) return;
     const patch = { ...prev, updatedAt };
     if (fieldUpdatedAt && typeof fieldUpdatedAt === "object") patch.fieldUpdatedAt = fieldUpdatedAt;
-    localOccsById[id] = patch;
+    setLocalOcc(id, patch);
     // Skip Redux dispatch — these timestamps are stale-check bookkeeping;
     // no UI consumes them, so we avoid the re-render storm of N persists
     // per pipeline run.
@@ -777,7 +783,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // the conflicting field is dropped — same trade as the cheap tier,
     // but only for the colliding field instead of the whole occurrence.
     if (occurrence?.id) {
-      localOccsById[occurrence.id] = occurrence;
+      setLocalOcc(occurrence.id, occurrence);
       socketDispatch({ type: ActionTypes.UPDATE_OCCURRENCE, payload: { occurrence } });
     }
     const count = Object.keys(conflicts).length;
@@ -1038,7 +1044,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         // subKind: "value" (fires MeasureOp → onChange triggers) or "flow" (no trigger)
         // Overlays localOccsById on the frozen pass-state so writes can find items
         // that were CREATEd earlier in the same pipeline tick.
-        const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
+        const occOverlay = mergedOccsOverlay(state.occurrencesById);
 
         // Auto-attach the field to the target module's fieldBindings if missing.
         // Module-level bindings are the canonical contract the rest of the
@@ -1117,7 +1123,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         break;
 
       case "UPDATE_ITEM_PARENT": {
-        const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
+        const occOverlay = mergedOccsOverlay(state.occurrencesById);
         const occ = occOverlay[effect.itemId];
         if (!occ) break;
         const fromParentId = occ.parentId;
@@ -1148,7 +1154,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       }
 
       case "UPDATE_ITEM_META": {
-        const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
+        const occOverlay = mergedOccsOverlay(state.occurrencesById);
         const occ = occOverlay[effect.itemId];
         if (!occ) break;
         // Two emit shapes:
@@ -1184,7 +1190,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         // overlay synchronously here means the next handler sees the merged
         // state. dispatch() updates Redux for the React render layer; the
         // overlay update keeps the executor's view fresh too.
-        localOccsById[effect.itemId] = { ...occ, meta: nextMeta };
+        setLocalOcc(effect.itemId, { ...occ, meta: nextMeta });
         updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, meta: nextMeta } });
         break;
       }
@@ -1202,11 +1208,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         // the overlay so a same-batch re-read sees the new label; dedup vs the
         // current value so steady-state fires emit nothing.
         if (!effect.itemId) break;
-        const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
+        const occOverlay = mergedOccsOverlay(state.occurrencesById);
         const occ = occOverlay[effect.itemId];
         const nextLabel = effect.label ?? null;
         if (occ && (occ.label ?? null) === nextLabel) break;
-        if (occ) localOccsById[effect.itemId] = { ...occ, label: nextLabel };
+        if (occ) setLocalOcc(effect.itemId, { ...occ, label: nextLabel });
         updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, label: nextLabel } });
         break;
       }
@@ -1216,11 +1222,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         // settings menu's StyleEditor produces (which writes the whole
         // ownStyle object on the module). Here we write per-occurrence,
         // partial-merge so writing `.bg` doesn't clobber `.opacity` etc.
-        const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
+        const occOverlay = mergedOccsOverlay(state.occurrencesById);
         const occ = occOverlay[effect.itemId];
         if (!occ || !effect.styleKey) break;
         const nextOwnStyle = { ...(occ.ownStyle || {}), [effect.styleKey]: effect.value };
-        localOccsById[effect.itemId] = { ...occ, ownStyle: nextOwnStyle };
+        setLocalOcc(effect.itemId, { ...occ, ownStyle: nextOwnStyle });
         updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, ownStyle: nextOwnStyle } });
         break;
       }
@@ -1231,11 +1237,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         // Occurrence schema, so the generic update_occurrence persists it; this
         // goes through the same updateOccurrence helper as ownStyle above rather
         // than a bespoke socket event.
-        const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
+        const occOverlay = mergedOccsOverlay(state.occurrencesById);
         const occ = occOverlay[effect.itemId];
         if (!occ) break;
         const nextVis = effect.value ?? null;
-        localOccsById[effect.itemId] = { ...occ, fieldVisibility: nextVis };
+        setLocalOcc(effect.itemId, { ...occ, fieldVisibility: nextVis });
         updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, fieldVisibility: nextVis } });
         break;
       }
@@ -1245,13 +1251,13 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         // filter override. Goes through updateOccurrenceFilterOverride so the
         // NavigationOp cascade fires for this occurrence AND every descendant
         // still inheriting — the same path a nav widget takes.
-        const occOverlay = { ...(state.occurrencesById || {}), ...localOccsById };
+        const occOverlay = mergedOccsOverlay(state.occurrencesById);
         const occ = occOverlay[effect.itemId];
         if (!occ || !effect.fieldId) break;
         const nextOverride = { ...(occ.filterOverride || {}) };
         if (effect.value == null) delete nextOverride[effect.fieldId];
         else nextOverride[effect.fieldId] = effect.value;
-        localOccsById[effect.itemId] = { ...occ, filterOverride: nextOverride };
+        setLocalOcc(effect.itemId, { ...occ, filterOverride: nextOverride });
         updateOccurrenceFilterOverride({
           dispatch: socketDispatch, socket,
           // `id`, NOT `occurrenceId` — the helper destructures `{ id }` and
@@ -1382,7 +1388,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           filterOverride: inst.filterOverride || null,
         };
         socketDispatch(createOccurrenceAction(newOcc));
-        localOccsById[newOcc.id] = newOcc;
+        setLocalOcc(newOcc.id, newOcc);
 
         // Mark op-created occurrences so the server's own-echo
         // (occurrence_created) does NOT re-fire OccurrenceCreateOp for them in
@@ -1413,7 +1419,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
               occurrence: { id: newOcc.parentId, occurrences: next },
               emit: false,
             });
-            localOccsById[newOcc.parentId] = { ...parent, occurrences: next };
+            setLocalOcc(newOcc.parentId, { ...parent, occurrences: next });
           }
         }
 
@@ -1469,7 +1475,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         if (effect.occurrence?.id) {
           const prev = localOccsById[effect.occurrence.id];
           if (prev) {
-            localOccsById[effect.occurrence.id] = { ...prev, ...effect.occurrence };
+            setLocalOcc(effect.occurrence.id, { ...prev, ...effect.occurrence });
           }
           updateOccurrence({ dispatch: socketDispatch, socket, occurrence: effect.occurrence });
         }
@@ -1741,31 +1747,18 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // operation time, sitting OUTSIDE the per-op `[op-timing]` totals, which is
     // why it hid for so long.
     //
-    // The cache is keyed on the base map's identity plus a fingerprint of the
-    // LOCAL overlay — which is tiny (a couple of dozen entries during a
-    // cascade) and, crucially, whose every mutation site ASSIGNS A NEW OBJECT
-    // (`localOccsById[id] = { ...occ, … }`). So comparing key list + value
-    // identity catches every write without having to hook ~20 call sites and
-    // hope none is ever missed — a missed bump would serve operations stale
-    // occurrences, which is a correctness bug, not a perf one.
-    const _localKeys = Object.keys(localOccsById);
-    let _localSame = _mergedBase === _cachedBaseOccsById
-      && _mergedLocalKeys
-      && _mergedLocalKeys.length === _localKeys.length;
-    if (_localSame) {
-      for (let i = 0; i < _localKeys.length; i++) {
-        if (_mergedLocalKeys[i] !== _localKeys[i] || _mergedLocalVals[i] !== localOccsById[_localKeys[i]]) {
-          _localSame = false; break;
-        }
-      }
-    }
-    if (!_localSame) {
-      _mergedOccsById = Object.assign({}, _cachedBaseOccsById, localOccsById);
-      _mergedBase = _cachedBaseOccsById;
-      _mergedLocalKeys = _localKeys;
-      _mergedLocalVals = _localKeys.map((k) => localOccsById[k]);
-    }
-    const occurrencesById = _mergedOccsById;
+    // Both this and `applyOperationEffect` now go through `mergedOccsOverlay`,
+    // so the two cannot drift — which is exactly what happened last time: the
+    // 2026-08-25 (9) fix landed here and the seven identical rebuilds in
+    // `applyOperationEffect` were left copying 21k keys for another four days.
+    //
+    // That fix FINGERPRINTED the local overlay rather than version-counting it,
+    // on the grounds that ~20 scattered assignment sites made a missed bump too
+    // easy. The risk was real; the remedy is a chokepoint, not a scan — see
+    // `setLocalOcc` above. And the fingerprint's premise ("tiny, a couple of
+    // dozen entries during a cascade") is false on the load sweep, where
+    // localOccsById holds every occurrence on the grid.
+    const occurrencesById = mergedOccsOverlay(_cachedBaseOccsById);
 
     // ── DIAG: fire entry log ────────────────────────────────────────────────
     // Each top-level fire (depth=1) logs trigger + matched-op preview so the
@@ -2007,9 +2000,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   operationsBridge.scheduleFeedSync = () => scheduleFeedSync();
   operationsBridge.fireOperations = fireOperationsOptimistic;
   operationsBridge.fireOperationsBatch = fireOperationsBatch;
-  operationsBridge.updateLocalOcc = (occ) => { if (occ?.id) localOccsById[occ.id] = occ; };
+  operationsBridge.updateLocalOcc = (occ) => { if (occ?.id) setLocalOcc(occ.id, occ); };
   operationsBridge.markDerivedOcc = _markOpEmitted;
-  operationsBridge.removeLocalOcc = (occurrenceId) => { delete localOccsById[occurrenceId]; };
+  operationsBridge.removeLocalOcc = (occurrenceId) => { dropLocalOcc(occurrenceId); };
   operationsBridge.getLocalOcc = (occurrenceId) => localOccsById[occurrenceId] || null;
   // Read-only access to the current modules map. Used by
   // CommitHelpers.createOccurrence's auto-bind to look up the source module
@@ -2064,7 +2057,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // comparing key list + value identity catches every write without hooking
   // them and hoping none is missed.
   let _acModsFrom = null, _acModsById = null;
-  let _acParentKeys = null, _acParentVals = null, _acParentMap = null;
+  let _acParentVersion = -1, _acParentMap = null;
   operationsBridge.getAncestorChain = (occId) => {
     const ids = [];
     const labels = [];
@@ -2078,20 +2071,20 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     }
     const modById = _acModsById;
 
-    const _keys = Object.keys(localOccsById);
-    let _same = _acParentKeys && _acParentKeys.length === _keys.length;
-    if (_same) {
-      for (let i = 0; i < _keys.length; i++) {
-        if (_acParentKeys[i] !== _keys[i] || _acParentVals[i] !== localOccsById[_keys[i]]) { _same = false; break; }
-      }
-    }
-    if (!_same) {
+    // Same question as the merge cache — "has the local overlay changed?" — and
+    // it used to be answered a second way here, by walking all 21,207 keys and
+    // comparing each value identity ON EVERY CALL. This runs once per
+    // `occurrence_updated`, ~80 times for one `Completed` toggle, so that was
+    // ~1.7M comparisons per toggle spent deciding whether to rebuild. The
+    // overlay's write counter answers it in one integer compare, and having ONE
+    // answer to the question is the point: two of them is how the 2026-08-25 (9)
+    // fix ended up applied to one of the three places that needed it.
+    if (_acParentVersion !== _occOverlay.version) {
       _acParentMap = {};
       for (const o of Object.values(localOccsById)) {
         for (const childId of o?.occurrences || []) _acParentMap[childId] = o.id;
       }
-      _acParentKeys = _keys;
-      _acParentVals = _keys.map((k) => localOccsById[k]);
+      _acParentVersion = _occOverlay.version;
     }
     const parentByChildId = _acParentMap;
 

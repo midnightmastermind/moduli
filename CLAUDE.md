@@ -6,6 +6,119 @@
 
 ---
 
+### 2026-08-29 (6) — THE EFFECT LOOP WAS COPYING 21,000 KEYS PER EFFECT, and it was the 08-25 (9) fix applied to one of three places
+
+The docket item, taken. The lever it named — batch the 195 effects into one
+store write — turns out **not to be where the time was**, and measuring is what
+said so before a line of the shared write path was touched.
+
+**THE HYPOTHESIS I BROUGHT DIED FIRST, CHEAPLY.** The load path applies its
+effects WITHOUT the `setOpApplyingEffects` cycle guard the nested fire path
+wraps its own effects in, so the obvious suspicion was that each effect
+re-fires operations. Counted:
+```
+effects applied           195
+fireOperations calls        0        <- at any depth, for the whole load
+positive control          0 -> 1     <- a deliberate fire DOES move the counter
+```
+**Zero, and the control is what makes the zero mean anything.** The load sweep's
+effects fire nothing. (Most field writes hit the existing no-op guard: on a
+settled grid the trackers recompute the value already stored.)
+
+**THEN TIMING BY EFFECT TYPE NAMED IT IN ONE RUN.** Every effect cost the same
+~10ms no matter what it did — which is the tell, because these do wildly
+different amounts of work:
+```
+UPDATE_ITEM_FIELD             142   1452ms   10.2ms each
+UPDATE_ITEM_LABEL              48    469ms    9.8ms each
+UPDATE_ITEM_META                2     19ms    9.6ms each
+UPDATE_ITEM_FIELD_VISIBILITY    1     10ms   10.1ms each
+UPDATE_ITEM_TEXTMAP             1      0ms    0.1ms each   <- builds no overlay
+SCROLL_TO                       1      0ms    0.0ms each   <- builds no overlay
+```
+**The last two lines ARE the measurement.** `applyOperationEffect` rebuilt
+`{ ...state.occurrencesById, ...localOccsById }` in SEVEN of its cases, and the
+only two cases that do not build one are the only two that are free.
+
+**AND ON THE LOAD PATH BOTH MAPS HOLD THE WHOLE GRID.** `runLoadSweep` seeds
+`localOccsById` from the full payload, so each rebuild is ~42,000 property
+copies: **8.3 million per load**, plus 195 short-lived 21k-key objects. It is
+invisible everywhere else, which is why it survived — the reducer keeps
+`occurrences` as a flat ARRAY and carries no `occurrencesById`, so on every
+other path that spread is a copy of a small map and costs nothing.
+
+**THIS IS 2026-08-25 (9), APPLIED TO ONE OF THE THREE PLACES THAT NEEDED IT.**
+That session found and cached the identical merge in `_fireOperationsInner`
+(*"it copies 21,766 keys… ~1.7M property copies"*) and never touched the seven
+rebuilds one function over, nor the third copy in `getAncestorChain`. *Two
+implementations of one decision and only one of them was ever fixed — this
+file's most-repeated class, paid again by the entry that named it.*
+
+**THE FINGERPRINT WAS THE RIGHT CAUTION AND THE WRONG REMEDY.** 08-25 (9)
+compared the local map's key list and value identities rather than counting
+writes, because ~20 scattered assignment sites made a missed bump *"a
+correctness bug, not a perf one"*. The risk is real; the answer to it is a
+CHOKEPOINT, not a scan. All **22** mutation sites now go through
+`setLocalOcc` / `dropLocalOcc` / `resetLocalOccs`, and a test greps this file
+for the raw form so the twenty-third cannot be written by hand. It also matters
+that the scan was not cheap where it counted: the fingerprint's own premise —
+the overlay is *"tiny, a couple of dozen entries during a cascade"* — is FALSE
+during the load sweep, where it is O(21,207) **per call**, spent deciding
+whether to avoid a copy.
+
+**MEASURED WITH THE BUNDLE SWAPPED BETWEEN EVERY RUN**, three interleaved
+passes, because a before/after only measures the change if both halves ran
+against the same thing:
+```
+arm     op sweep   effects   effects applied   slices
+base      2001ms    5004ms         195           51
+fixed     2038ms      44ms         195            2
+base      2033ms    5171ms         195           51
+fixed     2017ms      43ms         195            2
+base      2045ms    5171ms         195           51
+fixed     2021ms      45ms         195            2
+```
+**-99%, with no overlap.** The two controls are what make it a measurement: the
+**op sweep is unchanged in both arms** (this touched the cost of applying
+effects, not the work), and **the effect count is identical at 195** — the shape
+a cost A/B has to have. `getAncestorChain`'s copy of the same scan went with it:
+it runs once per `occurrence_updated`, ~80 times for one toggle, so that was
+~1.7M key comparisons a toggle spent deciding whether to rebuild.
+
+**AND IT RETIRES THE DOCKET ITEM RATHER THAN DOING IT.** The named next lever
+was batching 195 dispatches into one to collapse the render fan-out. The render
+tally barely moves (field 1,329 either way) — but those renders no longer sit
+behind five seconds of blocking work, and the 3,178ms that was NOT inside
+`applyOperationEffect` was the yields between 51 slices, which is now 2. *The
+slicing from 08-29 (4) is untouched and still correct; it simply has almost
+nothing left to slice.* Whether the render fan-out is worth attacking on its own
+is now an open question with a much smaller number against it.
+
+**HONEST LIMITS.** These are LOCAL numbers against the prod database; the local
+baseline (5,004ms) is ~3x prod's last recorded 1,648ms, so the ratio and the
+mechanism transfer and the absolute figures do not — prod is re-measured after
+the deploy. The headless context reports no `longtask` entries at all, so the
+long-task columns are omitted rather than printed as zeros (*an absent signal is
+not a measurement of zero*). And the win is data-dependent by construction: a
+load where many trackers genuinely change costs more rebuilds. It can never be
+worse than before, because a cache MISS does exactly what the old code did
+unconditionally.
+
+16 tests across the extracted helper and the chokepoint guard, **four A/Bs each
+failing exactly its own cases** — ignoring the write counter fails 5 (the
+correctness ones), never caching fails 4, ignoring the BASE identity fails 1,
+and one raw write smuggled back into the consumer fails 1. The controls carry
+the weight: one proves the merge is rebuilt when a write lands *between two
+reads* (in-batch visibility is the property the load sweep depends on), one
+proves the guard's grep actually matches a planted raw write, and one proves the
+writes were **not simply deleted** — an absence only counts once the thing has
+been shown able to appear.
+
+3,586 client tests, lint 0 errors, build clean. No server code changed, so no
+migration and nothing owed there.
+
+---
+
 ### 2026-08-29 (5) — THE DEVICE ANSWERED AGAIN, and the INSTRUMENT misread two of its four arms
 
 Four `scrollDiag` arms off the tablet. The app's numbers are useful; the
