@@ -28,7 +28,6 @@ import {
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
 import { beginAction, endAction, setActionCloseHook, captureAction, retainAction, releaseAction, runInAction, runDerived } from "../helpers/actionScope";
-import { runSliced } from "../helpers/sliceWork";
 import { requestForceSync, commitForceSync } from "../helpers/editorSyncSignal";
 import { startLoadDiag, markLoad, timeLoad } from "../helpers/loadDiag";
 import { whenStagedFirstRelease } from "../helpers/stagedMount";
@@ -386,47 +385,26 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // could see before. A silent partial build is indistinguishable from a
       // slow one; a logged one is a bug report.
       let effectErrors = 0;
-
-      // ── APPLIED IN TIME SLICES, NOT IN ONE TASK ──────────────────────────
-      //
-      // This loop measured 1,766ms as a SINGLE task, and the grid has already
-      // painted by the time it runs — so it looks ready while the main thread is
-      // fully committed. The device reported the consequence directly: scrolling
-      // then, the main thread was blocked 8,680ms of a 12,117ms gesture. A frame
-      // cannot start while a task runs; the same work in 8ms slices drops none.
-      // Slightly slower overall, and interruptible, which is what is felt.
-      //
-      // THE DERIVED SCOPE IS CARRIED ACROSS THE YIELDS, and that is not
-      // optional. `runDerived`'s try/finally restores on RETURN, so an async
-      // continuation would resume at derivedDepth 0 and every write it made
-      // would open an undo action again — which is exactly the 2026-08-27 (3)
-      // defect (a page load pushing 26 undo steps, so Ctrl+Z reverted a tracker
-      // recomputation instead of the user's last edit). `captureAction` is
-      // taken here, synchronously, while the scope is still live.
-      const capturedScope = captureAction();
-      void runSliced(effects, (eff) => {
-        runInAction(capturedScope, () => {
-          try {
-            applyOperationEffect(eff, hydratedState);
-          } catch (err) {
-            effectErrors++;
-            console.error(
-              `[full_state-client] effect ${eff?._effect} threw — continuing with the rest`,
-              err, eff,
-            );
-          }
-        });
-      }).then(({ slices }) => {
-        if (effectErrors) {
-          console.error(`[full_state-client] ${effectErrors} of ${effects.length} effect(s) threw`);
+      for (const eff of effects) {
+        try {
+          applyOperationEffect(eff, hydratedState);
+        } catch (err) {
+          effectErrors++;
+          console.error(
+            `[full_state-client] effect ${eff?._effect} threw — continuing with the rest`,
+            err, eff,
+          );
         }
-        markLoad("effects:end", { count: effects.length, ms: +(performance.now() - tOps1).toFixed(1) });
-        console.log(`[full_state-client] applied ${effects.length} effects in ${Math.round(performance.now() - tOps1)}ms across ${slices} slice(s)`);
-        // These wait for the effects: the offline replay lands on top of the
-        // sweep's writes, and feeds materialize once its creates have settled.
-        flushOfflineQueue(socket);
-        scheduleFeedSync(400);
-      });
+      }
+      if (effectErrors) {
+        console.error(`[full_state-client] ${effectErrors} of ${effects.length} effect(s) threw`);
+      }
+      markLoad("effects:end", { count: effects.length, ms: +(performance.now() - tOps1).toFixed(1) });
+      console.log(`[full_state-client] applied effects in ${Math.round(performance.now() - tOps1)}ms`);
+      // Flush any mutations queued while offline — replayed on top of fresh server state
+      flushOfflineQueue(socket);
+      // Materialize feeds once the load sweep's creates have settled.
+      scheduleFeedSync(400);
     }), 50)));
   }
 
