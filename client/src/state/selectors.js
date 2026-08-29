@@ -536,6 +536,42 @@ export function fieldPassesVisibility(fieldId, fv) {
 // mode. This resolver answers only "which sources match right now" — the
 // sync engine owns minting/sweeping. Sources that are themselves feed copies
 // (meta.feedSourceId) are never pullable (no copy-of-copy cascades).
+
+// ── OCCURRENCES BUCKETED BY ROLE, ONCE PER PASS ───────────────────────────
+// A feed declares the roles it pulls, and `resolveFeedItems` walked EVERY
+// occurrence to apply that filter — once per feed. Measured on poms grid:
+//
+//     occurrences   21,207   (artifact 15,708 · textblock 2,434 · container
+//                             1,654 · instance 1,206 · page 202 · panel 3)
+//     enabled feeds     46   of which 44 declare roles ["instance"]
+//
+// So 44 feeds each walked 21,207 rows to find the 1,206 that could possibly
+// match — 94% of every walk rejected by one property read. Across a pass that
+// is 975,522 candidate visits to evaluate 84,480 real ones.
+//
+// Bucketing once per pass makes the rejected 94% free. Memoised on the SAME
+// key discipline as `cachedParentsMap` / `cachedAncestorsOf` — the map's
+// identity — with `modulesById` checked too, because an occurrence with no
+// `role` of its own inherits its MODULE's, so a module edit can change the
+// answer without the occurrence map moving.
+const _roleIndexCache = new WeakMap();
+export function occurrencesByRole(occurrencesById, modulesById) {
+  if (!occurrencesById || typeof occurrencesById !== "object") return new Map();
+  const hit = _roleIndexCache.get(occurrencesById);
+  if (hit && hit.mods === modulesById) return hit.byRole;
+  const byRole = new Map();
+  for (const occ of Object.values(occurrencesById)) {
+    if (!occ?.id) continue;
+    const role = occ.role ?? modulesById?.[occ.moduleId]?.role ?? null;
+    if (role == null) continue;          // matches `roles.includes(null)` === false
+    let arr = byRole.get(role);
+    if (!arr) byRole.set(role, (arr = []));
+    arr.push(occ);
+  }
+  _roleIndexCache.set(occurrencesById, { mods: modulesById, byRole });
+  return byRole;
+}
+
 export function resolveFeedItems(feedOcc, { occurrencesById, modulesById } = {}) {
   const feed = feedOcc?.feed;
   if (!feed?.enabled || !occurrencesById) return [];
@@ -575,13 +611,25 @@ export function resolveFeedItems(feedOcc, { occurrencesById, modulesById } = {})
   // what the old inline loop did when it skipped every condition.
   const predicate = buildFeedPredicate(feed, { now: new Date() });
 
+  // ORDER IS LOAD-BEARING: with no `feed.sort` the result is `out.slice(0,
+  // limit)`, so which rows survive depends on the walk order. Bucketing keeps
+  // insertion order WITHIN a role, so a single-role feed is byte-identical —
+  // and every one of poms grid's 46 feeds is single-role. A MULTI-role feed
+  // would be interleaved by insertion order in the full scan and grouped by
+  // role in a concatenation, which is a different 50 rows, so it keeps the full
+  // scan rather than being quietly re-ordered for a speed-up nothing is asking
+  // for.
+  const candidates = roles.length === 1
+    ? (occurrencesByRole(occurrencesById, modulesById).get(roles[0]) || [])
+    : Object.values(occurrencesById);
+  const needsRoleCheck = roles.length !== 1;
+
   const out = [];
-  for (const occ of Object.values(occurrencesById)) {
+  for (const occ of candidates) {
     if (!occ?.id || ownChain.has(occ.id)) continue;
     if (occ.meta?.feedSourceId) continue; // feed copies are never sources
     const mod = modulesById?.[occ.moduleId];
-    const role = occ.role ?? mod?.role ?? null;
-    if (!roles.includes(role)) continue;
+    if (needsRoleCheck && !roles.includes(occ.role ?? mod?.role ?? null)) continue;
     const ancestors = ancestorsOf(occ.id);
     if (ancestors.includes(feedOcc.id)) continue; // already an owned descendant
     if (feed.scope && !ancestors.includes(feed.scope)) continue;

@@ -31,8 +31,41 @@ import {
   isOccurrenceVisible,
 } from "../state/selectors";
 
+
+// ── FEED COPIES BUCKETED BY PARENT, ONCE PER PASS ─────────────────────────
+// Step 2 below finds the copies a feed already minted by SCANNING the whole
+// occurrence map for `meta.feedSourceId && parentId === feedOcc.id` — a walk of
+// every occurrence to find the children of ONE parent, repeated for each of the
+// 46 feeds. On poms grid that is 46 x 21,207 visits to find a few hundred rows.
+//
+// The scan-diff SEMANTIC is untouched and is not negotiable: copies are found
+// by marker + parentage rather than through the parent's `occurrences[]`,
+// because a copy whose parent-link write raced would otherwise read as missing
+// and be re-minted as a duplicate. This only stops re-deriving the index 46
+// times within one pass.
+//
+// THREADED, NOT MEMOISED ON MAP IDENTITY — and that distinction was decided by
+// a test rather than by reasoning. The first version cached this on a WeakMap
+// keyed by `occurrencesById`, on the grounds that `scheduleFeedSync` builds a
+// fresh map per pass and never writes to it. `feedMixedClientChurn` disproved
+// it: that suite drives `syncFeed` twice over ONE map whose store applies the
+// dispatches in place, so the second pass got a stale index, could not see the
+// copies the first had minted, and re-minted them — turning an idempotent
+// engine into a churning one. The index's correct lifetime is ONE PASS, so the
+// pass boundary hands it down and a direct caller gets a fresh one.
+export function buildCopiesByParent(occurrencesById) {
+  const idx = new Map();
+  for (const o of Object.values(occurrencesById || {})) {
+    if (!o?.meta?.feedSourceId || !o.parentId) continue;
+    let arr = idx.get(o.parentId);
+    if (!arr) idx.set(o.parentId, (arr = []));
+    arr.push(o);
+  }
+  return idx;
+}
+
 // One sync pass for ONE feed owner. Returns { minted, swept } counts.
-export function syncFeed(feedOcc, { state, occurrencesById, modulesById, dispatch, socket, diag = false }) {
+export function syncFeed(feedOcc, { state, occurrencesById, modulesById, dispatch, socket, diag = false, copyIdx = null }) {
   const feed = feedOcc?.feed;
   if (!feed?.enabled) return { minted: 0, swept: 0, bail: "disabled" };
 
@@ -43,8 +76,7 @@ export function syncFeed(feedOcc, { state, occurrencesById, modulesById, dispatc
   // rule the normal path relies on: a copy carries `meta.feedSourceId`, so only
   // rows THIS feed minted are ever removed, never a hand-placed child.
   if (isPullOnlyFeed(feedOcc)) {
-    const owned = Object.values(occurrencesById || {})
-      .filter(o => o?.meta?.feedSourceId && o.parentId === feedOcc.id);
+    const owned = (copyIdx || buildCopiesByParent(occurrencesById)).get(feedOcc.id) || [];
     for (const o of owned) {
       CommitHelpers.removeOccurrence({
         dispatch, socket,
@@ -93,8 +125,11 @@ export function syncFeed(feedOcc, { state, occurrencesById, modulesById, dispatc
   //    re-minted as a duplicate. Scan-diff makes every pass self-healing.
   const existingBySource = new Map();
   const duplicates = [];
-  for (const o of Object.values(occurrencesById)) {
-    if (!o?.meta?.feedSourceId || o.parentId !== feedOcc.id) continue;
+  // Insertion order within a parent's bucket is the walk order the full scan
+  // had, so which copy is KEPT and which is treated as the duplicate is
+  // unchanged.
+  const _copyIdx = copyIdx || buildCopiesByParent(occurrencesById);
+  for (const o of _copyIdx.get(feedOcc.id) || []) {
     if (existingBySource.has(o.meta.feedSourceId)) duplicates.push(o);
     else existingBySource.set(o.meta.feedSourceId, o);
   }
@@ -183,10 +218,12 @@ function _syncAllFeeds({ state, occurrencesById, modulesById, dispatch, socket }
   // the ambiguity that made the 2026-07-29 under-population hard to pin down.
   const diag = typeof window !== "undefined" && window.__feedDiag === true;
   const rows = [];
+  // Built ONCE for the pass and handed to every feed — see buildCopiesByParent.
+  const copyIdx = buildCopiesByParent(occurrencesById);
   for (const occ of Object.values(occurrencesById || {})) {
     if (!occ?.feed?.enabled) continue;
     feeds++;
-    const r = syncFeed(occ, { state, occurrencesById, modulesById, dispatch, socket, diag });
+    const r = syncFeed(occ, { state, occurrencesById, modulesById, dispatch, socket, diag, copyIdx });
     minted += r.minted; swept += r.swept;
     if (diag) rows.push({ owner: occ.label || occ.id, ...r });
   }

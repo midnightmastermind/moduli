@@ -6,6 +6,86 @@
 
 ---
 
+### 2026-08-29 (9) — 44 FEEDS WALKED 21,207 ROWS TO FIND 1,206; and a test disproved my safety argument
+
+Continuing (8). The remaining cost in `resolveFeedItems` — and the first
+measurement was against a grid whose shape I had invented.
+
+**MY OWN BENCHMARK'S PREMISE WAS FALSE, AND IT POINTED AT THE WRONG TARGET.**
+The synthetic grid made every one of 21,207 occurrences an `instance`, so every
+candidate reached the predicate and the profile read:
+```
+bare walk + role filter                227ms
++ ancestorsOf (cached)                 286ms
++ two ancestors.includes()             326ms      <- my suspicion; 40ms, not it
++ the { ...occ, _ancestors } spread    909ms      <- looked like the prize
+resolveFeedItems x37                  1849ms
+```
+Read off the live grid instead:
+```
+occurrence roles   artifact 15,708 · textblock 2,434 · container 1,654
+                   instance 1,206 · page 202 · panel 3
+enabled feeds      46   (CLAUDE.md's "37" was stale)
+their roles        44 x ["instance"] · 2 x ["artifact"]
+```
+**Instances are 5.7% of the grid, and 44 of the 46 feeds want only instances.**
+At that mix `resolveFeedItems x46` is **490ms, not 1,849** — so the spread was
+never worth 583ms, and *the earlier entry's "~1,780ms still inside
+resolveFeedItems" is corrected here rather than left standing.*
+
+**THE WASTE IS A FACT ABOUT THE DATA, NOT ABOUT THE MODEL.** 44 feeds each
+walked 21,207 rows to reach the 1,206 that could possibly match — 94% of every
+walk rejected by one property read: **975,522 candidate visits per pass to
+evaluate 84,480 real ones.** Bucketing by role once per pass: `490ms -> 155ms`.
+The same shape applies to feedSync's own step-2 scan, which walked the whole
+map to find the children of ONE parent, 46 times.
+
+**ORDER IS LOAD-BEARING AND ALMOST GOT LOST.** With no `feed.sort` the result is
+`out.slice(0, limit)`, so the walk order decides which rows survive. Bucketing
+keeps insertion order WITHIN a role — byte-identical for a single-role feed, and
+all 46 are single-role — but a MULTI-role feed is interleaved in a full scan and
+grouped by role in a concatenation, which is a different 50 rows. So multi-role
+keeps the full scan rather than being quietly re-ordered for a speed-up nothing
+is asking for.
+
+**AND MY ORDER TEST DID NOT DISCRIMINATE — the A/B is the only reason I know.**
+It passed against the very mutation it existed to catch, because the fixture
+added all instances BEFORE all artifacts, so concatenating the buckets happened
+to reproduce the walk order. Interleaved, it fails correctly. *A guard is
+untested until the fixture isolates the case only that guard covers* — this
+file's line, paid again, and the A/B is what surfaced it.
+
+**THEN A TEST DISPROVED THE SAFETY ARGUMENT I HAD REASONED MY WAY TO.** I
+memoised the copy index on the map's identity, on the grounds that
+`scheduleFeedSync` builds a fresh map per pass and never writes to it — checked
+by grep, and true of that caller. `feedMixedClientChurn` went red: it drives
+`syncFeed` twice over ONE map whose store applies the dispatches IN PLACE, so
+pass 2 got a stale index, could not see the copies pass 1 had minted, and
+re-minted them. **An idempotent engine turned into a churning one — which is
+the exact defect that suite was written for after it cost a revert.**
+
+The remedy is not a better argument, it is a correct lifetime: the index belongs
+to ONE PASS, so `syncAllFeeds` builds it and hands it down, and a direct caller
+gets a fresh one. Identity was a *proxy* for the pass, and a proxy that holds for
+today's callers is not the same as the thing itself. A/B'd: reintroducing the
+memoisation fails exactly those 3 tests.
+
+**`occurrencesByRole` and `cachedAncestorsOf` KEEP identity memoisation**, and
+that is a different call rather than an inconsistency: their callers are the
+render path, where `occurrencesById` is
+`useMemo(() => buildLookup(state.occurrences), [state.occurrences])` and the
+reducer swaps that array on every write, plus feedSync's own read-only map.
+Neither is mutated in place.
+
+7 tests on the role index, **both A/Bs failing exactly one case** (bucketing the
+multi-role path fails the order test; ignoring `modulesById` identity fails the
+rebuild test — an occurrence with no role of its own inherits its MODULE's, so a
+module edit changes the answer without the occurrence map moving).
+
+3,599 client tests, lint 0 errors.
+
+---
+
 ### 2026-08-29 (8) — feedSync REDID THE SAME WALK 37 TIMES, and the comment already said it shouldn't
 
 With the effect loop gone, the post-paint window re-measured on prod as three
