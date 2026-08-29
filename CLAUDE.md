@@ -6,6 +6,72 @@
 
 ---
 
+### 2026-08-29 (3) — THE DEVICE ANSWERED: 9 seconds of blocked main thread after the grid paints
+
+The tablet ran the diagnostic and settled what no probe here could. Two arms
+scrolled far enough to count:
+```
+#1 baseline    PAINT — main thread blocked 8680ms of 12117ms · 11 long tasks · 25/90 frames missed
+#3 no-backdrop        blocked 9829ms · 26 long tasks · 28/67 frames missed
+#2 / #4        scrolled 266px and 0px — samples too small to compare, and said so
+```
+**Not raster, not the DOM: JavaScript.** And invisible from here — 12 wheel steps
+at 4x CPU throttle cost 71ms of script. *A desktop cannot measure this class; the
+2026-08-04 entry said so and it is true again.*
+
+**THEN THE CULPRIT, MEASURED HEADLESSLY BECAUSE IT IS A LOAD PHENOMENON RATHER
+THAN A SCROLL ONE.** Sampling the main thread once a second after first paint:
+```
+1s 984ms · 2s 923 · 3s 692 · 4s 1021 · 5s 1001 · 6s 1004 · 7s 1001 · 8s 690 · 9s 580
+10s 8ms  — quiet
+```
+**Nine consecutive seconds at ~100% blocked, and only THEN does it go quiet.**
+The client's own log names it:
+```
++176348ms  reducer dispatched (5499 occs, 4362 mods)     <- the core, painted
++182061ms  [op-timing] total=2076ms ops=51
++183826ms  applied effects in 1766ms
+```
+The onLoad sweep and its effects are ~3.8s of that, inside a ~9s tail. **The grid
+LOOKS ready and is saturated.** A user who scrolls in that window — which is the
+natural thing to do, because it has painted — is scrolling against a main thread
+that is already fully committed. That is the 8,680ms the device reported.
+
+**AND MY OWN CHANGE MAKES THAT WINDOW LONGER, which is worth stating plainly.**
+The progressive load moved first paint 6.69s → 4.33s without changing the ~9s of
+work that follows, so the "looks ready but is busy" gap GREW by the amount the
+paint improved. The change is still right — the grid is usable sooner and the
+catalogue no longer competes with the first frame — but it did not touch the
+thing that makes scrolling choppy, and it slightly enlarged the trap.
+
+**THE FIX IS THE SHAPE OF THE SWEEP, NOT ITS SIZE.** 51 ops run as ONE 2,076ms
+task and the effects apply as another 1,766ms one. Long TASKS are what block a
+frame; the same work spread across frames would not. The levers, in order:
+yield between operations (they are already priority-sorted, so slicing preserves
+order — but each slice's effects must be applied before the next runs, since the
+in-batch overlay is what lets a later tracker see an earlier create); and pause
+the drain while the user is interacting, for which `window.__moduli_interacting`
+already exists and is already honoured by the op-run-log drain.
+
+**NOT BUILT HERE, deliberately.** This is the shared write/execute path this file
+records being damaged repeatedly, and it wants its own reviewed pass rather than
+the tail of a long session — the same call 2026-08-25 (5) and 2026-08-27 (2) both
+made about it.
+
+**AND THE DIAGNOSTIC NOW NAMES THE CULPRIT, not just the layer.** `__renderTally`
+has counted React renders per component and op fires per op all along, reachable
+only from a console — which the reporting device does not have. `scrollDiag`
+diffs it across each burst and prints it in its own overlay, so the next capture
+says whether those seconds are rendering, ops, or neither, and which ones.
+
+**A note on the load measurement that follows a deploy:** first paint read
+183,451ms and then 176,585ms on two runs — both the documented COLD ATLAS READ,
+because a deploy restarts pm2 and the probe raced the prewarm. Warm, the same
+probe reads 4.3s. *A load number taken right after a deploy is a measurement of
+the cache, not of the code.*
+
+---
+
 ### 2026-08-29 (2) — the audit's SECOND pass: still choppy, and the load is 29 MB
 
 User, after the listener fix shipped: *"its still kinda choppy, especially
