@@ -6,6 +6,87 @@
 
 ---
 
+### 2026-08-29 (2) — the audit's SECOND pass: still choppy, and the load is 29 MB
+
+User, after the listener fix shipped: *"its still kinda choppy, especially
+swiping back up. also the load times are terrible on tablet. but it could be my
+internet."*
+
+**THE UP-VS-DOWN ASYMMETRY DOES NOT REPRODUCE HERE, and that is a real result
+rather than a shrug.** Ten wheel steps each way at 4x CPU throttle, warmed in both
+directions first so neither pays a one-time cost the other avoids:
+```
+DOWN #1  Task 614ms · Script 57 · Layout 3 · Recalc 0 · layouts 1
+UP   #1  Task 556ms · Script 46 · Layout 3 · Recalc 0 · layouts 2
+DOWN #2  Task 579ms · Script 31 · Layout 3 · Recalc 0 · layouts 2
+UP   #2  Task 552ms · Script 36 · Layout 1 · Recalc 0 · layouts 1
+```
+Identical inside noise, and **0 long lists · 0 content-visibility nodes** on that
+view — so the classic "scrolling up re-lays-out skipped content" asymmetry is not
+what is happening on the surfaces measured. `content-visibility` is correctly
+gated to `.container-list--long` and carries `contain-intrinsic-size: auto 44px`.
+
+**WHICH MEANS I HAVE HIT THE WALL THIS FILE ALREADY NAMES.** 2026-08-26 (5): *"a
+desktop GPU at 4x CPU throttle is not a tablet, and paint is the one cost that
+does not scale with the CPU knob."* Script and layout are cheap; what is left is
+raster, and this environment cannot measure it — the same reason
+`helpers/scrollDiag.js` was written in the first place, and the 2026-08-04 mobile
+scroll bug was solved by *"the user's own device"*.
+
+**SO THE DIAGNOSTIC IS REACHABLE FROM A TABLET NOW.** Its overlay required setting
+a global from a console — which the one device it exists for does not have.
+`?scrollDiag=1` enables it and is remembered for the tab so the app's own
+navigation cannot silently drop it mid-investigation; `?scrollDiag=0` clears it.
+It discriminates MOUNT / SKIPPED / PAINT / RASTER, which is exactly the question
+left open. Verified on prod: the flag sticks and the overlay hook is installed.
+
+---
+
+**AND THE LOAD COMPLAINT IS NOT THEIR INTERNET.** Measured at a tablet viewport:
+```
+full_state over the socket   28.74 MB decompressed   (5 frames)
+all HTTP for the whole app    1.85 MB                (34 requests)
+hydrated 6.5s · painted 6.7s · settled 12.7s   — on a datacentre connection
+permessage-deflate            NEGOTIATED — the wire is far smaller than 28.74
+```
+So the bundle is not the problem; **the grid state is**, and the tablet pays it
+twice — once to decompress, once to `JSON.parse` ~29 MB on the main thread. That
+cost is there whatever the network does.
+
+**THE OBVIOUS LEVER IS THE WRONG ONE, AND MEASURING IS WHAT SAID SO.** Textmaps
+look like the weight and are not:
+```
+occurrences 21,207 — everything except textmap   20.22 MB
+             textmap, decompressed                1.20 MB   <- 4%
+modules      7,816                                7.42 MB
+```
+Lazy-loading textmaps would save 4%. **That is also why the 2026-04-11 revert
+("All Textmaps Upfront") was right**, which is worth recording: the reverted
+optimisation was never where the bytes were.
+
+**WHERE THEY ACTUALLY ARE — 80% of the payload is a catalogue nobody has open:**
+```
+artifact   15,708 occurrences   16.15 MB   <- of 20.22 MB
+   song 5,484 (6.08)  album 3,027 (3.14)  bookmark 1,467 (1.70)
+   artist 1,679 (1.46)  movie 993 (1.14)
+textblock   2,434   2.57 MB
+container   1,654   1.65 MB
+instance    1,206   1.07 MB
+page          202   0.16 MB
+```
+The surfaces the user actually works on — Tasks, Trackers, Schedule, Projects —
+are the instance/container/page rows: **~3,000 occurrences, ~2.9 MB.** The Spotify
+and Calibre imports are shipped in full on every load of every device.
+
+**REPORTED, NOT BUILT, and deliberately so.** Sending artifacts on demand is an
+architectural change with a known constraint already measured on 2026-08-25 (2):
+19 ops walk `$allItems` over all 21,766 rows and 4 walk `$allOccurrences`, so
+withholding artifacts changes what those ops see. That entry filed the per-op work
+"with the measurement rather than done hastily", and this is the same call. It is
+now quantified: **the prize is ~16 MB of every load.**
+
+---
+
 ### 2026-08-29 — SCROLL AUDIT: every swipe on every touch device waited on the main thread
 
 User: *"start an audit on scroll behavior. it runs very sticky on tablet at
