@@ -6,6 +6,79 @@
 
 ---
 
+### 2026-08-29 (10) — THE OP SWEEP, PROFILED: no easy win, and one of my own numbers retracted
+
+User's pick after (9). Measured rather than optimised, and the useful output is
+the distribution plus two named leads.
+
+**A SINGLE SAMPLE SENT ME AT THE WRONG SIZE OF PROBLEM.** The first capture read
+`Schedule: Fill Day 1280ms — 39% of the sweep`, which is the kind of number that
+starts a migration. Three more loads:
+```
+Fill Day     305 · 298 · 311ms          <- 1,280 was an outlier
+Build Sched  528 · 558 · 563ms
+sweep total 2268 · 2273 · 3315ms        <- the VARIANCE is in the other 48 ops
+```
+*A number worth acting on is worth sampling more than once* — and note the third
+run's total is 1,000ms higher while the top two are flat, so the spread is
+machine noise spread across the tail, not any one op.
+
+**THE STABLE DISTRIBUTION, 51 ops, ~2,270ms:**
+```
+ ~550ms  3fx   Schedule: Build Schedule
+ ~305ms  0fx   Schedule: Fill Day
+ ~215ms  2fx   Day Page: Build
+ ~13-30ms each x 48                     ~1,200ms — the tail is as big as the head
+7 ops produce ZERO effects, costing ~500ms
+```
+
+**AND `Schedule: Fill Day` HAS NOT REGRESSED — checked rather than assumed.**
+2026-08-23 (9) took it 766ms -> 127ms by adding `$tSlot.occurrences
+IS_NOT_EMPTY`; that guard is still in the stored pipeline. Today's ~305ms against
+that entry's 127ms is a different machine and a grown grid, not a lost fix.
+
+**ITS REMAINING WIN IS THE ONE THAT ENTRY DELIBERATELY REFUSED**, and the refusal
+still stands: hoisting the day's 49 slots into a var is ~27x and *"depends on
+`$dayCol.occurrences` being populated in the overlay at that moment, and if it
+ever is not, Fill Day silently stops filling the schedule."* A guarded
+fall-back-to-the-scan form would answer that risk precisely — but expressing
+"use the var if it is populated, else scan" in the pipeline language means
+duplicating a 27-step body in both branches, which is its own defect surface.
+**Still filed, still not built.**
+
+**THE EXECUTOR'S SHARED CACHES ARE INTACT**, which is worth recording because
+three of them turned out to be broken elsewhere today. `_allItemsCache` is
+per-sweep and its invalidation is already surgical — `patchAllItemsCache`
+refreshes touched entries for a VALUE-only write and only a structural effect
+discards the read model, so the ~48 read-only ops after the two builders share
+one build.
+
+**A CPU PROFILE NAMED TWO COSTS THE OP TIMINGS CANNOT SEE**, taken on prod over
+the post-paint window:
+```
+ 201ms   get scrollWidth        <- FORCED SYNCHRONOUS LAYOUT
+ 355ms   tiptap updateStateInner + eq
+```
+The first is `AutoMarquee` (`ui/AutoMarquee.jsx:90`), whose own comment already
+names the reflow. It is otherwise well-tuned — mount-once, a ResizeObserver for
+later changes, an IntersectionObserver only when there is something to animate —
+so the residual is that each of hundreds of marquees mounting in one burst forces
+its own layout read. Batching the reads into one pass is the standard remedy and
+is contained, but it touches a component rendered ~1,039 times on this grid and
+the marquee surface has already cost several sessions. The second is the
+long-standing *"editor static-until-focus"* docket item, arrived at from a third
+direction.
+
+**THE PROFILE IS MINIFIED, so the app's own frames read as `pe` / `xS` / `Mo`
+and are NOT attributable.** Only the two named above are, because they are
+platform and library frames. Source-mapped profiling — or the local dev bundle
+against the prod database — is what the next pass needs; ranking mangled names
+would be guessing with a decimal point on it.
+
+No code changed. 51-op distribution, three samples, one retraction.
+
+---
+
 ### 2026-08-29 (9) — 44 FEEDS WALKED 21,207 ROWS TO FIND 1,206; and a test disproved my safety argument
 
 Continuing (8). The remaining cost in `resolveFeedItems` — and the first
