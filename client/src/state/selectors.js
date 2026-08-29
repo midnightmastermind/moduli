@@ -1,7 +1,7 @@
 // state/selectors.js
 // Selectors for working with occurrences and entities in the state
 import { evalRule, evalGroup, evalGroupAgainstRecord } from "../helpers/operationActions";
-import { buildParentMap, cachedParentMap, buildParentsMap, reachableAncestors } from "../helpers/dragHitTesting";
+import { buildParentMap, cachedParentMap, cachedAncestorsOf } from "../helpers/dragHitTesting";
 import { buildFeedPredicate } from "../helpers/feedPredicate";
 
 /**
@@ -553,13 +553,13 @@ export function resolveFeedItems(feedOcc, { occurrencesById, modulesById } = {})
   // Memoised per map identity, and per occurrence within the pass: the scope
   // test runs for every occurrence on the grid, so re-walking a shared ancestor
   // chain thousands of times is the thing `cachedParentMap` exists to avoid.
-  const parentsMap = buildParentsMap(occurrencesById);
-  const _ancCache = new Map();
-  const ancestorsOf = (id) => {
-    let hit = _ancCache.get(id);
-    if (!hit) { hit = reachableAncestors(id, occurrencesById, parentsMap); _ancCache.set(id, hit); }
-    return hit;
-  };
+  // Memoised per MAP IDENTITY, not per call. It used to be per call, so each of
+  // the grid's 37 feeds rebuilt the parents map (449ms) and redid all 21,207
+  // ancestor walks (599ms) that the previous feed had just done — measured at
+  // live-grid scale, ~1,014ms of a 3,083ms feedSync pass, for answers that
+  // cannot differ between feeds. The comment here already claimed "memoised per
+  // map identity"; only the code disagreed.
+  const ancestorsOf = cachedAncestorsOf(occurrencesById);
   // The feed owner + its ancestors are never pullable (recursion), and
   // anything ALREADY under the owner is excluded — those render as the
   // occurrence's own children (per user: own children stay visible).

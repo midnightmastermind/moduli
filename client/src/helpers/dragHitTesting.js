@@ -146,6 +146,38 @@ export function cachedParentsMap(occurrencesById) {
   return map;
 }
 
+// ── THE ANCESTOR SET OF X DOES NOT DEPEND ON WHO IS ASKING ────────────────
+// `resolveFeedItems` memoised the walk PER CALL, so each of the grid's 37 feeds
+// redid the same 21,207 walks from scratch. Measured at live-grid scale:
+//
+//     ancestor walk, per-feed cache (what ran)   599ms
+//     ancestor walk, one cache for the pass       34ms
+//
+// Same identity key and same caveat as `cachedParentsMap`: RENDER-PATH CALLERS
+// ONLY. A map the executor mutates in place must not be cached by identity —
+// the three callers of `resolveFeedItems` (the feed editor's match count, the
+// graph's pull, and the sync pass, which builds a fresh map every time) are all
+// render-path, and each gets a new map object whenever the occurrences change.
+const _ancestorsCache = new WeakMap();
+export function cachedAncestorsOf(occurrencesById) {
+  if (!occurrencesById || typeof occurrencesById !== "object") {
+    return (id) => reachableAncestors(id, occurrencesById, null);
+  }
+  let entry = _ancestorsCache.get(occurrencesById);
+  if (!entry) {
+    entry = { parents: cachedParentsMap(occurrencesById), byId: new Map() };
+    _ancestorsCache.set(occurrencesById, entry);
+  }
+  return (id) => {
+    let hit = entry.byId.get(id);
+    if (hit === undefined) {
+      hit = reachableAncestors(id, occurrencesById, entry.parents);
+      entry.byId.set(id, hit);
+    }
+    return hit;
+  };
+}
+
 // Breadth-first, so the result is ordered nearest-first — which is what a
 // caller reading it as a chain expects, and what the single-parent walk gave.
 // `parentId` is included as a FALLBACK per node, never instead of the listings:

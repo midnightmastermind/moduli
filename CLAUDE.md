@@ -6,6 +6,79 @@
 
 ---
 
+### 2026-08-29 (8) — feedSync REDID THE SAME WALK 37 TIMES, and the comment already said it shouldn't
+
+With the effect loop gone, the post-paint window re-measured on prod as three
+blocks. `feedSync` was the least examined — it logs nothing at all — so it went
+first, at the user's pick.
+
+```
+ 2-6s   ~4,370ms   initial render + progressive catalogue merge (occ 5,499 -> 21,207)
+ 9s     ~2,620ms   the op sweep (2,402ms of it)
+11s     ~1,630ms   feedSync — nothing logs here; it lands where scheduleFeedSync(400) fires
+        ~   51ms   effects (was ~1,648ms)
+```
+**An alignment error worth recording:** I first read the 9s block as unattributed
+and reached for the catalogue. It is the op sweep — loadDiag's `t0` is
+*full_state arrived* and the sampler's is *page load*, and the offset between
+them is seconds. *Two clocks in one chart is how a block gets blamed on the
+wrong thing.* Capturing ALL console in the window named it in one run.
+
+**BENCHMARKED AT LIVE-GRID SCALE rather than guessed at** — 21,207 occurrences,
+37 feeds, `CommitHelpers` mocked so nothing writes:
+```
+buildParentsMap  ONCE                       11ms
+buildParentsMap  x37   (what ran)          454ms
+cachedParentsMap x37   (the memoised twin)   0ms
+Object.values(occs) x37                    184ms
+ancestor walk, PER-FEED cache (what ran)   629ms
+ancestor walk, ONE cache for the pass       33ms
+resolveFeedItems x37                      2956ms   <- 94% of the pass
+syncAllFeeds — the WHOLE pass             3083ms
+```
+
+**THE COMMENT ASSERTED THE FIX AND THE CODE DID THE OPPOSITE.**
+`resolveFeedItems` says in as many words *"Memoised per map identity"* — and
+called **`buildParentsMap`**, the uncached one, with `cachedParentsMap` sitting
+six lines away in the same module. It also built its ancestor cache PER CALL, so
+each of 37 feeds redid all 21,207 DAG walks the previous feed had just done. *A
+comment asserting an invariant is not the invariant — this file's own line, paid
+from the perf side this time.*
+
+**THE ANSWER CANNOT DIFFER BETWEEN FEEDS**, which is what makes this a hoist
+rather than a trade: the ancestor set of X is a fact about the grid, not about
+who is asking. `cachedAncestorsOf` memoises both halves on the map's identity,
+the same key and the same caveat as `cachedParentsMap`.
+```
+resolveFeedItems x37   2956ms -> 1782ms   -40%
+the whole pass         3083ms -> 1955ms   -37%
+```
+
+**IDENTITY IS ONLY A SOUND VERSION IF NOTHING MUTATES THE MAP, so all three
+callers were checked rather than assumed.** `feedSync` builds a fresh map every
+pass and never writes to it (grepped); the feed editor's match count and the
+graph's pull both read
+`useMemo(() => buildLookup(state.occurrences), [state.occurrences])`, and the
+reducer swaps that array on every write. **No executor caller**, which is the
+one `cachedParentsMap`'s own doc warns about.
+
+6 tests, **both A/Bs discriminating**: keying the cache on one global entry fails
+exactly the invalidation case, and removing the memo fails exactly the two
+caching cases. The invalidation test is the one that matters — it re-parents a
+child between two DIFFERENT map objects and asserts the second answer follows,
+so a cache keyed on something stable-but-wrong cannot pass.
+
+**WHAT IS LEFT, measured and not taken:** ~1,780ms still inside
+`resolveFeedItems` — 37 x 21,207 candidate evaluations, each doing an
+`ancestors.includes()` twice (array scan, not a Set) and a full
+`{ ...occ, _ancestors }` spread before the predicate runs. Both are reachable,
+and both change what `evalGroupAgainstRecord` is handed, so they want their own
+pass rather than the tail of this one.
+
+3,592 client tests, lint 0 errors, build clean.
+
+---
+
 ### 2026-08-29 (7) — THE TODO LIST KEEPS GETTING RE-DATED, and it is the COPY-LINK FAN-OUT
 
 `gridIntegrity` reported `dated-copy-link-source` again — on the SAME occurrence
