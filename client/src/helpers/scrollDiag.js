@@ -209,6 +209,21 @@ function endSession() {
   const s = active;
   active = null;
   s.durationMs = Math.round(performance.now() - s.t0);
+  // Attribute the block. `__renderDiff` returns only the counters that MOVED,
+  // so an idle burst reports nothing rather than a wall of zeros.
+  try {
+    const d = window.__renderDiff?.(s.tally0);
+    const total = (o) => Object.values(o || {}).reduce((a, v) => a + (typeof v === "number" ? v : (v?.count || 0)), 0);
+    s.rendersInBurst = total(d?.renders);
+    s.opsInBurst = total(d?.ops);
+    s.topRenders = Object.entries(d?.renders || {})
+      .map(([k, v]) => [k, typeof v === "number" ? v : (v?.count || 0)])
+      .sort((a, b) => b[1] - a[1]).slice(0, 3);
+    s.topOps = Object.entries(d?.ops || {})
+      .map(([k, v]) => [k, typeof v === "number" ? v : (v?.count || 0)])
+      .sort((a, b) => b[1] - a[1]).slice(0, 3);
+  } catch { /* the probe must never break the scroll it is measuring */ }
+  delete s.tally0;
   s.frameMedian = median(s.frames);
   s.verdict = verdictFor(s);
   s.longTaskMs = Math.round(s.longTaskMs);
@@ -261,6 +276,12 @@ function startSession(scroller) {
     frames: [],
     slowFrames: 0,
     rowsAtStart: scroller.querySelectorAll(".instance-wrap").length,
+    // WHAT the main thread was busy WITH. The device reported PAINT — 8,680ms of
+    // long tasks in a 12,117ms scroll (2026-08-29) — and the verdict names the
+    // LAYER but not the culprit. `__renderTally` already counts React renders
+    // per component and operation fires per op; diffing it across the burst says
+    // whether the block is rendering, ops, or neither.
+    tally0: (typeof window !== "undefined" && window.__renderTally) ? window.__renderTally() : null,
     scrollHeight: scroller.scrollHeight,
     clientHeight: scroller.clientHeight,
     unskipped: 0,
@@ -338,6 +359,18 @@ function startSession(scroller) {
   return s;
 }
 
+// WHAT the main thread was busy with during the burst. The verdict names the
+// LAYER (PAINT / MOUNT / RASTER); this names the culprit. Empty for an idle
+// burst, so a quiet scroll reports nothing rather than a wall of zeros.
+function busyLine(s) {
+  if (!s.rendersInBurst && !s.opsInBurst) return "";
+  const pairs = (list) => (list || []).map(([k, n]) => `${k}:${n}`).join(", ");
+  const top = s.topRenders?.length ? ` — top ${pairs(s.topRenders)}` : "";
+  const ops = s.topOps?.length ? ` — ops ${pairs(s.topOps)}` : "";
+  return `<span style="opacity:.85">busy with <b style="color:#ffd479">${s.rendersInBurst}</b> renders, `
+       + `<b style="color:#ffd479">${s.opsInBurst}</b> op fires${top}${ops}</span><br>`;
+}
+
 function renderOverlay() {
   if (typeof document === "undefined") return;
   document.getElementById("scroll-diag-overlay")?.remove();
@@ -361,6 +394,7 @@ function renderOverlay() {
       <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.12)">
         <b style="color:${colour}">#${s.index} ${s.verdict.code}</b> <span style="opacity:.7">[${s.arm}]</span>
         <span style="opacity:.8"> ${s.verdict.text}</span><br>
+        ${busyLine(s)}
         rows in DOM at start <b>${s.rowsAtStart}</b> ·
         skipped at start <b style="color:#c9a0ff">${s.skippedAtStart}</b> ·
         un-skipped while scrolling <b style="color:${s.unskipped ? "#c9a0ff" : "#9ae6b4"}">${s.unskipped}</b><br>
