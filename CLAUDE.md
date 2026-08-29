@@ -6,6 +6,87 @@
 
 ---
 
+### 2026-08-29 — SCROLL AUDIT: every swipe on every touch device waited on the main thread
+
+User: *"start an audit on scroll behavior. it runs very sticky on tablet at
+least. i want it smooth and slidy. like it keeps moving after the swipe"* ->
+*"this is more swipe scroll down lists"*.
+
+**THE CAUSE IS A LISTENER, NOT A PAINT COST — and that inverts where four
+previous sessions looked.** `DragProvider` attached `touchmove` and `touchstart`
+to `document` with `{ passive: false }` **for the whole session on any touch
+device**. The handlers are cheap and only `preventDefault()` while a drag is
+running, but that is irrelevant to the browser: **a non-passive touch listener
+means it cannot know whether preventDefault will be called until JavaScript has
+run**, so it may not hand the gesture to the compositor. Every swipe was
+main-thread-gated. It is precisely why Chrome made document-level
+`touchstart`/`touchmove` default to PASSIVE; this code opted back out.
+
+**MEASURED DIRECTLY — the listeners themselves, not a symptom.** CDP
+`DOMDebugger.getEventListeners` over the scroll chain on prod at 820x1180:
+```
+document  touchstart  passive=false   App bundle   <- ours, always on
+document  touchmove   passive=false   App bundle   <- ours, always on
+document  wheel       passive=false   App bundle   <- wheelScroll, mouse-only, deliberate
+window    touchstart  passive=false   (unknown)    <- see below
+```
+
+**THE OTHER SUSPECTS DIED BY MEASUREMENT, which is what makes this the answer
+rather than the next guess.** A scroll frame is CHEAP now — 12 steps at 4x CPU
+throttle cost **71ms script · 3ms layout · 0ms recalc**; the marquee work of
+2026-08-26 (6) did its job. At a tablet viewport there are **0**
+content-visibility nodes, **0** will-change nodes and **0** running animations,
+against the 50 animations and 46-off-screen that entry found. Chaining is not it
+either: of 4 scrollers only 2 are nested, and those are 22px and 236px
+`instance-fields` blocks. `renderWindow` is not it for ordinary lists — it
+engages only above 120 rows and looks ahead 600px, and the lists in question hold
+20-40.
+
+**SCOPED TO AN ACTIVE DRAG, AND EVERY CASE THE GUARDS EXISTED FOR IS COVERED BY
+SOMETHING THAT FIRES EARLIER.** The gesture that BECOMES a drag always starts on
+a handle already carrying `touch-action: none !important` in CSS — set before the
+touch begins, precisely because *"JS handleDragStart is too late"*.
+`handleDragStart` then sets `touch-action: none` on `documentElement`
+SYNCHRONOUSLY, so any touch beginning after that is blocked. Edge/OS gestures
+during a drag are `preventEdgeTouch`'s job, and by then the guards are attached.
+The only window lost is the drag's own opening gesture, which CSS already owns.
+**`dragover`/`dragenter` deliberately stay always-on:** an OS or HTML5 drop
+arrives unannounced and must be claimed whether or not an in-app drag is running
+— and neither blocks scrolling.
+
+**I COULD NOT MEASURE MOMENTUM, AND SAY SO RATHER THAN DRESSING IT UP.** Both A/B
+arms read `MOMENTUM = 0px` — the documented both-arms-zero tell. A clean CONTROL
+page named it: `synthesizeScrollGesture` with a TOUCH source scrolls **0px even on
+a bare page with one tall div**, while the wheel source scrolls 600px. **Headless
+Chromium here produces no touch fling at all**, so the instrument cannot answer
+the question and the zeros were facts about the probe. What IS measurable is the
+listener set, and that is measured before and after.
+
+**AND THE ONE REMAINING BLOCKER WAS MY OWN PROBE.** After the fix the audit still
+reported a non-passive `touchstart` on WINDOW. Tracing the registration stack
+rather than filing it: `at addHitTargetInterceptorListeners … InjectedScript` —
+**Playwright's own instrumentation**, which does not exist for the user. Reporting
+it as an app defect would have sent the next session after a library that is not
+there. *Check the probe before believing the finding, even when the finding
+survives your fix.*
+
+**VERIFIED ON PROD AFTER THE DEPLOY:** at rest the app now registers **zero**
+scroll-blocking touch listeners; only the deliberate mouse-only `wheel` one
+remains. 10 tests on the extracted helper, the gate pinned in BOTH directions so
+it cannot degrade into *"never attach"*, and the detach test carries the same
+capture flag — `removeEventListener` without it silently keeps the listener,
+which would read as *"the fix did nothing"*. 3,543 client tests, lint 0 errors.
+
+**REPORTED, NOT FIXED:** a fast fling on a **>120-row** list (the 993-row media
+boards) can still outrun `renderWindow`'s 600px lookahead and stall at the seam.
+Not measured — the same instrument gap — and not what the user is scrolling
+today, so it is written down rather than tuned on a guess.
+
+**WHETHER IT NOW GLIDES IS FOR THE TABLET TO SAY.** The block is removed and that
+is measured; the feel is not something this environment can judge.
+
+---
+
 ### 2026-08-28 (8) — the alarm rang with its OFF SWITCH behind a click
 
 User: *"make sure the alarm dropdown opens when the alarm is going."*
