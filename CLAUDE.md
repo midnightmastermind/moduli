@@ -6,6 +6,121 @@
 
 ---
 
+### 2026-08-30 — THE RUN LOG WAS THE SWEEP'S LARGEST REMAINING FRAME, and its only reader was a closed panel
+
+Continuing the op sweep at the user's pick. The source-mapped profile's new top
+app frame was `collectFindCandidates` — the per-record *"why didn't this FIND
+match"* breakdown the operations log panel shows.
+
+**IT RUNS ON EVERY FIND OF EVERY OP FIRE, AND NOBODY WAS READING IT.** Measured
+by driving the real load sweep over the fixture:
+```
+94 calls · 1,349ms      87 x $allContainers · 3 x $allInstances · 3 x $allOccurrences
+```
+`recordRunLog` writes to an in-memory ring of 25 runs per op, and the ONLY
+consumer is `OperationLogPanel`. Everything above was being computed, held, and
+discarded unread.
+
+**THREE KINDS OF DUPLICATE WORK, and the first one is the tell.** It rebuilt a
+private **21,000-entry label Map per call** — even for a FIND over the 202 pages,
+where that was **3.8ms of a 4.2ms call**. The identical index already existed,
+memoised on the pool's identity, as the `byId` map `$allItemsById` is built
+from. It also re-resolved each rule's RIGHT side once per record although a
+right resolves against `$vars` alone and cannot depend on the record, and walked
+each record path TWICE — once for display, once again inside the match.
+```
+$allOccurrences x2 rules   63.7 -> 38.8ms per call
+$allContainers  x3 rules   10.4 ->  3.3ms
+$allPages       x1 rule     4.2 ->  0.1ms
+```
+**THE OUTPUT IS BYTE-IDENTICAL**, which is what makes that half a pure
+optimisation rather than a trade: the 2026-05-06 decision to leave the candidate
+list UNCAPPED so a large pool can still be audited is untouched.
+
+**AND MY FIRST OPTIMISED VERSION WAS SLOWER ON THE BIGGEST POOL — 72 -> 91ms.**
+It spread `$vars` per rule per record to bind the resolved left; `$vars` holds
+the 21k `$allItems` array and a dozen other keys, so 42,000 spreads cost more
+than the work removed. The shipped form mutates one key in place and restores
+it, which is what `evalRuleAgainstRecord` already did. *An optimisation is a
+claim until the A/B runs; mine was negative and I would have shipped it.*
+
+---
+
+**THEN THE USER'S CALL: build it only while someone is looking.** Asked directly
+— always-on, or only while the panel is open — and they picked the panel.
+`OperationLogPanel` subscribes to the op it is showing, so a live subscriber IS
+*"the panel is open on this op"*. No flag to remember, no console incantation.
+```
+ops harness load sweep, interleaved, 3 passes each
+  no gate   2932 / 2685 / 2655 ms
+  gated     1742 / 1866 / 1772 ms      -35%, no overlap
+```
+
+**I GATED TOO MUCH FIRST, AND THE EXISTING TESTS CAUGHT IT.** Re-resolving the
+predicate against the MATCHED record sits in the same block and is O(rules) on
+ONE record — it is what makes the log's `mod_dw IS mod_dw ✓` row readable at
+all. Nine tests went red; seven were the breakdown and **two were that**. Only
+the O(pool x rules) half is gated. *A gate drawn around a block instead of
+around the cost takes the cheap half with it.*
+
+**AND THE RECOVERY PATH WAS BROKEN BEFORE THIS COULD SHIP.** The panel's **"Run
+now"** button — tooltip *"Run pipeline now and append to history"*, empty state
+*"Click Run now for a live preview"* — called `executePipeline` directly, and
+**only `runMatchingOperations` ever called `recordRunLog`**. It executed the
+pipeline and recorded NOTHING; it has been inert since it was written. New
+`runPipelineForLog` records the run. **Deliberately NOT done by making
+`executePipeline` record whenever it owns its logger:** three other callers (the
+scheduler, the ops-tab node-input preview, the alarm/pomodoro fire path) would
+start writing history as a side effect of a tooltip fix.
+
+**THE COST, stated rather than buried:** a run recorded BEFORE the panel was
+opened carries no per-record breakdown. Its step entries — `resolvedPredicate`,
+`boundVars`, the matched record's own values — are all still there, and
+re-triggering the op produces a full one.
+
+**TWO BEHAVIOURS THE OPTIMISATION HAD TO PRESERVE, both A/B'd.** A `$var` on a
+FIND rule's LEFT still DISPLAYS the resolved var while MATCHING on the record
+path — that asymmetry is the whole point of the row for the defect class `0276`
+was written for, and unifying the two walks would have hidden the very mismatch
+it exposes. And the shared index is a PLAIN OBJECT, so a dangling `parentId`
+naming a prototype key (`constructor`) resolves to `Object.prototype`'s — a
+function whose `.name` is a real string — and would render an ancestor called
+"Object". A dangling child ref is not hypothetical here; this file records
+sweeping them five times.
+
+**MEASURED ON PROD, WARM, and the outliers are reported rather than dropped
+quietly:**
+```
+session start          ~2,270ms   51 ops
+after resolveExpr + the 4th merge   ~1,500ms
+after the index fix     1022 · 1125 · 1067 · 1151 · 1217 ms
+after the gate           754 ·  757 ·  769 ·  772 ·  786 ms      -66% overall
+```
+Two runs out of ~14 came back at 3,100ms and 3,507ms with a DIFFERENT op
+dominating each time (`Fill Day`, then `Pages`) — machine noise, not a bimodal
+code path, and the same shape 2026-08-29 (10) records for a single sample.
+
+**VERIFIED IN THE SERVED CHUNK WITH A CONTROL, and the first check read 0 for
+BOTH** — the documented tell. The executor lands in `PagePreviewApp`, not `App`;
+`App`'s single `ancestorLabels` hit is `_ancestorLabels` on the drag
+transaction, an unrelated string. Scoped correctly: `PagePreviewApp` carries
+`op-timing` 1, control `ancestorLabels` 3, new `wantsCandidates` 2; `App`
+carries `op-timing` **0**.
+
+7 tests (4 on the optimisation, 3 on the gate and the button), **every mutation
+asserted to land and each failing EXACTLY its own case** — and the gate is
+pinned in BOTH directions, so it cannot degrade into *"never collect"*, which is
+how this tool would go silently missing. 3,618 client tests, 300 files, all
+green; lint 0 errors on every edited file. poms grid 21,297 occurrences, **0
+page errors**.
+
+**REPORTED, NOT FIXED:** scheduled fires (alarms, pomodoro, interval ops) go
+through `executePipeline` directly and therefore leave **no run log at all** —
+the same gap "Run now" had, from a path nobody has looked at. Whether a
+scheduled fire should record is its own question.
+
+---
+
 ### 2026-08-29 (12) — THE SAME 42,000-KEY MERGE, FOURTH SITE — and this one was in a CALLBACK
 
 Re-profiling after (11) promoted a new top app frame, and it is the defect this
