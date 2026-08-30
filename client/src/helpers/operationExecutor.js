@@ -15,7 +15,7 @@
 import { BlockType } from "./blockTypes";
 import { evaluateBlock } from "./blockEvaluator";
 import { applyAggregation } from "./CalculationHelpers";
-import { resolveExpr, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleAgainstRecord, evalGroupAgainstRecord } from "./operationActions";
+import { resolveExpr, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleWithLeftValue, evalGroupAgainstRecord } from "./operationActions";
 import { buildParentMap } from "./dragHitTesting";
 import { isEventCompatible } from "./triggerTypes";
 import { getEffectiveFilterForOccurrence, makeEffectiveFilterResolver } from "../state/selectors";
@@ -301,7 +301,8 @@ function _isFindAction(actionType) {
 // desc — best near-misses first; the matched record (if any) is always first.
 function collectFindCandidates(cfg, $vars, matchedId) {
   const overExpr = cfg.over || "$allOccurrences";
-  const itemList = Array.isArray(resolveExpr(overExpr, $vars)) ? resolveExpr(overExpr, $vars) : [];
+  const resolvedOver = resolveExpr(overExpr, $vars);
+  const itemList = Array.isArray(resolvedOver) ? resolvedOver : [];
   const predicate = cfg.predicate;
   if (!predicate || !Array.isArray(predicate.rules)) return null;
 
@@ -309,41 +310,64 @@ function collectFindCandidates(cfg, $vars, matchedId) {
   // breakdowns for the common case (top-level AND of leaf rules).
   const leafRules = predicate.rules.filter(r => r && !r.rules);
 
-  // Build an id→label map from the full item pool so we can resolve each
-  // candidate's ancestor IDs to readable names. Multiple occurrences of the
-  // same template share a label (every "Drink Water" reads "Drink Water"),
-  // so the candidates list looks like duplicates without a parent path.
+  // Resolve each candidate's ancestor IDs to readable names. Multiple
+  // occurrences of the same template share a label (every "Drink Water" reads
+  // "Drink Water"), so the candidates list looks like duplicates without a
+  // parent path. The index comes from `derivedCollectionsFor`, which is
+  // MEMOISED on the pool array's identity and is the same `byId` map
+  // `$allItemsById` is built from — this used to rebuild a private 21,000-entry
+  // label Map on EVERY FIND, including a FIND over the 202 pages.
   const fullPool = $vars.$allItems || $vars.$allOccurrences || [];
-  const labelById = new Map();
-  for (const item of fullPool) {
-    if (item && item.id) labelById.set(item.id, item.label ?? item.name ?? null);
-  }
+  const labelSource = derivedCollectionsFor(fullPool).byId;
+
+  // A rule's RIGHT side resolves against $vars alone — it does not depend on
+  // the record, so it is constant for the whole walk. It was being re-resolved
+  // once per record per rule (twice, counting the copy inside the match).
+  const rightVals = leafRules.map(rule => {
+    try { return resolveExpr(rule.right, $vars) ?? rule.right; } catch { return undefined; }
+  });
+  const isBareLeft = leafRules.map(r => _isBareRecordPath(r.left));
 
   const evaluated = [];
   for (const record of itemList) {
     if (!record || record.deleted || record.meta?.isTemplate) continue;
-    const ruleEvals = leafRules.map(rule => {
-      let leftValue;
-      try {
-        if (_isBareRecordPath(rule.left)) {
-          leftValue = resolveRecordPath(record, rule.left);
-        } else {
-          leftValue = resolveExpr(rule.left, $vars);
-        }
-      } catch { leftValue = undefined; }
-      let rightValue;
-      try { rightValue = resolveExpr(rule.right, $vars) ?? rule.right; } catch { rightValue = undefined; }
+    const ruleEvals = new Array(leafRules.length);
+    let score = 0;
+    for (let i = 0; i < leafRules.length; i++) {
+      const rule = leafRules[i];
+      // The MATCH always resolves the left as a record path (that is what FIND
+      // itself does). The DISPLAY shows the same value for a bare path and the
+      // $vars resolution for anything else — keep both, but walk the record
+      // ONCE and hand the value to the comparator rather than resolving twice.
+      let recordLeft;
+      try { recordLeft = resolveRecordPath(record, rule.left); } catch { recordLeft = undefined; }
+      let leftValue = recordLeft;
+      if (!isBareLeft[i]) {
+        try { leftValue = resolveExpr(rule.left, $vars); } catch { leftValue = undefined; }
+      }
       let matched = false;
-      try { matched = evalRuleAgainstRecord(rule, record, $vars); } catch { matched = false; }
-      return { left: rule.left, comparator: rule.comparator, right: rule.right, leftValue, rightValue, matched };
-    });
-    const score = ruleEvals.filter(r => r.matched).length;
+      try { matched = evalRuleWithLeftValue(rule, recordLeft, $vars); } catch { matched = false; }
+      if (matched) score++;
+      ruleEvals[i] = {
+        left: rule.left, comparator: rule.comparator, right: rule.right,
+        leftValue, rightValue: rightVals[i], matched,
+      };
+    }
     // _ancestors is closest-first; reverse for breadcrumb display (root → leaf).
     // Drop unresolved ancestors so the path doesn't have gaps.
-    const ancestorLabels = (Array.isArray(record._ancestors) ? record._ancestors : [])
-      .map(aid => labelById.get(aid))
-      .filter(Boolean)
-      .reverse();
+    const anc = record._ancestors;
+    const ancestorLabels = [];
+    if (Array.isArray(anc)) {
+      for (let k = anc.length - 1; k >= 0; k--) {
+        // `byId` is a plain object, so a key like "constructor" would resolve
+        // to Object.prototype's — a FUNCTION whose `.name` is a real string and
+        // would render as an ancestor. The typeof guard is what keeps a
+        // prototype key from inventing a breadcrumb.
+        const it = labelSource[anc[k]];
+        const l = it && typeof it === "object" ? (it.label ?? it.name ?? null) : null;
+        if (l) ancestorLabels.push(l);
+      }
+    }
     evaluated.push({
       id: record.id,
       label: record.label ?? record.name ?? null,

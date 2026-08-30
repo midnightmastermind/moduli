@@ -809,11 +809,15 @@ export function resolveRecordPath(record, path) {
   return cur ?? null;
 }
 
-export function evalRuleAgainstRecord(rule, record, $vars) {
+// The comparator switch with the LEFT side ALREADY RESOLVED. Split out of
+// `evalRuleAgainstRecord` for the one caller that has the resolved value in
+// hand: the FIND candidate breakdown resolves each record path for DISPLAY and
+// then used to pay for the identical walk a second time inside the match.
+// Both entry points share this body, so the comparator semantics cannot drift.
+export function evalRuleWithLeftValue(rule, leftVal, $vars) {
   // Reuse the comparator switch by feeding evalRule a synthetic rule whose
   // `left` is a literal already-resolved value. The simplest way is to bind
   // a temporary $-var and rewrite the rule to reference it.
-  const leftVal = resolveRecordPath(record, rule.left);
   // Use a unique key per call so concurrent evaluations don't clobber each
   // other (evalRule reads $vars synchronously so this is fine).
   const key = "$__find_left__";
@@ -824,6 +828,10 @@ export function evalRuleAgainstRecord(rule, record, $vars) {
   } finally {
     $vars[key] = prev;
   }
+}
+
+export function evalRuleAgainstRecord(rule, record, $vars) {
+  return evalRuleWithLeftValue(rule, resolveRecordPath(record, rule.left), $vars);
 }
 
 export function evalGroupAgainstRecord(group, record, $vars) {

@@ -2803,6 +2803,147 @@ describe("FIND action log entries carry boundVars", () => {
     expect(c.ruleEvals[0].matched).toBe(false);
   });
 
+  // ── The candidate breakdown was rebuilding derived indexes per FIND ───────
+  //
+  // `collectFindCandidates` runs on EVERY FIND of every op fire — 94 calls in
+  // one load sweep of poms grid — and its only consumer is the run-log panel.
+  // It rebuilt a private 21,000-entry label Map per call (even for a FIND over
+  // the 202 pages), re-resolved each rule's RIGHT side once per record although
+  // it cannot depend on the record, and walked each record path TWICE (once for
+  // display, once inside the match). These tests pin the behaviour that had to
+  // survive making it cheaper.
+
+  test("ancestor labels follow a NEW pool — the index is keyed on the pool, not cached globally", () => {
+    // The label index is memoised on the $allItems ARRAY IDENTITY (shared with
+    // $allItemsById). A cache keyed on anything stable-but-wrong — the op, a
+    // module-level singleton — serves the FIRST run's labels forever, and the
+    // breadcrumb is the one thing in a candidate row that comes from OUTSIDE
+    // the record being evaluated.
+    const runWithParentLabel = (parentLabel) => {
+      const tplParent = { id: "mod_p", role: "container", label: parentLabel };
+      const tplChild = { id: "mod_c", role: "instance", label: "Drink Water" };
+      const parent = { id: "occ_p", moduleId: "mod_p", occurrences: ["occ_c"] };
+      const child = { id: "occ_c", moduleId: "mod_c", parentId: "occ_p", fields: {} };
+      const ctx = {
+        state: { modules: [tplParent, tplChild] },
+        fieldsById: {},
+        occurrencesById: { occ_p: parent, occ_c: child },
+        operationsById: {},
+      };
+      const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+      const op = makeOp({
+        pipeline: pipe(
+          s("FIND", {
+            over: "$allInstances",
+            predicate: andCond({ left: "templateId", comparator: "IS", right: "mod_c" }),
+            itemIdVar: "$id",
+          }),
+        ),
+      });
+      executePipeline(op, ctx, null, undefined, logger);
+      const entry = logger.entries.find(e => e.kind === "action" && e.actionType === "FIND");
+      return entry.candidates.candidates.find(c => c.id === "occ_c");
+    };
+
+    // Positive control FIRST — the breadcrumb has to be present at all, or the
+    // second assertion is a claim about an empty array.
+    expect(runWithParentLabel("Physical").ancestorLabels).toEqual(["Physical"]);
+    expect(runWithParentLabel("Renamed").ancestorLabels).toEqual(["Renamed"]);
+  });
+
+  test("each rule keeps its OWN resolved right value when they are hoisted out of the record walk", () => {
+    const tpl = { id: "mod_x", role: "instance", label: "X" };
+    const occ = { id: "occ_x", moduleId: "mod_x", parentId: null,
+                  fields: { f_a: { value: "aye" }, f_b: { value: "bee" } } };
+    const ctx = {
+      state: { modules: [tpl] },
+      fieldsById: { f_a: { id: "f_a", type: "text" }, f_b: { id: "f_b", type: "text" } },
+      occurrencesById: { occ_x: occ },
+      operationsById: {},
+    };
+    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const op = makeOp({
+      pipeline: pipe(
+        s("INIT_VAR", { name: "$wantA", expr: "literal:aye" }),
+        s("INIT_VAR", { name: "$wantB", expr: "literal:bee" }),
+        s("FIND", {
+          predicate: andCond(
+            { left: "fields.f_a.value", comparator: "IS", right: "$wantA" },
+            { left: "fields.f_b.value", comparator: "IS", right: "$wantB" },
+          ),
+          itemIdVar: "$id",
+        }),
+      ),
+    });
+    executePipeline(op, ctx, null, undefined, logger);
+    const c = logger.entries.find(e => e.kind === "action" && e.actionType === "FIND")
+      .candidates.candidates[0];
+    expect(c.ruleEvals[0].rightValue).toBe("aye");
+    expect(c.ruleEvals[1].rightValue).toBe("bee");
+    expect(c.score).toBe(2);
+  });
+
+  test("a $var on a FIND rule's LEFT still shows the var while matching on the record path", () => {
+    // This asymmetry is the WHOLE POINT of the row for the `$var`-on-the-left
+    // defect class (migration 0276): FIND evaluates the left as a RECORD PATH,
+    // so `$projKey` looks for a key literally named "$projKey" and matches
+    // nothing, while the display resolves the var so the user can see what they
+    // meant. Walking the record once must not quietly unify the two — that
+    // would hide the mismatch this row exists to expose.
+    const tpl = { id: "mod_x", role: "instance", label: "X" };
+    const occ = { id: "occ_x", moduleId: "mod_x", parentId: null, fields: {} };
+    const ctx = {
+      state: { modules: [tpl] },
+      fieldsById: {},
+      occurrencesById: { occ_x: occ },
+      operationsById: {},
+    };
+    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const op = makeOp({
+      pipeline: pipe(
+        s("INIT_VAR", { name: "$projKey", expr: "literal:hello" }),
+        s("FIND", {
+          predicate: andCond({ left: "$projKey", comparator: "IS", right: "literal:hello" }),
+          itemIdVar: "$id",
+        }),
+      ),
+    });
+    executePipeline(op, ctx, null, undefined, logger);
+    const c = logger.entries.find(e => e.kind === "action" && e.actionType === "FIND")
+      .candidates.candidates[0];
+    expect(c.ruleEvals[0].leftValue).toBe("hello");  // display: the var resolved
+    expect(c.ruleEvals[0].matched).toBe(false);      // match: the record has no such key
+  });
+
+  test("a dangling parentId naming a prototype key invents no breadcrumb", () => {
+    // The shared index is a PLAIN OBJECT, so `byId["constructor"]` resolves to
+    // Object.prototype's — a function whose `.name` is a real string and would
+    // render as an ancestor called "Object". A dangling parentId is not
+    // hypothetical: this repo has swept dangling child refs five times.
+    const tpl = { id: "mod_x", role: "instance", label: "X" };
+    const occ = { id: "occ_x", moduleId: "mod_x", parentId: "constructor", fields: {} };
+    const ctx = {
+      state: { modules: [tpl] },
+      fieldsById: {},
+      occurrencesById: { occ_x: occ },
+      operationsById: {},
+    };
+    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const op = makeOp({
+      pipeline: pipe(
+        s("FIND", {
+          over: "$allInstances",
+          predicate: andCond({ left: "templateId", comparator: "IS", right: "mod_x" }),
+          itemIdVar: "$id",
+        }),
+      ),
+    });
+    executePipeline(op, ctx, null, undefined, logger);
+    const c = logger.entries.find(e => e.kind === "action" && e.actionType === "FIND")
+      .candidates.candidates[0];
+    expect(c.ancestorLabels).toEqual([]);
+  });
+
   test("no match → predicate left stays at the literal path (nothing to resolve)", () => {
     const ctx = {
       state: { modules: [] },
