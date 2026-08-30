@@ -18,6 +18,9 @@ import {
   runMatchingOperations,
   effectiveFilterFor,
   setOpApplyingEffects,
+  subscribeToOpLog,
+  getOpRunHistory,
+  runPipelineForLog,
 } from "../helpers/operationExecutor";
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -2575,7 +2578,7 @@ describe("FIND action log entries carry boundVars", () => {
       occurrencesById: { occ_a: occA },
       operationsById: {},
     };
-    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const logger = { entries: [], wantsCandidates: true, add(kind, payload) { this.entries.push({ kind, ...payload }); } };
     const op = makeOp({
       pipeline: pipe(
         s("FIND", {
@@ -2614,7 +2617,7 @@ describe("FIND action log entries carry boundVars", () => {
       occurrencesById: { occ_sched: schedPageOcc, occ_slot: slotOcc, occ_seeded: seededOcc },
       operationsById: {},
     };
-    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const logger = { entries: [], wantsCandidates: true, add(kind, payload) { this.entries.push({ kind, ...payload }); } };
     // Seed the schedule-page id ahead of time so $schedPageId resolves on the right.
     const op = makeOp({
       pipeline: pipe(
@@ -2663,7 +2666,7 @@ describe("FIND action log entries carry boundVars", () => {
       occurrencesById: { occ_dw: dwOcc },
       operationsById: {},
     };
-    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const logger = { entries: [], wantsCandidates: true, add(kind, payload) { this.entries.push({ kind, ...payload }); } };
     const op = makeOp({
       pipeline: pipe(
         s("FIND", {
@@ -2694,7 +2697,7 @@ describe("FIND action log entries carry boundVars", () => {
       occurrencesById: { occ_match: occA, occ_close: occB, occ_far: occC },
       operationsById: {},
     };
-    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const logger = { entries: [], wantsCandidates: true, add(kind, payload) { this.entries.push({ kind, ...payload }); } };
     const op = makeOp({
       pipeline: pipe(
         s("INIT_VAR", { name: "$srcTemplateId", expr: "literal:mod_dw" }),
@@ -2745,7 +2748,7 @@ describe("FIND action log entries carry boundVars", () => {
       occurrencesById: { occ_sched: pageOcc, occ_centerHub: panelOcc },
       operationsById: {},
     };
-    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const logger = { entries: [], wantsCandidates: true, add(kind, payload) { this.entries.push({ kind, ...payload }); } };
     const op = makeOp({
       pipeline: pipe(
         s("FIND", {
@@ -2778,7 +2781,7 @@ describe("FIND action log entries carry boundVars", () => {
       occurrencesById: { occ_x: occ },
       operationsById: {},
     };
-    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const logger = { entries: [], wantsCandidates: true, add(kind, payload) { this.entries.push({ kind, ...payload }); } };
     const op = makeOp({
       pipeline: pipe(
         s("FIND", {
@@ -2830,7 +2833,7 @@ describe("FIND action log entries carry boundVars", () => {
         occurrencesById: { occ_p: parent, occ_c: child },
         operationsById: {},
       };
-      const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+      const logger = { entries: [], wantsCandidates: true, add(kind, payload) { this.entries.push({ kind, ...payload }); } };
       const op = makeOp({
         pipeline: pipe(
           s("FIND", {
@@ -2861,7 +2864,7 @@ describe("FIND action log entries carry boundVars", () => {
       occurrencesById: { occ_x: occ },
       operationsById: {},
     };
-    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const logger = { entries: [], wantsCandidates: true, add(kind, payload) { this.entries.push({ kind, ...payload }); } };
     const op = makeOp({
       pipeline: pipe(
         s("INIT_VAR", { name: "$wantA", expr: "literal:aye" }),
@@ -2898,7 +2901,7 @@ describe("FIND action log entries carry boundVars", () => {
       occurrencesById: { occ_x: occ },
       operationsById: {},
     };
-    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const logger = { entries: [], wantsCandidates: true, add(kind, payload) { this.entries.push({ kind, ...payload }); } };
     const op = makeOp({
       pipeline: pipe(
         s("INIT_VAR", { name: "$projKey", expr: "literal:hello" }),
@@ -2928,7 +2931,7 @@ describe("FIND action log entries carry boundVars", () => {
       occurrencesById: { occ_x: occ },
       operationsById: {},
     };
-    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const logger = { entries: [], wantsCandidates: true, add(kind, payload) { this.entries.push({ kind, ...payload }); } };
     const op = makeOp({
       pipeline: pipe(
         s("FIND", {
@@ -2944,6 +2947,77 @@ describe("FIND action log entries carry boundVars", () => {
     expect(c.ancestorLabels).toEqual([]);
   });
 
+  // ── The breakdown is built only while the log panel is open ──────────────
+
+  test("the per-record breakdown follows the log SUBSCRIBER, in both directions", () => {
+    // `OperationLogPanel` subscribes for the op it is showing, so a live
+    // subscriber IS "the panel is open on this op". Driven through the real
+    // subscribe/unsubscribe API rather than the flag, because the flag is an
+    // implementation detail and the subscription is the contract.
+    //
+    // Both directions matter. Gated on nothing, this degrades into "never
+    // collect" and the tool is silently gone; latched on, it degrades into the
+    // always-on cost the gate exists to remove.
+    const tpl = { id: "mod_x", role: "instance", label: "X" };
+    const occ = { id: "occ_x", moduleId: "mod_x", parentId: null, fields: {} };
+    const op = makeOp({
+      id: "op_gate",
+      triggerTypes: ["onLoad"],
+      pipeline: pipe(
+        s("FIND", {
+          over: "$allInstances",
+          predicate: andCond({ left: "templateId", comparator: "IS", right: "mod_x" }),
+          itemIdVar: "$id",
+        }),
+      ),
+    });
+    const fire = () => {
+      runMatchingOperations([op], null, null, {
+        state: { modules: [tpl], occurrencesById: { occ_x: occ } },
+        fieldsById: {},
+        occurrencesById: { occ_x: occ },
+        operationsById: { op_gate: op },
+      });
+      const entries = getOpRunHistory("op_gate")[0].entries;
+      return entries.find(e => e.kind === "action" && e.actionType === "FIND");
+    };
+
+    expect(fire().candidates, "collected with nobody watching").toBeUndefined();
+
+    const off = subscribeToOpLog("op_gate", () => {});
+    const watched = fire();
+    expect(watched.candidates, "NOT collected while the panel is open").toBeDefined();
+    expect(watched.candidates.candidates[0].id).toBe("occ_x");
+
+    off();
+    expect(fire().candidates, "still collected after the panel closed").toBeUndefined();
+  });
+
+  test("runPipelineForLog RECORDS the run — `executePipeline` alone never did", () => {
+    // The log panel's "Run now" button called `executePipeline` directly, and
+    // only `runMatchingOperations` ever called `recordRunLog` — so the button,
+    // whose tooltip reads "Run pipeline now and append to history", executed
+    // the pipeline and recorded NOTHING. With the breakdown gated on the panel
+    // being open, this button is the recovery path for a run that predates it.
+    const op = makeOp({
+      id: "op_liverun",
+      pipeline: pipe(s("INIT_VAR", { name: "$x", expr: "literal:1" })),
+    });
+    const ctx = { state: { modules: [] }, fieldsById: {}, occurrencesById: {}, operationsById: {} };
+
+    // The control: the old call path leaves the history exactly as it was.
+    const before = getOpRunHistory("op_liverun").length;
+    executePipeline(op, ctx, { type: "manual" });
+    expect(getOpRunHistory("op_liverun").length).toBe(before);
+
+    runPipelineForLog(op, ctx, { type: "manual", source: "editor-live-run" });
+    const runs = getOpRunHistory("op_liverun");
+    expect(runs.length).toBe(before + 1);
+    expect(runs[0].entries.some(e => e.kind === "start")).toBe(true);
+    expect(runs[0].entries.some(e => e.kind === "end")).toBe(true);
+    expect(runs[0].entries.find(e => e.kind === "start").transactionType).toBe("manual");
+  });
+
   test("no match → predicate left stays at the literal path (nothing to resolve)", () => {
     const ctx = {
       state: { modules: [] },
@@ -2951,7 +3025,7 @@ describe("FIND action log entries carry boundVars", () => {
       occurrencesById: {},
       operationsById: {},
     };
-    const logger = { entries: [], add(kind, payload) { this.entries.push({ kind, ...payload }); } };
+    const logger = { entries: [], wantsCandidates: true, add(kind, payload) { this.entries.push({ kind, ...payload }); } };
     const op = makeOp({
       pipeline: pipe(
         s("FIND", {

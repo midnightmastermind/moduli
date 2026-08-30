@@ -224,9 +224,29 @@ function recordRunLog(opId, log) {
   logSubscribers.get(opId)?.forEach(fn => { try { fn(list); } catch {} });
 }
 
-function makeLogger() {
+// Is anyone actually watching this op's run log right now? `OperationLogPanel`
+// subscribes for the op it is showing, so this is exactly "the log panel is
+// open on this op" — see `wantsCandidates` below.
+function hasLogSubscriber(opId) {
+  return !!opId && (logSubscribers.get(opId)?.size || 0) > 0;
+}
+
+function makeLogger(opId) {
   return {
     entries: [],
+    // THE FIND CANDIDATE BREAKDOWN IS BUILT ONLY WHILE SOMEONE IS LOOKING.
+    //
+    // `collectFindCandidates` evaluates every rule against every record in the
+    // FIND's pool — 94 calls and ~230ms of the load sweep on poms grid — and
+    // its ONLY reader is the run-log panel. User's call, 2026-08-30: build it
+    // while the panel is open on this op, not on every fire for every user.
+    //
+    // The cost is that a run recorded BEFORE the panel was opened carries no
+    // breakdown; the step entries (resolvedPredicate, boundVars) are still
+    // there, and re-triggering the op — a reload, an edit, or the panel's own
+    // "Run now" — produces a full one. Decided AFTER "Run now" was fixed to
+    // record at all, because it is the recovery path and it recorded nothing.
+    wantsCandidates: hasLogSubscriber(opId),
     // Muted while a big loop is past its per-iteration log cap (see the loop
     // branch in executeSteps). Guarding add() too so nested helpers that log
     // via $vars._log directly can't bypass the cap.
@@ -1009,7 +1029,7 @@ function _runMatchingOperations(operations, transactionType, transaction, contex
     // same filter-change burst won't re-run it (even if this run errors).
     if (cascadeFiredOps) cascadeFiredOps.add(op.id);
     const startedAt = Date.now();
-    const logger = makeLogger();
+    const logger = makeLogger(op.id);
     logger.add("start", {
       opId: op.id,
       opName: op.name,
@@ -1432,6 +1452,49 @@ export function derivedCollectionsFor(allItems) {
   const out = { containers, pages, panels, instances, byId };
   _derivedCollections.set(allItems, out);
   return out;
+}
+
+/**
+ * Run one pipeline AND RECORD IT to the run history.
+ *
+ * `executePipeline` on its own builds a logger and throws the entries away —
+ * only `runMatchingOperations` ever called `recordRunLog`. So the log panel's
+ * "Run now" button, whose tooltip reads *"Run pipeline now and append to
+ * history"* and whose empty state says *"Click Run now for a live preview"*,
+ * executed the pipeline and recorded NOTHING. It has been inert since it was
+ * written.
+ *
+ * That matters more than a wrong tooltip now: with the FIND candidate
+ * breakdown gated on the panel being open, "Run now" is the recovery path for
+ * a run that predates opening it.
+ *
+ * Deliberately NOT done by making `executePipeline` record whenever it owns its
+ * logger: three other callers (the scheduler, the ops-tab node-input preview,
+ * the alarm/pomodoro fire path) would start writing history as a side effect of
+ * this fix. Whether a scheduled fire should leave a log is its own question.
+ */
+export function runPipelineForLog(operation, context, transaction) {
+  if (!operation?.pipeline) return [];
+  const startedAt = Date.now();
+  const logger = makeLogger(operation.id);
+  logger.add("start", {
+    opId: operation.id,
+    opName: operation.name,
+    transactionType: transaction?.type || null,
+    trigger: transaction ? { ...transaction } : null,
+    matchedTriggerObject: null,
+  });
+  let results = [];
+  try {
+    results = executePipeline(operation, context, transaction, undefined, logger) || [];
+    logger.add("end", { updates: results, durationMs: Date.now() - startedAt });
+  } catch (err) {
+    // Recorded, not rethrown: the panel's own call site already swallows, and a
+    // live run that throws is exactly the run the user opened the log to read.
+    logger.add("error", { message: String(err?.message || err), stack: err?.stack });
+  }
+  recordRunLog(operation.id, { runAt: startedAt, durationMs: Date.now() - startedAt, entries: logger.entries });
+  return results;
 }
 
 export function executePipeline(operation, context, transaction, extraVars, externalLogger) {
@@ -2229,7 +2292,11 @@ function executeSteps(steps, $vars, context, transaction) {
         // bool. Lets the panel show "no match" callouts where the user can
         // see what each candidate's `templateId / fields.X.value / _ancestors`
         // actually held when compared to the right side.
-        candidates = collectFindCandidates(cfg, $vars, matched?.id);
+        // ONLY the per-record breakdown is gated. Resolving the predicate
+        // against the MATCHED record just above is O(rules) — one record — and
+        // is what makes the log's "mod_dw IS mod_dw ✓" row readable at all;
+        // `collectFindCandidates` is O(pool × rules) and is the expensive half.
+        if (log.wantsCandidates) candidates = collectFindCandidates(cfg, $vars, matched?.id);
       }
 
       // FIND / INIT_VAR / *_VAR mutate $vars without pushing into `result`, so

@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useGridActions } from "../../GridActionsContext";
 import {
-  executePipeline,
+  runPipelineForLog,
   getOpRunHistory,
   subscribeToOpLog,
 } from "../../helpers/operationExecutor";
@@ -927,7 +927,7 @@ export default function OperationLogPanel({ operation }) {
       operationsById: operationsById || {},
     };
     const trigger = { type: "manual", source: "editor-live-run", timestamp: Date.now() };
-    try { executePipeline(operation, context, trigger); } catch { /* logged in run */ }
+    try { runPipelineForLog(operation, context, trigger); } catch { /* recorded in the run log */ }
     setExpandedIdx(0);
   }, [operation, state, fieldsById, occurrencesById, operationsById]);
 
