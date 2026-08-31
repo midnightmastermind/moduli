@@ -6,6 +6,80 @@
 
 ---
 
+### 2026-08-31 (6) — THE RENDER STORM, ATTRIBUTED AT LAST: two subscriptions nobody was reading
+
+(5) ended with the real number — 208 effects producing ~3,800 field renders —
+and the assumption that BATCHING the writes was the fix. **Measuring first
+killed that too**: the effects apply in 13-16 slices, and React batches within
+a task, so the dispatches were already collapsing. The cost was never the
+number of commits; it is **how much re-renders inside each one**.
+
+**THE TOOL FOR THAT ALREADY EXISTED AND WAS UNREACHABLE.**
+`useRenderAttribution` has answered *"which subscribed value changed identity"*
+since the frame-1 work, wired into field / container / instance — and
+`snapshotAttrs` was reachable only from inside DragProvider's drop stopwatch.
+So the storm could be COUNTED and never EXPLAINED. Three lines put it on
+`window` beside `__renderTally`, and it named both causes in one run.
+
+**CAUSE 1 — EVERY FIELD PILL SUBSCRIBED TO THE GRID-WIDE OCCURRENCE COUNT.**
+```
+field renders 3,065
+   2,217  s_occSetKey
+     739  s_modulesById+s_occSetKey          = 96% of every field render
+top payers: Completed 572 · Duration 256 · Tracker Date 133
+```
+`occSetKey` is the occurrence COUNT, and it is the reactive dep for
+`resolveOptions`. So anything creating an occurrence anywhere re-rendered every
+pill on screen — the four deferred catalogue chunks, feedSync's mints, every
+CREATE the sweep emits. **The three biggest payers are a boolean, a duration
+and a date: none of them resolves options.** The `wantsResolve` test already
+existed one scope down, inside the useMemo that consumes the value.
+
+**CAUSE 2 — EVERY INSTANCE ROW SUBSCRIBED TO THE WHOLE OPERATIONS MAP**, for a
+widget almost none of them has. `operationsById` is read only to build
+`operationWidgets` (empty without `operationBindings`) and by
+`handleRunOperation`, which is reachable ONLY from one of those widgets. Any
+write to any operation re-rendered every row — and `lastFiredAt` is stamped on
+every fire, so the load sweep rewrites that map once per op that runs.
+
+**THE FIX IS THE SAME SHAPE BOTH TIMES, and it is not "call the hook
+conditionally".** Hooks must be called; what becomes conditional is the value
+SELECTED, which is the part that decides whether the component re-renders. A
+field that resolves nothing, and a row with no operation widget, now select a
+constant and stop hearing about the rest of the grid. `EMPTY_OPERATIONS` is
+module-level — a fresh `{}` in the selector would re-render on every store read
+instead of every op write, which is worse than what it replaced.
+
+**MEASURED ON PROD, IDLE, SAME PROBE EITHER SIDE:**
+```
+field     3,065 -> 1,663   (-46%)     s_occSetKey 2,956 -> 1,100  (-63%)
+instance    604 ->   421   (-30%)     s_operationsById 183 -> GONE
+Completed   572 ->   143 · Duration 256 -> 64 · Tags 404 -> 404 (a select, correctly unchanged)
+```
+*Tags staying put is the control: a field that genuinely resolves options still
+refreshes on every count change, so no option list can go stale.*
+
+**WHAT IS LEFT, NAMED RATHER THAN GUESSED:** `s_modulesById` (464 field, and in
+every container/instance bucket) — the modules map changes identity during a
+load, and `UPDATE_ITEM_FIELD`'s auto-attach of a missing `fieldBindings` entry
+calls `updateModule`, which would do exactly that. `s_occSetKey` 1,100 on the
+fields that DO resolve is real work that could be narrowed to *"which
+occurrences could this predicate match"* — a bigger claim than this pass made.
+
+**AND TWO PROBE FAULTS, BOTH DOCUMENTED IN THIS FILE ALREADY.**
+`page.waitForFunction(fn, { timeout })` passes options as the ARGUMENT — the
+signature is `(fn, arg, options)` — so a stated 300s wait was the 30s default
+(2026-08-25 (6), paid again). And a post-deploy run died on
+`ENOENT: client/dist/index.html` — the 2026-08-07 (3) outage shape, here just
+the build window, with the site 200 either side. **A wait keyed on "prewarm
+done appears in the last 30 lines" also exits immediately after a deploy,
+because the PREVIOUS deploy's line is still there** — it has to be anchored to
+the latest restart.
+
+3,652 client tests, lint 0 errors, deployed, prod HEAD verified.
+
+---
+
 ### 2026-08-31 (5) — TWO GUARDS SHIPPED, NEITHER MOVED THE NUMBER, and the sweeps they targeted emit nothing
 
 User: *"yes"* — go after the op sweeps firing during a scroll. What follows is
