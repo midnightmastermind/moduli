@@ -422,6 +422,34 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // recomputation instead of the user's last edit). `captureAction` is
       // taken here, synchronously, while the scope is still live.
       const capturedScope = captureAction();
+
+      // ── THE SAME CYCLE GUARD THE NESTED FIRE PATH USES ───────────────────
+      //
+      // `fireOperations` marks every op that produced effects in a batch as
+      // "applying" for the whole application phase, so the writes those effects
+      // make cannot re-trigger the ops that just ran. This path — the LOAD
+      // sweep, the biggest batch the app ever applies — never got it.
+      //
+      // Measured on prod against an IDLE page, nobody touching it (2026-08-31):
+      //     208 effects applied in 16 slices
+      //     29 op sweeps, of which 27 were MeasureOp at depth=1
+      //     `[op-fire] depth=1 MeasureOp occ=1ve8fwc6` — the Workouts tracker
+      //     tile, re-fired ten times over
+      //     3,826 field renders on a page nobody was using
+      // On the user's phone the same cascade lands on top of a 3.6s load sweep
+      // and is what a scroll in that window is competing with.
+      //
+      // ONLY ops that produced effects in THIS batch are marked, which is what
+      // keeps a legitimate A→B chain working: an op that did not run in the
+      // sweep can still be triggered by its effects. That is the nested path's
+      // own rule, not a new one.
+      //
+      // Released in `finally` and AFTER the slices, because this batch is
+      // asynchronous — releasing per slice would leave the guard off for the
+      // fifteen slices that follow.
+      const sweepOpIds = [...new Set(effects.map(e => e._sourceOpId).filter(Boolean))];
+      for (const sid of sweepOpIds) setOpApplyingEffects(sid, true);
+
       void runSliced(effects, (eff) => {
         runInAction(capturedScope, () => {
           try {
@@ -434,6 +462,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
             );
           }
         });
+      }).finally(() => {
+        for (const sid of sweepOpIds) setOpApplyingEffects(sid, false);
       }).then(({ slices }) => {
         if (effectErrors) {
           console.error(`[full_state-client] ${effectErrors} of ${effects.length} effect(s) threw`);
