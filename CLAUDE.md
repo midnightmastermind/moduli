@@ -6,6 +6,61 @@
 
 ---
 
+### 2026-08-31 (4) — RETRACTION: the repaint wait is NOT the off-screen skip, and the tally was counting SWEEPS
+
+(3) concluded the *"waiting for an entire repaint"* was `content-visibility`
+un-skipping, and retargeted the whole A/B at it. **The user's next capture
+retires that**, and it is worth recording because the reasoning looked sound:
+```
+#1 baseline  skipped at start 0 · un-skipped while scrolling 0 · scrolled 0px
+#2 no-skip   skipped at start 0 · un-skipped while scrolling 0
+             ops ms:2563, runs:2 · long tasks 5 (3187ms of 14056ms)
+             193 renders (container 104 · instance 45 · field 20)
+```
+**Nothing was being skipped on either arm.** Those containers each hold fewer
+than `LONG_LIST_MIN` rows, so `.container-list--long` is never applied and the
+skip does not engage on that surface at all — the arm added an hour earlier is
+neutralising a rule that is not running. *The earlier bursts DID show
+`unskipped=17/30/34`, which is what made the hypothesis plausible; they were
+taken on a different surface and a different device.*
+
+**WHAT IS LEFT IS 2,563ms OF OPERATIONS INSIDE A 14-SECOND GESTURE** — and the
+number was being read wrong in two ways at once.
+
+**`bumpOpRun` FIRES ONCE PER `runMatchingOperations` — A WHOLE SWEEP OVER EVERY
+OPERATION, NOT ONE OP.** So `runs: 2` is two full sweeps at ~1.28s each, which
+reads as trivial while the overlay calls them *"op fires"*. Renamed to sweeps.
+
+**AND THE OVERLAY WAS ITERATING `{ runs, ms }` AS THOUGH THOSE WERE OP NAMES**,
+rendering `ops runs:2, ms:2563` — the two fields of the total, presented as the
+top two culprits. That is the line the user read back.
+
+**NOTHING SAID WHAT TRIGGERED THE SWEEPS, and the candidates take different
+fixes**: the documented post-paint load tail, a write echo, a navigation, or a
+scheduler tick landing mid-gesture. Sweeps are tallied BY TRIGGER now
+(`opBy=[load:2x2563ms]`), which is the one fact that separates them.
+
+**The surface is dense with triggers, which is the shape of the problem:** of
+68 enabled ops, **51 match `onLoad`, 48 `onFilterChange`, 47 `onChange`** — so
+any field write anywhere fires a sweep evaluating ~47 pipelines. Three ops are
+timer-driven (two alarms, plus `Schedule: Mark Passed Slots` every 5 minutes).
+
+**THE BASELINE ARM SCROLLED 0px AGAIN**, so the A/B is void for a third
+distinct reason — first four incomparable arms, then a 65x rate spread, now a
+baseline that never moved. The comparability flag catches it every time; what
+it cannot do is make the capture happen.
+
+**THE SEED FIX SHIPPED SEPARATELY AND IS EXPLICITLY NOT THIS BUG.**
+`contain-intrinsic-size` is measured from the list's own rows now (median of up
+to 8) rather than picked, because the constant has been wrong in both
+directions — 60px over-estimated on a Samsung A15, 44px under-estimates 2-2.5x
+on this phone (`seed=44 real=81 / 109 / 110`). It matters where the skip
+engages, which is the 993-row media boards, not the surface being reported.
+
+3,642 client tests, lint 0 errors, deployed, prod HEAD verified.
+
+---
+
 ### 2026-08-31 (3) — THE DAY PAGE HAD ITS OWN DUPLICATES, and the op had been throwing into a catch since they appeared
 
 Continuing (2) at the user's *"keep going"*, plus a new report: *"the scroll is
