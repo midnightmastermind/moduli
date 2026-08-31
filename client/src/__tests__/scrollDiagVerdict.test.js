@@ -11,7 +11,7 @@
 // 348 / 207 / 310 px/s — so the marquee/backdrop/shadow A/B they exist to run
 // was void, and nothing in the overlay said so.
 import { describe, it, expect } from "vitest";
-import { verdictFor, mountFloor, scrollRate, comparability, subtractTally, ARMS, MAX_SESSIONS } from "../helpers/scrollDiag";
+import { verdictFor, mountFloor, scrollRate, comparability, subtractTally, ARMS, MAX_SESSIONS, formatBurstLine } from "../helpers/scrollDiag";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -193,6 +193,51 @@ describe("scroll A/B arms", () => {
     // Without !important the page's own rule wins on source order and the arm
     // is inert — the failure mode this whole describe exists to prevent.
     expect(arm.css).toContain("!important");
+  });
+});
+
+// ONE FORMATTER FOR BOTH SURFACES. The console and the pm2 log used to format
+// separately, and the server's copy kept dropping fields the client had
+// already computed — the scroll rate and its comparability verdict, then the
+// render and op tallies, then the trigger breakdown. Each was noticed only
+// after a capture had been read WITHOUT it, which is a whole round trip with
+// the user each time. The client formats once and the server prints that.
+describe("formatBurstLine — the fields that kept going missing", () => {
+  const burst = {
+    index: 2, arm: "no-skip", viewport: "384x700", dpr: 2.8125,
+    rowsAtStart: 43, rowsAdded: 0, unskipped: 0, skippedAtStart: 0,
+    frameMedian: 252, slowFrames: 6, frames: new Array(7),
+    longTasks: 5, longTaskMs: 3187, seedPx: 44, realPx: 110,
+    startTop: 1035, endTop: 0, durationMs: 14056,
+    rendersInBurst: 193, topRenders: [["container", 104], ["instance", 45]],
+    opRuns: 2, opMs: 2563, opBy: "load:2x2563ms",
+    verdict: { code: "MAIN-THREAD", text: "blocked" },
+  };
+
+  it("carries every field a previous version of the log dropped", () => {
+    const line = formatBurstLine(burst, 74, "unknown");
+    for (const bit of [
+      "rate=74px/s", "cmp=unknown",              // dropped until 2026-08-31 (1)
+      "renders=193", "opSweeps=2", "opMs=2563",  // dropped until (3)
+      "opBy=[load:2x2563ms]",                    // dropped until (4)
+      "seed=44px", "real=110px",                 // the mismatch that misled (3)
+      "unskipped=0", "skippedAtStart=0",         // what retired the skip theory
+      "verbose=",                                // "was the arm even applied"
+    ]) expect(line, `the line lost "${bit}"`).toContain(bit);
+  });
+
+  it("is ONE line, because the overlay could not be copied off a phone", () => {
+    // The user transcribed the overlay by hand, a fragment at a time. A line
+    // with a newline in it defeats the entire point.
+    expect(formatBurstLine(burst, 74, "unknown")).not.toContain("\n");
+  });
+
+  it("reports the scrolled distance signed from start to end, not absolute", () => {
+    // `rate` is unsigned on purpose; the raw delta tells you WHICH WAY, and a
+    // baseline that never moved reads 0 rather than looking like a real burst.
+    expect(formatBurstLine(burst, 74, "unknown")).toContain("scrolled=-1035px");
+    expect(formatBurstLine({ ...burst, startTop: 0, endTop: 0 }, 0, "baseline"))
+      .toContain("scrolled=0px");
   });
 });
 

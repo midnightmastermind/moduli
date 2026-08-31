@@ -284,6 +284,32 @@ export function verdictFor(s) {
   return { code: "CLEAN", text: "Nothing anomalous recorded in this burst." };
 }
 
+// ── ONE LINE, ONE FORMATTER, BOTH SURFACES ────────────────────────────────
+// The console and the pm2 log had SEPARATE formatting, and the server's copy
+// kept dropping fields the client had already computed — the scroll rate and
+// its comparability verdict, then the render/op tallies, then the trigger
+// breakdown, each fixed only after a capture had been read without them. One
+// string built here and printed in both places cannot drift.
+//
+// It is also a single line ON PURPOSE. The overlay cannot be copied off a
+// phone — the user transcribed it by hand, a fragment at a time — and
+// `console.log(msg, object)` logs something that has to be expanded and still
+// cannot be pasted. One line selects and pastes.
+export function formatBurstLine(s, rate, cmp) {
+  return `[scroll] ${s.verdict?.code} burst#${s.index} arm=${s.arm}`
+    + ` ${s.viewport || ""}${s.dpr ? `@${s.dpr}x` : ""}`
+    + ` rows=${s.rowsAtStart} added=${s.rowsAdded} unskipped=${s.unskipped}`
+    + ` skippedAtStart=${s.skippedAtStart}`
+    + ` frameMedian=${s.frameMedian}ms missed=${s.slowFrames}/${s.frames?.length ?? "?"}`
+    + ` longTasks=${s.longTasks}(${s.longTaskMs}ms)`
+    + ` seed=${s.seedPx}px real=${s.realPx}px`
+    + ` scrolled=${Math.round((s.endTop ?? 0) - (s.startTop ?? 0))}px dur=${s.durationMs}ms`
+    + ` rate=${rate}px/s cmp=${cmp}`
+    + ` renders=${s.rendersInBurst}${s.topRenders?.length ? `(${s.topRenders.map(([k, n]) => `${k}:${n}`).join(",")})` : ""}`
+    + ` opSweeps=${s.opRuns} opMs=${s.opMs}${s.opBy ? ` opBy=[${s.opBy}]` : ""}`
+    + ` verbose=${verbose()}`;
+}
+
 function endSession() {
   if (!active) return;
   const s = active;
@@ -330,8 +356,14 @@ function endSession() {
   else if (sessions.length < MAX_SESSIONS) applyArm(sessions.length);
   else document.getElementById("scroll-diag-arm")?.remove();
 
+  // ONE COPY-PASTEABLE LINE, then the object for anyone with devtools open.
+  const _rate = scrollRate(s);
+  const _cmp = s.index === 1 ? "baseline" : comparability(_rate, scrollRate(sessions[0]));
+  s.line = formatBurstLine(s, _rate, _cmp);
   // eslint-disable-next-line no-console
-  console.log(`[scroll] burst #${s.index} ${s.verdict.code} — ${s.verdict.text}`, s);
+  console.log(s.line);
+  // eslint-disable-next-line no-console
+  console.log(`         ↳ ${s.verdict.text}`, s);
   if (verbose()) renderOverlay();
 
   // Also REPORT IT. A phone has no console and screenshots keep going astray,
@@ -361,6 +393,9 @@ function endSession() {
       // the overlay is on the tablet and the decision gets made from the pm2
       // log, so the guard was invisible exactly where it was needed.
       comparability: s.index === 1 ? "baseline" : comparability(scrollRate(s), scrollRate(sessions[0])),
+      // The exact line the console printed — the server logs THIS rather than
+      // re-deriving its own and dropping a field.
+      line: s.line,
       ua: navigator.userAgent,
       supportsLongTask: SUPPORTS_LONGTASK,
       supportsCvEvent: SUPPORTS_CV_EVENT,
@@ -487,6 +522,12 @@ function busyLine(s) {
 
 function renderOverlay() {
   if (typeof document === "undefined") return;
+  // THE OVERLAY IS FOR A DEVICE WITH NO CONSOLE. Where there IS one the panel
+  // is just something to dismiss between scrolls — and it cannot be copied
+  // anyway, which is why the whole capture is one console line now.
+  // `window.__scrollOverlay = false` keeps the arms, the capture and the
+  // reporting and drops only the panel.
+  if (typeof window !== "undefined" && window.__scrollOverlay === false) return;
   document.getElementById("scroll-diag-overlay")?.remove();
 
   const box = document.createElement("div");
@@ -673,12 +714,31 @@ function armCellSwitchDiag() {
         })(),
         viewport: `${window.innerWidth}x${window.innerHeight}`,
       };
+      const t = (o) => Object.entries(o || {}).filter(([, n]) => n).map(([k, n]) => `${k}:${n}`).join(",") || "none";
+      payload.line = `[scroll] CELL-SWITCH ${payload.verdict} blocked=${payload.blockedMs}ms`
+        + ` maxBlock=${payload.maxGapMs}ms react=${payload.reactMs}ms preReact=${payload.preReactMs}ms`
+        + ` gridRender=${payload.gridRenderMs}ms paint=${payload.paintMs}ms frames=${payload.frames}`
+        + ` rows=${payload.rowsAtStart} domNodes=${payload.domNodes} animations=${payload.animations}`
+        + ` editors=${payload.editors}`
+        + ` inCommit=[${t(payload.rendersInCommit)}] afterCommit=[${t(payload.rendersAfterCommit)}]`
+        + ` opSweeps=${payload.ops?.runs ?? 0} opMs=${payload.ops?.ms ?? 0}`
+        + ` ${payload.viewport}@${payload.dpr}x build=${payload.build}`;
       // eslint-disable-next-line no-console
-      console.log(`[scroll] cell-switch — blocked ${payload.maxGapMs}ms`, payload);
+      console.log(payload.line);
       try { safeEmit(socket, "save_scroll_diag", payload); } catch { /* never break the page */ }
     };
     requestAnimationFrame(tick);
   }, { capture: true, passive: true });
+}
+
+// EVERY LINE AT ONCE. The overlay shows the capture but cannot be copied off a
+// phone; this prints the whole run as plain lines to select in one go.
+// `window.__scrollReport()` from a console, or read them as they land.
+export function scrollReport() {
+  const lines = sessions.map(x => x.line).filter(Boolean);
+  // eslint-disable-next-line no-console
+  console.log(lines.length ? lines.join("\n") : "[scroll] no bursts captured yet");
+  return lines;
 }
 
 export function armScrollDiag() {
@@ -717,6 +777,8 @@ export function armScrollDiag() {
 
   armCellSwitchDiag();
   window.__scrollDiagShow = renderOverlay;
+  // Reprint the whole capture as plain lines, for copying in one selection.
+  window.__scrollReport = scrollReport;
   window.__scrollDiagData = () => sessions;
   // eslint-disable-next-line no-console
   if (verbose()) console.log("[scroll] diagnostic armed — scroll Routines; a summary appears on screen. Mute: window.__scrollDiag = false");

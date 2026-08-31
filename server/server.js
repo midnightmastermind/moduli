@@ -407,6 +407,17 @@ io.on("connection", (socket) => {
   //   pm2 logs moduli --nostream --lines 500 | grep '\[scroll\]'
   socket.on("save_scroll_diag", (d = {}) => {
     try {
+      // THE CLIENT ALREADY FORMATTED THIS. It used to be re-derived here, and
+      // the re-derivation kept dropping fields the client had computed — the
+      // scroll rate and its comparability verdict, then the render/op tallies,
+      // then the trigger breakdown — each noticed only after a capture had
+      // been read without them. Printing the client's own line means the pm2
+      // log and the user's console cannot disagree. The blocks below stay as
+      // the fallback for a tab on an older bundle.
+      if (typeof d.line === "string" && d.line) {
+        console.log(`📉 ${d.line} user=${socket.userId} ua=${(d.ua || "").slice(-30)}`);
+        return;
+      }
       if (d.kind === "cell-switch") {
         console.log(`📉 [scroll] CELL-SWITCH ${d.verdict} user=${socket.userId} `
           + `maxBlock=${d.maxGapMs}ms react=${d.reactMs}ms preReact=${d.preReactMs}ms gridRender=${d.gridRenderMs}ms paint=${d.paintMs}ms blocked=${d.blockedMs}ms frames=${d.frames} `
