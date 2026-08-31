@@ -150,6 +150,10 @@ export const ARMS = [
 // leave the capture ending before it runs.
 export const MAX_SESSIONS = ARMS.length;
 
+// How many bursts silent mode keeps in memory. It reports every one; this only
+// bounds the array, since nothing reads further back than the overlay does.
+const KEEP_SESSIONS = 20;
+
 function applyArm(i) {
   document.getElementById("scroll-diag-arm")?.remove();
   const css = ARMS[i]?.css;
@@ -178,6 +182,10 @@ const SUPPORTS_CV_EVENT = typeof document !== "undefined"
 const sessions = [];
 let active = null;
 let armed = false;
+// The first burst's rate is the yardstick every later one is compared against.
+// Held separately because silent mode runs indefinitely and TRIMS `sessions`,
+// so `sessions[0]` stops being the first burst.
+let baselineRate = null;
 
 function median(xs) {
   if (!xs.length) return 0;
@@ -351,6 +359,10 @@ function endSession() {
   try { s.mo?.disconnect(); } catch { /* ignore */ }
   try { s.po?.disconnect(); } catch { /* ignore */ }
   sessions.push(s);
+  // Silent mode never stops, so the array would grow for as long as the tab is
+  // open. The lines are already printed and reported; only the overlay reads
+  // the history back, and it only ever shows the A/B run.
+  if (!verbose() && sessions.length > KEEP_SESSIONS) sessions.shift();
   // Set up the NEXT arm, or clean up once every suspect has had a turn.
   if (!verbose()) { document.getElementById("scroll-diag-arm")?.remove(); }
   else if (sessions.length < MAX_SESSIONS) applyArm(sessions.length);
@@ -358,7 +370,8 @@ function endSession() {
 
   // ONE COPY-PASTEABLE LINE, then the object for anyone with devtools open.
   const _rate = scrollRate(s);
-  const _cmp = s.index === 1 ? "baseline" : comparability(_rate, scrollRate(sessions[0]));
+  if (baselineRate == null) baselineRate = _rate;
+  const _cmp = s.index === 1 ? "baseline" : comparability(_rate, baselineRate);
   s.line = formatBurstLine(s, _rate, _cmp);
   // eslint-disable-next-line no-console
   console.log(s.line);
@@ -392,7 +405,7 @@ function endSession() {
       // read as an A/B. The overlay has flagged this since 2026-08-29 — but
       // the overlay is on the tablet and the decision gets made from the pm2
       // log, so the guard was invisible exactly where it was needed.
-      comparability: s.index === 1 ? "baseline" : comparability(scrollRate(s), scrollRate(sessions[0])),
+      comparability: s.index === 1 ? "baseline" : comparability(scrollRate(s), baselineRate),
       // The exact line the console printed — the server logs THIS rather than
       // re-deriving its own and dropping a field.
       line: s.line,
@@ -410,7 +423,12 @@ function startSession(scroller) {
   const index = sessions.length + 1;
   const s = {
     index,
-    arm: ARMS[Math.min(index - 1, ARMS.length - 1)].name,
+    // SILENT MODE APPLIES NO ARM, so it must not claim one. Left as the index
+    // lookup it would have reported `arm=no-skip` on every burst after the
+    // second while injecting no CSS at all — a label describing an experiment
+    // that never ran, which is the kind of thing a later reader builds a
+    // conclusion on.
+    arm: verbose() ? ARMS[Math.min(index - 1, ARMS.length - 1)].name : "none",
     t0: performance.now(),
     scroller,
     startTop: scroller.scrollTop,
@@ -757,8 +775,15 @@ export function armScrollDiag() {
     // arms had already been recorded. Re-showing the results costs nothing
     // (only when the overlay is not already on screen) and the panel now
     // carries the one instruction that gets a fresh run: reload.
-    if (sessions.length >= MAX_SESSIONS) {
-      if (verbose() && !document.getElementById("scroll-diag-overlay")) renderOverlay();
+    // THE CAP IS AN A/B ARTIFACT, NOT A CAPTURE LIMIT. It exists to sequence
+    // the arms — baseline, then one per suspect — and once they have all run
+    // there is nothing left to vary. SILENT mode applies no arms at all, so it
+    // has no reason to stop: it just measures the page as it is and prints a
+    // line. Stopping there is what made the diagnostic need `?scrollDiag=1` to
+    // keep talking, which is backwards — the flag is for the experiment, not
+    // for the reporting (user, 2026-08-31: "i shouldnt need scrollDiag 1").
+    if (verbose() && sessions.length >= MAX_SESSIONS) {
+      if (!document.getElementById("scroll-diag-overlay")) renderOverlay();
       return;
     }
     const el = e.target;

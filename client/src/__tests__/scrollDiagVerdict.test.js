@@ -241,3 +241,32 @@ describe("formatBurstLine — the fields that kept going missing", () => {
   });
 });
 
+// SILENT MODE IS THE DEFAULT AND MUST NOT NEED A FLAG. `?scrollDiag=1` turns on
+// the A/B arms and the overlay — the EXPERIMENT. Reporting is not part of the
+// experiment, and gating it behind the same flag is what made the diagnostic
+// go quiet after two scrolls (user, 2026-08-31: "i shouldnt need scrollDiag 1").
+describe("the arm/report split", () => {
+  it("has exactly one arm per burst of the A/B, and no more", () => {
+    // The cap sequences the arms; it is not a limit on how much can be
+    // measured. Anything that makes MAX_SESSIONS bigger than ARMS would run a
+    // burst with the last arm still applied and label it as a fresh one.
+    expect(MAX_SESSIONS).toBe(ARMS.length);
+  });
+
+  it("the line always says whether an arm was actually applied", () => {
+    // `verbose` is the discriminator between "measured the page as it is" and
+    // "measured the page with a rule overridden". A burst that reports an arm
+    // name while applying no CSS is the failure this pins.
+    const base = {
+      index: 3, arm: "none", frames: [], verdict: { code: "PAINT", text: "" },
+      rowsAtStart: 0, rowsAdded: 0, unskipped: 0, skippedAtStart: 0,
+      frameMedian: 0, slowFrames: 0, longTasks: 0, longTaskMs: 0,
+      seedPx: 0, realPx: 0, startTop: 0, endTop: 0, durationMs: 1,
+      rendersInBurst: 0, opRuns: 0, opMs: 0,
+    };
+    const line = formatBurstLine(base, 0, "unknown");
+    expect(line).toContain("arm=none");
+    expect(line).toContain("verbose=");
+  });
+});
+
