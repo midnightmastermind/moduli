@@ -131,4 +131,11 @@ if (typeof window !== "undefined") {
     renders: diffRenders(prev?.renders),
     ops: diffOps(prev?.ops),
   });
+  // WHY those components re-rendered, not just how many. The buckets have been
+  // collected since the frame-1 work and were reachable only from inside
+  // DragProvider's drop stopwatch — so "3,794 field renders during a load"
+  // could be counted and not explained. Costs nothing unless
+  // `window.__RENDER_ATTR = true` (useRenderAttribution returns early).
+  window.__renderAttrs = () => snapshotAttrs();
+  window.__renderAttrDiff = (prev) => diffAttrs(prev);
 }
