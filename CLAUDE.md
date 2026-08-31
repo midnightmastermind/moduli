@@ -79,6 +79,40 @@ different page, and without it *"the diagnostic was left on"* is
 indistinguishable from a real regression — which is exactly the question a
 report of "the scroll is worse" raises.
 
+**AND THEN THE USER RE-FRAMED IT, correctly:** *"it seems fine scroll wise. the
+issue is the repaint. you scroll too fast and you are waiting for an entire
+repaint."* Not a frame-rate complaint at all — and the diagnostic's own
+verdicts had been saying so for three days. **`added=0` on every burst**, so
+`renderWindow` is not mounting rows; what moves is `unskipped`, and the verdict
+is literally **SKIPPED**. The mechanism is `content-visibility: auto` on
+`.container-list--long`, whose whole bargain is to defer layout+paint until you
+reach it.
+
+**NO ARM HAD EVER TESTED IT.** The arms are marquee / backdrop / shadow — run
+three times, shown nothing — while the one mechanism that matches the reported
+symptom was not in the set. Replaced with `baseline` + `no-skip`.
+
+**AND FOUR ARMS IS THE OTHER HALF OF WHY EVERY A/B WAS VOID.** Each arm is a
+separate hand-scroll that has to match the others; the last capture spread
+7-1,061px/s across four. **Two arms is a comparison a person can actually
+perform twice at the same speed.** `MAX_SESSIONS` is derived from `ARMS.length`
+now, so adding an arm can never leave the capture ending before that arm runs —
+which would read as a suspect tested and exonerated.
+
+The arm's selector is checked against `index.css` itself, because an arm that
+neutralises nothing is worse than no arm: it reads as *"this suspect is not the
+cause"* and sends the next session elsewhere. A/B'd — a stale selector and a
+missing `!important` each fail exactly their own case.
+
+**HELD BACK DELIBERATELY: the seed is measurably wrong.** `contain-intrinsic-size:
+auto 44px` against a measured `real=56` and `58` on this tablet — a 21-24%
+under-estimate, which the diagnostic's own `seedBad` check flags above 15%. The
+44px was *"the midpoint of the 36-60px range actually measured on device"* on a
+Samsung A15; this tablet sits at the top of that range, so no single constant
+is right for both and it wants deriving rather than re-picking. **Not fixed
+yet, on purpose: there is no point tuning the seed of a mechanism the next
+capture may say to switch off for these lists.**
+
 **THE REMAINING INTEGRITY ERROR IS NOT TODAY'S SCHEDULE, and the tell is the
 label.** `container-filtered-empty` names *"7:30am"* and *"9:00pm"* — the
 MODULE label, and this grid has many of each. The two it flags carry NO parent
