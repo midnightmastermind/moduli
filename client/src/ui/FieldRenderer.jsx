@@ -48,7 +48,30 @@ function FieldRenderer({
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
   const foldersById = useGridActionsSelector(s => s.foldersById);
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
-  const occSetKey = useGridActionsSelector(s => (s.state.occurrences || []).length);
+  // ONLY THE FIELDS THAT ACTUALLY RESOLVE OPTIONS SUBSCRIBE TO THIS.
+  //
+  // `occSetKey` is the occurrence COUNT — a grid-wide number — and it is the
+  // reactive dep for `resolveOptions` below. Every FieldRenderer subscribed to
+  // it, so anything that created an occurrence anywhere re-rendered every field
+  // pill on screen: the four deferred catalogue chunks, feedSync's mints, and
+  // every CREATE the load sweep emits.
+  //
+  // Measured on prod with `window.__RENDER_ATTR`, one idle load (2026-08-31):
+  //     field renders 3,065 — s_occSetKey 2,217, +739 with modulesById = 96%
+  //     the top payers by name: Completed 572, Duration 256, Tracker Date 133
+  // Completed is a BOOLEAN, Duration a duration, Tracker Date a date. None of
+  // them resolves options; all of them were re-rendering on a number they never
+  // read.
+  //
+  // The hook is still called unconditionally — what is conditional is the value
+  // SELECTED, which is the part that decides whether this component re-renders.
+  const wantsResolve =
+    field?.type === "select" ||
+    field?.type === "occurrence" ||
+    field?.meta?.randomizable === true;
+  const occSetKey = useGridActionsSelector(
+    s => (wantsResolve ? (s.state.occurrences || []).length : 0),
+  );
 
   // DIAG (window.__RENDER_ATTR): which input changed → this render.
   useRenderAttribution("field", {
@@ -66,16 +89,12 @@ function FieldRenderer({
   // display-only randomize button needs a candidate pool (e.g. journalQuestion
   // text field with an optionsSource.find).
   const { options: resolvedOptions, totalMatched } = useMemo(() => {
-    const wantsResolve =
-      field?.type === "select" ||
-      field?.type === "occurrence" ||
-      field?.meta?.randomizable === true;
     if (!wantsResolve) return { options: [], totalMatched: 0 };
     // occSetKey (occurrence count) is the reactive dep; the map is a fresh
     // read at compute time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     return resolveOptions(field, { occurrencesById: getOccMap(), modulesById, fieldsById, foldersById }, occurrence ?? null);
-  }, [field, occSetKey, getOccMap, modulesById, fieldsById, foldersById, occurrence]);
+  }, [field, wantsResolve, occSetKey, getOccMap, modulesById, fieldsById, foldersById, occurrence]);
 
   // Expose resolved options under _resolvedOptions for select and occurrence
   // fields (other types don't render an options chooser so the meta isn't read).
