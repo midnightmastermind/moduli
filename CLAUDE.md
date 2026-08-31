@@ -6,6 +6,94 @@
 
 ---
 
+### 2026-08-31 (3) — THE DAY PAGE HAD ITS OWN DUPLICATES, and the op had been throwing into a catch since they appeared
+
+Continuing (2) at the user's *"keep going"*, plus a new report: *"the scroll is
+worse."*
+
+**THE FIX IS HOLDING IN PRODUCTION, and the log is the proof:** five
+consecutive loads at **21,268 occurrences — zero growth**, where this morning
+it was +49 every load.
+
+**`Day Page: Build` WAS THROWING ON EVERY SWEEP, and it is a SECOND
+duplication.** The Day Page board carries its own columns, and they had
+duplicated independently of the Schedule's:
+```
+2026-08-26  x17          2026-08-30  x2          2026-08-31  x2
+every other day in August: exactly 1
+```
+Two columns make its FIND (`parentId IS <board> AND date SAME_DAY $day`) match
+BOTH, bind an **ARRAY**, and the `UPDATE` below it throw `$col is not a record
+(no .id)` — the multi-match class this file records from three previous
+directions. The throw lands in the sweep's per-op catch, so it has been silent;
+everything after it (the daily question, the Todo embed, the page-body rebuild)
+never ran. **A/B'd in the harness: with the duplicates it throws, with one
+column per date NO ERRORS.** So *this* is the user's *"daypage col is rendering
+twice"* — two literal columns — while the Schedule's three were the
+*"duplicating occurrences"*.
+
+**THE GUARD FOR THIS ALREADY EXISTS AND COULD NOT SEE IT.** `pomsGridOps`
+asserts the load sweep runs with no op erroring — against the COMMITTED
+FIXTURE. The defect lived in live DATA, not in a pipeline, so a snapshot taken
+before it appeared passes forever. *A behavioural guard bound to a snapshot
+only covers the half of the system the snapshot captures.*
+
+**145 occurrences removed, and the guard measured TEXT THROUGH
+`decompressTextmap`** at full subtree depth — these columns hold Journal /
+Notes / Highlights, and a raw scan reports "no text" for every row on this grid
+because textmaps are stored compressed (the `0032` rule). All 21 duplicate
+columns read **0 characters, 0 unreadable**, so nothing of the user's was at
+risk. Unlinked before deletion, dumped first, 19 orphan modules swept, pm2
+restarted. Read back: **30 columns on the board, no date with more than one.**
+
+**THE ROOT CAUSE OF THE DAY PAGE DUPLICATES IS NOT ESTABLISHED** and is not
+guessed at. Today's pair was minted 13:04:28 / 13:04:59 — inside the same
+three-load burst that produced the Schedule's three — so (2)'s fix plausibly
+removes the pressure, but most days already had exactly one and nothing here
+proves the mechanism. Watch the board.
+
+---
+
+**THE SCROLL REPORT, and the instrument fix from (1) earned its keep on the
+first capture:**
+```
+baseline    rate=454px/s  cmp=baseline        638ms  16 long tasks  renders=4697  ops=2301
+no-marquee  rate=  7px/s  cmp=not comparable   50ms  44 long tasks  renders=1563  ops= 614
+no-backdrop rate=182px/s  cmp=not comparable   17ms   2 long tasks  renders=1147  ops=   0
+no-shadow   rate=225px/s  cmp=not comparable  263ms  40 long tasks  renders=2628  ops=2849
+```
+**A 65x spread in gesture speed — void again, but the LOG now says so** instead
+of leaving the division to whoever reads it. The arms are still not an A/B.
+
+**What the new columns show is more interesting than the arms: the one burst
+with `ops=0` scrolled at a 17ms median with 2 long tasks**, while every burst
+with ops firing was 15-40x worse. A scroll measured **0 renders** on
+2026-08-26 (5); these show thousands.
+
+**AND `ops` ADDED A COUNT TO A DURATION.** `opsInBurst` sums the VALUES of
+`{ runs, ms }`, so `ops=2301` is either 2,301 runs or one run taking 2,300ms —
+different findings, indistinguishable. Split into `opRuns`/`opMs`. Also
+reporting `verbose`, because verbose mode injects the A/B arm's CSS and paints
+an overlay while silent mode does neither: a burst from each is measuring a
+different page, and without it *"the diagnostic was left on"* is
+indistinguishable from a real regression — which is exactly the question a
+report of "the scroll is worse" raises.
+
+**THE REMAINING INTEGRITY ERROR IS NOT TODAY'S SCHEDULE, and the tell is the
+label.** `container-filtered-empty` names *"7:30am"* and *"9:00pm"* — the
+MODULE label, and this grid has many of each. The two it flags carry NO parent
+date and hold rows stamped **2026-08-29**; today's two are correct, every child
+dated 2026-08-31 against a filter of 2026-08-31. *A label is two fields on this
+grid, and reading the wrong one invents a bug* — the 2026-08-23 (9) lesson,
+paid from the reader's side this time. Pre-existing, two days old, and it is
+the 2026-08-19 (5) family (a slot holding dated rows) rather than anything from
+today.
+
+3,628 client tests, lint 0 errors, deployed, prod HEAD verified. poms grid:
+**1 pre-existing error, 1 pre-existing warning.**
+
+---
+
 ### 2026-08-31 (2) — THE SCHEDULE RE-COPIED ITSELF ON EVERY LOAD, and the overlay lost the one key that would have stopped it
 
 User: *"todays schedule is duplicating occuramces and the daypage col is
