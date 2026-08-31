@@ -6,6 +6,93 @@
 
 ---
 
+### 2026-08-31 — THE TABLET ANSWERED AND THE INSTRUMENT LOST HALF THE ANSWER
+
+Picked up the other account's session, which hit its **weekly limit** one command
+after confirming the capture was in the log and before it could report what the
+capture said. Its uncommitted `scrollDiag` edit was two behaviours from done.
+
+**THE USER'S REPORT WAS ABOUT THE TOOL, NOT THE APP** — *"nothing is popping up
+for capture"* — and the tool had in fact recorded **all four arms plus a
+cell-switch**. `MAX_SESSIONS` is 4, and the fifth scroll `return`ed silently: on
+a tablet, with no console, a spent capture and a diagnostic that never armed are
+the same thing on screen. It re-shows the results now and names the one thing
+that starts a fresh run (reload).
+
+**AND THE A/B WAS VOID AGAIN — the exact failure 2026-08-29 (5) built
+`comparability` to catch.**
+```
+arm           verdict       rate      frameMedian  missed  long tasks
+baseline      MAIN-THREAD    285px/s    418ms        3      6 (2891ms of 3608ms)
+no-marquee    RASTER          97px/s     82ms        7      4 (1143ms)
+no-backdrop   MAIN-THREAD      0px/s    114ms       18      0
+no-shadow     SKIPPED       1061px/s    635ms        2      7 (1917ms)
+```
+An **11x spread** among the three that moved; `no-backdrop` **never moved at
+all** (0px in 12s, which that entry's own rule says must read *unknown* rather
+than 114ms); and `no-shadow` ran on a **different surface** — rows 43 against
+101, `unskipped=40` — so `content-visibility` engaged there and nowhere else.
+**Nothing is attributable from the four arms.**
+
+**THE GUARD EXISTED AND WAS INVISIBLE WHERE THE CALL GETS MADE.** The overlay
+has flagged non-comparable arms since 2026-08-29 — but the overlay is on the
+tablet and the decision is made from the **pm2 log**, which printed `scrolled`
+and `dur` as two separate numbers and left both the division and the verdict to
+whoever read it. The client already computed the rate and shipped it; it ships
+the verdict now, and the log prints both. `renders`/`ops` were collected per
+burst and **silently dropped from the line** as well. *A guard that does not
+reach the surface the decision is made on is not a guard.*
+
+**WHAT IS ATTRIBUTABLE, from baseline alone:** 6 long tasks totalling **2,891ms
+of a 3,608ms gesture — 80% of the scroll inside a long task**, median frame
+418ms (~2.4fps). The 2026-08-29 (5) reading was 86% at 109ms. Chronic, not a
+fluke, and still main-thread.
+
+---
+
+**THE CELL-SWITCH IS THE REAL FIND, and it needs no A/B — it is one
+decomposition.**
+```
+tap -> React commit       16ms     (Grid's own render body 8ms · scheduling 8ms)
+commit -> first paint    184ms
+THEN                   6,486ms     <- ONE unbroken block, AFTER the paint
+total blocked          7,684ms     over THREE rAF frames
+ops runs=0 · editors=0 · animations=3 · domNodes=18,656
+renders  field 739 · container 210 · instance 183 · panel 24 · page 9
+```
+**GRID'S OWN RENDER IS EXONERATED AT 8ms, and that retires the standing
+hypothesis this instrument was written to test** — its own comment says *"if the
+~450ms is anywhere in React it is inside Grid's own render — its useMemos
+recompute over the whole grid state."* It is not. The op sweep is out too
+(`runs=0`), and so is TipTap (`editors=0`). The screen is **painted at ~200ms**
+and then the main thread is gone for six and a half seconds.
+
+**AND THE TALLY COULD NOT SAY WHICH SIDE OF THE COMMIT ITS 1,165 RENDERS FELL
+ON — which is two different bugs with two different fixes.** In-commit is the
+tap's own re-render cascade (narrow what subscribes); after-commit is work that
+lands once the user is already looking at the result (fix whatever schedules
+it). `markCellSwitchCommit` runs in a **`useLayoutEffect`**, i.e. after the
+whole subtree has committed, so a snapshot taken there splits the tally exactly.
+That split is the next capture's answer and is deliberately NOT guessed at here.
+
+`subtractTally` is pure and **A/B'd with each mutation asserted to land**:
+dropping the missing-key fallback fails exactly the absent-counter case,
+reversing the subtraction fails exactly the two attribution cases. **The
+zero-window control and the halves-sum-to-the-total pin pass either way** and
+are kept as contract pins rather than counted as coverage — reversing BOTH
+halves keeps the sum consistent, so that test cannot speak to direction.
+
+3,623 client + 2,042 server tests, lint 0 errors on every edited file, build
+clean, deployed, **prod HEAD verified** with both halves present in the served
+`server.js` and the served bundle.
+
+**NOT DONE, and it is the whole point of the change:** nobody has taken a
+capture on the fixed instrument. The four arms want re-running **at the same
+gesture speed** (the log now says whether they were), and the cell-switch wants
+one more tap to say where those 1,165 renders live.
+
+---
+
 ### 2026-08-30 — THE RUN LOG WAS THE SWEEP'S LARGEST REMAINING FRAME, and its only reader was a closed panel
 
 Continuing the op sweep at the user's pick. The source-mapped profile's new top
