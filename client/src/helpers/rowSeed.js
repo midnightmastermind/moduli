@@ -58,8 +58,15 @@ export function applyRowSeed(el) {
   if (!el || !el.isConnected || typeof el.querySelectorAll !== "function") return null;
   const rows = el.querySelectorAll(".instance-wrap");
   if (!rows.length) return null;
+  // SAMPLE ACROSS THE LIST, NOT THE FIRST N. Taking the first 8 rows made this
+  // WORSE than the constant it replaced on its first live capture: the
+  // diagnostic reported `seed=32px real=110px`, where 110 is the median of
+  // every row and 32 was the median of the short ones that happen to sit at
+  // the top. A stride costs the same number of reads and estimates the median
+  // it is actually trying to estimate.
   const heights = [];
-  for (let i = 0; i < Math.min(rows.length, SAMPLE); i++) {
+  const stride = Math.max(1, Math.floor(rows.length / SAMPLE));
+  for (let i = 0; i < rows.length && heights.length < SAMPLE; i += stride) {
     const h = rows[i]?.getBoundingClientRect?.().height;
     if (h) heights.push(h);
   }

@@ -64,6 +64,18 @@ describe("applyRowSeed", () => {
     expect(applyRowSeed(listWith([]))).toBe(null);
   });
 
+  it("samples ACROSS the list, not the first N — the regression its own log caught", () => {
+    // Shipped sampling the first 8. On the first live capture the diagnostic
+    // reported `seed=32px real=110px`: 32 was the median of the short rows at
+    // the top of the list, 110 the median of the whole thing — WORSE than the
+    // 44px constant it replaced. A stride estimates the median it is after.
+    const heights = [...Array(80).fill(32), ...Array(80).fill(110)];
+    const el = { isConnected: true, style: { props: {}, setProperty(k, v) { this.props[k] = v; } },
+      querySelectorAll: () => heights.map(h => ({ getBoundingClientRect: () => ({ height: h }) })) };
+    const seed = applyRowSeed(el);
+    expect(seed, "sampled only the short rows at the top").toBeGreaterThan(32);
+  });
+
   it("samples a bounded number of rows, not all 993 of them", () => {
     let asked = 0;
     const el = { isConnected: true, style: { setProperty() {} },
