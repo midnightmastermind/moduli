@@ -133,6 +133,8 @@ const CONTEXT_ADD_KINDS = tileKindsForRole("instance").filter(
 import OccurrenceFields from "../ui/OccurrenceFields.jsx";
 import { resolveEditorBinding } from "../state/editorBindings.js";
 import { useRenderWindow } from "../helpers/renderWindow";
+import { applyRowSeed } from "../helpers/rowSeed";
+import { afterPaint } from "../helpers/afterPaint";
 
 // Minimum children before a list opts into the browser off-screen skip.
 // Below this the skip costs more than it saves (see .container-list--long).
@@ -797,6 +799,19 @@ function Container({
   // (the hook returns the full count below its threshold), so this changes
   // nothing for the ~1,300 containers on this grid holding a handful of rows.
   const renderWindow = useRenderWindow(itemsWithOccurrences.length, { resetKey: childOccsKey });
+
+  // MEASURE THIS LIST'S OWN ROW HEIGHT for the off-screen skip's placeholder.
+  // `contain-intrinsic-size` shipped as a constant and has been wrong in both
+  // directions (see helpers/rowSeed.js); the error is multiplied by the row
+  // count, which is what makes a long list slide under the finger as it
+  // renders. Deferred past paint because measuring forces layout, and only for
+  // lists that actually carry the skip — a short list has no placeholder to
+  // get wrong.
+  const isLongList = items.length >= LONG_LIST_MIN;   // same gate as the --long class below
+  useEffect(() => {
+    if (!isLongList) return undefined;
+    return afterPaint(() => { applyRowSeed(listDropRef.current); });
+  }, [isLongList, childOccsKey]);
 
   const toggleContainerDragModeQuick = useCallback(() => {
     const nextMode = containerDragMode === "move" ? "copy" : "move";

@@ -1273,7 +1273,14 @@ select:disabled { cursor: not-allowed; }
    Falls back to a no-op on unsupported browsers (Chrome < 85). */
 .container-list--long .instance-wrap {
   content-visibility: auto;
-  contain-intrinsic-size: auto 44px;
+  /* The seed is MEASURED from the list's own rows and published as `--cv-seed`
+     by `helpers/rowSeed.js`; 44px is the fallback for a list that has not been
+     measured yet. A constant was wrong in BOTH directions — 60px over-estimated
+     on a Samsung A15 (the scroller shrank as rows rendered), and 44px
+     UNDER-estimates by 2-2.5x on the user's phone, where the diagnostic reads
+     `seed=44 real=81 / 109 / 110`. That error is multiplied by the row count,
+     so the list grows as it renders and the content slides under the finger. */
+  contain-intrinsic-size: auto var(--cv-seed, 44px);
 }
 
 .instance-wrap.is-dragging {
