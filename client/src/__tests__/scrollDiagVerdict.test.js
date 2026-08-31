@@ -11,7 +11,10 @@
 // 348 / 207 / 310 px/s — so the marquee/backdrop/shadow A/B they exist to run
 // was void, and nothing in the overlay said so.
 import { describe, it, expect } from "vitest";
-import { verdictFor, mountFloor, scrollRate, comparability, subtractTally } from "../helpers/scrollDiag";
+import { verdictFor, mountFloor, scrollRate, comparability, subtractTally, ARMS, MAX_SESSIONS } from "../helpers/scrollDiag";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 // A tablet row measured 273-287px against a ~1180px viewport → ~4 rows a screen.
 const session = (over = {}) => ({
@@ -154,3 +157,42 @@ describe("subtractTally — which side of the commit the renders landed on", () 
     expect(subtractTally({ field: 7 }, undefined)).toEqual({ field: 7 });
   });
 });
+
+// THE A/B ARMS — an arm that neutralises nothing is worse than no arm, because
+// it reads as "this suspect is not the cause".
+describe("scroll A/B arms", () => {
+  it("runs exactly as many bursts as there are arms", () => {
+    // The capture used to stop at a hard-coded 4. Derived now, so adding an arm
+    // cannot leave the run ending before that arm has had a turn — which would
+    // look like a suspect that was tested and exonerated.
+    expect(MAX_SESSIONS).toBe(ARMS.length);
+    expect(ARMS[0].name).toBe("baseline");
+    expect(ARMS[0].css).toBe("");
+  });
+
+  it("targets the SHIPPED content-visibility rule, not a stale selector", () => {
+    // If index.css renames `.container-list--long .instance-wrap`, this arm
+    // silently overrides nothing and the burst comes back looking identical to
+    // baseline — a false negative pointing the next session away from the real
+    // cause. So the arm's selector is checked against the stylesheet itself.
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const css = readFileSync(path.resolve(here, "..", "index.css"), "utf8");
+    const arm = ARMS.find(a => a.name === "no-skip");
+    expect(arm, "the content-visibility arm is missing").toBeTruthy();
+    const selector = arm.css.split("{")[0].trim();
+    expect(css, `the arm targets "${selector}", which index.css no longer declares`)
+      .toContain(selector);
+    // And the rule it overrides must actually be the skip.
+    const block = css.slice(css.indexOf(selector));
+    expect(block.slice(0, 200)).toContain("content-visibility");
+  });
+
+  it("neutralises the suspect rather than merely mentioning it", () => {
+    const arm = ARMS.find(a => a.name === "no-skip");
+    expect(arm.css).toContain("content-visibility:visible");
+    // Without !important the page's own rule wins on source order and the arm
+    // is inert — the failure mode this whole describe exists to prevent.
+    expect(arm.css).toContain("!important");
+  });
+});
+

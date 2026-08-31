@@ -110,7 +110,6 @@ const verbose = () => {
   return urlOrStoredVerbose();
 };
 
-const MAX_SESSIONS = 4;        // baseline + one per suspect (see ARMS)
 
 // ── On-device attribution ──────────────────────────────────────────────────
 // Guessing which style is expensive has now cost several rounds, and headless
@@ -119,12 +118,37 @@ const MAX_SESSIONS = 4;        // baseline + one per suspect (see ARMS)
 // drops it is the cause, measured on the device that actually has the problem.
 // Nothing here changes what ships — the overrides live only for the duration
 // of the measurement and are removed after the last burst.
-const ARMS = [
+// TWO ARMS, NOT FOUR — AND THE SUSPECT IS THE ONE THAT WAS NEVER TESTED.
+//
+// User, 2026-08-31: *"it seems fine scroll wise. the issue is the repaint. you
+// scroll too fast and you are waiting for an entire repaint."* That is not a
+// frame-rate complaint at all, and the diagnostic's own verdicts already
+// agreed with it — three of four bursts came back **SKIPPED**, with 17, 30 and
+// 34 elements un-skipped mid-gesture, while the one burst that un-skipped
+// NOTHING scrolled at a 17ms median with 2 long tasks:
+//
+//   unskipped=17  SKIPPED  638ms      unskipped= 0  PAINT   17ms
+//   unskipped=34  SKIPPED   50ms      unskipped=30  SKIPPED 263ms
+//
+// `added=0` throughout, so this is not `renderWindow` mounting rows: it is
+// `content-visibility: auto` on `.container-list--long`, whose whole bargain
+// is to defer layout+paint until you scroll to it. Outrun it and you wait for
+// exactly the repaint the user describes. The marquee/backdrop/shadow arms
+// have run three times and shown nothing, and none of them tests this.
+//
+// AND FOUR ARMS IS WHY EVERY A/B HAS BEEN VOID. Each arm is a separate
+// hand-scroll and they have to match; the last capture spread 7-1,061px/s
+// across four. Two arms is one comparison a person can actually perform twice
+// at the same speed, which is the difference between a measurement and a table
+// of unrelated numbers.
+export const ARMS = [
   { name: "baseline", css: "" },
-  { name: "no-marquee", css: ".auto-marquee-inner{animation:none !important}" },
-  { name: "no-backdrop", css: "*{backdrop-filter:none !important;-webkit-backdrop-filter:none !important}" },
-  { name: "no-shadow", css: ".container-shell,.instance-wrap>.instance-row{box-shadow:none !important}" },
+  { name: "no-skip", css: ".container-list--long .instance-wrap{content-visibility:visible !important;contain-intrinsic-size:auto !important}" },
 ];
+
+// Baseline plus one per suspect — derived from ARMS so adding an arm cannot
+// leave the capture ending before it runs.
+export const MAX_SESSIONS = ARMS.length;
 
 function applyArm(i) {
   document.getElementById("scroll-diag-arm")?.remove();
@@ -496,7 +520,7 @@ function renderOverlay() {
       <span style="opacity:.65">tap to dismiss</span>
     </div>${rows}
     <div style="margin-top:8px;opacity:.6">
-      Scroll again — each pass disables one suspect (marquee / backdrop / shadow).<br>
+      Scroll again — the second pass disables the off-screen skip (<code>content-visibility</code>).<br>
       The pass whose frame median drops is the cause — but ONLY among arms marked
       <b>comparable</b>: scroll each one the same way, or the rate is the variable
       you measured. <b>${sessions.length}/${MAX_SESSIONS} done.</b>
