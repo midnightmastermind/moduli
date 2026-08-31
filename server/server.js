@@ -433,7 +433,10 @@ io.on("connection", (socket) => {
         // not happen: four arms that differed 11x in gesture speed (one of
         // which never moved at all) were read as a valid A/B.
         + `rate=${d.ratePxPerSec}px/s cmp=${d.comparability || "?"} `
-        + `renders=${d.rendersInBurst ?? "?"} ops=${d.opsInBurst ?? "?"} `
+        + `renders=${d.rendersInBurst ?? "?"} opRuns=${d.opRuns ?? "?"} opMs=${d.opMs ?? "?"} `
+        // Whether the A/B arm's CSS was actually applied. A silent-mode burst
+        // and a verbose one are measuring different pages.
+        + `verbose=${d.verbose === undefined ? "?" : d.verbose} `
         + `longtaskAPI=${d.supportsLongTask} cvEvent=${d.supportsCvEvent} `
         + `ua=${(d.ua || "").slice(-40)}`);
     } catch { /* a diagnostic must never take the server down */ }

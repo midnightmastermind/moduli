@@ -271,6 +271,11 @@ function endSession() {
     const d = window.__renderDiff?.(s.tally0);
     const total = (o) => Object.values(o || {}).reduce((a, v) => a + (typeof v === "number" ? v : (v?.count || 0)), 0);
     s.rendersInBurst = total(d?.renders);
+    // `diffOps` returns { runs, ms }, so summing its VALUES adds a count to a
+    // duration — `ops=2301` could be 2,301 runs or one run taking 2,300ms, and
+    // those are completely different findings. Reported separately.
+    s.opRuns = d?.ops?.runs ?? 0;
+    s.opMs = Math.round(d?.ops?.ms ?? 0);
     s.opsInBurst = total(d?.ops);
     s.topRenders = Object.entries(d?.renders || {})
       .map(([k, v]) => [k, typeof v === "number" ? v : (v?.count || 0)])
@@ -309,6 +314,12 @@ function endSession() {
       // Without the rate a server-side report is uncomparable in exactly the way
       // the overlay was: two arms at 2,930px/s and 207px/s look like an A/B.
       ratePxPerSec: scrollRate(s),
+      // WAS THE A/B ARM ACTUALLY APPLIED? Verbose mode injects the arm's CSS
+      // and paints an overlay; silent mode does neither. A burst from each is
+      // measuring a different page, and until now nothing in the report said
+      // which — so "the diagnostic was on" was indistinguishable from a real
+      // regression when reading the log.
+      verbose: verbose(),
       // AND THE VERDICT ON IT. The rate alone still has to be divided by hand
       // against another line of the log, which is precisely the step that did
       // not happen on 2026-08-31: four arms at 285 / 97 / 0 / 1,061px/s were
