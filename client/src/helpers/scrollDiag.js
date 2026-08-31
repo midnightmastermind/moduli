@@ -175,6 +175,19 @@ export function scrollRate(s) {
   if (!s || !s.durationMs) return 0;
   return Math.round(Math.abs(s.endTop - s.startTop) / (s.durationMs / 1000));
 }
+// ── WHERE THE RENDERS LANDED, not just how many ────────────────────────────
+// `diffRenders` measures a snapshot against NOW, which can only ever give a
+// total. That total is ambiguous in exactly the place the cell-switch capture
+// needs precision: 1,165 component renders were recorded around a tap whose
+// React commit took 16ms, and nothing said whether they happened inside that
+// commit or in the 6,486ms block that followed it. Those are different bugs
+// with different fixes, so the tally is split at the commit instead.
+export function subtractTally(after, before) {
+  const out = {};
+  for (const k of Object.keys(after || {})) out[k] = (after[k] || 0) - (before?.[k] || 0);
+  return out;
+}
+
 export function comparability(rate, baseRate, tolerance = 2) {
   if (!rate || !baseRate) return "unknown";
   const ratio = rate > baseRate ? rate / baseRate : baseRate / rate;
@@ -296,6 +309,13 @@ function endSession() {
       // Without the rate a server-side report is uncomparable in exactly the way
       // the overlay was: two arms at 2,930px/s and 207px/s look like an A/B.
       ratePxPerSec: scrollRate(s),
+      // AND THE VERDICT ON IT. The rate alone still has to be divided by hand
+      // against another line of the log, which is precisely the step that did
+      // not happen on 2026-08-31: four arms at 285 / 97 / 0 / 1,061px/s were
+      // read as an A/B. The overlay has flagged this since 2026-08-29 — but
+      // the overlay is on the tablet and the decision gets made from the pm2
+      // log, so the guard was invisible exactly where it was needed.
+      comparability: s.index === 1 ? "baseline" : comparability(scrollRate(s), scrollRate(sessions[0])),
       ua: navigator.userAgent,
       supportsLongTask: SUPPORTS_LONGTASK,
       supportsCvEvent: SUPPORTS_CV_EVENT,
@@ -468,7 +488,10 @@ function renderOverlay() {
       Scroll again — each pass disables one suspect (marquee / backdrop / shadow).<br>
       The pass whose frame median drops is the cause — but ONLY among arms marked
       <b>comparable</b>: scroll each one the same way, or the rate is the variable
-      you measured. ${sessions.length}/${MAX_SESSIONS} done.
+      you measured. <b>${sessions.length}/${MAX_SESSIONS} done.</b>
+      ${sessions.length >= MAX_SESSIONS
+        ? "<br><b style=\"color:#ffd479\">Capture complete — RELOAD THE PAGE to run it again.</b>"
+        : ""}
     </div>`;
   box.addEventListener("click", () => box.remove());
   document.body.appendChild(box);
@@ -518,6 +541,10 @@ export function markCellSwitchCommit() {
       ? Math.round(_pendingSwitch.commitAt - _gridRenderStart) : -1;
     _pendingSwitch.preReactMs = _gridRenderStart != null
       ? Math.round(_gridRenderStart - _pendingSwitch.t0) : -1;
+    // A layout effect runs after the WHOLE subtree has committed, so anything
+    // rendered in this pass is already counted here — and anything counted
+    // later is not React reacting to the tap. That is the split.
+    _pendingSwitch.rAtCommit = snapshotRenders();
     _gridRenderStart = null;
   }
 }
@@ -554,6 +581,12 @@ function armCellSwitchDiag() {
         kind: "cell-switch",
         renders: diffRenders(rBefore),
         ops: diffOps(oBefore),
+        // The discriminator. IN-COMMIT renders are the tap's own re-render
+        // cascade (fix: narrow what subscribes). AFTER-COMMIT renders are work
+        // that lands once the screen has already painted (fix: whatever
+        // schedules them). The 2026-08-31 capture could not tell them apart.
+        rendersInCommit: sw.rAtCommit ? subtractTally(sw.rAtCommit, rBefore) : null,
+        rendersAfterCommit: sw.rAtCommit ? diffRenders(sw.rAtCommit) : null,
         // The decomposition. reactMs is React building + committing the tree;
         // paintMs is the browser doing layout + paint afterwards.
         reactMs: sw.commitAt != null ? Math.round(sw.commitAt - t0) : -1,
@@ -607,7 +640,19 @@ export function armScrollDiag() {
   let idleTimer = null;
 
   const onScroll = (e) => {
-    if (!on() || sessions.length >= MAX_SESSIONS) return;
+    if (!on()) return;
+    // THE CAPTURE IS SPENT — SAY SO INSTEAD OF GOING QUIET. Four bursts is the
+    // whole run (baseline + one per suspect), and the fifth scroll used to
+    // return here silently. On a tablet, with no console, that is
+    // indistinguishable from a diagnostic that never armed — reported as
+    // "nothing is popping up for capture" 2026-08-31, when in fact all four
+    // arms had already been recorded. Re-showing the results costs nothing
+    // (only when the overlay is not already on screen) and the panel now
+    // carries the one instruction that gets a fresh run: reload.
+    if (sessions.length >= MAX_SESSIONS) {
+      if (verbose() && !document.getElementById("scroll-diag-overlay")) renderOverlay();
+      return;
+    }
     const el = e.target;
     // Only real content scrollers — ignore tiny menus and the document itself.
     if (!el || el === document || !el.scrollHeight) return;

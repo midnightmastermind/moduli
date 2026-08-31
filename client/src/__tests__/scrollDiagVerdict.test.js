@@ -11,7 +11,7 @@
 // 348 / 207 / 310 px/s — so the marquee/backdrop/shadow A/B they exist to run
 // was void, and nothing in the overlay said so.
 import { describe, it, expect } from "vitest";
-import { verdictFor, mountFloor, scrollRate, comparability } from "../helpers/scrollDiag";
+import { verdictFor, mountFloor, scrollRate, comparability, subtractTally } from "../helpers/scrollDiag";
 
 // A tablet row measured 273-287px against a ~1180px viewport → ~4 rows a screen.
 const session = (over = {}) => ({
@@ -108,5 +108,49 @@ describe("scrollRate / comparability — the A/B was void and said nothing", () 
     // report Infinity, which reads as a finding.
     expect(comparability(0, 2932)).toBe("unknown");
     expect(comparability(300, 0)).toBe("unknown");
+  });
+});
+
+// The 2026-08-31 cell-switch capture: a rail tap whose React commit took 16ms
+// recorded 1,165 component renders and then blocked the main thread for
+// 6,486ms AFTER it had already painted. The tally was a single total, so it
+// could not say which side of the commit those renders fell on — and the two
+// answers are different bugs. This splits it.
+describe("subtractTally — which side of the commit the renders landed on", () => {
+  const before     = { panel: 100, container: 200, instance: 300, page: 10, field: 1000 };
+  const atCommit   = { panel: 104, container: 210, instance: 303, page: 11, field: 1002 };
+  const atEnd      = { panel: 124, container: 410, instance: 483, page: 19, field: 1739 };
+
+  it("attributes the tap's own cascade to the commit", () => {
+    expect(subtractTally(atCommit, before))
+      .toEqual({ panel: 4, container: 10, instance: 3, page: 1, field: 2 });
+  });
+
+  it("attributes everything else to after the paint", () => {
+    expect(subtractTally(atEnd, atCommit))
+      .toEqual({ panel: 20, container: 200, instance: 180, page: 8, field: 737 });
+  });
+
+  it("the two halves account for the whole total and nothing else", () => {
+    // Without this the split could quietly lose or double-count renders, and a
+    // wrong split is worse than the ambiguous total it replaces.
+    const inC  = subtractTally(atCommit, before);
+    const post = subtractTally(atEnd, atCommit);
+    const all  = subtractTally(atEnd, before);
+    for (const k of Object.keys(all)) expect(inC[k] + post[k]).toBe(all[k]);
+  });
+
+  it("reports ZERO for an idle window rather than inventing renders", () => {
+    // The control. Most of the 1.2s window is idle on a healthy tap, and a
+    // split that manufactures counts there would fabricate the finding.
+    expect(subtractTally(before, before))
+      .toEqual({ panel: 0, container: 0, instance: 0, page: 0, field: 0 });
+  });
+
+  it("treats a counter absent from the baseline as starting at zero", () => {
+    // A component kind that renders for the first time during the window has
+    // no `before` entry; reading that as NaN would poison the whole line.
+    expect(subtractTally({ field: 7 }, {})).toEqual({ field: 7 });
+    expect(subtractTally({ field: 7 }, undefined)).toEqual({ field: 7 });
   });
 });

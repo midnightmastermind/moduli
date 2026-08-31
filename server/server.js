@@ -411,7 +411,13 @@ io.on("connection", (socket) => {
         console.log(`📉 [scroll] CELL-SWITCH ${d.verdict} user=${socket.userId} `
           + `maxBlock=${d.maxGapMs}ms react=${d.reactMs}ms preReact=${d.preReactMs}ms gridRender=${d.gridRenderMs}ms paint=${d.paintMs}ms blocked=${d.blockedMs}ms frames=${d.frames} `
           + `rows=${d.rowsAtStart} animations=${d.animations} domNodes=${d.domNodes} `
-          + `renders=${JSON.stringify(d.renders || {})} ops=${JSON.stringify(d.ops || {})} editors=${d.editors} build=${d.build} ${d.viewport}@${d.dpr}x ua=${(d.ua || "").slice(-30)}`);
+          + `renders=${JSON.stringify(d.renders || {})} `
+          // WHERE the renders landed. A total cannot separate "the tap
+          // re-rendered too much" from "something ran after the paint", and
+          // those have different fixes — see scrollDiag's subtractTally.
+          + `inCommit=${JSON.stringify(d.rendersInCommit || {})} `
+          + `afterCommit=${JSON.stringify(d.rendersAfterCommit || {})} `
+          + `ops=${JSON.stringify(d.ops || {})} editors=${d.editors} build=${d.build} ${d.viewport}@${d.dpr}x ua=${(d.ua || "").slice(-30)}`);
         return;
       }
       console.log(`📉 [scroll] ${d.verdict} burst#${d.index} arm=${d.arm} user=${socket.userId} `
@@ -420,7 +426,15 @@ io.on("connection", (socket) => {
         + `frameMedian=${d.frameMedian}ms missed=${d.slowFrames} `
         + `longTasks=${d.longTasks}(${d.longTaskMs}ms) `
         + `seed=${d.seedPx} real=${d.realPx} scrolled=${Math.round(d.endTop - d.startTop)}px `
-        + `dur=${d.durationMs}ms longtaskAPI=${d.supportsLongTask} cvEvent=${d.supportsCvEvent} `
+        + `dur=${d.durationMs}ms `
+        // THE RATE AND ITS VERDICT, because this is the surface the call gets
+        // made from. Printing `scrolled` and `dur` separately means comparing
+        // two arms requires dividing by hand, and on 2026-08-31 that step did
+        // not happen: four arms that differed 11x in gesture speed (one of
+        // which never moved at all) were read as a valid A/B.
+        + `rate=${d.ratePxPerSec}px/s cmp=${d.comparability || "?"} `
+        + `renders=${d.rendersInBurst ?? "?"} ops=${d.opsInBurst ?? "?"} `
+        + `longtaskAPI=${d.supportsLongTask} cvEvent=${d.supportsCvEvent} `
         + `ua=${(d.ua || "").slice(-40)}`);
     } catch { /* a diagnostic must never take the server down */ }
   });
