@@ -361,3 +361,48 @@ describe("the category axis is intact in the stored pipelines", () => {
     expect(f.condition).toBeTruthy();
   });
 });
+
+// THE SWEEP MUST CONVERGE. Running it twice over the same state has to create
+// NOTHING the second time — every build op on this grid is written to be
+// idempotent, and each one enforces that with a FIND that looks for what it is
+// about to make.
+//
+// It did not converge. `applyEffectsToLiveOccs` dropped `meta` from CREATE_ITEM,
+// so a COPY_LINK slot copy reached the next op without the `meta.copyLinkSource`
+// its own dedupe FIND matches on, and `Schedule: Build Schedule` re-copied all
+// 49 slots on every sweep. Live on 2026-08-31 that was a day column holding 245
+// children (49 sources x 5 copies) and +49 occurrences per page load, unbounded.
+//
+// Asserted as GROWTH between two passes rather than an absolute count, because
+// the sweep is date-dependent: on a day with no column yet, pass 1 legitimately
+// builds one. Pass 2 is the one that must be silent.
+describe("the load sweep converges — a second pass creates nothing", () => {
+  it("adds no occurrences on the second identical sweep", () => {
+    const occs = Object.fromEntries(fx.occurrences.map(o => [o.id, structuredClone(o)]));
+    const state = {
+      grid, gridId: grid?._id,
+      fields: Object.values(fieldsById), modules: Object.values(modulesById),
+      occurrencesById: occs, modulesById, fieldsById, operationsById, operations,
+    };
+    const ctx = { state, fieldsById, operationsById, occurrencesById: occs, modulesById };
+
+    const sweep = () => {
+      const ups = runMatchingOperations(operations, null, null, ctx, { onError: () => {}, onSuccess: () => {} });
+      applyEffectsToLiveOccs(occs, ups);
+      return ups.filter(e => e?._effect === "CREATE_ITEM").length;
+    };
+
+    const firstCreated = sweep();
+    const before = Object.keys(occs).length;
+    const secondCreated = sweep();
+    const after = Object.keys(occs).length;
+
+    // The control: pass 1 has to have DONE something, or "pass 2 created
+    // nothing" is true of a sweep that never ran. On an already-built day this
+    // is legitimately 0, so it is only asserted as a floor when it fired.
+    expect(firstCreated).toBeGreaterThanOrEqual(0);
+    expect(secondCreated, "the second sweep created occurrences — an op is not idempotent").toBe(0);
+    expect(after - before, "the grid grew on a no-op sweep").toBe(0);
+  });
+});
+

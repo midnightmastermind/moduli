@@ -1274,6 +1274,25 @@ export function applyEffectsToLiveOccs(liveOccs, effects) {
           // exactly that shape: clone the day, then find the question container
           // inside it.
           identitySignature: inst.identitySignature || null,
+          // AND `meta` — THE THIRD THING A CLONE IS IDENTIFIED BY, and the one
+          // that was missed when the two above were added for the same reason.
+          // COPY_LINK stamps `meta.copyLinkSource` precisely so an idempotency
+          // FIND can match on it, and the Schedule's slot dedupe is exactly
+          // that: `meta.copyLinkSource IS $tplChildId AND parentId IS
+          // $dayColId`. Dropping it here made every slot copy invisible to the
+          // FIND that exists to stop it being copied again — so the next sweep
+          // in the same session re-copied all 49.
+          //
+          // Measured on the live grid 2026-08-31: one day column holding 245
+          // children (49 distinct sources x EXACTLY 5 copies each) and the grid
+          // growing +49 occurrences on every page load, without bound.
+          //
+          // Shaped to match `bindSocketToStore`'s CREATE_ITEM verbatim
+          // (`{ createdByOperation: true, ...inst.meta }`) because the overlay's
+          // whole job is to predict what will persist. Any difference between
+          // the two is an op reading something that will never be true — which
+          // is what this file's header says and what this bug is.
+          meta: { createdByOperation: true, ...(inst.meta || {}) },
         };
         if (inst.parentId && liveOccs[inst.parentId]) {
           const parent = liveOccs[inst.parentId];

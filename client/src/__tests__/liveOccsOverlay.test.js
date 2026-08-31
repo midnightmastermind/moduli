@@ -80,3 +80,50 @@ describe("UPDATE_ITEM_META accepts both emit shapes", () => {
     expect(w.kid.meta).toEqual({ keep: 1, added: true });
   });
 });
+
+// CREATE_ITEM DROPPED `meta`, AND THE SCHEDULE RE-COPIED ITSELF FOREVER.
+//
+// The overlay builds its row from an explicit field list. `role`/`kind`/`label`
+// were added to it when clones turned up invisible to `$allContainers`, and
+// `identitySignature` when merge could not find a node it had just cloned —
+// both "the thing a clone is identified by". `meta` is the third, and it was
+// missed: COPY_LINK stamps `meta.copyLinkSource` for exactly this purpose, and
+// the Schedule's slot dedupe is `meta.copyLinkSource IS $tplChildId AND
+// parentId IS $dayColId`.
+//
+// Live, 2026-08-31: one day column with 245 children — 49 distinct sources,
+// EXACTLY 5 copies each — and the grid growing +49 occurrences per page load
+// without bound.
+describe("CREATE_ITEM carries meta — what a COPY_LINK clone is identified by", () => {
+  const create = (instance) => {
+    const w = {};
+    applyEffectsToLiveOccs(w, [{ _effect: "CREATE_ITEM", template: null, instance }]);
+    return w[instance.id];
+  };
+
+  it("keeps meta.copyLinkSource, so the dedupe FIND can match the copy", () => {
+    const occ = create({ id: "copy1", templateId: "m1", parentId: "col",
+      meta: { createdByOperation: true, copyLinkSource: "slot-7am" } });
+    expect(occ.meta.copyLinkSource).toBe("slot-7am");
+  });
+
+  it("matches bindSocketToStore's shape, which is what actually persists", () => {
+    // The overlay's whole job is to predict the persisted row. That handler
+    // writes `{ createdByOperation: true, ...inst.meta }`; anything else here
+    // is an op reading something that will never be true.
+    expect(create({ id: "c2", templateId: "m1", meta: { x: 1 } }).meta)
+      .toEqual({ createdByOperation: true, x: 1 });
+  });
+
+  it("stamps createdByOperation even when the effect carries no meta", () => {
+    // The control: an instance with no meta at all must not produce `undefined`
+    // and must not throw — most CREATE_ITEMs are not copy-links.
+    expect(create({ id: "c3", templateId: "m1" }).meta).toEqual({ createdByOperation: true });
+  });
+
+  it("lets the effect's own meta win over the default", () => {
+    expect(create({ id: "c4", templateId: "m1", meta: { createdByOperation: false } }).meta.createdByOperation)
+      .toBe(false);
+  });
+});
+
