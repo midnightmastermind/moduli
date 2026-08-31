@@ -6,6 +6,100 @@
 
 ---
 
+### 2026-08-31 (2) — THE SCHEDULE RE-COPIED ITSELF ON EVERY LOAD, and the overlay lost the one key that would have stopped it
+
+User: *"todays schedule is duplicating occuramces and the daypage col is
+rendering twice"* → *"look for the fix, i didnt do anyting on todays stuff."*
+Both symptoms are ONE defect, and it was **unbounded growth on live data**.
+
+```
+21,509 -> 21,558 -> 21,607 -> 21,656      +49 on EVERY page load
+```
+The loads are strictly sequential (connect → build → disconnect), so this is
+not a race: **each load's `full_state` CONTAINED the previous load's column and
+built another anyway.** Three day columns for today, minted 33 seconds apart;
+one held **245 children — 49 distinct `copyLinkSource` values with EXACTLY 5
+copies each** — while carrying the correct `parentId` and the correct
+`meta.copyLinkSource` on all 245. So the persisted data satisfied the dedupe
+FIND's predicate perfectly and the FIND missed it anyway.
+
+**`applyEffectsToLiveOccs` BUILDS ITS OVERLAY ROW FROM AN EXPLICIT FIELD LIST,
+AND `meta` WAS NOT ON IT.** COPY_LINK stamps `meta.copyLinkSource` for exactly
+one purpose — so an idempotency FIND can match the copy — and the Schedule's
+slot dedupe is precisely that (`meta.copyLinkSource IS $tplChildId AND parentId
+IS $dayColId`). Dropping it made every fresh copy invisible to the FIND written
+to stop it being copied again, so the next sweep in the same session re-copied
+all 49. **The server persisted every round, which is why the live rows all look
+right: only the OPTIMISTIC state was wrong**, and that is the state the next op
+reads.
+
+**THIRD TIME THIS BLOCK HAS LOST SOMETHING A CLONE IS IDENTIFIED BY, and its
+own comments record the other two** — `role`/`kind`/`label` (*"so the NEXT op's
+`$allContainers` filters see this occurrence"*) and `identitySignature` (*"the
+OTHER thing a clone is identified by"*). There are THREE, and the third was
+missed. It now matches `bindSocketToStore`'s CREATE_ITEM verbatim, because the
+overlay's whole job is to predict what will persist — that file's own header
+says any divergence is *"an op reading something that will never be true."*
+
+**REPRODUCED AND A/B'd over the live grid through the real executor:**
+```
+before   children 49 -> 98 -> 147   grid 21,323 -> 21,415 -> 21,507
+after    children 49 -> 49 -> 49    grid 21,323 -> 21,323 -> 21,323
+```
+
+**AND I MEASURED THE WRONG COUNTER FIRST, then wrote down the wrong
+conclusion.** Counting day COLUMNS across three sweeps read 1/1/1 and I
+reported *"the op is idempotent — the column FIND is not the bug."* The columns
+were fine; the children underneath were multiplying. *A convergence claim is a
+claim about the counter you happened to print.*
+
+**FIVE TESTS, every one failing against the unfixed code** — four on the seam,
+and one INTEGRATION guard asserting the sweep **converges**: a second identical
+pass must create nothing. That guard is the general form and would have caught
+this without anyone knowing the word `copyLinkSource`. Growth is asserted
+BETWEEN two passes rather than as an absolute, because the sweep is
+date-dependent and pass 1 legitimately builds a column on a fresh day.
+
+---
+
+**THE REPAIR'S GUARD FIRED ON THE APP'S OWN FOOTPRINT — TWICE — which is
+0038's mistake, paid again.** First it counted every field value, and every row
+carries **`Last Seen`**, written by an op each sweep with `flow:"replace"` and
+a timestamp: all three columns read as *"holds user data"* and the repair
+refused. Narrowed, it then counted the **op-PLACED** `Exercise`/`Eat`/`Drink`
+rows that `Place Cycle Day` drops in carrying Meal/Movement picks and the
+catalog's prescribed sets — and refused again. The discriminator this repo
+already uses for op-placed schedule rows (2026-08-20) is the right one: the row
+is the USER's if `Completed` was **ticked**, or it holds prose. *A
+writing-guard has to tell what the user typed from what the app wrote, or it
+protects empty clones for ever.* Read back: **`userTouchedRows=0` on all three
+columns**, which independently confirms the user's own account.
+
+**AND `maxCopiesPerSlot` READ 0 ON EVERY COLUMN because the probe never
+selected `meta`** — a clean zero that would have hidden the duplication
+entirely had the child counts not disagreed with it.
+
+**Read back out of Mongo after the repair:** 383 occurrences dumped raw then
+deleted (**unlinked from their parent BEFORE deletion**, or the repair mints
+the dangling-child-ref class swept five times here), 4 orphaned modules swept,
+pm2 restarted because the warm cache is authoritative for reads. **1 day column
+· 48 slots · 49 distinct sources · exactly 1 copy each · grid 21,705 → 21,323.**
+
+3,628 client tests, lint 0 errors (2 pre-existing warnings, confirmed present
+at HEAD), build clean, deployed, prod HEAD verified.
+
+**REPORTED, NOT FIXED — `Day Page: Build` throws on EVERY sweep**: `$col is not
+a record (no .id)`. It does so from a clean day with exactly one column, so it
+is independent of this and of the duplicates, and it has been failing silently
+inside the sweep's per-op catch. Its own pass.
+
+**AND THE CELL-SWITCH HYPOTHESIS IS NOT RETIRED.** +49 creates per load is a
+plausible source of the 6,486ms post-paint block measured that morning, but the
+capture recorded `ops runs=0` during the tap itself, so the link is unproven.
+Re-measure now the growth has stopped.
+
+---
+
 ### 2026-08-31 — THE TABLET ANSWERED AND THE INSTRUMENT LOST HALF THE ANSWER
 
 Picked up the other account's session, which hit its **weekly limit** one command
