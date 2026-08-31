@@ -940,6 +940,35 @@ export function isOpApplyingEffects(opId) {
   return !!opId && _opsApplyingEffects.has(opId);
 }
 
+// ── CARRYING THE GUARD ACROSS A DEFERRAL ──────────────────────────────────
+//
+// The set above spans nested fires because those are SYNCHRONOUS — the marks
+// are still in place when the re-fire is attempted. A MeasureOp fire is not:
+// `bindSocketToStore` defers it past the paint, and it already carries
+// `_fireDepth` and the ambient action across that gap for precisely this kind
+// of reason. The guard is the third thing that has to travel and it was the
+// one that did not, so every deferred MeasureOp re-fired the ops that had just
+// written the field — the marks having been released a task earlier.
+//
+// Measured on prod, idle, nobody touching the page (2026-08-31): 27 MeasureOp
+// sweeps and 3,826 field renders after a load, with `occ=1ve8fwc6` — the
+// Workouts tracker tile — re-firing ten times over.
+//
+// `markOpsApplying` returns a release that removes ONLY what it added, so a
+// deferred fire nested inside a synchronous one cannot unmark that one's ops
+// when it finishes.
+export function snapshotOpsApplying() {
+  return _opsApplyingEffects.size ? [..._opsApplyingEffects] : null;
+}
+export function markOpsApplying(ids) {
+  if (!ids || !ids.length) return () => {};
+  const added = [];
+  for (const id of ids) {
+    if (id && !_opsApplyingEffects.has(id)) { _opsApplyingEffects.add(id); added.push(id); }
+  }
+  return () => { for (const id of added) _opsApplyingEffects.delete(id); };
+}
+
 export function runMatchingOperations(operations, transactionType, transaction, context, { onError, onSuccess } = {}) {
   // Tallied so a main-thread block can be attributed to the op drain rather
   // than guessed at (see helpers/renderProbe.js bumpOpRun).

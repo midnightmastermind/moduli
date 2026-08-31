@@ -6,7 +6,7 @@
 // =========================================
 
 import { ActionTypes } from "./actions";
-import { runMatchingOperations, executeOperation, executePipeline, setOpApplyingEffects } from "../helpers/operationExecutor";
+import { runMatchingOperations, executeOperation, executePipeline, setOpApplyingEffects, snapshotOpsApplying, markOpsApplying } from "../helpers/operationExecutor";
 import { kindForNewModule } from "../helpers/operationActions";
 import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
 import { toast, pushTxNotification } from "./notificationStore";
@@ -1934,13 +1934,23 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (transactionType === "MeasureOp") {
       const savedDepth = _fireDepth;
       const captured = captureAction();
+      // AND THE CYCLE GUARD, for the same reason as the depth and the action.
+      // The ops currently applying effects are marked SYNCHRONOUSLY and
+      // released when that application returns — a task before this
+      // continuation runs. Without carrying it, a write made by an op's own
+      // effect re-fires that very op, which is what the guard exists to stop.
+      // Measured idle on prod: 27 MeasureOp sweeps and 3,826 field renders
+      // after one load, the Workouts tracker tile re-firing ten times over.
+      const savedApplying = snapshotOpsApplying();
       retainAction(captured);
       afterPaint(() => {
         const prev = _fireDepth;
         _fireDepth = savedDepth;
+        const releaseApplying = markOpsApplying(savedApplying);
         try {
           runInAction(captured, () => fireOperations(transactionType, transaction, options));
         } finally {
+          releaseApplying();
           _fireDepth = prev;
           releaseAction(captured);
         }
