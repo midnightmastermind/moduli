@@ -34,13 +34,33 @@ export function diffRenders(prev) {
 // remaining candidate — and this counts it rather than assuming it. Same cost
 // as bumpRender: one increment plus one add.
 let _ops = { runs: 0, ms: 0 };
-export function bumpOpRun(ms) {
+// AND WHAT TRIGGERED EACH SWEEP. `bumpOpRun` fires once per
+// `runMatchingOperations` — a whole SWEEP, not one operation — so "runs: 2"
+// on a 14-second scroll means two full sweeps costing 2,563ms between them,
+// and nothing said what set them off. A sweep on `load` is the documented
+// post-paint tail; one on a scheduler tick while the user is scrolling is a
+// different bug entirely, and the two need different fixes.
+let _opsBy = {};
+export function bumpOpRun(ms, label = "?") {
   _ops.runs++;
   _ops.ms += ms || 0;
+  const e = (_opsBy[label] ||= { runs: 0, ms: 0 });
+  e.runs++;
+  e.ms += ms || 0;
 }
-export function snapshotOps() { return { ..._ops }; }
+export function snapshotOps() {
+  const by = {};
+  for (const [k, v] of Object.entries(_opsBy)) by[k] = { ...v };
+  return { ..._ops, by };
+}
 export function diffOps(prev) {
-  return { runs: _ops.runs - (prev?.runs || 0), ms: Math.round(_ops.ms - (prev?.ms || 0)) };
+  const by = {};
+  for (const [k, v] of Object.entries(_opsBy)) {
+    const p = prev?.by?.[k] || { runs: 0, ms: 0 };
+    const runs = v.runs - p.runs;
+    if (runs > 0) by[k] = { runs, ms: Math.round(v.ms - p.ms) };
+  }
+  return { runs: _ops.runs - (prev?.runs || 0), ms: Math.round(_ops.ms - (prev?.ms || 0)), by };
 }
 
 // ── Render-cause attribution (opt-in: window.__RENDER_ATTR = true) ─────────

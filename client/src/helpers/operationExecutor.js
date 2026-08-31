@@ -947,7 +947,10 @@ export function runMatchingOperations(operations, transactionType, transaction, 
   try {
     return _runMatchingOperations(operations, transactionType, transaction, context, { onError, onSuccess });
   } finally {
-    bumpOpRun(performance.now() - _opT0);
+    // Label the sweep with what set it off, so a block during a scroll can be
+    // attributed to the load tail, a write echo, a navigation or the scheduler
+    // rather than guessed at. `null` is the load fire (see computeTriggerMatch).
+    bumpOpRun(performance.now() - _opT0, transactionType || "load");
   }
 }
 

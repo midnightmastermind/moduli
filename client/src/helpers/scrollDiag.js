@@ -299,13 +299,23 @@ function endSession() {
     // duration — `ops=2301` could be 2,301 runs or one run taking 2,300ms, and
     // those are completely different findings. Reported separately.
     s.opRuns = d?.ops?.runs ?? 0;
+    // WHICH TRIGGERS those sweeps came from, worst first.
+    s.opBy = Object.entries(d?.ops?.by || {})
+      .sort((a, b) => b[1].ms - a[1].ms)
+      .slice(0, 3)
+      .map(([k, v]) => `${k}:${v.runs}x${Math.round(v.ms)}ms`)
+      .join(" ");
     s.opMs = Math.round(d?.ops?.ms ?? 0);
     s.opsInBurst = total(d?.ops);
     s.topRenders = Object.entries(d?.renders || {})
       .map(([k, v]) => [k, typeof v === "number" ? v : (v?.count || 0)])
       .sort((a, b) => b[1] - a[1]).slice(0, 3);
-    s.topOps = Object.entries(d?.ops || {})
-      .map(([k, v]) => [k, typeof v === "number" ? v : (v?.count || 0)])
+    // WAS ITERATING `{ runs, ms }` AS THOUGH THOSE WERE OP NAMES, so the
+    // overlay read "ops runs:2, ms:2563" — the two fields of the total,
+    // presented as if they were the top two culprits. The triggers are in
+    // `by` now.
+    s.topOps = Object.entries(d?.ops?.by || {})
+      .map(([k, v]) => [k, Math.round(v.ms)])
       .sort((a, b) => b[1] - a[1]).slice(0, 3);
   } catch { /* the probe must never break the scroll it is measuring */ }
   delete s.tally0;
@@ -464,12 +474,15 @@ function startSession(scroller) {
 // LAYER (PAINT / MOUNT / RASTER); this names the culprit. Empty for an idle
 // burst, so a quiet scroll reports nothing rather than a wall of zeros.
 function busyLine(s) {
-  if (!s.rendersInBurst && !s.opsInBurst) return "";
+  if (!s.rendersInBurst && !s.opRuns) return "";
   const pairs = (list) => (list || []).map(([k, n]) => `${k}:${n}`).join(", ");
   const top = s.topRenders?.length ? ` — top ${pairs(s.topRenders)}` : "";
-  const ops = s.topOps?.length ? ` — ops ${pairs(s.topOps)}` : "";
+  // Each "sweep" is one runMatchingOperations over EVERY operation, not one
+  // op — naming it a "fire" made 2 sweeps costing 2.5s read as trivial.
+  const ops = s.topOps?.length ? ` — triggered by ${pairs(s.topOps).replace(/:/g, ": ")}ms` : "";
   return `<span style="opacity:.85">busy with <b style="color:#ffd479">${s.rendersInBurst}</b> renders, `
-       + `<b style="color:#ffd479">${s.opsInBurst}</b> op fires${top}${ops}</span><br>`;
+       + `<b style="color:#ffd479">${s.opRuns ?? 0}</b> op sweep(s) costing `
+       + `<b style="color:#ffd479">${s.opMs ?? 0}ms</b>${top}${ops}</span><br>`;
 }
 
 function renderOverlay() {

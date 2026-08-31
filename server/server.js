@@ -434,6 +434,7 @@ io.on("connection", (socket) => {
         // which never moved at all) were read as a valid A/B.
         + `rate=${d.ratePxPerSec}px/s cmp=${d.comparability || "?"} `
         + `renders=${d.rendersInBurst ?? "?"} opRuns=${d.opRuns ?? "?"} opMs=${d.opMs ?? "?"} `
+        + `opBy=[${d.opBy || ""}] `
         // Whether the A/B arm's CSS was actually applied. A silent-mode burst
         // and a verbose one are measuring different pages.
         + `verbose=${d.verbose === undefined ? "?" : d.verbose} `
