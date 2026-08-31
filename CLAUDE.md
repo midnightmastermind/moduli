@@ -6,6 +6,82 @@
 
 ---
 
+### 2026-08-31 (5) — TWO GUARDS SHIPPED, NEITHER MOVED THE NUMBER, and the sweeps they targeted emit nothing
+
+User: *"yes"* — go after the op sweeps firing during a scroll. What follows is
+two wrong hypotheses, each measured rather than argued, and the reframe the
+measurement forced.
+
+**FIRST, THE CASCADE WAS REPRODUCED WITHOUT THE USER AND WITHOUT SCROLLING.**
+A headless probe against prod, sitting perfectly still:
+```
+op sweeps : 29 (1127ms)   by { load:1x739ms, MeasureOp:27x375ms, ScheduleOp:1 }
+renders   : field:3826 container:655 instance:608 panel:180
+[op-fire] depth=1 MeasureOp occ=1ve8fwc6   <- the Workouts tracker tile, x10
+[full_state-client] applied 208 effects in 2738ms across 16 slice(s)
+```
+*A scroll was never required to see it, which is what made the rest cheap.*
+
+**HYPOTHESIS 1 — the load path lacked the cycle guard.** True, and it is fixed:
+`fireOperations` marks every op that produced effects in a batch so their own
+writes cannot re-trigger them, and the LOAD path — the biggest batch the app
+ever applies — never had it, twenty lines away in the same file. **It changed
+nothing:** 27 MeasureOp sweeps became 22, field renders 3,826 became 3,787.
+
+**HYPOTHESIS 2 — the guard did not survive the deferral.** Also true, and also
+fixed. A MeasureOp fire is deferred past the paint, and that deferral already
+carries `_fireDepth` and the ambient action across the gap — each added after a
+defect caused by NOT carrying it. The guard is the third thing that has to
+travel and nobody had added it, so the marks were released a task before the
+fire they were meant to stop. That made the guard ineffective for MeasureOps
+everywhere, not only on the path I had just wired. **It changed nothing
+either:** 22 sweeps, renders 3,794.
+
+**AND THE THIRD MEASUREMENT RETIRED BOTH.** `[op-fire-done]` logs only when a
+fire emitted something. Across the whole cascade there are **ZERO** of them —
+so every one of those 23 MeasureOp sweeps produces **no effects at all**. They
+are not a cycle, there is nothing for a guard to break, and at 322ms of a
+~3,900ms cascade they were never the cost. *Two correct fixes for a problem
+that was not happening.*
+
+**WHERE THE TIME ACTUALLY IS, from the same capture:**
+```
+load sweep            818ms
+23 MeasureOp sweeps   322ms      <- what I spent the session on
+208 effects applied  ~2,200-2,700ms across 13-16 slices
+renders               3,794 field · 649 container · 604 instance
+```
+**~18 component renders per effect, 208 effects, one dispatch each.** That is
+2026-08-29 (4)'s docket item reached from a third direction — *"195 effects are
+195 dispatches and 195 fan-outs; applying them as one batched write would
+COLLAPSE the renders rather than redistribute them"* — and it is now the
+largest item with a number against it.
+
+**THE TWO GUARDS ARE KEPT, and the reason is not that they helped.** The cycle
+they prevent is documented as having caused exponential fan-out, and the nested
+path has carried a guard against it since it was written; the deferral simply
+made that guard inert. Keeping a correct guard that is currently unexercised is
+a different call from keeping one nothing has ever needed — but it must be said
+plainly that **neither moved the measured number**, or the next reader will
+believe the cascade was addressed.
+
+**AND THE PROBE'S OWN TIMEOUTS WERE SILENTLY THE DEFAULT.**
+`page.waitForFunction(fn, { timeout })` passes the options as the ARGUMENT —
+the signature is `(fn, arg, options)` — so a stated 300s wait was the 30s
+default and the run died mid-measurement. **This file already records that
+exact trap from 2026-08-25 (6)** and it cost a run anyway.
+
+**A/B'd AGAINST A COLD SERVER, TWICE, AND BOTH READINGS WERE VOID.** A deploy
+restarts pm2 and the next load pays a **215-second** Atlas read, so the probe's
+fixed window measured a page that had never received `full_state` — reporting
+`renders=none` and zero sweeps, *which reads exactly like a fix that worked.*
+The probe waits for the grid to render and then for the cascade to go quiet
+now, instead of guessing at a window.
+
+3,652 client tests, lint 0 errors, deployed, prod HEAD verified.
+
+---
+
 ### 2026-08-31 (4) — RETRACTION: the repaint wait is NOT the off-screen skip, and the tally was counting SWEEPS
 
 (3) concluded the *"waiting for an entire repaint"* was `content-visibility`
