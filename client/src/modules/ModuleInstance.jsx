@@ -101,6 +101,10 @@ const INSTANCE_LABEL_PX = 17;
 // use the var, not the number — see ui/Field.jsx.
 const INSTANCE_LABEL = `var(--instance-label-px, ${INSTANCE_LABEL_PX}px)`;
 
+// Stable identity: a fresh {} here would defeat the whole point of not
+// subscribing, re-rendering on every store read instead of every op write.
+const EMPTY_OPERATIONS = {};
+
 function InstanceInner({
   id,
   label,
@@ -151,7 +155,25 @@ function InstanceInner({
   const addInstanceToContainer = useGridActionsSelector(s => s.addInstanceToContainer);
   const modulesById = useGridActionsSelector(s => s.modulesById);
   const instancesById = useGridActionsSelector(s => s.instancesById);
-  const operationsById = useGridActionsSelector(s => s.operationsById);
+  // ONLY INSTANCES THAT BIND AN OPERATION WIDGET SUBSCRIBE TO THE OP MAP.
+  //
+  // `operationsById` is read for exactly two things: building
+  // `operationWidgets` (empty unless this instance declares
+  // `operationBindings`) and `handleRunOperation`, which is reachable ONLY from
+  // one of those widgets. Every instance subscribed to the whole map anyway, so
+  // any write to any operation record — `lastFiredAt` is stamped on every fire
+  // — re-rendered every row on screen.
+  //
+  // Measured on prod with `window.__RENDER_ATTR`, one idle load (2026-08-31):
+  // 183 of 604 instance renders attributed to `s_operationsById` alone, on a
+  // page nobody was touching.
+  //
+  // Same shape as the `occSetKey` scoping in FieldRenderer: the hook is still
+  // called, the VALUE selected is what becomes constant.
+  const hasOperationBindings = !!instance?.operationBindings?.length;
+  const operationsById = useGridActionsSelector(
+    s => (hasOperationBindings ? s.operationsById : EMPTY_OPERATIONS),
+  );
   const ctxGrid = useGridActionsSelector(s => s.state.grid);
   // Select the BOOLEAN, not the raw activeId — the raw value changes for every
   // instance when a drag sets/clears it, re-rendering all of them; the boolean
