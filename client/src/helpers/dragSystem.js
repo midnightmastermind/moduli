@@ -848,9 +848,22 @@ export function useDragDrop({
           dragPerf.activate(holdScrolls);   // the wait is over; the work starts here
           dragPerf.mark("t0");
           dragging = true;
+          // BEFORE ANY WRITE OF OURS. `f:htmlStyle` billed 955ms, but it was
+          // the FIRST flush of the sequence, so it also paid for anything left
+          // pending by the 1.6s hold window — and a first measurement that
+          // absorbs everything before it is not an attribution. `touchRect`
+          // says the page was clean when the finger LANDED (0.1ms); this says
+          // whether it still was when the finger MOVED.
+          //
+          // Zero here means our own writes own the cost. ~950ms here means the
+          // app dirtied the page during the hold and the drag merely pays for
+          // it — a different problem, and one that would also explain the
+          // drop's paint.
+          dragPerf.flushMark("f:t0");
           document.documentElement.style.touchAction = 'none';
+          dragPerf.flushMark("f:touchAction");
           document.documentElement.style.overscrollBehavior = 'none';
-          dragPerf.flushMark("f:htmlStyle");
+          dragPerf.flushMark("f:overscroll");
           setIsDragging(true);
           dragPerf.flushMark("f:setIsDragging");
 
