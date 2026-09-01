@@ -791,6 +791,22 @@ export function useDragDrop({
       let hitCostMs = 0;
       let hitEveryMs = _HIT_TEST_INTERVAL;
 
+      // DID THE PAGE SCROLL WHILE THE FINGER WAS DOWN? The whole remaining
+      // startup cost is created inside the hold window — `touchRect` measures
+      // one forced layout at touchstart at 0.1ms, and the same flush ~1.4s
+      // later costs ~1s. Two candidates, opposite fixes: the panel scrolling
+      // under the finger (a repaint we inherit, and the same second as the
+      // 08-31 "waiting for an entire repaint" report), or our own writes at
+      // activation. A count of scroll events separates them and costs nothing
+      // — a passive capture listener, no layout read, torn down at activation.
+      let holdScrolls = 0;
+      let holdScrollFn = null;
+      const stopHoldScrollWatch = () => {
+        if (!holdScrollFn) return;
+        document.removeEventListener("scroll", holdScrollFn, true);
+        holdScrollFn = null;
+      };
+
       const onStart = (e) => {
         if (e.touches.length !== 1) return;
         // NO e.preventDefault() — triggerEl CSS touch-action:none handles OS gesture suppression
@@ -806,6 +822,12 @@ export function useDragDrop({
         const _rectMs = performance.now() - _rt0;
         touchStartTime = performance.now();
         dragging = false;
+        stopHoldScrollWatch();
+        holdScrolls = 0;
+        holdScrollFn = () => { holdScrolls++; };
+        // Capture, because scroll does not bubble — a panel scrolling
+        // internally is invisible to a listener on document without it.
+        document.addEventListener("scroll", holdScrollFn, { capture: true, passive: true });
         // Before the hold delay and the movement threshold — without this the
         // 80ms we deliberately make the user wait is indistinguishable from
         // our own startup cost.
@@ -822,7 +844,8 @@ export function useDragDrop({
           if (Math.sqrt((t.clientX - startX) ** 2 + (t.clientY - startY) ** 2) < _TOUCH_THRESHOLD) return;
           // Threshold crossed — NOW claim the gesture
           e.preventDefault();
-          dragPerf.activate();   // the wait is over; the work starts here
+          stopHoldScrollWatch();
+          dragPerf.activate(holdScrolls);   // the wait is over; the work starts here
           dragPerf.mark("t0");
           dragging = true;
           document.documentElement.style.touchAction = 'none';
@@ -912,6 +935,9 @@ export function useDragDrop({
       };
 
       const onEnd = (e) => {
+        // A tap or a plain scroll ends here without ever activating, so the
+        // hold-window watcher has to come off on EVERY end, not just a drag's.
+        stopHoldScrollWatch();
         if (!dragging) {
           // Tap — browser fires native click since we never preventDefault'd
           return;
@@ -1104,6 +1130,7 @@ export function useDragDrop({
       );
 
       return () => {
+        stopHoldScrollWatch();
         triggerEl.style.touchAction = prevTouchAction;
         triggerEl.removeEventListener('touchstart', onStart);
         triggerEl.removeEventListener('touchmove', onMove);

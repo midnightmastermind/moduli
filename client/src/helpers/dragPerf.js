@@ -36,7 +36,7 @@ import { safeEmit } from "./offlineQueue.js";
 
 const s = {
   active: false, t0: 0,
-  tTouch: 0, tActivate: 0, tStarted: 0, tFirstPaint: 0, touchRectMs: -1,
+  tTouch: 0, tActivate: 0, tStarted: 0, tFirstPaint: 0, touchRectMs: -1, holdScrolls: -1,
   marks: null, attr0: null, attrWas: undefined,
   tDrop: 0, tDropDone: 0, tDropPaint: 0,
   moves: 0, frames: 0,
@@ -46,6 +46,7 @@ const s = {
   efpTotal: 0, efpMax: 0, walkTotal: 0, walkMax: 0, elsMax: 0, dropTargets: 0,
   long16: 0, long32: 0,
   tally0: null, tallyDrop: null, longTasks: 0, longTaskMs: 0, po: null,
+  firstTaskMs: -1, firstTaskAt: -1,
   label: "", mode: "",
 };
 let last = null;
@@ -92,9 +93,18 @@ export const dragPerf = {
   },
 
   // The threshold was crossed: everything after this is work we chose to do.
-  activate() {
+  //
+  // `scrolls` is how many scroll events fired while the finger was down. It
+  // is the discriminator for the startup cost that SURVIVED the fix: one
+  // forced layout costs 0.1ms at touchstart and ~1s at activation, so the page
+  // is dirtied inside the hold window — by the panel scrolling under the
+  // finger, or by our own writes. Non-zero says scroll; zero says us. Neither
+  // reading requires forcing a layout to obtain, which is the point: the
+  // instrument must not re-introduce the cost it is measuring.
+  activate(scrolls = -1) {
     if (!enabled()) return;
     s.tActivate = performance.now();
+    s.holdScrolls = scrolls;
     s.marks = [];
   },
 
@@ -119,6 +129,7 @@ export const dragPerf = {
       rafTotal: 0, rafMax: 0, hitTotal: 0, hitCount: 0, hitMax: 0,
       efpTotal: 0, efpMax: 0, walkTotal: 0, walkMax: 0, elsMax: 0, dropTargets: 0,
       long16: 0, long32: 0, longTasks: 0, longTaskMs: 0,
+      firstTaskMs: -1, firstTaskAt: -1,
       label: meta.label || "", mode: meta.mode || "",
       tally0: (typeof window !== "undefined" && window.__renderTally) ? window.__renderTally() : null,
       tallyDrop: null,
@@ -141,7 +152,18 @@ export const dragPerf = {
     try {
       s.po?.disconnect();
       s.po = new PerformanceObserver((list) => {
-        for (const e of list.getEntries()) { s.longTasks++; s.longTaskMs += e.duration; }
+        for (const e of list.getEntries()) {
+          s.longTasks++; s.longTaskMs += e.duration;
+          // THE FIRST ONE, kept separately. `paint=1183ms` is the wait before
+          // the drag is visible, and one 1.2s task and forty 30ms ones are
+          // different problems with different fixes — a total cannot tell them
+          // apart. Offset from drag start, so it can be lined up against the
+          // marks rather than guessed at.
+          if (s.firstTaskMs < 0) {
+            s.firstTaskMs = e.duration;
+            s.firstTaskAt = e.startTime - s.t0;
+          }
+        }
       });
       s.po.observe({ entryTypes: ["longtask"] });
     } catch { s.po = null; }   // not implemented everywhere; absent ≠ zero
@@ -230,6 +252,7 @@ export const dragPerf = {
       try {
         line = `[drag] ${Math.round(dur)}ms "${f.label}" mode=${f.mode}`
           + ` | START touchRect=${f.touchRectMs >= 0 ? +f.touchRectMs.toFixed(1) : -1}ms`
+          + ` holdScrolls=${f.holdScrolls}`
           + ` hold=${d(f.tTouch, f.tActivate)}ms work=${d(f.tActivate, f.tStarted)}ms`
           + ` paint=${d(f.tStarted, f.tFirstPaint)}ms`
           + `${(() => {
@@ -262,6 +285,8 @@ export const dragPerf = {
           + ` | renders=${rTot}${rTop ? `(${rTop})` : ""}`
           + ` opSweeps=${tally?.ops?.runs ?? -1} opMs=${Math.round(tally?.ops?.ms ?? -1)}`
           + ` longTasks=${f.longTasks}(${Math.round(f.longTaskMs)}ms)`
+          + ` firstTask=${f.firstTaskMs >= 0 ? Math.round(f.firstTaskMs) : -1}ms`
+          + `@${f.firstTaskAt >= 0 ? Math.round(f.firstTaskAt) : -1}ms`
           + ` dom=${typeof document !== "undefined" ? document.getElementsByTagName("*").length : -1}`
           + `${(() => {
               if (!f.attr0 || typeof window === "undefined" || !window.__renderAttrDiff) return "";

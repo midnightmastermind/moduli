@@ -32,7 +32,7 @@ describe("dragPerf covers all three phases", () => {
     dragPerf.end();
     await flush();
     const line = emitted[0]?.payload?.line || "";
-    expect(line).toMatch(/START touchRect=-?[\d.]+ms hold=\d+ms work=\d+ms/);
+    expect(line).toMatch(/START touchRect=-?[\d.]+ms holdScrolls=-?\d+ hold=\d+ms work=\d+ms/);
     expect(line).toMatch(/DROP handler=\d+ms/);
     expect(line).toContain('"Drink"');
   });
@@ -62,6 +62,31 @@ describe("dragPerf covers all three phases", () => {
     const line = emitted[0]?.payload?.line || "";
     expect(line).toContain("touchRect=-1ms");
     expect(line).not.toContain("touchRect=0ms");
+  });
+
+  it("reports how many scrolls landed in the hold window", async () => {
+    // The discriminator for the startup cost that survived: dirtied by the
+    // panel scrolling under the finger, or dirtied by our own writes.
+    dragPerf.touchStart(0.1);
+    dragPerf.activate(7);
+    dragPerf.start({ label: "Cook", mode: "copy" });
+    dragPerf.dropStart(); dragPerf.dropDone(); dragPerf.end();
+    await flush();
+    expect(emitted[0]?.payload?.line || "").toContain("holdScrolls=7");
+  });
+
+  it("reports holdScrolls=-1, not 0, when nobody counted", async () => {
+    // ZERO IS THE ANSWER THAT BLAMES US — it says the page scrolled not at all
+    // and our own writes dirtied it. An uninstrumented caller must never be
+    // able to produce that reading by accident.
+    dragPerf.touchStart();
+    dragPerf.activate();
+    dragPerf.start({ label: "Cook", mode: "copy" });
+    dragPerf.dropStart(); dragPerf.dropDone(); dragPerf.end();
+    await flush();
+    const line = emitted[0]?.payload?.line || "";
+    expect(line).toContain("holdScrolls=-1");
+    expect(line).not.toContain("holdScrolls=0");
   });
 
   it("reports to the SERVER, not just the console", async () => {
@@ -184,7 +209,7 @@ describe("the startup block, split", () => {
     for (const n of ["setIsDragging", "buildPayload", "pill", "handleDragStart"]) {
       expect(line.includes(n) || line.includes("[")).toBe(true);
     }
-    expect(line).toMatch(/START touchRect=-?[\d.]+ms hold=\d+ms work=\d+ms/);
+    expect(line).toMatch(/START touchRect=-?[\d.]+ms holdScrolls=-?\d+ hold=\d+ms work=\d+ms/);
   });
 
   it("marks outside a drag are ignored rather than accumulating", async () => {
