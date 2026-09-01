@@ -1,29 +1,52 @@
 // helpers/dragPerf.js
 // ============================================================
-// Lightweight, opt-in drag performance probe.
+// DRAG PERFORMANCE — ALL THREE PHASES, REPORTED WHERE THEY CAN BE READ.
 //
-// Logs ONE compact summary per drag (on drop) — never per-frame — so it's
-// cheap and safe to leave on. Defaults ON for coarse-pointer/touch devices so
-// it works on a tablet with no console flag-setting. Override with:
+// User, 2026-09-01: *"dragging an instance is taking forever to start up and
+// then is just jittery around the grid (non smooth at all), its like its
+// freezing up during the drag. the drop takes a bit too."* — and, correcting
+// me when I claimed the middle phase was already covered: *"i called out the
+// entire performace of the drag so during too its terrible."*
+//
+// This probe already measured the DURING phase (fps, frame times, hit-test
+// cost) and logged one summary per drag. It measured nothing about STARTING or
+// DROPPING, which are two of the three complaints — and the summary went to
+// `console.log` only, so on the device that has the problem nobody could read
+// it and it never reached the server. Instrumented is not the same as measured.
+//
+// Now: every phase, one copy-pasteable line, and the same line to the server so
+// it lands in the pm2 log (helpers/scrollDiag.js does this for scrolling; the
+// server prints `d.line` verbatim, so the two cannot drift).
+//
 //   window.__dragPerf = true   // force on (desktop too)
 //   window.__dragPerf = false  // force off
+//   window.__dragReport()      // reprint the last summary
 //
-// Read the summary in the browser console (remote-inspect the tablet, or an
-// on-device console). Key numbers:
-//   fps            — rAF frames / drag duration. Want ~60.
-//   rafMove_maxMs  — worst single frame of the touch mover. >16ms = a dropped frame.
-//   framesOver16ms — how many frames blew the 60fps budget.
-//   hitTest_maxMs  — worst elementsFromPoint drop-target scan.
+// WHAT EACH PHASE ANSWERS:
+//   start   — how much of "forever to start" is the deliberate hold delay,
+//             and how much is our own work at threshold-cross. `setIsDragging`
+//             and `handleDragStart` are React state updates on a grid with
+//             ~18,600 DOM nodes.
+//   during  — fps and the worst frame. `renders`/`opSweeps` say whether a
+//             stall is the app re-rendering rather than the pointer maths.
+//   drop    — touchend → handler returned → the frame the user sees.
 // ============================================================
+import { socket } from "../socket.js";
+import { safeEmit } from "./offlineQueue.js";
 
 const s = {
   active: false, t0: 0,
+  tTouch: 0, tActivate: 0, tStarted: 0, tFirstPaint: 0,
+  tDrop: 0, tDropDone: 0, tDropPaint: 0,
   moves: 0, frames: 0,
   onMoveTotal: 0, onMoveMax: 0,
   rafTotal: 0, rafMax: 0,
   hitTotal: 0, hitCount: 0, hitMax: 0,
   long16: 0, long32: 0,
+  tally0: null, longTasks: 0, longTaskMs: 0, po: null,
+  label: "", mode: "",
 };
+let last = null;
 
 function enabled() {
   if (typeof window === "undefined") return false;
@@ -32,30 +55,64 @@ function enabled() {
   return window.matchMedia?.("(pointer: coarse)").matches ?? false;
 }
 
+// rAF then a macrotask — a rAF callback runs BEFORE that frame's paint, so
+// timing one measures the frame the work was scheduled in, not the frame the
+// user saw. Same idiom as helpers/afterPaint.js, inlined to keep this probe
+// dependency-light.
+function afterNextPaint(fn) {
+  if (typeof requestAnimationFrame !== "function") { setTimeout(fn, 16); return; }
+  requestAnimationFrame(() => setTimeout(fn, 0));
+}
+
 export const dragPerf = {
-  start() {
+  // touchstart — BEFORE the hold delay and the movement threshold, so the
+  // deliberate wait is separable from our own cost. Without this split
+  // "forever to start" cannot be told from "we make you hold for 80ms".
+  touchStart() {
+    if (!enabled()) return;
+    s.tTouch = performance.now();
+  },
+
+  // The threshold was crossed: everything after this is work we chose to do.
+  activate() {
+    if (!enabled()) return;
+    s.tActivate = performance.now();
+  },
+
+  start(meta = {}) {
     if (!enabled()) { s.active = false; return; }
+    const now = performance.now();
     Object.assign(s, {
-      active: true, t0: performance.now(),
+      active: true, t0: now, tStarted: now, tFirstPaint: 0,
+      tDrop: 0, tDropDone: 0, tDropPaint: 0,
       moves: 0, frames: 0, onMoveTotal: 0, onMoveMax: 0,
       rafTotal: 0, rafMax: 0, hitTotal: 0, hitCount: 0, hitMax: 0,
-      long16: 0, long32: 0,
+      long16: 0, long32: 0, longTasks: 0, longTaskMs: 0,
+      label: meta.label || "", mode: meta.mode || "",
+      tally0: (typeof window !== "undefined" && window.__renderTally) ? window.__renderTally() : null,
     });
+    // The frame the user actually sees the drag begin on.
+    afterNextPaint(() => { if (s.active && !s.tFirstPaint) s.tFirstPaint = performance.now(); });
+    try {
+      s.po?.disconnect();
+      s.po = new PerformanceObserver((list) => {
+        for (const e of list.getEntries()) { s.longTasks++; s.longTaskMs += e.duration; }
+      });
+      s.po.observe({ entryTypes: ["longtask"] });
+    } catch { s.po = null; }   // not implemented everywhere; absent ≠ zero
   },
-  // Time spent in one touchmove handler (active drag only).
+
   move(dt) {
     if (!s.active) return;
     s.moves++;
     s.onMoveTotal += dt;
     if (dt > s.onMoveMax) s.onMoveMax = dt;
   },
-  // Time spent in one _findDropTarget hit-test.
   hit(dt) {
     if (!s.active) return;
     s.hitCount++; s.hitTotal += dt;
     if (dt > s.hitMax) s.hitMax = dt;
   },
-  // Time spent in one handleDragMove rAF frame (the touch mover).
   frame(dt) {
     if (!s.active) return;
     s.frames++;
@@ -64,29 +121,63 @@ export const dragPerf = {
     if (dt > 16.7) s.long16++;
     if (dt > 32) s.long32++;
   },
+
+  // touchend, before the drop handler runs.
+  dropStart() { if (s.active) s.tDrop = performance.now(); },
+  // the drop handler returned — the write is dispatched, the paint is not done.
+  dropDone() { if (s.active) s.tDropDone = performance.now(); },
+
   end() {
     if (!s.active) return;
     s.active = false;
+    try { s.po?.disconnect(); } catch { /* ignore */ }
     const dur = performance.now() - s.t0;
-    if (dur < 40) return; // ignore taps / micro-drags
-    const avg = (tot, n) => (n ? +(tot / n).toFixed(2) : 0);
-     
-    console.log(
-      `%c[dragPerf] ${dur.toFixed(0)}ms drag`,
-      "color:#4af;font-weight:bold",
-      {
-        touchmoves: s.moves,
-        rafFrames: s.frames,
-        fps: (dur ? +(s.frames / (dur / 1000)).toFixed(0) : 0),
-        onMove_avgMs: avg(s.onMoveTotal, s.moves),
-        onMove_maxMs: +s.onMoveMax.toFixed(2),
-        rafMove_avgMs: avg(s.rafTotal, s.frames),
-        rafMove_maxMs: +s.rafMax.toFixed(2),
-        hitTest_avgMs: avg(s.hitTotal, s.hitCount),
-        hitTest_maxMs: +s.hitMax.toFixed(2),
-        framesOver16ms: s.long16,
-        framesOver32ms: s.long32,
-      }
-    );
+    if (dur < 40 && !s.tDrop) return;   // a tap, not a drag
+
+    // The drop's PAINT is a frame away, so the summary waits for it rather
+    // than reporting the handler's return as though the user saw it.
+    afterNextPaint(() => {
+      s.tDropPaint = performance.now();
+      const avg = (tot, n) => (n ? +(tot / n).toFixed(1) : 0);
+      const d = (a, b) => (a && b ? Math.round(b - a) : -1);
+      const tally = (typeof window !== "undefined" && window.__renderDiff && s.tally0)
+        ? window.__renderDiff(s.tally0) : null;
+      const rTot = tally ? Object.values(tally.renders || {}).reduce((a, n) => a + n, 0) : -1;
+      const rTop = tally
+        ? Object.entries(tally.renders || {}).filter(([, n]) => n)
+          .sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => `${k}:${n}`).join(",")
+        : "";
+
+      const line = `[drag] ${Math.round(dur)}ms "${s.label}" mode=${s.mode}`
+        + ` | START hold=${d(s.tTouch, s.tActivate)}ms work=${d(s.tActivate, s.tStarted)}ms`
+        + ` paint=${d(s.tStarted, s.tFirstPaint)}ms`
+        + ` | DURING moves=${s.moves} frames=${s.frames}`
+        + ` fps=${dur ? Math.round(s.frames / (dur / 1000)) : 0}`
+        + ` onMove avg=${avg(s.onMoveTotal, s.moves)}/max=${+s.onMoveMax.toFixed(1)}ms`
+        + ` raf avg=${avg(s.rafTotal, s.frames)}/max=${+s.rafMax.toFixed(1)}ms`
+        + ` hit avg=${avg(s.hitTotal, s.hitCount)}/max=${+s.hitMax.toFixed(1)}ms`
+        + ` over16=${s.long16} over32=${s.long32}`
+        + ` | DROP handler=${d(s.tDrop, s.tDropDone)}ms paint=${d(s.tDropDone, s.tDropPaint)}ms`
+        + ` | renders=${rTot}${rTop ? `(${rTop})` : ""}`
+        + ` opSweeps=${tally?.ops?.runs ?? -1} opMs=${Math.round(tally?.ops?.ms ?? -1)}`
+        + ` longTasks=${s.longTasks}(${Math.round(s.longTaskMs)}ms)`
+        + ` dom=${typeof document !== "undefined" ? document.getElementsByTagName("*").length : -1}`;
+
+      last = line;
+      // eslint-disable-next-line no-console
+      console.log(line);
+      // AND TO THE SERVER, because the device with the problem is the one
+      // whose console is hardest to read. The server prints `line` verbatim.
+      try {
+        safeEmit(socket, "save_scroll_diag", {
+          line, kind: "drag",
+          ua: typeof navigator !== "undefined" ? navigator.userAgent : "",
+        });
+      } catch { /* a probe must never break the gesture it measures */ }
+    });
   },
 };
+
+if (typeof window !== "undefined") {
+  window.__dragReport = () => { console.log(last || "[drag] nothing captured yet"); return last; };
+}

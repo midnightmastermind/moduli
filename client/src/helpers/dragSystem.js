@@ -735,6 +735,10 @@ export function useDragDrop({
         cachedRect = el.getBoundingClientRect(); // Cache rect NOW while layout is fresh
         touchStartTime = performance.now();
         dragging = false;
+        // Before the hold delay and the movement threshold — without this the
+        // 80ms we deliberately make the user wait is indistinguishable from
+        // our own startup cost.
+        dragPerf.touchStart();
       };
 
       const onMove = (e) => {
@@ -747,6 +751,7 @@ export function useDragDrop({
           if (Math.sqrt((t.clientX - startX) ** 2 + (t.clientY - startY) ** 2) < _TOUCH_THRESHOLD) return;
           // Threshold crossed — NOW claim the gesture
           e.preventDefault();
+          dragPerf.activate();   // the wait is over; the work starts here
           dragging = true;
           document.documentElement.style.touchAction = 'none';
           document.documentElement.style.overscrollBehavior = 'none';
@@ -768,7 +773,7 @@ export function useDragDrop({
           lastHitTestTime = performance.now();
 
           dragCtx.handleDragStart(payload, startX, startY, { mode });
-          dragPerf.start();
+          dragPerf.start({ label: liveData?.label || liveData?.name || type, mode });
           return;
         }
 
@@ -833,6 +838,7 @@ export function useDragDrop({
         if (e.cancelable) e.preventDefault();
         if (typeof window !== "undefined") window.__moduliDragEndAt = performance.now();
         const t = e.changedTouches[0];
+        dragPerf.dropStart();
         if (clone) { clone.remove(); clone = null; }
 
         if (curTarget) {
@@ -866,6 +872,10 @@ export function useDragDrop({
           }
         }
 
+        // The drop handler has returned — the write is dispatched, the paint
+        // is still a frame away. `end()` waits for that frame rather than
+        // reporting the handler's return as though the user had seen it.
+        dragPerf.dropDone();
         curTarget = null;
         dragging = false;
         payload = null;
