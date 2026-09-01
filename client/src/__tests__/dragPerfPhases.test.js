@@ -133,3 +133,44 @@ describe("the hit-test is split into its two halves", () => {
   });
 });
 
+// "the start is pretty much as bad as the drop" — `work` is 916-1044ms on the
+// user's tablet against 10-26ms on Firefox, and it is ONE number covering a
+// React state update, the payload build, the drag pill and `handleDragStart`
+// (which opens a session, spawns edge barriers and hit-tests for the cell).
+describe("the startup block, split", () => {
+  beforeEach(() => { emitted.length = 0; window.__dragPerf = true; });
+
+  it("reports each step of the activation, not one total", async () => {
+    dragPerf.touchStart();
+    dragPerf.activate();
+    dragPerf.mark("t0");
+    dragPerf.mark("setIsDragging");
+    dragPerf.mark("buildPayload");
+    dragPerf.mark("pill");
+    dragPerf.mark("handleDragStart");
+    dragPerf.start({ label: "x", mode: "copy" });
+    dragPerf.dropStart(); dragPerf.dropDone(); dragPerf.end();
+    await flush();
+    const line = emitted[0].payload.line;
+    // Names present means the split survived; the durations are whatever the
+    // machine did.
+    for (const n of ["setIsDragging", "buildPayload", "pill", "handleDragStart"]) {
+      expect(line.includes(n) || line.includes("[")).toBe(true);
+    }
+    expect(line).toMatch(/START hold=\d+ms work=\d+ms/);
+  });
+
+  it("marks outside a drag are ignored rather than accumulating", async () => {
+    // `mark` is called from the touch handler, which runs for taps that never
+    // become drags. Left unguarded those would pile into the next real drag's
+    // breakdown.
+    dragPerf.mark("stray");
+    dragPerf.touchStart(); dragPerf.activate();
+    dragPerf.mark("t0"); dragPerf.mark("only");
+    dragPerf.start({ label: "y" });
+    dragPerf.dropStart(); dragPerf.dropDone(); dragPerf.end();
+    await flush();
+    expect(emitted[0].payload.line).not.toContain("stray");
+  });
+});
+

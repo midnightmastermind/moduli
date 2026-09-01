@@ -799,10 +799,12 @@ export function useDragDrop({
           // Threshold crossed — NOW claim the gesture
           e.preventDefault();
           dragPerf.activate();   // the wait is over; the work starts here
+          dragPerf.mark("t0");
           dragging = true;
           document.documentElement.style.touchAction = 'none';
           document.documentElement.style.overscrollBehavior = 'none';
           setIsDragging(true);
+          dragPerf.mark("setIsDragging");
 
           // A1: Haptic feedback on drag start
           if (navigator.vibrate) navigator.vibrate(15);
@@ -810,18 +812,21 @@ export function useDragDrop({
           offsetX = 40;
           offsetY = 14;
           payload = buildPayload();
+          dragPerf.mark("buildPayload");
           const liveData = dataRef.current;
           // Per-occurrence dragMode overrides entity's defaultDragMode
           const mode = liveData?.occurrence?.dragMode ?? liveData?.defaultDragMode ?? 'move';
           clone = _createDragPill(liveData?.label || liveData?.name || type, mode);
           clone.style.transform = `translate3d(${t.clientX - offsetX}px, ${t.clientY - offsetY}px, 0)`;
           document.body.appendChild(clone);
+          dragPerf.mark("pill");
           lastHitX = t.clientX; lastHitY = t.clientY;
           lastHitTestTime = performance.now();
           hitCostMs = 0;
           hitEveryMs = _HIT_TEST_INTERVAL;
 
           dragCtx.handleDragStart(payload, startX, startY, { mode });
+          dragPerf.mark("handleDragStart");
           dragPerf.start({ label: liveData?.label || liveData?.name || type, mode });
           return;
         }

@@ -37,6 +37,7 @@ import { safeEmit } from "./offlineQueue.js";
 const s = {
   active: false, t0: 0,
   tTouch: 0, tActivate: 0, tStarted: 0, tFirstPaint: 0,
+  marks: null, attr0: null,
   tDrop: 0, tDropDone: 0, tDropPaint: 0,
   moves: 0, frames: 0,
   onMoveTotal: 0, onMoveMax: 0,
@@ -78,6 +79,18 @@ export const dragPerf = {
   activate() {
     if (!enabled()) return;
     s.tActivate = performance.now();
+    s.marks = [];
+  },
+
+  // WHICH PART OF THE ACTIVATION COSTS THE SECOND. `work` measures the whole
+  // block between the threshold crossing and `handleDragStart` returning, and
+  // on the user's tablet that is 916-1044ms against 10-26ms on Firefox. Inside
+  // it are a React state update (`setIsDragging`), the payload build, the pill,
+  // and `handleDragStart` — which itself opens a session, spawns edge barriers
+  // and hit-tests for the cell. One number cannot say which.
+  mark(name) {
+    if (!s.marks) return;
+    s.marks.push([name, performance.now()]);
   },
 
   start(meta = {}) {
@@ -93,6 +106,11 @@ export const dragPerf = {
       label: meta.label || "", mode: meta.mode || "",
       tally0: (typeof window !== "undefined" && window.__renderTally) ? window.__renderTally() : null,
       tallyDrop: null,
+      // Render CAUSES for the drag window — only collected when
+      // `window.__RENDER_ATTR` is on, which is off by default. Container
+      // renders during a drag are still 1,464 after the hover fix, and the
+      // count alone cannot say what is driving them.
+      attr0: (typeof window !== "undefined" && window.__renderAttrs) ? window.__renderAttrs() : null,
     });
     // The frame the user actually sees the drag begin on.
     afterNextPaint(() => { if (s.active && !s.tFirstPaint) s.tFirstPaint = performance.now(); });
@@ -177,6 +195,15 @@ export const dragPerf = {
       const line = `[drag] ${Math.round(dur)}ms "${f.label}" mode=${f.mode}`
         + ` | START hold=${d(f.tTouch, f.tActivate)}ms work=${d(f.tActivate, f.tStarted)}ms`
         + ` paint=${d(f.tStarted, f.tFirstPaint)}ms`
+        + `${(() => {
+            if (!f.marks || f.marks.length < 2) return "";
+            const out = [];
+            for (let i = 1; i < f.marks.length; i++) {
+              const d = Math.round(f.marks[i][1] - f.marks[i - 1][1]);
+              if (d > 0) out.push(`${f.marks[i][0]}:${d}`);
+            }
+            return out.length ? ` [${out.join(" ")}]` : "";
+          })()}`
         + ` | DURING moves=${f.moves} frames=${f.frames}`
         + ` fps=${dur ? Math.round(f.frames / (dur / 1000)) : 0}`
         + ` onMove avg=${avg(f.onMoveTotal, f.moves)}/max=${+f.onMoveMax.toFixed(1)}ms`
@@ -199,6 +226,17 @@ export const dragPerf = {
         + ` opSweeps=${tally?.ops?.runs ?? -1} opMs=${Math.round(tally?.ops?.ms ?? -1)}`
         + ` longTasks=${f.longTasks}(${Math.round(f.longTaskMs)}ms)`
         + ` dom=${typeof document !== "undefined" ? document.getElementsByTagName("*").length : -1}`
+        + `${(() => {
+            if (!f.attr0 || typeof window === "undefined" || !window.__renderAttrDiff) return "";
+            const a = window.__renderAttrDiff(f.attr0);
+            const bits = [];
+            for (const [kind, causes] of Object.entries(a || {})) {
+              const top = Object.entries(causes).sort((x, y) => y[1] - x[1]).slice(0, 2)
+                .map(([c, n]) => `${c.slice(0, 34)}=${n}`).join(" ");
+              if (top) bits.push(`${kind}{${top}}`);
+            }
+            return bits.length ? ` causes=${bits.join(" ")}` : "";
+          })()}`
         // WAS THE GRID SETTLED WHEN THIS DRAG STARTED? The first capture read
         // 5,790 renders and 23 op sweeps during a drag — within noise of what
         // an idle LOAD produces (3,794 / 23-25), so "the drag is slow" and
