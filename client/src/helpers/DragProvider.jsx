@@ -584,12 +584,21 @@ export function DragProvider({
     // hiccup mid-drag. Cleared in clearSession on drop / drag-end.
     if (typeof window !== "undefined") window.__moduli_interacting = true;
 
+    // SPLIT, because this whole function IS the drag's startup cost. The touch
+    // probe reports `work=1012ms [handleDragStart:1011]` — the payload build,
+    // the drag pill and `setIsDragging` total 1-3ms between them, so the
+    // second is entirely in here, and this is where it divides: DOM writes and
+    // the edge barriers, a React state update every panel subscribes to, and a
+    // hit-test for the cell under the finger.
+    dragPerf.mark("hds:enter");
+
     // Prevent Android split-screen gesture from intercepting drags on touch.
     if (dragConfigRef.current.isTouch) {
       document.documentElement.style.touchAction = 'none';
       document.documentElement.style.overscrollBehavior = 'none';
       spawnEdgeBarriers();
     }
+    dragPerf.mark("hds:barriers");
 
     // Determine initial mode from options or default to 'move'
     // Alt/Option key = copy mode
@@ -598,13 +607,16 @@ export function DragProvider({
       console.log("[dragDiag] dragStart", { type: payload?.type, mode: initialMode, label: payload?.data?.label || payload?.id });
     }
     startSession(payload, initialMode);
+    dragPerf.mark("hds:startSession");
 
     const cell = getCellFromPoint(clientX, clientY);
+    dragPerf.mark("hds:getCellFromPoint");
     if (payload.type === DragType.PANEL) {
       setPanelOverCellId(cell?.cellId || null);
     }
 
     onTick?.();
+    dragPerf.mark("hds:onTick");
   }, [startSession, getCellFromPoint, onTick, spawnEdgeBarriers]);
 
   const handleDragMove = useCallback((clientX, clientY) => {
