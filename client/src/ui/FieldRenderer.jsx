@@ -22,6 +22,10 @@ import { getEffectiveFilterForOccurrence } from "../state/selectors";
 import { planPrefill, prefillFieldsPatch } from "../helpers/prefillFromPick";
 import { resolveAffix, affixMenu, withAffix } from "../helpers/fieldAffix";
 
+// Stable identity: a fresh {} in the selector would re-render on every store
+// read instead of every module write — worse than what it replaced.
+const EMPTY_MODULES = {};
+
 function FieldRenderer({
   field,
   binding,
@@ -44,7 +48,20 @@ function FieldRenderer({
   // for any other reason. A field-value edit elsewhere that flips a find-mode
   // predicate refreshes on the next of those — the always-fresh recompute per
   // write was the render storm this replaces.
-  const modulesById = useGridActionsSelector(s => s.modulesById);
+  // `modulesById` is rebuilt on every module write, and a load writes modules
+  // (the day-column build mints them), so subscribing re-renders this pill
+  // whenever anything anywhere touches a module. Measured on prod, one idle
+  // load (2026-09-01): 499 field renders from `s_modulesById` alone, plus 292
+  // more alongside `s_occSetKey`.
+  //
+  // It is read in exactly two places: `resolveOptions` below — which only runs
+  // for a field that resolves options — and `planPrefill` inside a COMMIT
+  // CALLBACK, which needs the value at call time, not a subscription. So the
+  // render path selects a constant unless this field actually resolves, and
+  // the callback reads through `getModMap`, the stable non-subscribing getter
+  // that already exists for precisely this ("callback-time / rare-path reads
+  // of the per-write-rebuilt maps without subscribing to them").
+  const getModMap = useGridActionsSelector(s => s.getModMap);
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
   const foldersById = useGridActionsSelector(s => s.foldersById);
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
@@ -71,6 +88,10 @@ function FieldRenderer({
     field?.meta?.randomizable === true;
   const occSetKey = useGridActionsSelector(
     s => (wantsResolve ? (s.state.occurrences || []).length : 0),
+  );
+  // Same gate, same reason (see getModMap above).
+  const modulesById = useGridActionsSelector(
+    s => (wantsResolve ? s.modulesById : EMPTY_MODULES),
   );
 
   // DIAG (window.__RENDER_ATTR): which input changed → this render.
@@ -244,7 +265,7 @@ function FieldRenderer({
       field,
       value: newValue,
       target: { ...occurrence, fields: nextFields },
-      ctx: { occurrencesById: getOccMap(), modulesById, fieldsById },
+      ctx: { occurrencesById: getOccMap(), modulesById: getModMap?.() || modulesById, fieldsById },
     });
     if (writes.length) Object.assign(nextFields, prefillFieldsPatch(writes));
 
@@ -260,7 +281,7 @@ function FieldRenderer({
         ...writes.map(w => ({ fieldId: w.fieldId, value: w.value, instanceId: occurrence.moduleId })),
       ],
     });
-  }, [occurrence, field, currentFlow, inputEnabled, dispatch, socket, getOccMap, modulesById, fieldsById]);
+  }, [occurrence, field, currentFlow, inputEnabled, dispatch, socket, getOccMap, getModMap, modulesById, fieldsById]);
   const handleCommit = useCallback((newValue, flowOverride) => {
     if (!occurrence?.id || !field?.id || !inputEnabled) return;
     // ── THE CONTROL UPDATES FIRST, THE WRITE HAPPENS A FRAME LATER ────────
