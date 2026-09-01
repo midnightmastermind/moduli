@@ -40,7 +40,8 @@ instance    421   s_instancesById+s_modulesById 183 · s_ancestorChain 43
 container   652   s_instancesById+s_leafModulesById+s_modulesById 105 · s_ancestorChain 50
 ```
 
-**`s_modulesById` is the thread to pull.** It appears in every bucket, and
+**`s_modulesById` was the thread to pull** (done — see Executed below). It
+appears in every bucket, and
 `UPDATE_ITEM_FIELD` auto-attaches a missing `fieldBindings` entry by calling
 `updateModule` — which would change that map's identity mid-sweep, re-rendering
 everything that subscribes to it. That is a hypothesis; it must be measured,
@@ -91,6 +92,41 @@ already do this, and the repo has measured a package version of a smaller
 problem at 3x WORSE than the hand-rolled one. Extending `renderWindow`'s reach
 is a separate, bigger piece — it interacts with drop-target registration,
 ProseMirror node views and multi-parented rows.
+
+## Executed 2026-09-01 — results
+
+Idle load, `__RENDER_ATTR`, same probe either side of every change:
+
+| | before | after | |
+|---|---|---|---|
+| field | 1,759 | 1,247 | **-29%** |
+| instance | 452 | 257 | **-43%** |
+| container | 652 | 540 | -17% |
+
+Over the two days, from the first measurement: **field 3,065 → 1,247 (-59%),
+instance 604 → 257 (-57%)**.
+
+Three changes, each a subscription wider than what read it:
+
+1. **`FieldRenderer` / `modulesById`** — read only by `resolveOptions` (which
+   runs for option-resolving fields) and by `planPrefill` inside a COMMIT
+   CALLBACK. Gated the first, moved the second to `getModMap`. **-492 field
+   renders**, and `@Completed` / `@Duration` left the top of the bucket
+   entirely — only genuinely resolving fields remain.
+2. **`ModuleInstance` / `instancesById`** — selected and **read by nothing**.
+   Deleted. **Moved the number by 3**, see below.
+3. **`ModuleInstance` / `modulesById`** — read in one render call and one drop
+   callback, where the same call already read occurrences non-reactively.
+   Now a compute-time read. **-196 instance renders.**
+
+### The lesson that cost a commit
+
+**A compound attribution key lists every input that changed, not the cause.**
+`s_instancesById+s_modulesById` at 194 renders looked like two names for one
+problem; deleting `instancesById` — a subscription with genuinely no reader —
+moved the count from 456 to 453, because `modulesById` was still firing on the
+same commits. Only fixing the second half moved it. *Read a compound key as a
+conjunction, and expect no movement until every term is gone.*
 
 ## Open, needing one capture each
 

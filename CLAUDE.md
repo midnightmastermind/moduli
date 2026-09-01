@@ -6,6 +6,78 @@
 
 ---
 
+### 2026-09-01 (2) — THE DRAG, FIXED IN TWO PLACES; and the render audit, executed
+
+User: *"fix the 3 you said first, then the plan."*
+
+**1 — THE HIT-TEST INTERVAL IS DERIVED NOW.** The split shipped that morning
+answered the user's own hypothesis: `walk avg=0ms` in EVERY capture, so the
+~510 registered drop points cost nothing. The whole hit-test is
+`document.elementsFromPoint` over a ~20,000-node document — **0.6ms on Firefox,
+17.8-30.3ms on Chrome, same grid, same gesture.** At the shipped fixed 32ms
+that is 55-95% of the frame budget, which is the reported *"jittery… like its
+freezing up"* and why portrait is worse than landscape. A bigger CONSTANT would
+be wrong on the other browser, so the interval is derived: spend at most a
+quarter of the time hit-testing, floored at the old value so nothing fast gets
+slower.
+
+**2 — A HOVER RE-RENDERED THE WHOLE CONTAINER, FOR FOUR 2px BARS.**
+`isOver`/`closestEdge` are React state, so one crossing re-rendered a
+1,900-line component plus every row and field inside it: **2,004-3,383
+container renders in ONE drag.** They now drive a DOM attribute and CSS shows
+the bar. Opt-in, because `blocks/` reads `closestEdge` for its own indicator,
+and the CSS is scoped by an explicit class for the same reason.
+
+**AND MY FIRST TEST FOR THAT WAS VACUOUS** — it asserted `isOver === false`,
+which was true before the change, while the writes went through an internal ref
+it never touched. Extracted to `dropEdgeAttr.js` and A/B'd.
+
+**MEASURED ON THE DEVICE, before and after:**
+```
+before   onMove avg=19.1/max=115ms  hit avg=30.3ms  over16=17  longTasks=206 (29,835ms)
+after    onMove avg= 0.5/max= 13ms  hit avg= 0.7ms  over16= 0  longTasks=  0 (0ms)
+```
+**Zero long tasks, in all four captures.**
+
+**3 — THE DROP IS NOT FIXED, IT IS ATTRIBUTED.** `handler=102-177ms` then
+`paint=1,842-5,302ms`. The probe now splits the drop window:
+`dropRenders=707(field:615)`. Those 615 are the option-resolving fields
+re-running on the occurrence count — the same `occSetKey` thread, and narrowing
+it further is a design change (a pool-scoped key) rather than another
+subscription gate.
+
+---
+
+**THE RENDER AUDIT, EXECUTED** (user: *"i feel like we have alot of things on
+the site thats rerendering when its doesnt need to"* — they were right, and it
+is measurable):
+```
+              before   after
+field          1,759   1,247   -29%
+instance         452     257   -43%
+container        652     540   -17%
+```
+Over two days, from the first measurement: **field 3,065 → 1,247 (-59%),
+instance 604 → 257 (-57%)**. Three changes, each a subscription wider than what
+read it — `modulesById` in FieldRenderer (read by a memo that mostly does not
+run, and by a callback), `instancesById` in ModuleInstance (**read by
+NOTHING**), `modulesById` in ModuleInstance (one render call whose other
+argument was already a non-reactive read).
+
+**A COMPOUND ATTRIBUTION KEY LISTS EVERY INPUT THAT CHANGED, NOT THE CAUSE —
+and that cost a commit.** `s_instancesById+s_modulesById` at 194 looked like
+one problem; deleting `instancesById`, a subscription with genuinely no reader,
+moved the count from **456 to 453**, because the other term still fired on the
+same commits. Only fixing both moved it. *Read a compound key as a conjunction
+and expect nothing until every term is gone* — the second time this week a
+correct fix changed no number, and both times only the A/B said so.
+
+Plan and full method: `docs/superpowers/plans/2026-09-01-render-audit.md`.
+
+3,670 client tests, lint 0 errors, deployed, prod HEAD verified.
+
+---
+
 ### 2026-09-01 — THE DRAG AUDIT; and I CLOBBERED A CHILD LIST WITH MY OWN REPAIR
 
 User: *"dragging an instance is taking forever to start up and then is just
