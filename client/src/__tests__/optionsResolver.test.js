@@ -623,3 +623,41 @@ describe("resolveOptions — find-mode result cache", () => {
     expect(b.options.map(o => o.value)).toEqual(["o2"]);   // rowB wants other
   });
 });
+
+// A STATIC OPTION LIST WAS RE-RENDERING ON EVERY OCCURRENCE CREATED ANYWHERE.
+// `FieldRenderer` subscribes to the grid-wide occurrence count as the reactive
+// dep for option resolution — but only ONE of the resolver's three modes reads
+// the grid. Measured on prod (2026-09-01): `Tags`, a `mode:"manual"` field with
+// 49 hard-coded values, was the biggest single payer in the field bucket at 408
+// renders, and 17 of 66 option-resolving fields are static like it.
+describe("which option modes actually read the grid", () => {
+  const resolve = (src, world) => resolveOptions({ id: "f", type: "select", meta: { optionsSource: src } }, world, null);
+
+  it("manual mode returns its values with NO occurrences and NO modules", () => {
+    // This is what makes the subscription gate safe: the empty world here is
+    // exactly what a gated FieldRenderer now passes.
+    const r = resolve({ mode: "manual", values: ["a", "b", "c"] },
+      { occurrencesById: {}, modulesById: {}, fieldsById: {}, foldersById: {} });
+    expect(r.options.map(o => o.value)).toEqual(["a", "b", "c"]);
+  });
+
+  it("range mode likewise computes from start/end/step alone", () => {
+    const r = resolve({ mode: "range", range: { start: 1, end: 3, step: 1 } },
+      { occurrencesById: {}, modulesById: {}, fieldsById: {}, foldersById: {} });
+    expect(r.options.length).toBeGreaterThan(0);
+  });
+
+  it("find mode DOES read the grid — the control", () => {
+    // If this passed with an empty world too, the gate would be meaningless
+    // and a real dropdown would silently empty.
+    const world = {
+      occurrencesById: { o1: { id: "o1", moduleId: "m1", fields: {} } },
+      modulesById: { m1: { id: "m1", role: "instance", label: "Thing" } },
+      fieldsById: {}, foldersById: {},
+    };
+    const withGrid = resolve({ mode: "find", over: "$allInstances", predicate: { operator: "AND", rules: [] }, valuePath: "id", labelPath: "label" }, world);
+    const without = resolve({ mode: "find", over: "$allInstances", predicate: { operator: "AND", rules: [] }, valuePath: "id", labelPath: "label" },
+      { occurrencesById: {}, modulesById: {}, fieldsById: {}, foldersById: {} });
+    expect(withGrid.options.length).toBeGreaterThan(without.options.length);
+  });
+});

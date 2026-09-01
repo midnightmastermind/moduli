@@ -86,12 +86,29 @@ function FieldRenderer({
     field?.type === "select" ||
     field?.type === "occurrence" ||
     field?.meta?.randomizable === true;
+  // AND ONLY IF THE OPTIONS COME FROM OCCURRENCES AT ALL.
+  //
+  // `wantsResolve` asks whether this field resolves options; it does not ask
+  // WHERE they come from. `optionsResolver` has three modes and only ONE reads
+  // the grid: `manual` returns `optionsSource.values` and `range` computes from
+  // start/end/step — neither touches an occurrence or a module. So a static
+  // list was re-rendering on every occurrence created anywhere.
+  //
+  // Measured on prod, idle load (2026-09-01): `Tags` — `mode:"manual"`, 49
+  // hard-coded values — was the single biggest payer in the whole field bucket
+  // at 408 renders, and 17 of the 66 option-resolving fields on this grid are
+  // static like it.
+  //
+  // Fails toward correctness: anything that is not explicitly a static mode
+  // keeps subscribing, so an unrecognised or missing mode still refreshes.
+  const optionsMode = field?.meta?.optionsSource?.mode;
+  const poolFromOccurrences = wantsResolve && optionsMode !== "manual" && optionsMode !== "range";
   const occSetKey = useGridActionsSelector(
-    s => (wantsResolve ? (s.state.occurrences || []).length : 0),
+    s => (poolFromOccurrences ? (s.state.occurrences || []).length : 0),
   );
   // Same gate, same reason (see getModMap above).
   const modulesById = useGridActionsSelector(
-    s => (wantsResolve ? s.modulesById : EMPTY_MODULES),
+    s => (poolFromOccurrences ? s.modulesById : EMPTY_MODULES),
   );
 
   // DIAG (window.__RENDER_ATTR): which input changed → this render.
@@ -115,7 +132,7 @@ function FieldRenderer({
     // read at compute time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     return resolveOptions(field, { occurrencesById: getOccMap(), modulesById, fieldsById, foldersById }, occurrence ?? null);
-  }, [field, wantsResolve, occSetKey, getOccMap, modulesById, fieldsById, foldersById, occurrence]);
+  }, [field, wantsResolve, poolFromOccurrences, occSetKey, getOccMap, modulesById, fieldsById, foldersById, occurrence]);
 
   // Expose resolved options under _resolvedOptions for select and occurrence
   // fields (other types don't render an options chooser so the meta isn't read).
