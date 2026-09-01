@@ -6,6 +6,55 @@
 
 ---
 
+### 2026-09-01 (4) — THE CELL-NAV RAIL WAS INSIDE THE SCROLLER, and my probe checked the wrong thing twice
+
+User, twice: *"i scroll down on schedule, it takes me to the bottom panel, and
+no side button exists to go left."* **The diagnosis was theirs, not mine** —
+*"the rail button for the one next to schedule must be rendering in the wrong
+spot or scrolled up or something."*
+
+**`.mobile-grid-viewport` BECOMES `overflow-y: auto` for a panel taller than
+one cell**, and the rails are `position: absolute` against it. Inside it they
+are CONTENT. Measured on prod at 820x1180 portrait, scrolled to the bottom of
+the 2-high Schedule:
+```
+before   left "Untitled"  top=-1114  22x1146      up-left  top=-1114  OFF SCREEN
+after    left "Untitled"  top=   32  22x1146      up-left  top=   32  ON SCREEN
+```
+A 1,146px-tall rail sitting 1,114px above the viewport leaves a **32px sliver**
+at the very top of the screen — which is why it read as absent. The rails, the
+boundary hints and the zoom overlay now live in a `.mobile-grid-shell` that
+does not scroll; the viewport keeps its class, its ref and its
+`data-panel-native-scroll` stamp, so the scroll clamp and drag autoscroll are
+untouched.
+
+**AND MY PROBE MISSED IT TWICE, WHICH IS THE HALF WORTH KEEPING.** It asked
+`querySelectorAll` whether the button existed — it did, a thousand pixels above
+the fold — so I twice reported *"the rail renders and targets the right cell"*
+to someone who could see that it did not. **PRESENCE IS NOT VISIBILITY.** The
+probe reads `getBoundingClientRect` now, and the tell is `top`: a naive
+"does its box overlap the viewport" test still called that 32px sliver ON
+SCREEN, so even the corrected check needed the raw number beside it.
+
+*Three times this week the user's own description of a symptom — "you scroll
+too fast and you are waiting for an entire repaint", "it could have to do with
+highlighting… on drop points", and this — has been a better lead than the
+hypothesis I brought. All three were checkable; two were right.*
+
+**REPORTED, NOT FIXED — the rail's label is honest and the DATA is wrong.**
+That panel's `activeOccurrenceId` points at
+`role:"container" kind:"artifact"`, an EMPTY artifact container with no
+children — the `FolderNode` "+" defect class from 2026-08-28 (2), which mints a
+shape nothing can open or render. The rail reads "Untitled" because that is
+genuinely what the panel has open. Its own listed pages are Root, Trackers, Day
+Page, Documents and "Untitled (.md)" — **no Tasks among them**, though two
+pages named Tasks exist elsewhere on the grid. Which page that panel should
+open on is the user's call, so it is not guessed at.
+
+3,681 client tests, lint 0 errors, deployed, prod HEAD verified.
+
+---
+
 ### 2026-09-01 (3) — THE OPTION POOL: a dropdown re-resolved because something, somewhere, made a row
 
 The audit's last named item, and the one that was a design change rather than a
