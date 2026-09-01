@@ -153,7 +153,18 @@ function InstanceInner({
   // non-subscribing getters. Module-derived maps stay whole-map (stable).
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
   const addInstanceToContainer = useGridActionsSelector(s => s.addInstanceToContainer);
-  const modulesById = useGridActionsSelector(s => s.modulesById);
+  // READ AT COMPUTE TIME, NOT SUBSCRIBED. `modulesById` is rebuilt on every
+  // module write, so subscribing re-renders every row on screen whenever
+  // anything touches a module — 194 of 456 instance renders on one idle load.
+  //
+  // It is read twice: `primaryMediaOf` during render, and `resolveArtifactOccId`
+  // inside a drop callback. The render read is already non-reactive for the
+  // OTHER half of the same call — `occurrencesById: getOccMap()` one argument
+  // over — so this follows the pattern that argument established rather than
+  // inventing one. The reactive dep that matters for a thumbnail is the
+  // occurrence itself, which is a prop and re-renders this row on change.
+  const getModMapInner = useGridActionsSelector(s => s.getModMap);
+  const modulesById = getModMapInner ? getModMapInner() : undefined;
   // `instancesById` WAS SUBSCRIBED HERE AND READ BY NOTHING. Its only other
   // mention in this file was the render-attribution probe listing it as a
   // possible cause — and it was one: 194 of 456 instance renders on a single
@@ -223,7 +234,7 @@ function InstanceInner({
     p_dragHandleRef: dragHandleRef, p_onDoubleClick: onDoubleClick,
     p_toggleDoc: toggleDoc, p_showDoc: showDoc, p_renderBody: renderBody,
     s_fieldsById: fieldsById, s_addInstanceToContainer: addInstanceToContainer,
-    s_modulesById: modulesById,
+    s_getModMap: getModMapInner,
     s_operationsById: operationsById, s_ctxGrid: ctxGrid, s_isActive: isOriginalActiveSel,
     s_getOcc: getOcc, s_getOccMap: getOccMap, s_getState: getState,
     s_linkedGroup: linkedGroup, s_ancestorChain: ancestorChain,
@@ -465,7 +476,7 @@ function InstanceInner({
     const d = sourceData || {};
     if (d.type === "artifact" && d.occurrenceId) {
       const occ = getOcc(d.occurrenceId);
-      const mod = occ ? modulesById?.[occ.moduleId] : null;
+      const mod = occ ? (getModMapInner?.() || {})[occ.moduleId] : null;
       return mod?.role === "artifact" ? occ.id : null;
     }
     if (d.type === "module" && d.role === "artifact") {
@@ -475,7 +486,7 @@ function InstanceInner({
       return occ?.id || null;
     }
     return null;
-  }, [getOcc, getOccMap, modulesById]);
+  }, [getOcc, getOccMap, getModMapInner]);
 
   const [mediaDragOver, setMediaDragOver] = useState(false);
 
