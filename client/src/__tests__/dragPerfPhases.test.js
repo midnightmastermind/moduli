@@ -174,3 +174,35 @@ describe("the startup block, split", () => {
   });
 });
 
+
+// The render causes came back EMPTY twice while the user had been asked to set
+// `window.__RENDER_ATTR` by hand — most likely cleared by the reload that
+// fetched the build the capture was for. A diagnostic that depends on a manual
+// step surviving a page load is a diagnostic that does not run.
+describe("attribution arms itself for the drag", () => {
+  beforeEach(() => { emitted.length = 0; window.__dragPerf = true; delete window.__RENDER_ATTR; });
+
+  it("turns attribution on for the duration of the gesture", () => {
+    dragPerf.touchStart(); dragPerf.activate();
+    dragPerf.start({ label: "x", mode: "move" });
+    expect(window.__RENDER_ATTR, "attribution was not armed").toBe(true);
+  });
+
+  it("restores what the caller had, rather than forcing it off", async () => {
+    // A developer who switched it on deliberately keeps it on; the default of
+    // "unset" comes back as unset rather than false.
+    window.__RENDER_ATTR = true;
+    dragPerf.touchStart(); dragPerf.activate();
+    dragPerf.start({ label: "y" });
+    dragPerf.dropStart(); dragPerf.dropDone(); dragPerf.end();
+    await flush();
+    expect(window.__RENDER_ATTR).toBe(true);
+
+    delete window.__RENDER_ATTR;
+    dragPerf.touchStart(); dragPerf.activate();
+    dragPerf.start({ label: "z" });
+    dragPerf.dropStart(); dragPerf.dropDone(); dragPerf.end();
+    await flush();
+    expect(window.__RENDER_ATTR, "left the probe armed after the drag").toBeUndefined();
+  });
+});

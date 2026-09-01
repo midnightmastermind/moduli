@@ -37,7 +37,7 @@ import { safeEmit } from "./offlineQueue.js";
 const s = {
   active: false, t0: 0,
   tTouch: 0, tActivate: 0, tStarted: 0, tFirstPaint: 0,
-  marks: null, attr0: null,
+  marks: null, attr0: null, attrWas: undefined,
   tDrop: 0, tDropDone: 0, tDropPaint: 0,
   moves: 0, frames: 0,
   onMoveTotal: 0, onMoveMax: 0,
@@ -106,12 +106,20 @@ export const dragPerf = {
       label: meta.label || "", mode: meta.mode || "",
       tally0: (typeof window !== "undefined" && window.__renderTally) ? window.__renderTally() : null,
       tallyDrop: null,
-      // Render CAUSES for the drag window — only collected when
-      // `window.__RENDER_ATTR` is on, which is off by default. Container
-      // renders during a drag are still 1,464 after the hover fix, and the
-      // count alone cannot say what is driving them.
+      // Render CAUSES for the drag window. ARMED HERE AND DISARMED AT THE END,
+      // rather than asking the user to set `window.__RENDER_ATTR` by hand: they
+      // did, twice, and it came back empty both times — the likeliest reason
+      // being that the reload which fetched the new build cleared it. A
+      // diagnostic that depends on a manual step surviving a page load is a
+      // diagnostic that does not run.
+      //
+      // The cost is one changed-key comparison per render, bounded to the
+      // gesture, and only while `dragPerf` itself is enabled (touch by
+      // default). Anything the caller set explicitly is restored afterwards.
       attr0: (typeof window !== "undefined" && window.__renderAttrs) ? window.__renderAttrs() : null,
+      attrWas: typeof window !== "undefined" ? window.__RENDER_ATTR : undefined,
     });
+    if (typeof window !== "undefined") window.__RENDER_ATTR = true;
     // The frame the user actually sees the drag begin on.
     afterNextPaint(() => { if (s.active && !s.tFirstPaint) s.tFirstPaint = performance.now(); });
     try {
@@ -169,6 +177,9 @@ export const dragPerf = {
   end() {
     if (!s.active) return;
     s.active = false;
+    // Restore whatever the caller had — off by default, but a developer who
+    // switched it on deliberately keeps it on.
+    if (typeof window !== "undefined") window.__RENDER_ATTR = s.attrWas;
     try { s.po?.disconnect(); } catch { /* ignore */ }
     const dur = performance.now() - s.t0;
     if (dur < 40 && !s.tDrop) return;   // a tap, not a drag
