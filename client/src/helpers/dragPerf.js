@@ -45,7 +45,6 @@ const s = {
   rafTotal: 0, rafMax: 0,
   hitTotal: 0, hitCount: 0, hitMax: 0,
   efpTotal: 0, efpMax: 0, walkTotal: 0, walkMax: 0, elsMax: 0, dropTargets: 0,
-  shadowN: 0, shadowAgree: 0, shadowMiss: 0, shadowBad: 0, shadowMs: 0,
   long16: 0, long32: 0,
   tally0: null, tallyDrop: null, longTasks: 0, longTaskMs: 0, po: null,
   firstTaskMs: -1, firstTaskAt: -1,
@@ -177,7 +176,6 @@ export const dragPerf = {
       moves: 0, frames: 0, onMoveTotal: 0, onMoveMax: 0,
       rafTotal: 0, rafMax: 0, hitTotal: 0, hitCount: 0, hitMax: 0,
       efpTotal: 0, efpMax: 0, walkTotal: 0, walkMax: 0, elsMax: 0, dropTargets: 0,
-  shadowN: 0, shadowAgree: 0, shadowMiss: 0, shadowBad: 0, shadowMs: 0,
       long16: 0, long32: 0, longTasks: 0, longTaskMs: 0,
       firstTaskMs: -1, firstTaskAt: -1,
       label: meta.label || "", mode: meta.mode || "",
@@ -241,28 +239,6 @@ export const dragPerf = {
     if (nEls > s.elsMax) s.elsMax = nEls;
     s.dropTargets = nTargets;
   },
-  // SHADOW COMPARISON of the rect fast path against the engine's answer.
-  //
-  // Three outcomes, and they are NOT equally serious:
-  //   agree    — same target (or both nothing). The fast path is usable here.
-  //   miss     — the index deferred (null) where the engine found one. Costs a
-  //              fallback and nothing else; expected wherever the index is
-  //              deliberately unsure (overlap, ambiguity, a stale rect).
-  //   MISMATCH — the index named a DIFFERENT target. This is the only one that
-  //              matters: shipped, it would drop a row into the wrong
-  //              container. A single one of these blocks the switch-over.
-  //
-  // `fastMs` is what the scan costs, against `hit avg` for the engine call it
-  // would replace — the win, measured on the same gesture rather than argued.
-  hitShadow(fastEl, engineEl, fastMs) {
-    if (!s.active) return;
-    s.shadowN++;
-    s.shadowMs += fastMs;
-    if (fastEl === engineEl) s.shadowAgree++;
-    else if (fastEl === null) s.shadowMiss++;
-    else s.shadowBad++;
-  },
-
   frame(dt) {
     if (!s.active) return;
     s.frames++;
@@ -354,8 +330,6 @@ export const dragPerf = {
           + ` [efp avg=${avg(f.efpTotal, f.hitCount)}/max=${+f.efpMax.toFixed(1)}`
           + ` walk avg=${avg(f.walkTotal, f.hitCount)}/max=${+f.walkMax.toFixed(1)}`
           + ` els=${f.elsMax} targets=${f.dropTargets}]`
-          + ` idx=${f.shadowAgree}/${f.shadowN} miss=${f.shadowMiss}`
-          + ` BAD=${f.shadowBad} idxAvg=${avg(f.shadowMs, f.shadowN)}ms`
           + ` over16=${f.long16} over32=${f.long32}`
           + ` | DROP handler=${d(f.tDrop, f.tDropDone)}ms paint=${d(f.tDropDone, f.tDropPaint)}ms`
           + ` dropRenders=${(() => {

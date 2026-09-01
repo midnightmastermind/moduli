@@ -39,7 +39,6 @@ import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/el
 import { dragPerf } from "./dragPerf";
 import { hitInterval, blendCost } from "./hitTestBudget";
 import { setDropOver, setDropEdge } from "./dropEdgeAttr";
-import { buildHitIndex, findAt } from "./dropHitIndex.js";
 // Touch-drag replaces HTML5 DnD on any coarse-pointer device (phone OR tablet),
 // independent of orientation/layout. Width is irrelevant — a landscape tablet
 // still needs finger dragging even while it shows the desktop grid.
@@ -348,35 +347,25 @@ const _HIT_CACHE_DIST = 4; // px — skip hit-test if pointer barely moved
 // Used by touch move handler to find drop targets via elementFromPoint.
 const _dropRegistry = new Map();
 
-// ── THE RECT FAST PATH (see helpers/dropHitIndex.js) ──────────────────────
-// Snapshot of every registered target's rect, rebuilt lazily. ANYTHING that
-// can move a rect marks it stale, and a stale index answers nothing until it
-// is rebuilt — a wrong hit here is a drop landing in the wrong container.
-let _hitIndex = null;
-let _hitIndexDirty = true;
-function _invalidateHitIndex() { _hitIndexDirty = true; }
-if (typeof window !== "undefined") {
-  // Capture + passive: scroll does not bubble, and autoscroll moves every rect
-  // under the finger mid-drag. Resize moves them too. A flag flip per event,
-  // so this costs nothing when nobody is dragging.
-  document.addEventListener("scroll", _invalidateHitIndex, { capture: true, passive: true });
-  window.addEventListener("resize", _invalidateHitIndex, { passive: true });
-}
-function _hitIndexNow() {
-  if (_hitIndexDirty || !_hitIndex) {
-    _hitIndex = buildHitIndex(_dropRegistry.entries());
-    _hitIndexDirty = false;
-  }
-  return _hitIndex;
-}
+// A RECT INDEX WAS TRIED HERE AND IS NOT COMING BACK — see CLAUDE.md
+// 2026-09-01 (6). It read every registered target's rect once and scanned
+// them instead of calling `document.elementsFromPoint` (12.9-13.6ms per
+// hit-test on the tablet). Run in SHADOW against the engine on the real grid
+// it disagreed on **50 of 123** hit-tests, and the cause is structural rather
+// than fixable: `.insert-gap` is `margin: -2px 0; z-index: 3`, so it OVERLAPS
+// the rows either side of it ON PURPOSE and wins on PAINT ORDER. A rect index
+// can only order by DOM depth, and the gap is a SIBLING of the row — so it
+// picks the row, wrongly, at every row boundary. Ordering by paint means
+// re-implementing stacking contexts.
+// It was not even faster: the scan measured 11ms against the engine's 10.3ms,
+// because any scroll invalidates the rects and each rebuild is a forced layout
+// over ~534 targets.
 
 function _registerDrop(el, config) {
-  _invalidateHitIndex();
   _dropRegistry.set(el, config);
 }
 
 function _unregisterDrop(el) {
-  _invalidateHitIndex();
   _dropRegistry.delete(el);
 }
 
@@ -495,19 +484,6 @@ function _findDropTarget(clientX, clientY, dragType, sourceEl) {
   // a Map.get per ancestor, and `elementsFromPoint` forces a hit-test over a
   // 20,416-node document: those are very different costs with very different
   // fixes, and the single number cannot tell them apart.
-  // SHADOW RUN. The rect index answers the same question without the engine,
-  // and on the tablet the engine call is ~13.6ms against this scan's ~0. It is
-  // not trusted yet: BOTH run, the ENGINE's answer is returned, and any
-  // disagreement is counted and reported. One real drag on the real grid then
-  // says whether the index is equivalent — before a wrong hit can put a row in
-  // the wrong container, which is the failure this repo's log records the drop
-  // path actually suffering.
-  const _f0 = performance.now();
-  let _fast = null;
-  try { _fast = findAt(_hitIndexNow(), clientX, clientY, dragType, sourceEl); }
-  catch { _fast = null; }          // a probe must never break the gesture
-  const _fastMs = performance.now() - _f0;
-
   const _e0 = performance.now();
   const elements = document.elementsFromPoint(clientX, clientY);
   const _e1 = performance.now();
@@ -520,7 +496,6 @@ function _findDropTarget(clientX, clientY, dragType, sourceEl) {
         const accepts = config.acceptsRef.current;
         if (accepts.length === 0 || accepts.includes(dragType)) {
           dragPerf.hitParts(_e1 - _e0, performance.now() - _e1, elements.length, _dropRegistry.size);
-          dragPerf.hitShadow(_fast?.el ?? null, node, _fastMs);
           return { el: node, ...config };
         }
       }
@@ -528,7 +503,6 @@ function _findDropTarget(clientX, clientY, dragType, sourceEl) {
     }
   }
   dragPerf.hitParts(_e1 - _e0, performance.now() - _e1, elements.length, _dropRegistry.size);
-  dragPerf.hitShadow(_fast?.el ?? null, null, _fastMs);
   return null;
 }
 
