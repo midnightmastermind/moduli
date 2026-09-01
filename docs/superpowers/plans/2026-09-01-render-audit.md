@@ -99,14 +99,14 @@ Idle load, `__RENDER_ATTR`, same probe either side of every change:
 
 | | before | after | |
 |---|---|---|---|
-| field | 1,759 | 1,247 | **-29%** |
-| instance | 452 | 257 | **-43%** |
-| container | 652 | 540 | -17% |
+| field | 1,759 | 865 | **-51%** |
+| instance | 452 | 263 | **-42%** |
+| container | 652 | 599 | -8% |
 
-Over the two days, from the first measurement: **field 3,065 → 1,247 (-59%),
-instance 604 → 257 (-57%)**.
+Over the two days, from the first measurement: **field 3,065 → 865 (-72%),
+instance 604 → 263 (-56%)**.
 
-Three changes, each a subscription wider than what read it:
+Four changes, each a subscription wider than what read it:
 
 1. **`FieldRenderer` / `modulesById`** — read only by `resolveOptions` (which
    runs for option-resolving fields) and by `planPrefill` inside a COMMIT
@@ -118,6 +118,13 @@ Three changes, each a subscription wider than what read it:
 3. **`ModuleInstance` / `modulesById`** — read in one render call and one drop
    callback, where the same call already read occurrences non-reactively.
    Now a compute-time read. **-196 instance renders.**
+4. **`FieldRenderer` / static option pools** — `wantsResolve` asked WHETHER a
+   field resolves options, never WHERE from. Of the resolver's three modes only
+   `find` reads the grid; `manual` and `range` are computed from the field's
+   own config. **`Tags` — 49 hard-coded values — was the single biggest payer
+   in the whole bucket at 408 renders**, and 17 of 66 resolving fields are
+   static like it. **-382 field renders**, and half the drop cost, since a drop
+   creates an occurrence and the count moves.
 
 ### The lesson that cost a commit
 
@@ -127,6 +134,27 @@ problem; deleting `instancesById` — a subscription with genuinely no reader �
 moved the count from 456 to 453, because `modulesById` was still firing on the
 same commits. Only fixing the second half moved it. *Read a compound key as a
 conjunction, and expect no movement until every term is gone.*
+
+## What is left, and why it is a different kind of change
+
+```
+field     865   s_occSetKey 567 · s_modulesById+s_occSetKey 189
+container 599   s_instancesById+s_leafModulesById+s_modulesById 105 · s_ancestorChain 50
+instance  263   s_ancestorChain 54
+```
+
+The remaining field renders are the **49 genuine `find`-mode fields**, and they
+are the same thing as the drop's `dropRenders=707(field:615)`. Narrowing them
+is no longer a subscription gate — every one of them really does read the grid.
+It needs a **pool-scoped key**: a field whose predicate selects "instances
+tagged `meal`" should re-resolve when THAT set changes, not when any occurrence
+anywhere is created. Cheap to maintain (a per-tag count index) and a genuine
+design change rather than a narrowing, so it wants its own pass.
+
+The container bucket is now mostly UNATTRIBUTED — its named causes sum to ~200
+of 599 — so the next honest step there is more attribution, not more fixes.
+`s_instancesById+s_leafModulesById+s_modulesById` is a THREE-term compound and,
+per the lesson above, moves nothing until all three are gone.
 
 ## Open, needing one capture each
 
