@@ -102,6 +102,7 @@ describe("dragPerf covers all three phases", () => {
     vi.resetModules();
     const fresh = (await import("../helpers/dragPerf.js")).dragPerf;
     window.__dragPerf = true;
+    window.__dragAttr = true;   // opt-in: off by default now the fix shipped
     emitted.length = 0;
 
     fresh.touchStart(0.1); fresh.activate(0);
@@ -129,6 +130,28 @@ describe("dragPerf covers all three phases", () => {
     const second = emitted.find(e => e.payload.line.includes('"two"'))?.payload.line || "";
     expect(first).toContain("f:htmlStyle");      // it really did attribute once
     expect(second).not.toContain("f:htmlStyle"); // and never again
+    window.__dragAttr = false;
+  });
+
+  it("does not attribute at all unless __dragAttr is opted in", async () => {
+    // The default path. Forcing flushes makes the drag it measures slower AND
+    // moves the paint, so an instrument left armed would corrupt the number
+    // still under investigation. Off unless someone asks for it.
+    vi.resetModules();
+    const fresh = (await import("../helpers/dragPerf.js")).dragPerf;
+    window.__dragPerf = true;
+    window.__dragAttr = false;
+    emitted.length = 0;
+
+    fresh.touchStart(0.1); fresh.activate(0);
+    fresh.mark("t0");
+    { const t = performance.now(); while (performance.now() - t < 3) { /* spin */ } }
+    fresh.flushMark("f:htmlStyle");
+    fresh.mark("after");
+    fresh.start({ label: "off", mode: "copy" });
+    fresh.dropStart(); fresh.dropDone(); fresh.end();
+    await flush();
+    expect(emitted[0]?.payload?.line || "").not.toContain("f:htmlStyle");
   });
 
   it("reports to the SERVER, not just the console", async () => {

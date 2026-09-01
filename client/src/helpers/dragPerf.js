@@ -109,9 +109,23 @@ export const dragPerf = {
     s.tActivate = performance.now();
     s.holdScrolls = scrolls;
     s.marks = [];
-    // Once per page load — see flushMark.
-    s.attributing = !attributedOnce;
-    attributedOnce = true;
+    // OPT-IN NOW (`window.__dragAttr = true`), once per page load.
+    //
+    // It found what it was built for — `f:touchAction:903` out of a 961ms
+    // startup, with `f:t0:0` proving the page was clean before it and
+    // `f:overscroll:3` on the same element proving it was that property and
+    // not that element. With the write gone, leaving it on costs the first
+    // drag after every reload eight forced style/layout flushes, and it
+    // DISTORTS the very number now left to explain: forcing flushes changes
+    // when the paint happens, so `paint` cannot be read off an attribution
+    // run at all.
+    //
+    // Kept rather than deleted, because the next unattributable second will
+    // want it and it is a bounded, proven instrument. Same course as
+    // `caretDiag` and `scrollDiag` once their fixes were verified.
+    s.attributing = !attributedOnce
+      && typeof window !== "undefined" && window.__dragAttr === true;
+    if (s.attributing) attributedOnce = true;
   },
 
   // WHICH PART OF THE ACTIVATION COSTS THE SECOND. `work` measures the whole
