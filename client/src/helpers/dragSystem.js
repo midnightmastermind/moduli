@@ -37,6 +37,7 @@ import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-sc
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
 import { dragPerf } from "./dragPerf";
+import { hitInterval, blendCost } from "./hitTestBudget";
 // Touch-drag replaces HTML5 DnD on any coarse-pointer device (phone OR tablet),
 // independent of orientation/layout. Width is irrelevant — a landscape tablet
 // still needs finger dragging even while it shows the desktop grid.
@@ -334,7 +335,11 @@ export function parseExternalDrop(source) {
 
 const _TOUCH_THRESHOLD = 8; // px movement before drag starts
 const _TOUCH_HOLD_MS = 80;  // minimum hold time before drag activates
-const _HIT_TEST_INTERVAL = 32; // ms between expensive hit-test calls
+const _HIT_TEST_INTERVAL = 32; // FLOOR between hit-tests; the real spacing is
+                               // derived per drag from what one actually costs
+                               // (helpers/hitTestBudget.js) — measured 0.6ms on
+                               // Firefox and 17.8-30.3ms on Chrome for the SAME
+                               // grid, so no single constant fits both.
 const _HIT_CACHE_DIST = 4; // px — skip hit-test if pointer barely moved
 
 // Global drop target registry — maps DOM elements to their drop config.
@@ -737,6 +742,11 @@ export function useDragDrop({
       let touchStartTime = 0;
       let lastHitTestTime = 0;
       let lastHitX = 0, lastHitY = 0;
+      // Rolling cost of one hit-test, and the spacing derived from it. Reset
+      // per drag: the answer is a property of THIS grid on THIS device, and a
+      // stale estimate from a cheap drag would under-space an expensive one.
+      let hitCostMs = 0;
+      let hitEveryMs = _HIT_TEST_INTERVAL;
 
       const onStart = (e) => {
         if (e.touches.length !== 1) return;
@@ -783,6 +793,8 @@ export function useDragDrop({
           document.body.appendChild(clone);
           lastHitX = t.clientX; lastHitY = t.clientY;
           lastHitTestTime = performance.now();
+          hitCostMs = 0;
+          hitEveryMs = _HIT_TEST_INTERVAL;
 
           dragCtx.handleDragStart(payload, startX, startY, { mode });
           dragPerf.start({ label: liveData?.label || liveData?.name || type, mode });
@@ -799,7 +811,7 @@ export function useDragDrop({
         // A3+A4: Throttle hit-testing + cache when pointer barely moved
         const now = performance.now();
         const dx = t.clientX - lastHitX, dy = t.clientY - lastHitY;
-        if (now - lastHitTestTime < _HIT_TEST_INTERVAL || (dx * dx + dy * dy < _HIT_CACHE_DIST * _HIT_CACHE_DIST)) {
+        if (now - lastHitTestTime < hitEveryMs || (dx * dx + dy * dy < _HIT_CACHE_DIST * _HIT_CACHE_DIST)) {
           // Still update DragProvider position (for auto-scroll etc)
           dragCtx.handleDragMove(t.clientX, t.clientY);
           dragPerf.move(performance.now() - _pm0);
@@ -811,7 +823,13 @@ export function useDragDrop({
         // Hit-test drop targets
         const _h0 = performance.now();
         const target = _findDropTarget(t.clientX, t.clientY, payload.type, el);
-        dragPerf.hit(performance.now() - _h0);
+        const _hitMs = performance.now() - _h0;
+        dragPerf.hit(_hitMs);
+        // Spend at most a quarter of the time asking what is under the finger.
+        // A browser answering in 0.6ms keeps the 32ms floor; one taking 30ms
+        // backs off to ~120ms instead of eating the frame budget.
+        hitCostMs = blendCost(hitCostMs, _hitMs);
+        hitEveryMs = hitInterval(hitCostMs);
 
         if (target?.el !== curTarget?.el) {
           curTarget?.stateRef?.current?.setIsOver?.(false);
