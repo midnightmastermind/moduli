@@ -335,7 +335,13 @@ export function parseExternalDrop(source) {
 // - No native drag event = nothing for the OS to intercept
 
 const _TOUCH_THRESHOLD = 8; // px movement before drag starts
-const _TOUCH_HOLD_MS = 80;  // minimum hold time before drag activates
+export const _TOUCH_HOLD_MS = 80;  // minimum hold time before drag activates
+// How long a STATIONARY finger on the drag handle waits before the drag lifts
+// on its own — the buzz, the pill, the session. Long enough not to fire during
+// a tap (which is typically under 150ms and opens the radial menu), short
+// enough to feel like a response rather than a wait. Below `_TOUCH_HOLD_MS`
+// this would be unreachable, which a test pins.
+export const _TOUCH_LIFT_MS = 220;
 const _HIT_TEST_INTERVAL = 32; // FLOOR between hit-tests; the real spacing is
                                // derived per drag from what one actually costs
                                // (helpers/hitTestBudget.js) — measured 0.6ms on
@@ -805,6 +811,30 @@ export function useDragDrop({
       let hitCostMs = 0;
       let hitEveryMs = _HIT_TEST_INTERVAL;
 
+      // ── LIFT-ON-HOLD ──────────────────────────────────────────────────────
+      // User: *"theres still a pause between me holding it down and the buzz
+      // and the preview showing up, still like a second."*
+      //
+      // It was never our startup cost. `_TOUCH_HOLD_MS` is 80ms, but the drag
+      // could only begin from `onMove`, so nothing happened until the finger
+      // travelled `_TOUCH_THRESHOLD` — the measured `hold` was max(80ms, time
+      // until you move 8px), which is why captures read 903-3591ms and one
+      // read exactly 80. Holding still, waiting for a buzz that could not
+      // arrive, is the second they were describing.
+      //
+      // A timer lifts the drag with the finger stationary. Safe on THIS
+      // surface specifically: the trigger is the drag handle, it carries
+      // `touch-action: none` so a hold can never be a scroll, and
+      // `useLongPress` explicitly skips `[data-dnd-handle]` — so nothing else
+      // claims a hold here today.
+      let liftTimer = null;
+      let movedPastThreshold = false;
+      let liftedByHold = false;
+      let lastX = 0, lastY = 0;
+      const clearLiftTimer = () => {
+        if (liftTimer) { clearTimeout(liftTimer); liftTimer = null; }
+      };
+
       // DID THE PAGE SCROLL WHILE THE FINGER WAS DOWN? The whole remaining
       // startup cost is created inside the hold window — `touchRect` measures
       // one forced layout at touchstart at 0.1ms, and the same flush ~1.4s
@@ -819,6 +849,85 @@ export function useDragDrop({
         if (!holdScrollFn) return;
         document.removeEventListener("scroll", holdScrollFn, true);
         holdScrollFn = null;
+      };
+
+      // ── ACTIVATION, REACHABLE FROM TWO PLACES ────────────────────────────
+      // Extracted because the drag can now begin WITHOUT a movement — see the
+      // lift timer in onStart. `cx/cy` is where the pill appears: the live
+      // touch point when a movement started it, the last known one when the
+      // hold did.
+      const activateDrag = (cx, cy) => {
+        stopHoldScrollWatch();
+        dragPerf.activate(holdScrolls);   // the wait is over; the work starts here
+        dragPerf.mark("t0");
+        dragging = true;
+        // BEFORE ANY WRITE OF OURS. `f:htmlStyle` billed 955ms, but it was
+        // the FIRST flush of the sequence, so it also paid for anything left
+        // pending by the 1.6s hold window — and a first measurement that
+        // absorbs everything before it is not an attribution. `touchRect`
+        // says the page was clean when the finger LANDED (0.1ms); this says
+        // whether it still was when the finger MOVED.
+        //
+        // Zero here means our own writes own the cost. ~950ms here means the
+        // app dirtied the page during the hold and the drag merely pays for
+        // it — a different problem, and one that would also explain the
+        // drop's paint.
+        dragPerf.flushMark("f:t0");
+        // `documentElement.style.touchAction = 'none'` USED TO BE HERE AND
+        // COST 903ms. Attributed by forced flush on the device, with the
+        // property written immediately after it on the same element as the
+        // control:
+        //
+        //     f:t0:0  f:touchAction:903  f:overscroll:3  f:bodyAttrs:45
+        //     f:pill:4  f:barriers:3  f:setIsDragging:0  f:sessionState:0
+        //
+        // So it is not "writing to <html>" — it is `touch-action`
+        // specifically, which makes Chrome rebuild the touch-action
+        // hit-test regions for the whole document (21,282 nodes here). And
+        // it was charged TWICE per drag: the reset on drag end is the same
+        // invalidation again, inside the drop's ~1.7s paint.
+        //
+        // WHAT IT WAS FOR IS ALREADY COVERED, EARLIER, BY SOMETHING CHEAPER.
+        // dragTouchGuards' header lists the three jobs: the gesture that
+        // becomes a drag is claimed by `.module-drag-handle`'s CSS
+        // `touch-action: none` before the touch begins; the dragging finger
+        // cannot scroll because this file's own `touchmove` is non-passive
+        // and calls preventDefault (touch events retarget to the element the
+        // touch STARTED on, so it keeps receiving them wherever the finger
+        // goes); and OS edge gestures are the edge barriers' job — four
+        // fixed 40px divs with capture-phase preventDefault, spawned
+        // SYNCHRONOUSLY at drag start for 3ms.
+        //
+        // The only window given up is a SECOND finger landing mid-screen
+        // inside the first frame, before the document-level guards attach.
+        // `overscroll-behavior` stays: it costs 3ms and stops pull-to-refresh.
+        document.documentElement.style.overscrollBehavior = 'none';
+        dragPerf.flushMark("f:overscroll");
+        setIsDragging(true);
+        dragPerf.flushMark("f:setIsDragging");
+
+        // A1: Haptic feedback on drag start
+        if (navigator.vibrate) navigator.vibrate(15);
+
+        offsetX = 40;
+        offsetY = 14;
+        payload = buildPayload();
+        dragPerf.mark("buildPayload");
+        const liveData = dataRef.current;
+        // Per-occurrence dragMode overrides entity's defaultDragMode
+        const mode = liveData?.occurrence?.dragMode ?? liveData?.defaultDragMode ?? 'move';
+        clone = _createDragPill(liveData?.label || liveData?.name || type, mode);
+        clone.style.transform = `translate3d(${cx - offsetX}px, ${cy - offsetY}px, 0)`;
+        document.body.appendChild(clone);
+        dragPerf.flushMark("f:pill");
+        lastHitX = cx; lastHitY = cy;
+        lastHitTestTime = performance.now();
+        hitCostMs = 0;
+        hitEveryMs = _HIT_TEST_INTERVAL;
+
+        dragCtx.handleDragStart(payload, startX, startY, { mode });
+        dragPerf.mark("handleDragStart");
+        dragPerf.start({ label: liveData?.label || liveData?.name || type, mode });
       };
 
       const onStart = (e) => {
@@ -846,11 +955,26 @@ export function useDragDrop({
         // 80ms we deliberately make the user wait is indistinguishable from
         // our own startup cost.
         dragPerf.touchStart(_rectMs);
+
+        movedPastThreshold = false;
+        liftedByHold = false;
+        lastX = t.clientX; lastY = t.clientY;
+        clearLiftTimer();
+        liftTimer = setTimeout(() => {
+          liftTimer = null;
+          if (dragging) return;
+          liftedByHold = true;
+          stopHoldScrollWatch();
+          activateDrag(lastX, lastY);
+        }, _TOUCH_LIFT_MS);
       };
 
       const onMove = (e) => {
         if (e.touches.length !== 1) return;
         const t = e.touches[0];
+        // BEFORE every early return — the lift timer fires with no event of
+        // its own and puts the pill wherever the finger was last seen.
+        lastX = t.clientX; lastY = t.clientY;
 
         if (!dragging) {
           // A2: Hold delay — don't start drag until finger held long enough
@@ -858,77 +982,9 @@ export function useDragDrop({
           if (Math.sqrt((t.clientX - startX) ** 2 + (t.clientY - startY) ** 2) < _TOUCH_THRESHOLD) return;
           // Threshold crossed — NOW claim the gesture
           e.preventDefault();
-          stopHoldScrollWatch();
-          dragPerf.activate(holdScrolls);   // the wait is over; the work starts here
-          dragPerf.mark("t0");
-          dragging = true;
-          // BEFORE ANY WRITE OF OURS. `f:htmlStyle` billed 955ms, but it was
-          // the FIRST flush of the sequence, so it also paid for anything left
-          // pending by the 1.6s hold window — and a first measurement that
-          // absorbs everything before it is not an attribution. `touchRect`
-          // says the page was clean when the finger LANDED (0.1ms); this says
-          // whether it still was when the finger MOVED.
-          //
-          // Zero here means our own writes own the cost. ~950ms here means the
-          // app dirtied the page during the hold and the drag merely pays for
-          // it — a different problem, and one that would also explain the
-          // drop's paint.
-          dragPerf.flushMark("f:t0");
-          // `documentElement.style.touchAction = 'none'` USED TO BE HERE AND
-          // COST 903ms. Attributed by forced flush on the device, with the
-          // property written immediately after it on the same element as the
-          // control:
-          //
-          //     f:t0:0  f:touchAction:903  f:overscroll:3  f:bodyAttrs:45
-          //     f:pill:4  f:barriers:3  f:setIsDragging:0  f:sessionState:0
-          //
-          // So it is not "writing to <html>" — it is `touch-action`
-          // specifically, which makes Chrome rebuild the touch-action
-          // hit-test regions for the whole document (21,282 nodes here). And
-          // it was charged TWICE per drag: the reset on drag end is the same
-          // invalidation again, inside the drop's ~1.7s paint.
-          //
-          // WHAT IT WAS FOR IS ALREADY COVERED, EARLIER, BY SOMETHING CHEAPER.
-          // dragTouchGuards' header lists the three jobs: the gesture that
-          // becomes a drag is claimed by `.module-drag-handle`'s CSS
-          // `touch-action: none` before the touch begins; the dragging finger
-          // cannot scroll because this file's own `touchmove` is non-passive
-          // and calls preventDefault (touch events retarget to the element the
-          // touch STARTED on, so it keeps receiving them wherever the finger
-          // goes); and OS edge gestures are the edge barriers' job — four
-          // fixed 40px divs with capture-phase preventDefault, spawned
-          // SYNCHRONOUSLY at drag start for 3ms.
-          //
-          // The only window given up is a SECOND finger landing mid-screen
-          // inside the first frame, before the document-level guards attach.
-          // `overscroll-behavior` stays: it costs 3ms and stops pull-to-refresh.
-          document.documentElement.style.overscrollBehavior = 'none';
-          dragPerf.flushMark("f:overscroll");
-          setIsDragging(true);
-          dragPerf.flushMark("f:setIsDragging");
-
-          // A1: Haptic feedback on drag start
-          if (navigator.vibrate) navigator.vibrate(15);
-
-          offsetX = 40;
-          offsetY = 14;
-          payload = buildPayload();
-          dragPerf.mark("buildPayload");
-          const liveData = dataRef.current;
-          // Per-occurrence dragMode overrides entity's defaultDragMode
-          const mode = liveData?.occurrence?.dragMode ?? liveData?.defaultDragMode ?? 'move';
-          clone = _createDragPill(liveData?.label || liveData?.name || type, mode);
-          clone.style.transform = `translate3d(${t.clientX - offsetX}px, ${t.clientY - offsetY}px, 0)`;
-          document.body.appendChild(clone);
-          dragPerf.flushMark("f:pill");
-          lastHitX = t.clientX; lastHitY = t.clientY;
-          lastHitTestTime = performance.now();
-          hitCostMs = 0;
-          hitEveryMs = _HIT_TEST_INTERVAL;
-
-          dragCtx.handleDragStart(payload, startX, startY, { mode });
-          dragPerf.mark("handleDragStart");
-          dragPerf.start({ label: liveData?.label || liveData?.name || type, mode });
+          movedPastThreshold = true;
+          clearLiftTimer();
+          activateDrag(t.clientX, t.clientY);
           return;
         }
 
@@ -992,6 +1048,23 @@ export function useDragDrop({
         // A tap or a plain scroll ends here without ever activating, so the
         // hold-window watcher has to come off on EVERY end, not just a drag's.
         stopHoldScrollWatch();
+        clearLiftTimer();
+        if (dragging && liftedByHold && !movedPastThreshold) {
+          // LIFTED BY THE HOLD, RELEASED WITHOUT EVER MOVING — that is a TAP,
+          // and a tap on this handle opens the radial menu. Unwind the lift and
+          // let the synthesized click through, so the hold changes what you SEE
+          // while holding and nothing about what a tap DOES.
+          if (clone) { clone.remove(); clone = null; }
+          curTarget = null;
+          dragging = false;
+          payload = null;
+          liftedByHold = false;
+          setIsDragging(false);
+          document.documentElement.style.overscrollBehavior = '';
+          dragPerf.end();
+          setTimeout(() => dragCtx.handleDragEnd(), 0);
+          return;
+        }
         if (!dragging) {
           // Tap — browser fires native click since we never preventDefault'd
           return;
@@ -1186,6 +1259,7 @@ export function useDragDrop({
 
       return () => {
         stopHoldScrollWatch();
+        clearLiftTimer();
         triggerEl.style.touchAction = prevTouchAction;
         triggerEl.removeEventListener('touchstart', onStart);
         triggerEl.removeEventListener('touchmove', onMove);
