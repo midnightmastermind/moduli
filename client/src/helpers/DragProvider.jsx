@@ -584,13 +584,41 @@ export function DragProvider({
     // hiccup mid-drag. Cleared in clearSession on drop / drag-end.
     if (typeof window !== "undefined") window.__moduli_interacting = true;
 
-    // SPLIT, because this whole function IS the drag's startup cost. The touch
-    // probe reports `work=1012ms [handleDragStart:1011]` — the payload build,
-    // the drag pill and `setIsDragging` total 1-3ms between them, so the
-    // second is entirely in here, and this is where it divides: DOM writes and
-    // the edge barriers, a React state update every panel subscribes to, and a
-    // hit-test for the cell under the finger.
+    // SPLIT, because this whole function IS the drag's startup cost — the
+    // payload build, the drag pill and `setIsDragging` total 1-3ms between
+    // them, so `work` is this function and nothing else. Measured on the
+    // tablet, the split named ONE line of the four:
+    //
+    //   work=1446ms [pill:1 hds:barriers:1 hds:startSession:1
+    //                hds:getCellFromPoint:1436]
+    //
+    // Kept, because the segments are the A/B for the reorder below.
     dragPerf.mark("hds:enter");
+
+    // READ LAYOUT FIRST, BEFORE WE DIRTY IT. This one line was the whole of
+    // the drag's startup cost: `hds:getCellFromPoint:1436` out of a 1,446ms
+    // `work`, with the other three segments at 1ms each. It is a single
+    // `getBoundingClientRect()` on the grid — and a rect read forces the
+    // browser to resolve every pending style and layout invalidation
+    // synchronously, over 22,508 nodes.
+    //
+    // Three things dirty the document immediately before it, and NONE of them
+    // is expensive by itself, which is exactly why the cost landed here and
+    // nowhere near its cause: the drag pill appended to `body` (dragSystem,
+    // 1ms), four fixed edge barriers appended to `body` (1ms), and
+    // `startSession` stamping `body.dataset.dragKind` (1ms) — which
+    // `index.css` matches with `body[data-drag-kind="panel"] .container-shell`,
+    // an ancestor-attribute selector, so that write invalidates style for the
+    // whole document.
+    //
+    // The read does not depend on session state or on the barriers, so moving
+    // it above them is a pure reorder. Whether it is now CHEAP is the
+    // measurement: if it is, the cost was ours to schedule and this is the
+    // fix; if it is still ~1.4s, the document was already dirty when the drag
+    // began and the reorder buys nothing — and `paint` will say whether the
+    // cost was removed or merely moved past the mark.
+    const cell = getCellFromPoint(clientX, clientY);
+    dragPerf.mark("hds:getCellFromPoint");
 
     // Prevent Android split-screen gesture from intercepting drags on touch.
     if (dragConfigRef.current.isTouch) {
@@ -609,8 +637,6 @@ export function DragProvider({
     startSession(payload, initialMode);
     dragPerf.mark("hds:startSession");
 
-    const cell = getCellFromPoint(clientX, clientY);
-    dragPerf.mark("hds:getCellFromPoint");
     if (payload.type === DragType.PANEL) {
       setPanelOverCellId(cell?.cellId || null);
     }
