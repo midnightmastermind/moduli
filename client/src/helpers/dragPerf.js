@@ -134,34 +134,45 @@ export const dragPerf = {
     const dur = performance.now() - s.t0;
     if (dur < 40 && !s.tDrop) return;   // a tap, not a drag
 
-    // The drop's PAINT is a frame away, so the summary waits for it rather
-    // than reporting the handler's return as though the user saw it.
+    // SNAPSHOT SYNCHRONOUSLY. The report waits a frame for the drop's paint,
+    // and everything below used to read `s` from inside that callback — so a
+    // second gesture starting in the meantime rewrote the numbers under it.
+    // The first capture off the tablet showed two drags with byte-identical
+    // START figures (hold=183ms work=2000ms paint=403ms) and wildly different
+    // durations, which is not something two real drags can do.
+    const f = { ...s };
     afterNextPaint(() => {
-      s.tDropPaint = performance.now();
+      f.tDropPaint = performance.now();
       const avg = (tot, n) => (n ? +(tot / n).toFixed(1) : 0);
       const d = (a, b) => (a && b ? Math.round(b - a) : -1);
-      const tally = (typeof window !== "undefined" && window.__renderDiff && s.tally0)
-        ? window.__renderDiff(s.tally0) : null;
+      const tally = (typeof window !== "undefined" && window.__renderDiff && f.tally0)
+        ? window.__renderDiff(f.tally0) : null;
       const rTot = tally ? Object.values(tally.renders || {}).reduce((a, n) => a + n, 0) : -1;
       const rTop = tally
         ? Object.entries(tally.renders || {}).filter(([, n]) => n)
           .sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => `${k}:${n}`).join(",")
         : "";
 
-      const line = `[drag] ${Math.round(dur)}ms "${s.label}" mode=${s.mode}`
-        + ` | START hold=${d(s.tTouch, s.tActivate)}ms work=${d(s.tActivate, s.tStarted)}ms`
-        + ` paint=${d(s.tStarted, s.tFirstPaint)}ms`
-        + ` | DURING moves=${s.moves} frames=${s.frames}`
-        + ` fps=${dur ? Math.round(s.frames / (dur / 1000)) : 0}`
-        + ` onMove avg=${avg(s.onMoveTotal, s.moves)}/max=${+s.onMoveMax.toFixed(1)}ms`
-        + ` raf avg=${avg(s.rafTotal, s.frames)}/max=${+s.rafMax.toFixed(1)}ms`
-        + ` hit avg=${avg(s.hitTotal, s.hitCount)}/max=${+s.hitMax.toFixed(1)}ms`
-        + ` over16=${s.long16} over32=${s.long32}`
-        + ` | DROP handler=${d(s.tDrop, s.tDropDone)}ms paint=${d(s.tDropDone, s.tDropPaint)}ms`
+      const line = `[drag] ${Math.round(dur)}ms "${f.label}" mode=${f.mode}`
+        + ` | START hold=${d(f.tTouch, f.tActivate)}ms work=${d(f.tActivate, f.tStarted)}ms`
+        + ` paint=${d(f.tStarted, f.tFirstPaint)}ms`
+        + ` | DURING moves=${f.moves} frames=${f.frames}`
+        + ` fps=${dur ? Math.round(f.frames / (dur / 1000)) : 0}`
+        + ` onMove avg=${avg(f.onMoveTotal, f.moves)}/max=${+f.onMoveMax.toFixed(1)}ms`
+        + ` raf avg=${avg(f.rafTotal, f.frames)}/max=${+f.rafMax.toFixed(1)}ms`
+        + ` hit avg=${avg(f.hitTotal, f.hitCount)}/max=${+f.hitMax.toFixed(1)}ms`
+        + ` over16=${f.long16} over32=${f.long32}`
+        + ` | DROP handler=${d(f.tDrop, f.tDropDone)}ms paint=${d(f.tDropDone, f.tDropPaint)}ms`
         + ` | renders=${rTot}${rTop ? `(${rTop})` : ""}`
         + ` opSweeps=${tally?.ops?.runs ?? -1} opMs=${Math.round(tally?.ops?.ms ?? -1)}`
-        + ` longTasks=${s.longTasks}(${Math.round(s.longTaskMs)}ms)`
-        + ` dom=${typeof document !== "undefined" ? document.getElementsByTagName("*").length : -1}`;
+        + ` longTasks=${f.longTasks}(${Math.round(f.longTaskMs)}ms)`
+        + ` dom=${typeof document !== "undefined" ? document.getElementsByTagName("*").length : -1}`
+        // WAS THE GRID SETTLED WHEN THIS DRAG STARTED? The first capture read
+        // 5,790 renders and 23 op sweeps during a drag — within noise of what
+        // an idle LOAD produces (3,794 / 23-25), so "the drag is slow" and
+        // "everything is slow because the load is still draining" are not
+        // separable without this. Milliseconds since the page began.
+        + ` sinceLoad=${Math.round(f.tStarted)}ms`;
 
       last = line;
       // eslint-disable-next-line no-console

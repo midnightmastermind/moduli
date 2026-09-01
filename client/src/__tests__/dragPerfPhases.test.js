@@ -73,3 +73,40 @@ describe("dragPerf covers all three phases", () => {
     expect(emitted).toHaveLength(0);
   });
 });
+
+// THE REPORT READ ITS NUMBERS A FRAME LATE. It waits for the drop's paint, and
+// everything was read from the live state INSIDE that callback — so a second
+// gesture starting in between rewrote them. The first tablet capture showed two
+// drags with byte-identical START figures and wildly different durations, which
+// is not something two real drags can do.
+describe("the summary is snapshotted, not read a frame later", () => {
+  beforeEach(() => { emitted.length = 0; window.__dragPerf = true; });
+
+  it("reports the numbers from ITS OWN drag, not the one that started after", async () => {
+    dragPerf.touchStart(); dragPerf.activate();
+    dragPerf.start({ label: "first", mode: "move" });
+    dragPerf.move(5); dragPerf.move(5);
+    dragPerf.dropStart(); dragPerf.dropDone();
+    dragPerf.end();                       // report is now pending a frame
+    dragPerf.touchStart(); dragPerf.activate();
+    dragPerf.start({ label: "second", mode: "copy" });   // …and this lands first
+    dragPerf.move(99);
+    await flush();
+    const first = emitted.find(e => e.payload.line.includes('"first"'));
+    expect(first, "the pending report took the SECOND drag's label").toBeTruthy();
+    expect(first.payload.line).toMatch(/moves=2/);
+    expect(first.payload.line).not.toContain('"second"');
+  });
+
+  it("says whether the grid had settled when the drag began", async () => {
+    // 5,790 renders and 23 op sweeps during a drag is within noise of what an
+    // idle LOAD produces, so "the drag is slow" and "the load was still
+    // draining" are not separable without this.
+    dragPerf.touchStart(); dragPerf.activate();
+    dragPerf.start({ label: "x", mode: "move" });
+    dragPerf.dropStart(); dragPerf.dropDone(); dragPerf.end();
+    await flush();
+    expect(emitted[0].payload.line).toMatch(/sinceLoad=\d+ms/);
+  });
+});
+
