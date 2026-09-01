@@ -192,58 +192,75 @@ export const dragPerf = {
           .sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => `${k}:${n}`).join(",")
         : "";
 
-      const line = `[drag] ${Math.round(dur)}ms "${f.label}" mode=${f.mode}`
-        + ` | START hold=${d(f.tTouch, f.tActivate)}ms work=${d(f.tActivate, f.tStarted)}ms`
-        + ` paint=${d(f.tStarted, f.tFirstPaint)}ms`
-        + `${(() => {
-            if (!f.marks || f.marks.length < 2) return "";
-            const out = [];
-            for (let i = 1; i < f.marks.length; i++) {
-              const d = Math.round(f.marks[i][1] - f.marks[i - 1][1]);
-              if (d > 0) out.push(`${f.marks[i][0]}:${d}`);
-            }
-            return out.length ? ` [${out.join(" ")}]` : "";
-          })()}`
-        + ` | DURING moves=${f.moves} frames=${f.frames}`
-        + ` fps=${dur ? Math.round(f.frames / (dur / 1000)) : 0}`
-        + ` onMove avg=${avg(f.onMoveTotal, f.moves)}/max=${+f.onMoveMax.toFixed(1)}ms`
-        + ` raf avg=${avg(f.rafTotal, f.frames)}/max=${+f.rafMax.toFixed(1)}ms`
-        + ` hit avg=${avg(f.hitTotal, f.hitCount)}/max=${+f.hitMax.toFixed(1)}ms`
-        + ` [efp avg=${avg(f.efpTotal, f.hitCount)}/max=${+f.efpMax.toFixed(1)}`
-        + ` walk avg=${avg(f.walkTotal, f.hitCount)}/max=${+f.walkMax.toFixed(1)}`
-        + ` els=${f.elsMax} targets=${f.dropTargets}]`
-        + ` over16=${f.long16} over32=${f.long32}`
-        + ` | DROP handler=${d(f.tDrop, f.tDropDone)}ms paint=${d(f.tDropDone, f.tDropPaint)}ms`
-        + ` dropRenders=${(() => {
-            if (!f.tallyDrop || typeof window === "undefined" || !window.__renderDiff) return -1;
-            const dd = window.__renderDiff(f.tallyDrop);
-            const tot = Object.values(dd.renders || {}).reduce((a, n) => a + n, 0);
-            const top = Object.entries(dd.renders || {}).filter(([, n]) => n)
-              .sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k, n]) => `${k}:${n}`).join(",");
-            return `${tot}${top ? `(${top})` : ""} opSweeps=${dd.ops?.runs ?? 0}`;
-          })()}`
-        + ` | renders=${rTot}${rTop ? `(${rTop})` : ""}`
-        + ` opSweeps=${tally?.ops?.runs ?? -1} opMs=${Math.round(tally?.ops?.ms ?? -1)}`
-        + ` longTasks=${f.longTasks}(${Math.round(f.longTaskMs)}ms)`
-        + ` dom=${typeof document !== "undefined" ? document.getElementsByTagName("*").length : -1}`
-        + `${(() => {
-            if (!f.attr0 || typeof window === "undefined" || !window.__renderAttrDiff) return "";
-            const a = window.__renderAttrDiff(f.attr0);
-            const bits = [];
-            for (const [kind, causes] of Object.entries(a || {})) {
-              const top = Object.entries(causes).sort((x, y) => y[1] - x[1]).slice(0, 2)
-                .map(([c, n]) => `${c.slice(0, 34)}=${n}`).join(" ");
-              if (top) bits.push(`${kind}{${top}}`);
-            }
-            return bits.length ? ` causes=${bits.join(" ")}` : "";
-          })()}`
-        // WAS THE GRID SETTLED WHEN THIS DRAG STARTED? The first capture read
-        // 5,790 renders and 23 op sweeps during a drag — within noise of what
-        // an idle LOAD produces (3,794 / 23-25), so "the drag is slow" and
-        // "everything is slow because the load is still draining" are not
-        // separable without this. Milliseconds since the page began.
-        + ` sinceLoad=${Math.round(f.tStarted)}ms`;
-
+      // BUILT INSIDE A GUARD. Two inline expressions were added to this string
+      // (the startup breakdown and the render causes) with nothing around
+      // them, and the console.log AND the socket emit both come after it — so
+      // a throw in either took the whole report with it, silently. Measured
+      // 2026-09-01: five client connects after the deploy and ZERO drag lines,
+      // on a build whose code was verified present in the served bundle. A
+      // diagnostic that can vanish is worse than one that reports less.
+      let line;
+      try {
+        line = `[drag] ${Math.round(dur)}ms "${f.label}" mode=${f.mode}`
+          + ` | START hold=${d(f.tTouch, f.tActivate)}ms work=${d(f.tActivate, f.tStarted)}ms`
+          + ` paint=${d(f.tStarted, f.tFirstPaint)}ms`
+          + `${(() => {
+              if (!f.marks || f.marks.length < 2) return "";
+              const out = [];
+              for (let i = 1; i < f.marks.length; i++) {
+                const ms = Math.round(f.marks[i][1] - f.marks[i - 1][1]);
+                if (ms > 0) out.push(`${f.marks[i][0]}:${ms}`);
+              }
+              return out.length ? ` [${out.join(" ")}]` : "";
+            })()}`
+          + ` | DURING moves=${f.moves} frames=${f.frames}`
+          + ` fps=${dur ? Math.round(f.frames / (dur / 1000)) : 0}`
+          + ` onMove avg=${avg(f.onMoveTotal, f.moves)}/max=${+f.onMoveMax.toFixed(1)}ms`
+          + ` raf avg=${avg(f.rafTotal, f.frames)}/max=${+f.rafMax.toFixed(1)}ms`
+          + ` hit avg=${avg(f.hitTotal, f.hitCount)}/max=${+f.hitMax.toFixed(1)}ms`
+          + ` [efp avg=${avg(f.efpTotal, f.hitCount)}/max=${+f.efpMax.toFixed(1)}`
+          + ` walk avg=${avg(f.walkTotal, f.hitCount)}/max=${+f.walkMax.toFixed(1)}`
+          + ` els=${f.elsMax} targets=${f.dropTargets}]`
+          + ` over16=${f.long16} over32=${f.long32}`
+          + ` | DROP handler=${d(f.tDrop, f.tDropDone)}ms paint=${d(f.tDropDone, f.tDropPaint)}ms`
+          + ` dropRenders=${(() => {
+              if (!f.tallyDrop || typeof window === "undefined" || !window.__renderDiff) return -1;
+              const dd = window.__renderDiff(f.tallyDrop);
+              const tot = Object.values(dd.renders || {}).reduce((a, n) => a + n, 0);
+              const top = Object.entries(dd.renders || {}).filter(([, n]) => n)
+                .sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k, n]) => `${k}:${n}`).join(",");
+              return `${tot}${top ? `(${top})` : ""} opSweeps=${dd.ops?.runs ?? 0}`;
+            })()}`
+          + ` | renders=${rTot}${rTop ? `(${rTop})` : ""}`
+          + ` opSweeps=${tally?.ops?.runs ?? -1} opMs=${Math.round(tally?.ops?.ms ?? -1)}`
+          + ` longTasks=${f.longTasks}(${Math.round(f.longTaskMs)}ms)`
+          + ` dom=${typeof document !== "undefined" ? document.getElementsByTagName("*").length : -1}`
+          + `${(() => {
+              if (!f.attr0 || typeof window === "undefined" || !window.__renderAttrDiff) return "";
+              const a = window.__renderAttrDiff(f.attr0);
+              const bits = [];
+              for (const [kind, causes] of Object.entries(a || {})) {
+                const top = Object.entries(causes).sort((x, y) => y[1] - x[1]).slice(0, 2)
+                  .map(([c, n]) => `${c.slice(0, 34)}=${n}`).join(" ");
+                if (top) bits.push(`${kind}{${top}}`);
+              }
+              return bits.length ? ` causes=${bits.join(" ")}` : "";
+            })()}`
+          // WAS THE GRID SETTLED WHEN THIS DRAG STARTED? The first capture read
+          // 5,790 renders and 23 op sweeps during a drag — within noise of what
+          // an idle LOAD produces (3,794 / 23-25), so "the drag is slow" and
+          // "everything is slow because the load is still draining" are not
+          // separable without this. Milliseconds since the page began.
+          + ` sinceLoad=${Math.round(f.tStarted)}ms`;
+      } catch (err) {
+        // Report SOMETHING. The phase timings are plain arithmetic and cannot
+        // throw; only the two derived breakdowns can.
+        line = `[drag] ${Math.round(dur)}ms "${f.label}" mode=${f.mode}`
+          + ` | START hold=${d(f.tTouch, f.tActivate)}ms work=${d(f.tActivate, f.tStarted)}ms`
+          + ` | DURING moves=${f.moves} frames=${f.frames}`
+          + ` | DROP handler=${d(f.tDrop, f.tDropDone)}ms paint=${d(f.tDropDone, f.tDropPaint)}ms`
+          + ` | REPORT-PARTIAL: ${err?.message || err}`;
+      }
       last = line;
       // eslint-disable-next-line no-console
       console.log(line);

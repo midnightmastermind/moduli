@@ -36,3 +36,25 @@ describe("op sweep tally — attributed by trigger", () => {
     expect(d.by["?"]).toEqual({ runs: 1, ms: 5 });
   });
 });
+
+// ROLLUP EMITS THIS HELPER INTO MORE THAN ONE CHUNK — 4 of them carry
+// `__renderAttrs`. With the tallies in module scope each copy keeps its own and
+// each overwrites the same window globals, so the reader can be a different
+// instance than the one the components write to. `loadDiag` has kept its state
+// on `window` since 2026-08-06 after exactly this reported "0 editor mounts on
+// a grid with 241 rows".
+describe("the probe store is shared, not per-chunk", () => {
+  it("lives on window so a second copy of the module sees the same counters", async () => {
+    expect(window.__moduliRenderStore, "the store is not on window").toBeTruthy();
+    const before = snapshotOps();
+    bumpOpRun(7, "load");
+    // What a second chunk copy would read: the same object, not its own.
+    expect(window.__moduliRenderStore.ops.runs - before.runs).toBe(1);
+    expect(window.__moduliRenderStore.ops.by.load).toBeTruthy();
+  });
+
+  it("keeps the render tally there too", () => {
+    expect(window.__moduliRenderStore.tally).toBeTruthy();
+    expect(window.__moduliRenderStore.attrs).toBeTruthy();
+  });
+});

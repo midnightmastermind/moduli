@@ -9,7 +9,30 @@
 
 import { useRef } from "react";
 
-const _tally = { panel: 0, container: 0, instance: 0, page: 0, field: 0 };
+// ── ONE STORE, ON `window`, SHARED BY EVERY CHUNK COPY ────────────────────
+//
+// Rollup emits this helper into MORE THAN ONE chunk (4 of them carry
+// `__renderAttrs`). With the tallies in module scope each copy keeps its own,
+// and each sets `window.__renderTally`/`__renderAttrs` to ITS OWN reader — so
+// whichever chunk initialises last wins the global, and it need not be the copy
+// the components are writing to. The reader then returns a different instance's
+// counters, or none.
+//
+// `loadDiag` has kept its state on `window` since 2026-08-06 for exactly this,
+// after it "reported 0 editor mounts on a grid with 241 rows because
+// Editor.jsx's copy had never been started". Same trap, same remedy.
+const _store = (() => {
+  const blank = () => ({
+    tally: { panel: 0, container: 0, instance: 0, page: 0, field: 0 },
+    ops: { runs: 0, ms: 0, by: {} },
+    attrs: {},
+  });
+  if (typeof window === "undefined") return blank();
+  if (!window.__moduliRenderStore) window.__moduliRenderStore = blank();
+  return window.__moduliRenderStore;
+})();
+
+const _tally = _store.tally;
 
 // Always counts — a single integer increment per render is negligible. The
 // only console output is the per-drop diff logged by the drop stopwatch.
@@ -33,14 +56,14 @@ export function diffRenders(prev) {
 // documented ~580ms/124-effect job in this codebase, which makes it the
 // remaining candidate — and this counts it rather than assuming it. Same cost
 // as bumpRender: one increment plus one add.
-let _ops = { runs: 0, ms: 0 };
+const _ops = _store.ops;
 // AND WHAT TRIGGERED EACH SWEEP. `bumpOpRun` fires once per
 // `runMatchingOperations` — a whole SWEEP, not one operation — so "runs: 2"
 // on a 14-second scroll means two full sweeps costing 2,563ms between them,
 // and nothing said what set them off. A sweep on `load` is the documented
 // post-paint tail; one on a scheduler tick while the user is scrolling is a
 // different bug entirely, and the two need different fixes.
-let _opsBy = {};
+const _opsBy = _store.ops.by;
 export function bumpOpRun(ms, label = "?") {
   _ops.runs++;
   _ops.ms += ms || 0;
@@ -69,7 +92,7 @@ export function diffOps(prev) {
 // changed-key set becomes a "cause" bucket; the drop stopwatch diffs the
 // buckets across the frame-1 window. `(none)` = no captured input changed —
 // i.e. a local state / uncaptured subscription fired.
-const _attrs = {}; // { kind: { "keyA+keyB": count } }
+const _attrs = _store.attrs; // { kind: { "keyA+keyB": count } }
 
 export function useRenderAttribution(kind, inputs, tag) {
   const ref = useRef(null);
