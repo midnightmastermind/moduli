@@ -292,6 +292,24 @@ export function verdictFor(s) {
   return { code: "CLEAN", text: "Nothing anomalous recorded in this burst." };
 }
 
+// ── WHICH CELL-NAV RAILS THIS DEVICE ACTUALLY RENDERED ────────────────────
+// The user reports no LEFT rail at the bottom of a 2-high panel, twice. It
+// renders in a headless tablet-portrait probe both times — so reproducing it
+// here proves nothing and their device has to be asked directly. Read off the
+// DOM, so it needs no wiring into the nav component: a disabled rail returns
+// null (`RailButton`), so absence from this list IS the bug being reported.
+function navSnapshot() {
+  try {
+    const rails = [...document.querySelectorAll(".mobile-rail-btn")].map((b) => {
+      const dir = [...b.classList].find(c => c.startsWith("mobile-rail-") && c !== "mobile-rail-btn");
+      return (dir || "?").replace("mobile-rail-", "");
+    });
+    const slider = document.querySelector(".mobile-grid-slider") || document.querySelector("[style*='translate']");
+    const tf = slider ? getComputedStyle(slider).transform : "";
+    return `rails=[${rails.join(",") || "NONE"}] tf=${tf === "none" ? "none" : (tf || "?").slice(0, 40)}`;
+  } catch { return "rails=?"; }
+}
+
 // ── ONE LINE, ONE FORMATTER, BOTH SURFACES ────────────────────────────────
 // The console and the pm2 log had SEPARATE formatting, and the server's copy
 // kept dropping fields the client had already computed — the scroll rate and
@@ -315,7 +333,8 @@ export function formatBurstLine(s, rate, cmp) {
     + ` rate=${rate}px/s cmp=${cmp}`
     + ` renders=${s.rendersInBurst}${s.topRenders?.length ? `(${s.topRenders.map(([k, n]) => `${k}:${n}`).join(",")})` : ""}`
     + ` opSweeps=${s.opRuns} opMs=${s.opMs}${s.opBy ? ` opBy=[${s.opBy}]` : ""}`
-    + ` verbose=${verbose()}`;
+    + ` verbose=${verbose()}`
+    + ` ${navSnapshot()}`;
 }
 
 function endSession() {
