@@ -32,9 +32,36 @@ describe("dragPerf covers all three phases", () => {
     dragPerf.end();
     await flush();
     const line = emitted[0]?.payload?.line || "";
-    expect(line).toMatch(/START hold=\d+ms work=\d+ms/);
+    expect(line).toMatch(/START touchRect=-?[\d.]+ms hold=\d+ms work=\d+ms/);
     expect(line).toMatch(/DROP handler=\d+ms/);
     expect(line).toContain('"Drink"');
+  });
+
+  it("reports the touchstart forced-layout cost when dragSystem measures it", async () => {
+    // The witness for "was the page already dirty when the finger landed".
+    // Reading the grid rect FIRST at drag start changed nothing (1,036ms), so
+    // the ~1s was owed before we wrote anything — this is the number that says
+    // whether it was owed before the gesture existed at all.
+    dragPerf.touchStart(842.5);
+    dragPerf.activate();
+    dragPerf.start({ label: "Cook", mode: "copy" });
+    dragPerf.dropStart(); dragPerf.dropDone(); dragPerf.end();
+    await flush();
+    expect(emitted[0]?.payload?.line || "").toContain("touchRect=842.5ms");
+  });
+
+  it("reports -1 rather than 0 when nobody measured it", async () => {
+    // A caller that passes nothing must not read as "one forced layout cost
+    // zero milliseconds" — that is the absent-signal-as-measurement trap, and
+    // it would retire the very hypothesis this field exists to test.
+    dragPerf.touchStart();
+    dragPerf.activate();
+    dragPerf.start({ label: "Cook", mode: "copy" });
+    dragPerf.dropStart(); dragPerf.dropDone(); dragPerf.end();
+    await flush();
+    const line = emitted[0]?.payload?.line || "";
+    expect(line).toContain("touchRect=-1ms");
+    expect(line).not.toContain("touchRect=0ms");
   });
 
   it("reports to the SERVER, not just the console", async () => {
@@ -157,7 +184,7 @@ describe("the startup block, split", () => {
     for (const n of ["setIsDragging", "buildPayload", "pill", "handleDragStart"]) {
       expect(line.includes(n) || line.includes("[")).toBe(true);
     }
-    expect(line).toMatch(/START hold=\d+ms work=\d+ms/);
+    expect(line).toMatch(/START touchRect=-?[\d.]+ms hold=\d+ms work=\d+ms/);
   });
 
   it("marks outside a drag are ignored rather than accumulating", async () => {

@@ -797,13 +797,19 @@ export function useDragDrop({
         const t = e.touches[0];
         startX = t.clientX;
         startY = t.clientY;
+        // TIMED, because this read forces a full style+layout flush and is the
+        // only one that happens before the app has any drag state at all. See
+        // dragPerf.touchStart — it is the witness for whether the ~1s the drag
+        // pays at startup was already owed when the finger landed.
+        const _rt0 = performance.now();
         cachedRect = el.getBoundingClientRect(); // Cache rect NOW while layout is fresh
+        const _rectMs = performance.now() - _rt0;
         touchStartTime = performance.now();
         dragging = false;
         // Before the hold delay and the movement threshold — without this the
         // 80ms we deliberately make the user wait is indistinguishable from
         // our own startup cost.
-        dragPerf.touchStart();
+        dragPerf.touchStart(_rectMs);
       };
 
       const onMove = (e) => {

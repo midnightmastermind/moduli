@@ -595,30 +595,28 @@ export function DragProvider({
     // Kept, because the segments are the A/B for the reorder below.
     dragPerf.mark("hds:enter");
 
-    // READ LAYOUT FIRST, BEFORE WE DIRTY IT. This one line was the whole of
-    // the drag's startup cost: `hds:getCellFromPoint:1436` out of a 1,446ms
-    // `work`, with the other three segments at 1ms each. It is a single
-    // `getBoundingClientRect()` on the grid — and a rect read forces the
-    // browser to resolve every pending style and layout invalidation
-    // synchronously, over 22,508 nodes.
+    // NOT READ AT ALL FOR A NON-PANEL DRAG, which is the whole of the fix.
     //
-    // Three things dirty the document immediately before it, and NONE of them
-    // is expensive by itself, which is exactly why the cost landed here and
-    // nowhere near its cause: the drag pill appended to `body` (dragSystem,
-    // 1ms), four fixed edge barriers appended to `body` (1ms), and
-    // `startSession` stamping `body.dataset.dragKind` (1ms) — which
-    // `index.css` matches with `body[data-drag-kind="panel"] .container-shell`,
-    // an ancestor-attribute selector, so that write invalidates style for the
-    // whole document.
+    // `getCellFromPoint` is one `getBoundingClientRect()` on the grid, and a
+    // rect read forces the browser to resolve every pending style and layout
+    // invalidation synchronously — here over 22,500 nodes. It measured
+    // `hds:getCellFromPoint:1436` out of a 1,446ms startup while the other
+    // three segments cost 1ms each.
     //
-    // The read does not depend on session state or on the barriers, so moving
-    // it above them is a pure reorder. Whether it is now CHEAP is the
-    // measurement: if it is, the cost was ours to schedule and this is the
-    // fix; if it is still ~1.4s, the document was already dirty when the drag
-    // began and the reorder buys nothing — and `paint` will say whether the
-    // cost was removed or merely moved past the mark.
-    const cell = getCellFromPoint(clientX, clientY);
-    dragPerf.mark("hds:getCellFromPoint");
+    // MOVING IT ABOVE OUR OWN DOM WRITES CHANGED NOTHING (1,036ms and 1,051ms
+    // reading first), so the document was already dirty when the drag began —
+    // we were not the ones who dirtied it, we were only the ones who paid.
+    // Mid-drag the same forced layout costs ~5ms (`hit avg`, which flushes
+    // layout too), so this is not a chronically expensive document; something
+    // specific dirties it in the hold window, and the panel scrolling under
+    // the finger past `content-visibility: auto` rows is the open candidate.
+    //
+    // We do not have to answer that to stop paying for it: the cell is read
+    // for exactly ONE consumer, `setPanelOverCellId` below, and an instance or
+    // container drag never reaches it. So the read moves inside the branch
+    // that wants it. A panel drag still pays, and still should — it is the one
+    // gesture whose target IS a grid cell — and the first `handleDragMove`
+    // ~16ms later re-reads live for every other type, so nothing goes stale.
 
     // Prevent Android split-screen gesture from intercepting drags on touch.
     if (dragConfigRef.current.isTouch) {
@@ -638,6 +636,8 @@ export function DragProvider({
     dragPerf.mark("hds:startSession");
 
     if (payload.type === DragType.PANEL) {
+      const cell = getCellFromPoint(clientX, clientY);
+      dragPerf.mark("hds:getCellFromPoint");
       setPanelOverCellId(cell?.cellId || null);
     }
 

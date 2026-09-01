@@ -36,7 +36,7 @@ import { safeEmit } from "./offlineQueue.js";
 
 const s = {
   active: false, t0: 0,
-  tTouch: 0, tActivate: 0, tStarted: 0, tFirstPaint: 0,
+  tTouch: 0, tActivate: 0, tStarted: 0, tFirstPaint: 0, touchRectMs: -1,
   marks: null, attr0: null, attrWas: undefined,
   tDrop: 0, tDropDone: 0, tDropPaint: 0,
   moves: 0, frames: 0,
@@ -70,9 +70,25 @@ export const dragPerf = {
   // touchstart — BEFORE the hold delay and the movement threshold, so the
   // deliberate wait is separable from our own cost. Without this split
   // "forever to start" cannot be told from "we make you hold for 80ms".
-  touchStart() {
+  // `rectMs` is how long the rect read dragSystem already takes at touchstart
+  // took — i.e. THE COST OF ONE FORCED LAYOUT, before the hold delay and
+  // before we have written anything to the document.
+  //
+  // It exists to answer the question the drag-start reorder raised and could
+  // not settle: reading the grid rect first changed nothing (1,036ms), so the
+  // page was already dirty when the gesture began. This says whether it was
+  // dirty at the FIRST TOUCH too. Dirty at touch means the cost belongs to
+  // whatever the app was doing beforehand — the scroll repaint is the
+  // candidate — and not to the drag at all; clean at touch means something in
+  // the hold window dirties it, and the hold window is ours to look at.
+  //
+  // The read is not added FOR the probe: dragSystem has always taken it there
+  // ("cache rect NOW while layout is fresh"), so this measures a cost we were
+  // already paying rather than introducing one.
+  touchStart(rectMs = -1) {
     if (!enabled()) return;
     s.tTouch = performance.now();
+    s.touchRectMs = rectMs;
   },
 
   // The threshold was crossed: everything after this is work we chose to do.
@@ -213,7 +229,8 @@ export const dragPerf = {
       let line;
       try {
         line = `[drag] ${Math.round(dur)}ms "${f.label}" mode=${f.mode}`
-          + ` | START hold=${d(f.tTouch, f.tActivate)}ms work=${d(f.tActivate, f.tStarted)}ms`
+          + ` | START touchRect=${f.touchRectMs >= 0 ? +f.touchRectMs.toFixed(1) : -1}ms`
+          + ` hold=${d(f.tTouch, f.tActivate)}ms work=${d(f.tActivate, f.tStarted)}ms`
           + ` paint=${d(f.tStarted, f.tFirstPaint)}ms`
           + `${(() => {
               if (!f.marks || f.marks.length < 2) return "";
