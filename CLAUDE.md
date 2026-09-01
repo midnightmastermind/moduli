@@ -6,6 +6,159 @@
 
 ---
 
+### 2026-09-01 (5) — THE DRAG'S SECOND WAS `touch-action` ON `<html>`, AND EVERY DEPLOY COST THE USER THREE MINUTES
+
+Picked up the other account's session, which hit its limit at 11:45 with the
+user's *"its still choppy though. even worse at times now"* unanswered and a
+half-written `handleDragStart` split uncommitted.
+
+**FIRST, THE QUESTION IT OWED THEM: the hover fix landed.** Container renders
+per drag **1,681 → ~100**. But the choppiness was real and elsewhere:
+`work=1012ms [handleDragStart:1011]` with `onMove avg=2.3ms` — our own per-move
+work was already fixed, and a flat second of startup was not.
+
+**FOUR ROUNDS, EACH ONE KILLING THE PREVIOUS HYPOTHESIS.** Every step is a
+measurement that made the next one cheaper, and three of the four killed a
+theory I had written into a commit message.
+
+```
+1  split handleDragStart      hds:getCellFromPoint:1436   the other 3 segments 1ms each
+2  read the rect FIRST        1036 · 1051                 unchanged -> NOT our write order
+3  touchRect + holdScrolls    0.1ms · 0                   clean at touch, and the page never scrolled
+4  bill each write            f:t0:0  f:touchAction:903  f:overscroll:3  f:bodyAttrs:46
+```
+
+**ROUND 2 IS THE ONE WORTH KEEPING.** Moving the rect read above our own DOM
+writes changed nothing, which retired the reordering fix I was about to ship
+AND the ancestor-attribute CSS theory behind it. A negative result that costs
+one deploy and saves a wrong fix.
+
+**AND `f:bodyAttrs:46` RETIRED MY OWN LEAD.** `body.dataset.dragKind` — named
+in three consecutive commit messages as the likeliest document-wide
+invalidation, because `index.css` matches it with
+`body[data-drag-kind="panel"] .container-shell` — costs 46ms, not 1.1s. The
+pill, the four edge barriers and both React setStates are 0-4ms. **Four
+suspects cleared by their ZEROS**, which is why an attribution pass has to
+print them: filtering a zero renders an exoneration and a mark that never ran
+as the same thing.
+
+**IT IS `touch-action`, NOT "AN INLINE STYLE ON `<html>`".** `overscroll-behavior`,
+written on the same element in the very next statement, costs 3ms. Changing
+`touch-action` makes Chrome rebuild the touch-action hit-test regions for the
+whole document — 21,282 nodes. Same Chrome/Firefox split as that morning's
+hit-test finding: **890-1446ms on Chrome across twelve captures, 10-26ms on
+Firefox**, same grid and same gesture.
+
+**AND IT WAS CHARGED TWICE PER DRAG.** Set in `dragSystem` and again in
+`DragProvider` (a duplicate, free — Chrome skips an unchanged value), and
+RESET on drag end in both. The reset is the same invalidation again, inside
+the drop's paint — which is why removing it halved a drop cost nothing had
+touched.
+
+**WHAT IT GUARDED WAS ALREADY COVERED, EARLIER AND CHEAPER**, and
+`dragTouchGuards`' own header lists the three jobs: the gesture that becomes a
+drag is claimed by `.module-drag-handle`'s CSS before the touch begins; the
+dragging finger cannot scroll because `dragSystem`'s `touchmove` is
+non-passive and calls preventDefault (touch events retarget to the element the
+touch STARTED on, so it keeps receiving them wherever the finger goes); and OS
+edge gestures are the edge barriers, four fixed 40px divs with capture-phase
+preventDefault, spawned synchronously for 3ms. The only window given up is a
+second finger landing mid-screen inside the first frame.
+
+**MEASURED END TO END, clean captures with the attribution off and the sweep
+quiet (`opSweeps=1 opMs=39`):**
+```
+                       morning        now
+startup work         890-1446ms       2ms
+start -> visible       ~1970ms      ~220ms
+onMove avg              19.1ms    3.4-4.6ms
+hit avg                 30.3ms  12.9-13.6ms
+container renders   2004-3383       75-103
+DROP paint          1842-5302ms   809-923ms
+long tasks        206 (29,835ms)  42-58 (5,203-5,824ms)
+```
+
+**THE FOUR TESTS THAT "COVERED" THIS NEVER IMPORTED DragProvider.** Each set
+`documentElement.style.touchAction` itself and asserted it had been set — so
+they passed before the feature existed and stayed green after I deleted it.
+Replaced with a source scan that forbids the write in CODE while ignoring it
+in the COMMENTS explaining the removal, because that explanation is the only
+thing stopping the next reader reinstating a line that reads as a one-line
+safety guard and costs a second. It also asserts what REPLACED it is still
+present, so deleting the neighbouring `overscroll-behavior` cannot pass as a
+success. A/B'd both directions.
+
+**THE ATTRIBUTION IS OPT-IN NOW (`window.__dragAttr`)**, because forcing eight
+flushes changes WHEN the paint happens — leaving it armed would corrupt the
+one number still unexplained. Kept rather than deleted: same course as
+`caretDiag` and `scrollDiag` once their fixes were verified.
+
+**A CAPTURE THAT COULD NOT SETTLE ANYTHING, said so rather than read as a
+result:** one drag came back `opSweeps=22 opMs=2343 renders=755` against
+`opSweeps=0` on its neighbour — 2.3s of unrelated op work on the main thread,
+so its `onMove avg=14.3ms` and `longTasks=78` describe the sweep, not the drag.
+
+---
+
+**AND THE USER'S THREE-MINUTE SPINNER WAS MY OWN DEPLOY LOOP.** User: *"why
+does it always take like 3 min before anything loads after you put your stuff
+in. its been doing this all day."*
+
+A `pm2 restart` empties the warm per-user cache and the next load re-reads
+~15MB of occurrences through a bandwidth-throttled Atlas connection at
+~100 KB/s — the documented ~180s cold read. **All six of that day's deploys
+were client-only**, and `express.static` reads from disk per request with
+`index.html` served `no-cache`, so a fresh bundle is live the moment the build
+finishes. ~18 minutes of somebody watching a spinner for a restart that
+changed nothing.
+
+**THIS FILE HAD RECORDED THE COLD READ FOUR TIMES — always as a caveat on
+someone else's measurement (*"a load number taken right after a deploy
+measures the cache, not the code"*), never as a cost being charged to the
+person watching.**
+
+The restart is conditional and FAIL-SAFE: it restarts unless every changed
+path is provably client-side or documentation. Unrecognised path, empty diff
+or stopped process all restart.
+
+**AND THE FIRST VERSION FAILED OPEN, WHICH IS THE HALF WORTH KEEPING.** A
+client-only deploy still restarted, and pm2's uptime counter is the only thing
+that said so:
+```
+BEFORE pm2_uptime=1788297002289   AFTER 1788297706475
+```
+The predicate was correct and never ran. The remote script was one big
+double-quoted `ssh` argument with every variable escaped `\$VAR` and every
+quote `\"`; my edit inserted bare `"`, which TERMINATED the argument early, so
+the remote received an UNQUOTED script — `[ -n $CHANGED ]` with a multi-line
+value word-split into `test`'s arguments, `test` errored, the `&&`
+short-circuited, and RESTART stayed 1. **A guard that fails open is
+indistinguishable from a guard nobody wrote**, and recording the uptime either
+side is the only reason it was caught rather than the script's own output —
+the 2026-07-11 rule, paid again.
+
+Rewritten as a `<<'REMOTE'` heredoc: no local expansion, no escaping, values
+crossing the gap as positional arguments. That removes the class, not the
+instance. **Its own trap closed in the same pass:** with `bash -s` the SCRIPT
+is stdin, so a command that reads stdin eats the rest of it and the deploy
+ends early looking like success — every npm and pm2 call is `< /dev/null`.
+
+**PROVEN LIVE, which is the only thing that counts here:** a later client-only
+deploy shipped a new bundle (`PagePreviewApp-CM2xZ4MR` → `BShphzCD`,
+sha256-identical to the local build) with **pm2's uptime unmoved**.
+
+**STILL OPEN, both measured and neither guessed at:** the hit-test is now the
+during-drag cost — `hit avg=13.6ms` x ~130-180 calls is ~2s of a 12-18s drag,
+all of it `document.elementsFromPoint` over 21,454 nodes, and the fix is to
+stop asking the browser (cache the drop-target rects at drag start). And
+~850ms of drop paint remains with only 75 renders behind it, which is the
+browser painting a 21k-node document rather than anything React does.
+
+3,698 client tests, lint 0 errors, deployed, prod HEAD verified, served
+chunks sha256-identical with positive and zero controls in both.
+
+---
+
 ### 2026-09-01 (4) — THE CELL-NAV RAIL WAS INSIDE THE SCROLLER, and my probe checked the wrong thing twice
 
 User, twice: *"i scroll down on schedule, it takes me to the bottom panel, and
