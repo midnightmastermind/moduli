@@ -2428,6 +2428,22 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    next to the editor's real .doc-insert-gap--drag. One honest line only. */
 .doc-editor .drop-indicator { display: none; }
 
+/* ATTRIBUTE-DRIVEN EDGE INDICATORS (see dragSystem `edgeAsAttribute`).
+   The four bars are always mounted and hidden by default; the drag system
+   writes `data-drop-edge` straight onto the element, so a hover crossing costs
+   one attribute write instead of re-rendering the component and everything
+   inside it. Measured on the user's tablet, ONE drag: 2,004-3,383 container
+   renders and 225-248 instance renders, for four 2px bars.
+
+   The `--auto` class is what scopes this. `blocks/` and any other caller still
+   renders its indicator CONDITIONALLY and must stay visible when mounted, so
+   the default-hidden rule must never reach them. */
+.drop-indicator--auto { display: none; }
+[data-drop-edge="top"] > .drop-indicator--auto.drop-indicator-top,
+[data-drop-edge="bottom"] > .drop-indicator--auto.drop-indicator-bottom,
+[data-drop-edge="left"] > .drop-indicator--auto.drop-indicator-left,
+[data-drop-edge="right"] > .drop-indicator--auto.drop-indicator-right { display: block; }
+
 .drop-indicator-top {
   top: -2px;
   left: 0;

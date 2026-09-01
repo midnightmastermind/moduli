@@ -29,7 +29,7 @@
 // │ Instance        │ INSTANCE (for sorting)                 │
 // └─────────────────┴────────────────────────────────────────┘
 
-import { useEffect, useLayoutEffect, useRef, useState, createContext, useContext } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, createContext, useContext } from "react";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { dropTargetForExternal } from "@atlaskit/pragmatic-drag-and-drop/external/adapter";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/combine";
@@ -38,6 +38,7 @@ import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-
 import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
 import { dragPerf } from "./dragPerf";
 import { hitInterval, blendCost } from "./hitTestBudget";
+import { setDropOver, setDropEdge } from "./dropEdgeAttr";
 // Touch-drag replaces HTML5 DnD on any coarse-pointer device (phone OR tablet),
 // independent of orientation/layout. Width is irrelevant — a landscape tablet
 // still needs finger dragging even while it shows the desktop grid.
@@ -660,12 +661,36 @@ export function useDragDrop({
   accepts = [],
   allowedEdges = ['top', 'bottom'], // Default to vertical (top/bottom), can be ['left', 'right'] for horizontal
   dragHandleRef = null, // optional ref — restricts drag start to that element
+  // HOVER AS A DOM ATTRIBUTE INSTEAD OF REACT STATE.
+  //
+  // `isOver`/`closestEdge` exist to draw four 2px bars at the element's edges.
+  // As React state, one hover crossing re-renders the WHOLE component — and
+  // for `ModuleContainer` that is a 1,900-line component plus every row and
+  // field it renders. Measured on the user's tablet during a single drag
+  // (2026-09-01): 2,004-3,383 container renders, 225-248 instance renders, for
+  // bars that CSS can toggle from an attribute at zero React cost.
+  //
+  // Opt-in rather than the default, because the returned values are a public
+  // contract — `blocks/` and anything reading `isOver` for logic rather than
+  // for a bar must keep getting real state.
+  edgeAsAttribute = false,
 }) {
   const ref = useRef(null);
   const dragCtx = useDragContext();
   const [isDragging, setIsDragging] = useState(false);
-  const [isOver, setIsOver] = useState(false);
-  const [closestEdge, setClosestEdge] = useState(null);
+  const [isOverState, setIsOverState] = useState(false);
+  const [closestEdgeState, setClosestEdgeState] = useState(null);
+
+  // The attribute path writes the DOM and never touches state; the state path
+  // is byte-identical to what it always was.
+  const setIsOver = useCallback((v) => {
+    if (edgeAsAttribute) setDropOver(ref.current, v); else setIsOverState(v);
+  }, [edgeAsAttribute]);
+  const setClosestEdge = useCallback((edge) => {
+    if (edgeAsAttribute) setDropEdge(ref.current, edge); else setClosestEdgeState(edge);
+  }, [edgeAsAttribute]);
+  const isOver = edgeAsAttribute ? false : isOverState;
+  const closestEdge = edgeAsAttribute ? null : closestEdgeState;
   // diag-only: last edge logged so onDrag doesn't spam every frame
   const lastDiagEdgeRef = useRef(null);
 

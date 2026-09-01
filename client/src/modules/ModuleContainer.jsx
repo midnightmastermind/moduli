@@ -664,7 +664,7 @@ function Container({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [module, childOccsKey, leafModulesById, getOccMap]);
 
-  const { ref: containerRef, isDragging, isOver: isContainerOver, closestEdge, props: containerProps } = useDragDrop({
+  const { ref: containerRef, isDragging, props: containerProps } = useDragDrop({
     type: DragType.CONTAINER,
     id: module.id,
     data: { ...containerWithInstances, occurrenceId: containerOccurrence?.id || null, defaultDragMode: containerDragMode },
@@ -672,6 +672,10 @@ function Container({
     accepts: [DragType.CONTAINER],
     allowedEdges: containerAllowedEdges,
     dragHandleRef: containerHandleRef,
+    // Hover drives a DOM attribute, not React state — one crossing used to
+    // re-render this whole component and every row and field inside it, for
+    // four 2px bars. 2,004-3,383 container renders in ONE drag, measured.
+    edgeAsAttribute: true,
   });
 
   const { ref: headerDropRef, isOver: isHeaderOver } = useDroppable({
@@ -1115,10 +1119,13 @@ function Container({
       }}
     >
       {/* Drop Indicators */}
-      {isContainerOver && closestEdge === "top" && <div className="drop-indicator drop-indicator-top" />}
-      {isContainerOver && closestEdge === "bottom" && <div className="drop-indicator drop-indicator-bottom" />}
-      {isContainerOver && closestEdge === "left" && <div className="drop-indicator drop-indicator-left" />}
-      {isContainerOver && closestEdge === "right" && <div className="drop-indicator drop-indicator-right" />}
+      {/* Always mounted, shown by CSS from `data-drop-over`/`data-drop-edge` on
+          the container element. Rendering them conditionally is what made a
+          hover re-render this entire subtree. */}
+      <div className="drop-indicator drop-indicator--auto drop-indicator-top" />
+      <div className="drop-indicator drop-indicator--auto drop-indicator-bottom" />
+      <div className="drop-indicator drop-indicator--auto drop-indicator-left" />
+      <div className="drop-indicator drop-indicator--auto drop-indicator-right" />
 
       <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />
 
