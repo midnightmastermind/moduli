@@ -502,10 +502,28 @@ export function useDroppable({
   context = {},
   accepts = [],
   disabled = false,
+  // HOVER AS A DOM ATTRIBUTE, for callers that do not READ `isOver`.
+  //
+  // The hook keeps `isOver` in state, so every hover crossing re-renders the
+  // whole component whether or not anything reads the value. `ModuleContainer`
+  // destructured it for its LIST target and never used it — and that showed up
+  // as 1,681 container renders during a single drag on the user's tablet
+  // (2026-09-01), attributed to `(none)`, meaning no tracked prop or
+  // subscription changed: hook-internal state, invisible to a code review and
+  // to the render probe alike.
+  //
+  // Opt-in, because `isOver` is a public return value — the same container's
+  // HEADER target reads it to draw an insert affordance and must keep real
+  // state.
+  overAsAttribute = false,
 }) {
   const ref = useRef(null);
   const dragCtx = useDragContext();
-  const [isOver, setIsOver] = useState(false);
+  const [isOverState, setIsOverState] = useState(false);
+  const setIsOver = useCallback((v) => {
+    if (overAsAttribute) setDropOver(ref.current, v); else setIsOverState(v);
+  }, [overAsAttribute]);
+  const isOver = overAsAttribute ? false : isOverState;
 
   // Stable ref for mobile touch system to update state
   const stateRef = useRef({ setIsOver });

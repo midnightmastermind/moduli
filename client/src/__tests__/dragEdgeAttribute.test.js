@@ -42,3 +42,20 @@ describe("drop-edge as a DOM attribute", () => {
     expect(() => { setDropOver(null, true); setDropEdge(undefined, "top"); }).not.toThrow();
   });
 });
+
+// AND THE SAME DEFECT IN `useDroppable`. `ModuleContainer` destructured
+// `isOver` for its LIST target and read it NOWHERE — but the hook kept it in
+// state, so every hover crossing re-rendered the container and everything
+// inside it. Measured during one drag on the user's tablet (2026-09-01): 1,681
+// container renders, attributed to `(none)` — no tracked prop or subscription
+// changed, because hook-internal state is invisible to the probe's input list
+// and to a code review alike.
+describe("useDroppable — hover without a render", () => {
+  it("marks and unmarks the element", () => {
+    const e = document.createElement("div");
+    setDropOver(e, true);
+    expect(e.hasAttribute("data-drop-over")).toBe(true);
+    setDropOver(e, false);
+    expect(e.hasAttribute("data-drop-over")).toBe(false);
+  });
+});

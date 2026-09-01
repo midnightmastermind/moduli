@@ -685,11 +685,19 @@ function Container({
     accepts: DropAccepts.CONTAINER_LIST,
   });
 
-  const { ref: listDropRef, isOver: isListOver } = useDroppable({
+  // `isOver` WAS DESTRUCTURED HERE AND READ NOWHERE — and the hook kept it in
+  // state, so every hover crossing re-rendered this whole container (and every
+  // row and field inside it) for a value nobody looked at. 1,681 container
+  // renders during ONE drag on the user's tablet, attributed to `(none)`:
+  // hook-internal state, which neither a code review nor the render probe's
+  // input list can see. The HEADER target above keeps real state — it reads
+  // `isOver` to draw an insert affordance.
+  const { ref: listDropRef } = useDroppable({
     type: "container-list",
     id: `container-list:${module.id}`,
     context: { panelId, containerId: module.id, occurrenceId: containerOccurrence?.id || null },
     accepts: DropAccepts.CONTAINER_LIST,
+    overAsAttribute: true,
   });
 
   // Resolve the layout cascade for this container so render-time decisions
