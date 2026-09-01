@@ -6,6 +6,65 @@
 
 ---
 
+### 2026-09-01 (6) — THE HIT-TEST INDEX WAS WRONG 41% OF THE TIME, and shadow mode is the only reason nobody found out in production
+
+With the startup second gone, `document.elementsFromPoint` was the largest
+attributable during-drag cost — `hit avg=12.9-13.6ms` x ~130-180 calls, ~2s of
+a 12-18s drag, and `raf avg=13.3ms` says the rAF callback IS the hit-test.
+Every drop target is already in a registry, so scanning their rects instead of
+asking the engine is the obvious fix. It does not work, and BOTH reasons are
+worth more than the change would have been.
+
+**THE CHEAP VERSION DIED ON MY OWN BENCHMARK FIRST.** `elementFromPoint`
+(singular) measured **1,616x** cheaper than the plural on a 21,006-node
+synthetic document, which is the kind of number that ends an investigation.
+Re-run with JITTERED COORDINATES — what a drag actually does — it is **1.1x**:
+the first run was a repeated hit-test at ONE point served from a cache. *A
+microbenchmark that never moves is measuring the cache, not the call.* One
+control survived and is worth keeping: `elementFromPoint ===
+elementsFromPoint[0]` held on all 400 points.
+
+**THEN THE REAL VERSION SHIPPED IN SHADOW — both run, the ENGINE's answer is
+used, the disagreement is counted — and the first real drag retired it:**
+```
+idx=73/123  miss=0  BAD=50  idxAvg=11ms     (engine efp avg=10.3ms)   280 moves
+idx=5/5     miss=0  BAD=0   idxAvg=3.8ms                               24 moves
+```
+**BAD=50 of 123.** The index named a DIFFERENT drop target on 41% of
+hit-tests. Shipped as the answer, two of every five drops would have landed in
+the wrong container — silently, on live data, in the code path this file
+records being damaged before.
+
+**AND THE CAUSE IS STRUCTURAL, NOT A BUG TO FIX.** `.insert-gap` is
+`height: 8px; margin: -2px 0; z-index: 3` — it OVERLAPS the rows either side
+of it ON PURPOSE (2026-07-24, so a fat band stops stealing clicks) and wins on
+PAINT ORDER. Both the gap and the row are registered drop targets, so along
+every row boundary two targets contain the point. The engine orders them by
+paint; a rect index can only order by DOM DEPTH, and the gap is a SIBLING of
+the row rather than a descendant — so depth picks the row, wrongly, at every
+boundary. Ordering by paint means re-implementing stacking contexts.
+
+That also explains the split above without appealing to noise: 280 moves
+crossing many boundaries, against 24 moves that barely left one row.
+
+**IT WAS NOT EVEN FASTER, WHICH IS THE SECOND INDEPENDENT KILL.** `idxAvg=11ms`
+against the engine's 10.3ms. The premise was "read the rects ONCE per drag",
+and that is false: any scroll invalidates them (autoscroll moves everything
+under the finger), and each rebuild is a forced layout over ~534 targets. Even
+a correct index would have bought nothing.
+
+**REVERTED, NOT PARKED** — a mechanism measured wrong is removed, with the
+reason left at the call site so the next reader does not rebuild it. The
+finding is the deliverable: **drop targets on this grid overlap by design and
+are ordered by z-index, so any geometry-only hit-test is unsound here.**
+
+*Shadow mode cost one deploy and one drag. It is the whole reason this is a
+paragraph instead of an incident.*
+
+3,698 client tests, lint 0 errors.
+
+---
+
 ### 2026-09-01 (5) — THE DRAG'S SECOND WAS `touch-action` ON `<html>`, AND EVERY DEPLOY COST THE USER THREE MINUTES
 
 Picked up the other account's session, which hit its limit at 11:45 with the
