@@ -135,6 +135,31 @@ moved the count from 456 to 453, because `modulesById` was still firing on the
 same commits. Only fixing the second half moved it. *Read a compound key as a
 conjunction, and expect no movement until every term is gone.*
 
+### 5. The pool-scoped key (the design change the audit named)
+
+`FieldRenderer`'s dep for option resolution was the grid-wide occurrence COUNT.
+Of the 49 find-mode fields, **38 select by a tag that lives on BOARD ITEMS** —
+and a schedule placement, which is what a drag creates, carries no such tag.
+`optionPoolKey` counts only occurrences that could BE an option, with the
+scoping fields DERIVED FROM THE GRID'S OWN PREDICATES (so nothing learns what a
+"board" is).
+
+**Verified on live data rather than argued:**
+```
+total occurrences    21,149
+in the pool key      12,795   (60% — the board catalogue, stable)
+schedule placements      50
+  counted by the key      0   <- a drop cannot move it
+```
+
+**AND THE IDLE-LOAD NUMBER BARELY MOVED: 865 → 848.** That is expected and
+worth writing down, because it looks like a failure: during a LOAD the
+catalogue is arriving (15,708 artifacts, all carrying `Board Category`), so the
+pools genuinely change and re-resolving is correct. The change targets the
+DROP, where `dropRenders=707(field:615)` was measured — and the idle probe
+cannot see that. *A probe that cannot exercise the case is not evidence about
+it.*
+
 ## What is left, and why it is a different kind of change
 
 ```
@@ -143,13 +168,14 @@ container 599   s_instancesById+s_leafModulesById+s_modulesById 105 · s_ancesto
 instance  263   s_ancestorChain 54
 ```
 
-The remaining field renders are the **49 genuine `find`-mode fields**, and they
-are the same thing as the drop's `dropRenders=707(field:615)`. Narrowing them
-is no longer a subscription gate — every one of them really does read the grid.
-It needs a **pool-scoped key**: a field whose predicate selects "instances
-tagged `meal`" should re-resolve when THAT set changes, not when any occurrence
-anywhere is created. Cheap to maintain (a per-tag count index) and a genuine
-design change rather than a narrowing, so it wants its own pass.
+The remaining field renders are the **49 genuine `find`-mode fields** firing
+when the catalogue itself changes, which is correct. The pool-scoped key
+(above) has removed the DROP case; what is left on a load is the pools really
+moving.
+
+A per-TAG index would narrow it further — a `meal` dropdown does not care that
+an `album` arrived — but that is a bigger structure for a smaller return, and
+the load is the only case it would help.
 
 The container bucket is now mostly UNATTRIBUTED — its named causes sum to ~200
 of 599 — so the next honest step there is more attribution, not more fixes.

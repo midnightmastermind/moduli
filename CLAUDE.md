@@ -6,6 +6,68 @@
 
 ---
 
+### 2026-09-01 (3) — THE OPTION POOL: a dropdown re-resolved because something, somewhere, made a row
+
+The audit's last named item, and the one that was a design change rather than a
+subscription gate.
+
+**`FieldRenderer` used the grid-wide occurrence COUNT as the dep for option
+resolution** — 756 field renders on an idle load, and `dropRenders=707
+(field:615)` on ONE drop, because a drop creates an occurrence and the count
+moves. **It moved for the wrong reason.** Of the 49 find-mode fields:
+```
+30   fields.<Board Category> CONTAINS <tag>  AND  meta.feedSourceId IS_EMPTY
+ 8   an OR-group of the same                 AND  meta.feedSourceId IS_EMPTY
+ 5   fields.<Library> IS <value>
+ 3   _ancestors HAS_ANCESTOR <id>
+```
+**38 of 49 select by a tag that lives on BOARD ITEMS**, and a schedule
+placement — what a drag actually creates — carries none.
+
+**NOTHING LEARNS WHAT A BOARD IS.** The scoping fields are derived from the
+grid's own find predicates, so a dropdown scoped by some other field is picked
+up automatically and `noDomainKnowledge` stays satisfied. Computed in `App`
+beside `instancesById`: inside a selector it would walk 21,000 occurrences on
+every store notification, per field.
+
+**VERIFIED ON LIVE DATA, NOT ARGUED:**
+```
+total occurrences    21,149
+in the pool key      12,795   (60% — the board catalogue, stable)
+schedule placements      50
+  counted by the key      0   <- a drop cannot move it
+```
+
+**AND THE IDLE A/B BARELY MOVED — 865 → 848 — WHICH LOOKS EXACTLY LIKE A
+FAILURE.** It is not: during a LOAD the catalogue is arriving (15,708 artifacts,
+every one carrying `Board Category`), so the pools genuinely change and
+re-resolving is right. The change targets the DROP, and the idle probe cannot
+exercise a drop. *A probe that cannot reach the case is not evidence about it* —
+which is the same shape as the two guards on 08-31 that moved nothing, read
+from the opposite side.
+
+**SAME INVALIDATION SEMANTICS AS THE COUNT IT REPLACES**, which is what makes it
+safe rather than merely narrower: a count cannot see an EDIT either — moving an
+item from `meal` to `grocery` leaves `occurrences.length` unchanged exactly as
+it leaves this unchanged. Strictly narrower on creates and deletes, identical
+elsewhere.
+
+**THE AUDIT, END TO END:**
+```
+              start     now
+field         3,065      848    -72%
+instance        604      258    -57%
+container       652      542    -17%
+```
+Five changes, every one a subscription wider than what read it, and **not one
+findable by reading code** — there is nothing wrong with any individual line.
+`instancesById` in `ModuleInstance` was selected and read by *nothing*.
+
+8 tests, both A/Bs failing exactly their own case. 3,681 client tests, lint 0
+errors, deployed, prod HEAD verified.
+
+---
+
 ### 2026-09-01 (2) — THE DRAG, FIXED IN TWO PLACES; and the render audit, executed
 
 User: *"fix the 3 you said first, then the plan."*
