@@ -42,6 +42,7 @@ const s = {
   onMoveTotal: 0, onMoveMax: 0,
   rafTotal: 0, rafMax: 0,
   hitTotal: 0, hitCount: 0, hitMax: 0,
+  efpTotal: 0, efpMax: 0, walkTotal: 0, walkMax: 0, elsMax: 0, dropTargets: 0,
   long16: 0, long32: 0,
   tally0: null, longTasks: 0, longTaskMs: 0, po: null,
   label: "", mode: "",
@@ -87,6 +88,7 @@ export const dragPerf = {
       tDrop: 0, tDropDone: 0, tDropPaint: 0,
       moves: 0, frames: 0, onMoveTotal: 0, onMoveMax: 0,
       rafTotal: 0, rafMax: 0, hitTotal: 0, hitCount: 0, hitMax: 0,
+      efpTotal: 0, efpMax: 0, walkTotal: 0, walkMax: 0, elsMax: 0, dropTargets: 0,
       long16: 0, long32: 0, longTasks: 0, longTaskMs: 0,
       label: meta.label || "", mode: meta.mode || "",
       tally0: (typeof window !== "undefined" && window.__renderTally) ? window.__renderTally() : null,
@@ -112,6 +114,17 @@ export const dragPerf = {
     if (!s.active) return;
     s.hitCount++; s.hitTotal += dt;
     if (dt > s.hitMax) s.hitMax = dt;
+  },
+  // WHICH HALF of the hit-test. `elementsFromPoint` forces a document-wide
+  // hit-test; the registry walk is a Map.get per ancestor. Same total, opposite
+  // fixes — and "the drop points are what is slow" is only answerable with
+  // both, plus how many are registered.
+  hitParts(efp, walk, nEls, nTargets) {
+    if (!s.active) return;
+    s.efpTotal += efp; if (efp > s.efpMax) s.efpMax = efp;
+    s.walkTotal += walk; if (walk > s.walkMax) s.walkMax = walk;
+    if (nEls > s.elsMax) s.elsMax = nEls;
+    s.dropTargets = nTargets;
   },
   frame(dt) {
     if (!s.active) return;
@@ -161,6 +174,9 @@ export const dragPerf = {
         + ` onMove avg=${avg(f.onMoveTotal, f.moves)}/max=${+f.onMoveMax.toFixed(1)}ms`
         + ` raf avg=${avg(f.rafTotal, f.frames)}/max=${+f.rafMax.toFixed(1)}ms`
         + ` hit avg=${avg(f.hitTotal, f.hitCount)}/max=${+f.hitMax.toFixed(1)}ms`
+        + ` [efp avg=${avg(f.efpTotal, f.hitCount)}/max=${+f.efpMax.toFixed(1)}`
+        + ` walk avg=${avg(f.walkTotal, f.hitCount)}/max=${+f.walkMax.toFixed(1)}`
+        + ` els=${f.elsMax} targets=${f.dropTargets}]`
         + ` over16=${f.long16} over32=${f.long32}`
         + ` | DROP handler=${d(f.tDrop, f.tDropDone)}ms paint=${d(f.tDropDone, f.tDropPaint)}ms`
         + ` | renders=${rTot}${rTop ? `(${rTop})` : ""}`

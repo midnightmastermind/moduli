@@ -456,7 +456,17 @@ function _findDropTarget(clientX, clientY, dragType, sourceEl) {
   // elementsFromPoint returns ALL elements at coordinates (top to bottom).
   // The drag clone has pointer-events:none but may still appear — it's
   // simply not in the registry, so walk-up from it finds nothing.
+  //
+  // SPLIT FOR ATTRIBUTION. The hit-test measured 13.5ms average and 120ms
+  // worst on the user's tablet, every 32ms of a drag, and "drop points are
+  // what is slow" is a reasonable reading of that — there is one registered
+  // per container, per instance and per insert gap. But the registry lookup is
+  // a Map.get per ancestor, and `elementsFromPoint` forces a hit-test over a
+  // 20,416-node document: those are very different costs with very different
+  // fixes, and the single number cannot tell them apart.
+  const _e0 = performance.now();
   const elements = document.elementsFromPoint(clientX, clientY);
+  const _e1 = performance.now();
   for (const el of elements) {
     let node = el;
     while (node && node !== document.body) {
@@ -465,12 +475,14 @@ function _findDropTarget(clientX, clientY, dragType, sourceEl) {
       if (config) {
         const accepts = config.acceptsRef.current;
         if (accepts.length === 0 || accepts.includes(dragType)) {
+          dragPerf.hitParts(_e1 - _e0, performance.now() - _e1, elements.length, _dropRegistry.size);
           return { el: node, ...config };
         }
       }
       node = node.parentElement;
     }
   }
+  dragPerf.hitParts(_e1 - _e0, performance.now() - _e1, elements.length, _dropRegistry.size);
   return null;
 }
 

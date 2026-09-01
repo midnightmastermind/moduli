@@ -110,3 +110,26 @@ describe("the summary is snapshotted, not read a frame later", () => {
   });
 });
 
+// "IT COULD HAVE TO DO WITH HIGHLIGHTING TOO … on drop points" — a reasonable
+// reading of `hit avg=13.5ms max=119.9ms`, since one drop target is registered
+// per container, per instance and per insert gap. But the registry lookup is a
+// Map.get per ancestor while `elementsFromPoint` forces a hit-test over a
+// 20,416-node document. Same total, opposite fixes.
+describe("the hit-test is split into its two halves", () => {
+  beforeEach(() => { emitted.length = 0; window.__dragPerf = true; });
+
+  it("separates elementsFromPoint from the drop-registry walk", async () => {
+    dragPerf.touchStart(); dragPerf.activate();
+    dragPerf.start({ label: "x", mode: "move" });
+    dragPerf.hit(20); dragPerf.hitParts(18, 2, 37, 412);
+    dragPerf.hit(10); dragPerf.hitParts(8, 2, 21, 412);
+    dragPerf.dropStart(); dragPerf.dropDone(); dragPerf.end();
+    await flush();
+    const line = emitted[0].payload.line;
+    expect(line).toMatch(/efp avg=13\/max=18/);
+    expect(line).toMatch(/walk avg=2\/max=2/);
+    // How many drop points exist at all, and the deepest stack under a finger.
+    expect(line).toContain("els=37 targets=412");
+  });
+});
+
