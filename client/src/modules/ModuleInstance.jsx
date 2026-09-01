@@ -154,7 +154,13 @@ function InstanceInner({
   const fieldsById = useGridActionsSelector(s => s.fieldsById);
   const addInstanceToContainer = useGridActionsSelector(s => s.addInstanceToContainer);
   const modulesById = useGridActionsSelector(s => s.modulesById);
-  const instancesById = useGridActionsSelector(s => s.instancesById);
+  // `instancesById` WAS SUBSCRIBED HERE AND READ BY NOTHING. Its only other
+  // mention in this file was the render-attribution probe listing it as a
+  // possible cause — and it was one: 194 of 456 instance renders on a single
+  // idle load (measured 2026-09-01), every row re-rendering because some other
+  // row was written. A subscription with no reader is pure cost, and the probe
+  // is what turned "we have a lot of things re-rendering that don't need to"
+  // into a line number.
   // ONLY INSTANCES THAT BIND AN OPERATION WIDGET SUBSCRIBE TO THE OP MAP.
   //
   // `operationsById` is read for exactly two things: building
@@ -217,7 +223,7 @@ function InstanceInner({
     p_dragHandleRef: dragHandleRef, p_onDoubleClick: onDoubleClick,
     p_toggleDoc: toggleDoc, p_showDoc: showDoc, p_renderBody: renderBody,
     s_fieldsById: fieldsById, s_addInstanceToContainer: addInstanceToContainer,
-    s_modulesById: modulesById, s_instancesById: instancesById,
+    s_modulesById: modulesById,
     s_operationsById: operationsById, s_ctxGrid: ctxGrid, s_isActive: isOriginalActiveSel,
     s_getOcc: getOcc, s_getOccMap: getOccMap, s_getState: getState,
     s_linkedGroup: linkedGroup, s_ancestorChain: ancestorChain,
