@@ -47,6 +47,8 @@ const DEFAULT_VALUE = {
   getParentId: () => null,
   getLinkedGroup: () => [],
   getState: () => ({}),
+  // Narrow reactive key for option-pool resolution (helpers/optionPoolKey.js).
+  optionPoolKey: 0,
 
   // action creators (passed in)
   updatePanel: () => {},

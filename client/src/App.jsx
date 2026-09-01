@@ -55,6 +55,7 @@ import * as LayoutHelpers from "./helpers/LayoutHelpers";
 import { requestLabelEdit } from "./helpers/pendingLabelEdit.js";
 import { openPanelOnRootFolderPage } from "./helpers/importsFolder";
 import { buildLookup } from "./helpers/LayoutHelpers";
+import { optionScopeFieldIds, poolKeyFrom } from "./helpers/optionPoolKey";
 
 import { normalizeFieldBindings } from "./helpers/siblingFieldBindings.js";
 import { installFastWheel } from "./helpers/wheelScroll.js";
@@ -143,6 +144,23 @@ export default function App() {
   const textblocksById = useMemo(
     () => buildLookup(state.textblocks),
     [state.textblocks]
+  );
+
+  // THE REACTIVE KEY FOR OPTION POOLS (helpers/optionPoolKey.js).
+  //
+  // `FieldRenderer` used the grid-wide occurrence COUNT as its dep for option
+  // resolution, so any create anywhere re-resolved every dropdown on screen —
+  // 615 field renders on a single DROP, because a drop creates an occurrence.
+  // A drop creates a schedule placement, which carries no board tag and
+  // belongs to no pool.
+  //
+  // Derived here, once per occurrence change, for the same reason
+  // `instancesById` is: doing it inside a selector would walk 21,000
+  // occurrences on every store notification, per field.
+  const optionScopeFids = useMemo(() => optionScopeFieldIds(state.fields), [state.fields]);
+  const optionPoolKey = useMemo(
+    () => poolKeyFrom(state.occurrences, optionScopeFids),
+    [state.occurrences, optionScopeFids],
   );
 
   // Merged leaf-placeable lookup — anything that can live as a child of a container.
@@ -873,6 +891,10 @@ export default function App() {
       textblocksById,
       leafModulesById,
       occurrencesById,
+      // Narrow reactive key for option-pool resolution — see
+      // helpers/optionPoolKey.js. Subscribing to this instead of the grid-wide
+      // occurrence count is what stops a drop re-resolving every dropdown.
+      optionPoolKey,
       linkedGroupIndex,
       childrenByParentId,
       occurrencesByModuleId,
@@ -915,6 +937,10 @@ export default function App() {
       textblocksById,
       leafModulesById,
       occurrencesById,
+      // Narrow reactive key for option-pool resolution — see
+      // helpers/optionPoolKey.js. Subscribing to this instead of the grid-wide
+      // occurrence count is what stops a drop re-resolving every dropdown.
+      optionPoolKey,
       linkedGroupIndex,
       childrenByParentId,
       occurrencesByModuleId,

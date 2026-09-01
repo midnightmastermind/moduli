@@ -103,8 +103,16 @@ function FieldRenderer({
   // keeps subscribing, so an unrecognised or missing mode still refreshes.
   const optionsMode = field?.meta?.optionsSource?.mode;
   const poolFromOccurrences = wantsResolve && optionsMode !== "manual" && optionsMode !== "range";
+  // NARROWED FROM THE GRID-WIDE COUNT TO THE POOL (helpers/optionPoolKey.js).
+  //
+  // The count moved on any create anywhere — including a DROP, which is what
+  // made `dropRenders=707(field:615)` on one gesture. A drop creates a
+  // schedule placement, which carries no board tag and is in nobody's pool.
+  // `optionPoolKey` counts only occurrences that could BE an option, derived
+  // from the grid's own find predicates. Falls back to the plain count when a
+  // grid has no find-mode dropdowns, so a pool can never freeze.
   const occSetKey = useGridActionsSelector(
-    s => (poolFromOccurrences ? (s.state.occurrences || []).length : 0),
+    s => (poolFromOccurrences ? (s.optionPoolKey ?? (s.state.occurrences || []).length) : 0),
   );
   // Same gate, same reason (see getModMap above).
   const modulesById = useGridActionsSelector(
