@@ -44,7 +44,7 @@ const s = {
   hitTotal: 0, hitCount: 0, hitMax: 0,
   efpTotal: 0, efpMax: 0, walkTotal: 0, walkMax: 0, elsMax: 0, dropTargets: 0,
   long16: 0, long32: 0,
-  tally0: null, longTasks: 0, longTaskMs: 0, po: null,
+  tally0: null, tallyDrop: null, longTasks: 0, longTaskMs: 0, po: null,
   label: "", mode: "",
 };
 let last = null;
@@ -92,6 +92,7 @@ export const dragPerf = {
       long16: 0, long32: 0, longTasks: 0, longTaskMs: 0,
       label: meta.label || "", mode: meta.mode || "",
       tally0: (typeof window !== "undefined" && window.__renderTally) ? window.__renderTally() : null,
+      tallyDrop: null,
     });
     // The frame the user actually sees the drag begin on.
     afterNextPaint(() => { if (s.active && !s.tFirstPaint) s.tFirstPaint = performance.now(); });
@@ -135,8 +136,15 @@ export const dragPerf = {
     if (dt > 32) s.long32++;
   },
 
-  // touchend, before the drop handler runs.
-  dropStart() { if (s.active) s.tDrop = performance.now(); },
+  // touchend, before the drop handler runs. The render tally is snapshotted
+  // HERE so the drop's own fan-out can be separated from the drag's: a drop
+  // paint of 1,842-5,302ms is either the write's re-render or the browser
+  // painting a 20,000-node document, and those are different fixes.
+  dropStart() {
+    if (!s.active) return;
+    s.tDrop = performance.now();
+    s.tallyDrop = (typeof window !== "undefined" && window.__renderTally) ? window.__renderTally() : null;
+  },
   // the drop handler returned — the write is dispatched, the paint is not done.
   dropDone() { if (s.active) s.tDropDone = performance.now(); },
 
@@ -179,6 +187,14 @@ export const dragPerf = {
         + ` els=${f.elsMax} targets=${f.dropTargets}]`
         + ` over16=${f.long16} over32=${f.long32}`
         + ` | DROP handler=${d(f.tDrop, f.tDropDone)}ms paint=${d(f.tDropDone, f.tDropPaint)}ms`
+        + ` dropRenders=${(() => {
+            if (!f.tallyDrop || typeof window === "undefined" || !window.__renderDiff) return -1;
+            const dd = window.__renderDiff(f.tallyDrop);
+            const tot = Object.values(dd.renders || {}).reduce((a, n) => a + n, 0);
+            const top = Object.entries(dd.renders || {}).filter(([, n]) => n)
+              .sort((a, b) => b[1] - a[1]).slice(0, 2).map(([k, n]) => `${k}:${n}`).join(",");
+            return `${tot}${top ? `(${top})` : ""} opSweeps=${dd.ops?.runs ?? 0}`;
+          })()}`
         + ` | renders=${rTot}${rTop ? `(${rTop})` : ""}`
         + ` opSweeps=${tally?.ops?.runs ?? -1} opMs=${Math.round(tally?.ops?.ms ?? -1)}`
         + ` longTasks=${f.longTasks}(${Math.round(f.longTaskMs)}ms)`
