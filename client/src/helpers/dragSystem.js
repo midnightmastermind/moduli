@@ -860,8 +860,34 @@ export function useDragDrop({
           // it — a different problem, and one that would also explain the
           // drop's paint.
           dragPerf.flushMark("f:t0");
-          document.documentElement.style.touchAction = 'none';
-          dragPerf.flushMark("f:touchAction");
+          // `documentElement.style.touchAction = 'none'` USED TO BE HERE AND
+          // COST 903ms. Attributed by forced flush on the device, with the
+          // property written immediately after it on the same element as the
+          // control:
+          //
+          //     f:t0:0  f:touchAction:903  f:overscroll:3  f:bodyAttrs:45
+          //     f:pill:4  f:barriers:3  f:setIsDragging:0  f:sessionState:0
+          //
+          // So it is not "writing to <html>" — it is `touch-action`
+          // specifically, which makes Chrome rebuild the touch-action
+          // hit-test regions for the whole document (21,282 nodes here). And
+          // it was charged TWICE per drag: the reset on drag end is the same
+          // invalidation again, inside the drop's ~1.7s paint.
+          //
+          // WHAT IT WAS FOR IS ALREADY COVERED, EARLIER, BY SOMETHING CHEAPER.
+          // dragTouchGuards' header lists the three jobs: the gesture that
+          // becomes a drag is claimed by `.module-drag-handle`'s CSS
+          // `touch-action: none` before the touch begins; the dragging finger
+          // cannot scroll because this file's own `touchmove` is non-passive
+          // and calls preventDefault (touch events retarget to the element the
+          // touch STARTED on, so it keeps receiving them wherever the finger
+          // goes); and OS edge gestures are the edge barriers' job — four
+          // fixed 40px divs with capture-phase preventDefault, spawned
+          // SYNCHRONOUSLY at drag start for 3ms.
+          //
+          // The only window given up is a SECOND finger landing mid-screen
+          // inside the first frame, before the document-level guards attach.
+          // `overscroll-behavior` stays: it costs 3ms and stops pull-to-refresh.
           document.documentElement.style.overscrollBehavior = 'none';
           dragPerf.flushMark("f:overscroll");
           setIsDragging(true);
@@ -1004,7 +1030,8 @@ export function useDragDrop({
         dragging = false;
         payload = null;
         setIsDragging(false);
-        document.documentElement.style.touchAction = '';
+        // No touchAction reset — nothing sets it any more, and the reset was
+        // the SECOND ~900ms hit-test-region rebuild of every drag.
         document.documentElement.style.overscrollBehavior = '';
         dragPerf.end();
         setTimeout(() => dragCtx.handleDragEnd(), 0);

@@ -536,7 +536,8 @@ export function DragProvider({
     if (typeof window !== "undefined") window.__moduli_interacting = false;
 
     // Restore touch-action + overscroll-behavior on document (set during drag start on mobile)
-    document.documentElement.style.touchAction = '';
+    // No touchAction reset — see handleDragStart. It was the second ~900ms
+    // document-wide invalidation of every drag, landing in the drop's paint.
     document.documentElement.style.overscrollBehavior = '';
     removeEdgeBarriers();
 
@@ -625,8 +626,15 @@ export function DragProvider({
     // ~16ms later re-reads live for every other type, so nothing goes stale.
 
     // Prevent Android split-screen gesture from intercepting drags on touch.
+    // The edge barriers ARE that prevention: four fixed 40px divs with
+    // capture-phase preventDefault, spawned synchronously here for 3ms.
+    //
+    // `documentElement.style.touchAction = 'none'` was also written here — a
+    // duplicate of dragSystem's, so it was free — and it is gone from both:
+    // measured at 903ms on the device, because changing touch-action makes
+    // Chrome rebuild hit-test regions for the whole document. See dragSystem
+    // for the attribution and for what covers each of its three jobs instead.
     if (dragConfigRef.current.isTouch) {
-      document.documentElement.style.touchAction = 'none';
       document.documentElement.style.overscrollBehavior = 'none';
       spawnEdgeBarriers();
     }
