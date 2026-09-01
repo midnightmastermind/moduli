@@ -154,6 +154,42 @@ describe("dragPerf covers all three phases", () => {
     expect(emitted[0]?.payload?.line || "").not.toContain("f:htmlStyle");
   });
 
+  it("separates a shadow MISS from a shadow MISMATCH", async () => {
+    // The two are not equally serious and must never be summed. A miss costs
+    // a fallback to the engine and nothing else. A mismatch means the fast
+    // path named a DIFFERENT drop target — shipped, that is a row landing in
+    // the wrong container, and one of them blocks the switch-over.
+    const A = { n: "a" }, B = { n: "b" };
+    dragPerf.touchStart(0.1); dragPerf.activate(0);
+    dragPerf.start({ label: "shadow", mode: "copy" });
+    dragPerf.hitShadow(A, A, 0.2);        // agree
+    dragPerf.hitShadow(null, B, 0.2);     // miss  — index deferred
+    dragPerf.hitShadow(A, B, 0.2);        // BAD   — named a different target
+    dragPerf.hitShadow(null, null, 0.2);  // agree — both found nothing
+    dragPerf.dropStart(); dragPerf.dropDone(); dragPerf.end();
+    await flush();
+    const line = emitted[0]?.payload?.line || "";
+    expect(line).toContain("idx=2/4");
+    expect(line).toContain("miss=1");
+    expect(line).toContain("BAD=1");
+  });
+
+  it("counts both-null as agreement, not as a miss", async () => {
+    // Over empty space the engine finds nothing and so does the index. Scoring
+    // that as a miss would make the fast path look unusable in exactly the
+    // case where it is perfect.
+    dragPerf.touchStart(0.1); dragPerf.activate(0);
+    dragPerf.start({ label: "empty", mode: "copy" });
+    dragPerf.hitShadow(null, null, 0.1);
+    dragPerf.hitShadow(null, null, 0.1);
+    dragPerf.dropStart(); dragPerf.dropDone(); dragPerf.end();
+    await flush();
+    const line = emitted[0]?.payload?.line || "";
+    expect(line).toContain("idx=2/2");
+    expect(line).toContain("miss=0");
+    expect(line).toContain("BAD=0");
+  });
+
   it("reports to the SERVER, not just the console", async () => {
     // The device with the problem is the one whose console is hardest to read.
     dragPerf.touchStart(); dragPerf.activate();
