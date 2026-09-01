@@ -41,15 +41,28 @@ too fast and you are waiting for an entire repaint", "it could have to do with
 highlighting… on drop points", and this — has been a better lead than the
 hypothesis I brought. All three were checkable; two were right.*
 
-**REPORTED, NOT FIXED — the rail's label is honest and the DATA is wrong.**
+**AND THE LABEL WAS HONEST WHILE THE DATA WAS WRONG — now fixed too.**
 That panel's `activeOccurrenceId` points at
 `role:"container" kind:"artifact"`, an EMPTY artifact container with no
 children — the `FolderNode` "+" defect class from 2026-08-28 (2), which mints a
 shape nothing can open or render. The rail reads "Untitled" because that is
 genuinely what the panel has open. Its own listed pages are Root, Trackers, Day
 Page, Documents and "Untitled (.md)" — **no Tasks among them**, though two
-pages named Tasks exist elsewhere on the grid. Which page that panel should
-open on is the user's call, so it is not guessed at.
+pages named Tasks exist elsewhere on the grid. Which page it should open on was the
+user's call and was asked rather than guessed: *"i meant its supposed to be
+Trackers"* — which is one of the panel's own listed pages. Chosen from that list
+BY NAME, refusing on ambiguity or on a target that is not `role:"page"`, rather
+than baking the id into a script.
+
+Verified together, at the bottom of the 2-high Schedule:
+```
+before   left "Untitled"  top=-1114   (off screen, and the wrong page)
+after    left "Trackers"  top=   32   ON SCREEN
+```
+The stray artifact container is now referenced by nothing — 0 parents, 0 views
+— and `sweepOrphans` still declines it, which is its guard working rather than
+failing: it deletes only what is empty AND unreachable, and would rather leave
+an invisible row than take one that something might still hold.
 
 3,681 client tests, lint 0 errors, deployed, prod HEAD verified.
 
