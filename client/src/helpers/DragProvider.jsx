@@ -473,6 +473,12 @@ export function DragProvider({
       payload?.context?.occurrenceId || payload?.data?.occurrenceId ||
       payload?.data?.occurrence?.id || "";
 
+    // Billed separately from the two setStates below: this is the write that
+    // `index.css` matches with `body[data-drag-kind="panel"] .container-shell`,
+    // an ancestor-attribute selector, so it is the one candidate that can
+    // invalidate style for the whole document.
+    dragPerf.flushMark("f:bodyAttrs");
+
     setActivePayload(payload);
     setDragMode(mode); // Also set state for UI updates
   }, []);
@@ -624,7 +630,7 @@ export function DragProvider({
       document.documentElement.style.overscrollBehavior = 'none';
       spawnEdgeBarriers();
     }
-    dragPerf.mark("hds:barriers");
+    dragPerf.flushMark("f:barriers");
 
     // Determine initial mode from options or default to 'move'
     // Alt/Option key = copy mode
@@ -633,7 +639,7 @@ export function DragProvider({
       console.log("[dragDiag] dragStart", { type: payload?.type, mode: initialMode, label: payload?.data?.label || payload?.id });
     }
     startSession(payload, initialMode);
-    dragPerf.mark("hds:startSession");
+    dragPerf.flushMark("f:sessionState");
 
     if (payload.type === DragType.PANEL) {
       const cell = getCellFromPoint(clientX, clientY);

@@ -89,6 +89,48 @@ describe("dragPerf covers all three phases", () => {
     expect(line).not.toContain("holdScrolls=0");
   });
 
+  it("attributes with forced flushes on the FIRST drag only", async () => {
+    // The attribution converts one deferred style/layout pass into several, so
+    // it makes the drag it measures SLOWER. That is acceptable once and not
+    // twice — a permanent forced flush would be a regression shipped as a
+    // diagnostic, which is the shape this file exists to avoid.
+    //
+    // The gate is module scope ("once per page LOAD"), and every test above
+    // has already activated once — so a fresh module is the only honest way to
+    // observe a first drag. Both halves are asserted: a run that emitted no
+    // flush mark at all would satisfy the second for the wrong reason.
+    vi.resetModules();
+    const fresh = (await import("../helpers/dragPerf.js")).dragPerf;
+    window.__dragPerf = true;
+    emitted.length = 0;
+
+    fresh.touchStart(0.1); fresh.activate(0);
+    fresh.mark("t0");                       // as the real activation does
+    fresh.flushMark("f:htmlStyle");
+    fresh.start({ label: "one", mode: "copy" });
+    fresh.dropStart(); fresh.dropDone(); fresh.end();
+    await flush();
+
+    fresh.touchStart(0.1); fresh.activate(0);
+    fresh.mark("t0");
+    // SPIN, so the suppressed segment would be NON-ZERO if it leaked. Without
+    // this the second drag's delta is 0ms under jsdom and the zero-filter
+    // hides a broken gate — A/B'd, and the test passed against a flushMark
+    // with the gate deleted. The fixture has to isolate the case only this
+    // guard covers, or it is testing the filter instead.
+    { const t = performance.now(); while (performance.now() - t < 3) { /* spin */ } }
+    fresh.flushMark("f:htmlStyle");         // suppressed: not the first drag
+    fresh.mark("after");
+    fresh.start({ label: "two", mode: "copy" });
+    fresh.dropStart(); fresh.dropDone(); fresh.end();
+    await flush();
+
+    const first = emitted.find(e => e.payload.line.includes('"one"'))?.payload.line || "";
+    const second = emitted.find(e => e.payload.line.includes('"two"'))?.payload.line || "";
+    expect(first).toContain("f:htmlStyle");      // it really did attribute once
+    expect(second).not.toContain("f:htmlStyle"); // and never again
+  });
+
   it("reports to the SERVER, not just the console", async () => {
     // The device with the problem is the one whose console is hardest to read.
     dragPerf.touchStart(); dragPerf.activate();

@@ -37,6 +37,7 @@ import { safeEmit } from "./offlineQueue.js";
 const s = {
   active: false, t0: 0,
   tTouch: 0, tActivate: 0, tStarted: 0, tFirstPaint: 0, touchRectMs: -1, holdScrolls: -1,
+  attributing: false,
   marks: null, attr0: null, attrWas: undefined,
   tDrop: 0, tDropDone: 0, tDropPaint: 0,
   moves: 0, frames: 0,
@@ -50,6 +51,8 @@ const s = {
   label: "", mode: "",
 };
 let last = null;
+// The forced-flush attribution runs on the FIRST drag of a page load only.
+let attributedOnce = false;
 
 function enabled() {
   if (typeof window === "undefined") return false;
@@ -106,6 +109,9 @@ export const dragPerf = {
     s.tActivate = performance.now();
     s.holdScrolls = scrolls;
     s.marks = [];
+    // Once per page load — see flushMark.
+    s.attributing = !attributedOnce;
+    attributedOnce = true;
   },
 
   // WHICH PART OF THE ACTIVATION COSTS THE SECOND. `work` measures the whole
@@ -116,6 +122,34 @@ export const dragPerf = {
   // and hit-tests for the cell. One number cannot say which.
   mark(name) {
     if (!s.marks) return;
+    s.marks.push([name, performance.now()]);
+  },
+
+  // ATTRIBUTE THE ~1.1s TASK TO THE WRITE THAT CAUSES IT.
+  //
+  // The measurement so far: `holdScrolls=0` (the page never scrolled under the
+  // finger, so the repaint theory is dead and the cause is ours),
+  // `touchRect=0.1ms` (clean when the finger landed), `work=1-4ms` of JS, and
+  // then ONE long task of 1,102-1,170ms. So ~1.1s of style/layout/paint is
+  // provoked by something we write at activation, and there are five
+  // candidates, each one line: the `<html>` inline style, `setIsDragging`, the
+  // pill append, four edge barriers, and `body.dataset.dragKind` — which
+  // `index.css` matches with `body[data-drag-kind="panel"] .container-shell`,
+  // an ancestor-attribute selector that invalidates style document-wide.
+  //
+  // A forced flush after each one bills that write for its own invalidation,
+  // so the FIRST expensive segment names the cause. This deliberately makes
+  // the drag slower while it runs — it converts one deferred pass into
+  // several — which is why it is ONCE PER PAGE LOAD: the answer needs one
+  // drag, and the second drag should not pay for it.
+  //
+  // React state updates flush asynchronously, so their segments read ~0 by
+  // construction. That is not a gap: if every forced segment is cheap and
+  // `paint` is still ~1.1s, the cost is the React render and its layout, and
+  // that is the answer rather than a missing measurement.
+  flushMark(name) {
+    if (!s.marks || !s.attributing) return;
+    if (typeof document !== "undefined") void document.body.offsetHeight;
     s.marks.push([name, performance.now()]);
   },
 
@@ -260,7 +294,17 @@ export const dragPerf = {
               const out = [];
               for (let i = 1; i < f.marks.length; i++) {
                 const ms = Math.round(f.marks[i][1] - f.marks[i - 1][1]);
-                if (ms > 0) out.push(`${f.marks[i][0]}:${ms}`);
+                // ORDINARY marks print only when they cost something — the
+                // startup breakdown is meant to name the expensive one.
+                //
+                // AN ATTRIBUTION PASS IS THE OPPOSITE: four of the five writes
+                // are expected to be free, and each zero EXONERATES one
+                // candidate. Filtering them would print an exoneration and a
+                // mark that never ran as the same thing — absent read as
+                // measured — and that is precisely the confusion this pass
+                // exists to resolve. So while attributing, every segment
+                // prints, zeros included.
+                if (ms > 0 || f.attributing) out.push(`${f.marks[i][0]}:${ms}`);
               }
               return out.length ? ` [${out.join(" ")}]` : "";
             })()}`
