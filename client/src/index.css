@@ -2786,6 +2786,21 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    ============================================================================= */
 
 /* Viewport container — clips to one cell. flex:1 so it fills parent in flex column */
+/* THE POSITIONING CONTEXT FOR THE CELL-NAV RAILS, and it must not scroll.
+   `.mobile-grid-viewport` becomes `overflow-y: auto` for a panel taller than
+   one cell, and the rails are `position: absolute`. While they lived inside it
+   they were CONTENT: scrolling to the bottom of a 2-high panel carried them off
+   the top, so the rail to the neighbouring panel was in the DOM and not on
+   screen — reported twice as "no side button exists to go left", and missed
+   twice by a probe that asked whether the element existed rather than where it
+   was. */
+.mobile-grid-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 .mobile-grid-viewport {
   position: relative;
   overflow: hidden;

@@ -598,26 +598,43 @@ export default function MobileGridNav({
     : `translate(${-(anchorCol * (100 / cols))}%, ${-(anchorRow * (100 / rows))}%)`;
 
   return (
-    <div
-      className="mobile-grid-viewport"
-      ref={viewportRef}
-      style={{
-        overflowY: !zoomedOut && panelScrollV ? "auto" : "hidden",
-        overflowX: !zoomedOut && panelScrollH ? "auto" : "hidden",
-        overscrollBehavior: "contain",
-      }}
-    >
+    // THE RAILS MUST NOT LIVE INSIDE THE SCROLLER.
+    //
+    // `.mobile-grid-viewport` becomes `overflow-y: auto` for a panel taller
+    // than one cell (the native-scroll mode), and the rails are
+    // `position: absolute` against it. Inside it they are content: scrolling
+    // 1,146px to the bottom of a 2-high Schedule carried them 1,146px off the
+    // top, so the LEFT rail to the neighbouring panel simply was not on screen.
+    //
+    // Reported twice (2026-09-01) as "no side button exists to go left", and
+    // MISSED TWICE by a probe that asked `querySelectorAll` whether the button
+    // existed — it did, scrolled out of view. Presence is not visibility.
+    //
+    // The shell is the positioning context now and does not scroll; the
+    // viewport keeps its class, its ref and its `data-panel-native-scroll`
+    // stamp, so the scroll clamp and the drag autoscroll are untouched.
+    <div className="mobile-grid-shell">
       <div
-        ref={sliderRef}
-        className={`mobile-grid-slider${zoomedOut ? " zoomed-out" : ""}`}
+        className="mobile-grid-viewport"
+        ref={viewportRef}
         style={{
-          width: `${cols * 100}%`,
-          height: `${rows * 100}%`,
-          transform,
-          transformOrigin: "0 0",
+          overflowY: !zoomedOut && panelScrollV ? "auto" : "hidden",
+          overflowX: !zoomedOut && panelScrollH ? "auto" : "hidden",
+          overscrollBehavior: "contain",
         }}
       >
-        {children}
+        <div
+          ref={sliderRef}
+          className={`mobile-grid-slider${zoomedOut ? " zoomed-out" : ""}`}
+          style={{
+            width: `${cols * 100}%`,
+            height: `${rows * 100}%`,
+            transform,
+            transformOrigin: "0 0",
+          }}
+        >
+          {children}
+        </div>
       </div>
 
       {/* Rail buttons — full-length edge overlays, inset from OS gesture zones */}
