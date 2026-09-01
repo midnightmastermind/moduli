@@ -6,6 +6,92 @@
 
 ---
 
+### 2026-09-01 — THE DRAG AUDIT; and I CLOBBERED A CHILD LIST WITH MY OWN REPAIR
+
+User: *"dragging an instance is taking forever to start up and then is just
+jittery around the grid … the drop takes a bit too. get a full audit."* Then a
+correction worth keeping: I said the middle phase was *"already covered"*, and
+they replied *"i called out the entire performace of the drag so during too its
+terrible."* **`dragPerf` did measure the during phase — and logged only to a
+console on the one device that has the problem, so nobody had ever read it.
+INSTRUMENTED IS NOT MEASURED.**
+
+**THE PROBE NOW COVERS ALL THREE PHASES** — the hold delay we IMPOSE separated
+from our own startup work, the during numbers plus renders/op-sweeps/long
+tasks, and touchend → handler → the frame after — as one line, to the console
+AND the server.
+
+**TWO SUSPECTS THE USER NAMED, BOTH CHECKED.** The drag PREVIEW is exonerated:
+desktop's JS-followed pill (which really was *"a per-frame setState re-rendering
+the whole provider"*) was removed in July, touch uses a DOM clone moved by
+`transform`, and `setClosestEdge` returns a STRING so React bails on an
+unchanged value. **Drop-point HIGHLIGHTING is a fair reading and not yet
+proven**: `DragStateContext` has two consumers, and `setIsOver` is local to the
+hovered target — but `_findDropTarget` runs every 32ms and does two unrelated
+things under one timer (`elementsFromPoint` over a 20,416-node document, and a
+Map.get per ancestor). Split, with the registry size and stack depth, because
+those have opposite fixes.
+
+**AND THE FIRST CAPTURE EXPOSED A BUG IN MY OWN PROBE.** Two reports came back
+with byte-identical START figures and durations two orders of magnitude apart —
+which two real drags cannot do. The report waits a frame for the drop's paint
+and then read every number from the LIVE state inside that callback, so a
+second gesture rewrote them underneath. Snapshotted synchronously now. *A
+number that survives that bug is only `dur`; everything else from that capture
+was discarded rather than reasoned from.*
+
+---
+
+**THE REPAIR, AND THE PART I GOT WRONG.** User: *"could you revert my changes to
+the grid today (my drags cause they were all tests), and then make sure that
+routines are all set to copy cause i accidentally moved a bunch away."*
+
+**PARENT-ID DIFF REPORTED ZERO CHANGES, and that nearly closed the
+investigation.** Scope was measured against the 04:17Z nightly backup rather
+than `updatedAt` (the op sweep rewrites tracker values on every load, so
+updatedAt says almost nothing). **Placement on this grid is the PARENT'S
+`occurrences[]`, not the child's `parentId`** — it multi-parents by design — so
+a drag re-lists without re-parenting and a parentId diff sees nothing. The
+child-list diff found it: `Nutrition` had LOST `Drink` and `Visited`, both
+re-listed under schedule slots, both still claiming Nutrition as their parent
+and therefore rendering nowhere.
+
+**THEN MY OWN REPAIR CLOBBERED THE LIST IT WAS FIXING.** Three restores shared
+one parent, and I built each `next` array from a single pre-loop snapshot and
+wrote three times — so each write overwrote the previous and the last one won.
+Nutrition came out with **2 children instead of 4**. Rebuilt from the backup's
+list in ONE write, ordered by the backup and unioned with anything live-only,
+because dropping a child that is merely absent from a snapshot is how a repair
+becomes the damage. *This is the read-modify-write race this file records the
+server hitting on `occurrences[]`, committed by hand, in a loop, by me.*
+
+**AND A THIRD ROUTINE WAS ALREADY STRANDED BEFORE TODAY** — `Eat`, listed by
+NOBODY, so it rendered nowhere. Restored and reported separately rather than
+folded into "today's changes", because it is not one.
+
+**THE COPY FIX IS WRITTEN ON THE OCCURRENCE, NOT THE MODULE, and the measurement
+is the reason.** 91 of 102 catalog routines already resolved to copy; the 11
+that did not are exactly the ones that went missing (Drink, Visited, Eat,
+Exercise, Stretch, Run, Go to Bed, Wake Up, Hot Tub, Pay Bill, Cancel
+Subscription). **Every one of those modules has other placements — `Exercise`
+has 22** — so `module.defaultDragMode = "copy"` would have made every schedule
+row of them un-draggable to another time slot, which is a thing the user does
+daily. `occurrence.dragMode` is per-placement: the catalog copies, the placed
+row still moves.
+
+Read back: 3 routines restored, **0 parented-but-unlisted under Routines** (was
+3), **0 of 102 catalog routines still not copy**, pm2 restarted so the warm
+cache stops serving the old values. poms grid: 1 pre-existing error, 1
+pre-existing warning.
+
+**STILL OPEN:** the user reports it *"working alot better now, still a little
+stuttering and the drop still takes a second"*. The last trustworthy drop
+figure is `handler=301ms paint=1250ms`, and no capture yet distinguishes a
+drag's own cost from the post-load cascade — which is why the line now carries
+`sinceLoad`.
+
+---
+
 ### 2026-08-31 (6) — THE RENDER STORM, ATTRIBUTED AT LAST: two subscriptions nobody was reading
 
 (5) ended with the real number — 208 effects producing ~3,800 field renders —
