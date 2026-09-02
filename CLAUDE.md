@@ -6,6 +6,80 @@
 
 ---
 
+### 2026-09-02 — THE DROP LANDED WHERE YOUR FINGER HAD BEEN, and a SHORT drag dropped nothing at all
+
+User, three reports in four minutes: *"i try to drop to the left side of an
+empty container ... and it doesnt drop, i have to drop it in the middle of
+it"*, *"i drop to the last spot of a container (an instance) and it puts it
+after the container"*, and their own reading — *"the rect are off i think"*.
+
+**ALL THREE ARE ONE LINE.** `onEnd` dropped on `curTarget`, which is whatever
+the THROTTLED hover hit-test last resolved. That throttle is derived from its
+own cost (2026-09-01 (2)), so on this tablet at `hit avg=21ms` it backs off to
+**~85ms**, and the worst captures show 120ms+ hits. The drop was decided by
+where the finger had been up to a tenth of a second before the user let go.
+
+**AND A SHORT DRAG DROPPED NOTHING, which is the literal complaint.** Two facts
+compose: the touchmove that ACTIVATES returns before hit-testing, and
+`activateDrag` ARMS the throttle (`lastHitTestTime = performance.now()`). So
+the first two moves of every drag resolve no target — a quick lift-move-release
+reaches `onEnd` with `curTarget === null` and drops nowhere.
+
+**THE EDGE COMPOUNDED IT RATHER THAN ABSORBING IT.** `_computeClosestEdge` ran
+with FRESH coordinates against the STALE element, and **a point outside an
+element's rect still yields a confident "closest" edge** — which is exactly
+*"it puts it after the container"*: right point, wrong box, plausible answer.
+The user's phrasing is precise about the symptom: the rect is fresh, the
+element it belongs to is not.
+
+**ONE HIT-TEST AT THE RELEASE POINT**, against ~900ms of drop paint. The
+throttle now does only what a throttle should: the highlight may lag the
+finger, it can no longer decide where the thing lands. The `else` branch had
+already re-read the point with its own `elementFromPoint` for doc drops — **the
+drop path had stopped trusting `curTarget` for half its cases and nobody
+noticed the other half.**
+
+**AND THE TESTS CAUGHT A REGRESSION I SHIPPED THE NIGHT BEFORE.** A drag begun
+by the lift timer **could never drop**: `movedPastThreshold` was set only on the
+pre-activation branch, so `onEnd`'s tap guard (`liftedByHold &&
+!movedPastThreshold`) threw the whole gesture away. Hold to lift, drag
+somewhere, let go, nothing lands. Both paths share one definition of *"the
+finger moved"* now. *A guard reads correctly right up until you ask which path
+sets the flag it depends on.*
+
+**THE FIXTURE WAS WRONG THREE TIMES, EACH IN THE FLATTERING DIRECTION, and the
+A/B is the only reason I know.** The hover-clear test was **vacuous** —
+`useDroppable` keeps `isOver` in React state, so `data-drop-over` was never
+written and the assertion was true either way (fixed with `overAsAttribute`).
+Then the two staleness tests never exercised staleness: the activating move
+returns before hit-testing, so the *"throttled"* move was really the first
+hit-test. Then activation arms the throttle, so even the corrected sequence
+needed a timer advance to let one hover through. **Every version passed.** Only
+mutating the code and watching which tests failed said otherwise.
+
+Three A/Bs, each failing exactly its own cases: the stale target fails 3, the
+shared moved-flag fails 1, the hover-clear fails 1.
+
+**THE PROBE GAINED THE TWO FIELDS THAT WOULD HAVE SHORTENED YESTERDAY.**
+`via=lift|move` names WHICH path started the drag — `hold` alone is two numbers
+wearing one name (the wait we IMPOSE against the wait until the user happened
+to move), and reading the second as the first is what let a *"still like a
+second"* complaint survive a fixed startup for a day. And `opBy=` prints the
+sweep-by-trigger breakdown `diffOps` has collected since the scroll work and
+the report **dropped on the floor** — so ~1s of operation sweeps landing
+mid-drag (`opSweeps=24 opMs=1016` on one capture, `18x943`, `17x1199` on
+others) stopped reading as unattributable noise.
+
+3,710 client tests, lint 0 errors, deployed, prod HEAD verified, served chunk
+sha256-identical, **pm2 uptime unmoved** (client-only, no cold read).
+
+**STILL OPEN, both measured and neither guessed at:** the hit-test is ~13-21ms
+x 130-180 calls, ~2s of a long drag, and geometry-only shortcuts are proven
+unsound here (2026-09-01 (6)). And ~1s of op sweeps fires DURING a drag on most
+captures — `opBy` names the trigger on the next one.
+
+---
+
 ### 2026-09-01 (6) — THE HIT-TEST INDEX WAS WRONG 41% OF THE TIME, and shadow mode is the only reason nobody found out in production
 
 With the startup second gone, `document.elementsFromPoint` was the largest
