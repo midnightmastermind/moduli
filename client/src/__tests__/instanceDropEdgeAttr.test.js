@@ -75,3 +75,56 @@ describe("the writer, against a real element", () => {
     expect(el.hasAttribute("data-drop-edge")).toBe(false);
   });
 });
+
+/**
+ * THE CONTAINER HEADER'S INSERT BAR — the last local-state hover.
+ *
+ * After the row fix shipped, the device's own capture on a SETTLED 14.7s drag
+ * still read `renders=126(container:99 ...)` with
+ * `causes=container{(none) @11:30pm=5  (none) @12:30am=3}`. `(none)` is
+ * hook-internal state, and `isHeaderOver` was the only one left.
+ *
+ * Its bar shows for 5 of the 7 types the header ACCEPTS, so the type test moved
+ * to CSS rather than narrowing `accepts` — narrowing that would stop
+ * module/artifact drops landing on the header, a behaviour change to fix a
+ * render. That is why `data-drag-type` exists: `data-drag-kind` collapses all
+ * seven into "leaf".
+ */
+describe("the container header uses the attribute path too", () => {
+  const jsx = src("modules/ModuleContainer.jsx");
+  const css = src("index.css").replace(/\/\*[\s\S]*?\*\//g, "");
+  const provider = src("helpers/DragProvider.jsx");
+
+  it("opts in and stops destructuring isOver", () => {
+    const hook = jsx.match(/const \{[^}]*\} = useDroppable\(\{\s*type: "container-header"[\s\S]*?\}\);/)?.[0] || "";
+    expect(hook).toMatch(/overAsAttribute:\s*true/);
+    expect(hook).not.toMatch(/isOver/);
+  });
+
+  it("mounts the bar on the render-time condition only", () => {
+    expect(jsx).toMatch(/items\.length > 0 && \(\s*<div className="drop-indicator drop-indicator-insert drop-indicator-insert--auto"/);
+    expect(jsx).not.toMatch(/isHeaderOver/);
+  });
+
+  it("DragProvider stamps the exact type exactly ONCE, and clears it", () => {
+    // The stamp is PRE-EXISTING — I added a duplicate before noticing, and the
+    // A/B removing mine changed nothing, which is how I found out. Counting is
+    // what makes this test discriminate: without the stamp the CSS matches
+    // nothing and the affordance is free AND invisible, and with two of them
+    // the next reader deletes the "spare" one.
+    expect(provider.match(/dataset\.dragType\s*=/g) || []).toHaveLength(1);
+    expect(provider.match(/delete document\.body\.dataset\.dragType/g) || []).toHaveLength(1);
+  });
+
+  it("CSS shows it for exactly the five types, and hides it by default", () => {
+    expect(css).toMatch(/\.drop-indicator-insert--auto\s*\{\s*display:\s*none/);
+    for (const t of ["instance", "external", "file", "text", "url"]) {
+      expect(css).toMatch(new RegExp(`body\\[data-drag-type="${t}"\\][^{]*\\.drop-indicator-insert--auto`));
+    }
+    // module/artifact are ACCEPTED as drops but must not draw the bar — that
+    // asymmetry is the whole reason the test lives here.
+    for (const t of ["module", "artifact"]) {
+      expect(css).not.toMatch(new RegExp(`body\\[data-drag-type="${t}"\\][^{]*\\.drop-indicator-insert--auto`));
+    }
+  });
+});

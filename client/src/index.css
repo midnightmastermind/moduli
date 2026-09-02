@@ -2478,6 +2478,18 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 [data-drop-edge="left"] > .drop-indicator--auto.drop-indicator-inst-left,
 [data-drop-edge="right"] > .drop-indicator--auto.drop-indicator-inst-right { display: block; }
 
+/* THE CONTAINER HEADER'S INSERT BAR, same treatment. It is shown for five of
+   the seven drag types the header ACCEPTS, and narrowing `accepts` to match
+   would stop module/artifact drops landing there — so the type test lives here,
+   against the `data-drag-type` DragProvider stamps on <body> at drag start.
+   `data-drag-kind` cannot do it: it collapses all seven into "leaf". */
+.drop-indicator-insert--auto { display: none; }
+body[data-drag-type="instance"] [data-drop-over] > .drop-indicator-insert--auto,
+body[data-drag-type="external"] [data-drop-over] > .drop-indicator-insert--auto,
+body[data-drag-type="file"]     [data-drop-over] > .drop-indicator-insert--auto,
+body[data-drag-type="text"]     [data-drop-over] > .drop-indicator-insert--auto,
+body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto { display: block; }
+
 .drop-indicator-top {
   top: -2px;
   left: 0;

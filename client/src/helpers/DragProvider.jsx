@@ -462,6 +462,12 @@ export function DragProvider({
     // these so hot components need no reactive drag-state subscription.
     document.body.dataset.dragType = payload?.type || "";
     document.body.dataset.dragKind = dragKindOf(payload?.type);
+    // `data-drag-type` above is what the container header's insert bar keys on:
+    // it shows for five of the seven types the header ACCEPTS, and
+    // `data-drag-kind` cannot express that — it collapses instance/module/
+    // artifact/external/file/text/url into "leaf". (2026-09-02: I added a
+    // SECOND stamp here before noticing this one, which is why the A/B removing
+    // mine changed nothing. Read what is already written before adding to it.)
     // The dragged OCCURRENCE id — lets non-subscribed code (Editor's
     // detectSideHost) tell "re-morphing a group's own member" from "dragging
     // something new at a group" without a reactive drag-state subscription.

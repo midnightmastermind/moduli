@@ -679,11 +679,23 @@ function Container({
     edgeAsAttribute: true,
   });
 
-  const { ref: headerDropRef, isOver: isHeaderOver } = useDroppable({
+  // AND SO DOES THE HEADER. It was the LAST local-state hover left in this
+  // component, and the device's own capture named it after the row fix shipped:
+  // a settled 14.7s drag still reported `renders=126(container:99 ...)` with
+  // `causes=container{(none) @11:30pm=5 (none) @12:30am=3}` — `(none)` being
+  // hook-internal state, which is exactly what this was.
+  //
+  // Its bar shows for a STRICT SUBSET of what the header ACCEPTS (5 of the 7
+  // types), and narrowing `accepts` to match would stop module/artifact drops
+  // landing on the header at all — a real behaviour change to fix a render. So
+  // the type test moves to CSS against `body[data-drag-type]`, which
+  // DragProvider stamps at drag start by direct DOM.
+  const { ref: headerDropRef } = useDroppable({
     type: "container-header",
     id: `container-header:${module.id}`,
     context: { panelId, containerId: module.id, occurrenceId: containerOccurrence?.id || null, insertAt: 0 },
     accepts: DropAccepts.CONTAINER_LIST,
+    overAsAttribute: true,
   });
 
   // `isOver` WAS DESTRUCTURED HERE AND READ NOWHERE — and the hook kept it in
@@ -1493,9 +1505,12 @@ function Container({
           </>
         )}
 
-        {isHeaderOver && items.length > 0 &&
-          [DragType.INSTANCE, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL].includes(dragCtx.getActiveType()) && (
-          <div className="drop-indicator drop-indicator-insert" style={{ left: 4, right: 4 }} />
+        {/* Mounted whenever there is somewhere to insert; shown by CSS only
+            while the header is hovered AND the drag is one of the five types
+            this affordance is for. `items.length` is a render-time fact, so it
+            stays a JSX condition. */}
+        {items.length > 0 && (
+          <div className="drop-indicator drop-indicator-insert drop-indicator-insert--auto" style={{ left: 4, right: 4 }} />
         )}
       </div>
       )}
