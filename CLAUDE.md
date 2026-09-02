@@ -6,6 +6,78 @@
 
 ---
 
+### 2026-09-02 (4) — THE DOM IS NOT THE LEVER: three A/Bs, and my own audit's ranking was wrong TWICE
+
+User: *"can we look into the next parts"*. The next part was the DOM audit's
+action list — insert gaps 15%, icons 34%, marquee wrappers 11%. **Measuring what
+those nodes COST retired almost all of it, and the audit's own metric was the
+mistake both times.**
+
+**ROUND 1 — node count is not layout cost.** Invalidate the whole document,
+force a synchronous style+layout, take the median of 25:
+```
+baseline    94.5ms      null_arm    95.2ms  +1%   <- control lands on baseline
+no_gaps     86.7ms  -8%     no_icons    95.4ms  +1%
+                            no_marquee  96.2ms  +2%
+```
+**`.lucide { display:none }` removes 34% of the document's nodes and moves
+layout by 1% — inside the null arm's own noise.** SVG internals (4,418 paths,
+1,896 svgs) never participate in CSS layout at all, so a third of the audit's
+census was invisible to the cost it was being ranked for. *I would have spent a
+session on it.*
+
+**ROUND 2 — count BOXES, not nodes, and remove boxes rather than hiding
+subtrees.** `display: contents` takes an element's own box out of layout while
+leaving its children in place, which is the only arm that can price a WRAPPER:
+```
+baseline           18,728 boxes   99.6ms       null_arm  18,728  101.5ms  +2%
+gaps_none          16,432          92.5ms  -7%
+marquee_contents   17,325          97.4ms  -2%   <- retired
+fields_none         9,785          60.0ms -40%
+rows_none           5,906          37.3ms -63%   <- ceiling
+```
+That reads as "layout is linear in boxes, ~5-6us each" — **and round 3 proves
+that reading wrong too.**
+
+**ROUND 3 — the wrappers are FREE, and the change they justified is dead.**
+Every field pill is 8 boxes, four of them wrappers before the control:
+`span.auto-marquee > span.auto-marquee-inner > div > div > div.field-input`.
+The two bare divs are `FieldRenderer`'s, and they exist only to stack a display
+Field above an input Field — **a case that occurs 0 times in 791 pills on this
+grid**, so both are always pure pass-throughs. Simulated with `display:
+contents` rather than argued:
+```
+boxes   18,728 -> 17,147  (1,581 removed, 8% of every box on the page)
+layout  98.4ms -> 100.4ms (+2%)          <- NOTHING
+pills that MOVED: 0 of 660               <- safe, and worthless
+```
+**Removing 8% of the layout boxes cost nothing and bought nothing.** The
+difference from `gaps_none` is what names the real driver: a gap is a FLEX ITEM
+in one of 105 container lists and its removal changes the flow; a wrapper's
+children are simply promoted, so the same leaves are laid out either way. **The
+cost is the participating leaves and their TEXT, not the boxes around them.**
+
+**SO THE DOM AUDIT'S ACTION LIST IS RETIRED EXCEPT THE GAPS**, and the levers
+that remain are all "render less", not "restructure":
+```
+fewer field pills per row   -40% ceiling
+fewer rows                  -63% ceiling
+the insert gaps              -7%, and it is a real feature
+wrapper divs / icons / marquee wrappers    0%
+```
+That points at virtualisation — `renderWindow` exists and engages only above 120
+rows with a 600px lookahead, while a day column is 49 slots and the page holds
+193 instance rows. **Not built here: it is a change to what the grid renders,
+and this session has now twice had a plausible DOM fix die on its own A/B.**
+
+**AND THE HEADLINE NUMBER IS THE ONE TO KEEP: ~95-100ms for ONE style+layout
+pass**, on a desktop, at the tablet's viewport. Every invalidation during a drag
+pays it. That is what `DROP paint=5001ms`, the 37-61%-blocked drags and a 220ms
+lift timer arriving at 1213ms are made of — and it is not fixable by trimming
+the tree.
+
+---
+
 ### 2026-09-02 (3) — THE FAN-OUT FIX, VERIFIED ON THE DEVICE: 120 effects, ZERO follow-up sweeps
 
 The coalescing shipped with an honest gap — *"the extracted decision is covered;
