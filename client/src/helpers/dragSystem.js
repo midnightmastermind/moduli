@@ -37,6 +37,10 @@ import { autoScrollForElements } from "@atlaskit/pragmatic-drag-and-drop-auto-sc
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import { setCustomNativeDragPreview } from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
 import { dragPerf } from "./dragPerf";
+// The op-fire hold. Imported from the bridge rather than threaded through the
+// hook's arguments so a drag handle anywhere reaches it — the same surface
+// DragProvider already uses for the drop batch.
+import { operationsBridge } from "../state/bindSocketToStore";
 import { hitInterval, blendCost } from "./hitTestBudget";
 import { setDropOver, setDropEdge } from "./dropEdgeAttr";
 // Touch-drag replaces HTML5 DnD on any coarse-pointer device (phone OR tablet),
@@ -968,6 +972,18 @@ export function useDragDrop({
         // only one that happens before the app has any drag state at all. See
         // dragPerf.touchStart — it is the witness for whether the ~1s the drag
         // pays at startup was already owed when the finger landed.
+        // HOLD OPERATION FIRES FROM THE MOMENT THE FINGER LANDS, not from drag
+        // activation. The hold DragProvider opens covers the DURING phase, and
+        // the device says the remaining cost is the START:
+        //
+        //     [drag] 757ms "Sleep"  hold=603ms via=lift  paint=748ms
+        //     moves=0  longTasks=4(706ms)  firstTask=270ms@1ms  sinceLoad=18523ms
+        //
+        // A 150ms lift timer arriving at 603ms is a blocked thread, and the pill
+        // took 748ms to appear. Opening the hold here buys the whole lift window.
+        // Released in `onEnd`, which every gesture reaches — a tap that opens the
+        // radial menu included — and the hold caps itself regardless.
+        operationsBridge.beginInteraction?.();
         const _rt0 = performance.now();
         cachedRect = el.getBoundingClientRect(); // Cache rect NOW while layout is fresh
         const _rectMs = performance.now() - _rt0;
@@ -1095,6 +1111,10 @@ export function useDragDrop({
         // A tap or a plain scroll ends here without ever activating, so the
         // hold-window watcher has to come off on EVERY end, not just a drag's.
         stopHoldScrollWatch();
+        // Same reasoning for the op hold opened in `onStart`: a gesture that
+        // never became a drag must not leave it open. (A drag proper releases
+        // again via DragProvider's clearSession — releasing twice is a no-op.)
+        operationsBridge.endInteraction?.();
         clearLiftTimer();
         if (dragging && liftedByHold && !movedPastThreshold) {
           // LIFTED BY THE HOLD, RELEASED WITHOUT EVER MOVING — that is a TAP,
