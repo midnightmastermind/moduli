@@ -6,6 +6,50 @@
 
 ---
 
+### 2026-09-02 (3) — THE FAN-OUT FIX, VERIFIED ON THE DEVICE: 120 effects, ZERO follow-up sweeps
+
+The coalescing shipped with an honest gap — *"the extracted decision is covered;
+the WIRING is not. No unit test mounts `bindSocketToStore`, so disabling the
+coalescing leaves all 3,736 green. The live capture is what verifies it."* Two
+drops later, it does.
+
+```
+BEFORE   OccurrenceCreateOp:1x435ms/14fx    MeasureOp:...:12x523ms/0fx
+                                            MeasureOp:...:7x306ms/0fx
+         opSweeps=21  opMs=2512             19 sweeps for 14 effects
+
+AFTER    OccurrenceCreateOp:1x1492ms/120fx  ScheduleOp:1x52ms/0fx
+         opSweeps=2   opMs=1544             ZERO follow-up sweeps for 120
+```
+**A create emitting 120 effects produced no MeasureOp fan-out at all**, where 14
+effects previously produced nineteen sweeps. `opMs` is now almost entirely the
+create's own 1,492ms — real work, not the same work repeated.
+
+**AND THE MECHANISM IS NOT MERELY SWALLOWED, which is the check that matters
+for a change that removes fires.** The other drop still shows
+`MeasureOp:1ve8fwc6c7k:7x422ms/0fx` — seven sweeps at ~60ms, spread across a
+21-second drag. Those are writes arriving SECONDS apart, after each pending
+continuation has already run, so there is nothing to merge and they correctly
+stay separate. **Coalescing collapsed the fan-out and left genuinely distinct
+events alone**, which is exactly the line the context key draws.
+
+**The discarded `options` argument is a non-risk, checked rather than assumed:**
+`fireOperations(transactionType, transaction)` takes two parameters and has
+always ignored the third.
+
+**AND THE HOLD NOW LIFTS: `via=lift` on BOTH drops** (`hold=289ms`, `687ms`),
+against `via=move-late` before. Per-frame work is good — `onMove avg=4.1ms`,
+`hit avg=11.1ms`, **`over32=0`** on both.
+
+**WHAT IS NOW THE LARGEST USER-VISIBLE NUMBER: `DROP paint=5001ms`** behind 131
+renders, from that 120-effect create. Copying one row into a schedule slot
+recomputes 120 values; the sweep is 1.5s and the paint that follows is five.
+The op work is no longer duplicated — it is simply large, and the paint is a
+20,095-node document. Both are named, both are their own pass, and neither is
+guessed at here.
+
+---
+
 ### 2026-09-02 (2) — THE DOM AUDIT: a THIRD of the document is icon internals, and 383 invisible insert gaps cost 15%
 
 User: *"ok continue with the effect fan out and then lets create an audit of the
