@@ -19,6 +19,7 @@ import {
 import { Terminal, Plus, EyeOff, Eye, LogOut, UserCog, Clock, Menu, X, Undo2, RotateCw } from "lucide-react";
 import ToolbarFilterDropdown from "./ui/ToolbarFilterDropdown";
 import SocketStatusBanner from "./ui/SocketStatusBanner";
+import OpActivityPill from "./ui/OpActivityPill.jsx";
 import TransactionNotificationStack from "./ui/TransactionNotificationStack";
 import ClipboardStatusBanner from "./ui/ClipboardStatusBanner";
 import SelectionStatusBanner from "./ui/SelectionStatusBanner";
@@ -195,6 +196,7 @@ const gridOptions = useMemo(
         >
           <div className="pointer-events-auto flex items-center gap-1.5">
             <SocketStatusBanner />
+            <OpActivityPill />
             <TransactionNotificationStack />
           </div>
           <div className="pointer-events-auto">
@@ -401,6 +403,7 @@ const gridOptions = useMemo(
           {isMobileLayout && (
             <div className="flex items-center gap-1 shrink-0">
               <SocketStatusBanner />
+            <OpActivityPill />
               <TransactionNotificationStack compact />
             </div>
           )}

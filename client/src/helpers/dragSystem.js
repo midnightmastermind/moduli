@@ -995,8 +995,16 @@ export function useDragDrop({
           if (!_moved) return;
           // Threshold crossed — NOW claim the gesture
           e.preventDefault();
+          // WAS THE LIFT DUE, AND LOST THE RACE? On a saturated main thread a
+          // 220ms timer cannot run, so when the thread frees the queued
+          // touchmove can beat it — and the capture then reads `via=move` with
+          // a 1204ms hold, which looks exactly like a user who held still for
+          // a second and got nothing. It is not the same thing, and the two
+          // have completely different fixes (ours vs whatever is blocking the
+          // thread), so they must not print the same word.
+          const _late = performance.now() - touchStartTime >= _TOUCH_LIFT_MS;
           clearLiftTimer();
-          activateDrag(t.clientX, t.clientY, "move");
+          activateDrag(t.clientX, t.clientY, _late ? "move-late" : "move");
           return;
         }
 

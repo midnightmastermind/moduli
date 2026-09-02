@@ -64,9 +64,16 @@ const _ops = _store.ops;
 // post-paint tail; one on a scheduler tick while the user is scrolling is a
 // different bug entirely, and the two need different fixes.
 const _opsBy = _store.ops.by;
+// The label may carry an occurrence id, so the key set is unbounded over a long
+// session. Past a cap the id is dropped and the sweep is tallied under its bare
+// trigger — a diagnostic must not become the leak it was added to find.
+const _OPS_BY_MAX_KEYS = 200;
 export function bumpOpRun(ms, label = "?") {
   _ops.runs++;
   _ops.ms += ms || 0;
+  if (!(label in _opsBy) && Object.keys(_opsBy).length >= _OPS_BY_MAX_KEYS) {
+    label = label.includes(":") ? label.slice(0, label.indexOf(":")) : label;
+  }
   const e = (_opsBy[label] ||= { runs: 0, ms: 0 });
   e.runs++;
   e.ms += ms || 0;

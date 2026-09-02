@@ -367,6 +367,7 @@ export const dragPerf = {
           + ` firstTask=${f.firstTaskMs >= 0 ? Math.round(f.firstTaskMs) : -1}ms`
           + `@${f.firstTaskAt >= 0 ? Math.round(f.firstTaskAt) : -1}ms`
           + ` dom=${typeof document !== "undefined" ? document.getElementsByTagName("*").length : -1}`
+
           + `${(() => {
               if (!f.attr0 || typeof window === "undefined" || !window.__renderAttrDiff) return "";
               const a = window.__renderAttrDiff(f.attr0);

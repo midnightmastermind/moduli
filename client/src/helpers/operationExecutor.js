@@ -23,6 +23,7 @@ import { operationsBridge } from "../state/bindSocketToStore";
 import { analyzeAllOperations } from "./operationIntrospection";
 import { applyDisplayRules } from "./displayRules";
 import { bumpOpRun } from "./renderProbe";
+import { noteOpSweep } from "./opActivity";
 
 // ============================================================
 // RUN LOG — per-operation run history for the editor's log panel
@@ -979,7 +980,18 @@ export function runMatchingOperations(operations, transactionType, transaction, 
     // Label the sweep with what set it off, so a block during a scroll can be
     // attributed to the load tail, a write echo, a navigation or the scheduler
     // rather than guessed at. `null` is the load fire (see computeTriggerMatch).
-    bumpOpRun(performance.now() - _opT0, transactionType || "load");
+    const _opMs = performance.now() - _opT0;
+    // NAME THE WRITER, not just the trigger class. `opBy=[MeasureOp:20x974ms]`
+    // during a 22-second drag says field values are being written ~once a
+    // second — and stops there. One tile looping and twenty tiles cascading are
+    // different bugs with different fixes, and the occurrence id separates them
+    // (the `[op-fire] depth=1 MeasureOp occ=1ve8fwc6` console line has done
+    // exactly this for the load path; the tablet has no console).
+    const _occ = transactionType === "MeasureOp" ? transaction?.occurrenceId : null;
+    bumpOpRun(_opMs, _occ ? `MeasureOp:${_occ}` : (transactionType || "load"));
+    // Same chokepoint, for the person holding the tablet rather than the log:
+    // a sweep just ran, so the grid is not idle. See helpers/opActivity.js.
+    noteOpSweep(_opMs);
   }
 }
 
