@@ -42,6 +42,7 @@ const s = {
   tDrop: 0, tDropDone: 0, tDropPaint: 0,
   moves: 0, frames: 0,
   onMoveTotal: 0, onMoveMax: 0,
+  moveBy: {},
   rafTotal: 0, rafMax: 0,
   hitTotal: 0, hitCount: 0, hitMax: 0,
   efpTotal: 0, efpMax: 0, walkTotal: 0, walkMax: 0, elsMax: 0, dropTargets: 0,
@@ -181,7 +182,7 @@ export const dragPerf = {
     Object.assign(s, {
       active: true, t0: now, tStarted: now, tFirstPaint: 0,
       tDrop: 0, tDropDone: 0, tDropPaint: 0,
-      moves: 0, frames: 0, onMoveTotal: 0, onMoveMax: 0,
+      moves: 0, frames: 0, onMoveTotal: 0, onMoveMax: 0, moveBy: {},
       rafTotal: 0, rafMax: 0, hitTotal: 0, hitCount: 0, hitMax: 0,
       efpTotal: 0, efpMax: 0, walkTotal: 0, walkMax: 0, elsMax: 0, dropTargets: 0,
       long16: 0, long32: 0, longTasks: 0, longTaskMs: 0,
@@ -225,11 +226,23 @@ export const dragPerf = {
     } catch { s.po = null; }   // not implemented everywhere; absent ≠ zero
   },
 
-  move(dt) {
+  // `dt` alone is a drag-wide average, and the user's report is that the cost
+  // varies WITHIN a drag: "it only jitters when its passing over other
+  // instances ... dragging over empty containers is faster" (2026-09-02). An
+  // average cannot answer that — two hypotheses were falsified against it
+  // before this existed (instance re-renders measured 0 across 12 crossings
+  // with a live counter as the control; `elementsFromPoint` measured 12.4ms
+  // over a row against 12.5ms over empty space). So the move is bucketed by
+  // WHAT THE POINTER WAS OVER, and the report prints the buckets.
+  move(dt, over) {
     if (!s.active) return;
     s.moves++;
     s.onMoveTotal += dt;
     if (dt > s.onMoveMax) s.onMoveMax = dt;
+    const k = over || "unknown";
+    const b = (s.moveBy[k] ||= { n: 0, total: 0, max: 0 });
+    b.n++; b.total += dt;
+    if (dt > b.max) b.max = dt;
   },
   hit(dt) {
     if (!s.active) return;
@@ -333,6 +346,14 @@ export const dragPerf = {
           + ` | DURING moves=${f.moves} frames=${f.frames}`
           + ` fps=${dur ? Math.round(f.frames / (dur / 1000)) : 0}`
           + ` onMove avg=${avg(f.onMoveTotal, f.moves)}/max=${+f.onMoveMax.toFixed(1)}ms`
+          + (() => {
+              // The whole point of the buckets: `instance:...` next to
+              // `container:...` says whether crossing rows really is dearer.
+              const e = Object.entries(f.moveBy || {}).sort((a, b) => b[1].n - a[1].n);
+              if (!e.length) return "";
+              return ` moveBy=[${e.map(([k, v]) =>
+                `${k}:${v.n}x${(v.total / v.n).toFixed(1)}/max${v.max.toFixed(0)}ms`).join(" ")}]`;
+            })()
           + ` raf avg=${avg(f.rafTotal, f.frames)}/max=${+f.rafMax.toFixed(1)}ms`
           + ` hit avg=${avg(f.hitTotal, f.hitCount)}/max=${+f.hitMax.toFixed(1)}ms`
           + ` [efp avg=${avg(f.efpTotal, f.hitCount)}/max=${+f.efpMax.toFixed(1)}`

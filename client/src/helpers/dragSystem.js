@@ -359,6 +359,8 @@ const _HIT_TEST_INTERVAL = 32; // FLOOR between hit-tests; the real spacing is
                                // Firefox and 17.8-30.3ms on Chrome for the SAME
                                // grid, so no single constant fits both.
 const _HIT_CACHE_DIST = 4; // px — skip hit-test if pointer barely moved
+// Set by the hit-test, read by dragPerf's per-move bucket. Diagnostic only.
+let _lastOver = null;
 
 // Global drop target registry — maps DOM elements to their drop config.
 // Used by touch move handler to find drop targets via elementFromPoint.
@@ -504,6 +506,20 @@ function _findDropTarget(clientX, clientY, dragType, sourceEl) {
   const _e0 = performance.now();
   const elements = document.elementsFromPoint(clientX, clientY);
   const _e1 = performance.now();
+  // WHAT IS UNDER THE FINGER, for dragPerf's per-move buckets. Read off the
+  // stack this call already produced — an extra `elementFromPoint` per move
+  // would add cost to the very thing being measured. Ordered most specific
+  // first: a point over a row is inside a container too.
+  _lastOver = (() => {
+    const top = elements[0];
+    if (!top) return "none";
+    if (top.closest?.(".insert-gap")) return "gap";
+    if (top.closest?.(".instance-wrap")) return "instance";
+    if (top.closest?.(".container-list")) return "container-empty";
+    if (top.closest?.(".container-shell")) return "container-chrome";
+    if (top.closest?.("[data-panel-id]")) return "panel";
+    return "other";
+  })();
   for (const el of elements) {
     let node = el;
     while (node && node !== document.body) {
@@ -1032,7 +1048,7 @@ export function useDragDrop({
         if (now - lastHitTestTime < hitEveryMs || (dx * dx + dy * dy < _HIT_CACHE_DIST * _HIT_CACHE_DIST)) {
           // Still update DragProvider position (for auto-scroll etc)
           dragCtx.handleDragMove(t.clientX, t.clientY);
-          dragPerf.move(performance.now() - _pm0);
+          dragPerf.move(performance.now() - _pm0, _lastOver);
           return;
         }
         lastHitTestTime = now;
@@ -1072,7 +1088,7 @@ export function useDragDrop({
             clientX: t.clientX, clientY: t.clientY,
           });
         }
-        dragPerf.move(performance.now() - _pm0);
+        dragPerf.move(performance.now() - _pm0, _lastOver);
       };
 
       const onEnd = (e) => {
