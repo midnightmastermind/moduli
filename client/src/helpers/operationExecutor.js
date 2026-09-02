@@ -974,8 +974,19 @@ export function runMatchingOperations(operations, transactionType, transaction, 
   // Tallied so a main-thread block can be attributed to the op drain rather
   // than guessed at (see helpers/renderProbe.js bumpOpRun).
   const _opT0 = performance.now();
+  // DID THE SWEEP DO ANYTHING? This is the one fact that separates the two
+  // explanations for tracker tiles firing ~once a second: effects > 0 means the
+  // sweep WRITES and each write re-triggers it (a self-sustaining loop, and the
+  // cycle guard's problem); effects == 0 means the sweeps are inert and
+  // something ELSE is writing those occurrences (2026-08-31 (5) measured
+  // exactly zero across a whole load cascade, which is what retired two correct
+  // guards for a problem that was not happening). A total cannot tell them
+  // apart, and both have been assumed at different times this week.
+  let _fx = 0;
   try {
-    return _runMatchingOperations(operations, transactionType, transaction, context, { onError, onSuccess });
+    const _res = _runMatchingOperations(operations, transactionType, transaction, context, { onError, onSuccess });
+    _fx = Array.isArray(_res) ? _res.length : 0;
+    return _res;
   } finally {
     // Label the sweep with what set it off, so a block during a scroll can be
     // attributed to the load tail, a write echo, a navigation or the scheduler
@@ -988,7 +999,7 @@ export function runMatchingOperations(operations, transactionType, transaction, 
     // (the `[op-fire] depth=1 MeasureOp occ=1ve8fwc6` console line has done
     // exactly this for the load path; the tablet has no console).
     const _occ = transactionType === "MeasureOp" ? transaction?.occurrenceId : null;
-    bumpOpRun(_opMs, _occ ? `MeasureOp:${_occ}` : (transactionType || "load"));
+    bumpOpRun(_opMs, _occ ? `MeasureOp:${_occ}` : (transactionType || "load"), _fx);
     // Same chokepoint, for the person holding the tablet rather than the log:
     // a sweep just ran, so the grid is not idle. See helpers/opActivity.js.
     noteOpSweep(_opMs);

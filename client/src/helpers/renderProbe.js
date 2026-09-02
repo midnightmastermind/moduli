@@ -24,7 +24,7 @@ import { useRef } from "react";
 const _store = (() => {
   const blank = () => ({
     tally: { panel: 0, container: 0, instance: 0, page: 0, field: 0 },
-    ops: { runs: 0, ms: 0, by: {} },
+    ops: { runs: 0, ms: 0, fx: 0, by: {} },
     attrs: {},
   });
   if (typeof window === "undefined") return blank();
@@ -68,15 +68,17 @@ const _opsBy = _store.ops.by;
 // session. Past a cap the id is dropped and the sweep is tallied under its bare
 // trigger — a diagnostic must not become the leak it was added to find.
 const _OPS_BY_MAX_KEYS = 200;
-export function bumpOpRun(ms, label = "?") {
+export function bumpOpRun(ms, label = "?", fx = 0) {
   _ops.runs++;
   _ops.ms += ms || 0;
+  _ops.fx += fx || 0;
   if (!(label in _opsBy) && Object.keys(_opsBy).length >= _OPS_BY_MAX_KEYS) {
     label = label.includes(":") ? label.slice(0, label.indexOf(":")) : label;
   }
-  const e = (_opsBy[label] ||= { runs: 0, ms: 0 });
+  const e = (_opsBy[label] ||= { runs: 0, ms: 0, fx: 0 });
   e.runs++;
   e.ms += ms || 0;
+  e.fx += fx || 0;
 }
 export function snapshotOps() {
   const by = {};
@@ -88,9 +90,14 @@ export function diffOps(prev) {
   for (const [k, v] of Object.entries(_opsBy)) {
     const p = prev?.by?.[k] || { runs: 0, ms: 0 };
     const runs = v.runs - p.runs;
-    if (runs > 0) by[k] = { runs, ms: Math.round(v.ms - p.ms) };
+    if (runs > 0) by[k] = { runs, ms: Math.round(v.ms - p.ms), fx: (v.fx || 0) - (p.fx || 0) };
   }
-  return { runs: _ops.runs - (prev?.runs || 0), ms: Math.round(_ops.ms - (prev?.ms || 0)), by };
+  return {
+    runs: _ops.runs - (prev?.runs || 0),
+    ms: Math.round(_ops.ms - (prev?.ms || 0)),
+    fx: (_ops.fx || 0) - (prev?.fx || 0),
+    by,
+  };
 }
 
 // ── Render-cause attribution (opt-in: window.__RENDER_ATTR = true) ─────────

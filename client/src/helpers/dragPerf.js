@@ -360,7 +360,7 @@ export const dragPerf = {
               const by = tally?.ops?.by;
               if (!by) return "";
               const top = Object.entries(by).sort((a, b) => b[1].ms - a[1].ms).slice(0, 3)
-                .map(([k, v]) => `${k}:${v.runs}x${Math.round(v.ms)}ms`).join(" ");
+                .map(([k, v]) => `${k}:${v.runs}x${Math.round(v.ms)}ms/${v.fx ?? "?"}fx`).join(" ");
               return top ? ` opBy=[${top}]` : "";
             })()}`
           + ` longTasks=${f.longTasks}(${Math.round(f.longTaskMs)}ms)`
