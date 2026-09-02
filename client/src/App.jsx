@@ -1,6 +1,7 @@
 // App.jsx — STEP 2: commits routed through CommitHelpers / LayoutHelpers
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { armScrollDiag } from "./helpers/scrollDiag.js";
+import { armHaptics } from "./helpers/haptics.js";
 // Installs window.__domAudit() — the DOM census (helpers/domAudit.js). Imported
 // for its side effect only: nothing calls it, and unimported it would be tree
 // shaken out of the bundle, so the one device that needs it could never run it.
@@ -114,6 +115,12 @@ export default function App() {
   // are deliberately untouched, and the drag autoscroll is a different system
   // (`helpers/autoscrollMath.js`) — see the helper's header.
   useEffect(() => installFastWheel(document), []);
+
+  // Every button and every picker buzzes (user, 2026-09-02). ONE document
+  // listener rather than a prop on hundreds of controls — see the helper's
+  // header for why, and for what it deliberately stays quiet on (drag handles,
+  // which dragSystem already buzzes for, and text entry).
+  useEffect(() => armHaptics(), []);
 
   useEffect(() => {
     if (!("BroadcastChannel" in window)) return;
