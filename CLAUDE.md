@@ -113,8 +113,44 @@ load that matters. The quiet window (1200ms) is deliberately longer than the
 ~1s gap measured between cascade sweeps, or it would blink through the very
 thing it reports.
 
-**STILL OPEN, all measured and none guessed at:** what writes a field value
-once a second during a drag (the next capture names the occurrence); the
+**AND THE NEXT TWO CAPTURES SETTLED THE OP QUESTION — the two new fields each
+earned their keep on their first run.**
+```
+A  settled grid (sinceLoad=139s)   hold=318ms via=lift        opSweeps=0  opMs=0
+B  22.6s after load                hold=754ms via=move-late   opSweeps=21 opMs=2512
+   opBy=[OccurrenceCreateOp:1x1509ms MeasureOp:kg860us2nhc:12x612ms
+         MeasureOp:1ve8fwc6c7k:8x391ms]
+```
+**A is the control and it is the answer: on a settled grid a whole drag and
+drop fires ZERO op sweeps.** So no op is triggered by the drag, and the ~1s of
+sweeps seen all morning was the grid still settling — which is exactly what the
+pill now says out loud.
+
+**AND `via` SEPARATED THE TWO HOLDS IT WAS BUILT FOR, in one pair of captures.**
+`via=lift hold=318ms` is the timer doing its job (220ms plus a blocked thread);
+`via=move-late hold=754ms` is the lift being STARVED and the queued touchmove
+winning the race. Under the old single word both read as *"the hold took a
+second"*, which is what kept the complaint alive after the startup was fixed.
+
+**THE WRITERS ARE NAMED, and they are two tracker tiles in one container** —
+`kg860us2nhc` = **Workout Log** (9 display fields) and `1ve8fwc6c7k` =
+**Workouts** (27 display fields), both under `Today's Workout < Today's
+Physical`. The second is the same occurrence 2026-08-31 (5) recorded firing
+`[op-fire] depth=1 MeasureOp occ=1ve8fwc6` ten times on a load. A create fires
+them, they write 36 display values between them, each write is a MeasureOp, and
+each MeasureOp fires another sweep.
+
+**WHAT IS LEFT IS NOT OURS AND NOT OPS, and the settled capture is what makes
+that a measurement rather than a shrug:** 5,020ms of long tasks in an 11.5s
+drag with **0 op sweeps and 158 renders**. Our own work is ~2.25s of it
+(163 moves x 6.2ms + 130 frames x 9.5ms). `moves=163` over 11.5s is ~14/s
+against a finger's 60-120, so touch delivery is starved too. The largest named
+candidate is the browser painting a 21,235-node document — the same root as
+`DROP paint=950ms` behind only 72 renders, and as the Sunday scroll-repaint
+complaint. **Not proven, and deliberately not claimed.**
+
+**STILL OPEN, all measured and none guessed at:** the ~2.8s of long tasks in a
+settled drag that neither our work nor ops account for; the
 hit-test at ~13-21ms x 130-180 calls, ~2s of a long drag, where geometry-only
 shortcuts are proven unsound (2026-09-01 (6)); and ~15s of a 22-second drag
 inside long tasks that the op sweeps (974ms) and our own work (~1.6s) together
