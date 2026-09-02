@@ -690,6 +690,19 @@ function Container({
   // landing on the header at all — a real behaviour change to fix a render. So
   // the type test moves to CSS against `body[data-drag-type]`, which
   // DragProvider stamps at drag start by direct DOM.
+  //
+  // VERIFIED ON THE DEVICE, same gesture ("Sleep", settled grid, one drag):
+  //
+  //                     before       after
+  //     renders     126(c:99)     90(c:55)
+  //     causes    container{(none) @11:30pm=5 …}   GONE — nothing to report
+  //     onMove max     73.9ms       12.5ms
+  //     hit max        73.5ms       11.7ms
+  //     longTasks   29(2222ms)   18(1054ms)
+  //     fps                10           14
+  //
+  // The MAX is the number that was the stutter — one move in the old capture
+  // cost 74ms, i.e. four dropped frames, and the worst is now inside one.
   const { ref: headerDropRef } = useDroppable({
     type: "container-header",
     id: `container-header:${module.id}`,
