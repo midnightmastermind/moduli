@@ -11,6 +11,7 @@ import { kindForNewModule } from "../helpers/operationActions";
 import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
 import { toast, pushTxNotification } from "./notificationStore";
 import { afterPaint } from "../helpers/afterPaint";
+import { measureCoalesceKey, mergeMeasureTransaction } from "../helpers/measureCoalesce";
 import { makeOpNotificationCallbacks } from "../helpers/opResultSummary";
 import { syncAllFeeds } from "../helpers/feedSync";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
@@ -1882,6 +1883,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
   // Track optimistically-fired occurrences to prevent double-firing on server echo
   const optimisticFiredSet = new Set();
+  // Deferred MeasureOp fires awaiting their post-paint continuation, keyed by
+  // occurrence AND the context captured with them. See fireOperationsOptimistic.
+  const _pendingMeasure = new Map();
 
   function fireOperationsOptimistic(transactionType, transaction, options) {
     // Mark as optimistically fired so onOccurrenceUpdated skips the duplicate.
@@ -1934,6 +1938,49 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (transactionType === "MeasureOp") {
       const savedDepth = _fireDepth;
       const captured = captureAction();
+      // ── N EFFECTS MINT N TRANSACTIONS, AND EACH ONE RAN A WHOLE SWEEP ──────
+      //
+      // Measured on the user's tablet, 2026-09-02, on a copy-drop:
+      //     OccurrenceCreateOp:1x435ms/14fx      <- the real work
+      //     MeasureOp:1ve8fwc6c7k:12x523ms/0fx   <- 12 sweeps, ZERO effects
+      //     MeasureOp:kg860us2nhc:7x306ms/0fx    <- 7 more, ZERO effects
+      //
+      // The create's 14 effects are one occurrence's tracker tiles recomputing.
+      // Applying them writes 14 fields, each write mints its own MeasureOp, and
+      // each MeasureOp deferred its own continuation running a FULL sweep over
+      // ~68 operations. **19 sweeps for 2 occurrences, 829ms, all of it
+      // emitting nothing** — the cycle guard is why they emit nothing, and it
+      // cannot stop them RUNNING.
+      //
+      // So the writes for one occurrence are coalesced into ONE compound
+      // transaction, which is exactly what `onOccurrenceUpdated` already does
+      // on the echo path ("Coalesces all changed fields into ONE compound
+      // MeasureOp"); `matchSubjectFilter` reads `transaction.fields[targetId]`,
+      // so a field-targeted trigger still matches every field that changed.
+      //
+      // THE KEY CARRIES THE CONTEXT, not just the occurrence. Depth, action and
+      // the applying-ops set are captured per fire and restored around the
+      // continuation — merging across two different contexts would run the
+      // second write under the first one's scope, which is the class of defect
+      // the depth/action carry-across was written to prevent. Two writes to one
+      // occurrence from genuinely different contexts stay two fires.
+      // Taken ONCE and shared with the deferral below: two calls could see two
+      // different sets, so the key would describe a context the continuation
+      // does not restore. `snapshotOpsApplying` may return null.
+      const savedApplying = snapshotOpsApplying() || [];
+      const coalesceKey = measureCoalesceKey(transaction, {
+        depth: savedDepth, actionId: captured, applyingKey: savedApplying.join(","),
+      });
+      if (coalesceKey) {
+        const pending = _pendingMeasure.get(coalesceKey);
+        if (pending) {
+          // Merge and return: the continuation is already scheduled and has not
+          // run yet, so it will pick these fields up. No second retainAction —
+          // the pending entry already holds the action open.
+          mergeMeasureTransaction(pending.transaction, transaction);
+          return;
+        }
+      }
       // AND THE CYCLE GUARD, for the same reason as the depth and the action.
       // The ops currently applying effects are marked SYNCHRONOUSLY and
       // released when that application returns — a task before this
@@ -1941,14 +1988,20 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // effect re-fires that very op, which is what the guard exists to stop.
       // Measured idle on prod: 27 MeasureOp sweeps and 3,826 field renders
       // after one load, the Workouts tracker tile re-firing ten times over.
-      const savedApplying = snapshotOpsApplying();
+      // The entry holds the transaction object the continuation will fire, so a
+      // merge above mutates the very thing that runs.
+      const entry = { transaction: { ...transaction } };
+      if (coalesceKey) _pendingMeasure.set(coalesceKey, entry);
       retainAction(captured);
       afterPaint(() => {
+        // Released BEFORE the fire, so a write made during the sweep opens a
+        // fresh deferral rather than merging into one already running.
+        if (coalesceKey) _pendingMeasure.delete(coalesceKey);
         const prev = _fireDepth;
         _fireDepth = savedDepth;
         const releaseApplying = markOpsApplying(savedApplying);
         try {
-          runInAction(captured, () => fireOperations(transactionType, transaction, options));
+          runInAction(captured, () => fireOperations(transactionType, entry.transaction, options));
         } finally {
           releaseApplying();
           _fireDepth = prev;
