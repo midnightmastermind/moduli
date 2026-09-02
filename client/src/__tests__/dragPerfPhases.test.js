@@ -21,6 +21,27 @@ const flush = () => new Promise((r) => setTimeout(r, 40));
 describe("dragPerf covers all three phases", () => {
   beforeEach(() => { emitted.length = 0; window.__dragPerf = true; });
 
+  it("names WHICH path lifted the drag — the hold timer or the movement", async () => {
+    // `hold` alone is two different numbers wearing one name: the wait we
+    // impose, and the wait until the user happened to move. Reading the second
+    // as the first is what let a "1 second to start" complaint survive a fixed
+    // startup for a day. `via` is the discriminator.
+    dragPerf.touchStart(0.1);
+    dragPerf.activate(0, "lift");
+    dragPerf.start({ label: "Drink", mode: "move" });
+    dragPerf.dropStart(); dragPerf.dropDone(); dragPerf.end();
+    await flush();
+    expect(emitted[0]?.payload?.line || "").toContain("via=lift");
+
+    emitted.length = 0;
+    dragPerf.touchStart(0.1);
+    dragPerf.activate(0, "move");
+    dragPerf.start({ label: "Drink", mode: "move" });
+    dragPerf.dropStart(); dragPerf.dropDone(); dragPerf.end();
+    await flush();
+    expect(emitted[0]?.payload?.line || "").toContain("via=move");
+  });
+
   it("separates the deliberate hold delay from our own startup work", async () => {
     // The whole point of the split: 80ms of it is a hold we IMPOSE, and
     // reporting one total makes "forever to start" unattributable.
@@ -32,7 +53,7 @@ describe("dragPerf covers all three phases", () => {
     dragPerf.end();
     await flush();
     const line = emitted[0]?.payload?.line || "";
-    expect(line).toMatch(/START touchRect=-?[\d.]+ms holdScrolls=-?\d+ hold=\d+ms work=\d+ms/);
+    expect(line).toMatch(/START touchRect=-?[\d.]+ms holdScrolls=-?\d+ hold=\d+ms via=\S+ work=\d+ms/);
     expect(line).toMatch(/DROP handler=\d+ms/);
     expect(line).toContain('"Drink"');
   });
@@ -274,7 +295,7 @@ describe("the startup block, split", () => {
     for (const n of ["setIsDragging", "buildPayload", "pill", "handleDragStart"]) {
       expect(line.includes(n) || line.includes("[")).toBe(true);
     }
-    expect(line).toMatch(/START touchRect=-?[\d.]+ms holdScrolls=-?\d+ hold=\d+ms work=\d+ms/);
+    expect(line).toMatch(/START touchRect=-?[\d.]+ms holdScrolls=-?\d+ hold=\d+ms via=\S+ work=\d+ms/);
   });
 
   it("marks outside a drag are ignored rather than accumulating", async () => {

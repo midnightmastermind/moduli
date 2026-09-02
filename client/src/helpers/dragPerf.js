@@ -36,7 +36,7 @@ import { safeEmit } from "./offlineQueue.js";
 
 const s = {
   active: false, t0: 0,
-  tTouch: 0, tActivate: 0, tStarted: 0, tFirstPaint: 0, touchRectMs: -1, holdScrolls: -1,
+  tTouch: 0, tActivate: 0, tStarted: 0, tFirstPaint: 0, touchRectMs: -1, holdScrolls: -1, via: "?",
   attributing: false,
   marks: null, attr0: null, attrWas: undefined,
   tDrop: 0, tDropDone: 0, tDropPaint: 0,
@@ -104,10 +104,18 @@ export const dragPerf = {
   // finger, or by our own writes. Non-zero says scroll; zero says us. Neither
   // reading requires forcing a layout to obtain, which is the point: the
   // instrument must not re-introduce the cost it is measuring.
-  activate(scrolls = -1) {
+  // `via` says WHICH path lifted the drag: the hold timer, or the finger
+  // crossing the movement threshold. Without it `hold` is two different
+  // numbers wearing one name — the wait WE impose, and the wait until the
+  // user happened to move — and reading the second as the first is exactly
+  // the mistake that let a 1s startup complaint survive a fixed startup.
+  // A capture reading `via=move hold=2588` is a user who held still and got
+  // nothing; `via=lift hold=220` is the timer doing its job.
+  activate(scrolls = -1, via = "?") {
     if (!enabled()) return;
     s.tActivate = performance.now();
     s.holdScrolls = scrolls;
+    s.via = via;
     s.marks = [];
     // OPT-IN NOW (`window.__dragAttr = true`), once per page load.
     //
@@ -301,7 +309,7 @@ export const dragPerf = {
         line = `[drag] ${Math.round(dur)}ms "${f.label}" mode=${f.mode}`
           + ` | START touchRect=${f.touchRectMs >= 0 ? +f.touchRectMs.toFixed(1) : -1}ms`
           + ` holdScrolls=${f.holdScrolls}`
-          + ` hold=${d(f.tTouch, f.tActivate)}ms work=${d(f.tActivate, f.tStarted)}ms`
+          + ` hold=${d(f.tTouch, f.tActivate)}ms via=${f.via} work=${d(f.tActivate, f.tStarted)}ms`
           + ` paint=${d(f.tStarted, f.tFirstPaint)}ms`
           + `${(() => {
               if (!f.marks || f.marks.length < 2) return "";
@@ -342,6 +350,19 @@ export const dragPerf = {
             })()}`
           + ` | renders=${rTot}${rTop ? `(${rTop})` : ""}`
           + ` opSweeps=${tally?.ops?.runs ?? -1} opMs=${Math.round(tally?.ops?.ms ?? -1)}`
+          // WHAT SET THEM OFF. `diffOps` has tallied sweeps BY TRIGGER since
+          // the scroll work; this line printed only the total, so ~1s of
+          // operation sweeps landing mid-drag read as unattributable noise
+          // across several captures. A sweep on `load` is the documented
+          // post-paint tail — a drag taken inside it is measuring the load;
+          // one on a write echo during the drag is the drag's own cost.
+          + `${(() => {
+              const by = tally?.ops?.by;
+              if (!by) return "";
+              const top = Object.entries(by).sort((a, b) => b[1].ms - a[1].ms).slice(0, 3)
+                .map(([k, v]) => `${k}:${v.runs}x${Math.round(v.ms)}ms`).join(" ");
+              return top ? ` opBy=[${top}]` : "";
+            })()}`
           + ` longTasks=${f.longTasks}(${Math.round(f.longTaskMs)}ms)`
           + ` firstTask=${f.firstTaskMs >= 0 ? Math.round(f.firstTaskMs) : -1}ms`
           + `@${f.firstTaskAt >= 0 ? Math.round(f.firstTaskAt) : -1}ms`

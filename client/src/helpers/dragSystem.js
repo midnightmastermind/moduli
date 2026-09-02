@@ -856,9 +856,10 @@ export function useDragDrop({
       // lift timer in onStart. `cx/cy` is where the pill appears: the live
       // touch point when a movement started it, the last known one when the
       // hold did.
-      const activateDrag = (cx, cy) => {
+      const activateDrag = (cx, cy, via) => {
         stopHoldScrollWatch();
-        dragPerf.activate(holdScrolls);   // the wait is over; the work starts here
+        // `via` separates the wait WE impose from the wait until the user moved.
+        dragPerf.activate(holdScrolls, via);   // the wait is over; the work starts here
         dragPerf.mark("t0");
         dragging = true;
         // BEFORE ANY WRITE OF OURS. `f:htmlStyle` billed 955ms, but it was
@@ -965,7 +966,7 @@ export function useDragDrop({
           if (dragging) return;
           liftedByHold = true;
           stopHoldScrollWatch();
-          activateDrag(lastX, lastY);
+          activateDrag(lastX, lastY, "lift");
         }, _TOUCH_LIFT_MS);
       };
 
@@ -976,15 +977,26 @@ export function useDragDrop({
         // its own and puts the pill wherever the finger was last seen.
         lastX = t.clientX; lastY = t.clientY;
 
+        // ONE definition of "the finger moved", shared by both paths.
+        //
+        // This used to be set only on the pre-activation branch below — so a
+        // drag begun by the LIFT TIMER never recorded any movement, and
+        // `onEnd`'s tap guard (`liftedByHold && !movedPastThreshold`) threw the
+        // whole gesture away as a tap. Hold to lift, drag somewhere, let go,
+        // and nothing landed. Caught by dragDropAtRelease, not by inspection:
+        // the tap guard reads correctly right up until you ask which path set
+        // the flag it depends on.
+        const _moved = Math.sqrt((t.clientX - startX) ** 2 + (t.clientY - startY) ** 2) >= _TOUCH_THRESHOLD;
+        if (_moved) movedPastThreshold = true;
+
         if (!dragging) {
           // A2: Hold delay — don't start drag until finger held long enough
           if (performance.now() - touchStartTime < _TOUCH_HOLD_MS) return;
-          if (Math.sqrt((t.clientX - startX) ** 2 + (t.clientY - startY) ** 2) < _TOUCH_THRESHOLD) return;
+          if (!_moved) return;
           // Threshold crossed — NOW claim the gesture
           e.preventDefault();
-          movedPastThreshold = true;
           clearLiftTimer();
-          activateDrag(t.clientX, t.clientY);
+          activateDrag(t.clientX, t.clientY, "move");
           return;
         }
 
@@ -1077,6 +1089,37 @@ export function useDragDrop({
         const t = e.changedTouches[0];
         dragPerf.dropStart();
         if (clone) { clone.remove(); clone = null; }
+
+        // THE DROP IS DECIDED AT THE RELEASE POINT, NOT AT THE LAST HOVER.
+        //
+        // `curTarget` is whatever the throttled hover hit-test last resolved,
+        // and that throttle is DERIVED FROM ITS OWN COST (hitTestBudget): at
+        // the measured `hit avg=21ms` on this tablet it backs off to ~85ms,
+        // and the worst captures show 120ms+ hits. So the drop was landing
+        // wherever the finger had been up to a tenth of a second before the
+        // user let go — reported as "i try to drop to the left side of an
+        // empty container and it doesnt drop" and "i drop to the last spot of
+        // a container and it puts it after the container".
+        //
+        // The edge made it worse rather than absorbing it: `_computeClosestEdge`
+        // was called with FRESH coordinates against the STALE element, and a
+        // point outside an element's rect still yields a "closest" edge — a
+        // confident answer computed from a mismatched pair. The user's own
+        // reading ("the rect are off") is exactly right about the symptom: the
+        // rect is fresh, the element it belongs to is not.
+        //
+        // One hit-test per drop, against ~900ms of drop paint, is not a cost
+        // worth throttling. This leaves the throttle doing only what a throttle
+        // should: the highlight may lag the finger, it can no longer decide
+        // where the thing lands. The `else` branch below already re-read the
+        // point with its own `elementFromPoint` for doc drops — the drop path
+        // had stopped trusting `curTarget` for half the cases already.
+        const dropTarget = _findDropTarget(t.clientX, t.clientY, payload.type, el);
+        if (dropTarget?.el !== curTarget?.el) {
+          curTarget?.stateRef?.current?.setIsOver?.(false);
+          curTarget?.stateRef?.current?.setClosestEdge?.(null);
+          curTarget = dropTarget;
+        }
 
         if (curTarget) {
           // A1: Haptic double-tap on successful drop
