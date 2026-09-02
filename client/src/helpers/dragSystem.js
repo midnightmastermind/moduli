@@ -341,7 +341,18 @@ export const _TOUCH_HOLD_MS = 80;  // minimum hold time before drag activates
 // a tap (which is typically under 150ms and opens the radial menu), short
 // enough to feel like a response rather than a wait. Below `_TOUCH_HOLD_MS`
 // this would be unreachable, which a test pins.
-export const _TOUCH_LIFT_MS = 220;
+//
+// 220 -> 150 (user, 2026-09-02: "drop down the hold time for the drag"). The
+// IMPOSED wait was never the whole story — `via=lift hold=1213ms` on 2026-09-02
+// is a 220ms timer arriving a second late because the thread was blocked — but
+// it is the half we control, and it is 70ms off every lift that is NOT starved.
+//
+// 150 is the floor this can take without eating taps: a finger that moves 8px
+// starts the drag on its own after `_TOUCH_HOLD_MS`, so this timer only governs
+// a finger held DELIBERATELY still, and a tap on the handle that reaches 150ms
+// stationary is already a hold. Going lower starts competing with the radial
+// menu the same gesture opens.
+export const _TOUCH_LIFT_MS = 150;
 const _HIT_TEST_INTERVAL = 32; // FLOOR between hit-tests; the real spacing is
                                // derived per drag from what one actually costs
                                // (helpers/hitTestBudget.js) — measured 0.6ms on

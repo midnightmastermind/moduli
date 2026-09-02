@@ -1283,6 +1283,33 @@ select:disabled { cursor: not-allowed; }
   contain-intrinsic-size: auto var(--cv-seed, 44px);
 }
 
+/* ── THE OFF-SCREEN PANEL SKIP IS RETIRED, AND THE MEASUREMENT IS WHY ──────
+   2026-09-02 (4) measured `content-visibility: auto` on the inactive mobile
+   panels at 93.7 -> 61.3ms, "the display:none ceiling exactly", and it was
+   written but never shipped. Re-measured on prod at 820x1180 with the one check
+   that pass was missing — `checkVisibility({contentVisibilityAuto:true})`, the
+   only honest detector, since `getBoundingClientRect` FORCES a skipped subtree
+   to lay out and reports real geometry either way:
+
+       cv:auto applied to all 3 panels    rendered = true on ALL THREE
+       display:none on the 2 off-screen   109.7ms vs 107.7ms baseline
+
+   NOTHING IS EVER SKIPPED. Chromium keeps a cv:auto subtree rendered while it
+   is within ~2 viewports of the visual viewport (swept locally: a slab one
+   viewport off screen renders, two viewports off does not), and the mobile
+   grid's inactive panels sit IMMEDIATELY adjacent — x=822 and y=1182 at an
+   820x1180 viewport. And the display:none arm buys nothing either, so the win
+   was not there to take.
+
+   A/B'd on the thing the user actually feels, 6x CPU throttle, four rail taps
+   per arm, interleaved:
+
+       baseline   blocked 1212ms  paint 918ms      cv_auto   1357ms  839ms
+       baseline_2         1317ms        859ms      cv_auto_2 1245ms  794ms
+
+   Fully overlapping. The cell switch is not fixed by trimming what is laid out
+   off screen — see the style-invalidation rule below, which is. */
+
 .instance-wrap.is-dragging {
   pointer-events: none;
 }
@@ -2820,7 +2847,37 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    sets `overscroll-behavior: contain` INLINE (PageBoard/PageDoc/PageFolder) —
    correct for a single-cell panel, fatal here — hence the !important. The
    viewport itself keeps `contain` so nothing chains on out to the document. */
-.mobile-grid-viewport[data-panel-native-scroll="1"] .mobile-grid-slider * {
+/* ── AND IT MUST NOT BE A UNIVERSAL DESCENDANT SELECTOR ────────────────────
+   This rule used to end in `.mobile-grid-slider *`, and the attribute above it
+   is TOGGLED BY EVERY CELL SWITCH. A universal descendant cannot be reduced to
+   a class-keyed invalidation set, so toggling that one attribute forced Chromium
+   to re-match every element beneath it. Traced on prod at 820x1180, 6x CPU
+   throttle, one rail tap:
+
+       ONE style recalc over 15,964 elements   712ms
+       style, whole tap                       1363ms
+       layout, whole tap                        69ms   <- layout was never it
+
+   Deleting this single rule at run time, same page, same taps:
+
+       biggest recalc  15,964 -> 9,983 elements
+       style           1363ms ->   580ms         -57%
+
+   The census says why the `*` was so expensive for so little: of the 19,953
+   elements under the slider, exactly 41 ever compute `overscroll-behavior-y:
+   contain` — 3 page scrollers and 38 `.instance-fields`. It re-matched sixteen
+   thousand elements to reach forty-one. Naming them keeps every one of those 41
+   and gives Chromium an invalidation set it can index by class.
+
+   The three page scrollers carry `.page-scroll` for exactly this reason
+   (PageBoard / PageDoc / PageFolder, plus PageBoard's per-child height cap) —
+   they set `overscroll-behavior: contain` INLINE, which is why the override
+   still needs `!important`. If a FOURTH scroller ever sets contain inline
+   inside the slider, it must join this list or its panel's lower half becomes
+   unreachable again (2026-07-25: the Schedule's slots stopped at ~9pm). */
+.mobile-grid-viewport[data-panel-native-scroll="1"] .page-scroll,
+.mobile-grid-viewport[data-panel-native-scroll="1"] .instance-fields,
+.mobile-grid-viewport[data-panel-native-scroll="1"] .panel-scroll {
   overscroll-behavior-y: auto !important;
 }
 

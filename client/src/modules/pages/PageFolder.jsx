@@ -398,7 +398,7 @@ export default function PageFolder({
           >×</button>
         )}
       </div>
-      <div style={{
+      <div className="page-scroll" style={{
         flex: 1, minHeight: 0,
         overflowY: "auto",
         WebkitOverflowScrolling: "touch",

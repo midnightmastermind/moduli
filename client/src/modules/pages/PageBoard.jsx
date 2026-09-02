@@ -178,7 +178,7 @@ export default function PageBoard({
   return (
     <div
       ref={dropRef}
-      className={mode === "flex-row" ? "page-board-hscroll" : undefined}
+      className={`page-scroll${mode === "flex-row" ? " page-board-hscroll" : ""}`}
       style={{
         flex: 1, minHeight: 0,
         overflowY: "auto",
@@ -252,7 +252,7 @@ export default function PageBoard({
           );
           const wrapStyle = childWrapperStyle;
           return wrapStyle
-            ? <div key={containerOcc?.id || container.id} style={wrapStyle}>{card}</div>
+            ? <div key={containerOcc?.id || container.id} className={capStyle ? "page-scroll" : undefined} style={wrapStyle}>{card}</div>
             : card;
         })}
         {visibleList.length === 0 && !fullStateLoaded && (occurrence.occurrences?.length > 0) && (
