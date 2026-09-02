@@ -83,3 +83,38 @@ describe("dragPerf move buckets", () => {
     expect(l).not.toMatch(/instance:/);
   });
 });
+
+/**
+ * AUTOSCROLL IS ITS OWN DIMENSION.
+ *
+ * User, 2026-09-02: "it still jitters from something as i scroll down with the
+ * drag." While the edge autoscroll loop runs, every frame scrolls the container
+ * AND re-runs the hit-test AND repositions the indicators, and scrolling
+ * invalidates every cached rect. Mixing those moves with ordinary ones averages
+ * the two together, which is how the previous instrument answered nothing.
+ */
+describe("autoscroll buckets separately", () => {
+  it("suffixes the bucket while autoscrolling, and stops when it stops", async () => {
+    dragPerf.start({ label: "Row", mode: "move" });
+    dragPerf.move(3, "instance");
+    dragPerf.setAutoscrolling(true);
+    dragPerf.move(40, "instance");
+    dragPerf.setAutoscrolling(false);
+    dragPerf.move(3, "instance");
+    const l = await line();
+    expect(l).toMatch(/instance:2x3\.0/);
+    expect(l).toMatch(/instance\+scroll:1x40\.0/);
+  });
+
+  it("starts each drag not autoscrolling", async () => {
+    // A leaked flag would label every move of the NEXT drag as autoscrolling
+    // and quietly point the investigation at the wrong loop.
+    dragPerf.start({ label: "A", mode: "move" });
+    dragPerf.setAutoscrolling(true);
+    dragPerf.move(9, "gap");
+    await line();
+    dragPerf.start({ label: "B", mode: "move" });
+    dragPerf.move(9, "gap");
+    expect(await line()).toMatch(/gap:1x9\.0/);
+  });
+});

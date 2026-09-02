@@ -30,6 +30,7 @@ import {
 import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
 import { beginAction, endAction, setActionCloseHook, captureAction, retainAction, releaseAction, runInAction, runDerived } from "../helpers/actionScope";
 import { runSliced } from "../helpers/sliceWork";
+import { makeInteractionHold } from "../helpers/interactionHold";
 import { makeOccOverlay } from "../helpers/occOverlay";
 import { requestForceSync, commitForceSync } from "../helpers/editorSyncSignal";
 import { startLoadDiag, markLoad, timeLoad } from "../helpers/loadDiag";
@@ -43,7 +44,7 @@ import { persistAuth, clearAuth } from "../helpers/authStorage.js";
  * Module-level bridge so CommitHelpers can fire operations immediately
  * after optimistic dispatch (no server round-trip needed).
  */
-export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLocalMod: null, getFilterContext: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, beginDropBatch: null, endDropBatch: null, markDerivedOcc: null, scheduleFeedSync: null };
+export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLocalMod: null, getFilterContext: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, beginDropBatch: null, endDropBatch: null, beginInteraction: null, endInteraction: null, markDerivedOcc: null, scheduleFeedSync: null };
 
 // Pure decision half of the SET_FILTER effect, so it can be tested without a
 // socket. `filterNavState` drives the nav WIDGET; `grid.activeFilterValues`
@@ -1665,6 +1666,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // executing immediately. endDropBatch flushes it after rAF so the browser can
   // paint the drop result before any op work begins.
   let _dropBatchFires = null;
+  // Fires held for the duration of a DRAG (not just the drop) — the queue, its
+  // dedupe key and its fail-safe cap live in helpers/interactionHold.js, with
+  // the measurement that motivated them.
+  const _interactionHold = makeInteractionHold({
+    onCap: (held) => drainFires(held, { label: "drag-hold-cap" }),
+  });
   // Throttle the depth-cap warning per (transactionType + fieldId + occurrenceId)
   // so a runaway cycle doesn't flood the console.
   const _fireWarnAt = new Map();
@@ -1677,6 +1684,20 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       _dropBatchFires.push({ transactionType, transaction });
       return;
     }
+    // ── AND FOR THE WHOLE DRAG, NOT ONLY THE DROP ────────────────────────────
+    // The drop batch has always deferred the fires a DROP causes. It does
+    // nothing about fires arriving from somewhere else WHILE the finger is
+    // down — and on the device that is the larger number by far. User's own
+    // capture, a drag begun 13s after a page load:
+    //
+    //     opSweeps=19 opMs=3404
+    //     opBy=[load:1x2544ms/231fx  MeasureOp:11x532ms  MeasureOp:6x278ms]
+    //     longTasks=152(27966ms)      <- 47% of a 59-second drag
+    //
+    // A 2,544ms sweep is a 2.5-second freeze with a finger on the screen, and
+    // it is not work the drag asked for. Held here and drained when the finger
+    // lifts (user, 2026-09-02: "make them not affect the drag at all").
+    if (_fireDepth === 0 && _interactionHold.take(transactionType, transaction)) return;
     if (_fireDepth >= _FIRE_DEPTH_LIMIT) {
       // Skip recursive fires past the cap. Surface once per breach so the
       // user can find the op-loop without the page hard-crashing.
@@ -2039,48 +2060,28 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // timer and a quick Ctrl+Z targets the previous one.
   setActionCloseHook((actionId) => { safeEmit(socket, "close_action", { actionId }); });
 
-  operationsBridge.beginDropBatch = () => {
-    _dropBatchFires = [];
-    // Open the undo action here and hold it across the WHOLE drain below, so
-    // the move and every tracker write it causes land in one transaction —
-    // one Ctrl+Z puts the user back where they were.
-    beginAction("Moved item");
-  };
-  operationsBridge.endDropBatch = () => {
-    const batch = _dropBatchFires;
-    _dropBatchFires = null;
-    if (!batch || batch.length === 0) { endAction(); return; }
-    // DOUBLE rAF: a single requestAnimationFrame runs BEFORE the next paint, so
-    // the deferred op cascade (trackers + Table/Canvas builds → a big grid
-    // re-render) executed in the SAME frame as the optimistic move and blocked
-    // the dropped item from painting — the user saw a long delay before the
-    // item appeared at the drop spot when the destination runs operations.
-    // Waiting TWO frames lets the browser paint the move first, then runs the
-    // op work on the following frame so the drop feels instant.
-    //
-    // The drain is CHUNKED (one fire per macrotask) and DEDUPED (one shared
-    // cascade Set across the whole burst, same semantic as fireOperationsBatch):
-    // a drop emits OccurrenceListOp + one MeasureOp per field, and each sweep
-    // used to re-run the same Build/Tracker ops — N× the work — all in ONE
-    // synchronous frame, freezing the UI for seconds right after the paint.
-    // Now each matching op runs once for the burst, and the browser can paint /
-    // take input between sweeps.
+  /**
+   * Drain a batch of held fires: one per macrotask, with ONE shared dedup Set
+   * across the burst so a Build/Tracker op that every fire would re-trigger
+   * runs once. Extracted because the drop batch and the drag hold both need it
+   * and two copies of a drain is how they drift — the same call this file
+   * already makes about `fireOperationsBatch`.
+   */
+  function drainFires(batch, { label, onDone } = {}) {
+    if (!batch || batch.length === 0) { onDone?.(); return; }
     const cascadeSet = new Set();
     const t0 = performance.now();
     const total = batch.length;
     const step = () => {
       const next = batch.shift();
       if (!next) {
-        // The cascade has drained — close the undo action so later writes
-        // aren't swallowed into this one.
-        endAction();
+        onDone?.();
         if (typeof window !== "undefined" && window.__dragPerf === true) {
-          console.log(`[drop] op drain done — ${total} fires, ${cascadeSet.size} ops, ${Math.round(performance.now() - t0)}ms`);
+          // eslint-disable-next-line no-console
+          console.log(`[${label}] op drain done — ${total} fires, ${cascadeSet.size} ops, ${Math.round(performance.now() - t0)}ms`);
         }
         return;
       }
-      // Install the shared dedup Set only for the duration of this synchronous
-      // sweep so interleaved user-initiated fires never dedup against it.
       const prev = _navCascadeFiredOps;
       _navCascadeFiredOps = cascadeSet;
       try {
@@ -2090,7 +2091,32 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       }
       setTimeout(step, 0);
     };
+    // DOUBLE rAF: one runs BEFORE the next paint, so the cascade would execute
+    // in the same frame as the thing the user just did.
     requestAnimationFrame(() => { requestAnimationFrame(step); });
+  }
+
+  operationsBridge.beginInteraction = () => _interactionHold.begin();
+  operationsBridge.endInteraction = () => drainFires(_interactionHold.end(), { label: "drag-hold" });
+
+  operationsBridge.beginDropBatch = () => {
+    // A drop happens with the finger still down, so the hold is open. Hand its
+    // contents to the drop batch instead of draining twice: one drain, one undo
+    // action, and the drop's own fires dedup against the drag's.
+    const held = _interactionHold.end();
+    _dropBatchFires = held.length ? held : [];
+    // Open the undo action here and hold it across the WHOLE drain below, so
+    // the move and every tracker write it causes land in one transaction —
+    // one Ctrl+Z puts the user back where they were.
+    beginAction("Moved item");
+  };
+  operationsBridge.endDropBatch = () => {
+    const batch = _dropBatchFires;
+    _dropBatchFires = null;
+    if (!batch || batch.length === 0) { endAction(); return; }
+    // `endAction` closes the undo action `beginDropBatch` opened, so the move
+    // and every tracker write it causes land in ONE transaction.
+    drainFires(batch, { label: "drop", onDone: endAction });
   };
 
   // Expose on module-level bridge so CommitHelpers can call optimistically
@@ -2653,6 +2679,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     setActionCloseHook(null);
     operationsBridge.beginDropBatch = null;
     operationsBridge.endDropBatch = null;
+    // Drain anything still held before tearing the bridge down, or a drag that
+    // was in flight when the socket unbound loses its operation work silently.
+    try { drainFires(_interactionHold.end(), { label: "unbind" }); } catch { /* teardown */ }
+    operationsBridge.beginInteraction = null;
+    operationsBridge.endInteraction = null;
     _dropBatchFires = null;
     clearInterval(scheduleInterval);
     if (bc) { bc.close(); bc = null; }

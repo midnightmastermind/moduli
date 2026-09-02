@@ -251,6 +251,7 @@ export function DragProvider({
     if (autoscrollRafRef.current) cancelAnimationFrame(autoscrollRafRef.current);
     autoscrollRafRef.current = 0;
     autoscrollStateRef.current = { el: null, dir: 0 };
+    dragPerf.setAutoscrolling?.(false);
   }, []);
   const tickAutoscroll = useCallback(() => {
     const { el, dir, speed } = autoscrollStateRef.current;
@@ -258,6 +259,7 @@ export function DragProvider({
     const px = speed || 10;
     if (dir < 0) el.scrollTop = Math.max(0, el.scrollTop - px);
     else el.scrollTop = Math.min(maxScrollTopFor(el), el.scrollTop + px);
+    dragPerf.setAutoscrolling?.(true);
     autoscrollRafRef.current = requestAnimationFrame(tickAutoscroll);
   }, []);
   // Track last hot target to skip redundant DOM updates on every mouse-move
@@ -540,6 +542,8 @@ export function DragProvider({
     // Release the interaction flag so op-run-log persistence drain can
     // resume. See handleDragStart for the pairing.
     if (typeof window !== "undefined") window.__moduli_interacting = false;
+    // Release the op-fire hold. A no-op when a drop already took the queue.
+    operationsBridge.endInteraction?.();
 
     // Restore touch-action + overscroll-behavior on document (set during drag start on mobile)
     // No touchAction reset — see handleDragStart. It was the second ~900ms
@@ -596,6 +600,13 @@ export function DragProvider({
     // checks this and skips when set, so a multi-MB JSON.stringify can't
     // hiccup mid-drag. Cleared in clearSession on drop / drag-end.
     if (typeof window !== "undefined") window.__moduli_interacting = true;
+    // AND HOLD OPERATION FIRES FOR THE WHOLE DRAG. The drop batch below has
+    // always deferred the fires the DROP causes; this covers the ones arriving
+    // from elsewhere while the finger is down — which the device says is the
+    // larger number (a drag begun 13s after load carried a 2,544ms load sweep
+    // and 17 MeasureOps, 47% of it inside a long task). Drained on drag end, or
+    // handed to the drop batch if the gesture ends in a drop.
+    operationsBridge.beginInteraction?.();
 
     // SPLIT, because this whole function IS the drag's startup cost — the
     // payload build, the drag pill and `setIsDragging` total 1-3ms between

@@ -42,7 +42,7 @@ const s = {
   tDrop: 0, tDropDone: 0, tDropPaint: 0,
   moves: 0, frames: 0,
   onMoveTotal: 0, onMoveMax: 0,
-  moveBy: {},
+  moveBy: {}, autoscrolling: false,
   rafTotal: 0, rafMax: 0,
   hitTotal: 0, hitCount: 0, hitMax: 0,
   efpTotal: 0, efpMax: 0, walkTotal: 0, walkMax: 0, elsMax: 0, dropTargets: 0,
@@ -182,7 +182,7 @@ export const dragPerf = {
     Object.assign(s, {
       active: true, t0: now, tStarted: now, tFirstPaint: 0,
       tDrop: 0, tDropDone: 0, tDropPaint: 0,
-      moves: 0, frames: 0, onMoveTotal: 0, onMoveMax: 0, moveBy: {},
+      moves: 0, frames: 0, onMoveTotal: 0, onMoveMax: 0, moveBy: {}, autoscrolling: false,
       rafTotal: 0, rafMax: 0, hitTotal: 0, hitCount: 0, hitMax: 0,
       efpTotal: 0, efpMax: 0, walkTotal: 0, walkMax: 0, elsMax: 0, dropTargets: 0,
       long16: 0, long32: 0, longTasks: 0, longTaskMs: 0,
@@ -234,12 +234,21 @@ export const dragPerf = {
   // with a live counter as the control; `elementsFromPoint` measured 12.4ms
   // over a row against 12.5ms over empty space). So the move is bucketed by
   // WHAT THE POINTER WAS OVER, and the report prints the buckets.
+  /** Edge autoscroll started / stopped. Diagnostic only. */
+  setAutoscrolling(on) { if (s.active) s.autoscrolling = !!on; },
+
   move(dt, over) {
     if (!s.active) return;
     s.moves++;
     s.onMoveTotal += dt;
     if (dt > s.onMoveMax) s.onMoveMax = dt;
-    const k = over || "unknown";
+    // AUTOSCROLL IS ITS OWN DIMENSION. User, 2026-09-02: "it still jitters from
+    // something as i scroll down with the drag." While the edge autoscroll loop
+    // runs, every frame scrolls the container AND re-runs the hit-test AND
+    // repositions the indicators — and scrolling invalidates every cached rect
+    // (2026-09-01 (6)). A bucket that mixes those moves with ordinary ones
+    // averages the two together and answers nothing.
+    const k = (over || "unknown") + (s.autoscrolling ? "+scroll" : "");
     const b = (s.moveBy[k] ||= { n: 0, total: 0, max: 0 });
     b.n++; b.total += dt;
     if (dt > b.max) b.max = dt;
