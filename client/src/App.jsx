@@ -123,11 +123,13 @@ export default function App() {
   // which dragSystem already buzzes for, and text entry).
   useEffect(() => armHaptics(), []);
 
-  // Off-screen mobile panels do not mount their rows. Enabled at RUNTIME, the
-  // same way staged mounting is: the helper defaults off so a unit test renders
-  // every row, and `window.__offscreenRows = false` gives an A/B both arms on
-  // ONE build. Numbers in helpers/offscreenRows.js.
-  useEffect(() => { enableOffscreenRows(true); }, []);
+  // Off-screen mobile panels do not mount their rows — MEASURED AND OFF, see
+  // helpers/offscreenRows.js. It does everything it claims (paint -50%, scroll
+  // p95 117 -> 28ms) and still loses the tap, because unmounting ~93 rows and
+  // remounting them costs more React work than the paint it saves. Kept behind
+  // `window.__offscreenRows = true` because the mechanism is sound and the
+  // TRIGGER is what is wrong; the deferred-mount variant is the open question.
+  useEffect(() => { enableOffscreenRows(false); }, []);
 
   useEffect(() => {
     if (!("BroadcastChannel" in window)) return;

@@ -41,6 +41,34 @@
 import { useSyncExternalStore } from "react";
 import { RENDER_ALL_EVENT } from "./renderWindow";
 
+// ── AND THEN IT LOST THE TAP. A/B'd ON PROD, ONE BUILD, FLAG TOGGLED ──────
+// The CSS arms above hid rows with `display:none` — they measured a STATE. This
+// measures the TRANSITION, and the transition is where the cost is:
+//
+//     arm            rows  active | scroll med  p95   >32ms |  tap style  paint   task
+//     OFF (today)     195     102 |       26.4 116.9     12 |      356.8  501.8   1785
+//     ON              102     102 |       21.7  28.3      6 |      564.1  242.9   3484
+//     OFF (today)     195     102 |       28.5 116.4     15 |        382  461.4   1894
+//     ON              102     102 |       23.5  36.2      6 |      621.4  234.7   3616
+//
+// PAINT FELL EXACTLY AS PREDICTED (-50%, and 242.9 against the CSS arm's 258.5)
+// and the SCROLL IS TRANSFORMED — p95 116.9 -> 28.3ms, long frames halved, and
+// it covered MORE distance in the same 3s because the frames were cheaper. The
+// scroll-thrash risk this design was shaped around does not exist: rows flip on
+// a cell switch, never under a finger.
+//
+// AND THE TAP NEARLY DOUBLED, 1785 -> 3484ms. Unmounting ~93 rows and mounting
+// ~93 more is more React work than the paint it saves — in the OFF arm the
+// panel you switch TO already has its rows, so a switch is pure paint. `rowsInActivePanel`
+// is 102 in BOTH arms, which is the control: nothing visible was removed, so
+// the tap difference is the mount, not missing content.
+//
+// SO THE MECHANISM IS RIGHT AND THE TRIGGER IS WRONG, and it is off. The open
+// variant is to DEFER the mount past the paint the way staged loading already
+// does for the initial load — the arriving panel's chrome paints, its rows fill
+// a frame later — which would keep both wins if a briefly-empty panel is an
+// acceptable feel. That is a product decision, not a measurement.
+
 /** OFF by default so the A/B runs on ONE build — a before/after only measures
  *  the change if both halves ran against the same thing. `App` flips it on. */
 let enabled = false;
