@@ -149,7 +149,44 @@ candidate is the browser painting a 21,235-node document — the same root as
 `DROP paint=950ms` behind only 72 renders, and as the Sunday scroll-repaint
 complaint. **Not proven, and deliberately not claimed.**
 
-**STILL OPEN, all measured and none guessed at:** the ~2.8s of long tasks in a
+**AND `/Nfx` SETTLED IT ON ITS FIRST RUN — 19 OF 20 SWEEPS DO NOTHING.**
+```
+1 (28.8s)  MeasureOp:1ve8fwc6c7k:12x523ms/0fx  OccurrenceCreateOp:1x435ms/14fx
+                                               MeasureOp:kg860us2nhc:7x306ms/0fx
+2 (54.3s)  MeasureOp:mlj5fp3hu1:6x282ms/0fx    MeasureOp:b5c19ea4-...:1x73ms/0fx
+                                               ScheduleOp:1x50ms/0fx
+3 (79.9s)  opSweeps=0   via=lift
+```
+**EVERY MeasureOp sweep emitted ZERO effects.** So it is not a self-sustaining
+loop — that hypothesis is dead, and it is the one I would have built a cycle
+guard for. The only thing that emitted anything is the CREATE: `1x435ms/14fx`.
+
+**THE CHAIN, END TO END:** a copy-drop creates an occurrence -> the create
+sweep emits **14 effects** (the tracker tiles recomputing) -> each effect is a
+field write -> each write mints a `MeasureOp` transaction -> each transaction
+fires a **full sweep over ~68 operations** that finds nothing to do. **19
+sweeps x ~44ms = 829ms of pure waste per drop**, with 782 renders behind it.
+
+That is 2026-08-29 (4)'s docket item reached from a fourth direction — *"195
+effects are 195 dispatches and 195 fan-outs; applying them as one batched write
+would COLLAPSE the renders rather than redistribute them"* — and it now has a
+name, a count and an effect tally against it. **The fix is not another cycle
+guard** (there is no cycle); it is that applying N effects mints N transactions.
+
+**AND THE THREAD STALLS WITH NO OPS AND ALMOST NO RENDERS, which is the part
+none of this explains.** Capture 3, settled, `opSweeps=0`, 136 renders:
+```
+via=lift hold=1213ms      <- a 220ms TIMER, nearly a second late
+firstTask=645ms@146ms     <- one 645ms task, 146ms into the drag
+longTasks=44(5756ms)      <- 44% of a 13s drag
+```
+A lift timer arriving a second late is direct evidence of starvation rather
+than an inference from it. Ours is ~2s of that (200 moves x 5.3ms + 120 frames
+x 11.3ms). The largest named candidate remains the browser laying out and
+painting a ~19,900-node document — the same root as `DROP paint=766ms` behind
+72 renders. **Still not proven, still not claimed.**
+
+**STILL OPEN, all measured and none guessed at:** the ~3s of long tasks in a
 settled drag that neither our work nor ops account for; the
 hit-test at ~13-21ms x 130-180 calls, ~2s of a long drag, where geometry-only
 shortcuts are proven unsound (2026-09-01 (6)); and ~15s of a 22-second drag
