@@ -64,11 +64,36 @@ import { afterPaint } from "./afterPaint";
 // is 102 in BOTH arms, which is the control: nothing visible was removed, so
 // the tap difference is the mount, not missing content.
 //
-// SO THE MECHANISM IS RIGHT AND THE TRIGGER IS WRONG, and it is off. The open
-// variant is to DEFER the mount past the paint the way staged loading already
-// does for the initial load — the arriving panel's chrome paints, its rows fill
-// a frame later — which would keep both wins if a briefly-empty panel is an
-// acceptable feel. That is a product decision, not a measurement.
+// ── AND THE DEFERRED VARIANT WAS BUILT, AND IT DOES NOT SAVE IT EITHER ────
+// The trace above measures TOTAL main-thread work in a window, which deferral
+// cannot change — it reschedules work, it does not remove it. The number that
+// answers this variant is the app's own CELL-SWITCH split (`paint` = commit ->
+// the first frame after; `blocked` = thread unavailable during the window), so
+// that is what was driven. Prod, 6x throttle, median of 4 taps per arm:
+//
+//     arm                  rows | blocked  maxBlock   react   paint
+//     OFF (today)           195 |    1016       427      20     405
+//     ON immediate          102 |    2692      2692      19    2673
+//     ON deferred           102 |    2912      2761      19     132
+//     OFF (today) again     195 |    1205       385      17     368
+//     ON deferred again     102 |    3169      2986      22     144
+//
+// DEFERRAL DOES EXACTLY WHAT IT PROMISED: the destination cell paints 3x
+// sooner, 405 -> 132ms. And it converts the cost into ONE 2.7-SECOND LONG TASK
+// — you see the cell instantly and cannot touch it while ~93 rows arrive.
+//
+// So the finding is not about the trigger after all, and it is worth stating
+// plainly so a fourth session does not propose this again: MOUNTING ~93 REACT
+// ROWS COSTS ~2.7s AT 6x THROTTLE AGAINST THE ~405ms OF PAINT IT SAVES. That is
+// ~6:1 the wrong way, and no trigger, deferral or slicing changes the ratio —
+// slicing would only spread the 2.9s across frames. Keeping the rows mounted
+// and paying the paint is the cheaper trade at every scheduling.
+//
+// WHAT DID COME OUT OF IT, and it is real: with the rows gone the ACTIVE
+// panel's scroll is transformed (p95 129 -> 34ms, frames over 32ms 43 -> 7).
+// That win is only available while the rows are unmounted, which is what costs
+// the switch — so it is not free either. Any future attempt has to beat the
+// 6:1 above, not just move it around.
 
 /** OFF by default so the A/B runs on ONE build — a before/after only measures
  *  the change if both halves ran against the same thing. `App` flips it on. */
