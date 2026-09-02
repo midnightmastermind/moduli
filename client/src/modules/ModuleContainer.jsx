@@ -133,6 +133,7 @@ const CONTEXT_ADD_KINDS = tileKindsForRole("instance").filter(
 import OccurrenceFields from "../ui/OccurrenceFields.jsx";
 import { resolveEditorBinding } from "../state/editorBindings.js";
 import { useRenderWindow } from "../helpers/renderWindow";
+import { usePanelRowsHidden } from "../helpers/offscreenRows";
 import { applyRowSeed } from "../helpers/rowSeed";
 import { afterPaint } from "../helpers/afterPaint";
 
@@ -811,6 +812,13 @@ function Container({
   // (the hook returns the full count below its threshold), so this changes
   // nothing for the ~1,300 containers on this grid holding a handful of rows.
   const renderWindow = useRenderWindow(itemsWithOccurrences.length, { resetKey: childOccsKey });
+
+  // A panel the mobile grid has translated off screen renders NO rows. The
+  // container shell, its header and its label stay — they are ~105 nodes across
+  // the grid and keeping them means a cell switch changes what is inside a
+  // container, never the shape of the tree. See helpers/offscreenRows.js.
+  const rowsHidden = usePanelRowsHidden(panelId);
+  const renderCount = rowsHidden ? 0 : renderWindow.count;
 
   // MEASURE THIS LIST'S OWN ROW HEIGHT for the off-screen skip's placeholder.
   // `contain-intrinsic-size` shipped as a constant and has been wrong in both
@@ -1800,7 +1808,7 @@ function Container({
                 : null),
             }}
           >
-            {itemsWithOccurrences.slice(0, renderWindow.count).map(({ instance, occurrence }, idx) => {
+            {itemsWithOccurrences.slice(0, renderCount).map(({ instance, occurrence }, idx) => {
               const role = instance?.role;
               // Container-in-container: when the parent has allowChildContainers,
               // a role:"container" child mounts its own <Container> instead of a

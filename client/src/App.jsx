@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { armScrollDiag } from "./helpers/scrollDiag.js";
 import { armHaptics } from "./helpers/haptics.js";
+import { enableOffscreenRows } from "./helpers/offscreenRows.js";
 // Installs window.__domAudit() — the DOM census (helpers/domAudit.js). Imported
 // for its side effect only: nothing calls it, and unimported it would be tree
 // shaken out of the bundle, so the one device that needs it could never run it.
@@ -121,6 +122,12 @@ export default function App() {
   // header for why, and for what it deliberately stays quiet on (drag handles,
   // which dragSystem already buzzes for, and text entry).
   useEffect(() => armHaptics(), []);
+
+  // Off-screen mobile panels do not mount their rows. Enabled at RUNTIME, the
+  // same way staged mounting is: the helper defaults off so a unit test renders
+  // every row, and `window.__offscreenRows = false` gives an A/B both arms on
+  // ONE build. Numbers in helpers/offscreenRows.js.
+  useEffect(() => { enableOffscreenRows(true); }, []);
 
   useEffect(() => {
     if (!("BroadcastChannel" in window)) return;

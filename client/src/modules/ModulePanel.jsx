@@ -13,7 +13,8 @@ import { resolveStyleCascade, styleToCSS } from "../helpers/StyleHelpers";
 import { bumpRender } from "../helpers/renderProbe";
 import { markLoadOnce, markLoad } from "../helpers/loadDiag";
 import { useStagedContent } from "../hooks/useStagedContent";
-import { useActiveCell } from "../state/activeCellStore";
+import { useActiveCell, useZoomedOut } from "../state/activeCellStore";
+import { shouldHidePanelRows, publishPanelRowsHidden } from "../helpers/offscreenRows";
 import { Spinner } from "@/components/ui/spinner";
 
 import Artifact from "./ArtifactContent";
@@ -349,6 +350,18 @@ function Panel({
       + Math.abs((module?.col ?? 0) - (stagingCell?.col ?? 0))
     : (module?.row ?? 0) * 100 + (module?.col ?? 0);
   const contentReady = useStagedContent(`panel:${module?.id}`, stagePriority);
+
+  // ── OFF-SCREEN PANELS DO NOT MOUNT THEIR ROWS ────────────────────────────
+  // The panel is the only thing that knows where it sits; the container is the
+  // only thing that renders rows. This publishes the decision by panel id so
+  // the containers can subscribe without a context fan-out — the numbers, and
+  // why this is coarse rather than a per-row viewport window, are in
+  // helpers/offscreenRows.js.
+  const zoomedOut = useZoomedOut();
+  const rowsHidden = shouldHidePanelRows(module, stagingCell, { isMobileLayout, zoomedOut });
+  useEffect(() => {
+    publishPanelRowsHidden(module?.id, rowsHidden);
+  }, [module?.id, rowsHidden]);
   useEffect(() => { if (contentReady) markLoad("panel:content-ready", { id: module?.id }); }, [contentReady, module?.id]);
   // Stable handler context (stack helpers) + the small reactive drag-state
   // context. Panels are few (~dozens), so a reactive subscription here is the
