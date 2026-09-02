@@ -6,6 +6,72 @@
 
 ---
 
+### 2026-09-02 (2) — THE DOM AUDIT: a THIRD of the document is icon internals, and 383 invisible insert gaps cost 15%
+
+User: *"ok continue with the effect fan out and then lets create an audit of the
+dom nodes"*. The fan-out is fixed above; this is the census, taken on prod at
+the tablet's own 820x1180 viewport, 30s after load so it measures the grid
+rather than the load.
+
+```
+DOM AUDIT — 19,874 elements, max depth 39      (21,190 occurrences in state)
+
+REPEATED STRUCTURES (subtree totals OVERLAP by nesting — do not sum)
+  count   total   median   max   what
+    105   36142      178  6819   div.container-shell
+    105   32557      146  6786   div.container-list
+      3   19781     6899 10051   div.panel-shell
+    193   12670       63   142   div.instance-wrap
+    193    8833       46   121   div.instance-fields
+    383    3064        8     8   div.insert-gap
+
+BY TAG   div:6554  path:4418  span:4118  button:2001  svg:1896  input:492
+         line:246  rect:129  circle:10
+BY CLASS lucide:1894  auto-marquee:1087  auto-marquee-inner:1087
+         instance-field-mq:783  field-input:652
+```
+
+**ICONS ARE THE LARGEST SINGLE COST AND NOBODY HAD COUNTED THEM.**
+`path + svg + line + rect + circle = 6,699 nodes — 34% of the document`, from
+**1,894 lucide icons at ~3.5 nodes each.** Every session this week has said
+"a 20k-node document" as though it were rows of user data; a third of it is
+glyphs.
+
+**383 INSERT GAPS FOR 193 ROWS, 3,064 NODES (15%), INVISIBLE AT REST.**
+`ModuleContainer` interleaves one between every pair of items plus one at each
+end, and each is 8 nodes — a gap, a line, a button, a QuickAddMenu trigger and
+its icon — sitting at `opacity: 0` until hovered. **They also account for 383
+of the 2,001 buttons and 383 of the icons above.**
+
+**AND A ROW IS 73% FIELD PILLS.** `instance-wrap` median **63** nodes, of which
+`instance-fields` is **46**. 1,087 AutoMarquee instances add **2,174 wrapper
+divs (11%)** — the same component 2026-08-26 (6) measured at 46% of Layerize,
+reached from the node side.
+
+**ONE CONTAINER IS A THIRD OF THE PAGE:** `Schedule - Wednesday` at **6,818
+nodes**, inside a panel holding 10,050. That is 2026-08-26 (5)'s hand
+measurement (`5,871 nodes, 29%`) reproduced by a repeatable instrument rather
+than by hand.
+
+**THE AUDIT COUNTS AND DOES NOT JUDGE**, deliberately: every threshold would be
+a guess, since what a row *should* cost depends on what it renders. It reports
+the count, the total and the **median cost of one** — which is the number that
+separates *"too many rows"* from *"too heavy a row"*, two different fixes a
+total cannot tell apart. And it says its subtree totals **overlap by nesting**,
+because summing them against the total is the obvious mistake and would read as
+a bug in the audit rather than a property of trees.
+
+**NOT FIXED, and ranked by what the census actually says:** the insert gaps
+(3,064 nodes for an affordance nobody can see until they hover — one shared
+element positioned on hover would return 15%); the icons (34%, and the gap
+glyphs are the cheapest slice of them); the marquee wrappers (11%, and that
+component already has a measured history). **No change was made on the strength
+of this — it is a measurement, and the fixes are each their own pass.**
+
+3,745 client tests, lint 0 errors.
+
+---
+
 ### 2026-09-02 — THE DROP LANDED WHERE YOUR FINGER HAD BEEN, and a SHORT drag dropped nothing at all
 
 User, three reports in four minutes: *"i try to drop to the left side of an

@@ -1,6 +1,10 @@
 // App.jsx — STEP 2: commits routed through CommitHelpers / LayoutHelpers
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { armScrollDiag } from "./helpers/scrollDiag.js";
+// Installs window.__domAudit() — the DOM census (helpers/domAudit.js). Imported
+// for its side effect only: nothing calls it, and unimported it would be tree
+// shaken out of the bundle, so the one device that needs it could never run it.
+import "./helpers/domAudit.js";
 import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { preventUnhandled } from "@atlaskit/pragmatic-drag-and-drop/prevent-unhandled";
 
