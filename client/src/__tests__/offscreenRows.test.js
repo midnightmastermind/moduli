@@ -25,6 +25,7 @@ import {
   publishPanelRowsHidden,
   usePanelRowsHidden,
   enableOffscreenRows,
+  setOffscreenRowsDeferred,
   _resetOffscreenRows,
 } from "../helpers/offscreenRows.js";
 import { RENDER_ALL_EVENT } from "../helpers/renderWindow.js";
@@ -123,6 +124,49 @@ describe("the search escape hatch — an unmounted row must not become a lie", (
     act(() => window.dispatchEvent(new CustomEvent(RENDER_ALL_EVENT)));
     expect(result.current).toBe(false);
     act(() => publishPanelRowsHidden("B", true));    // the grid moved
+    expect(result.current).toBe(true);
+  });
+});
+
+/**
+ * DEFERRED MODE — the tap pays neither the unmount nor the mount.
+ *
+ * Applying inside the tap's own commit is what cost 1,700ms: the departing
+ * panel unmounts ~93 rows and the arriving one mounts ~93, both before the
+ * browser is allowed to paint. Neither is needed in that frame.
+ */
+describe("deferred mode", () => {
+  beforeEach(() => { _resetOffscreenRows(); enableOffscreenRows(true); setOffscreenRowsDeferred(true); });
+
+  it("does NOT change anything inside the publishing commit", async () => {
+    const { result } = renderHook(() => usePanelRowsHidden("A"));
+    act(() => publishPanelRowsHidden("A", true));
+    expect(result.current).toBe(false);            // the tap's own frame is untouched
+    await act(async () => { await new Promise(r => setTimeout(r, 60)); });
+    expect(result.current).toBe(true);             // and it lands after the paint
+  });
+
+  it("a second tap REPLACES a pending one — no intermediate FLICKER", async () => {
+    // THE FIRST VERSION OF THIS TEST WAS VACUOUS and the A/B is the only reason
+    // I know: it asserted the FINAL value, and two queued applications land in
+    // order (true then false) on the same final value, so removing the cancel
+    // changed nothing it could see. What cancellation actually prevents is the
+    // INTERMEDIATE state — a fast back-and-forth blanking the panel you landed
+    // on for a frame — so the sequence of values is what has to be asserted.
+    const seen = [];
+    const { rerender } = renderHook(() => { seen.push(usePanelRowsHidden("A")); });
+    act(() => publishPanelRowsHidden("A", true));
+    act(() => publishPanelRowsHidden("A", false));
+    await act(async () => { await new Promise(r => setTimeout(r, 80)); });
+    rerender();
+    expect(seen).not.toContain(true);          // it never went blank
+    expect(seen[seen.length - 1]).toBe(false);
+  });
+
+  it("applies synchronously when deferral is off — the control", () => {
+    setOffscreenRowsDeferred(false);
+    const { result } = renderHook(() => usePanelRowsHidden("A"));
+    act(() => publishPanelRowsHidden("A", true));
     expect(result.current).toBe(true);
   });
 });

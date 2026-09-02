@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { armScrollDiag } from "./helpers/scrollDiag.js";
 import { armHaptics } from "./helpers/haptics.js";
-import { enableOffscreenRows } from "./helpers/offscreenRows.js";
+import { enableOffscreenRows, setOffscreenRowsDeferred } from "./helpers/offscreenRows.js";
 // Installs window.__domAudit() — the DOM census (helpers/domAudit.js). Imported
 // for its side effect only: nothing calls it, and unimported it would be tree
 // shaken out of the bundle, so the one device that needs it could never run it.
@@ -129,7 +129,7 @@ export default function App() {
   // remounting them costs more React work than the paint it saves. Kept behind
   // `window.__offscreenRows = true` because the mechanism is sound and the
   // TRIGGER is what is wrong; the deferred-mount variant is the open question.
-  useEffect(() => { enableOffscreenRows(false); }, []);
+  useEffect(() => { enableOffscreenRows(false); setOffscreenRowsDeferred(true); }, []);
 
   useEffect(() => {
     if (!("BroadcastChannel" in window)) return;

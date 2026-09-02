@@ -40,6 +40,7 @@
 // panel id and nothing else hears about it.
 import { useSyncExternalStore } from "react";
 import { RENDER_ALL_EVENT } from "./renderWindow";
+import { afterPaint } from "./afterPaint";
 
 // ── AND THEN IT LOST THE TAP. A/B'd ON PROD, ONE BUILD, FLAG TOGGLED ──────
 // The CSS arms above hid rows with `display:none` — they measured a STATE. This
@@ -122,10 +123,30 @@ export function shouldHidePanelRows(panel, cell, { isMobileLayout, zoomedOut } =
   return !panelCoversCell(panel, cell);
 }
 
-/** Publish one panel's decision. No-op when unchanged, so a panel re-rendering
- *  for an unrelated reason never wakes its containers. */
-export function publishPanelRowsHidden(panelId, hidden) {
-  if (!panelId) return;
+// ── DEFERRED MODE: THE TAP PAYS NEITHER THE UNMOUNT NOR THE MOUNT ─────────
+// Applying the change inside the tap's own commit is what cost 1,700ms above:
+// the departing panel unmounts ~93 rows and the arriving one mounts ~93, both
+// before the browser is allowed to paint. Neither is needed in that frame —
+// the departing panel is already off screen, and the arriving one has its
+// chrome. So every change lands AFTER the paint, which is the same trade
+// staged loading already makes on the initial load (helpers/stagedMount.js).
+//
+// The cost is honest and is the reason this is a switch rather than a default:
+// the panel you land on shows its containers with no rows for one frame.
+let deferred = false;
+export function setOffscreenRowsDeferred(on = true) { deferred = !!on; }
+export function offscreenRowsDeferred() {
+  if (typeof window !== "undefined" && window.__offscreenRowsDefer === false) return false;
+  if (typeof window !== "undefined" && window.__offscreenRowsDefer === true) return true;
+  return deferred;
+}
+
+// One pending application per panel. A second tap before the first has landed
+// REPLACES it rather than queueing — otherwise a fast back-and-forth applies a
+// stale decision after the newer one and the wrong panel goes blank.
+const _pending = new Map();   // panelId -> cancel fn
+
+function applyNow(panelId, hidden) {
   const was = _hidden.has(panelId);
   if (was === !!hidden) return;
   if (hidden) _hidden.add(panelId); else _hidden.delete(panelId);
@@ -133,6 +154,17 @@ export function publishPanelRowsHidden(panelId, hidden) {
   // everything" has served its purpose and should not pin the grid open.
   _renderAll = false;
   emit();
+}
+
+/** Publish one panel's decision. No-op when unchanged, so a panel re-rendering
+ *  for an unrelated reason never wakes its containers. */
+export function publishPanelRowsHidden(panelId, hidden) {
+  if (!panelId) return;
+  _pending.get(panelId)?.();
+  _pending.delete(panelId);
+  if (!offscreenRowsDeferred()) { applyNow(panelId, hidden); return; }
+  const cancel = afterPaint(() => { _pending.delete(panelId); applyNow(panelId, hidden); });
+  _pending.set(panelId, cancel);
 }
 
 function subscribe(fn) { _listeners.add(fn); return () => _listeners.delete(fn); }
@@ -148,6 +180,11 @@ export function usePanelRowsHidden(panelId) {
 
 /** Test seam — the store is module state and each test needs a clean one. */
 export function _resetOffscreenRows() {
-  _hidden.clear(); _renderAll = false; enabled = false;
-  if (typeof window !== "undefined") delete window.__offscreenRows;
+  for (const c of _pending.values()) c();
+  _pending.clear();
+  _hidden.clear(); _renderAll = false; enabled = false; deferred = false;
+  if (typeof window !== "undefined") {
+    delete window.__offscreenRows;
+    delete window.__offscreenRowsDefer;
+  }
 }
