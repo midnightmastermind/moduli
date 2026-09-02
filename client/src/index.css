@@ -2469,7 +2469,14 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
 [data-drop-edge="top"] > .drop-indicator--auto.drop-indicator-top,
 [data-drop-edge="bottom"] > .drop-indicator--auto.drop-indicator-bottom,
 [data-drop-edge="left"] > .drop-indicator--auto.drop-indicator-left,
-[data-drop-edge="right"] > .drop-indicator--auto.drop-indicator-right { display: block; }
+[data-drop-edge="right"] > .drop-indicator--auto.drop-indicator-right,
+/* The ROW's bars are their own classes (`-inst-`), so they need naming here or
+   the instance opt-in draws nothing — the hover would be free and invisible,
+   which is worse than the cost it removed. */
+[data-drop-edge="top"] > .drop-indicator--auto.drop-indicator-inst-top,
+[data-drop-edge="bottom"] > .drop-indicator--auto.drop-indicator-inst-bottom,
+[data-drop-edge="left"] > .drop-indicator--auto.drop-indicator-inst-left,
+[data-drop-edge="right"] > .drop-indicator--auto.drop-indicator-inst-right { display: block; }
 
 .drop-indicator-top {
   top: -2px;

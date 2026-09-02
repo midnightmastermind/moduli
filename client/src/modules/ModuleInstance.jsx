@@ -1535,7 +1535,23 @@ function ModuleInstance({
 
   const handleRef = useRef(null);
 
-  const { ref, isDragging, isOver, closestEdge, props } = useDragDrop({
+  // HOVER AS A DOM ATTRIBUTE, not React state. `isOver`/`closestEdge` exist
+  // here to draw four bars at the row's edges, and as state every row the
+  // finger crosses re-renders. The DEVICE's own capture (2026-09-02, one 49s
+  // drag on the tablet):
+  //
+  //     renders=387(container:189, instance:151, panel:36)
+  //     causes=instance{(none) @Drink=34  (none) @Eat=28}
+  //
+  // `(none)` means no subscribed input changed — the signature of local state.
+  // `ModuleContainer` opted in on 2026-09-01 and went from 2,004-3,383 renders
+  // per drag to 75; this is the same change for the row, and it is the user's
+  // own discriminator: "it only jitters when its passing over other instances."
+  //
+  // Nothing here READS the two values for logic — only the bars — so the
+  // attribute path costs nothing (verified: their only other use was the four
+  // conditional renders below, now unconditional + CSS).
+  const { ref, isDragging, props } = useDragDrop({
     type: DragType.INSTANCE,
     id: module.id,
     data: { ...module, occurrence },
@@ -1545,6 +1561,7 @@ function ModuleInstance({
     allowedEdges,
     dragHandleRef: handleRef,
     disabled: dragOutDisabled,
+    edgeAsAttribute: true,
   });
 
 
@@ -1569,10 +1586,12 @@ function ModuleInstance({
     >
       <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />
 
-      {isOver && closestEdge === "top" && <div className="drop-indicator drop-indicator-inst-top" />}
-      {isOver && closestEdge === "bottom" && <div className="drop-indicator drop-indicator-inst-bottom" />}
-      {isOver && closestEdge === "left" && <div className="drop-indicator drop-indicator-inst-left" />}
-      {isOver && closestEdge === "right" && <div className="drop-indicator drop-indicator-inst-right" />}
+      {/* Always mounted, hidden by CSS, revealed by `data-drop-edge` — see the
+          hook's comment above and the `--auto` rules in index.css. */}
+      <div className="drop-indicator drop-indicator--auto drop-indicator-inst-top" />
+      <div className="drop-indicator drop-indicator--auto drop-indicator-inst-bottom" />
+      <div className="drop-indicator drop-indicator--auto drop-indicator-inst-left" />
+      <div className="drop-indicator drop-indicator--auto drop-indicator-inst-right" />
 
       {occurrence?.linkedGroupId && (() => {
         const count = Math.max(0, linkedGroupCount - 1);
