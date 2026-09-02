@@ -76,6 +76,30 @@ pays it. That is what `DROP paint=5001ms`, the 37-61%-blocked drags and a 220ms
 lift timer arriving at 1213ms are made of — and it is not fixable by trimming
 the tree.
 
+**ROUND 4 — A THIRD OF EVERY LAYOUT IS FOR PANELS THE USER CANNOT SEE.** The
+mobile grid renders every panel into a slider and TRANSLATES the inactive ones
+off screen; they stay in the DOM and stay laid out. At 820x1180:
+```
+ON   _PkuNAJp  x=  6 y=  36  10,050 nodes      <- the one on screen
+OFF  u07qnz_n  x=  6 y=1182   2,830 nodes
+OFF  U18hAEwP  x=822 y=  36   7,066 nodes
+
+baseline                          93.7ms
+content-visibility: auto  -34%    61.3ms
+display: none             -35%    61.3ms       <- the CEILING
+```
+**`content-visibility: auto` reaches the `display:none` ceiling exactly.** It
+captures the whole available win with no DOM change, no React change and the
+panels still mounted — state, scroll position and editors all intact — and it is
+SELF-ADJUSTING, skipping only while a subtree is off screen and un-skipping as
+it enters. It is also the mechanism this codebase already ships for
+`.container-list--long`.
+
+**AND THE `contain-intrinsic-size` TRAP IS AVOIDABLE HERE, which is why this is
+not 2026-08-31 (4) again.** That entry records the seed being wrong in both
+directions on ROW heights, because a row's height is not knowable in advance. A
+mobile CELL's size is exactly the viewport cell — measured, not picked.
+
 ---
 
 ### 2026-09-02 (3) — THE FAN-OUT FIX, VERIFIED ON THE DEVICE: 120 effects, ZERO follow-up sweeps
