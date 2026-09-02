@@ -73,10 +73,52 @@ others) stopped reading as unattributable noise.
 3,710 client tests, lint 0 errors, deployed, prod HEAD verified, served chunk
 sha256-identical, **pm2 uptime unmoved** (client-only, no cold read).
 
-**STILL OPEN, both measured and neither guessed at:** the hit-test is ~13-21ms
-x 130-180 calls, ~2s of a long drag, and geometry-only shortcuts are proven
-unsound here (2026-09-01 (6)). And ~1s of op sweeps fires DURING a drag on most
-captures — `opBy` names the trigger on the next one.
+---
+
+**AND `opBy` ANSWERED ITS FIRST QUESTION THE SAME MORNING.** User: *"what ops do
+we have thats triggered by the drag itself, shouldnt they be triggered by the
+drop"*. On a 22-second drag, **`opBy=[MeasureOp:20x974ms]` — ZERO sweeps were
+triggered by the drag or the drop.** A drag emits `OccurrenceMoveOp` and a drop
+an `OccurrenceListOp`; neither appears. All 20 were FIELD-VALUE WRITES, ~one a
+second, on a grid nobody was typing into.
+
+**TWO CANDIDATE CAUSES DIED IMMEDIATELY, one of them the user's own.**
+- *"ahh thats the time ... maybe i should just put the time up by the alarm icon
+  instead if its taking up that much power"* — `useLiveFieldValue` keeps its
+  tick in local state and reads `Date.now()` AT RENDER. **It writes nothing**,
+  so it mints no MeasureOp and triggers no sweep: one component re-render per
+  second. Moving it would buy nothing, and the change was not made.
+- A second connected tab echoing writes in (`onOccurrenceUpdated` is the
+  MeasureOp path, and `occurrence_updated` EXCLUDES the sender). The server log
+  is strictly sequential — connect → disconnect → connect, **never two at
+  once**. Dead.
+
+So this tab is writing field values once a second during a drag, and **which**
+occurrence is now in the report: the label carries the occurrence id, the way
+the `[op-fire] depth=1 MeasureOp occ=1ve8fwc6` console line already did for the
+load path — and the tablet has no console. Capped at 200 keys, falling back to
+the bare trigger, because *a diagnostic must not become the leak it was added
+to find.*
+
+**AND THE GRID NOW SAYS WHEN IT IS BUSY.** User: *"is there any way we can have
+a notification where the reconnected message is, to say that ops are still
+running. that way i dont try to drag during it"*. The grid PAINTS long before
+it is idle, and every session chasing "it's jittery" has had to work out
+afterwards, from `sinceLoad`, whether the capture was taken on a settled grid.
+The person holding the tablet had no way to know at all. `helpers/opActivity.js`
+is fed from the one sweep chokepoint; an amber pill sits beside the socket
+status. **A BURST THRESHOLD, NOT "a sweep is running"** — a checkbox fires one
+~30ms sweep, and a pill that flashes on every interaction is wallpaper by the
+load that matters. The quiet window (1200ms) is deliberately longer than the
+~1s gap measured between cascade sweeps, or it would blink through the very
+thing it reports.
+
+**STILL OPEN, all measured and none guessed at:** what writes a field value
+once a second during a drag (the next capture names the occurrence); the
+hit-test at ~13-21ms x 130-180 calls, ~2s of a long drag, where geometry-only
+shortcuts are proven unsound (2026-09-01 (6)); and ~15s of a 22-second drag
+inside long tasks that the op sweeps (974ms) and our own work (~1.6s) together
+do not account for.
 
 ---
 
