@@ -16,7 +16,6 @@ import { makeOpNotificationCallbacks } from "../helpers/opResultSummary";
 import { syncAllFeeds } from "../helpers/feedSync";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { autoScrollWhenReady, browserTakeoverSubscription } from "../helpers/autoScrollOnLoad";
-import { setHydrationSink, releaseHydration, resetHydration } from "../helpers/occurrenceHydration";
 import {
   setOccurrenceFieldValue,
   moveOccurrence,
@@ -670,33 +669,6 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     }), 50)));
   }
 
-
-  // ── HYDRATION: the rest of a projected row, when a renderer asks ─────────
-  //
-  // The deferred catalogue arrives PROJECTED (server/utils/deferredProjection.js)
-  // — enough for the sweep and every dropdown, not enough to draw a media tile.
-  // `ModuleInstance` asks for the rest when it renders a partial row; the queue
-  // batches a commit's worth into one frame.
-  setHydrationSink((ids) => {
-    safeEmit(socket, "request_occurrence_details", {
-      gridId: stateRef.current?.gridId || stateRef.current?.grid?._id, ids,
-    });
-  });
-
-  function onOccurrenceDetails({ ids, occurrences } = {}) {
-    // Released FIRST and for every id asked, not just the ones that came back:
-    // a row the server declined (deleted, another grid) would otherwise stay
-    // pending forever and never be askable again.
-    releaseHydration(Array.isArray(ids) ? ids : []);
-    for (const occ of occurrences || []) {
-      if (!occ?.id) continue;
-      setLocalOcc(occ.id, occ);
-      socketDispatch({ type: ActionTypes.UPDATE_OCCURRENCE, payload: { occurrence: occ } });
-    }
-  }
-  socket.on("occurrence_details", onOccurrenceDetails);
-  // A reconnect re-sends `full_state`; nothing in flight survives it.
-  socket.on("disconnect", resetHydration);
 
   socket.on("full_state", onFullState);
   socket.on("full_state_rest", onFullStateRest);
@@ -2938,8 +2910,6 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (bc) { bc.close(); bc = null; }
     socket.off("full_state", onFullState);
     socket.off("full_state_rest", onFullStateRest);
-    socket.off("occurrence_details", onOccurrenceDetails);
-    socket.off("disconnect", resetHydration);
     socket.off("priority_state", onPriorityState);
     socket.off("textmaps_loaded", onTextmapsLoaded);
     socket.off("sync_state", onSyncState);
