@@ -30,11 +30,31 @@ _Updated: 2026-08-22. Check this file before re-reading source._
 - **`masterReducer` clears the flag even on a chunk that adds nothing new.** The `FULL_STATE_REST`
   early return bailed with the flag still set; a duplicate or empty FINAL chunk still means the
   rest arrived, and returning early there hangs the indicator. A/B'd — that is its own test.
-- **The pulse is CSS, never a timer.** The load window is exactly when the main thread is busy, so
-  anything driven by `setTimeout` or a state flip sits frozen behind the work it exists to paint
-  over — the 2026-08-07 (2) lesson, where a JS-gated loader never appeared at all.
+- **It is the SHARED `Spinner` with `.staged-hold-spinner`, not a bespoke indicator** (user:
+  *"just give it the normal loading icon"*). That class carries a **150ms delay in CSS**, so a
+  container whose rows arrive quickly never flashes one — and unlike a JS timer it still runs while
+  the main thread is saturated, which is exactly this window (2026-08-07 (2) is the record of a
+  JS-gated loader that never appeared at all).
 - 5 tests + 5 reducer cases. **Three A/Bs, each failing exactly one:** dropping the
   awaiting gate, treating an empty listing as loading, and bailing without clearing.
+
+- **AND I SHIPPED THE CSS INTO THE MIDDLE OF ANOTHER SELECTOR, which the build could not see.**
+  The insertion anchored on `.insert-gap-empty-label {` — a string that also occurs inside
+  `.insert-gap--empty .insert-gap-empty-label {`, and `str.replace` takes the FIRST match. **A CSS
+  comment is whitespace**, so the block landed after a bare `.insert-gap--empty ` and was silently
+  absorbed as a descendant selector. Nothing errored; `npm run build` succeeded; the served
+  stylesheet was measurably wrong:
+  ```
+                                              PROD (shipped)   after the fix
+  .insert-gap--empty .container-awaiting            1                0     <- the loader never applied
+  .container-awaiting (standalone)                  0                1
+  .insert-gap--empty .insert-gap-empty-label        0                1     <- rule lost its selector
+  ```
+  **A NEAR-DUPLICATE ANCHOR IS THE HAZARD, not the edit.** The fix asserts the anchor is UNIQUE
+  (`s.count(anchor) == 1`) and uses the whole rule rather than a bare class, and the re-do was
+  checked by diffing against the pre-bug commit (17 insertions, nothing else). *A CSS insertion is
+  verified by grepping the BUILT stylesheet for both the new rule and the one next to it — the
+  compiler will not tell you.*
 
 ## Recent Changes (2026-08-22 — `operationActions`: a parent's child list never grew mid-pipeline)
 

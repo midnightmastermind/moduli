@@ -137,10 +137,27 @@ carrying one would spin forever. The flag comes from the server's own
 outlive the load. **A container that lists NOTHING is empty, not loading**, and
 keeps its *"Add new item"* affordance throughout.
 
-**THE PULSE IS CSS, NEVER A TIMER.** The load window is precisely when the main
-thread is busy, so anything driven by `setTimeout` or a state flip sits frozen
-behind the work it exists to paint over — 2026-08-07 (2) is the record of a
-JS-gated loader that never appeared at all.
+**IT IS THE SHARED `Spinner`, NOT A BESPOKE INDICATOR** (user: *"just give it the
+normal loading icon"*), reusing `.staged-hold-spinner` — whose **150ms delay is
+CSS**, so a container whose rows arrive quickly never flashes one, and unlike a
+JS timer it still runs while the main thread is saturated. 2026-08-07 (2) is the
+record of a JS-gated loader that never appeared at all.
+
+**AND THE FIRST VERSION OF THAT CSS SHIPPED INTO THE MIDDLE OF ANOTHER SELECTOR.**
+The insertion anchored on `.insert-gap-empty-label {` — a string that also occurs
+inside `.insert-gap--empty .insert-gap-empty-label {`, and a replace takes the
+FIRST match. **A CSS comment is whitespace**, so the block was absorbed as a
+descendant of a bare `.insert-gap--empty `. Nothing errored, the build succeeded,
+and the SERVED stylesheet was wrong:
+```
+                                            PROD (shipped)   after the fix
+.insert-gap--empty .container-awaiting            1               0    <- loader never applied
+.container-awaiting (standalone)                  0               1
+.insert-gap--empty .insert-gap-empty-label        0               1    <- rule lost its selector
+```
+*A CSS insertion is verified by grepping the BUILT stylesheet for the new rule
+AND the one beside it; the compiler will not tell you.* The re-do asserts the
+anchor is UNIQUE and was checked by diffing against the pre-bug commit.
 
 Three A/Bs, each failing exactly one test: dropping the awaiting gate, treating
 an empty listing as loading, and — the one that would hang the indicator — the

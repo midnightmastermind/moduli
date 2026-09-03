@@ -2607,43 +2607,26 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   align-items: center;
   justify-content: center;
 }
-.insert-gap--empty /* ── STILL LOADING, NOT EMPTY ────────────────────────────────────────────────
+.insert-gap--empty .insert-gap-empty-label {
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ── STILL LOADING, NOT EMPTY ────────────────────────────────────────────────
    A container that LISTS children the deferred half has not delivered yet used
    to paint its empty state, "Add new item" and all — which reads as "there is
    nothing here" for as long as the catalogue takes (seconds on the device).
-   `helpers/awaitingChildren.js` carries the rule; this is only how it looks.
+   `helpers/awaitingChildren.js` carries the rule; this only gives the shared
+   Spinner somewhere to sit.
 
-   The dot pulses in CSS, not JS: the load window is exactly when the main
-   thread is busy, so anything driven by a timer or a state flip would sit
-   frozen behind the work it is meant to paint over — the 2026-08-07 (2)
-   lesson, where a JS-gated loader never appeared at all. */
+   The 150ms no-flash delay comes from `.staged-hold-spinner`, and it is CSS for
+   the reason recorded there: during a load the main thread is busy, so a JS
+   timer would sit frozen behind the very work the spinner exists to cover. */
 .container-awaiting {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 12px;
-  font-size: 12px;
-  font-style: italic;
-  color: var(--text-muted);
-}
-.container-awaiting-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  animation: container-awaiting-pulse 1.1s ease-in-out infinite;
-}
-@keyframes container-awaiting-pulse {
-  0%, 100% { opacity: 0.25; }
-  50%      { opacity: 0.9; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .container-awaiting-dot { animation: none; opacity: 0.6; }
-}
-
-.insert-gap-empty-label {
-  z-index: 1;
-  pointer-events: none;
+  justify-content: center;
+  padding: 14px 12px;
 }
 /* Taken OUT OF FLOW (2026-07-26, per user): at rest the label is only
    opacity:0, so it still reserved its width and pushed the "+" right of

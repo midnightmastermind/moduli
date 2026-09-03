@@ -6,6 +6,7 @@
 import React, { useRef, useMemo, useState, useReducer, useCallback, useEffect, useLayoutEffect, useContext } from "react";
 import { createPortal } from "react-dom";
 import { isAwaitingChildren } from "../helpers/awaitingChildren";
+import { Spinner } from "@/components/ui/spinner";
 import RadialMenu from "../ui/RadialMenu";
 import { toast } from "../state/notificationStore";
 import ContextMenu from "../ui/ContextMenu";
@@ -1978,13 +1979,17 @@ function Container({
               <InsertGap parentOccurrence={containerOccurrence} index={0} hostOccurrence={containerOccurrence} panelId={panelId} containerLabel={module?.label || ""} emptyBody />
             )}
             {/* The catalogue is still on the wire and this container LISTS rows
-               that have not arrived. Saying so beats an empty box with an
-               "Add new item" bar, which is what it showed before and which
-               reads as "there is nothing here". */}
+               that have not arrived. The house loading icon beats an empty box
+               with an "Add new item" bar, which is what it showed before and
+               which reads as "there is nothing here".
+
+               `.staged-hold-spinner` is reused rather than restyled: its 150ms
+               delay lives in CSS, so a container whose rows arrive quickly never
+               flashes a spinner — and unlike a JS timer it still runs while the
+               main thread is saturated, which is exactly this window. */}
             {containerOccurrence && awaitingChildren && (
-              <div className="container-awaiting" role="status" aria-live="polite">
-                <span className="container-awaiting-dot" />
-                Loading {childOccsKey.length} item{childOccsKey.length === 1 ? "" : "s"}…
+              <div className="container-awaiting">
+                <Spinner size="sm" className="staged-hold-spinner" />
               </div>
             )}
           </div>
