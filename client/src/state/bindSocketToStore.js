@@ -34,7 +34,7 @@ import { runSliced } from "../helpers/sliceWork";
 import { makeInteractionHold } from "../helpers/interactionHold";
 import { makeOccOverlay } from "../helpers/occOverlay";
 import { requestForceSync, commitForceSync } from "../helpers/editorSyncSignal";
-import { startLoadDiag, markLoad, timeLoad } from "../helpers/loadDiag";
+import { startLoadDiag, markLoad, timeLoad, loadDiagLine } from "../helpers/loadDiag";
 import { whenStagedFirstRelease } from "../helpers/stagedMount";
 import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers";
 import { migrateFieldOptionsSource, needsMigration } from "./migrateFieldOptionsSource";
@@ -558,6 +558,26 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         // sweep's writes, and feeds materialize once its creates have settled.
         flushOfflineQueue(socket);
         scheduleFeedSync(400);
+        // ── SHIP THE LOAD TIMELINE, because the device has no console ────────
+        //
+        // Every `[load]` figure in CLAUDE.md came from a desktop probe, and the
+        // device's load runs ~3.3x longer — so the marks that would say WHERE
+        // the tail goes have never been read from the machine that has it. The
+        // drag captures make that gap concrete: a drag at `sinceLoad=12,727ms`
+        // reads `longTasks=89(19,983ms)` — 80% blocked — while `opMs=3,033`
+        // accounts for only three of those twenty seconds.
+        //
+        // TWO SAMPLES, because one at `effects:end` would miss whatever owns
+        // the other seventeen: the long-task observer keeps recording, so the
+        // second line carries the tail as well as the head.
+        const shipLoadLine = (tag) => {
+          try {
+            const line = loadDiagLine(tag);
+            if (line) safeEmit(socket, "save_scroll_diag", { line, ua: typeof navigator !== "undefined" ? navigator.userAgent : "" });
+          } catch { /* a diagnostic must never break the load it measures */ }
+        };
+        shipLoadLine("load");
+        setTimeout(() => shipLoadLine("load+20s"), 20000);
       });
       }));
     }), 50)));

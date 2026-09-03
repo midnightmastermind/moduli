@@ -42,7 +42,58 @@ const S = () => {
   return window.__loadDiagState;
 };
 
-const on = () => typeof window !== "undefined" && window.__loadDiag === true;
+// ON BY DEFAULT, because the device that has the problem has no console.
+// `dragPerf` learned this on 2026-09-01 — "INSTRUMENTED IS NOT MEASURED: it
+// logged only to a console on the one device that has the problem, so nobody
+// had ever read it." The same was true here: every `[load]` number quoted in
+// CLAUDE.md came from a desktop probe, and the device's load is 3.3x longer.
+// `?loadDiag=0` (or `window.__loadDiag = false`) turns it off; the cost when on
+// is an array of marks and one PerformanceObserver.
+const on = () => {
+  if (typeof window === "undefined") return false;
+  if (window.__loadDiag === false) return false;
+  if (window.__loadDiag === true) return true;
+  try {
+    if (new URLSearchParams(window.location.search).get("loadDiag") === "0") {
+      window.__loadDiag = false;
+      return false;
+    }
+  } catch { /* a URL we cannot parse is not a reason to lose the capture */ }
+  return true;
+};
+
+/**
+ * The load timeline as ONE LINE, shipped to the server over the same channel
+ * the drag probe uses, so a capture does not depend on the user reading an
+ * overlay. Formatted HERE rather than on the server: that re-derivation kept
+ * dropping fields the client had already computed (server.js:410).
+ */
+export function loadDiagLine(tag = "load") {
+  if (!on()) return null;
+  const r = loadReport();
+  const m = (label) => S()?.marks?.find((x) => x.label === label)?.t ?? null;
+  const ms = (v) => (v == null ? "?" : `${Math.round(v)}ms`);
+  const top = (r.topLongTasks || [])
+    // `{ t, ms }` — `t` is already relative to full_state, which is the clock
+    // every other figure on this line uses.
+    .map((x) => `${Math.round(x.ms)}ms@${Math.round(x.t)}`)
+    .join(" ");
+  return `[${tag}] `
+    + `dispatch=${ms(r.dispatchMs)} gridCommit=${ms(r.gridCommitAt)} `
+    + `panels=${r.panelCount}@${ms(r.firstPanelAt)}-${ms(r.lastPanelAt)} `
+    + `contentReady=${ms(m("panel:content-ready"))} `
+    // The three that decide where the load tail goes.
+    + `ops:start=${ms(r.opSweepStartedAt)} sweep=${ms(r.opSweepMs)} effects=${ms(r.opEffectsMs)} `
+    + `opsDone=${ms(r.opsDoneAt)} `
+    + `editors=${r.editorCount}@${ms(r.firstEditorAt)}-${ms(r.lastEditorAt)} `
+    // An ABSENT long-task API must not read as "nothing blocked" — the
+    // 2026-08-04 trap, where a Firefox capture with no Long Tasks support fell
+    // through to a RASTER verdict by construction.
+    + `blocked=${r.longTasksSupported ? `${ms(r.blockedMs)}/${r.longTaskCount}tasks` : "UNSUPPORTED"} `
+    + `top=[${top}] `
+    + `dom=${typeof document !== "undefined" ? document.getElementsByTagName("*").length : "?"} `
+    + `sinceNav=${ms(typeof performance !== "undefined" ? performance.now() : null)}`;
+}
 
 /** Zero the clock. Called when `full_state` arrives — everything is relative to that. */
 export function startLoadDiag(label = "full_state arrived") {
