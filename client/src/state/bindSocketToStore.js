@@ -15,6 +15,7 @@ import { measureCoalesceKey, mergeMeasureTransaction } from "../helpers/measureC
 import { makeOpNotificationCallbacks } from "../helpers/opResultSummary";
 import { syncAllFeeds } from "../helpers/feedSync";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
+import { autoScrollWhenReady, browserTakeoverSubscription } from "../helpers/autoScrollOnLoad";
 import {
   setOccurrenceFieldValue,
   moveOccurrence,
@@ -1687,12 +1688,20 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         // costs a handful of cheap lookups and gives up silently.
         if (!effect.itemId) break;
         const { itemId, block } = effect;
-        let tries = 0;
-        const attempt = () => {
-          if (jumpToOccurrence(itemId, { scrollBlock: block || "center" })) return;
-          if (++tries < 24) setTimeout(attempt, 250);   // up to ~6s
-        };
-        setTimeout(attempt, 250);
+        // ...AND IT GIVES UP THE MOMENT THE USER TAKES OVER. The poll runs for
+        // ~6s, the ops arrive in waves over most of a minute on the device, and
+        // the target can land while a finger is already down — reported from
+        // the device as two drags in a row that would not drop, because this
+        // scroll fired mid-gesture and cancelled them. See the header of
+        // `helpers/autoScrollOnLoad.js` for why it ABANDONS rather than
+        // deferring until the drag ends.
+        autoScrollWhenReady({
+          jump: () => jumpToOccurrence(itemId, { scrollBlock: block || "center" }),
+          isUserBusy: () => typeof window !== "undefined" && !!window.__moduli_interacting,
+          schedule: (fn, ms) => setTimeout(fn, ms),
+          unschedule: (t) => clearTimeout(t),
+          subscribe: browserTakeoverSubscription(),
+        });
         break;
       }
 
