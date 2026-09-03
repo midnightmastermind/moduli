@@ -81,3 +81,65 @@ describe("runSliced", () => {
       { yieldFn: async () => {} })).rejects.toThrow("boom");
   });
 });
+
+// ── THE BUDGET IS A DESKTOP NUMBER AND THE DEVICE IS NOT A DESKTOP ──────────
+//
+// 32ms was chosen against an item measured at ~9ms. On the tablet the same item
+// costs ~94ms (`effects=22166ms` for 236 effects on the load line), so every
+// item blows the budget and the loop yields after each one — the exact
+// degeneracy this file's header records reverting once already, reached from
+// the other side: the budget did not change, the item cost did. Each yield is a
+// macrotask, and a macrotask ends React's auto-batching window, so one slice per
+// effect also means one synchronous render pass per effect.
+describe("runSliced adaptive budget", () => {
+  /** Every item costs 100ms against a 32ms budget — the device's shape. */
+  const expensive = (n) => {
+    let t = 0;
+    const now = () => t;
+    return { items: Array.from({ length: n }, (_, i) => i), now, work: () => { t += 100; } };
+  };
+
+  it("degenerates to one slice per item WITHOUT it — the control", async () => {
+    // Without this the test below proves nothing: "few slices" has to be
+    // measured against the many-slices behaviour it replaces.
+    const { items, now, work } = expensive(10);
+    const r = await runSliced(items, work, { budgetMs: 32, now, yieldFn: async () => {} });
+    expect(r.slices).toBe(10);
+  });
+
+  it("raises the budget above the measured item cost and batches", async () => {
+    const { items, now, work } = expensive(10);
+    const r = await runSliced(items, work, {
+      budgetMs: 32, maxBudgetMs: 400, adaptiveBudget: true, now, yieldFn: async () => {},
+    });
+    // 100ms items, budget climbs to 150 — a slice then fits two.
+    expect(r.slices).toBeLessThan(10);
+    expect(r.items).toBe(10);
+  });
+
+  it("never raises past the cap — a slice must not become a long task", async () => {
+    const { items, now, work } = expensive(20);
+    const r = await runSliced(items, work, {
+      budgetMs: 32, maxBudgetMs: 120, adaptiveBudget: true, now, yieldFn: async () => {},
+    });
+    // Capped at 120 against 100ms items, so a slice fits exactly two — never
+    // the whole list, which is what "do not slice at all" would look like.
+    expect(r.slices).toBeGreaterThan(1);
+    expect(r.slices).toBeLessThan(20);
+  });
+
+  it("leaves a budget that already straddles the item cost alone", async () => {
+    // Cheap items: the budget is doing its job and must not drift upward.
+    let t = 0;
+    const r = await runSliced(Array.from({ length: 12 }, (_, i) => i), () => { t += 1; }, {
+      budgetMs: 32, adaptiveBudget: true, now: () => t, yieldFn: async () => {},
+    });
+    expect(r.slices).toBe(1);
+  });
+
+  it("is OFF by default — behaviour is unchanged for every existing caller", async () => {
+    const { items, now, work } = expensive(6);
+    const r = await runSliced(items, work, { budgetMs: 32, now, yieldFn: async () => {} });
+    expect(r.slices).toBe(6);
+  });
+});

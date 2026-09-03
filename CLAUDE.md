@@ -6,6 +6,62 @@
 
 ---
 
+### 2026-09-03 (10) — THE DEVICE'S LOAD TIMELINE: applying the effects is 22 of 35 seconds
+
+(9) shipped the instrument and said the next move was one fresh load. Here it
+is, straight out of prod's log — the first time this file has had the load split
+from the machine that is slow rather than from a desktop probe:
+
+```
+dispatch=0ms  gridCommit=104ms  panels=3@103ms  contentReady=2359ms
+ops:start=9863ms   sweep=3464ms   effects=22166ms   opsDone=35493ms
+blocked=32089ms/115tasks  editors=0  dom=24256
+top=[2418ms@272  2234ms@3090  1603ms@28587  1369ms@30213  1285ms@8527 …]
+```
+
+**APPLYING THE EFFECTS IS 22.2 SECONDS — 63% of a 35-second load.** The op sweep
+this session spent the day on is **3.5s**. The grid itself commits at **104ms**
+and its content is ready at **2.4s**; everything after that is bookkeeping.
+
+**AND THE PROBE COULD NEVER HAVE SHOWN IT.** The same phase measures 2,904ms on
+the desktop (CLAUDE.md 2026-09-03 (2)). That is **7.6x**, where the rest of the
+load scales by the ~3.3x this file has been assuming — so the effect window is
+not merely "the device is slower", it degrades disproportionately. `editors=0`
+also retires the standing "editor static-until-focus" docket item for this
+surface: no editor mounts at all.
+
+**THE MECHANISM IS `sliceWork`'s OWN DOCUMENTED DEGENERACY, REACHED FROM THE
+OTHER SIDE.** Its header records reverting an 8ms budget against ~9ms items:
+*"every item blew the budget and the loop yielded after every one: 194 slices
+for 195 effects, ~3s of pure scheduling overhead."* The budget was then set to
+32ms **against an item cost measured on a desktop**. On the device an effect
+costs ~94ms (22,166ms / 236), so every item blows 32ms and the loop yields after
+each one again. **The budget did not change; the item cost did.**
+
+**AND THE YIELD COSTS MORE THAN ITS OWN OVERHEAD.** A yield is a macrotask, and
+a macrotask ENDS React's auto-batching window — so one slice per effect is also
+one synchronous render pass per effect, on a 24,000-node document. That is what
+the 1.3-1.6s tasks at 28.6s, 30.2s and 34.2s are, long after the sweep finished.
+
+**SHIPPED OFF BY DEFAULT** (`?adaptiveSlice=1`): `runSliced` gains an
+`adaptiveBudget` option that raises the budget above the item cost it just
+measured, capped so no slice becomes the long task slicing exists to prevent.
+**Default behaviour is byte-identical**, and the arm is named on the load line so
+two captures cannot be confused. *A change to how the load applies its effects is
+exactly the class this session already shipped and reverted once — the default
+moves after a device capture, not before.* The control test asserts the
+degenerate 1-slice-per-item behaviour still happens WITHOUT the flag, or
+"batches" would be measured against nothing.
+
+**`ops:start=9863ms` IS THE SECOND COST AND IS UNTOUCHED.** The sweep waits ~10s
+for the 16 MB catalogue. (7) tried to remove that wait and made things worse;
+the equivalence measurement it left behind still stands, but at 10s against the
+effect window's 22s it is the smaller half either way.
+
+3874+ client tests, lint 0 errors. Nothing about the default load path changed.
+
+---
+
 ### 2026-09-03 (9) — THE CASCADE IS NOT THE COST, and the load timeline had never left the device
 
 The user tested drags through the bad first minute. **Their captures are in

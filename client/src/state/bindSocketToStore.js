@@ -549,6 +549,26 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       const sweepOpIds = [...new Set(effects.map(e => e._sourceOpId).filter(Boolean))];
       for (const sid of sweepOpIds) setOpApplyingEffects(sid, true);
 
+      // ── OPT-IN: LET THE BUDGET FOLLOW THE DEVICE ────────────────────────
+      //
+      // The device's load line reads `effects=22166ms` for 236 effects — ~94ms
+      // each against a 32ms budget, so every item blows it and the loop yields
+      // after each one. That is `sliceWork`'s own documented degeneracy, and
+      // each yield additionally ends React's auto-batching window, so every
+      // effect gets its own synchronous render on a 24,000-node document.
+      //
+      // OFF BY DEFAULT and enabled with `?adaptiveSlice=1`, because a change to
+      // how the load applies its effects is exactly the class this session has
+      // already shipped and reverted once. One capture with the flag against one
+      // without is the evidence; the default moves only after that.
+      let adaptiveSlice = false;
+      try {
+        adaptiveSlice = typeof window !== "undefined"
+          && (window.__adaptiveSlice === true
+            || new URLSearchParams(window.location.search).get("adaptiveSlice") === "1");
+      } catch { /* an unparseable URL is not a reason to change behaviour */ }
+      if (typeof window !== "undefined") window.__adaptiveSliceUsed = adaptiveSlice;
+
       void runSliced(effects, (eff) => {
         runInAction(capturedScope, () => {
           try {
@@ -561,13 +581,13 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
             );
           }
         });
-      }).finally(() => {
+      }, { adaptiveBudget: adaptiveSlice }).finally(() => {
         for (const sid of sweepOpIds) setOpApplyingEffects(sid, false);
       }).then(({ slices }) => {
         if (effectErrors) {
           console.error(`[full_state-client] ${effectErrors} of ${effects.length} effect(s) threw`);
         }
-        markLoad("effects:end", { count: effects.length, ms: +(performance.now() - tOps1).toFixed(1) });
+        markLoad("effects:end", { count: effects.length, slices, ms: +(performance.now() - tOps1).toFixed(1) });
         console.log(`[full_state-client] applied ${effects.length} effects in ${Math.round(performance.now() - tOps1)}ms across ${slices} slice(s)`);
         // These wait for the effects: the offline replay lands on top of the
         // sweep's writes, and feeds materialize once its creates have settled.

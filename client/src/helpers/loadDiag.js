@@ -72,6 +72,7 @@ export function loadDiagLine(tag = "load") {
   if (!on()) return null;
   const r = loadReport();
   const m = (label) => S()?.marks?.find((x) => x.label === label)?.t ?? null;
+  const efx = S()?.marks?.find((x) => x.label === "effects:end");
   const ms = (v) => (v == null ? "?" : `${Math.round(v)}ms`);
   const top = (r.topLongTasks || [])
     // `{ t, ms }` — `t` is already relative to full_state, which is the clock
@@ -85,6 +86,17 @@ export function loadDiagLine(tag = "load") {
     // The three that decide where the load tail goes.
     + `ops:start=${ms(r.opSweepStartedAt)} sweep=${ms(r.opSweepMs)} effects=${ms(r.opEffectsMs)} `
     + `opsDone=${ms(r.opsDoneAt)} `
+    // SLICES vs EFFECTS is the tell for a degenerate budget. `sliceWork`'s own
+    // header records the failure: "8ms against items that measured ~9ms EACH,
+    // so every item blew the budget and the loop yielded after every one — 194
+    // slices for 195 effects, ~3s of pure scheduling overhead". The budget was
+    // then tuned to 32ms against a ~9ms item ON A DESKTOP. If slices ~= effects
+    // here, the same degeneracy is back because the device's item cost is
+    // several times the budget — and every yield also ends React's auto-batching
+    // window, so each effect gets its own synchronous render.
+    + `effectCount=${efx?.count ?? "?"} slices=${efx?.slices ?? "?"} `
+    // Which arm this capture is, so two lines in the log cannot be confused.
+    + `adaptiveSlice=${typeof window !== "undefined" && window.__adaptiveSliceUsed === true} `
     + `editors=${r.editorCount}@${ms(r.firstEditorAt)}-${ms(r.lastEditorAt)} `
     // An ABSENT long-task API must not read as "nothing blocked" — the
     // 2026-08-04 trap, where a Firefox capture with no Long Tasks support fell

@@ -58,21 +58,54 @@ export function yieldToBrowser() {
  * @param {Function} [opts.now]          injected for tests
  * @returns {Promise<{ slices: number, items: number }>}
  */
-export async function runSliced(items, work, { budgetMs = 32, yieldFn, now } = {}) {
+/**
+ * THE BUDGET IS A DESKTOP NUMBER, AND THE DEVICE IS NOT A DESKTOP.
+ *
+ * 32ms was chosen against an item measured at ~9ms, so a slice batched three or
+ * four. On the tablet the same item costs ~94ms — the load line reads
+ * `effects=22166ms` for 236 effects — so EVERY item blows the budget and the
+ * loop yields after each one. That is precisely the degeneracy the header above
+ * records reverting once already, arrived at from the other side: the budget did
+ * not change, the item cost did.
+ *
+ * It is worse than the scheduling overhead alone, because a yield is a
+ * macrotask and a macrotask ENDS React's auto-batching window. One slice per
+ * effect means one synchronous render pass per effect instead of one for the
+ * whole batch — and on a 24,000-node document that render is the expensive part.
+ *
+ * `adaptiveBudget` measures the items it is actually slicing and raises the
+ * budget when they turn out to cost more than it does, so a slice always
+ * batches SEVERAL. It is capped so no slice becomes the long task slicing
+ * exists to prevent, and it is OPT-IN until a device capture says it helps —
+ * shipping it on by default is what this session already got wrong once.
+ */
+export async function runSliced(items, work, { budgetMs = 32, maxBudgetMs = 120, adaptiveBudget = false, yieldFn, now } = {}) {
   const list = Array.isArray(items) ? items : [];
   const clock = now || (() => (typeof performance !== "undefined" ? performance.now() : Date.now()));
   const doYield = yieldFn || yieldToBrowser;
 
-  let i = 0, slices = 0;
+  let i = 0, slices = 0, budget = budgetMs;
   while (i < list.length) {
     const started = clock();
     slices++;
+    const from = i;
     // do/while: one item minimum per slice — see the header.
     do {
       work(list[i], i);
       i++;
-    } while (i < list.length && clock() - started < budgetMs);
+    } while (i < list.length && clock() - started < budget);
+    if (adaptiveBudget && i - from === 1) {
+      // THIS SLICE DID ONE ITEM, which means the item alone outran the budget.
+      // Left alone that repeats for every remaining item — one yield each, and
+      // one React render pass each. Raise the budget above the cost just
+      // measured so the next slice batches, capped so a slice never becomes the
+      // long task this exists to prevent.
+      const cost = clock() - started;
+      if (cost > budget) budget = Math.min(maxBudgetMs, Math.ceil(cost * 1.5));
+    }
     if (i < list.length) await doYield();
   }
+  // The return shape is pinned by callers and tests — the adapted budget is an
+  // internal detail and stays out of it.
   return { slices, items: list.length };
 }
