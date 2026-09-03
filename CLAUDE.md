@@ -6,6 +6,94 @@
 
 ---
 
+### 2026-09-03 (6) — THE DEVICE'S OWN CAPTURE NAMED THE 30 SECONDS, and a hidden toolbar panel was walking the whole grid
+
+User: *"it took about 30 seconds but the app got quicker again. the first 30
+seconds were hell for dragging though"*, then *"and the drop is taking a full
+second now too"*. **Five real drags off the device settled it in one read**, and
+the answer was already in the log rather than in another probe:
+```
+sinceLoad   fps  longTasks           opMs   opBy
+ 17,994ms    4   71 (17,335ms) 82%   3362   load:1x2861ms/236fx   <- the hell
+ 56,864ms   14   12 (   935ms)         84
+ 76,458ms   13   11 (   819ms)          0
+ 87,493ms   14    1 (   212ms)       1903   OccurrenceCreateOp:1x1903ms/122fx
+105,992ms   12    3 (   837ms)          0
+```
+**At 18 seconds after load the grid is STILL RUNNING ITS LOAD SWEEP.** By 57s
+the same gesture is 14fps with under a second of long tasks. *Nothing is wrong
+with the drag; it is competing with a load tail that runs ~3.3x longer on the
+device than on the probe* — `ops:start` at 4.6s here is ~15s there, which is the
+30 seconds exactly. `onMove avg=2.4ms`, `hit avg=3.5ms`, `over32=0`: our
+per-frame work is fine in every one of the five.
+
+**AND THE EFFECTS ARE NOT THE FAN-OUT — the no-op guard already works.** 212
+effects produce **35 store writes**, and the effect window is 579 renders for
+those 35, i.e. **17 components per write**. The 2026-08-31 (6) subscription
+narrowing did its job; there is nothing left to collapse there.
+
+**SO IT WAS PROFILED, SOURCE-MAPPED, OVER THE EFFECT WINDOW ALONE**
+(`ops:end -> effects:end`, 2,971ms):
+```
+ 429ms  13.5%  (program)
+ 384ms  12.1%  merged                   helpers/occOverlay.js:91
+ 188ms   5.9%  setOccurrenceFieldValue  helpers/CommitHelpers.js:924
+ 159ms     5%  (anon)                   modules/ModulePanel.jsx:419
+ 156ms   4.9%  (anon)                   ui/PomodoroTimer.jsx:85
+ 139ms   4.4%  buildParentMap           helpers/dragHitTesting.js:62
+```
+**TWO OF THOSE ARE WORK THE SURROUNDING CODE ALREADY DECIDED TO CACHE**, which
+is this file's most-repeated class:
+- **THE POMODORO CONTROL PANEL IS NEVER UNMOUNTED.** It hides with
+  `opacity: 0; pointer-events: none`, so a memo keyed on `occurrencesById`
+  re-ran on EVERY store write — walking all 21,262 occurrences TWICE (its own
+  reverse parent map, then each container's ancestor chain) to fill a `<select>`
+  nobody has open. Gated on `expanded`: the same *"build it only while someone
+  is looking"* call the operations run log took on 2026-08-30.
+- **`ModulePanel` ANSWERED "which occurrence places this module?" WITH A FULL
+  SCAN** — `Object.values(occurrencesById).find(...)` allocates an array of
+  21,262 references before looking at one, three panels deep, per write. New
+  `cachedOccByModuleId` memoises it on the map's identity, **FIRST MATCH WINS**
+  because that is what `.find()` returned and a module may legitimately have
+  several placements.
+
+**VERIFIED BY THE FRAMES DISAPPEARING, not by the clock** — the wall time is one
+sample either side and noisy; a named frame vanishing is deterministic:
+```
+before                        after
+159ms  ModulePanel.jsx:419    67ms  cachedOccByModuleId   (3 builds/write -> 1)
+156ms  PomodoroTimer.jsx:85     —   gone
+effect window 3,181ms         2,706ms
+```
+
+**`buildParentMap`'s OTHER UNCACHED CALLERS ARE DELIBERATELY LEFT.** Its own
+header records why: the executor MUTATES its overlay in place, so caching by
+identity there resurrects the 2026-07-07 bug where a wrong `_ancestors` silently
+resolves every ancestor-scoped dropdown to ZERO options. Auditing which of the
+remaining sites are render-path is its own pass.
+
+**HONEST GAP: the Pomodoro GATE HAS NO TEST.** Mounting `PomodoroTimer` needs the
+whole grid store, and ungating the memo passes all 11 cases. Its proof is the
+profile frame on prod, not the suite. What IS covered is the crumb walk, which
+had no tests at all — *and its first one was VACUOUS:* "terminates on a cycle"
+passed with the cycle guard removed, because the depth cap already guarantees
+termination. What the guard buys is a correct LABEL (without it a 2-cycle
+unshifts the same crumbs to the cap, reading `Y > X > Y > X > ...`).
+
+**AND THE DROP IS NOT REACHABLE FROM HERE, said plainly.** `DROP paint=724ms`
+behind 72 renders, and 4,457-5,090ms on a `copy` drop because a create emits
+122-236 effects. 2026-09-03's own cell-switch work already settled the shape:
+*"the remaining ~425ms of paint is a 20k-node document being drawn — not
+reachable by trimming or unmounting"*, and row virtualisation is closed with a
+ratio (mounting ~93 rows costs 6x the paint it saves). The document being
+smaller is a product question, and the DOM audit named its lever: fewer field
+pills per row, -40%.
+
+3856 client tests, lint 0 errors, deployed, prod HEAD verified. Client-only, so
+pm2 was NOT restarted.
+
+---
+
 ### 2026-09-03 (5) — THE CATALOGUE ARRIVED AS FOUR STORE WRITES, and each one re-rendered the grid
 
 User, after (4) shipped: *"it was choppy after the beginning now"* — the start
