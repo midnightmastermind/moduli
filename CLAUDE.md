@@ -6,6 +6,94 @@
 
 ---
 
+### 2026-09-03 (12) — THE DAY PAGE DUPLICATES ARE REPAIRED, and the op that was blamed is INNOCENT
+
+User: *"it creates 2 day page col for today and it says theres a failed op for it,
+no id for col no record found"*, then *"just the schedule col with their tasks
+should get removed, they can be recreated"*, then *"there was a repair it was
+doing too so daypage doesnt get reduplicated."*
+
+**THE ERROR IS THE SYMPTOM OF THE DUPLICATE, NOT ITS CAUSE.** `Day Page: Build`
+guards its create with `FIND parentId IS <board> AND <date> SAME_DAY $day` -> `if
+$colId IS_EMPTY`. With TWO columns that FIND binds an **ARRAY**, `$colId` stops
+resolving, and the `UPDATE $col.meta.appliedFromTemplateId` below it throws
+`$col is not a record (no .id)` — which is the message verbatim. So every sweep
+after the second column appeared abandoned the rest of the build (the Daily
+Question, the Todo link, the page-body rebuild) inside the per-op catch.
+
+**AND THE OP CONVERGES — measured over the live grid's own 71 pipelines rather
+than argued.** Driving the real load sweep against the fixture, then applying its
+effects with `applyEffectsToLiveOccs` and sweeping the SAME world again:
+```
+column ABSENT   Day Page: Build -> 8 CREATE_ITEM, incl. the day column itself
+column INJECTED Day Page: Build -> 7 CREATE_ITEM, and NO day column   <- FIND matches
+pass 2 (effects applied)        -> 0 new day columns                  <- converged
+```
+**Three candidate causes died on that run.** The overlay is not the 2026-08-31 (2)
+`meta` class — the emitted instance carries `parentId: <board>` AND
+`fields.<date> = $day`, so a later FIND in the same session sees it. The split is
+not withholding them: `splitFullState` puts **42 day columns in core, 0
+deferred**. And the else branch is a proper `mode:"merge"` into `$colId`, so it
+cannot mint a root.
+
+**WHAT THE TIMESTAMPS SAY, and it is the one lead left.** Nine columns on Sept 2,
+two on Sept 3, exactly one on every other day in the record:
+```
+12:04:05  12:04:40  12:05:15      <- 35 seconds apart, three in a row
+10:19:52  10:21:03                <- Sept 3
+```
+**35 seconds is `opsDone=35493ms`** — this file's own measurement of the device's
+load sweep (2026-09-03 (10)). That is a load-sweep cadence, not somebody
+clicking. So the create of sweep N had not been PERSISTED before the payload for
+sweep N+1 was built, and the next sweep's FIND correctly saw nothing. **A
+pipeline cannot defend against that, because its input IS the payload.**
+
+**THE HOLE THAT WOULD CLOSE IT IS STRUCTURAL AND IS NOT FIXED HERE.** Every node
+the template clones carries an `identitySignature` — `daypage:Journal`,
+`daypage:Notes`, `daypage:Daily Question/answer` — **except the day column root,
+which carries none**. Signature is what `mode:"merge"` matches on and what makes
+a clone recognisable independently of a FIND over a payload. A dated root
+signature plus a server-side refusal of a second create under one
+(parentId, identitySignature) is the generic form of the idempotency key this
+grid already uses everywhere else. It is a change to the shared create path, so
+it wants its own reviewed pass — 2026-09-03 (7) is the record of what happens
+when this class is attempted at the tail of an investigation.
+
+**THE REPAIR, and my first dry run reported ZERO removals.** The multi-parent
+guard counted a ROOT's own parent as a second lister — but that parent (the
+Schedule page, the Day Page board) **is the delete point** — so every root was
+spared, and because the guard tested a set it was mutating, the exemption
+cascaded down the whole subtree: 0 to remove against 195 "kept". Fixed by
+exempting roots and testing against the ORIGINAL set, and a node that IS spared
+keeps its subtree.
+```
+before  roots 10   remove 0     kept 195
+after   roots 10   remove 194   kept 1     (d9c49423, listed by Emotional)
+```
+**EVERY ONE OF THE 30 TICKED ROWS IS A `Cook` FROM TODAY'S DRAG TESTING** — checked
+before writing, because deleting a real completion to tidy a report is the
+damage rather than the fix. The routine rows (Sleep, Eat, Drink, Exercise) are
+the app's own daily build and are placed again on the next load, which is why the
+user's *"they can be recreated"* is true of the whole column.
+
+Dumped raw before deleting, unlinked from parents BEFORE deletion (the
+dangling-child-ref class this file has swept five times), 10 orphaned modules
+swept after, **pm2 restarted** because the warm cache is authoritative for reads
+and would otherwise re-serve the deleted rows. Read back out of Mongo: **every
+date carries exactly one Day Page column**, the Schedule page lists no day column
+(it rebuilds), 0 dangling child refs, 0 module-less occurrences, poms grid at its
+documented baseline (1 pre-existing `container-filtered-empty`, 34 deliberate
+palette fields).
+
+**STILL OPEN, reported not started:** the user also asked for a loading
+indicator — *"the books took 2 more seconds to load (without a loading bar, we
+need that if its gonna be the case) ... it loaded the books container but nothing
+was inside for a couple seconds"*. That gap is the deferred catalogue landing
+after the grid paints, which is the split working as designed; what is missing is
+saying so on screen.
+
+---
+
 ### 2026-09-03 (11) — A QUARTER OF THE CATALOGUE IS KEYS THAT ARE NULL ON EVERY ROW
 
 With the effect loop fixed, `ops:start=9,667ms` — the wait on the 16 MB artifact
