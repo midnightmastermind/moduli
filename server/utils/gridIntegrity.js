@@ -379,6 +379,53 @@ export function checkGridIntegrity({ grid = null, occurrences = [], modules = []
     `could not match an existing section and cloned it`, dupSections);
 
 
+  // 11. THE SAME TEMPLATE APPLIED TWICE UNDER ONE PARENT, with nothing to tell
+  //     the two apart.
+  //
+  //     Rule #10 looks at a template-applied node's CHILDREN. It never looks at
+  //     its SIBLINGS — so duplicate day columns under the Day Page board fell
+  //     straight through it, and the class went unreported for weeks (2026-08-31
+  //     (3) recorded 17 columns on one date; 2026-09-03 (12) found 9 more).
+  //
+  //     THE DISCRIMINATOR IS THAT NOTHING DISTINGUISHES THEM. A board holds MANY
+  //     applications of one template on purpose — one day column per date — and
+  //     what separates them is the value the template stamped. When two siblings
+  //     from the same template carry byte-identical field values, one of them is
+  //     a duplicate, whatever the template is for. No date field is named here
+  //     and no board is; the rule reads what the occurrences carry.
+  //
+  //     A PARENT THAT DOES NOT EXIST HAS NO SIBLINGS. Calibrated across all six
+  //     live grids, the only two hits were groups whose `parentId` names nothing
+  //     — eight weekday templates sharing a hand-authored signature, and two
+  //     project pages. Grouping under a dangling ref is not a duplicate
+  //     application; it is unrelated nodes that lost the same parent, which is
+  //     its own error with its own rule. With that exclusion the rule reads
+  //     ZERO on every grid and fires on exactly the pre-repair state.
+  const dupApplications = [];
+  {
+    const groups = new Map();
+    for (const o of occurrences) {
+      const tpl = o?.meta?.appliedFromTemplateId;
+      if (!tpl || !o.parentId || !occById.has(o.parentId)) continue;
+      const f = o.fields || {};
+      const shape = JSON.stringify(Object.keys(f).sort().map((k) => [k, f[k]?.value ?? null]));
+      const key = `${o.parentId}\u0000${tpl}\u0000${shape}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(o);
+    }
+    for (const list of groups.values()) {
+      if (list.length < 2) continue;
+      const parent = occById.get(list[0].parentId);
+      const parentLabel = parent?.label || modById.get(parent?.moduleId)?.label || list[0].parentId;
+      const label = list[0].label || modById.get(list[0].moduleId)?.label || "(unlabelled)";
+      dupApplications.push(`${parentLabel} › ${label} ×${list.length}`);
+    }
+  }
+  if (dupApplications.length) add("error", "duplicate-template-application",
+    `${dupApplications.length} parent(s) hold the same template applied more than once with ` +
+    `identical field values — nothing distinguishes the copies, so one is a duplicate`,
+    dupApplications);
+
   // 12. A CONTAINER THAT CAN NEVER SHOW ANYTHING — every child filtered out.
   //
   //     Found the hard way, twice in one session (2026-08-23). The Raindrop

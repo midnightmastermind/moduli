@@ -85,6 +85,32 @@ date carries exactly one Day Page column**, the Schedule page lists no day colum
 documented baseline (1 pre-existing `container-filtered-empty`, 34 deliberate
 palette fields).
 
+**AND THE CLASS IS LOUD NOW, which is what this pass adds.** Rule #10
+(`duplicate-template-section`) looks at a template-applied node's CHILDREN and
+never at its SIBLINGS — so duplicate day columns under the board fell straight
+through it and `checkGrid` reported clean while nine accumulated.
+`duplicate-template-application` is the sibling form, and it names no board and
+no date field: **two children of one parent, applied from the SAME template,
+whose field values are byte-identical — so nothing distinguishes them.** A board
+holds many applications of one template on purpose; what separates them is the
+value the template stamped.
+
+**CALIBRATED AGAINST LIVE DATA BEFORE IT WAS WIRED, and the first version had two
+false positives.** Both were groups whose `parentId` names nothing — eight
+weekday templates sharing a hand-authored `day-container` signature, and two
+project pages. **A parent that does not exist has no siblings**, and a dangling
+ref is its own error with its own rule.
+```
+                          all six live grids   the PRE-REPAIR state
+first version                     2                    3
+with the existing-parent guard    0                    2   <- x9 and x2, exactly
+```
+The control is the second column: the rule is replayed against the repair's own
+dump, so a zero on a healthy grid is a measurement rather than a rule that never
+fires. Both A/Bs fail exactly one test each — dropping the field shape fails the
+*"applications differ in the value the template stamped"* case, dropping the
+parent guard fails the dangling-parent case.
+
 **STILL OPEN, reported not started:** the user also asked for a loading
 indicator — *"the books took 2 more seconds to load (without a loading bar, we
 need that if its gonna be the case) ... it loaded the books container but nothing

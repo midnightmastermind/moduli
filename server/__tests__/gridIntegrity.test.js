@@ -566,3 +566,80 @@ describe("orphan-module", () => {
     expect(find(many, "orphan-module").level).toBe("error");
   });
 });
+
+// ── duplicate template application ──────────────────────────────────────────
+//
+// The class rule #10 could not see. It looks at a template-applied node's
+// CHILDREN; duplicate day columns are SIBLINGS under the board, so nine of them
+// accumulated on 2026-09-02 with `checkGrid` reporting clean the whole time.
+//
+// The shape here is the real one: several applications of one template under a
+// board are CORRECT (one day column per date) and what tells them apart is the
+// value the template stamped. Every case below is calibrated against live data —
+// the rule reads 0 on all six grids and fires on exactly the pre-repair state.
+describe("duplicate template application", () => {
+  const board = occ("board", "mBoard", { occurrences: ["a", "b"] });
+  const applied = (id, date) =>
+    occ(id, "mCol", {
+      parentId: "board",
+      meta: { appliedFromTemplateId: "tpl" },
+      fields: { fDate: { value: date } },
+      label: `col ${date}`,
+    });
+
+  it("flags two applications of one template that carry identical fields", () => {
+    const f = checkGridIntegrity({
+      modules: [mod("mBoard", { label: "Day Page" }), mod("mCol", { role: "container" })],
+      occurrences: [board, applied("a", "2026-09-02"), applied("b", "2026-09-02")],
+    });
+    const hit = f.find((x) => x.code === "duplicate-template-application");
+    expect(hit.level).toBe("error");
+    expect(hit.ids).toEqual(["Day Page › col 2026-09-02 ×2"]);
+  });
+
+  // THE CASE THAT MAKES THE RULE USABLE. A board legitimately holds one
+  // application per date; without this the rule would fire on every healthy
+  // grid on day one and get weakened.
+  it("is quiet when the applications differ in the value the template stamped", () => {
+    const f = checkGridIntegrity({
+      modules: [mod("mBoard"), mod("mCol", { role: "container" })],
+      occurrences: [board, applied("a", "2026-09-02"), applied("b", "2026-09-03")],
+    });
+    expect(codes(f)).not.toContain("duplicate-template-application");
+  });
+
+  // A PARENT THAT DOES NOT EXIST HAS NO SIBLINGS. Both false positives the rule
+  // produced across the live grids were groups whose parentId names nothing —
+  // eight weekday templates sharing a hand-authored signature, and two project
+  // pages. A dangling ref is its own error with its own rule.
+  it("is quiet when the shared parent does not exist", () => {
+    const f = checkGridIntegrity({
+      modules: [mod("mCol", { role: "container" })],
+      occurrences: [
+        occ("a", "mCol", { parentId: "gone", meta: { appliedFromTemplateId: "tpl" } }),
+        occ("b", "mCol", { parentId: "gone", meta: { appliedFromTemplateId: "tpl" } }),
+      ],
+    });
+    expect(codes(f)).not.toContain("duplicate-template-application");
+  });
+
+  it("is quiet for two siblings applied from DIFFERENT templates", () => {
+    const f = checkGridIntegrity({
+      modules: [mod("mBoard"), mod("mCol", { role: "container" })],
+      occurrences: [
+        board,
+        occ("a", "mCol", { parentId: "board", meta: { appliedFromTemplateId: "tplA" } }),
+        occ("b", "mCol", { parentId: "board", meta: { appliedFromTemplateId: "tplB" } }),
+      ],
+    });
+    expect(codes(f)).not.toContain("duplicate-template-application");
+  });
+
+  it("is quiet for an ordinary sibling pair that came from no template", () => {
+    const f = checkGridIntegrity({
+      modules: [mod("mBoard"), mod("mCol", { role: "container" })],
+      occurrences: [board, occ("a", "mCol", { parentId: "board" }), occ("b", "mCol", { parentId: "board" })],
+    });
+    expect(codes(f)).not.toContain("duplicate-template-application");
+  });
+});
