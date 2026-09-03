@@ -143,3 +143,26 @@ describe("runSliced adaptive budget", () => {
     expect(r.slices).toBe(6);
   });
 });
+
+// An INFINITE budget is how the effect loop expresses "one slice", rather than
+// a second code path that could drift from the one every other caller uses.
+describe("runSliced with no budget", () => {
+  it("does the whole list in ONE slice and never yields", async () => {
+    let yields = 0;
+    const r = await runSliced([1, 2, 3, 4, 5], () => {}, {
+      budgetMs: Infinity,
+      now: () => 0,
+      yieldFn: async () => { yields++; },
+    });
+    expect(r.slices).toBe(1);
+    expect(r.items).toBe(5);
+    expect(yields).toBe(0);
+  });
+
+  it("still runs every item — the control", async () => {
+    // "One slice" must not be reachable by doing nothing.
+    const seen = [];
+    await runSliced([1, 2, 3], (x) => seen.push(x), { budgetMs: Infinity, yieldFn: async () => {} });
+    expect(seen).toEqual([1, 2, 3]);
+  });
+});

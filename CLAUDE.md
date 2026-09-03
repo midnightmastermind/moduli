@@ -43,6 +43,25 @@ a macrotask ENDS React's auto-batching window — so one slice per effect is als
 one synchronous render pass per effect, on a 24,000-node document. That is what
 the 1.3-1.6s tasks at 28.6s, 30.2s and 34.2s are, long after the sweep finished.
 
+**THE A/B CAME BACK, AND IT IS LINEAR IN SLICE COUNT RATHER THAN IN EFFECTS:**
+```
+             effects  slices   effects=      opsDone=    blocked=      per slice
+baseline       212      38     21,703ms      36,651ms    33,619ms       571ms
+adaptive       210      19     11,279ms      24,752ms    22,352ms       594ms
+```
+**Halving the slices halved the time while the per-slice cost stayed put.** If
+the cost were the effects, packing twice as many into a slice would leave the
+total flat; it did not. So it is **one fixed React flush per slice** — the
+loop's budget only ever measures the cheap dispatch, because the render happens
+when the TASK ENDS, outside the window being timed. That is why a budget tuned
+against item cost could never control this.
+
+**AND IT VOIDS THE PREMISE OF SLICING THIS LOOP ON THIS DEVICE.** 575ms is 11x
+the 50ms a browser calls a long task, so slicing never delivered short tasks —
+it delivered 38 long ones where there could have been one. `?effectSlice=none`
+is the endpoint that tests it, expressed as an INFINITE budget through the same
+do/while every other caller uses rather than a second code path.
+
 **SHIPPED OFF BY DEFAULT** (`?adaptiveSlice=1`): `runSliced` gains an
 `adaptiveBudget` option that raises the budget above the item cost it just
 measured, capped so no slice becomes the long task slicing exists to prevent.

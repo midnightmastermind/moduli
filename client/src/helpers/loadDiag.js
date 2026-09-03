@@ -96,7 +96,7 @@ export function loadDiagLine(tag = "load") {
     // window, so each effect gets its own synchronous render.
     + `effectCount=${efx?.count ?? "?"} slices=${efx?.slices ?? "?"} `
     // Which arm this capture is, so two lines in the log cannot be confused.
-    + `adaptiveSlice=${typeof window !== "undefined" && window.__adaptiveSliceUsed === true} `
+    + `sliceMode=${typeof window !== "undefined" ? (window.__adaptiveSliceUsed ?? "?") : "?"} `
     + `editors=${r.editorCount}@${ms(r.firstEditorAt)}-${ms(r.lastEditorAt)} `
     // An ABSENT long-task API must not read as "nothing blocked" — the
     // 2026-08-04 trap, where a Firefox capture with no Long Tasks support fell

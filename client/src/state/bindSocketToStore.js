@@ -561,13 +561,31 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // how the load applies its effects is exactly the class this session has
       // already shipped and reverted once. One capture with the flag against one
       // without is the evidence; the default moves only after that.
-      let adaptiveSlice = false;
+      //
+      // THE A/B CAME BACK AND IT IS LINEAR IN SLICE COUNT, not in effects:
+      //     baseline  212 effects · 38 slices · effects=21,703ms · 571ms/slice
+      //     adaptive  210 effects · 19 slices · effects=11,279ms · 594ms/slice
+      // Halving the slices halved the time while the per-slice cost stayed put,
+      // so the cost is ONE FIXED REACT FLUSH PER SLICE — the loop's budget only
+      // ever measures the cheap dispatch, because the render happens when the
+      // task ends, outside the window being timed.
+      //
+      // WHICH VOIDS THE PREMISE OF SLICING THIS LOOP ON THIS DEVICE. 575ms is
+      // 11x the 50ms a browser calls a long task, so slicing never produced
+      // short tasks — it produced 38 long ones where there could have been one.
+      // `mode=none` is the endpoint that tests it.
+      let sliceMode = "default";
       try {
-        adaptiveSlice = typeof window !== "undefined"
-          && (window.__adaptiveSlice === true
-            || new URLSearchParams(window.location.search).get("adaptiveSlice") === "1");
+        const q = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+        if (window?.__adaptiveSlice === true || q?.get("adaptiveSlice") === "1") sliceMode = "adaptive";
+        if (window?.__effectSlice === "none" || q?.get("effectSlice") === "none") sliceMode = "none";
       } catch { /* an unparseable URL is not a reason to change behaviour */ }
-      if (typeof window !== "undefined") window.__adaptiveSliceUsed = adaptiveSlice;
+      if (typeof window !== "undefined") window.__adaptiveSliceUsed = sliceMode;
+      // `Infinity` yields exactly one slice through the existing do/while —
+      // no second code path to drift from the one every other caller uses.
+      const sliceOpts = sliceMode === "none"
+        ? { budgetMs: Infinity }
+        : { adaptiveBudget: sliceMode === "adaptive" };
 
       void runSliced(effects, (eff) => {
         runInAction(capturedScope, () => {
@@ -581,7 +599,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
             );
           }
         });
-      }, { adaptiveBudget: adaptiveSlice }).finally(() => {
+      }, sliceOpts).finally(() => {
         for (const sid of sweepOpIds) setOpApplyingEffects(sid, false);
       }).then(({ slices }) => {
         if (effectErrors) {
