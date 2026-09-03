@@ -30,7 +30,11 @@
  *  rather than a grid that never settles. */
 export const HOLD_MAX_MS = 6000;
 
-export function makeInteractionHold({ maxMs = HOLD_MAX_MS, onCap } = {}) {
+/** A second fail-safe on the same principle as the timer: a pathological burst
+ *  drains at once rather than growing a queue nobody bounded. */
+export const HOLD_MAX_ENTRIES = 200;
+
+export function makeInteractionHold({ maxMs = HOLD_MAX_MS, maxEntries = HOLD_MAX_ENTRIES, onCap } = {}) {
   let queue = null;          // null = not holding; the state every non-drag path is in
   let keys = new Set();
   let capTimer = null;
@@ -59,12 +63,27 @@ export function makeInteractionHold({ maxMs = HOLD_MAX_MS, onCap } = {}) {
      * MeasureOp for one occurrence many times over a long drag, and the drain's
      * own op-level dedup cannot stop the QUEUE growing — that runs afterwards.
      */
-    take(transactionType, transaction) {
+    take(transactionType, transaction, run) {
       if (queue === null) return false;
+      // ── A FIRE THAT CARRIES A CONTINUATION IS NEVER DROPPED ────────────────
+      // The deferred-MeasureOp path retains an undo action and parks an entry
+      // in `_pendingMeasure` BEFORE offering itself here, and only running the
+      // continuation releases either. Dropping one as a duplicate would leave
+      // the action buffer open forever and leave a pending entry that later
+      // writes merge into and nothing ever fires — a tracker that silently
+      // stops recomputing. Deduping those is already done upstream (one entry
+      // per occurrence+context, later writes MERGE into it) and downstream
+      // (the drain's shared cascade set), so the queue does not need to.
+      if (run) {
+        queue.push({ transactionType, transaction, run });
+        if (queue.length >= maxEntries) { onCap?.(release()); }
+        return true;
+      }
       const key = `${transactionType}|${transaction?.occurrenceId || ""}|${transaction?.fieldId || ""}`;
       if (!keys.has(key)) {
         keys.add(key);
         queue.push({ transactionType, transaction });
+        if (queue.length >= maxEntries) { onCap?.(release()); }
       }
       return true;
     },

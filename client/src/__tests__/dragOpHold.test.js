@@ -90,3 +90,68 @@ describe("it must never be able to starve the grid", () => {
     expect(hold.size()).toBe(1);
   });
 });
+
+// ── A DEFERRED FIRE CARRIES A CONTINUATION, AND THAT CHANGES THE RULES ──────
+//
+// The first version of this hold checked `_fireDepth === 0` inside
+// `fireOperations`, and the device said it caught almost nothing:
+//
+//     opSweeps=30 opMs=1663
+//     opBy=[MeasureOp:kg860us2nhc:13x570ms/0fx
+//           MeasureOp:1ve8fwc6c7k:11x506ms/0fx  NavigationOp:1x370ms/26fx]
+//
+// A MeasureOp written by an op's own effects is DEFERRED past the paint, and
+// its continuation restores `_fireDepth = savedDepth` — 1, not 0 — so the gate
+// never saw the 24 sweeps that were the whole cost. The hold takes the
+// continuation instead, which restores its own depth, action scope and
+// cycle-guard marks.
+describe("deferred fires (continuations)", () => {
+  it("queues a continuation and does not run it until the drain", () => {
+    hold.begin();
+    const run = vi.fn();
+    expect(hold.take("MeasureOp", { occurrenceId: "a", fieldId: "f" }, run)).toBe(true);
+    expect(run).not.toHaveBeenCalled();
+    const held = hold.end();
+    expect(held).toHaveLength(1);
+    held[0].run();
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("NEVER drops a continuation as a duplicate", () => {
+    // The load-bearing case. A deferral retains an undo action and parks an
+    // entry in `_pendingMeasure` BEFORE offering itself; only running the
+    // continuation releases either. Dropping the second one on the key dedup
+    // would leave the action buffer open forever AND leave a pending entry
+    // that later writes merge into and nothing ever fires — a tracker that
+    // silently stops recomputing.
+    hold.begin();
+    const a = vi.fn(), b = vi.fn();
+    hold.take("MeasureOp", { occurrenceId: "a", fieldId: "f" }, a);
+    hold.take("MeasureOp", { occurrenceId: "a", fieldId: "f" }, b);
+    expect(hold.size()).toBe(2);
+    for (const h of hold.end()) h.run();
+    expect(a).toHaveBeenCalledTimes(1);
+    expect(b).toHaveBeenCalledTimes(1);
+  });
+
+  it("plain fires still dedupe beside continuations", () => {
+    // The control: making continuations exempt must not disarm the dedup the
+    // top-level path depends on.
+    hold.begin();
+    for (let i = 0; i < 20; i++) hold.take("MeasureOp", { occurrenceId: "a", fieldId: "f" });
+    hold.take("MeasureOp", { occurrenceId: "a", fieldId: "f" }, () => {});
+    expect(hold.size()).toBe(2);
+  });
+
+  it("drains itself once the queue passes the entry cap", () => {
+    // The second fail-safe, on the same principle as the timer: a hold that
+    // exempts continuations from the dedup must not be able to grow a queue
+    // nobody bounded.
+    const capped = [];
+    const h = makeInteractionHold({ maxEntries: 5, onCap: (held) => capped.push(held.length) });
+    h.begin();
+    for (let i = 0; i < 5; i++) h.take("MeasureOp", { occurrenceId: `o${i}` }, () => {});
+    expect(capped).toEqual([5]);
+    expect(h.isHolding()).toBe(false);   // released, so the next fire runs normally
+  });
+});

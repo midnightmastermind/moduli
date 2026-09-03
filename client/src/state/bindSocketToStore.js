@@ -2014,7 +2014,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       const entry = { transaction: { ...transaction } };
       if (coalesceKey) _pendingMeasure.set(coalesceKey, entry);
       retainAction(captured);
-      afterPaint(() => {
+      const run = () => {
         // Released BEFORE the fire, so a write made during the sweep opens a
         // fresh deferral rather than merging into one already running.
         if (coalesceKey) _pendingMeasure.delete(coalesceKey);
@@ -2028,7 +2028,25 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
           _fireDepth = prev;
           releaseAction(captured);
         }
-      });
+      };
+      // ── THE HOLD HAS TO INTERCEPT *HERE*, NOT IN `fireOperations` ─────────
+      // A nested write's continuation restores `_fireDepth = savedDepth`, and
+      // savedDepth is 1 for anything an op's own effects wrote. The hold's
+      // check in `fireOperations` is `_fireDepth === 0`, so it never saw them —
+      // and they are the whole number. Measured on the device with the hold
+      // already shipped and open for the whole drag:
+      //
+      //     opSweeps=30 opMs=1663
+      //     opBy=[MeasureOp:kg860us2nhc:13x570ms/0fx
+      //           MeasureOp:1ve8fwc6c7k:11x506ms/0fx  NavigationOp:1x370ms/26fx]
+      //
+      // 24 of 25 sweeps were deferred tracker recomputations at depth 1,
+      // emitting ZERO effects, arriving mid-drag. Offering the CONTINUATION
+      // rather than the transaction is what keeps that safe: it restores its
+      // own depth, so `_FIRE_DEPTH_LIMIT` still accumulates and the depth-1
+      // cascade dedup still behaves exactly as it does synchronously.
+      if (_interactionHold.take(transactionType, transaction, run)) return;
+      afterPaint(run);
       return;
     }
     fireOperations(transactionType, transaction, options);
@@ -2085,7 +2103,13 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       const prev = _navCascadeFiredOps;
       _navCascadeFiredOps = cascadeSet;
       try {
-        fireOperations(next.transactionType, next.transaction);
+        // A held deferral carries its own continuation, which restores the
+        // depth, action scope and cycle-guard marks it was captured under
+        // before firing. Calling `fireOperations` directly here would run it
+        // at depth 0 under no action — the exact defects the carry-across in
+        // `fireOperationsOptimistic` was written to prevent.
+        if (next.run) next.run();
+        else fireOperations(next.transactionType, next.transaction);
       } finally {
         _navCascadeFiredOps = prev;
       }
