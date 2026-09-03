@@ -6,6 +6,82 @@
 
 ---
 
+### 2026-09-03 (7) — THE SWEEP WAITED 16 MB FOR SIX NUMBERS
+
+(6) ended by naming the cost: *"at 18 seconds after load the grid is STILL
+RUNNING ITS LOAD SWEEP"*, `ops:start` at 4.6s on the probe and ~15s on the
+tablet. The sweep waited for the deferred artifact catalogue. This is that wait,
+removed.
+
+**`splitFullState`'s HEADER SAID WHY IT WAITS, AND THAT IS NOT AN OPINION TO
+ARGUE WITH** — *"the 19 operations that walk `$allItems` over every row see
+exactly what they saw before."* It is decidable: run the live grid's own 71
+pipelines both ways and diff. **Exactly SIX of 371 effects differ, all from ONE
+op** — `Trackers: Media Owned`, the media counter tiles, which read 0 without
+the catalogue. Everything else is identical.
+
+**THE STATIC RULE COLLAPSED, WHICH IS WHY THE SWEEP RUNS TWICE INSTEAD.** The
+obvious shape is "defer the ops that need the catalogue" — and **54 of 67 ops
+reference a global collection**, `Schedule: Build Schedule` among them, so that
+rule defers everything. Two passes is the tractable form, and it is only safe if
+the second rebuilds nothing:
+```
+pass 1 (core)        376 effects · 103 creates · 204 real writes
+pass 2 (catalogue)   245 effects ·   0 creates ·  49 real writes
+```
+**ZERO CREATES IS THE GUARD THAT MATTERS**, because this file records the
+opposite happening on live data: 2026-08-31 (2), a day column re-copied on every
+load, +49 occurrences each time, unbounded. So pass 2 must not reset the overlay
+— that is where pass 1's creates live — and must not re-seed over it either,
+which would revert every value pass 1 computed. It adds only the rows the
+overlay has never seen, which is exactly the catalogue.
+
+**AND THE HARNESS'S APPLIER IS NOT THE ONE THE LOAD PATH USES.** Its own comment
+claimed it was; `bindSocketToStore` applies effects with `applyOperationEffect`,
+which also writes labels, styles and whole-occurrence patches, while
+`applyEffectsToLiveOccs` is the executor's IN-SWEEP overlay and handles a
+narrower set. Unmodelled, pass 2 read stale labels and looked like a convergence
+failure the app does not have. The test tops the missing kinds up **and reports
+what is STILL unmodelled**, so a silent gap cannot pass for a faithful
+simulation.
+
+**THREE OF MY OWN MEASUREMENTS WERE WRONG BEFORE ANY NUMBER WAS TRUSTWORTHY, and
+all three flattered the same conclusion.** A write counter compared every effect
+against a FROZEN snapshot, so `Fitness: Today's Prescription` — which clears six
+slots then writes six values, by design — read as twelve changes rather than as
+the clear-then-write it is. It modelled the no-op guard on `UPDATE_ITEM_FIELD`
+alone, counting all **48 of a settled load's label writes as real work when the
+shipped guard already suppresses every one** (`bindSocketToStore.js:1340`). And
+the style top-up assigned one style VALUE over the whole `ownStyle` OBJECT, so
+every read of `ownStyle[styleKey]` came back undefined and reported **0 of 21
+writes as redundant** — the probe, not the app. Corrected, pass 2 emits no style
+writes at all: `Schedule: Mark Passed Slots` skips a slot already painted.
+*Each wrong version produced a precise, quotable figure.*
+
+**A THIRD PASS SEPARATES A ONE-TIME SETTLE FROM AN OSCILLATION**, and they mean
+opposite things. Pass 3 is byte-identical to pass 2; of the fields written in
+both passes **140 agree and none two-cycles**. The sweep is stable from pass 2
+onward.
+
+Both A/Bs fail exactly their own cases: removing the pass-1 call fails 3 of 5
+wiring tests while the **no-deferred-half CONTROL still passes** — without it,
+*"the sweep runs twice"* would also be satisfied by a build that sweeps twice on
+every load — and making pass 2 reset the overlay fails exactly the one test
+written for it. The flushes are final-pass only: a feed sync against the core
+state would materialize an artifact-backed feed as EMPTY and then sweep its own
+copies once the catalogue landed.
+
+3866 client tests, lint 0 errors, deployed, prod HEAD verified, served chunk
+sha256-identical with the new string present and a zero control at 0.
+Client-only, so pm2 was NOT restarted.
+
+**NOT VERIFIED, and it is the only thing that can settle it: nobody has taken a
+capture since this shipped.** The equivalence is proven over the real fixture and
+the wiring is A/B'd, but whether `ops:start` actually moves from ~15s to the
+first seconds on the tablet is the device's to say.
+
+---
+
 ### 2026-09-03 (6) — THE DEVICE'S OWN CAPTURE NAMED THE 30 SECONDS, and a hidden toolbar panel was walking the whole grid
 
 User: *"it took about 30 seconds but the app got quicker again. the first 30
