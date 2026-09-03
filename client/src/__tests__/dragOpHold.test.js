@@ -58,7 +58,7 @@ describe("holding", () => {
 });
 
 describe("it must never be able to starve the grid", () => {
-  it("releases itself after the cap even if the gesture never ends", () => {
+  it("drains at the cap even if the gesture never ends", () => {
     vi.useFakeTimers();
     const onCap = vi.fn();
     const h = makeInteractionHold({ maxMs: 100, onCap });
@@ -67,8 +67,59 @@ describe("it must never be able to starve the grid", () => {
     vi.advanceTimersByTime(150);
     expect(onCap).toHaveBeenCalledTimes(1);
     expect(onCap.mock.calls[0][0].map(x => x.transaction.occurrenceId)).toEqual(["a"]);
-    // and it is no longer holding — a long drag keeps working, unheld
-    expect(h.take("MeasureOp", { occurrenceId: "b" })).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it("KEEPS HOLDING after the cap — a long drag is still a drag", () => {
+    // The defect this replaced: the cap called `release()`, so the hold simply
+    // stopped. Measured drags on the device run 16-38 SECONDS against a 6s cap,
+    // which left 10 to 32 seconds of every one unprotected — and the capture
+    // said so (`opSweeps=30` across a 38-second drag with the hold "open").
+    // The fail-safe only has to stop work being hidden FOREVER.
+    vi.useFakeTimers();
+    const onCap = vi.fn();
+    const h = makeInteractionHold({ maxMs: 100, onCap });
+    h.begin();
+    h.take("MeasureOp", { occurrenceId: "a" });
+    vi.advanceTimersByTime(150);
+    expect(h.isHolding()).toBe(true);
+    expect(h.take("MeasureOp", { occurrenceId: "b" })).toBe(true);   // still captured
+    vi.advanceTimersByTime(150);
+    expect(onCap).toHaveBeenCalledTimes(2);                          // and drains again
+    expect(onCap.mock.calls[1][0].map(x => x.transaction.occurrenceId)).toEqual(["b"]);
+    expect(h.isHolding()).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it("does not spin a timer on an idle hold, and re-arms on the next fire", () => {
+    // A cap that re-armed unconditionally would wake the tab every `maxMs` for
+    // the life of a gesture that has nothing to drain.
+    vi.useFakeTimers();
+    const onCap = vi.fn();
+    const h = makeInteractionHold({ maxMs: 100, onCap });
+    h.begin();
+    vi.advanceTimersByTime(1000);
+    expect(onCap).not.toHaveBeenCalled();        // nothing held, nothing drained
+    expect(h.isHolding()).toBe(true);
+    h.take("MeasureOp", { occurrenceId: "a" });  // arms again
+    vi.advanceTimersByTime(150);
+    expect(onCap).toHaveBeenCalledTimes(1);
+    expect(onCap.mock.calls[0][0].map(x => x.transaction.occurrenceId)).toEqual(["a"]);
+    vi.useRealTimers();
+  });
+
+  it("the cap is cancelled by `end`, however many times it has fired", () => {
+    vi.useFakeTimers();
+    const onCap = vi.fn();
+    const h = makeInteractionHold({ maxMs: 100, onCap });
+    h.begin();
+    h.take("MeasureOp", { occurrenceId: "a" });
+    vi.advanceTimersByTime(150);                 // one cap drain
+    h.take("MeasureOp", { occurrenceId: "b" });
+    expect(h.end().map(x => x.transaction.occurrenceId)).toEqual(["b"]);
+    vi.advanceTimersByTime(1000);
+    expect(onCap).toHaveBeenCalledTimes(1);      // the re-armed timer was cleared
+    expect(h.isHolding()).toBe(false);
     vi.useRealTimers();
   });
 
@@ -152,6 +203,8 @@ describe("deferred fires (continuations)", () => {
     h.begin();
     for (let i = 0; i < 5; i++) h.take("MeasureOp", { occurrenceId: `o${i}` }, () => {});
     expect(capped).toEqual([5]);
-    expect(h.isHolding()).toBe(false);   // released, so the next fire runs normally
+    expect(h.isHolding()).toBe(true);    // drained, NOT abandoned
+    for (let i = 0; i < 5; i++) h.take("MeasureOp", { occurrenceId: `p${i}` }, () => {});
+    expect(capped).toEqual([5, 5]);
   });
 });

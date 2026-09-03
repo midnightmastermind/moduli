@@ -26,12 +26,12 @@
 // `stagedMount`'s HARD_RELEASE_MS: a scheduling optimisation may not be able to
 // hide work permanently.
 
-/** Long enough to cover an ordinary drag, short enough that a leak is a hiccup
- *  rather than a grid that never settles. */
+/** How long held work may sit before the grid gets a slice of it. NOT how long
+ *  the hold lasts — see `drainAndRearm`. */
 export const HOLD_MAX_MS = 6000;
 
-/** A second fail-safe on the same principle as the timer: a pathological burst
- *  drains at once rather than growing a queue nobody bounded. */
+/** The same fail-safe by size: a burst drains rather than growing a queue
+ *  nobody bounded. Also does not stop the hold. */
 export const HOLD_MAX_ENTRIES = 200;
 
 export function makeInteractionHold({ maxMs = HOLD_MAX_MS, maxEntries = HOLD_MAX_ENTRIES, onCap } = {}) {
@@ -47,12 +47,42 @@ export function makeInteractionHold({ maxMs = HOLD_MAX_MS, maxEntries = HOLD_MAX
     return held;
   };
 
+  const arm = () => {
+    if (capTimer) clearTimeout(capTimer);
+    capTimer = setTimeout(() => {
+      // Only ever hand back WORK. A hold that is open but quiet — most of a
+      // settled drag — must not wake the tab every `maxMs` to drain nothing.
+      const held = drainAndRearm();
+      if (held.length) onCap?.(held);
+    }, maxMs);
+  };
+
+  // ── A CAP LETS WORK THROUGH; IT DOES NOT END THE GESTURE ──────────────────
+  // The first version called `release()` here, which stops holding — so after
+  // six seconds every remaining fire ran unheld. The user's drags measured
+  // 16-38 SECONDS, which means 10 to 32 seconds of each one was unprotected,
+  // and the capture said so: `opSweeps=30` over a 38-second drag with the hold
+  // supposedly open the whole time.
+  //
+  // The fail-safe only ever had to stop work being hidden FOREVER (the same
+  // promise `stagedMount`'s HARD_RELEASE_MS makes). Draining and re-arming
+  // keeps that promise — the grid gets a slice at least every `maxMs` — while
+  // the finger stays protected for as long as it is down.
+  const drainAndRearm = () => {
+    const held = queue || [];
+    queue = [];
+    keys = new Set();
+    capTimer = null;
+    if (held.length) arm();          // a quiet hold arms again on its next `take`
+    return held;
+  };
+
   return {
     begin() {
       if (queue !== null) return;      // already holding — never restart or clear
       queue = [];
       keys = new Set();
-      capTimer = setTimeout(() => { onCap?.(release()); }, maxMs);
+      arm();
     },
 
     /**
@@ -65,6 +95,7 @@ export function makeInteractionHold({ maxMs = HOLD_MAX_MS, maxEntries = HOLD_MAX
      */
     take(transactionType, transaction, run) {
       if (queue === null) return false;
+      if (capTimer === null) arm();     // a drained, idle hold arms on its next fire
       // ── A FIRE THAT CARRIES A CONTINUATION IS NEVER DROPPED ────────────────
       // The deferred-MeasureOp path retains an undo action and parks an entry
       // in `_pendingMeasure` BEFORE offering itself here, and only running the
@@ -76,14 +107,14 @@ export function makeInteractionHold({ maxMs = HOLD_MAX_MS, maxEntries = HOLD_MAX
       // (the drain's shared cascade set), so the queue does not need to.
       if (run) {
         queue.push({ transactionType, transaction, run });
-        if (queue.length >= maxEntries) { onCap?.(release()); }
+        if (queue.length >= maxEntries) onCap?.(drainAndRearm());
         return true;
       }
       const key = `${transactionType}|${transaction?.occurrenceId || ""}|${transaction?.fieldId || ""}`;
       if (!keys.has(key)) {
         keys.add(key);
         queue.push({ transactionType, transaction });
-        if (queue.length >= maxEntries) { onCap?.(release()); }
+        if (queue.length >= maxEntries) onCap?.(drainAndRearm());
       }
       return true;
     },
