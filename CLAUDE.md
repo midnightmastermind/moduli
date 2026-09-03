@@ -6,6 +6,64 @@
 
 ---
 
+### 2026-09-03 (8) — THE LOAD-TIME SCROLL CANCELLED A DRAG, and the ops arrive in WAVES
+
+Testing a fresh load after (7)'s revert, the user found a defect that is not
+perf at all:
+
+```
+"the first two failed to drop cause 1 of the last ops was the scroll to the
+timeslot on fresh load and that canceled out my drag. it got up to 39 ops
+before that happened. it ran 30, i dragged, 9 more ran and slowed it down.
+then that happened. i believe 2 more ops run after."
+```
+
+**`SCROLL_TO` IS A LOAD-TIME COURTESY THAT OUTLIVED ITS WINDOW.** An onLoad op
+scrolls the Schedule to the current timeslot so a fresh load opens where you
+are. Its target is usually NOT in the DOM when the effect is applied — the sweep
+runs before that page finishes mounting — so the handler polls for it, **250ms x
+24, up to ~6 seconds**. That is fine on a fast load and wrong on this one: the
+ops arrive in WAVES over most of a minute, so the node lands seconds after the
+user has started working and the scroll yanks the page out from under a finger
+that is mid-gesture. Two drags in a row would not drop.
+
+**IT ABANDONS, IT DOES NOT DEFER, and that is the decision.** Waiting for the
+drag to end and scrolling then is the same yank one moment later — arriving when
+the user believes they are finished, which is worse. *A courtesy that missed its
+window has no claim on the viewport.*
+
+**AND ANY INPUT COUNTS, NOT ONLY A DRAG.** `window.__moduli_interacting` is set
+by DragProvider for the whole gesture and covers the reported case exactly, but
+someone who has scrolled or typed is just as plainly reading something. Pointer
+/ touch / wheel / key, capture + passive so observing input can never delay it —
+and **deliberately NOT `scroll`**, since producing one is this feature's whole
+job and a scroll listener would let it cancel itself. The busy check is sampled
+before EVERY attempt rather than once up front: the drag that cancels this
+starts BETWEEN two polls, which is precisely what was reported.
+
+The decision lives in `helpers/autoScrollOnLoad.js` with every dependency
+injected, because the alternative is testing a six-second poll against a real
+clock inside a handler that needs the whole grid store. Both A/Bs fail exactly
+their own cases; the bounded-retry test is the CONTROL, without which *"it stops
+polling"* would also be satisfied by something that never polled at all.
+
+**THE OTHER HALF OF THAT REPORT IS THE REAL PERF FINDING, and it is not fixed:
+the load sweep arrives in WAVES — 30, then 9, then 2.** That is the MeasureOp
+cascade, measured from a different direction on 2026-09-02 (*"19 of 20 sweeps
+emitted ZERO effects"*, 829ms of pure waste per drop behind 782 renders) and
+named there: *"the fix is not another cycle guard — there is no cycle; it is
+that applying N effects mints N transactions."* (7) failed precisely because it
+counted writes and never counted the sweeps each write provokes. **The next
+measurement is the device's `opBy=` line during that first minute**, which
+already reports per-trigger sweep counts and each one's effect tally — not
+another fixture.
+
+3868 client tests, lint 0 errors, deployed, prod HEAD verified, served chunk
+sha256-identical with the takeover list present and a zero control at 0.
+Client-only, so pm2 was NOT restarted.
+
+---
+
 ### 2026-09-03 (7) — SHIPPED AND REVERTED: I measured the sweep in WRITES, and the cost is not writes
 
 (6) named the wait: `ops:start` at 4.6s on the probe and ~15s on the tablet,
