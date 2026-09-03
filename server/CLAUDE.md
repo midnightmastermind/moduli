@@ -19,14 +19,26 @@ _Updated: 2026-08-16. Check this file before re-reading source._
 - **IT ENFORCES AN INVARIANT THE GRID ALREADY DECLARES**, rather than a rule about day pages:
   `identitySignature` is the clone-identity key APPLY_TEMPLATE's merge already matches siblings on,
   and `gridIntegrity` reports two siblings sharing one as an ERROR.
-- **THREE NARROWINGS, EACH FROM A MEASUREMENT.** A signature is required (an unsigned node has no
-  declared identity). **The parent must EXIST** — across all six live grids the only groups sharing
-  `(parentId, signature)` are ones whose `parentId` names nothing (eight weekday templates sharing
-  a hand-authored `day-container`, two project pages), so with that narrowing the pair is unique
-  and the guard **would refuse nothing that exists today**. And **a refused root takes its SUBTREE
-  with it**: APPLY_TEMPLATE emits children as their own rows and carries their ids inline on the
-  parent, so refusing only the root would persist seven orphans whose parent never arrives —
-  trading a visible duplicate for invisible debris.
+- **UNIQUENESS IS OPT-IN (`meta.signatureUnique`), and that narrowing was got WRONG first.** A
+  signature is also used as a shared MARKER: eight weekday/layer templates deliberately share
+  `identitySignature: "day-container"` under ONE REAL PAGE ("Schedule Template"), so a rule keyed
+  on "any signature under an existing parent" refuses a legitimate ninth — silently. Only a node
+  whose CALLER named the signature as its identity there (`rootSignature`) takes part, and BOTH
+  sides must carry the flag. Plus: the parent must exist (a dangling ref is its own error), and **a
+  refused root takes its SUBTREE with it** — APPLY_TEMPLATE emits children as their own rows, so
+  refusing only the root would persist seven orphans, trading a visible duplicate for invisible
+  debris.
+- **THE FALSE CLAIM, and how it was caught.** The first version said those eight sat under a parent
+  that does not exist. **It came from a probe handed a TRUNCATED id** — `.slice(0, 10)` output from
+  an earlier probe pasted in as a lookup key — so *"the parent does not exist"* was true of a
+  string that is not an id. Found by driving the guard over the WHOLE live grid, which is the check
+  worth keeping: **re-sending every occurrence as a create must refuse ZERO.** It refused 394.
+  ```
+                                    keyed on any signature   opt-in
+  whole grid re-sent as creates              394                0
+  a 2nd column for today                 REFUSED            REFUSED
+  a 9th weekday template                 REFUSED (data loss)  ALLOWED
+  ```
 - **`liveSystemBuilders.makeDayPageBuildOp` + `migrations/0284`** — the column's create branch now
   passes `rootSignature: "daypage:col:${$day}"`. A non-merge ROOT is otherwise left UNSIGNED on
   purpose (the derived `auto:<templateId>` would give every column the same signature), which left

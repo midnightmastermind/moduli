@@ -3374,8 +3374,21 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         // Stamped so the NEXT apply of this template node can find and reuse
         // this module instead of minting another.
         const newModuleMeta = stampCloneOrigin({ ...(srcMod.meta || {}), templateModule: false }, srcModId);
+        // ── THE CALLER DECLARED THIS NODE UNIQUE UNDER ITS PARENT ──────────
+        //
+        // `rootSignature` says "this signature IS this node's identity here",
+        // which is what lets the server refuse a duplicate. It must be OPT-IN,
+        // not inferred from carrying a signature at all: a signature is also
+        // used as a shared MARKER — measured, eight weekday/layer templates
+        // deliberately share `day-container` under one real page — and refusing
+        // a ninth would be a legitimate write silently dropped.
+        const uniqueUnderParent = isRoot && !!rootSignatureOverride;
+        // `signatureUnique` rides in META, not at the top level: `meta` is Mixed,
+        // and an undeclared top-level key is silently stripped by Mongoose strict
+        // mode — the class that left `Operation.priority` inert for months.
         const newOccMeta = isRoot
-          ? { ...(srcOcc.meta || {}), appliedFromTemplateId: templateRef }
+          ? { ...(srcOcc.meta || {}), appliedFromTemplateId: templateRef,
+              ...(uniqueUnderParent ? { signatureUnique: true } : {}) }
           : { ...(srcOcc.meta || {}) };
 
         updates.push({

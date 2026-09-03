@@ -16,16 +16,19 @@ import { describe, it, expect } from "vitest";
 import { refusedDuplicateCreates } from "../utils/duplicateSignature.js";
 
 const occ = (id, over = {}) => ({ id, parentId: null, identitySignature: null, ...over });
+// A node whose CALLER declared the signature to be its identity here — what
+// APPLY_TEMPLATE stamps when given `rootSignature`.
+const uniq = (id, over = {}) => occ(id, { ...over, meta: { ...(over.meta || {}), signatureUnique: true } });
 const create = (o) => ({ occurrence: o });
 
 describe("refusedDuplicateCreates", () => {
   it("refuses a second child carrying a signature a sibling already has", () => {
     const cache = {
       board: occ("board"),
-      col1: occ("col1", { parentId: "board", identitySignature: "daypage:col:2026-09-03" }),
+      col1: uniq("col1", { parentId: "board", identitySignature: "daypage:col:2026-09-03" }),
     };
     const out = refusedDuplicateCreates(
-      [create(occ("col2", { parentId: "board", identitySignature: "daypage:col:2026-09-03" }))],
+      [create(uniq("col2", { parentId: "board", identitySignature: "daypage:col:2026-09-03" }))],
       cache,
     );
     expect([...out]).toEqual(["col2"]);
@@ -36,10 +39,10 @@ describe("refusedDuplicateCreates", () => {
   it("allows a sibling whose signature differs", () => {
     const cache = {
       board: occ("board"),
-      col1: occ("col1", { parentId: "board", identitySignature: "daypage:col:2026-09-03" }),
+      col1: uniq("col1", { parentId: "board", identitySignature: "daypage:col:2026-09-03" }),
     };
     const out = refusedDuplicateCreates(
-      [create(occ("col2", { parentId: "board", identitySignature: "daypage:col:2026-09-04" }))],
+      [create(uniq("col2", { parentId: "board", identitySignature: "daypage:col:2026-09-04" }))],
       cache,
     );
     expect(out.size).toBe(0);
@@ -48,10 +51,10 @@ describe("refusedDuplicateCreates", () => {
   it("allows the same signature under a DIFFERENT parent", () => {
     const cache = {
       a: occ("a"), b: occ("b"),
-      x: occ("x", { parentId: "a", identitySignature: "daypage:Journal" }),
+      x: uniq("x", { parentId: "a", identitySignature: "daypage:Journal" }),
     };
     const out = refusedDuplicateCreates(
-      [create(occ("y", { parentId: "b", identitySignature: "daypage:Journal" }))],
+      [create(uniq("y", { parentId: "b", identitySignature: "daypage:Journal" }))],
       cache,
     );
     expect(out.size).toBe(0);
@@ -68,9 +71,9 @@ describe("refusedDuplicateCreates", () => {
   // groups whose parentId names nothing: eight weekday templates sharing a
   // hand-authored `day-container`, and two project pages.
   it("never refuses when the shared parent does not exist", () => {
-    const cache = { t1: occ("t1", { parentId: "gone", identitySignature: "day-container" }) };
+    const cache = { t1: uniq("t1", { parentId: "gone", identitySignature: "day-container" }) };
     const out = refusedDuplicateCreates(
-      [create(occ("t2", { parentId: "gone", identitySignature: "day-container" }))],
+      [create(uniq("t2", { parentId: "gone", identitySignature: "day-container" }))],
       cache,
     );
     expect(out.size).toBe(0);
@@ -81,8 +84,8 @@ describe("refusedDuplicateCreates", () => {
   it("never refuses rows whose parent is arriving in the same batch", () => {
     const cache = { board: occ("board") };
     const out = refusedDuplicateCreates([
-      create(occ("kid", { parentId: "newcol", identitySignature: "daypage:Journal" })),
-      create(occ("newcol", { parentId: "board", identitySignature: "daypage:col:2026-09-04", occurrences: ["kid"] })),
+      create(uniq("kid", { parentId: "newcol", identitySignature: "daypage:Journal" })),
+      create(uniq("newcol", { parentId: "board", identitySignature: "daypage:col:2026-09-04", occurrences: ["kid"] })),
     ], cache);
     expect(out.size).toBe(0);
   });
@@ -92,13 +95,13 @@ describe("refusedDuplicateCreates", () => {
   it("takes the refused root's whole subtree with it, depth-first emission included", () => {
     const cache = {
       board: occ("board"),
-      col1: occ("col1", { parentId: "board", identitySignature: "daypage:col:2026-09-03" }),
+      col1: uniq("col1", { parentId: "board", identitySignature: "daypage:col:2026-09-03" }),
     };
     const out = refusedDuplicateCreates([
       // emitted leaves-first, exactly as APPLY_TEMPLATE emits them
       create(occ("grandkid", { parentId: "kid" })),
       create(occ("kid", { parentId: "dupe", occurrences: ["grandkid"] })),
-      create(occ("dupe", { parentId: "board", identitySignature: "daypage:col:2026-09-03", occurrences: ["kid"] })),
+      create(uniq("dupe", { parentId: "board", identitySignature: "daypage:col:2026-09-03", occurrences: ["kid"] })),
     ], cache);
     expect([...out].sort()).toEqual(["dupe", "grandkid", "kid"]);
   });
@@ -107,8 +110,8 @@ describe("refusedDuplicateCreates", () => {
   it("collapses duplicates WITHIN a single batch to the first", () => {
     const cache = { board: occ("board") };
     const out = refusedDuplicateCreates([
-      create(occ("a", { parentId: "board", identitySignature: "daypage:col:2026-09-04" })),
-      create(occ("b", { parentId: "board", identitySignature: "daypage:col:2026-09-04" })),
+      create(uniq("a", { parentId: "board", identitySignature: "daypage:col:2026-09-04" })),
+      create(uniq("b", { parentId: "board", identitySignature: "daypage:col:2026-09-04" })),
     ], cache);
     expect([...out]).toEqual(["b"]);
   });
@@ -117,13 +120,40 @@ describe("refusedDuplicateCreates", () => {
   it("does not refuse a re-send of the occurrence that already owns the signature", () => {
     const cache = {
       board: occ("board"),
-      col1: occ("col1", { parentId: "board", identitySignature: "daypage:col:2026-09-03" }),
+      col1: uniq("col1", { parentId: "board", identitySignature: "daypage:col:2026-09-03" }),
     };
     const out = refusedDuplicateCreates(
-      [create(occ("col1", { parentId: "board", identitySignature: "daypage:col:2026-09-03" }))],
+      [create(uniq("col1", { parentId: "board", identitySignature: "daypage:col:2026-09-03" }))],
       cache,
     );
     expect(out.size).toBe(0);
+  });
+
+  // THE CASE THAT CAUGHT THE FIRST VERSION. Eight weekday/layer templates on
+  // poms grid deliberately share `identitySignature: "day-container"` under ONE
+  // REAL PAGE. Keyed on "any signature under an existing parent", the guard
+  // refused a legitimate ninth — a dropped write presenting as data loss.
+  it("never refuses a SHARED MARKER under a real parent (no opt-in flag)", () => {
+    const cache = {
+      tplPage: occ("tplPage"),
+      mon: occ("mon", { parentId: "tplPage", identitySignature: "day-container" }),
+      tue: occ("tue", { parentId: "tplPage", identitySignature: "day-container" }),
+    };
+    const out = refusedDuplicateCreates(
+      [create(occ("sat", { parentId: "tplPage", identitySignature: "day-container" }))],
+      cache,
+    );
+    expect(out.size).toBe(0);
+  });
+
+  // BOTH sides must opt in: honouring the flag on one side only would let a
+  // shared marker refuse a declared-unique sibling and vice versa.
+  it("does not refuse when only ONE side is declared unique", () => {
+    const marker = { tplPage: occ("tplPage"), mon: occ("mon", { parentId: "tplPage", identitySignature: "day-container" }) };
+    expect(refusedDuplicateCreates([create(uniq("sat", { parentId: "tplPage", identitySignature: "day-container" }))], marker).size).toBe(0);
+
+    const declared = { tplPage: occ("tplPage"), mon: uniq("mon", { parentId: "tplPage", identitySignature: "day-container" }) };
+    expect(refusedDuplicateCreates([create(occ("sat", { parentId: "tplPage", identitySignature: "day-container" }))], declared).size).toBe(0);
   });
 
   it("is empty for an empty or malformed batch", () => {

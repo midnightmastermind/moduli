@@ -32,17 +32,35 @@ with the same signature, before anything is cached or upserted. **It enforces an
 invariant the grid already declares** — merge matches siblings on that key, and
 `gridIntegrity` calls two siblings sharing one an ERROR.
 
-**THREE NARROWINGS, EACH FROM A MEASUREMENT, because a wrong refusal is a
-silently dropped write:**
+**THREE NARROWINGS, because a wrong refusal is a silently dropped write:**
 ```
-a signature is required        an unsigned node has no declared identity
-the parent must EXIST          the ONLY (parent, signature) collisions on all six
-                               grids are groups whose parentId names nothing — so
-                               the guard refuses NOTHING that exists today
+uniqueness is OPT-IN           a signature is ALSO a shared MARKER — eight weekday
+(meta.signatureUnique)         templates share `day-container` under ONE REAL PAGE,
+                               and refusing a ninth is data loss. Only a node whose
+                               CALLER named the signature as its identity takes part,
+                               and BOTH sides must carry the flag.
+the parent must exist          a dangling ref is its own error with its own rule
 a refused root takes its       APPLY_TEMPLATE emits children as their own rows;
 SUBTREE with it                refusing only the root persists 7 orphans, trading a
                                visible duplicate for invisible debris
 ```
+
+**AND THE FIRST VERSION OF THAT NARROWING WAS FALSE, caught before it could
+refuse anything.** I claimed the eight `day-container` templates sat under a
+parent that does not exist, so "any signature under an existing parent" looked
+safe. **It came from a probe handed a TRUNCATED id** — `.slice(0, 10)` output
+from an earlier probe, pasted in as a lookup key — so *"the parent does not
+exist"* was true of a string that is not an id. The parent is a real page. Found
+by driving the guard over the WHOLE live grid: re-sending every occurrence as a
+create refused **394**, which must be 0.
+```
+                                  keyed on any signature   opt-in
+whole grid re-sent as creates              394                0
+a 2nd column for today                 REFUSED            REFUSED
+a 9th weekday template                 REFUSED  <- data loss   ALLOWED
+```
+*A measurement copied from another probe's TRUNCATED output is not a
+measurement.* The A/B fails exactly the two cases that describe it.
 
 **THE MIGRATION REFUSES TO CREATE THE STATE THE GUARD PREVENTS.** Two columns
 sharing a date would be stamped with the SAME signature — precisely the

@@ -64,7 +64,12 @@ export function findColumnCreateStep(steps, out = []) {
   return out;
 }
 
-export async function up({ gridId, apply = false, log = console.log } = {}) {
+// The runner passes `dryRun`, NOT `apply`. Taking the wrong name here is a
+// silent no-op that reads as success — the first version of this file did
+// exactly that: it printed "DRY RUN" while the runner printed "✅ applied" and
+// recorded it in the ledger, having written nothing.
+export async function up({ gridId, dryRun = true, log = console.log } = {}) {
+  const apply = !dryRun;
   const occs = await Occurrence.find({ gridId }).lean();
   const ops = await Operation.find({ gridId }).lean();
 
@@ -92,10 +97,21 @@ export async function up({ gridId, apply = false, log = console.log } = {}) {
     const date = c.fields?.[dateFieldId]?.value;
     if (!date) { skipped.push([c.id, "no date value"]); continue; }
     const want = signatureForDate(String(date));
-    if (c.identitySignature === want) continue;
+    // The signature alone is not enough: the server's guard is OPT-IN
+    // (`meta.signatureUnique`), because a signature is ALSO used as a shared
+    // marker — eight weekday templates share `day-container` under one real
+    // page, and refusing a ninth would be a legitimate write silently dropped.
+    // So a column already signed but not yet FLAGGED still needs the write.
+    if (c.identitySignature === want && c.meta?.signatureUnique) continue;
     // A signature that is already SOMETHING ELSE is somebody's deliberate
-    // marker. Overwriting it is exactly the damage `0035` did.
-    if (c.identitySignature) { skipped.push([c.id, `already signed "${c.identitySignature}"`]); continue; }
+    // marker. Overwriting it is exactly the damage `0035` did. But a column
+    // already carrying the signature we would write is OURS — it just predates
+    // the opt-in flag, so it needs the flag rather than a skip. Testing
+    // `!== want` instead of "has any signature" is the difference between
+    // finishing the job and stamping 1 of 33.
+    if (c.identitySignature && c.identitySignature !== want) {
+      skipped.push([c.id, `already signed "${c.identitySignature}"`]); continue;
+    }
     toStamp.push({ id: c.id, want, date });
   }
 
@@ -133,7 +149,11 @@ export async function up({ gridId, apply = false, log = console.log } = {}) {
     log("  patched `Day Page: Build`");
   }
   for (const s of toStamp) {
-    await Occurrence.updateOne({ id: s.id, gridId }, { $set: { identitySignature: s.want } });
+    // `signatureUnique` rides in META (Mixed) — an undeclared top-level key is
+    // stripped by Mongoose strict mode, which is how `Operation.priority` sat
+    // inert for months.
+    await Occurrence.updateOne({ id: s.id, gridId },
+      { $set: { identitySignature: s.want, "meta.signatureUnique": true } });
   }
   log(`  stamped ${toStamp.length} column(s)`);
 }
