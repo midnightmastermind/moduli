@@ -7733,3 +7733,23 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   border: 1px solid hsl(var(--border));
   border-radius: 4px;
 }
+
+/* ── OFF-SCREEN CONTAINERS ARE NOT LAID OUT ────────────────────────────────
+   Measured on prod at 820x1180: ONE style+layout pass over the document is
+   158.7ms, and 98 of the 105 containers are OFF SCREEN — 93% of the work is
+   for content nobody can see. That is the 206ms average long task the device
+   reports during a drag, and the reason only ~10% of the blocked time is our
+   own JavaScript.
+
+   GATED ON `data-cv-seeded`, which `helpers/containerSkip.js` writes from the
+   container's own observed height. A skipped subtree reserves whatever
+   `contain-intrinsic-size` says, so an unseeded one collapses the scroller —
+   measured at 18,313 -> 10,638 (-42%), which MOVES everything below it and
+   lands a drop in the wrong place. Seeded, nothing moves: 120 of 120 hit-test
+   points resolve to the same ELEMENT, scrollTop unchanged, and the pass falls
+   147.5ms -> 55ms (-63%).
+
+   No seed, no skipping — the safety is structural rather than remembered. */
+.container-shell[data-cv-seeded] {
+  content-visibility: auto;
+}

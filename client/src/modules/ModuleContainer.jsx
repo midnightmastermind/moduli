@@ -136,6 +136,7 @@ import { useRenderWindow } from "../helpers/renderWindow";
 import { usePanelRowsHidden } from "../helpers/offscreenRows";
 import { applyRowSeed } from "../helpers/rowSeed";
 import { afterPaint } from "../helpers/afterPaint";
+import { observeContainerSize } from "../helpers/containerSkip";
 
 // Minimum children before a list opts into the browser off-screen skip.
 // Below this the skip costs more than it saves (see .container-list--long).
@@ -1119,6 +1120,15 @@ function Container({
       color: "bg-teal-700 hover:bg-teal-600",
     }));
   }, [module, containerOccurrence, dispatch, socket]);
+
+  // ── RESERVE THIS CONTAINER'S SPACE SO IT CAN BE SKIPPED WHEN OFF SCREEN ──
+  // 98 of 105 containers are off screen at any moment and every one of them is
+  // laid out anyway — 158.7ms per style+layout pass on the device's viewport.
+  // The CSS only skips a container that carries `data-cv-seeded`, and only this
+  // writes it, so a container can never reserve a size nobody measured. See
+  // helpers/containerSkip.js for the numbers and for what the naive version
+  // broke.
+  useEffect(() => observeContainerSize(containerRef.current), []);
 
   // Deferred from above, now that every hook has run.
   if (representationView) return representationView;
