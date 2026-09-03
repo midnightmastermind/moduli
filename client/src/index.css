@@ -2623,6 +2623,16 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    the reason recorded there: during a load the main thread is busy, so a JS
    timer would sit frozen behind the very work the spinner exists to cover. */
 .container-awaiting {
+  /* IT LIVES INSIDE `.container-items`, WHICH IS NOT ALWAYS A COLUMN. A media
+     board is wrap mode — a wrapping flex ROW — so without a width this shrinks
+     to the spinner and sits hard against the left edge (user: "that media
+     loading icon isnt centered horizontally"). `width: 100%` + no shrink claims
+     a whole line in EITHER direction: in a column it is what stretch already
+     gave, in a row it wraps onto its own line and the centering below bites.
+     `flex-basis: auto` rather than 100% because basis is direction-dependent —
+     in a column it would be a HEIGHT and the box would fill the container. */
+  flex: 0 0 auto;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
