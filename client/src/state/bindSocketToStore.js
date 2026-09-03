@@ -276,6 +276,11 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // macrotask, because a rAF callback still runs before the paint (the trap
       // the textblock-mint work paid for).
       afterPaint(() => safeEmit(socket, "request_full_state_rest", { gridId: payload.gridId }));
+      // AND SWEEP THE CORE STATE NOW rather than waiting for the catalogue.
+      // `payload.occurrences` is replaced (not mutated) by the accumulation in
+      // `onFullStateRest`, and this call reads it synchronously, so pass 1
+      // snapshots the core rows even when a chunk lands before it runs.
+      runLoadSweep(payload, { pass: 1 });
       return;
     }
     runLoadSweep(payload);
@@ -338,7 +343,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       if (!pendingFullState) return;
       console.warn(`[full_state] deferred chunks never completed — dispatched ${held} held occurrence(s) and running the load sweep anyway`);
       const p = pendingFullState; pendingFullState = null;
-      runLoadSweep(p);
+      // Pass 2 even though the catalogue is incomplete: pass 1 has already run,
+      // so resetting the overlay here would drop everything it built.
+      runLoadSweep(p, { pass: 2 });
     }, REST_FALLBACK_MS);
   }
 
@@ -370,10 +377,39 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (restFallbackTimer) { clearTimeout(restFallbackTimer); restFallbackTimer = null; }
     const p = pendingFullState;
     pendingFullState = null;
-    if (p) runLoadSweep(p);
+    if (p) runLoadSweep(p, { pass: 2 });
   }
 
-  function runLoadSweep(payload) {
+  // ── THE SWEEP RUNS TWICE: ONCE ON THE CORE STATE, ONCE ON THE CATALOGUE ──
+  //
+  // `splitFullState` holds 16 MB of artifact rows back, and the sweep used to
+  // WAIT for them — its own header said why: "the 19 operations that walk
+  // `$allItems` over every row see exactly what they saw before." That wait is
+  // most of a 30-second load tail on the device: a drag begun 18s after load
+  // reads `fps=4`, 82% blocked, `opBy=[load:1x2861ms/236fx]` — the sweep still
+  // running. `ops:start` is 4.6s on the probe and ~15s on the tablet.
+  //
+  // THE QUESTION IS NOT AN OPINION ABOUT THOSE 19 OPS, and it was not settled
+  // by reading them: `sweepWithoutCatalogue.test.js` runs the live grid's own
+  // 71 pipelines both ways and diffs. Exactly 6 of 371 effects differ, all from
+  // ONE op — `Trackers: Media Owned`, the media counter tiles, which read 0
+  // without the catalogue. A static "which ops need it" rule was tried first
+  // and COLLAPSED: 54 of 67 ops reference a global collection, `Schedule: Build
+  // Schedule` among them, so deferring by that rule defers everything.
+  //
+  // So the sweep runs twice, and the same test proves the second pass is safe
+  // and cheap over the real fixture:
+  //     pass 1 (core)        375 effects · 103 creates · 203 real writes
+  //     pass 2 (catalogue)   245 effects ·   0 creates ·  49 real writes
+  // Zero creates is the guard that matters — this codebase has been damaged by
+  // a second pass that could not see the first's writes and re-created its day
+  // column on every load (2026-08-31 (2): +49 occurrences per load, unbounded).
+  //
+  // @param pass 1 = the core state, the moment it lands. 2 = the catalogue has
+  //        arrived. A grid with no deferred half runs a single pass, numbered 2
+  //        because it is the FINAL one — the flushes below key on that.
+  function runLoadSweep(payload, { pass = 2 } = {}) {
+    const isFinalPass = pass >= 2;
     // Fire onLoad/onNavigation operations after hydration (via microtask so state is updated first)
     const operations = payload.operations || [];
     const fieldsById = {};
@@ -382,7 +418,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     for (const o of operations) operationsById[o.id] = o;
     // Build occurrencesById from the payload array for the pipeline executor
     // Also repopulate localOccsById so subsequent fireOperations have fresh data
-    resetLocalOccs();
+    // PASS 2 MUST NOT RESET THE OVERLAY, and must not re-seed over it either.
+    // The overlay is where pass 1's creates and writes live; resetting drops
+    // them and pass 2 re-creates all 103, while re-seeding from the payload
+    // reverts every value pass 1 computed. Pass 2 therefore adds only the rows
+    // the overlay has never seen — which is exactly the catalogue.
+    if (pass === 1) resetLocalOccs();
     const occurrencesById = {};
     const modulesById = {};
     for (const m of payload.modules || []) { if (m?.id) modulesById[m.id] = m; }
@@ -391,7 +432,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       if (id) {
         const occ = { ...o, id };
         occurrencesById[id] = occ;
-        setLocalOcc(id, occ);
+        if (pass === 1 || !localOccsById[id]) setLocalOcc(id, occ);
       }
     }
     const hydratedState = { ...stateRef.current, ...payload, occurrencesById, operations, fields: payload.fields || [] };
@@ -436,7 +477,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // before mutating anything (operationExecutor.js:975), and the toast
       // lookups are reads.
       const overlay = mergedOccsOverlay(occurrencesById);
-      markLoad("ops:start", { ops: operations.length });
+      markLoad("ops:start", { ops: operations.length, pass });
 
       // ── THE SWEEP IS SLICED, BECAUSE A FINGER CANNOT INTERRUPT ONE TASK ───
       //
@@ -465,7 +506,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         { wrap: (fn) => runInAction(capturedScope, fn) },
       ).then((allUpdates) => runInAction(capturedScope, () => {
       const tOps1 = performance.now();
-      markLoad("ops:end", { ms: +(tOps1 - tOps0).toFixed(1) });
+      markLoad("ops:end", { ms: +(tOps1 - tOps0).toFixed(1), pass });
       const displayUpdates = allUpdates.filter(u => !u._effect);
       const effects = allUpdates.filter(u => u._effect);
       console.log(`[full_state-client] runMatchingOperations: ${Math.round(tOps1 - tOps0)}ms — ${operations.length} ops, ${effects.length} effects, ${displayUpdates.length} display updates`);
@@ -551,12 +592,17 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         if (effectErrors) {
           console.error(`[full_state-client] ${effectErrors} of ${effects.length} effect(s) threw`);
         }
-        markLoad("effects:end", { count: effects.length, ms: +(performance.now() - tOps1).toFixed(1) });
-        console.log(`[full_state-client] applied ${effects.length} effects in ${Math.round(performance.now() - tOps1)}ms across ${slices} slice(s)`);
+        markLoad("effects:end", { count: effects.length, ms: +(performance.now() - tOps1).toFixed(1), pass });
+        console.log(`[full_state-client] pass ${pass}: applied ${effects.length} effects in ${Math.round(performance.now() - tOps1)}ms across ${slices} slice(s)`);
         // These wait for the effects: the offline replay lands on top of the
         // sweep's writes, and feeds materialize once its creates have settled.
-        flushOfflineQueue(socket);
-        scheduleFeedSync(400);
+        // FINAL PASS ONLY — a feed sync run against the core state would
+        // materialize an artifact-backed feed as EMPTY and then have to sweep
+        // its own copies once the catalogue landed.
+        if (isFinalPass) {
+          flushOfflineQueue(socket);
+          scheduleFeedSync(400);
+        }
       });
       }));
     }), 50)));
