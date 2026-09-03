@@ -45,6 +45,45 @@ describe("RadialMenu — the caller names its own delete", () => {
     fireEvent.click(screen.getByTitle("Delete"));
     expect(hits).toBe(1);
   });
+
+  // ── A CUSTOM `items` LIST MUST NOT SWALLOW THE DELETE ────────────────────
+  //
+  // The custom branch used to return `items` verbatim, so a caller passing BOTH
+  // was silently given no delete. It bit exactly one surface — an instance
+  // builds a custom list ONLY when it is copy-linked, and a copy-linked row is
+  // most of a Schedule, so those rows had no delete in the radial menu at all
+  // (user, 2026-09-03: "can you put the delete icon back in to the radial menu
+  // for instances").
+  const custom = [{ icon: () => null, label: "Break Link", onClick: () => {} }];
+
+  it("renders the delete alongside a CUSTOM items list", () => {
+    open(<RadialMenu items={custom} onDelete={() => {}} deleteLabel="Delete" forceDirection="down" />);
+    expect(screen.getByTitle("Delete")).toBeTruthy();
+    expect(screen.getByTitle("Break Link")).toBeTruthy();   // the custom item survives
+  });
+
+  it("fires the handler from the CUSTOM branch too", () => {
+    let hits = 0;
+    open(<RadialMenu items={custom} onDelete={() => { hits += 1; }} deleteLabel="Delete" forceDirection="down" />);
+    fireEvent.click(screen.getByTitle("Delete"));
+    expect(hits).toBe(1);
+  });
+
+  // The four pill nodes pass `items` and NO onDelete — they must be untouched.
+  it("adds nothing when a custom list carries no onDelete", () => {
+    open(<RadialMenu items={custom} forceDirection="down" />);
+    expect(screen.queryByTitle("Delete")).toBeNull();
+    expect(screen.queryByTitle("Remove")).toBeNull();
+  });
+
+  it("keeps extraItems AFTER the delete, matching the default branch's order", () => {
+    const extra = [{ icon: () => null, label: "Convert", onClick: () => {} }];
+    const c = open(<RadialMenu items={custom} extraItems={extra} onDelete={() => {}} deleteLabel="Delete" forceDirection="down" />);
+    const titles = [...document.querySelectorAll("[title]")].map((e) => e.getAttribute("title"));
+    expect(titles.indexOf("Delete")).toBeLessThan(titles.indexOf("Convert"));
+    expect(titles.indexOf("Break Link")).toBeLessThan(titles.indexOf("Delete"));
+    expect(c).toBeTruthy();
+  });
 });
 
 // The row surfaces cannot be mounted — ModuleInstance needs the whole grid

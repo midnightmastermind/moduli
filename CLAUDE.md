@@ -6,6 +6,93 @@
 
 ---
 
+### 2026-09-03 (14) — THE DROP LANDED WHERE THE OUTLINE SAID IT WOULD NOT: 18 of every 104 pixels belonged to someone else
+
+User: *"can you put the delete icon back in to the radial menu for instances and
+also check the hover outline for drop and precision, i keep dropping stuff after
+a timeslot cause my finger is underneath the timeslot but the hover says its on
+it."*
+
+**THE OUTLINE WAS NOT MERELY LAGGING — 17% OF EVERY TIMESLOT RESOLVED TO THE DAY
+COLUMN**, measured on prod at the tablet's own viewport by sweeping y at 1px
+through the Schedule and asking, per pixel, what the drop's own walk answers:
+```
+                          stolen px   top   mid   bot     (of a 104px slot)
+1:30pm / 2:00pm / 2:30pm      18       4     5     9
+3:00pm (257px tall)           17       4     4     9
+```
+**Nine of them at the BOTTOM edge**, which is the user's sentence exactly. Three
+independent causes, none of them the indicator:
+
+- **THE GAP'S BUTTON IS 20px TALL INSIDE AN 8px GAP.** `.insert-gap` sits at
+  `z-index: 3` over both neighbours, so the button overflows 6px into the row
+  above and 6px below and WINS the hit-test there. **2026-07-24 trimmed the GAP
+  14px -> 8px for exactly this reason** — *"the fat band kept stealing
+  clicks/drag-starts meant for the rows around it"* — and left the button at 20.
+  The steal survived at two thirds the size for six weeks.
+- **THE RECESS RING WAS A DEAD ZONE.** `useDroppable` registers a container's
+  `.container-list` and `.container-header`; the SHELL around them registers
+  nothing. `.container-list { margin: 5px }` therefore put a 5px ring around
+  every container on the grid that the drop's walk-up escaped straight through
+  to the PARENT's list. **It is a transparent BORDER now, not a margin** — the
+  same box, but a border is hit-testable and a margin is not.
+- **AND THE OUTLINE ASKED A DIFFERENT QUESTION FROM THE DROP.** `handleDragMove`
+  resolved the hovered container as *"the first stacked element carrying
+  `data-container-id`"*; the drop resolves *"the first REGISTERED node on the
+  walk up"*. Two algorithms for one question, so they disagreed in exactly the
+  bands above: the slot's shell is still under the pointer carrying its id while
+  the walk has already left for the parent. They read the same registered
+  elements now, so they agree **by construction** rather than by being tuned to
+  the same geometry.
+
+**A/B'd LIVE ON PROD, both arms the same document in the same session** — the
+fix injected through CSSOM, the geometry re-measured either side:
+```
+                       stolen/slot   bottom band
+before (as shipped)        18            9
+after  (fix injected)       4            3
+slot rects                 BYTE-IDENTICAL          <- the control
+```
+The control is what makes it a hit-testing fix rather than a layout change: a
+transparent border occupies the margin's box exactly, so every slot's rect,
+every row and every gap is unmoved. A null arm — a rule that changes nothing —
+reads **0 differing pixels**, so the 0.16% that do differ (max delta 11/255, at
+glyph edges) are attributable rather than noise.
+
+**THE BUILT STYLESHEET CAUGHT A DEAD DECLARATION THE SOURCE READ CORRECTLY.**
+`background-clip: padding-box` was written ABOVE the `background` shorthand,
+which resets it to `border-box` — so the recess fill would have painted out
+under the transparent ring to the shell's edge. The minifier dropped the
+declaration entirely, which is the tell: **grep the BUILT stylesheet, the
+compiler will not tell you.** Same rule this file paid for twelve hours earlier
+from the other direction.
+
+**AND THE SECOND HIT-TEST WAS THE OBVIOUS COST AND IS NOT PAID.**
+`elementsFromPoint` measures 13-30ms on this device and already runs once per
+drag move; the box resolver reads THAT stack rather than calling it again.
+
+**THE REMAINING 4px IS THE GAP'S OWN DELIBERATE 2px OVERLAP** (`margin: -2px 0`,
+2026-07-24) plus the shell's 1px border, and the outline no longer lies about
+it: a sticky leaf box may now only survive **while the pointer is still inside
+that leaf's rect**. Outside it the box is dropped and the insertion LINE alone
+reports the honest position between the children — a full outline of the parent
+would flash a border across the whole column on every crossing, which is the
+flicker the sticky rule was written to prevent in the first place.
+
+**AND THE DELETE CAME BACK TO THE RADIAL MENU.** `RadialMenu` early-returned
+when a caller passed `items`, so `onDelete` was an INERT PROP — declared, set by
+the caller, read by nothing. It bit exactly one surface and it was the one the
+user hits: `ModuleInstance` builds a custom list ONLY when a row is copy-linked,
+and a copy-linked row is most of a Schedule. Every other `items` caller (the
+four pill nodes) passes no `onDelete`, so nothing else can move.
+
+Every A/B fails exactly its own cases: the old sticky rule fails 1 (with the
+boundary-pixel control still passing, so it cannot degrade into *"never keep a
+sticky leaf"*), the old outline resolution fails 2, restoring the verbatim
+`items` return fails 3. 3912 client tests, lint 0 errors, build clean.
+
+---
+
 ### 2026-09-03 (13) — THE DAY COLUMN HAD NO IDENTITY, so nothing could tell a rebuild from a duplicate
 
 (12) repaired the duplicates and left the cause named but unfixed: *"a pipeline

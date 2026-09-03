@@ -1123,7 +1123,10 @@ select:disabled { cursor: not-allowed; }
 }
 
 .container-list {
-  min-height: 50px !important;
+  /* 50px of content + the 10px the recess ring used to take as MARGIN — the
+     ring is inside the border box now (see below), so the outer height is
+     unchanged. */
+  min-height: 60px !important;
   /* Expand naturally — the PAGE (PageBoard) is the scroll container. The old
      height:100% + overflow-y:auto gave every board container a few px of its
      own scrollable overflow (keycap margins), which ate the touch gesture and
@@ -1136,9 +1139,31 @@ select:disabled { cursor: not-allowed; }
      container frame so the instance keycaps read as popped up out of a well.
      The black overlay darkens theme-agnostically (light + dark); the inset
      shadow is the recess; the margin lets the raised frame show around it. */
-  margin: 5px;
-  border-radius: 8px;
+  /* THE RING IS A TRANSPARENT BORDER, NOT A MARGIN — and that is a hit-testing
+     fix, not a style one. `.container-list` is the element `useDroppable`
+     registers; the shell around it registers nothing, so 5px of MARGIN put a
+     dead ring around every container that the drop walk-up escaped straight
+     through to the PARENT's list. On the Schedule that meant the outer 5px of
+     each timeslot — its bottom edge included — dropped into the day column
+     instead (measured on prod 2026-09-03: 6 of the bottom 9 stolen pixels).
+     A transparent border occupies the same box the margin did and IS
+     hit-testable, so the geometry is identical and the ring now belongs to the
+     container it draws around.
+       background-clip  keeps the recess fill inside the ring (a border-box
+                        clip would paint it out to the shell's edge)
+       border-radius    13 = the recess's own 8 + the 5px ring, so the INNER
+                        radius the fill and the inset shadows follow is 8 —
+                        byte-identical to what `border-radius: 8px` drew. */
+  margin: 0;
+  border: 5px solid transparent;
+  border-radius: 13px;
   background: rgba(0, 0, 0, 0.22);
+  /* AFTER the `background` shorthand, which resets background-clip to its
+     initial `border-box`. Written above it first: the source read correctly,
+     the minifier dropped the dead declaration, and the recess fill would have
+     painted out under the transparent ring to the shell's edge. The BUILT
+     stylesheet is what said so. */
+  background-clip: padding-box;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.03),
     inset 0 12px 24px -6px rgba(0, 0, 0, 0.5);
@@ -1167,6 +1192,7 @@ select:disabled { cursor: not-allowed; }
 .doc-editor-content .container-list,
 .artifact-markdown .container-list {
   margin: 0;
+  border-width: 0;          /* the recess ring goes with the recess */
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -2316,6 +2342,19 @@ div:hover > .folder-add-btn { opacity: 1 !important; }
    without pointer movement; :hover cannot. */
 .insert-gap--hot .insert-gap-line, .insert-gap--open .insert-gap-line { opacity: 1; }
 .insert-gap--hot .insert-gap-btn, .insert-gap--open .insert-gap-btn { opacity: 1; }
+/* THE BUTTON IS 20px TALL INSIDE AN 8px GAP, so it overflows 6px into the row
+   ABOVE and 6px BELOW — and it WINS the hit-test there, because `.insert-gap`
+   sits at z-index 3 over both neighbours. Measured on prod (2026-09-03, tablet
+   viewport, Schedule day column): the bottom 9px of every 104px timeslot
+   resolved to the DAY COLUMN, so a drop aimed at a slot landed AFTER it while
+   the hover outline still claimed the slot (user: "i keep dropping stuff after
+   a timeslot cause my finger is underneath the timeslot but the hover says its
+   on it"). 2026-07-24 trimmed the GAP 14px -> 8px for exactly this reason —
+   "the fat band kept stealing clicks/drag-starts meant for the rows around it"
+   — and left the button at 20px, so the steal survived at two thirds the size.
+   Gated on a DRAG rather than shrunk: `_findDropTarget` only runs during one,
+   and clicks only happen at rest, so the "+" keeps its full 20px tap target. */
+body[data-drag-kind] .insert-gap-btn { pointer-events: none; }
 /* The QuickAddMenu trigger inside a gap fills the strip (override its inline 20px
    width) so clicking anywhere on the blue line opens the add menu, with a pointer
    cursor across the whole thing — the "+" glyph stays centered. */
@@ -7149,6 +7188,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   max-height: 100%;
   overflow-y: auto !important;   /* the SCROLL lives here, not on the page */
   margin: 0;
+  border-width: 0;               /* the recess ring goes with the recess */
 }
 .artifact-spread-body .container-items {
   align-content: flex-start;     /* rows stack from the top, not stretched apart */

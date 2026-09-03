@@ -32,6 +32,7 @@ import { snapshotRenders, diffRenders, snapshotAttrs, diffAttrs } from "./render
 import { dragPerf } from "./dragPerf";
 import { computeAutoscroll, autoscrollSpeed, pointerNearRect, canScrollFurther, maxScrollTopFor } from "./autoscrollMath";
 import { attachDragTouchGuards, shouldGuardTouch } from "./dragTouchGuards";
+import { resolveDropBox, domDropBoxDeps, resolveHoverContainerEl } from "./dropBoxTarget";
 import { getActiveCell, setActiveCell as storeSetActiveCell } from "../state/activeCellStore";
 
 // ============================================================
@@ -126,7 +127,13 @@ function memberCardsCached(containerEl) {
 
 // Outline the hovered container (drop area) + draw the insertion line at the
 // computed gap. Returns { index } or null when there's no container.
-function showDropIndicators(containerEl, x, y) {
+//
+// `showBox` false = LINE ONLY. Used when the pointer sits between a parent's
+// child containers: outlining the parent would flash a border across the whole
+// column on every crossing, and outlining a child the pointer has left is the
+// lie this indicator existed to prevent (see helpers/dropBoxTarget.js). The
+// line between two children says exactly where the item lands.
+function showDropIndicators(containerEl, x, y, showBox = true) {
   if (!containerEl) { hideDropIndicators(); return null; }
   const area = _getEl("__moduli_drop_area", _AREA_CSS);
   const line = _getEl("__moduli_insert_line", _LINE_CSS);
@@ -134,11 +141,11 @@ function showDropIndicators(containerEl, x, y) {
   // Drop-area border around the hovered container (box-sizing:border-box so the
   // 2px border draws inside the rect — visually flush with the container edge).
   const cr = containerEl.getBoundingClientRect();
-  Object.assign(area.style, {
+  Object.assign(area.style, showBox ? {
     display: "block",
     left: `${cr.left}px`, top: `${cr.top}px`,
     width: `${cr.width}px`, height: `${cr.height}px`,
-  });
+  } : { display: "none" });
 
   // Direct member cards of THIS container (leaf rows AND nested container
   // shells — see dragHitTesting.collectMemberCards), cached for 150ms while
@@ -410,6 +417,10 @@ export function DragProvider({
   // data-occurrence-id on instances) so callers can target the SPECIFIC node
   // under the cursor instead of `Object.values(...).find(o => o.moduleId === ...)`
   // which silently picks the wrong day.
+  // Returns the elementsFromPoint STACK alongside the ids. `elementsFromPoint`
+  // was measured at 13-30ms on the user's tablet (2026-09-01 (2)) and this runs
+  // every drag move — the drop-box resolver needs the same stack, so it reads
+  // this one rather than paying for a second hit-test per frame.
   const getHoveredIds = useCallback((x, y) => {
     const elements = document.elementsFromPoint(x, y);
     let panelId = null, containerId = null, containerOccId = null, containerEl = null, instanceId = null, instanceOccId = null;
@@ -432,7 +443,7 @@ export function DragProvider({
       }
       if (panelId && containerId && instanceId) break;
     }
-    return { panelId, containerId, containerOccId, containerEl, instanceId, instanceOccId };
+    return { panelId, containerId, containerOccId, containerEl, instanceId, instanceOccId, elements };
   }, []);
 
   // Keep individual getters for one-off callers (e.g. handleDrop fallbacks)
@@ -697,7 +708,7 @@ export function DragProvider({
       }
       const _frameT0 = performance.now();
 
-      const { panelId, containerId: rawContainerId, containerOccId: rawContainerOccId, containerEl: rawContainerEl, instanceId, instanceOccId } = getHoveredIds(clientX, clientY);
+      const { panelId, containerId: rawContainerId, containerOccId: rawContainerOccId, containerEl: rawContainerEl, instanceId, instanceOccId, elements: hoverStack } = getHoveredIds(clientX, clientY);
       const cell = getCellFromPoint(clientX, clientY);
 
       // Internal drag preview pill — positioned off Pragmatic's onDrag (this
@@ -722,16 +733,23 @@ export function DragProvider({
       if (isLeafDrag) {
         // Only box a LEAF drop container (no nested container inside it). A
         // parent like the Schedule's outer container shouldn't get the box —
-        // that was the flicker as the cursor crossed timeslot gaps. When over a
-        // parent, keep the last leaf box (sticky) so it never jumps to the big
-        // outer border.
-        let boxEl = rawContainerEl;
-        if (boxEl && boxEl.querySelector("[data-container-id]")) {
-          const lastEl = dropBoxElRef.current;
-          boxEl = (lastEl && lastEl.isConnected && boxEl.contains(lastEl)) ? lastEl : null;
-        }
-        if (boxEl) { showDropIndicators(boxEl, clientX, clientY); dropBoxElRef.current = boxEl; }
-        else { hideDropIndicators(); dropBoxElRef.current = null; }
+        // that was the flicker as the cursor crossed timeslot gaps. The last
+        // leaf box is kept (sticky) so it never jumps to the big outer border —
+        // but ONLY while the pointer is still inside that leaf, or the outline
+        // claims a container the drop will not use (helpers/dropBoxTarget.js).
+        // Resolve the hovered container the way the DROP resolves it (from the
+        // registered `.container-list` / `.container-header`, not from the
+        // topmost `data-container-id`) so the outline and the landing place
+        // cannot disagree — see helpers/dropBoxTarget.js.
+        const hoverEl = resolveHoverContainerEl(clientX, clientY, () => hoverStack) || rawContainerEl;
+        const boxPick = resolveDropBox(hoverEl, dropBoxElRef.current, clientX, clientY, domDropBoxDeps);
+        if (boxPick.el) {
+          showDropIndicators(boxPick.el, clientX, clientY, boxPick.box);
+          // Only a LEAF is remembered as the sticky candidate — remembering the
+          // parent would let `contains(parent, parent)` (Node.contains is true
+          // for self) hand the big outline straight back on the next frame.
+          if (boxPick.leaf) dropBoxElRef.current = boxPick.el;
+        } else { hideDropIndicators(); dropBoxElRef.current = null; }
         setDropHighlight(null); // idempotent — clears any leftover outline
       } else if (t === DragType.PAGE) {
         hideDropIndicators();

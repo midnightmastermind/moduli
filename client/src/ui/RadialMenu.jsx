@@ -287,7 +287,21 @@ export default function RadialMenu({
     () => {
       // If custom items provided, use those with calculated angles
       if (items && items.length > 0) {
-        const allItems = extraItems?.length ? [...items, ...extraItems] : items;
+        // ── A CUSTOM `items` LIST STILL HONOURS `onDelete` ─────────────────
+        //
+        // This branch used to return `items` verbatim, so a caller passing BOTH
+        // a custom list and `onDelete` silently got no delete — the inert-prop
+        // class: the prop is declared, the caller sets it, and nothing reads it.
+        // It bit exactly one surface and it was the one the user hit: an
+        // instance builds a custom list ONLY when it is copy-linked (Settings /
+        // drag mode / Break Link / toggle label), and a copy-linked row is most
+        // of a Schedule — so those rows had no way to delete from the radial
+        // menu at all. Placed before `extraItems`, matching the default branch's
+        // own order.
+        const deleteItem = onDelete
+          ? [{ icon: Trash2, label: deleteLabel, onClick: onDelete, color: "bg-red-700 hover:bg-red-600" }]
+          : [];
+        const allItems = [...items, ...deleteItem, ...(extraItems || [])];
         const angles = getAnglesForDirection(openDirection, allItems.length);
         return allItems.map((item, i) => ({
           ...item,
