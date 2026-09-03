@@ -16,6 +16,7 @@ import InstanceForm from "../ui/InstanceForm";
 import FieldRenderer from "../ui/FieldRenderer";
 import { resolveOccurrenceFields } from "../helpers/autoAppliedFields";
 import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
+import { isPartial, requestHydration } from "../helpers/occurrenceHydration";
 import RadialMenu from "../ui/RadialMenu";
 import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
@@ -227,6 +228,21 @@ function InstanceInner({
   const ctxStateLite = useMemo(() => ({ grid: ctxGrid }), [ctxGrid]);
 
   // DIAG (window.__RENDER_ATTR): which input changed → this render.
+  // ── A PROJECTED ROW ASKS FOR THE REST OF ITSELF ─────────────────────────
+  //
+  // The catalogue arrives carrying only what the grid's declarations reference
+  // — enough for the sweep and the dropdowns, not enough to DRAW this row. The
+  // queue batches every row mounting in this commit into one request, and
+  // `renderWindow` virtualises above 120 rows, so opening a 5,484-row board
+  // asks for a screenful rather than for all of it.
+  //
+  // Keyed on the id AND the flag, so the effect re-runs when hydration lands
+  // (clearing it) and not on every unrelated render.
+  const _occPartial = isPartial(occurrence);
+  useEffect(() => {
+    if (_occPartial && occurrence?.id) requestHydration(occurrence.id);
+  }, [_occPartial, occurrence?.id]);
+
   useRenderAttribution("instance", {
     p_id: id, p_label: label, p_instance: instance, p_occurrence: occurrence,
     p_panel: panel, p_container: container, p_containerOccurrence: containerOccurrence,

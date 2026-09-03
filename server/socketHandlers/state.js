@@ -5,6 +5,7 @@ import Grid from "../models/Grid.js";
 import { filterFieldIdsOf } from "../utils/filterFields.js";
 import { splitFullState } from "../utils/splitFullState.js";
 import { omitNullKeysAll } from "../utils/omitNullKeys.js";
+import { makeReferenceTest, projectDeferredRows } from "../utils/deferredProjection.js";
 
 // How long to wait for the client's post-paint request before pushing the
 // deferred half anyway. Generous: it is a safety net, not a schedule.
@@ -25,7 +26,7 @@ function emitDeferred({ socket, gridId, deferred, deferredModules }) {
       // Absent keys are not sent — 23% of the catalogue is keys that are null
       // on every row. See utils/omitNullKeys.js for the measurement and for why
       // `[]` and `{}` are deliberately kept.
-      occurrences: omitNullKeysAll(deferred.slice(i * CHUNK, (i + 1) * CHUNK)),
+      occurrences: omitNullKeysAll(deferred.slice(i * CHUNK, (i + 1) * CHUNK)),   // already projected
       modules: i === 0 ? omitNullKeysAll(deferredModules) : [],
       chunk: i + 1, chunks, done: i === chunks - 1,
     });
@@ -149,6 +150,25 @@ export function registerStateHandlers(socket, {
       const { core, deferred, coreModules, deferredModules } =
         splitFullState(allGridOccs, gridModules);
 
+      // ── THE DEFERRED HALF SHIPS PROJECTED ───────────────────────────────
+      //
+      // The device's load line put nothing between `contentReady=2422ms` and
+      // the first chunk at `rest=7571ms` except receiving, inflating and
+      // parsing the frame (`restWrite=0ms` — the store write is free). So the
+      // cost is the bytes, and these rows carry `fields` and `meta` nothing
+      // reads until something renders them.
+      //
+      // The keep-set is DERIVED from this grid's own declarations — operation
+      // pipelines, `optionsSource` predicates, the grid's filters — never
+      // written down, so it names no role, kind or field. The rest of a row
+      // arrives via `request_occurrence_details` when a renderer asks.
+      const isReferenced = makeReferenceTest({
+        operations: Object.values(uc.operationsById),
+        fields: Object.values(uc.fieldsById),
+        grid: gridDoc,
+      });
+      const deferredProjected = projectDeferredRows(deferred, isReferenced);
+
       socket.emit("full_state", {
         gridId,
         userEmail: socket.data.userEmail,
@@ -177,7 +197,7 @@ export function registerStateHandlers(socket, {
         // FAIL OPEN: if no request arrives (an older tab, a client that never
         // paints) they are pushed anyway. A grid missing its catalogue forever
         // is far worse than one that loads it a beat early.
-        const send = () => emitDeferred({ socket, gridId, deferred, deferredModules });
+        const send = () => emitDeferred({ socket, gridId, deferred: deferredProjected, deferredModules });
         let sent = false;
         const once = () => { if (sent) return; sent = true; clearTimeout(safety); socket.off("request_full_state_rest", onAsk); send(); };
         const onAsk = (p = {}) => { if (!p.gridId || p.gridId === gridId) once(); };
@@ -189,6 +209,51 @@ export function registerStateHandlers(socket, {
     } catch (err) {
       console.error("request_full_state error:", err);
       socket.emit("server_error", "Failed to load state");
+    }
+  });
+
+  // ── THE REST OF A PROJECTED ROW, WHEN A RENDERER ASKS ────────────────────
+  //
+  // The deferred catalogue ships projected (utils/deferredProjection.js): every
+  // row carries what the grid's declarations reference and nothing else. That
+  // serves the load sweep and every dropdown; it does not serve DRAWING a row,
+  // which needs its cover, its URL, its artist. The client asks for those when
+  // something actually renders, batched (helpers/occurrenceHydration.js).
+  //
+  // SERVED FROM THE WARM CACHE, never from Mongo: these rows were in memory
+  // moments ago to be projected, and a per-render database read on a grid this
+  // size is exactly the cold-read cost the prewarm exists to avoid.
+  //
+  // BOUNDED, because the id list arrives from a client: a board open asks for
+  // about a screenful (renderWindow virtualises above 120 rows), so a cap well
+  // clear of that costs nothing legitimate and stops one frame asking for all
+  // 15,708.
+  socket.on("request_occurrence_details", async ({ gridId, ids } = {}) => {
+    try {
+      if (!Array.isArray(ids) || !ids.length) return;
+      // The same accessor the load path uses. `getUserCache` does not exist —
+      // reading what `registerStateHandlers` destructures is what caught it,
+      // which is the `watchRegion is not defined` class this repo has shipped
+      // twice: a build resolves imports, not undefined locals.
+      const gid = gridId || socket.data?.activeGridId;
+      if (!gid || !userCacheReady(socket.userId, gid)) return;   // never a cold read on a render
+      const uc = ensureUserCache(socket.userId, gid);
+      if (!uc) return;
+      const wanted = ids.slice(0, 500);
+      const out = [];
+      for (const id of wanted) {
+        const occ = uc.occurrencesById?.[id];
+        // A row from another grid must never cross over on a shared cache.
+        if (!occ || (occ.gridId && String(occ.gridId) !== String(gid))) continue;
+        out.push(occ);
+      }
+      // ALWAYS REPLY, even with nothing: the client releases these ids on the
+      // response, and a silent drop would leave them pending forever — every
+      // later render seeing a partial row it can never ask about again.
+      socket.emit("occurrence_details", { gridId: gid, ids: wanted, occurrences: omitNullKeysAll(out) });
+    } catch (err) {
+      console.error("request_occurrence_details error:", err);
+      socket.emit("occurrence_details", { gridId, ids: Array.isArray(ids) ? ids.slice(0, 500) : [], occurrences: [] });
     }
   });
 }
