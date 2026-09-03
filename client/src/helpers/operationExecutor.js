@@ -24,7 +24,7 @@ import { analyzeAllOperations } from "./operationIntrospection";
 import { applyDisplayRules } from "./displayRules";
 import { bumpOpRun } from "./renderProbe";
 import { noteOpSweep } from "./opActivity";
-import { yieldToBrowser } from "./sliceWork";
+import { defaultYield, interactiveSlice, userIsInteracting } from "./sliceWork";
 
 // ============================================================
 // RUN LOG — per-operation run history for the editor's log panel
@@ -1202,14 +1202,19 @@ function* _runMatchingOperationsGen(operations, transactionType, transaction, co
 export async function runMatchingOperationsSliced(
   operations, transactionType, transaction, context,
   { onError, onSuccess } = {},
-  { budgetMs = 32, wrap, yieldFn = yieldToBrowser } = {},
+  { budgetMs = 32, wrap, yieldFn = defaultYield, interacting = userIsInteracting } = {},
 ) {
   const it = _runMatchingOperationsGen(operations, transactionType, transaction, context, { onError, onSuccess });
   const step = wrap ? () => wrap(() => it.next()) : () => it.next();
   let workMs = 0, _fx = 0, slices = 0;
+  const backoff = { since: 0 };
   try {
     for (;;) {
       const sliceStart = performance.now();
+      // While a finger is down, take a smaller bite and leave a gap. Three
+      // seconds of sweep in 50ms pieces still costs three seconds of frames —
+      // measured on the device at `fps=4` with `load:1x3015ms` mid-drag.
+      const pol = interactiveSlice(backoff, { budgetMs, interacting: interacting(), now: sliceStart });
       slices++;
       let r;
       // do/while: one op minimum per slice. An op slower than the whole budget
@@ -1218,10 +1223,10 @@ export async function runMatchingOperationsSliced(
       do {
         r = step();
         if (r.done) break;
-      } while (performance.now() - sliceStart < budgetMs);
+      } while (performance.now() - sliceStart < pol.budgetMs);
       workMs += performance.now() - sliceStart;
       if (r.done) { _fx = Array.isArray(r.value) ? r.value.length : 0; return r.value; }
-      await yieldFn();
+      await yieldFn(pol.gapMs);
     }
   } finally {
     bumpOpRun(workMs, transactionType || "load", _fx);

@@ -2146,8 +2146,22 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     requestAnimationFrame(() => { requestAnimationFrame(step); });
   }
 
-  operationsBridge.beginInteraction = () => _interactionHold.begin();
-  operationsBridge.endInteraction = () => drainFires(_interactionHold.end(), { label: "drag-hold" });
+  // ── ONE OWNER FOR "A FINGER IS DOWN" ─────────────────────────────────────
+  // `__moduli_interacting` was set by DragProvider's `handleDragStart`, which
+  // for touch runs at ACTIVATION — after the lift timer, after the startup
+  // work. The hold opens at touchstart, and the sliced loops back off on the
+  // same signal, so the flag has to mean "the finger is down" rather than "the
+  // drag is running". Set here so every caller of the bridge gets it, rather
+  // than at each gesture site (DragProvider still writes it too; they agree,
+  // and its write is the net if this bridge is ever unbound).
+  const setInteracting = (on) => {
+    if (typeof window !== "undefined") window.__moduli_interacting = on;
+  };
+  operationsBridge.beginInteraction = () => { setInteracting(true); _interactionHold.begin(); };
+  operationsBridge.endInteraction = () => {
+    setInteracting(false);
+    drainFires(_interactionHold.end(), { label: "drag-hold" });
+  };
 
   operationsBridge.beginDropBatch = () => {
     // A drop happens with the finger still down, so the hold is open. Hand its

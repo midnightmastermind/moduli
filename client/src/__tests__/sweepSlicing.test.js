@@ -149,3 +149,69 @@ describe("the slicing itself", () => {
     expect(out.length).toBeGreaterThan(0);
   });
 });
+
+// ── AND IT BACKS OFF WHILE A FINGER IS DOWN ────────────────────────────────
+//
+// Slicing made the sweep interruptible; it did not make it smaller. The user's
+// capture, a drag begun 12 seconds after a page load:
+//
+//     opBy=[load:1x3015ms/236fx …]  opSweeps=4 opMs=3929
+//     longTasks=111(19231ms)  <- 84% of a 22.9-second drag,  fps=4
+//
+// No single block reached the drag any more, and it was still three seconds of
+// thread taken from it. The hold cannot help — it defers fires that have not
+// STARTED, and this one is already running.
+import { interactiveSlice, INTERACTIVE_BUDGET_MS, INTERACTIVE_GAP_MS, INTERACTIVE_MAX_MS } from "../helpers/sliceWork";
+
+describe("the interaction back-off", () => {
+  it("takes the full budget and no gap when nobody is touching", () => {
+    const st = { since: 0 };
+    expect(interactiveSlice(st, { budgetMs: 32, interacting: false, now: 1000 }))
+      .toEqual({ budgetMs: 32, gapMs: 0 });
+  });
+
+  it("takes a SMALLER bite and leaves a gap while a finger is down", () => {
+    const st = { since: 0 };
+    expect(interactiveSlice(st, { budgetMs: 32, interacting: true, now: 1000 }))
+      .toEqual({ budgetMs: INTERACTIVE_BUDGET_MS, gapMs: INTERACTIVE_GAP_MS });
+    // ~a quarter of a frame, so the grid still builds — a drop needs the slot
+    // it is dropping into to exist.
+    expect(INTERACTIVE_BUDGET_MS).toBeLessThan(INTERACTIVE_BUDGET_MS + INTERACTIVE_GAP_MS);
+  });
+
+  it("EXPIRES, so a stuck flag cannot stall the grid for ever", () => {
+    // Same promise as `stagedMount`'s HARD_RELEASE_MS and the drag hold's cap:
+    // a gesture nobody ended is indistinguishable from a very long one, and
+    // only one of them may stop the grid settling.
+    const st = { since: 0 };
+    interactiveSlice(st, { budgetMs: 32, interacting: true, now: 1000 });
+    expect(interactiveSlice(st, { budgetMs: 32, interacting: true, now: 1000 + INTERACTIVE_MAX_MS }))
+      .toEqual({ budgetMs: 32, gapMs: 0 });
+  });
+
+  it("re-arms once the finger lifts — the control for the expiry", () => {
+    // Without this, "it expires" could be satisfied by a policy that backs off
+    // exactly once and never again.
+    const st = { since: 0 };
+    interactiveSlice(st, { budgetMs: 32, interacting: true, now: 1000 });
+    interactiveSlice(st, { budgetMs: 32, interacting: true, now: 1000 + INTERACTIVE_MAX_MS });
+    interactiveSlice(st, { budgetMs: 32, interacting: false, now: 30000 });      // lifted
+    expect(interactiveSlice(st, { budgetMs: 32, interacting: true, now: 30001 }))
+      .toEqual({ budgetMs: INTERACTIVE_BUDGET_MS, gapMs: INTERACTIVE_GAP_MS });
+  });
+
+  it("the SWEEP honours it — smaller slices while interacting", async () => {
+    // Driving the real fixture: the same sweep must take more slices when a
+    // finger is down, because each one takes a smaller bite.
+    let idle = 0, busy = 0; const gaps = [];
+    await runMatchingOperationsSliced(operations, null, null, buildCtx(), {},
+      { budgetMs: 32, interacting: () => false, yieldFn: async (g) => { idle++; gaps.push(g); } });
+    await runMatchingOperationsSliced(operations, null, null, buildCtx(), {},
+      { budgetMs: 32, interacting: () => true, yieldFn: async (g) => { busy++; gaps.push(g); } });
+    expect(busy).toBeGreaterThan(idle);
+    // and it really is LEAVING a gap, not just slicing finer — the whole point
+    // is the frame the drag gets back, not the number of slices.
+    expect(gaps.some(g => g === INTERACTIVE_GAP_MS)).toBe(true);
+    expect(gaps.filter(g => !g).length).toBeGreaterThan(0);   // the idle run took none
+  });
+});
