@@ -6,6 +6,96 @@
 
 ---
 
+### 2026-09-03 (3) — 93% OF EVERY LAYOUT IS FOR CONTAINERS NOBODY CAN SEE; and my back-off was a REGRESSION
+
+User: *"it starts alot better in the beginning but slows down during that long
+drag"*, then after the fix *"slows down to a crawl and never speeds back up"*.
+
+**THE BACK-OFF IS REVERTED. It made the SETTLED drag four times worse**, and it
+was supposed to touch only the load window — where there is a sweep to slow
+down — not a drag with nothing running. Same device, same afternoon:
+```
+                      BEFORE the back-off        AFTER
+sinceLoad             66677 / 69235          49997 / 72448
+op sweeps             0 / 1 (0-37ms)         3 / 2 (419 / 1491ms)
+fps                   13 / 13                3 / 3
+moves                 247 / 221              44 / 34
+long tasks        69(4366ms) 29%     47(9499ms) 75% · 51(9434ms) 85%
+```
+**44 touch moves in 12.6 seconds is a starved thread.** I had no mechanism for
+it, and stacking a fourth hypothesis on a measured regression is how this gets
+worse. Reverted to the last state the device called good. *Its 15-second expiry
+was ALSO wrong on its own terms — measured drags run 16-38s, so the fail-safe
+fired mid-gesture, which is the drag hold's cap defect for the second time in
+one day: **a fail-safe scoped by a timer nobody measured against a real gesture
+will fire during one.***
+
+**AND THE REVERT DID NOT RESTORE IT — `fps=3`, 76% blocked, at 48s after load
+with `opMs=147`.** So the back-off was not the cause either, and the confound I
+had flagged is the live one: the grid GREW during testing (`dom=22590 ->
+24218`), because the drags being tested are `mode=copy` and each drop creates
+rows.
+
+**THE IDLE GRID IS COMPLETELY CLEAN, which retires the loop hypothesis the
+amber pill suggested.** 40 seconds of an untouched tab, watching the socket
+directly rather than any op accounting:
+```
+writes   0        renders   0        op sweeps   1 (ScheduleOp, 14ms)
+```
+So nothing is running on its own; the pill flickers *because of* the drag.
+
+**AND ONLY ~10% OF THE BLOCKED TIME IS OUR JAVASCRIPT.** From the same capture:
+`onMove 38x6.6 = 251ms` + `raf 37x13.5 = 500ms` + `ops 147ms` ≈ **900ms of
+9,055ms**. Thirty-seven rAF frames in twelve seconds is the browser producing
+three frames a second — it is rendering, not us.
+
+**MEASURED ON PROD AT THE TABLET'S OWN VIEWPORT — one style+layout pass, median
+of 21, whole document invalidated each time:**
+```
+document: 24,218 elements · 105 containers (98 OFF SCREEN) · 215 rows
+
+baseline          158.7ms    0%
+null_arm          154.7ms   -3%     <- an arm that changes nothing behaves
+contain_rows      148.4ms   -6%     <- `contain: layout style` is NOT the lever
+cv_rows            74.7ms  -53%
+none_offscreen     45.4ms  -71%     <- display:none on the 98
+cv_containers      12.8ms  -92%     <- content-visibility on .container-shell
+```
+**158.7ms per pass, and 98 of 105 containers are off screen** — 93% of the work
+is for content nobody can see. That single number explains the 206ms average
+long task on the device, and it is the same root every "it is the browser
+painting a 21k-node document" note in this file has pointed at, now with a
+figure and a lever against it.
+
+**THE LEVER IS WORTH 92% AND IS NOT SHIPPED, because the safety check failed —
+which is the whole reason to run one before believing a win this large.**
+```
+hit-test points resolving to the SAME drop target   35 of 48
+  the 13 that moved:  instance-wrap -> container-shell,  insert-gap -> container-shell
+scrollHeight                                        18,313 -> 10,638  (-42%)
+```
+A skipped subtree is **not hit-testable**, so a row inside one resolves to its
+CONTAINER — every one of those 13 points is a drop that would land in the wrong
+place, silently, on live data. And `contain-intrinsic-size` guessed wrong
+collapses the scroller by 42%, which is the 2026-08-31 (4) seed trap confirmed
+for CONTAINERS rather than rows.
+
+**MY FIRST SAFETY RUN WAS ALSO WRONG, in the flattering direction for a
+retraction:** it read 19/48 and a 5x scroll collapse, because it measured in the
+same frame the rule landed — `contain-intrinsic-size: auto` remembers the size
+an element had when last RENDERED, so measuring immediately measures the SEED.
+Settled, it is 35/48. Still broken, and for a smaller reason than the first run
+claimed.
+
+**WHAT WOULD WORK IS ALREADY IN THIS CODEBASE and is its own pass:**
+`.container-list--long` derives `contain-intrinsic-size` from its own rows
+(median of up to 8) precisely because a picked constant is wrong in both
+directions. Extending that to containers — a measured per-container intrinsic
+size — is what makes the 92% reachable. The hit-test half needs its own answer:
+un-skipping ahead of the pointer, or excluding the panel the drag is over.
+
+---
+
 ### 2026-09-03 (2) — THE LOAD SWEEP IS SLICED, and the biggest task on a load was never it
 
 The last thing the drag hold cannot reach. The hold defers fires that have not
