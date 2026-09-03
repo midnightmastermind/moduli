@@ -161,7 +161,7 @@ describe("the slicing itself", () => {
 // No single block reached the drag any more, and it was still three seconds of
 // thread taken from it. The hold cannot help — it defers fires that have not
 // STARTED, and this one is already running.
-import { interactiveSlice, INTERACTIVE_BUDGET_MS, INTERACTIVE_GAP_MS, INTERACTIVE_MAX_MS } from "../helpers/sliceWork";
+import { interactiveSlice, drainGapMs, INTERACTIVE_BUDGET_MS, INTERACTIVE_GAP_MS } from "../helpers/sliceWork";
 
 describe("the interaction back-off", () => {
   it("takes the full budget and no gap when nobody is touching", () => {
@@ -179,25 +179,36 @@ describe("the interaction back-off", () => {
     expect(INTERACTIVE_BUDGET_MS).toBeLessThan(INTERACTIVE_BUDGET_MS + INTERACTIVE_GAP_MS);
   });
 
-  it("EXPIRES, so a stuck flag cannot stall the grid for ever", () => {
-    // Same promise as `stagedMount`'s HARD_RELEASE_MS and the drag hold's cap:
-    // a gesture nobody ended is indistinguishable from a very long one, and
-    // only one of them may stop the grid settling.
-    const st = { since: 0 };
-    interactiveSlice(st, { budgetMs: 32, interacting: true, now: 1000 });
-    expect(interactiveSlice(st, { budgetMs: 32, interacting: true, now: 1000 + INTERACTIVE_MAX_MS }))
-      .toEqual({ budgetMs: 32, gapMs: 0 });
+  it("LASTS AS LONG AS THE GESTURE, however long that is", () => {
+    // The defect this replaced: the policy expired after 15 SECONDS on the
+    // "must not hide work for ever" principle, and measured drags run 16 to 38
+    // — so it gave up in the middle of every long one. User: "it starts alot
+    // better in the beginning but slows down during that long drag".
+    //
+    // That is the drag hold's cap defect a second time, in a fail-safe written
+    // the same day. A fail-safe scoped by a timer nobody measured against a
+    // real gesture will fire during one.
+    const st = {};
+    for (const now of [0, 15000, 40000, 120000]) {
+      expect(interactiveSlice(st, { budgetMs: 32, interacting: true, now }))
+        .toEqual({ budgetMs: INTERACTIVE_BUDGET_MS, gapMs: INTERACTIVE_GAP_MS });
+    }
   });
 
-  it("re-arms once the finger lifts — the control for the expiry", () => {
-    // Without this, "it expires" could be satisfied by a policy that backs off
-    // exactly once and never again.
-    const st = { since: 0 };
-    interactiveSlice(st, { budgetMs: 32, interacting: true, now: 1000 });
-    interactiveSlice(st, { budgetMs: 32, interacting: true, now: 1000 + INTERACTIVE_MAX_MS });
-    interactiveSlice(st, { budgetMs: 32, interacting: false, now: 30000 });      // lifted
-    expect(interactiveSlice(st, { budgetMs: 32, interacting: true, now: 30001 }))
-      .toEqual({ budgetMs: INTERACTIVE_BUDGET_MS, gapMs: INTERACTIVE_GAP_MS });
+  it("has NO clock of its own — one owner decides when a finger is down", () => {
+    // Two fail-safes for one risk is how they drift. The gesture-that-never-
+    // ended case belongs to the bridge that owns the flag.
+    const st = {};
+    expect(interactiveSlice(st, { budgetMs: 32, interacting: false, now: 999999 }))
+      .toEqual({ budgetMs: 32, gapMs: 0 });
+    expect(st).toEqual({});          // it keeps no state at all
+  });
+
+  it("the DRAIN spaces itself out too — same policy, different loop", () => {
+    // The held-fire drain is one fire per macrotask, which is still one fire
+    // per frame, and it is what lights the amber pill mid-drag.
+    expect(drainGapMs(true)).toBe(INTERACTIVE_GAP_MS);
+    expect(drainGapMs(false)).toBe(0);
   });
 
   it("the SWEEP honours it — smaller slices while interacting", async () => {

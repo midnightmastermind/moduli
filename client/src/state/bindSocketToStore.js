@@ -29,7 +29,7 @@ import {
 } from "../helpers/CommitHelpers";
 import { flushOfflineQueue, safeEmit } from "../helpers/offlineQueue";
 import { beginAction, endAction, setActionCloseHook, captureAction, retainAction, releaseAction, runInAction, runDerived } from "../helpers/actionScope";
-import { runSliced } from "../helpers/sliceWork";
+import { runSliced, drainGapMs } from "../helpers/sliceWork";
 import { makeInteractionHold } from "../helpers/interactionHold";
 import { makeOccOverlay } from "../helpers/occOverlay";
 import { requestForceSync, commitForceSync } from "../helpers/editorSyncSignal";
@@ -2139,7 +2139,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       } finally {
         _navCascadeFiredOps = prev;
       }
-      setTimeout(step, 0);
+      // Space the drain out while a finger is down, for the same reason the
+      // sliced loops take a smaller bite: this drain is what lights the amber
+      // pill mid-drag, and one fire per macrotask is still one fire per frame.
+      setTimeout(step, drainGapMs());
     };
     // DOUBLE rAF: one runs BEFORE the next paint, so the cascade would execute
     // in the same frame as the thing the user just did.
@@ -2154,8 +2157,20 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // drag is running". Set here so every caller of the bridge gets it, rather
   // than at each gesture site (DragProvider still writes it too; they agree,
   // and its write is the net if this bridge is ever unbound).
+  //
+  // AND THE FAIL-SAFE LIVES HERE, not in the slice policy. What can actually go
+  // wrong is a gesture that ENDS WITHOUT SAYING SO — `onEnd` covers touchend
+  // and touchcancel, but a handle unmounting mid-drag strips the listener
+  // before it can fire. A minute is far past any real drag (the longest
+  // measured is 38 seconds) and far short of leaving the grid at quarter speed
+  // for the session. One owner, one timer: the slice policy has no clock of
+  // its own, so the two cannot disagree about whether a finger is down.
+  const INTERACTION_MAX_MS = 60000;
+  let interactionWatchdog = null;
   const setInteracting = (on) => {
     if (typeof window !== "undefined") window.__moduli_interacting = on;
+    if (interactionWatchdog) { clearTimeout(interactionWatchdog); interactionWatchdog = null; }
+    if (on) interactionWatchdog = setTimeout(() => operationsBridge.endInteraction?.(), INTERACTION_MAX_MS);
   };
   operationsBridge.beginInteraction = () => { setInteracting(true); _interactionHold.begin(); };
   operationsBridge.endInteraction = () => {

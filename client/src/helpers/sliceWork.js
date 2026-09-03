@@ -79,12 +79,22 @@ export function defaultYield(gapMs) {
 // builds, which is what stops this being "hide the work until they let go":
 // a drop needs the slot it is dropping into to exist.
 //
-// THE BACK-OFF EXPIRES, on the same principle as `stagedMount`'s
-// HARD_RELEASE_MS and the drag hold's cap: a flag that got stuck, or a gesture
-// nobody ended, must not be able to stall the grid for ever.
+// ── AND IT LASTS AS LONG AS THE GESTURE DOES ──────────────────────────────
+//
+// The first version expired after 15 SECONDS, on the "must not hide work for
+// ever" principle. Measured drags run 16 to 38 seconds, so it gave up in the
+// middle of every long one — user: *"it starts alot better in the beginning
+// but slows down during that long drag and gets super choppy again"*. That is
+// the drag hold's cap defect a second time, in a fail-safe written the same
+// day, and the lesson is the same: **a fail-safe scoped by a timer whose
+// length nobody measured against a real gesture will fire during one.**
+//
+// So the policy has NO clock. The risk it was guarding — a gesture that ends
+// without anyone saying so — belongs to whoever OWNS the flag, and there is
+// exactly one owner (`operationsBridge.beginInteraction` / `endInteraction`).
+// Two fail-safes for one risk is how they drift.
 export const INTERACTIVE_BUDGET_MS = 8;
 export const INTERACTIVE_GAP_MS = 24;
-export const INTERACTIVE_MAX_MS = 15000;
 
 /** True while a gesture is in progress. Set by the drag bridge at finger-down. */
 export function userIsInteracting() {
@@ -96,13 +106,16 @@ export function userIsInteracting() {
  * which is what makes the expiry testable without a clock or a timer.
  * @returns {{ budgetMs: number, gapMs: number }}
  */
-export function interactiveSlice(state, { budgetMs = 32, interacting = false, now = 0, maxBackoffMs = INTERACTIVE_MAX_MS } = {}) {
-  if (!interacting) { state.since = 0; return { budgetMs, gapMs: 0 }; }
-  if (!state.since) state.since = now;
-  // Held too long — a stuck flag is indistinguishable from a very long drag,
-  // and only one of them is allowed to stop the grid settling.
-  if (now - state.since >= maxBackoffMs) return { budgetMs, gapMs: 0 };
+export function interactiveSlice(_state, { budgetMs = 32, interacting = false } = {}) {
+  if (!interacting) return { budgetMs, gapMs: 0 };
   return { budgetMs: INTERACTIVE_BUDGET_MS, gapMs: INTERACTIVE_GAP_MS };
+}
+
+/** How long a background drain should wait between items. Same policy, for the
+ *  loops that are a queue rather than a slice — the held-fire drain is what
+ *  lights the amber pill mid-drag. */
+export function drainGapMs(interacting = userIsInteracting()) {
+  return interacting ? INTERACTIVE_GAP_MS : 0;
 }
 
 /**
