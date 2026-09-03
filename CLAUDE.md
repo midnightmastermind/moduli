@@ -62,6 +62,40 @@ it delivered 38 long ones where there could have been one. `?effectSlice=none`
 is the endpoint that tests it, expressed as an INFINITE budget through the same
 do/while every other caller uses rather than a second code path.
 
+**THE ENDPOINT CONFIRMED IT, and the default moved:**
+```
+arm        slices   effects=    opsDone=    blocked=   longTasks
+sliced        38    21,703ms    36,651ms    33,619ms      116
+adaptive      19    11,279ms    24,752ms    22,352ms       80
+none           1     2,067ms    15,220ms    11,653ms       30
+```
+**effects -90%, the whole load 36.7s -> 15.2s, blocked 33.6s -> 11.7s.** Fitting
+the three arms gives **~530ms FIXED per flush + ~7.3ms per effect** — so 38
+flushes spent **20.2 seconds on fixed overhead alone** to apply work costing
+about 1.5s. *The prediction recorded before the capture was opsDone ~15.5s
+(actual 15.2s) and effects ~580ms (actual 2,067ms) — the aggregate was right and
+the per-flush figure was not: a flush is not perfectly constant, it grows
+sublinearly with the effects in it, which the two-arm fit could not see.*
+
+**SO SLICING THIS LOOP IS OFF BY DEFAULT NOW.** `sliceWork` exists so no single
+task blocks a frame, and at 530ms a slice it was never delivering that — 38
+tasks over the long-task threshold instead of one. **The honest trade is ONE ~2s
+task against 38 x ~575ms**, while the grid has been on screen since 104ms.
+Strictly better, not free. `?effectSlice=sliced` restores the old behaviour
+without a deploy.
+
+**AND IT EXPLAINS WHY THE ORIGINAL DECISION WAS RIGHT WHEN IT WAS MADE.**
+2026-08-29 (4) sliced this loop when an effect cost ~9ms because
+`applyOperationEffect` rebuilt a 42,000-property merge per effect. 2026-08-29
+(6) removed that merge — effects went 5,004ms -> 44ms locally — and the slicing
+stayed. *Its justification had evaporated and nobody re-measured it.*
+
+**WHAT IS NOW THE LARGEST SINGLE ITEM: `ops:start=9,667ms`** — the sweep waiting
+on the 16 MB artifact catalogue, plus a 2.9s task at 3.2s which is that
+catalogue landing in the store. That is the architectural change this file has
+deferred four times (not sending 15,708 artifact rows nothing on screen places),
+and (7) is the record of what happens when it is attempted by reordering instead.
+
 **SHIPPED OFF BY DEFAULT** (`?adaptiveSlice=1`): `runSliced` gains an
 `adaptiveBudget` option that raises the budget above the item cost it just
 measured, capped so no slice becomes the long task slicing exists to prevent.
