@@ -6,6 +6,91 @@
 
 ---
 
+### 2026-09-03 (5) — THE CATALOGUE ARRIVED AS FOUR STORE WRITES, and each one re-rendered the grid
+
+User, after (4) shipped: *"it was choppy after the beginning now"* — the start
+improved and the choppiness MOVED. This is what is in that window.
+
+**THE SERVER'S CHUNKING IS A DECISION ABOUT THE WIRE, AND IT WAS DRIVING FOUR
+STORE WRITES.** `socketHandlers/state.js` splits the deferred artifact catalogue
+into 4 x 4,000 so a single 16 MB frame does not move the stall from parse to
+inflate. The client dispatched `FULL_STATE_REST` per chunk — and each dispatch
+swaps `state.occurrences` identity, so every option-resolving field pill on
+screen re-renders. **Measured on prod at the tablet's viewport, and the TIMING is
+the finding — these land after the grid is up, exactly where the user says the
+choppiness moved to:**
+```
+chunk  occs added   renders   containers  fields   gap      lands at
+  1      4,000        448        210       223    2419ms    5.2s
+  2      4,000        235          0       223     504ms
+  3      4,000        235          0       223     588ms
+  4      3,708        235          0       223     552ms     6.8s
+```
+705 of those 1,165 renders are three dispatches that could be one. The store
+cannot tell four writes from one — `FULL_STATE_REST` is strictly additive and
+nothing on screen places an artifact — so the chunks are held and dispatched
+together on the last. **After: ONE jump, 5,554 -> 21,262, 448 renders.**
+
+**IT FAILS OPEN, and that is the half worth guarding:** if `done` never arrives
+the fallback dispatches whatever DID. Holding the catalogue forever is a worse
+failure than the re-renders this removes. The held entries are references to
+objects `pendingFullState` already retains, so it costs two arrays and no copies.
+
+**AND THE FIRST A/B WAS VOID — a null arm beat baseline by 1,076ms.** The arm
+swallows a socket message that does not exist, i.e. changes nothing, against a
+269ms win. That is the 2026-08-26 (5) failure exactly. Interleaved, three passes
+each, it separates cleanly:
+```
+                dom>1k        row1        rows>=200     longTasks / blocked
+baseline    2979 2906 2744  3535 3460 3306  4240 4185 4032   23 / 4914ms
+ceiling     2655 2657 2351  3187 3221 2910  3909 3922 3614    9 / 2032ms
+```
+The **ceiling** arm never requests the catalogue at all — the upper bound of any
+reordering. So the catalogue is worth **~270ms of time-to-first-row and ~2.9s of
+blocked main thread, 59% of every load's blocking**, and almost all of it lands
+after the grid is on screen.
+
+**THE MEASUREMENT THAT KILLED THE OBVIOUS FIX FIRST.** The plan was to move
+`request_full_state_rest` later: it is fired `afterPaint`, but that is the paint
+of the EMPTY SHELL at ~0.4s, not of the grid, which does not exist until ~3.0s.
+The ceiling arm says reordering can buy at most ~270ms of time-to-rows — real,
+and far less than the render fan-out that lands afterwards. *The reorder is not
+built; the ceiling retired it before it was written.*
+
+**AND THE CEILING ARM IS THE DRIFT CHECK, which is what makes a cross-build
+comparison readable at all** (the old build cannot be run against prod). It reads
+9 long tasks either side of the deploy, so the machine is comparable, and the
+honest figure is the baseline-MINUS-ceiling gap, which cancels the drift:
+```
+                        before        after
+catalogue's own blocking  2,882ms      2,452ms     one before-sample only
+time-to-first-row gap       273ms        212ms
+render fan-out            1,165         460        deterministic
+```
+**Only the render count is established** — it is deterministic and directly
+counted. The wall-clock figures rest on a single pre-deploy sample of the
+long-task total and are indicative, not proven.
+
+**WHAT THIS DOES NOT TOUCH, and it is now the largest named cost on a load:** the
+catalogue still costs ~2.4s, dominated by ~650ms of `Receive mojo message` — the
+renderer taking 16 MB off the socket — plus the one remaining 448-render
+fan-out, which is CORRECT (the board catalogue is 60% of the option pool key, so
+those dropdowns genuinely change when it lands). The lever left is not sending
+16 MB, which is the on-demand change `splitFullState`'s own header defers and
+which needs the 19 `$allItems` ops audited one by one.
+
+6 tests — the first this path has ever had — and three A/Bs each failing exactly
+its own cases: a per-chunk dispatch fails 5, dropping the fail-open flush fails
+exactly the fail-open test, and keeping only the last chunk fails the two merge
+tests. *The "not the last chunk writes NOTHING yet" case is the control: without
+it, "one dispatch" is also satisfied by a build that dispatches none.*
+
+3845 client tests, lint 0 errors, deployed, prod HEAD verified, served chunk
+sha256-identical with the new string present and a zero control at 0. Client-only,
+so pm2 was NOT restarted and no load paid a cold read.
+
+---
+
 ### 2026-09-03 (4) — SHIPPED: nothing skips until it has been measured, and the layout pass halves
 
 (3) measured the lever at 92% and refused to ship it, because the safety check
