@@ -6,6 +6,74 @@
 
 ---
 
+### 2026-09-03 (4) — SHIPPED: nothing skips until it has been measured, and the layout pass halves
+
+(3) measured the lever at 92% and refused to ship it, because the safety check
+failed. This is that pass, and **the refusal was right for the wrong reason.**
+
+**THE HIT-TEST FAILURES WERE A CONSEQUENCE OF THE GEOMETRY COLLAPSE, NOT OF
+SKIPPING.** With a picked `contain-intrinsic-size` the scroller fell 18,313 ->
+10,638, so everything below MOVED — and my probe keyed each point on
+`class + rect.top`, which cannot tell *"a different element"* from *"the same
+element, moved"*. Seed every container with its OWN measured height and key on
+element IDENTITY instead:
+```
+                        picked seed      measured seed
+same ELEMENT at point    (unknowable)      120 of 120
+scrollHeight            18,313 -> 10,638  18,313 -> 18,331   (0.1%)
+scrollTop / first top      moved            unchanged
+```
+*A safety check that reports a real failure can still be reporting the wrong
+failure.* Both runs were red; only one of them was about hit-testing.
+
+**AND THE 92% WAS PARTLY THE BUG.** It was measured against the COLLAPSED
+document, and a shorter document is cheaper to lay out. Seeded, the honest
+figure is **-63%** — still the largest single win this file records.
+
+**SO NOTHING SKIPS UNTIL IT HAS BEEN MEASURED.** The CSS keys on
+`[data-cv-seeded]`, written only by a ResizeObserver from the container's own
+observed height. No seed, no skipping — structural, not remembered, which is
+the difference between this and every "set an intrinsic size" attempt the file
+records going wrong in both directions.
+
+**THREE DECISIONS THAT ARE NOT DETAIL:**
+- **`auto` is kept in `contain-intrinsic-size: auto Npx`**, so the browser
+  prefers the size the element had when LAST RENDERED and falls back to ours
+  only for one that has never rendered. The seed is a floor under the first
+  paint, not a permanent guess.
+- **A SKIPPED element must not seed from itself.** Its box IS its intrinsic
+  size, and `getBoundingClientRect` answers for a skipped subtree WITHOUT
+  rendering it — so geometry cannot tell the two apart and the seed would
+  ossify against itself. It asks `checkVisibility({contentVisibilityAuto:true})`.
+- **The CONTENT box, not the border box.** `contain-intrinsic-size` describes
+  the principal box's content; seeding from the border box over-reserves by
+  padding and border on every container, and 105 of those is a scroller that
+  disagrees with itself.
+
+**VERIFIED ON PROD WITH THE FEATURE SHIPPED RATHER THAN INJECTED, and the
+control is the invariant rather than the number:**
+```
+containers 105 · seeded 105 · skipped 29 · SKIPPED-BUT-UNSEEDED 0
+sample seeds        2434, 681, 911, 284 px      <- real measurements
+layout pass  138.1ms (gate off) -> 55.4ms (on)   -60%
+scrollHeight 18,318 · rows 215 · 0 page errors
+```
+The A/B is live: the gate attribute is removed and restored on the real page,
+so both arms are the same document in the same session.
+
+12 tests, three A/Bs each failing exactly its own case — accepting a zero
+measurement fails the refusal (a container mid-mount measures 0, and seeding
+that is exactly the scroller collapse), ungating the CSS fails the gate, and
+seeding from a skipped element fails the observer test.
+
+**WHAT THIS DOES NOT TOUCH:** rows measured -53% on their own, but a skipped
+container takes its rows with it, so the remaining prize is only off-screen
+rows inside ON-screen containers — and that is the row-seed trap 2026-08-31 (4)
+records, for much less. `contain: layout style` was measured at -6% and is not
+the lever.
+
+---
+
 ### 2026-09-03 (3) — 93% OF EVERY LAYOUT IS FOR CONTAINERS NOBODY CAN SEE; and my back-off was a REGRESSION
 
 User: *"it starts alot better in the beginning but slows down during that long
