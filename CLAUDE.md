@@ -111,12 +111,41 @@ fires. Both A/Bs fail exactly one test each — dropping the field shape fails t
 *"applications differ in the value the template stamped"* case, dropping the
 parent guard fails the dangling-parent case.
 
-**STILL OPEN, reported not started:** the user also asked for a loading
-indicator — *"the books took 2 more seconds to load (without a loading bar, we
-need that if its gonna be the case) ... it loaded the books container but nothing
-was inside for a couple seconds"*. That gap is the deferred catalogue landing
-after the grid paints, which is the split working as designed; what is missing is
-saying so on screen.
+**AND THE LOADING GAP IS CLOSED — a board that is LOADING stops claiming it is
+EMPTY.** The user also asked for *"a loading bar ... it loaded the books
+container but nothing was inside for a couple seconds"*. That window is the
+deferred catalogue landing after the grid paints — the split working as designed
+— and what was missing was saying so: the board painted its empty state, *"Add
+new item"* and all, which reads as *"there is nothing here"*.
+
+**THE SIGNAL IS THE UNRESOLVED LISTING, NOT A ROLE OR A BOARD, and that is
+measured.** Every deferred row is listed by its board's own `occurrences[]`:
+```
+Songs 5,484/5,484 · Albums 3,027 · Artists 1,679 · Bookmarks 1,467
+Movies 993 · Books 590 · Authors 296 · TV Series 187      1,215 containers in total
+```
+So *"lists children that do not resolve"* is exact, and nothing in the renderer
+names an artifact, a board, a kind or a label — `noDomainKnowledge.test.js` fails
+the build if a generic surface learns what a book is, and a rule keyed on ROLE
+would be one `DEFERRED_ROLES` edit away from wrong.
+
+**IT IS GATED ON THE GRID ACTUALLY WAITING, and that gate is the load-bearing
+half.** An unresolved child id is ALSO the signature of a `dangling-child-ref` —
+an integrity ERROR that does not resolve by waiting — so without it a grid
+carrying one would spin forever. The flag comes from the server's own
+`deferredCount` and clears when the catalogue lands, so the indicator cannot
+outlive the load. **A container that lists NOTHING is empty, not loading**, and
+keeps its *"Add new item"* affordance throughout.
+
+**THE PULSE IS CSS, NEVER A TIMER.** The load window is precisely when the main
+thread is busy, so anything driven by `setTimeout` or a state flip sits frozen
+behind the work it exists to paint over — 2026-08-07 (2) is the record of a
+JS-gated loader that never appeared at all.
+
+Three A/Bs, each failing exactly one test: dropping the awaiting gate, treating
+an empty listing as loading, and — the one that would hang the indicator — the
+`FULL_STATE_REST` early return bailing without clearing the flag when the final
+chunk carries nothing new.
 
 ---
 

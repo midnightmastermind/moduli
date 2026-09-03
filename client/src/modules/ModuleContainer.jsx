@@ -5,6 +5,7 @@
 
 import React, { useRef, useMemo, useState, useReducer, useCallback, useEffect, useLayoutEffect, useContext } from "react";
 import { createPortal } from "react-dom";
+import { isAwaitingChildren } from "../helpers/awaitingChildren";
 import RadialMenu from "../ui/RadialMenu";
 import { toast } from "../state/notificationStore";
 import ContextMenu from "../ui/ContextMenu";
@@ -400,6 +401,14 @@ function Container({
     const ids = containerOccurrence?.occurrences || module?.occurrences || [];
     return ids.map(id => s.occurrencesById?.[id] || null);
   });
+
+  // ── STILL LOADING, NOT EMPTY ─────────────────────────────────────────────
+  //
+  // A BOOLEAN, deliberately: it is `Object.is`-stable across every unrelated
+  // write, so subscribing to it cannot re-render this container the way a map
+  // or an object would (2026-08-31 (6) is the record of that class).
+  const awaitingDeferred = useGridActionsSelector(s => !!s.state?.awaitingDeferred);
+  const awaitingChildren = isAwaitingChildren(childOccsKey, awaitingDeferred);
 
   // Reactive trigger for ancestor-derived memos (filter cascade, layout
   // cascade): the chain of ancestor occurrence refs root-ward from this
@@ -1965,8 +1974,18 @@ function Container({
             {/* Empty container still gets the insert-here / quick-add bar so you
                can add the first item without dropping (gated on the occurrence
                resolving, same as the between-item gaps). */}
-            {containerOccurrence && items.length === 0 && (
+            {containerOccurrence && items.length === 0 && !awaitingChildren && (
               <InsertGap parentOccurrence={containerOccurrence} index={0} hostOccurrence={containerOccurrence} panelId={panelId} containerLabel={module?.label || ""} emptyBody />
+            )}
+            {/* The catalogue is still on the wire and this container LISTS rows
+               that have not arrived. Saying so beats an empty box with an
+               "Add new item" bar, which is what it showed before and which
+               reads as "there is nothing here". */}
+            {containerOccurrence && awaitingChildren && (
+              <div className="container-awaiting" role="status" aria-live="polite">
+                <span className="container-awaiting-dot" />
+                Loading {childOccsKey.length} item{childOccsKey.length === 1 ? "" : "s"}…
+              </div>
             )}
           </div>
         </div>

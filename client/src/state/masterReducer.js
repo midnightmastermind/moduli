@@ -82,7 +82,10 @@ function reduce(state, action) {
             const addOccs = incomingOccs.filter(o => o?.id && !haveOcc.has(o.id));
             const haveMod = new Set((state.modules || []).map(m => m?.id));
             const addMods = incomingMods.filter(m => m?.id && !haveMod.has(m.id));
-            if (!addOccs.length && !addMods.length) return state;
+            // The wait is over whether or not this chunk carried anything new
+            // — a duplicate or empty final chunk still means the rest arrived.
+            if (!addOccs.length && !addMods.length)
+                return state.awaitingDeferred ? { ...state, awaitingDeferred: false } : state;
 
             const modules = addMods.length ? [...(state.modules || []), ...addMods] : state.modules;
             // The role arrays are derived from modules, so they only move when
@@ -99,6 +102,7 @@ function reduce(state, action) {
                     textblocks: derived.textblocks,
                 } : {}),
                 occurrences: addOccs.length ? [...(state.occurrences || []), ...addOccs] : state.occurrences,
+                awaitingDeferred: false,
             };
         }
 
@@ -158,6 +162,19 @@ function reduce(state, action) {
                 userEmail: action.payload?.userEmail ?? state.userEmail ?? null,
                 hydrated: true,
                 fullStateLoaded: isFullLoad,
+                // ── THE DEFERRED HALF IS STILL IN FLIGHT ────────────────────
+                //
+                // `splitFullState` ships the working surfaces first and the
+                // artifact catalogue behind them, so between the two messages a
+                // board LISTS children that do not resolve yet. On the device
+                // that window is seconds, and the board paints EMPTY — the user
+                // reported "it loaded the books container but nothing was inside
+                // for a couple seconds". Nothing on screen said why.
+                //
+                // The count is what the server actually held back, so this
+                // cannot disagree with the wire, and it clears the moment the
+                // rest lands. A load with nothing deferred never sets it.
+                awaitingDeferred: (action.payload?.deferredCount || 0) > 0,
             };
         }
 

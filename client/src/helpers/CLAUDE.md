@@ -2,6 +2,40 @@
 
 _Updated: 2026-08-22. Check this file before re-reading source._
 
+## Recent Changes (2026-09-03 — `awaitingChildren.js` NEW: a board that is LOADING stops saying it is EMPTY)
+
+- **User, 2026-09-03: *"the books took 2 more seconds to load (without a loading bar, we need that
+  if its gonna be the case) ... it loaded the books container but nothing was inside for a couple
+  seconds."*** `splitFullState` ships the working surfaces first and the 15,708-row catalogue
+  behind them, so between the two messages a board LISTS its children and none of them resolve —
+  and it painted its EMPTY state, "Add new item" and all, for as long as the second message took.
+- **`isAwaitingChildren(resolvedChildren, awaitingDeferred)`** — the whole decision. It takes the
+  RESOLVED children `ModuleContainer` already maps for rendering (`childOccsKey`, occurrence-or-null
+  per listed id), so the signal costs no extra subscription and **cannot disagree with what is
+  drawn**.
+- **THE SIGNAL IS THE UNRESOLVED LISTING, NOT A ROLE OR A BOARD, and that was measured.** Every
+  deferred row is listed by its board's `occurrences[]` — Books 590/590, Songs 5,484/5,484, and
+  **1,215 containers in total** — so "lists children that do not resolve" is exact. Nothing here
+  names an artifact, a board, a kind or a label; `noDomainKnowledge.test.js` fails the build if a
+  generic renderer learns what a book is, and a rule keyed on ROLE would be one `DEFERRED_ROLES`
+  edit away from wrong.
+- **IT IS GATED ON THE GRID ACTUALLY WAITING, and that gate is the load-bearing half.** An
+  unresolved child id is ALSO the signature of a `dangling-child-ref` — an integrity ERROR that
+  does not resolve by waiting — so without the gate a grid carrying one would spin forever.
+  `state.awaitingDeferred` is set from the server's own `deferredCount` and cleared when the
+  catalogue lands, so the loading state cannot outlive the load.
+- **A container that lists NOTHING is empty, not loading** — it keeps its "Add new item"
+  affordance during a load, which is the case that stops this becoming a spinner on every empty
+  container on the grid.
+- **`masterReducer` clears the flag even on a chunk that adds nothing new.** The `FULL_STATE_REST`
+  early return bailed with the flag still set; a duplicate or empty FINAL chunk still means the
+  rest arrived, and returning early there hangs the indicator. A/B'd — that is its own test.
+- **The pulse is CSS, never a timer.** The load window is exactly when the main thread is busy, so
+  anything driven by `setTimeout` or a state flip sits frozen behind the work it exists to paint
+  over — the 2026-08-07 (2) lesson, where a JS-gated loader never appeared at all.
+- 5 tests + 5 reducer cases. **Three A/Bs, each failing exactly one:** dropping the
+  awaiting gate, treating an empty listing as loading, and bailing without clearing.
+
 ## Recent Changes (2026-08-22 — `operationActions`: a parent's child list never grew mid-pipeline)
 
 - **`listChildInOverlays(parentId, childId, occurrencesById, $vars)` is the ONE place a child is

@@ -64,3 +64,44 @@ describe("FULL_STATE_REST", () => {
     expect(s.occurrences.map(o => o.id)).toEqual(["i1"]);
   });
 });
+
+// ── "the deferred half is still in flight" ──────────────────────────────────
+//
+// Between the two messages a board LISTS children that do not resolve, and it
+// painted its EMPTY state for as long as the catalogue took. The flag is what
+// lets a container tell "still loading" from "nothing here"; the count comes
+// from the server, so it cannot disagree with the wire.
+describe("awaitingDeferred", () => {
+  const full = (payload) => ({ type: ActionTypes.FULL_STATE, payload });
+
+  it("is set when the server held rows back", () => {
+    const s = masterReducer(base(), full({ occurrences: [], modules: [], deferredCount: 15708 }));
+    expect(s.awaitingDeferred).toBe(true);
+  });
+
+  it("is NOT set on a load with nothing deferred", () => {
+    const s = masterReducer(base(), full({ occurrences: [], modules: [], deferredCount: 0 }));
+    expect(s.awaitingDeferred).toBe(false);
+  });
+
+  it("clears when the catalogue lands", () => {
+    const s = masterReducer(base({ awaitingDeferred: true }), rest({
+      occurrences: [{ id: "a1", moduleId: "ma" }],
+      modules: [{ id: "ma", role: "artifact" }],
+    }));
+    expect(s.awaitingDeferred).toBe(false);
+  });
+
+  // THE CASE THAT WOULD OTHERWISE HANG THE SPINNER. A final chunk carrying
+  // nothing new still means the rest arrived — the early return has to clear
+  // the flag rather than bail with it still set.
+  it("clears even when the arriving chunk adds nothing new", () => {
+    const s = masterReducer(base({ awaitingDeferred: true }), rest({ occurrences: [], modules: [] }));
+    expect(s.awaitingDeferred).toBe(false);
+  });
+
+  it("returns the SAME state object for an empty chunk when not waiting", () => {
+    const before = base();
+    expect(masterReducer(before, rest({ occurrences: [], modules: [] }))).toBe(before);
+  });
+});
