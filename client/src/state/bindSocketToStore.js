@@ -264,6 +264,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // every op still sees the complete grid exactly as it did before.
     if (payload.deferredCount > 0) {
       pendingFullState = payload;
+      // A grid switch must not merge the previous grid's held chunks into the
+      // new one — the gridId guard in `onFullStateRest` only covers chunks that
+      // arrive AFTER this point.
+      restChunks = null;
       armRestFallback();
       // ASK FOR THE REST ONLY ONCE THE GRID HAS PAINTED. Pushed in the same tick
       // instead, the catalogue's frames arrive back to back and their PARSE
@@ -287,11 +291,52 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   let restFallbackTimer = null;
   const REST_FALLBACK_MS = 15000;
 
+  // ── THE CATALOGUE IS ONE STORE WRITE, NOT ONE PER CHUNK ───────────────────
+  //
+  // The server splits the deferred half into 4 x 4,000 so a single 16 MB frame
+  // does not simply move the stall from parse to inflate
+  // (socketHandlers/state.js). That is a decision about the WIRE — and it was
+  // also driving four STORE writes, each of which swaps `state.occurrences`
+  // identity and therefore re-renders every option-resolving field pill on
+  // screen. Measured on prod at the tablet's viewport, and the chunks land at
+  // 5.2-6.8s — AFTER the grid is up, which is when the user reports the
+  // choppiness starting:
+  //
+  //     chunk 1   448 renders   (210 container + 223 field)
+  //     chunk 2   235 renders   (223 field)
+  //     chunk 3   235
+  //     chunk 4   235
+  //
+  // Nothing on screen places these rows, and FULL_STATE_REST is strictly
+  // additive, so the store cannot tell four writes from one. The chunks are
+  // held and dispatched together when the last arrives.
+  //
+  // IT MUST FAIL OPEN, and that is the half worth guarding: if `done` never
+  // comes, whatever DID arrive is still dispatched by the fallback below.
+  // Holding the catalogue forever is a worse failure than the three re-renders
+  // this removes. Held entries are references to the objects already retained
+  // by `pendingFullState`, so this costs a pair of arrays and no copies.
+  let restChunks = null;
+
+  function flushRestChunks() {
+    if (!restChunks) return;
+    const payload = restChunks;
+    restChunks = null;
+    if (payload.occurrences.length || payload.modules.length) {
+      socketDispatch({ type: ActionTypes.FULL_STATE_REST, payload });
+    }
+  }
+
   function armRestFallback() {
     if (restFallbackTimer) clearTimeout(restFallbackTimer);
     restFallbackTimer = setTimeout(() => {
+      restFallbackTimer = null;
+      // Fail open on BOTH halves: the rows that arrived reach the store even
+      // though `done` did not, and the sweep runs without the rest.
+      const held = restChunks?.occurrences?.length || 0;
+      flushRestChunks();
       if (!pendingFullState) return;
-      console.warn("[full_state] deferred chunks never completed — running the load sweep anyway");
+      console.warn(`[full_state] deferred chunks never completed — dispatched ${held} held occurrence(s) and running the load sweep anyway`);
       const p = pendingFullState; pendingFullState = null;
       runLoadSweep(p);
     }, REST_FALLBACK_MS);
@@ -301,7 +346,15 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // A late chunk for a grid the user has already navigated away from must not
     // be merged into the new one.
     if (rest.gridId && pendingFullState?.gridId && rest.gridId !== pendingFullState.gridId) return;
-    socketDispatch({ type: ActionTypes.FULL_STATE_REST, payload: rest });
+    // The same guard for the held chunks, which outlive `pendingFullState` once
+    // the fallback has fired: a late chunk for another grid must not be merged.
+    if (rest.gridId && restChunks?.gridId && rest.gridId !== restChunks.gridId) return;
+
+    // Hold this chunk rather than dispatching it — one store write for the
+    // whole catalogue (see above).
+    if (!restChunks) restChunks = { gridId: rest.gridId, occurrences: [], modules: [] };
+    if (rest.occurrences?.length) restChunks.occurrences = restChunks.occurrences.concat(rest.occurrences);
+    if (rest.modules?.length) restChunks.modules = restChunks.modules.concat(rest.modules);
 
     // Accumulate onto the pending payload so the sweep below sees the WHOLE
     // grid — the executor builds its maps from this object, not from the store.
@@ -311,6 +364,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     }
     if (!rest.done) return;
 
+    // Dispatch BEFORE the sweep, which is the order the per-chunk version had:
+    // every chunk was in the store by the time the final one ran the sweep.
+    flushRestChunks();
     if (restFallbackTimer) { clearTimeout(restFallbackTimer); restFallbackTimer = null; }
     const p = pendingFullState;
     pendingFullState = null;
