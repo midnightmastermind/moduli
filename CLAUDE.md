@@ -6,6 +6,97 @@
 
 ---
 
+### 2026-09-03 (2) — THE LOAD SWEEP IS SLICED, and the biggest task on a load was never it
+
+The last thing the drag hold cannot reach. The hold defers fires that have not
+STARTED; **a sweep already running when the finger lands blocks it outright**,
+and `bindSocketToStore.js:384` called `runMatchingOperations` DIRECTLY rather
+than through `fireOperations` — so the load sweep was not merely unheld, it was
+unreachable by the hold by construction.
+
+**ONE BODY, TWO DRIVERS.** `_runMatchingOperationsGen` is the existing function
+made a generator with a single `yield` between ops; the synchronous driver
+drains it to completion, so every existing caller runs the same code in the
+same order, and `runMatchingOperationsSliced` drives it with a time budget.
+Writing a second sliced implementation is how the two would drift — and this is
+the shared execute path this file records being damaged on repeatedly.
+
+**BETWEEN OPS IS THE ONLY SAFE SEAM, and that is a property of the code rather
+than a hope:** `liveOccs` and `updates` are closure-local and survive a yield
+untouched, and effects are applied by the CALLER after the whole sweep either
+way, so a slice boundary cannot change what any op sees.
+
+**THE TEST THAT MATTERS IS EQUIVALENCE**, over the live grid's own 68
+pipelines: both drivers must emit byte-identical effects. Every other suite
+here drives the sync path, so a refactor that quietly changed one op's output
+would be invisible to all of them.
+
+**AND THE SWEEP IS NOT DETERMINISTIC ON ITS OWN — finding that out is what made
+the test mean anything.** The first comparison failed on exactly ONE effect:
+`Daily Question Rotator` picks at random, so two runs of the SAME driver
+disagree there too. Pinning `Math.random` separates *"the sweep is random"*
+from *"slicing changed the answer"*, and the pin is asserted to be CONSULTED so
+it cannot quietly become decorative. Generated uuids are **tokenised by order
+of first appearance** rather than stripped — a minted id referenced later as a
+`parentId` maps to the same token in both runs, so the RELATIONSHIPS between
+created rows are pinned too. (`0274` hit the same raw-compare wall and only
+stripped.)
+
+**MEASURED ON PROD, and the attribution is the finding:**
+```
+[op-timing] null total=706ms ops=51
+[op-timing] sliced load — 15 slices, 731ms of work      <- no longer ONE task
+runMatchingOperations: 876ms — 71 ops, 210 effects, 26 display updates
+
+load marks     ops:start 4079ms   ops:end 4903ms   effects:end 7807ms
+long tasks     43, 7091ms total
+worst 5        [1798,780ms] [2783,482] [3816,397] [4399,321] [3317,229]
+```
+**The worst task starts at 1,798ms and the sweep does not begin until 4,079ms
+— so the biggest block on a load was never the sweep.** It sits between
+`panel:content-ready` (1,455ms) and `ops:start`, which is the progressive
+catalogue merge. Inside the sweep window the worst is **321ms**, and that is a
+SINGLE OP: `sliceWork`'s do/while does one item minimum per slice, because time
+slicing cannot split one item — it bounds everything around it.
+
+**THE DERIVED SCOPE IS CARRIED ACROSS THE YIELDS via `wrap`**, and that was the
+whole risk. `runDerived` restores on RETURN, so a continuation resuming after a
+yield runs at derivedDepth 0 and every write it causes opens an undo action —
+2026-08-27 (3), a page load pushing 26 undo steps so Ctrl+Z reverted a tracker
+recomputation instead of the user's last edit. **Verified against Mongo with
+the deploy itself as the A/B**, which is the only control available for a
+change that cannot be reverted mid-session:
+```
+                    transactions   carrying docs   UNDOABLE
+BEFORE the deploy        407            116           36    (all SnapshotOp — the user's own drops)
+AFTER the deploy         168             84            0
+```
+
+**`opMs` IS WORK TIME, NOT WALL TIME.** The yields are real but they are not
+thread, and inflating the number would make every before/after in this file
+incomparable.
+
+6 tests, both A/Bs failing exactly their own cases: a driver that drops its
+tail fails 5, ignoring the budget fails exactly the *"a huge budget yields NOT
+AT ALL"* control — which exists so *"it yields"* cannot be satisfied by a
+driver that yields unconditionally.
+
+**AND MY PROBE FAILED TWICE BEFORE IT MEASURED ANYTHING, both documented
+shapes.** It set only `moduli-token`, which mounts the app and leaves it on the
+LOGIN gate (2026-08-28 (8)); then the token had expired, which reads as
+`rows=0` exactly like a broken load. Both times the tell was there — **0 page
+errors and `body.innerText` reading "Login / Register"**. *A probe that reports
+zero is a claim about the probe until you ask what IS on screen.*
+
+**STILL OPEN, and now the largest named cost on a load: the ~780ms catalogue
+merge task at ~1.8s**, before the sweep runs at all. 321ms of the sweep is one
+op that slicing cannot divide.
+
+321 files / 3827 tests, lint 0 errors, deployed, prod verified — 21,229
+occurrences, 194 rows, 105 containers, 0 page errors.
+
+---
+
 ### 2026-09-03 — THE OP HOLD WAS BROKEN TWICE, AND ONE FIX WAS THE DEPTH IT GATED ON
 
 User: *"okay i did a few really choppy drags cause of the ops. everytime i
