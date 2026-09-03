@@ -6,6 +6,64 @@
 
 ---
 
+### 2026-09-03 (9) — THE CASCADE IS NOT THE COST, and the load timeline had never left the device
+
+The user tested drags through the bad first minute. **Their captures are in
+prod's own log** — the drag probe reports to the server as well as the console
+(2026-09-01) — so this is read rather than relayed, and it retires the
+hypothesis (7) and (8) both pointed at.
+
+```
+sinceLoad   opSweeps  opMs   opBy                        longTasks        fps  renders
+ 12,727ms       1     3033   load:1x3033ms/238fx      89 (19,983ms) 80%    4    1007
+ 17,076ms       1     3938   load:1x3938ms/236fx      98 (20,301ms) 59%    8     998
+ 14,699ms       3     4558   load:1x2932ms/236fx +      108 (20,316ms)     11   1303
+                             OccurrenceCreateOp:1x1577ms/122fx +
+                             MeasureOp:kg860us2nhc:1x49ms/0fx
+ 74,408ms       2      108   MeasureOp:1x62ms/0fx      6 (1,454ms) 29%     3     269
+ 89,101ms       1       41   OccurrenceMoveOp:1x41ms/0fx  7 (378ms) 3%    17      78
+```
+
+**ONE SWEEP, NOT A CASCADE.** I had named the MeasureOp fan-out as the next
+lever, on the strength of 2026-09-02's *"19 of 20 sweeps do nothing"*. On these
+loads it is a **single `1x49ms/0fx`** where it appears at all — the 2026-09-03
+op-hold work already collapsed it, and the last two rows show a settled grid at
+**3% blocked and fps=17**, which is fine. *A docket item is a claim about
+yesterday's build.*
+
+**AND THE SWEEP IS 3.0s OF A 20.0s BLOCK.** That is the finding: seventeen
+seconds of the load window belong to something the drag probe cannot see. It
+reports ops, renders, per-frame work and a long-task total — `onMove 1.7ms x125`
+and `raf 7.9ms x109` are about 1.1s together — so ours plus the sweep is ~4s of
+20. **The other sixteen are unattributed, and guessing at them is exactly what
+(7) did.**
+
+**SO THE INSTRUMENT SHIPPED INSTEAD OF A FIX.** `loadDiag` has computed the
+split all along — dispatch / grid commit / panels / `ops:start` / sweep /
+effects / editors / the top long tasks WITH timestamps — and had **nowhere to
+go**: console only, on a device that has none. Every `[load]` figure in this
+file came from a desktop probe whose load is ~3.3x shorter. It now ships one
+line over `save_scroll_diag`, the channel the drag and scroll probes use, ON by
+default (`?loadDiag=0` disables), formatted client-side because server-side
+re-derivation kept dropping fields (server.js:410).
+
+**TWO SAMPLES, and that is the whole design:** one at `effects:end`, one 20
+seconds later. The long-task observer keeps recording, so the second carries the
+TAIL — and a single sample at `effects:end` is precisely what would miss the
+seventeen seconds being hunted.
+
+An ABSENT Long Tasks API reads as `UNSUPPORTED`, never as zero — the 2026-08-04
+trap where Firefox's missing API let a verdict crown RASTER by construction —
+with the opposite case as its control, or *"never reads as zero"* would also be
+satisfied by a line that never reports blocking at all.
+
+3874 client tests, lint 0 errors, deployed, prod HEAD verified, served chunk
+sha256-identical. **Instrumentation only — no behaviour changed.** Nothing is
+fixed here; the next move is one fresh load from the device and then a decision
+made on its numbers.
+
+---
+
 ### 2026-09-03 (8) — THE LOAD-TIME SCROLL CANCELLED A DRAG, and the ops arrive in WAVES
 
 Testing a fresh load after (7)'s revert, the user found a defect that is not
