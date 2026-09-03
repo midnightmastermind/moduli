@@ -6,6 +6,132 @@
 
 ---
 
+### 2026-09-03 — THE OP HOLD WAS BROKEN TWICE, AND ONE FIX WAS THE DEPTH IT GATED ON
+
+User: *"okay i did a few really choppy drags cause of the ops. everytime i
+dragged a new op started running too"*. The hold shipped the day before and
+their own capture said it was catching almost nothing.
+
+```
+[drag] 38342ms  hold=5268ms via=move-late  paint=586ms
+  opSweeps=30 opMs=1663
+  opBy=[MeasureOp:kg860us2nhc:13x570ms/0fx
+        MeasureOp:1ve8fwc6c7k:11x506ms/0fx  NavigationOp:1x370ms/26fx]
+  longTasks=156(34138ms)   <- 89% of a 38-second drag
+  renders=2954(field:1222,container:1035,panel:372)
+```
+
+**DEFECT 1 — THE GATE WAS `_fireDepth === 0`, AND THESE FIRES ARE ALWAYS AT
+DEPTH 1.** A MeasureOp written by an op's own effects is DEFERRED past the
+paint, and its continuation restores `_fireDepth = savedDepth` — 1, not 0. So
+24 of the 25 sweeps were invisible to the hold. **This file has recorded
+`[op-fire] depth=1 MeasureOp occ=1ve8fwc6` since 2026-08-31 and I gated on the
+one depth they never have.**
+
+The hold intercepts at the DEFERRAL now and takes the **continuation** rather
+than the transaction. That is what makes it safe rather than merely narrower:
+the closure restores its own depth, action scope and cycle-guard marks, so
+`_FIRE_DEPTH_LIMIT` still accumulates and the depth-1 cascade dedup behaves
+exactly as it does synchronously — the three things the carry-across was
+written to preserve.
+
+**AND A CONTINUATION MAY NEVER BE DROPPED AS A DUPLICATE**, which is the one
+real hazard in that change. A deferral retains an undo action and parks an
+entry in `_pendingMeasure` BEFORE offering itself; only running it releases
+either. The queue's key dedup would have left the action buffer open forever
+AND left a pending entry that later writes merge into and nothing ever fires —
+**a tracker that silently stops recomputing.** Deduping is already done
+upstream (one entry per occurrence+context, later writes MERGE into the very
+object that will run) and downstream (the drain's shared cascade set).
+
+**DEFECT 2 — THE 6-SECOND CAP *ENDED* THE HOLD, AND DRAGS RUN 16-38 SECONDS.**
+`onCap?.(release())`, and `release()` nulls the queue. So 10 to 32 seconds of
+every drag ran completely unprotected. The fail-safe only ever had to stop work
+being hidden FOREVER — the promise `stagedMount`'s HARD_RELEASE_MS makes — and
+it does not have to abandon the gesture to keep it. It drains and **re-arms**
+now, in the drain's own one-fire-per-macrotask chunks, and only ever hands back
+work (re-arming unconditionally would wake the tab every 6s for the life of a
+quiet hold).
+
+**The narrower leak it still guards was checked rather than assumed:** `onEnd`
+is bound to `touchcancel` as well as `touchend` and calls `endInteraction`
+first, so an abandoned gesture is covered. What is not is a handle UNMOUNTING
+mid-drag, which strips the listener before it can fire.
+
+**MEASURED ON THE DEVICE, before and after, settled grid either side:**
+```
+                        before              after
+op sweeps             30 / 1663ms         1 / 37ms   <- the drop's OWN move op
+renders                    2954                 75
+long tasks       156 (34138ms) 89%    56 (3556ms) 28%
+onMove avg/max        6 / 220.4ms         2.7 / 12.8ms
+attributed renders   field:470 s_modulesById      NONE
+hold (lift timer)   5268ms via=move-late   151ms via=lift
+start -> pill paint        748ms               176ms
+```
+**`hold=151ms` against a 150ms timer is zero starvation**, and `causes=` is
+absent entirely — nothing re-rendered for an attributable reason during the
+whole drag.
+
+**ONE CAPTURE STILL SHOWED 9 SWEEPS AND IT IS THE CAP WORKING, not a leak.**
+That drag was **6,179ms** against a 6,000ms cap, so its held work drained 179ms
+before the drop. The two longer drags (11.4s, 12.9s) crossed the same cap and
+show `opSweeps=1`, because by then there was nothing held to drain. The cap
+surfaces work only when there is work.
+
+**STILL OPEN, and it is the remaining named cost: the LOAD SWEEP bypasses the
+hold entirely.** `bindSocketToStore.js:384` calls `runMatchingOperations`
+DIRECTLY rather than through `fireOperations`, so `load:1x2544ms` can neither
+be held nor interrupted — a 2.5-second synchronous task with a finger on the
+screen, which is what `via=move-late` reports. `runSliced` covers the effect
+loop and not the sweep. That is a change to the shared execute path and wants
+its own reviewed pass.
+
+**And what is left in a clean drag is OUR OWN PER-FRAME WORK, not ops and not
+renders:** `raf avg=10ms x 174 frames` is ~1.7s of a 3.5s long-task total, of
+which `hit avg=4.8ms x 221` is ~1.1s. `over32=0` on both settled captures.
+
+---
+
+**AND THE CLIENT SUITE HAD BEEN RED FOR REASONS NOBODY HAD READ.** 31 tests
+across 42 files died on their first `beforeEach` with `localStorage.clear is
+not a function`. **Node 25 ships its own Web Storage** and takes
+`globalThis.localStorage` before jsdom does; without a valid
+`--localstorage-file` it hands back an EMPTY PLAIN OBJECT. The warning prints
+on every run.
+
+Four probes, each killing a cheaper explanation: the global is an ACCESSOR
+(Node's, not a copied jsdom value); `sessionStorage` is untouched, which is
+exactly why only these suites broke; jsdom's is not on the prototype chain;
+and **deleting Node's leaves `undefined`** rather than revealing one
+underneath. There is nothing in that realm to recover.
+
+**The whole risk in a shim is FIDELITY** — a Map with four methods passes every
+consumer test in this repo and is still wrong in a browser. Pinned instead:
+keys AND values stringify (`setItem("n", 1)` reads back `"1"`), a miss is
+`null` and not undefined, `key(i)` walks insertion order, and entries are
+exposed as PROPERTIES, because this codebase documents
+`localStorage["moduli-haptics"] = "off"` as a user-facing mute that a
+methods-only shim would make silently inert here while it works on the device.
+
+**It is guarded, so it removes itself the day the environment is fixed** —
+nothing is installed when the global already answers the Storage interface.
+```
+before   42 files / 31 tests failed   3500 passing
+after   320 files /  0 failed         3821 passing
+```
+
+Every A/B fails exactly its own cases: deduping continuations fails 2 (the drop
+case AND the control proving plain fires still dedupe), restoring `release()`
+at both caps fails 4, and commenting out the storage install brings back 43
+files / 32 — the original 31 plus that file's own positive control, which
+exists so the shim silently not installing can never read as a pass.
+
+Deployed, prod HEAD verified, both served chunks sha256-identical to the local
+build with the continuation dispatch present in the SERVED bundle.
+
+---
+
 ### 2026-09-02 (4) — THE DOM IS NOT THE LEVER: three A/Bs, and my own audit's ranking was wrong TWICE
 
 User: *"can we look into the next parts"*. The next part was the DOM audit's
