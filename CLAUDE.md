@@ -6,79 +6,75 @@
 
 ---
 
-### 2026-09-03 (7) — THE SWEEP WAITED 16 MB FOR SIX NUMBERS
+### 2026-09-03 (7) — SHIPPED AND REVERTED: I measured the sweep in WRITES, and the cost is not writes
 
-(6) ended by naming the cost: *"at 18 seconds after load the grid is STILL
-RUNNING ITS LOAD SWEEP"*, `ops:start` at 4.6s on the probe and ~15s on the
-tablet. The sweep waited for the deferred artifact catalogue. This is that wait,
-removed.
+(6) named the wait: `ops:start` at 4.6s on the probe and ~15s on the tablet,
+with the sweep still running 18 seconds after load. I made the sweep run twice —
+once on the core state, once when the catalogue lands — and **the device says it
+is worse.** It is reverted.
 
-**`splitFullState`'s HEADER SAID WHY IT WAITS, AND THAT IS NOT AN OPINION TO
-ARGUE WITH** — *"the 19 operations that walk `$allItems` over every row see
-exactly what they saw before."* It is decidable: run the live grid's own 71
-pipelines both ways and diff. **Exactly SIX of 371 effects differ, all from ONE
-op** — `Trackers: Media Owned`, the media counter tiles, which read 0 without
-the catalogue. Everything else is identical.
-
-**THE STATIC RULE COLLAPSED, WHICH IS WHY THE SWEEP RUNS TWICE INSTEAD.** The
-obvious shape is "defer the ops that need the catalogue" — and **54 of 67 ops
-reference a global collection**, `Schedule: Build Schedule` among them, so that
-rule defers everything. Two passes is the tractable form, and it is only safe if
-the second rebuilds nothing:
 ```
-pass 1 (core)        376 effects · 103 creates · 204 real writes
-pass 2 (catalogue)   245 effects ·   0 creates ·  49 real writes
+User, after testing:  "its taking longer to boot up (a few seconds), it takes
+like a minute for the app to feel usable, and multiple operations are running
+after the fact ... i get a bunch of notifications from the on load operations
+... the yellow pill keeps popping up. i dont think due to the drag, i think its
+just running more operations independently."
 ```
-**ZERO CREATES IS THE GUARD THAT MATTERS**, because this file records the
-opposite happening on live data: 2026-08-31 (2), a day column re-copied on every
-load, +49 occurrences each time, unbounded. So pass 2 must not reset the overlay
-— that is where pass 1's creates live — and must not re-seed over it either,
-which would revert every value pass 1 computed. It adds only the rows the
-overlay has never seen, which is exactly the catalogue.
 
-**AND THE HARNESS'S APPLIER IS NOT THE ONE THE LOAD PATH USES.** Its own comment
-claimed it was; `bindSocketToStore` applies effects with `applyOperationEffect`,
-which also writes labels, styles and whole-occurrence patches, while
-`applyEffectsToLiveOccs` is the executor's IN-SWEEP overlay and handles a
-narrower set. Unmodelled, pass 2 read stale labels and looked like a convergence
-failure the app does not have. The test tops the missing kinds up **and reports
-what is STILL unmodelled**, so a silent gap cannot pass for a faithful
-simulation.
+**I MEASURED THE WRONG CURRENCY.** The whole case for a second pass was that it
+is cheap in WRITES — 49 against pass 1's 204, and zero creates. **Writes are not
+the cost.** Applying N effects mints N MeasureOp transactions, and each one
+fires ANOTHER full sweep over ~68 pipelines; this file records that chain from
+four directions (2026-09-02: *"19 sweeps x ~44ms of pure waste per drop"*, 782
+renders behind it; 2026-08-31 (5): 208 effects producing a ~3,900ms cascade).
+Two passes roughly double it — **and no count of writes can see that, because
+the cost is downstream of the write rather than in it.** The fixture measured
+what the code COMPUTES; only the device measures what the load COSTS.
 
-**THREE OF MY OWN MEASUREMENTS WERE WRONG BEFORE ANY NUMBER WAS TRUSTWORTHY, and
-all three flattered the same conclusion.** A write counter compared every effect
-against a FROZEN snapshot, so `Fitness: Today's Prescription` — which clears six
-slots then writes six values, by design — read as twelve changes rather than as
-the clear-then-write it is. It modelled the no-op guard on `UPDATE_ITEM_FIELD`
-alone, counting all **48 of a settled load's label writes as real work when the
-shipped guard already suppresses every one** (`bindSocketToStore.js:1340`). And
-the style top-up assigned one style VALUE over the whole `ownStyle` OBJECT, so
-every read of `ownStyle[styleKey]` came back undefined and reported **0 of 21
-writes as redundant** — the probe, not the app. Corrected, pass 2 emits no style
-writes at all: `Schedule: Mark Passed Slots` skips a slot already painted.
-*Each wrong version produced a precise, quotable figure.*
+**AND THE ORDER WAS ITS OWN DEFECT.** Pass 1 ran ~50ms after first paint, which
+is exactly when the 16 MB deferred half is being received and parsed — so the
+sweep competed with the very frames the split exists to free. That is the
+reported *"a few seconds longer to boot"*, and it follows from WHEN it runs, not
+from how long it takes.
 
-**A THIRD PASS SEPARATES A ONE-TIME SETTLE FROM AN OSCILLATION**, and they mean
-opposite things. Pass 3 is byte-identical to pass 2; of the fields written in
-both passes **140 agree and none two-cycles**. The sweep is stable from pass 2
-onward.
+**THE THIRD SYMPTOM WAS PREDICTABLE FROM THE DIFF AND I NEVER LOOKED FOR IT.**
+`makeOpNotificationCallbacks` is wired into the sweep, so running it twice emits
+every on-load toast twice. The change reasoned carefully about creates, overlay
+resets and feed syncs, and never once asked what the user would SEE.
 
-Both A/Bs fail exactly their own cases: removing the pass-1 call fails 3 of 5
-wiring tests while the **no-deferred-half CONTROL still passes** — without it,
-*"the sweep runs twice"* would also be satisfied by a build that sweeps twice on
-every load — and making pass 2 reset the overlay fails exactly the one test
-written for it. The flushes are final-pass only: a feed sync against the core
-state would materialize an artifact-backed feed as EMPTY and then sweep its own
-copies once the catalogue landed.
+**WHAT SURVIVES IS THE MEASUREMENT, NOT THE DESIGN.**
+`sweepWithoutCatalogue.test.js` is kept: over the live grid's own 71 pipelines,
+**exactly SIX of 371 effects differ without the catalogue**, all from
+`Trackers: Media Owned` — and a static *"which ops need it"* rule COLLAPSES,
+because 54 of 67 ops reference a global collection, `Schedule: Build Schedule`
+among them. Those are facts about the data and they will outlive any attempt to
+use them. **The wiring test went with the wiring.**
 
-3866 client tests, lint 0 errors, deployed, prod HEAD verified, served chunk
-sha256-identical with the new string present and a zero control at 0.
-Client-only, so pm2 was NOT restarted.
+**THREE OF MY OWN MEASUREMENTS WERE ALSO WRONG on the way, each producing a
+precise, quotable figure.** A write counter compared every effect against a
+FROZEN snapshot, so an op that clears six slots and then writes six values read
+as twelve changes instead of the clear-then-write it is. It modelled the no-op
+guard on `UPDATE_ITEM_FIELD` alone, counting all **48 of a settled load's label
+writes as real work when the shipped guard at `bindSocketToStore.js:1340`
+already suppresses every one.** And the style top-up assigned one style VALUE
+over the whole `ownStyle` OBJECT, so every read came back undefined and reported
+**0 of 21 writes as redundant** — the probe, not the app.
 
-**NOT VERIFIED, and it is the only thing that can settle it: nobody has taken a
-capture since this shipped.** The equivalence is proven over the real fixture and
-the wiring is A/B'd, but whether `ops:start` actually moves from ~15s to the
-first seconds on the tablet is the device's to say.
+**THE RULE, PAID TWICE IN ONE DAY.** 2026-09-03 (3) reverted a back-off four
+hours earlier for the same reason and wrote it down: *"stacking a fourth
+hypothesis on a measured regression is how this gets worse."* Reverted to the
+last state the device called good.
+
+**AND IT POINTS AT THE REAL LEVER, which the user described without being
+asked:** *"its just running more operations independently"* is the MeasureOp
+cascade, and it is on every load with or without this change. 2026-09-02 already
+measured its shape — **19 of 20 sweeps emitted ZERO effects** — and named the
+fix: *"it is not another cycle guard (there is no cycle); it is that applying N
+effects mints N transactions."* That is the next thing to measure, on the
+device, from the existing `opBy=` capture rather than from a fixture.
+
+Reverted, deployed, prod HEAD verified, served chunk sha256-identical with the
+two-pass string at 0 and a control at 1. Client-only, so pm2 was NOT restarted.
 
 ---
 
