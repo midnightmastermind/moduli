@@ -102,6 +102,42 @@ export function cachedParentMap(occurrencesById) {
 }
 
 // ------------------------------------------------------------
+// cachedOccByModuleId
+// ------------------------------------------------------------
+// "Which occurrence places this module?" answered by a FULL SCAN of the
+// occurrence map — `Object.values(occurrencesById).find(o => o.moduleId === id)`
+// — is a pattern this codebase repeats, and on a 21,262-occurrence grid each
+// call allocates an array of 21,262 references before it looks at one. In
+// `ModulePanel` it sits in a `useMemo` keyed on `occurrencesById`, which the
+// store swaps on EVERY write, so three panels re-scanned the whole grid for
+// each of the load sweep's writes. A source-mapped profile of the load's effect
+// window put that one line at 159ms of 3,181ms.
+//
+// FIRST MATCH WINS, because that is what `.find()` returned and a module may
+// legitimately have several placements — the Schedule shares one slot across
+// day columns. Changing which one is chosen is a behaviour change, not an
+// optimisation, so the index is built in the same iteration order.
+//
+// Same WeakMap shape and the SAME CAVEAT as `cachedParentMap` above: the
+// operation executor mutates its overlay map in place, so this is for
+// render-path callers handed the immutable store map. Do not reach for it
+// inside the executor.
+const _occByModuleCache = new WeakMap();
+
+export function cachedOccByModuleId(occurrencesById) {
+  if (!occurrencesById || typeof occurrencesById !== "object") return new Map();
+  const hit = _occByModuleCache.get(occurrencesById);
+  if (hit) return hit;
+  const index = new Map();
+  for (const occ of Object.values(occurrencesById)) {
+    const mid = occ?.moduleId;
+    if (mid && !index.has(mid)) index.set(mid, occ);
+  }
+  _occByModuleCache.set(occurrencesById, index);
+  return index;
+}
+
+// ------------------------------------------------------------
 // buildParentsMap / reachableAncestors — EVERY parent, not just one
 // ------------------------------------------------------------
 // `buildParentMap` keys child -> ONE parent, LAST WRITER WINS. That is correct

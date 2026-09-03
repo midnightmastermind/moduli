@@ -13,6 +13,7 @@ import { resolveStyleCascade, styleToCSS } from "../helpers/StyleHelpers";
 import { bumpRender } from "../helpers/renderProbe";
 import { markLoadOnce, markLoad } from "../helpers/loadDiag";
 import { useStagedContent } from "../hooks/useStagedContent";
+import { cachedOccByModuleId } from "../helpers/dragHitTesting";
 import { useActiveCell, useZoomedOut } from "../state/activeCellStore";
 import { shouldHidePanelRows, publishPanelRowsHidden } from "../helpers/offscreenRows";
 import { Spinner } from "@/components/ui/spinner";
@@ -417,7 +418,12 @@ function Panel({
 
   // Occurrence for this panel
   const panelOccurrence = useMemo(() => {
-    return Object.values(occurrencesById).find(occ => occ.moduleId === module.id);
+    // Was a full scan of every occurrence on the grid, re-running on each of
+    // the load sweep's writes because `occurrencesById` changes identity per
+    // write — 159ms of the load's 3,181ms effect window, across three panels.
+    // The index is memoised on that same identity and keeps `.find()`'s
+    // first-match rule (see helpers/dragHitTesting.js).
+    return cachedOccByModuleId(occurrencesById).get(module.id);
   }, [occurrencesById, module.id]);
 
   // Panel cascade — Grid → Panel chain. Reads pass-down style from
@@ -467,7 +473,7 @@ function Panel({
   const [panelQuickAddTrigger, setPanelQuickAddTrigger] = useState(0);
   const handlePanelPickPage = useCallback((pageModule) => {
     if (!pageModule?.id || !panelOccurrence?.id) return;
-    const pageOcc = Object.values(occurrencesById).find(o => o.moduleId === pageModule.id);
+    const pageOcc = cachedOccByModuleId(occurrencesById).get(pageModule.id);
     if (!pageOcc) return;
     CommitHelpers.pinPageToPanel({ dispatch, socket, pageOccurrenceId: pageOcc.id, panelOccurrenceId: panelOccurrence.id });
     if (currentView) {
@@ -524,7 +530,7 @@ function Panel({
 
   const splitPartnerOccurrenceId = useMemo(() => {
     if (!splitPartnerPanel) return null;
-    return Object.values(occurrencesById).find(occ => occ.moduleId === splitPartnerPanel.id)?.id || null;
+    return cachedOccByModuleId(occurrencesById).get(splitPartnerPanel.id)?.id || null;
   }, [splitPartnerPanel, occurrencesById]);
 
   const isSplit = !!splitPartnerPanel;
