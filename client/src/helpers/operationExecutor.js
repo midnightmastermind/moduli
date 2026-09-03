@@ -24,6 +24,7 @@ import { analyzeAllOperations } from "./operationIntrospection";
 import { applyDisplayRules } from "./displayRules";
 import { bumpOpRun } from "./renderProbe";
 import { noteOpSweep } from "./opActivity";
+import { yieldToBrowser } from "./sliceWork";
 
 // ============================================================
 // RUN LOG — per-operation run history for the editor's log panel
@@ -1006,7 +1007,26 @@ export function runMatchingOperations(operations, transactionType, transaction, 
   }
 }
 
-function _runMatchingOperations(operations, transactionType, transaction, context, { onError, onSuccess } = {}) {
+/** Drive the sweep straight through — every existing caller's behaviour. */
+function _runMatchingOperations(operations, transactionType, transaction, context, cbs) {
+  const it = _runMatchingOperationsGen(operations, transactionType, transaction, context, cbs);
+  let r = it.next();
+  while (!r.done) r = it.next();
+  return r.value;
+}
+
+// ── ONE BODY, TWO DRIVERS ──────────────────────────────────────────────────
+// The sweep is ~68 ops in ONE synchronous task. On the device the load sweep
+// measured `load:1x2544ms/231fx` — a two-and-a-half-second freeze that a finger
+// already on the screen cannot interrupt, which is what `via=move-late` and a
+// 150ms lift timer arriving at 5,268ms report.
+//
+// Long TASKS are the problem, not total work (helpers/sliceWork.js). Making
+// this a generator lets the same code be driven straight through (every
+// existing caller, byte-identical order) or with a time budget between ops.
+// Writing a second sliced implementation is how the two would drift, and this
+// is the shared execute path this file has been damaged on before.
+function* _runMatchingOperationsGen(operations, transactionType, transaction, context, { onError, onSuccess } = {}) {
   const updates = [];
   // Priority is per-trigger (1–10, default 5). Pre-match every op so we can sort
   // by the priority of the triggerObject that actually matched — an op with two
@@ -1139,6 +1159,12 @@ function _runMatchingOperations(operations, transactionType, transaction, contex
     // `__moduli_download_runs()` in the browser console — file saves
     // to ~/Downloads/, then `node server/scripts/dumpOpRunLogs.js
     // ~/Downloads/moduli-runs-*.json` consumes it.
+
+    // The one addition. Between ops is the ONLY safe seam: `liveOccs` and
+    // `updates` are closure-local and survive a yield untouched, and effects
+    // are applied by the CALLER after the whole sweep either way — so a slice
+    // boundary here cannot change what any op sees.
+    yield;
   }
 
   // Per-op timing summary — only emits if the batch took >20ms or any single
@@ -1153,6 +1179,58 @@ function _runMatchingOperations(operations, transactionType, transaction, contex
   }
 
   return updates;
+}
+
+/**
+ * Run the same sweep in TIME SLICES, yielding to the browser between ops so it
+ * can paint and deliver input. Opt-in and currently used only by the load
+ * sweep — the one fire big enough to matter and the only one whose caller can
+ * await it.
+ *
+ * `wrap` runs each step inside a caller-supplied scope. The load sweep is
+ * DERIVED, and `runDerived`'s try/finally restores on RETURN — so without
+ * carrying the scope across the yields the continuation resumes at
+ * derivedDepth 0 and every write it causes opens an undo action, which is the
+ * 2026-08-27 (3) defect (a page load pushing 26 undo steps, so Ctrl+Z reverted
+ * a tracker recomputation instead of the user's last edit). Same reason the
+ * effect loop on that path already captures its scope.
+ *
+ * `opMs` is WORK time, not wall time: the yields are real but they are not
+ * thread, and inflating the number would make every before/after in this repo
+ * incomparable.
+ */
+export async function runMatchingOperationsSliced(
+  operations, transactionType, transaction, context,
+  { onError, onSuccess } = {},
+  { budgetMs = 32, wrap, yieldFn = yieldToBrowser } = {},
+) {
+  const it = _runMatchingOperationsGen(operations, transactionType, transaction, context, { onError, onSuccess });
+  const step = wrap ? () => wrap(() => it.next()) : () => it.next();
+  let workMs = 0, _fx = 0, slices = 0;
+  try {
+    for (;;) {
+      const sliceStart = performance.now();
+      slices++;
+      let r;
+      // do/while: one op minimum per slice. An op slower than the whole budget
+      // would otherwise be skipped forever — and some of these genuinely are
+      // (one measured 450ms). See helpers/sliceWork.js.
+      do {
+        r = step();
+        if (r.done) break;
+      } while (performance.now() - sliceStart < budgetMs);
+      workMs += performance.now() - sliceStart;
+      if (r.done) { _fx = Array.isArray(r.value) ? r.value.length : 0; return r.value; }
+      await yieldFn();
+    }
+  } finally {
+    bumpOpRun(workMs, transactionType || "load", _fx);
+    noteOpSweep(workMs);
+    if (typeof window !== "undefined" && window.__dragPerf === true) {
+      // eslint-disable-next-line no-console
+      console.log(`[op-timing] sliced ${transactionType || "load"} — ${slices} slices, ${Math.round(workMs)}ms of work`);
+    }
+  }
 }
 
 // Strip the heaviest fields preemptively rather than discovering they're

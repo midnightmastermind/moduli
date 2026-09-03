@@ -6,7 +6,7 @@
 // =========================================
 
 import { ActionTypes } from "./actions";
-import { runMatchingOperations, executeOperation, executePipeline, setOpApplyingEffects, snapshotOpsApplying, markOpsApplying } from "../helpers/operationExecutor";
+import { runMatchingOperations, runMatchingOperationsSliced, executeOperation, executePipeline, setOpApplyingEffects, snapshotOpsApplying, markOpsApplying } from "../helpers/operationExecutor";
 import { kindForNewModule } from "../helpers/operationActions";
 import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
 import { toast, pushTxNotification } from "./notificationStore";
@@ -381,8 +381,33 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // lookups are reads.
       const overlay = mergedOccsOverlay(occurrencesById);
       markLoad("ops:start", { ops: operations.length });
-      const allUpdates = runMatchingOperations(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById: overlay, modulesById },
-        makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById, occurrencesById: mergedOccsOverlay(occurrencesById), modulesById })));
+
+      // ── THE SWEEP IS SLICED, BECAUSE A FINGER CANNOT INTERRUPT ONE TASK ───
+      //
+      // This is ~68 pipelines in a single synchronous block. On the device it
+      // measured `load:1x2544ms/231fx` — and the drag hold cannot help, because
+      // the hold defers fires that have not STARTED. A sweep already running
+      // when the finger lands blocks it outright, which is what a 150ms lift
+      // timer arriving at 5,268ms (`via=move-late`) reports.
+      //
+      // Long TASKS are what drop frames, not total work (helpers/sliceWork.js).
+      // The sweep is no faster; it is INTERRUPTIBLE, which is the thing the
+      // user feels. Both drivers share one generator body, and a test drives
+      // the real 68-op fixture through each and asserts byte-identical effects.
+      //
+      // THE DERIVED SCOPE IS CAPTURED HERE, SYNCHRONOUSLY, while it is still
+      // live — `runDerived`'s try/finally restores on RETURN, so a continuation
+      // resuming after a yield would run at derivedDepth 0 and every write it
+      // causes would open an undo action again. That is 2026-08-27 (3): a page
+      // load pushing 26 undo steps, so Ctrl+Z reverted a tracker recomputation
+      // instead of the user's last edit. It wraps every op AND the whole
+      // continuation below, which the effect loop then re-uses.
+      const capturedScope = captureAction();
+
+      void runMatchingOperationsSliced(operations, null, null, { state: hydratedState, fieldsById, operationsById, occurrencesById: overlay, modulesById },
+        makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById, occurrencesById: mergedOccsOverlay(occurrencesById), modulesById })),
+        { wrap: (fn) => runInAction(capturedScope, fn) },
+      ).then((allUpdates) => runInAction(capturedScope, () => {
       const tOps1 = performance.now();
       markLoad("ops:end", { ms: +(tOps1 - tOps0).toFixed(1) });
       const displayUpdates = allUpdates.filter(u => !u._effect);
@@ -421,9 +446,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       // continuation would resume at derivedDepth 0 and every write it made
       // would open an undo action again — which is exactly the 2026-08-27 (3)
       // defect (a page load pushing 26 undo steps, so Ctrl+Z reverted a tracker
-      // recomputation instead of the user's last edit). `captureAction` is
-      // taken here, synchronously, while the scope is still live.
-      const capturedScope = captureAction();
+      // recomputation instead of the user's last edit). `capturedScope` is
+      // taken above the sweep, synchronously, while the scope is still live —
+      // the sweep is sliced too now and needs the same carry.
 
       // ── THE SAME CYCLE GUARD THE NESTED FIRE PATH USES ───────────────────
       //
@@ -477,6 +502,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         flushOfflineQueue(socket);
         scheduleFeedSync(400);
       });
+      }));
     }), 50)));
   }
 
