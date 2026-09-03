@@ -6,6 +6,76 @@
 
 ---
 
+### 2026-09-03 (11) — A QUARTER OF THE CATALOGUE IS KEYS THAT ARE NULL ON EVERY ROW
+
+With the effect loop fixed, `ops:start=9,667ms` — the wait on the 16 MB artifact
+catalogue — is the largest item left. User: *"as long as nothing is hardcoded
+toward media, lets look into it."* That constraint shaped the answer rather than
+just the review.
+
+**MEASURED ON THE LIVE GRID'S OWN PAYLOAD, BY KEY:**
+```
+artifact rows            15.33 MB   (15,708 rows, ~1,024 bytes each)
+  meta                    3.45 MB   22%    cover 1.15 · spotify/isbn ids ~1.3
+  fields                  3.36 MB   22%    URL · Artist · Album · Excerpt · …
+  ALL-NULL KEYS           3.48 MB   23%  <- identitySignature fieldVisibility
+                                            linkedGroupId filterNavConfig
+                                            filterOverride dragMode ownStyle
+                                            placement viewId filters feed
+  timestamps + ids        2.24 MB   15%
+```
+**Eleven keys are null on every one of the 15,708 rows**, and nothing in the
+client or server distinguishes absent from null on any of them — checked, with
+a positive control on the grep. Across the whole payload:
+```
+occurrences   19.32 MB -> 16.47 MB   (-15%)
+modules        7.10 MB ->  6.35 MB   (-11%)
+```
+~3.6 MB the device receives, inflates and JSON.parses for nothing.
+
+**THE RULE IS A FACT ABOUT THE VALUE, NOT A LIST OF KEYS.** `omitNullKeys` drops
+what is absent; it names no role, no kind and no field, and a test greps its
+source for those words. A key list would be one schema change from silently
+shipping the padding again — and `noDomainKnowledge.test.js` exists because
+domain concepts have leaked into generic layers here twice.
+
+**AND THE EXTRA 2.5 MB IS DELIBERATELY LEFT ON THE TABLE.** Dropping `[]` and
+`{}` as well takes the payload to 20.28 MB — and is NOT safe: absent equals
+empty only where every reader guards, and they do not.
+```
+dragHitTesting.js:576   targetOcc.occurrences.length
+dragHitTesting.js:579   parentOcc.occurrences.indexOf(targetOcc.id)
+```
+Both throw on an absent array and both sit in the DROP path. *A zero from that
+grep was a claim about the grep until a positive control showed it finding 33
+guarded reads of the same shape.* The 2.5 MB is available to whoever guards
+those call sites first; it is not free.
+
+**AND THE CATALOGUE PHASE IS INSTRUMENTED RATHER THAN GUESSED AT.** `ops:start`
+being 9.7s does not say WHICH part: arriving, merging, or the single store write
+and its render fan-out. Those have different fixes — a smaller payload helps the
+first two and does nothing for the third — so `rest=` (first chunk to last) and
+`restWrite=` now split it, and the next design decision waits on that number.
+
+**THE SHAPE OF THE BIGGER CHANGE, DESIGNED AND NOT BUILT.** Only FOUR artifact
+fields are referenced by any operation or dropdown predicate on this grid — Tags,
+Board Category, Owned, Episodes — so a projection carrying only what is READ is
+**3.88 MB against 15.33 MB (25%)**. That keep-set must be DERIVED from the grid's
+own declarations (operation pipelines + `optionsSource` predicates + the grid's
+filter fields), never written down, so a tracker that starts reading `Artist`
+keeps `Artist` automatically. Its gate is equivalence: the sweep's effects AND
+every dropdown's resolved options must be byte-identical slim vs full —
+`sweepWithoutCatalogue.test.js` already has that shape. Full rows arrive when a
+board is opened, which is the only behaviour that changes.
+
+**NOT ATTEMPTED HERE**, and (7) is the record of why: this is the architectural
+change this file has deferred four times, and the last attempt to shortcut it by
+reordering shipped a regression the device caught.
+
+3881 client + 2048 server tests, lint 0 errors.
+
+---
+
 ### 2026-09-03 (10) — THE DEVICE'S LOAD TIMELINE: applying the effects is 22 of 35 seconds
 
 (9) shipped the instrument and said the next move was one fresh load. Here it

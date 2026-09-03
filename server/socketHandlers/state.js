@@ -4,6 +4,7 @@
 import Grid from "../models/Grid.js";
 import { filterFieldIdsOf } from "../utils/filterFields.js";
 import { splitFullState } from "../utils/splitFullState.js";
+import { omitNullKeysAll } from "../utils/omitNullKeys.js";
 
 // How long to wait for the client's post-paint request before pushing the
 // deferred half anyway. Generous: it is a safety net, not a schedule.
@@ -21,8 +22,11 @@ function emitDeferred({ socket, gridId, deferred, deferredModules }) {
   for (let i = 0; i < chunks; i++) {
     socket.emit("full_state_rest", {
       gridId,
-      occurrences: deferred.slice(i * CHUNK, (i + 1) * CHUNK),
-      modules: i === 0 ? deferredModules : [],
+      // Absent keys are not sent — 23% of the catalogue is keys that are null
+      // on every row. See utils/omitNullKeys.js for the measurement and for why
+      // `[]` and `{}` are deliberately kept.
+      occurrences: omitNullKeysAll(deferred.slice(i * CHUNK, (i + 1) * CHUNK)),
+      modules: i === 0 ? omitNullKeysAll(deferredModules) : [],
       chunk: i + 1, chunks, done: i === chunks - 1,
     });
   }
@@ -149,8 +153,8 @@ export function registerStateHandlers(socket, {
         gridId,
         userEmail: socket.data.userEmail,
         grid: gridDoc,
-        modules: coreModules,
-        occurrences: core,
+        modules: omitNullKeysAll(coreModules),
+        occurrences: omitNullKeysAll(core),
         fields: Object.values(uc.fieldsById),
         manifests: Object.values(uc.manifestsById),
         views: Object.values(uc.viewsById),

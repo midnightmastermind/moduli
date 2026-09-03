@@ -359,6 +359,14 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   }
 
   function onFullStateRest(rest = {}) {
+    // ── ATTRIBUTE THE CATALOGUE, which is now the largest item on a load ─────
+    //
+    // `ops:start=9,667ms` and a 2.9s task at 3.2s say the deferred half owns
+    // most of what is left, but not WHICH part: arriving, being merged, or the
+    // one store write and its render fan-out. Those have different fixes — a
+    // smaller payload helps the first two and does nothing for the third — so
+    // the next design decision waits on this split rather than on a guess.
+    markLoad("rest:chunk", { n: rest.occurrences?.length || 0, done: !!rest.done });
     // A late chunk for a grid the user has already navigated away from must not
     // be merged into the new one.
     if (rest.gridId && pendingFullState?.gridId && rest.gridId !== pendingFullState.gridId) return;
@@ -382,7 +390,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
     // Dispatch BEFORE the sweep, which is the order the per-chunk version had:
     // every chunk was in the store by the time the final one ran the sweep.
+    markLoad("rest:complete");
     flushRestChunks();
+    markLoad("rest:dispatched");
     if (restFallbackTimer) { clearTimeout(restFallbackTimer); restFallbackTimer = null; }
     const p = pendingFullState;
     pendingFullState = null;

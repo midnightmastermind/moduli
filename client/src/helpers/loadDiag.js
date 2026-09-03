@@ -84,6 +84,9 @@ export function loadDiagLine(tag = "load") {
     + `panels=${r.panelCount}@${ms(r.firstPanelAt)}-${ms(r.lastPanelAt)} `
     + `contentReady=${ms(m("panel:content-ready"))} `
     // The three that decide where the load tail goes.
+    // The catalogue phase, split three ways: when the first chunk landed, when
+    // the last did, and what the single store write cost.
+    + `rest=${ms(m("rest:chunk"))}-${ms(m("rest:complete"))} restWrite=${ms(span(S()?.marks || [], "rest:complete", "rest:dispatched"))} `
     + `ops:start=${ms(r.opSweepStartedAt)} sweep=${ms(r.opSweepMs)} effects=${ms(r.opEffectsMs)} `
     + `opsDone=${ms(r.opsDoneAt)} `
     // SLICES vs EFFECTS is the tell for a degenerate budget. `sliceWork`'s own
