@@ -172,7 +172,17 @@ export function buildStyleCascadeContext({ leafOccurrence, occurrencesById, modu
   while (cur && safety-- > 0) {
     if (seen.has(cur.id)) break;
     seen.add(cur.id);
-    const mod = modulesById[cur.targetId];
+    // `moduleId`, NOT `targetId`. The 2026-07-29 rename retired `targetId` and
+    // the audit that swept 34 dead fallbacks and 9 broken sole-lookups missed
+    // this one — so this walk resolved EVERY module to undefined and returned
+    // `{ grid }` and nothing else, for as long as the rename has been in.
+    // Measured on the live grid: 0 of 5,564 occurrences carry `targetId`,
+    // 5,563 carry `moduleId`.
+    //
+    // NO FALLBACK, deliberately: a `?? cur.targetId` would render an
+    // unmigrated grid correctly and hide the fact that it was never migrated,
+    // which is the rule this codebase already applies to `primaryMediaOf`.
+    const mod = modulesById[cur.moduleId];
     if (mod) {
       if (mod.role === "container" && !ctx.container) {
         ctx.container = mod;

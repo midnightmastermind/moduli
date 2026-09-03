@@ -124,16 +124,21 @@ describe("legacy resolveInstanceStyle now layers Grid default", () => {
   });
 });
 
+// THE FIXTURE USED TO SAY `targetId`, which is why the 2026-07-29 rename audit
+// missed this walk entirely: the test passed against a function reading a field
+// no occurrence has carried since. Measured on the live grid, 0 of 5,564
+// occurrences carry `targetId`. Keep these on `moduleId` — with the old shape
+// this suite cannot fail.
 describe("buildStyleCascadeContext parent-chain walk", () => {
   it("buckets ancestors by role via occurrences[] reverse map", () => {
     const panelMod  = { id: "pmod", role: "panel",     childContainerStyle: { padding: "5px" } };
     const pageMod   = { id: "pgmod", role: "page",     styleMode: "own", ownStyle: { bg: "#abc" } };
     const contMod   = { id: "cmod", role: "container", styleMode: "own", ownStyle: { bg: "#def" } };
     const instMod   = { id: "imod", role: "instance" };
-    const occPanel  = { id: "po", targetId: "pmod",  occurrences: ["pgo"] };
-    const occPage   = { id: "pgo", targetId: "pgmod", parentId: "po",  occurrences: ["co"] };
-    const occCont   = { id: "co", targetId: "cmod",   parentId: "pgo", occurrences: ["io"] };
-    const occInst   = { id: "io", targetId: "imod",   parentId: "co" };
+    const occPanel  = { id: "po", moduleId: "pmod",  occurrences: ["pgo"] };
+    const occPage   = { id: "pgo", moduleId: "pgmod", parentId: "po",  occurrences: ["co"] };
+    const occCont   = { id: "co", moduleId: "cmod",   parentId: "pgo", occurrences: ["io"] };
+    const occInst   = { id: "io", moduleId: "imod",   parentId: "co" };
     const ctx = buildStyleCascadeContext({
       leafOccurrence: occInst,
       occurrencesById: { po: occPanel, pgo: occPage, co: occCont, io: occInst },
