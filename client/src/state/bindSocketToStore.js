@@ -258,6 +258,21 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
 
     markFS(`reducer dispatched (${(payload.occurrences || []).length} occs, ${(payload.modules || []).length} mods)`);
 
+    // ── AN EARLY SAMPLE, because a session can end before the sweep does ─────
+    //
+    // The first capture attempt produced NOTHING: the tab reached `full_state`,
+    // took the deferred chunks and disconnected before `effects:end`, which is
+    // where the only other sample is emitted. On this device that point is
+    // 15-20s in, so any load the user does not sit through reports nothing at
+    // all — and "no line" is indistinguishable from "the instrument is broken".
+    // This one costs a socket frame and lands before anything can go wrong.
+    setTimeout(() => {
+      try {
+        const line = loadDiagLine("load:early");
+        if (line) safeEmit(socket, "save_scroll_diag", { line, ua: typeof navigator !== "undefined" ? navigator.userAgent : "" });
+      } catch { /* a diagnostic must never break the load it measures */ }
+    }, 2500);
+
     // PROGRESSIVE LOAD: the server sends the working surfaces first and the
     // artifact catalogue immediately behind it (server/utils/splitFullState.js —
     // 16.15 MB of a 28.74 MB payload was songs/albums/bookmarks/artists). The

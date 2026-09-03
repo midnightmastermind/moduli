@@ -10,7 +10,7 @@ import ContainerKindSelector from "../ui/ContainerKindSelector";
 import ContextMenu from "../ui/ContextMenu";
 import { useLongPress } from "../hooks/useLongPress";
 import { resolveStyleCascade, styleToCSS } from "../helpers/StyleHelpers";
-import { bumpRender } from "../helpers/renderProbe";
+import { bumpRender, useRenderAttribution } from "../helpers/renderProbe";
 import { markLoadOnce, markLoad } from "../helpers/loadDiag";
 import { useStagedContent } from "../hooks/useStagedContent";
 import { cachedOccByModuleId } from "../helpers/dragHitTesting";
@@ -338,6 +338,40 @@ function Panel({
   const { state } = useContext(GridDataContext);
   const { isMobileLayout, isTouch } = useContext(GridLiveContext);
   const rootTreeCanPush = useMinWidth(ROOT_TREE_PUSH_MIN_W);
+
+  // ── WHY DID THIS PANEL RENDER? ───────────────────────────────────────────
+  //
+  // `bumpRender("panel")` above has COUNTED panel renders since the frame-1
+  // work; nothing has ever EXPLAINED them, because this was the one hot
+  // component of the four without an attribution hook (field, container and
+  // instance all have one). It shows: on the device's own captures `panel` is
+  // the LARGEST render bucket during the load window — 291 of 998 on one drag,
+  // 303 of 1,303 on another — and it is the only bucket with no `causes=`
+  // entry at all, so the biggest number in the report is the one nobody can
+  // account for.
+  //
+  // The standing lead is 2026-08-25 (5): this component subscribes to
+  // `occurrencesById`, which is REBUILT on every occurrence write, so all three
+  // mounted panels re-render on each of the load sweep's writes. That is a
+  // hypothesis until a capture names it — and narrowing a subscription in a
+  // 1,200-line component on a hypothesis is exactly how this week's reverted
+  // change happened. Every subscription is captured separately so the answer
+  // is a NAME rather than a guess.
+  useRenderAttribution("panel", {
+    p_module: module, p_dispatch: dispatch, p_socket: socket,
+    p_cols: cols, p_rows: rows,
+    p_addContainerToPanel: addContainerToPanel,
+    p_addInstanceToContainer: addInstanceToContainer,
+    p_fullscreenPanelId: fullscreenPanelId, p_isForeground: isForeground,
+    p_mosaic: mosaic,
+    s_occurrencesById: occurrencesById, s_instancesById: instancesById,
+    s_leafModulesById: leafModulesById, s_containersById: containersById,
+    s_viewsById: viewsById, s_modulesById: modulesById,
+    s_manifestsById: manifestsById, s_foldersById: foldersById,
+    s_addNewPanel: addNewPanel,
+    s_state: state, s_isMobileLayout: isMobileLayout, s_isTouch: isTouch,
+    s_rootTreeCanPush: rootTreeCanPush,
+  }, module?.label);
 
   // ── Staged content (docs/superpowers/plans/2026-08-06-staged-loading.md) ──
   // The panel's CHROME renders immediately; its CONTENT waits for a frame so the
