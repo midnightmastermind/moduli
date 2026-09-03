@@ -2,6 +2,53 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-03 — the day column gets an IDENTITY, and the server refuses a duplicate)
+
+- **`utils/duplicateSignature.js` (NEW, 10 tests)** — `refusedDuplicateCreates(batch, occurrencesById)`
+  returns the ids of creates that would give one parent two children with the SAME
+  `identitySignature`. Wired into `handleCreateBatch` BEFORE anything is cached or upserted;
+  refused rows are skipped whole (no cache entry, no upsert, no parent `$push`) and the originator
+  is sent `occurrence_deleted` so its optimistic copy cannot linger as the phantom a later
+  parent-list write would launder into a dangling ref.
+- **WHY THIS LAYER AND NOT THE PIPELINE.** `Day Page: Build` guards its create with a FIND over the
+  client's own payload, and that FIND is CORRECT — measured over the grid's own pipelines, with the
+  column present it creates nothing, and a second sweep over the applied world creates nothing.
+  Nine columns still accumulated on 2026-09-02, **exactly 35 seconds apart, which is the device's
+  own `opsDone` load-sweep duration**: the create of one sweep had not reached the payload the next
+  was built from. **A pipeline cannot defend against that, because its input IS the payload.**
+- **IT ENFORCES AN INVARIANT THE GRID ALREADY DECLARES**, rather than a rule about day pages:
+  `identitySignature` is the clone-identity key APPLY_TEMPLATE's merge already matches siblings on,
+  and `gridIntegrity` reports two siblings sharing one as an ERROR.
+- **THREE NARROWINGS, EACH FROM A MEASUREMENT.** A signature is required (an unsigned node has no
+  declared identity). **The parent must EXIST** — across all six live grids the only groups sharing
+  `(parentId, signature)` are ones whose `parentId` names nothing (eight weekday templates sharing
+  a hand-authored `day-container`, two project pages), so with that narrowing the pair is unique
+  and the guard **would refuse nothing that exists today**. And **a refused root takes its SUBTREE
+  with it**: APPLY_TEMPLATE emits children as their own rows and carries their ids inline on the
+  parent, so refusing only the root would persist seven orphans whose parent never arrives —
+  trading a visible duplicate for invisible debris.
+- **`liveSystemBuilders.makeDayPageBuildOp` + `migrations/0284`** — the column's create branch now
+  passes `rootSignature: "daypage:col:${$day}"`. A non-merge ROOT is otherwise left UNSIGNED on
+  purpose (the derived `auto:<templateId>` would give every column the same signature), which left
+  it the one node nothing could recognise structurally. Dated, so one per day is legal and two are
+  not. **Both halves are required**: the stored op for tomorrow's column, the backfill for the 33
+  that exist — without the second the guard has nothing to compare against.
+- **THE MIGRATION REFUSES TO CREATE THE STATE THE GUARD PREVENTS.** If two columns shared a date
+  they would be stamped with the SAME signature, so it throws and names them rather than writing it
+  and letting `gridIntegrity` find it afterwards. Dry run on poms grid: **33 columns, 33 to stamp,
+  0 skipped, 0 collisions**, with the board and date field resolved from the op itself rather than
+  hardcoded. It writes a signature and nothing else — nothing moved, deleted or re-parented, and a
+  column already carrying a signature is left alone (the `0035` class).
+- **THE SELECTOR IS THE RISK AND IS TESTED AS SUCH.** The op holds TWO APPLY_TEMPLATE steps — the
+  create branch and the merge branch — nested inside two IFs and a loop. `findColumnCreateStep`
+  picks by SHAPE (`rootParent` + `rootIdVar`), a test asserts it never picks the merge branch, and
+  the migration throws unless it finds EXACTLY one.
+- **A/B'd, and one result is reported rather than overstated.** The parent-must-exist narrowing,
+  the subtree expansion and the same-id-is-not-a-duplicate rule each fail exactly their own case.
+  The unsigned case does NOT discriminate: `!sig` is checked in two places that are redundant with
+  each other, so removing either alone changes nothing and only removing BOTH fails the test — it
+  pins the contract, not a line, and calling it a fourth A/B would overstate the coverage.
+
 ## Recent Changes (2026-08-16 (2) — the zucchini picture: `0130` ran BEFORE the row qualified)
 - **User: *"the zuccini picture is too big and wrapping."*** It rendered the full-width block
   poster instead of the 22px inline thumbnail beside the label.

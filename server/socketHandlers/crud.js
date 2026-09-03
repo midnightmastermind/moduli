@@ -1,6 +1,7 @@
 // socketHandlers/crud.js — CRUD for Grid, Module, Occurrence (simple), Field, Operation, Folder + genericCRUD
 import { setMaxListeners } from "node:events";
 import { filterFieldIdsOf } from "../utils/filterFields.js";
+import { refusedDuplicateCreates } from "../utils/duplicateSignature.js";
 import { withoutMongoId } from "../utils/mongoId.js";
 import Grid from "../models/Grid.js";
 import Module from "../models/Module.js";
@@ -1421,11 +1422,26 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
 
       const uc = await getUc();
 
+      // ---- 0. refuse a create that would duplicate a signed sibling --------
+      //
+      // The client's FIND can only see the payload it was handed; the server
+      // knows what exists. See `utils/duplicateSignature.js` for the
+      // measurement and the three narrowings. Refused ids are skipped whole —
+      // nothing cached, nothing upserted, no parent `$push` naming them — and
+      // the originator is told so its optimistic copy does not linger as a
+      // phantom the next parent-list write would launder into a dangling ref.
+      const refusedIds = refusedDuplicateCreates(batch, uc.occurrencesById);
+      if (refusedIds.size) {
+        console.log("🟣 create_batch REFUSED (duplicate signature)", refusedIds.size, [...refusedIds].slice(0, 6));
+        for (const rid of refusedIds) io.to(userRoom(userId)).emit("occurrence_deleted", rid);
+      }
+
       // ---- 1. build, cache, and upsert every row in one write --------------
       const rows = [];
       for (const { occurrence, actionId } of batch) {
         const id = occurrence?.id;
         if (!id) continue;
+        if (refusedIds.has(id)) continue;
         // gridId fallback chain: payload → socket's active grid. Without this, a
         // CREATE_ITEM effect from a pipeline that didn't set state.gridId on its
         // optimistic newOcc emits gridId=undefined, Mongoose fails its `required`

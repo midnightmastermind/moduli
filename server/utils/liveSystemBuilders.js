@@ -1902,6 +1902,16 @@ export function makeDayPageBuildOp({
                     // day-columns use, so both surfaces name a day identically.
                     // No "Day Page - " prefix: the board is already called that.
                     rootLabel: "${dateLong:$day}",
+                    // THE COLUMN'S IDENTITY, and the only reason a duplicate can
+                    // be refused at all. A non-merge root is otherwise left
+                    // UNSIGNED (signing it `auto:<templateId>` would give every
+                    // column the same signature), so nothing could recognise one
+                    // structurally and the sole defence was a FIND over whatever
+                    // payload the client held. Dated, so one per day is legal and
+                    // two are not — which is exactly what the server now
+                    // enforces (utils/duplicateSignature.js). Nine columns
+                    // accumulated on 2026-09-02 for want of this.
+                    rootSignature: "daypage:col:${$day}",
                     replacements: { "{Date}": "$day" },
                     rootIdVar: "$colId",
                     defaultFields: { [dateFieldId]: "$day" },

@@ -3156,6 +3156,19 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       // is byte-for-byte unchanged.
       const rootParentId = cfg.rootParent != null ? resolveExpr(cfg.rootParent, $vars) : null;
       const rootLabelOverride = cfg.rootLabel != null ? resolveExpr(cfg.rootLabel, $vars) : null;
+      // rootSignature (optional): the caller NAMES this application's identity.
+      //
+      // A non-merge root is deliberately left unsigned below — signing it with
+      // the derived `auto:<templateId>` would give every day column built from
+      // one template the SAME signature. But that leaves the one node a rebuild
+      // cannot recognise structurally, so the only thing standing between a
+      // second application and a duplicate is a FIND over whatever payload the
+      // client happens to hold. A caller that can name a per-application
+      // identity ("daypage:col:2026-09-03") closes that, and the server can
+      // then refuse a second create under the same parent.
+      const rootSignatureOverride = cfg.rootSignature != null
+        ? resolveExpr(cfg.rootSignature, $vars)
+        : null;
 
       if (!templateRef) break;
       const target = occurrencesById[targetOccurrenceId];
@@ -3212,8 +3225,13 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         // `unsigned-template-node` rule exempts a root, and signing it would give
         // every day column built from one template the SAME signature as a
         // sibling of the board.
-        const nodeSig = srcOcc.identitySignature
-          || ((mode === "merge" || !isRoot) ? `auto:${srcOcc.id}` : null);
+        // An explicit rootSignature WINS even over a signature the template
+        // carries: the caller is naming the identity of THIS application, which
+        // is the whole point of the option (a dated column, not "the template").
+        const nodeSig = (isRoot && rootSignatureOverride)
+          ? String(rootSignatureOverride)
+          : (srcOcc.identitySignature
+            || ((mode === "merge" || !isRoot) ? `auto:${srcOcc.id}` : null));
 
         if (mode === "merge") {
           const sig = nodeSig;

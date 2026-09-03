@@ -11,7 +11,7 @@
  * So the CSS is gated on an attribute only a real measurement writes. These
  * tests pin that gate, because it is the whole safety of the feature.
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";

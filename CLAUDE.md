@@ -6,6 +6,76 @@
 
 ---
 
+### 2026-09-03 (13) — THE DAY COLUMN HAD NO IDENTITY, so nothing could tell a rebuild from a duplicate
+
+(12) repaired the duplicates and left the cause named but unfixed: *"a pipeline
+cannot defend against that, because its input IS the payload."* User: **"fix."**
+
+**THE COLUMN WAS THE ONE NODE NOTHING COULD RECOGNISE.** Every node
+APPLY_TEMPLATE clones carries an `identitySignature` — `daypage:Journal`,
+`daypage:Notes`, `daypage:Daily Question/answer` — **except a non-merge ROOT**,
+and its own comment says why: the derived `auto:<templateId>` would give every
+day column built from one template the SAME signature. Correct, and it left the
+column with no structural identity at all, so the only thing standing between a
+second application and a duplicate was a FIND over whatever payload the client
+happened to hold.
+
+**SO THE CALLER NAMES IT.** `rootSignature` on APPLY_TEMPLATE, resolved like
+`rootLabel`: `daypage:col:${$day}`. Dated, so one column per day is legal and
+two are not — and an explicit override WINS over a template-carried signature,
+because the caller is naming the identity of THIS application, which is the
+whole point.
+
+**AND THE SERVER REFUSES THE SECOND ONE**, which is the only race-proof layer.
+`refusedDuplicateCreates` drops a create that would give one parent two children
+with the same signature, before anything is cached or upserted. **It enforces an
+invariant the grid already declares** — merge matches siblings on that key, and
+`gridIntegrity` calls two siblings sharing one an ERROR.
+
+**THREE NARROWINGS, EACH FROM A MEASUREMENT, because a wrong refusal is a
+silently dropped write:**
+```
+a signature is required        an unsigned node has no declared identity
+the parent must EXIST          the ONLY (parent, signature) collisions on all six
+                               grids are groups whose parentId names nothing — so
+                               the guard refuses NOTHING that exists today
+a refused root takes its       APPLY_TEMPLATE emits children as their own rows;
+SUBTREE with it                refusing only the root persists 7 orphans, trading a
+                               visible duplicate for invisible debris
+```
+
+**THE MIGRATION REFUSES TO CREATE THE STATE THE GUARD PREVENTS.** Two columns
+sharing a date would be stamped with the SAME signature — precisely the
+duplicate this is about — so `0284` throws and names them rather than writing it
+and letting the integrity check find it afterwards. Dry run: **33 columns, 33 to
+stamp, 0 skipped, 0 collisions**, board and date field resolved from the op
+itself. It writes a signature and nothing else; a column already carrying one is
+left alone (the `0035` class).
+
+**THE SELECTOR IS THE RISK AND IS TESTED AS THE RISK.** The op holds TWO
+APPLY_TEMPLATE steps — create and merge — nested inside two IFs and a loop.
+`findColumnCreateStep` picks by SHAPE (`rootParent` + `rootIdVar`), a test
+asserts it never picks the merge branch, and the migration throws unless it
+finds EXACTLY one.
+
+**AND ONE A/B RESULT IS REPORTED RATHER THAN OVERSTATED.** The parent-must-exist
+narrowing, the subtree expansion, the same-id rule and `rootSignature` itself
+each fail exactly their own cases. **The unsigned case does not discriminate**:
+`!sig` is checked in two places that are redundant with each other, so removing
+either alone changes nothing and only removing BOTH fails the test. It pins the
+contract, not a line — calling it another A/B would overstate the coverage.
+
+**MY OWN TEST HARNESS WAS WRONG FIRST, and all four cases failed in a way that
+read exactly like broken code.** `executeActionItem(type, cfg, $vars, context,
+transaction)` RETURNS its updates; I passed an action object and an updates
+array. *Check the probe before believing the failure* — for the Nth time.
+
+Order is **builder → client deploy → migration**, because the client must
+understand `rootSignature` before a stored pipeline carries one. Lint 0 errors
+repo-wide (the pre-existing unused import in `containerSkip.test.js` is cleared).
+
+---
+
 ### 2026-09-03 (12) — THE DAY PAGE DUPLICATES ARE REPAIRED, and the op that was blamed is INNOCENT
 
 User: *"it creates 2 day page col for today and it says theres a failed op for it,
