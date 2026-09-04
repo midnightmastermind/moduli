@@ -205,16 +205,28 @@ const shape = (n) =>
   : { dir: n.dir, children: n.children.map(shape) };
 
 describe("snapLeaf — halves", () => {
+  // A panel with NO constraint on either axis is a middle child (regionOf calls
+  // an edge child of a two-way split a half already). Pressing left/right from
+  // there is the only press that produces a plain half rather than a quadrant.
   it("takes the right half, complement on the left", () => {
-    const tree = makeSplit("h", [A(), B()]);          // A over B
+    const tree = makeSplit("h", [B(), A(), C()]);     // A is a middle row: col+row full
     expect(shape(snapLeaf(tree, "a", "right")))
-      .toEqual({ dir: "v", children: ["b", "a"] });
+      .toEqual({ dir: "v", children: [{ dir: "h", children: ["b", "c"] }, "a"] });
   });
 
   it("takes the left half", () => {
-    const tree = makeSplit("h", [A(), B()]);
+    const tree = makeSplit("h", [B(), A(), C()]);
     expect(shape(snapLeaf(tree, "a", "left")))
-      .toEqual({ dir: "v", children: ["a", "b"] });
+      .toEqual({ dir: "v", children: ["a", { dir: "h", children: ["b", "c"] }] });
+  });
+
+  // THE DEGRADE RULE, pinned so it is deliberate rather than accidental: from a
+  // plain TOP half, Right targets the top-right QUADRANT, and with only one
+  // panel left there is no row split to partition — so nothing moves. Falling
+  // back to the right half would discard the row the panel already held, which
+  // is exactly what the spec refuses. Two panels have no quadrants.
+  it("does nothing when the perpendicular press cannot build a quadrant", () => {
+    expect(snapLeaf(makeSplit("h", [A(), B()]), "a", "right")).toBe(null);
   });
 
   it("walks across in ONE press: right half → left half", () => {
@@ -326,7 +338,10 @@ function buildRegion(rest, leaf, { col, row }) {
 - [ ] **Step 4: Run and watch them pass**
 
 Run: `./node_modules/.bin/vitest run src/__tests__/mosaicSnap.test.js`
-Expected: PASS. The quadrant test in the release block passes because releasing produces a HALF.
+Expected: PASS — EXCEPT `"does nothing when the perpendicular press cannot build a quadrant"`, which
+already passes here for the right reason (`buildRegion`'s quadrant branch is a `return null` stub in
+this task) and keeps passing in Task 3 for the real reason (the degrade guard). The release-rule test
+passes because releasing produces a HALF.
 
 - [ ] **Step 5: A/B the quadrant gate on the release rule**
 
