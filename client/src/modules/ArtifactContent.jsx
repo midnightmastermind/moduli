@@ -653,7 +653,12 @@ export default function ArtifactContent({ occurrence, viewType, artifactType, em
   // content of its own" and its cascade already declares the two views the user
   // asked for: `navOptions: ["preview", "actual"]` — *"an entire page or a
   // preview of it"*. `preview` is the card and needs no iframe; this is `actual`.
-  if (normalizedArtifactType === "bookmark" && fileRef) {
+  // NO `&& fileRef` HERE. A SCRATCH BROWSER HAS NO URL YET — that is its whole
+  // starting state — and requiring one sent it to the markdown branch, i.e. a
+  // doc editor. `BookmarkView` owns the empty case itself (an address bar and
+  // an invitation to type), so the router must let it decide rather than
+  // deciding for it from an absent value.
+  if (normalizedArtifactType === "bookmark") {
     return <BookmarkView occurrence={occurrence} module={module} socket={socket} isActivePage />;
   }
 

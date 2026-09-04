@@ -196,6 +196,16 @@ export function __resetFolderPageLatch() {
 // knows how an artifact kind renders full screen.
 export function viewFieldsForArtifactKind(kind) {
   if (["image", "video", "audio", "pdf"].includes(kind)) return { viewType: "display", artifactType: kind };
+  // A BOOKMARK IS A DISPLAY ARTIFACT, and leaving it out of this list is what
+  // made one open as a DOC PAGE (user, 2026-09-04: *"its showing up as a doc
+  // page … this is me just navigating to the browser"*). `ArtifactContent`
+  // routes to `BookmarkView` on `artifactType === "bookmark"`; without it here
+  // the minted View said `markdown`, and a markdown view renders the doc editor.
+  //
+  // The kind existed long before this function was asked about it — the fall
+  // through to markdown is a DEFAULT, and a default that is wrong for a kind
+  // the app already has is indistinguishable from a missing feature.
+  if (kind === "bookmark") return { viewType: "display", artifactType: "bookmark" };
   if (kind === "code") return { viewType: "code", artifactType: null };
   return { viewType: "markdown", artifactType: null };
 }

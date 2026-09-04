@@ -113,3 +113,30 @@ describe("isScratch", () => {
     expect(isScratch({ meta: { scratch: true } })).toBe(true);
   });
 });
+
+// ── HOW A BOOKMARK OPENS (2026-09-04) ──────────────────────────────────────
+// User: *"its showing up as a doc page … this is me just navigating to the
+// browser."* Clicking an artifact mints a display page whose View comes from
+// `viewFieldsForArtifactKind`. `bookmark` was not in that list, so it fell
+// through to the markdown default and rendered the doc editor.
+//
+// The kind existed long before this function was asked about it — which is why
+// the failure looked like a missing feature rather than a wrong default.
+import { viewFieldsForArtifactKind } from "../helpers/importsFolder";
+
+describe("viewFieldsForArtifactKind", () => {
+  it("routes a bookmark to the display view ArtifactContent looks for", () => {
+    // ArtifactContent renders BookmarkView on artifactType === "bookmark".
+    expect(viewFieldsForArtifactKind("bookmark"))
+      .toEqual({ viewType: "display", artifactType: "bookmark" });
+  });
+
+  it("leaves every other kind exactly as it was", () => {
+    for (const k of ["image", "video", "audio", "pdf"])
+      expect(viewFieldsForArtifactKind(k), k).toEqual({ viewType: "display", artifactType: k });
+    expect(viewFieldsForArtifactKind("code")).toEqual({ viewType: "code", artifactType: null });
+    // The default is still markdown — for kinds that genuinely have no viewer.
+    expect(viewFieldsForArtifactKind("markdown")).toEqual({ viewType: "markdown", artifactType: null });
+    expect(viewFieldsForArtifactKind(undefined)).toEqual({ viewType: "markdown", artifactType: null });
+  });
+});
