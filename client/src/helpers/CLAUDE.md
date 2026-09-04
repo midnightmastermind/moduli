@@ -18,9 +18,13 @@ _Updated: 2026-08-22. Check this file before re-reading source._
   different trees from the same tree.
 - **The release rule is rows-only and quadrant-only.** From a plain top half there is no column to
   fall back on, so releasing would leave the panel with no region at all.
-- **DEGRADE-TO-HALF: `null` when the complement cannot supply the partition** (it is a leaf, or
-  splits on the wrong axis). Nothing is invented and nothing moves — so on a tree whose complement
-  is a column split, the perpendicular arrow is legitimately inert.
+- **The quadrant partition reads the complement's own top-level split, EITHER AXIS.** Rows: pair
+  with the row on our side, the rest spans the width. Columns: pair with the column on our side and
+  split THAT column by row, the rest keeps full height. The first version knew only rows, which
+  degraded on the most ordinary layout there is — the complement of a full-width bottom panel is a
+  column split, so Left/Right on it did nothing (user, 2026-09-04).
+- **DEGRADE is now exactly ONE case: a complement that is a single LEAF.** A quadrant would wrap the
+  other panel around us in an L, and a split tree cannot express that. `null`, nothing moves.
 - **`null` means "nothing changed" at every entry point**, so no caller decides what a no-op looks
   like and no caller writes to the grid on one.
 - `zoneAt` maps a pointer in the perimeter band to `{ direction, quadrant }`; `regionForZone` turns

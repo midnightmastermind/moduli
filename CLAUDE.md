@@ -34,10 +34,32 @@ column to fall back on, so releasing would leave the panel with no region at all
 read as broken. Dropping `inQuadrant &&` fails exactly that test.
 
 **DEGRADE-TO-HALF: when the complement cannot supply the partition, NOTHING MOVES.** A quadrant is
-built from the complement's own top-level ROW split — one row becomes the neighbour, the remainder
-spans. If the complement is a leaf, or splits on the wrong axis, `snapLeaf` returns `null` rather
-than inventing a split, and the panel keeps the half it had. Falling back to the half just pressed
-would silently discard the axis the user deliberately set.
+built from the complement's own top-level split — the part on our side becomes the neighbour, the
+remainder takes the other side. If it cannot be divided, `snapLeaf` returns `null` rather than
+inventing a split, and the panel keeps the half it had. Falling back to the half just pressed would
+silently discard the axis the user deliberately set.
+
+**AND THE FIRST VERSION OF THAT PARTITION ONLY KNEW ROWS, WHICH MADE IT DEGRADE ON THE MOST ORDINARY
+LAYOUT THERE IS.** The plan (and the spec) said *"the complement's own top-level ROW split supplies
+the partition"*, so a complement that split into COLUMNS fell straight through to `null`. **The
+complement of a full-width bottom panel is exactly that shape** — which is why Left/Right on the
+bottom panel did nothing on the live grid, reported by the user within minutes of it shipping. The
+mirror is just as buildable and needs nothing invented: take the COLUMN on our side and split THAT
+column by row, and the remaining columns keep their full height.
+```
++--------+--------+                    +--------+--------+
+| YGVS8D | rkN14S |   bottom + Right   |        | rkN14S |
++--------+--------+   ------------->   | YGVS8D +--------+
+|      78gtKM     |                    |        | 78gtKM |
++-----------------+                    +--------+--------+
+```
+Measured live: `YGVS8D` goes to `797x964` — a full-height left column — with the bottom panel in the
+bottom-right quadrant, and Left mirrors it onto `rkN14S`. **The degrade is now exactly ONE case: a
+complement that is a single LEAF**, where putting us in a quadrant would wrap the other panel around
+us in an L, which a split tree cannot say. Two tests that pinned the old wrong-axis degrade are
+INVERTED rather than deleted, with the reason in place — a test that quietly disappears takes the
+contract with it. *A rule stated as "the ROW split supplies the partition" reads like a fact about
+the algorithm and was really a fact about the half of it that had been written.*
 
 **THE PLAN'S OWN TASK-1 A/B WAS A SEMANTIC NO-OP, and running it is the only reason I know.** It
 said to change `if (first && !last)` to `if (first)` and expect the middle-child test to fail. It
@@ -75,23 +97,22 @@ there. Live: a drop in the middle of the grid took the PANE path and split it
 (`h[YGVS8D, rkN14S, 78gtKM]`, no preview shown); a drop in the middle of the bottom band previewed
 `x3 y515 1594x482` and delivered exactly that.
 
-**VERIFIED ON PROD BY HAND, and the honest gaps are named.** Ctrl+Alt outlines the focused panel
-(`outline=2px solid rgb(61,123,191)`) and clears on release; Up and Down moved the panel and the
-panes re-laid out; Right/Left crossed a top-left panel to top-right and back. **Left/Right on the
-bottom panel did NOTHING, and that is the degrade rule, not a bug** — its complement is a COLUMN
-split, so there are no rows to partition. The ledger's ruling R3 predicted exactly this: on a tree
-whose complement splits the wrong way, the perpendicular arrow and the matching perimeter zone read
-as inert. It is the spec's deliberate refusal to invent a split, and the preview stays blank rather
-than promising a move — but it is the case where the feature will feel dead, and the remedy if it
-bites is one condition in `buildRegion`.
+**VERIFIED ON PROD BY HAND.** Ctrl+Alt outlines the focused panel (`outline=2px solid
+rgb(61,123,191)`) and clears on release; Up and Down moved the panel and the panes re-laid out;
+Right/Left crossed a top-left panel to top-right and back; and after the column-partition fix above,
+Right/Left on the full-width bottom panel produce the full-height side column. **The ledger's ruling
+R3 predicted the inert case and was right about the symptom while both it and the plan had the cause
+one level too narrow** — it read as "on a tree whose complement splits the wrong way the
+perpendicular arrow is inert", and the remedy it guessed at ("one condition in `buildRegion`") was
+the right size but the wrong shape: the branch was missing, not a condition.
 
-Every guard A/B'd with the mutation asserted to land, each failing exactly its own case: the
-middle-child rule (1), the release rule's quadrant gate (1), the already-there guard (1), the
-degrade guard (1), bottom-pairs-with-the-LAST-row (1), and `snapLeafToRegion`'s own already-there
-guard (1). 41 snap tests, **4073 client tests**, lint 0 no-undef, both new CSS rules present in the
-BUILT stylesheet with each other as controls. Client-only, so `deploy.sh` correctly reported
-*"Server unchanged — NOT restarting"* and no load paid a cold read; prod HEAD verified after each of
-the three deploys.
+Every guard A/B'd with the mutation asserted to land, each failing exactly its own cases: the
+middle-child rule (1), the release rule's quadrant gate (1), the already-there guard (1), the leaf
+degrade (3), the row/column axis dispatch (5), bottom-pairs-with-the-LAST-row (1), the column form's
+pair-on-our-side rule (5), and `snapLeafToRegion`'s own already-there guard (1). 46 snap tests,
+**4078 client tests**, lint 0 no-undef, both new CSS rules present in the BUILT stylesheet with each
+other as controls. Client-only, so `deploy.sh` correctly reported *"Server unchanged — NOT
+restarting"* and no load paid a cold read; prod HEAD verified after each of the four deploys.
 
 **THE PROBE WROTE TO LIVE DATA AND IT WAS PUT BACK.** Snapping panels is the feature, so verifying
 it rewrites the user's own `layoutTree`. Snapshotted first, then restored **through the real

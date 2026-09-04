@@ -117,12 +117,20 @@ top-level split supplies the partition.** For a quadrant with `row: top`,
 - If `REST` is an `h` split (rows), its **first child** becomes the top-left
   neighbour and the **remainder** becomes the full-width bottom:
   `makeSplit("h", [ makeSplit("v", [REST.children[0], leaf]), <rest of REST> ])`
-- If `REST` cannot be divided that way — it is a leaf, or a split on the wrong
-  axis — the quadrant **degrades to the half the panel already had**: the
-  newly-pressed axis is dropped, the existing constraint is kept, and `snapLeaf`
-  returns `null` (nothing moves). It does **not** fall back to the half for the
-  axis just pressed — that would silently discard the column the user had
-  deliberately set. No split is ever invented to make a quadrant fit.
+- If `REST` is a `v` split (columns) — **AMENDED 2026-09-04 after the user found
+  Left/Right inert on a full-width bottom panel, whose complement is exactly this
+  shape** — the mirror applies: the column on the leaf's own side becomes its
+  neighbour, split by row, and the remaining columns keep their full height:
+  `makeSplit("v", [ <rest of REST>, makeSplit("h", [leaf, REST.children.at(-1)]) ])`.
+  This is what turns the top-left pane into a full-height left column.
+- If `REST` cannot be divided at all — it is a **leaf** — the quadrant
+  **degrades to the half the panel already had**: the newly-pressed axis is
+  dropped, the existing constraint is kept, and `snapLeaf` returns `null`
+  (nothing moves). It does **not** fall back to the half for the axis just
+  pressed — that would silently discard the column the user had deliberately
+  set. No split is ever invented to make a quadrant fit. (A quadrant against a
+  lone leaf would wrap that leaf around the panel in an L, which a split tree
+  cannot express — so this case is irreducible rather than merely unhandled.)
 
 The user's own case is exactly the first branch:
 
@@ -216,8 +224,8 @@ is invisible:
   quadrant), asserting the resulting tree shape;
 - the quadrant partition — that `REST`'s first child becomes the neighbour and
   the remainder spans;
-- **degrade-to-half** when `REST` is a leaf or splits on the wrong axis — the
-  case that would otherwise invent a split;
+- **degrade-to-half** when `REST` is a leaf — the case that would otherwise
+  invent a split;
 - the release rule: opposite arrow on a constrained axis returns to `full`;
 - no-ops return `null` — pressing a direction you already occupy, an unknown
   panel id, a single-leaf tree;
