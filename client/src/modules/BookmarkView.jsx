@@ -228,7 +228,14 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   const reason = fallbackReason(fetched);
   const pick = useCallback((m) => setChosen(m), []);
 
-  if (!url) {
+  // A BOOKMARK WITH NO LINK HAS NOTHING TO SHOW — but a SCRATCH BROWSER with no
+  // link is the ordinary case, and the whole point of it: an empty address bar
+  // waiting to be typed into. Returning early here would hide the one control
+  // it exists for, so the two are separated.
+  //
+  // Caught while creating the first one to test with, which is exactly the
+  // "not verified in a browser" gap this file's own history keeps recording.
+  if (!url && !scratch) {
     return <div className="text-xs text-muted-foreground text-center empty-placeholder" style={{ paddingTop: 40 }}>
       Nothing to open — this row carries no link
     </div>;
@@ -314,16 +321,21 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
         {btn("reader", "Reader")}
         {btn("web", "Web")}
         {btn("archive", "Archive")}
-        <a href={url} target="_blank" rel="noreferrer noopener"
+        {url && <a href={url} target="_blank" rel="noreferrer noopener"
            style={{ fontSize: 12, color: "var(--text-muted)", textDecoration: "none", padding: "2px 4px" }}
-           title="Open in a new tab">↗</a>
+           title="Open in a new tab">↗</a>}
       </div>
 
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-        {mode === "loading" && (
+        {!url && (
+          <div className="text-xs text-muted-foreground text-center empty-placeholder" style={{ paddingTop: 40 }}>
+            Type an address above to start browsing
+          </div>
+        )}
+        {url && mode === "loading" && (
           <div className="text-xs text-muted-foreground" style={{ padding: 16 }}>Reading…</div>
         )}
-        {mode === "reader" && (
+        {url && mode === "reader" && (
           // OUR DOM: selection and right-click work here, which is the whole
           // point of preferring this mode.
           <div style={{ height: "100%", overflowY: "auto", padding: "12px 16px", whiteSpace: "pre-wrap",
@@ -331,7 +343,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
             {fetched?.markdown || ""}
           </div>
         )}
-        {mode === "blocked" && (
+        {url && mode === "blocked" && (
           // BOTH modes are unavailable: no readable text AND the site refuses to
           // be framed. Saying so beats a blank frame that looks broken, and the
           // reason is the site's own header rather than our guess.
@@ -344,7 +356,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
                style={{ color: "var(--accent-blue-text, var(--text-primary))" }}>Open it in a new tab ↗</a>
           </div>
         )}
-        {mode === "archive" && (
+        {url && mode === "archive" && (
           archive?.loading || !archive ? (
             <div className="text-xs text-muted-foreground" style={{ padding: 16 }}>Searching the archive…</div>
           ) : archive.ok ? (
@@ -372,7 +384,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
             </div>
           )
         )}
-        {mode === "web" && (
+        {url && mode === "web" && (
           // A FRAME ONLY WHERE THIS IS A PANEL'S ACTIVE PAGE. `PreviewNode`
           // records that preview cards WERE iframes until 11 of them pegged the
           // browser; 1,467 bookmark rows must never be able to become 1,467

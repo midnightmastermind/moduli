@@ -3,8 +3,15 @@
 // Both are pure functions on purpose. The surface itself needs the whole store
 // to mount, and the parts that regress silently are these — a mode that quietly
 // reverts, or a frame that renders where it should not.
-import { describe, it, expect } from "vitest";
-import { resolveMode, fallbackReason, FRAME_SANDBOX } from "../modules/BookmarkView.jsx";
+import { describe, it, expect, vi } from "vitest";
+import React from "react";
+import { render, screen } from "@testing-library/react";
+import BookmarkView, { resolveMode, fallbackReason, FRAME_SANDBOX } from "../modules/BookmarkView.jsx";
+
+// Mounting the real surface needs the grid store; only two slices are read.
+vi.mock("../GridActionsContext.js", () => ({
+  useGridActionsSelector: (sel) => sel({ fieldsById: {}, dispatch: () => {} }),
+}));
 
 const ok = (words, usable) => ({ ok: true, words, usable, markdown: "x" });
 
@@ -163,5 +170,31 @@ describe("resolveMode — an embeddable url", () => {
       expect(resolveMode({ fetched: f, embeddable: false }))
         .toBe(resolveMode({ fetched: f }));
     }
+  });
+});
+
+// ── THE BLANK SCRATCH BROWSER (2026-09-04) ─────────────────────────────────
+// Found while creating the first one to test with: BookmarkView early-returned
+// "Nothing to open — this row carries no link" when there was no url, BEFORE the
+// address bar rendered. For a saved bookmark that is right; for a scratch
+// browser it hid the one control it exists for, so a fresh one could not be
+// typed into at all. Exactly the class this repo's history keeps recording as
+// "not verified in a browser".
+describe("BookmarkView with no url", () => {
+  const socket = { emit: () => {} };
+
+  it("offers an address bar when it is a scratch browser", () => {
+    render(<BookmarkView occurrence={{ id: "b1", meta: { scratch: true } }} socket={socket} />);
+    expect(screen.getByPlaceholderText("Type an address…")).toBeTruthy();
+    expect(screen.queryByText(/carries no link/)).toBeNull();
+  });
+
+  // The saved case is unchanged: a bookmark with no link genuinely has nothing
+  // to show, and inviting someone to type into it would be inviting them to
+  // edit their library by accident.
+  it("still says so for a saved bookmark", () => {
+    render(<BookmarkView occurrence={{ id: "b2", meta: {} }} socket={socket} />);
+    expect(screen.getByText(/carries no link/)).toBeTruthy();
+    expect(screen.queryByPlaceholderText("Type an address…")).toBeNull();
   });
 });
