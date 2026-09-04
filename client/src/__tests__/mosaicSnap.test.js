@@ -92,6 +92,48 @@ describe("snapLeaf — halves", () => {
   });
 });
 
+describe("snapLeaf — quadrants from a COLUMN complement", () => {
+  // THE USER'S CASE, 2026-09-04: the bottom panel spans the width, and the two
+  // panes above it are a COLUMN split. Pressing Right must take the
+  // bottom-right quadrant and leave the top-LEFT pane spanning the full height.
+  //   h[ v[A, B], C ]  + Right  →  v[ A, h[B, C] ]
+  it("partitions the complement's own column when it splits that way", () => {
+    const tree = makeSplit("h", [makeSplit("v", [A(), B()]), C()]);
+    expect(shape(snapLeaf(tree, "c", "right")))
+      .toEqual({ dir: "v", children: ["a", { dir: "h", children: ["b", "c"] }] });
+  });
+
+  it("mirrors for the left column — the top-RIGHT pane goes full height", () => {
+    const tree = makeSplit("h", [makeSplit("v", [A(), B()]), C()]);
+    expect(shape(snapLeaf(tree, "c", "left")))
+      .toEqual({ dir: "v", children: [{ dir: "h", children: ["a", "c"] }, "b"] });
+  });
+
+  it("keeps the remaining columns grouped when the complement has three", () => {
+    const D = () => makeLeaf("d");
+    const tree = makeSplit("h", [makeSplit("v", [A(), B(), D()]), C()]);
+    expect(shape(snapLeaf(tree, "c", "right")))
+      .toEqual({
+        dir: "v",
+        children: [{ dir: "v", children: ["a", "b"] }, { dir: "h", children: ["d", "c"] }],
+      });
+  });
+
+  it("carries the complement's existing ratios into the grouped remainder", () => {
+    const D = () => makeLeaf("d");
+    const inner = makeSplit("v", [A(), B(), D()], [1, 3, 2]);
+    const out = snapLeaf(makeSplit("h", [inner, C()]), "c", "right");
+    expect(out.children[0].ratio).toEqual([1, 3]);   // D's weight left with D
+  });
+
+  // The perimeter drop gets this for free — same `buildRegion`.
+  it("reaches the absolute path too, so a corner drop lands the quadrant", () => {
+    const tree = makeSplit("h", [makeSplit("v", [A(), B()]), C()]);
+    expect(shape(snapLeafToRegion(tree, "c", { col: "right", row: "bottom" })))
+      .toEqual({ dir: "v", children: ["a", { dir: "h", children: ["b", "c"] }] });
+  });
+});
+
 describe("snapLeaf — the release rule (quadrant only)", () => {
   it("releases the row from a quadrant, keeping the column", () => {
     // top-right + Down → full-height right
@@ -158,9 +200,15 @@ describe("snapLeaf — quadrants", () => {
     expect(snapLeaf(tree, "c", "up")).toBe(null);
   });
 
-  it("does nothing when the complement splits on the wrong axis", () => {
+  // INVERTED 2026-09-04, deliberately: this used to pin a degrade, because the
+  // partition only knew how to divide a ROW complement. A column complement is
+  // just as divisible — take the column on our side and split IT by row — so
+  // the honest expectation is the tree, not null. The degrade now covers only
+  // the leaf case below, which is the one a BSP tree genuinely cannot express.
+  it("partitions a COLUMN complement rather than degrading", () => {
     const tree = makeSplit("v", [makeSplit("v", [A(), B()]), C()]);
-    expect(snapLeaf(tree, "c", "up")).toBe(null);
+    expect(shape(snapLeaf(tree, "c", "up")))
+      .toEqual({ dir: "v", children: ["a", { dir: "h", children: ["c", "b"] }] });
   });
 
   it("carries the complement's existing ratios into the grouped remainder", () => {
@@ -251,10 +299,11 @@ describe("snapLeafToRegion — pointing is absolute, not two relative presses", 
     expect(snapLeafToRegion(makeSplit("v", [B(), A()]), "a", { col: "right", row: "full" })).toBe(null);
   });
 
-  // The degrade rule survives: an unbuildable quadrant moves nothing.
-  it("returns null when the complement cannot supply the quadrant's rows", () => {
-    const tree = makeSplit("v", [makeSplit("v", [A(), B()]), C()]);
-    expect(snapLeafToRegion(tree, "c", { col: "right", row: "top" })).toBe(null);
+  // The degrade rule survives, and it is now exactly one case: a complement
+  // with nothing to divide. Two panels have no quadrants — the other would have
+  // to wrap around us in an L, which a split tree cannot say.
+  it("returns null when the complement is a single leaf", () => {
+    expect(snapLeafToRegion(makeSplit("v", [A(), C()]), "c", { col: "right", row: "top" })).toBe(null);
   });
 
   it("returns null for a panel that is not in the tree", () => {

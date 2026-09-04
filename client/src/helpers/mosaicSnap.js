@@ -99,22 +99,46 @@ function buildRegion(rest, leaf, { col, row }) {
     return row === "bottom" ? makeSplit("h", [rest, leaf])
                             : makeSplit("h", [leaf, rest]);
   }
-  // QUADRANT. The complement's own top-level ROW split supplies the partition:
-  // one of its rows becomes our neighbour, the remainder becomes the other row.
-  // Nothing is invented — if the complement cannot be divided that way, the
-  // caller gets null and nothing moves.
-  if (isLeaf(rest) || rest.dir !== "h" || rest.children.length < 2) return null;
+  // QUADRANT. The complement's own top-level split supplies the partition,
+  // WHICHEVER WAY IT SPLITS: the part on our side becomes our neighbour and the
+  // remainder takes the other side. Nothing is invented.
+  //
+  // A complement that is a single LEAF is the one irreducible case: putting us
+  // in a quadrant would wrap it around us in an L, and a BSP tree cannot say
+  // that. Then, and only then, we degrade and nothing moves.
+  if (isLeaf(rest) || rest.children.length < 2) return null;
 
-  const takeFirst = row === "top";
-  const mate = takeFirst ? rest.children[0] : rest.children[rest.children.length - 1];
-  const others = takeFirst ? rest.children.slice(1) : rest.children.slice(0, -1);
-  const otherRatio = takeFirst ? rest.ratio.slice(1) : rest.ratio.slice(0, -1);
-  const otherRow = others.length === 1 ? others[0] : makeSplit("h", others, otherRatio);
+  if (rest.dir === "h") {
+    // ROWS. Pair with the row on our side; the remaining rows span the width.
+    const takeFirst = row === "top";
+    const mate = takeFirst ? rest.children[0] : rest.children[rest.children.length - 1];
+    const others = takeFirst ? rest.children.slice(1) : rest.children.slice(0, -1);
+    const otherRatio = takeFirst ? rest.ratio.slice(1) : rest.ratio.slice(0, -1);
+    const otherRow = others.length === 1 ? others[0] : makeSplit("h", others, otherRatio);
 
-  const myRow = col === "right" ? makeSplit("v", [mate, leaf])
-                                : makeSplit("v", [leaf, mate]);
-  return takeFirst ? makeSplit("h", [myRow, otherRow])
-                   : makeSplit("h", [otherRow, myRow]);
+    const myRow = col === "right" ? makeSplit("v", [mate, leaf])
+                                  : makeSplit("v", [leaf, mate]);
+    return takeFirst ? makeSplit("h", [myRow, otherRow])
+                     : makeSplit("h", [otherRow, myRow]);
+  }
+
+  // COLUMNS — the mirror image, and the half this originally missed. Pair with
+  // the column on OUR side and split that column by row; the remaining columns
+  // keep their FULL HEIGHT. That is what makes "bottom panel, press Right" turn
+  // the top-left pane into a full-height left column instead of doing nothing
+  // (user, 2026-09-04 — the complement of a full-width bottom panel is exactly
+  // this shape, so the row-only form degraded on the most ordinary layout there
+  // is).
+  const takeFirstCol = col === "left";
+  const mateCol = takeFirstCol ? rest.children[0] : rest.children[rest.children.length - 1];
+  const otherCols = takeFirstCol ? rest.children.slice(1) : rest.children.slice(0, -1);
+  const otherColRatio = takeFirstCol ? rest.ratio.slice(1) : rest.ratio.slice(0, -1);
+  const otherCol = otherCols.length === 1 ? otherCols[0] : makeSplit("v", otherCols, otherColRatio);
+
+  const myCol = row === "bottom" ? makeSplit("h", [mateCol, leaf])
+                                 : makeSplit("h", [leaf, mateCol]);
+  return takeFirstCol ? makeSplit("v", [myCol, otherCol])
+                      : makeSplit("v", [otherCol, myCol]);
 }
 
 /**
