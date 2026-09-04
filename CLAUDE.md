@@ -6,6 +6,72 @@
 
 ---
 
+### 2026-09-04 — THE BROWSER SAVES WHAT YOU ARE LOOKING AT, and one import was pointing at a toolbar widget
+
+Continued the other account's session, which hit its limit at 08:44 one command after
+its tests went green. User: *"could you also have a button that says save as bookmark
+occurance next to the url bar that has you create a new bookmark occurance for that
+link and asks where to put it (like the pomodoro and placing that occurance)."*
+
+**THE FEATURE WAS BUILT AND THE TWO THINGS IT LEFT ARE THE ENTRY.**
+
+**IT WAS IMPORTING A HELPER OUT OF `PomodoroTimer.jsx`.** `buildContainerCrumbOptions`
+is the Pomodoro's destination list — correct to reuse, wrong to reach for through the
+component, which drags the operations bridge, the notification store and CommitHelpers
+along a module edge from a page renderer to a toolbar widget. It lives in
+`helpers/containerCrumbs.js` now and both callers import it from there. **Both pickers
+ask the same question; two walks over the occurrence tree is how they quietly stop
+listing the same places.**
+
+**AND IT SUBSCRIBED TO THE TWO MAPS THAT CHANGE ON EVERY WRITE.** `occurrencesById`
+and `modulesById` swap identity on every write anywhere on the grid, so an unconditional
+subscription re-renders **every open browser — an iframe surface — on every unrelated
+edit.** The build was gated on `saving`; the SUBSCRIPTION was not. Before this change
+BookmarkView read only `fieldsById` and `dispatch`, both stable across occurrence writes,
+so the feature would have introduced the churn rather than inherited it. Selecting a
+constant when the value is not read is 2026-08-31 (6) applied before it cost anything —
+and `EMPTY_MAP` is module-level, because a fresh `{}` in the selector re-renders on every
+store READ instead, which is worse than what it replaces.
+
+**THE GATE'S OWN CONTROL IS THE TEST THAT MATTERS.** Written the wrong way round it
+leaves an **empty dropdown that looks fine and can never save** — so the discriminating
+case is that the picker LISTS a real container by its page crumb once opened, driven
+through the real crumb walk over a real occurrence tree. A/B'd: inverting the gate fails
+exactly that one.
+
+**ONE MINT PATH FOR BOTH SHAPES**, which is the half the other account got right and is
+worth restating: `addScratchBrowser` delegates to `addBookmarkOccurrence`; a scratch
+browser and a saved bookmark differ by a flag and a label. `meta.scratch` is written only
+when TRUE, so a saved bookmark stays byte-identical to every bookmark that predates the
+flag, and the label falls back to the HOST — you can tell bookmarks apart in a tree by
+their host and not by their id.
+
+**THE SILENT-FAILURE RISK WAS CHECKED RATHER THAN ASSUMED.** `gridId`/`userId` are read
+`s.gridId ?? s.state?.gridId` — and the actions context carries **neither at top level**,
+which is the 2026-08-19 trap where `createLeafInstanceInParent` silently bailed and "+ Add
+new" had never minted anything. The fallback branch is the one that fires, `FULL_STATE`
+sets both, and `ArtifactSpreadHost` ships the identical two-branch selector on a surface
+that mints artifacts today. Had both resolved undefined, Save would have returned null and
+done nothing while every log line read correctly.
+
+Four A/Bs, each mutation asserted to LAND: the url gate (1), the disabled guard (1), the
+subscription gate (1). 3995 client tests, lint **0 no-undef errors**, build clean at the
+documented chunk sizes. Deployed — client-only, so `deploy.sh` correctly reported *"Server
+unchanged — NOT restarting"* and no load paid a cold read. Prod HEAD verified,
+`PagePreviewApp` chunk **sha256-identical** to the local build with the new string present,
+a positive control present and a zero control at 0 — and `App`/`index` read 0 for the
+CONTROL too, which is the documented tell that they are the wrong chunk.
+
+**NOT VERIFIED, and it is the honest gap: nobody has clicked the button.** The writes are
+asserted through the real mint path, the picker is proven to populate from a real
+occurrence tree, and every layer of the write is wired (socket as a prop, dispatch from
+context, ids from state) — but no bookmark has been watched landing in a container. The
+saved probe token expired at 23:16 on 09-03 and there is no local `server/.env`, so a prod
+probe would have needed fresh credentials; **a zero from an expired token reads exactly
+like a broken feature** (2026-09-03 (2)), so none was taken rather than reporting one.
+
+---
+
 ### 2026-09-03 (14) — THE DROP LANDED WHERE THE OUTLINE SAID IT WOULD NOT: 18 of every 104 pixels belonged to someone else
 
 User: *"can you put the delete icon back in to the radial menu for instances and

@@ -2,6 +2,29 @@
 
 _Updated: 2026-08-17. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-09-04 — BookmarkView: save the current address, and ask where it goes)
+- **`BookmarkView.jsx`** — a ☆ button beside the address bar (present only when there IS an
+  address; a control that cannot act is worse than none) opens a destination strip:
+  `Save to [container ▾] [Save] [Cancel]`. Save is DISABLED until a destination is picked —
+  "where" is the question being asked. The confirmation names WHERE it went, because "Saved"
+  alone leaves you to go and check.
+- **THE DESTINATION LIST IS THE POMODORO'S OWN**, via the new `helpers/containerCrumbs.js`
+  (`buildContainerCrumbOptions` moved out of `ui/PomodoroTimer.jsx`, which still uses it).
+  Importing it FROM the component would have dragged the operations bridge + notification
+  store across a module edge from a page renderer to a toolbar widget.
+- **THE SUBSCRIPTIONS ARE GATED ON `saving`.** `occurrencesById`/`modulesById` change identity
+  on every write anywhere on the grid; subscribing unconditionally would re-render every open
+  browser — an IFRAME surface — on every unrelated edit. Before this change the component read
+  only `fieldsById` + `dispatch`, both stable across occurrence writes. `EMPTY_MAP`/`EMPTY_OPTIONS`
+  are module-level: a fresh `{}` in the selector re-renders on every store READ instead.
+- **The control that matters** is that the picker LISTS a real container by its page crumb once
+  opened — a gate written the wrong way round leaves an empty dropdown that looks fine and can
+  never save. A/B'd: inverting the gate fails exactly that test.
+- Mint goes through `CommitHelpers.addBookmarkOccurrence` — the ONE path, shared with
+  `addScratchBrowser` (see helpers/CLAUDE.md). **NOT verified in a browser** — nobody has clicked
+  the button; the writes are asserted and every layer is wired, but no bookmark has been watched
+  landing in a container.
+
 ## Recent Changes (2026-08-17 (3) — the artifact full-screen button, and a colour nobody stored)
 - **`ArtifactCard.jsx` — THE FULL-SCREEN BUTTON WAS INERT, and it read as a z-index problem.**
   `.artifact-thumb-expand-hint` carries `pointer-events: none` and its `:hover` rule only ever
