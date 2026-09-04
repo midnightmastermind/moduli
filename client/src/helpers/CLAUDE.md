@@ -2,6 +2,30 @@
 
 _Updated: 2026-08-22. Check this file before re-reading source._
 
+## Recent Changes (2026-09-04 (2) — `mosaicSnap.js` NEW: Windows-style regions for the BSP layout)
+- **`mosaicSnap.js` (NEW, 41 tests)** — the whole snap decision for a mosaic grid, pure. Sibling of
+  `gridSnap.js`, which is this same policy for rows×cols. `bspTree.js` stays split-tree MATH; "what
+  does right mean" is policy and lives here.
+- **The region is DERIVED (`regionOf`), never stored.** Stored region state goes stale the instant
+  someone drags a seam, and every later arrow would act on a state that no longer matches the
+  screen. It RECOGNISES the shapes `snapLeaf` builds and calls everything else `full`, so a middle
+  child of a three-way split claims neither edge.
+- **`snapLeaf` is RELATIVE (an arrow); `snapLeafToRegion` is ABSOLUTE (a pointer).** Both go through
+  the same `buildRegion`, so a region is built one way — but an arrow pressed opposite your current
+  row RELEASES it, and composing a quadrant out of two presses therefore hands back a HALF whenever
+  the panel already had the opposite row. That is not hypothetical: it is what a top-right corner
+  drop did on the live grid before `snapLeafToRegion` existed. A test pins the two paths producing
+  different trees from the same tree.
+- **The release rule is rows-only and quadrant-only.** From a plain top half there is no column to
+  fall back on, so releasing would leave the panel with no region at all.
+- **DEGRADE-TO-HALF: `null` when the complement cannot supply the partition** (it is a leaf, or
+  splits on the wrong axis). Nothing is invented and nothing moves — so on a tree whose complement
+  is a column split, the perpendicular arrow is legitimately inert.
+- **`null` means "nothing changed" at every entry point**, so no caller decides what a no-op looks
+  like and no caller writes to the grid on one.
+- `zoneAt` maps a pointer in the perimeter band to `{ direction, quadrant }`; `regionForZone` turns
+  that into the absolute region. A corner is inside two bands and both resolve to the same region.
+
 ## Recent Changes (2026-09-04 — `textClipboard.js` NEW: one set of clipboard actions, two hosts)
 - **`textClipboard.js` (NEW, 30 tests)** — cut/copy/paste for TEXT, shared by the doc editor's
   right-click menu (selected prose) and `ui/TextContextMenu` (form inputs). The two hosts edit

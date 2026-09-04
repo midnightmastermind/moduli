@@ -6,6 +6,102 @@
 
 ---
 
+### 2026-09-04 (3) — MOSAIC PANELS SNAP; and the browser found two defects the 41 unit tests could not
+
+Continued the other account's session, which hit its limit at 16:30 having written the spec and the
+plan and dispatched Task 1 twice — once onto `haiku` (**a fresh subagent inherits this repo's
+CLAUDE.md plus the tool definitions: ~278,916 tokens against a 200,000 limit, so it died before it
+ran**) and once onto `sonnet`, which took the session limit. No code existed. Its pre-flight ledger
+(`.superpowers/sdd/2026-09-04-mosaic-snap/progress.md`) is intact and three of its four rulings
+turned out to matter.
+
+**THE KEYBOARD WAS DEAD IN MOSAIC BY CONSTRUCTION, NOT BY OVERSIGHT.** `Grid.jsx`'s Ctrl+Alt+Arrow
+effect opened `if (isMobileLayout || layoutTree) return;` — it bails on precisely the grids this
+feature is for. `snapPanelInDirection` writes `occurrence.placement`, and **a mosaic grid renders a
+TREE and has no placements at all**, so the handler had nothing correct to do. The branch is the
+fix; `helpers/mosaicSnap.js` is the policy layer beside `gridSnap.js`, and `bspTree.js` stays math.
+
+**THE REGION IS DERIVED, NEVER STORED**, and that is the load-bearing decision: a stored region goes
+stale the moment someone drags a seam, and every later arrow would then act on a state that no
+longer matches the screen. `regionOf` RECOGNISES the shapes `snapLeaf` produces and calls everything
+else `full` — a panel wedged as a middle child of a three-way split is on neither edge, and claiming
+one would make the next press land somewhere nobody predicted.
+
+**ONE ASYMMETRY BETWEEN THE AXES, and it is deliberate.** Left/Right always SET the column, so one
+press crosses you to the other side. Up/Down set the row EXCEPT that the arrow opposite your current
+row RELEASES it back to full — **and only from a QUADRANT**. From a plain top half there is no
+column to fall back on, so releasing would leave the panel with no region at all and the press would
+read as broken. Dropping `inQuadrant &&` fails exactly that test.
+
+**DEGRADE-TO-HALF: when the complement cannot supply the partition, NOTHING MOVES.** A quadrant is
+built from the complement's own top-level ROW split — one row becomes the neighbour, the remainder
+spans. If the complement is a leaf, or splits on the wrong axis, `snapLeaf` returns `null` rather
+than inventing a split, and the panel keeps the half it had. Falling back to the half just pressed
+would silently discard the axis the user deliberately set.
+
+**THE PLAN'S OWN TASK-1 A/B WAS A SEMANTIC NO-OP, and running it is the only reason I know.** It
+said to change `if (first && !last)` to `if (first)` and expect the middle-child test to fail. It
+does not: for a middle child `first` is **false**, so the mutation cannot fire — the same false
+premise as the ledger's finding F2 (a comment claiming a two-child split makes its child "both first
+AND last"; that describes a ONE-child split, which `removeLeaf` collapses). The guard the test
+actually pins is *a middle child claims neither edge*, so the discriminating mutation is dropping
+`last` from the OTHER branch — which fails exactly 1 of 8. *A recorded A/B is a claim until the
+mutation is watched failing something.*
+
+**AND THE TWO DEFECTS THAT MATTERED WERE INVISIBLE TO ALL 41 UNIT TESTS, because both live in the
+seam between a POINTER and the pure module.** Found by dragging on prod:
+
+- **THE PREVIEW LIED.** It was drawn from the zone under the pointer, so aiming at the top-right
+  corner outlined the top-right QUADRANT — while the drop delivered the top HALF, because the
+  quadrant degraded and the perpendicular step still applied. Measured live:
+  `preview x800 y33 797x482` against a tree of `h[78gtKM, v[...]]`. It reads `regionOf` off the
+  **resulting tree** now, so it cannot promise a region the snap will not deliver; re-measured,
+  preview and outcome agree to the pixel (`x800 y33 797x964` → the right half, both).
+- **A POINTER IS ABSOLUTE; AN ARROW IS RELATIVE.** The plan composed a quadrant as "the half then
+  the perpendicular press — the same two steps the keyboard takes, so there is one definition of a
+  quadrant." That equivalence only holds when the panel's other axis starts `full`. On the live
+  grid a bottom-left panel aimed at the top-right corner got: Right → bottom-right quadrant, then
+  Up → **the release rule**, → the right half. The spec is explicit that a zone's end thirds ARE the
+  quadrants, so the perimeter now SETS its region through `snapLeafToRegion`, which shares
+  `buildRegion` — one definition of how a region is built, two gestures with their own semantics.
+  A test pins the two paths producing DIFFERENT trees from the same tree, so the distinction cannot
+  quietly collapse again.
+
+**BOTH GESTURES SURVIVE, and that is measured rather than argued.** The perimeter band is four edge
+strips (not a full-size overlay, which would be the element under the pointer everywhere and would
+swallow the interior drops that build nested layouts) and it is **mounted only while a panel is
+being dragged** — at rest it would sit over the outer 48px of every edge pane and eat splitter grabs
+there. Live: a drop in the middle of the grid took the PANE path and split it
+(`h[YGVS8D, rkN14S, 78gtKM]`, no preview shown); a drop in the middle of the bottom band previewed
+`x3 y515 1594x482` and delivered exactly that.
+
+**VERIFIED ON PROD BY HAND, and the honest gaps are named.** Ctrl+Alt outlines the focused panel
+(`outline=2px solid rgb(61,123,191)`) and clears on release; Up and Down moved the panel and the
+panes re-laid out; Right/Left crossed a top-left panel to top-right and back. **Left/Right on the
+bottom panel did NOTHING, and that is the degrade rule, not a bug** — its complement is a COLUMN
+split, so there are no rows to partition. The ledger's ruling R3 predicted exactly this: on a tree
+whose complement splits the wrong way, the perpendicular arrow and the matching perimeter zone read
+as inert. It is the spec's deliberate refusal to invent a split, and the preview stays blank rather
+than promising a move — but it is the case where the feature will feel dead, and the remedy if it
+bites is one condition in `buildRegion`.
+
+Every guard A/B'd with the mutation asserted to land, each failing exactly its own case: the
+middle-child rule (1), the release rule's quadrant gate (1), the already-there guard (1), the
+degrade guard (1), bottom-pairs-with-the-LAST-row (1), and `snapLeafToRegion`'s own already-there
+guard (1). 41 snap tests, **4073 client tests**, lint 0 no-undef, both new CSS rules present in the
+BUILT stylesheet with each other as controls. Client-only, so `deploy.sh` correctly reported
+*"Server unchanged — NOT restarting"* and no load paid a cold read; prod HEAD verified after each of
+the three deploys.
+
+**THE PROBE WROTE TO LIVE DATA AND IT WAS PUT BACK.** Snapping panels is the feature, so verifying
+it rewrites the user's own `layoutTree`. Snapshotted first, then restored **through the real
+`update_grid` socket handler** rather than straight into Mongo — a direct write leaves the warm
+per-user cache authoritative and stale, and the remedy for that is a pm2 restart that costs the next
+load a ~180s cold Atlas read. Read back: **byte-identical**, ratios and node ids included, and the
+rendered panes match the pre-probe geometry exactly.
+
+---
+
 ### 2026-09-04 (2) — OUR MENU TOOK THE CLIPBOARD AWAY AND OFFERED NOTHING BACK
 
 User: *"can we add the text cut copy and paste to our right click menu"*, then

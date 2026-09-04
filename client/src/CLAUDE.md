@@ -2,6 +2,29 @@
 
 _Updated: 2026-08-17. Check this file before re-reading source._
 
+## Recent Changes (2026-09-04 — mosaic snap: the two wirings)
+
+- **`Grid.jsx` — the Ctrl+Alt+Arrow effect no longer bails on a mosaic grid.** It opened
+  `if (isMobileLayout || layoutTree) return;`, i.e. it bailed on exactly the grids the feature is
+  for. That was correct at the time: `snapPanelInDirection` writes `occurrence.placement` and a
+  mosaic grid renders a TREE with no placements. The branch calls `snapLeaf` and persists
+  `meta.layoutTree`, spreading the whole `meta` (a partial write drops every other key on it).
+  `visiblePanels` feeds both renderers, so the panel-resolution lines above it are unchanged.
+- **`Grid.jsx` — holding Ctrl+Alt stamps `data-snap-target` on the focused panel.** A DOM attribute,
+  NOT React state: keydown repeats while the chord is held, and a state flip there re-renders the
+  whole grid on a key the user is leaning on. The blur handler is a NAMED function so the cleanup
+  can actually remove it.
+- **`modules/GridMosaic.jsx` — the perimeter band is FOUR EDGE STRIPS, mounted only while a panel is
+  being dragged.** A full-size overlay would be the element under the pointer everywhere and would
+  steal the interior drops that split a pane — the gesture that builds nested layouts. Mounted at
+  rest, the strips would sit over the outer 48px of every edge pane and eat splitter grabs there.
+  `monitorForElements` gates it on an in-flight `DragType.PANEL` drag.
+- **The preview reads `regionOf` off the RESULTING TREE, not off the zone under the pointer.** Those
+  differ whenever a quadrant degrades, and a zone-drawn preview outlined a quadrant the drop could
+  not produce (measured live, 2026-09-04).
+- **A drop SETS its region (`snapLeafToRegion`) rather than composing two arrow presses.** Pointing
+  is absolute; an arrow is relative and releases the row you press away from.
+
 ## Recent Changes (2026-08-17 (5) — the LID, the invented colour, the doc swap, and the table tint)
 
 **RETRACTION OF (4)'s VERIFICATION.** It reported "0 opaque of 94 containers" and that was true and
