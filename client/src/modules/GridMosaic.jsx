@@ -20,7 +20,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   computeLayout, resizeSplit, removeLeaf, splitLeaf, allPanelOccIds, makeLeaf,
 } from "../helpers/bspTree";
-import { snapLeaf, zoneAt } from "../helpers/mosaicSnap";
+import { regionOf, snapLeaf, zoneAt } from "../helpers/mosaicSnap";
 
 // Coarse pointers (tablet/phone) get a finger-sized splitter band — the 6px
 // desktop band was nearly impossible to hit, so touch presses landed on the
@@ -306,15 +306,18 @@ export default function GridMosaic({
 function SnapBand({ rootRef, size, tree, dragOccId, onSnapDrop }) {
   const [zone, setZone] = useState(null);
 
-  // The region a drop RIGHT NOW would land in — null when the snap would not
-  // change anything, so the preview never promises a move that will not happen
-  // (a quadrant with nothing to partition degrades to no-op).
+  // The region a drop RIGHT NOW would land in — READ BACK OFF THE RESULTING
+  // TREE, not off the zone the pointer is in. Those differ whenever a quadrant
+  // degrades: aiming at the top-right corner when the complement has no rows to
+  // partition lands the panel in the top HALF, and a preview drawn from the
+  // zone would outline a quadrant the drop cannot produce (measured on the live
+  // grid, 2026-09-04). Null when nothing would move at all.
   const preview = useMemo(() => {
     if (!zone || !tree || !dragOccId) return null;
     let next = snapLeaf(tree, dragOccId, zone.direction) || tree;
     if (zone.quadrant) next = snapLeaf(next, dragOccId, zone.quadrant) || next;
     if (next === tree) return null;
-    return zoneRect(zone, size.w, size.h);
+    return regionRect(regionOf(next, dragOccId), size.w, size.h);
   }, [zone, tree, dragOccId, size.w, size.h]);
 
   const strips = useMemo(() => ([
@@ -372,19 +375,18 @@ function SnapStrip({ style, rootRef, size, onZone, onSnapDrop }) {
   return <div ref={ref} style={{ position: "absolute", zIndex: 50, ...style }} />;
 }
 
-// Where the preview rectangle goes for a zone. Presentation only — the tree is
-// what actually decides the layout; this just has to agree with it.
-function zoneRect(zone, w, h) {
-  const halfW = w / 2;
-  const halfH = h / 2;
-  if (zone.direction === "left" || zone.direction === "right") {
-    const x = zone.direction === "right" ? halfW : 0;
-    if (!zone.quadrant) return { position: "absolute", left: x, top: 0, width: halfW, height: h };
-    return { position: "absolute", left: x, top: zone.quadrant === "down" ? halfH : 0, width: halfW, height: halfH };
-  }
-  const y = zone.direction === "down" ? halfH : 0;
-  if (!zone.quadrant) return { position: "absolute", left: 0, top: y, width: w, height: halfH };
-  return { position: "absolute", left: zone.quadrant === "right" ? halfW : 0, top: y, width: halfW, height: halfH };
+// Where the preview rectangle goes for a REGION (the output of `regionOf`).
+// Presentation only, and deliberately fed from the tree the drop would produce
+// so it cannot promise a region the snap will not deliver.
+function regionRect(region, w, h) {
+  if (!region) return null;
+  return {
+    position: "absolute",
+    left: region.col === "right" ? w / 2 : 0,
+    top: region.row === "bottom" ? h / 2 : 0,
+    width: region.col === "full" ? w : w / 2,
+    height: region.row === "full" ? h : h / 2,
+  };
 }
 
 // A single pane: positioned wrapper + the panel filling it + a Pragmatic drop
