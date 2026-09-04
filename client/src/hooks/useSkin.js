@@ -23,7 +23,7 @@
 // was centralised in 2026-08-17.
 import { useEffect } from "react";
 import { getSkin, resolveSkinId, DEFAULT_SKIN } from "../helpers/skins";
-import { setActiveSkin } from "../helpers/StyleHelpers";
+import { setActiveSkin, setThemeInk } from "../helpers/StyleHelpers";
 
 const STORAGE_KEY = "moduli-skin";
 
@@ -77,6 +77,25 @@ export function applySkin(skin) {
   put("--retro-header-scrim", skin.headerScrim ?? 1);
   put("--retro-panel-scrim", skin.panelScrim ?? 1);
   setActiveSkin(skin);
+
+  // THE THEME'S INK AND PAGE, READ AFTER `data-theme` IS ON THE ELEMENT.
+  // Order matters: these are resolved custom properties, so reading them before
+  // the attribute is set returns the PREVIOUS theme's values — which is a
+  // silent, plausible-looking wrong answer rather than an error.
+  //
+  // This is what lets `styleToCSS` tell a readable stored colour from an
+  // unreadable one. It is published from here for the same reason every other
+  // skin value is: one place, so the halves cannot drift.
+  try {
+    const cs = getComputedStyle(el);
+    const ink = cs.getPropertyValue("--text-primary").trim();
+    const page = cs.getPropertyValue("--body-bg").trim();
+    setThemeInk(ink && page ? { ink, page } : null);
+  } catch {
+    // No computed style (SSR, a detached document). Null means "do nothing",
+    // which is the behaviour that existed before this — never a guess.
+    setThemeInk(null);
+  }
 }
 
 /**
