@@ -831,6 +831,38 @@ function GridInner() {
     return () => window.removeEventListener("keydown", onKey);
   }, [isMobileLayout, layoutTree, gridId, visiblePanels, occurrencesById, grid, dispatch, socket]);
 
+  // Holding Ctrl+Alt marks the panel that an arrow would move, so you can see
+  // what is about to happen before committing. Stamped as a DOM attribute
+  // rather than React state: this fires on every keydown repeat, and a state
+  // flip there would re-render the whole grid on a key the user is holding.
+  useEffect(() => {
+    if (isMobileLayout) return;
+    const mark = (on) => {
+      const id = lastPanelIdRef.current;
+      document
+        .querySelectorAll("[data-snap-target]")
+        .forEach((el) => el.removeAttribute("data-snap-target"));
+      if (!on || !id) return;
+      document
+        .querySelector(`[data-panel-id="${CSS.escape(id)}"]`)
+        ?.setAttribute("data-snap-target", "true");
+    };
+    const onKeyDown = (e) => { if (e.ctrlKey && e.altKey) mark(true); };
+    const onKeyUp = (e) => { if (!e.ctrlKey || !e.altKey) mark(false); };
+    // NAMED, so the cleanup can actually remove it — an inline arrow here leaks
+    // a listener on every remount.
+    const onBlur = () => mark(false);
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
+      mark(false);
+    };
+  }, [isMobileLayout]);
+
   // Click an EMPTY grid cell → mint a panel there whose active page is the
   // ROOT FOLDER page (the full card grid of everything on the grid), so an
   // empty cell is one tap away from useful content (2026-07-03, per user).

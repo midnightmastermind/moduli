@@ -7952,3 +7952,12 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .container-shell[data-cv-seeded] {
   content-visibility: auto;
 }
+
+/* The panel Ctrl+Alt+Arrow would move. Outline, not border — a border would
+   change the panel's box and shift every pane beside it while the chord is
+   held. */
+[data-snap-target="true"] {
+  outline: 2px solid var(--accent-blue, #38bdf8);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
