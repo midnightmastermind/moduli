@@ -149,6 +149,49 @@ Nothing new is needed for playback or for the viewer:
 So "click a movie → see its files → watch it beside your work" is already built.
 The only missing link is a video child with a playable URL.
 
+## The other half: this machine as a NAS for everything else
+
+Jellyfin covers video and music. Everything else on those drives — 541 book
+files, documents, whatever lands there later — wants plain file access, and that
+is what makes the machine a NAS rather than a media server.
+
+**Two access paths, and they are for different things.** Do not conflate them:
+
+| | what it is for | reaches |
+|---|---|---|
+| **SMB share** | Explorer / Finder / phone file manager. The "NAS" in the ordinary sense. | any device on the tailnet |
+| **HTTPS static server** | Moduli itself — a browser can only fetch `https://`, never `smb://` | the grid, from anywhere on the tailnet |
+
+Moduli needs the second. Windows hosts the first natively (Properties →
+Sharing), and Tailscale carries SMB over the tailnet without exposing it — worth
+doing, but orthogonal to the grid and needing no code.
+
+**The HTTPS half composes exactly like the movies do.** One static server rooted
+above the drives, serving `/<drive>/<relative path>`, behind the same
+`tailscale serve` certificate. `Drive` + `File Path` then derives a URL with the
+same rule the video work already needs — one mechanism, two libraries.
+
+The books are the awkward case, and it is a FORMAT problem rather than a serving
+one:
+
+```
+  .pdf    97   renders inline today — ArtifactContent already has a pdf branch
+  .epub  150   needs a reader in the app; nothing renders it now
+  .azw   259   Amazon format. A browser cannot render it, full stop.
+  .mobi   31   same.
+```
+
+Serving them makes 97 readable in the grid immediately and the other 444
+**downloadable and addressable** — a real gain over a path string pointing at a
+drive letter, but not "reading your library in Moduli". Getting there means
+either an epub reader (`epub.js` is the usual answer) or converting the Amazon
+formats with Calibre, which is a library-management decision rather than an app
+one. **Worth deciding what "open a book" should mean before building either.**
+
+One wrinkle: books store ABSOLUTE paths (`D:\Documents\book_files\...`) rather
+than the drive-relative tail the movies use, so `C:` and `D:` join the named
+drives in the server's root set. Configuration, not a migration.
+
 ## Build order
 
 **0. Prove the foundation** (you, not code): Jellyfin installed, libraries
@@ -174,6 +217,10 @@ reviewed pattern rather than a second one.
 
 **5. Re-runnable.** A row that already has its video child is skipped, so adding
 a drive later fills only the gaps.
+
+**6. The static server + book URLs**, once the video path is proven. Same
+connection record, same derivation — and the PDFs light up in the artifact
+viewer with no further work.
 
 ## Risks, stated up front
 
