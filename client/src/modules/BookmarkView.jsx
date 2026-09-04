@@ -47,6 +47,7 @@
 // above the frame rather than in a context menu over it.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { occurrenceUrl } from "../helpers/occurrenceUrl";
+import { embedUrlFor } from "../helpers/embedUrl";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 
 const BTN_TITLES = {
@@ -66,7 +67,7 @@ export const FRAME_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-
  *   - otherwise reader, but only when the fetch produced something worth reading
  *   - a failed or thin fetch falls through to the frame, never to a blank reader
  */
-export function resolveMode({ chosen = null, fetched = null } = {}) {
+export function resolveMode({ chosen = null, fetched = null, embeddable = false } = {}) {
   // ARCHIVE IS UNCONDITIONAL, and that is the difference between it and the
   // other two. Reader can be empty and Web can be refused, so both are checked
   // against what the fetch learned; the archive is a DIFFERENT page on a
@@ -74,10 +75,24 @@ export function resolveMode({ chosen = null, fetched = null } = {}) {
   // Measured 2026-08-23: a snapshot sends no `x-frame-options` and a CSP with
   // no `frame-ancestors`, so it frames where the original does not.
   if (chosen === "archive") return "archive";
-  // An explicit choice wins — except that asking for a frame a site refuses
-  // cannot be honoured, and a blank box is a worse answer than saying so.
-  if (chosen === "web") return fetched && fetched.ok && fetched.framable === false ? "blocked" : "web";
+  // ── AN EMBEDDABLE URL IS NEVER BLOCKED ──────────────────────────────────
+  //
+  // `framable` describes the PAGE. When `embedUrlFor` knows this site, the
+  // frame shows a DIFFERENT url — the one its owner publishes for embedding —
+  // and the page's own header says nothing about that. Measured:
+  // `youtube.com/watch` sends SAMEORIGIN, `youtube.com/embed` sends no header.
+  // Without this, pasting a YouTube link reports "this site refuses to be
+  // framed", which is true of the page and wrong about what we would show.
+  if (chosen === "web") {
+    if (embeddable) return "web";
+    return fetched && fetched.ok && fetched.framable === false ? "blocked" : "web";
+  }
   if (chosen === "reader") return "reader";
+  // AND IT IS THE DEFAULT, ahead of reader. Reader mode on a video page yields
+  // the description and some nav chrome — never the thing you opened it for. If
+  // the site publishes a player, the player IS the content. Reader is still one
+  // click away for the cases where the surrounding page is what you wanted.
+  if (embeddable) return "web";
   if (!fetched) return "loading";
   if (fetched.ok && fetched.usable) return "reader";
   // The reader has nothing to show. The frame is the fallback — unless the site
@@ -161,7 +176,11 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
     });
   }, [chosen, url, socket, archive]);
 
-  const mode = resolveMode({ chosen, fetched });
+  // The embeddable form of this url, or null. Computed here rather than inside
+  // `resolveMode` so that function stays pure over its inputs and testable
+  // without the table.
+  const embedSrc = useMemo(() => embedUrlFor(url), [url]);
+  const mode = resolveMode({ chosen, fetched, embeddable: !!embedSrc });
   const reason = fallbackReason(fetched);
   const pick = useCallback((m) => setChosen(m), []);
 
@@ -276,7 +295,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
           // merely unlikely.
           isActivePage ? (
             <iframe
-              src={url}
+              src={embedSrc || url}
               title={url}
               sandbox={FRAME_SANDBOX}
               style={{ width: "100%", height: "100%", border: 0, display: "block" }}

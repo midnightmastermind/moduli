@@ -129,3 +129,39 @@ describe("resolveMode — ARCHIVE", () => {
     expect(resolveMode({ chosen: "web", fetched: { ok: true, framable: false } })).toBe("blocked");
   });
 });
+
+// ── EMBEDDABLE URLS (2026-09-04) ───────────────────────────────────────────
+// User: *"id like to watch youtube videos and such without having to click on a
+// bookmark."* Pasting a YouTube link used to land on "blocked", which was true
+// of the PAGE and wrong about what we would actually show.
+describe("resolveMode — an embeddable url", () => {
+  const refuses = { ok: true, usable: false, framable: false };
+
+  it("is never blocked, even though the PAGE refuses framing", () => {
+    // youtube.com/watch sends SAMEORIGIN; youtube.com/embed sends no header.
+    // `framable` describes the page, and the frame shows the other url.
+    expect(resolveMode({ chosen: "web", fetched: refuses, embeddable: true })).toBe("web");
+    expect(resolveMode({ chosen: "web", fetched: refuses, embeddable: false })).toBe("blocked");
+  });
+
+  it("defaults to the player, ahead of reader", () => {
+    // Reader on a video page gives the description and nav chrome — never the
+    // thing you opened it for.
+    const readable = { ok: true, usable: true, framable: false };
+    expect(resolveMode({ fetched: readable, embeddable: true })).toBe("web");
+    expect(resolveMode({ fetched: readable, embeddable: false })).toBe("reader");
+  });
+
+  it("still lets you ask for reader or archive", () => {
+    expect(resolveMode({ chosen: "reader", fetched: refuses, embeddable: true })).toBe("reader");
+    expect(resolveMode({ chosen: "archive", fetched: refuses, embeddable: true })).toBe("archive");
+  });
+
+  // The default must not change for the whole rest of the web.
+  it("changes nothing for a url the table does not know", () => {
+    for (const f of [null, { ok: true, usable: true }, { ok: false }, refuses]) {
+      expect(resolveMode({ fetched: f, embeddable: false }))
+        .toBe(resolveMode({ fetched: f }));
+    }
+  });
+});
