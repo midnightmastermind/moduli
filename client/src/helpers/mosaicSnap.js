@@ -11,7 +11,7 @@
 //
 // Spec: docs/superpowers/specs/2026-09-04-mosaic-snap-design.md
 // ============================================================
-import { findLeaf, isLeaf } from "./bspTree";
+import { findLeaf, isLeaf, makeLeaf, makeSplit, removeLeaf } from "./bspTree";
 
 /**
  * Where does this panel sit, in half/quadrant terms?
@@ -50,4 +50,54 @@ export function regionOf(tree, panelOccId) {
     node = node.children[idx];
   }
   return { col, row };
+}
+
+const AXIS = { left: "col", right: "col", up: "row", down: "row" };
+const EDGE = { left: "left", right: "right", up: "top", down: "bottom" };
+const OPPOSITE = { left: "right", right: "left", top: "bottom", bottom: "top" };
+
+/**
+ * Snap a panel one step in `direction`. Returns a NEW tree, or null when
+ * nothing changed.
+ *
+ * Left/Right always SET the column — one press crosses you to the other side.
+ * Up/Down set the row, except that pressing the arrow opposite your current row
+ * RELEASES it back to full — and only from a QUADRANT. From a plain top half
+ * there is no column constraint to fall back on, so releasing would leave the
+ * panel with no region and the press would read as broken.
+ */
+export function snapLeaf(tree, panelOccId, direction) {
+  const axis = AXIS[direction];
+  if (!axis) return null;
+
+  const cur = regionOf(tree, panelOccId);
+  if (!cur) return null;
+
+  const edge = EDGE[direction];
+  if (cur[axis] === edge) return null;             // already there
+
+  const next = { ...cur };
+  const inQuadrant = cur.col !== "full" && cur.row !== "full";
+  if (axis === "row" && inQuadrant && cur.row === OPPOSITE[edge]) {
+    next.row = "full";                             // release
+  } else {
+    next[axis] = edge;
+  }
+
+  const rest = removeLeaf(tree, panelOccId);
+  if (!rest) return null;                          // the tree was just this leaf
+  return buildRegion(rest, makeLeaf(panelOccId), next);
+}
+
+/** Place `leaf` in `region` with `rest` filling the complement. */
+function buildRegion(rest, leaf, { col, row }) {
+  if (row === "full") {
+    return col === "right" ? makeSplit("v", [rest, leaf])
+                           : makeSplit("v", [leaf, rest]);
+  }
+  if (col === "full") {
+    return row === "bottom" ? makeSplit("h", [rest, leaf])
+                            : makeSplit("h", [leaf, rest]);
+  }
+  return null;   // quadrant — Task 3
 }
