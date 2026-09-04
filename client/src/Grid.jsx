@@ -34,6 +34,7 @@ import { getGridPanels } from "./state/selectors";
 import { applyLocalSort, createPanelInGrid } from "./helpers/LayoutHelpers";
 import { openPanelOnRootFolderPage } from "./helpers/importsFolder";
 import { snapPanelInDirection } from "./helpers/gridSnap";
+import { snapLeaf } from "./helpers/mosaicSnap";
 import MobileGridNav from "./mobile/MobileGridNav";
 import { ArtifactSpreadHost } from "./ui/ArtifactSpreadHost";
 import { Layers } from "lucide-react";
@@ -798,7 +799,7 @@ function GridInner() {
   }, []);
 
   useEffect(() => {
-    if (isMobileLayout || layoutTree) return; // rows×cols desktop only
+    if (isMobileLayout) return;   // mobile pages one panel at a time; no regions
     const DIR_BY_KEY = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" };
     const onKey = (e) => {
       if (!e.ctrlKey || !e.altKey) return;
@@ -810,11 +811,25 @@ function GridInner() {
       const occ = panel?._occurrenceId ? occurrencesById?.[panel._occurrenceId] : null;
       if (!occ) return;
       e.preventDefault();
+      // MOSAIC has no placements — its arrangement is the tree — so it needs a
+      // different snap entirely. `gridSnap` writes `occurrence.placement`, which
+      // a mosaic grid does not render; that is why this handler used to bail
+      // rather than run.
+      if (layoutTree) {
+        const next = snapLeaf(layoutTree, occ.id, direction);
+        if (!next) return;                       // no-op: write nothing
+        CommitHelpers.updateGrid({
+          dispatch, socket, gridId,
+          grid: { meta: { ...(grid?.meta || {}), layoutTree: next } },
+          emit: true,
+        });
+        return;
+      }
       snapPanelInDirection({ direction, panelOcc: occ, grid, occurrencesById, dispatch, socket });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isMobileLayout, layoutTree, visiblePanels, occurrencesById, grid, dispatch, socket]);
+  }, [isMobileLayout, layoutTree, gridId, visiblePanels, occurrencesById, grid, dispatch, socket]);
 
   // Click an EMPTY grid cell → mint a panel there whose active page is the
   // ROOT FOLDER page (the full card grid of everything on the grid), so an
