@@ -48,6 +48,11 @@ export const KIND_TILE = {
   textblock: { label: "Textblock", desc: "Inline rich-text snippet" },
   artifact:  { label: "Artifact",  desc: "File-backed content" },
   image:     { label: "Image",     desc: "Search the web / upload / URL" },
+  // User, 2026-09-04: *"a browser page occurrence that just acts as a browser
+  // inline … without having to click on a bookmark."* It mints a BOOKMARK
+  // artifact carrying `meta.scratch`, so reader / archive / framing / embeds all
+  // come from the one implementation rather than a second surface.
+  browser:   { label: "Browser",   desc: "An address bar — browse or watch inline" },
   // User, 2026-08-24: *"a wikipedia page button on the quick add menu so i can
   // search for wikipedia articles to turn into pages on the fly"*. It reuses
   // the SAME importer "convert this link to a page" uses, so a searched article
@@ -101,7 +106,7 @@ export function tileKindsForRole(targetRole) {
   // CONTAINER kinds, and all four PAGE kinds (which file a real page in the tree
   // and preview it here).
   if (targetRole === "instance") return [
-    "instance", "textblock", "artifact", "image",
+    "instance", "textblock", "artifact", "image", "browser",
     "board", "doc", "table", "canvas",
     "page-board", "page-doc", "page-table", "page-canvas", "page-folder",
     "wikipedia",

@@ -48,6 +48,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { occurrenceUrl } from "../helpers/occurrenceUrl";
 import { embedUrlFor } from "../helpers/embedUrl";
+import {
+  initialNav, currentUrl, canGoBack, canGoForward, goBack, goForward, navigate,
+  normalizeTyped, isScratch,
+} from "../helpers/browserNav";
+import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 
 const BTN_TITLES = {
@@ -135,7 +140,46 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
     () => occurrenceUrl(occurrence, { module, fieldsById: fields }),
     [occurrence, module, fields],
   );
-  const url = resolved?.url || null;
+  const storedUrl = resolved?.url || null;
+
+  // ── THE ADDRESS BAR ─────────────────────────────────────────────────────
+  //
+  // User, 2026-09-04: a browser inline, *"without having to click on a
+  // bookmark"*. So the url is editable, and history is local state.
+  //
+  // WHAT HISTORY CAN MEAN HERE is bounded by the cross-origin wall this file
+  // already documents: we cannot read where the frame has gone, so Back returns
+  // to the last address WE set, never to a page you clicked through inside the
+  // site. That is a property of frames, not a gap to fill later.
+  const [nav, setNav] = useState(() => initialNav(storedUrl));
+  // Re-seed when the OCCURRENCE's own url changes (a different bookmark opened
+  // in this surface), not when we navigate — otherwise every navigation would
+  // be undone by its own effect.
+  useEffect(() => { setNav(initialNav(storedUrl)); }, [storedUrl]);
+  const url = currentUrl(nav) || storedUrl;
+
+  const [typed, setTyped] = useState("");
+  useEffect(() => { setTyped(url || ""); }, [url]);
+
+  const dispatch = useGridActionsSelector((s) => s.dispatch);
+  const scratch = isScratch(occurrence);
+
+  // TYPING NEVER EDITS YOUR LIBRARY. A saved bookmark is an address you meant
+  // to keep; navigating away from it in this surface is browsing, not an edit,
+  // so the stored url is left alone and only local state moves. A SCRATCH
+  // browser is a workspace — there is nothing to protect and everything to lose
+  // on reload — so its url is persisted. That is the whole job of the flag.
+  const commitUrl = useCallback((next) => {
+    setNav((n) => navigate(n, next));
+    if (!scratch || !dispatch || !occurrence) return;
+    const norm = normalizeTyped(next);
+    if (!norm || norm === storedUrl) return;
+    CommitHelpers.updateOccurrence({
+      dispatch, socket,
+      occurrence: { ...occurrence, meta: { ...(occurrence.meta || {}), url: norm } },
+    });
+  }, [scratch, dispatch, socket, occurrence, storedUrl]);
+
   const [chosen, setChosen] = useState(null);
   const [fetched, setFetched] = useState(null);
   const reqRef = useRef(0);
@@ -190,6 +234,14 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
     </div>;
   }
 
+  const navBtnSt = (enabled) => ({
+    padding: "2px 7px", fontSize: 13, fontFamily: "var(--font-mono)",
+    cursor: enabled ? "pointer" : "default", borderRadius: 4,
+    border: "1px solid var(--border-default)", background: "var(--input-bg)",
+    color: enabled ? "var(--text-muted)" : "var(--text-faint)",
+    opacity: enabled ? 1 : 0.5,
+  });
+
   const btn = (m, label) => (
     <button
       onClick={() => pick(m)}
@@ -213,9 +265,42 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
         borderBottom: "1px solid var(--border-subtle)", background: "var(--input-bg)",
         fontSize: 12, fontFamily: "var(--font-mono)",
       }}>
-        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--text-muted)" }} title={url}>
-          {url.replace(/^https?:\/\/(www\.)?/, "")}
-        </span>
+        <button
+          onClick={() => setNav(goBack)} disabled={!canGoBack(nav)} title="Back"
+          style={navBtnSt(canGoBack(nav))}
+        >‹</button>
+        <button
+          onClick={() => setNav(goForward)} disabled={!canGoForward(nav)} title="Forward"
+          style={navBtnSt(canGoForward(nav))}
+        >›</button>
+        <input
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); commitUrl(typed); }
+            // Escape restores what is actually loaded, so a half-typed address
+            // is never left sitting in the bar pretending to be the page.
+            if (e.key === "Escape") { e.preventDefault(); setTyped(url || ""); e.currentTarget.blur(); }
+          }}
+          onFocus={(e) => e.currentTarget.select()}
+          spellCheck={false}
+          placeholder="Type an address…"
+          title={url || ""}
+          style={{
+            flex: 1, minWidth: 0, background: "var(--panel-bg)", color: "var(--text-primary)",
+            border: "1px solid var(--border-subtle)", borderRadius: 4,
+            padding: "2px 6px", fontSize: 12, fontFamily: "var(--font-mono)",
+          }}
+        />
+        {!scratch && storedUrl && url !== storedUrl && (
+          // You have browsed off a SAVED bookmark. Saying so is what keeps the
+          // stored address from silently seeming to have changed.
+          <button
+            onClick={() => setNav(initialNav(storedUrl))}
+            title={`Back to the saved address: ${storedUrl}`}
+            style={navBtnSt(true)}
+          >⌂</button>
+        )}
         {reason && mode === "web" && (
           <span style={{ fontSize: 12, color: "var(--text-faint)" }} title={`Reader unavailable: ${reason}`}>
             reader: {reason}

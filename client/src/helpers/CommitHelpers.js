@@ -1252,6 +1252,59 @@ export function addImageArtifactFromUrl({
   return { moduleId, occurrenceId };
 }
 
+/**
+ * A SCRATCH BROWSER — an inline surface you type an address into.
+ *
+ * User, 2026-09-04: *"a browser page occurrence that just acts as a browser
+ * inline … without having to click on a bookmark."*
+ *
+ * IT IS A BOOKMARK ARTIFACT, not a new kind, and that is deliberate.
+ * `BookmarkView`'s own header records trying this twice as something else:
+ * *"First this was a page KIND, then a URL-bearing instance the panel learned to
+ * render. Both were wrong for the same reason: `role:"artifact"` already IS the
+ * module type for a thing that has content of its own."* So the reader, archive,
+ * framing verdict and embed rewrite all apply here with no second implementation.
+ *
+ * What distinguishes it is ONE FLAG. `meta.scratch` says this is a workspace
+ * rather than an address you meant to keep, and that is what lets typing in the
+ * bar persist here while leaving a saved bookmark's stored url untouched.
+ *
+ * Minted with NO url on purpose: it opens on its own address bar, which is the
+ * whole point of not having to click a bookmark first.
+ */
+export function addScratchBrowser({
+  dispatch, socket, gridId, userId, containerOccurrence, url = "", index = null,
+}) {
+  if (!gridId || !userId || !containerOccurrence) return null;
+  const moduleId = crypto?.randomUUID?.() || `bm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const occurrenceId = crypto?.randomUUID?.() || `bo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  const module = {
+    id: moduleId, userId, gridId,
+    role: "artifact", kind: "bookmark",
+    label: "Browser",
+    fileRef: url || "",
+    meta: { external: true },
+  };
+  const occurrence = {
+    id: occurrenceId, userId, gridId, moduleId,
+    parentId: containerOccurrence.id,
+    // The flag lives on the OCCURRENCE, not the module: the same page could be
+    // a scratch surface in one place and a kept bookmark in another, and this
+    // is a fact about the placement rather than about the address.
+    meta: { scratch: true, ...(url ? { url } : null) },
+  };
+
+  dispatch?.(createModuleAction(module));
+  dispatch?.(createOccurrenceAction(occurrence));
+  safeEmit(socket, "create_module", { module });
+  safeEmit(socket, "create_occurrence", { occurrence });
+
+  spliceChildIntoParent({ dispatch, socket, parentOccurrence: containerOccurrence, occurrenceId, index });
+
+  return { moduleId, occurrenceId };
+}
+
 // One router the container header + the InsertGap both call. Routes a QuickAddMenu
 // "create" by kind/role to the right child-create path. Artifact needs a File
 // (the menu opens an OS picker and passes it through).
@@ -1271,6 +1324,9 @@ export function createChildInContainer({
   }
   if (kind === "textblock" || role === "textblock") {
     return createTextblockInContainer({ ...args, kind: "doc" });
+  }
+  if (kind === "browser") {
+    return addScratchBrowser({ ...args, url: url || "" });
   }
   if (kind === "artifact" || role === "artifact") {
     if (url) return addImageArtifactFromUrl({ ...args, url });

@@ -18,7 +18,11 @@ describe("tileKindsForRole — create tiles per role", () => {
 
   it("instance → every occurrence type: leaves, all 4 nested containers, all 5 nested pages (incl. folder)", () => {
     expect(tileKindsForRole("instance")).toEqual([
-      "instance", "textblock", "artifact", "image",
+      // "browser" mints a BOOKMARK artifact carrying `meta.scratch` — an inline
+      // address bar (user, 2026-09-04: *"without having to click on a
+      // bookmark"*). It is a leaf like the others, not a new kind, so reader /
+      // archive / framing / embeds come from one implementation.
+      "instance", "textblock", "artifact", "image", "browser",
       "board", "doc", "table", "canvas",
       "page-board", "page-doc", "page-table", "page-canvas", "page-folder",
       // A search tile rather than a blank create: it opens the Wikipedia
