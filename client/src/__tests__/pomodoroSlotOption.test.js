@@ -37,7 +37,7 @@ describe("pickTimeOptionForNow", () => {
 // write to fill a `<select>` nobody had open — 156ms of the load's 3,181ms
 // effect window on a source-mapped profile. The memo is gated on `expanded`
 // now; this covers the walk itself, which had no tests at all.
-import { buildContainerCrumbOptions } from "../ui/PomodoroTimer.jsx";
+import { buildContainerCrumbOptions } from "../helpers/containerCrumbs";
 
 const world = (occList, modList) => [
   Object.fromEntries(occList.map((o) => [o.id, o])),

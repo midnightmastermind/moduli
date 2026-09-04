@@ -5,12 +5,28 @@
 // reverts, or a frame that renders where it should not.
 import { describe, it, expect, vi } from "vitest";
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import BookmarkView, { resolveMode, fallbackReason, FRAME_SANDBOX } from "../modules/BookmarkView.jsx";
 
-// Mounting the real surface needs the grid store; only two slices are read.
+// Mounting the real surface needs the grid store. The destination picker reads
+// the occurrence + module maps, so the fake store carries one real container
+// under a page — enough for the crumb walk to produce a labelled option.
+globalThis.__bvStore = {
+  fieldsById: {},
+  dispatch: () => {},
+  gridId: "g1",
+  userId: "u1",
+  occurrencesById: {
+    p1: { id: "p1", moduleId: "pm1", occurrences: ["c1"] },
+    c1: { id: "c1", moduleId: "cm1", parentId: "p1", occurrences: [] },
+  },
+  modulesById: {
+    pm1: { id: "pm1", role: "page", label: "Bookmarks" },
+    cm1: { id: "cm1", role: "container", label: "Reading" },
+  },
+};
 vi.mock("../GridActionsContext.js", () => ({
-  useGridActionsSelector: (sel) => sel({ fieldsById: {}, dispatch: () => {} }),
+  useGridActionsSelector: (sel) => sel(globalThis.__bvStore),
 }));
 
 const ok = (words, usable) => ({ ok: true, words, usable, markdown: "x" });
@@ -196,5 +212,52 @@ describe("BookmarkView with no url", () => {
     render(<BookmarkView occurrence={{ id: "b2", meta: {} }} socket={socket} />);
     expect(screen.getByText(/carries no link/)).toBeTruthy();
     expect(screen.queryByPlaceholderText("Type an address…")).toBeNull();
+  });
+});
+
+// ── SAVE AS BOOKMARK (2026-09-04) ──────────────────────────────────────────
+// User: *"a button that says save as bookmark occurrence next to the url bar
+// that has you create a new bookmark occurrence for that link and asks where to
+// put it (like the pomodoro and placing that occurrence)."*
+describe("saving the current address as a bookmark", () => {
+  const socket = { emit: () => {} };
+  const withUrl = {
+    id: "b3", meta: { scratch: true, url: "https://example.com/x" },
+    moduleId: "m3",
+  };
+
+  it("offers the button once there is an address to save", () => {
+    render(<BookmarkView occurrence={withUrl}
+      module={{ id: "m3", role: "artifact", kind: "bookmark", fileRef: "https://example.com/x" }}
+      socket={socket} />);
+    expect(screen.getByLabelText("Save as bookmark")).toBeTruthy();
+  });
+
+  // A blank browser has no address, so there is nothing to save and the control
+  // would be inert — worse than absent.
+  it("does not offer it with no address", () => {
+    render(<BookmarkView occurrence={{ id: "b4", meta: { scratch: true } }} socket={socket} />);
+    expect(screen.queryByLabelText("Save as bookmark")).toBeNull();
+  });
+
+  it("asks where to put it before it will save", () => {
+    render(<BookmarkView occurrence={withUrl}
+      module={{ id: "m3", role: "artifact", kind: "bookmark", fileRef: "https://example.com/x" }}
+      socket={socket} />);
+    fireEvent.click(screen.getByLabelText("Save as bookmark"));
+    expect(screen.getByText("Save to")).toBeTruthy();
+    // "Where" is the question being asked; saving without an answer defeats it.
+    expect(screen.getByRole("button", { name: "Save" }).disabled).toBe(true);
+  });
+
+  // THE CONTROL FOR THE SUBSCRIPTION GATE. The occurrence + module maps are only
+  // selected while the picker is open, so a gate written the wrong way round
+  // leaves an empty dropdown — a control that looks fine and can never save.
+  it("lists the grid's containers, by their page crumb, once opened", () => {
+    render(<BookmarkView occurrence={withUrl}
+      module={{ id: "m3", role: "artifact", kind: "bookmark", fileRef: "https://example.com/x" }}
+      socket={socket} />);
+    fireEvent.click(screen.getByLabelText("Save as bookmark"));
+    expect(screen.getByRole("option", { name: "Bookmarks › Reading" })).toBeTruthy();
   });
 });

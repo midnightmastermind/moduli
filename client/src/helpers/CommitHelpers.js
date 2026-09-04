@@ -1272,8 +1272,31 @@ export function addImageArtifactFromUrl({
  * Minted with NO url on purpose: it opens on its own address bar, which is the
  * whole point of not having to click a bookmark first.
  */
-export function addScratchBrowser({
-  dispatch, socket, gridId, userId, containerOccurrence, url = "", index = null,
+/** "en.wikipedia.org/wiki/Otter" -> "en.wikipedia.org". Null when not a url. */
+function hostLabel(url) {
+  try { return new URL(String(url)).hostname.replace(/^www\./, "") || null; }
+  catch { return null; }
+}
+
+export function addScratchBrowser(args) {
+  return addBookmarkOccurrence({ ...args, scratch: true });
+}
+
+/**
+ * Mint a bookmark occurrence — the ONE path, for both shapes.
+ *
+ * `scratch: true` is the inline browser (a workspace: its url persists as you
+ * navigate). `scratch: false` is a saved bookmark (an address you meant to
+ * keep; navigating in the viewer never rewrites it).
+ *
+ * ONE FUNCTION FOR BOTH, deliberately. They differ by a flag and a label, and
+ * two mint paths for one shape is precisely how a bookmark made by the "+
+ * Browser" tile and one made by "Save bookmark" would quietly stop matching —
+ * the drift class this repo keeps paying for.
+ */
+export function addBookmarkOccurrence({
+  dispatch, socket, gridId, userId, containerOccurrence, url = "",
+  label = null, scratch = false, index = null,
 }) {
   if (!gridId || !userId || !containerOccurrence) return null;
   const moduleId = crypto?.randomUUID?.() || `bm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -1282,7 +1305,10 @@ export function addScratchBrowser({
   const module = {
     id: moduleId, userId, gridId,
     role: "artifact", kind: "bookmark",
-    label: "Browser",
+    // A saved bookmark is named for where it points; a blank browser is named
+    // for what it is. Falling back to the host beats "Untitled" — you can tell
+    // bookmarks apart in a tree by their host and not by their id.
+    label: label || (scratch ? "Browser" : hostLabel(url) || "Bookmark"),
     fileRef: url || "",
     meta: { external: true },
   };
@@ -1292,7 +1318,10 @@ export function addScratchBrowser({
     // The flag lives on the OCCURRENCE, not the module: the same page could be
     // a scratch surface in one place and a kept bookmark in another, and this
     // is a fact about the placement rather than about the address.
-    meta: { scratch: true, ...(url ? { url } : null) },
+    // ABSENT rather than `false` for a saved one — `isScratch` defaults to
+    // saved, so writing the flag only where it is true keeps a saved bookmark
+    // byte-identical to every bookmark that predates the flag.
+    meta: { ...(scratch ? { scratch: true } : null), ...(url ? { url } : null) },
   };
 
   dispatch?.(createModuleAction(module));

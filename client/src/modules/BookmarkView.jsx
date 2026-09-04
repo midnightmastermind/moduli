@@ -53,6 +53,7 @@ import {
   normalizeTyped, isScratch,
 } from "../helpers/browserNav";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { buildContainerCrumbOptions } from "../helpers/containerCrumbs";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 
 const BTN_TITLES = {
@@ -60,6 +61,9 @@ const BTN_TITLES = {
   web: "The live site",
   archive: "The closest Wayback Machine snapshot — for a dead link, or a page that has changed",
 };
+
+const EMPTY_MAP = {};
+const EMPTY_OPTIONS = [];
 
 export const FRAME_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-popups";
 
@@ -180,6 +184,56 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
     });
   }, [scratch, dispatch, socket, occurrence, storedUrl]);
 
+  // ── SAVE THIS ADDRESS AS A BOOKMARK ─────────────────────────────────────
+  //
+  // User, 2026-09-04: *"a button that says save as bookmark occurrence next to
+  // the url bar that has you create a new bookmark occurrence for that link and
+  // asks where to put it (like the pomodoro and placing that occurrence)."*
+  //
+  // Reuses the Pomodoro's own destination list, so "where do I put this" looks
+  // and reads the same in both places rather than being a second answer to one
+  // question.
+  const [saving, setSaving] = useState(false);
+  const [savedTo, setSavedTo] = useState(null);
+  const [dest, setDest] = useState("");
+  // SUBSCRIBED ONLY WHILE THE PICKER IS OPEN. `occurrencesById` and `modulesById`
+  // change identity on EVERY write anywhere on the grid, so subscribing to them
+  // unconditionally would re-render every open browser — an iframe surface — on
+  // every unrelated edit. Selecting a constant when the value is not read is the
+  // fix this repo already used for the field pills and the instance rows
+  // (2026-08-31 (6)); what becomes conditional is the value SELECTED, not the hook.
+  // EMPTY is module-level: a fresh `{}` in the selector re-renders on every store
+  // read instead, which is worse than what it replaces.
+  const occurrencesById = useGridActionsSelector((s) => (saving ? s.occurrencesById : EMPTY_MAP));
+  const modulesById = useGridActionsSelector((s) => (saving ? s.modulesById : EMPTY_MAP));
+  const gridId = useGridActionsSelector((s) => s.gridId ?? s.state?.gridId);
+  const userId = useGridActionsSelector((s) => s.userId ?? s.state?.userId);
+  // BUILT ONLY WHILE THE PICKER IS OPEN — the same discipline the Pomodoro panel
+  // took after a profile put this walk at 156ms of an effect window: it walks
+  // every occurrence twice to fill a `<select>` nobody has open.
+  const destOptions = useMemo(
+    () => (saving ? buildContainerCrumbOptions(occurrencesById, modulesById) : EMPTY_OPTIONS),
+    [saving, occurrencesById, modulesById],
+  );
+
+  const saveBookmark = useCallback(() => {
+    const parent = dest ? occurrencesById?.[dest] : null;
+    if (!parent || !url) return;
+    const res = CommitHelpers.addBookmarkOccurrence({
+      dispatch, socket, gridId, userId,
+      containerOccurrence: parent,
+      url,
+      scratch: false,     // an address you meant to KEEP
+    });
+    if (!res) return;
+    setSaving(false);
+    // Say WHERE it went. "Saved" alone leaves you to go and check, and the
+    // whole point of asking was that the destination matters.
+    const label = destOptions.find((o) => o.id === dest)?.label || "";
+    setSavedTo(label);
+    setTimeout(() => setSavedTo(null), 4000);
+  }, [dest, occurrencesById, url, dispatch, socket, gridId, userId, destOptions]);
+
   const [chosen, setChosen] = useState(null);
   const [fetched, setFetched] = useState(null);
   const reqRef = useRef(0);
@@ -299,6 +353,14 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
             padding: "2px 6px", fontSize: 12, fontFamily: "var(--font-mono)",
           }}
         />
+        {url && (
+          <button
+            onClick={() => { setDest(""); setSaving((v) => !v); }}
+            title="Save this address as a bookmark occurrence"
+            aria-label="Save as bookmark"
+            style={{ ...navBtnSt(true), color: saving ? "var(--accent-blue)" : "var(--text-muted)" }}
+          >☆</button>
+        )}
         {!scratch && storedUrl && url !== storedUrl && (
           // You have browsed off a SAVED bookmark. Saying so is what keeps the
           // stored address from silently seeming to have changed.
@@ -325,6 +387,40 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
            style={{ fontSize: 12, color: "var(--text-muted)", textDecoration: "none", padding: "2px 4px" }}
            title="Open in a new tab">↗</a>}
       </div>
+
+      {saving && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", flexShrink: 0,
+          borderBottom: "1px solid var(--border-subtle)", background: "var(--panel-bg)",
+          fontSize: 12, fontFamily: "var(--font-mono)",
+        }}>
+          <span style={{ color: "var(--text-faint)" }}>Save to</span>
+          <select
+            value={dest}
+            onChange={(e) => setDest(e.target.value)}
+            style={{
+              flex: 1, minWidth: 0, padding: "3px 5px",
+              background: "var(--input-bg)", color: "var(--text-primary)",
+              border: "1px solid var(--input-border)", borderRadius: 3,
+              fontSize: 12, fontFamily: "var(--font-mono)",
+            }}
+          >
+            <option value="">Choose a container…</option>
+            {destOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+          </select>
+          {/* Disabled until a destination is picked: "where" is the question
+              being asked, so saving without an answer would defeat it. */}
+          <button onClick={saveBookmark} disabled={!dest} style={navBtnSt(!!dest)}>Save</button>
+          <button onClick={() => setSaving(false)} style={navBtnSt(true)}>Cancel</button>
+        </div>
+      )}
+      {savedTo && (
+        <div style={{
+          padding: "3px 8px", flexShrink: 0, fontSize: 12, fontFamily: "var(--font-mono)",
+          color: "var(--accent-blue)", background: "var(--accent-blue-bg)",
+          borderBottom: "1px solid var(--border-subtle)",
+        }}>Saved to {savedTo}</div>
+      )}
 
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
         {!url && (

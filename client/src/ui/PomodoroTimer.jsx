@@ -12,63 +12,12 @@ import { toast } from "../state/notificationStore";
 import { operationsBridge } from "../state/bindSocketToStore";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "./../helpers/CommitHelpers";
+import { buildContainerCrumbOptions } from "../helpers/containerCrumbs";
 
 // Module-level, not a fresh `[]`: a new array per collapsed render would give
 // every consumer a changed identity, which is the trap `EMPTY_OPERATIONS`
 // records from 2026-08-31 (6) — worse than what it replaced.
 const EMPTY_OPTIONS = [];
-
-/**
- * Every container occurrence, labelled with its `Page › Container` chain.
- *
- * Extracted from the memo so the walk is testable — mounting `PomodoroTimer`
- * needs the whole grid store, and this is 40 lines of ancestor walking with a
- * cycle guard and a depth cap that had no coverage at all.
- *
- * The crumb walk prefers the reverse map built from `occurrences[]` over the
- * child's own `parentId`, because placement on this grid IS the parent's child
- * list — a row can be listed by one occurrence while `parentId` names another.
- * It stops at the first `page` ancestor, guards against a cycle with `seen`,
- * and caps at 8 so a malformed chain cannot hang the toolbar.
- */
-export function buildContainerCrumbOptions(occurrencesById, modulesById) {
-  const occMap = occurrencesById || {};
-  // Reverse parent map: childOccId → parentOccId via occurrences[].
-  const parentByChild = {};
-  for (const occ of Object.values(occMap)) {
-    for (const childId of occ?.occurrences || []) parentByChild[childId] = occ.id;
-  }
-  const labelFor = (occ) => {
-    const mod = modulesById?.[occ.moduleId];
-    return mod?.label || occ.label || occ.id.slice(0, 6);
-  };
-  const out = [];
-  for (const occ of Object.values(occMap)) {
-    const mod = modulesById?.[occ.moduleId];
-    if (!mod || mod.role !== "container") continue;
-    // Walk up to find page-chain crumbs.
-    const crumbs = [];
-    let cur = parentByChild[occ.id] || occ.parentId;
-    const seen = new Set();
-    let depth = 0;
-    while (cur && !seen.has(cur) && depth++ < 8) {
-      seen.add(cur);
-      const a = occMap[cur];
-      if (!a) break;
-      const am = modulesById?.[a.moduleId];
-      if (am?.label) crumbs.unshift(am.label);
-      if (am?.role === "page") break;
-      cur = parentByChild[cur] || a.parentId;
-    }
-    const chain = crumbs.join(" › ");
-    const label = labelFor(occ);
-    out.push({ id: occ.id, label: chain ? `${chain} › ${label}` : label });
-  }
-  out.sort((a, b) => (a.label || "").localeCompare(b.label || ""));
-  return out;
-}
-
-
 
 const PHASES = [
   { label: "Work",       duration: 25 * 60, color: "#ef4444" },
