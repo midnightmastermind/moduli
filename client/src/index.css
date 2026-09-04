@@ -259,8 +259,46 @@
 
   /* Semantic tokens for component Tailwind migration */
   --text-primary: hsl(var(--foreground-1));
-  --text-muted: rgba(255,255,255,0.45);
-  --text-faint: rgba(255,255,255,0.22);
+  /* ── THE INK SCALE IS SOLVED, NOT PICKED ──────────────────────────────────
+     User, 2026-09-04: *"look at the command center, the text is too light to
+     see on that background."*
+
+     MEASURED before changing anything, over all six themes (`helpers/contrast`
+     + the WCAG formula), with each translucent surface COMPOSITED over the page
+     first — scoring ink against a 6%-alpha `--input-bg` directly compares two
+     nearly identical colours and reports ~1.00, which is the documented
+     "empty sample" tell rather than a finding:
+
+                        dark  light   midnight  vint-lt  vint-dk  stardew
+       body text       18.55  16.25     18.45    13.03    15.33    10.98
+       --text-muted     4.52   4.06      3.31     4.14     4.36     4.16
+       --text-faint     1.94   2.45      1.53     2.31     2.03     2.41
+
+     `--text-faint` was **1.5-2.4:1 on every theme** — not "de-emphasised",
+     unreadable; and `--text-muted` failed AA on five of six. The Command Center
+     is where it shows worst because it reads these two tokens 163 times.
+
+     THE ALPHAS BELOW ARE DERIVED. For each theme, a binary search found the
+     MINIMUM alpha of that theme's own ink hue over that theme's own surface
+     that reaches the target ratio ON THE WORSE OF ITS TWO SURFACES (the page,
+     and the translucent input fill composited over it) — so the numbers are a consequence of the
+     requirement rather than a designer's guess, and they are re-derivable when
+     a seventh skin is added. The hues are untouched: only the alphas moved, so
+     every theme keeps its own ink colour.
+
+       --text-primary   unchanged   11-18:1   the thing you are reading
+       --text-muted     -> 7.1:1              secondary, comfortably above AA
+       --text-faint     -> 4.6:1              the FLOOR: AA plus a margin
+
+     THE THREE-STEP HIERARCHY IS THE POINT, and it is why faint is not simply
+     raised to muted's value. The scale is compressed INTO the readable range
+     instead of running off the bottom of it: still three visibly distinct
+     weights, with the dimmest one now legible rather than decorative.
+
+     4.5 is used rather than the 3.0 large-text allowance because these tokens
+     render at 9-13px throughout — the strict case, not the exempt one. */
+  --text-muted: rgba(255,255,255,0.613);
+  --text-faint: rgba(255,255,255,0.461);
   --border-default: rgba(255,255,255,0.10);
   --border-subtle: rgba(255,255,255,0.06);
   --surface-card: hsl(var(--surface-1));
@@ -402,8 +440,8 @@
 
   /* Semantic tokens */
   --text-primary: hsl(var(--foreground-1));
-  --text-muted: rgba(34,51,102,0.65);
-  --text-faint: rgba(34,51,102,0.45);
+  --text-muted: rgba(34,51,102,0.876);
+  --text-faint: rgba(34,51,102,0.716);
   --border-default: rgba(0,0,0,0.12);
   --border-subtle: rgba(0,0,0,0.07);
   --surface-card: hsl(var(--surface-1));
@@ -530,8 +568,8 @@
 
   /* Semantic tokens */
   --text-primary: hsl(var(--foreground-1));
-  --text-muted: rgba(220,200,255,0.45);
-  --text-faint: rgba(200,180,255,0.22);
+  --text-muted: rgba(220,200,255,0.737);
+  --text-faint: rgba(200,180,255,0.621);
   --border-default: rgba(160,130,255,0.14);
   --border-subtle: rgba(130,100,255,0.07);
   --surface-card: hsl(var(--surface-1));
@@ -674,8 +712,8 @@
 
   /* Semantic tokens */
   --text-primary: hsl(var(--foreground-1));
-  --text-muted: rgba(43,33,29,0.62);
-  --text-faint: rgba(43,33,29,0.40);
+  --text-muted: rgba(43,33,29,0.825);
+  --text-faint: rgba(43,33,29,0.673);
   --border-default: rgba(60,45,30,0.16);
   --border-subtle: rgba(60,45,30,0.09);
   --surface-card: hsl(var(--surface-1));
@@ -798,8 +836,8 @@
 
   /* Semantic tokens */
   --text-primary: hsl(var(--foreground-1));
-  --text-muted: rgba(236,227,208,0.50);
-  --text-faint: rgba(236,227,208,0.25);
+  --text-muted: rgba(236,227,208,0.726);
+  --text-faint: rgba(236,227,208,0.541);
   --border-default: rgba(236,227,208,0.12);
   --border-subtle: rgba(236,227,208,0.06);
   --surface-card: hsl(var(--surface-1));
@@ -7599,8 +7637,8 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 
   /* Semantic tokens */
   --text-primary: hsl(var(--foreground-1));
-  --text-muted: rgba(58, 36, 16, 0.66);
-  --text-faint: rgba(58, 36, 16, 0.44);
+  --text-muted: rgba(58, 36, 16, 0.892);
+  --text-faint: rgba(58, 36, 16, 0.722);
   --border-default: rgba(90, 58, 28, 0.34);
   --border-subtle: rgba(90, 58, 28, 0.18);
   --surface-card: hsl(var(--surface-1));
