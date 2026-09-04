@@ -57,17 +57,69 @@ machine to the device watching it. It must NOT be proxied through the droplet:
 that would push every gigabyte through DigitalOcean, add latency, and cost
 bandwidth for no benefit. The droplet only ever serves the Moduli app itself.
 
-## Matching: on FILE PATH, never on title
+## Two populations, and only one of them is Jellyfin's job
 
-Jellyfin reports a `Path` for every item it has. Your rows already carry the same
-paths. **So the match is exact string comparison, and no fuzzy title matching is
-needed** — which matters, because `0201` and the artwork migrations record how
-badly title matching goes (a bogus ISBN returns a real book; "The Ring (2002)"
-and "The Ring (1927)" collapse together).
+Measured after the first draft, and it corrects that draft: the 1,727 paths are
+**two different libraries in one field**.
 
-Normalisation needed, and only this: Windows `D:\Movies\x.mkv` vs Jellyfin's
-`/mnt/odin/Movies/x.mkv`. The `Drive` field is exactly the hint that closes it —
-one prefix rule per drive, configured once.
+| | movies / TV | books |
+|---|---|---|
+| `File Path` | `movies/Cloud Atlas` — RELATIVE | `D:\Documents\book_files\…` — absolute |
+| `Drive` | Odin 400 · Baldr 550 · Loki 123 · Heimdall 61 · Freyja 46 · Thor 4 | none |
+| size | 13–37 GB, and they are FOLDERS not files | small |
+| formats | (no extension — the folder holds the video) | 259 `.azw` · 150 `.epub` · 97 `.pdf` · 31 `.mobi` |
+
+**Jellyfin does music, and it does NOT usefully do these books.** Music is a
+first-class Jellyfin library and the grid has 5,484 songs / 3,027 albums / 1,679
+artists — a straight fit, same mechanism as video. But 290 of the 541 book files
+are Amazon formats (`.azw`, `.mobi`) that Jellyfin cannot read, and **books need
+no transcoding at all** — which is the entire reason Jellyfin was chosen over a
+plain file server. That argument simply does not reach them.
+
+So: **Jellyfin for video and music; plain static serving for books.** That is not
+a second system — it is the simple option that was already on the table, applied
+where it is actually the better one. Moduli already renders PDFs in the artifact
+viewer; `.epub` would want a reader, and `.azw`/`.mobi` realistically want
+Calibre, not the browser. Worth deciding what "open a book" should even mean
+before building anything for it.
+
+## Matching: on the RELATIVE TAIL, never on title or absolute path
+
+The first draft said "match on the absolute file path". That is wrong for the
+movies, because they do not store one — they store `Drive: Odin` plus
+`movies/Cloud Atlas`. Which is better: the pair composes to a full path under
+whatever root the drive is mounted at, and the RELATIVE part is stable across
+every possible mount.
+
+So match on the tail. Jellyfin will report something like
+`O:\movies\Cloud Atlas\…` on Windows or `/media/odin/movies/Cloud Atlas/…` in
+a container; both end with `movies/Cloud Atlas`. **Matching the tail means the
+choice of where Jellyfin runs stops mattering** — no prefix table to maintain,
+nothing to redo if the drives are remounted or the server moves.
+
+Titles are still not used. `0201` and the artwork migrations record what title
+matching costs (a bogus ISBN returns a real book; two films called "The Ring"
+collapse together), and here there is an exact key available instead.
+
+## Where Jellyfin should run: Windows, not WSL
+
+This machine is **WSL2** (`Ubuntu-24.04` on a `microsoft-standard-WSL2` kernel),
+and the drives are already mounted with the right names — `/mnt/odin`,
+`/mnt/thor`, `/mnt/baldr`, `/mnt/freyja`, `/mnt/heimdall`, `/mnt/loki` — all
+currently EMPTY, which is the hardware still being on order rather than anything
+misconfigured.
+
+Run Jellyfin on **Windows**, not inside WSL:
+
+- WSL2 sits behind a NAT with an IP that changes on reboot, so reaching it from
+  the tablet needs a `netsh interface portproxy` rule re-established each time.
+  That is a moving part that will break silently on a Tuesday.
+- Windows Jellyfin sees the drives directly, with no `/mnt` translation.
+- Tailscale should run on Windows for the same reason — it advertises the host
+  the media actually lives on.
+
+Because matching is on the relative tail, this choice costs nothing in the
+matching design if it is ever revisited.
 
 ## Store the ID, DERIVE the URL
 
@@ -113,8 +165,9 @@ Connections tab can show what is there and confirm the key works. Read-only —
 worth having before anything writes.
 
 **3. The match pass**, dry-run first, reporting per drive: matched / unmatched /
-ambiguous. Expect the unmatched list to be long on the first run and to be about
-prefix rules, not about Jellyfin. Iterate on the dry run; apply once it is boring.
+ambiguous. Matching is `endsWith(\`movies/${title}\`)` against Jellyfin's reported
+path, so the failures should be about naming drift between the catalogue and the
+folder on disk — not about mounts. Iterate on the dry run; apply once it is boring.
 
 **4. Mint the video children** for matched rows — `0246`'s shape, so it is one
 reviewed pattern rather than a second one.
@@ -141,5 +194,7 @@ a drive later fills only the gaps.
 
 - Copying movies onto the droplet. `/api/connections/:id/import` does exactly
   this and is right for documents; for a multi-terabyte library it is not.
+- Books through Jellyfin. Two thirds of them are formats it cannot read, and the
+  one advantage it has — transcoding — is irrelevant to a 2 MB epub.
 - Fuzzy title matching. The paths are exact; using titles would import the wrong
   film with full confidence.
