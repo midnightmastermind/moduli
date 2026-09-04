@@ -1,7 +1,6 @@
 // ui/NavPickerPopover.jsx
 // Date picker for filter nav. Supports single / range / multi / week / month / year
-// modes via DrilldownTimePicker (custom; replaced react-multi-date-picker
-// 2026-05-21 in commit 0c18352f). Auto-detects mode from selection:
+// modes. Auto-detects mode from selection:
 //   1 day                          → kind: "single"
 //   N consecutive days             → kind: "range"
 //   N non-consecutive days         → kind: "multi"
@@ -24,8 +23,14 @@ import { Calendar as CalendarIcon } from "lucide-react";
 import { Calendar, DateObject } from "react-multi-date-picker";
 import DatePanel from "react-multi-date-picker/plugins/date_panel";
 import Toolbar from "react-multi-date-picker/plugins/toolbar";
-import "react-multi-date-picker/styles/backgrounds/bg-dark.css";
-import "react-multi-date-picker/styles/colors/teal.css";
+// NO LIBRARY THEME CSS IS IMPORTED, deliberately. `bg-dark.css` + `teal.css`
+// hardcode a dark slab and a teal accent, so the calendar rendered as a dark
+// teal box on every skin — including the three LIGHT ones. They also collide
+// with `filterCalendar.css` at equal specificity (both are `.x .y`), leaving
+// bundle order as the only tie-break, which is not a thing to depend on.
+// `filterCalendar.css` owns every colour from the theme's own tokens instead;
+// the library's core CSS (injected from its JS, so it cannot be dropped) is
+// neutralised there rather than layered over.
 import "./filterCalendar.css";
 import { summarizeSelection } from "./filterSummary";
 import { seedSelection, cycleDay, barPosition } from "./daySelectionCycle";
@@ -349,7 +354,7 @@ export default function NavPickerPopover({ value, onCommit, constraints, trigger
             value={pickerValue}
             onChange={handleExternalChange}
             mapDays={mapDays}
-            className="bg-dark teal moduli-calendar"
+            className="moduli-calendar"
             plugins={[
               <DatePanel key="panel" position="right" sort="date" removeButton />,
               <Toolbar key="toolbar" position="bottom" sort={["today", "deselect", "close"]} />,

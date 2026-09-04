@@ -42,7 +42,7 @@ function OperatorToggle({ operator, onChange }) {
       onClick={() => onChange(isOr ? "AND" : "OR")}
       title={isOr ? "ANY one of these is enough" : "EVERY one of these must hold"}
       style={{
-        background: isOr ? "rgba(250,204,96,0.18)" : "rgba(96,165,250,0.14)",
+        background: isOr ? "rgb(var(--signal-warn) / 0.18)" : "rgb(var(--signal-zero) / 0.14)",
         color: isOr ? "rgb(250,224,160)" : "rgb(186,214,255)",
         border: "1px solid var(--border-subtle)", borderRadius: 4,
         fontSize: 12, fontFamily: "var(--font-mono)", padding: "1px 6px", cursor: "pointer",
@@ -234,8 +234,8 @@ export default function FeedSection({ occurrence }) {
           style={{
             fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer",
             padding: "2px 8px", borderRadius: 10,
-            border: `1px solid ${feed?.enabled ? "rgba(96,165,250,0.5)" : "var(--border-subtle)"}`,
-            background: feed?.enabled ? "rgba(96,165,250,0.18)" : "transparent",
+            border: `1px solid ${feed?.enabled ? "rgb(var(--signal-zero) / 0.5)" : "var(--border-subtle)"}`,
+            background: feed?.enabled ? "rgb(var(--signal-zero) / 0.18)" : "transparent",
             color: feed?.enabled ? "rgb(186,214,255)" : "var(--text-muted)",
           }}
         >
@@ -279,7 +279,7 @@ export default function FeedSection({ occurrence }) {
                   style={{
                     fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer",
                     padding: "1px 7px", borderRadius: 9,
-                    border: `1px solid ${on ? "rgba(96,165,250,0.5)" : "var(--border-subtle)"}`,
+                    border: `1px solid ${on ? "rgb(var(--signal-zero) / 0.5)" : "var(--border-subtle)"}`,
                     background: on ? "rgba(96,165,250,0.15)" : "transparent",
                     color: on ? "rgb(186,214,255)" : "var(--text-muted)",
                   }}

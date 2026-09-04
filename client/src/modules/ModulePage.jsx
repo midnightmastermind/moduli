@@ -798,7 +798,7 @@ function Page({
                 placeholder="Search this page…"
               />
               {occurrence?.feed?.enabled && (
-                <Rss size={10} style={{ color: "rgba(96,165,250,0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
+                <Rss size={10} style={{ color: "rgb(var(--signal-zero) / 0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
               )}
               <HeaderChevron onClick={openDropdown} isOpen={!!dropdownAnchor} occurrence={occurrence} />
             </div>

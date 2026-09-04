@@ -85,6 +85,35 @@ const TITLE_BTN = {
   cursor: "pointer", fontSize: 11, fontFamily: "var(--font-mono)",
   fontWeight: 600, textAlign: "center",
 };
+// ── THE SELECTION PALETTE, DERIVED FROM THE ACTIVE SKIN ──────────────────
+//
+// Every selection colour in this file was authored as a literal
+// `rgba(96,165,250, …)` — which is `--signal-zero` in the DEFAULT DARK theme,
+// byte for byte (`--signal-zero: 96 165 250`). So the picker was written
+// against one skin and painted that skin's blue on all six, the same defect
+// the filter calendar carries as a hardcoded `bg-dark teal` class.
+//
+// Re-tokened, the substitution is an IDENTITY on the theme it was authored for
+// — the default dark theme renders unchanged — and every other skin re-hues
+// with it. That is what makes this a re-token rather than a restyle.
+//
+// `accent(a)` is the selection hue at alpha `a`; the intensity ladder (0.08
+// faint → 0.55 strong) is carried over from the literals unchanged, so the
+// relative weight of "some selected" vs "all selected" vs "focused" is exactly
+// what it was.
+const accent = (a) => `rgb(var(--signal-zero) / ${a})`;
+// Ink ON a tinted cell. `--accent-blue-text` is the theme's own answer to
+// "readable text in the accent hue" and is already re-hued per skin (rust on
+// Stardew, violet on the purple theme).
+const ACCENT_INK = "var(--accent-blue-text)";
+// TODAY / NOW is the same HUE at lower intensity, not a second hue. The old
+// literal was a teal `rgba(99,202,183,0.45)` — and on a teal-accented skin
+// (Stardew's `--signal-zero` is `62 142 126`) a teal "now" and a teal
+// "selected" are the same colour, so the marker stops meaning anything.
+// Intensity survives every re-hue; a second hue does not.
+const NOW_EDGE = accent(0.45);
+const TODAY_INK = "color-mix(in srgb, var(--accent-blue-text) 60%, var(--text-primary))";
+
 const CELL_BASE = {
   display: "inline-flex", alignItems: "center", justifyContent: "center",
   fontSize: 11, fontFamily: "var(--font-mono)",
@@ -127,12 +156,12 @@ function DayGrid({ anchor, selected, onToggle, onShiftToggle, onDrillIntoDay }) 
               onClick={(e) => (e.shiftKey ? onShiftToggle(iso) : onToggle(iso))}
               style={{
                 ...CELL_BASE, height: 26,
-                background: isSelected ? "rgba(96,165,250,0.22)" : "transparent",
+                background: isSelected ? accent(0.22) : "transparent",
                 // Selection wins; today is only a FAINT hint (much lighter than
                 // the selected ring) so "today + selected" vs "today, not
                 // selected" read at a glance (per user 2026-07-07).
-                borderColor: isSelected ? "rgba(96,165,250,0.5)" : (isToday ? "rgba(96,165,250,0.18)" : "transparent"),
-                color: isSelected ? "rgb(186,214,255)" : (isToday ? "rgba(186,214,255,0.5)" : "var(--text-primary)"),
+                borderColor: isSelected ? accent(0.5) : (isToday ? accent(0.18) : "transparent"),
+                color: isSelected ? ACCENT_INK : (isToday ? TODAY_INK : "var(--text-primary)"),
               }}
             >
               {d.getDate()}
@@ -168,8 +197,8 @@ function WeekGrid({ anchor, selected, onToggleWeek }) {
             onClick={() => onToggleWeek(wkDays, !allSelected)}
             style={{
               ...CELL_BASE, height: 26, padding: "0 8px", justifyContent: "space-between",
-              background: allSelected ? "rgba(96,165,250,0.22)" : someSelected ? "rgba(96,165,250,0.08)" : "transparent",
-              borderColor: allSelected ? "rgba(96,165,250,0.5)" : someSelected ? "rgba(96,165,250,0.25)" : "transparent",
+              background: allSelected ? accent(0.22) : someSelected ? accent(0.08) : "transparent",
+              borderColor: allSelected ? accent(0.5) : someSelected ? accent(0.25) : "transparent",
             }}
           >
             <span>Week of {MONTH_NAMES_SHORT[wkStart.getMonth()]} {wkStart.getDate()}</span>
@@ -192,8 +221,8 @@ function MonthGrid({ anchor, onPickMonth }) {
           onClick={() => onPickMonth(new Date(anchor.getFullYear(), mi, 1))}
           style={{
             ...CELL_BASE, height: 30,
-            background: mi === anchor.getMonth() ? "rgba(96,165,250,0.12)" : "transparent",
-            borderColor: mi === anchor.getMonth() ? "rgba(96,165,250,0.35)" : "transparent",
+            background: mi === anchor.getMonth() ? accent(0.12) : "transparent",
+            borderColor: mi === anchor.getMonth() ? accent(0.35) : "transparent",
           }}
         >
           {name}
@@ -234,8 +263,8 @@ function HourGrid({ anchor, selected, onToggleHour, onDrillToMinute }) {
             title={`${labelH}:00 ${ampm} — click selects hour, right-click drills to minutes`}
             style={{
               ...CELL_BASE, height: 26,
-              background: exact ? "rgba(96,165,250,0.20)" : anyMinute ? "rgba(96,165,250,0.10)" : "transparent",
-              borderColor: exact ? "rgba(96,165,250,0.55)" : anyMinute ? "rgba(96,165,250,0.30)" : (isNowHour ? "rgba(99,202,183,0.45)" : "transparent"),
+              background: exact ? accent(0.20) : anyMinute ? accent(0.10) : "transparent",
+              borderColor: exact ? accent(0.55) : anyMinute ? accent(0.30) : (isNowHour ? NOW_EDGE : "transparent"),
               fontSize: 10,
             }}
           >
@@ -270,8 +299,8 @@ function MinuteGrid({ anchor, selected, onToggleMinute }) {
             onClick={() => onToggleMinute(minuteIso)}
             style={{
               ...CELL_BASE, height: 26,
-              background: isSelected ? "rgba(96,165,250,0.20)" : "transparent",
-              borderColor: isSelected ? "rgba(96,165,250,0.55)" : (isNowMin ? "rgba(99,202,183,0.45)" : "transparent"),
+              background: isSelected ? accent(0.20) : "transparent",
+              borderColor: isSelected ? accent(0.55) : (isNowMin ? NOW_EDGE : "transparent"),
               fontSize: 10,
             }}
           >
@@ -295,8 +324,8 @@ function YearGrid({ anchor, onPickYear }) {
           onClick={() => onPickYear(new Date(y, 0, 1))}
           style={{
             ...CELL_BASE, height: 30,
-            background: y === anchor.getFullYear() ? "rgba(96,165,250,0.12)" : "transparent",
-            borderColor: y === anchor.getFullYear() ? "rgba(96,165,250,0.35)" : "transparent",
+            background: y === anchor.getFullYear() ? accent(0.12) : "transparent",
+            borderColor: y === anchor.getFullYear() ? accent(0.35) : "transparent",
           }}
         >
           {y}

@@ -1594,7 +1594,7 @@ function Field({
             // stopped being an entry point to the picker so there is exactly
             // one way to attach.
             if (hostOccurrence?.id) {
-              openArtifactSpread(hostOccurrence.id, e.currentTarget.getBoundingClientRect());
+              openArtifactSpread(hostOccurrence.id, e.currentTarget);
             }
           }}
           className={`field-input inline-flex items-center gap-1 px-1.5 py-0.5 text-[12px] rounded-full border transition-all
@@ -1987,7 +1987,7 @@ function Field({
               onClick={(e) => {
                 if (disabled) return;
                 if (hostOccurrence?.id) {
-                  openArtifactSpread(hostOccurrence.id, e.currentTarget.getBoundingClientRect());
+                  openArtifactSpread(hostOccurrence.id, e.currentTarget);
                 }
               }}
               className={`inline-flex items-center gap-2 px-2 py-1 text-xs rounded border transition-all self-start

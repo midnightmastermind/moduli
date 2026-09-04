@@ -1511,7 +1511,7 @@ function Container({
             {/* Filter (HeaderChevron) BEFORE the add (QuickAddMenu), both right-aligned. */}
             <div className="ml-auto mr-1" style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4 }} onPointerDown={(e) => e.stopPropagation()}>
               {containerOccurrence?.feed?.enabled && (
-                <Rss size={10} style={{ color: "rgba(96,165,250,0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
+                <Rss size={10} style={{ color: "rgb(var(--signal-zero) / 0.85)", flexShrink: 0 }} title="Feed on — pulls matching occurrences" />
               )}
               {/* FIELDS SIT LEFT OF THE FILTER (user 2026-08-11: "fields should
                   go to the left of filters anyway"). Inside the right-aligned

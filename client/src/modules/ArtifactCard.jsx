@@ -17,6 +17,7 @@ import { collectPanelOccurrences, enclosingPanelId } from "../helpers/targetPane
 import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
 import LoadingImage from "../ui/LoadingImage.jsx";
 import { useClosingGate } from "../helpers/closingGate";
+import { useDockRect, dockVars } from "../helpers/spreadDock";
 
 // Must match `.artifact-fullscreen--closing` in index.css.
 const FULLSCREEN_CLOSE_MS = 190;
@@ -39,6 +40,16 @@ function linkifyText(text) {
 
 export default function ArtifactCard({ module, label, occurrence }) {
   const [expanded, setExpanded] = useState(false);
+  // A file expanded from inside a DOCKED viewer fills that PANEL, not the
+  // screen (user, 2026-09-04: "when i click on an individual file on there, it
+  // opens it up full screen inside the panel"). Null everywhere else, so the
+  // ordinary expand is byte-identical to what it was.
+  //
+  // This reaches here through a portal boundary because a portal preserves the
+  // REACT tree — the card is rendered from inside the viewer's subtree even
+  // though its DOM lands beside it on `document.body`. A DOM marker could not
+  // do it: both are body children, so neither contains the other.
+  const dockRect = useDockRect();
   // Per-slice selectors — a full useGridActions() re-rendered every artifact
   // card on every occurrence write. The parent lookup happens at callback time
   // via the non-subscribing getter.
@@ -147,7 +158,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
     e?.stopPropagation();
     const insideSpread = e?.currentTarget?.closest?.(".artifact-spread");
     if (insideSpread || !occurrence?.id) { toggle(e); return; }
-    openArtifactSpread(occurrence.id, e.currentTarget.getBoundingClientRect());
+    openArtifactSpread(occurrence.id, e.currentTarget);
   }, [occurrence?.id, toggle]);
 
   // Resolved at CALLBACK time through the non-subscribing getter, so a board of
@@ -362,8 +373,12 @@ export default function ArtifactCard({ module, label, occurrence }) {
     // click on the backdrop.
     return createPortal(
       <div
-        className={closing ? "artifact-fullscreen artifact-fullscreen--closing" : "artifact-fullscreen"}
-        style={originVars || undefined}
+        className={[
+          "artifact-fullscreen",
+          dockRect ? "artifact-fullscreen--docked" : "",
+          closing ? "artifact-fullscreen--closing" : "",
+        ].filter(Boolean).join(" ")}
+        style={{ ...(originVars || {}), ...(dockVars({ docked: true, rect: dockRect }) || {}) }}
         role="dialog"
         aria-label={originalName || "Artifact"}
         onClick={(e) => { if (e.target === e.currentTarget) toggle(e); }}

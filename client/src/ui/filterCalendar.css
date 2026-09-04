@@ -184,3 +184,65 @@
   color: var(--accent-blue);
   border-color: var(--accent-blue);
 }
+
+/* ── NEUTRALISING THE LIBRARY'S OWN CORE ────────────────────────────────────
+ * The two library THEME sheets (bg-dark / teal) are no longer imported — they
+ * hardcoded a dark slab and a teal accent on all six skins, and competed with
+ * this file at equal specificity so only bundle order separated them.
+ *
+ * What CANNOT be dropped is the library's CORE css: it is injected from the
+ * package's own JS at runtime, so it always lands. Everything below overrides
+ * a core rule that paints a LITERAL colour (#fff, #0074d9, #7fdbff, #8798ad,
+ * #cfd8e2, #000). Each one is a colour that would otherwise ignore the skin.
+ *
+ * These sit AFTER the token rules above deliberately: the selection language
+ * is expressed with the moduli-* classes, and the core's own
+ * rmdp-selected/rmdp-range styling has to lose to it. */
+
+/* The surface + its chrome. Core paints #fff / #cfd8e2 / #8798ad. */
+.moduli-calendar.rmdp-wrapper,
+.moduli-calendar .rmdp-wrapper,
+.moduli-calendar .rmdp-month-picker,
+.moduli-calendar .rmdp-year-picker {
+  background-color: var(--panel-bg);
+  color: var(--text-primary);
+}
+.moduli-calendar.rmdp-shadow,
+.moduli-calendar .rmdp-shadow { box-shadow: var(--menu-shadow-2); }
+.moduli-calendar .rmdp-border,
+.moduli-calendar .rmdp-border-top,
+.moduli-calendar .rmdp-border-bottom,
+.moduli-calendar .rmdp-border-left,
+.moduli-calendar .rmdp-border-right { border-color: var(--panel-border); }
+
+/* Focus ring — core hardcodes #00539c, invisible on a dark skin. */
+.moduli-calendar :focus { outline-color: var(--accent-blue); }
+
+/* The core's OWN selection styling. `multiple` mode stamps `rmdp-selected` on
+ * top of our moduli-* classes, so without this a selected day carries the
+ * library's #0074d9 circle underneath ours — and shows through wherever ours
+ * does not paint (the deactive case below is exactly that). */
+.moduli-calendar .rmdp-day.rmdp-selected span:not(.highlight) {
+  background-color: var(--accent-blue);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+.moduli-calendar .rmdp-day.rmdp-deactive.rmdp-selected span {
+  background-color: color-mix(in srgb, var(--accent-blue) 55%, transparent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+.moduli-calendar .rmdp-range,
+.moduli-calendar .rmdp-range-hover {
+  background-color: var(--accent-blue-bg);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+/* Core's own today marker (#7fdbff on white ink — unreadable on a light skin).
+ * Ours is the square marker declared above; this stops the core's from
+ * painting under it. */
+.moduli-calendar .rmdp-day.rmdp-today span {
+  background-color: var(--accent-blue-bg);
+  color: var(--accent-blue);
+}

@@ -881,7 +881,7 @@ function InstanceInner({
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (occurrence?.id) openArtifactSpread(occurrence.id, e.currentTarget.getBoundingClientRect());
+                  if (occurrence?.id) openArtifactSpread(occurrence.id, e.currentTarget);
                 }}
               />
             )}

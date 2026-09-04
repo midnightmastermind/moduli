@@ -68,6 +68,42 @@
      In the bare :root for the reason the comment above gives. */
   --on-accent: #ffffff;
 
+  /* ── CATEGORICAL INK: THE HUE IS THE MEANING, THE LIGHTNESS IS THE THEME ───
+     User, 2026-09-04: *"i specifically see the wrong color on the field menu in
+     the command center. its too light for the background"* — and, generally,
+     *"the text color light or dark thing should be everywhere on all the
+     text"*.
+
+     `FieldsTab` painted its three field kinds in Tailwind's cyan-300 /
+     blue-300 / purple-300 — PASTELS, chosen against the default dark theme and
+     hardcoded. On the three LIGHT skins they are near-white text on a
+     near-white surface. Same defect as the date pickers' `bg-dark teal` and
+     the drilldown's literal `rgba(96,165,250,…)`: a colour authored against
+     one skin, applied to all six.
+
+     THE FIX IS NOT A LIGHT AND A DARK VARIANT PER HUE. That is six more
+     literals and a seventh skin breaks them again. Instead the hue is stated
+     ONCE at full saturation (it carries the MEANING — which kind of field this
+     is) and the readable ink is DERIVED by mixing it toward the theme's own
+     body ink:
+
+         dark theme   --foreground-1 is near-white  ->  mix lightens  -> pastel
+         light theme  --foreground-1 is near-black  ->  mix darkens   -> legible
+
+     So "should this text be light or dark?" is answered by the theme rather
+     than guessed per colour, and it answers correctly for a skin that does not
+     exist yet. This is the same construction `--accent-blue-text` already uses
+     on the light themes, generalised so every categorical colour gets it.
+
+     62% is the mix that reproduces today's pastels most closely on the dark
+     theme, so the skin these were authored for is left as it was. */
+  --hue-occurrence: 6 182 212;    /* cyan   — an occurrence reference */
+  --hue-input:      59 130 246;   /* blue   — a field the user types into */
+  --hue-display:    168 85 247;   /* violet — a field an operation computes */
+  --ink-occurrence: color-mix(in srgb, rgb(var(--hue-occurrence)) 62%, hsl(var(--foreground-1)));
+  --ink-input:      color-mix(in srgb, rgb(var(--hue-input))      62%, hsl(var(--foreground-1)));
+  --ink-display:    color-mix(in srgb, rgb(var(--hue-display))    62%, hsl(var(--foreground-1)));
+
   /* ── THE FILTER MENU'S SURFACE WAS NEVER THEMED ────────────────────────────
      User, 2026-08-22: *"the filter menu doesnt match the theme"*.
 
@@ -6456,6 +6492,52 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   animation: artifact-spread-in 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ── DOCKED: the viewer fills the PANEL it was opened from ──────────────────
+   User, 2026-09-04: *"it opens up the artifact viewer in the panel instead of
+   full screen … so i can watch a movie inline while im working."*
+
+   Both this and the single-file fullscreen below are `position: fixed` boxes
+   portalled to `document.body`, so docking is an OVERRIDE OF THE RECT — never a
+   re-parent into the panel's DOM. Rendering inside the panel would put the
+   surface under three things that already live there: the panel's `overflow`
+   (clipped), its stacking context (covered by siblings it must cover) and its
+   scroller (it would scroll away from the file you are watching).
+
+   The four values are handed in as inline custom properties by `dockVars`,
+   because they change as the panel is resized, moved or scrolled and the rest
+   of the rule does not. No fallbacks are declared: when they are absent the
+   class is absent too, so the base full-screen rule above stands unchanged. */
+.artifact-spread--docked {
+  top: var(--dock-top);
+  left: var(--dock-left);
+  width: var(--dock-width);
+  height: var(--dock-height);
+  /* It reads as a surface INSIDE the panel rather than a slab over the page,
+     so it takes an edge and a corner the full-screen form deliberately has
+     none of — full screen has no neighbour to be distinguished from. */
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  box-shadow: var(--menu-shadow-2);
+  /* Heavier than the full-screen wash (0.28): docked, the surface sits on ONE
+     panel with the rest of the grid at full brightness beside it, so it needs
+     to read as a distinct thing rather than a tint over everything. */
+  background: rgba(0, 0, 0, 0.42);
+}
+
+/* A file opened from inside a docked viewer stays in the same panel. Same four
+   properties, same source — see `DockRectContext`. It keeps its own z-index
+   (above the viewer) and its own scrim from the base rule. */
+.artifact-fullscreen--docked {
+  top: var(--dock-top);
+  left: var(--dock-left);
+  width: var(--dock-width);
+  height: var(--dock-height);
+  border-radius: 10px;
+  /* Less inset than the full-screen 24px — a panel is a fraction of the screen,
+     and the same padding there would leave the video a postage stamp. */
+  padding: 10px;
+}
+
 /* SHOOTS OUT of the thing you clicked — the inverse of the preview drilldown's
    zoom-IN (user 2026-08-17: "the spread viewer also needs to shoot out, like
    the opposite of our zoom ins for previews"). It was 0.86 -> 1, which at
@@ -6560,6 +6642,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 }
 .artifact-spread-hint { margin-left: auto; }
 
+.artifact-spread-dock,
 .artifact-spread-mode,
 .artifact-spread-add,
 .artifact-spread-close {
@@ -6576,6 +6659,17 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   transition: background 120ms ease, color 120ms ease;
   flex: 0 0 auto;
 }
+/* THE SWITCH READS AS SWITCHED. It is the one control in this header with two
+   states rather than one action, so at rest it must be visibly distinct from
+   its neighbours — otherwise "am I docked?" is only answerable by looking at
+   the whole screen. */
+.artifact-spread-dock--on {
+  background: var(--accent-blue-bg);
+  border-color: var(--accent-blue-border);
+  color: var(--accent-blue);
+}
+
+.artifact-spread-dock:hover,
 .artifact-spread-mode:hover,
 .artifact-spread-add:hover,
 .artifact-spread-close:hover {

@@ -37,6 +37,9 @@ import { filesOf } from "../helpers/occurrenceMedia";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext";
 import { Spinner } from "../components/ui/spinner.jsx";
+import {
+  panelIdForElement, observePanelRect, readDockPreference, writeDockPreference,
+} from "../helpers/spreadDock";
 
 function makeUUID() {
   return (typeof crypto !== "undefined" && crypto.randomUUID)
@@ -86,8 +89,15 @@ export function registerArtifactSpreadHost(fn) {
 /**
  * Open the spread for an occurrence.
  * @param {string} occurrenceId  the OWNER — the thing whose files these are
- * @param {DOMRect|object} originRect  the thumbnail's rect, so the overlay
- *   animates out of the thing you clicked rather than appearing from nowhere
+ * @param {Element} originEl  the ELEMENT that was clicked. Two things are read
+ *   off it, in ONE place:
+ *     - its rect, so the overlay animates out of the thing you clicked rather
+ *       than appearing from nowhere;
+ *     - the PANEL it sits in, so the viewer can dock into that panel.
+ *   It takes the element rather than the rect precisely so the panel walk lives
+ *   here instead of at each of the four call sites — "the fifth caller forgets"
+ *   is the defect class this codebase keeps paying for, and a caller that
+ *   handed over a rect could not have answered the panel question at all.
  */
 /**
  * What the spread page's child list should become — or `null` for "leave it".
@@ -134,17 +144,43 @@ export function planSpreadSync({ listed, fileIds, ownerId, needsLayout }) {
   return ownerIsAFile ? next : next.filter((id) => id !== ownerId);
 }
 
-export function openArtifactSpread(occurrenceId, originRect = null) {
+export function openArtifactSpread(occurrenceId, originEl = null) {
   if (!_hostListener) {
     console.warn("[ArtifactSpread] no host mounted — is <ArtifactSpreadHost/> in App?");
     return;
   }
-  _hostListener({ occurrenceId, originRect });
+  // BOTH derived here, from the one thing every caller already has in hand. A
+  // caller passing a rect could not have answered the panel question at all,
+  // and asking four call sites to answer it themselves is the trap named above.
+  const originRect = originEl?.getBoundingClientRect
+    ? originEl.getBoundingClientRect()
+    : (originEl || null);
+  _hostListener({ occurrenceId, originRect, panelId: panelIdForElement(originEl) });
 }
 
 export function ArtifactSpreadHost() {
   const [req, setReq] = useState(null);
   useEffect(() => registerArtifactSpreadHost((r) => setReq(r || null)), []);
+
+  // ── DOCKING ────────────────────────────────────────────────────────────────
+  // The preference is read ONCE per session and remembered per device, so
+  // flipping the switch on one viewer applies to the next (user, 2026-09-04:
+  // "this new button should be a switch button", answered: remembered globally).
+  const [docked, setDocked] = useState(() => readDockPreference());
+  const changeDock = useCallback((next) => {
+    setDocked(next);
+    writeDockPreference(next);
+  }, []);
+
+  // The panel's LIVE box — it can be resized, re-laid-out or scrolled while the
+  // viewer sits over it, and a rect captured at open time would leave the
+  // viewer floating over nothing.
+  const [dockRect, setDockRect] = useState(null);
+  const panelId = req?.panelId || null;
+  useEffect(() => {
+    if (!req || !panelId) { setDockRect(null); return undefined; }
+    return observePanelRect(panelId, setDockRect);
+  }, [req, panelId]);
 
   const dispatch = useGridActionsSelector(s => s.dispatch);
   const socket = useGridActionsSelector(s => s.socket);
@@ -290,6 +326,13 @@ export function ArtifactSpreadHost() {
       // drives the column count — the fifth wrapped onto a second row.
       count={spreadOcc?.occurrences?.length ?? files.length}
       originRect={req.originRect}
+      // `canDock` is the honest answer to "is there a panel to dock into" — a
+      // viewer opened from a doc embed or a preview iframe has none, and the
+      // switch is hidden there rather than shown doing nothing.
+      canDock={!!panelId}
+      docked={docked}
+      dockRect={dockRect}
+      onDockChange={changeDock}
       onClose={close}
       onAdd={handleAdd}
       onModeChange={handleModeChange}

@@ -27,9 +27,10 @@
 // ============================================================
 import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Plus, X, LayoutGrid, Move } from "lucide-react";
+import { Plus, X, LayoutGrid, Move, PictureInPicture2, Maximize2 } from "lucide-react";
 import { isDrawerLayout } from "./MenuSurface";
 import { useClosingGate } from "../helpers/closingGate";
+import { DockRectContext, dockVars } from "../helpers/spreadDock";
 
 // Must match `artifact-spread-out` in index.css. The surface stays mounted for
 // this long so the exit animation has frames to run in — see `closingGate`.
@@ -41,6 +42,15 @@ export default function ArtifactSpread({
   mode = "board",           // "board" (grid) | "canvas" (free)
   originRect = null,
   count = 0,
+  // DOCKED — the viewer fills the PANEL it was opened from rather than the
+  // screen, so a movie can play beside the work that is still going on
+  // (user, 2026-09-04). `dockRect` is the panel's live box; `canDock` is false
+  // when the click did not come from inside a panel at all, in which case the
+  // switch is hidden rather than shown doing nothing.
+  docked = false,
+  canDock = false,
+  dockRect = null,
+  onDockChange,
   onClose,
   onAdd,
   onModeChange,
@@ -107,24 +117,41 @@ export default function ArtifactSpread({
 
   const nextMode = mode === "canvas" ? "board" : "canvas";
 
+  // Docking only takes effect once a panel box is actually known. Every
+  // unknown — no panel, a panel that has unmounted, a panel translated to zero
+  // size by the mobile cell slider — falls back to full screen, which is
+  // exactly today's behaviour. So the failure mode of the new feature is the
+  // behaviour that already worked.
+  const isDocked = docked && !!dockRect;
+  const dockStyle = isDocked ? dockVars({ docked: true, rect: dockRect }) : null;
+
   return createPortal(
     <>
-      <div
-        className={`artifact-spread-backdrop${closing ? " artifact-spread-backdrop--closing" : ""}`}
-        onClick={() => requestClose()}
-      />
+      {/* NO BACKDROP WHILE DOCKED, and that is the point rather than an
+          omission: the whole reason to dock is to keep using the rest of the
+          grid, and a full-screen backdrop would swallow every click outside
+          the panel. Docked, the viewer is MODELESS — closed by its own X or
+          Escape. Constraining the backdrop to the panel instead would buy
+          nothing, since the viewer already covers exactly that box. */}
+      {!isDocked && (
+        <div
+          className={`artifact-spread-backdrop${closing ? " artifact-spread-backdrop--closing" : ""}`}
+          onClick={() => requestClose()}
+        />
+      )}
       <div
         className={[
           "artifact-spread",
           mobile ? "artifact-spread--mobile" : "",
           `artifact-spread--${mode}`,
+          isDocked ? "artifact-spread--docked" : "",
           // Ghosted, not unmounted — unmounting mid-drag would destroy the
           // element the drag system is carrying.
           shiftHeld ? "artifact-spread--armed" : "",
           // Plays the inverse of the open, then the host unmounts us.
           closing ? "artifact-spread--closing" : "",
         ].filter(Boolean).join(" ")}
-        style={originVars}
+        style={{ ...originVars, ...(dockStyle || {}) }}
         role="dialog"
         aria-label={title ? `Files — ${title}` : "Files"}
         onDragStartCapture={onDragStartCapture}
@@ -137,6 +164,24 @@ export default function ArtifactSpread({
               ? "Drop onto the grid"
               : (mode === "canvas" ? "Drag to move · Shift-drag out" : "Drag to reorder · Shift-drag out")}
           </span>
+          {/* THE DOCK SWITCH — beside the arrangement button, as asked.
+              Hidden rather than disabled when the viewer was not opened from
+              inside a panel: there is nowhere to dock TO, and a control that
+              is present and inert is worse than one that is absent. */}
+          {!mobile && canDock && (
+            <button
+              type="button"
+              className={`artifact-spread-dock${isDocked ? " artifact-spread-dock--on" : ""}`}
+              onClick={() => onDockChange?.(!docked)}
+              title={docked ? "Fill the screen" : "Open inside the panel"}
+              aria-label={docked ? "Fill the screen" : "Open inside the panel"}
+              aria-pressed={docked}
+            >
+              {docked
+                ? <Maximize2 style={{ width: 13, height: 13 }} />
+                : <PictureInPicture2 style={{ width: 13, height: 13 }} />}
+            </button>
+          )}
           {!mobile && (
             <button
               type="button"
@@ -177,7 +222,12 @@ export default function ArtifactSpread({
             a corner. A CSS quantity query cannot do this — `ModuleContainer`
             interleaves an insert-gap between every item, so a
             `:nth-child(1):nth-last-child(1)` count never sees "one file". */}
-        <div className="artifact-spread-body" data-count={count}>{children}</div>
+        {/* A file expanded from in here must stay in the same panel — see
+            `DockRectContext`. Portals preserve the React tree, so this reaches
+            `ArtifactCard`'s own body-portalled fullscreen. */}
+        <DockRectContext.Provider value={isDocked ? dockRect : null}>
+          <div className="artifact-spread-body" data-count={count}>{children}</div>
+        </DockRectContext.Provider>
       </div>
     </>,
     document.body

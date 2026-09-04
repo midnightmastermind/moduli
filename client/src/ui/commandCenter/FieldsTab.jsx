@@ -150,9 +150,28 @@ export function FieldPill({ field, selected, onClick, compact = false }) {
 
   const isInput = field.inputEnabled !== false;
   const isOccurrence = field.type === "occurrence";
-  const base = isOccurrence ? "6,182,212" : isInput ? "59,130,246" : "168,85,247"; // cyan / blue / purple
-  const textColor = isOccurrence ? "rgb(103,232,249)" : isInput ? "rgb(147,197,253)" : "rgb(216,180,254)";
-  const dotColor = isOccurrence ? "rgb(34,211,238)" : isInput ? "rgb(96,165,250)" : "rgb(192,132,252)";
+  // ── THE HUE IS THE MEANING; THE LIGHTNESS COMES FROM THE THEME ────────────
+  // These three were literal Tailwind pastels (cyan-300 / blue-300 /
+  // purple-300) chosen against the DEFAULT DARK theme and hardcoded, so on the
+  // three light skins the field list was pale text on a pale surface (user,
+  // 2026-09-04: *"too light for the background"*).
+  //
+  // The hue still carries the meaning — cyan is an occurrence reference, blue a
+  // field you type into, violet one an operation computes — so it stays fixed.
+  // What was wrong is the LIGHTNESS, and that is a fact about the SURFACE, not
+  // about the field. `--ink-*` derives it by mixing the hue toward the theme's
+  // own body ink, so the dark theme keeps today's pastels and the light ones
+  // darken to match. See the `--hue-*` block in index.css.
+  //
+  // `base` stays the raw hue because it feeds the TINTS below, and a tint at
+  // 12–35% alpha reads correctly at full saturation on every skin — it was the
+  // INK on top of it that had to move.
+  const kind = isOccurrence ? "occurrence" : isInput ? "input" : "display";
+  const base = `var(--hue-${kind})`;
+  const textColor = `var(--ink-${kind})`;
+  // The dot is a MARK, not text — full strength, or it vanishes beside the
+  // label it is marking.
+  const dotColor = `rgb(var(--hue-${kind}))`;
 
   if (compact) {
     // Compact list-item style for category columns
@@ -164,8 +183,8 @@ export function FieldPill({ field, selected, onClick, compact = false }) {
         style={{
           display: "flex", alignItems: "center", gap: 5,
           padding: "3px 7px", borderRadius: 4, cursor: "grab",
-          background: selected ? `rgba(${base}, 0.22)` : "var(--input-bg)",
-          border: `1px solid ${selected ? `rgba(${base}, 0.5)` : "var(--border-subtle)"}`,
+          background: selected ? `rgb(${base} / 0.22)` : "var(--input-bg)",
+          border: `1px solid ${selected ? `rgb(${base} / 0.5)` : "var(--border-subtle)"}`,
           fontSize: 11, fontFamily: "monospace", userSelect: "none",
           transition: "all 0.1s",
         }}
@@ -196,9 +215,9 @@ export function FieldPill({ field, selected, onClick, compact = false }) {
         transition: "all 0.15s",
         userSelect: "none",
         background: selected
-          ? `rgba(${base}, 0.35)`
-          : `rgba(${base}, 0.12)`,
-        border: `1px solid rgba(${base}, ${selected ? 0.7 : 0.28})`,
+          ? `rgb(${base} / 0.35)`
+          : `rgb(${base} / 0.12)`,
+        border: `1px solid rgb(${base} / ${selected ? 0.7 : 0.28})`,
         color: textColor,
         outline: "none",
       }}
@@ -640,8 +659,9 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 3,
                   padding: "2px 8px", borderRadius: 999, fontSize: 10, fontFamily: "monospace",
-                  background: "rgba(168,85,247,0.1)", border: "1px solid rgba(168,85,247,0.25)",
-                  color: "rgb(216,180,254)",
+                  background: "rgb(var(--hue-display) / 0.1)",
+                  border: "1px solid rgb(var(--hue-display) / 0.25)",
+                  color: "var(--ink-display)",
                 }}
                 title={`Role: ${m.role || "instance"} — id: ${m.id}`}
               >
