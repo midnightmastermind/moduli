@@ -10,7 +10,7 @@
 // only the React/DOM/persistence/DnD glue.
 
 import React, { useMemo, useRef, useState, useEffect, useCallback } from "react";
-import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+import { dropTargetForElements, monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 
 import Panel from "./ModulePanel";
@@ -20,6 +20,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   computeLayout, resizeSplit, removeLeaf, splitLeaf, allPanelOccIds, makeLeaf,
 } from "../helpers/bspTree";
+import { snapLeaf, zoneAt } from "../helpers/mosaicSnap";
 
 // Coarse pointers (tablet/phone) get a finger-sized splitter band — the 6px
 // desktop band was nearly impossible to hit, so touch presses landed on the
@@ -27,6 +28,11 @@ import {
 // Static per load: pointer coarseness doesn't change at runtime.
 const IS_COARSE = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)")?.matches;
 const SPLITTER = IS_COARSE ? 28 : 6; // px hit band (visual nub styled separately)
+
+// How deep the perimeter snap band reaches in from the grid's outer edge. Wide
+// enough to aim at with a dragged panel, narrow enough that the middle of every
+// pane still belongs to the pane (that drop is what builds nested layouts).
+const SNAP_BAND = 48;
 
 export default function GridMosaic({
   gridRef,
@@ -178,6 +184,34 @@ export default function GridMosaic({
     persist(next);
   }, [persist]);
 
+  // PERIMETER SNAP. A band around the grid's outer edge means "give this panel
+  // a region of the WHOLE grid". Inside the band, drops keep resolving against
+  // the pane under the pointer — that is how you say "below Routines
+  // specifically", and it is the gesture that builds nested layouts.
+  const handlePerimeterDrop = useCallback((draggedOccId, zone) => {
+    if (!draggedOccId || !zone) return;
+    const cur = treeRef.current;
+    if (!cur) return;
+    // A quadrant is the half followed by the perpendicular press — the same two
+    // steps the keyboard takes, so there is one definition of a quadrant.
+    let next = snapLeaf(cur, draggedOccId, zone.direction) || cur;
+    if (zone.quadrant) next = snapLeaf(next, draggedOccId, zone.quadrant) || next;
+    if (next === cur) return;
+    setTree(next);
+    persist(next);
+  }, [persist]);
+
+  // The band is MOUNTED ONLY WHILE A PANEL IS BEING DRAGGED. At rest it would
+  // sit over the outermost 48px of every edge pane and swallow splitter grabs
+  // and panel clicks there — and the styling's own promise is that it must not
+  // read as a frame when nothing is happening.
+  const [dragOccId, setDragOccId] = useState(null);
+  useEffect(() => monitorForElements({
+    canMonitor: ({ source }) => source?.data?.type === DragType.PANEL,
+    onDragStart: ({ source }) => setDragOccId(source?.data?.data?._occurrenceId || null),
+    onDrop: () => setDragOccId(null),
+  }), []);
+
   return (
     <div
       ref={setRefs}
@@ -249,8 +283,108 @@ export default function GridMosaic({
           }} />
         </div>
       ))}
+
+      {dragOccId && (
+        <SnapBand
+          rootRef={rootRef}
+          size={size}
+          tree={tree}
+          dragOccId={dragOccId}
+          onSnapDrop={handlePerimeterDrop}
+        />
+      )}
     </div>
   );
+}
+
+// The perimeter band: four edge strips, each a drop target, plus a preview of
+// the region the drop would produce.
+//
+// FOUR STRIPS RATHER THAN ONE FULL-SIZE OVERLAY, because a full-size overlay
+// would be the element under the pointer everywhere and would steal the
+// interior drops that split a pane. The interior has no element at all here.
+function SnapBand({ rootRef, size, tree, dragOccId, onSnapDrop }) {
+  const [zone, setZone] = useState(null);
+
+  // The region a drop RIGHT NOW would land in — null when the snap would not
+  // change anything, so the preview never promises a move that will not happen
+  // (a quadrant with nothing to partition degrades to no-op).
+  const preview = useMemo(() => {
+    if (!zone || !tree || !dragOccId) return null;
+    let next = snapLeaf(tree, dragOccId, zone.direction) || tree;
+    if (zone.quadrant) next = snapLeaf(next, dragOccId, zone.quadrant) || next;
+    if (next === tree) return null;
+    return zoneRect(zone, size.w, size.h);
+  }, [zone, tree, dragOccId, size.w, size.h]);
+
+  const strips = useMemo(() => ([
+    { key: "top", style: { left: 0, top: 0, width: "100%", height: SNAP_BAND } },
+    { key: "bottom", style: { left: 0, bottom: 0, width: "100%", height: SNAP_BAND } },
+    { key: "left", style: { left: 0, top: 0, width: SNAP_BAND, height: "100%" } },
+    { key: "right", style: { right: 0, top: 0, width: SNAP_BAND, height: "100%" } },
+  ]), []);
+
+  return (
+    <>
+      {strips.map((s) => (
+        <SnapStrip
+          key={s.key}
+          style={s.style}
+          rootRef={rootRef}
+          size={size}
+          onZone={setZone}
+          onSnapDrop={onSnapDrop}
+        />
+      ))}
+      {preview && <div className="mosaic-snap-zone" style={{ ...preview, zIndex: 45 }} />}
+    </>
+  );
+}
+
+function SnapStrip({ style, rootRef, size, onZone, onSnapDrop }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // The zone is resolved from the pointer against the GRID's rect, not this
+    // strip's — a corner sits in two strips and both must answer the same
+    // quadrant, which only holds if they measure from the same origin.
+    const zoneFor = (input) => {
+      const r = rootRef.current?.getBoundingClientRect();
+      if (!r) return null;
+      return zoneAt({ x: input.clientX - r.left, y: input.clientY - r.top, w: size.w, h: size.h, band: SNAP_BAND });
+    };
+    return dropTargetForElements({
+      element: el,
+      canDrop: ({ source }) => source?.data?.type === DragType.PANEL && !!source?.data?.data?._occurrenceId,
+      onDragEnter: ({ location }) => onZone(zoneFor(location.current.input)),
+      onDrag: ({ location }) => onZone(zoneFor(location.current.input)),
+      onDragLeave: () => onZone(null),
+      onDrop: ({ source, location }) => {
+        const z = zoneFor(location.current.input);
+        onZone(null);
+        onSnapDrop?.(source?.data?.data?._occurrenceId, z);
+      },
+    });
+  }, [rootRef, size.w, size.h, onZone, onSnapDrop]);
+
+  return <div ref={ref} style={{ position: "absolute", zIndex: 50, ...style }} />;
+}
+
+// Where the preview rectangle goes for a zone. Presentation only — the tree is
+// what actually decides the layout; this just has to agree with it.
+function zoneRect(zone, w, h) {
+  const halfW = w / 2;
+  const halfH = h / 2;
+  if (zone.direction === "left" || zone.direction === "right") {
+    const x = zone.direction === "right" ? halfW : 0;
+    if (!zone.quadrant) return { position: "absolute", left: x, top: 0, width: halfW, height: h };
+    return { position: "absolute", left: x, top: zone.quadrant === "down" ? halfH : 0, width: halfW, height: halfH };
+  }
+  const y = zone.direction === "down" ? halfH : 0;
+  if (!zone.quadrant) return { position: "absolute", left: 0, top: y, width: w, height: halfH };
+  return { position: "absolute", left: zone.quadrant === "right" ? halfW : 0, top: y, width: halfW, height: halfH };
 }
 
 // A single pane: positioned wrapper + the panel filling it + a Pragmatic drop

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { makeLeaf, makeSplit } from "../helpers/bspTree";
-import { regionOf, snapLeaf } from "../helpers/mosaicSnap";
+import { regionOf, snapLeaf, zoneAt } from "../helpers/mosaicSnap";
 
 const A = () => makeLeaf("a");
 const B = () => makeLeaf("b");
@@ -168,5 +168,37 @@ describe("snapLeaf — quadrants", () => {
     const inner = makeSplit("h", [A(), B(), D()], [1, 3, 2]);
     const out = snapLeaf(makeSplit("v", [inner, C()]), "c", "up");
     expect(out.children[1].ratio).toEqual([3, 2]);   // A's weight left with A
+  });
+});
+
+describe("zoneAt — perimeter drop zones", () => {
+  const box = { w: 900, h: 600, band: 48 };
+
+  it("is null well inside the grid — the pane keeps the drop", () => {
+    expect(zoneAt({ x: 450, y: 300, ...box })).toBe(null);
+  });
+
+  it("the middle of the right band means the right half", () => {
+    expect(zoneAt({ x: 880, y: 300, ...box })).toEqual({ direction: "right", quadrant: null });
+  });
+
+  it("the top of the right band means the top-right quadrant", () => {
+    expect(zoneAt({ x: 880, y: 40, ...box })).toEqual({ direction: "right", quadrant: "up" });
+  });
+
+  it("the bottom of the right band means the bottom-right quadrant", () => {
+    expect(zoneAt({ x: 880, y: 560, ...box })).toEqual({ direction: "right", quadrant: "down" });
+  });
+
+  it("the middle of the top band means the top half", () => {
+    expect(zoneAt({ x: 450, y: 10, ...box })).toEqual({ direction: "up", quadrant: null });
+  });
+
+  // A corner sits in two bands and both mean the same quadrant, so the overlap
+  // needs no tie-break — but it must not answer null.
+  it("a corner resolves to that quadrant", () => {
+    const c = zoneAt({ x: 890, y: 8, ...box });
+    expect(c).not.toBe(null);
+    expect(new Set([c.direction, c.quadrant])).toEqual(new Set(["right", "up"]));
   });
 });

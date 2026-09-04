@@ -116,3 +116,31 @@ function buildRegion(rest, leaf, { col, row }) {
   return takeFirst ? makeSplit("h", [myRow, otherRow])
                    : makeSplit("h", [otherRow, myRow]);
 }
+
+/**
+ * Which snap does a drop at (x, y) mean? Null means "not in the perimeter" —
+ * the drop belongs to whichever pane is under the pointer, which is the gesture
+ * that builds nested layouts and must keep working.
+ *
+ * Each side is three zones: the middle third is the half, the outer thirds are
+ * the quadrants. A corner is inside two bands, and both resolve to the same
+ * quadrant, so the overlap needs no tie-break.
+ */
+export function zoneAt({ x, y, w, h, band = 48 }) {
+  const nearLeft = x <= band;
+  const nearRight = x >= w - band;
+  const nearTop = y <= band;
+  const nearBottom = y >= h - band;
+  if (!nearLeft && !nearRight && !nearTop && !nearBottom) return null;
+
+  const third = (v, extent) => (v < extent / 3 ? "start" : v > (2 * extent) / 3 ? "end" : "middle");
+
+  if (nearLeft || nearRight) {
+    const direction = nearLeft ? "left" : "right";
+    const t = third(y, h);
+    return { direction, quadrant: t === "start" ? "up" : t === "end" ? "down" : null };
+  }
+  const direction = nearTop ? "up" : "down";
+  const t = third(x, w);
+  return { direction, quadrant: t === "start" ? "left" : t === "end" ? "right" : null };
+}

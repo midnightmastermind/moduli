@@ -7961,3 +7961,14 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   outline-offset: -2px;
   border-radius: 4px;
 }
+
+/* The perimeter snap band. Only visible while a panel is being dragged — at
+   rest it must not read as a frame. */
+.mosaic-snap-zone {
+  position: absolute;
+  pointer-events: none;
+  background: var(--accent-blue-bg, rgba(56, 189, 248, 0.18));
+  border: 1px solid var(--accent-blue, #38bdf8);
+  border-radius: 3px;
+  transition: opacity 90ms ease-out;
+}
