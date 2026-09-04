@@ -81,6 +81,10 @@ import DocToolbar from "../docs/DocToolbar";
 import ContextMenu from "./ContextMenu";
 import { useGridActionsSelector } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import {
+  buildTextClipboardItems, readClipboardText, writeClipboardText,
+  plainTextToProseContent,
+} from "../helpers/textClipboard";
 import { classifyIntake } from "../helpers/intake";
 import { applyIntakeShape, filterToImplemented } from "../helpers/intakeApply";
 import { openIntakeSheet } from "./IntakeSheet";
@@ -1212,7 +1216,40 @@ const Editor = forwardRef(function Editor({
         }
       });
     }
+    // ── CUT / COPY / PASTE ──────────────────────────────────────────────
+    //
+    // User, 2026-09-04: *"can we add the text cut copy and paste to our right
+    // click menu"* / *"selected prose should work with it."* This menu
+    // preventDefaults the browser's, so before this it took the clipboard
+    // operations AWAY and offered formatting in their place.
+    //
+    // THE RANGE IS THE CAPTURED ONE, not the live selection. Clicking a menu
+    // item moves focus out of the editor, so by the time a handler runs
+    // `editor.state.selection` may be collapsed — which is why this handler
+    // already captured from/to/text up front for "Make inline textblock".
+    //
+    // Cut WRITES BEFORE IT DELETES: removing text we then failed to put on the
+    // clipboard would lose it outright.
+    const clipboardItems = buildTextClipboardItems({
+      hasSelection,
+      onCut: async () => {
+        if (!(await writeClipboardText(capturedText))) return;
+        editor.chain().focus().deleteRange({ from: capturedFrom, to: capturedTo }).run();
+      },
+      onCopy: () => writeClipboardText(capturedText),
+      onPaste: async () => {
+        const text = await readClipboardText();
+        if (text == null || text === "") return;
+        // insertContentAt over a collapsed range is an insert, over a real one
+        // a replace — so one call covers both without branching.
+        editor.chain().focus()
+          .insertContentAt({ from: capturedFrom, to: capturedTo }, plainTextToProseContent(text))
+          .run();
+      },
+    });
+
     const items = [
+      ...clipboardItems,
       selectedTextblockOccs.length > 0 && dispatch && socket && {
         label: `Convert ${selectedTextblockOccs.length} textblock${selectedTextblockOccs.length === 1 ? "" : "s"} to instance${selectedTextblockOccs.length === 1 ? "" : "s"}`,
         icon: Shuffle,

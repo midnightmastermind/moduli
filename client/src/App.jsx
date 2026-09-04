@@ -32,6 +32,7 @@ import TransactionHistory from "./ui/TransactionHistory";
 // operations editor — none of it is needed before the user opens it.
 const CommandCenter = React.lazy(() => import("./ui/CommandCenter"));
 import AssistantDrawer from "./ui/AssistantDrawer";
+import TextContextMenu from "./ui/TextContextMenu";
 import ClipboardDropOverlay from "./ui/ClipboardDropOverlay";
 import RubberBandSelector from "./ui/RubberBandSelector";
 import { Spinner } from "./components/ui/spinner";
@@ -1078,6 +1079,9 @@ export default function App() {
 
         {/* Jarvis — bottom-right floating chat. See docs/assistant-guide.md. */}
         <AssistantDrawer />
+        {/* Right-click on a text input → cut/copy/paste. ONE mount, listening on
+            document capture, so no surface menu has to remember to bail. */}
+        <TextContextMenu />
 
         {/* Clipboard hover-drop mode — only mounts listeners while the
             multi-select clipboard is non-empty. Lets the user click any
