@@ -2,6 +2,28 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-04 — `TextContextMenu.jsx` NEW: right-click a text input, get the clipboard back)
+- **`TextContextMenu.jsx` (NEW, 7 tests)** — one mount in `App`, listening on document CAPTURE.
+  Every right-click handler on this grid (`ModuleInstance`, `ModuleContainer`, `ModulePage`,
+  `ModulePanel`, `PreviewNode`, `ManifestTree`) calls `preventDefault()` with NO target guard, so
+  right-clicking a field pill popped the occurrence menu and the browser's cut/copy/paste was
+  simply gone. **A bail in seven handlers is the "eighth caller forgets" trap** — React attaches at
+  `#root`, so a document-capture `stopPropagation` runs first and no surface menu ever opens.
+- **IT HOLDS THE TARGET IN A REF.** Clicking a menu item moves focus out of the field, so the
+  actions cannot re-derive it from `document.activeElement` — A/B'd, that mutation fails exactly the
+  two action tests. Each action refocuses first, because a caret moved in an unfocused field is
+  invisible and the paste looks like it landed somewhere else.
+- **ONLY THE TEXT ITEMS, not the row's.** Right-clicking inside a text box is a text gesture, and
+  "Copy" beside "Copy 3 selected" in one menu is unreadable. The occurrence menu is still one
+  right-click away on the row itself.
+- **THE CONTROL IS THE TEST THAT MATTERS:** *does not open on an ordinary element, and lets its
+  handler run.* Without it, "the menu opens on inputs" is equally satisfied by a listener that
+  opens on everything and eats every surface menu on the grid.
+- **`Editor.jsx`** — the prose menu gained Cut/Copy/Paste above the formatting block, from the same
+  `buildTextClipboardItems`. It uses the range the handler ALREADY captured for "Make inline
+  textblock": clicking a menu item moves focus, so `editor.state.selection` may be collapsed by the
+  time a handler runs.
+
 ## Recent Changes (2026-08-16 (2) — the spread SPREADS: it was minting a page with no layout)
 - **User: *"the artifact spread isnt spreading them out into a grid."*** It was a vertical list —
   one full-width row per file, which is the opposite of what the overlay exists for.

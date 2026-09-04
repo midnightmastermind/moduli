@@ -2,6 +2,34 @@
 
 _Updated: 2026-08-22. Check this file before re-reading source._
 
+## Recent Changes (2026-09-04 — `textClipboard.js` NEW: one set of clipboard actions, two hosts)
+- **`textClipboard.js` (NEW, 30 tests)** — cut/copy/paste for TEXT, shared by the doc editor's
+  right-click menu (selected prose) and `ui/TextContextMenu` (form inputs). The two hosts edit
+  completely different things — a ProseMirror transaction vs a controlled `<input>` — so what
+  would silently drift is the LABELS, the ORDER and the which-items-appear rule, and those live in
+  `buildTextClipboardItems` where neither host can disagree with the other.
+- **`setInputValue` GOES THROUGH THE PROTOTYPE'S VALUE SETTER, and that is the whole risk.** Every
+  text control on this grid is a CONTROLLED React input; React installs its own `value` descriptor
+  to track what it has already handed out, so a plain `el.value = next` is recorded as **"no
+  change"** — no synthetic `onChange`, the component's state never moves, and the next render puts
+  the old text straight back. **The paste works for one frame and is silently lost.**
+- **THE TEST FOR IT WAS VACUOUS UNTIL THE A/B, and the reason generalises:** jsdom has no React
+  tracker, so an `input`-event assertion passes with or without the fix. The test now installs a
+  **stand-in for the tracker** (an own `value` descriptor caching the last seen value) and asserts
+  the write registers as a real change.
+- **`isTextInputTarget` is a DENYLIST** — everything on an `<input>` is text-editing except a named
+  few. Enumerating the text-ish types is how this stops working the next time a field renders
+  `type="search"`. **`contenteditable` is excluded deliberately**: ProseMirror is one, and catching
+  it would delete the doc editor's own menu.
+- **`plainTextToProseContent` exists because TipTap parses a plain string as HTML** — pasting text
+  containing `<div>` would be swallowed as markup. Inline text node for one line (a paragraph would
+  split the sentence you pasted into), paragraphs only when there are newlines, which a ProseMirror
+  text node cannot hold.
+- **`readClipboardText` returns null for all three of "no API", "refused" and "empty"** on purpose:
+  every caller does the same thing with all three (leave the field alone), and distinguishing them
+  only tempts a caller into writing an empty string over a selection the user still has.
+- **Cut writes BEFORE it deletes** — removing text we then failed to put on the clipboard loses it.
+
 ## Recent Changes (2026-09-03 — `awaitingChildren.js` NEW: a board that is LOADING stops saying it is EMPTY)
 
 - **User, 2026-09-03: *"the books took 2 more seconds to load (without a loading bar, we need that

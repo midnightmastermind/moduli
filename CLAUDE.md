@@ -6,6 +6,94 @@
 
 ---
 
+### 2026-09-04 (2) — OUR MENU TOOK THE CLIPBOARD AWAY AND OFFERED NOTHING BACK
+
+User: *"can we add the text cut copy and paste to our right click menu"*, then
+*"selected prose should work with it."*
+
+**EVERY RIGHT-CLICK HANDLER ON THIS GRID CALLS `preventDefault()` WITH NO TARGET
+GUARD** — ModuleInstance, ModuleContainer, ModulePage, ModulePanel, PreviewNode,
+ManifestTree, Editor. So right-clicking a field pill pops the occurrence menu and
+the browser's cut/copy/paste is simply gone; the doc editor's menu offers Bold,
+Italic and Code and **no clipboard items at all**. The feature was not missing so
+much as *removed and not replaced*.
+
+**THE INPUT MENU IS ONE DOCUMENT LISTENER, NOT A BAIL IN SEVEN HANDLERS.**
+`ui/TextContextMenu` listens on document CAPTURE — the seam `App` already uses for
+the touch/drag suppressor. React attaches at `#root`, so document capture runs
+first and `stopPropagation` means no surface menu opens. Adding a guard to each
+handler is the *"eighth caller forgets"* trap this file keeps paying for.
+
+**AND THE WRITE IS THE WHOLE RISK.** Every text control here is a CONTROLLED React
+input, and React installs its own `value` descriptor to track what it has already
+seen — so `el.value = next` is recorded as **"no change"**: no synthetic
+`onChange`, state never moves, and the next render puts the old text straight
+back. **The paste works for one frame and is silently lost.** Going through the
+PROTOTYPE's setter bypasses that tracker.
+
+**MY FIRST TEST FOR IT WAS VACUOUS AND THE A/B IS WHY I KNOW.** It listened for
+the `input` event — which I dispatch either way — so it passed against
+`el.value = next`. jsdom has no React tracker to fool, so nothing in a plain DOM
+assertion can see this bug. The test now installs a **stand-in for React's
+tracker** (an own `value` descriptor caching the last seen value) and asserts the
+write is seen as a real change; the A/B then fails exactly that one case.
+```
+                                    tests failing
+native setter -> el.value = next          1     <- the tracker case, alone
+```
+
+**DENYLIST, NOT WHITELIST**, for which targets get the menu: everything on an
+`<input>` is text-editing except a named few (checkbox/radio/button/file/range/…).
+Enumerating the text-ish TYPES is how this stops working the next time a field
+renders `type="search"` — the lesson `APPLY_TEMPLATE`'s `defaultFields` paid for.
+**`contenteditable` is excluded deliberately:** ProseMirror is one, and a
+predicate that caught it would delete the doc editor's own menu.
+
+**AND TIPTAP PARSES A PLAIN STRING AS HTML.** `insertContentAt(range, text)` would
+swallow pasted text containing `<div>` as markup — a paste that looks like it
+dropped half your content. `plainTextToProseContent` inserts a text node INLINE
+(a paragraph there would split the sentence you pasted into) and paragraphs only
+when the text has newlines, which a ProseMirror text node cannot hold anyway.
+
+**THE FIREFOX CONSTRAINT WAS VERIFIED, NOT ASSUMED — and I had it wrong.** I told
+the user Paste would always cost a second click. Mozilla's own docs: *"The
+paste-prompt is suppressed if reading same-origin clipboard content, but not
+cross-origin content."*
+```
+copied inside Moduli     one click, no prompt      <- the dominant case
+copied from elsewhere    click -> 1s -> confirm
+```
+Firefox and Safari have said they will **not** implement `clipboard-read` at all,
+so the prompt is the permanent design rather than a gap that closes. Chrome takes
+the other route (a persistent permission). *A claim about a browser is worth one
+lookup before it becomes a design constraint.*
+
+**ONE SET OF ACTIONS, TWO HOSTS.** `helpers/textClipboard.js` owns the operations
+AND the item list; the prose menu and the input menu both render from
+`buildTextClipboardItems`, so the labels, the order and the which-items-appear
+rule cannot drift. The input menu shows ONLY the text items — "Copy" beside
+"Copy 3 selected" in one menu is unreadable, and the row's own menu is one
+right-click away.
+
+Cut writes BEFORE it deletes (deleting text we then failed to put on the clipboard
+loses it outright); a refused read leaves the field exactly as it was rather than
+blanking it; Cut/Copy are absent with no selection while Paste always shows.
+
+**Five A/Bs, each mutation asserted to LAND and each failing exactly its own
+cases:** the native setter (1), the target filter (1 — the CONTROL, without which
+*"opens on inputs"* is also satisfied by a menu that eats every surface menu), the
+captured target vs `activeElement` (2), and the HTML-parsing guard (4).
+4032 client tests, lint **0 no-undef errors**, build clean. Deployed — client-only,
+so no restart and no cold read; prod HEAD verified, `PagePreviewApp` chunk
+**sha256-identical** to the local build with `Cut`/`Paste` present, `Clear
+formatting` as the positive control, and `App`/`index` reading 0 for the CONTROL
+too, which is the documented tell that they are the wrong chunk.
+
+**NOT VERIFIED, and it is the honest gap: nobody has right-clicked it in a
+browser.** Both wirings are a few lines at seams no test mounts.
+
+---
+
 ### 2026-09-04 — THE BROWSER SAVES WHAT YOU ARE LOOKING AT, and one import was pointing at a toolbar widget
 
 Continued the other account's session, which hit its limit at 08:44 one command after
