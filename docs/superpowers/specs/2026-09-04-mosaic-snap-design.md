@@ -74,7 +74,11 @@ region = { col: "left" | "right" | "full",
 pushes the rest over.
 
 **Up / Down set the row, with one addition:** pressing the arrow *opposite* to
-your current row constraint **releases** it back to `full` rather than crossing.
+your current row constraint **releases** it back to `full` rather than crossing —
+but only when you are in a **quadrant** (that is, the column axis is also
+constrained). From a plain top half, `Down` sets the bottom half, because
+releasing there would leave the panel with no region at all and the press would
+read as broken.
 
 ```
 full-height right  + Up    → top-right           set the row
