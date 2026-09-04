@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { makeLeaf, makeSplit } from "../helpers/bspTree";
-import { regionOf, snapLeaf, zoneAt } from "../helpers/mosaicSnap";
+import { regionOf, regionForZone, snapLeaf, snapLeafToRegion, zoneAt } from "../helpers/mosaicSnap";
 
 const A = () => makeLeaf("a");
 const B = () => makeLeaf("b");
@@ -200,5 +200,64 @@ describe("zoneAt — perimeter drop zones", () => {
     const c = zoneAt({ x: 890, y: 8, ...box });
     expect(c).not.toBe(null);
     expect(new Set([c.direction, c.quadrant])).toEqual(new Set(["right", "up"]));
+  });
+});
+
+describe("regionForZone — a perimeter zone names an ABSOLUTE region", () => {
+  it("a side's middle third is that half", () => {
+    expect(regionForZone({ direction: "right", quadrant: null })).toEqual({ col: "right", row: "full" });
+    expect(regionForZone({ direction: "up", quadrant: null })).toEqual({ col: "full", row: "top" });
+  });
+
+  it("a side's end thirds are that quadrant, from either side of the corner", () => {
+    expect(regionForZone({ direction: "right", quadrant: "up" })).toEqual({ col: "right", row: "top" });
+    expect(regionForZone({ direction: "up", quadrant: "right" })).toEqual({ col: "right", row: "top" });
+  });
+
+  it("maps the far corner too", () => {
+    expect(regionForZone({ direction: "down", quadrant: "left" })).toEqual({ col: "left", row: "bottom" });
+  });
+
+  it("answers null for no zone", () => {
+    expect(regionForZone(null)).toBe(null);
+  });
+});
+
+describe("snapLeafToRegion — pointing is absolute, not two relative presses", () => {
+  // THE LIVE CASE, 2026-09-04: h[C, v[A, B]] — A is bottom-LEFT. Aiming at the
+  // top-right corner must land A in the top-right quadrant. Composing the two
+  // arrow presses instead gives the right HALF, because the second press meets
+  // the release rule on a row A already had.
+  it("sets a quadrant outright from a panel that already had the opposite row", () => {
+    const tree = makeSplit("h", [C(), makeSplit("v", [A(), B()])]);
+    expect(shape(snapLeafToRegion(tree, "a", { col: "right", row: "top" })))
+      .toEqual({ dir: "h", children: [{ dir: "v", children: ["c", "a"] }, "b"] });
+  });
+
+  it("is NOT what composing the two presses gives — that releases to a half", () => {
+    const tree = makeSplit("h", [C(), makeSplit("v", [A(), B()])]);
+    let composed = snapLeaf(tree, "a", "right") || tree;
+    composed = snapLeaf(composed, "a", "up") || composed;
+    expect(shape(composed)).toEqual({ dir: "v", children: [{ dir: "h", children: ["c", "b"] }, "a"] });
+  });
+
+  it("sets a plain half", () => {
+    const tree = makeSplit("h", [B(), A(), C()]);
+    expect(shape(snapLeafToRegion(tree, "a", { col: "right", row: "full" })))
+      .toEqual({ dir: "v", children: [{ dir: "h", children: ["b", "c"] }, "a"] });
+  });
+
+  it("returns null when the panel is already in that region", () => {
+    expect(snapLeafToRegion(makeSplit("v", [B(), A()]), "a", { col: "right", row: "full" })).toBe(null);
+  });
+
+  // The degrade rule survives: an unbuildable quadrant moves nothing.
+  it("returns null when the complement cannot supply the quadrant's rows", () => {
+    const tree = makeSplit("v", [makeSplit("v", [A(), B()]), C()]);
+    expect(snapLeafToRegion(tree, "c", { col: "right", row: "top" })).toBe(null);
+  });
+
+  it("returns null for a panel that is not in the tree", () => {
+    expect(snapLeafToRegion(makeSplit("v", [B(), C()]), "a", { col: "right", row: "full" })).toBe(null);
   });
 });

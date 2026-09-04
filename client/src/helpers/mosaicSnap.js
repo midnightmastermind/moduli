@@ -144,3 +144,42 @@ export function zoneAt({ x, y, w, h, band = 48 }) {
   const t = third(x, w);
   return { direction, quadrant: t === "start" ? "left" : t === "end" ? "right" : null };
 }
+
+/**
+ * Set a panel's region OUTRIGHT. Returns a new tree, or null when nothing
+ * changed (already there, unknown panel, or a quadrant the complement cannot
+ * supply — the same degrade rule `snapLeaf` obeys, since both go through
+ * `buildRegion`).
+ *
+ * THE DIFFERENCE FROM `snapLeaf` IS THE GESTURE, NOT THE MATH. An arrow is
+ * RELATIVE — pressing the arrow opposite your current row releases it, which is
+ * what makes Down-then-Down feel right on a keyboard. A pointer is ABSOLUTE: a
+ * drop on the top-right corner names the top-right quadrant, and composing it
+ * out of two presses would hit that release rule and hand back a half instead
+ * (measured on the live grid, 2026-09-04).
+ */
+export function snapLeafToRegion(tree, panelOccId, region) {
+  const cur = regionOf(tree, panelOccId);
+  if (!cur || !region) return null;
+  const want = { col: region.col || "full", row: region.row || "full" };
+  if (cur.col === want.col && cur.row === want.row) return null;   // already there
+
+  const rest = removeLeaf(tree, panelOccId);
+  if (!rest) return null;                          // the tree was just this leaf
+  return buildRegion(rest, makeLeaf(panelOccId), want);
+}
+
+/**
+ * The region a perimeter zone names. A side's middle third is that side's half;
+ * its end thirds are the two quadrants on that side — and a corner, which is in
+ * two bands at once, maps to the same region from either.
+ */
+export function regionForZone(zone) {
+  if (!zone) return null;
+  const { direction, quadrant } = zone;
+  if (direction === "left" || direction === "right") {
+    return { col: direction, row: quadrant === "up" ? "top" : quadrant === "down" ? "bottom" : "full" };
+  }
+  const row = direction === "up" ? "top" : "bottom";
+  return { col: quadrant === "left" || quadrant === "right" ? quadrant : "full", row };
+}

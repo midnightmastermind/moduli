@@ -20,7 +20,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import {
   computeLayout, resizeSplit, removeLeaf, splitLeaf, allPanelOccIds, makeLeaf,
 } from "../helpers/bspTree";
-import { regionOf, snapLeaf, zoneAt } from "../helpers/mosaicSnap";
+import { regionForZone, regionOf, snapLeafToRegion, zoneAt } from "../helpers/mosaicSnap";
 
 // Coarse pointers (tablet/phone) get a finger-sized splitter band — the 6px
 // desktop band was nearly impossible to hit, so touch presses landed on the
@@ -192,11 +192,13 @@ export default function GridMosaic({
     if (!draggedOccId || !zone) return;
     const cur = treeRef.current;
     if (!cur) return;
-    // A quadrant is the half followed by the perpendicular press — the same two
-    // steps the keyboard takes, so there is one definition of a quadrant.
-    let next = snapLeaf(cur, draggedOccId, zone.direction) || cur;
-    if (zone.quadrant) next = snapLeaf(next, draggedOccId, zone.quadrant) || next;
-    if (next === cur) return;
+    // The zone names a region ABSOLUTELY, so it is SET rather than composed out
+    // of two arrow presses: an arrow is relative and releases the row you are
+    // opposite, which turned a top-right corner aim into the right half on the
+    // live grid. Same `buildRegion` underneath, so a region is still built one
+    // way — and the degrade rule still returns null and moves nothing.
+    const next = snapLeafToRegion(cur, draggedOccId, regionForZone(zone));
+    if (!next) return;
     setTree(next);
     persist(next);
   }, [persist]);
@@ -314,9 +316,8 @@ function SnapBand({ rootRef, size, tree, dragOccId, onSnapDrop }) {
   // grid, 2026-09-04). Null when nothing would move at all.
   const preview = useMemo(() => {
     if (!zone || !tree || !dragOccId) return null;
-    let next = snapLeaf(tree, dragOccId, zone.direction) || tree;
-    if (zone.quadrant) next = snapLeaf(next, dragOccId, zone.quadrant) || next;
-    if (next === tree) return null;
+    const next = snapLeafToRegion(tree, dragOccId, regionForZone(zone));
+    if (!next) return null;
     return regionRect(regionOf(next, dragOccId), size.w, size.h);
   }, [zone, tree, dragOccId, size.w, size.h]);
 
