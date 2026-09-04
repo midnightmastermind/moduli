@@ -118,3 +118,55 @@ describe("snapLeaf — no-ops answer null", () => {
     expect(snapLeaf(makeSplit("v", [B(), A()]), "a", "sideways")).toBe(null);
   });
 });
+
+describe("snapLeaf — quadrants", () => {
+  // The user's own case, 2026-09-04:
+  //   v[ h[Routines, Trackers] , Browser ]  + Up
+  //   → h[ v[Routines, Browser] , Trackers ]
+  it("builds the top-right quadrant from the complement's first row", () => {
+    const tree = makeSplit("v", [makeSplit("h", [A(), B()]), C()]);   // C full-height right
+    expect(shape(snapLeaf(tree, "c", "up")))
+      .toEqual({ dir: "h", children: [{ dir: "v", children: ["a", "c"] }, "b"] });
+  });
+
+  it("builds the top-LEFT quadrant with the leaf first in its row", () => {
+    const tree = makeSplit("v", [C(), makeSplit("h", [A(), B()])]);   // C full-height left
+    expect(shape(snapLeaf(tree, "c", "up")))
+      .toEqual({ dir: "h", children: [{ dir: "v", children: ["c", "a"] }, "b"] });
+  });
+
+  // Bottom pairs with the complement's LAST row, not its first.
+  it("builds the bottom-right quadrant from the complement's last row", () => {
+    const tree = makeSplit("v", [makeSplit("h", [A(), B()]), C()]);
+    expect(shape(snapLeaf(tree, "c", "down")))
+      .toEqual({ dir: "h", children: ["a", { dir: "v", children: ["b", "c"] }] });
+  });
+
+  it("keeps the remaining rows grouped when the complement has three", () => {
+    const D = () => makeLeaf("d");
+    const tree = makeSplit("v", [makeSplit("h", [A(), B(), D()]), C()]);
+    expect(shape(snapLeaf(tree, "c", "up")))
+      .toEqual({
+        dir: "h",
+        children: [{ dir: "v", children: ["a", "c"] }, { dir: "h", children: ["b", "d"] }],
+      });
+  });
+
+  // DEGRADE: nothing to partition → nothing moves, and the column survives.
+  it("does nothing when the complement is a single leaf", () => {
+    const tree = makeSplit("v", [A(), C()]);      // C right, complement is one leaf
+    expect(snapLeaf(tree, "c", "up")).toBe(null);
+  });
+
+  it("does nothing when the complement splits on the wrong axis", () => {
+    const tree = makeSplit("v", [makeSplit("v", [A(), B()]), C()]);
+    expect(snapLeaf(tree, "c", "up")).toBe(null);
+  });
+
+  it("carries the complement's existing ratios into the grouped remainder", () => {
+    const D = () => makeLeaf("d");
+    const inner = makeSplit("h", [A(), B(), D()], [1, 3, 2]);
+    const out = snapLeaf(makeSplit("v", [inner, C()]), "c", "up");
+    expect(out.children[1].ratio).toEqual([3, 2]);   // A's weight left with A
+  });
+});

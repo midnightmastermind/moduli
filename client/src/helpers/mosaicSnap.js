@@ -99,5 +99,20 @@ function buildRegion(rest, leaf, { col, row }) {
     return row === "bottom" ? makeSplit("h", [rest, leaf])
                             : makeSplit("h", [leaf, rest]);
   }
-  return null;   // quadrant — Task 3
+  // QUADRANT. The complement's own top-level ROW split supplies the partition:
+  // one of its rows becomes our neighbour, the remainder becomes the other row.
+  // Nothing is invented — if the complement cannot be divided that way, the
+  // caller gets null and nothing moves.
+  if (isLeaf(rest) || rest.dir !== "h" || rest.children.length < 2) return null;
+
+  const takeFirst = row === "top";
+  const mate = takeFirst ? rest.children[0] : rest.children[rest.children.length - 1];
+  const others = takeFirst ? rest.children.slice(1) : rest.children.slice(0, -1);
+  const otherRatio = takeFirst ? rest.ratio.slice(1) : rest.ratio.slice(0, -1);
+  const otherRow = others.length === 1 ? others[0] : makeSplit("h", others, otherRatio);
+
+  const myRow = col === "right" ? makeSplit("v", [mate, leaf])
+                                : makeSplit("v", [leaf, mate]);
+  return takeFirst ? makeSplit("h", [myRow, otherRow])
+                   : makeSplit("h", [otherRow, myRow]);
 }
