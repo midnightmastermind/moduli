@@ -77,24 +77,49 @@ export async function up({ gridId, dryRun = true, log = console.log } = {}) {
   log("  signature-unique groups: " + groups.size + " | DUPLICATED: " + dupes.length);
   if (!dupes.length) { log("  nothing to repair - already converged."); return; }
 
-  const subtree = (rootId) => {
-    const out = [], seen = new Set();
-    (function walk(id, d) {
+  // WHO LISTS EACH CHILD, so the subtree walk can spare a SHARED one.
+  const listers = new Map();
+  for (const o of occs) for (const c of (o.occurrences || [])) {
+    if (!listers.has(c)) listers.set(c, new Set());
+    listers.get(c).add(o.id);
+  }
+
+  // A subtree walk that takes every descendant is WRONG on this grid, because
+  // multi-parenting is load-bearing: `0068` made the Emotions Wheel ONE
+  // occurrence listed by every day column, and the Schedule shares one slot
+  // across columns. Deleting a doomed column's descendant would then delete a
+  // row the SURVIVING column still lists.
+  //
+  // So a child listed by any parent OUTSIDE the doomed set is SPARED, and a
+  // spared node keeps its own subtree - the `0080`/`0081` rule, which had to be
+  // learned twice. It is unlinked from the doomed parent instead.
+  //
+  // ADDED AFTER THE FIRST RUN, and it could not have changed that run's
+  // outcome: the dump shows all 8 deleted rows with a `parentId` inside the
+  // duplicate and no second lister. Stated rather than implied.
+  const subtree = (rootId, doomedRoots) => {
+    const out = [], seen = new Set(), spared = [];
+    (function walk(id, d, isRoot) {
       if (!id || seen.has(id) || d > 8) return;
       seen.add(id);
       const o = byId[id];
       if (!o) return;
+      if (!isRoot) {
+        const others = [...(listers.get(id) || [])].filter((p) => !seen.has(p) && !doomedRoots.has(p));
+        if (others.length) { spared.push({ id, by: others }); return; }
+      }
       out.push(o);
-      for (const c of (o.occurrences || [])) walk(c, d + 1);
-    })(rootId, 0);
-    return out;
+      for (const c of (o.occurrences || [])) walk(c, d + 1, false);
+    })(rootId, 0, true);
+    return { out, spared };
   };
 
   const doomed = [];
   for (const [key, members] of dupes) {
+    const doomedRoots = new Set(members.map((x) => x.id));
     const scored = members.map((mm) => {
-      const nodes = subtree(mm.id);
-      return { occ: mm, nodes, chars: nodes.reduce((a, n) => a + textOf(n.textmap).length, 0) };
+      const { out: nodes, spared } = subtree(mm.id, doomedRoots);
+      return { occ: mm, nodes, spared, chars: nodes.reduce((a, n) => a + textOf(n.textmap).length, 0) };
     });
     const withText = scored.filter((s) => s.chars > 0);
     log("  " + key + " - " + members.length + " siblings: " +
@@ -102,7 +127,10 @@ export async function up({ gridId, dryRun = true, log = console.log } = {}) {
     if (withText.length > 1) { log("     REFUSING - " + withText.length + " hold user text"); continue; }
     const keep = withText[0] ||
       scored.slice().sort((a, b) => new Date(a.occ.createdAt) - new Date(b.occ.createdAt))[0];
-    for (const s of scored) if (s.occ.id !== keep.occ.id) doomed.push(s);
+    for (const s of scored) if (s.occ.id !== keep.occ.id) {
+      doomed.push(s);
+      for (const sp of s.spared) log("     SPARING " + sp.id.slice(0, 8) + " - also listed by " + sp.by.length + " other parent(s)");
+    }
     log("     keep " + keep.occ.id.slice(0, 8) + (keep.chars ? " (holds the text)" : " (earliest)") +
       " - removing " + (scored.length - 1));
   }
