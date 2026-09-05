@@ -950,7 +950,24 @@ function InstanceInner({
                 className="instance-label"
                 onDoubleClick={(e) => { e.stopPropagation(); startLabelEdit(); }}
                 style={{
-                  flex: "0 1 auto",
+                  // `0 0 auto` — NEVER SHRINK. This box is an item in a COLUMN
+                  // flex (`.instance-textcol`), so `flex-shrink` acts on its
+                  // HEIGHT, not its width. It was `0 1 auto`, and the comment
+                  // below reasons entirely about WIDTH — which is the cross
+                  // axis here and is governed by `minWidth: 0` and the max-width
+                  // cap, not by shrink. So the shrink was doing nothing anyone
+                  // intended and one thing nobody did: on a tile whose fields
+                  // overflow its 200px cap, flex took the squeeze out of the
+                  // TITLE. Measured on prod: `Vitamins & Minerals` rendered its
+                  // label 10px tall against a 25.5px line-height — the top
+                  // third of the glyphs, which reads as the title being covered
+                  // by the fields (user, 2026-09-05). `Workout Log` was at 21.
+                  //
+                  // The fields are the scroller and already absorb it
+                  // (`overflow-y: auto`, 439px of content in 180px). A/B'd live:
+                  // 10 -> 26 and 21 -> 26, while the four tiles that fit stayed
+                  // at 26 and no tile's height moved.
+                  flex: "0 0 auto",
                   minWidth: 0,
                   // WITHOUT THIS CAP THE LABEL SIZES TO ITS TEXT AND NOTHING
                   // EVER MARQUEES. This box is a fit-content item in a COLUMN
