@@ -13,6 +13,7 @@
 // ============================================================
 
 import { BlockType } from "./blockTypes";
+import { monthLabelOf } from "./dateVars";
 import { evaluateBlock } from "./blockEvaluator";
 import { applyAggregation } from "./CalculationHelpers";
 import { resolveExpr, evalGroup, extractFieldValuesFiltered, executeActionItem, resolveRecordPath, evalRuleWithLeftValue, evalGroupAgainstRecord } from "./operationActions";
@@ -1890,6 +1891,10 @@ export function executePipeline(operation, context, transaction, extraVars, exte
         $activePeriodCount: periodDatesOrToday.length,
         $activeDateLabel: d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
         $activeDayOfWeek: d.toLocaleDateString("en-US", { weekday: "long" }),
+        // The MONTH the filter is showing, for a tracker whose window is a
+        // month rather than a day. Without it such a tile could only fall back
+        // to the literal "Total" (user, 2026-09-05).
+        $activeMonthLabel: monthLabelOf(d),
         $activeDateRelativeLabel: _relLabel,
         $activeDatePossessive: _possessive,
       };

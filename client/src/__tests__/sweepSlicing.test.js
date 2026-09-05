@@ -17,6 +17,9 @@
 // that quietly changed one op's output would be invisible to every other suite
 // here, because they all drive the sync path.
 import { describe, it, expect, beforeAll, vi } from "vitest";
+import { stripDayColumns } from "./freshDay";
+
+let strippedColumns = 0;
 import { readFileSync } from "node:fs";
 import { brotliDecompressSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
@@ -42,6 +45,12 @@ function buildCtx() {
   const fieldsById = Object.fromEntries(fx.fields.map(f => [f.id, f]));
   const modulesById = Object.fromEntries(fx.modules.map(m => [m.id, m]));
   const occurrencesById = Object.fromEntries(fx.occurrences.map(o => [o.id, structuredClone(o)]));
+  // THE SWEEP MUST HAVE A DAY TO BUILD. Without this every assertion below
+  // about what the sweep CREATES — and about it consulting the pinned
+  // `Math.random` — depends on whether the fixture happened to be exported
+  // before that morning's build ran. It did not on 2026-09-05, and three
+  // assertions went red that were passing by accident. See ./freshDay.
+  strippedColumns = stripDayColumns(occurrencesById, Object.values(fieldsById));
   const operationsById = Object.fromEntries(operations.map(o => [o.id, o]));
   const state = {
     grid: fx.grid, gridId: fx.grid?._id,
@@ -86,6 +95,9 @@ describe("the two drivers agree", () => {
     expect(slicedEmitters.length).toBeGreaterThan(20);
     // and the pin is load-bearing rather than decorative — the sweep really
     // does consult it, so removing it would make this suite flaky, not stricter.
+    // the strip is part of the control: a strip that matched nothing leaves
+    // this suite exactly as fragile as it was before.
+    expect(strippedColumns, "no day column was stripped — the fixture shape changed").toBeGreaterThan(0);
     expect(rnd.mock.calls.length).toBeGreaterThan(0);
     rnd.mockRestore();
   });

@@ -16,6 +16,9 @@
 // local reimplementation would test a rule the wire does not use, and the whole
 // point is to measure exactly what ships.
 import { describe, it, expect, beforeAll, vi } from "vitest";
+import { stripDayColumns } from "./freshDay";
+
+let strippedColumns = 0;
 import { readFileSync, writeFileSync } from "node:fs";
 import { brotliDecompressSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
@@ -42,6 +45,12 @@ function buildCtx(occList, modList) {
   const fieldsById = Object.fromEntries(fx.fields.map((f) => [f.id, f]));
   const modulesById = Object.fromEntries(modList.map((m) => [m.id, m]));
   const occurrencesById = Object.fromEntries(occList.map((o) => [o.id, structuredClone(o)]));
+  // THE SWEEP MUST HAVE A DAY TO BUILD. Without this every assertion below
+  // about what the sweep CREATES — and about it consulting the pinned
+  // `Math.random` — depends on whether the fixture happened to be exported
+  // before that morning's build ran. It did not on 2026-09-05, and three
+  // assertions went red that were passing by accident. See ./freshDay.
+  strippedColumns = stripDayColumns(occurrencesById, Object.values(fieldsById));
   const operationsById = Object.fromEntries(operations.map((o) => [o.id, o]));
   const state = {
     grid: fx.grid, gridId: fx.grid?._id,
@@ -180,6 +189,7 @@ describe("the sweep with and without the artifact catalogue", () => {
       { onSuccess: (name, e) => coreEmit.push(`${name}:${e.length}`) });
     expect(fullEmit.length).toBeGreaterThan(20);
     expect(coreEmit.length).toBeGreaterThan(20);
+    expect(strippedColumns, "no day column was stripped — the fixture shape changed").toBeGreaterThan(0);
     expect(rnd.mock.calls.length).toBeGreaterThan(0);
     rnd.mockRestore();
   });
