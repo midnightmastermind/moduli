@@ -6,6 +6,84 @@
 
 ---
 
+### 2026-09-06 — A MONTH IN A DATE FIELD, and I broke Net Worth putting the accounts together
+
+Three asks, and two of them turned into defects I had shipped myself the day before.
+
+**"TRACKER DATE FOR MONTHLY BILLS SAYS INVALID DATE - 0D OVERDUE."** The stored value was
+`"September 2026"` — in a field of type **date**. My own `0291` put it there, moving the tile off
+`Tracker Scope` (TEXT, which held "Total") without noticing the type it was landing on.
+
+**AND THE STRING THEY SAW IS ENGINE-SPECIFIC, which is why it read as broken rather than merely
+wrong.** `new Date("September 2026")` PARSES in V8 — to Sept 1 — so on Chrome that tile says
+`Sep 1 · 5d overdue`. Firefox, which this user runs, refuses it:
+```
+Firefox   Invalid Date  ->  "Invalid Date · 0d overdue"
+Chrome    Sept 1        ->  "Sep 1 · 5d overdue"
+```
+Two engines, two confident wrong answers, one cause. **The renderer half is a real defect on its
+own:** `dayDiffFromToday` correctly answers `null`, and the display branch never checked — `null`
+falls through EVERY comparison (`null > 0` is false) into `Math.abs(null)`, which is **0**. So a
+value nobody could parse rendered as a precise claim about how overdue it was.
+
+**"PUT ALL THE ACCOUNTS ON ONE TRACKER TILE" — and the reason that looked impossible to me is the
+finding: THOSE FOUR TILES ARE NOT ONLY TILES.** Eleven stored transactions on Track / Earn / Pay
+Bill / Reconcile carry those exact occurrence ids in their `Account` field, and the dropdown lists
+them by walking ancestors to the Trackers page. Each row is the account's IDENTITY; the tile is
+only what it happens to display. I put that fork to the user and they cut through it —
+*"just all ghe account fields on one tile, idk why that isnt possible"* — and they were right: the
+FIELDS move, the identities stay.
+
+**SO I REUSED ONE OF THE FOUR AS THE SHARED TILE, AND THAT WAS WRONG TWICE.** Their *"1 occurance"*
+meant a new row, not one of the four:
+- **the account lost its NAME** — the Account dropdown started offering "Accounts" where "Checking
+  Account" used to be;
+- **Net Worth silently went 144.30 -> 4.16.** It sums by `$item.templateId`, one rule per account
+  MODULE, so once all four balances sat on the Checking module only the Checking rule matched.
+  Nothing errored. `moneySemantics`, written that morning, is the only reason I know.
+
+**AND THE REPAIR HAD THE SAME CLASS OF BUG ONE LEVEL DOWN.** `0311` repointed Net Worth by
+collecting module ids from rows carrying `meta.cumulative` — **a marker `0310` had already stripped
+off the row it was rebuilding.** A selector keyed on state that the migration before it had changed.
+It left the Checking term naming an empty row and logged *"repointed: yes"* because the other two
+moved. `0312` keys on the thing that cannot drift: a term that ADDS `Checking Balance` must gate on
+the row that HOLDS `Checking Balance`, and that has exactly one answer in the data. *A migration
+that reads a marker its predecessor writes is reading a moving target.*
+
+Two duplicate homes went with it — `Spent` displayed on both the Spent tile and Checking Account,
+`Earned` on both Income and Savings Account. That is the `0305` class, missed there because these
+were hiding behind an ACCOUNT label rather than a duplicate one.
+
+**READ BACK OUT OF MONGO, NOT OFF THE LOG:** one tile carrying Checking 4.16 · Savings 123.14 ·
+Mom's 0 · Cash 17 · Tracker Date; **11 stored Account picks, 0 dangling**; one visible home per
+number across all seven money fields; Net Worth summing `4.16 + 123.14 + 17`.
+
+**AND THE FIELD PICKER WAS A SECOND POPUP I HAD BUILT BESIDE AN EXISTING ONE.** User: *"the menu to
+add a field to a new occurance ... should have the same field picker as the quick add menu, not some
+new popup."* The add-an-option flow asked one field at a time through the GET_USER_INPUT modal while
+the quick-add menu already had a searchable, three-section, tick-and-type panel. **The pair had
+already started to drift**: the modal chain offered only fields the SIBLINGS bind, so a field the row
+could legitimately carry but no sibling used was unreachable. `ui/FieldPickerPanel.jsx` is that panel
+lifted out unchanged and rendered by both; `ui/FieldPickerHost.jsx` opens it from a plain function.
+**It FAILS OPEN where `openConfirmList` refuses** — that one guards a heavy irreversible action;
+here the option already exists and the picker is an offer to say more about it, so the modal chain
+stays as the fallback rather than the declared fields being dropped.
+
+**Every A/B fails exactly its own cases:** undoing the date-field fix (1), undoing the one-tile
+consolidation (2), binding only the valued fields (1), dropping the unknown-id filter (1). Both
+label paths are driven through the REAL sweep over the live grid's own 74 enabled ops — the date
+lands in a date-shaped field, the month lands in the text one and NOT in the date one. 4132 client
+tests, lint 0 no-undef, deployed twice with the served chunks sha256-identical to the local build
+and a control present in each.
+
+**NOT VERIFIED, and it is the honest gap: nobody has looked at the Financial group or either picker
+in a browser.** The two period labels are blank in storage until the next sweep writes them — the
+tests prove the sweep does; no one has watched it. And the four account rows now render as
+near-empty rows carrying their name and "Total"; they cannot be removed (the transactions point at
+them) and the user has not said whether that bothers them.
+
+---
+
 ### 2026-09-04 (3) — MOSAIC PANELS SNAP; and the browser found two defects the 41 unit tests could not
 
 Continued the other account's session, which hit its limit at 16:30 having written the spec and the
