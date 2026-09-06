@@ -74,7 +74,11 @@ function findColumnCreates(node, fmtId, out = []) {
   if ((c?.type === "CREATE") && c?.fields && typeof c.fields === "object") {
     const v = c.fields[fmtId];
     const raw = typeof v === "string" ? v.replace(/^literal:/, "") : v;
-    if (raw === "day-col") out.push(c);
+    // Push and STOP. Recursing on descends into `node.config`, which carries
+    // the same `type` and matches again - so ONE step was reported as two.
+    // Harmless here (the second hit is the same object, set twice) but the
+    // count is what a reader trusts. Same double-walk as `0299`.
+    if (raw === "day-col") { out.push(c); return out; }
   }
   Object.values(node).forEach((v) => findColumnCreates(v, fmtId, out));
   return out;
