@@ -1,5 +1,21 @@
 // helpers/CommitHelpers.js
 import { operationsBridge } from "../state/bindSocketToStore";
+import { makeInputActivityHold } from "./inputActivityHold";
+
+// One instance per tab. Lazy so importing CommitHelpers in a test does not
+// install a timer, and so the bridge is read at CALL time — it is populated by
+// `bindSocketToStore` after this module is imported.
+let _fieldWriteHold = null;
+function fieldWriteHold() {
+  if (!_fieldWriteHold) {
+    _fieldWriteHold = makeInputActivityHold({
+      begin: () => operationsBridge.beginInteraction?.(),
+      end: () => operationsBridge.endInteraction?.(),
+      isDragging: () => typeof window !== "undefined" && !!window.__moduli_interacting,
+    });
+  }
+  return _fieldWriteHold;
+}
 import { safeEmit } from "./offlineQueue";
 import { beginAction, endAction, withAction } from "./actionScope";
 import { buildParentMap } from "./dragHitTesting";
@@ -409,6 +425,16 @@ function _updateOccurrence({ dispatch, socket, occurrence, emit = true, triggerF
     // to say that without a second write path. A single object still works and
     // behaves byte-identically.
     const triggers = Array.isArray(triggerField) ? triggerField : [triggerField];
+    // HOLD THE CASCADE WHILE THE USER IS STILL TAPPING. One `Completed` write
+    // fires a sweep measured at 570-690ms over the live grid's 74 pipelines, so
+    // ticking a second row while the first is still cascading leaves that tick
+    // waiting on one long synchronous task — reported as "a second to mark
+    // something complete if i just marked it on a diff occurance".
+    //
+    // It must be armed BEFORE the fire, or the first held fire escapes. Only
+    // arms from the SECOND rapid write, so a lone tick is unchanged; see
+    // helpers/inputActivityHold.js.
+    fieldWriteHold().noteWrite();
     for (const tf of triggers) {
       if (!tf?.fieldId) continue;
       operationsBridge.fireOperations?.("MeasureOp", {

@@ -36,6 +36,67 @@ function makeMocks() {
 // carrying the pick and its fills (helpers/prefillFromPick). Each changed field
 // still has to fire its own MeasureOp, because a tracker subscribes to a FIELD —
 // a filled Protein must move the day's Protein exactly as a typed one does.
+// ── The cascade hold is armed FROM THE WRITE PATH (2026-09-06) ─────────────
+//
+// User: "its taking a second to mark something complete if i just marked it on
+// a diff occurance". One `Completed` write fires a sweep measured at 570-690ms
+// over the live grid's 74 pipelines, so tick B's deferred paint waits on tick
+// A's one long synchronous task. `interactionHold` already defers this class of
+// fire — it was armed by DragProvider alone, so a tap got none of it.
+//
+// THE WIRING IS TWO LINES AT A SEAM `bindSocketToStore`'s own tests cannot
+// reach, which is exactly why the ORDER is asserted here instead: arming after
+// the fire would let the first held fire escape and change nothing.
+describe("updateOccurrence arms the cascade hold", () => {
+  const write = (dispatch, socket, id, order) => updateOccurrence({
+    dispatch, socket,
+    occurrence: { id, moduleId: "m1", fields: { fA: { value: 1 } } },
+    emit: true,
+    triggerField: { fieldId: "fA", value: 1, instanceId: "m1" },
+  });
+
+  test("a rapid SECOND write begins the interaction, and does it BEFORE firing", () => {
+    const { dispatch, socket } = makeMocks();
+    const order = [];
+    const prevFire = operationsBridge.fireOperations;
+    const prevBegin = operationsBridge.beginInteraction;
+    operationsBridge.fireOperations = () => order.push("fire");
+    operationsBridge.beginInteraction = () => order.push("begin");
+    try {
+      write(dispatch, socket, "o1");          // first — fires unheld
+      write(dispatch, socket, "o2");          // second, immediately after
+    } finally {
+      operationsBridge.fireOperations = prevFire;
+      operationsBridge.beginInteraction = prevBegin;
+    }
+    // The lone-write case is unchanged: nothing armed before the first fire.
+    expect(order[0]).toBe("fire");
+    // …and the burst arms before its own fire, not after it.
+    expect(order).toContain("begin");
+    expect(order.indexOf("begin")).toBeLessThan(order.lastIndexOf("fire"));
+  });
+
+  test("a write still fires when nothing is listening for the hold", () => {
+    // THE CONTROL. `beginInteraction` is null until `bindSocketToStore` runs;
+    // a write during that window must behave exactly as before rather than
+    // throwing on an absent bridge.
+    const { dispatch, socket } = makeMocks();
+    const fired = [];
+    const prevFire = operationsBridge.fireOperations;
+    const prevBegin = operationsBridge.beginInteraction;
+    operationsBridge.fireOperations = (t) => fired.push(t);
+    operationsBridge.beginInteraction = null;
+    try {
+      write(dispatch, socket, "o1");
+      write(dispatch, socket, "o2");
+    } finally {
+      operationsBridge.fireOperations = prevFire;
+      operationsBridge.beginInteraction = prevBegin;
+    }
+    expect(fired).toEqual(["MeasureOp", "MeasureOp"]);
+  });
+});
+
 describe("updateOccurrence triggerField", () => {
   test("an ARRAY fires one MeasureOp per field, on a single write", () => {
     const { dispatch, socket } = makeMocks();
