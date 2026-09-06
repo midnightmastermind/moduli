@@ -457,11 +457,30 @@ describe("every tracker tile shows a number something writes", () => {
   //                    the same treatment.
   //
   //   the other four   a tile binding a metric another tile already owns, with
-  //                    no narrower scope of its own — steps are steps. Unlike
-  //                    the five given dimension-scoped trackers on 2026-09-05,
-  //                    "scope it to its own tile" does not translate here, so
-  //                    they are either mirrored or unbound, and that is a
-  //                    product decision.
+  //                    no narrower scope of its own — steps are steps.
+  //
+  //   ASKED AND MEASURED, 2026-09-06. The user chose "scope each to its own
+  //   tile" — the same call as the five on 2026-09-05 — and it does NOT
+  //   translate here, which is why these stay listed. `0290` derives the scope
+  //   from the parent's `Today's <Dimension>` label and checks it against the
+  //   `Tags` values actually in use. Against these four:
+  //
+  //     Fitness Stats :: Daily Steps     Today's Physical      — but "Steps",
+  //     Reading Stats :: Pages Read      Today's Intellectual    which already
+  //                                                              writes it, is
+  //       under the SAME parent, so the derived tag is identical and the new
+  //       tracker would compute the very duplicate the user rejected.
+  //
+  //     Liquid Intake :: Daily Water     Today's Nutrition     — "nutrition"
+  //     Workout Log :: Total Workouts    Today's Workout         and "workout"
+  //       are NOT among the live Tags values (physical 98, intellectual 15,
+  //       emotional 12 … neither appears at all), so the gate would sum
+  //       nothing and the tile would read 0 rather than blank — worse, because
+  //       a wrong number reads as a real one.
+  //
+  //   So the remaining choice is genuinely mirror-or-unbind, and it needs a
+  //   discriminator that is not the dimension. Do not mint dimension-scoped
+  //   trackers for these.
   it("no tracker tile binds a display field the sweep never writes", () => {
     expect(unwritten).toEqual([
       "Fitness Stats :: Daily Steps",
