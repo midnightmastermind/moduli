@@ -1866,6 +1866,43 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // Fires held for the duration of a DRAG (not just the drop) — the queue, its
   // dedupe key and its fail-safe cap live in helpers/interactionHold.js, with
   // the measurement that motivated them.
+  // ── A TICK'S SWEEP MAY BE SLICED SO A CLICK CAN LAND BETWEEN OPS ────────
+  //
+  // User, 2026-09-06: *"i click on the first complete, then try to mark 3
+  // others and it lags and doesnt actually set them complete for like 3
+  // seconds"*, and *"i at least just want the input to update right when i
+  // click it"*.
+  //
+  // Measured on the live grid, read-only: long tasks of **633ms**, and a 0ms
+  // timer delayed by **514ms** while one runs. That is why no handler-level fix
+  // works — while the thread is inside a sweep the click cannot be DISPATCHED,
+  // so `Field.handleChange`'s `setLocalValue` never runs and the switch cannot
+  // paint. Four ticks queue four sweeps, which is the reported ~3 seconds.
+  //
+  // Deferring the work was tried and REVERTED the same morning ("it feels worse
+  // now"): it moved the block rather than removing it, and released it in one
+  // lump right when the user stopped. The work has to become INTERRUPTIBLE.
+  //
+  // `runMatchingOperationsSliced` already does that — one generator body, two
+  // drivers, equivalence-tested against the synchronous one over the live
+  // grid's own pipelines (2026-09-03 (2)), and already driving the load sweep.
+  // This points a TICK's deferred continuation at it too.
+  //
+  // OFF-SWITCH WITHOUT A DEPLOY: `window.__noTickSlice = true`, or
+  // `?tickSlice=off`. Same posture as `?effectSlice=` — a perf change to the
+  // shared execute path must be revertible by the person feeling it.
+  const SLICE_BUDGET_MS = 32;
+  const _tickSliceOff = () => {
+    if (typeof window === "undefined") return true;
+    if (window.__noTickSlice) return true;
+    try { return new URLSearchParams(window.location.search).get("tickSlice") === "off"; }
+    catch { return false; }
+  };
+  // Set for exactly one `_fireOperationsInner` call, by the continuation that
+  // wants slicing. Identity-matched on the transaction so a nested fire during
+  // the sweep can never pick it up by accident.
+  let _slicedSweep = null;
+
   const _interactionHold = makeInteractionHold({
     onCap: (held) => drainFires(held, { label: "drag-hold-cap" }),
   });
@@ -2040,8 +2077,33 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // MeasureOp/OccurrenceCreateOp) must NOT consult it or they'd be wrongly
     // skipped when an already-fired op legitimately re-runs under a new trigger.
     const cascadeFiredOps = _fireDepth === 1 ? _navCascadeFiredOps : null;
-    const allUpdates = runMatchingOperations(operations, transactionType, transaction, { state, fieldsById: _cachedFieldsById, operationsById: _cachedOperationsById, occurrencesById, modulesById: _cachedModulesById, cascadeFiredOps },
-      makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById: _cachedFieldsById, occurrencesById, modulesById: _cachedModulesById })));
+    const sweepCtx = { state, fieldsById: _cachedFieldsById, operationsById: _cachedOperationsById, occurrencesById, modulesById: _cachedModulesById, cascadeFiredOps };
+    const sweepCbs = makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById: _cachedFieldsById, occurrencesById, modulesById: _cachedModulesById }));
+
+    // ── THE SWEEP MAY YIELD, AND EVERYTHING AFTER IT IS SHARED ─────────────
+    // Split so a SLICED sweep can reuse the application half verbatim. Writing
+    // a second copy of it is how the two drift — and this half carries the
+    // cycle guard, the per-effect try/catch and the computed-value dispatch,
+    // every one of which was added for a defect this file records.
+    if (_slicedSweep && _slicedSweep.type === transactionType && _slicedSweep.tx === transaction) {
+      // CAPTURE THE WRAP. `run()` clears `_slicedSweep` in its own `finally`,
+      // which happens before the first yield resolves — reading it from the
+      // continuation threw `Cannot read properties of null`.
+      const wrap = _slicedSweep.wrap;
+      return { __sliced: runMatchingOperationsSliced(
+        operations, transactionType, transaction, sweepCtx, sweepCbs,
+        { budgetMs: SLICE_BUDGET_MS, wrap },
+      ).then((ups) => wrap(() => _applyFireUpdates(ups, { state, transactionType, occurrencesById, tFire0: _tFire0, diagDepth: _diagDepth }))) };
+    }
+    return _applyFireUpdates(
+      runMatchingOperations(operations, transactionType, transaction, sweepCtx, sweepCbs),
+      { state, transactionType, occurrencesById, tFire0: _tFire0, diagDepth: _diagDepth });
+  }
+
+  // Everything that happens to a sweep's updates. Called by BOTH drivers.
+  function _applyFireUpdates(allUpdates, { state, transactionType, occurrencesById, tFire0, diagDepth }) {
+    const _tFire0 = tFire0;
+    const _diagDepth = diagDepth;
 
     // Separate display updates (computedValues) from real CRUD effects
     const displayUpdates = allUpdates.filter(u => !u._effect);
@@ -2215,16 +2277,45 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         // Released BEFORE the fire, so a write made during the sweep opens a
         // fresh deferral rather than merging into one already running.
         if (coalesceKey) _pendingMeasure.delete(coalesceKey);
-        const prev = _fireDepth;
-        _fireDepth = savedDepth;
-        const releaseApplying = markOpsApplying(savedApplying);
-        try {
-          runInAction(captured, () => fireOperations(transactionType, entry.transaction, options));
-        } finally {
-          releaseApplying();
-          _fireDepth = prev;
+
+        // The scope this fire must run under, restored around EVERY slice.
+        // `runMatchingOperationsSliced` calls `wrap` per slice for exactly this
+        // reason: depth, action and the applying-ops set are all restored
+        // synchronously around a fire, so work resumed after a yield would
+        // otherwise run at depth 0, outside the undo action, and with the cycle
+        // guard released — the three things the carry-across above exists for.
+        const atDepth = (d) => (fn) => {
+          const prev = _fireDepth;
+          _fireDepth = d;
+          const releaseApplying = markOpsApplying(savedApplying);
+          try { return runInAction(captured, fn); }
+          finally { releaseApplying(); _fireDepth = prev; }
+        };
+        // Entering `fireOperations` restores the depth the synchronous path
+        // enters at; the wrapper then increments it. Resumed slices and the
+        // effect application must therefore restore savedDepth + 1 — the depth
+        // the sweep and its application ACTUALLY run at synchronously.
+        // Restoring savedDepth there instead would quietly lower every nested
+        // fire by one, and `_FIRE_DEPTH_LIMIT` and the depth-1 cascade dedup
+        // both key on it.
+        const inScope = atDepth(savedDepth);
+        const inSweep = atDepth(savedDepth + 1);
+
+        if (!_tickSliceOff()) {
+          _slicedSweep = { type: transactionType, tx: entry.transaction, wrap: inSweep };
+          let out;
+          try { out = inScope(() => fireOperations(transactionType, entry.transaction, options)); }
+          finally { _slicedSweep = null; }
+          // The action stays open until the sliced sweep AND its application
+          // have finished, or the buffer flushes early and the tail becomes a
+          // second undo step.
+          if (out && out.__sliced) { out.__sliced.finally(() => releaseAction(captured)); return; }
           releaseAction(captured);
+          return;
         }
+
+        try { inScope(() => fireOperations(transactionType, entry.transaction, options)); }
+        finally { releaseAction(captured); }
       };
       // ── THE HOLD HAS TO INTERCEPT *HERE*, NOT IN `fireOperations` ─────────
       // A nested write's continuation restores `_fireDepth = savedDepth`, and

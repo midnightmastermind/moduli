@@ -30,6 +30,16 @@ vi.mock("../helpers/operationExecutor", async (importOriginal) => {
       }
       return actual.runMatchingOperations(ops, transactionType, ...rest);
     },
+    // A tick's deferred continuation drives the SLICED sweep (2026-09-06), which
+    // runs the generator directly and so bypassed the wrapper above — `fired`
+    // stayed empty and these tests failed while the code was correct. Observing
+    // both drivers keeps them honest whichever one a fire takes.
+    runMatchingOperationsSliced: async (ops, transactionType, ...rest) => {
+      fired.push(transactionType);
+      seenCtx.push(rest[1]);
+      if (reFire.on) reFire.fn?.();
+      return actual.runMatchingOperationsSliced(ops, transactionType, ...rest);
+    },
   };
 });
 import { byIdCached, bindSocketToStore, operationsBridge } from "../state/bindSocketToStore";
