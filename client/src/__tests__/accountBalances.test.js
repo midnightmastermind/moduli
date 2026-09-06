@@ -158,6 +158,64 @@ describe("transfers between accounts", () => {
   });
 });
 
+describe("purchase history", () => {
+  // `Purchase History` was never broken — it fires cleanly and writes. What it
+  // wrote was `label: "$inst.label"`, so every row read **"Spend"** and
+  // `Last Purchase` was the word "Spend" forever. `0301` names the row by what
+  // was bought, the way Workout History has always named its movement.
+  const buy = (w, amount = 35) => {
+    const fid = (n) => w.fx.fields.find((f) => f.name === n)?.id;
+    const lbl = (o) => o.label || w.modulesById[o.moduleId]?.label;
+    const bc = fid("Board Category");
+    const item = w.fx.occurrences.find((o) => {
+      const v = o.fields?.[bc]?.value;
+      const arr = Array.isArray(v) ? v : (v ? [v] : []);
+      return lbl(o) && arr.some((t) => ["grocery", "wishlist", "ingredient"].includes(t));
+    });
+    expect(item, "no option in the Purchase Item pool to buy").toBeTruthy();
+    const row = logSpend(w, { account: "Checking Account" });
+    row.fields[fid("Amount")] = { value: amount, flow: "out" };
+    row.fields[fid("Purchase Item")] = { value: [item.id], flow: "in" };
+    return lbl(item);
+  };
+
+  const purchases = (w) => {
+    const ids = Object.fromEntries(w.fx.fields
+      .filter((f) => ["Purchases", "Last Purchase"].includes(f.name)).map((f) => [f.id, f.name]));
+    const ops = w.fx.operations.filter((o) => o.enabled !== false);
+    const grid = w.fx.grid;
+    const updates = runMatchingOperations(ops, null, null, {
+      state: { grid, gridId: grid?._id, fields: w.fx.fields, modules: w.fx.modules,
+               occurrencesById: w.occurrencesById, modulesById: w.modulesById,
+               fieldsById: w.fieldsById, operationsById: w.opsById, operations: ops },
+      fieldsById: w.fieldsById, operationsById: w.opsById,
+      occurrencesById: w.occurrencesById, modulesById: w.modulesById,
+    }, { onError: () => {}, onSuccess: () => {} }) || [];
+    const out = {};
+    for (const e of updates) {
+      const n = ids[e.fieldId || e.payload?.fieldId];
+      if (n) out[n] = e.value ?? e.payload?.value;
+    }
+    return out;
+  };
+
+  it("records nothing when nothing was bought", () => {
+    // CONTROL: an empty list is the honest baseline here, and it is only
+    // meaningful beside the test below that fills it.
+    expect(purchases(world())["Purchases"]).toEqual([]);
+  });
+
+  it("names the row by what was bought, not by the routine", () => {
+    const w = world();
+    const bought = buy(w);
+    const got = purchases(w);
+    expect(got["Purchases"], "no purchase was recorded").toHaveLength(1);
+    expect(got["Purchases"][0].label, 'the row is still labelled by the routine ("Spend")').toBe(bought);
+    expect(got["Purchases"][0].amount).toBe(35);
+    expect(got["Last Purchase"]).toBe(bought);
+  });
+});
+
 describe("account balances", () => {
   it("every balance op still writes a number", () => {
     const got = sweep(world());
