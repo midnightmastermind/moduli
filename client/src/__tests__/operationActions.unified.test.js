@@ -448,6 +448,37 @@ describe("CREATE action", () => {
     expect($vars.$allItems).toHaveLength(1);
   });
 
+  // ── Declaring the created node unique under its parent (2026-09-06) ──────
+  //
+  // A pipeline guards its create with a FIND over the client's OWN payload, so
+  // a create that has not persisted before the next sweep builds its payload is
+  // invisible and a second one is made. Only the server can refuse that, and
+  // `refusedDuplicateCreates` keys on `identitySignature` + `meta.signatureUnique`
+  // — BOTH, on the occurrence. Before this, a plain CREATE could set neither.
+  it("carries the declared identitySignature AND the uniqueness flag onto the occurrence", () => {
+    const $vars = { $allTemplates: [], $allItems: [], $day: "2026-09-06" };
+    const updates = executeActionItem("CREATE", {
+      name: "Schedule - Sunday",
+      identitySignature: "schedule:col:${$day}",
+    }, $vars, makeContext());
+
+    // Interpolated, not stored literally — a bare `schedule:col` would refuse
+    // tomorrow's column as a duplicate of today's.
+    expect(updates[0].instance.identitySignature).toBe("schedule:col:2026-09-06");
+    // The flag rides in META: `meta` is Mixed, and an undeclared top-level key
+    // is stripped by Mongoose strict mode.
+    expect(updates[0].instance.meta?.signatureUnique).toBe(true);
+  });
+
+  it("a create that declares no signature is unchanged", () => {
+    // THE CONTROL. Every other CREATE on the grid must be byte-identical, or
+    // this quietly opts hundreds of creates into a server-side refusal.
+    const $vars = { $allTemplates: [], $allItems: [] };
+    const updates = executeActionItem("CREATE", { name: "Due" }, $vars, makeContext());
+    expect(updates[0].instance.identitySignature).toBeUndefined();
+    expect(updates[0].instance.meta).toBeUndefined();
+  });
+
   it("reuses an existing template when one matches by label", () => {
     const existing = { id: "tpl_existing", label: "Due", role: "container", kind: "board" };
     const $vars = { $allTemplates: [existing], $allItems: [] };

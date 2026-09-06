@@ -1815,6 +1815,27 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       if (cfg.itemIdVar) $vars[cfg.itemIdVar] = instanceId;
       if (cfg.itemVar) $vars[cfg.itemVar] = instance;
 
+      // ── THE CALLER MAY DECLARE THIS NODE UNIQUE UNDER ITS PARENT ────────
+      //
+      // Mirrors `rootSignature` on APPLY_TEMPLATE, and for the same reason:
+      // a pipeline guards its create with a FIND over the client's OWN
+      // payload, and when a create has not persisted before the next sweep
+      // builds its payload that FIND correctly sees nothing and creates a
+      // second one. A pipeline cannot defend against that, because its input
+      // IS the payload — only the server knows what exists.
+      //
+      // Naming a signature ON A CREATE *is* declaring it to be this node's
+      // identity here, so `signatureUnique` follows from it rather than being
+      // a second key to remember. It rides in META, not at the top level:
+      // `meta` is Mixed, and an undeclared top-level key is stripped by
+      // Mongoose strict mode — the class that left `Operation.priority` inert
+      // for months.
+      //
+      // A create that declares nothing is byte-identical to before.
+      const identitySignature = cfg.identitySignature
+        ? (resolveExpr(cfg.identitySignature, $vars) ?? cfg.identitySignature)
+        : null;
+
       updates.push({
         _effect: "CREATE_ITEM",
         template: templateRecord,
@@ -1824,6 +1845,7 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
           parentId,
           fields,
           textmap,
+          ...(identitySignature ? { identitySignature, meta: { signatureUnique: true } } : {}),
           ...(filterOverride ? { filterOverride } : {}),
           insertAtIndex: typeof cfg.insertAtIndex === "number" ? cfg.insertAtIndex : null,
         },
