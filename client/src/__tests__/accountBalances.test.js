@@ -111,6 +111,53 @@ function logSpend(w, { account } = {}) {
   return clone;
 }
 
+// A transfer is ONE row that moves money out of one account and into another.
+// The out-leg needs no new machinery — the outflow loop already subtracts an
+// Amount from the account it is tagged to — so what `0299` added is the
+// arrival: a loop keyed on `To Account`. These assert the pair moves in
+// opposite directions and that Net Worth, being the sum of the accounts, does
+// not move at all.
+function logTransfer(w, { from, to, amount = 100 }) {
+  const fid = (n) => w.fx.fields.find((f) => f.name === n)?.id;
+  const row = logSpend(w, { account: from });
+  row.fields[fid("Amount")] = { value: amount, flow: "out" };
+  const toTile = w.fx.occurrences.find(
+    (o) => (o.label || w.modulesById[o.moduleId]?.label) === to);
+  expect(toTile, `no "${to}" tile`).toBeTruthy();
+  row.fields[fid("To Account")] = { value: toTile.id, flow: "in" };
+  return row;
+}
+
+describe("transfers between accounts", () => {
+  it("moves money out of one account and into the other", () => {
+    const w = world();
+    logTransfer(w, { from: "Checking Account", to: "Savings Account", amount: 100 });
+    const got = sweep(w);
+    expect(got["Checking Balance"], "the transfer did not leave Checking").toBe(-100);
+    expect(got["Savings Balance"], "the transfer did not arrive in Savings").toBe(100);
+  });
+
+  it("leaves Net Worth alone — it is the sum of the accounts", () => {
+    const w = world();
+    logTransfer(w, { from: "Checking Account", to: "Savings Account", amount: 100 });
+    // Nothing special-cases a transfer here: -100 and +100 net to zero because
+    // Net Worth adds the balances up (0288). If this ever fails, Net Worth has
+    // stopped being a sum.
+    expect(sweep(w)["Net Worth"]).toBe(0);
+  });
+
+  it("a spend is NOT a transfer — no destination, no arrival", () => {
+    const w = world();
+    // The CONTROL. Without it, "the arrival works" would also be satisfied by
+    // an in-leg that admits every untagged row: the gate on `To Account` is
+    // strict precisely so an ordinary spend cannot read as money arriving.
+    logSpend(w, { account: "Checking Account" });
+    const got = sweep(w);
+    expect(got["Checking Balance"]).toBe(-50);
+    expect(got["Savings Balance"], "an ordinary spend arrived somewhere").toBe(0);
+  });
+});
+
 describe("account balances", () => {
   it("every balance op still writes a number", () => {
     const got = sweep(world());
