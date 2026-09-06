@@ -58,6 +58,7 @@ const { registerOccurrenceHandlers } = await import("../socketHandlers/occurrenc
 
 const DATE = "Eh7oi4HKdbHB";      // poms grid's one filter field
 const DONE = "tZWiPDQUDP74";      // "Completed" — shared state, SHOULD fan out
+const SLOT = "field-time-slot";   // stamped from the destination — per-placement
 
 describe("update_occurrence fan-out across a copy-link group", () => {
   let handlers, uc, socket;
@@ -73,7 +74,8 @@ describe("update_occurrence fan-out across a copy-link group", () => {
     const mk = (id, date) => ({
       _id: id, id, userId: "u1", gridId: "g1", moduleId: "mod-todo",
       linkedGroupId: "lg-todo", occurrences: [],
-      fields: { [DATE]: { value: date, flow: "replace" } },
+      fields: { [DATE]: { value: date, flow: "replace" },
+                [SLOT]: { value: "Todo", flow: "replace" } },
     });
     for (const [id, d] of [["todo-src", "2026-08-26"], ["todo-aug26", "2026-08-26"], ["todo-aug29", "2026-08-29"]]) {
       db.occurrences.set(id, mk(id, d));
@@ -85,6 +87,9 @@ describe("update_occurrence fan-out across a copy-link group", () => {
       // What `state.js` derives from the grid document at load, so the write
       // path never queries for it.
       filterFieldIds: new Set([DATE]),
+      // What `state.js` derives from the stored PIPELINES: a field an operation
+      // stamps from the destination container is per-placement too.
+      placementFieldIds: new Set([SLOT]),
     };
     socket = {
       id: "s1", userId: "u1", data: { activeGridId: "g1" },
@@ -160,5 +165,37 @@ describe("update_occurrence fan-out across a copy-link group", () => {
     });
     expect(db.occurrences.get("todo-aug26").fields).toEqual(before);
     expect(val("todo-aug29", DATE)).toBe("2030-01-01");   // the sender still writes
+  });
+
+
+// ── The second kind of per-placement field (2026-09-06) ─────────────────────
+//
+// `Time Slot` decides which SLOT a row sits in — the filter fields' argument
+// one level down — and it was still being shared. All eight members of the
+// Todo group were nulled within five seconds at the day rollover, twice in one
+// day, because one member's write reached the rest INCLUDING the master, whose
+// value is its identity: `Schedule: Build Schedule` FINDs the Todo container BY
+// `fields.<Time Slot>.value IS "Todo"`.
+
+  it("does NOT fan a Time Slot write across the group", async () => {
+    await handlers.get("update_occurrence")[0]({
+      occurrence: { id: "todo-aug26", fields: { [SLOT]: { value: null, flow: "replace" } } },
+    });
+    // The master keeps its identity marker — the thing that was being erased.
+    expect(uc.occurrencesById["todo-src"].fields[SLOT].value).toBe("Todo");
+    expect(uc.occurrencesById["todo-aug29"].fields[SLOT].value).toBe("Todo");
+  });
+
+  it("still fans an ordinary field on the same write", async () => {
+    // THE CONTROL. Without it, "Time Slot does not fan" is also satisfied by a
+    // fan-out that has stopped working — which is the feature, not the fix.
+    await handlers.get("update_occurrence")[0]({
+      occurrence: { id: "todo-aug26", fields: {
+        [SLOT]: { value: null, flow: "replace" },
+        [DONE]: { value: true, flow: "replace" },
+      }},
+    });
+    expect(uc.occurrencesById["todo-src"].fields[SLOT].value).toBe("Todo");
+    expect(uc.occurrencesById["todo-src"].fields[DONE].value).toBe(true);
   });
 });

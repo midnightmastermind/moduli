@@ -1,6 +1,7 @@
 // server/utils/filterFields.js
 //
-// WHICH FIELDS THE GRID FILTERS ON, and what that means for a copy-link group.
+// WHICH FIELDS DESCRIBE A PLACEMENT RATHER THAN THE THING PLACED, and what
+// that means for a copy-link group.
 //
 // A field the grid FILTERS on decides WHERE a placement shows — on poms grid
 // that is `Date`, and it is what puts a row in one day column rather than
@@ -30,6 +31,24 @@
 // grid stating what it filters on. Nothing in this file learns what any
 // particular field means, which is the same rule `gridIntegrity` follows for
 // the check that catches the damage.
+//
+// ── AND THERE IS A SECOND KIND, ONE LEVEL DOWN ─────────────────────────────
+//
+// A filter field decides which COLUMN a placement is in. `Time Slot` decides
+// which SLOT it is in, and it was still being shared: on 2026-09-06 all eight
+// members of the Todo group were nulled within five seconds at the day
+// rollover, twice in one day, because one member's write fanned out to the
+// rest — including the master, whose value is its IDENTITY (`Schedule: Build
+// Schedule` FINDs the Todo container BY it).
+//
+// It is derived, not listed: **a field an operation stamps FROM the
+// destination container is a placement field by construction.** Measured
+// across poms grid's 78 pipelines, exactly one qualifies —
+//
+//     Time Slot  <-  $trigger.containerLabel   (Schedule: Stamp Date & Time Slot)
+//
+// — and a field added later that records where a row landed is protected
+// automatically, without anyone remembering to add it here.
 
 /** @returns {Set<string>} the field ids this grid filters on. */
 export function filterFieldIdsOf(grid) {
@@ -41,8 +60,44 @@ export function filterFieldIdsOf(grid) {
 }
 
 /**
- * `fields` with every filter field removed — what may be propagated to the
- * other members of a copy-link group.
+ * Field ids some operation stamps FROM the destination container.
+ *
+ * A value written from `$trigger.containerLabel` (or any other
+ * `$trigger.container*` / `$trigger.toContainer*` reference) records WHERE the
+ * row landed. That is a fact about the placement and cannot be true of two
+ * placements at once, so it must never fan out.
+ *
+ * Reads the stored pipelines — the grid stating what it stamps — so nothing
+ * here learns what "Time Slot" is.
+ *
+ * @param {Array} operations
+ * @returns {Set<string>}
+ */
+export function placementStampFieldIdsOf(operations) {
+  const ids = new Set();
+  const fromDestination = (v) => typeof v === "string"
+    && /^\$trigger\.(container|toContainer|destContainer)/.test(v);
+
+  const walk = (node) => {
+    if (!node || typeof node !== "object") return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    const cfg = node.config || node;
+    if (cfg?.type === "UPDATE" && typeof cfg.path === "string" && fromDestination(cfg.value)) {
+      const m = /fields\.([A-Za-z0-9_-]+)\.value$/.exec(cfg.path);
+      if (m) ids.add(m[1]);
+    }
+    Object.values(node).forEach(walk);
+  };
+  for (const op of operations || []) walk(op?.pipeline);
+  return ids;
+}
+
+/**
+ * `fields` with every per-placement field removed — what may be propagated to
+ * the other members of a copy-link group. Takes any number of sets so each
+ * source can be refreshed at its own chokepoint (grid filters on a grid write,
+ * destination stamps on an operation write) without either recomputing the
+ * other.
  *
  * FAILS OPEN, deliberately. With no known filter fields (a cache not yet
  * populated) this returns the fields unchanged, i.e. today's behaviour. The
@@ -53,12 +108,13 @@ export function filterFieldIdsOf(grid) {
  * Returns the ORIGINAL object when nothing was dropped, so the overwhelmingly
  * common write allocates nothing.
  */
-export function withoutFilterFields(fields, filterFieldIds) {
-  if (!fields || !filterFieldIds || filterFieldIds.size === 0) return fields;
+export function withoutPerPlacementFields(fields, ...sets) {
+  const live = (sets || []).filter((s) => s && s.size > 0);
+  if (!fields || !live.length) return fields;
   let dropped = false;
   const out = {};
   for (const key of Object.keys(fields)) {
-    if (filterFieldIds.has(key)) { dropped = true; continue; }
+    if (live.some((s) => s.has(key))) { dropped = true; continue; }
     out[key] = fields[key];
   }
   return dropped ? out : fields;

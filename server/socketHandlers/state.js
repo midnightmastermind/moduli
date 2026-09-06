@@ -2,7 +2,7 @@
 // Loads ALL data for the requested grid (grid-scoped cache).
 // No priority_state / lazy viewport traversal — everything ships in one emission.
 import Grid from "../models/Grid.js";
-import { filterFieldIdsOf } from "../utils/filterFields.js";
+import { filterFieldIdsOf, placementStampFieldIdsOf } from "../utils/filterFields.js";
 import { splitFullState } from "../utils/splitFullState.js";
 import { omitNullKeysAll } from "../utils/omitNullKeys.js";
 
@@ -100,6 +100,11 @@ export function registerStateHandlers(socket, {
       // query for it. Consumed by the copy-link fan-out, which must not
       // propagate a per-placement field across placements (utils/filterFields.js).
       uc.filterFieldIds = filterFieldIdsOf(gridDoc);
+      // ...and the fields an OPERATION stamps from the destination container,
+      // which are per-placement for the same reason one level down: `Time Slot`
+      // records which SLOT a row landed in. Derived from the stored pipelines
+      // (already in the cache), so the write path never pays a query either.
+      uc.placementFieldIds = placementStampFieldIdsOf(Object.values(uc.operationsById || {}));
 
       // NO TEMPLATES MANIFEST ANY MORE (2026-08-26). `0035` retired it: a
       // template is identified by LOCATION — the children of the one PROTECTED

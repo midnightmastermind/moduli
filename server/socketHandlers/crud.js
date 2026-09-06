@@ -1,6 +1,6 @@
 // socketHandlers/crud.js — CRUD for Grid, Module, Occurrence (simple), Field, Operation, Folder + genericCRUD
 import { setMaxListeners } from "node:events";
-import { filterFieldIdsOf } from "../utils/filterFields.js";
+import { filterFieldIdsOf, placementStampFieldIdsOf } from "../utils/filterFields.js";
 import { refusedDuplicateCreates } from "../utils/duplicateSignature.js";
 import { withoutMongoId } from "../utils/mongoId.js";
 import Grid from "../models/Grid.js";
@@ -684,6 +684,11 @@ export function registerCrudHandlers(socket, {
         meta: operation.meta || {},
       };
       uc.operationsById[id] = opData;
+      // A pipeline that stamps a field from the destination container makes
+      // that field per-placement, so the fan-out must stop sharing it. Refresh
+      // here rather than on every grid write: this is the only place the
+      // pipelines change. Never allowed to break the write it follows.
+      try { uc.placementFieldIds = placementStampFieldIdsOf(Object.values(uc.operationsById || {})); } catch { /* keep the previous set */ }
       await Operation.findOneAndUpdate({ id, userId }, opData, { upsert: true });
       socket.to(userRoom(userId)).emit("operation_created", { operation: opData });
     } catch (err) {
@@ -718,6 +723,11 @@ export function registerCrudHandlers(socket, {
 
       const next = { ...(uc.operationsById[id] || {}), ...operation, id, userId };
       uc.operationsById[id] = next;
+      // A pipeline that stamps a field from the destination container makes
+      // that field per-placement, so the fan-out must stop sharing it. Refresh
+      // here rather than on every grid write: this is the only place the
+      // pipelines change. Never allowed to break the write it follows.
+      try { uc.placementFieldIds = placementStampFieldIdsOf(Object.values(uc.operationsById || {})); } catch { /* keep the previous set */ }
       await Operation.findOneAndUpdate({ id, userId }, next, { upsert: true });
       // Broadcast to other sockets in the user room. Originator already has
       // the update applied locally (optimistic write before socket emit).

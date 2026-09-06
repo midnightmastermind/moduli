@@ -1,6 +1,6 @@
 // socketHandlers/occurrences.js — update_occurrence + break_link + request_textmap
 import { setMaxListeners } from "node:events";
-import { withoutFilterFields } from "../utils/filterFields.js";
+import { withoutPerPlacementFields } from "../utils/filterFields.js";
 import { withoutMongoId } from "../utils/mongoId.js";
 import { partitionChildRefs, resolveChildRefs } from "../utils/childRefGuard.js";
 import Occurrence from "../models/Occurrence.js";
@@ -447,7 +447,7 @@ export function registerOccurrenceHandlers(socket, {
         const linkedOccs = Object.values(uc.occurrencesById || {}).filter(
           o => o.linkedGroupId === next.linkedGroupId && o.id !== id
         );
-        const fanFields = withoutFilterFields(occurrence.fields, uc.filterFieldIds);
+        const fanFields = withoutPerPlacementFields(occurrence.fields, uc.filterFieldIds, uc.placementFieldIds);
         for (const linked of linkedOccs) {
           const patch = {};
           if (fanFields && Object.keys(fanFields).length > 0) {
