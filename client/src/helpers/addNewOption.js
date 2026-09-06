@@ -196,6 +196,49 @@ function coerceModalValue(f, raw) {
 const MAX_ADDED_FIELDS = 12;
 const DONE = "__done__";
 
+/**
+ * Write the fields a user ticked in the shared picker onto the created option.
+ *
+ * The picker's counterpart to `promptEntryFields`'s modal chain. It is the
+ * WRITE half only — the panel already asked — so it does one thing per ticked
+ * field: store the value and BIND it. A value with no binding is stored and
+ * renders nowhere, which is the half of `0047` that looks like the write
+ * silently failed.
+ *
+ * A ticked field with no value is still BOUND. That is the point of ticking it
+ * without typing: the row gains somewhere to put the number later.
+ */
+export function applyPickedFields({
+  picked, values, occurrenceId, fieldsById, ctx, dispatch, socket,
+}) {
+  const ids = (picked || []).filter((fid) => fieldsById?.[fid]);
+  if (!ids.length) return 0;
+
+  const occ = ctx?.occurrencesById?.[occurrenceId];
+  const written = {};
+  for (const fid of ids) {
+    const value = coerceModalValue(fieldsById[fid], values?.[fid]);
+    if (value === null) continue;
+    written[fid] = { value };
+    setOccurrenceFieldValue({
+      dispatch, socket,
+      occurrencesById: ctx?.occurrencesById || {},
+      occurrenceId, fieldId: fid, value,
+    });
+  }
+
+  // Bind EVERY ticked field, not only the ones that got a value.
+  ensureModuleBindingsForOccurrenceFields({
+    dispatch, socket,
+    occurrence: {
+      id: occurrenceId,
+      moduleId: occ?.moduleId,
+      fields: Object.fromEntries(ids.map((fid) => [fid, written[fid] || { value: null }])),
+    },
+  });
+  return ids.length;
+}
+
 export async function promptEntryFields({
   entryFieldIds, occurrenceId, fieldsById, ctx, dispatch, socket,
   parentOcc = null, allowAddFields = true,

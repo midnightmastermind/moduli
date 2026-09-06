@@ -41,7 +41,8 @@ import {
   calculateProgress,
 } from "../helpers/CalculationHelpers";
 import { setOccurrenceFieldValue, updateModule, updateField } from "../helpers/CommitHelpers";
-import { normalizeAddNewTargets, targetOptionsForAddNew, createOptionUnderParent, promptEntryFields } from "../helpers/addNewOption";
+import { normalizeAddNewTargets, targetOptionsForAddNew, createOptionUnderParent, promptEntryFields, applyPickedFields } from "../helpers/addNewOption";
+import { openFieldPicker } from "./FieldPickerHost";
 import { openImagePicker } from "./ImagePickerMenu";
 import { openAddressPicker } from "./AddressPickerMenu";
 import { readAddress, addressSummary } from "../helpers/geocode";
@@ -1243,14 +1244,37 @@ function Field({
     // is exactly what the user asked for (2026-09-06). `promptEntryFields`
     // returns immediately when there is nothing to declare AND nothing to
     // offer, so a dropdown with no candidates costs no modal.
-    promptEntryFields({
-      entryFieldIds: result.entryFieldIds,
-      occurrenceId: result.occurrenceId,
-      parentOcc,
+    // THE SAME PANEL THE QUICK-ADD MENU RENDERS (user, 2026-09-06: "should have
+    // the same field picker as the quick add menu, not some new popup"). The
+    // declared `addNew.fieldIds` arrive TICKED, so a dropdown that asks for two
+    // fields still asks for them — the difference is that every other field is
+    // now reachable in the same list instead of behind a chain of questions.
+    const opened = openFieldPicker({
+      title: `Fields for "${newLabel}"`,
+      picked: result.entryFieldIds || [],
       fieldsById,
-      ctx: occMaps,
-      dispatch, socket,
+      occurrence: getOcc?.(result.occurrenceId) || null,
+      parentOccurrence: parentOcc,
+      confirmLabel: "Save",
+      onConfirm: (picked, values) => applyPickedFields({
+        picked, values,
+        occurrenceId: result.occurrenceId,
+        fieldsById, ctx: occMaps, dispatch, socket,
+      }),
     });
+    // FAILS OPEN. With no host mounted (a preview iframe, a harness) the option
+    // still exists and the declared entry fields are still worth asking for, so
+    // the modal chain remains as the fallback rather than the drop being lost.
+    if (!opened) {
+      promptEntryFields({
+        entryFieldIds: result.entryFieldIds,
+        occurrenceId: result.occurrenceId,
+        parentOcc,
+        fieldsById,
+        ctx: occMaps,
+        dispatch, socket,
+      });
+    }
   }, [occurrenceAddNewCfg, field, getOcc, localValue, dispatch, socket, gridId, userId, handleChange, onCommit, fieldsById, occMaps]);
 
   // Candidate destinations for the add flow, labeled by LIVE occurrence data.

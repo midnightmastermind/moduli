@@ -24,6 +24,7 @@ import { toast } from "../state/notificationStore";
 
 import { siblingFieldBindings, splitDisplayInput, typeableFields, toInitialFields } from "../helpers/siblingFieldBindings.js";
 import Field from "./Field.jsx";
+import FieldPickerPanel from "./FieldPickerPanel.jsx";
 import { resolveOptions } from "../helpers/optionsResolver";
 import { clickedInsidePortalLayer } from "../helpers/outsideClick";
 // Anchor-relative menu placement. Opens below the anchor; flips above when the
@@ -594,104 +595,26 @@ export default function QuickAddMenu({ targetRole, onSelect, onCreateNew, create
             </>
           ) : picking ? (
             // ── Field-picker sub-step (instance create) ──────────────────────
-            <>
-              <button
-                onClick={() => { setPickingFields(null); setFieldSearch(""); }}
-                style={backBtnStyle}
-              >
-                <ChevronLeft size={10} /> Back
-              </button>
-              <div style={{ padding: "8px 10px 4px", fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)", borderBottom: "1px solid var(--border-subtle)" }}>
-                Pick fields to attach to the new {targetRole} ({pickingFields.length} selected)
-              </div>
-              <div style={{ position: "relative" }}>
-                <Search size={10} style={{ position: "absolute", left: 8, top: "50%", transform: "translateY(-50%)", color: "var(--text-faint)" }} />
-                <input
-                  value={fieldSearch}
-                  onChange={(e) => setFieldSearch(e.target.value)}
-                  placeholder="Search fields…"
-                  style={{ background: "var(--input-bg)", border: "none", borderBottom: "1px solid var(--border-subtle)", padding: "6px 8px 6px 22px", fontSize: 11, color: "var(--text-primary)", outline: "none", fontFamily: "var(--font-mono)", width: "100%", boxSizing: "border-box" }}
-                />
-              </div>
-              <div style={{ flex: 1, overflowY: "auto" }}>
-                {fieldCount === 0 && (
-                  <div style={emptyStyle}>No fields found</div>
-                )}
-                {/* DISPLAY then INPUT, each under its own caption (user:
-                    "i need the display and then input fields seperated by
-                    section"). A section with nothing in it is omitted rather
-                    than printed empty. */}
-                {fieldSections.map(sec => (
-                  <div key={sec.key}>
-                    <div style={{ padding: "6px 10px 3px", fontSize: 9, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-faint)", fontFamily: "var(--font-mono)" }}>
-                      {sec.title}
-                    </div>
-                    {sec.fields.map(f => {
-                      const selected = pickingFields.includes(f.id);
-                      // A ticked field that can hold a typed value gets its
-                      // control HERE, on its own row. The row is a <div> and
-                      // only the name+checkbox half toggles: an <input> nested
-                      // in a <button> is invalid, and clicking into the control
-                      // would otherwise untick the field you were filling in.
-                      //
-                      // `typeableIds` is built from the PICKED ids, so it
-                      // already implies ticked — an `&& selected` here reads
-                      // like a second gate and is really a no-op, which is how
-                      // an A/B against it comes back green and proves nothing.
-                      const typeable = typeableIds.has(f.id);
-                      return (
-                        <div
-                          key={f.id}
-                          style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", padding: "3px 10px", minHeight: 24, background: selected ? "var(--accent-blue-bg)" : "none", color: "var(--text-primary)", fontSize: 11, fontFamily: "var(--font-mono)" }}
-                        >
-                          <button
-                            onClick={() => toggleFieldPick(f.id)}
-                            title={f.name || "(unnamed)"}
-                            style={{ display: "flex", alignItems: "center", gap: 6, flex: typeable ? "0 0 108px" : 1, minWidth: 0, padding: "2px 0", background: "none", border: "none", cursor: "pointer", color: "inherit", font: "inherit", textAlign: "left" }}
-                          >
-                            <span style={{ width: 14, height: 14, borderRadius: 3, border: `1px solid ${selected ? "var(--accent-blue)" : "var(--border-default)"}`, background: selected ? "var(--accent-blue)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                              {selected && <Check size={10} color="var(--on-accent)" strokeWidth={3} />}
-                            </span>
-                            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name || "(unnamed)"}</span>
-                          </button>
-                          {typeable ? (
-                            /* The REAL control for the type, not a hand-rolled
-                               subset — `Field` is this app's one renderer, so an
-                               occurrence dropdown, a rating and a duration all
-                               behave here exactly as they do on a row. Driven
-                               CONTROLLED: `onCommit` writes local state, because
-                               the occurrence does not exist yet.
-
-                               NOT compact: the compact form is a pill you click
-                               to reveal an input, which is right on a crowded row
-                               and wrong here — the control should already be
-                               there to type into. */
-                            <span style={{ flex: 1, minWidth: 0 }}>
-                              <Field
-                                field={fieldWithOptions(f)}
-                                binding={{ fieldId: f.id, role: "input" }}
-                                compact={false}
-                                hideName
-                                hostOccurrence={draftOccurrence}
-                                value={pickingValues[f.id]}
-                                flow={f.meta?.flow || "in"}
-                                onCommit={(nv) => setPickingValues(p => ({ ...p, [f.id]: nv }))}
-                              />
-                            </span>
-                          ) : (
-                            f.type && <span style={{ fontSize: 9, color: "var(--text-faint)", flexShrink: 0 }}>{f.type}</span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-              <div style={{ display: "flex", gap: 6, padding: "6px 8px", borderTop: "1px solid var(--border-subtle)", background: "var(--input-bg)" }}>
-                <button onClick={() => { onCreateNew?.({ fieldIds: [] }); closeMenu(); }} style={{ flex: 1, padding: "5px 8px", background: "transparent", border: "1px solid var(--border-default)", borderRadius: 4, cursor: "pointer", color: "var(--text-muted)", fontSize: 11, fontFamily: "var(--font-mono)" }}>Skip</button>
-                <button onClick={confirmCreate} style={{ flex: 1, padding: "5px 8px", background: "var(--accent-blue)", border: "1px solid var(--accent-blue)", borderRadius: 4, cursor: "pointer", color: "var(--on-accent)", fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600 }}>Create</button>
-              </div>
-            </>
+            // The SAME panel the add-an-option flow opens (user, 2026-09-06:
+            // "should have the same field picker as the quick add menu"). It was
+            // written here first; it lives in FieldPickerPanel now so there is
+            // one of it rather than two that drift.
+            <FieldPickerPanel
+              fieldsById={fieldsById}
+              picked={pickingFields}
+              values={pickingValues}
+              onToggle={toggleFieldPick}
+              onSetValue={(fid, nv) => setPickingValues(p => ({ ...p, [fid]: nv }))}
+              onConfirm={confirmCreate}
+              onSkip={() => { onCreateNew?.({ fieldIds: [] }); closeMenu(); }}
+              onBack={() => { setPickingFields(null); setFieldSearch(""); }}
+              title={`Pick fields to attach to the new ${targetRole}`}
+              parentOccurrence={hostOccurrence}
+              inheritedRoles={inheritedRolesRef.current}
+              getOccMap={getOccMap}
+              modulesById={modulesById}
+              foldersById={foldersById}
+            />
           ) : (
             // ── Unified: search + type tiles + existing matches + templates ──
             <>

@@ -41,6 +41,7 @@ import { ImagePickerHost } from "./ui/ImagePickerMenu";
 import { AddressPickerHost } from "./ui/AddressPickerMenu";
 import { IntakeSheetHost } from "./ui/IntakeSheet";
 import { ConfirmListHost } from "./ui/ConfirmListHost";
+import { FieldPickerHost } from "./ui/FieldPickerHost";
 import IntakePasteHost from "./ui/IntakePasteHost";
 import { SelectionContext, useSelectionProvider } from "./state/SelectionContext";
 import { publishComputedValues } from "./state/computedValuesStore";
@@ -1176,6 +1177,14 @@ export default function App() {
             from the sheet because its list does not exist until a fetch has
             come back, and the sheet is closed before its callback runs. */}
         <ConfirmListHost />
+        {/* The add-an-option flow's field picker — the SAME panel the quick-add
+            menu renders. Mounted once here because it is opened from a plain
+            commit callback with no render of its own. */}
+        <FieldPickerHost
+          getOccMap={() => stateRef.current?.occurrencesById || {}}
+          modulesById={state.modulesById}
+          foldersById={state.foldersById}
+        />
         {/* Ctrl+V through the same classifier a drop uses. Its own host because
             a paste has no drop target — no pointer, and none of the five
             per-surface handlers is focused when the key is pressed. */}
