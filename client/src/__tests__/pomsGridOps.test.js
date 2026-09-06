@@ -376,6 +376,103 @@ describe("the category axis is intact in the stored pipelines", () => {
 // Asserted as GROWTH between two passes rather than an absolute count, because
 // the sweep is date-dependent: on a day with no column yet, pass 1 legitimately
 // builds one. Pass 2 is the one that must be silent.
+describe("every tracker tile shows a number something writes", () => {
+  // THE TEST THE USER ASKED FOR, 2026-09-05: *"alot of them arent updating and
+  // the tests should be catching them"* — purchases, workouts array, last
+  // purchase, tasks completed, savings balance. They were right, and nothing
+  // here could have caught it: every assertion above is about an op ERRORING or
+  // a reference RESOLVING. An op that emits zero effects passes all of them.
+  //
+  // THE DEFECT HAS ONE SHAPE. A tile binds a `display` field that a DIFFERENT
+  // tile's op owns — `Total Workouts` is written to `Fitness Stats`, not to
+  // `Workout Log`; `Time Spent` was written to `Reading Time` while four other
+  // tiles bound it. A tracker op is scoped to ONE goal occurrence, so the second
+  // tile renders an empty box forever, with no error anywhere.
+  //
+  // So the invariant is: a `display` binding on a tile under the Trackers page
+  // must be written by the load sweep.
+  //
+  // `meta.liveSource` is the one carve-out and it is a real one: `Now` and
+  // `Time Left` are computed at RENDER from the clock (`useLiveFieldValue`), so
+  // no operation ever writes them and requiring one would be wrong.
+  let checked, unwritten;
+
+  beforeAll(() => {
+    const written = new Set();
+    const emitted = [];
+    const updates = runMatchingOperations(operations, null, null, buildCtx(), {
+      onError: () => {},
+      onSuccess: (name, fx2) => emitted.push(name) && null,
+    });
+    for (const e of updates || []) {
+      const id = e.itemId || e.occurrenceId;
+      if (e.fieldId && id) written.add(`${id}::${e.fieldId}`);
+    }
+    const nameOf = (o) => o.label || modulesById[o.moduleId]?.label;
+    const page = Object.values(occurrencesById).find(
+      (o) => nameOf(o) === "Trackers" && (o.role || modulesById[o.moduleId]?.role) === "page");
+    const tiles = [];
+    (function walk(id, d) {
+      if (d > 6) return;
+      for (const cid of (occurrencesById[id]?.occurrences || [])) {
+        const c = occurrencesById[cid];
+        if (!c) continue;
+        tiles.push(c);
+        walk(cid, d + 1);
+      }
+    })(page?.id, 0);
+
+    checked = 0; unwritten = [];
+    for (const t of tiles) {
+      const m = modulesById[t.moduleId];
+      if (!m) continue;
+      for (const b of (m.fieldBindings || [])) {
+        const f = fieldsById[b.fieldId];
+        if (!f || b.role !== "display") continue;
+        if (f.meta?.liveSource) continue;   // rendered from the clock, never written
+        checked++;
+        if (!written.has(`${t.id}::${b.fieldId}`)) unwritten.push(`${nameOf(t)} :: ${f.name}`);
+      }
+    }
+    unwritten.sort();
+  });
+
+  // THE CONTROL. A walk that finds no tiles, or a sweep that writes nothing,
+  // makes the assertion below vacuously true — which is the trap this whole
+  // file is built to avoid.
+  it("finds the tracker tiles and their display bindings — the control", () => {
+    expect(checked, "no display bindings found under the Trackers page").toBeGreaterThan(100);
+  });
+
+  // AN EXACT SET, NOT A CEILING, and that is deliberate in BOTH directions:
+  // it cannot GROW (a tracker that stops writing fails here), and a stale entry
+  // cannot LINGER (fix one and this fails until it is removed from the list).
+  //
+  // Each of the five is a decision the user has not made yet, not an accident:
+  //
+  //   Savings Balance  no operation writes it at all — every other account has
+  //                    a balance op. The user's call (2026-09-05) is a logged
+  //                    balance affected by tagged transactions, which needs an
+  //                    `Account` field on the money rows first. Checking wants
+  //                    the same treatment.
+  //
+  //   the other four   a tile binding a metric another tile already owns, with
+  //                    no narrower scope of its own — steps are steps. Unlike
+  //                    the five given dimension-scoped trackers on 2026-09-05,
+  //                    "scope it to its own tile" does not translate here, so
+  //                    they are either mirrored or unbound, and that is a
+  //                    product decision.
+  it("no tracker tile binds a display field the sweep never writes", () => {
+    expect(unwritten).toEqual([
+      "Fitness Stats :: Daily Steps",
+      "Liquid Intake :: Daily Water",
+      "Reading Stats :: Pages Read",
+      "Savings Account :: Savings Balance",
+      "Workout Log :: Total Workouts",
+    ]);
+  });
+});
+
 describe("the load sweep converges — a second pass creates nothing", () => {
   it("adds no occurrences on the second identical sweep", () => {
     const occs = Object.fromEntries(fx.occurrences.map(o => [o.id, structuredClone(o)]));
