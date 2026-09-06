@@ -186,8 +186,33 @@ describe("Project: Sync To Todo List — the mirror follows the project", () => 
   // work is in motion the Tasks-page half goes, and the kanban card remains.
   it("deletes the mirror once Status leaves Backburner/Docket", () => {
     const docket = columnOf("Project: Paul's Clown Website", "Docket");
-    const paired = docket.occurrences.find((id) => occurrencesById[id].linkedGroupId);
-    expect(paired, "0275 should have copy-linked Work on Paul's website into Docket").toBeTruthy();
+    // A CARD THAT ACTUALLY HAS A MIRROR, not merely the first one carrying a
+    // linkedGroupId. Those are not the same thing: measured 2026-09-05, the
+    // Docket column's FIRST linked child is "Register the domain", whose group
+    // has exactly ONE member — a stranded link with no partner. Selecting it
+    // meant the op correctly found no mirror to delete, and the test read that
+    // as the op being broken. Fired at a card whose group really is a pair, the
+    // op emits DELETE_ITEM.
+    //
+    // So the group is required to have a SECOND member, and that member has to
+    // be under the Tasks page — which is exactly what the op's own mirror FIND
+    // requires (`_ancestors HAS_ANCESTOR <Tasks>`).
+    const tasksPage = Object.values(occurrencesById)
+      .find((o) => nameOf(o) === "Tasks" && modulesById[o.moduleId]?.role === "page");
+    const parentOf = new Map();
+    for (const o of Object.values(occurrencesById)) for (const c of (o.occurrences || [])) if (!parentOf.has(c)) parentOf.set(c, o.id);
+    const underTasks = (id) => {
+      for (let cur = id, i = 0; cur && i < 8; i++, cur = parentOf.get(cur) || occurrencesById[cur]?.parentId) {
+        if (cur === tasksPage?.id) return true;
+      }
+      return false;
+    };
+    const paired = docket.occurrences.find((id) => {
+      const lg = occurrencesById[id]?.linkedGroupId;
+      if (!lg) return false;
+      return Object.values(occurrencesById).some((o) => o.id !== id && o.linkedGroupId === lg && underTasks(o.id));
+    });
+    expect(paired, "no Docket card has a mirror under the Tasks page — the fixture lost the pair").toBeTruthy();
     const { updates, errors } = changeStatus(paired, "Working On");
     expect(errors).toEqual([]);
     const deletes = updates.filter((u) => u._effect === "DELETE_ITEM" || u._effect === "REMOVE_OCCURRENCE" || u._effect === "DELETE_OCCURRENCE");

@@ -28,6 +28,26 @@ import {
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fx = JSON.parse(brotliDecompressSync(readFileSync(path.join(here, "fixtures", "pomsGrid.json.br"))).toString());
 
+// STRIP ANY WEEKDAY THE USER HAS SINCE SET. Every "placed nothing" assertion
+// below is only about the OP if the fixture starts with no weekday carriers —
+// which the control immediately after this says in as many words. That premise
+// held only while nobody had used the feature: on 2026-09-05 the fixture
+// carried one row given a Weekday on 09-04, and the control failed for a
+// perfectly good reason — the feature was being used.
+//
+// A snapshot of a live grid cannot be relied on to be in any particular state,
+// so the harness puts it in one. Same remedy as `freshDay` and as 2026-08-20's
+// meal-tracker harness: THE HARNESS CONSTRUCTS THE CONDITION IT MEASURES.
+const strippedWeekdays = (() => {
+  const wd = fx.fields.find((f) => f.name === "Weekday")?.id;
+  if (!wd) return 0;
+  let n = 0;
+  for (const o of fx.occurrences) {
+    if (o.fields?.[wd]?.value) { delete o.fields[wd]; n++; }
+  }
+  return n;
+})();
+
 const SCHEDULE_PAGE = "llpF10Bda5nu";
 const FORMAT = "vQ0ELZP_zxnx", DATE = "Eh7oi4HKdbHB", TS = "nSccAtADyUGW";
 const modsById = Object.fromEntries(fx.modules.map((m) => [m.id, m]));
@@ -124,7 +144,14 @@ describe("the fixture's own shape — the controls", () => {
     expect(DUE).toBeTruthy();
     const carriers = fx.occurrences.filter(
       (o) => modsById[o.moduleId]?.role === "instance" && o.fields?.[WD]?.value);
-    expect(carriers).toEqual([]);
+    expect(carriers.map((o) => o.id), "the strip above did not clear every weekday").toEqual([]);
+    // Reported, not asserted: how many the live grid had. It is 0 on a grid
+    // nobody has used the feature on and grows as they do, so pinning it would
+    // just be this control failing again next week.
+    if (strippedWeekdays) {
+      // eslint-disable-next-line no-console
+      console.log(`weekdayTasks: stripped ${strippedWeekdays} weekday value(s) the live grid carried`);
+    }
   });
 
   it("the day column's Todo container CARRIES its marker — `0172` has landed", () => {
