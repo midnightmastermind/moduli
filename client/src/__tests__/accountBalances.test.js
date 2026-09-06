@@ -131,19 +131,20 @@ function logTransfer(w, { from, to, amount = 100 }) {
 describe("transfers between accounts", () => {
   it("moves money out of one account and into the other", () => {
     const w = world();
+    const before = sweep(w);
     logTransfer(w, { from: "Checking Account", to: "Savings Account", amount: 100 });
     const got = sweep(w);
-    expect(got["Checking Balance"], "the transfer did not leave Checking").toBe(-100);
-    expect(got["Savings Balance"], "the transfer did not arrive in Savings").toBe(100);
+    expect(got["Checking Balance"] - before["Checking Balance"], "the transfer did not leave Checking").toBeCloseTo(-100, 2);
+    expect(got["Savings Balance"] - before["Savings Balance"], "the transfer did not arrive in Savings").toBeCloseTo(100, 2);
   });
 
   it("leaves Net Worth alone — it is the sum of the accounts", () => {
     const w = world();
+    const before = sweep(w);
     logTransfer(w, { from: "Checking Account", to: "Savings Account", amount: 100 });
-    // Nothing special-cases a transfer here: -100 and +100 net to zero because
-    // Net Worth adds the balances up (0288). If this ever fails, Net Worth has
-    // stopped being a sum.
-    expect(sweep(w)["Net Worth"]).toBe(0);
+    // Nothing special-cases a transfer: -100 and +100 net to zero because Net
+    // Worth adds the balances up (0288). If this fails, it stopped being a sum.
+    expect(sweep(w)["Net Worth"] - before["Net Worth"]).toBeCloseTo(0, 2);
   });
 
   it("a spend is NOT a transfer — no destination, no arrival", () => {
@@ -151,10 +152,11 @@ describe("transfers between accounts", () => {
     // The CONTROL. Without it, "the arrival works" would also be satisfied by
     // an in-leg that admits every untagged row: the gate on `To Account` is
     // strict precisely so an ordinary spend cannot read as money arriving.
+    const before = sweep(w);
     logSpend(w, { account: "Checking Account" });
     const got = sweep(w);
-    expect(got["Checking Balance"]).toBe(-50);
-    expect(got["Savings Balance"], "an ordinary spend arrived somewhere").toBe(0);
+    expect(got["Checking Balance"] - before["Checking Balance"]).toBeCloseTo(-50, 2);
+    expect(got["Savings Balance"] - before["Savings Balance"], "an ordinary spend arrived somewhere").toBeCloseTo(0, 2);
   });
 });
 
@@ -224,40 +226,40 @@ describe("account balances", () => {
     }
   });
 
-  it("the grid's own money rows are catalog, not transactions — so a zero baseline is expected", () => {
+  it("measures DELTAS, because the baseline is real money and moves", () => {
+    // THIS TEST USED TO ASSERT THE BASELINE WAS ZERO. It was, the morning it
+    // was written — every money-bearing row on the grid was catalog (the Spend
+    // action, the bill options, the savings goals) and none was completed. The
+    // user then logged real transactions and every absolute assertion here
+    // went red at once: -50 became -45.84 against a Checking balance of 4.16.
+    //
+    // That is 2026-08-20 (6) verbatim: *any test whose premise is "this starts
+    // empty" is a coin flip on timing.* So the suite measures what an injected
+    // row CHANGES, which is true whatever the balance happens to be today.
     const w = world();
-    const amtF = w.fx.fields.filter((f) => f.name === "Amount").map((f) => f.id);
-    const money = w.fx.occurrences.filter((o) => amtF.some((a) => o.fields?.[a]?.value != null));
-    // CONTROL: there ARE money-bearing rows, so the next assertion is about
-    // their shape rather than about an empty set.
-    expect(money.length, "no rows carry an Amount at all — the probe is wrong").toBeGreaterThan(5);
-    // The discriminator is COMPLETION, not parentage — the catalog rows are
-    // parented under Routines and the bill boards, so "has a parent" says
-    // nothing. What no catalog row has is a tick: a balance counts a
-    // transaction only once it is completed on the schedule.
-    const doneF = w.fx.fields.find((f) => f.name === "Completed")?.id;
-    const logged = money.filter((o) => o.fields?.[doneF]?.value === true);
-    expect(logged.length, "money is now logged — the baseline zeros are stale").toBe(0);
-    expect(sweep(w)["Checking Balance"]).toBe(0);
+    const before = sweep(w);
+    for (const n of ["Checking Balance", "Savings Balance", "Net Worth"]) {
+      expect(before[n], `"${n}" was never written by the sweep`).toBeTypeOf("number");
+    }
   });
 
   it("an UNTAGGED spend lands in Checking — the default the user chose", () => {
     const w = world();
+    const before = sweep(w);
     logSpend(w);
-    const got = sweep(w);
-    expect(got["Checking Balance"], "untagged money did not reach Checking").toBe(-50);
-    expect(got["Savings Balance"], "untagged money leaked into Savings").toBe(0);
-    expect(got["Net Worth"]).toBe(-50);
+    const after = sweep(w);
+    expect(after["Checking Balance"] - before["Checking Balance"], "untagged money did not reach Checking").toBeCloseTo(-50, 2);
+    expect(after["Savings Balance"] - before["Savings Balance"], "untagged money leaked into Savings").toBeCloseTo(0, 2);
   });
 
   it("a TAGGED spend lands in its own account and nowhere else", () => {
     const w = world();
+    const before = sweep(w);
     logSpend(w, { account: "Savings Account" });
     const got = sweep(w);
     // This is the arm that makes the previous test mean something: without it,
     // "untagged → Checking" is also satisfied by "everything → Checking".
-    expect(got["Savings Balance"], "a tagged spend did not reach its account").toBe(-50);
-    expect(got["Checking Balance"], "a tagged spend also hit Checking — the gate is not exclusive").toBe(0);
-    expect(got["Net Worth"]).toBe(-50);
+    expect(got["Savings Balance"] - before["Savings Balance"], "a tagged spend did not reach its account").toBeCloseTo(-50, 2);
+    expect(got["Checking Balance"] - before["Checking Balance"], "a tagged spend also hit Checking — the gate is not exclusive").toBeCloseTo(0, 2);
   });
 });
