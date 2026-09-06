@@ -467,7 +467,6 @@ describe("every tracker tile shows a number something writes", () => {
       "Fitness Stats :: Daily Steps",
       "Liquid Intake :: Daily Water",
       "Reading Stats :: Pages Read",
-      "Savings Account :: Savings Balance",
       "Workout Log :: Total Workouts",
     ]);
   });
