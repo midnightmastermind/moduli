@@ -78,6 +78,10 @@ export function makeInputActivityHold({
   return {
     /** Call immediately BEFORE firing operations for a field write. */
     noteWrite() {
+      // Runtime opt-out, so the two arms can be compared in ONE session on one
+      // page — the only honest way to A/B a perf change, since two page loads
+      // differ by more than the change does.
+      if (typeof window !== "undefined" && window.__noTickHold) return false;
       const t = now();
       const rapid = last !== 0 && (t - last) < quietMs;
       last = t;
