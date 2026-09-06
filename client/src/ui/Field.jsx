@@ -1237,16 +1237,20 @@ function Field({
     });
 
     // Entry fields (addNew.fieldIds): chained questions through the EXISTING
-    // GET_USER_INPUT modal; answers land as normal field writes.
-    if (result.entryFieldIds?.length) {
-      promptEntryFields({
-        entryFieldIds: result.entryFieldIds,
-        occurrenceId: result.occurrenceId,
-        fieldsById,
-        ctx: occMaps,
-        dispatch, socket,
-      });
-    }
+    // GET_USER_INPUT modal; answers land as normal field writes. Called
+    // UNCONDITIONALLY now — `fieldIds` is a pre-declared list, so gating on it
+    // meant a field that declared none could never be given one by hand, which
+    // is exactly what the user asked for (2026-09-06). `promptEntryFields`
+    // returns immediately when there is nothing to declare AND nothing to
+    // offer, so a dropdown with no candidates costs no modal.
+    promptEntryFields({
+      entryFieldIds: result.entryFieldIds,
+      occurrenceId: result.occurrenceId,
+      parentOcc,
+      fieldsById,
+      ctx: occMaps,
+      dispatch, socket,
+    });
   }, [occurrenceAddNewCfg, field, getOcc, localValue, dispatch, socket, gridId, userId, handleChange, onCommit, fieldsById, occMaps]);
 
   // Candidate destinations for the add flow, labeled by LIVE occurrence data.
