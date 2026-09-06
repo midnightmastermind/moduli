@@ -459,35 +459,34 @@ describe("every tracker tile shows a number something writes", () => {
   //   the other four   a tile binding a metric another tile already owns, with
   //                    no narrower scope of its own — steps are steps.
   //
-  //   ASKED AND MEASURED, 2026-09-06. The user chose "scope each to its own
-  //   tile" — the same call as the five on 2026-09-05 — and it does NOT
-  //   translate here, which is why these stay listed. `0290` derives the scope
-  //   from the parent's `Today's <Dimension>` label and checks it against the
-  //   `Tags` values actually in use. Against these four:
+  //   ASKED, MEASURED, AND CLOSED (2026-09-06). The user first chose "scope
+  //   each to its own tile" — the same call as the five on 2026-09-05 — and it
+  //   does not translate here:
   //
-  //     Fitness Stats :: Daily Steps     Today's Physical      — but "Steps",
-  //     Reading Stats :: Pages Read      Today's Intellectual    which already
-  //                                                              writes it, is
-  //       under the SAME parent, so the derived tag is identical and the new
-  //       tracker would compute the very duplicate the user rejected.
+  //     Fitness Stats :: Daily Steps    under Today's Physical
+  //     Reading Stats :: Pages Read     under Today's Intellectual
+  //       — the tile that ALREADY writes each field ("Steps", "Pages Read")
+  //         sits under the SAME parent, so `0290`'s derived tag is identical
+  //         and a new tracker would compute the duplicate they rejected.
   //
-  //     Liquid Intake :: Daily Water     Today's Nutrition     — "nutrition"
-  //     Workout Log :: Total Workouts    Today's Workout         and "workout"
-  //       are NOT among the live Tags values (physical 98, intellectual 15,
-  //       emotional 12 … neither appears at all), so the gate would sum
-  //       nothing and the tile would read 0 rather than blank — worse, because
-  //       a wrong number reads as a real one.
+  //     Liquid Intake :: Daily Water    under Today's Nutrition
+  //     Workout Log :: Total Workouts   under Today's Workout
+  //       — "nutrition" and "workout" are NOT live `Tags` values (physical 98,
+  //         intellectual 15, social 13, emotional 12 … neither appears once).
+  //         The gate would sum nothing and the tile would read **0 instead of
+  //         blank**, which is worse: a wrong number reads as a real one.
   //
-  //   So the remaining choice is genuinely mirror-or-unbind, and it needs a
-  //   discriminator that is not the dimension. Do not mint dimension-scoped
-  //   trackers for these.
+  //   Ancestor-scoping does not help either — the rows a tracker counts live
+  //   under the SCHEDULE, not under the tracker container. Asked again with
+  //   those measurements, the user chose UNBIND, and `0305` did it: each number
+  //   now lives in exactly one place.
+  //
+  //   SO THE LIST IS EMPTY AND THE INVARIANT IS UNCONDITIONAL. That is the
+  //   point of asserting the exact set rather than a count: an exception list
+  //   that can only shrink is a list somebody eventually stops reading, and a
+  //   new blank tile now fails this test the day it appears.
   it("no tracker tile binds a display field the sweep never writes", () => {
-    expect(unwritten).toEqual([
-      "Fitness Stats :: Daily Steps",
-      "Liquid Intake :: Daily Water",
-      "Reading Stats :: Pages Read",
-      "Workout Log :: Total Workouts",
-    ]);
+    expect(unwritten, "a tracker tile binds a display field nothing writes to it").toEqual([]);
   });
 });
 
