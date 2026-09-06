@@ -1406,6 +1406,13 @@ function Field({
           };
           const date = parseLocalDay(rawDisplayValue);
           const diff = dayDiffFromToday(rawDisplayValue);   // one definition
+          // A value this field cannot read as a date is rendered VERBATIM.
+          // `dayDiffFromToday` answers null there, and null falls through every
+          // comparison below (`null > 0` is false) into `Math.abs(null)` === 0 —
+          // so an unreadable value used to render "Invalid Date · 0d overdue",
+          // a confident claim about a date nobody could parse. Showing the raw
+          // text says what is actually stored; the same thing the catch does.
+          if (diff === null) return String(rawDisplayValue);
           const dateStr = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
           if (diff === 0) return `${dateStr} · today`;
           if (diff === 1) return `${dateStr} · tomorrow`;
