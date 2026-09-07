@@ -11,7 +11,7 @@ import { brotliDecompressSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { runMatchingOperations } from "../helpers/operationExecutor";
-import { normalizeFilterDateValue } from "../helpers/filterFieldStamp";
+import { TODAY, ensureTodaysColumn } from "./helpers/scheduleWorld";
 
 vi.setConfig({ testTimeout: 60000 });
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -25,7 +25,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 //
 // `normalizeFilterDateValue` is the app's OWN local-day function, so the test
 // and the thing it measures cannot drift apart again.
-const TODAY = normalizeFilterDateValue(new Date());
+
 
 let base;
 beforeAll(() => {
@@ -93,10 +93,13 @@ function sweep(w, want) {
 
 // A completed, dated, Schedule-placed money row with a chosen flow.
 function logMoney(w, { flow, amount = 50, toAccount = null, field = "Amount" }) {
-  const done = fid(w, "Completed"), date = fid(w, "Date"), sfmt = fid(w, "Schedule Format");
-  const col = w.fx.occurrences.find((o) => o.fields?.[sfmt]?.value === "day-col");
+  const done = fid(w, "Completed"), date = fid(w, "Date");
+  // The column AND the page filter both have to be on today, or a row dated
+  // today falls outside a page still filtered to the day the fixture was
+  // exported and every assertion below reads zero. See scheduleWorld.
+  const col = ensureTodaysColumn(w);
   const src = w.fx.occurrences.find((o) => lbl(w, o) === "Pay Bill" && o.fields?.[fid(w, "Amount")]?.value != null);
-  expect(col && src, "fixture shape changed").toBeTruthy();
+  expect(src, "fixture shape changed").toBeTruthy();
   const c = JSON.parse(JSON.stringify(src));
   c.id = `money-${flow}-${field}`;
   c.parentId = col.id;
@@ -114,18 +117,41 @@ function logMoney(w, { flow, amount = 50, toAccount = null, field = "Amount" }) 
   return c;
 }
 
+/**
+ * Set an account's balance the way the app does: a `Track` row with
+ * `flow: "replace"`, completed, dated today, tagged to that account.
+ *
+ * THE TEST BUILDS ITS OWN BALANCES NOW, and that is not tidiness. These rows
+ * live on the schedule DAY COLUMN, and the column is rebuilt every morning —
+ * so the balances the grid happened to be carrying when the fixture was
+ * exported are GONE by the next day, and every assertion that read them turned
+ * into "expected 0 to be greater than 0". A test whose premise is a value the
+ * app deletes overnight is a coin flip on export timing (2026-08-20 (6)).
+ */
+function setBalance(w, account, amount) {
+  const row = logMoney(w, { flow: "replace", amount });
+  const tile = w.fx.occurrences.find((o) => lbl(w, o) === account);
+  expect(tile, `no "${account}" row to tag`).toBeTruthy();
+  row.fields[fid(w, "Account")] = { value: tile.id, flow: "in" };
+  row.id = `balance-${account.replace(/\W+/g, "-")}`;
+  w.occurrencesById[row.id] = row;
+  return row;
+}
+
 describe("Net Worth includes Cash", () => {
   it("is the sum of Checking, Savings and Cash", () => {
     const w = world();
-    const val = (n) => {
-      const f = fid(w, n);
-      const o = w.fx.occurrences.find((x) => x.fields?.[f]?.value != null);
-      return o ? Number(o.fields[f].value) : 0;
-    };
-    const expected = val("Checking Balance") + val("Savings Balance") + val("Cash");
-    // CONTROL: Cash must be non-zero, or "includes Cash" is vacuously true.
-    expect(val("Cash"), "the Cash tile holds nothing — this test proves nothing").toBeGreaterThan(0);
-    expect(sweep(w, ["Net Worth"])["Net Worth"]).toBeCloseTo(expected, 2);
+    setBalance(w, "Checking Account", 4.16);
+    setBalance(w, "Savings Account", 123.14);
+    setBalance(w, "Cash", 17);
+    const got = sweep(w, ["Checking Balance", "Savings Balance", "Cash", "Net Worth"]);
+
+    // CONTROL: each balance must actually land, or "Net Worth includes Cash"
+    // is satisfied by three zeros adding to zero.
+    expect(got["Cash"], "the Cash balance never landed").toBeCloseTo(17, 2);
+    expect(got["Checking Balance"]).toBeCloseTo(4.16, 2);
+    expect(got["Savings Balance"]).toBeCloseTo(123.14, 2);
+    expect(got["Net Worth"]).toBeCloseTo(4.16 + 123.14 + 17, 2);
   });
 
   it("does NOT include Mom's Account", () => {

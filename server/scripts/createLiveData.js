@@ -9498,6 +9498,45 @@ async function main() {
       });
     }
 
+    // ── The MONEY model: per-account balances, then transfers ────────────────
+    //
+    // A fresh grid's balance ops summed EVERY transaction regardless of which
+    // account it named, and there was no way to move money between accounts at
+    // all — both were fixed on the live grid by migration and neither had ever
+    // reached the seed. CALLED here for the same reason 0064/0067/0164 are: the
+    // seed IS the migration, so a fresh grid and a migrated one cannot drift.
+    //
+    // ORDER IS LOAD-BEARING: 0299's transfer legs are added to the balance ops
+    // that 0298 has already scoped to one account each. Run the other way round
+    // and the arrival leg lands on an op that still counts everything.
+    //
+    // WHAT THIS DOES NOT CLOSE, measured rather than assumed: 0310-0316 all
+    // REFUSE on a fresh grid, each for its own honest reason — no account TILE
+    // carrying `meta.cumulative` (0310), no manual option list on Board Category
+    // (0314), no `Connection Time` op to copy a gate shape from (0315). Those
+    // are seed-AUTHORING gaps, not migrations waiting to be called, and wiring
+    // them here would only make the seed throw.
+    {
+      const { up: balancesPerAccount } = await import("../migrations/0298-a-balance-counts-only-its-own-account.mjs");
+      console.log("\n💰 A balance counts only its own account (migration 0298, shared with the live grid)…");
+      await balancesPerAccount({
+        gridId: result.gridId,
+        models: { Occurrence, Module, Field, Folder, Grid, Operation },
+        log: (m) => console.log(`   ${m}`),
+        dryRun: false,
+      });
+    }
+    {
+      const { up: transfers } = await import("../migrations/0299-money-can-move-between-accounts.mjs");
+      console.log("\n🔁 Money can move between accounts (migration 0299, shared with the live grid)…");
+      await transfers({
+        gridId: result.gridId,
+        models: { Occurrence, Module, Field, Folder, Grid, Operation },
+        log: (m) => console.log(`   ${m}`),
+        dryRun: false,
+      });
+    }
+
     // ── Snapshot to server/seed/*.json (skipped with --no-export) ──
     // The on-disk seed acts as the canonical fixture for fast restores
     // via `reloadLiveData.js`. Default = always export so the JSON

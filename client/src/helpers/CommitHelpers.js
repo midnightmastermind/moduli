@@ -1385,6 +1385,12 @@ export function createLeafInstanceInParent({
   // WHERE a row came from (`searchProvider` + `searchExternalId`), which is what
   // stops the same result being offered again next time the dropdown is opened.
   occMeta = null,
+  // Born hidden. `occurrence.hidden` is read in exactly one place —
+  // `isOccurrenceVisible` — so the row is addressable everywhere (dropdowns,
+  // operations, stored picks) and simply does not render. The account pickers
+  // declare it: an account is an identity, not a tile, so adding one from the
+  // dropdown must not put an empty row back on the Financial group.
+  hidden = false,
 }) {
   if (!gridId || !userId || !parentOccurrence) return null;
   const moduleId = crypto?.randomUUID?.() || `li-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -1402,6 +1408,7 @@ export function createLeafInstanceInParent({
   };
   const occurrence = {
     ...(occMeta ? { meta: occMeta } : {}),
+    ...(hidden ? { hidden: true } : {}),
     id: occurrenceId, userId, gridId,
     moduleId,
     parentId: parentOccurrence.id,

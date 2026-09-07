@@ -29,23 +29,13 @@ import { brotliDecompressSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { runMatchingOperations } from "../helpers/operationExecutor";
-import { normalizeFilterDateValue } from "../helpers/filterFieldStamp";
+import { TODAY, ensureTodaysColumn } from "./helpers/scheduleWorld";
 
 vi.setConfig({ testTimeout: 60000 });
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(here, "fixtures", "pomsGrid.json.br");
-// `$today` IS LOCAL, AND THIS TEST USED TO ASK FOR UTC.
-//
-// The executor resolves `$today` as `_localDayString(new Date())` and the
-// Schedule builds its day column on that. `new Date().toISOString().slice(0,10)`
-// is the UTC day — so west of UTC the two disagree for the last hours of every
-// evening (5 of them in CDT), and this file went red at 7pm and green again at
-// midnight. Nobody saw it because sessions run in the daytime.
-//
-// `normalizeFilterDateValue` is the app's OWN local-day function, so the test
-// and the thing it measures cannot drift apart again.
-const TODAY = normalizeFilterDateValue(new Date());
+
 
 let base;
 beforeAll(() => {
@@ -98,11 +88,11 @@ function logSpend(w, { account } = {}) {
   const labelOf = (o) => o.label || w.modulesById[o.moduleId]?.label;
 
   const src = w.fx.occurrences.find((o) => o.fields?.[amtF]?.value != null && labelOf(o) === "Pay Bill");
-  const col = w.fx.occurrences
-    .filter((o) => o.fields?.[dateF]?.value === TODAY && (o.occurrences || []).length > 3)
-    .sort((a, b) => (b.occurrences || []).length - (a.occurrences || []).length)[0];
   expect(src, "no Pay Bill row to clone — the fixture changed shape").toBeTruthy();
-  expect(col, "no schedule column for today — re-export the fixture").toBeTruthy();
+  // Both halves of "today" — a column dated today AND the page filters snapped
+  // to it. The app builds both on the first load of a day, so the fixture only
+  // ever carries the day it was exported on. See scheduleWorld.
+  const col = ensureTodaysColumn(w);
 
   const clone = JSON.parse(JSON.stringify(src));
   clone.id = "balance-control-row";

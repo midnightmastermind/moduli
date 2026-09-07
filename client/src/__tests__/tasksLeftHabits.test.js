@@ -18,7 +18,7 @@ import { brotliDecompressSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { runMatchingOperations } from "../helpers/operationExecutor";
-import { normalizeFilterDateValue } from "../helpers/filterFieldStamp";
+import { TODAY, ensureTodaysColumn } from "./helpers/scheduleWorld";
 
 vi.setConfig({ testTimeout: 60000 });
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -69,11 +69,11 @@ function tasksLeft(w) {
 // Tick a row that IS a habit (its module binds the marker) / is NOT.
 function completeOne(w, wantHabit) {
   const habit = fid(w, "Habit"), done = fid(w, "Completed"), date = fid(w, "Date");
-  // Local, not UTC — see normalizeFilterDateValue. The executor's $today is
-  // local, so a UTC day string makes this file red every evening.
-  const today = normalizeFilterDateValue(new Date());
-  const col = w.fx.occurrences.find((o) => o.fields?.[fid(w, "Schedule Format")]?.value === "day-col");
-  expect(col, "no day column").toBeTruthy();
+  // Today has to be live on BOTH axes — a column dated today and the page
+  // filters snapped to it — or the injected row is outside the tracker's
+  // period and the count never moves. See scheduleWorld.
+  const today = TODAY;
+  const col = ensureTodaysColumn(w);
   const src = w.fx.occurrences.find((o) => {
     const b = w.modulesById[o.moduleId]?.fieldBindings || [];
     return b.some((x) => x.fieldId === done) && (b.some((x) => x.fieldId === habit) === wantHabit);

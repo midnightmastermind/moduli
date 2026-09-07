@@ -6,6 +6,200 @@
 
 ---
 
+### 2026-09-07 — EVERY TRACKER, ASSERTED ON ITS VALUE; and your account balances reset every night
+
+User: *"please fix those things and make sure all the ops are working for
+updating trackers. make sure are tests are making sure values are updated (my
+ops specifically)"*
+
+**THE AUDIT FIRST, because "are they working" is not a question you can read off
+the code.** All 74 enabled ops driven one at a time over the live grid: **50
+write, 24 are silent** — and the 24 are correct (alarms, pomodoro, drops,
+project routing: event-triggered ops that a load sweep should not fire).
+
+**AND ALMOST EVERY ONE OF THE 50 WRITES A ZERO**, because today's schedule is
+nearly empty: `Steps 0 · Water 0 · Pages 0 · Spent 0 · Earned 0 · Sleep 0 ·
+Coffee 0`. **A zero is exactly what a DEAD op produces**, so a suite asserting
+those numbers would pass against a tracker that had silently stopped counting —
+which is what happened to `Savings Balance`, which had no operation at all and
+nothing noticed (2026-09-05). So `trackerValues.test.js` asserts no absolutes:
+it sweeps, logs ONE real row on today's column, sweeps again, and asserts the
+tracker moved by what that row is worth. A dead op moves nothing; a
+double-counting op moves twice.
+
+**EVERY CASE CARRIES A TRACKER THAT MUST NOT MOVE**, and that is what found the
+defect. 17 cases: water · coffee · steps · pages · a spend · income · a social
+hour · meditation · study · sleep · a workout · a meal's four macros · habit vs
+task in both directions · and the three catalogue trackers where an absolute IS
+honest (media owned, monthly bills, Net Worth as the sum of the accounts).
+
+---
+
+**THE DEFECT: "READING TIME" COUNTED EVERY MINUTE YOU LOGGED.**
+```
+Mentor   +60min  ->  Connection Time ✓   Reading Time ✗   Reading Stats ✗
+Meditate +20min  ->  Practice Duration ✓ Reading Time ✗   Reading Stats ✗
+```
+Five tiles track time by dimension; four gate on their own tag (`social`,
+`creative`, `spiritual`, `occupational`) and the intellectual pair never got the
+rule. **`Productivity.Time Spent` also counts everything and is LEFT ALONE** —
+it is the day's total, not a dimension, which is why `0315` names two ops rather
+than "every op that sums Duration", and asserts that one stays ungated.
+
+**WHAT THEY SHOULD COUNT WAS ASKED, NOT GUESSED.** Two readings were defensible
+and produce different numbers on a tile read daily. The user chose **all
+intellectual time**, which also completes the family: one time tracker per
+dimension, all five gated the same way. The rule is COPIED off `Connection Time`
+at run time rather than authored, so the five cannot drift apart.
+
+---
+
+**AND THE BIGGER FINDING, WHICH IS NOT MINE AND IS NOT FIXED: THE ACCOUNT
+BALANCES RESET EVERY NIGHT.**
+
+`moneySemantics` went red on its own control — *"the Cash tile holds nothing —
+this test proves nothing"*. Sweeping yesterday's committed fixture against
+today's separated the cause from my own changes in one run:
+```
+YESTERDAY's fixture   Checking 4.16 · Savings 123.14 · Cash 17 · Net Worth 144.30
+TODAY's fixture       0 · 0 · 0 · 0        — on every filter, including none
+```
+Undoing each of today's writes (the tag, the hidden flags, both directions)
+changed nothing, so it is not the migrations. **The DATA moved:**
+```
+yesterday   7 completed rows carrying an Amount — six `Track` rows dated
+            2026-09-06, flow "replace", one per account: the balances
+today       1 — the undated catalog row, and ONE day column (2026-09-07)
+```
+**A balance is set by a `Track` row with `flow: "replace"` placed on the
+schedule, and the schedule day column is REBUILT every morning — the old one is
+swept and takes its rows with it.** That is documented behaviour for the column
+(2026-08-07) and it is correct for a daily log: the tracker tiles accumulate
+Meals, Purchases and Workouts into their own array fields before the rows go.
+**A balance is not a daily total, it is running state**, so storing it on a
+transient row means it survives exactly one day. Verified against Mongo, not the
+fixture: one `Track` row left on the whole grid, one day column.
+
+**NOT FIXED, deliberately: the remedy is a change to where a balance LIVES**, and
+that is a decision about the user's money model rather than a bug with one right
+answer (write the base onto the account row; keep balance entries off the day
+column; or exempt money rows from the sweep). Reported with the evidence.
+
+**WHAT THE SUITE DOES ABOUT IT NOW:** `moneySemantics` BUILDS its three balances
+instead of reading whatever the grid was carrying when the fixture was exported.
+Its control was right and its premise was a value the app deletes overnight.
+
+---
+
+**THE HARNESS BROKE THREE TIMES IN TWO DAYS AND EACH BREAK WAS THE SAME CLASS.**
+```
+09-06  asked for the UTC day while `$today` is LOCAL — red for the last five
+       hours of every evening west of UTC
+09-07  the date rolled: no schedule column for today existed at all
+09-07  and with a column, EVERY tracker still read zero — a tracker's period is
+       `$goalPeriod`, read off the PAGE's own filterOverride, which still named
+       yesterday. Thirteen assertions failed identically. *The clock is not the
+       filter.*
+```
+Both halves of "today" are built by the APP on the first load of a day
+(`Grid: Snap Filter To Today` moves the filters, `Schedule: Build Schedule`
+builds the column), so the committed fixture only ever describes its export day.
+`__tests__/helpers/scheduleWorld.js` reproduces that start-of-day state and
+asserts each half landed — **the harness constructs the condition it measures**,
+the 2026-08-20 (6) rule, now shared by all four suites that inject a row.
+
+**FOUR OF MY OWN PROBES REPORTED A WORKING OP AS BROKEN, all the same trap: a
+label on this grid is not unique and is not one field.**
+```
+"Water"     5 occurrences — the tracker tile, a utility bill, the beverage
+            option, two artifacts. The test picked the TILE.
+"Sleep"     names a routine AND its tracker tile. The test cloned the TILE and
+            reported the Sleep op dead.
+"Drink"     9 copies · "Sleep" 13 · "Exercise" 25 — cycle templates and past
+            columns. "The catalog action" is not "the row with that label".
+"Exercise"  I read bindings off one of the 25 copies and concluded it was a
+            TASK. The CATALOG one binds `Habit`, because `0008` made every
+            Routines action a habit — so `Completed Tasks` reading 0 is CORRECT,
+            and a task comes off the Tasks page.
+```
+Every lookup in the file now states what it is looking for and refuses on
+anything but one match. *An assertion built on an ambiguous label invents a
+defect and sends the next session after a working op.*
+
+---
+
+**AND THE SWEEP-ERROR GUARD EARNED ITS KEEP THE SAME DAY.** `pomsGridOps`
+asserts the load sweep runs with no operation erroring, and it went red on
+`Day Page: Build: $col is not a record (no .id)` — the documented multi-match
+failure: **two Day Page columns for today**, so the FIND binds an ARRAY and the
+UPDATE throws into the sweep's per-op catch, silently abandoning everything after
+it in that op. A/B'd against yesterday's committed fixture (one column per date,
+no duplicates), so it appeared overnight and none of today's migrations touch
+that op.
+```
+124c4b49…  08:38:16  sig daypage:col:2026-09-07  signatureUnique  6 children
+89be213b…  08:40:06  sig daypage:col:2026-09-07  signatureUnique  4 children
+```
+**110 SECONDS APART, so this is not the sub-second persistence race 2026-09-03
+(12) measured** — two sweeps two minutes apart each concluded the column did not
+exist, and both carry the flag `0303`'s server-side refusal keys on. Why the
+refusal did not fire is NOT established and is reported rather than guessed at.
+
+**MY FIRST MEASUREMENT SAID BOTH HELD WRITING AND WAS WRONG** — 768 and 841
+characters, which was the textmap's own JSON stringified. Walking the
+DECOMPRESSED textmap for TEXT NODES finds zero prose in both. That distinction
+is the whole safety of the repair, and `0038`'s header records making the same
+mistake twice from the other direction.
+
+**AND THE DRY RUN STOPPED `0317` DESTROYING THE USER'S TEMPLATES.** Keyed on
+(parent, signature) alone it matched the Schedule Template's **seven weekday
+templates — which deliberately SHARE a signature as a marker** — and proposed
+deleting 400+ occurrences. `0303` drew exactly this line for the server refusal
+(*uniqueness is OPT-IN via `meta.signatureUnique`; a signature is also a shared
+MARKER*) and I had to be shown it again. Narrowed to opt-in: 1 column removed,
+the templates untouched. *A migration that reads a count is not a migration that
+has been read.*
+
+**THE TWO ITEMS CARRIED OVER, both closed:**
+
+**A NEW ACCOUNT IS BORN AN IDENTITY (`0316`).** "+ Add new" on the account
+pickers still minted a visible row, putting back exactly what 0313 removed.
+`addNew.hidden` is the declaration — data, so any picker whose options are
+identities can say so — and **it was far smaller than I estimated.** I had
+called it "plumbing through the shared create path (helper, emit, reducer,
+server handler)"; the server has forwarded `hidden` on create all along, beside
+the same forwarding for locked/sortOrder/dragMode. *An estimate of a change is
+worth one read of the code it crosses.*
+
+**THE SEED, MEASURED RATHER THAN GUESSED.** Reseeded a fresh grid and dry-ran the
+accounts chain against it:
+```
+0298 per-account balances   ok        -> now CALLED by the seed
+0299 transfers              ok        -> now CALLED by the seed
+0310 the accounts tile      REFUSED   no tile carrying `meta.cumulative`
+0314 the tag                REFUSED   Board Category has no manual option list
+0315 the dimension gate     REFUSED   no `Connection Time` op to copy from
+0316 addNew.hidden          REFUSED   no `To Account` field
+```
+So the seed gains the two biggest pieces — a fresh grid now gets balances scoped
+to their own account, and transfers. **Verified by reseeding, and 0299 found a
+live defect in the fresh grid on its way through:** *"Cash Balance: outflow ADDED
+to $acc and nothing negated it — spending RAISED this balance"*, the same for
+Mom's Account. Every new grid has been increasing your cash when you spend it. **The remaining four are seed-AUTHORING
+gaps, not migrations waiting to be called** (the option list, the five dimension
+trackers, the accounts tile), and wiring them would only make the seed throw.
+Each refusal above is the migration's own guard working.
+
+Every A/B fails exactly its own cases: the dimension gate (2), un-hiding (1),
+restoring the stale write (1), an unbound value (1), the ancestry predicate (3),
+an untagged addNew parent (1), one untagged account (2), and the addNew.hidden
+wiring (2, with the "an ordinary option stays visible" control still passing).
+**And one A/B reported "the test does not discriminate" when the mutation had not
+landed** — it looked the Trackers page up by `o.label` alone, which lives on the
+module. With a landing assert it fails 3.
+
+---
+
 ### 2026-09-06 (3) — THE ACCOUNT PICKER OFFERED FORTY TRACKER TILES; the tag was already the mechanism
 
 User: *"keep going and narrow the account dropdown please."*

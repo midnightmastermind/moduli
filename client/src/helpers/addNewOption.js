@@ -107,6 +107,11 @@ export function createOptionUnderParent({ field, parentOcc, label, dispatch, soc
     dispatch, socket, gridId, userId,
     parentOccurrence: parentOcc,
     label: label.trim(),
+    // DECLARED BY THE DROPDOWN, not hardcoded here: `addNew.hidden` says the
+    // options this picker mints are identities rather than tiles. The account
+    // pickers set it — an account is a row a transaction points AT, and the
+    // user asked for no empty rows on the Financial group.
+    hidden: addNew.hidden === true,
     initialFields: { ...extra, ...stamp },
     fieldBindings,
     occMeta,
