@@ -29,12 +29,23 @@ import { brotliDecompressSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { runMatchingOperations } from "../helpers/operationExecutor";
+import { normalizeFilterDateValue } from "../helpers/filterFieldStamp";
 
 vi.setConfig({ testTimeout: 60000 });
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(here, "fixtures", "pomsGrid.json.br");
-const TODAY = new Date().toISOString().slice(0, 10);
+// `$today` IS LOCAL, AND THIS TEST USED TO ASK FOR UTC.
+//
+// The executor resolves `$today` as `_localDayString(new Date())` and the
+// Schedule builds its day column on that. `new Date().toISOString().slice(0,10)`
+// is the UTC day — so west of UTC the two disagree for the last hours of every
+// evening (5 of them in CDT), and this file went red at 7pm and green again at
+// midnight. Nobody saw it because sessions run in the daytime.
+//
+// `normalizeFilterDateValue` is the app's OWN local-day function, so the test
+// and the thing it measures cannot drift apart again.
+const TODAY = normalizeFilterDateValue(new Date());
 
 let base;
 beforeAll(() => {

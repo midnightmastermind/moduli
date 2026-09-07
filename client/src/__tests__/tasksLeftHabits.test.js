@@ -18,6 +18,7 @@ import { brotliDecompressSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { runMatchingOperations } from "../helpers/operationExecutor";
+import { normalizeFilterDateValue } from "../helpers/filterFieldStamp";
 
 vi.setConfig({ testTimeout: 60000 });
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -68,7 +69,9 @@ function tasksLeft(w) {
 // Tick a row that IS a habit (its module binds the marker) / is NOT.
 function completeOne(w, wantHabit) {
   const habit = fid(w, "Habit"), done = fid(w, "Completed"), date = fid(w, "Date");
-  const today = new Date().toISOString().slice(0, 10);
+  // Local, not UTC — see normalizeFilterDateValue. The executor's $today is
+  // local, so a UTC day string makes this file red every evening.
+  const today = normalizeFilterDateValue(new Date());
   const col = w.fx.occurrences.find((o) => o.fields?.[fid(w, "Schedule Format")]?.value === "day-col");
   expect(col, "no day column").toBeTruthy();
   const src = w.fx.occurrences.find((o) => {

@@ -6,6 +6,109 @@
 
 ---
 
+### 2026-09-06 (2) — AN ACCOUNT IS AN IDENTITY, NOT A TILE; and the money suite has been red every evening
+
+User: *"what im saying is that i dont want these empty tiles for each account
+now. why would you keep those in, i dont want these empty rows."*
+
+**THEY WERE RIGHT AND MY REASON WAS HALF AN ANSWER.** I kept the four account
+rows on the Financial group because eleven transactions name them — which is a
+reason to keep them **ADDRESSABLE**, and I had treated it as a reason to keep
+them **ON SCREEN**. Those are different questions and the grid already has a
+line between them:
+```
+selectors.isOccurrenceVisible    `if (occurrence.hidden) return false`
+```
+**Nothing else reads that flag** — not the options resolver, not the executor,
+not the value renderer; grepped, and it is what makes this safe rather than
+clever. It is also not dormant: `HIDE_OCCURRENCE` / `SHOW_OCCURRENCE` effects
+write it through a real server handler. So the render drops the rows and the
+Account dropdown, the eleven stored picks and the four balance gates do not.
+
+**AND THE ROWS WERE NOT EMPTY, WHICH IS THE HALF I HAD WRONG.** I recorded 0310
+as having *"removed the two duplicate homes — Spent off Checking, Earned off
+Savings"*. It removed the **BINDINGS**, so the numbers stopped rendering. It did
+not remove the **WRITES**: `Spent` still ended
+```
+INIT_VAR $acctItem = $allItemsById.<Checking Account>
+UPDATE   $acctItem.fields.<Spent>.value = $acc
+```
+and `Earned` the same into Savings. **That is the `0047` class inverted** — a
+value with no home rather than a home with no value — and hiding the row would
+have made it permanent and invisible. Both writes go in `0313`, and the two
+values they left go with them. *"One home per number" was a claim about DISPLAY;
+I had checked the bindings and not the writes.*
+
+**THE SELECTOR IS THE GATE, NOT THE LABEL** — 0311 keyed on a label and 0312 had
+to repair it. An account here is *a row some operation names on the right of an
+`Account`-field gate*, which is the thing a transaction actually points at:
+rename "Cash" tomorrow and it still resolves. Dry run named exactly what was
+measured independently — 4 accounts, 2 stale writes, 2 stale values — and a
+forced re-run reports converged.
+
+**READ BACK OUT OF MONGO:** Financial renders `Spent · Income · Accounts · Net
+Worth · Monthly Bills`; the four are `hidden: true`, still in the dropdown's
+option pool, still listed by their parent (the picker resolves by ANCESTRY, so a
+row nobody lists would ALSO fall out of the picker — that is the one guard the
+migration refuses on); **11 stored picks, 0 dangling**; one gate per balance.
+
+**AND THE INVARIANT CHECK FOUND ITS OWN POSITIVE CONTROL.** *"No enabled op
+writes into a hidden row"* reports exactly one — `Grid: Snap Filter To Today`
+into the hidden `Last Opened` marker, which is a deliberate bookkeeping row and
+predates this. A rule nobody has watched fire is a guess; this one fired on
+something real and correct on its first run.
+
+---
+
+**THE MONEY SUITE HAS BEEN RED FOR FIVE HOURS OF EVERY DAY AND NOBODY SAW IT.**
+Seven tests failed after the fixture re-export, reading *"no schedule column for
+today — re-export the fixture"*. **A/B against the COMMITTED fixture failed
+identically**, so it was not the export — and the clock said why:
+```
+date       Sun Sep  6 19:07 CDT        fixture's latest day column   2026-09-06
+date -u    Mon Sep  7 00:07 UTC        what the test asked for       2026-09-07
+```
+The executor resolves `$today` as `_localDayString(new Date())` and the Schedule
+builds its column on that; the tests used `new Date().toISOString().slice(0,10)`,
+which is the **UTC** day. West of UTC the two disagree from 7pm local until
+midnight — so `accountBalances`, `moneySemantics` and `tasksLeftHabits` go red
+every evening and green again by morning. **Sessions run in the daytime, which is
+the only reason this has never been seen.** *Same root as the 2026-08-13
+weekday-token bug (`new Date("2026-08-24")` is UTC midnight, i.e. Sunday evening
+in CDT), reached from the test side.*
+
+Fixed by calling the app's OWN `normalizeFilterDateValue` rather than a fourth
+private definition of "today", so the test and the thing it measures cannot drift
+again. A/B'd with the mutation asserted to land: restoring the UTC form fails
+exactly those 6.
+
+7 tests on the account identities, each A/B'd and failing exactly its own case
+(un-hiding fails 1, restoring the stale write fails 1, planting an unbound value
+fails 1). **And the test caught my own selector first:** two containers on this
+grid are labelled "Financial" — the money group and the Routines dimension — so
+the group is found by WHAT IT LISTS. *A label is two fields on this grid, and
+picking the wrong one invents a failure* — the 2026-08-23 (9) lesson, paid from
+the test side.
+
+**4139 client tests, 0 failures, lint 0 no-undef.** No client source changed, so
+no bundle is owed (the 2026-08-13 (3) rule); the pm2 restart IS owed and was
+done, because the warm cache is authoritative for reads and would re-serve the
+un-hidden rows and the old pipelines.
+
+**NOT VERIFIED, and it is the honest gap: nobody has looked at the Financial
+group in a browser since.** The render decision is driven through the real
+`isOccurrenceVisible` and the picker through the real `resolveOptions`, but no
+one has watched the four rows be gone and then picked an account for a purchase.
+
+**REPORTED, NOT FIXED — the Account dropdown offers 40 options.** Its predicate
+is `_ancestors HAS_ANCESTOR <Trackers page>` with no further narrowing, so
+picking the account for a purchase also offers Water, Steps, Pomodoros, Mood and
+every other tracker tile on the grid. Hiding the rows does not change that (the
+resolver ignores `hidden`, which is the whole point here). Making it precise
+means a marker the accounts carry and the other 36 do not — its own pass.
+
+---
+
 ### 2026-09-06 — A MONTH IN A DATE FIELD, and I broke Net Worth putting the accounts together
 
 Three asks, and two of them turned into defects I had shipped myself the day before.
