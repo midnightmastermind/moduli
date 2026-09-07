@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { isOccurrenceVisible } from "../state/selectors";
 import { resolveOptions } from "../helpers/optionsResolver";
+import { buildStampFields, collectPredicateFieldIds } from "../helpers/addNewOption";
 
 vi.setConfig({ testTimeout: 60000 });
 
@@ -86,26 +87,69 @@ describe("the four accounts are identities, not tiles", () => {
     expect(shown).toContain("Net Worth");
   });
 
-  it("still offers all four in the Account dropdown", () => {
-    const w = world();
-    const field = accountField(w);
-    const { options } = resolveOptions(field, {
+  const pickerFor = (w, name) =>
+    w.fx.fields.find((f) => f.name === name && f.type === "occurrence");
+
+  const offeredBy = (w, field) =>
+    resolveOptions(field, {
       occurrencesById: w.occurrencesById,
       modulesById: w.modulesById,
       fieldsById: w.fieldsById,
-    });
-    const offered = new Set(options.map((o) => o.value));
+    }).options;
 
-    // This is the half hiding must not cost. The picker resolves by ANCESTRY,
-    // and `hidden` is read only by the render path — so a hidden row is still
-    // an account you can pick for a purchase.
-    for (const acct of accountRows(w)) {
-      expect(offered.has(acct.id), `"${labelOf(w, acct)}" fell out of the Account dropdown`).toBe(true);
-    }
-    // Each is offered by NAME, not by raw id — the 0310 regression.
-    const labels = new Set(options.map((o) => o.label));
-    for (const n of ["Checking Account", "Savings Account", "Mom's Account", "Cash"]) {
-      expect(labels, `"${n}" lost its name in the picker`).toContain(n);
+  // BOTH pickers, driven through the REAL resolver. `Account` says where money
+  // came from and `To Account` where a transfer landed — narrowing one and
+  // leaving the other still offers forty tiles as a transfer destination.
+  for (const name of ["Account", "To Account"]) {
+    it(`offers exactly the four accounts in "${name}"`, () => {
+      const w = world();
+      const field = pickerFor(w, name);
+      expect(field, `no occurrence field named "${name}"`).toBeTruthy();
+
+      const options = offeredBy(w, field);
+      const offered = new Set(options.map((o) => o.value));
+      const accounts = accountRows(w);
+
+      // Half one: every account is pickable. `hidden` is read only by the
+      // render path, so leaving the page must not cost a row its place here.
+      for (const acct of accounts) {
+        expect(offered.has(acct.id), `"${labelOf(w, acct)}" fell out of "${name}"`).toBe(true);
+      }
+      // Half two — the ask. Ancestry offered all 40 tracker tiles, so a purchase
+      // could be charged to Water or to Net Worth (the sum of your accounts).
+      const strays = options
+        .filter((o) => !accounts.some((a) => a.id === o.value))
+        .map((o) => o.label);
+      expect(strays, `"${name}" still offers non-accounts`).toEqual([]);
+      expect(options).toHaveLength(accounts.length);
+
+      // By NAME, not by raw id — the 0310 regression.
+      const labels = new Set(options.map((o) => o.label));
+      for (const n of ["Checking Account", "Savings Account", "Mom's Account", "Cash"]) {
+        expect(labels, `"${n}" lost its name in "${name}"`).toContain(n);
+      }
+    });
+  }
+
+  it("lets a newly added account be picked in the dropdown it was added from", () => {
+    const w = world();
+    const field = pickerFor(w, "Account");
+    const addNew = field.meta?.optionsSource?.addNew || {};
+    const parentId = addNew.parentOccurrenceId || (addNew.targets || [])[0];
+    const parent = w.occurrencesById[parentId];
+    expect(parent, "the Account dropdown has no add-new destination").toBeTruthy();
+
+    // `buildStampFields` copies the CHOSEN PARENT's values for exactly the
+    // fields the predicate matches on. If the parent carries none of them, a
+    // new account is created and is then invisible in the dropdown it was
+    // added from — created, silent, unpickable.
+    const needed = collectPredicateFieldIds(field.meta.optionsSource);
+    expect(needed.length, "the predicate matches on no field — nothing to inherit").toBeGreaterThan(0);
+
+    const stamp = buildStampFields(field, parent);
+    for (const fid of needed) {
+      expect(stamp[fid], `add-new parent "${labelOf(w, parent)}" carries no ${w.fieldsById[fid]?.name}`)
+        .toBeTruthy();
     }
   });
 

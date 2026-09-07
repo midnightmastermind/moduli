@@ -6,6 +6,103 @@
 
 ---
 
+### 2026-09-06 (3) — THE ACCOUNT PICKER OFFERED FORTY TRACKER TILES; the tag was already the mechanism
+
+User: *"keep going and narrow the account dropdown please."*
+
+**BOTH account pickers resolved by ANCESTRY**, which is a fact about where a row
+is filed and says nothing about what a row IS:
+```
+$record._ancestors HAS_ANCESTOR <Trackers page>   ->  40 options
+   Water · Steps · Pomodoros · Mood · Sleep · Coffee · Net Worth · …
+```
+So a purchase could be charged to Water — or to **Net Worth**, the sum of your
+own accounts. And it was **two** fields, not one: `Account` (where money came
+from) and `To Account` (where a transfer landed) carry byte-identical config, so
+narrowing one would have left forty tiles on offer as a transfer destination.
+
+**THE MECHANISM ALREADY EXISTED, so this adds a VALUE rather than a second
+system.** `Board Category` is this grid's scoping tag — 30-odd dropdowns resolve
+`fields.<Board Category>.value CONTAINS <tag> AND meta.feedSourceId IS_EMPTY`,
+and **44 containers carry their own tag** so a row added through "+ Add new"
+inherits the tag of wherever it was made. An account is exactly what that
+vocabulary names: a thing you pick. 46 values became 47.
+
+**TWO NEAR-MISSES WERE MEASURED AND REJECTED, and each was wrong by exactly one
+row — the row that matters most:**
+```
+meta.cumulative        5 rows   the four accounts AND Net Worth
+Tracker Scope "Total"  5 rows   the same five
+```
+Net Worth is a running total, not an account. Either would have shipped a picker
+that lets you charge a purchase to the sum of your accounts. `meta.cumulative`
+is also the `meta.<flag>` shape this repo has ruled out for identity — *"data
+the system can introspect (fields, named filters, ops), not magic constants"* —
+and the tag is that. **The hidden `Category` field the four already bind was
+checked too and is dead: a wellness-dimension select, bound on 200 modules,
+carrying ZERO values grid-wide.**
+
+**THE ADD-NEW PATH IS WHY THE CONTAINER GETS THE TAG TOO, and missing it would
+have been silent.** `collectPredicateFieldIds` reads the `fields.<fid>.value`
+lefts out of the dropdown's OWN predicate and `buildStampFields` copies the
+chosen parent's values for them onto the new option. With ancestry there were no
+such fields, so nothing was inherited and nothing needed to be. With a tag, a
+new account created under an untagged parent is **created, and then invisible in
+the very dropdown it was added from.** The migration refuses unless the addNew
+parent ends up carrying it, and a test drives `buildStampFields` over the live
+config to prove the inheritance is real.
+
+**`operator`, NOT `conjunction`.** `evalGroupAgainstRecord` destructures
+`{ operator = "AND" }` and ignores `conjunction` entirely — so the key both
+pickers carried was **inert**, harmless on a one-rule predicate and wrong the
+moment a second rule landed beside it. The shipped shape is copied verbatim from
+a live exemplar (`Gift Idea`) rather than authored, and so is the VALUE shape:
+12,703 rows store this tag as an ARRAY, so a bare string would resolve through
+CONTAINS today and be the odd one out the moment anything read it as a list.
+
+**MY OWN MIGRATION'S VERIFICATION WAS WRONG ON THE APPLY PATH, caught before it
+ran.** It replays the shipped predicate over live data and refuses on anything
+but the four — but it read the snapshot taken BEFORE its own writes, so on
+`--apply` it would have found zero tagged rows and thrown. It re-reads Mongo when
+applying now, which is the honest check anyway. *A guard that only runs correctly
+in dry run is a guard that has never run.*
+
+**AND AN A/B REPORTED "THE TEST DOES NOT DISCRIMINATE" WHEN THE MUTATION HAD NOT
+LANDED.** Restoring the ancestry predicate passed 9/9 — because the mutation
+looked up the Trackers page by `o.label` alone, and that occurrence carries its
+label on the MODULE. With a landing assert it fails 3, listing `Completed Tasks`,
+`Water` and 35 more. **Third time today the label-is-two-fields trap has bitten**
+(it also picked the wrong "Financial" container in the previous entry's test).
+*Check the mutation landed before believing an A/B — and put the assert IN the
+mutation so it cannot lie twice.*
+
+**READ BACK OUT OF MONGO:** both predicates identical (tag + feed guard); 5 rows
+tagged — four accounts (instances) plus `Financial` (the container); other tags
+untouched (ingredient 46 · grocery 35 · meal 7 · reading 19). Driven through the
+REAL `resolveOptions` rather than the migration's replica of it, **both pickers
+resolve to exactly 4**. Three A/Bs, each failing exactly its own cases: the old
+ancestry predicate (3), an untagged addNew parent (1), one untagged account (2).
+
+**NOT FIXED, and both are the honest gaps.**
+
+**A newly added account still renders as a visible row.** "+ Add new" mints it
+under `Financial`, and by the previous entry's own logic an account is an
+identity rather than a tile — so it should be born hidden. `createLeafInstanceInParent`
+takes `occMeta` but no `hidden`, and `hidden` is a top-level occurrence field, so
+this is plumbing through the shared create path (helper, emit, reducer, server
+handler) — the path this file records being damaged repeatedly. It wants its own
+pass, declared as data (`addNew.hidden`) rather than hardcoded.
+
+**THE SEED IS BEHIND ON THE WHOLE MONEY MODEL, and narrowing it here would make
+a fresh grid WORSE.** `server/seed/fields.json` has no `To Account` at all —
+transfers were migration-only (`0299`) — and its `Board Category` carries no
+`optionsSource`. So a fresh grid has no tagged rows, and pointing its `Account`
+predicate at the tag would yield an EMPTY dropdown rather than an over-broad one.
+The twins rule stands; the divergence is bigger than this predicate and is
+reported rather than half-closed.
+
+---
+
 ### 2026-09-06 (2) — AN ACCOUNT IS AN IDENTITY, NOT A TILE; and the money suite has been red every evening
 
 User: *"what im saying is that i dont want these empty tiles for each account
