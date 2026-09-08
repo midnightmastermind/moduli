@@ -2934,7 +2934,7 @@ function alarmTimeslotLabel(hhmm) {
 // timeslot (else the day-col itself), and create the alarm instance once per day —
 // matching and de-duping on the TIMESLOT field (not the label), and stamping it on
 // the created instance. MUST mirror the client's alarmScheduleSteps in helpers/alarmOps.js.
-function alarmScheduleSteps({ sched, instanceLabel, time }) {
+function alarmScheduleSteps({ sched, instanceLabel, time, signature }) {
   if (!sched || !sched.dateFieldId || !sched.scheduleFormatFieldId
       || !sched.timeslotFieldId || !sched.pageOccurrenceId) return [];
   const df = sched.dateFieldId;
@@ -2976,13 +2976,20 @@ function alarmScheduleSteps({ sched, instanceLabel, time }) {
               predicate: { operator: "AND", rules: [
                 { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$alDayCol" },
                 { id: uid(), left: `fields.${tf}.value`, comparator: "IS", right: tsLabel },
-                { id: uid(), left: "label", comparator: "IS", right: instanceLabel },
+                // AN ALARM'S DEDUPE FIND ASKS "did I already create today's row?"
+                // and it used to ask by NAME — so renaming the alarm in the
+                // Alarms tab made it stop recognising its own row and mint a
+                // second one every day. `identitySignature` survives a rename;
+                // the label does not. CREATE also stamps `signatureUnique`, so
+                // the server refuses a duplicate under one parent as well.
+                { id: uid(), left: "identitySignature", comparator: "IS", right: signature },
               ] }, itemIdVar: "$alExisting" } },
             { id: uid(), type: "if",
               condition: { operator: "AND", rules: [{ id: uid(), left: "$alExisting", comparator: "IS_EMPTY", right: "" }] },
               then: [
                 { id: uid(), type: "action", config: {
                   type: "CREATE", role: "instance", name: instanceLabel,
+                  identitySignature: signature,
                   parent: "$alTarget", fields: { [df]: "$today", [tf]: tsLabel },
                   fieldHidden: { [df]: true, [tf]: true },
                 } },
@@ -3013,7 +3020,10 @@ export function makeAlarmOp({ userId, gridId, folderId, type = "alarm", label = 
             sound: ring,
             duration: ring ? 60000 : 15000,
         }},
-        ...alarmScheduleSteps({ sched, instanceLabel, time }),
+        // `${type}:${time}` — stable across a RENAME, which is the failure this
+        // fixes, and different for a different alarm time (which is a different
+        // alarm, landing in a different slot anyway).
+        ...alarmScheduleSteps({ sched, instanceLabel, time, signature: `${type}:${time}` }),
       ],
     },
     folderId,

@@ -6,6 +6,109 @@
 
 ---
 
+### 2026-09-08 — 48 OPERATIONS DECIDED WHETHER TO FIRE BY READING A PAGE'S NAME
+
+User: *"would it be easier not to look at labels since those change but to mark
+occurances with a certain field like we do with a lot of them"* -> *"make sure we
+arent using labels like that and add any fields you think may help the
+comparison"*
+
+**They were right, and the grid had already paid for it twice.** Measured before
+answering: **48 of 74 enabled ops scope a trigger by an ancestor LABEL** —
+`"Trackers"` on 43, `"Schedule"` on 35.
+
+**IT HAD ALREADY BROKEN SOMETHING, SILENTLY AND PARTIALLY.** The Goals page
+became "Trackers" on 2026-07-25 and a post-save pass rescoped the ops it knew
+about. Two were missed:
+```
+Completed Habits   onFilterChange / filterNav   ancestorLabel="Goals"
+Sleep Time         onFilterChange / filterNav   ancestorLabel="Goals"
+```
+The only occurrences still labelled "Goals" are **Project Scope sections inside
+project pages**, so that trigger entry cannot fire for a Trackers navigation.
+Both ops still recompute on load and on a `Completed` write — **which is why
+nobody saw it.** Change the date and those two tiles keep the number they already
+had. *A partial silent failure is the worst kind.*
+
+**AND "Trackers" NAMES TWO PAGES** — the real board and an empty page/folder — so
+43 triggers were already matching on something ambiguous.
+
+**THE RENAME-PROOF FORM ALREADY EXISTED AND NOTHING WAS USING IT.**
+`matchAncestorScope` has always checked `ancestorId` against the transaction's
+`_ancestorIds` BEFORE it looks at labels. `0319` converted all 48.
+
+**THE ID IS READ OUT OF THE OP, NOT LOOKED UP BY LABEL** — resolving "Trackers"
+by name would repeat the mistake inside the fix. Three rules, in order, and each
+had to earn its place against the dry run:
+```
+38  an id the op ALREADY names          `$allItemsById.<id>` / targetOccurrenceId
+41  the page holding the op's own tile  disambiguates the two "Trackers" pages
+ 1  `templateId IS <moduleId>`          Monthly Bills finds its tile by MODULE
+```
+The first pass resolved only 7 and REFUSED 41; the structural rule is what made
+it 48. Every id is verified to resolve to a page/container afterwards — *a
+trigger repointed at a textblock never fires, and would be exactly as silent.*
+
+---
+
+**THEN THE RULE-LEVEL TWINS (`0320`), AND THE FINDING IS THAT NO NEW FIELD WAS
+NEEDED.** The user offered to add fields; three of the five needed none, because
+the grid already stamps what they were asking for:
+```
+Due: Seed                        label IS "Todo"     -> Time Slot marker ("Todo")
+Day Page: Build Tasks Completed  label IS "Tasks…"   -> identitySignature
+Workouts: Today's Session        moduleLabel IS "Run"/"Stretch" -> templateId
+```
+The Todo container has carried `Time Slot: "Todo"` as its identity since
+2026-07-30 (Build Schedule, Alarm and Pomodoro all resolve slots by it); all 40
+Tasks Completed sections carry `daypage:Tasks Completed` from `0022`; and the
+other 24 movements in that same op were ALREADY matched by the movement's own id
+— Run and Stretch fell back to a name only because they are routines with no
+pick. **The ops simply were not reading the markers the grid maintains.**
+
+**AND MY OWN GUARD HAD A HOLE THE DRY RUN FOUND.** It checked the replacement
+did not match FEWER rows. Converting `Alarm: 5 PM` from its name to the 5pm Time
+Slot matched **25 rows instead of 5** — every row in that slot — so the alarm's
+dedupe would have concluded it had already fired and stopped creating its row.
+The rule is now that the sets must be IDENTICAL in both directions.
+***A broadened match is not a safer match.***
+
+**SO THE ALARMS GOT A MARKER OF THEIR OWN (`0321`)**, which is the one place a
+field genuinely had to be added. An alarm's FIND asks *"did I already create
+today's row?"* and asked it by name, so renaming an alarm in the Alarms tab made
+it stop recognising its own row and mint a second one every day. `CREATE` has
+supported `identitySignature` all along — and stamps `meta.signatureUnique` with
+it, so `0303`'s server-side refusal now backs the dedupe rather than the op
+merely not asking twice.
+```
+signature = `${type}:${time}`   ->  "alarm:17:00"
+```
+Stable across a rename — the failure being fixed — and different for a different
+time, which is a different alarm in a different slot. **Both BUILDER twins were
+changed in the same pass** (`helpers/alarmOps.js` and the server's
+`makeAlarmOp`), because an alarm rebuilt from either would otherwise stop
+recognising the rows this signed; those twins have drifted before. **And the
+existing rows are stamped, or the fix causes the bug once:** today's row carries
+no signature, so the first fire after shipping would not recognise it.
+
+---
+
+**THE GUARD, so this cannot come back quietly.** `triggerScoping.test.js` pins
+three things with a control on each: no trigger is scoped by a name (control:
+there ARE ancestor-scoped triggers — 48), every `ancestorId` resolves to
+something that can BE an ancestor (a stale id is exactly as dead as a stale
+name), and no pipeline rule identifies a row by its name. A marker matching
+NOTHING is allowed only when the op's own CREATE mints it — which is the alarm
+case, and is what stops that exemption being a hole.
+
+Every A/B fails exactly its own case: putting a trigger back on a label (1),
+reverting a rule to a label (1), reverting the alarm dedupe (1). And one probe
+of mine flagged `templateId IS "$payBillTpl"` as a stale marker — it compares to
+a **$var**, resolved at run time. *A literal and a variable are not the same
+rule; my walker did not know the difference.*
+
+---
+
 ### 2026-09-07 — EVERY TRACKER, ASSERTED ON ITS VALUE; and your account balances reset every night
 
 User: *"please fix those things and make sure all the ops are working for

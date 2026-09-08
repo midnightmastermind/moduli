@@ -39,7 +39,7 @@ function alarmTimeslotLabel(hhmm) {
 // matching + de-duping on the TIMESLOT field (not the label) and stamping it on
 // the created instance. MUST mirror the server's alarmScheduleSteps in
 // utils/liveSystemBuilders.js.
-function alarmScheduleSteps({ sched, instanceLabel, time }) {
+function alarmScheduleSteps({ sched, instanceLabel, time, signature }) {
   if (!sched || !sched.dateFieldId || !sched.scheduleFormatFieldId
       || !sched.timeslotFieldId || !sched.pageOccurrenceId) return [];
   const df = sched.dateFieldId;
@@ -80,7 +80,13 @@ function alarmScheduleSteps({ sched, instanceLabel, time }) {
               predicate: { operator: "AND", rules: [
                 { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$alDayCol" },
                 { id: uid(), left: `fields.${tf}.value`, comparator: "IS", right: tsLabel },
-                { id: uid(), left: "label", comparator: "IS", right: instanceLabel },
+                // AN ALARM'S DEDUPE FIND ASKS "did I already create today's row?"
+                // and it used to ask by NAME — so renaming the alarm in the
+                // Alarms tab made it stop recognising its own row and mint a
+                // second one every day. `identitySignature` survives a rename;
+                // the label does not. CREATE also stamps `signatureUnique`, so
+                // the server refuses a duplicate under one parent as well.
+                { id: uid(), left: "identitySignature", comparator: "IS", right: signature },
               ] }, itemIdVar: "$alExisting" } },
             { id: uid(), type: "if",
               condition: { operator: "AND", rules: [{ id: uid(), left: "$alExisting", comparator: "IS_EMPTY", right: "" }] },
@@ -92,6 +98,7 @@ function alarmScheduleSteps({ sched, instanceLabel, time }) {
                   // (2026-07-29). The server twin makeAlarmOp already omits it —
                   // these two builders must stay in sync.
                   type: "CREATE", role: "instance", name: instanceLabel,
+                  identitySignature: signature,
                   parent: "$alTarget", fields: { [df]: "$today", [tf]: tsLabel },
                   fieldHidden: { [df]: true, [tf]: true },
                 } },
@@ -119,7 +126,10 @@ function alarmPipeline({ type, label, time, sched }) {
           duration: ring ? 60_000 : 15_000,
         },
       },
-      ...alarmScheduleSteps({ sched, instanceLabel, time }),
+      // `${type}:${time}` — stable across a RENAME (the failure this fixes) and
+      // different for a different alarm time. MUST match the server twin
+      // `makeAlarmOp`, or an alarm rebuilt there stops recognising its own row.
+      ...alarmScheduleSteps({ sched, instanceLabel, time, signature: `${type}:${time}` }),
     ],
   };
 }
