@@ -58,8 +58,17 @@ const loopVarOf = (r) => {
   const m = LOOP_DATE_RX.exec(r.left);
   return m ? m[1] : null;
 };
+// BOTH date comparators count. A running balance gates its rows with
+// `DATE_ON_OR_BEFORE_PERIOD` — a CUT-OFF rather than a window (0325/0326) — and
+// for this policy the two are the same thing: what is being looked for is the
+// rule that BINDS the loop var, so the category gate beside it can name the
+// same one. Keyed on `DATE_IN_PERIOD` alone, a re-run of `0164` would silently
+// skip the four balance ops — the fail-closed skip doing the wrong thing
+// quietly, which is the outcome this file's own header warns about.
 const isLoopDateRule = (r) =>
-  !!loopVarOf(r) && r.comparator === "DATE_IN_PERIOD" && r.right === "$goalPeriod";
+  !!loopVarOf(r)
+  && (r.comparator === "DATE_IN_PERIOD" || r.comparator === "DATE_ON_OR_BEFORE_PERIOD")
+  && r.right === "$goalPeriod";
 
 // After periodAllPolicy the date rule is wrapped: (date IN period) OR (period IS_EMPTY).
 const isPeriodAllWrapper = (r) =>

@@ -221,3 +221,61 @@ describe("the fail-closed check sees a NESTED binding", () => {
     expect(JSON.stringify(op).match(/\$goalCategory/g).length).toBe(3); // 1 var + 2 gate refs
   });
 });
+
+// A BALANCE GATES ITS ROWS WITH A CUT-OFF, NOT A WINDOW.
+//
+// `makeTrackerOp({ supportsReplace: true })` emits
+// `DATE_ON_OR_BEFORE_PERIOD` — everything up to the end of the period rather
+// than inside it (0325/0326). This policy has to recognise that as a loop date
+// gate too, because what it is really looking for is the rule that BINDS the
+// loop var so the category gate beside it can name the same one. Keyed on
+// `DATE_IN_PERIOD` alone it skipped the four balance ops silently, which is the
+// fail-closed path doing the wrong thing quietly.
+//
+// Driven through the REAL builder + periodAllPolicy, exactly like the suite
+// above, so it measures the shape that actually ships.
+describe("a balance tracker's cut-off gate", () => {
+  const balance = () => makeTrackerOp({
+    userId: "u1", gridId: "g1", name: "Checking Balance",
+    goalOccurrenceId: "goal-1", goalFieldId: "goal-fld", dateFieldId: DATE,
+    completedFieldId: "done-fld", sourceFieldId: "amt-fld",
+    agg: "sum", scopePageOccId: "sched-page", supportsReplace: true,
+  });
+
+  it("really does carry a cut-off — the control", () => {
+    // Without this the two assertions below would pass against a builder that
+    // quietly stopped emitting the cut-off at all.
+    const rules = collectRules(balance());
+    expect(rules.some((r) => r.comparator === "DATE_ON_OR_BEFORE_PERIOD"
+                          && r.right === "$goalPeriod")).toBe(true);
+  });
+
+  it("is recognised as a loop date gate, so the category gate lands beside it", () => {
+    const op = balance();
+    applyPeriodAllPolicy([op]);
+    const changed = applyCategoryScope([op], { categoryFieldId: CAT });
+    expect(changed.skipped ?? []).toEqual([]);
+    const hit = collectRules(op).filter(
+      (r) => r.left === `$item.fields.${CAT}.value` && r.comparator === "CONTAINS");
+    expect(hit.length).toBeGreaterThan(0);
+  });
+
+  it("no category gate lands INSIDE the cut-off's own wrapper", () => {
+    // `(cut-off) OR ($goalPeriod IS_EMPTY) OR (category…)` is vacuously true on
+    // an unfiltered page — it would void date filtering while every number
+    // still looked plausible. Same trap the DATE_IN_PERIOD wrapper has.
+    const op = balance();
+    applyPeriodAllPolicy([op]);
+    applyCategoryScope([op], { categoryFieldId: CAT });
+    let inside = 0;
+    walk(op.pipeline, (n) => {
+      if (!Array.isArray(n.rules) || n.operator !== "OR") return;
+      const isWrapper = n.rules.some((r) => r && r.right === "$goalPeriod"
+            && (r.comparator === "DATE_IN_PERIOD" || r.comparator === "DATE_ON_OR_BEFORE_PERIOD"))
+        && n.rules.some((r) => r && r.left === "$goalPeriod" && r.comparator === "IS_EMPTY");
+      if (isWrapper && n.rules.some((r) => r && Array.isArray(r.rules)
+            && r.rules.some((x) => x && x.right === "$goalCategory"))) inside++;
+    });
+    expect(inside).toBe(0);
+  });
+});
