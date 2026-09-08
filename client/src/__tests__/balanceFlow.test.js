@@ -225,3 +225,81 @@ describe("Aggregation decides the arithmetic; the date filter decides the cut-of
     expect(checking(w)).toBeCloseTo(0, 2);
   });
 });
+
+// ── `Aggregation` DRIVES the arithmetic, it does not merely record it ──────
+//
+// User, 2026-09-08: *"something called aggregation. total and current would be
+// the values. that would determine if we use 0 as the baseline or set"* — so
+// the field is the switch, not a label describing one.
+//
+//     current   start from the last `replace`, apply everything after it
+//     total     start at 0, add up the MOVEMENT in scope, ignore any baseline
+//
+// The ledger below is the same one the cut-off block uses — balance set to 100
+// on Sep 1, 10 spent today — which is what makes the two blocks comparable:
+// every number here differs from its `current` twin, and the pair is what says
+// the field is being READ rather than the arithmetic happening to agree.
+//
+// A tile with NO Aggregation value must behave exactly as `current` — that is
+// the back-compat property every other tracker on the grid depends on, and it
+// has its own case at the bottom.
+describe("Aggregation: total counts movement, current counts what you have", () => {
+  const setAgg = (w, label, value) => {
+    const t = w.fx.occurrences.find(
+      (o) => labelOf(w, o) === label && w.modulesById[o.moduleId]?.role === "instance");
+    expect(t, `no "${label}" tile`).toBeTruthy();
+    const fid = fieldId(w, "Aggregation");
+    if (value == null) delete t.fields[fid];
+    else t.fields = { ...(t.fields || {}), [fid]: { value, flow: "in" } };
+  };
+  const filterTo = (w, label, value) => {
+    const t = w.fx.occurrences.find(
+      (o) => labelOf(w, o) === label && w.modulesById[o.moduleId]?.role === "instance");
+    t.filterOverride = { ...(t.filterOverride || {}), [fieldId(w, "Date")]: value };
+  };
+  const ledger = (w) => {
+    record(w, { action: "Track", amount: 100, flow: "replace", day: "2026-09-01", account: "Checking Account" });
+    record(w, { action: "Spend", amount: 10,  flow: "out",     day: TODAY,        account: "Checking Account" });
+  };
+  const checking = (w) => sweep(w)["Accounts.Checking Balance"];
+
+  it("total, no filter: the movement, NOT the balance", () => {
+    const w = world(); ledger(w); setAgg(w, "Accounts", "total");
+    // 10 went out and the 100 was a baseline, not a deposit. `current` reads 90
+    // here — that difference IS the feature.
+    expect(checking(w)).toBeCloseTo(-10, 2);
+  });
+
+  it("total, filtered to the day the money moved: that day's movement", () => {
+    const w = world(); ledger(w); setAgg(w, "Accounts", "total"); filterTo(w, "Accounts", TODAY);
+    expect(checking(w)).toBeCloseTo(-10, 2);
+  });
+
+  it("total, filtered to a quiet day: 0, where current reads the balance", () => {
+    const w = world(); ledger(w); setAgg(w, "Accounts", "total"); filterTo(w, "Accounts", "2026-09-05");
+    // THE DISCRIMINATOR. `current` on this exact day reads 100 (you had it);
+    // `total` reads 0 (nothing moved). A window and a cut-off cannot both be
+    // right, and this is the day that tells them apart.
+    expect(checking(w)).toBeCloseTo(0, 2);
+  });
+
+  it("total, filtered to the day the balance was SET: 0 — a replace is not movement", () => {
+    const w = world(); ledger(w); setAgg(w, "Accounts", "total"); filterTo(w, "Accounts", "2026-09-01");
+    // `current` reads 100 here. Setting a balance is a correction, not a
+    // transaction, so it must not show up as money that moved.
+    expect(checking(w)).toBeCloseTo(0, 2);
+  });
+
+  it("an UNSTAMPED tile still behaves as current — the back-compat control", () => {
+    const w = world(); ledger(w); setAgg(w, "Accounts", null);
+    // Every tracker that predates the field has no value, and none of them may
+    // change behaviour. Without this, "total works" is also satisfied by a
+    // build that treats an absent value as total and silently zeroes the grid.
+    expect(checking(w)).toBeCloseTo(90, 2);
+  });
+
+  it("current is still current once the field is explicitly set", () => {
+    const w = world(); ledger(w); setAgg(w, "Accounts", "current");
+    expect(checking(w)).toBeCloseTo(90, 2);
+  });
+});

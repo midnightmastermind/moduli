@@ -287,14 +287,31 @@ describe("the category axis is intact in the stored pipelines", () => {
   // which way the date narrows. Keying on `DATE_IN_PERIOD` alone reported the
   // four balance ops as ungated the day the cut-off shipped, while their gates
   // were sitting right there reading `$item`.
+  const loopVarOf = (r) =>
+    r && typeof r.left === "string" && !r.left.startsWith("$trigger.")
+      ? (/^\$([A-Za-z0-9_]+)\.fields\./.exec(r.left)?.[1] ?? null) : null;
   const isLoopDate = (r) =>
     r && typeof r.left === "string" && !r.left.startsWith("$trigger.")
     && /^\$[A-Za-z0-9_]+\.fields\./.test(r.left)
     && (r.comparator === "DATE_IN_PERIOD" || r.comparator === "DATE_ON_OR_BEFORE_PERIOD")
     && r.right === "$goalPeriod";
+  // The loop date rule can sit one level deeper than it used to. A balance's
+  // gate is now `(agg≠total AND cut-off) OR (agg=total AND window) OR (no
+  // period)` (0327) — the tile's `Aggregation` decides which way the date
+  // narrows — so the date rule lives inside an AND branch rather than directly
+  // in the OR. What this guard is actually asking is "does this group date-gate
+  // the same loop var the category gate names", and that answer does not depend
+  // on how deeply the rule is nested.
+  const loopDateVarIn = (node) => {
+    if (!node || typeof node !== "object") return null;
+    if (isLoopDate(node)) return loopVarOf(node);
+    if (!Array.isArray(node.rules)) return null;
+    for (const r of node.rules) { const v = loopDateVarIn(r); if (v) return v; }
+    return null;
+  };
   const isPeriodAllWrapper = (r) =>
     r && Array.isArray(r.rules) && r.operator === "OR"
-    && r.rules.some(isLoopDate)
+    && !!loopDateVarIn(r)
     && r.rules.some((x) => x && x.left === "$goalPeriod" && x.comparator === "IS_EMPTY");
   const isCategoryGate = (r) =>
     r && Array.isArray(r.rules) && r.operator === "OR"
@@ -333,9 +350,8 @@ describe("the category axis is intact in the stored pipelines", () => {
     const bad = [];
     for (const { gate, group, opName } of gates()) {
       const lv = /^\$([A-Za-z0-9_]+)\./.exec(gate.rules.find((x) => x.right === "$goalCategory").left)?.[1];
-      const sib = group.rules.find((x) => isLoopDate(x) || isPeriodAllWrapper(x));
-      const sibVar = sib && /^\$([A-Za-z0-9_]+)\./.exec(
-        isPeriodAllWrapper(sib) ? sib.rules.find(isLoopDate).left : sib.left)?.[1];
+      const sib = group.rules.find((x) => loopDateVarIn(x));
+      const sibVar = sib && loopDateVarIn(sib);
       if (!sibVar || sibVar !== lv) bad.push(`${opName}: gate on $${lv}, date gate on $${sibVar}`);
     }
     expect(bad).toEqual([]);

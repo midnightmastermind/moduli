@@ -2417,6 +2417,20 @@ export function makeTrackerOp({
   // old {value, flow:"in"|"out"|"replace"} attribute made real for balances —
   // used by the seeded "Set Account Balance" task.
   supportsReplace,
+  // The tile's own `Aggregation` field (select: current | total). When given,
+  // the TILE'S STORED VALUE decides the arithmetic instead of this builder's
+  // `supportsReplace` deciding it once at seed time:
+  //
+  //     current   start from the last `replace`, apply everything after it
+  //               -> what you HAVE.   A date filter is a CUT-OFF.
+  //     total     start at 0, add up the movement, ignore any baseline
+  //               -> what MOVED.      A date filter is a WINDOW.
+  //
+  // ANYTHING THAT IS NOT THE STRING "total" READS AS current, which is what
+  // makes this back-compatible: every tracker that predates the field carries
+  // no value and keeps behaving exactly as it does today. Omit the param and
+  // the emitted pipeline is byte-identical to before.
+  aggregationFieldId,
 }) {
   // ── Fail-fast argument guards ──
   // Task 13 calls this ~20× with varying agg types; silent-zero goals are hard
@@ -2491,11 +2505,23 @@ export function makeTrackerOp({
         // reads 0. Measured: dropping this arm took all four accounts to 0.
         // It is the same wrapper `periodAllPolicy` puts on every other tracker
         // date gate, for exactly this reason.
-        rules.push({ id: uid(), operator: "OR", rules: [
-          { id: uid(), left: `$item.fields.${dateFieldId}.value`,
-            comparator: "DATE_ON_OR_BEFORE_PERIOD", right: "$goalPeriod" },
-          { id: uid(), left: "$goalPeriod", comparator: "IS_EMPTY", right: "" },
-        ] });
+        const cutOff = () => ({ id: uid(), left: `$item.fields.${dateFieldId}.value`,
+                                comparator: "DATE_ON_OR_BEFORE_PERIOD", right: "$goalPeriod" });
+        const window = () => ({ id: uid(), left: `$item.fields.${dateFieldId}.value`,
+                                comparator: "DATE_IN_PERIOD", right: "$goalPeriod" });
+        const emptyPeriod = () => ({ id: uid(), left: "$goalPeriod", comparator: "IS_EMPTY", right: "" });
+        rules.push(aggregationFieldId
+          // The tile decides which way the date narrows. `IS_NOT "total"` is
+          // the current arm on purpose: an unset field reads as current, so a
+          // tracker that predates `Aggregation` is unaffected.
+          ? { id: uid(), operator: "OR", rules: [
+              { id: uid(), operator: "AND", rules: [
+                { id: uid(), left: "$agg", comparator: "IS_NOT", right: "total" }, cutOff() ] },
+              { id: uid(), operator: "AND", rules: [
+                { id: uid(), left: "$agg", comparator: "IS", right: "total" }, window() ] },
+              emptyPeriod(),
+            ] }
+          : { id: uid(), operator: "OR", rules: [cutOff(), emptyPeriod()] });
       } else {
         rules.push({ id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" });
       }
@@ -2562,6 +2588,13 @@ export function makeTrackerOp({
             rules: [
               ...buildLoopRules({ srcField: replField, completionGate: "policy", includePresence: true }),
               { id: uid(), left: `$item.fields.${replField}.flow`, comparator: "IS", right: "replace" },
+              // `total` starts at ZERO — no baseline. Skipping this scan is what
+              // makes that true: `$baseDate` then stays empty, which is exactly
+              // the state `replaceGuardRules` already treats as "count it all",
+              // so the movement loops need no second branch of their own.
+              ...(aggregationFieldId
+                ? [{ id: uid(), left: "$agg", comparator: "IS_NOT", right: "total" }]
+                : []),
             ],
           },
           then: [{
@@ -2790,6 +2823,14 @@ export function makeTrackerOp({
   // YYYY-MM-DD string. DATE_IN_PERIOD reads both. Resolution order:
   // goal's _effectiveFilter → $trigger.date → $today. Bare-string $trigger.date
   // and $today both fold cleanly into DATE_IN_PERIOD as "day" unit.
+  // `$agg` is bound BEFORE `$goalPeriod` and outside the date-gated branch,
+  // because the baseline scan reads it too and that scan runs whether or not
+  // the tracker is date-gated. Reading it off `$goalItem` — the tile — is what
+  // makes the switch a property of the thing on screen rather than of the op.
+  const aggSteps = aggregationFieldId ? [
+    { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$agg", expr: `$goalItem.fields.${aggregationFieldId}.value` } },
+  ] : [];
+
   const goalDateSteps = dateGated ? [
     { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$goalPeriod", expr: `$goalItem._effectiveFilter.${dateFieldId}` } },
     {
@@ -2904,6 +2945,7 @@ export function makeTrackerOp({
             ]
         ),
 
+        ...aggSteps,
         ...goalDateSteps,
 
         {

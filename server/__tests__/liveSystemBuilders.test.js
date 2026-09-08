@@ -1029,3 +1029,104 @@ describe("build ops are scoped to their own page (D7)", () => {
     expect(json).not.toContain("$goalsPage");
   });
 });
+
+// ── THE TILE DECIDES: `Aggregation` drives the arithmetic ─────────────────
+//
+// `aggregationFieldId` moves the current-vs-total decision OUT of this builder
+// and onto the tile, so it can be changed from the UI with no migration:
+//
+//     current   start from the last `replace`, apply everything after it
+//     total     start at 0, sum the movement, ignore any baseline
+//
+// The BACK-COMPAT property is the load-bearing one — omitting the param has to
+// leave the pipeline exactly as it was, because every tracker that predates the
+// field goes through this same builder.
+describe("makeTrackerOp — aggregationFieldId", () => {
+  const AGG = "agg-field-01";
+  const build = (extra) => makeTrackerOp({
+    userId: "u1", gridId: "g1", name: "Checking Balance",
+    goalOccurrenceId: "goal-1", goalFieldId: "goal-fld", dateFieldId: "date-fld",
+    completedFieldId: "done-fld", sourceFieldId: "amt-fld",
+    agg: "sum", scopePageOccId: "sched-page", supportsReplace: true, ...extra,
+  });
+  const rules = (op) => { const out = []; const walk = (n) => {
+    if (Array.isArray(n)) return n.forEach(walk);
+    if (n && typeof n === "object") { if (n.comparator) out.push(n); Object.values(n).forEach(walk); } };
+    walk(op.pipeline); return out; };
+
+  it("omitting it leaves the pipeline untouched — the back-compat control", () => {
+    // Without this, "the field drives it" is also satisfied by a builder that
+    // silently rewrote every tracker on the grid.
+    const op = build({});
+    expect(JSON.stringify(op.pipeline)).not.toContain("$agg");
+    // …and it still carries the cut-off, so this is not passing because the
+    // whole balance behaviour vanished.
+    expect(rules(op).some((r) => r.comparator === "DATE_ON_OR_BEFORE_PERIOD")).toBe(true);
+  });
+
+  it("binds $agg off the TILE, not off the op", () => {
+    // A tracker's own tile is what the user filters and edits; reading the
+    // switch from anywhere else would put it out of reach of the UI.
+    const op = build({ aggregationFieldId: AGG });
+    const inits = [];
+    const walk = (n) => { if (Array.isArray(n)) return n.forEach(walk);
+      if (n && typeof n === "object") { if (n.type === "INIT_VAR") inits.push(n); Object.values(n).forEach(walk); } };
+    walk(op.pipeline);
+    const agg = inits.find((i) => i.name === "$agg");
+    expect(agg).toBeTruthy();
+    expect(agg.expr).toBe(`$goalItem.fields.${AGG}.value`);
+  });
+
+  it("gates the date BOTH ways — a cut-off for current, a window for total", () => {
+    const op = build({ aggregationFieldId: AGG });
+    const r = rules(op);
+    expect(r.some((x) => x.comparator === "DATE_ON_OR_BEFORE_PERIOD" && x.right === "$goalPeriod")).toBe(true);
+    expect(r.some((x) => x.comparator === "DATE_IN_PERIOD" && x.right === "$goalPeriod"
+                      && String(x.left).startsWith("$item."))).toBe(true);
+  });
+
+  it("an UNSET value reads as current, never as total", () => {
+    // The arm PAIRED WITH THE CUT-OFF must be `IS_NOT "total"`, not
+    // `IS "current"`. Inverted, every tracker carrying no value flips to total
+    // and the grid silently zeroes.
+    //
+    // THE ASSERTION HAS TO NAME THE PAIRING. A first version asked whether ANY
+    // `$agg` rule was `IS_NOT "total"` and passed against the inversion — the
+    // baseline scan's own rule satisfied it. A `.some()` over every rule cannot
+    // tell which branch a rule belongs to. (A/B'd: this version fails, that one
+    // did not.)
+    const op = build({ aggregationFieldId: AGG });
+    const branches = [];
+    const walk = (n) => {
+      if (Array.isArray(n)) return n.forEach(walk);
+      if (!n || typeof n !== "object") return;
+      if (Array.isArray(n.rules) && n.operator === "AND"
+          && n.rules.some((x) => x && x.comparator === "DATE_ON_OR_BEFORE_PERIOD")) branches.push(n);
+      Object.values(n).forEach(walk);
+    };
+    walk(op.pipeline);
+    expect(branches.length).toBeGreaterThan(0);            // the cut-off branch exists at all
+    for (const b of branches) {
+      const guard = b.rules.find((x) => x && x.left === "$agg");
+      expect(guard, "the cut-off branch carries no $agg guard").toBeTruthy();
+      expect(guard.comparator).toBe("IS_NOT");
+      expect(guard.right).toBe("total");
+    }
+  });
+
+  it("skips the baseline scan for total — which is what makes it start at 0", () => {
+    // The scan is the group that selects the `replace` rows. Gating the DATE
+    // without gating this would window the rows and still seed the accumulator
+    // from the baseline: a plausible number that is neither reading.
+    const op = build({ aggregationFieldId: AGG });
+    let gated = 0;
+    const walk = (n) => { if (Array.isArray(n)) return n.forEach(walk);
+      if (!n || typeof n !== "object") return;
+      if (Array.isArray(n.rules) && n.operator === "AND"
+          && n.rules.some((x) => x && x.comparator === "IS" && x.right === "replace")
+          && n.rules.some((x) => x && x.left === "$agg" && x.comparator === "IS_NOT" && x.right === "total")) gated++;
+      Object.values(n).forEach(walk); };
+    walk(op.pipeline);
+    expect(gated).toBeGreaterThan(0);
+  });
+});
