@@ -6,6 +6,110 @@
 
 ---
 
+### 2026-09-08 (3) — A BALANCE COUNTS UP TO THE DAY YOU ARE LOOKING AT, and three "simplifications" each removed something load-bearing
+
+User: *"the current vs total thing is more for the nondate but since we would
+have it set either way, it would determine if its a current up through that day
+we set or total for that day."*
+```
+                no date filter          date filter = D
+    current     the balance now         the balance AS OF THE END OF D
+    total       all movement, from 0    movement in D, from 0
+```
+**EVERY TRACKER GATED ITS ROWS WITH `DATE_IN_PERIOD` — "did this happen IN
+VIEW".** Right for a SUM, wrong for a BALANCE, measured: a balance set to 100 on
+Sep 1 with 10 spent today read **-10** filtered to today (the day's CHANGE
+reported as the balance) and **0** filtered to a quiet Sep 5, for an account that
+plainly held money. A balance wants a CUT-OFF, not a window —
+`DATE_ON_OR_BEFORE_PERIOD`, reading the SAME period shapes so a tracker's own
+`$goalPeriod` works unchanged.
+
+**AND THE PERIOD HAS TO COME FROM THE TILE, NOT ITS OP'S PAGE.** `0324` took it
+from `$activePeriodEnd` — which the executor derives from the operation's
+`targetOccurrenceId`, a different period from the one the tile is filtered to.
+**Worse: `$activePeriodEnd` is bound NOWHERE in the client.** Its `IS_EMPTY` arm
+therefore passed every row, so the four balance ops had been running with **no
+date gate at all**. `0325` moves them onto `$goalPeriod`, the tile's own
+effective filter.
+
+**THEN `0325` DROPPED AN ARM I HAD READ AS REDUNDANT, AND EVERY BALANCE WENT TO
+0.** It collapsed the gate to a single rule because the new comparator answers
+TRUE for an absent period. **It never sees one.** `evalRule` resolves a right as
+`resolveExpr(right) ?? right`, so an UNBOUND `$goalPeriod` — what an *unfiltered*
+tile has — arrives as the literal STRING `"$goalPeriod"`. Not a date, so the
+cut-off rejected everything. Instrumenting the comparator showed **96
+evaluations, every one receiving that bare string**. `DATE_IN_PERIOD` has the
+identical exposure, which is why `periodAllPolicy` wraps all 111 tracker date
+gates as `(date …) OR ($goalPeriod IS_EMPTY)`. `0326` puts the arm back and a
+test pins why it is load-bearing.
+
+***Three times in one pass a "simplification" removed something load-bearing:
+the page's period for the tile's, a dangling var read as a wildcard, and an OR
+arm read as decoration. Each produced a plausible number and two produced 0 —
+which is what a dead op and an empty account both look like.***
+
+**THEN THE FIELD BECAME THE SWITCH (`0327`), at the user's call.** `0323` had
+added `Aggregation` (current | total) and stamped 31 tiles, and **nothing read
+it at run time** — the arithmetic was still `supportsReplace`, baked in at seed
+time, so the classification was a comment. Three edits per op: bind `$agg` off
+`$goalItem`; gate the date BOTH ways; and **SKIP the baseline scan for `total`**,
+which is what makes it start at zero (skipping leaves `$baseDate` empty, already
+the state `replaceGuardRules` reads as "count everything", so the movement loops
+need no branch of their own). Gating the date without gating the scan windows the
+rows and still seeds from the baseline — a plausible number that is neither
+reading. **`IS_NOT "total"`, never `IS "current"`**: an unstamped tracker must
+keep today's behaviour, and the inversion would silently zero the grid.
+
+**MY OWN TEST FOR THAT WAS VACUOUS AND ONLY THE A/B SAID SO.** It asked whether
+ANY `$agg` rule was `IS_NOT "total"` and passed against the inversion, because
+the BASELINE scan's own rule satisfied it. *A `.some()` over every rule cannot
+tell which branch a rule belongs to* — rewritten to assert the PAIRING, it fails
+correctly.
+
+**THE CATEGORY GUARD FIRED TWICE, CORRECTLY BOTH TIMES.** `pomsGridOps` finds a
+group's date gate by `DATE_IN_PERIOD` among its DIRECT rules; the cut-off is a
+different comparator, and after `0327` it sits one level deeper inside an AND
+branch. The invariant — *a category gate names a loop var its own group
+date-gates* — depends on neither, so the RECOGNISER widened and learned to
+descend rather than the assertion being weakened. Same widening in
+`categoryScopePolicy`, where keying on `DATE_IN_PERIOD` alone would make a re-run
+of `0164` silently skip the four balance ops.
+
+**AND I APPLIED THE MIGRATIONS BEFORE DEPLOYING THE CLIENT — the wrong order,
+and the cost is measured rather than inferred.** With the comparator removed
+(prod's bundle at the time) **22 of 25 cases pass and exactly the 3 date-filtered
+ones fail**: `evalRule`'s `default: return false` makes an unknown comparator
+reject every row. Unfiltered tiles stayed correct, rescued by the very `IS_EMPTY`
+arm `0326` restored. **Builder → client deploy → migration is the order**, and
+this is the second time this file records paying for it.
+
+**RETIRED BY MEASUREMENT: the Sunday template is not broken, and 2026-09-08 (2)
+overstated it.** That entry reports `Schedule: Workouts - Sunday` carrying no
+`identitySignature` where its eight siblings carry `day-container`. True, and
+harmless:
+```
+Schedule Template role = page   -> 0262/gridIntegrity EXEMPT a wrapper page's
+                                   direct children from the signature rule
+Sunday slots 49, signed 49      -> the real defect (0261 minted them unsigned)
+                                   was already fixed by 0262
+Weekday = ["Sunday"]            -> which is how the op finds it; it is applied
+merge idempotency               -> signatureOf falls back to `auto:<own id>`
+parentId: null                  -> the NORM here: 2,733 occurrences have it,
+                                   because placement is the parent's occurrences[]
+checkGrid                       -> flags nothing; a passing test already covers
+                                   Sunday placing 0 movements (a rest day)
+```
+Nothing at runtime reads `day-container`. The 8 siblings carry it as an artifact
+of `0185`'s creation path. *Retiring a task by measuring it is the outcome, not a
+failure to do the work* — and an open item is a claim about today's code.
+
+**HONEST GAP: nobody has looked at the Accounts tile in a browser.** Every number
+here is driven through the real executor over the live grid's own pipelines, and
+`balanceFlow` BUILDS the transactions it measures so nothing depends on export
+timing — but no one has watched a balance change as the Trackers page moves date.
+
+---
+
 ### 2026-09-08 (2) — THE SCHEDULE DELETED THE DAY YOU JUST HAD
 
 User: *"so currently the occurances that get added to the schedule are deleted
