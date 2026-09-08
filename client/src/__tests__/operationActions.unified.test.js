@@ -286,6 +286,145 @@ describe("evalRule — DATE_IN_PERIOD", () => {
   });
 });
 
+// ── DATE_ON_OR_BEFORE_PERIOD — the CUT-OFF twin of DATE_IN_PERIOD ─────────
+//
+// A running balance does not want a WINDOW, it wants a cut-off: everything up
+// to and including the period's LAST day. Filtered with DATE_IN_PERIOD, a
+// balance set on Sep 1 and viewed on a quiet Sep 5 counted nothing and read 0
+// for an account that plainly held money.
+//
+// It reads the SAME period shapes DATE_IN_PERIOD does, so a tracker's own
+// `$goalPeriod` works unchanged. Every case below is paired with the
+// DATE_IN_PERIOD answer where the two DIFFER — a test that only asserted
+// "on or before" would also pass against the window comparator on the days
+// that happen to fall inside it.
+describe("evalRule — DATE_ON_OR_BEFORE_PERIOD", () => {
+  const cut = (left, right) =>
+    evalRule({ left, comparator: "DATE_ON_OR_BEFORE_PERIOD", right }, {});
+  const win = (left, right) =>
+    evalRule({ left, comparator: "DATE_IN_PERIOD", right }, {});
+
+  it("an absent period is no cut-off at all", () => {
+    expect(cut("2026-09-01", null)).toBe(true);
+    expect(cut("2026-09-01", "")).toBe(true);
+    expect(cut("2026-09-01", { value: null, unit: "day" })).toBe(true);
+  });
+
+  it("an empty left value never passes", () => {
+    // A row with no date cannot be placed relative to the cut-off, and counting
+    // it would put undated money into every filtered balance.
+    expect(cut(null, "2026-09-05")).toBe(false);
+    expect(cut("", "2026-09-05")).toBe(false);
+  });
+
+  it("day: on or before passes, after does not", () => {
+    expect(cut("2026-09-01", "2026-09-05")).toBe(true);
+    expect(cut("2026-09-05", "2026-09-05")).toBe(true);
+    expect(cut("2026-09-06", "2026-09-05")).toBe(false);
+    // THE DISCRIMINATOR: the window rejects the earlier day, the cut-off keeps
+    // it. Without this pair the whole comparator is indistinguishable from
+    // DATE_IN_PERIOD.
+    expect(win("2026-09-01", "2026-09-05")).toBe(false);
+  });
+
+  it("day: the object form behaves like the bare string", () => {
+    const p = { value: "2026-09-05", unit: "day" };
+    expect(cut("2026-08-01", p)).toBe(true);
+    expect(cut("2026-09-05", p)).toBe(true);
+    expect(cut("2026-09-06", p)).toBe(false);
+  });
+
+  it("span extends the cut-off to the last day of the run", () => {
+    const p = { value: "2026-09-05", unit: "day", span: 3 };   // 05, 06, 07
+    expect(cut("2026-09-07", p)).toBe(true);
+    expect(cut("2026-09-08", p)).toBe(false);
+  });
+
+  it("week cuts off at Sunday", () => {
+    const p = { value: "2026-09-08", unit: "week" };           // Tue -> Sun 09-13
+    expect(cut("2026-09-13", p)).toBe(true);
+    expect(cut("2026-09-14", p)).toBe(false);
+    expect(cut("2026-08-01", p)).toBe(true);                   // long before: still counted
+    expect(win("2026-08-01", p)).toBe(false);                  // the window rejects it
+  });
+
+  it("month cuts off at the last day of the month", () => {
+    const p = { value: "2026-09-14", unit: "month" };
+    expect(cut("2026-09-30", p)).toBe(true);
+    expect(cut("2026-10-01", p)).toBe(false);
+  });
+
+  it("month: a first-of-month anchor keeps its own month (tz regression)", () => {
+    // `new Date("2026-09-01")` is UTC midnight = Aug 31 evening west of UTC, so
+    // naive arithmetic would cut off at Aug 31 and read every September balance
+    // as 0. Same trap DATE_IN_PERIOD paid for above.
+    const p = { value: "2026-09-01", unit: "month" };
+    expect(cut("2026-09-30", p)).toBe(true);
+    expect(cut("2026-10-01", p)).toBe(false);
+  });
+
+  it("year cuts off at Dec 31", () => {
+    const p = { value: "2026-03-02", unit: "year" };
+    expect(cut("2026-12-31", p)).toBe(true);
+    expect(cut("2027-01-01", p)).toBe(false);
+  });
+
+  it("multi cuts off at the LATEST picked day, whatever order they were picked", () => {
+    // A non-consecutive selection is still a question about "as of when", and
+    // the answer is its furthest day — not its anchor, and not each day
+    // separately the way the window reads it.
+    const p = { kind: "multi", unit: "day", value: "2026-08-01",
+                dates: ["2026-09-02", "2026-08-01"] };
+    expect(cut("2026-08-15", p)).toBe(true);
+    expect(cut("2026-09-02", p)).toBe(true);
+    expect(cut("2026-09-03", p)).toBe(false);
+    expect(win("2026-08-15", p)).toBe(false);                  // the window: only the picked days
+  });
+
+  it("an UNBOUND $var right rejects every row — why the IS_EMPTY arm exists", () => {
+    // `evalRule` resolves a right as `resolveExpr(right) ?? right`, so an
+    // unbound `$goalPeriod` reaches the comparator as the literal STRING
+    // "$goalPeriod". That is not a date, so the cut-off rejects everything —
+    // and an unfiltered tracker tile is exactly the case with no `$goalPeriod`.
+    //
+    // This is NOT a bug in the comparator: DATE_IN_PERIOD does the same, which
+    // is why `periodAllPolicy` wraps every tracker date gate as
+    // `(date …) OR ($goalPeriod IS_EMPTY)`. Collapsing that group to the bare
+    // rule takes all four account balances to 0 — measured, 2026-09-08.
+    // This test exists so the next person to "simplify" that OR sees why.
+    expect(evalRule({ left: "2026-09-01", comparator: "DATE_ON_OR_BEFORE_PERIOD",
+                      right: "$goalPeriod" }, {})).toBe(false);
+    expect(evalRule({ left: "2026-09-01", comparator: "DATE_IN_PERIOD",
+                      right: "$goalPeriod" }, {})).toBe(false);
+    // …and the arm that rescues it: an unbound var IS empty.
+    expect(evalRule({ left: "$goalPeriod", comparator: "IS_EMPTY", right: "" }, {})).toBe(true);
+  });
+
+  it("reads a day-key exactly the way DATE_IN_PERIOD does", () => {
+    // The two comparators are handed the SAME `$goalPeriod`, so they must
+    // normalize it identically — otherwise one tracker's date filter would mean
+    // a different day from its neighbour's depending only on which gate it
+    // carries. Asserted as AGREEMENT rather than against invented expectations,
+    // including the case that is arguably wrong in both: an ISO-midnight anchor
+    // is the PREVIOUS local day west of UTC. Changing that is a decision about
+    // every date on the grid, not one comparator.
+    for (const [left, right] of [
+      ["2026-09-05T23:30:00.000Z", "2026-09-05"],
+      ["2026-09-05", { value: "2026-09-05T00:00:00.000Z", unit: "day" }],
+      ["2026-09-05", { value: "2026-09-05", unit: "day" }],
+      ["not a date", "2026-09-05"],
+    ]) {
+      expect(cut(left, right), JSON.stringify([left, right]))
+        .toBe(win(left, right));
+    }
+    // …and the CONTROL: they are not the same function. On a day before the
+    // period they must DISAGREE, or the check above is satisfied by an alias.
+    expect(cut("2026-09-01", "2026-09-05")).toBe(true);
+    expect(win("2026-09-01", "2026-09-05")).toBe(false);
+  });
+});
+
+
 // ============================================================
 // FIND verb
 // ============================================================

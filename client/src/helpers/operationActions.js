@@ -660,6 +660,70 @@ export function evalRule(rule, $vars) {
       if (isNaN(da.getTime()) || isNaN(db.getTime())) return false;
       return da.getFullYear() === db.getFullYear();
     }
+    // ── DATE_ON_OR_BEFORE_PERIOD — the cut-off twin of DATE_IN_PERIOD ──────
+    //
+    // User, 2026-09-08: *"it would determine if its a current up through that
+    // day we set or total for that day."*
+    //
+    // `DATE_IN_PERIOD` asks "did this happen IN VIEW", which is right for a sum
+    // and wrong for a BALANCE: filtered to a quiet Tuesday a balance counted
+    // nothing and reported 0 for an account that plainly held money, and
+    // filtered to today it reported the day's CHANGE as the balance. A running
+    // total wants everything up to and including the period's LAST day.
+    //
+    // It reads the SAME period shapes, so a tracker's own `$goalPeriod` works
+    // unchanged — which matters, because the period a tile is filtered to is not
+    // the period its operation's page is on, and reaching for the page's
+    // `$activePeriodDates` instead answers the wrong question entirely.
+    case "DATE_ON_OR_BEFORE_PERIOD": {
+      if (rightVal == null || rightVal === "") return true;   // no filter, no cut-off
+      if (leftVal == null || leftVal === "") return false;
+      const dayKey = (v) => {
+        if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+        const d = new Date(v);
+        if (isNaN(d.getTime())) return null;
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      };
+      const lk = dayKey(leftVal);
+      if (lk == null) return false;
+      const isObj = typeof rightVal === "object" && !Array.isArray(rightVal);
+
+      // A non-consecutive multi-pick ends on its LATEST day.
+      if (isObj && rightVal.kind === "multi" && Array.isArray(rightVal.dates)) {
+        const keys = rightVal.dates.map(dayKey).filter(Boolean).sort();
+        if (!keys.length) return true;
+        return lk <= keys[keys.length - 1];
+      }
+      const anchor = isObj ? rightVal.value : rightVal;
+      if (anchor == null || anchor === "") return true;
+      const ak = dayKey(anchor);
+      if (ak == null) return false;
+      const unit = isObj ? (rightVal.unit || "day") : "day";
+      const spanRaw = isObj ? Number(rightVal.span) : 1;
+      const span = Number.isFinite(spanRaw) && spanRaw > 1 ? Math.floor(spanRaw) : 1;
+
+      // LOCAL calendar arithmetic, never `new Date("YYYY-MM-DD")` — that is UTC
+      // midnight, which rolls a first-of-month anchor into the previous month
+      // west of UTC (the 2026-07-19 defect).
+      const [ay, am, ad] = ak.split("-").map(Number);
+      const keyOf = (d) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      let end;
+      if (unit === "week") {
+        const x = new Date(ay, am - 1, ad);
+        const dow = x.getDay();
+        x.setDate(x.getDate() + (dow === 0 ? 0 : 7 - dow));   // through Sunday
+        end = keyOf(x);
+      } else if (unit === "month") {
+        end = keyOf(new Date(ay, am, 0));                     // last day of the month
+      } else if (unit === "year") {
+        end = `${ay}-12-31`;
+      } else {
+        end = keyOf(new Date(ay, am - 1, ad + Math.max(1, span) - 1));
+      }
+      return lk <= end;
+    }
+
     case "DATE_IN_PERIOD": {
       // Right shape can be:
       //   null/"" → wildcard (no filter set) → pass.

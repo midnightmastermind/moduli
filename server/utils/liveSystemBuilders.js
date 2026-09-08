@@ -2462,7 +2462,43 @@ export function makeTrackerOp({
     // scope page. timeFilter "all" still drops the gate entirely for lifetime
     // aggregations.
     if (timeFilter !== "all") {
-      rules.push({ id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" });
+      // ── A RUNNING BALANCE COUNTS UP TO THE END OF THE PERIOD ────────────
+      //
+      // User, 2026-09-08: *"it would determine if its a current up through that
+      // day we set or total for that day."*
+      //
+      //                 no date filter          date filter = D
+      //     current     the balance now         the balance AS OF THE END OF D
+      //     total       all movement, from 0    movement in D, from 0
+      //
+      // `DATE_IN_PERIOD` answers "did this happen in view", which is right for
+      // a SUM and wrong for a BALANCE: filtered to a quiet Tuesday it counted
+      // nothing and reported 0 for an account that plainly held money, and
+      // filtered to today it reported the day's CHANGE (-10) as the balance.
+      // `supportsReplace` is exactly the set of trackers that carry a baseline,
+      // so it is the set that wants the cut-off instead of the window.
+      if (supportsReplace) {
+        // `$goalPeriod` is the TILE's own effective filter. Reaching for the
+        // page's `$activePeriodDates` instead answers a different question —
+        // the period a tracker is filtered to is not the period its
+        // operation's page is on, and that mistake reads as "the cut-off does
+        // nothing".
+        // THE `$goalPeriod IS_EMPTY` ARM IS LOAD-BEARING, not decoration.
+        // `evalRule` resolves a rule's right as `resolveExpr(right) ?? right`,
+        // so an UNBOUND `$goalPeriod` — which is what an unfiltered tile has —
+        // arrives at the comparator as the literal string `"$goalPeriod"`.
+        // That is not a date, so the cut-off rejects every row and the balance
+        // reads 0. Measured: dropping this arm took all four accounts to 0.
+        // It is the same wrapper `periodAllPolicy` puts on every other tracker
+        // date gate, for exactly this reason.
+        rules.push({ id: uid(), operator: "OR", rules: [
+          { id: uid(), left: `$item.fields.${dateFieldId}.value`,
+            comparator: "DATE_ON_OR_BEFORE_PERIOD", right: "$goalPeriod" },
+          { id: uid(), left: "$goalPeriod", comparator: "IS_EMPTY", right: "" },
+        ] });
+      } else {
+        rules.push({ id: uid(), left: `$item.fields.${dateFieldId}.value`, comparator: "DATE_IN_PERIOD", right: "$goalPeriod" });
+      }
     }
     // Scope — items must be under the named scope page (default "Schedule").
     // ALWAYS applies (user policy 2026-07-11: "it needs to be complete and in

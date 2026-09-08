@@ -280,10 +280,18 @@ describe("every stored pipeline names things that exist", () => {
 // error, which is why the sweep passing above is not enough on its own.
 describe("the category axis is intact in the stored pipelines", () => {
   const TAGS = "CvJsK3lNu6_e";
+  // BOTH date comparators count as a loop date gate. A running balance gates
+  // its rows with `DATE_ON_OR_BEFORE_PERIOD` — a CUT-OFF rather than a window
+  // (0325/0326) — and for this guard's purpose the two are the same thing: what
+  // matters is that the group binds the loop var the category gate names, not
+  // which way the date narrows. Keying on `DATE_IN_PERIOD` alone reported the
+  // four balance ops as ungated the day the cut-off shipped, while their gates
+  // were sitting right there reading `$item`.
   const isLoopDate = (r) =>
     r && typeof r.left === "string" && !r.left.startsWith("$trigger.")
     && /^\$[A-Za-z0-9_]+\.fields\./.test(r.left)
-    && r.comparator === "DATE_IN_PERIOD" && r.right === "$goalPeriod";
+    && (r.comparator === "DATE_IN_PERIOD" || r.comparator === "DATE_ON_OR_BEFORE_PERIOD")
+    && r.right === "$goalPeriod";
   const isPeriodAllWrapper = (r) =>
     r && Array.isArray(r.rules) && r.operator === "OR"
     && r.rules.some(isLoopDate)
