@@ -6,6 +6,80 @@
 
 ---
 
+### 2026-09-08 (2) — THE SCHEDULE DELETED THE DAY YOU JUST HAD
+
+User: *"so currently the occurances that get added to the schedule are deleted
+everytime? that shouldnt happen"*
+
+**MEASURED AGAINST A PRE-ROLLOVER SNAPSHOT, not inferred.** Moving from 09-06 to
+09-08 removed **137 occurrences, 31 of them COMPLETED**:
+```
+ 18 Drink · 16 Eat · 12 Sleep · 6 Track (the account balances)
+  4 Take Medication · 1 Psych appointment with Angela · 1 Peer Support Group
+```
+`Schedule: Build Schedule` PHASE C deletes every day-col under the Schedule page
+whose date is not in the filtered period — the column and, by cascade, its rows.
+
+**THE SOURCES SURVIVE, AND SAYING SO IS HALF THE FINDING.** The appointment is
+still on the Tasks page; Eat and Sleep are still in the catalogue (38 and 63
+copies on the grid). This was never the catalogue being deleted. What went is
+**the record that you did it that day** — and the tracker history cannot stand in
+for it, because those arrays are date-scoped: `Meal Log.Meals`,
+`Workout Log.Workouts`, `Spent.Purchases` and `Pomodoro History` all read **0
+rows**. Gone from both places.
+
+**THE TEARDOWN IS KEPT, NARROWED.** A day-col is 1 column + 49 slots of
+scaffolding, so keeping every one adds ~50 occurrences a day to a grid whose load
+time this file has spent weeks on. `0322` spares a column only when something
+beneath it is **Completed** — "the row is the USER's if `Completed` was ticked"
+(2026-08-20), the same discriminator `0038`'s writing-guard settled on after
+twice mistaking the app's own footprint for the user's. An untouched day is still
+torn down, which is what keeps the cleanup doing its job.
+
+**FAIL-OPEN IN THE BUILDER.** `completedFieldId` is optional on
+`makeScheduleBuildScheduleOp`; without it the pipeline is byte-identical, so no
+existing caller changes behaviour. Verified both ways before shipping. The seed
+passes it and `0322` carries it to the live grid — twins, one pass.
+
+---
+
+**AND THREE THINGS THE SAME INVESTIGATION SHOWED ARE NOT BROKEN, each of which I
+had to be talked out of.**
+
+**THE BALANCES ARE ALREADY TOTAL — my 2026-09-07 claim that they reset because
+they are date-scoped is RETRACTED.** Driven through the real sweep: a `replace`
+row dated **June** still sets the balance, and spends from any date reduce it
+(100 -> 90 -> 85). Meanwhile the DAILY trackers correctly ignore other days
+(Steps/Pages/Connection Time all move only for a row dated today). So the two
+behaviours are already exactly what the user described wanting — *"total by
+default ... we should follow the filter but its not on by default"*. **The zeros
+were the rows being deleted, nothing to do with filtering.** I had reached for
+`filterOverride` and would have shipped a change that BREAKS it: clearing the
+tile's date filter made a balance set yesterday read 0.
+
+**ZERO DUPLICATES, and my first count said six.** User: *"we got to make sure
+that ones i put into my other schedule templates dont unnecessarily duplicate
+themselves on the same timeslot"*. Keyed on the MODULE, the 7:00am slot looked
+like six duplicate `Exercise` rows — they are six different exercises sharing the
+one `Exercise` module, which is the design. Keyed on IDENTITY (`identitySignature`,
+else module + the Movement/Meal PICK) **and on DATE** — the user's own rule,
+*"we tech need duplicates in the timeslots if they have diff dates"*, and 5 live
+slots do hold rows from more than one date — today's column and all NINE schedule
+templates report **0**.
+
+**THE FULL-SCHEDULE TEMPLATE WAS NOT LOST.** User: *"we had that in place but i
+think us updating what templates are kinda got rid of that"*. `Schedule Template`
+is intact at `Root > Templates` with nine children — Layout, the seven workout
+days, Meals, Routine, 49 slots each. **Reported, not fixed:**
+`Schedule: Workouts - Sunday` is the only one carrying NO `identitySignature`
+where its eight siblings all carry `day-container`.
+
+*Three times in one session a measurement retired the fix I was about to write.
+The zeros looked identical to the breakage in every case; only injecting a known
+row and watching the number move told them apart.*
+
+---
+
 ### 2026-09-08 — 48 OPERATIONS DECIDED WHETHER TO FIRE BY READING A PAGE'S NAME
 
 User: *"would it be easier not to look at labels since those change but to mark

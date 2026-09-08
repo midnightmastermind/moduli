@@ -8598,7 +8598,9 @@ export async function createLiveData(userId, options = {}) {
   // dayContainerOccId is the Day container inside the Schedule Template
   // page (seeded above via buildScheduleTemplatePage). The op COPY_LINKs
   // it into the Schedule page per active day — picker-direct, no FIND.
-  await new Operation(makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId, completedTrackerName: "Completed Tasks", waterTrackerName: "Water", schedulePageOccId: schedPageOccId, dayContainerOccId })).save();
+  // `completedFieldId` makes PHASE C spare a day-col that holds anything ticked
+  // — the user's record of a day, which the teardown was removing wholesale.
+  await new Operation(makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId, completedTrackerName: "Completed Tasks", waterTrackerName: "Water", schedulePageOccId: schedPageOccId, dayContainerOccId, completedFieldId })).save();
   // Records WHEN something was completed (priority 0 — the placement op below
   // reads what this writes, so it has to settle first).
   await new Operation(makeStampCompletedOnOp({ userId, gridId, completedFieldId, completedOnFieldId })).save();

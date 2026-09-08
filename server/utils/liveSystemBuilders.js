@@ -1291,7 +1291,11 @@ export function makeScheduleBuildDayOp({ userId, gridId, dateFieldId, dueFieldId
 // guard, and gating on it made a Goals/Trackers navigation rebuild the Schedule
 // for the Schedule's own unchanged dates. Callers may still pass it; it is
 // ignored.
-export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId = null, completedTrackerName = "Tracker: Tasks Completed", waterTrackerName = "Tracker: Water Today", schedulePageOccId, dayContainerOccId }) {
+export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFieldId, timeslotFieldId, scheduleFormatFieldId = null, completedTrackerName = "Tracker: Tasks Completed", waterTrackerName = "Tracker: Water Today", schedulePageOccId, dayContainerOccId,
+  // When given, a day-col that holds anything COMPLETED is KEPT rather than
+  // torn down (see PHASE C). Optional and FAIL-OPEN: without it the pipeline is
+  // byte-identical to before, so no existing caller changes behaviour.
+  completedFieldId = null }) {
   if (!schedulePageOccId) throw new Error("makeScheduleBuildScheduleOp: schedulePageOccId required (picker-direct ancestor + page ref)");
   if (!dayContainerOccId) throw new Error("makeScheduleBuildScheduleOp: dayContainerOccId required (Day container occurrence id from the seeded Schedule Template page)");
   if (!scheduleFormatFieldId) throw new Error("makeScheduleBuildScheduleOp: scheduleFormatFieldId required (used to tag day-col containers)");
@@ -1710,6 +1714,24 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                 // whose date is NOT in the active period. The template (and its
                 // routine instances) live elsewhere, so DELETE doesn't cascade
                 // into shared structure.
+                //
+                // ── EXCEPT A DAY YOU ACTUALLY DID SOMETHING ON ───────────────
+                //
+                // User, 2026-09-08: *"so currently the occurances that get added
+                // to the schedule are deleted everytime? that shouldnt happen"*.
+                // Measured against a pre-rollover snapshot: moving to a new day
+                // removed **137 occurrences, 31 of them COMPLETED** — a psych
+                // appointment, twelve Sleep records, the Track rows carrying the
+                // account balances. The SOURCES survive (the appointment and the
+                // routines live on the Tasks page and in the catalog), so what is
+                // lost is the record of the day — and the tracker history arrays
+                // are date-scoped, so they hold nothing for a past day either.
+                //
+                // The discriminator is the one this grid already uses for "the
+                // user did this rather than the app": `Completed` is ticked
+                // (2026-08-20, and `0038`'s writing-guard). An untouched day is
+                // still torn down, which is what keeps the empty scaffolding
+                // from accumulating — a day-col plus its 49 slots.
                 {
                   id: uid(), type: "loop", overExpr: "$allContainers", as: "$cont",
                   body: [{
@@ -1724,7 +1746,20 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                         { id: uid(), left: "$activePeriodDates", comparator: "ARRAY_INCLUDES", right: `$cont.fields.${dateFieldId}.value` },
                       ]},
                       then: [],
-                      else: [{ id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$cont.id" } }],
+                      else: completedFieldId ? [
+                        // Anything ticked anywhere beneath this day?
+                        { id: uid(), type: "action", config: { type: "FIND", over: "$allInstances",
+                          predicate: { operator: "AND", rules: [
+                            { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$cont.id" },
+                            { id: uid(), left: `fields.${completedFieldId}.value`, comparator: "IS", right: true },
+                          ] }, itemIdVar: "$dcKeep" } },
+                        { id: uid(), type: "if",
+                          condition: { operator: "AND", rules: [
+                            { id: uid(), left: "$dcKeep", comparator: "IS_EMPTY", right: "" },
+                          ] },
+                          then: [{ id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$cont.id" } }],
+                          else: [] },
+                      ] : [{ id: uid(), type: "action", config: { type: "DELETE", itemIdExpr: "$cont.id" } }],
                     }],
                     else: [],
                   }],
