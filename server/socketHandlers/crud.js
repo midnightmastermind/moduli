@@ -1,7 +1,7 @@
 // socketHandlers/crud.js — CRUD for Grid, Module, Occurrence (simple), Field, Operation, Folder + genericCRUD
 import { setMaxListeners } from "node:events";
 import { filterFieldIdsOf, placementStampFieldIdsOf } from "../utils/filterFields.js";
-import { refusedDuplicateCreates } from "../utils/duplicateSignature.js";
+import { refusedDuplicateCreates, refusedByStoredSiblings } from "../utils/duplicateSignature.js";
 import { withoutMongoId } from "../utils/mongoId.js";
 import Grid from "../models/Grid.js";
 import Module from "../models/Module.js";
@@ -1441,6 +1441,19 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
       // the originator is told so its optimistic copy does not linger as a
       // phantom the next parent-list write would launder into a dangling ref.
       const refusedIds = refusedDuplicateCreates(batch, uc.occurrencesById);
+      // AND ASK THE DATABASE for the few creates that opt in. The pass above
+      // answers from the warm cache; on 2026-09-09 a second day column was
+      // created 94s after the first with the signature, the flag and a
+      // resolving parent all present, and the cache did not show the first.
+      // See `utils/duplicateSignature.js`. Failing OPEN is deliberate: a
+      // refusal that throws would drop a legitimate create.
+      try {
+        const stored = await refusedByStoredSiblings(batch,
+          { gridId: socket.data.activeGridId ?? batch.find((b) => b?.occurrence?.gridId)?.occurrence?.gridId,
+            Occurrence, already: refusedIds });
+        for (const sid of stored) refusedIds.add(sid);
+        if (stored.size) console.log("🟣 create_batch REFUSED (stored sibling)", stored.size, [...stored].slice(0, 6));
+      } catch (e) { console.warn("create_batch: stored-sibling check skipped —", e?.message); }
       if (refusedIds.size) {
         console.log("🟣 create_batch REFUSED (duplicate signature)", refusedIds.size, [...refusedIds].slice(0, 6));
         for (const rid of refusedIds) io.to(userRoom(userId)).emit("occurrence_deleted", rid);

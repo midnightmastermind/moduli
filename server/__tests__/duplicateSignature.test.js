@@ -13,7 +13,7 @@
 // the CONTRACT, not a line — defence in depth, not a fourth discriminating A/B,
 // and calling it one would overstate the coverage.
 import { describe, it, expect } from "vitest";
-import { refusedDuplicateCreates } from "../utils/duplicateSignature.js";
+import { refusedDuplicateCreates, refusedByStoredSiblings } from "../utils/duplicateSignature.js";
 
 const occ = (id, over = {}) => ({ id, parentId: null, identitySignature: null, ...over });
 // A node whose CALLER declared the signature to be its identity here — what
@@ -160,5 +160,79 @@ describe("refusedDuplicateCreates", () => {
     expect(refusedDuplicateCreates([], {}).size).toBe(0);
     expect(refusedDuplicateCreates(null, {}).size).toBe(0);
     expect(refusedDuplicateCreates([{}, { occurrence: null }], {}).size).toBe(0);
+  });
+});
+
+// ── THE CACHE IS NOT THE AUTHORITY ────────────────────────────────────────
+//
+// On 2026-09-09 poms grid grew a SECOND `daypage:col:2026-09-09` 94 seconds
+// after the first. Both carried the signature, `meta.signatureUnique`, and a
+// `parentId` that resolves — exactly the state `refusedDuplicateCreates` exists
+// to reject. It answers from the warm cache, and the cache did not show the
+// first one. Why is NOT established, so this asks the database instead.
+describe("refusedByStoredSiblings — the net behind the cache", () => {
+  const SIG = "daypage:col:2026-09-09";
+  const uniqCreate = (id, over = {}) => ({ occurrence: {
+    id, parentId: "board", identitySignature: SIG, meta: { signatureUnique: true }, ...over } });
+  // A stand-in for the model: records the query so the shape can be asserted.
+  const modelReturning = (rows) => { const calls = [];
+    return { calls, find: (q, p) => { calls.push(q); return { lean: async () => rows }; } }; };
+
+  it("refuses a create whose sibling is in the DB but not the cache", () => {
+    const Occurrence = modelReturning([
+      { id: "existing", parentId: "board", identitySignature: SIG, meta: { signatureUnique: true } }]);
+    return refusedByStoredSiblings([uniqCreate("newcol")], { gridId: "g1", Occurrence })
+      .then((r) => expect([...r]).toEqual(["newcol"]));
+  });
+
+  it("allows it when the DB has nothing — the control", () => {
+    // Without this, "refuses duplicates" is also satisfied by a guard that
+    // refuses every signed create and silently drops legitimate ones.
+    const Occurrence = modelReturning([]);
+    return refusedByStoredSiblings([uniqCreate("newcol")], { gridId: "g1", Occurrence })
+      .then((r) => expect(r.size).toBe(0));
+  });
+
+  it("never refuses a row against ITSELF — a retry is idempotent", () => {
+    const Occurrence = modelReturning([
+      { id: "newcol", parentId: "board", identitySignature: SIG, meta: { signatureUnique: true } }]);
+    return refusedByStoredSiblings([uniqCreate("newcol")], { gridId: "g1", Occurrence })
+      .then((r) => expect(r.size).toBe(0));
+  });
+
+  it("uniqueness stays OPT-IN on the STORED side too", () => {
+    // `0303`'s line. A signature is also a shared MARKER — eight weekday
+    // templates share `day-container` on purpose. A stored row that never
+    // claimed uniqueness cannot refuse anything.
+    const Occurrence = modelReturning([
+      { id: "existing", parentId: "board", identitySignature: SIG }]);
+    return refusedByStoredSiblings([uniqCreate("newcol")], { gridId: "g1", Occurrence })
+      .then((r) => expect(r.size).toBe(0));
+  });
+
+  it("queries nothing at all when no create opts in", async () => {
+    // The cost argument: a batch with no signed-unique create must not touch
+    // the database, or every drop pays for this.
+    const Occurrence = modelReturning([]);
+    const plain = { occurrence: { id: "x", parentId: "board" } };
+    const r = await refusedByStoredSiblings([plain], { gridId: "g1", Occurrence });
+    expect(r.size).toBe(0);
+    expect(Occurrence.calls).toEqual([]);
+  });
+
+  it("skips a create the pure pass already refused", async () => {
+    const Occurrence = modelReturning([]);
+    await refusedByStoredSiblings([uniqCreate("dup")],
+      { gridId: "g1", Occurrence, already: new Set(["dup"]) });
+    expect(Occurrence.calls).toEqual([]);
+  });
+
+  it("one indexed query per batch, not one per row", async () => {
+    const Occurrence = modelReturning([]);
+    await refusedByStoredSiblings(
+      [uniqCreate("a"), uniqCreate("b"), uniqCreate("c")], { gridId: "g1", Occurrence });
+    expect(Occurrence.calls).toHaveLength(1);
+    expect(Occurrence.calls[0].gridId).toBe("g1");
+    expect(Occurrence.calls[0].parentId.$in).toEqual(["board"]);
   });
 });
