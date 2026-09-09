@@ -43,6 +43,28 @@ import fs from "node:fs";
 import path from "node:path";
 import { decompressTextmap } from "../utils/textmapCompression.js";
 
+// ── 2026-09-09: THIS MIGRATION DESTROYED A SHARED NODE, AND HAD A BLIND SPOT ──
+//
+// Run to clear duplicates, it deleted the grid's ONE `Emotions Wheel` — the
+// occurrence `0297` deliberately multi-parented into every day column. It was a
+// child of a doomed column, so the subtree walk took it; worse, the unlink was
+// `$pull { occurrences: { $in: ids } }` across EVERY parent, so it was removed
+// from the five columns that were staying before it was deleted. Caught by
+// `checkGrid`'s `orphan-module` warning and restored verbatim from this
+// migration's own pre-run snapshot.
+//
+//   A DOOMED COLUMN OWNS ONLY WHAT NOTHING ELSE LISTS. A child listed by any
+//   parent outside the doomed subtree is SHARED — it is spared, and it keeps
+//   its own subtree (the 2026-08-11 rule, and the same `listedElsewhere` guard
+//   the hand-written sweep that morning had and this file did not).
+//
+// And it could only ever see duplicates the parent LISTS, because it grouped by
+// walking `parent.occurrences`. A column that is parented but never listed was
+// invisible — not hypothetical: one survived the same repair that morning and
+// had to be removed by hand. Grouping now also keys on `parentId`.
+//
+// The decision is a pure `planDuplicateRemoval` so both rules are testable
+// without a database; `up()` only writes what it returns.
 export const id = "0317-one-day-page-column-per-day";
 export const description = "Removes duplicate day-page columns that hold no writing.";
 export const touches = ["modules", "occurrences"];
@@ -66,6 +88,93 @@ function proseIn(occById, rootId, depth = 0) {
   return n;
 }
 
+/**
+ * Pure. Decide which duplicate columns go and which children must survive.
+ *
+ * A group is (parent, signature) where the signature was declared as the node's
+ * IDENTITY (`meta.signatureUnique`) — never a bare signature, which is also a
+ * shared MARKER (`0303`; keyed on the signature alone this matched the seven
+ * weekday templates and proposed deleting 400+ of the user's own rows).
+ */
+export function planDuplicateRemoval({ occurrences, modules = [] }) {
+  const occById = Object.fromEntries(occurrences.map((o) => [o.id, o]));
+  const modById = Object.fromEntries(modules.map((m) => [m.id, m]));
+  const labelOf = (o) => o && (o.label || modById[o.moduleId]?.label || "(unlabeled)");
+  const isCandidate = (c) => !!c?.identitySignature && c?.meta?.signatureUnique === true;
+
+  // Group by (parent, signature) from BOTH directions: what a parent lists, and
+  // what names it as `parentId`. The second is the blind spot that let a
+  // duplicate survive — a column nobody lists renders nowhere but is still a
+  // duplicate, and `gridIntegrity` flags it by parentId.
+  const groups = new Map();
+  const add = (parent, c) => {
+    const key = `${parent.id}::${c.identitySignature}`;
+    if (!groups.has(key)) groups.set(key, { parent, sig: c.identitySignature, kids: [], listed: new Set() });
+    const g = groups.get(key);
+    if (!g.kids.some((k) => k.id === c.id)) g.kids.push(c);
+  };
+  for (const parent of occurrences)
+    for (const cid of parent.occurrences || []) {
+      const c = occById[cid];
+      if (isCandidate(c)) { add(parent, c); groups.get(`${parent.id}::${c.identitySignature}`).listed.add(c.id); }
+    }
+  for (const c of occurrences) {
+    if (!isCandidate(c)) continue;
+    const parent = c.parentId && occById[c.parentId];
+    if (parent) add(parent, c);
+  }
+
+  // Every id the subtree of `rootId` reaches, tentatively.
+  const reach = (rootId) => {
+    const out = []; const seen = new Set();
+    (function w(id, d) {
+      if (d > 8 || seen.has(id)) return;
+      seen.add(id); out.push(id);
+      for (const c of occById[id]?.occurrences || []) w(c, d + 1);
+    })(rootId, 0);
+    return out;
+  };
+  const listersOf = (id) => occurrences.filter((o) => (o.occurrences || []).includes(id)).map((o) => o.id);
+
+  const decisions = [];
+  for (const { parent, sig, kids, listed } of groups.values()) {
+    if (kids.length < 2) continue;
+    const scored = kids.map((k) => ({
+      k, prose: proseIn(occById, k.id), n: (k.occurrences || []).length, listed: listed.has(k.id),
+    }));
+    const written = scored.filter((s) => s.prose > 0);
+    // MORE THAN ONE holding writing is a human call.
+    if (written.length > 1) { decisions.push({ parent, sig, scored, skipped: `${written.length} hold writing` }); continue; }
+    // Keep what holds writing; else what the day was actually built into — and
+    // a LISTED column beats an unlisted one, because the listing is what renders.
+    const keep = written[0]
+      || scored.slice().sort((a, b) => (b.listed - a.listed) || (b.n - a.n))[0];
+    const doomed = [];
+    for (const s of scored) {
+      if (s.k.id === keep.k.id) continue;
+      const tentative = new Set(reach(s.k.id));
+      // A child listed by anything OUTSIDE this subtree is shared. Tested
+      // against the ORIGINAL set, never one being mutated (2026-09-03 (12)),
+      // and a spared node KEEPS ITS OWN SUBTREE.
+      const spared = new Set();
+      for (const id of tentative) {
+        if (id === s.k.id) continue;
+        if (listersOf(id).some((p) => !tentative.has(p))) spared.add(id);
+      }
+      const keepAll = new Set();
+      for (const sp of spared) for (const id of reach(sp)) keepAll.add(id);
+      doomed.push({
+        occ: s.k, parent, keep: keep.k.id,
+        removeIds: [...tentative].filter((i) => !keepAll.has(i)),
+        sparedIds: [...keepAll],
+        sparedLabels: [...spared].map((i) => labelOf(occById[i])),
+      });
+    }
+    decisions.push({ parent, sig, scored, keep: keep.k.id, doomed });
+  }
+  return { decisions, doomed: decisions.flatMap((d) => d.doomed || []) };
+}
+
 export async function up({ gridId, dryRun = true, log = console.log } = {}) {
   const apply = !dryRun;
   const gid = String(gridId);
@@ -87,61 +196,49 @@ export async function up({ gridId, dryRun = true, log = console.log } = {}) {
   // templates. `0303` drew exactly this line for the server-side refusal and
   // I had to be shown it again: *a signature is also a shared MARKER.* Only a
   // node whose caller declared the signature as its IDENTITY takes part.
-  const groups = new Map();
-  for (const parent of occs) {
-    for (const cid of parent.occurrences || []) {
-      const c = occById[cid];
-      if (!c?.identitySignature) continue;
-      if (c.meta?.signatureUnique !== true) continue;
-      const key = `${parent.id}::${c.identitySignature}`;
-      if (!groups.has(key)) groups.set(key, { parent, sig: c.identitySignature, kids: [] });
-      groups.get(key).kids.push(c);
-    }
-  }
+  const { decisions, doomed } = planDuplicateRemoval({ occurrences: occs, modules: mods });
 
-  const doomed = [];
-  for (const { parent, sig, kids } of groups.values()) {
-    if (kids.length < 2) continue;
-    const scored = kids.map((k) => ({ k, prose: proseIn(occById, k.id), n: (k.occurrences || []).length }));
-    const written = scored.filter((s) => s.prose > 0);
-    log(`  ${labelOf(parent)} / ${sig}: ${kids.length} columns` +
-        scored.map((s) => `\n      ${s.k.id}  ${s.n} children · ${s.prose} chars of prose`).join(""));
-
-    // MORE THAN ONE holding writing is a human call — merging two days of the
-    // user's journal is not something a migration gets to decide.
-    if (written.length > 1) { log(`      SKIPPED — ${written.length} hold writing; merging is your call`); continue; }
-    // Keep whichever holds writing; otherwise the one the day was built into.
-    const keep = written[0] || scored.slice().sort((a, b) => b.n - a.n)[0];
-    for (const s of scored) if (s.k.id !== keep.k.id) doomed.push({ parent, occ: s.k, keep: keep.k.id });
-    log(`      keeping ${keep.k.id} (${keep.n} children, ${keep.prose} chars)`);
+  for (const d of decisions) {
+    log(`  ${labelOf(d.parent)} / ${d.sig}: ${d.scored.length} columns` +
+        d.scored.map((s) => `\n      ${s.k.id}  ${s.n} children · ${s.prose} chars of prose`
+          + (s.listed ? "" : "  (parented but NOT listed)")).join(""));
+    if (d.skipped) { log(`      SKIPPED — ${d.skipped}; merging is your call`); continue; }
+    log(`      keeping ${d.keep}`);
   }
 
   if (!doomed.length) { log("  no duplicate columns to remove."); return; }
 
-  // Subtree ids, so nothing is orphaned behind the delete.
-  const subtree = (rootId, out = [], d = 0) => {
-    if (d > 8 || out.includes(rootId)) return out;
-    out.push(rootId);
-    for (const c of occById[rootId]?.occurrences || []) subtree(c, out, d + 1);
-    return out;
-  };
-
   for (const d of doomed) {
-    const ids = subtree(d.occ.id);
-    log(`  removing ${d.occ.id} (${ids.length} occurrence(s) incl. children) from ${labelOf(d.parent)}`);
+    const shared = d.sparedIds.length;
+    log(`  removing ${d.occ.id} (${d.removeIds.length} occurrence(s) incl. children) from ${labelOf(d.parent)}`
+      + (shared ? `  — SPARING ${shared} shared node(s): ${d.sparedLabels.slice(0, 4).join(", ")}` : ""));
     if (!apply) continue;
 
     const dir = path.resolve("backups/orphans");
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(
       path.join(dir, `${new Date().toISOString().replace(/[:.]/g, "-")}_duplicate-day-column.json`),
-      JSON.stringify(ids.map((i) => occById[i]).filter(Boolean), null, 1));
+      JSON.stringify(d.removeIds.map((i) => occById[i]).filter(Boolean), null, 1));
 
     // UNLINK FIRST — a delete that leaves the parent listing the child mints the
-    // dangling-child-ref class this file has swept five times.
-    await Occurrence.updateMany({ gridId: gid, occurrences: { $in: ids } },
-      { $pull: { occurrences: { $in: ids } } });
-    await Occurrence.deleteMany({ gridId: gid, id: { $in: ids } });
+    // dangling-child-ref class this file has swept five times. ONLY the doomed
+    // ids: pulling the whole subtree took a shared node out of the five parents
+    // that were keeping it (2026-09-09, see the header).
+    await Occurrence.updateMany({ gridId: gid, occurrences: { $in: d.removeIds } },
+      { $pull: { occurrences: { $in: d.removeIds } } });
+    await Occurrence.deleteMany({ gridId: gid, id: { $in: d.removeIds } });
+
+    // THE CONTROL: every node we spared must still be listed by something.
+    if (d.sparedIds.length) {
+      const orphaned = [];
+      for (const sid of d.sparedIds) {
+        const stillListed = await Occurrence.countDocuments({ gridId: gid, occurrences: sid });
+        if (!stillListed) orphaned.push(sid);
+      }
+      if (orphaned.length)
+        throw new Error(`spared ${orphaned.length} node(s) but nothing lists them now: ${orphaned.join(", ")}`);
+      log(`      ${d.sparedIds.length} shared node(s) still listed elsewhere.`);
+    }
   }
 
   log(`  ${doomed.length} duplicate column(s) ${apply ? "removed" : "would be removed"}.`);
