@@ -1747,11 +1747,29 @@ export function makeScheduleBuildScheduleOp({ userId, gridId, dateFieldId, dueFi
                       ]},
                       then: [],
                       else: completedFieldId ? [
-                        // Anything ticked anywhere beneath this day?
-                        { id: uid(), type: "action", config: { type: "FIND", over: "$allInstances",
+                        // ANYTHING THE USER DID BENEATH THIS DAY KEEPS IT.
+                        //
+                        // Two arms, because they answer different questions and
+                        // neither covers the other:
+                        //
+                        //   Completed ticked   what you DID
+                        //   meta.userTouched   what you EDITED — stamped by the
+                        //                      write path on any gesture-driven
+                        //                      write (`__actionId`), which is the
+                        //                      same discriminator undo uses. No
+                        //                      field-level rule can say this: the
+                        //                      app writes the same fields you do.
+                        //
+                        // Over $allOccurrences, not $allInstances: a journal
+                        // entry is a textblock and a note is a container, and
+                        // both are things you can edit.
+                        { id: uid(), type: "action", config: { type: "FIND", over: "$allOccurrences",
                           predicate: { operator: "AND", rules: [
                             { id: uid(), left: "_ancestors", comparator: "HAS_ANCESTOR", right: "$cont.id" },
-                            { id: uid(), left: `fields.${completedFieldId}.value`, comparator: "IS", right: true },
+                            { id: uid(), operator: "OR", rules: [
+                              { id: uid(), left: `fields.${completedFieldId}.value`, comparator: "IS", right: true },
+                              { id: uid(), left: "meta.userTouched", comparator: "IS", right: true },
+                            ] },
                           ] }, itemIdVar: "$dcKeep" } },
                         { id: uid(), type: "if",
                           condition: { operator: "AND", rules: [

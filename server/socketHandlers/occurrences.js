@@ -316,6 +316,31 @@ export function registerOccurrenceHandlers(socket, {
         }
       }
 
+      // ── A ROW THE USER TOUCHED SAYS SO ────────────────────────────────
+      //
+      // User, 2026-09-09: *"i just dont want it to delete anything i edit"*.
+      //
+      // The schedule teardown removes a day column with nothing under it, and
+      // no FIELD-LEVEL rule can express "anything I edited" — measured over 40
+      // day columns, every candidate either dropped real edits (ops PREFILL
+      // Meal/Mood/macros, so excluding op-written fields loses the user's own
+      // picks) or spared the app's own writing (`Daily Question` alone kept 30
+      // of 40). The same fields are written by both sides.
+      //
+      // The WRITE PATH is the one place that knows which is which, and it
+      // already does: `txRecorder` marks a write `derived` on exactly
+      // `!actionId` — that is how undo tells a user's step from an op's. A
+      // write carrying `__actionId` came from a gesture; `safeEmit` stamps it
+      // inside a `withAction` scope and `runDerived` suppresses it for the
+      // app's own writes.
+      //
+      // So the fact is recorded where it is KNOWN, once, instead of being
+      // inferred later from values that cannot carry it. Stamped only when
+      // absent, so a row is not rewritten on every later edit.
+      if (payload?.__actionId && !next.meta?.userTouched) {
+        next.meta = { ...(next.meta || {}), userTouched: true };
+      }
+
       uc.occurrencesById[id] = next;
 
       // Compress textmap before persisting to DB. Computed BEFORE the undo

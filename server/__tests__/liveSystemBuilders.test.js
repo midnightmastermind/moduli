@@ -235,6 +235,60 @@ describe("schedule ops", () => {
     expect(json).toContain('"type":"ADD_CHILD","parentId":"$dayColId","childId":"$slotCopyId"');
   });
 
+  // ── THE TEARDOWN SPARES A DAY YOU EDITED ──────────────────────────────
+  //
+  // User, 2026-09-09: *"i just dont want it to delete anything i edit"* — and
+  // *"i feel like its going to miss some things i put in"*, which measuring
+  // confirmed: over 40 live day columns, every FIELD-LEVEL candidate either
+  // dropped real edits (ops PREFILL Meal/Mood/macros) or spared the app's own
+  // writing (`Daily Question` alone kept 30 of 40). The same fields are written
+  // by both sides, so the discriminator has to come from the WRITE PATH —
+  // `meta.userTouched`, stamped on a gesture-driven write.
+  const spareFind = (op) => JSON.parse(JSON.stringify(op.pipeline)) &&
+    (function walk(steps) {
+      for (const st of steps || []) {
+        const c = st.config || st;
+        if (c?.type === "FIND" && c?.itemIdVar === "$dcKeep") return c;
+        // A loop's children live under `body`, not `steps` — the probe sits
+        // seven levels down at `.then.0.then.7.body.0.then.0.else.0.config`.
+        const nested = [...(st.steps || []), ...(st.body || []), ...(st.then || []), ...(st.else || []),
+                        ...(c?.steps || []), ...(c?.body || []), ...(c?.then || []), ...(c?.else || [])];
+        const hit = walk(nested);
+        if (hit) return hit;
+      }
+      return null;
+    })(op.pipeline.steps);
+
+  it("spares a day column carrying a userTouched descendant, not only a ticked one", () => {
+    const op = makeScheduleBuildScheduleOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS", scheduleFormatFieldId: "SF", schedulePageOccId: "SP", dayContainerOccId: "DAY", completedFieldId: "CF" });
+    const find = spareFind(op);
+    expect(find, "the teardown's keep-probe is gone").toBeTruthy();
+    const or = find.predicate.rules.find((r) => r.operator === "OR");
+    expect(or, "the keep-probe still asks only one question").toBeTruthy();
+    expect(or.rules).toEqual(expect.arrayContaining([
+      expect.objectContaining({ left: "fields.CF.value", comparator: "IS", right: true }),
+      expect.objectContaining({ left: "meta.userTouched", comparator: "IS", right: true }),
+    ]));
+  });
+
+  // Over $allOccurrences, not $allInstances: a journal entry is a TEXTBLOCK and
+  // a note is a CONTAINER, and both are things you can edit. Scoping to
+  // instances would spare the day you ticked a task and delete the day you
+  // wrote in.
+  it("looks for the edit across every occurrence, not just instances", () => {
+    const op = makeScheduleBuildScheduleOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS", scheduleFormatFieldId: "SF", schedulePageOccId: "SP", dayContainerOccId: "DAY", completedFieldId: "CF" });
+    expect(spareFind(op).over).toBe("$allOccurrences");
+  });
+
+  // THE CONTROL. `completedFieldId` is optional, and without it the pipeline
+  // must be byte-identical to the pre-teardown one — no probe, no spare, so no
+  // existing caller changes behaviour.
+  it("emits NO keep-probe at all when no completed field is passed", () => {
+    const op = makeScheduleBuildScheduleOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS", scheduleFormatFieldId: "SF", schedulePageOccId: "SP", dayContainerOccId: "DAY" });
+    expect(spareFind(op)).toBeNull();
+    expect(JSON.stringify(op.pipeline)).not.toContain("userTouched");
+  });
+
   it("Build Schedule op has no hand-typed bare ids — every entity ref goes through a picker / runtime var", () => {
     const op = makeScheduleBuildScheduleOp({ userId: "u", gridId: "g", dateFieldId: "DF", dueFieldId: "DUE", timeslotFieldId: "TS", scheduleFormatFieldId: "SF", goalsPageOccId: "GP", schedulePageOccId: "SP", dayContainerOccId: "DAY" });
     // The seed-time picker-direct bindings (INIT_VAR $schedPage expr:
