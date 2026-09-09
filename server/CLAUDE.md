@@ -2,6 +2,49 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-09 — `meta.userTouched`: the teardown spares a day you EDITED)
+- **`socketHandlers/occurrences.js` (`update_occurrence`)** — stamps
+  `next.meta.userTouched = true` when the payload carries `__actionId`. That is the
+  SAME discriminator undo uses: `txRecorder.js:199` sets `derived = !actionId`, and
+  `safeEmit` stamps the id inside a `withAction` scope while `runDerived` suppresses
+  it for the app's own writes. Stamped only when absent, so a row is not rewritten on
+  every later edit.
+- **WHY THE WRITE PATH AND NOT A FIELD RULE — measured over 40 live day columns /
+  526 rows.** Every field-level candidate for *"anything I edited"* failed in one of
+  two directions: `holds a field no op writes` kept 2 of 40 (drops real edits, because
+  ops PREFILL Meal / Mood / the macros), while `excluding the build's own stamps` kept
+  30 of 40 (spares the app's own writing — `Daily Question` alone). **The same fields
+  are written by both sides**, so nothing reading values can separate them afterwards.
+  The user predicted this: *"i feel like its going to miss some things i put in."*
+- **A DROP NEEDS NO SPECIAL CASE.** Placement is the PARENT's `occurrences[]`, so
+  dragging a task into a slot arrives as an ordinary `update_occurrence` on that slot.
+  (`CommitHelpers.moveOccurrence` emits `move_occurrence` — **no call sites, no server
+  handler**; the live path is `spliceChildIntoParent`.)
+- **`utils/liveSystemBuilders.js` (`makeScheduleBuildScheduleOp`)** — the teardown's
+  keep-probe becomes `(Completed IS true) OR (meta.userTouched IS true)` over
+  **`$allOccurrences`**, not `$allInstances`. The widening is load-bearing and was
+  measured: the same stamp on the same row still tears the day down over
+  `$allInstances`, because a journal section or a note is a CONTAINER / TEXTBLOCK.
+  `completedFieldId` stays optional, so a caller that omits it gets the
+  byte-identical pre-teardown pipeline (its own control test).
+- **`migrations/0329-a-day-you-edited-is-not-torn-down.mjs`** carries it to the live
+  op. It finds the probe by **what it BINDS** (`$dcKeep`), never by position, and
+  replaces the completion RULE **in place** so the ancestor scope beside it survives —
+  swapping the whole predicate would let one edit anywhere on the grid spare every
+  past day. Delegates to `0322.up` first on a grid that never ran it. Three refusals,
+  each guarding a way this could read as success and be wrong: exactly 1 day-col
+  DELETE must remain, the ancestor scope must survive, and the completion arm must
+  survive (or `0322` is silently undone).
+- **HONEST LIMIT, in the migration header too: the stamp only exists from the moment
+  it shipped.** A day edited last week and never ticked is still torn down.
+- **AND A LIMITATION FOUND WHILE PROBING, REPORTED NOT PAPERED OVER:** the descendant
+  walk uses `buildParentMap`, which keys child -> ONE parent (**last writer wins**), so
+  a multi-parented row's `_ancestors` can resolve to a different day column. `0322`
+  has the identical exposure.
+- Order shipped: **builder -> deploy -> migration**. 2111 server + 4220 client tests;
+  `0329` applied to poms grid, read back out of Mongo, pm2 restarted (the migration
+  wrote AFTER the deploy's own restart, so the warm cache still held the old pipeline).
+
 ## Recent Changes (2026-09-03 — the day column gets an IDENTITY, and the server refuses a duplicate)
 
 - **`utils/duplicateSignature.js` (NEW, 10 tests)** — `refusedDuplicateCreates(batch, occurrencesById)`

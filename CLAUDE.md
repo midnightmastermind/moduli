@@ -6,6 +6,95 @@
 
 ---
 
+### 2026-09-09 — A DAY YOU EDITED IS NOT TORN DOWN, and no field could ever have said so
+
+User: *"i just dont want it to delete anything i edit"* — then, of the field-level
+rule I proposed: *"i feel like its going to miss some things i put in."*
+**They were right, and measuring is what settled it rather than my agreeing.**
+
+`0322` spares a day column when something beneath it is COMPLETED. That covers
+what you DID and says nothing about what you WROTE or PICKED. Over the live
+grid's 40 day columns / 526 rows, every field-level candidate failed in one of
+two directions:
+```
+Completed ticked                    4 of 40   <- 0322, already spared
+holds prose                         1 of 40
+holds a field no op writes          2 of 40   <- DROPS real edits
+excluding fields ops UPDATE        30 of 40   <- ops PREFILL Meal, Mood and the
+                                                 macros, so this loses your own picks
+excluding the build's own stamps   30 of 40   <- kept by `Daily Question`, which
+                                                 the APP writes, not you
+holds any value at all             40 of 40   <- spares everything, useless
+```
+**The same fields are written by both sides, so nothing reading VALUES can tell
+them apart after the fact.** The user's worry was the finding.
+
+**SO THE FACT IS RECORDED WHERE IT IS KNOWN.** The write path already
+distinguishes them — `txRecorder` marks a write `derived` on exactly
+`!actionId`, which is how UNDO tells your step from an op's.
+`update_occurrence` stamps `meta.userTouched` when a write carries an
+`__actionId`, and the teardown reads that instead of guessing. One place, once,
+at the moment the answer is still available.
+
+**AND THE DROP IS COVERED BY THE SAME STAMP, which is worth stating because it
+looked like a gap.** Placement is the PARENT's `occurrences[]`, so dragging a
+task into a slot arrives as an ordinary `update_occurrence` on that slot — a
+descendant of the day column. (`CommitHelpers.moveOccurrence` emits
+`move_occurrence`, which has NO call sites and NO server handler; the live path
+is `spliceChildIntoParent`.) Pinned by its own test.
+
+**`$allOccurrences`, NOT `$allInstances` — load-bearing, not tidiness.**
+Measured through the real executor: the same stamp on the same row still tears
+the day down over `$allInstances`, because that row is a CONTAINER. A journal
+section or a note is exactly the thing you edit.
+
+**MY PROBE WAS WRONG FOUR TIMES BEFORE IT MEASURED ANYTHING, and the last one is
+a finding rather than a slip.** `INIT_VAR` takes `name`, not `varName`; the
+logger needs `.add`; `executePipeline` returns EFFECTS, not vars — and then the
+descendant I picked was the ONE of 49 children that is multi-parented, whose
+`_ancestors` walk resolves to the OTHER day column (`buildParentMap` keys child
+-> one parent, **last writer wins**). Every arm read zero, the documented
+both-arms-zero tell. **`0322` has the identical exposure**, so it is recorded in
+`0329`'s header rather than papered over. A fifth probe failed for a fifth
+reason — a read-back script in `/tmp` cannot resolve `mongoose`, because module
+resolution starts at the FILE, not the cwd.
+
+**THE ORDER WAS RIGHT THIS TIME, and the previous entry records paying for
+getting it wrong:** builder → **client/server deploy** → migration. The stamp
+ships first and starts recording; only then does the teardown start reading it.
+Either order is safe here (an unstamped grid degrades to exactly `0322`), which
+is why it was worth doing correctly while it cost nothing.
+
+**READ BACK OUT OF MONGO rather than off the log:** 1 keep-probe, `over:
+$allOccurrences`, the ancestor scope SURVIVED (`_ancestors HAS_ANCESTOR
+$cont.id`), both arms present, and **exactly 1 day-col DELETE** — the control
+that says the teardown still exists, because a guard that removes the cleanup
+would read as success here and let 50 occurrences a day accumulate forever.
+
+**HONEST LIMIT, and it is not small: the stamp only exists from the moment it
+shipped.** A day you edited last week and never ticked anything on is still
+torn down — nothing in the data records that you touched it. Stated in the
+migration header too.
+
+Every A/B fails exactly its own case with the mutation asserted to land:
+reverting the whole probe (4), dropping only the `userTouched` arm (3), dropping
+the ancestor scope (its own control), removing the stamp (4 — the 2 survivors
+are the controls, since *a derived write does not stamp* is true either way).
+**2111 server + 4220 client tests**, deployed, prod HEAD verified over SSH at
+`189e1eac`, migration `0329` applied and read back, pm2 restarted twice (the
+migration wrote after the deploy's own restart, so the warm cache still held the
+old pipeline).
+
+**AND THE SESSION'S OWN DEBRIS WAS SWEPT.** This morning's deliberate
+duplicate-column reproduction left **6 orphan day-column modules** — deleting an
+occurrence never removes its module. `sweepOrphans --grid "poms grid"` took
+them with a dump, and **refused `Daily Answer`** (still referenced by an
+operation or textmap), which is the guard working rather than failing. poms grid
+back to its documented baseline: 1 pre-existing `container-filtered-empty`, 34
+deliberate palette fields.
+
+---
+
 ### 2026-09-08 (3) — A BALANCE COUNTS UP TO THE DAY YOU ARE LOOKING AT, and three "simplifications" each removed something load-bearing
 
 User: *"the current vs total thing is more for the nondate but since we would
