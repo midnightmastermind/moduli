@@ -5,9 +5,15 @@
 // (its CDN links have rotted over the years). Without a fallback, ~400 cards
 // would draw an error icon where they previously drew a 📄 — a downgrade for
 // every one of them.
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import LoadingImage from "../ui/LoadingImage";
+import LoadingImage, { _resetFailedSrc } from "../ui/LoadingImage";
+
+// A FAILED SRC IS REMEMBERED FOR THE SESSION (see `LoadingImage`'s own header —
+// 203 dead bookmark covers were being re-requested on every remount). That Set
+// is module state, so it outlives a single case and has to be cleared here or
+// one test's dead url silently decides the next one's starting state.
+beforeEach(() => { _resetFailedSrc(); });
 
 describe("LoadingImage fallback", () => {
   it("renders the fallback INSTEAD of the image once it fails", () => {

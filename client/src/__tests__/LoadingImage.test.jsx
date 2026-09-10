@@ -1,7 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect , beforeEach} from "vitest";
 import { render, act } from "@testing-library/react";
 import { fireEvent } from "@testing-library/dom";
-import LoadingImage from "../ui/LoadingImage.jsx";
+import LoadingImage, { _resetFailedSrc } from "../ui/LoadingImage.jsx";
+
+// A FAILED SRC IS REMEMBERED FOR THE SESSION (see `LoadingImage`'s own header —
+// 203 dead bookmark covers were being re-requested on every remount). That Set
+// is module state, so it outlives a single case and has to be cleared here or
+// one test's dead url silently decides the next one's starting state.
+beforeEach(() => { _resetFailedSrc(); });
 
 // These pin the two states a picture can be in that a bare <img> cannot
 // express, plus the CACHED case — which is the one that regresses silently,

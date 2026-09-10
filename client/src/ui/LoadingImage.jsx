@@ -55,6 +55,36 @@ import { Spinner } from "../components/ui/spinner";
 // ancestor that is already positioned own it (what the artifact cards do — the
 // card is the frame, and a wrapper between it and the img would break its
 // layout).
+// ── A COVER THAT FAILED ONCE IS NOT ASKED FOR AGAIN ───────────────────────
+//
+// User, 2026-09-10: the viewer *"takes forever to open"*. Their console log is
+// the measurement — 232 image GETs between two `__renderTally()` calls and **203
+// `NS_ERROR_DOM_NETWORK_ERR`**. The hosts name themselves:
+// `scontent.cdninstagram.com` (60 of them — Instagram blocks hotlinking, so
+// every one fails), dead blogs, CORP-blocked CDNs. These are the bookmark
+// COVERS, and each failure costs a DNS lookup, a TCP connect and a TLS
+// handshake before the browser gives up.
+//
+// The state below is per INSTANCE, so a card that unmounts and remounts —
+// virtualisation, scrolling, the churn that reads as 3,221 instance renders in
+// that same tally — mounts a fresh `<img>` on the same dead src and the browser
+// pays for it all over again.
+//
+// Session-scoped ON PURPOSE, not persisted: "this host was unreachable" is a
+// fact about a moment, and a bookmark that failed on a flaky connection must get
+// another chance on the next load rather than being written off for good.
+//
+// Bounded, because a diagnostic-shaped cache must not become the leak it was
+// added to prevent. At the cap it stops recording rather than evicting — the
+// worst case is the OLD behaviour for later images, never a wrong answer.
+const FAILED_SRC = new Set();
+const FAILED_CAP = 5000;
+export function rememberFailedSrc(src) {
+  if (src && FAILED_SRC.size < FAILED_CAP) FAILED_SRC.add(src);
+}
+/** Exported for tests: a session's failures are not observable any other way. */
+export function _resetFailedSrc() { FAILED_SRC.clear(); }
+
 export default function LoadingImage({
   src,
   alt = "",
@@ -67,7 +97,7 @@ export default function LoadingImage({
   fallback = null,
 }) {
   const ref = useRef(null);
-  const [state, setState] = useState("loading");
+  const [state, setState] = useState(() => (src && FAILED_SRC.has(src) ? "error" : "loading"));
 
   // Reveal only once the bitmap is ready to paint. Guarded by the src it was
   // started for, so a fast re-point cannot reveal the previous picture.
@@ -80,11 +110,12 @@ export default function LoadingImage({
   };
 
   useEffect(() => {
+    if (src && FAILED_SRC.has(src)) { setState("error"); return; }
     setState("loading");
     const el = ref.current;
     if (!el || !el.complete) return;
     if (el.naturalWidth > 0) reveal(el, el.getAttribute("src"));
-    else setState("error");
+    else { rememberFailedSrc(src); setState("error"); }
   }, [src]);
 
   // After every hook, never before one.
@@ -95,7 +126,13 @@ export default function LoadingImage({
       <img
         ref={ref}
         className={className}
-        src={src}
+        // THE SRC IS DROPPED ONCE IT IS KNOWN DEAD, and the ELEMENT is kept.
+        // An `<img>` carrying a src IS the request, so leaving one in place
+        // would re-ask on every remount — which is the entire cost being
+        // removed. Removing the element instead would resize the frame, which
+        // `LoadingImage.test.jsx` pins as its own contract ("keeps the img
+        // mounted in every state, so the frame never resizes").
+        src={state === "error" ? undefined : src}
         alt={alt}
         title={title}
         style={{
@@ -104,7 +141,7 @@ export default function LoadingImage({
           transition: "opacity 120ms ease-out",
         }}
         onLoad={(e) => reveal(e.currentTarget, e.currentTarget.getAttribute("src"))}
-        onError={() => setState("error")}
+        onError={() => { rememberFailedSrc(src); setState("error"); }}
       />
       {state === "loading" && (
         <span className="img-load-status" aria-hidden="true">
