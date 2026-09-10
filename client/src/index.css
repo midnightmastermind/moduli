@@ -3920,15 +3920,10 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   min-height: 0;
   cursor: auto;
 }
-/* THE TILE TAKES THE HEIGHT IT IS ALLOWED, not the height its content happens
-   to be. Every other tile holds a picture and hugging it is right; a page you
-   are READING should fill the overlay (user: *"it needs to extend the height of
-   the screen"*). `100vh` is not the final size — the per-count `max-height`
-   above still caps it (82vh alone, 66vh at two or three, 42vh in a grid), so
-   this composes with those rather than replacing them. */
-.artifact-spread-body .container-items--wrap > .instance-wrap:has(.artifact-card--bookmark-open) {
-  height: 100vh;
-}
+/* A bookmark opened in the spread fills its tile — the rule that does it lives
+   with the per-count caps further down, because it has to BEAT them and shares
+   their specificity exactly. See ".artifact-spread-body[data-count]" below. */
+
 /* Full-bleed logo card (Viafluere top-middle cell): the image fills the card
    width, responsive (height auto, no crop), with its file name CENTERED in a
    bar UNDERNEATH — same picture-then-name order as every other artifact card.
@@ -6814,6 +6809,48 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 /* A LONE file is the whole point of the overlay, so it gets the room. */
 .artifact-spread-body[data-count="1"] .container-items--wrap > .instance-wrap {
   max-height: min(82vh, 1000px) !important;
+}
+
+/* A BOOKMARK IS A PAGE YOU ARE READING, NOT A PHOTO — so the caps above do not
+   apply to it. They exist so a tall image cannot push a grid of tiles off
+   screen; left in force they were silently deciding how tall a web page is.
+   Measured 2026-09-10: every one of the 1,468 bookmarks carries no children, so
+   a bookmark always opens as `data-count="1"` and was pinned to
+   `min(82vh, 1000px)` inside a FULL-SCREEN overlay.
+
+   IT HAS TO SIT HERE, AFTER THEM, AND CARRY `[data-count]`. The first version
+   lived up with the other `.artifact-card--bookmark-open` rules and was
+   completely INERT: it scored the same (0,4,0) as the cap it had to beat, both
+   are `!important`, so SOURCE ORDER decided and the cap came later. Measured in
+   a browser against the built stylesheet — `max-height` still read 738px with
+   the override supposedly applied. `[data-count]` takes it to (0,5,0) so it
+   wins on specificity rather than on where it happens to sit in the file, and
+   the placement is belt-and-braces on top of that. Same class as the
+   2026-08-17 full-screen rule that shipped doing nothing.
+
+   `100%` rather than `100vh`: the body is the box this sits in and is already
+   the viewport minus the viewer header, so `100vh` overflows it by that header. */
+.artifact-spread-body[data-count] .container-items--wrap > .instance-wrap:has(.artifact-card--bookmark-open) {
+  height: 100% !important;
+  max-height: none !important;
+}
+/* AND THE CHAIN ABOVE IT HAS TO BE DEFINITE, or the `height: 100%` is inert.
+   Measured in a browser: with the cap lifted the tile still came out 36px,
+   because `100%` resolves against a parent whose own height is `auto` and
+   silently falls back to content. `100vh` would resolve — and would then
+   overflow the body by exactly the viewer header, which is the bug one level
+   over. So the shell and the items row are made to fill instead, and only when
+   the body actually holds an open bookmark: every other spread is a grid of
+   pictures that must keep hugging its content. */
+.artifact-spread-body:has(.artifact-card--bookmark-open) > .container-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.artifact-spread-body:has(.artifact-card--bookmark-open) > .container-shell > .container-items--wrap {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 /* EVERY TILE IS FULL HEIGHT AND THE CAPTION SITS ON THE BOTTOM EDGE (user
    2026-08-16: "make the height full so the caption underneath is always at the

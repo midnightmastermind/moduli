@@ -182,3 +182,91 @@ describe("fetchPageHtml", () => {
     expect(r.reason).toMatch(/timed out/);
   });
 });
+
+// ── WHICH USER-AGENT ────────────────────────────────────────────────────────
+//
+// Measured on the user's own bookmarks (2026-09-10): the Washington Post TARPITS
+// our plain agent — 14,792ms and no answer — and serves a browser agent 987KB in
+// 151ms. `kickstarter.com` is the exact inverse: 200 plain, 403 on Chrome's.
+//
+// So the order is decided by the COST OF BEING WRONG rather than by which agent
+// is more often right, and these pin that reasoning rather than the strings.
+describe("fetchPageHtml — the two user-agents", () => {
+  const okRes = (html, type = "text/html") => ({
+    ok: true, status: 200,
+    headers: { get: (k) => (k.toLowerCase() === "content-type" ? type : null) },
+    text: async () => html,
+  });
+  const status = (code) => ({
+    ok: false, status: code,
+    headers: { get: () => null },
+    text: async () => "",
+  });
+  const uaOf = (call) => call[1].headers["User-Agent"];
+
+  it("asks as a BROWSER first — the tarpit case", async () => {
+    const fetchImpl = vi.fn(async () => okRes("<h1>Hi</h1>"));
+    await fetchPageHtml("https://www.washingtonpost.com/x", { fetchImpl });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(uaOf(fetchImpl.mock.calls[0])).toMatch(/Chrome\/\d/);
+  });
+
+  it("retries as ITSELF when the site refuses the browser agent — the kickstarter case", async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(status(403))
+      .mockResolvedValueOnce(okRes("<p>real page</p>"));
+    const r = await fetchPageHtml("https://www.kickstarter.com/", { fetchImpl });
+    expect(r.ok).toBe(true);
+    expect(r.html).toBe("<p>real page</p>");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(uaOf(fetchImpl.mock.calls[0])).toMatch(/Chrome\/\d/);
+    expect(uaOf(fetchImpl.mock.calls[1])).toMatch(/Moduli/);
+  });
+
+  // THE CONTROL. Without it, "retries on a refusal" is equally satisfied by a
+  // fetch that retries EVERYTHING — which would double every dead link on the
+  // board, and there are plenty (measured: 11 of 60 are a plain 404).
+  it("does NOT retry a 404 — only the agent-shaped refusals", async () => {
+    const fetchImpl = vi.fn(async () => status(404));
+    const r = await fetchPageHtml("https://example.com/gone", { fetchImpl });
+    expect(r.ok).toBe(false);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports the FIRST answer when both agents are refused", async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(status(403))
+      .mockResolvedValueOnce(status(401));
+    const r = await fetchPageHtml("https://example.com/locked", { fetchImpl });
+    expect(r.ok).toBe(false);
+    // 403, not 401 — the browser agent is what most sites are answering.
+    expect(r.reason).toContain("403");
+  });
+
+  // THE LOAD-BEARING ONE. Two attempts must never cost more wall time than one
+  // was allowed, or this fixes a 15s hang by inventing a 12s one.
+  //
+  // IT HAS TO BURN THE BUDGET ON A **403**, and the A/B is why that is written
+  // down: a first draft burned it on a TIMEOUT, which carries no `status`, so
+  // the retry never fired and one attempt ran under either implementation. It
+  // passed against a per-attempt budget — the exact thing it exists to catch.
+  it("shares ONE deadline across both attempts", async () => {
+    const slow403 = async (_u, opts) => {
+      await new Promise((res, rej) => {
+        const t = setTimeout(res, 200);
+        opts.signal.addEventListener("abort", () => {
+          clearTimeout(t);
+          rej(Object.assign(new Error("aborted"), { name: "AbortError" }));
+        });
+      });
+      return { ok: false, status: 403, headers: { get: () => null }, text: async () => "" };
+    };
+    const fetchImpl = vi.fn(slow403);
+    const t0 = Date.now();
+    await fetchPageHtml("https://example.com/slow", { fetchImpl, timeoutMs: 250 });
+    const elapsed = Date.now() - t0;
+    // Shared: 200ms burnt, ~50ms left for the retry -> ~250ms total.
+    // Per-attempt: 200ms + a fresh 200ms -> ~400ms.
+    expect(elapsed).toBeLessThan(320);
+  });
+});

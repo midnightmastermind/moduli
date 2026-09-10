@@ -70,6 +70,37 @@ export function validateFetchUrl(raw) {
   return { ok: true, url };
 }
 
+// ── WHICH USER-AGENT, AND WHY IT IS TWO ─────────────────────────────────────
+//
+// User, 2026-09-10: *"i still cant access web pages that raindrop can (aka
+// washington post)"*. Measured — the Washington Post does not refuse our fetch,
+// it TARPITS it:
+//
+//     washingtonpost.com   Moduli UA   FAIL 14792ms   (never answers)
+//                          Chrome UA    200   151ms   987KB
+//
+// Across 60 of the user's own bookmarks the browser UA is worth a median 386 ->
+// 153ms, a p90 of 958 -> 649ms and a max of 6529 -> 1536ms — total wall time
+// 33.0s -> 15.4s.
+//
+// **IT IS A LATENCY FIX AND NOT A COVERAGE ONE, which is worth stating because
+// it looks like the opposite.** Fetch successes were 48/60 either way: it
+// unlocks no new pages, it stops the slow ones hanging.
+//
+// AND NO SINGLE AGENT WINS. `kickstarter.com` is the exact inverse — 200 on the
+// plain agent, 403 on Chrome's. So the order is decided by the COST OF BEING
+// WRONG, not by which is more often right: a wrong agent costs a 20ms 403 that
+// is cheap to retry, while a tarpit costs fifteen seconds and cannot be
+// retried into. Chrome first, plain agent on a 401/403.
+//
+// The retries share ONE deadline, so two attempts can never cost more wall time
+// than one was allowed — otherwise this would fix a 15s hang by inventing a 12s
+// one.
+const UA_BROWSER = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const UA_PLAIN = "Mozilla/5.0 (compatible; Moduli/1.0; +https://viafluere.com)";
+/** Statuses where the AGENT is the plausible reason, so the other one is worth a try. */
+const RETRY_WITH_PLAIN_UA = new Set([401, 403]);
+
 /**
  * Fetch a page's HTML with the guard applied.
  *
@@ -87,8 +118,14 @@ export async function fetchPageHtml(raw, {
   timeoutMs = 20000, maxBytes = 5 * 1024 * 1024, maxRedirects = 5, fetchImpl,
 } = {}) {
   const doFetch = fetchImpl || globalThis.fetch;
+  const deadline = Date.now() + timeoutMs;
+
+  const attempt = async (userAgent) => {
+  const remaining = Math.max(0, deadline - Date.now());
+  // A retry with no budget left must not fire a request it cannot finish.
+  if (remaining <= 0) return { ok: false, reason: `timed out after ${timeoutMs}ms` };
   const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  const timer = setTimeout(() => ac.abort(), remaining);
   try {
     let current = raw;
     for (let hop = 0; hop <= maxRedirects; hop++) {
@@ -103,10 +140,13 @@ export async function fetchPageHtml(raw, {
         signal: ac.signal,
         redirect: "manual",
         headers: {
-          // Some sites serve a stub to unknown agents; this is the same posture
-          // services/wikipediaTools.js already takes.
-          "User-Agent": "Mozilla/5.0 (compatible; Moduli/1.0; +https://viafluere.com)",
-          Accept: "text/html,application/xhtml+xml",
+          // Chosen by the caller below, not fixed here — see the note above the
+          // function for why there are two and why this order.
+          "User-Agent": userAgent,
+          Accept: "text/html,application/xhtml+xml,*/*;q=0.8",
+          // Sites that vary on it serve a redirect-to-a-locale rather than the
+          // page; saying so up front skips a hop.
+          "Accept-Language": "en-US,en;q=0.9",
         },
       });
 
@@ -118,7 +158,9 @@ export async function fetchPageHtml(raw, {
         continue;
       }
 
-      if (!res.ok) return { ok: false, reason: `fetch failed (${res.status})` };
+      // `status` rides along so the retry can key on the agent-shaped refusals
+      // rather than on the reason STRING, which is user-facing prose.
+      if (!res.ok) return { ok: false, status: res.status, reason: `fetch failed (${res.status})` };
 
       const type = res.headers?.get?.("content-type") || "";
       if (type && !/text\/html|application\/xhtml|text\/plain/i.test(type)) {
@@ -151,4 +193,13 @@ export async function fetchPageHtml(raw, {
   } finally {
     clearTimeout(timer);
   }
+  };
+
+  const first = await attempt(UA_BROWSER);
+  if (first.ok || !RETRY_WITH_PLAIN_UA.has(first.status)) return first;
+  // The refusal looked like it was about WHO asked. Ask again as ourselves —
+  // and if that fails too, report the FIRST answer, because the browser agent
+  // is the one most sites are actually responding to.
+  const second = await attempt(UA_PLAIN);
+  return second.ok ? second : first;
 }
