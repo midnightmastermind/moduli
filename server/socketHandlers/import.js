@@ -40,6 +40,11 @@ import { waybackQueryUrl, snapshotFrom } from "../utils/waybackSnapshot.js";
 import { framingVerdict } from "../utils/framingVerdict.js";
 import { extractLinks } from "../utils/harvestLinks.js";
 
+// How long the INTERACTIVE reader fetch may take before it gives up and lets the
+// frame have the page. Exported so the rule is testable rather than a number
+// buried in a handler. See the call site for why it is not `safeFetchUrl`'s 20s.
+export const READER_TIMEOUT_MS = 6000;
+
 // Name the page from its own <title> when the caller didn't supply one, so a
 // converted link reads as the article rather than as its URL.
 function titleFromHtml(html) {
@@ -172,7 +177,20 @@ export function registerImportHandlers(socket, {
     try {
       if (!socket.userId) return reply({ ok: false, error: "unauthenticated" });
       if (!url) return reply({ ok: false, error: "url required" });
-      const fetched = await fetchPageHtml(url);
+      // A SHORTER LEASH THAN AN IMPORT, because someone is WATCHING this one.
+      //
+      // `safeFetchUrl` gives a page 20 seconds, which is right for a background
+      // import and wrong here: measured on the Washington Post, a site that
+      // never answers burns the whole 20s while the overlay sits empty, and then
+      // falls through to the frame — which renders in about a second. Waiting
+      // twenty seconds for a NICETY when the fallback is that fast is a bad
+      // trade, and the reader was never going to be usable on that page anyway.
+      //
+      // A JUDGEMENT, not a measurement: 6s is an interactive patience ceiling,
+      // not something derived from these bookmarks. If a site you care about
+      // starts falling through to the frame when its reader used to work, this
+      // number is the reason and it is the thing to raise.
+      const fetched = await fetchPageHtml(url, { timeoutMs: READER_TIMEOUT_MS });
       // The guard's reason is handed back verbatim so the strip can say WHY it
       // fell through to the frame ("timed out", "not a web page") rather than
       // silently switching modes.

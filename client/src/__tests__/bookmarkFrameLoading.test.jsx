@@ -44,6 +44,23 @@ const openWeb = () => {
 
 beforeEach(() => { socket.emit.mockClear(); });
 
+describe("the READER fetch says it is loading", () => {
+  // THE 20-SECOND WINDOW. `safeFetchUrl` gives a page 20s to answer, and a site
+  // that never does (the Washington Post, measured — the recording shows ~20s of
+  // an empty overlay) burns all of it before falling through to the frame.
+  //
+  // `resolveMode` returns "loading" for that whole time, and it rendered a
+  // 12px "Reading…" and nothing else — in a full-screen overlay, which is why
+  // it read as the app having died rather than as a page being fetched.
+  it("shows the loading icon while the page is being read", () => {
+    const { container } = render(
+      <BookmarkView occurrence={occurrence} module={{ kind: "bookmark" }} socket={socket} isActivePage />,
+    );
+    // The ack is never called, which IS the state under test.
+    expect(container.querySelector('[role="status"]'), "no loading icon while reading").toBeTruthy();
+  });
+});
+
 describe("the frame says it is loading", () => {
   it("shows a spinner while the page has not loaded", () => {
     const el = openWeb();

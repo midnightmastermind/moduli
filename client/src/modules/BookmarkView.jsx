@@ -460,7 +460,24 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
           </div>
         )}
         {url && mode === "loading" && (
-          <div className="text-xs text-muted-foreground" style={{ padding: 16 }}>Reading…</div>
+          // THE LONGEST WAIT ON THIS SURFACE, and it used to say the least.
+          //
+          // `safeFetchUrl` gives a page 20 seconds to answer and a site that
+          // never does burns all of it before falling through to the frame —
+          // measured on the Washington Post, which is ~20s of overlay showing a
+          // 12px "Reading…" and nothing else. In a full-screen surface that reads
+          // as the app having died, which is exactly what was reported.
+          //
+          // Same spinner as the frame below, so "waiting" looks like one thing
+          // here rather than two.
+          <div style={{
+            height: "100%", display: "flex", flexDirection: "column", gap: 10,
+            alignItems: "center", justifyContent: "center", color: "var(--text-muted)",
+            fontSize: 12, fontFamily: "var(--font-mono)",
+          }}>
+            <Spinner size="md" className="staged-hold-spinner" />
+            <span>Reading the page…</span>
+          </div>
         )}
         {url && mode === "reader" && (
           // OUR DOM: selection and right-click work here, which is the whole
