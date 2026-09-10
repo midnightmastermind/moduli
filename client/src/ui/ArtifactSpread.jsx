@@ -30,7 +30,7 @@ import { createPortal } from "react-dom";
 import { Plus, X, LayoutGrid, Move, PictureInPicture2, Maximize2 } from "lucide-react";
 import { isDrawerLayout } from "./MenuSurface";
 import { useClosingGate } from "../helpers/closingGate";
-import { DockRectContext, dockVars } from "../helpers/spreadDock";
+import { DockRectContext, InSpreadContext, dockVars } from "../helpers/spreadDock";
 
 // Must match `artifact-spread-out` in index.css. The surface stays mounted for
 // this long so the exit animation has frames to run in — see `closingGate`.
@@ -225,9 +225,11 @@ export default function ArtifactSpread({
         {/* A file expanded from in here must stay in the same panel — see
             `DockRectContext`. Portals preserve the React tree, so this reaches
             `ArtifactCard`'s own body-portalled fullscreen. */}
+        <InSpreadContext.Provider value={true}>
         <DockRectContext.Provider value={isDocked ? dockRect : null}>
           <div className="artifact-spread-body" data-count={count}>{children}</div>
         </DockRectContext.Provider>
+        </InSpreadContext.Provider>
       </div>
     </>,
     document.body

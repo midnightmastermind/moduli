@@ -3904,6 +3904,23 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
 .artifact-card:not(.artifact-card--expanded):not(.artifact-card--quote) {
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.28);
 }
+/* A BOOKMARK OPENED IN THE SPREAD IS THE PAGE, so its tile stops behaving like a
+   thumbnail: it FILLS the tile instead of centring an 80px-tall preview in it,
+   and the cursor stops promising a zoom that is no longer what a click does.
+   `min-height: 0` is what lets the reader inside it scroll — without it the flex
+   child refuses to shrink below its content and the tile grows instead. */
+.artifact-card--bookmark-open {
+  display: block;
+  height: 100%;
+  min-height: 0;
+  cursor: auto;
+  align-items: stretch;
+  justify-content: stretch;
+}
+.artifact-card--bookmark-open > * {
+  height: 100%;
+  min-height: 0;
+}
 /* Full-bleed logo card (Viafluere top-middle cell): the image fills the card
    width, responsive (height auto, no crop), with its file name CENTERED in a
    bar UNDERNEATH — same picture-then-name order as every other artifact card.

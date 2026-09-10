@@ -165,3 +165,22 @@ import { createContext, useContext } from "react";
 
 export const DockRectContext = createContext(null);
 export const useDockRect = () => useContext(DockRectContext);
+
+// AM I RENDERING INSIDE THE SPREAD?
+//
+// Needed because the spread is where an artifact is shown BIG, and a couple of
+// kinds render differently there than they do as a card on a board — a bookmark
+// is a cover in a list of 1,468 and the readable PAGE when it is the thing you
+// opened.
+//
+// It has to be a context, and both cheaper answers were tried first:
+//   - a DOM check (`closest(".artifact-spread")`) cannot run at RENDER time —
+//     the card is portalled BESIDE the overlay, not inside it, which is the same
+//     reason `DockRectContext` exists two lines up;
+//   - `useDockRect()` cannot answer it either: it is null OUTSIDE the spread and
+//     null inside an UNDOCKED one, so the two states are indistinguishable.
+//
+// Reaches through the portal for the reason that one does: a portal preserves
+// the REACT tree even though the DOM lands elsewhere.
+export const InSpreadContext = createContext(false);
+export const useInSpread = () => useContext(InSpreadContext);

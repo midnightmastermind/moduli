@@ -17,7 +17,8 @@ import { collectPanelOccurrences, enclosingPanelId } from "../helpers/targetPane
 import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
 import LoadingImage from "../ui/LoadingImage.jsx";
 import { useClosingGate } from "../helpers/closingGate";
-import { useDockRect, dockVars } from "../helpers/spreadDock";
+import { useDockRect, useInSpread, dockVars } from "../helpers/spreadDock";
+import BookmarkView from "./BookmarkView.jsx";
 
 // Must match `.artifact-fullscreen--closing` in index.css.
 const FULLSCREEN_CLOSE_MS = 190;
@@ -66,6 +67,25 @@ export default function ArtifactCard({ module, label, occurrence }) {
   const modulesById = useGridActionsSelector(s => s.modulesById);
   const viewsById = useGridActionsSelector(s => s.viewsById);
   const isBookmark = module?.role === "artifact" && module?.kind === "bookmark";
+  // A BOOKMARK IN THE SPREAD IS THE PAGE, NOT A PICTURE OF IT.
+  //
+  // User, 2026-09-10: *"theres currently no way to open up bookmarks"* ->
+  // *"shouldnt it open inside the spread"* / *"have that happen if i tap the
+  // main cover photo"*. Tapping the cover already opened the spread; what was
+  // missing is that the spread had no idea what a bookmark IS. Its renderer
+  // branches on image / video / audio / pdf and nothing else, so the tile drew a
+  // thumbnail of itself — `filesOf` reports a bookmark as its own file (its
+  // `fileRef` is a truthy URL), which made the overlay a dead end: one card,
+  // itself, with no way through to the page.
+  //
+  // SCOPED TO THE SPREAD, and that is the whole point rather than tidiness: the
+  // Bookmarks board holds 1,468 of these and it cannot mount 1,468 readers. On a
+  // board a bookmark is a cover; when it is the thing you opened, it is the page.
+  //
+  // `BookmarkView` owns reader-vs-frame itself (a server-side read, falling
+  // through to the live frame when that read is unusable), so this inherits
+  // "reader first" rather than deciding it a second time.
+  const inSpread = useInSpread();
   const fileRef = module?.fileRef;
   const kind = module?.kind;
   const status = module?.meta?.uploadStatus;
@@ -326,6 +346,24 @@ export default function ArtifactCard({ module, label, occurrence }) {
   // card carrying the kind name. That is the literal word "Movie" the user kept
   // seeing, and it is why 1,172 correct TMDB URLs sat in the store rendering
   // nothing.
+  // THE BOOKMARK'S OWN BRANCH — see `inSpread` above for why it is scoped there.
+  //
+  // ABOVE the "no file" guard deliberately, and MEASURED rather than assumed:
+  // of the live grid's 1,468 bookmarks, 1,467 carry a cover and 1 does not — and
+  // a SCRATCH BROWSER is born with no url and no cover at all, which is its
+  // whole starting state. Below the guard, exactly the bookmarks with nothing to
+  // preview would be the ones that still could not be opened.
+  //
+  // Mirrors `ArtifactContent`'s own call rather than inventing a second prop
+  // shape for the same component.
+  if (isBookmark && inSpread) {
+    return (
+      <div className="artifact-card artifact-card--bookmark-open" data-kind="bookmark">
+        <BookmarkView occurrence={occurrence} module={module} socket={socket} isActivePage />
+      </div>
+    );
+  }
+
   if (!src && !coverSrc) {
     return (
       <div className="artifact-card artifact-card--empty">
