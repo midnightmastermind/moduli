@@ -153,6 +153,41 @@ export function resolveMode({ chosen = null, fetched = null, embeddable = false,
   return "web";
 }
 
+// ── WHERE THE READER GETS ITS TEXT ──────────────────────────────────────────
+//
+// User, 2026-09-10: *"the reader view shows nothing for this bookmark
+// currently... id like the reader to point at the archive if web fails"*.
+//
+// Measured on the article they named — the live page gives the masthead and
+// nothing else, its SNAPSHOT gives the piece:
+//
+//     washingtonpost.com   live       91 words   (unusable)
+//                          snapshot 1614 words   (the actual article)
+//
+// So a page can be unreadable TODAY and perfectly readable in the archive, and
+// for a paywalled or client-rendered news site that is the normal case rather
+// than the exception. The snapshot was captured when the text was in the HTML.
+//
+// LIVE WINS WHEN IT IS USABLE, always: the archive copy is dated, and reading a
+// 2023 capture of a page that renders fine today would be quietly wrong. The
+// archive is the FALLBACK, never the preference.
+//
+// It also reports WHERE the text came from, because that is not a detail on a
+// news article — the strip says so, so nobody reads a two-year-old capture
+// believing it is today's page.
+export function readerSource({ fetched, archiveRead }) {
+  if (fetched?.ok && fetched.usable && fetched.markdown) {
+    return { markdown: fetched.markdown, from: "live" };
+  }
+  if (archiveRead?.ok && archiveRead.usable && archiveRead.markdown) {
+    return { markdown: archiveRead.markdown, from: "archive" };
+  }
+  // Still loading the archive read is NOT the same as having nothing — the
+  // caller shows a wait rather than an empty page.
+  if (archiveRead?.loading) return { markdown: "", from: "loading" };
+  return { markdown: "", from: null };
+}
+
 /** The label the strip shows for why it fell through, or null when it did not. */
 export function fallbackReason(fetched) {
   if (!fetched || fetched.ok === undefined) return null;
@@ -361,7 +396,12 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
     // still read the pre-seed `archive` and fire a lookup the server has already
     // done. Reading the reply directly is what makes that impossible.
     if (fetched?.archive) return;
-    if (!(chosen === "archive" || frameUncertain) || !url || !socket || archive) return;
+    // WHY READER IS IN THIS LIST. A page can be perfectly FRAMABLE and still have
+    // no readable text — `frameUncertain` is false for those, so without this the
+    // Reader button on such a page would have nothing to fall back to. Gated on an
+    // explicit pick so it stays a request rather than a fetch everyone pays.
+    const wantsArchiveText = chosen === "reader" && fetched && (!fetched.ok || !fetched.usable);
+    if (!(chosen === "archive" || frameUncertain || wantsArchiveText) || !url || !socket || archive) return;
     const req = ++archiveReqRef.current;
     setArchive({ loading: true });
     socket.emit("wayback_lookup", { url, requestId: String(req) }, (out) => {
@@ -369,6 +409,33 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
       setArchive(out || { ok: false, reason: "no reply" });
     });
   }, [chosen, frameUncertain, url, socket, archive, fetched]);
+
+  // ── THE ARCHIVE'S OWN TEXT ──────────────────────────────────────────────
+  //
+  // A SECOND `page_reader`, pointed at the snapshot. No new handler: reading a
+  // web.archive.org url is reading a url, and reusing the same call means the
+  // text you READ from a snapshot and the text you would IMPORT from it cannot
+  // disagree.
+  //
+  // LAZY, and gated on the live read having failed us — a page whose own text is
+  // fine must never pay a second fetch, and most do.
+  const [archiveRead, setArchiveRead] = useState(null);
+  const archiveReadReqRef = useRef(0);
+  useEffect(() => { setArchiveRead(null); }, [url]);
+  const liveReaderIsThin = !!(fetched && (!fetched.ok || !fetched.usable));
+  useEffect(() => {
+    if (!liveReaderIsThin || !archive?.ok || !archive.url || !socket || archiveRead) return;
+    const req = ++archiveReadReqRef.current;
+    setArchiveRead({ loading: true });
+    socket.emit("page_reader", { url: archive.url, requestId: `a${req}` }, (out) => {
+      // The same stale-reply guard the live read takes: a snapshot for a url we
+      // have navigated away from must not overwrite the current one.
+      if (archiveReadReqRef.current !== req) return;
+      setArchiveRead(out || { ok: false, error: "no reply" });
+    });
+  }, [liveReaderIsThin, archive, socket, archiveRead]);
+
+  const reader = readerSource({ fetched, archiveRead });
 
   // The embeddable form of this url, or null. Computed here rather than inside
   // `resolveMode` so that function stays pure over its inputs and testable
@@ -504,6 +571,17 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
             reader: {reason}
           </span>
         )}
+        {mode === "reader" && reader.from === "archive" && (
+          // NOT A DETAIL ON A NEWS ARTICLE. The live page had nothing readable
+          // and this text is a CAPTURE — saying when it was taken is the
+          // difference between reading an archive and being misled by one.
+          <span
+            style={{ fontSize: 12, color: "var(--text-muted)" }}
+            title={`The live page had no readable text; this is the Wayback capture${archive?.capturedAt ? ` from ${new Date(archive.capturedAt).toLocaleDateString()}` : ""}`}
+          >
+            from the archive{archive?.capturedAt ? ` · ${new Date(archive.capturedAt).toLocaleDateString()}` : ""}
+          </span>
+        )}
         {mode === "archive" && archive?.ok && archive.capturedAt && (
           <span style={{ fontSize: 12, color: "var(--text-muted)" }} title={archive.capturedAt}>
             captured {new Date(archive.capturedAt).toLocaleDateString()}
@@ -580,10 +658,25 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
         {url && mode === "reader" && (
           // OUR DOM: selection and right-click work here, which is the whole
           // point of preferring this mode.
+          reader.from === "loading" ? (
+            <div style={{
+              height: "100%", display: "flex", flexDirection: "column", gap: 10,
+              alignItems: "center", justifyContent: "center", color: "var(--text-muted)",
+              fontSize: 12, fontFamily: "var(--font-mono)",
+            }}>
+              <Spinner size="md" className="staged-hold-spinner" />
+              <span>Reading the saved copy…</span>
+            </div>
+          ) : (
           <div style={{ height: "100%", overflowY: "auto", padding: "12px 16px", whiteSpace: "pre-wrap",
                         fontSize: 13, lineHeight: 1.55, color: "var(--text-primary)" }}>
-            {fetched?.markdown || ""}
+            {reader.markdown || (
+              <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                This page has no readable text — not live, and not in the archive.
+              </span>
+            )}
           </div>
+          )
         )}
         {url && mode === "blocked" && (
           // BOTH modes are unavailable: no readable text AND the site refuses to
