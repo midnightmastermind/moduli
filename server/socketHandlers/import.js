@@ -36,7 +36,7 @@ import { fetchPageHtml } from "../utils/safeFetchUrl.js";
 import { fetchLinkPreview } from "../utils/linkPreview.js";
 import { extractMainContent } from "../utils/mainContent.js";
 import { readerFromHtml, readerIsUsable } from "../utils/readerExtract.js";
-import { waybackQueryUrl, snapshotFrom } from "../utils/waybackSnapshot.js";
+import { fetchWaybackSnapshot } from "../utils/waybackSnapshot.js";
 import { framingVerdict } from "../utils/framingVerdict.js";
 import { extractLinks } from "../utils/harvestLinks.js";
 
@@ -234,15 +234,15 @@ export function registerImportHandlers(socket, {
     try {
       if (!socket.userId) return reply({ ok: false, reason: "unauthenticated" });
       if (!url) return reply({ ok: false, reason: "url required" });
-      const res = await fetch(waybackQueryUrl(url), {
-        signal: AbortSignal.timeout(15000),
-        headers: { "User-Agent": "Moduli/1.0 (+https://viafluere.com)" },
-      });
-      // A NON-200 IS THE ARCHIVE BEING DOWN, which is a different fact from
-      // "this page was never archived" — and the second is reported as a plain
-      // reason, so they must not collapse into one message.
-      if (!res.ok) return reply({ ok: false, reason: `the archive answered ${res.status}` });
-      reply(snapshotFrom(await res.json()));
+      // EVERY WAY THIS CAN GO WRONG LIVES IN THE HELPER, where a test can drive
+      // it — the retry on a rate limit, the honest reason for an HTML body on a
+      // 200, and one shared deadline across the attempts. It always resolves, so
+      // there is no error path to catch here.
+      //
+      // 8s rather than the 15s this used to allow: someone is WATCHING it (the
+      // strip says "Looking for a saved copy…"), and a lookup that needs more
+      // than eight seconds has already failed as far as the reader is concerned.
+      reply(await fetchWaybackSnapshot(url, { totalMs: 8000 }));
     } catch (err) {
       const timedOut = err?.name === "TimeoutError" || err?.name === "AbortError";
       reply({ ok: false, reason: timedOut ? "the archive timed out" : (err?.message || "lookup failed") });
