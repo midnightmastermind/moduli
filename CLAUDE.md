@@ -6,6 +6,58 @@
 
 ---
 
+### 2026-09-10 (3) — A PAGE CAN BE UNREADABLE TODAY AND READABLE IN THE ARCHIVE
+
+User: *"id like the reader to point at the archive if web fails"*, on the
+Washington Post article they had been testing with. Measured on that article:
+
+```
+washingtonpost.com   live       91 words   (the masthead, and nothing else)
+                     snapshot 1614 words   (the piece)
+```
+
+**We were already FINDING that snapshot and FRAMING it — we just never READ it.**
+For a paywalled or client-rendered news site the capture is not a degraded copy,
+it is the only one with the text in the HTML, because it was taken when there
+still was some.
+
+**NO NEW SERVER CODE, and that is the design rather than a shortcut.** Reading a
+web.archive.org url is reading a url, so this is a second `page_reader` pointed
+at the snapshot. Reusing the same call means the text you READ from a capture and
+the text you would IMPORT from it cannot disagree — a second extractor would be
+the one nobody tests.
+
+**LIVE WINS WHENEVER IT IS USABLE.** The archive copy is DATED; reading a 2023
+capture of a page that renders fine today would be quietly wrong. The archive is
+the fallback, never the preference — and the strip SAYS which you are reading
+("from the archive · 05/12/2023"), because on a news article the difference
+between reading an archive and being misled by one is being told which it is.
+
+The snapshot LOOKUP widened by exactly one case: an explicit Reader pick on a
+page that FRAMES fine but has no text. `frameUncertain` does not cover those, so
+Reader there had nothing to fall back to.
+
+Five A/Bs, each failing exactly its own cases — reading only the live page (2),
+the archive always winning (2, incl. the control that no snapshot is fetched for
+a page that reads fine), using a THIN archive read anyway (1 — it would render a
+masthead as if it were the article), never fetching it (1), dropping the
+provenance label (1). Three states not two: `readerSource` reports WAITING apart
+from having nothing, so a slow capture shows "Reading the saved copy…" rather
+than an empty page that looks like a failure.
+
+2133 server + 4269 client tests, deployed and verified — prod HEAD `4e8a070c`,
+served chunk sha256-identical with both new strings present and a zero control at
+0. **Client-only, so `deploy.sh` correctly reported *"Server unchanged — NOT
+restarting"*** and no load paid a cold read.
+
+**NOT CHANGED, and it is a real choice rather than an oversight:** the AUTOMATIC
+mode for such a page is still the archive FRAME, not the archive reader. Framing
+the capture shows the page as it was, images and layout included; the reader is
+one click away and now works. Flipping the default is a one-line change if
+reading turns out to be what these are always for.
+
+---
+
 ### 2026-09-10 (2) — A FRAME WITH NO BACKGROUND IS TRANSPARENT; and my own round-trip fix made first paint WORSE
 
 User, after using what shipped an hour earlier: *"the web page died again, took
