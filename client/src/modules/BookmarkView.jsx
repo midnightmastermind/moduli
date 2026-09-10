@@ -312,11 +312,31 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   // the only thing that renders, and neither is "every bookmark you open", which
   // is the request-per-open this lookup stays lazy to avoid.
   const frameUncertain = !!(fetched && (fetched.ok === false || fetched.framable === false));
+
+  // ── THE READ MAY ALREADY CARRY IT ───────────────────────────────────────
+  //
+  // `page_reader` looks the snapshot up ITSELF when the live page will show
+  // nothing, and sends it back in the same reply — so the common case (measured
+  // 2026-09-10: more than half of every open) costs ONE round trip where it used
+  // to cost two strictly serial ones.
+  //
+  // Seeded rather than merged so a fresh url cannot show the last page's copy:
+  // the reset above keys on `url`, and this keys on the reply for that url.
+  useEffect(() => {
+    if (fetched?.archive) setArchive(fetched.archive);
+  }, [fetched]);
+
   useEffect(() => {
     // Still LAZY in the ordinary case: asking archive.org about every bookmark
     // someone opens would send a third party a request per open. It runs on an
     // explicit pick, or when the live page has just refused to be framed and a
     // snapshot is the only thing left to show.
+    //
+    // `fetched.archive` is checked HERE rather than relying on the seeding effect
+    // above having landed: both run after the same commit, so this one would
+    // still read the pre-seed `archive` and fire a lookup the server has already
+    // done. Reading the reply directly is what makes that impossible.
+    if (fetched?.archive) return;
     if (!(chosen === "archive" || frameUncertain) || !url || !socket || archive) return;
     const req = ++archiveReqRef.current;
     setArchive({ loading: true });
@@ -324,7 +344,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
       if (archiveReqRef.current !== req) return;
       setArchive(out || { ok: false, reason: "no reply" });
     });
-  }, [chosen, frameUncertain, url, socket, archive]);
+  }, [chosen, frameUncertain, url, socket, archive, fetched]);
 
   // The embeddable form of this url, or null. Computed here rather than inside
   // `resolveMode` so that function stays pure over its inputs and testable
