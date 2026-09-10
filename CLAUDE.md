@@ -6,6 +6,102 @@
 
 ---
 
+### 2026-09-10 — THE WASHINGTON POST WAS A TARPIT, NOT A REFUSAL; and 77% of the library cannot be framed at all
+
+User: *"do a full audit on the browser itself... its still lagging like crazy,
+heights are all off, and i still cant access web pages that raindrop can (aka
+washington post)."* Audit + plan: `docs/superpowers/plans/2026-09-10-browser-audit.md`.
+Everything measured against their OWN 1,467 bookmarks through the real server path.
+
+**THE POST NEVER REFUSED US — IT TARPITTED US, and one A/B settled it.**
+```
+washingtonpost.com   Moduli UA   FAIL 14792ms   (never answers)
+                     Chrome UA    200   151ms   987KB
+```
+Across 60 real bookmarks: total wall time **33.0s -> 15.4s**, max 6529 -> 1536ms.
+**IT IS A LATENCY FIX AND NOT A COVERAGE ONE, which is worth stating because it
+looks like the opposite** — fetch successes were 48/60 either way. And NO SINGLE
+AGENT WINS: `kickstarter.com` is the exact inverse (200 plain, 403 on Chrome's).
+So the order is decided by the **COST OF BEING WRONG** rather than by which is
+more often right — a wrong agent costs a 20ms 403 that is cheap to retry, a
+tarpit costs fifteen seconds and cannot be retried into. Both attempts share ONE
+deadline, or this fixes a 15s hang by inventing a 12s one.
+
+**AND FIXING THE FETCH DOES NOT FIX THE PAGE, which is the finding under it.**
+WaPo still reads 91 words (masthead only) and sends `x-frame-options: sameorigin`
+— unreadable AND unframable. Its ARCHIVE snapshot is **framable and 1,614 reader
+words**. That is Raindrop's model, measured: *the archive is strictly better than
+the live site*, and we already fetched it.
+
+**THE ARCHIVE WAS THE FALLBACK FOR 54% OF THE LIBRARY AND IT WAS ONE UNGUARDED
+PARSE.** Of 60 bookmarks: 35% reader, 32% refuse framing, 22% unfetchable, 7%
+frame, 5% embed. Five serial lookups measured **429 · 429 · 429 · 429 · 200**
+with no retry — and archive.org answers a rate limit with an HTML page, one
+variant carrying **HTTP 200**, which walked past `if (!res.ok)` into `res.json()`
+and reached the user as the literal string `Unexpected token '<'`. Retry +
+`Retry-After` (clamped) + read-as-text: **4/5 resolved, was 1/5.**
+
+**THEN THE SECOND ROUND TRIP WENT.** The client learned "cannot be shown" from
+one trip and spent another on the lookup — strictly serial, and the COMMON path.
+`page_reader` now answers with the snapshot already found, **only when nothing
+else will show** (a page that reads fine, or is thin but WILL frame, gets none —
+both pinned as controls, because looking one up per open would degrade the
+lookups that matter). End to end, one reply: fetch 1003ms -> 91 words -> not
+framable -> snapshot 2023-12-05.
+
+**"HEIGHTS ARE ALL OFF" WAS A PHOTO CAP ON A PAGE.** The spread's per-count caps
+(82vh alone, 66vh at two, 42vh in a grid) exist so a tall IMAGE cannot push a
+grid off screen; they were deciding how tall a web page is. Measured in a browser
+against the built stylesheet, both arms one document:
+```
+1600x900    tile 738 -> 815px    dead space 122px -> 12px
+1600x1400   tile 1000 -> 1265px  dead space 360px -> 11px
+```
+**THE FIRST VERSION SHIPPED INERT AND ONLY THE BROWSER SAID SO** — same (0,4,0)
+specificity as the cap it had to beat, both `!important`, cap later in source
+order; `max-height` still read 738px with the override "applied". The 2026-08-17
+class exactly. **And lifting the cap was half a fix**: `height: 100%` resolves
+against an `auto` parent, so the chain above had to be made definite too. Control
+measured: a spread with no open bookmark keeps its 738px cap.
+
+**ONE PLANNED ITEM RETIRED BY MEASURING.** "One live browser per spread" rested
+on `ArtifactCard` passing `isActivePage` hardcoded true mounting N frames. **All
+1,468 bookmarks have ZERO children**, so a bookmark always opens as a one-card
+spread — one frame, one fetch. There was no N to collapse. The flag stays a
+latent hazard and is reported rather than fixed on a case that does not occur.
+
+**THREE OF MY OWN TESTS WERE VACUOUS AND ONLY THE A/B SAID SO.** A deadline test
+burnt its budget on a TIMEOUT — which carries no `status`, so the retry never
+fired and one attempt ran under either implementation, passing against the very
+mutation it existed to catch. A parse-bug mutation wrapped the body in another
+`JSON.parse`, which throws on HTML exactly like the original, so both arms took
+the same branch. And a cover test asserted `querySelector("img")` is truthy when
+the element is present in EVERY state by design. Each rewritten to the thing that
+discriminates. **Four existing tests also went red and the MOCK was what was
+wrong** — `{ok, status, json}` with no `text()`, a Response that can only produce
+JSON, which is precisely the false premise that caused the bug.
+
+**AND A DEAD COVER IS NOT ASKED FOR TWICE** (the session's first item). 232 image
+GETs between two `__renderTally()` calls, **203 `NS_ERROR_DOM_NETWORK_ERR`** — 60
+from `scontent.cdninstagram.com`, which blocks hotlinking. `LoadingImage` kept
+"this failed" per INSTANCE, so every remount re-paid DNS + TCP + TLS. The src is
+dropped and the ELEMENT kept: the src IS the request, but removing the element
+resizes the frame. **Honest limit: the first load still pays once** — there is no
+way to know a host is unreachable without asking it.
+
+**2135 server + 4259 client tests**, lint 0 no-undef, build clean, deployed and
+verified — prod HEAD `c3ef85e1` over SSH, index + bundle 200, served chunks AND
+the three changed server files all sha256-identical, `PagePreviewApp` carrying
+BookmarkView with a zero control at 0 (`App` read 0 for the CONTROLS too, the
+documented wrong-chunk tell). pm2 restarted (server code changed), error log clean.
+
+**HONEST GAP: nobody has opened a bookmark in a browser since.** Every number
+here is measured through the real server path or against the built stylesheet in
+headless Chromium with controls — but no one has watched the Washington Post
+render.
+
+---
+
 ### 2026-09-09 — A DAY YOU EDITED IS NOT TORN DOWN, and no field could ever have said so
 
 User: *"i just dont want it to delete anything i edit"* — then, of the field-level
