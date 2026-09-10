@@ -33,10 +33,10 @@ import { htmlToMarkdown, wikiHtmlToMarkdown } from "../services/wikipediaTools.j
 import { markdownToModuli } from "../services/markdownImporter.js";
 import { persistImportResult } from "../utils/persistImport.js";
 import { fetchPageHtml } from "../utils/safeFetchUrl.js";
+import { fetchWaybackSnapshot } from "../utils/waybackSnapshot.js";
 import { fetchLinkPreview } from "../utils/linkPreview.js";
 import { extractMainContent } from "../utils/mainContent.js";
 import { readerFromHtml, readerIsUsable } from "../utils/readerExtract.js";
-import { fetchWaybackSnapshot } from "../utils/waybackSnapshot.js";
 import { framingVerdict } from "../utils/framingVerdict.js";
 import { extractLinks } from "../utils/harvestLinks.js";
 
@@ -168,32 +168,25 @@ export function registerImportHandlers(socket, {
   // reader view showing nav chrome is worse than the site — so the client
   // switches to the live frame when this says false, rather than rendering an
   // empty page and calling it a feature.
-  // ── THE SNAPSHOT RIDES BACK WITH THE READ ───────────────────────────────
+  // ── THE SNAPSHOT IS *NOT* LOOKED UP HERE, AND THAT WAS MEASURED TWICE ────
   //
-  // The client used to learn "this page cannot be shown" from one round trip and
-  // then spend a SECOND one asking for the snapshot. Measured 2026-09-10 that is
-  // the common path, not the rare one: of 60 real bookmarks, 35% refuse framing
-  // outright and 18% cannot be fetched at all — **more than half of every open**
-  // — and the two waits were strictly serial (a median 363ms read, then a 644ms
-  // lookup, and far worse in the tail).
+  // This handler briefly did the archive lookup itself and sent the snapshot in
+  // the same reply, so the common case (35% of bookmarks refuse framing, 18%
+  // cannot be fetched at all) cost ONE round trip instead of two serial ones.
+  // The arithmetic was right and the change was wrong.
   //
-  // The server already holds everything the decision needs the moment the fetch
-  // returns, so it makes it here and sends both. One round trip, and the client
-  // keeps its own lazy lookup for the case a person PICKS Archive on a page that
-  // was showable — which this deliberately does not pre-empt.
+  // User, 2026-09-10, using it: *"took too long"*. Awaiting the lookup pushed
+  // FIRST PAINT from ~363ms out to 1-4.4s, because the reply was held until the
+  // archive answered. **A person feels the first paint, not the total** — and the
+  // round trip it bought back is ~50ms against a lookup costing 644ms-3.3s.
   //
-  // ONLY WHEN NOTHING ELSE WILL SHOW. Looking one up for every bookmark opened
-  // would send a third party a request per open for a mode most opens never
-  // need, and archive.org rate-limits hard enough that it would degrade the
-  // lookups that DO matter.
+  // So the read is answered as soon as it is read. The client fires
+  // `wayback_lookup` the moment this says a page cannot be shown, and puts
+  // "Looking for a saved copy…" on screen while that runs — which is feedback at
+  // 363ms rather than a blank overlay for four seconds.
   //
-  // A SHORTER LEASH THAN THE STANDALONE LOOKUP (4s against 8s): this one is
-  // inside a wait someone is already sitting through, so it must not double it.
-  // Failing here is cheap — the client can still ask for itself.
-  const snapshotIfNothingElseWillShow = async (url) => {
-    try { return await fetchWaybackSnapshot(url, { totalMs: 4000 }); }
-    catch { return null; }
-  };
+  // If this is ever revisited: the answer is to REPLY first and PUSH the
+  // snapshot after, never to await it.
 
   socket.on("page_reader", async (payload = {}, ack) => {
     const { url, title = "", requestId = null } = payload;
@@ -221,25 +214,16 @@ export function registerImportHandlers(socket, {
       // The guard's reason is handed back verbatim so the strip can say WHY it
       // fell through to the frame ("timed out", "not a web page") rather than
       // silently switching modes.
-      if (!fetched.ok) {
-        return reply({
-          ok: false, error: fetched.reason, usable: false,
-          archive: await snapshotIfNothingElseWillShow(url),
-        });
-      }
+      if (!fetched.ok) return reply({ ok: false, error: fetched.reason, usable: false });
       const { markdown, words } = readerFromHtml(fetched.html, title);
       // `framable` comes from the headers this fetch already received, so the
       // client can pick a mode that WORKS instead of framing, waiting, and
       // discovering a blank box.
       const frame = framingVerdict({ xFrameOptions: fetched.xFrameOptions, csp: fetched.csp });
-      const usable = readerIsUsable(words);
       reply({
-        ok: true, url: fetched.url, markdown, words, usable,
+        ok: true, url: fetched.url, markdown, words,
+        usable: readerIsUsable(words),
         framable: frame.framable, frameBlockedBy: frame.why,
-        // Nothing when the live page will do — see the helper.
-        archive: (!usable && frame.framable === false)
-          ? await snapshotIfNothingElseWillShow(url)
-          : null,
       });
     } catch (err) {
       console.error("page_reader error:", err);

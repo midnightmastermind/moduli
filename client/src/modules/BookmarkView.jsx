@@ -161,6 +161,25 @@ export function fallbackReason(fetched) {
   return null;
 }
 
+// ── A FRAME NEEDS A GROUND OF ITS OWN ───────────────────────────────────────
+//
+// User, 2026-09-10: *"the archive has a transparent background and i cant see
+// the page"*. An `<iframe>` with no background is TRANSPARENT, so anything the
+// framed document does not paint shows whatever sits behind the frame — and
+// this surface opens over the spread's dark backdrop. A page whose body sets no
+// colour of its own then renders as its own dark text on that dark ground,
+// which reads as a page that failed to load.
+//
+// Wayback's rewritten pages are the common case: the archive strips or rewrites
+// enough of the original CSS that the body frequently paints nothing.
+//
+// WHITE, because that is what a browser viewport is. This is a web page in a
+// window, not a surface in our theme — tinting it to the grid would misrepresent
+// every site that DOES set a background. Both frames get it: the live one has
+// exactly the same hole, it just bites less often because most live sites paint
+// their own body.
+const FRAME_STYLE = { width: "100%", height: "100%", border: 0, display: "block", background: "#fff" };
+
 export default function BookmarkView({ occurrence, module = null, fieldsById = null, socket, isActivePage = true }) {
   // ── THE FIELD MAP IS NOT OPTIONAL HERE, and it took a live probe to see it ──
   //
@@ -313,15 +332,20 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   // is the request-per-open this lookup stays lazy to avoid.
   const frameUncertain = !!(fetched && (fetched.ok === false || fetched.framable === false));
 
-  // ── THE READ MAY ALREADY CARRY IT ───────────────────────────────────────
+  // ── THE READ MAY CARRY ONE, BUT IT IS NEVER WAITED FOR ──────────────────
   //
-  // `page_reader` looks the snapshot up ITSELF when the live page will show
-  // nothing, and sends it back in the same reply — so the common case (measured
-  // 2026-09-10: more than half of every open) costs ONE round trip where it used
-  // to cost two strictly serial ones.
+  // RETRACTED, and the retraction is the useful part. `page_reader` briefly did
+  // the snapshot lookup itself and sent it in the same reply — one round trip
+  // instead of two, which measured better on TOTAL time and was worse to use.
+  // User, 2026-09-10: *"took too long"*. Holding the reply until the archive
+  // answered pushed FIRST PAINT from ~363ms out to 1-4.4s, and a person feels
+  // the first paint, not the total. The round trip it saved is ~50ms against a
+  // lookup that costs 644ms-3.3s.
   //
-  // Seeded rather than merged so a fresh url cannot show the last page's copy:
-  // the reset above keys on `url`, and this keys on the reply for that url.
+  // So the read is answered the moment it is ready and the lookup runs beside
+  // it, with "Looking for a saved copy…" on screen while it does. This still
+  // reads a bundled snapshot if a server ever sends one, so the two cannot
+  // disagree — it simply never blocks on one.
   useEffect(() => {
     if (fetched?.archive) setArchive(fetched.archive);
   }, [fetched]);
@@ -596,7 +620,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
             // replay of a real page and can carry the same scripts.
             isActivePage ? (
               <iframe src={archive.url} title={`Archived ${url}`} sandbox={FRAME_SANDBOX}
-                      style={{ width: "100%", height: "100%", border: 0, display: "block" }} />
+                      style={{ ...FRAME_STYLE }} />
             ) : (
               <div className="text-xs text-muted-foreground" style={{ padding: 16 }}>
                 Open this page in a panel to load the archived copy
@@ -636,7 +660,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
                 title={url}
                 onLoad={() => setFrameLoading(false)}
                 sandbox={FRAME_SANDBOX}
-                style={{ width: "100%", height: "100%", border: 0, display: "block" }}
+                style={{ ...FRAME_STYLE }}
               />
               {frameLoading && (
                 // OVER the frame, not above it: a spinner that took its own row
