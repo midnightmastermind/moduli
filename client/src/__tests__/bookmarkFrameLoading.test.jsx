@@ -90,3 +90,68 @@ describe("the frame says it is loading", () => {
     expect(el.querySelector("iframe")).toBeTruthy();
   });
 });
+
+
+// THE CALL SITE. `bookmarkView.test.jsx` covers `resolveMode`, which is pure —
+// and a pure rule that says "show the snapshot" does nothing if nobody ever ASKS
+// for one. The archive lookup was deliberately lazy (a request to a third party
+// per bookmark opened is not free), so the fall-through only works if the refusal
+// itself is what triggers it.
+describe("a refused page goes looking for a snapshot on its own", () => {
+  const refusingSocket = () => ({
+    emit: vi.fn((event, payload, ack) => {
+      if (event === "page_reader" && typeof ack === "function") {
+        // The verdict that matters: the site answered, and it refuses framing.
+        ack({ ok: true, usable: false, framable: false, frameBlockedBy: "x-frame-options: sameorigin" });
+      }
+    }),
+  });
+
+  it("asks the archive WITHOUT the user picking it", () => {
+    const sk = refusingSocket();
+    act(() => {
+      render(<BookmarkView occurrence={occurrence} module={{ kind: "bookmark" }} socket={sk} isActivePage />);
+    });
+    const asked = sk.emit.mock.calls.filter((c) => c[0] === "wayback_lookup");
+    expect(asked.length, "the refusal did not trigger a snapshot lookup").toBe(1);
+  });
+
+  // AND IT SHOWS WHAT IT FOUND. Without this the component could look the
+  // snapshot up and never pass it on — measured: hardcoding `archived: false`
+  // at the call site left all 37 other tests green, because they exercise the
+  // pure rule and never reach the state where a snapshot exists.
+  it("renders the snapshot once the lookup finds one", () => {
+    const sk = {
+      emit: vi.fn((event, payload, ack) => {
+        if (typeof ack !== "function") return;
+        if (event === "page_reader") ack({ ok: true, usable: false, framable: false, frameBlockedBy: "x-frame-options: sameorigin" });
+        if (event === "wayback_lookup") ack({ ok: true, url: "https://web.archive.org/web/2021/https://example.com/article", capturedAt: "2021-12-04" });
+      }),
+    };
+    let el;
+    act(() => {
+      el = render(<BookmarkView occurrence={occurrence} module={{ kind: "bookmark" }} socket={sk} isActivePage />).container;
+    });
+    const frame = el.querySelector("iframe");
+    expect(frame, "no snapshot rendered").toBeTruthy();
+    expect(frame.getAttribute("src")).toContain("web.archive.org");
+    expect(el.textContent).not.toContain("will not open inside a panel");
+  });
+
+  // THE CONTROL, and it is the reason the lookup was lazy in the first place: a
+  // page that frames FINE must not send archive.org a request just for being
+  // opened. Without this, "asks the archive" is also satisfied by asking always.
+  it("does NOT ask when the page frames fine", () => {
+    const sk = {
+      emit: vi.fn((event, payload, ack) => {
+        if (event === "page_reader" && typeof ack === "function") {
+          ack({ ok: true, usable: false, framable: true });
+        }
+      }),
+    };
+    act(() => {
+      render(<BookmarkView occurrence={occurrence} module={{ kind: "bookmark" }} socket={sk} isActivePage />);
+    });
+    expect(sk.emit.mock.calls.filter((c) => c[0] === "wayback_lookup").length).toBe(0);
+  });
+});

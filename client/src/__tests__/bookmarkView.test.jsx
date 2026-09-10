@@ -96,6 +96,39 @@ describe("the frame's sandbox", () => {
 describe("a site that refuses to be framed", () => {
   const blocked = (usable) => ({ ok: true, usable, framable: false, frameBlockedBy: "x-frame-options: deny" });
 
+  // ── A REFUSED PAGE IS NOT AN UNSHOWABLE PAGE ──────────────────────────────
+  //
+  // User, 2026-09-10: *"it should be showing the web version since thats what
+  // raindrop lets you do"* / *"ours says it cant display the page but it can be
+  // displayed, its just erroring out"*.
+  //
+  // Both true, and they resolve together: the LIVE site genuinely cannot be
+  // framed (their console: "denied by X-Frame-Options: sameorigin"), and Raindrop
+  // shows a SNAPSHOT rather than the live page. We already fetch snapshots — the
+  // archive rendered the real Washington Post in their screenshot — we just never
+  // reached for one when framing was refused, and showed a dead end instead.
+  describe("a blocked page falls through to the snapshot", () => {
+    it("shows the archive when one exists", () => {
+      expect(resolveMode({ fetched: blocked(false), archived: true })).toBe("archive");
+    });
+
+    it("still says so when there is NO snapshot — the control", () => {
+      // Without this, "fall through to the archive" would also be satisfied by a
+      // rule that claims an archive it does not have and renders nothing.
+      expect(resolveMode({ fetched: blocked(false), archived: false })).toBe("blocked");
+    });
+
+    it("does not hijack a page that reads fine", () => {
+      // A usable reader still wins: the snapshot is the answer to "there is
+      // nothing to show", not a preference over our own DOM.
+      expect(resolveMode({ fetched: blocked(true), archived: true })).toBe("reader");
+    });
+
+    it("respects an explicit Web pick by showing the snapshot rather than an error", () => {
+      expect(resolveMode({ chosen: "web", fetched: blocked(true), archived: true })).toBe("archive");
+    });
+  });
+
   it("is BLOCKED when there is no readable text either — not a blank frame", () => {
     expect(resolveMode({ fetched: blocked(false) })).toBe("blocked");
   });

@@ -77,7 +77,7 @@ export const FRAME_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-
  *   - otherwise reader, but only when the fetch produced something worth reading
  *   - a failed or thin fetch falls through to the frame, never to a blank reader
  */
-export function resolveMode({ chosen = null, fetched = null, embeddable = false } = {}) {
+export function resolveMode({ chosen = null, fetched = null, embeddable = false, archived = false } = {}) {
   // ARCHIVE IS UNCONDITIONAL, and that is the difference between it and the
   // other two. Reader can be empty and Web can be refused, so both are checked
   // against what the fetch learned; the archive is a DIFFERENT page on a
@@ -95,7 +95,9 @@ export function resolveMode({ chosen = null, fetched = null, embeddable = false 
   // framed", which is true of the page and wrong about what we would show.
   if (chosen === "web") {
     if (embeddable) return "web";
-    return fetched && fetched.ok && fetched.framable === false ? "blocked" : "web";
+    if (!(fetched && fetched.ok && fetched.framable === false)) return "web";
+    // Refused. A SNAPSHOT IS STILL THE PAGE — see the fall-through below.
+    return archived ? "archive" : "blocked";
   }
   if (chosen === "reader") return "reader";
   // AND IT IS THE DEFAULT, ahead of reader. Reader mode on a video page yields
@@ -109,7 +111,22 @@ export function resolveMode({ chosen = null, fetched = null, embeddable = false 
   // refuses that too, which the fetch already told us from its own headers
   // rather than us framing, waiting, and discovering a blank box. Measured:
   // github DENY, youtube/reddit/google/danbrown SAMEORIGIN, wikipedia allows.
-  if (fetched.ok && fetched.framable === false) return "blocked";
+  // ── A REFUSED PAGE IS NOT AN UNSHOWABLE PAGE ────────────────────────────
+  //
+  // User, 2026-09-10: *"it should be showing the web version since thats what
+  // raindrop lets you do"* / *"ours says it cant display the page but it can be
+  // displayed, its just erroring out"*. Both are true and they resolve together.
+  //
+  // The LIVE site genuinely cannot be framed — the Washington Post sends
+  // `X-Frame-Options: sameorigin` and their console says so verbatim. What
+  // Raindrop shows is a SNAPSHOT, not the live page, and we already fetch those:
+  // the archive rendered that same article in their screenshot. We simply never
+  // reached for one at the moment it was the only thing left, and showed a dead
+  // end instead.
+  //
+  // Only when a snapshot EXISTS. Claiming one we do not have would replace an
+  // honest "this will not open" with a blank box, which is worse.
+  if (fetched.ok && fetched.framable === false) return archived ? "archive" : "blocked";
   return "web";
 }
 
@@ -265,15 +282,22 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   const [archive, setArchive] = useState(null);
   const archiveReqRef = useRef(0);
   useEffect(() => { setArchive(null); }, [url]);
+  // KEYED OFF THE FETCH, NOT OFF `mode` — `mode` will depend on whether a
+  // snapshot was found, so gating the lookup on it would be a cycle.
+  const frameRefused = !!(fetched && fetched.ok && fetched.framable === false);
   useEffect(() => {
-    if (chosen !== "archive" || !url || !socket || archive) return;
+    // Still LAZY in the ordinary case: asking archive.org about every bookmark
+    // someone opens would send a third party a request per open. It runs on an
+    // explicit pick, or when the live page has just refused to be framed and a
+    // snapshot is the only thing left to show.
+    if (!(chosen === "archive" || frameRefused) || !url || !socket || archive) return;
     const req = ++archiveReqRef.current;
     setArchive({ loading: true });
     socket.emit("wayback_lookup", { url, requestId: String(req) }, (out) => {
       if (archiveReqRef.current !== req) return;
       setArchive(out || { ok: false, reason: "no reply" });
     });
-  }, [chosen, url, socket, archive]);
+  }, [chosen, frameRefused, url, socket, archive]);
 
   // The embeddable form of this url, or null. Computed here rather than inside
   // `resolveMode` so that function stays pure over its inputs and testable
@@ -296,7 +320,10 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   const frameSrc = embedSrc || url;
   const [frameLoading, setFrameLoading] = useState(true);
   useEffect(() => { setFrameLoading(true); }, [frameSrc]);
-  const mode = resolveMode({ chosen, fetched, embeddable: !!embedSrc });
+  const mode = resolveMode({
+    chosen, fetched, embeddable: !!embedSrc,
+    archived: !!(archive?.ok && archive?.url),
+  });
   const reason = fallbackReason(fetched);
   const pick = useCallback((m) => setChosen(m), []);
 
@@ -491,6 +518,19 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
           // BOTH modes are unavailable: no readable text AND the site refuses to
           // be framed. Saying so beats a blank frame that looks broken, and the
           // reason is the site's own header rather than our guess.
+          archive?.loading ? (
+            // NOT "it cannot be displayed" — we are still finding out. The
+            // snapshot lookup starts the moment the live page refuses, so this
+            // is the honest state for that second rather than a verdict.
+            <div style={{
+              height: "100%", display: "flex", flexDirection: "column", gap: 10,
+              alignItems: "center", justifyContent: "center", color: "var(--text-muted)",
+              fontSize: 12, fontFamily: "var(--font-mono)",
+            }}>
+              <Spinner size="md" className="staged-hold-spinner" />
+              <span>Looking for a saved copy…</span>
+            </div>
+          ) : (
           <div style={{ padding: 20, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
             <div style={{ marginBottom: 8 }}>
               This page will not open inside a panel — <code style={{ fontSize: 12 }}>{fetched?.frameBlockedBy || "the site refuses framing"}</code>
@@ -499,6 +539,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
             <a href={url} target="_blank" rel="noreferrer noopener"
                style={{ color: "var(--accent-blue-text, var(--text-primary))" }}>Open it in a new tab ↗</a>
           </div>
+          )
         )}
         {url && mode === "archive" && (
           archive?.loading || !archive ? (
