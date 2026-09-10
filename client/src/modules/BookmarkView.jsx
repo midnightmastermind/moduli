@@ -311,7 +311,12 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
         padding: "2px 8px", fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer",
         borderRadius: 4, border: "1px solid var(--border-default)",
         background: mode === m ? "var(--accent-blue)" : "var(--input-bg)",
-        color: mode === m ? "var(--on-accent)" : "var(--text-muted)",
+        // The FILL carries "selected"; the ink does not have to. Muted ink on a
+        // muted fill made the unselected modes a guess rather than a choice —
+        // and which mode you are NOT in is the thing you are reading them to
+        // find out. Same call as the 2026-08-19 pill work: keep the hue, take
+        // the contrast.
+        color: mode === m ? "var(--on-accent)" : "var(--text-primary)",
       }}
     >{label}</button>
   );
@@ -323,7 +328,15 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
           never triggered from inside it. */}
       <div style={{
         display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", flexShrink: 0,
-        borderBottom: "1px solid var(--border-subtle)", background: "var(--input-bg)",
+        // SOLID, because the strip is CHROME and it is not always over a panel.
+        // `--input-bg` is 0.08 alpha, which reads fine over a panel and vanishes
+        // over the spread's dark backdrop — so every muted label on it lost its
+        // contrast the moment a bookmark could be opened in the overlay (user,
+        // 2026-09-10: *"you cant read them unselected"*, on a Stardew grid where
+        // `--text-muted` is a DARK brown and the backdrop behind it is dark too).
+        // The url input beside them was always legible because it already sets
+        // `--panel-bg`; this gives the rest of the strip the same ground.
+        borderBottom: "1px solid var(--border-subtle)", background: "var(--panel-bg)",
         fontSize: 12, fontFamily: "var(--font-mono)",
       }}>
         <button
@@ -371,12 +384,12 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
           >⌂</button>
         )}
         {reason && mode === "web" && (
-          <span style={{ fontSize: 12, color: "var(--text-faint)" }} title={`Reader unavailable: ${reason}`}>
+          <span style={{ fontSize: 12, color: "var(--text-muted)" }} title={`Reader unavailable: ${reason}`}>
             reader: {reason}
           </span>
         )}
         {mode === "archive" && archive?.ok && archive.capturedAt && (
-          <span style={{ fontSize: 12, color: "var(--text-faint)" }} title={archive.capturedAt}>
+          <span style={{ fontSize: 12, color: "var(--text-muted)" }} title={archive.capturedAt}>
             captured {new Date(archive.capturedAt).toLocaleDateString()}
           </span>
         )}

@@ -3904,22 +3904,30 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
 .artifact-card:not(.artifact-card--expanded):not(.artifact-card--quote) {
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.28);
 }
-/* A BOOKMARK OPENED IN THE SPREAD IS THE PAGE, so its tile stops behaving like a
-   thumbnail: it FILLS the tile instead of centring an 80px-tall preview in it,
-   and the cursor stops promising a zoom that is no longer what a click does.
-   `min-height: 0` is what lets the reader inside it scroll — without it the flex
-   child refuses to shrink below its content and the tile grows instead. */
+/* A BOOKMARK OPENED IN THE SPREAD IS THE PAGE, NOT A THUMBNAIL.
+   `BookmarkView`'s own root is `flex: 1; min-height: 0` INLINE, so it needs a
+   flex COLUMN parent with a definite height — which `.artifact-spread-body
+   .artifact-card` already is. The first version of this rule set
+   `display: block` and broke exactly that: with no flex context the view
+   collapsed to its content, so a page whose only content is a short "cannot be
+   framed" notice rendered as a small box in the middle of an empty overlay
+   (user, 2026-09-10: *"just isnt full sized"*).
+   So this changes only what is genuinely different about a bookmark: it is
+   stretched rather than centred, it is not a zoom target, and the 80px
+   thumbnail floor does not apply to something that fills the tile. */
 .artifact-card--bookmark-open {
-  display: block;
-  height: 100%;
+  align-items: stretch;
   min-height: 0;
   cursor: auto;
-  align-items: stretch;
-  justify-content: stretch;
 }
-.artifact-card--bookmark-open > * {
-  height: 100%;
-  min-height: 0;
+/* THE TILE TAKES THE HEIGHT IT IS ALLOWED, not the height its content happens
+   to be. Every other tile holds a picture and hugging it is right; a page you
+   are READING should fill the overlay (user: *"it needs to extend the height of
+   the screen"*). `100vh` is not the final size — the per-count `max-height`
+   above still caps it (82vh alone, 66vh at two or three, 42vh in a grid), so
+   this composes with those rather than replacing them. */
+.artifact-spread-body .container-items--wrap > .instance-wrap:has(.artifact-card--bookmark-open) {
+  height: 100vh;
 }
 /* Full-bleed logo card (Viafluere top-middle cell): the image fills the card
    width, responsive (height auto, no crop), with its file name CENTERED in a
