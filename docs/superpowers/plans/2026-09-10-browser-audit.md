@@ -146,7 +146,7 @@ retries once with the current Moduli UA.
 **A/B:** the retry must fire on kickstarter (403 → 200); reverting must restore
 the WaPo timeout. Assert the mutation lands.
 
-### 2. Stop blocking the view on the reader fetch  *(client)*
+### 2. Stop blocking the view on the reader fetch — **RESHAPED AND SHIPPED `3e42c564`**
 `resolveMode` returns `"loading"` for every non-embeddable url. Instead: decide
 from what is known immediately (embed → frame), render, and UPGRADE to reader
 when the read lands. The spinner becomes an overlay, not a gate.
@@ -154,17 +154,27 @@ when the read lands. The spinner becomes an overlay, not a gate.
 **Risk, and it is the real one:** a page that resolves to `reader` would flash the
 frame first. Mitigation — hold the frame's `src` for a short grace window
 (~250ms) so a fast read (median 401ms… so most reads do NOT beat it) still wins.
-**This one needs a measurement before it is built:** how many reads land inside
-250ms. If it is most of them, this whole item is not worth the flash.
+**The measurement changed the item.** Re-run through the shipped fetch, the
+median read is 363ms and nothing hits the 6s leash any more (max 8583 -> 4401ms).
+So the blocking wait is no longer the cost, and buying a bit of it with a
+frame-flash on a library where 77% of pages will not frame is a bad trade.
 
-### 3. Archive-first for the cases that cannot be framed  *(client + server)*
+What IS the cost is the SECOND round trip: 53% of opens then waited serially for
+the archive. `page_reader` now answers with the snapshot already found, gated so
+a page that will show gets nothing. Shipped as `3e42c564` — one round trip, no
+flash, no visual change at all.
+
+### 3. Archive-first for the cases that cannot be framed — **SHIPPED `f40d6090`**
 When the fetch says `framable === false` AND the reader is thin — 32% of opens —
 go to the snapshot rather than framing a page we know will refuse. Add retry +
 backoff to `wayback_lookup`, and treat a non-JSON 200 as a failure with an honest
 reason rather than letting `res.json()` throw.
-**Buys:** the Washington Post, and 19 of every 60 opens, become a page you can
-actually read (1,614 words vs 91).
-**Control:** a framable page must NOT be diverted to the archive.
+**The client was already right** — `resolveMode` prefers a snapshot the moment a
+page refuses framing. The failure was the lookup: no retry against a service that
+returned 429 on 4 of 5 serial requests, and `res.json()` on an HTML body reaching
+the user as `Unexpected token '<'`. Retry + `Retry-After` + text-then-parse.
+Verified against the real service: **4/5 resolved, was 1/5.**
+**Control:** a framable page is NOT diverted to the archive.
 
 ### 4. ~~One live browser at a time in a spread~~ — **RETIRED BY MEASUREMENT**
 The theory was that `ArtifactCard` passing `isActivePage` hardcoded true mounts N
@@ -208,3 +218,32 @@ had to be made definite too. Both caught by measuring, neither by reading.
 - Item 5 is now measured in a browser. The `flex: 1` suspicion turned out not to
   be the cause — the per-count photo cap was.
 - Item 4's premise was wrong and is retired above; measuring the data killed it.
+
+
+---
+
+## END TO END, the case this started from
+
+Washington Post, through the shipped code, one reply:
+
+```
+ 1003ms  fetch      ok · 1031KB          (was a 14,792ms tarpit)
+ 1135ms  reader     91 words → unusable
+ 1135ms  framing    framable=false — x-frame-options: sameorigin
+ 4452ms  archive    SNAPSHOT 2023-12-05  → framable, 1,614 reader words
+```
+
+Before: a 14.8s hang, no fetch, then a serial lookup that 429'd into a dead end.
+
+**Honest note on that 4452ms:** the archive leg measured 644ms earlier in the
+session and 3.3s here, because these probes had been hammering archive.org. The
+round-trip count is the durable win; the archive's own latency is theirs.
+
+## What is still open
+- **Item 4's latent hazard** — `isActivePage` hardcoded true in `ArtifactCard`
+  would mount N frames for a spread that genuinely holds several bookmarks. No
+  such case exists in this library (all 1,468 bookmarks carry no children).
+- **77% of pages cannot be framed at all.** That is the sites, not us. The
+  archive is the answer and it is now reliable; a local snapshot store taken at
+  save time (true Raindrop) is the only thing that would close the rest, and it
+  is a storage decision rather than a perf one.
