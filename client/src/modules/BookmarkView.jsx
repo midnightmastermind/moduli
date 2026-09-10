@@ -95,9 +95,16 @@ export function resolveMode({ chosen = null, fetched = null, embeddable = false,
   // framed", which is true of the page and wrong about what we would show.
   if (chosen === "web") {
     if (embeddable) return "web";
-    if (!(fetched && fetched.ok && fetched.framable === false)) return "web";
-    // Refused. A SNAPSHOT IS STILL THE PAGE — see the fall-through below.
-    return archived ? "archive" : "blocked";
+    // AN EXPLICIT WEB PICK IS NEVER SILENTLY TURNED INTO A SNAPSHOT.
+    //
+    // The automatic fall-through below shows the archive when the live page will
+    // not frame — but that is a fallback for when nobody chose, not a veto on a
+    // choice. This file's first rule is that "an explicit user choice always
+    // wins; picking Web then having it silently revert would make the toggle a
+    // suggestion", and a version of this branch briefly broke it (2026-09-10).
+    // If you ask for the live page you get the live page, or an honest account
+    // of why the SITE refused it.
+    return fetched && fetched.ok && fetched.framable === false ? "blocked" : "web";
   }
   if (chosen === "reader") return "reader";
   // AND IT IS THE DEFAULT, ahead of reader. Reader mode on a video page yields
@@ -127,6 +134,22 @@ export function resolveMode({ chosen = null, fetched = null, embeddable = false,
   // Only when a snapshot EXISTS. Claiming one we do not have would replace an
   // honest "this will not open" with a blank box, which is worse.
   if (fetched.ok && fetched.framable === false) return archived ? "archive" : "blocked";
+  // ── AND WHEN THE FETCH LEARNED NOTHING AT ALL ───────────────────────────
+  //
+  // `framable` comes from headers the reader fetch received, so a fetch that
+  // FAILED has none and `ok` is false. The Washington Post is exactly that: our
+  // server cannot reach it (bot protection — a plain `curl -I` gets nothing
+  // either) while the user's own browser loads it fine.
+  //
+  // The first version of this fall-through required `ok === true`, so it could
+  // never fire for the page it was built for — and shortening the reader timeout
+  // to 6s made `ok === false` MORE common, i.e. made it worse.
+  //
+  // A snapshot beats framing a page we know nothing about, which is also the
+  // model the user named: Raindrop does not frame the live site, it shows its
+  // copy. Only when one EXISTS — otherwise the frame is still the best guess
+  // available, which the control beside this pins.
+  if (!fetched.ok && archived) return "archive";
   return "web";
 }
 
@@ -284,20 +307,24 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   useEffect(() => { setArchive(null); }, [url]);
   // KEYED OFF THE FETCH, NOT OFF `mode` — `mode` will depend on whether a
   // snapshot was found, so gating the lookup on it would be a cycle.
-  const frameRefused = !!(fetched && fetched.ok && fetched.framable === false);
+  // WHENEVER THE LIVE FRAME IS A COIN FLIP — the site refused it outright, OR the
+  // fetch learned nothing and cannot say. Both are cases where a snapshot may be
+  // the only thing that renders, and neither is "every bookmark you open", which
+  // is the request-per-open this lookup stays lazy to avoid.
+  const frameUncertain = !!(fetched && (fetched.ok === false || fetched.framable === false));
   useEffect(() => {
     // Still LAZY in the ordinary case: asking archive.org about every bookmark
     // someone opens would send a third party a request per open. It runs on an
     // explicit pick, or when the live page has just refused to be framed and a
     // snapshot is the only thing left to show.
-    if (!(chosen === "archive" || frameRefused) || !url || !socket || archive) return;
+    if (!(chosen === "archive" || frameUncertain) || !url || !socket || archive) return;
     const req = ++archiveReqRef.current;
     setArchive({ loading: true });
     socket.emit("wayback_lookup", { url, requestId: String(req) }, (out) => {
       if (archiveReqRef.current !== req) return;
       setArchive(out || { ok: false, reason: "no reply" });
     });
-  }, [chosen, frameRefused, url, socket, archive]);
+  }, [chosen, frameUncertain, url, socket, archive]);
 
   // The embeddable form of this url, or null. Computed here rather than inside
   // `resolveMode` so that function stays pure over its inputs and testable

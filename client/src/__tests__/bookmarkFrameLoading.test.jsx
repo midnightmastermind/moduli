@@ -138,6 +138,23 @@ describe("a refused page goes looking for a snapshot on its own", () => {
     expect(el.textContent).not.toContain("will not open inside a panel");
   });
 
+  // THE WASHINGTON POST CASE, which is the one that started all of this and the
+  // one the first gate could not reach. Our server cannot fetch that page at all
+  // — so `ok` is false, `framable` is never learned, and a gate keyed on
+  // `ok && framable === false` never fires. Measured: narrowing the gate back to
+  // refusals-only left every other test in this file green.
+  it("asks the archive when the fetch learned NOTHING, not just when refused", () => {
+    const sk = {
+      emit: vi.fn((event, payload, ack) => {
+        if (event === "page_reader" && typeof ack === "function") ack({ ok: false, error: "timed out", usable: false });
+      }),
+    };
+    act(() => {
+      render(<BookmarkView occurrence={occurrence} module={{ kind: "bookmark" }} socket={sk} isActivePage />);
+    });
+    expect(sk.emit.mock.calls.filter((c) => c[0] === "wayback_lookup").length).toBe(1);
+  });
+
   // THE CONTROL, and it is the reason the lookup was lazy in the first place: a
   // page that frames FINE must not send archive.org a request just for being
   // opened. Without this, "asks the archive" is also satisfied by asking always.

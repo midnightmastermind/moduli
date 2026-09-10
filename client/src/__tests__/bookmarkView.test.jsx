@@ -107,6 +107,48 @@ describe("a site that refuses to be framed", () => {
   // shows a SNAPSHOT rather than the live page. We already fetch snapshots — the
   // archive rendered the real Washington Post in their screenshot — we just never
   // reached for one when framing was refused, and showed a dead end instead.
+  // ── THE SERVER OFTEN LEARNS NOTHING AT ALL ────────────────────────────────
+  //
+  // `framable` comes from headers the READER fetch received — so when that fetch
+  // FAILS there are no headers and `ok` is false. The Washington Post is exactly
+  // that case: our server cannot reach it (bot protection; a plain `curl -I`
+  // gets nothing either) while the user's own browser loads it fine.
+  //
+  // The first version of the fall-through required `ok === true`, so it could
+  // never fire for the page it was built for — and shortening the reader timeout
+  // to 6s made `ok === false` MORE common, i.e. made it worse.
+  //
+  // So the snapshot is preferred whenever the reader has nothing to show and one
+  // EXISTS, rather than only when the site told us why. That is also the model
+  // the user named: Raindrop does not frame the live site, it shows its copy.
+  describe("when the reader comes back with nothing", () => {
+    const failed = { ok: false, error: "timed out", usable: false };
+
+    it("shows the snapshot rather than framing a page we know nothing about", () => {
+      expect(resolveMode({ fetched: failed, archived: true })).toBe("archive");
+    });
+
+    it("still tries the live frame when there is NO snapshot — the control", () => {
+      // Without this, "prefer the archive" would also be satisfied by a rule
+      // that shows an empty archive pane and never frames anything.
+      expect(resolveMode({ fetched: failed, archived: false })).toBe("web");
+    });
+
+    it("does not override an embeddable url", () => {
+      // A YouTube link has a form its owner publishes for framing; a snapshot of
+      // the watch page is strictly worse than the player.
+      expect(resolveMode({ fetched: failed, archived: true, embeddable: true })).toBe("web");
+    });
+
+    it("does not override an explicit Web pick", () => {
+      expect(resolveMode({ chosen: "web", fetched: failed, archived: true })).toBe("web");
+    });
+
+    it("still prefers a READABLE page over a snapshot", () => {
+      expect(resolveMode({ fetched: { ok: true, usable: true }, archived: true })).toBe("reader");
+    });
+  });
+
   describe("a blocked page falls through to the snapshot", () => {
     it("shows the archive when one exists", () => {
       expect(resolveMode({ fetched: blocked(false), archived: true })).toBe("archive");
@@ -124,8 +166,13 @@ describe("a site that refuses to be framed", () => {
       expect(resolveMode({ fetched: blocked(true), archived: true })).toBe("reader");
     });
 
-    it("respects an explicit Web pick by showing the snapshot rather than an error", () => {
-      expect(resolveMode({ chosen: "web", fetched: blocked(true), archived: true })).toBe("archive");
+    // AND NEVER OVER AN EXPLICIT PICK. The fall-through is for when nobody
+    // chose; a version of it briefly overrode the toggle, which contradicts this
+    // file's own first rule. Asking for the live page gets you the live page or
+    // an honest account of why the SITE refused it — not a copy you did not ask
+    // for.
+    it("does NOT override an explicit Web pick, even with a snapshot to hand", () => {
+      expect(resolveMode({ chosen: "web", fetched: blocked(true), archived: true })).toBe("blocked");
     });
   });
 
