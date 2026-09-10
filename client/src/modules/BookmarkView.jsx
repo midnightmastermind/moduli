@@ -55,6 +55,7 @@ import {
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { buildContainerCrumbOptions } from "../helpers/containerCrumbs";
 import { useGridActionsSelector } from "../GridActionsContext.js";
+import { Spinner } from "../components/ui/spinner.jsx";
 
 const BTN_TITLES = {
   reader: "The page as text — selectable, right-clickable",
@@ -278,6 +279,23 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   // `resolveMode` so that function stays pure over its inputs and testable
   // without the table.
   const embedSrc = useMemo(() => embedUrlFor(url), [url]);
+
+  // ── WAITING ON A PAGE SHOULD LOOK LIKE WAITING ──────────────────────────
+  //
+  // User, 2026-09-10: *"currently waiting on a browser slows the site to a
+  // crawl"* / *"put a loading circle in for when the site is loading too"*.
+  //
+  // How long a live third-party page takes is the browser's business and not
+  // something this surface can schedule away. What WAS ours is that it said
+  // nothing while it happened, so a slow site and a dead app looked identical.
+  //
+  // Cleared by the frame's OWN `load`, which fires for a REFUSED page too (the
+  // browser loads its own error document there) — so a site that says no stops
+  // spinning instead of pretending it is still trying. Keyed on the src, so
+  // navigating starts a new wait rather than showing the last page's answer.
+  const frameSrc = embedSrc || url;
+  const [frameLoading, setFrameLoading] = useState(true);
+  useEffect(() => { setFrameLoading(true); }, [frameSrc]);
   const mode = resolveMode({ chosen, fetched, embeddable: !!embedSrc });
   const reason = fallbackReason(fetched);
   const pick = useCallback((m) => setChosen(m), []);
@@ -500,12 +518,32 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
           // frames, and this is the rule that makes it impossible rather than
           // merely unlikely.
           isActivePage ? (
-            <iframe
-              src={embedSrc || url}
-              title={url}
-              sandbox={FRAME_SANDBOX}
-              style={{ width: "100%", height: "100%", border: 0, display: "block" }}
-            />
+            <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
+              <iframe
+                src={frameSrc}
+                title={url}
+                onLoad={() => setFrameLoading(false)}
+                sandbox={FRAME_SANDBOX}
+                style={{ width: "100%", height: "100%", border: 0, display: "block" }}
+              />
+              {frameLoading && (
+                // OVER the frame, not above it: a spinner that took its own row
+                // would resize the page the moment it cleared. `pointer-events:
+                // none` so it can never be the thing you click on a page that
+                // has in fact loaded behind it.
+                <div style={{
+                  position: "absolute", inset: 0, display: "flex",
+                  alignItems: "center", justifyContent: "center",
+                  pointerEvents: "none", background: "var(--panel-bg)",
+                }}>
+                  {/* `.staged-hold-spinner` holds it for 150ms IN CSS, so a page
+                      that answers quickly never flashes one — and unlike a JS
+                      timer it still runs while the main thread is busy, which is
+                      exactly the case this was asked for. */}
+                  <Spinner size="md" className="staged-hold-spinner" />
+                </div>
+              )}
+            </div>
           ) : (
             <div className="text-xs text-muted-foreground" style={{ padding: 16 }}>
               Open this in a panel to load the page
