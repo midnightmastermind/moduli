@@ -6,6 +6,67 @@
 
 ---
 
+### 2026-09-10 (2) — A FRAME WITH NO BACKGROUND IS TRANSPARENT; and my own round-trip fix made first paint WORSE
+
+User, after using what shipped an hour earlier: *"the web page died again, took
+too long and the archive has a transparent background and i cant see the page"*.
+Three reports, and the first is mostly a consequence of the other two.
+
+**AN `<iframe>` WITH NO BACKGROUND IS TRANSPARENT.** Neither frame set one, so
+anything the framed document does not paint shows whatever sits behind it — and
+this surface opens over the spread's DARK backdrop. A page whose body sets no
+colour of its own renders its own dark text on that dark ground, which reads as a
+page that failed to load. Wayback's rewritten pages are the common case: the
+archive strips enough of the original CSS that the body frequently paints
+nothing. **Both frames get a ground, not just the archive** — the live one has
+exactly the same hole, it just bites less often because most live sites paint
+their own body. WHITE, because that is what a browser viewport is; a themed tint
+would misrepresent every site that DOES set one, and the mutation that tries it
+fails.
+
+**AND THE SLOWNESS WAS MINE. `3e42c564` IS RETRACTED.** That commit had
+`page_reader` look the snapshot up itself and send it in the same reply — ONE
+round trip instead of two serial ones, which measured better on TOTAL time.
+**The arithmetic was right and the change was wrong.** Awaiting the lookup held
+the reply until the archive answered, pushing FIRST PAINT from ~363ms out to
+1-4.4s.
+
+***A person feels the first paint, not the total.*** The round trip it bought back
+is ~50ms against a lookup costing 644ms-3.3s. I optimised the number I had
+measured instead of the one being experienced, and it took the user opening a
+bookmark to see it. **A total-time win that moves work in FRONT of the first
+paint is a regression, whatever the sum says.**
+
+The read is answered as soon as it is read; the client fires `wayback_lookup` the
+moment it hears a page cannot be shown, with "Looking for a saved copy…" on
+screen. Feedback at 363ms rather than a blank overlay for four seconds. The
+reliability work (retry, `Retry-After`, text-then-parse) is untouched and is what
+makes that lookup worth waiting on.
+
+**THE RETRACTION IS PINNED, NOT JUST REVERTED** — the temptation to re-bundle is
+real, because the total really is lower. `readerDoesNotWaitOnArchive.test.js`
+fails on the thing the user reported: re-adding the await makes "answers
+promptly" take **3004ms**. The client still READS a bundled snapshot if a server
+ever sends one, so the two cannot disagree; it simply never blocks on one.
+
+**A DROPPED IMPORT NEARLY SHIPPED WITH IT.** Removing the bundling made
+`fetchWaybackSnapshot` look unused — but `wayback_lookup` still needs it. Caught
+by LOADING THE MODULE, which is the only thing that sees it: no test mounts that
+handler's import graph, and a build resolves imports but this is a server file.
+The `watchRegion` / `ctxGrid` class, avoided by one command.
+
+Six A/Bs, each failing exactly its own cases. 2133 server + 4262 client tests,
+deployed and verified — prod HEAD `c3c82552`, served chunk sha256-identical with
+`background:"#fff"` present and a zero control at 0, `import.js` identical on the
+box and `grep -c "await snapshotIfNothingElseWillShow"` reading **0** there.
+
+**STILL UNEXPLAINED: "the web page died".** It is plausibly the transparent frame
+(an invisible page looks dead) or the four-second blank, both fixed here — but
+that is an inference, not a measurement, and it is recorded as such. If it
+recurs, what is needed is WHICH bookmark and what is on screen.
+
+---
+
 ### 2026-09-10 — THE WASHINGTON POST WAS A TARPIT, NOT A REFUSAL; and 77% of the library cannot be framed at all
 
 User: *"do a full audit on the browser itself... its still lagging like crazy,
