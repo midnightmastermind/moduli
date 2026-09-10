@@ -139,7 +139,7 @@ same class the file already fixed one level down. Confirm with rects before fixi
 
 # THE PLAN, ordered by measured impact
 
-### 1. Browser User-Agent, with a fallback  *(server, isolated)*
+### 1. Browser User-Agent, with a fallback  *(server, isolated)* — **SHIPPED `ef821f0c`**
 `safeFetchUrl.fetchPageHtml` sends a Chrome UA + `Accept-Language`; a 401/403
 retries once with the current Moduli UA.
 **Buys:** total 33.0s → 15.4s, max 6529ms → 1536ms, WaPo 14.8s → 0.44s.
@@ -166,18 +166,31 @@ reason rather than letting `res.json()` throw.
 actually read (1,614 words vs 91).
 **Control:** a framable page must NOT be diverted to the archive.
 
-### 4. One live browser at a time in a spread  *(client)*
-Stop passing `isActivePage` hardcoded true from `ArtifactCard`. Only the focused
-card frames and fetches; the rest render their cover and a "click to open".
-**Buys:** the app-wide slowdown — N iframes + N server fetches become 1 + 1.
-**Control:** opening a single bookmark must still frame immediately.
+### 4. ~~One live browser at a time in a spread~~ — **RETIRED BY MEASUREMENT**
+The theory was that `ArtifactCard` passing `isActivePage` hardcoded true mounts N
+iframes and N server fetches in a spread. **All 1,468 bookmarks have ZERO
+children**, so `filesOf` yields exactly one card and a bookmark always opens as
+`data-count="1"` — one frame, one fetch. There is no N to collapse.
 
-### 5. Height independent of neighbour count  *(CSS, after measuring)*
+**Still a latent hazard, reported not fixed:** the hardcoded flag would bite a
+spread that genuinely holds several bookmarks (opening a container of them).
+`BookmarkView`'s own header says the rule exists to make 1,467 frames "impossible
+rather than merely unlikely" — this is the hole in it. Not worth speculative
+complexity until a real case produces it.
+
+### 5. Height independent of neighbour count — **SHIPPED `ef821f0c`**
 Measure the rendered rects first. Then: an OPEN browser takes the overlay's
 height regardless of `data-count`, and the root gets a definite height rather
 than an inert `flex: 1`.
-**Verification is a rect, not a rule** — this repo's own record is that a layout
-claim is unverified until someone measures the box.
+**Verification is a rect, not a rule** — measured in a browser against the built
+stylesheet, both arms in one document: tile 738 -> 815px at 1600x900 and
+1000 -> 1265px at 1600x1400; dead space 122 -> 12px and 360 -> 11px. Control: a
+spread with no open bookmark still reads the 738px photo cap.
+
+**The first version shipped INERT** — same (0,4,0) specificity as the cap it had
+to beat, both `!important`, cap later in source order. And lifting the cap was
+only half: `height: 100%` resolves against an `auto` parent, so the chain above
+had to be made definite too. Both caught by measuring, neither by reading.
 
 ### 6. NOT DOING, and why
 - **Caching reads per url.** Tempting, but a re-open is not the reported problem
@@ -192,5 +205,6 @@ claim is unverified until someone measures the box.
 ## Honest limits of this audit
 - 60 of 1,467 bookmarks, evenly spread — not the whole library.
 - The archive 429 rate is inflated by my own probe traffic.
-- Items 5 and the `flex: 1` suspicion are read off the CSS, **not measured in a
-  browser**. They are the two claims here that could still be wrong.
+- Item 5 is now measured in a browser. The `flex: 1` suspicion turned out not to
+  be the cause — the per-count photo cap was.
+- Item 4's premise was wrong and is retired above; measuring the data killed it.
