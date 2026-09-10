@@ -669,7 +669,21 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
             </div>
           ) : (
           <div style={{ height: "100%", overflowY: "auto", padding: "12px 16px", whiteSpace: "pre-wrap",
-                        fontSize: 13, lineHeight: 1.55, color: "var(--text-primary)" }}>
+                        fontSize: 13, lineHeight: 1.55, color: "var(--text-primary)",
+                        // A GROUND, for the same reason the frame has one — and found the
+                        // same way, by looking (2026-09-10). The spread's overlay is
+                        // deliberately transparent so the grid reads through it (user,
+                        // 2026-08-17: *"i want to see the grid through the viewer"*), which
+                        // is right for a PICTURE and unreadable for a PAGE OF PROSE: the
+                        // reader's text rendered straight over the Tasks panel and the
+                        // Trackers behind it.
+                        //
+                        // `--panel-bg` rather than white: this is OUR DOM in the app's own
+                        // type and colours, not a web page in a window — the frame is the
+                        // one that gets a browser's white. It is also exactly the call the
+                        // strip above already made, and for exactly this reason: `--input-bg`
+                        // at 0.08 alpha vanishes over the spread's dark backdrop.
+                        background: "var(--panel-bg)" }}>
             {reader.markdown || (
               <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
                 This page has no readable text — not live, and not in the archive.

@@ -72,6 +72,27 @@ describe("a framed page is never transparent", () => {
     expect(frame.style.background).toMatch(/#fff|rgb\(255,\s*255,\s*255\)|white/i);
   });
 
+  // AND THE READER PANE, which is OUR DOM rather than a frame — found by LOOKING
+  // at prod (2026-09-10), where the article text rendered straight over the Tasks
+  // panel and the Trackers behind it. The spread's overlay is deliberately
+  // transparent so the grid reads through it, which is right for a picture and
+  // unreadable for a page of prose.
+  it("the READER pane has a ground too — prose over a grid is unreadable", async () => {
+    const socket = socketWith({ ok: true, usable: true, markdown: "the article text", words: 900, framable: true });
+    let c;
+    await act(async () => {
+      c = render(<BookmarkView occurrence={occurrence} module={{ kind: "bookmark" }} socket={socket} isActivePage />).container;
+    });
+    // THE INNERMOST div holding the text — the content WRAPPER's textContent is
+    // the same string and comes first in document order, which is what an
+    // earlier draft of this test matched (and then reported no background on a
+    // component that had one).
+    const reader = [...c.querySelectorAll("div")]
+      .filter((d) => d.textContent === "the article text").pop();
+    expect(reader, "no reader pane rendered").toBeTruthy();
+    expect(reader.style.background, "the reader is transparent over the grid").toBeTruthy();
+  });
+
   // THE CONTROL. Without it "sets a background" is also satisfied by a frame
   // that lost the sizing it needs — which is the height bug one level over,
   // reintroduced by the same edit.
