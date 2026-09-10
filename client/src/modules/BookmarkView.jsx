@@ -518,7 +518,14 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
           // frames, and this is the rule that makes it impossible rather than
           // merely unlikely.
           isActivePage ? (
-            <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
+            // `height: 100%`, NOT `flex: 1` — the content wrapper above is a flex
+            // CHILD but a plain BLOCK itself, so `flex` on its children is inert
+            // and this box would collapse to auto, taking the frame's own
+            // `height: 100%` down with it (user, 2026-09-10: *"the full page is
+            // broken again (doesnt extend full height)"* — caused by the first
+            // version of this wrapper). The reader branch beside it resolves the
+            // same way for the same reason.
+            <div style={{ position: "relative", height: "100%" }}>
               <iframe
                 src={frameSrc}
                 title={url}

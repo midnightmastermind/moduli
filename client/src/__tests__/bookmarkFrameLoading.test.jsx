@@ -51,6 +51,19 @@ describe("the frame says it is loading", () => {
     expect(el.querySelector('[role="status"]')).toBeTruthy();
   });
 
+  // THE REGRESSION THIS BROKE ONCE. The content wrapper this sits inside is a
+  // flex CHILD but a plain BLOCK itself, so `flex: 1` on a box in here is inert
+  // and collapses to auto — taking the frame's own `height: 100%` with it. The
+  // first version of the spinner wrapper did exactly that and the page stopped
+  // filling the overlay. The reader branch resolves the same way for the same
+  // reason, so this is the house rule here rather than a special case.
+  it("gives the frame a box with real height, not an inert flex child", () => {
+    const el = openWeb();
+    const box = el.querySelector("iframe").parentElement;
+    expect(box.style.height).toBe("100%");
+    expect(box.style.flex, "flex is inert inside this block parent").toBe("");
+  });
+
   it("clears it when the frame reports load — including a refused page", () => {
     const el = openWeb();
     act(() => { fireEvent.load(el.querySelector("iframe")); });

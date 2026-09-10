@@ -62,10 +62,21 @@ export default function ArtifactCard({ module, label, occurrence }) {
   // A BOOKMARK opens in a panel on DOUBLE-click (user, 2026-08-23: *"it should
   // be double click on it to avoid missing the drag handle"*). Single click is
   // left alone — it competes with the handle and with selection.
-  const grid = useGridActionsSelector(s => s.state?.grid);
+  // READ AT CALLBACK TIME, NOT SUBSCRIBED — the same call the line below already
+  // made for `occurrencesById`, applied to the three slices that were left out.
+  //
+  // `modulesById`, `viewsById` and `state.grid` are used ONLY inside
+  // `openInPanel`; nothing here renders from them. Subscribed, they swap identity
+  // on every module / view / grid write — and OPENING THE SPREAD makes a module,
+  // a view and two occurrences before any page begins loading. On the Bookmarks
+  // board that is 1,468 cards re-rendering twice per write, which is the "slows
+  // to a crawl BEFORE it even gets to the loading screen" the user reported.
+  //
+  // The getters are stable `useCallback`s over a ref, so selecting them costs
+  // nothing and reading them gives the live value.
   const getOccMap = useGridActionsSelector(s => s.getOccMap);
-  const modulesById = useGridActionsSelector(s => s.modulesById);
-  const viewsById = useGridActionsSelector(s => s.viewsById);
+  const getModMap = useGridActionsSelector(s => s.getModMap);
+  const getState = useGridActionsSelector(s => s.getState);
   const isBookmark = module?.role === "artifact" && module?.kind === "bookmark";
   // A BOOKMARK IN THE SPREAD IS THE PAGE, NOT A PICTURE OF IT.
   //
@@ -188,6 +199,8 @@ export default function ArtifactCard({ module, label, occurrence }) {
     if (!isBookmark || !occurrence?.id) return;
     e?.stopPropagation(); e?.preventDefault();
     const occurrencesById = getOccMap?.() || {};
+    const modulesById = getModMap?.() || {};
+    const { viewsById = {}, grid = null } = getState?.() || {};
     const panelsById = collectPanelOccurrences(occurrencesById, modulesById);
     // The panel this card is IN — the fallback when no sticky target is set.
     const fromPanelOccId = enclosingPanelId(occurrence.id, occurrencesById, panelsById);
@@ -199,7 +212,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
     // because the setting the user made has quietly stopped applying.
     if (res.ok && res.via === "stale") toast("That panel is gone — opened here instead");
     else if (!res.ok) toast.error(res.reason || "Could not open this");
-  }, [isBookmark, occurrence?.id, grid, getOccMap, modulesById, viewsById, dispatch, socket]);
+  }, [isBookmark, occurrence?.id, getOccMap, getModMap, getState, dispatch, socket]);
 
   // Full-bleed logo (Viafluere top-middle cell): on first mount, scroll the
   // nearest scrollable ancestor so the LOGO sits vertically centered in the
