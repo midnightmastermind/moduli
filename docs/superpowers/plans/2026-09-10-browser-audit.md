@@ -247,3 +247,71 @@ round-trip count is the durable win; the archive's own latency is theirs.
   archive is the answer and it is now reliable; a local snapshot store taken at
   save time (true Raindrop) is the only thing that would close the rest, and it
   is a storage decision rather than a perf one.
+
+---
+
+# ROUND 2 — from using it (2026-09-10, afternoon)
+
+Shipped: opaque frames · the reader reading the archive · the tile waiting for a
+click · the open-as-page button · `0330` (5 titles, applied and read back).
+
+## STILL TO BUILD — 1. the cover as its own file (the two-tile viewer)
+
+The chosen design: opening a bookmark shows TWO tiles — the cover image and the
+browser — and you click the browser to expand it.
+
+**AND MY OWN QUESTION UNDERSTATED THE COST, which is why this is not built yet.**
+`ArtifactSpreadHost` builds the spread's container from `files.map(f => f.occ.id)`,
+so every tile must be a distinct OCCURRENCE. Two entries sharing one occurrence
+would put a duplicate id in `occurrences[]` — the integrity error this repo
+sweeps. So this is not a `filesOf` tweak; it is:
+
+**A migration minting a cover artifact occurrence per bookmark — ~1,467 rows.**
+
+Precedent is exact: `0246` hung a poster artifact off every movie row for the
+same reason, and `filesOf` then yields two entries with NO code change (self +
+child). What it costs is 1,467 occurrences and 1,467 modules in live data.
+
+Half of it is already done: the tile now waits for a click, so the browser no
+longer auto-opens. What is missing is the second tile.
+
+**Decide before building:** is a full-size view of the cover image worth ~1,467
+rows? The alternative is one tile (today's behaviour after this round) — the
+thumbnail, clicked to expand — which delivers the *interaction* asked for
+without the data. Ordering note: `filesOf` pushes SELF first, so the tiles would
+come out [browser, cover] rather than the [cover, browser] sketched.
+
+## STILL TO BUILD — 2. a back button on the panel header
+
+User: *"a back button on the panel header. this button will go back to the
+previously opened page. that way i can press back again if im on a browser page
+from a bookmark."*
+
+**The shape, and the one thing to get right:** a panel's current page is its
+view's `activeOccurrenceId`. Back means a per-panel HISTORY of that value —
+which is precisely what `BookmarkView` already does for its own address bar
+(`initialNav` / `navigate` / `goBack` / `canGoBack` in one small module).
+
+**Reuse that, do not write a second one.** It is already pure and tested, and two
+history implementations would drift on the question that matters: what counts as
+a navigation.
+
+- **Where the history lives: PER PANEL, in memory, not on the grid.** Which page
+  you were looking at is a fact about this session at this screen; persisting it
+  would cost a socket write per navigation and sync one machine's browsing to
+  another. Same call `helpers/treeExpansion` made for folder open-state.
+- **What pushes an entry:** every write of `activeOccurrenceId` — pinning a page,
+  a tree click, `openOccurrenceInPanel`, and the new open-as-page button. That is
+  more than one call site, so it wants a CHOKEPOINT rather than a push at each —
+  the "eighth caller forgets" trap this file keeps paying for. `openOccurrenceInPanel`
+  is the closest thing to one already.
+- **The nesting question, and it is the real design decision:** you are on a
+  browser page opened from a bookmark, and the BROWSER has its own Back. Two
+  Backs on screen. Either the panel's Back is disabled while the frame can go
+  back (the frame owns it), or they are one control that pops the frame's history
+  first and the panel's when that is empty. The second reads better and is what
+  a real browser does with a nested frame; it needs `BookmarkView` to report
+  `canGoBack` upward.
+- **The control that matters:** Back must NOT resurrect a page that has since
+  been deleted or unpinned — a stale entry is skipped, never opened.
+
