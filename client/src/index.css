@@ -3818,6 +3818,28 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    button was visible and completely inert — every click fell through to the card
    underneath and opened the viewer instead. It looked like a z-index problem and
    was not. */
+/* THE OTHER CORNER, and the separation is the point: the top-right hint expands
+   the file WHERE IT SITS, this one sends it to a PANEL as a page. Two
+   destinations, two corners — in one corner they would read as one control.
+   Same hover-reveal so neither is chrome you have to look at. */
+.artifact-thumb-page-hint {
+  background: none; border: none; padding: 2px; cursor: pointer;
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  color: var(--text-faint);
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.12s ease-out;
+  z-index: 2;
+}
+.artifact-card:hover .artifact-thumb-page-hint,
+.artifact-thumb-page-hint:focus-visible {
+  opacity: 1;
+}
+.artifact-thumb-page-hint:hover { color: var(--text-primary); }
+
 .artifact-card:hover .artifact-thumb-expand-hint {
   opacity: 1;
   pointer-events: auto;

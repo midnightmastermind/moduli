@@ -50,7 +50,15 @@ vi.mock("../helpers/targetPanel", () => ({
 import ArtifactCard from "../modules/ArtifactCard";
 import { InSpreadContext } from "../helpers/spreadDock";
 
-const BOOKMARK = { id: "m-bm", role: "artifact", kind: "bookmark", label: "YouTube", fileRef: "https://youtube.com/watch?v=x" };
+// CARRIES A COVER, because 1,467 of the live grid's 1,468 bookmarks do — a
+// fixture without one is the RARE case wearing the common case's name, and it
+// silently exercised the "nothing to click, open it directly" arm instead of
+// the thumbnail-then-click path almost every bookmark actually takes.
+const BOOKMARK = {
+  id: "m-bm", role: "artifact", kind: "bookmark", label: "YouTube",
+  fileRef: "https://youtube.com/watch?v=x",
+  meta: { cover: "https://img.test/cover.jpg" },
+};
 const IMAGE = { id: "m-img", role: "artifact", kind: "image", label: "shot.png", fileRef: "/uploads/shot.png" };
 const OCC = { id: "occ-1", moduleId: "m-bm", gridId: "g", userId: "u" };
 
@@ -70,11 +78,16 @@ describe("a bookmark opens inside the spread", () => {
     expect(openArtifactSpread.mock.calls[0][0]).toBe("occ-1");
   });
 
-  it("and INSIDE the spread the bookmark renders the reader, not a thumbnail", () => {
+  // INVERTED 2026-09-10, with the reason kept rather than deleted. This used to
+  // assert the spread mounts the reader IMMEDIATELY. User: *"i have to click on
+  // the browser again to see the full view of it in the viewer. this is the
+  // behavior i want if we click on the thumbnail."* Opening the viewer straight
+  // into the page left no thumbnail step at all — and mounted a reader, a server
+  // fetch and an archive lookup for every bookmark tile in the spread.
+  it("INSIDE the spread a bookmark with a cover is a THUMBNAIL until it is clicked", () => {
     const el = mount(BOOKMARK, { inSpread: true });
-    const view = el.querySelector('[data-testid="bookmark-view"]');
-    expect(view, "the spread still shows a card of itself — the dead end").toBeTruthy();
-    expect(view.getAttribute("data-occ")).toBe("occ-1");
+    expect(el.querySelector('[data-testid="bookmark-view"]'), "the browser mounted unasked").toBeNull();
+    expect(el.querySelector(".artifact-thumb"), "no thumbnail to click").toBeTruthy();
   });
 
   // THE CONTROL. Without it, "the spread renders a bookmark" is also satisfied
@@ -101,6 +114,32 @@ describe("a bookmark opens inside the spread", () => {
     const el = mount(bare, { inSpread: true, occurrence: { ...OCC, moduleId: "m-new" } });
     expect(el.querySelector('[data-testid="bookmark-view"]')).toBeTruthy();
     expect(el.querySelector(".artifact-card--empty")).toBeNull();
+  });
+
+  // ── THE BUTTON ──────────────────────────────────────────────────────────
+  //
+  // User, 2026-09-10: *"there should be a button on the bottom right for all
+  // occurances that have a url field that opens up that browser page"* / *"that
+  // button should be opening the browser page in the PANEL we are in, not the
+  // viewer. thats the distinction."*
+  //
+  // The path existed with NO affordance — reachable only by double-clicking,
+  // which is undiscoverable and unreachable on a tablet (a double-tap zooms).
+  it("has a button that opens it as a page IN A PANEL, not the viewer", () => {
+    const el = mount(BOOKMARK);
+    const btn = el.querySelector(".artifact-thumb-page-hint");
+    expect(btn, "no open-as-page button on a bookmark").toBeTruthy();
+    fireEvent.click(btn);
+    expect(openBookmarkInPanel).toHaveBeenCalledTimes(1);
+    // THE DISTINCTION the user drew: a panel, never the viewer.
+    expect(openArtifactSpread).not.toHaveBeenCalled();
+  });
+
+  // THE CONTROL. Without it, "a bookmark has the button" is equally satisfied by
+  // putting it on every artifact — an image has no page to open.
+  it("an IMAGE has no such button", () => {
+    const el = mount(IMAGE, { occurrence: { ...OCC, moduleId: "m-img" } });
+    expect(el.querySelector(".artifact-thumb-page-hint")).toBeNull();
   });
 
   // NOTHING IS TAKEN AWAY: the panel path the sticky "Open in <panel>" setting

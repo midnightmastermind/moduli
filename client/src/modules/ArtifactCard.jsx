@@ -5,7 +5,7 @@
 //     a scaled <img>, an <audio controls>, or an <iframe> for pdf. X button collapses.
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, Maximize2, AlertCircle } from "lucide-react";
+import { X, Maximize2, AlertCircle, ExternalLink } from "lucide-react";
 import { Spinner } from "../components/ui/spinner.jsx";
 import { resolveFileRef } from "../helpers/fileRef";
 import { getUploadController } from "../helpers/uploadWithProgress";
@@ -369,7 +369,30 @@ export default function ArtifactCard({ module, label, occurrence }) {
   //
   // Mirrors `ArtifactContent`'s own call rather than inventing a second prop
   // shape for the same component.
-  if (isBookmark && inSpread) {
+  // ── AND ONLY ONCE IT IS THE ONE YOU PICKED ──────────────────────────────
+  //
+  // User, 2026-09-10: *"i have to click on the browser again to see the full
+  // view of it in the viewer. this is the behavior i want if we click on the
+  // thumbnail."* Opening the viewer used to mount the whole browser
+  // immediately, so a bookmark had no thumbnail step at all — the tile WAS the
+  // page, and there was nothing to click.
+  //
+  // `expanded` is the mechanism every other file in the viewer already uses,
+  // and `openViewer` already routes a click INSIDE a spread to `toggle` rather
+  // than opening a second viewer. So this is a gate, not a new interaction:
+  // the tile renders its cover like any other file, and the click that expands
+  // an image expands a page.
+  //
+  // IT ALSO STOPS THE READER AND THE ARCHIVE LOOKUP FIRING FOR A TILE NOBODY
+  // OPENED — `BookmarkView` fetches on mount, so mounting it for every bookmark
+  // in a spread was a server fetch per tile.
+  // `!coverSrc` IS THE SCRATCH-BROWSER ARM, and it is why this is not just
+  // `expanded`. A bookmark with no cover has no thumbnail to click, so gating it
+  // would leave an empty tile that opens nothing — and a SCRATCH browser is
+  // exactly that shape: no url, no cover, its whole starting state. Measured:
+  // 1,467 of 1,468 bookmarks carry a cover, so this arm is the rare one and the
+  // click step is the rule.
+  if (isBookmark && inSpread && (expanded || !coverSrc)) {
     return (
       <div className="artifact-card artifact-card--bookmark-open" data-kind="bookmark">
         <BookmarkView occurrence={occurrence} module={module} socket={socket} isActivePage />
@@ -506,6 +529,32 @@ export default function ArtifactCard({ module, label, occurrence }) {
       >
         <Maximize2 size={12} />
       </button>
+      {/* ── OPEN IT AS A PAGE, IN THIS PANEL ────────────────────────────────
+          User, 2026-09-10: *"there should be a button on the bottom right for
+          all occurances that have a url field that opens up that browser
+          page"* / *"that button should be opening the browser page in the
+          PANEL we are in, not the viewer. thats the distinction."*
+
+          The path already existed and had no affordance: `openBookmarkInPanel`
+          was reachable only by DOUBLE-CLICKING the card, which is undiscoverable
+          and unreachable on a tablet (a double-tap zooms). This is that gesture
+          given a button.
+
+          BOTTOM right, opposite the expand hint at the top — the two are
+          different destinations (here vs. a panel) and putting them in one
+          corner would make them one control with a coin flip in the middle. */}
+      {isBookmark && (
+        <button
+          type="button"
+          className="artifact-thumb-page-hint"
+          title="Open as a page in this panel"
+          aria-label="Open as a page in this panel"
+          onClick={openInPanel}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <ExternalLink size={12} />
+        </button>
+      )}
     </div>
   );
 }
