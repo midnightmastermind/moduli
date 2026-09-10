@@ -3,7 +3,7 @@
 // Renders a panel shell with its containers.
 // Handles panel-specific UI: iteration nav, fullscreen, resize, stacking, copy/split/delete.
 
-import React, { useRef, useMemo, useState, useCallback, useEffect, useLayoutEffect, useContext } from "react";
+import React, { useRef, useMemo, useState, useCallback, useEffect, useLayoutEffect, useContext, useSyncExternalStore } from "react";
 import ResizeHandle from "../ResizeHandle";
 import RadialMenu from "../ui/RadialMenu";
 import ContainerKindSelector from "../ui/ContainerKindSelector";
@@ -49,6 +49,7 @@ import {
 } from "../helpers/dragSystem";
 
 import {
+  ChevronLeft,
   Copy,
   Link2,
   Unlink,
@@ -65,6 +66,7 @@ import {
   PlusSquare,
 } from "lucide-react";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
+import { canBack as canBackIn, back as historyBack, subscribe as subscribeHistory } from "../helpers/panelHistory";
 
 import Page from "./ModulePage.jsx";
 import { CanvasDrawSection } from "./CanvasContent.jsx";
@@ -481,6 +483,29 @@ function Panel({
   // View: check occurrence.viewId first (new system), fall back to module.viewId (legacy)
   const resolvedViewId = panelOccurrence?.viewId || module.viewId;
   const currentView = resolvedViewId ? viewsById[resolvedViewId] : null;
+
+  // ── THE PANEL'S OWN BACK ────────────────────────────────────────────────
+  //
+  // Subscribed through `useSyncExternalStore` because the history is module
+  // state, not React state — it is written from `CommitHelpers.updateView`,
+  // which no component owns. Selecting the BOOLEAN rather than the history
+  // itself keeps this panel out of every OTHER panel's navigations.
+  const canGoBackHere = useSyncExternalStore(
+    subscribeHistory,
+    () => (currentView?.id ? canBackIn(currentView.id) : false),
+    () => false,
+  );
+  const goBackHere = useCallback((e) => {
+    e?.stopPropagation();
+    if (!currentView?.id) return;
+    // A page that has since been DELETED or UNPINNED is stepped over rather
+    // than opened — a Back that lands on a hole is worse than one that skips.
+    const target = historyBack(currentView.id, (id) => !!occurrencesById?.[id]);
+    if (!target) return;
+    CommitHelpers.updateView({
+      dispatch, socket, view: { ...currentView, activeOccurrenceId: target }, emit: true,
+    });
+  }, [currentView, occurrencesById, dispatch, socket]);
   const currentViewType = currentView?.viewType || "board";
 
   const handleViewTypeChange = useCallback((e) => {
@@ -1085,6 +1110,27 @@ function Panel({
                     fullscreenPanelId to/from this panel's id. The
                     isFullscreen render path (line ~505 + ~704-716) was
                     always plumbed; only the chrome was missing. */}
+                {/* ── BACK, TO THE PAGE THIS PANEL WAS ON ─────────────────
+                    User, 2026-09-10: *"a back button on the panel header. this
+                    button will go back to the previously opened page. that way i
+                    can press back again if im on a browser page from a
+                    bookmark."*
+
+                    Rendered only when there IS somewhere to go: a control that
+                    is always there and usually does nothing teaches you to stop
+                    pressing it. `panelHistory` skips entries whose page has
+                    since been deleted or unpinned, so this can never resurrect
+                    a hole. */}
+                {canGoBackHere && (
+                  <button
+                    className="panel-stack-btn-inline"
+                    onClick={goBackHere}
+                    title="Back to the previous page"
+                    aria-label="Back to the previous page"
+                  >
+                    <ChevronLeft size={10} />
+                  </button>
+                )}
                 {setFullscreenPanelId && (
                   <button
                     className="panel-stack-btn-inline"

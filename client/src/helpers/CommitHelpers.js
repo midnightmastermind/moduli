@@ -1,6 +1,7 @@
 // helpers/CommitHelpers.js
 import { operationsBridge } from "../state/bindSocketToStore";
 import { safeEmit } from "./offlineQueue";
+import { recordActive } from "./panelHistory";
 import { beginAction, endAction, withAction } from "./actionScope";
 import { buildParentMap } from "./dragHitTesting";
 import { computePageFilterFields } from "./filterFieldStamp";
@@ -757,6 +758,17 @@ export function createView({ dispatch, socket, view, emit = true }) {
 }
 export function updateView({ dispatch, socket, view, emit = true }) {
   if (!view?.id) return;
+  // ── THE ONE PLACE A PANEL'S PAGE CHANGES ────────────────────────────────
+  //
+  // `activeOccurrenceId` is written from ten call sites — pinning a page, a tree
+  // click, a drop, the assistant, the folder grid, `openOccurrenceInPanel`, the
+  // open-as-page button. Recording history at each is the "eighth caller
+  // forgets" trap, and the eleventh would simply be missing from Back with
+  // nothing to say so. They all come through here, so it is recorded here once.
+  //
+  // `panelHistory` ignores a no-op and ignores the write its OWN Back causes,
+  // so this is safe to call unconditionally.
+  if (view.activeOccurrenceId) recordActive(view.id, view.activeOccurrenceId);
   dispatch?.(updateViewAction(view));
   if (shouldEmit(emit)) safeEmit(socket, "update_view", { view });
 }

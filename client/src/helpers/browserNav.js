@@ -56,12 +56,24 @@ export const goForward = (nav) => (canGoForward(nav) ? { ...nav, index: nav.inde
  * appears broken.
  */
 export function navigate(nav, typed) {
-  const url = normalizeTyped(typed);
-  if (!url) return nav;
+  return pushEntry(nav, normalizeTyped(typed));
+}
+
+/**
+ * The same move, on a value that needs no normalising.
+ *
+ * EXTRACTED so the panel's page history and the browser's address history are
+ * ONE model rather than two (2026-09-10). They ask the same awkward questions —
+ * what truncates the forward branch, what counts as a no-op — and the copy
+ * nobody tests is the one that would drift. `navigate` is now this plus the url
+ * rules, which are the only part that was ever url-specific.
+ */
+export function pushEntry(nav, value) {
+  if (value == null || value === "") return nav;
   const base = nav && Array.isArray(nav.entries) ? nav : BLANK;
-  if (currentUrl(base) === url) return base;
+  if (currentUrl(base) === value) return base;
   const kept = base.entries.slice(0, base.index + 1);
-  return { entries: [...kept, url], index: kept.length };
+  return { entries: [...kept, value], index: kept.length };
 }
 
 /**
