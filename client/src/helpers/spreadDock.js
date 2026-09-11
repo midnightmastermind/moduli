@@ -184,3 +184,27 @@ export const useDockRect = () => useContext(DockRectContext);
 // the REACT tree even though the DOM lands elsewhere.
 export const InSpreadContext = createContext(false);
 export const useInSpread = () => useContext(InSpreadContext);
+
+// WHICH TILE, IF ANY, FILLS THE VIEWER?
+//
+// User, 2026-09-11: *"We need a button to expand the occurance in the viewer.
+// put it on the headers of the occurances in the viewer ... its a grid but we
+// can make individual ones full screen."* The viewer is a grid of tiles; one of
+// them can take the whole surface and the others step aside.
+//
+// OWNED BY THE SHELL (`ArtifactSpread`), which already owns Escape and the
+// chrome, and read by each tile's header. It is a context for the same reason
+// the two above are: the tiles are rendered by the app's own container
+// renderer, which knows nothing about the viewer, and threading a prop through
+// it would teach a generic renderer a viewer concept.
+//
+// THE OTHER TILES ARE HIDDEN BY CSS, NOT UNMOUNTED, and that is the reason the
+// state is a single id rather than a re-render of one tile on its own surface:
+// a browser tile holds a live `<iframe>` and a reader fetch, and unmounting it
+// to maximize a neighbour would reload the page you were reading.
+//
+// `null` everywhere outside the viewer AND in its canvas arrangement, where
+// tiles are free-positioned and "fill the viewer" has no layout to mean.
+// Shape: `{ maxId: string | null, toggle(id) }`.
+export const SpreadMaximizeContext = createContext(null);
+export const useSpreadMaximize = () => useContext(SpreadMaximizeContext);

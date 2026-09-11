@@ -1,6 +1,19 @@
 # client/src/ui — UI Components CLAUDE.md
 
-_Updated: 2026-08-16. Check this file before re-reading source._
+_Updated: 2026-09-11. Check this file before re-reading source._
+
+## Recent Changes (2026-09-11 — `SpreadTileMaximize.jsx` NEW; `ArtifactSpread` owns which tile fills the viewer)
+- **`SpreadTileMaximize.jsx` (NEW)** — the header button that makes one viewer tile fill the viewer,
+  plus `useIsSpreadMaximized(id)` for the row class. Renders null without a `SpreadMaximizeContext`
+  (outside the viewer, and in canvas mode). Stops pointerdown so the row's drag/selection never
+  starts from it.
+- **`ArtifactSpread.jsx`** — holds `maxId` + `toggle`, provides `SpreadMaximizeContext` (null in
+  canvas mode), and clears it on close or a mode switch. **Escape undoes a maximize before it closes
+  the viewer**; `maxId` is read through a ref so the keydown listener does not re-bind on every
+  toggle. The rest of the grid is HIDDEN by `:has(.instance-row--maximized)`, never unmounted, so the
+  maximized browser's iframe keeps its page.
+- 6 tests (`spreadTileMaximize.test.jsx`) drive the real shell with stand-in tiles — the seam between
+  the shell and the button, not the button alone.
 
 ## Recent Changes (2026-09-04 — `TextContextMenu.jsx` NEW: right-click a text input, get the clipboard back)
 - **`TextContextMenu.jsx` (NEW, 7 tests)** — one mount in `App`, listening on document CAPTURE.

@@ -6910,6 +6910,142 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   flex: 0 0 auto;
 }
 
+/* ── EVERY VIEWER TILE HAS A HEADER, AND THE BODY TAKES THE FULL WIDTH ──────
+   User, 2026-09-11: *"way too much margin in between the browser and its parent
+   box on the left side"* and *"put [the expand button] on the headers of the
+   occurances in the viewer"*. One change answers both.
+
+   Measured on prod before this: the card sat 31px in from the tile's left edge
+   and 13px from its right. The difference was the drag handle — a 22px flex
+   COLUMN beside the body, plus the row's asymmetric inline padding (2px left,
+   8px right). Stacking the tile puts the handle in a header row on top, where
+   the fill-the-viewer button sits at its other end, and gives the body the
+   whole width.
+
+   `--instance-content-direction` rather than `!important`: ModuleInstance reads
+   the direction as a var() precisely so a container can supply it, and the
+   spread's items element never sets it inline (only `childContentDirection:
+   column` does). `nowrap` is not optional — a column that may WRAP puts the
+   body in a second column the moment the tile hits its height cap. */
+.artifact-spread-body .container-items--wrap {
+  --instance-content-direction: column;
+  --instance-content-wrap: nowrap;
+}
+/* The padding is an INLINE literal (`paddingLeft: 2, paddingRight: 8`), so this
+   one has to shout. The row's own 4px padding is the inset on both sides. */
+.artifact-spread-body[data-count] .container-items--wrap > .instance-wrap .instance-content {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+/* THE HEADER. Full width so the button can reach the far end, centred so the
+   handle and the button sit on one line. The wrap-tile rule above scores the
+   same and also shouts, so this wins on source order — it must stay after it. */
+.artifact-spread-body[data-count] .container-items--wrap > .instance-wrap .instance-content > .instance-handle-group {
+  align-self: stretch !important;
+  width: 100%;
+  align-items: center !important;
+}
+/* `1 1 auto`, NOT the wrap tile's `1 1 0`. Basis zero is a WIDTH decision for a
+   row tile; on the column axis it is a zero HEIGHT, and with `min-height: 0`
+   beside it the column falls to nothing — the 10px-sliver regression this file
+   records twice (2026-08-26 (4), 2026-08-27). Auto starts at the content height
+   and grows only where the chain above is definite (an open browser, a
+   maximized tile). */
+.artifact-spread-body[data-count] .container-items--wrap > .instance-wrap .instance-content > .instance-textcol {
+  flex: 1 1 auto !important;
+  min-height: 0;
+}
+.artifact-spread-body .container-items--wrap > .instance-wrap > .instance-row {
+  height: 100%;
+}
+/* The name reads ONCE, in the caption under the picture — the rule this file
+   states for every artifact card (`.instance-content:has(.artifact-card--with-info)
+   > div:first-child .instance-label`) stopped matching when the label moved into
+   `.instance-textcol` on 2026-08-23, so in the viewer the title printed twice:
+   once in the caption, once under it. Scoped to the viewer here; the same
+   duplicate on the boards is reported rather than changed unasked. A browser tile
+   needs no label either — its address bar says where it is. */
+.artifact-spread-body .instance-content:has(.artifact-card) .instance-label {
+  display: none;
+}
+/* The card's own top-right expand hint does exactly what clicking the card
+   does in here (the lightbox), and it sat a few pixels under the header button
+   that now does the other thing. Two maximize icons stacked is one too many. */
+.artifact-spread-body .artifact-thumb-expand-hint {
+  display: none;
+}
+
+/* THE HEADER BUTTON. Light ink on purpose: every tile is tinted near-black
+   whatever the theme (see `.instance-row` above), so a theme's `--text-muted`
+   — a dark brown on Stardew — would vanish on it. */
+.spread-tile-maximize {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+}
+.spread-tile-maximize:hover,
+.spread-tile-maximize:focus-visible,
+.spread-tile-maximize[aria-pressed="true"] {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ── A BROWSER IN A ONE-ROW VIEWER MAKES THE WHOLE ROW FULL HEIGHT ───────────
+   User, 2026-09-11: *"the cover image isnt extending full height on the left"*.
+   The open browser's tile was lifted to `height: 100%` (851px at 950px tall)
+   while its sibling kept the two-tile cap (`min(66vh, 820px)` = 627px) — two
+   tiles side by side, one short. The browser's lift is right; the cap on its
+   NEIGHBOUR was the defect.
+   ONE ROW ONLY (1-3 files, the counts that never wrap). A 2x2 or 3x2 grid keeps
+   its caps: `100%` on every tile there is a body-tall ROW each, and the grid
+   would scroll a screen per row. */
+.artifact-spread-body:is([data-count="2"], [data-count="3"]):has(.artifact-card--bookmark-open)
+  .container-items--wrap > .instance-wrap {
+  height: 100% !important;
+  max-height: none !important;
+}
+
+/* ── ONE TILE FILLS THE VIEWER (`SpreadTileMaximize`) ────────────────────────
+   The others are hidden, not unmounted — a browser tile keeps its live iframe
+   and its reading position while a neighbour is maximized. Keyed on the ROW
+   CLASS rather than an id the shell passes down, so a maximized tile that
+   disappears (removed, or moved out) takes the effect with it instead of
+   leaving an empty viewer: with no maximized row, nothing matches. */
+.artifact-spread-body:has(.instance-row--maximized)
+  .container-items--wrap > .instance-wrap:not(:has(> .instance-row--maximized)),
+.artifact-spread-body:has(.instance-row--maximized) .container-items--wrap > .insert-gap {
+  display: none !important;
+}
+.artifact-spread-body[data-count] .container-items--wrap > .instance-wrap:has(> .instance-row--maximized) {
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+}
+/* The same definite chain the open browser needs (see the rule above that
+   reads `:has(.artifact-card--bookmark-open) > .container-shell`), or `100%`
+   resolves against an auto parent and the tile falls back to its content. */
+.artifact-spread-body:has(.instance-row--maximized) > .container-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.artifact-spread-body:has(.instance-row--maximized) > .container-shell > .container-items--wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .artifact-spread-empty {
   padding: 32px;
   text-align: center;

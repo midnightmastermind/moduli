@@ -61,6 +61,7 @@ import { setMainFile } from "../helpers/mainFile";
 import { useComputedValue } from "../state/computedValuesStore";
 import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
 import { useBodyOpen } from "../helpers/bodyOpen";
+import SpreadTileMaximize, { useIsSpreadMaximized } from "../ui/SpreadTileMaximize";
 
 // Operation display widget — its own component so the per-key
 // computedValues subscription lives HERE, not on the whole instance
@@ -702,6 +703,13 @@ function InstanceInner({
   // is the tell that they were one defect.
   const fieldsFloatTopRight = renderBody && !labelRowRendered;
 
+  // Is this tile the one filling the artifact viewer? Always false outside the
+  // viewer (the context is null there), so every board row pays one context
+  // read and nothing else. Only body-rendered rows (files, browsers,
+  // textblocks) are viewer tiles. Called above the representation return so the
+  // hook order never depends on the view mode.
+  const isSpreadMaximized = useIsSpreadMaximized(renderBody ? occurrence?.id : null);
+
   // Per-occurrence view-mode handling. Most instances render as Actual
   // (the full row below). Representation mode replaces the row with a
   // compact RepresentationView chip — used by mind-map nodes, value-
@@ -734,7 +742,9 @@ function InstanceInner({
     <div
       role="listitem"
       aria-label={label || "Untitled instance"}
-      className={"font-mono instance-row" + (isOriginalActive ? " hidden" : "")}
+      className={"font-mono instance-row"
+        + (isOriginalActive ? " hidden" : "")
+        + (isSpreadMaximized ? " instance-row--maximized" : "")}
       style={{
         touchAction: "manipulation",
         WebkitUserSelect: "none",
@@ -806,8 +816,10 @@ function InstanceInner({
           paddingRight: 8,
         }}
       >
-        {/* RadialMenu handle + label — grouped in same flex row, OR absolute top-left when floatHandle */}
-        <div style={floatHandle
+        {/* RadialMenu handle + label — grouped in same flex row, OR absolute top-left when floatHandle.
+            In the artifact viewer this row is the tile's HEADER (see index.css), and carries the
+            fill-the-viewer button on its right end. */}
+        <div className="instance-handle-group" style={floatHandle
           ? { position: "absolute", top: 4, left: 2, zIndex: 10, display: "flex", flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0 }
           // minWidth:0 + default shrink lets the label child clip (and its
           // AutoMarquee detect overflow) whenever space is tight. No flex-grow
@@ -885,6 +897,8 @@ function InstanceInner({
                 }}
               />
             )}
+            {/* Renders nothing outside the artifact viewer. */}
+            {renderBody && !overlay && <SpreadTileMaximize occurrenceId={occurrence?.id} />}
         </div>{/* end handle + image group */}
 
         {/* THE LABEL SITS OVER THE FIELDS, NOT BESIDE THEM.

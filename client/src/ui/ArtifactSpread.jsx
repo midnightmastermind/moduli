@@ -25,12 +25,12 @@
 // rather than the layout: holding it means the next drag is leaving, so the
 // surface ghosts itself out of the way and closes once the drop lands.
 // ============================================================
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Plus, X, LayoutGrid, Move, PictureInPicture2, Maximize2 } from "lucide-react";
 import { isDrawerLayout } from "./MenuSurface";
 import { useClosingGate } from "../helpers/closingGate";
-import { DockRectContext, InSpreadContext, dockVars } from "../helpers/spreadDock";
+import { DockRectContext, InSpreadContext, SpreadMaximizeContext, dockVars } from "../helpers/spreadDock";
 
 // Must match `artifact-spread-out` in index.css. The surface stays mounted for
 // this long so the exit animation has frames to run in — see `closingGate`.
@@ -67,10 +67,31 @@ export default function ArtifactSpread({
   // came from rather than collapsing to the middle of the screen.
   const { closing, requestClose } = useClosingGate(open, SPREAD_CLOSE_MS, onClose);
 
+  // ONE TILE CAN FILL THE VIEWER — see `SpreadMaximizeContext`. Held here
+  // because this shell owns Escape, and Escape has to undo the maximize before
+  // it closes the whole viewer: pressing it to get back to the grid and losing
+  // every file you had open would be the worst possible reading of the key.
+  const [maxId, setMaxId] = useState(null);
+  const maxIdRef = useRef(null);
+  maxIdRef.current = maxId;
+  const toggleMax = useCallback((id) => setMaxId((cur) => (cur === id ? null : id)), []);
+  // A maximize is about THIS open, in THIS arrangement. The canvas has no grid
+  // for a tile to step out of, and a re-open should start from the grid.
+  useEffect(() => { if (!open || mode !== "board") setMaxId(null); }, [open, mode]);
+  const maxCtl = useMemo(
+    () => (mode === "board" ? { maxId, toggle: toggleMax } : null),
+    [mode, maxId, toggleMax],
+  );
+
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (e) => {
-      if (e.key === "Escape") { e.stopPropagation(); requestClose(); return; }
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        if (maxIdRef.current) { setMaxId(null); return; }
+        requestClose();
+        return;
+      }
       if (e.key === "Shift") setShiftHeld(true);
     };
     const onKeyUp = (e) => { if (e.key === "Shift") setShiftHeld(false); };
@@ -227,7 +248,9 @@ export default function ArtifactSpread({
             `ArtifactCard`'s own body-portalled fullscreen. */}
         <InSpreadContext.Provider value={true}>
         <DockRectContext.Provider value={isDocked ? dockRect : null}>
+        <SpreadMaximizeContext.Provider value={maxCtl}>
           <div className="artifact-spread-body" data-count={count}>{children}</div>
+        </SpreadMaximizeContext.Provider>
         </DockRectContext.Provider>
         </InSpreadContext.Provider>
       </div>

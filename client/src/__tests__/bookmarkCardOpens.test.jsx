@@ -116,27 +116,50 @@ describe("a bookmark opens inside the spread", () => {
     expect(el.querySelector(".artifact-card--empty")).toBeNull();
   });
 
-  // THE ARM'S OTHER HALF, and the case this session created. The viewer now
-  // mints a URL tile for any row that points somewhere (`spreadBrowser.js`) —
-  // an address with no cover, which is a shape nothing on this grid had before.
-  // Under `!coverSrc` alone it auto-expanded: a live iframe and a reader fetch
-  // for a tile nobody clicked, which is precisely what the arm above exists to
-  // prevent, plus a browser where the user asked for a thumbnail.
-  it("a url tile with NO cover is still a thumbnail — it has somewhere to go", () => {
+  // INVERTED 2026-09-11, the same day it was written, with the reason kept.
+  // The viewer mints a URL tile for any row that points somewhere
+  // (`spreadBrowser.js`): an address with no cover. This test first pinned that
+  // tile SHUT, to spare an iframe nobody clicked. User, on seeing it: *"it
+  // should already be opened there shouldnt be a second click for the browser if
+  // there is one"*. There is one url tile per viewer, so the iframe is the point.
+  it("a url tile (an address, no cover) is ALREADY the browser in the viewer", () => {
     const urlTile = { id: "m-url", role: "artifact", kind: "bookmark", label: "washingtonpost.com", fileRef: "https://washingtonpost.com/a" };
     const el = mount(urlTile, {
       inSpread: true,
       occurrence: { ...OCC, moduleId: "m-url", meta: { url: "https://washingtonpost.com/a" } },
     });
-    expect(el.querySelector('[data-testid="bookmark-view"]'), "the browser mounted unasked").toBeNull();
+    expect(el.querySelector('[data-testid="bookmark-view"]'), "a second click is still needed").toBeTruthy();
+    expect(el.querySelector(".artifact-thumb"), "it drew a thumbnail instead").toBeNull();
+  });
+
+  // THE COVER IS A PICTURE. User, 2026-09-11: *"clicking the cover photo in the
+  // viewer also shouldnt open the browser (... i click the cover photo to expand
+  // it, it opens up the browser instead)"*. The browser has its own tile now;
+  // clicking the cover takes the path clicking any picture takes — the lightbox.
+  it("clicking a bookmark's COVER in the viewer expands the PICTURE, not the browser", () => {
+    const { container } = render(
+      <InSpreadContext.Provider value={true}>
+        <div className="artifact-spread">
+          <ArtifactCard module={BOOKMARK} label={BOOKMARK.label} occurrence={OCC} />
+        </div>
+      </InSpreadContext.Provider>
+    );
+    fireEvent.click(container.querySelector(".artifact-card"));
+    // The lightbox is portalled to <body>.
+    const media = document.body.querySelector(".artifact-card--expanded .artifact-expanded-media");
+    expect(media, "the cover did not expand").toBeTruthy();
+    expect(media.getAttribute("src")).toBe("https://img.test/cover.jpg");
+    expect(document.body.querySelector('[data-testid="bookmark-view"]'), "it opened the browser").toBeNull();
+    expect(openArtifactSpread, "it re-opened the viewer on top of itself").not.toHaveBeenCalled();
   });
 
   // A bookmark with nothing to preview is still a PAGE. It used to fall to the
   // generic unknown-file glyph, which it never is — we know exactly what it is.
+  // Measured OUTSIDE the viewer now, where a coverless bookmark is still a
+  // thumbnail (on the Bookmarks board: 2 have no cover, ~28% have a dead one).
   it("draws a web glyph, not an unknown-file one", () => {
     const urlTile = { id: "m-url2", role: "artifact", kind: "bookmark", label: "washingtonpost.com", fileRef: "https://washingtonpost.com/a" };
     const el = mount(urlTile, {
-      inSpread: true,
       occurrence: { ...OCC, moduleId: "m-url2", meta: { url: "https://washingtonpost.com/a" } },
     });
     expect(el.textContent).toContain("\u{1F310}");

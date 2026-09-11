@@ -393,21 +393,34 @@ export default function ArtifactCard({ module, label, occurrence }) {
   // 1,467 of 1,468 bookmarks carry a cover, so this arm is the rare one and the
   // click step is the rule.
   //
-  // ── IT ASKS FOR AN ADDRESS, NOT JUST A COVER (2026-09-11) ────────────────
+  // ── REVISED 2026-09-11: A TILE WITH NO COVER IS THE BROWSER; A COVER IS A
+  //    PICTURE. `expanded` NO LONGER OPENS THE PAGE. ──────────────────────────
   //
-  // It used to read `!coverSrc` alone, and its own sentence above says why that
-  // was only ever right by accident: the condition it means is *nothing to
-  // click AND nothing to open*. A cover is the first half; an address is the
-  // second, and until the viewer started showing urls as tiles nothing on this
-  // grid had one without the other.
+  // Two user reports the same morning, after the viewer started minting a
+  // separate url tile for any row that points somewhere (`spreadBrowser.js`):
   //
-  // The url tile does. It is minted with an address and no cover, so under the
-  // old arm it auto-expanded — mounting a live iframe and firing a reader fetch
-  // for a tile nobody clicked, which is the exact cost the paragraph above was
-  // written to stop, and it would have shown a browser where the user asked for
-  // a thumbnail-then-click.
-  const hasAddress = !!(occurrence?.meta?.url || module?.fileRef);
-  if (isBookmark && inSpread && (expanded || (!coverSrc && !hasAddress))) {
+  //   *"it should already be opened there shouldnt be a second click for the
+  //    browser if there is one"* — the url tile (an address, no cover) was
+  //    drawing a 🌐 thumbnail you had to click. It IS the browser, so it opens.
+  //
+  //   *"clicking the cover photo in the viewer also shouldnt open the browser
+  //    (... i click the cover photo to expand it, it opens up the browser
+  //    instead)"* — the bookmark's own tile is its COVER, and the browser now
+  //    has a tile of its own right beside it. So a click on the cover takes the
+  //    same path a click on any picture does: the full-screen lightbox below,
+  //    showing the cover. It used to reach this branch through `expanded` and
+  //    mount a second copy of the page.
+  //
+  // THE PREVIOUS REVISION (same day, `!coverSrc && !hasAddress`) KEPT THE URL
+  // TILE SHUT to avoid mounting an iframe nobody asked for. That cost was real
+  // and is now accepted on purpose: there is one url tile per viewer, and the
+  // user asked for it open. What stays true is that a board of 1,468 bookmark
+  // covers mounts NO reader — this whole branch is gated on `inSpread`.
+  //
+  // The scratch browser (no url, no cover) still lands here, as it always did.
+  // Making an individual tile fill the viewer is the tile HEADER's job now
+  // (`SpreadTileMaximize`), and it works for this browser without remounting it.
+  if (isBookmark && inSpread && !coverSrc) {
     return (
       <div className="artifact-card artifact-card--bookmark-open" data-kind="bookmark">
         <BookmarkView occurrence={occurrence} module={module} socket={socket} isActivePage />
@@ -480,7 +493,10 @@ export default function ArtifactCard({ module, label, occurrence }) {
         <div className="artifact-expanded-meta">
           {originalName && <span className="artifact-expanded-name" title={originalName}>{originalName}</span>}
           {sizeLabel && <span className="artifact-expanded-size">{sizeLabel}</span>}
-          {src && (
+          {/* A bookmark's `src` is a WEB PAGE — "Download" on it would save
+              the page's HTML under the article's title, which is never what
+              expanding its cover meant. */}
+          {src && !isBookmark && (
             <a
               href={src}
               download={originalName || undefined}
@@ -672,5 +688,14 @@ function renderExpanded(kind, src, label, imgSrc = src, cover = null) {
     </div>
   );
   if (kind === "pdf") return <iframe className="artifact-expanded-media" src={src} title={label || "pdf"} />;
+  // A bookmark is expanded for its COVER (above). This is where a DEAD cover
+  // lands — ~28% of the 1,467 have rotted — and "Unsupported kind: bookmark"
+  // would read as the app not knowing what a bookmark is. It knows exactly.
+  if (kind === "bookmark") return (
+    <div style={{ padding: 32, textAlign: "center", color: "var(--text-muted)" }}>
+      <div style={{ fontSize: 48 }} aria-hidden="true">🌐</div>
+      <div style={{ fontSize: 12, marginTop: 8 }}>{label}</div>
+    </div>
+  );
   return <div style={{ padding: 16, color: "var(--text-muted)" }}>Unsupported kind: {kind}</div>;
 }

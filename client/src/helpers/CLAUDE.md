@@ -1,6 +1,12 @@
 # client/src/helpers — Helpers CLAUDE.md
 
-_Updated: 2026-08-22. Check this file before re-reading source._
+_Updated: 2026-09-11. Check this file before re-reading source._
+
+## Recent Changes (2026-09-11 — `spreadDock.js`: `SpreadMaximizeContext`)
+- **`SpreadMaximizeContext` / `useSpreadMaximize`** — a third viewer context beside `DockRectContext`
+  and `InSpreadContext`, for the same reason they exist: the viewer's tiles render through portals,
+  where a prop cannot reach them. Shape `{ maxId, toggle(id) }`, owned by `ArtifactSpread`. It is null
+  outside the viewer and in canvas mode, which is how every consumer knows to render nothing.
 
 ## Recent Changes (2026-09-04 (2) — `mosaicSnap.js` NEW: Windows-style regions for the BSP layout)
 - **`mosaicSnap.js` (NEW, 41 tests)** — the whole snap decision for a mosaic grid, pure. Sibling of

@@ -1,6 +1,22 @@
 # client/src/modules/ — New Module Rendering System
 
-_Updated: 2026-08-17. This folder implements occurrence-based view routing._
+_Updated: 2026-09-11. This folder implements occurrence-based view routing._
+
+## Recent Changes (2026-09-11 — viewer tiles: url tile opens itself, cover lightboxes, a maximize button on every tile)
+- **`ArtifactCard.jsx`** — the bookmark-in-viewer arm is `inSpread && !coverSrc` (was
+  `… && (expanded || (!coverSrc && !hasAddress))`): the url tile IS the browser and opens without a
+  click, and a click on the COVER tile takes the ordinary lightbox path and shows the cover image
+  rather than a second browser. The lightbox's Download link is hidden for bookmarks, and
+  `renderExpanded` has a bookmark case (🌐 + label). Outside the viewer a coverless bookmark still
+  renders its glyph.
+- **`ModuleInstance.jsx`** — the handle group carries `instance-handle-group` (the hook the viewer's
+  CSS uses to turn it into a header row), renders `<SpreadTileMaximize>` when `renderBody && !overlay`,
+  and adds `instance-row--maximized` when `useIsSpreadMaximized(occurrence.id)`. Both are inert
+  outside the viewer (the context is null there), so ~1,000 board rows are untouched. The hook call
+  sits above `instanceViewMode`, ahead of every early return.
+- **The viewer's tile layout is CSS scoped to `.artifact-spread-body`** (`index.css`): column content
+  through `--instance-content-direction`, zero side padding, textcol `1 1 auto` (basis 0 in a column
+  is the 10px sliver), label hidden because the card carries the name, expand-hint hidden.
 
 ## Recent Changes (2026-09-04 — BookmarkView: save the current address, and ask where it goes)
 - **`BookmarkView.jsx`** — a ☆ button beside the address bar (present only when there IS an

@@ -6,6 +6,69 @@
 
 ---
 
+### 2026-09-11 (2) — THE VIEWER, ROUND 3: the browser opens itself, the cover is a picture, and any tile can fill the viewer
+
+Continued from the other account's session, which hit its monthly spend limit mid-diagnosis. User:
+*"it should already be opened there shouldnt be a second click for the browser … too much margin in
+between the browser and its parent box on the left side. and the cover image isnt extending full
+height on the left."* Then: *"clicking the cover photo in the viewer also shouldnt open the browser
+… We need a button to expand the occurance in the viewer. put it on the headers of the occurances
+in the viewer … all files and browsers in the viewer should have this."*
+
+**THE URL TILE IS THE BROWSER, SO IT OPENS ITSELF.** `ArtifactCard`'s bookmark arm was
+`inSpread && (expanded || (!coverSrc && !hasAddress))`, narrowed that morning so a coverless tile
+with an address would NOT auto-expand into an iframe nobody clicked. The user reversed that premise:
+in the viewer the url tile's only job is to be the browser, and a second click is friction. It is
+`inSpread && !coverSrc` now. **Outside the viewer nothing moved** — a coverless bookmark on a board
+still shows its 🌐 glyph, and that test was moved outside the viewer so it stays pinned.
+
+**THE COVER IS A PICTURE.** Clicking the cover tile set `expanded`, which fed the same bookmark arm
+and opened a SECOND browser. The cover now takes the ordinary lightbox path and shows the cover
+image; the lightbox's Download link is hidden for bookmarks (an og:image is not "the bookmark"), and
+`renderExpanded` gained a bookmark case instead of falling through to "Unsupported".
+
+**THE MARGIN AND THE HEIGHT WERE THE ROW SHELL, measured rather than guessed.** A viewer tile is
+`ModuleInstance(renderBody=ArtifactCard)`, whose shell is laid out for a BOARD row: inline side
+padding 2/8, the handle group beside the body in a row, a label, and a textcol that capped the tile.
+Scoped to `.artifact-spread-body`: the content flips to a column through
+`--instance-content-direction` (the property is INLINE, so the var is the only lever), side padding
+is zeroed, the handle group becomes a full-width 22px header row, the textcol is `1 1 auto` —
+**never basis 0 in a column, which is the 2026-08-27 10px-sliver collapse** — and a one-row spread
+holding an open browser lets its tiles fill the body's height.
+```
+                      before          after
+gutter left / right   31 / 13 px      5 / 5 px
+tile heights          563 / 851       851 / 851
+```
+The cover PICTURE keeps its aspect ratio inside the full-height frame; filling the height as well
+would mean cropping it.
+
+**MAXIMIZE IS HIDE, NOT UNMOUNT.** `SpreadMaximizeContext` (`helpers/spreadDock.js`) is owned by
+`ArtifactSpread`, which already owns Escape; `SpreadTileMaximize` (NEW) sits in every tile's header
+row and renders nothing outside the viewer or in canvas mode, where the context is null. The other
+tiles are hidden by `:has(.instance-row--maximized)` rather than removed from the tree, so the
+maximized browser's iframe — and every other tile's state — survives the round trip. **Escape
+restores the grid before it closes the viewer**: closing on a request to see the other files would
+throw every file away. Measured in a real browser: maximized browser 1564x851 filling the body, the
+cover tile `display:none`, Escape → both back at 777x851, viewer still open; idle for 3s with 4 DOM
+mutations, so no layout oscillation.
+
+6 seam tests drive the REAL shell with stand-in tiles (`spreadTileMaximize.test.jsx`), including the
+control that the button renders NOTHING outside the viewer; `bookmarkCardOpens` is inverted for the
+url tile and gains the cover→lightbox case. 4275 client tests pass. **`trackerValues.test.js` OOMs
+its worker — identically on untouched HEAD** (A/B'd with the change stashed), so it predates this
+and is not caused by it.
+
+**STILL OPEN — the Washington Post will not frame, and the fix is a security decision, not a bug.**
+It sends `X-Frame-Options: SAMEORIGIN`, so Web mode falls back to the archive frame. Raindrop shows
+the live page because it proxies. Proxying through our origin is the only route — and serving
+third-party HTML on the app's origin hands that page's script `localStorage`, where the auth token
+lives. Doing it safely needs a separate origin (or a sandbox without `allow-same-origin`, which
+breaks most sites' own JavaScript). Put to the user rather than built. The live page is paywalled
+anyway: a headline and one paragraph.
+
+---
+
 ### 2026-09-11 — THE VIEWER SHOWS FILES *AND* URLS, and the obvious gate would have doubled every image
 
 User: *"if the occurances has a url, ... merge the browser occurance in its

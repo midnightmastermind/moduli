@@ -3314,3 +3314,30 @@ collides with a 12px floor for body text and would flatten the hierarchy the
    full thing. clicking on it should go back to expanding the children again."**
 
 Screenshot: `screenshots/Screenshot 2026-08-25 111140.png`.
+
+---
+
+### 2026-09-11 — the viewer: the browser should already be open, the cover is a picture, and a maximize button on every tile
+
+Given to the other account's session, which hit its monthly spend limit mid-diagnosis; continued
+here.
+
+1. **"it should already be opened there shouldnt be a second click for the browser if there is one,
+   it looks like there was in the viewer. and there is still. the washington times articles still
+   isnt resolving in web (switches to archive). raindrop gets the actual site, its not the archive
+   its grabbing. also there is still way too much margin in between the browser and its parent box
+   on the left side. and the cover image isnt extending full height on the left. the scroll and
+   heights need to be fixed. look at the latest screenshot"**
+2. **"clicking the cover photo in the viewer also shouldnt open the browser (when its in view mode,
+   i click the cover photo to expand it, it opens up the browser instead. We need a button to expand
+   the occurance in the viewer. put it on the headers of the occurances in the viewer. the goal is, i
+   can make the browser here full screen when i want to when i have multiple files. all files and
+   browsers in the viewer should have this. its a grid but we can make individual ones full screen.
+   make it a button in the occurance header when in viewer"**
+
+Earlier the same day (already shipped in `a4a3b9d1`): *"only merge it into files when its in the
+viewer (viewer shows files and urls)."*
+
+**Open, and it is a decision for the user:** the Washington Post refuses to be framed; showing the
+live site means proxying it through our own origin, which exposes the auth token to that page's
+script unless it is served from a separate origin.
