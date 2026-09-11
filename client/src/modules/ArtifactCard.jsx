@@ -634,6 +634,20 @@ function renderThumbnail(kind, src, label, imgSrc = src, cover = null) {
       <span style={{ fontSize: 22 }} aria-hidden="true">📕</span>
     </div>
   );
+  // A BOOKMARK IS A PAGE, NOT AN UNKNOWN FILE. Without this it fell to the
+  // glyph below and read as "some file we cannot preview", which it never is —
+  // we know exactly what it is and where it goes.
+  //
+  // It lands on three sets, and the second is the largest: the 2 bookmarks that
+  // carry no cover at all; every bookmark whose cover URL has ROTTED, which the
+  // fallback above routes straight here and which that comment measures at ~28%
+  // of 1,467; and every url tile the viewer mints, which has an address and no
+  // cover by construction.
+  if (kind === "bookmark") return (
+    <div className="artifact-thumb artifact-thumb--unknown">
+      <span style={{ fontSize: 22 }} aria-hidden="true">🌐</span>
+    </div>
+  );
   return (
     <div className="artifact-thumb artifact-thumb--unknown">
       <span style={{ fontSize: 22 }} aria-hidden="true">📄</span>

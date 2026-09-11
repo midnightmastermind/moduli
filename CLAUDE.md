@@ -6,6 +6,121 @@
 
 ---
 
+### 2026-09-11 — THE VIEWER SHOWS FILES *AND* URLS, and the obvious gate would have doubled every image
+
+User: *"if the occurances has a url, ... merge the browser occurance in its
+files (so the viewer can pick it up). i understand bookmarks would have 2
+identical ones."* Then, decisively: *"only merge it into files when its in the
+viewer (viewer shows files and urls)."*
+
+**THE OWNER'S `Files` FIELD IS NEVER WRITTEN, and the second sentence is the
+constraint.** A row's attachments are what the user attached; adding a browser
+to 6,626 of them would be the app editing their data to make its own viewer look
+right. The tile lives on the SPREAD PAGE — the overlay-only container the host
+already mints, parented to nothing and listed in no manifest, whose documented
+purpose is that *"these pages would exist only in this overlay"*. Minted lazily,
+once, for a row whose viewer you actually open.
+
+**AND `hasViewableUrl` WOULD HAVE BEEN THE WRONG GATE — the census said so.**
+Measured over the live grid's own 21,415 occurrences through the REAL resolver
+rather than a re-implementation:
+```
+8,135 carry a viewable url
+  4,078  song      from:field    a Spotify page  -> a SECOND thing
+  1,467  bookmark  from:field    the article     -> a SECOND thing
+    709  textblock from:link     a link chip     -> a SECOND thing
+    362  album/artist/instance   from:field      -> a SECOND thing
+  1,507  image     from:fileRef  the url IS THE PICTURE
+      2  video/pdf from:fileRef  the url IS THE FILE
+```
+**An artifact stored BY URL has `fileRef` as its address**, so `occurrenceUrl`
+reports it — and framing it renders the very picture the file tile already
+renders. That is the duplicate-poster shape `filesOf`'s own header warns about,
+reached from a new direction. `from:"fileRef"` names exactly those 1,509 rows and
+is already reported, so nothing has to guess. Nothing learns what a bookmark is:
+the rule is *"this row points somewhere that is not itself"*.
+
+**TWO BUGS I NEARLY SHIPPED, AND NEITHER WAS THE FEATURE.**
+
+**AN UNBOUNDED ROW FACTORY.** `planSpreadBrowser` says "done" by reading
+`meta.browserOccId` back off the page. Between the mint and that write landing in
+the store, a re-render sees *"no browser yet"* and mints another. The page mint
+one scope up has carried a `mintedForRef` for exactly this since it was written;
+the url tile needed its own. **The A/B is not theoretical** — the mocked store
+never reflects a write, which makes that window permanent, and without the guard
+the mint fires twice.
+
+**AND IT WOULD HAVE REGRESSED THE PREVIOUS DAY'S FIX.** `ArtifactCard`
+auto-expands a bookmark tile on `expanded || !coverSrc`, and its own comment
+states the rule it means: *nothing to click AND nothing to open*. A cover is the
+first half; an address is the second — and until now **nothing on this grid had
+one without the other**, so `!coverSrc` alone was right by accident. The url tile
+is minted with an address and no cover. Under the old arm it auto-expanded: a
+live iframe and a reader fetch for a tile nobody clicked, which is the exact cost
+that arm was written to stop 24 hours earlier, and a browser where the user asked
+for thumbnail-then-click. Narrowed to `!coverSrc && !hasAddress`; the
+scratch-browser case it was really for is untouched.
+
+**ONE WRITER OF THE ARRAY.** The url tile is planned inside the EXISTING sync
+effect rather than its own, and `addBookmarkOccurrence` gained `list: false` to
+make that possible. Both decisions write the same array on the same document; as
+two effects they would run in one commit off the same `spreadOcc` snapshot and
+whichever landed second would carry a copy taken before the first. That
+stale-snapshot clobber is a class this repo has paid for repeatedly and this
+file's header already names it. A recorded id whose occurrence is gone is dropped
+in the SAME write that adds its replacement; an edited url RETARGETS.
+
+**AND A BOOKMARK IS A PAGE, NOT AN UNKNOWN FILE.** `renderThumbnail` had no
+bookmark branch, so a coverless one fell to the generic file glyph — which it
+never is. Three sets: the 2 bookmarks with no cover, every bookmark whose cover
+URL has ROTTED (the fallback routes straight there, and that comment measures it
+at ~28% of 1,467), and every url tile, coverless by construction.
+
+**THE SECOND ITEM WAS RETIRED BY MEASURING.** User, on the two Back buttons:
+*"keep them independent but only show the panels back button if there actually is
+something to go back to."* That is what `a6a2aa0f` already shipped —
+`canGoBackHere` gates the render, and the panel's history tracks
+`activeOccurrenceId` while the browser strip tracks the frame. Nothing to build.
+*An open item is a claim about today's code.*
+
+**THE ANCHOR THAT MATCHED THE WRONG FUNCTION.** The `list` gate landed in
+`createTextblockInContainer`, six functions above its target:
+`spliceChildIntoParent({…containerOccurrence, occurrenceId, index })` appears SIX
+times in that file and a replace takes the first. The `assert before in s`
+passed — the string was present, just not unique. **Only lint saw it** (`'list'
+is not defined`); the build resolves imports and no test reaches that branch.
+*An assert that a mutation LANDED is not an assert that it landed in the right
+place.*
+
+Eight A/Bs, each mutation asserted to LAND and each failing exactly its own
+cases; one REFUSED to land and the assert said so rather than reporting a pass.
+
+**VERIFIED ON PROD IN A BROWSER, which is the half no suite can see:**
+```
+tiles 2 (was 1)   [0] the cover   [1] "washingtonpost.com" 🌐
+same row, 733px each                     <- peers, not a primary and a scrap
+auto-expanded browsers 0 · iframes 0     <- before a click; the narrowed arm
+after clicking the url tile: 1 browser, 1 iframe, the real url in the strip
+page errors  0 at load · 0 when the spread opened · +1 when the IFRAME mounted
+```
+That last line is the measurement rather than an assumption: the one error is
+`localStorage … Access is denied`, and timing it to the iframe is what says it is
+the cross-origin page and not ours.
+
+**Read back out of Mongo:** the page lists 2, the browser occurrence exists and
+is parented to the page, **the owner does not list it and its Files field is
+unchanged**, grid 21,415 -> 21,416 (exactly +1), **0 dangling child refs**, and
+`checkGrid` at its documented baseline (1 pre-existing `container-filtered-empty`,
+34 deliberate palette fields).
+
+4,298 client tests (363 files), lint 0 no-undef, build clean, deployed —
+client-only, so `deploy.sh` correctly reported *"Server unchanged — NOT
+restarting"*. Prod HEAD verified over SSH, served chunk sha256-identical, with
+`browserOccId` present in `PagePreviewApp` beside two live controls and `App`
+reading 0 for the CONTROLS too — the documented wrong-chunk tell.
+
+---
+
 ### 2026-09-10 (3) — A PAGE CAN BE UNREADABLE TODAY AND READABLE IN THE ARCHIVE
 
 User: *"id like the reader to point at the archive if web fails"*, on the

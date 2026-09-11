@@ -131,6 +131,18 @@ describe("a bookmark opens inside the spread", () => {
     expect(el.querySelector('[data-testid="bookmark-view"]'), "the browser mounted unasked").toBeNull();
   });
 
+  // A bookmark with nothing to preview is still a PAGE. It used to fall to the
+  // generic unknown-file glyph, which it never is — we know exactly what it is.
+  it("draws a web glyph, not an unknown-file one", () => {
+    const urlTile = { id: "m-url2", role: "artifact", kind: "bookmark", label: "washingtonpost.com", fileRef: "https://washingtonpost.com/a" };
+    const el = mount(urlTile, {
+      inSpread: true,
+      occurrence: { ...OCC, moduleId: "m-url2", meta: { url: "https://washingtonpost.com/a" } },
+    });
+    expect(el.textContent).toContain("\u{1F310}");
+    expect(el.textContent).not.toContain("\u{1F4C4}");
+  });
+
   // ── THE BUTTON ──────────────────────────────────────────────────────────
   //
   // User, 2026-09-10: *"there should be a button on the bottom right for all
