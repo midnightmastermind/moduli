@@ -1308,7 +1308,7 @@ export function addScratchBrowser(args) {
  */
 export function addBookmarkOccurrence({
   dispatch, socket, gridId, userId, containerOccurrence, url = "",
-  label = null, scratch = false, index = null,
+  label = null, scratch = false, index = null, list = true,
 }) {
   if (!gridId || !userId || !containerOccurrence) return null;
   const moduleId = crypto?.randomUUID?.() || `bm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -1341,7 +1341,15 @@ export function addBookmarkOccurrence({
   safeEmit(socket, "create_module", { module });
   safeEmit(socket, "create_occurrence", { occurrence });
 
-  spliceChildIntoParent({ dispatch, socket, parentOccurrence: containerOccurrence, occurrenceId, index });
+  // `list: false` PARENTS without listing, for the one caller that must own the
+  // parent's array itself. The artifact spread writes its page's `occurrences[]`
+  // from a single effect on purpose — two writers in one commit both read the
+  // snapshot taken before either landed, and the second silently drops the
+  // first. That stale-snapshot clobber is a class this repo has paid for
+  // repeatedly, and splicing here would reintroduce it for the url tile.
+  if (list) {
+    spliceChildIntoParent({ dispatch, socket, parentOccurrence: containerOccurrence, occurrenceId, index });
+  }
 
   return { moduleId, occurrenceId };
 }

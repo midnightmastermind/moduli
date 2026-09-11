@@ -29,6 +29,7 @@ const { FILE_OCC, commits } = vi.hoisted(() => ({
     updateOccurrence: vi.fn(),
     updateModule: vi.fn(),
     addImageArtifactFromUrl: vi.fn(),
+    addBookmarkOccurrence: vi.fn(() => ({ moduleId: "mod-br", occurrenceId: "occ-br" })),
   },
 }));
 vi.mock("../helpers/occurrenceMedia", () => ({ filesOf: () => [{ occ: FILE_OCC }] }));
@@ -47,7 +48,7 @@ import { buildLayoutCascadeContext, resolveLayoutCascade } from "../helpers/layo
 
 const OWNER = { id: "occ-owner", moduleId: "mod-owner", meta: {} };
 
-function setGrid({ occurrencesById, modulesById }) {
+function setGrid({ occurrencesById, modulesById, fieldsById = {} }) {
   STATE = {
     dispatch: vi.fn(),
     socket: {},
@@ -55,7 +56,7 @@ function setGrid({ occurrencesById, modulesById }) {
     userId: "user-1",
     occurrencesById,
     modulesById,
-    fieldsById: {},
+    fieldsById,
   };
 }
 
@@ -64,7 +65,12 @@ function openFor(ownerId) {
   act(() => { openArtifactSpread(ownerId); });
 }
 
-beforeEach(() => { Object.values(commits).forEach((fn) => fn.mockReset()); });
+beforeEach(() => {
+  Object.values(commits).forEach((fn) => fn.mockReset());
+  // `mockReset` clears the implementation too, so the mint must be re-armed or
+  // every caller reads `undefined` for the id it just created.
+  commits.addBookmarkOccurrence.mockReturnValue({ moduleId: "mod-br", occurrenceId: "occ-br" });
+});
 afterEach(() => { cleanup(); });
 
 describe("ArtifactSpreadHost arranges the spread as a grid", () => {
@@ -192,5 +198,155 @@ describe("ArtifactSpreadHost arranges the spread as a grid", () => {
       .map((c) => c[0].occurrence)
       .some((o) => o?.id === spread.id && o?.meta?.layoutCascade?.mode === "wrap");
     expect(rewrote).toBe(false);
+  });
+});
+
+// ── THE URL TILE ───────────────────────────────────────────────────────────
+//
+// `spreadBrowser.test.js` drives the DECISION; nothing there can see whether
+// the host calls it, passes `list: false`, or lists what it minted. Driving the
+// callee proves nothing about the call — the class this repo has paid for four
+// times — so these assert on the WRITES that leave the host.
+const URL_FIELDS = { "f-url": { id: "f-url", name: "URL" } };
+const LINKED = {
+  id: "occ-owner", moduleId: "mod-owner", meta: {},
+  fields: { "f-url": { value: "https://washingtonpost.com/a" } },
+};
+
+function openLinked(over = {}) {
+  const spread = {
+    id: "occ-spread", moduleId: "mod-spread",
+    meta: { spreadFor: LINKED.id, layoutCascade: { mode: "wrap" } },
+    occurrences: [FILE_OCC.id],
+    ...over.spread,
+  };
+  setGrid({
+    occurrencesById: {
+      [LINKED.id]: { ...LINKED, meta: { ...LINKED.meta, spreadPageId: spread.id } },
+      [spread.id]: spread,
+      ...over.occurrencesById,
+    },
+    modulesById: {
+      "mod-owner": { id: "mod-owner", label: "House of Cards", role: "artifact", kind: "bookmark", fileRef: "" },
+      "mod-spread": { id: "mod-spread", kind: "board" },
+      ...over.modulesById,
+    },
+    fieldsById: URL_FIELDS,
+  });
+  openFor(LINKED.id);
+  return spread;
+}
+
+const pageWrite = (id) => commits.updateOccurrence.mock.calls
+  .map((c) => c[0].occurrence).find((o) => o?.id === id);
+
+describe("the viewer shows files AND urls", () => {
+  it("mints the url tile UNLISTED, and lists it in the write that records it", () => {
+    const spread = openLinked();
+
+    expect(commits.addBookmarkOccurrence).toHaveBeenCalledTimes(1);
+    const mint = commits.addBookmarkOccurrence.mock.calls[0][0];
+    expect(mint.url).toBe("https://washingtonpost.com/a");
+    expect(mint.label).toBe("washingtonpost.com");
+    // The parent is the OVERLAY-ONLY page, never the owner's own Files field —
+    // user, 2026-09-11: *"only merge it into files when its in the viewer"*.
+    expect(mint.containerOccurrence.id).toBe(spread.id);
+    // UNLISTED on purpose: one writer of the array, or the two writes in this
+    // commit clobber each other off the same snapshot.
+    expect(mint.list).toBe(false);
+
+    const wrote = pageWrite(spread.id);
+    expect(wrote.occurrences).toContain("occ-br");
+    expect(wrote.occurrences).toContain(FILE_OCC.id);
+    // Recorded in the SAME write, or the next open mints a second one.
+    expect(wrote.meta.browserOccId).toBe("occ-br");
+  });
+
+  it("CONTROL — an owner that points nowhere gets no tile", () => {
+    // Without this, "mints a url tile" is also satisfied by a host that mints
+    // one for everything.
+    const spread = {
+      id: "occ-spread", moduleId: "mod-spread",
+      meta: { spreadFor: OWNER.id, layoutCascade: { mode: "wrap" } },
+      occurrences: [FILE_OCC.id],
+    };
+    setGrid({
+      occurrencesById: { [OWNER.id]: { ...OWNER, meta: { spreadPageId: spread.id } }, [spread.id]: spread },
+      modulesById: { "mod-owner": { id: "mod-owner", label: "Zucchini" }, "mod-spread": { id: "mod-spread", kind: "board" } },
+    });
+    openFor(OWNER.id);
+    expect(commits.addBookmarkOccurrence).not.toHaveBeenCalled();
+  });
+
+  it("CONTROL — an artifact whose url IS its file gets no tile", () => {
+    // 1,507 image rows on the live grid are stored by url. A browser tile there
+    // frames the very picture the file tile already shows.
+    const spread = {
+      id: "occ-spread", moduleId: "mod-spread",
+      meta: { spreadFor: OWNER.id, layoutCascade: { mode: "wrap" } },
+      occurrences: [FILE_OCC.id],
+    };
+    setGrid({
+      occurrencesById: { [OWNER.id]: { ...OWNER, meta: { spreadPageId: spread.id } }, [spread.id]: spread },
+      modulesById: {
+        "mod-owner": { id: "mod-owner", role: "artifact", kind: "image", fileRef: "https://image.tmdb.org/x.jpg" },
+        "mod-spread": { id: "mod-spread", kind: "board" },
+      },
+    });
+    openFor(OWNER.id);
+    expect(commits.addBookmarkOccurrence).not.toHaveBeenCalled();
+  });
+
+  it("a SECOND open mints nothing and writes nothing", () => {
+    // The loop invariant, at the layer that can actually run forever.
+    const spread = openLinked({
+      spread: { meta: { spreadFor: LINKED.id, layoutCascade: { mode: "wrap" }, browserOccId: "occ-br" },
+                occurrences: [FILE_OCC.id, "occ-br"] },
+      occurrencesById: { "occ-br": { id: "occ-br", moduleId: "mod-br", meta: { url: "https://washingtonpost.com/a" } } },
+    });
+    expect(commits.addBookmarkOccurrence).not.toHaveBeenCalled();
+    expect(pageWrite(spread.id)).toBeUndefined();
+  });
+
+  it("mints ONCE even if the store has not caught up yet", () => {
+    // `planSpreadBrowser` says "done" by reading `meta.browserOccId` back off
+    // the page. Between the mint and that write landing, a re-render sees "no
+    // browser yet" — so without a re-entry guard this is an unbounded row
+    // factory. The mocked store never reflects a write, which makes that window
+    // permanent here and is precisely why this test can see the bug.
+    openLinked();
+    expect(commits.addBookmarkOccurrence).toHaveBeenCalledTimes(1);
+    act(() => { openArtifactSpread(LINKED.id); });
+    expect(commits.addBookmarkOccurrence).toHaveBeenCalledTimes(1);
+  });
+
+  it("RETARGETS the tile when the owner's url is edited, rather than minting a second", () => {
+    openLinked({
+      spread: { meta: { spreadFor: LINKED.id, layoutCascade: { mode: "wrap" }, browserOccId: "occ-br" },
+                occurrences: [FILE_OCC.id, "occ-br"] },
+      occurrencesById: { "occ-br": { id: "occ-br", moduleId: "mod-br", meta: { url: "https://old.test/" } } },
+      modulesById: { "mod-br": { id: "mod-br", fileRef: "https://old.test/", label: "old.test" } },
+    });
+    expect(commits.addBookmarkOccurrence).not.toHaveBeenCalled();
+    const retargeted = commits.updateOccurrence.mock.calls
+      .map((c) => c[0].occurrence).find((o) => o?.id === "occ-br");
+    expect(retargeted.meta.url).toBe("https://washingtonpost.com/a");
+    const remoduled = commits.updateModule.mock.calls
+      .map((c) => c[0].module).find((m) => m?.id === "mod-br");
+    expect(remoduled.fileRef).toBe("https://washingtonpost.com/a");
+  });
+
+  it("DROPS a recorded tile whose occurrence is gone, in the same write", () => {
+    // Minting a replacement without dropping the dead id leaves the page
+    // listing an occurrence that does not exist — the dangling-child-ref class
+    // this repo has swept five times.
+    const spread = openLinked({
+      spread: { meta: { spreadFor: LINKED.id, layoutCascade: { mode: "wrap" }, browserOccId: "gone" },
+                occurrences: [FILE_OCC.id, "gone"] },
+    });
+    expect(commits.addBookmarkOccurrence).toHaveBeenCalledTimes(1);
+    const wrote = pageWrite(spread.id);
+    expect(wrote.occurrences).not.toContain("gone");
+    expect(wrote.occurrences).toContain("occ-br");
   });
 });

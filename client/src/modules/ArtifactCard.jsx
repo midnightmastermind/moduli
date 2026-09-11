@@ -386,13 +386,28 @@ export default function ArtifactCard({ module, label, occurrence }) {
   // IT ALSO STOPS THE READER AND THE ARCHIVE LOOKUP FIRING FOR A TILE NOBODY
   // OPENED — `BookmarkView` fetches on mount, so mounting it for every bookmark
   // in a spread was a server fetch per tile.
-  // `!coverSrc` IS THE SCRATCH-BROWSER ARM, and it is why this is not just
+  // THE SECOND ARM IS THE SCRATCH-BROWSER ARM, and it is why this is not just
   // `expanded`. A bookmark with no cover has no thumbnail to click, so gating it
   // would leave an empty tile that opens nothing — and a SCRATCH browser is
   // exactly that shape: no url, no cover, its whole starting state. Measured:
   // 1,467 of 1,468 bookmarks carry a cover, so this arm is the rare one and the
   // click step is the rule.
-  if (isBookmark && inSpread && (expanded || !coverSrc)) {
+  //
+  // ── IT ASKS FOR AN ADDRESS, NOT JUST A COVER (2026-09-11) ────────────────
+  //
+  // It used to read `!coverSrc` alone, and its own sentence above says why that
+  // was only ever right by accident: the condition it means is *nothing to
+  // click AND nothing to open*. A cover is the first half; an address is the
+  // second, and until the viewer started showing urls as tiles nothing on this
+  // grid had one without the other.
+  //
+  // The url tile does. It is minted with an address and no cover, so under the
+  // old arm it auto-expanded — mounting a live iframe and firing a reader fetch
+  // for a tile nobody clicked, which is the exact cost the paragraph above was
+  // written to stop, and it would have shown a browser where the user asked for
+  // a thumbnail-then-click.
+  const hasAddress = !!(occurrence?.meta?.url || module?.fileRef);
+  if (isBookmark && inSpread && (expanded || (!coverSrc && !hasAddress))) {
     return (
       <div className="artifact-card artifact-card--bookmark-open" data-kind="bookmark">
         <BookmarkView occurrence={occurrence} module={module} socket={socket} isActivePage />

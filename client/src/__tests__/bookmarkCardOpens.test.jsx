@@ -116,6 +116,21 @@ describe("a bookmark opens inside the spread", () => {
     expect(el.querySelector(".artifact-card--empty")).toBeNull();
   });
 
+  // THE ARM'S OTHER HALF, and the case this session created. The viewer now
+  // mints a URL tile for any row that points somewhere (`spreadBrowser.js`) —
+  // an address with no cover, which is a shape nothing on this grid had before.
+  // Under `!coverSrc` alone it auto-expanded: a live iframe and a reader fetch
+  // for a tile nobody clicked, which is precisely what the arm above exists to
+  // prevent, plus a browser where the user asked for a thumbnail.
+  it("a url tile with NO cover is still a thumbnail — it has somewhere to go", () => {
+    const urlTile = { id: "m-url", role: "artifact", kind: "bookmark", label: "washingtonpost.com", fileRef: "https://washingtonpost.com/a" };
+    const el = mount(urlTile, {
+      inSpread: true,
+      occurrence: { ...OCC, moduleId: "m-url", meta: { url: "https://washingtonpost.com/a" } },
+    });
+    expect(el.querySelector('[data-testid="bookmark-view"]'), "the browser mounted unasked").toBeNull();
+  });
+
   // ── THE BUTTON ──────────────────────────────────────────────────────────
   //
   // User, 2026-09-10: *"there should be a button on the bottom right for all

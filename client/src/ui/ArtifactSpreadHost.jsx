@@ -34,6 +34,7 @@ import Container from "../modules/ModuleContainer";
 import ArtifactSpread from "./ArtifactSpread";
 import { openImagePicker } from "./ImagePickerMenu";
 import { filesOf } from "../helpers/occurrenceMedia";
+import { planSpreadBrowser } from "../helpers/spreadBrowser";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext";
 import { Spinner } from "../components/ui/spinner.jsx";
@@ -211,6 +212,12 @@ export function ArtifactSpreadHost() {
   // mint a second page — the create/parent-list asymmetry this codebase has
   // been bitten by makes a duplicate expensive to clean up.
   const mintedForRef = useRef(null);
+  // The url tile's own re-entry guard, mirroring the page mint's above.
+  // `planSpreadBrowser` says "done" by reading `meta.browserOccId` back off the
+  // page — so between the mint and that write landing in the store, a re-render
+  // would see "no browser yet" and mint another. Keyed on page+url so a
+  // RETARGET (a different url) is never mistaken for a repeat.
+  const browserMintRef = useRef(null);
   useEffect(() => {
     if (!req || !ownerOcc || !dispatch) return;
     if (spreadOcc) return;
@@ -255,32 +262,96 @@ export function ArtifactSpreadHost() {
   useEffect(() => {
     if (!req || !spreadOcc || !dispatch) return;
 
+    // ── THE URL TILE ──────────────────────────────────────────────────────
+    //
+    // User, 2026-09-11: *"the viewer shows files and urls"*. A row that points
+    // somewhere gets that destination as one of its tiles — a bookmark's
+    // article, a song's Spotify page, a Place's website.
+    //
+    // IT IS PLANNED IN *THIS* EFFECT, not its own, and that is the whole reason
+    // the code below reads the way it does. Both decisions write the SAME array
+    // on the SAME document; as two effects they would run in one commit off the
+    // same `spreadOcc` snapshot and whichever landed second would carry a copy
+    // taken before the first — dropping it. That is the clobber this file's
+    // header already names, and it is why the mint below passes `list: false`
+    // and lets the single write at the bottom do the listing.
+    const browser = planSpreadBrowser({
+      owner: ownerOcc, module: ownerModule, fieldsById,
+      spreadOcc, occurrencesById, modulesById,
+    });
+
+    let listed = spreadOcc.occurrences || [];
+    let browserId = spreadOcc.meta?.browserOccId || null;
+    let metaPatch = null;
+
+    if (browser?.retargetId) {
+      // The owner's url was edited. A DIFFERENT document, so this is its own
+      // write and touches no array — a tile still pointing at the old address
+      // is wrong data rather than merely stale.
+      const b = occurrencesById?.[browser.retargetId];
+      const bm = b ? modulesById?.[b.moduleId] : null;
+      if (b) {
+        CommitHelpers.updateOccurrence({
+          dispatch, socket,
+          occurrence: { ...b, meta: { ...(b.meta || {}), url: browser.url } },
+        });
+      }
+      if (bm) {
+        CommitHelpers.updateModule({
+          dispatch, socket,
+          module: { ...bm, fileRef: browser.url, label: browser.label },
+        });
+      }
+    } else if (browser?.mint && browserMintRef.current !== `${spreadOcc.id}:${browser.url}`) {
+      browserMintRef.current = `${spreadOcc.id}:${browser.url}`;
+      // A recorded id whose occurrence is gone is dropped in the SAME write
+      // that adds its replacement — leaving it listed is the dangling-child-ref
+      // class this repo has swept five times.
+      if (browser.dropId) listed = listed.filter((id) => id !== browser.dropId);
+      const made = CommitHelpers.addBookmarkOccurrence({
+        dispatch, socket, gridId, userId,
+        containerOccurrence: spreadOcc,
+        url: browser.url,
+        label: browser.label,
+        list: false,
+      });
+      browserId = made?.occurrenceId || null;
+      if (browserId) metaPatch = { browserOccId: browserId };
+    }
+
     // (1) Artifacts the owner has gained since the page was minted (a new Files
-    // pick, a new child). Additive only — the ORDER inside the page is the
-    // user's arrangement and is never rewritten from the field.
-    // (1) Artifacts the owner has gained since the page was minted, (2) a page
-    // minted before the spread had a layout, (3) an owner that must never list
-    // itself. All three decided by `planSpreadSync` above — pure, exported and
-    // tested, because this is where an infinite render loop lived.
+    // pick, a new child), (2) a page minted before the spread had a layout,
+    // (3) an owner that must never list itself. All three decided by
+    // `planSpreadSync` above — pure, exported and tested, because this is where
+    // an infinite render loop lived. Additive only: the ORDER inside the page is
+    // the user's arrangement and is never rewritten from the field.
     const needsLayout = !spreadOcc.meta?.layoutCascade?.mode;
     const nextList = planSpreadSync({
-      listed: spreadOcc.occurrences || [],
-      fileIds: files.map((f) => f.occ.id),
+      listed,
+      // The url tile is one of the page's files. `planSpreadSync` is additive
+      // apart from pruning a phantom owner, so it lists this and leaves the
+      // user's own arrangement alone.
+      fileIds: [...files.map((f) => f.occ.id), ...(browserId ? [browserId] : [])],
       ownerId: ownerOcc?.id,
       needsLayout,
     });
-    if (!nextList) return;
+    if (!nextList && !metaPatch) return;
     CommitHelpers.updateOccurrence({
       dispatch, socket,
       occurrence: {
         ...spreadOcc,
-        occurrences: nextList,
-        ...(needsLayout
-          ? { meta: { ...(spreadOcc.meta || {}), layoutCascade: { ...SPREAD_LAYOUT } } }
-          : null),
+        occurrences: nextList || listed,
+        meta: {
+          ...(spreadOcc.meta || {}),
+          ...(needsLayout ? { layoutCascade: { ...SPREAD_LAYOUT } } : null),
+          ...(metaPatch || null),
+        },
       },
     });
-  }, [req, spreadOcc, files, dispatch, socket, ownerOcc?.id]);
+  }, [
+    req, spreadOcc, files, dispatch, socket, ownerOcc, ownerModule,
+    fieldsById, occurrencesById, modulesById, gridId, userId,
+  ]);
 
   const handleModeChange = useCallback((next) => {
     if (!spreadModule) return;
