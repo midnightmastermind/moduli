@@ -5,7 +5,7 @@
 // walk has to get right and that a second copy would drift on: the DEPTH CAP,
 // and the ORDER a picker lists panels in.
 import { describe, it, expect } from "vitest";
-import { collectPanelOccurrences, enclosingPanelId, panelChoices } from "../helpers/targetPanel";
+import { collectPanelOccurrences, enclosingPanelId, panelChoices, panelOccIdForElement } from "../helpers/targetPanel";
 
 const mods = {
   mPanel: { id: "mPanel", role: "panel", label: "Panel module" },
@@ -48,6 +48,37 @@ describe("enclosingPanelId", () => {
     // loop inside a click handler, which reads as the app freezing.
     const cyclic = { a: { id: "a", moduleId: "mLeaf", parentId: "b" }, b: { id: "b", moduleId: "mLeaf", parentId: "a" } };
     expect(enclosingPanelId("a", cyclic, {})).toBeNull();
+  });
+
+  it("walks through a container that is LISTED by its parent and carries no parentId", () => {
+    // How this grid places containers and pages. A parentId-only walk stops at
+    // `cont` and returns null — the row button then refused "no panel to open in".
+    const listed = {
+      pA:   { id: "pA",   moduleId: "mPanel", parentId: null, occurrences: ["page"] },
+      page: { id: "page", moduleId: "mBoard", parentId: null, occurrences: ["cont"] },
+      cont: { id: "cont", moduleId: "mBoard", parentId: null, occurrences: ["row"] },
+      row:  { id: "row",  moduleId: "mLeaf",  parentId: "cont" },
+    };
+    expect(enclosingPanelId("row", listed, collectPanelOccurrences(listed, mods))).toBe("pA");
+  });
+});
+
+describe("panelOccIdForElement", () => {
+  const el = (attr) => ({ closest: () => (attr ? { getAttribute: () => attr } : null) });
+  const panels = { pA: { id: "pA", moduleId: "mLeft" }, pB: { id: "pB", moduleId: "mRight" } };
+
+  it("maps the panel MODULE id the DOM carries to its panel occurrence", () => {
+    expect(panelOccIdForElement(el("mRight"), panels)).toBe("pB");
+  });
+
+  it("returns null outside any panel", () => {
+    expect(panelOccIdForElement(el(null), panels)).toBeNull();
+    expect(panelOccIdForElement(null, panels)).toBeNull();
+  });
+
+  it("returns null when two panels place one module — the data walk decides", () => {
+    const shared = { pA: { id: "pA", moduleId: "m" }, pB: { id: "pB", moduleId: "m" } };
+    expect(panelOccIdForElement(el("m"), shared)).toBeNull();
   });
 });
 

@@ -102,6 +102,13 @@ artifact stored BY url (the url IS the picture) and `link` is a chip with its ow
 button (`instance-url-btn`, `ModuleInstance`) is visible at rest — the previous button shipped
 hover-only and a tablet never showed it — and sits left of the body chevron when both render.
 
+**AND THE FIRST DEPLOY OF IT DID NOTHING, which only clicking it showed.** 20 buttons rendered on
+test grid 2's People page, the click minted nothing (read back from the DB) and the panel stayed
+put: `targetPanel.enclosingPanelId` walked `parentId` only, and containers carry none — the
+ancestor-walk mistake this file has recorded for the filter cascade, one helper over. It now walks
+the `occurrences[]` reverse map, and the click reads its panel from the DOM first. The open refused
+BEFORE minting, so the bug left no debris — the refuse-before-mint guard earning its keep.
+
 **Three guards, each A/B'd with the mutation asserted to land, each failing exactly its own test:**
 `list:true` (1), no in-flight map so a double click mints twice (1), refusing AFTER minting when
 there is no panel (1), and no retarget (1). **Two ArtifactCard suites went red on a mock** that

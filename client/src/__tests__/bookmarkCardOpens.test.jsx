@@ -52,6 +52,7 @@ vi.mock("../ui/ArtifactSpreadHost", () => ({ openArtifactSpread: (...a) => openA
 vi.mock("../helpers/targetPanel", () => ({
   collectPanelOccurrences: () => ({ p1: { id: "p1" } }),
   enclosingPanelId: () => "p1",
+  panelOccIdForElement: () => null,
 }));
 
 import ArtifactCard from "../modules/ArtifactCard";

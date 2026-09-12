@@ -2,6 +2,22 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-12 (3) — `targetPanel.js`: "the panel we are in" was null for every board row)
+- **The button shipped and did nothing — found by clicking it in a browser, not by any test.** On
+  test grid 2's People page: 20 buttons rendered, the click minted NOTHING (DB read back: 0 browsers)
+  and the panel stayed on People.
+- **`enclosingPanelId` walked `parentId` only.** A row's parent is a container, and containers and
+  pages carry no `parentId` — they are placed by their parent's `occurrences[]`. The walk stopped at
+  the container, returned null, `resolveOpenTarget` had no panel, and `openUrlInPanel` refused
+  BEFORE minting (correctly — that guard is why no debris was left). It now walks
+  `cachedParentMap` first, `parentId` second: the same fix `getEffectiveFilterForOccurrence` needed.
+- **`panelOccIdForElement(el, panelsById)` (NEW)** reads the panel around the click
+  (`data-panel-id` is the panel MODULE id) and maps it to the panel occurrence; ambiguous (two panels
+  placing one module) returns null so the data walk decides. Both `ModuleInstance.openUrlHere` and
+  `ArtifactCard.openInPanel` try it first — the DOM is the literal answer for a multi-parented row.
+- A/B'd: a parentId-only walk fails the listed-container test; picking the first of two shared
+  panels fails the ambiguity test.
+
 ## Recent Changes (2026-09-12 (2) — `openBookmark.js`: any row with a url opens as a page)
 - **`openUrlInPanel`** — a bookmark delegates to `openBookmarkInPanel`; any other row whose url
   comes `from:"field"` gets ONE browser bookmark of its own (`meta.browserFor = rowId`), minted via

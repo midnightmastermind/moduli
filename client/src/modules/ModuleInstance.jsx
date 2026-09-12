@@ -33,7 +33,7 @@ import { planConvertRelink } from "../helpers/convertRelink";
 import { toast } from "sonner";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { occurrenceUrl } from "../helpers/occurrenceUrl";
-import { collectPanelOccurrences, panelChoices, getTargetPanelId, targetPanelPatch, enclosingPanelId } from "../helpers/targetPanel";
+import { collectPanelOccurrences, panelChoices, getTargetPanelId, targetPanelPatch, enclosingPanelId, panelOccIdForElement } from "../helpers/targetPanel";
 import { openUrlInPanel, canOpenUrlAsPage } from "../helpers/openBookmark";
 import { targetPanelMenuItems, shouldOfferTargetPicker } from "../helpers/targetPanelMenu";
 import {
@@ -214,7 +214,10 @@ function InstanceInner({
     const modulesById = getModMapInner?.() || {};
     const { viewsById = {}, grid = null } = getState?.() || {};
     const panelsById = collectPanelOccurrences(occurrencesById, modulesById);
-    const fromPanelOccId = enclosingPanelId(occurrence.id, occurrencesById, panelsById);
+    // The panel around the click is the panel we are in; the data walk is the
+    // fallback for a click that did not come from inside a panel shell.
+    const fromPanelOccId = panelOccIdForElement(e?.currentTarget, panelsById)
+      || enclosingPanelId(occurrence.id, occurrencesById, panelsById);
     const res = openUrlInPanel({
       occId: occurrence.id, grid, fromPanelOccId, panelsById,
       occurrencesById, modulesById, viewsById, fieldsById: fieldsById || {}, dispatch, socket,

@@ -36,7 +36,7 @@ vi.mock("../helpers/openBookmark", async (importOriginal) => ({
   openUrlInPanel: vi.fn(() => ({ ok: true })),
 }));
 vi.mock("../ui/ArtifactSpreadHost", () => ({ openArtifactSpread: vi.fn() }));
-vi.mock("../helpers/targetPanel", () => ({ collectPanelOccurrences: () => ({}), enclosingPanelId: () => null }));
+vi.mock("../helpers/targetPanel", () => ({ collectPanelOccurrences: () => ({}), enclosingPanelId: () => null, panelOccIdForElement: () => null }));
 
 import ArtifactCard from "../modules/ArtifactCard";
 import { GridActionsContext } from "../GridActionsContext.js";

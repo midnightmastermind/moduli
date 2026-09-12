@@ -13,7 +13,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 import { toast } from "sonner";
 import { openUrlInPanel, canOpenUrlAsPage } from "../helpers/openBookmark";
-import { collectPanelOccurrences, enclosingPanelId } from "../helpers/targetPanel";
+import { collectPanelOccurrences, enclosingPanelId, panelOccIdForElement } from "../helpers/targetPanel";
 import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
 import LoadingImage from "../ui/LoadingImage.jsx";
 import { useClosingGate } from "../helpers/closingGate";
@@ -208,7 +208,8 @@ export default function ArtifactCard({ module, label, occurrence }) {
     const { viewsById = {}, grid = null } = getState?.() || {};
     const panelsById = collectPanelOccurrences(occurrencesById, modulesById);
     // The panel this card is IN — the fallback when no sticky target is set.
-    const fromPanelOccId = enclosingPanelId(occurrence.id, occurrencesById, panelsById);
+    const fromPanelOccId = panelOccIdForElement(e?.currentTarget, panelsById)
+      || enclosingPanelId(occurrence.id, occurrencesById, panelsById);
     const res = openUrlInPanel({
       occId: occurrence.id, grid, fromPanelOccId, panelsById,
       occurrencesById, modulesById, viewsById, fieldsById: getFieldMap?.() || {}, dispatch, socket,

@@ -20,6 +20,8 @@
 // closed panel: changing the layout as a side effect of a double-click is a
 // surprise, and the click still has somewhere obvious to land.
 
+import { cachedParentMap } from "./dragHitTesting";
+
 export const TARGET_PANEL_KEY = "iframeTargetPanelId";
 
 /** The configured target, or null. */
@@ -72,7 +74,14 @@ export function collectPanelOccurrences(occurrencesById = {}, modulesById = {}) 
 }
 
 /**
- * The panel an occurrence sits inside, by walking up `parentId`.
+ * The panel an occurrence sits inside, by walking up its parents.
+ *
+ * THE PARENT COMES FROM THE PARENT'S `occurrences[]` FIRST, `parentId` second.
+ * Containers and pages on this grid are placed by being listed; they carry no
+ * `parentId`. A `parentId`-only walk therefore stopped at the first container,
+ * returned null, and a row's open-as-page button refused with "no panel to open
+ * in" (2026-09-12, measured on test grid 2's People page — the same ancestor-walk
+ * mistake `getEffectiveFilterForOccurrence` was fixed for).
  *
  * DEPTH-CAPPED at 40: a cycle in the parent chain would otherwise hang the
  * click, and this grid has had a self-parented occurrence twice (2026-07-30's
@@ -80,12 +89,31 @@ export function collectPanelOccurrences(occurrencesById = {}, modulesById = {}) 
  * as "no fallback panel" rather than as an error.
  */
 export function enclosingPanelId(occId, occurrencesById = {}, panelsById = {}) {
+  const parentByChild = cachedParentMap(occurrencesById);
   let cursor = occurrencesById?.[occId];
   for (let i = 0; i < 40 && cursor; i++) {
     if (panelsById[cursor.id]) return cursor.id;
-    cursor = occurrencesById[cursor.parentId];
+    cursor = occurrencesById[parentByChild[cursor.id] ?? cursor.parentId];
   }
   return null;
+}
+
+/**
+ * The panel a clicked element is rendered in, read from the DOM.
+ *
+ * This is the literal answer to "the panel we are in": a multi-parented row
+ * (the Schedule shares slots across columns and panels) has more than one
+ * ancestor panel in the data, but only one on screen around the click. The
+ * panel shell stamps its MODULE id (`data-panel-id`), so it is mapped back to
+ * the panel occurrence. Two panels placing one module cannot be told apart this
+ * way, so that returns null and the data walk decides.
+ */
+export function panelOccIdForElement(el, panelsById = {}) {
+  const modId = el?.closest?.("[data-panel-id]")?.getAttribute?.("data-panel-id");
+  if (!modId) return null;
+  if (panelsById[modId]) return modId;
+  const hits = Object.values(panelsById).filter((p) => p?.moduleId === modId);
+  return hits.length === 1 ? hits[0].id : null;
 }
 
 /**
