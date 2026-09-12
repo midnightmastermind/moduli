@@ -221,7 +221,29 @@ export function viewFieldsForArtifactKind(kind) {
 // shell never shows as a tree row of its own. The page carries a REAL View
 // (viewType/artifactType from the module kind) so renderers never have to
 // synthesize one. Returns the page occurrence id.
-export function ensureArtifactPageOcc({ artifactOccId, occurrencesById, modulesById, gridId, userId, dispatch, socket }) {
+export function ensureArtifactPageOcc(args) {
+  return ensureArtifactPage(args)?.id ?? null;
+}
+
+// A page minted a moment ago is not in the caller's maps yet — the store
+// catches up on the next render. Remembered here so a second call in that
+// window (a double click) reuses it instead of minting a second page.
+const pendingArtifactPages = new Map();
+
+/** Test seam: forget remembered in-flight pages. */
+export function __resetPendingArtifactPages() { pendingArtifactPages.clear(); }
+
+/**
+ * Same as `ensureArtifactPageOcc`, but also hands back the page OCCURRENCE and
+ * MODULE when it had to mint them (null when the page already existed). A
+ * caller that acts on the page in the same tick needs them: opening it in a
+ * panel walks the page's module, which the store does not hold yet — and
+ * without it the open found no page, activated nothing, and the panel stayed
+ * where it was on every first click (2026-09-12).
+ *
+ * @returns {{ id: string, occurrence: object|null, module: object|null } | null}
+ */
+export function ensureArtifactPage({ artifactOccId, occurrencesById, modulesById, gridId, userId, dispatch, socket }) {
   if (!artifactOccId) return null;
   const artOcc = occurrencesById?.[artifactOccId];
   const artMod = artOcc ? modulesById?.[artOcc.moduleId] : null;
@@ -229,31 +251,33 @@ export function ensureArtifactPageOcc({ artifactOccId, occurrencesById, modulesB
   const existing = Object.values(occurrencesById || {}).find(
     (o) => o && o.meta?.artifactPage === artifactOccId
   );
-  if (existing) return existing.id;
+  if (existing) {
+    pendingArtifactPages.delete(artifactOccId);
+    return { id: existing.id, occurrence: null, module: null };
+  }
+  if (pendingArtifactPages.has(artifactOccId)) return pendingArtifactPages.get(artifactOccId);
   const modId = crypto.randomUUID();
   const occId = crypto.randomUUID();
   const viewId = crypto.randomUUID();
-  CommitHelpers.createModule({
-    dispatch, socket,
-    module: {
-      id: modId, userId, gridId, role: "page", kind: "display",
-      label: artMod.label || artMod.meta?.originalName || "Artifact",
-    }, emit: true,
-  });
+  const pageModule = {
+    id: modId, userId, gridId, role: "page", kind: "display",
+    label: artMod.label || artMod.meta?.originalName || "Artifact",
+  };
+  CommitHelpers.createModule({ dispatch, socket, module: pageModule, emit: true });
   CommitHelpers.createView({
     dispatch, socket,
     view: { id: viewId, userId, gridId, ...viewFieldsForArtifactKind(artMod.kind), activeOccurrenceId: artifactOccId },
     emit: true,
   });
-  CommitHelpers.createOccurrence({
-    dispatch, socket,
-    occurrence: {
-      id: occId, userId, gridId, moduleId: modId, targetId: modId, targetType: "module",
-      parentId: null, viewId, occurrences: [artifactOccId],
-      iteration: { mode: "persistent" }, fields: {}, meta: { artifactPage: artifactOccId },
-    }, emit: true,
-  });
-  return occId;
+  const pageOccurrence = {
+    id: occId, userId, gridId, moduleId: modId, targetId: modId, targetType: "module",
+    parentId: null, viewId, occurrences: [artifactOccId],
+    iteration: { mode: "persistent" }, fields: {}, meta: { artifactPage: artifactOccId },
+  };
+  CommitHelpers.createOccurrence({ dispatch, socket, occurrence: pageOccurrence, emit: true });
+  const made = { id: occId, occurrence: pageOccurrence, module: pageModule };
+  pendingArtifactPages.set(artifactOccId, made);
+  return made;
 }
 
 // Wrap an already-created root occurrence in a DOC page that embeds it, parent

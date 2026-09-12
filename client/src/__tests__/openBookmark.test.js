@@ -9,7 +9,15 @@ const openOccurrenceInPanel = vi.fn();
 const addBookmarkOccurrence = vi.fn();
 const updateModule = vi.fn();
 const updateOccurrence = vi.fn();
-vi.mock("../helpers/importsFolder", () => ({ ensureArtifactPageOcc: (...a) => ensureArtifactPageOcc(...a) }));
+// The mock returns an id (the common case) or a full `{ id, occurrence, module }`
+// when a test needs a freshly minted page.
+vi.mock("../helpers/importsFolder", () => ({
+  ensureArtifactPage: (...a) => {
+    const r = ensureArtifactPageOcc(...a);
+    if (r == null) return null;
+    return typeof r === "object" ? r : { id: r, occurrence: null, module: null };
+  },
+}));
 vi.mock("../helpers/openOccurrenceInPanel", () => ({ openOccurrenceInPanel: (...a) => openOccurrenceInPanel(...a) }));
 vi.mock("../helpers/CommitHelpers", () => ({
   addBookmarkOccurrence: (...a) => addBookmarkOccurrence(...a),
@@ -81,6 +89,26 @@ describe("openBookmarkInPanel", () => {
   it("REFUSES when there is no panel at all", () => {
     expect(call({ panelsById: {}, fromPanelOccId: null }))
       .toMatchObject({ ok: false, reason: "no panel to open in" });
+  });
+
+  // The first click on a new browser mints its page, which the store does not
+  // hold yet. The open must be handed that page, or it finds nothing and the
+  // panel never moves.
+  it("hands a JUST-MINTED page to the open", () => {
+    const pageOcc = { id: "page-new", moduleId: "page-mod" };
+    const pageMod = { id: "page-mod", role: "page", kind: "display" };
+    ensureArtifactPageOcc.mockReturnValue({ id: "page-new", occurrence: pageOcc, module: pageMod });
+    call();
+    const arg = openOccurrenceInPanel.mock.calls[0][0];
+    expect(arg.occId).toBe("page-new");
+    expect(arg.occurrencesById["page-new"]).toBe(pageOcc);
+    expect(arg.modulesById["page-mod"]).toBe(pageMod);
+    expect(arg.occurrencesById.bm).toBeTruthy(); // the rest of the map survives
+  });
+
+  it("reports a failed open instead of claiming success", () => {
+    openOccurrenceInPanel.mockReturnValue({ ok: false, pageOccId: null, alreadyOpen: false });
+    expect(call()).toMatchObject({ ok: false, reason: "could not open the page in that panel" });
   });
 
   it("REFUSES when the artifact page cannot be resolved", () => {

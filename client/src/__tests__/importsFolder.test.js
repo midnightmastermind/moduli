@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { ensureImportsFolder, ensureImportsFolderAndPage, createImportsDocPage, shouldWrapImportOutput, ensureArtifactPageOcc, ensureFolderPageOcc, __resetFolderPageLatch } from "../helpers/importsFolder";
+import { ensureImportsFolder, ensureImportsFolderAndPage, createImportsDocPage, shouldWrapImportOutput, ensureArtifactPageOcc, ensureArtifactPage, __resetPendingArtifactPages, ensureFolderPageOcc, __resetFolderPageLatch } from "../helpers/importsFolder";
 
 vi.mock("../helpers/CommitHelpers", () => ({
   createFolder: vi.fn(),
@@ -192,7 +192,7 @@ describe("ensureArtifactPageOcc (2026-07-12 — artifact full-screen page)", () 
     gridId: "grid-1", userId: "u1", dispatch: vi.fn(), socket: {},
   });
 
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => { vi.clearAllMocks(); __resetPendingArtifactPages(); });
 
   it("mints a role:page kind:display page fronting the artifact", () => {
     const args = artifactWorld();
@@ -222,6 +222,27 @@ describe("ensureArtifactPageOcc (2026-07-12 — artifact full-screen page)", () 
     expect(pageOccId).toBe("page-x");
     expect(CommitHelpers.createModule).not.toHaveBeenCalled();
     expect(CommitHelpers.createOccurrence).not.toHaveBeenCalled();
+  });
+
+  it("hands back the minted page occurrence + module, and null for both when it already existed", () => {
+    const args = artifactWorld();
+    const made = ensureArtifactPage({ artifactOccId: "art-1", ...args });
+    expect(made.occurrence).toBe(CommitHelpers.createOccurrence.mock.calls[0][0].occurrence);
+    expect(made.module).toBe(CommitHelpers.createModule.mock.calls[0][0].module);
+    expect(made.occurrence.id).toBe(made.id);
+    args.occurrencesById["page-x"] = { id: "page-x", meta: { artifactPage: "art-1" } };
+    expect(ensureArtifactPage({ artifactOccId: "art-1", ...args })).toEqual({ id: "page-x", occurrence: null, module: null });
+  });
+
+  // A double click lands before the store has the first page. The maps passed
+  // to the second call are the same stale ones, so only the in-flight memory
+  // stops a second page being minted.
+  it("a second call before the store catches up reuses the page it just minted", () => {
+    const args = artifactWorld();
+    const first = ensureArtifactPageOcc({ artifactOccId: "art-1", ...args });
+    const second = ensureArtifactPageOcc({ artifactOccId: "art-1", ...args });
+    expect(second).toBe(first);
+    expect(CommitHelpers.createOccurrence).toHaveBeenCalledTimes(1);
   });
 
   it("returns null when the artifact can't resolve", () => {

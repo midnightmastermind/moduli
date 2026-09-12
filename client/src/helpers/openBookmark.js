@@ -15,7 +15,7 @@
 // The TARGET comes from `helpers/targetPanel`: the sticky grid-wide setting if
 // one is live, otherwise the panel the gesture happened in — and a stale target
 // falls back to the same place rather than swallowing the click.
-import { ensureArtifactPageOcc } from "./importsFolder";
+import { ensureArtifactPage } from "./importsFolder";
 import { openOccurrenceInPanel } from "./openOccurrenceInPanel";
 import { resolveOpenTarget } from "./targetPanel";
 import { occurrenceUrl } from "./occurrenceUrl";
@@ -41,15 +41,22 @@ export function openBookmarkInPanel({
   // The page must exist BEFORE the pin, or the panel is asked to show an id
   // that does not resolve yet — the created-but-unlinked shape from the other
   // direction.
-  const pageOccId = ensureArtifactPageOcc({
+  const page = ensureArtifactPage({
     artifactOccId: occId, occurrencesById, modulesById,
     gridId: occ.gridId, userId: occ.userId, dispatch, socket,
   });
-  if (!pageOccId) return { ok: false, panelId, via, reason: "could not resolve an artifact page" };
+  if (!page?.id) return { ok: false, panelId, via, reason: "could not resolve an artifact page" };
 
-  openOccurrenceInPanel({
-    occId: pageOccId, panelOccurrence, occurrencesById, modulesById, viewsById, dispatch, socket,
+  // A page minted just now is not in the maps yet. Without it the open walks
+  // to no page, activates nothing, and reports nothing — the first click on
+  // every new browser left the panel where it was (2026-09-12, prod).
+  const opened = openOccurrenceInPanel({
+    occId: page.id, panelOccurrence,
+    occurrencesById: page.occurrence ? { ...occurrencesById, [page.id]: page.occurrence } : occurrencesById,
+    modulesById: page.module ? { ...modulesById, [page.module.id]: page.module } : modulesById,
+    viewsById, dispatch, socket,
   });
+  if (opened && opened.ok === false) return { ok: false, panelId, via, reason: "could not open the page in that panel" };
   return { ok: true, panelId, via };
 }
 
