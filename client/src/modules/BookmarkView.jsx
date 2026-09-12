@@ -56,9 +56,20 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import { buildContainerCrumbOptions } from "../helpers/containerCrumbs";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 import { Spinner } from "../components/ui/spinner.jsx";
+import { readerStateFromPlan } from "../helpers/readerPlan";
+
+// LAZY, and it is a CYCLE BREAK rather than a bundle tweak. The static graph is
+// BookmarkView -> PagePreviewApp -> ModuleContainer -> ArtifactCard -> BookmarkView,
+// because a container renders artifact cards and an artifact card renders this.
+// ES modules tolerate that, but only by luck of evaluation order; a lazy import
+// has no edge at module-evaluation time at all.
+const PagePreviewBody = React.lazy(() =>
+  import("../PagePreviewApp.jsx").then((m) => ({ default: m.PagePreviewBody })),
+);
 
 const BTN_TITLES = {
-  reader: "The page as text — selectable, right-clickable",
+  reader: "The page as one document — a single container and textblock",
+  magic: "The page broken into occurrences — sections, textblocks, link chips, quotes, tables",
   web: "The live site",
   archive: "The closest Wayback Machine snapshot — for a dead link, or a page that has changed",
 };
@@ -106,7 +117,9 @@ export function resolveMode({ chosen = null, fetched = null, embeddable = false,
     // of why the SITE refused it.
     return fetched && fetched.ok && fetched.framable === false ? "blocked" : "web";
   }
-  if (chosen === "reader") return "reader";
+  // READER and MAGIC read the same text and differ only in how it is laid out
+  // (user, 2026-09-12), so every rule that applies to one applies to both.
+  if (chosen === "reader" || chosen === "magic") return chosen;
   // AND IT IS THE DEFAULT, ahead of reader. Reader mode on a video page yields
   // the description and some nav chrome — never the thing you opened it for. If
   // the site publishes a player, the player IS the content. Reader is still one
@@ -400,7 +413,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
     // no readable text — `frameUncertain` is false for those, so without this the
     // Reader button on such a page would have nothing to fall back to. Gated on an
     // explicit pick so it stays a request rather than a fetch everyone pays.
-    const wantsArchiveText = chosen === "reader" && fetched && (!fetched.ok || !fetched.usable);
+    const wantsArchiveText = (chosen === "reader" || chosen === "magic") && fetched && (!fetched.ok || !fetched.usable);
     if (!(chosen === "archive" || frameUncertain || wantsArchiveText) || !url || !socket || archive) return;
     const req = ++archiveReqRef.current;
     setArchive({ loading: true });
@@ -464,6 +477,67 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   });
   const reason = fallbackReason(fetched);
   const pick = useCallback((m) => setChosen(m), []);
+
+  // ── THE READER'S STRUCTURE ──────────────────────────────────────────────
+  //
+  // User, 2026-09-12: *"the reader mode should be turning the things into
+  // textblocks and containers like the wikipedia import"*. `import_plan` runs
+  // the IMPORTER's own planner with `dryRun: true` and writes nothing, so the
+  // reader shows the same containers / textblocks / quotes / tables an import
+  // would produce without minting any of them. See `helpers/readerPlan` for the
+  // measurement that ruled out minting (avg 299 occurrences per page read).
+  //
+  // KEYED ON THE MARKDOWN, not on the url: the same page yields a live read and
+  // an archive read with different text, and the plan must follow whichever one
+  // `readerSource` picked. Keying on the url would leave the archive's structure
+  // showing the live page's.
+  //
+  // TWO SHAPES (user, 2026-09-12): READER asks for one container + one
+  // textblock holding the whole article; MAGIC asks for the importer's full
+  // tree. The SHAPE is the mode, so the key is shape + markdown.
+  //
+  // CACHED PER URL, because flipping Reader <-> Magic is a thing people do to
+  // compare, and re-planning an 800-occurrence Wikipedia tree on every flip
+  // would make the toggle feel broken.
+  const [plan, setPlan] = useState(null);
+  const planReqRef = useRef(0);
+  const planForRef = useRef(null);
+  const planCacheRef = useRef(new Map());
+  const isTextMode = mode === "reader" || mode === "magic";
+  useEffect(() => {
+    const md = reader.markdown;
+    // Planned only when a text mode is actually on screen. The read itself runs
+    // for every open (it is what DECIDES the mode), but a page you never switch
+    // to Reader on should not pay for a tree nobody looks at.
+    if (!isTextMode || !md || !socket) return;
+    const shape = mode;
+    const key = `${shape} ${md}`;
+    if (planForRef.current === key) return;
+    planForRef.current = key;
+    // Bumped on EVERY switch, cached or not, so a slow reply for the shape just
+    // left cannot land on top of the one just picked.
+    const req = ++planReqRef.current;
+    const cached = planCacheRef.current.get(key);
+    if (cached) { setPlan(cached); return; }
+    setPlan({ loading: true });
+    socket.emit("import_plan", { content: md, gridId, shape, requestId: `p${req}` }, (out) => {
+      const res = out || { ok: false, error: "no reply" };
+      if (res.ok) planCacheRef.current.set(key, res);
+      // The same stale-reply guard both reads take.
+      if (planReqRef.current !== req) return;
+      setPlan(res);
+    });
+  }, [isTextMode, mode, reader.markdown, socket, gridId]);
+  // Navigating away drops the plan and its cache. Safe in this order because
+  // `fetched` is reset on the same url change, so the effect above sees no
+  // markdown to plan for the page being left; and a stale reply is dropped by
+  // the request guard the moment the new page's text arrives and supersedes it.
+  useEffect(() => { planForRef.current = null; planCacheRef.current.clear(); setPlan(null); }, [url]);
+
+  const readerTree = useMemo(
+    () => (plan && plan.ok ? readerStateFromPlan(plan) : null),
+    [plan],
+  );
 
   // A BOOKMARK WITH NO LINK HAS NOTHING TO SHOW — but a SCRATCH BROWSER with no
   // link is the ordinary case, and the whole point of it: an empty address bar
@@ -571,7 +645,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
             reader: {reason}
           </span>
         )}
-        {mode === "reader" && reader.from === "archive" && (
+        {isTextMode && reader.from === "archive" && (
           // NOT A DETAIL ON A NEWS ARTICLE. The live page had nothing readable
           // and this text is a CAPTURE — saying when it was taken is the
           // difference between reading an archive and being misled by one.
@@ -588,6 +662,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
           </span>
         )}
         {btn("reader", "Reader")}
+        {btn("magic", "Magic")}
         {btn("web", "Web")}
         {btn("archive", "Archive")}
         {url && <a href={url} target="_blank" rel="noreferrer noopener"
@@ -655,7 +730,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
             <span>Reading the page…</span>
           </div>
         )}
-        {url && mode === "reader" && (
+        {url && isTextMode && (
           // OUR DOM: selection and right-click work here, which is the whole
           // point of preferring this mode.
           reader.from === "loading" ? (
@@ -668,8 +743,9 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
               <span>Reading the saved copy…</span>
             </div>
           ) : (
-          <div style={{ height: "100%", overflowY: "auto", padding: "12px 16px", whiteSpace: "pre-wrap",
-                        fontSize: 13, lineHeight: 1.55, color: "var(--text-primary)",
+          <div data-reader-pane="1"
+               style={{ height: "100%", overflowY: "auto", padding: 0,
+                        color: "var(--text-primary)",
                         // A GROUND, for the same reason the frame has one — and found the
                         // same way, by looking (2026-09-10). The spread's overlay is
                         // deliberately transparent so the grid reads through it (user,
@@ -684,9 +760,43 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
                         // strip above already made, and for exactly this reason: `--input-bg`
                         // at 0.08 alpha vanishes over the spread's dark backdrop.
                         background: "var(--panel-bg)" }}>
-            {reader.markdown || (
-              <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
-                This page has no readable text — not live, and not in the archive.
+            {/* THE PAGE AS REAL OCCURRENCES, not as markdown source (user, 2026-09-12).
+                `readerTree` is the importer's own planned tree; `PagePreviewBody`
+                renders it with the app's real Page/Container/DocContent renderers.
+
+                THE ISOLATION IS STRUCTURAL. Its `parentState` is the plan and
+                nothing else, and it is handed `dispatch`/`socket` of null
+                internally — there is no path from this subtree to a write, so a
+                planned row can never reach the store or the server. That is the
+                2026-08-04 phantom class made impossible rather than guarded
+                against. `publishComputed={false}` keeps it away from the
+                computed-values singleton it would otherwise blank. */}
+            {readerTree ? (
+              <React.Suspense fallback={null}>
+                <PagePreviewBody
+                  parentState={readerTree.state}
+                  occurrenceId={readerTree.rootOccurrenceId}
+                  scroll
+                  publishComputed={false}
+                />
+              </React.Suspense>
+            ) : plan?.loading || (reader.markdown && !plan) ? (
+              // The markdown is in hand and the structure is not yet. Say so
+              // rather than flashing the raw source for a frame — seeing the
+              // asterisks appear and vanish reads as a bug.
+              <div style={{
+                height: "100%", display: "flex", flexDirection: "column", gap: 10,
+                alignItems: "center", justifyContent: "center", color: "var(--text-muted)",
+                fontSize: 12, fontFamily: "var(--font-mono)",
+              }}>
+                <Spinner size="md" className="staged-hold-spinner" />
+                <span>Laying out the page…</span>
+              </div>
+            ) : (
+              <span style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", padding: "12px 16px", display: "block" }}>
+                {reader.markdown
+                  ? "This page could not be laid out."
+                  : "This page has no readable text — not live, and not in the archive."}
               </span>
             )}
           </div>
@@ -721,7 +831,17 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
         )}
         {url && mode === "archive" && (
           archive?.loading || !archive ? (
-            <div className="text-xs text-muted-foreground" style={{ padding: 16 }}>Searching the archive…</div>
+            // The same spinner the reader and the frame use (user, 2026-09-10: "we
+            // also need loading circles for the reader and archive view") — this
+            // branch was the one left as bare text.
+            <div style={{
+              height: "100%", display: "flex", flexDirection: "column", gap: 10,
+              alignItems: "center", justifyContent: "center", color: "var(--text-muted)",
+              fontSize: 12, fontFamily: "var(--font-mono)",
+            }}>
+              <Spinner size="md" className="staged-hold-spinner" />
+              <span>Searching the archive…</span>
+            </div>
           ) : archive.ok ? (
             // Framed like the live site, with the SAME sandbox: a snapshot is a
             // replay of a real page and can carry the same scripts.

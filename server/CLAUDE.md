@@ -2,6 +2,36 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-12 — `import_plan`, and an importer bug that DELETED content)
+- **`socketHandlers/import.js` — new `import_plan`**: `markdownToModuli` with `dryRun: true`.
+  Returns the planned modules + occurrences and writes NOTHING — no Mongo, no warm cache, **no
+  broadcast** (an `occurrence_created` here would fold phantoms into every open tab's store). Backs
+  reader mode, which renders the planned rows through the app's own renderers without minting them.
+  **Why not mint:** measured at an average of **299 occurrences per page read** (Wikipedia 803)
+  against a 21,415-row grid. One planner, two modes — a second "plan" path is how the read tree and
+  the imported tree would drift.
+- **`services/markdownImporter.js` — `parseInline` now handles BACKSLASH ESCAPES, and the bug it
+  fixes deleted content.** turndown escapes markdown punctuation when converting HTML, so real prose
+  arrives carrying `\[`, `\*`, `\_`. Nothing consumed them: the plain-text scan stops at `[`, so
+  `\[` emitted the BACKSLASH and the bracket was then swallowed by the never-infinite-loop safety.
+  Measured on a real archived article — `\[spoilers herein.\]` rendered as `\spoilers herein.\]`,
+  a backslash printed AND a bracket silently gone. **This hit the wikipedia import too.**
+- **The escapable set is CommonMark's ASCII punctuation**, so `C:\Users` and `\alpha` are left
+  exactly as written. **A non-escapable backslash is EMITTED, not skipped** — the first version added
+  `\` to the scan set without that branch, leaving `stop === i` so the safety ate it and `C:\Users`
+  became `C:Users`. Caught by its own test.
+- 6 tests on the handler (the writes-nothing one A/B'd by flipping `dryRun` — the control proving it
+  can SEE a write) + 4 on the escapes. 2,151 server tests.
+- **`import_plan` takes `shape: "reader" | "magic"`** (same day, user: *"one for reader and one for
+  magic"*). `"reader"` → `planReaderShape` in `markdownImporter.js`: ONE `container/doc` listing AND
+  embedding ONE `textblock/doc` whose textmap is the whole article, built by `markdownToReaderDoc`
+  from the same `parseBlocks`/`parseInline`. Anything else → the full `markdownToModuli` dryRun
+  (the old behaviour, so the default is unchanged). Links are marks, not chips; the leading H1 is
+  lifted into the container label. Schema traps handled: empty text nodes stripped, headings clamped
+  to 1-3 (the editor's registered levels), every table cell wraps a paragraph, an all-blank header
+  row is dropped. Eminem: reader 2 occurrences, magic 806. 7 new tests; 2,158 server tests.
+
+
 ## Recent Changes (2026-09-09 — `meta.userTouched`: the teardown spares a day you EDITED)
 - **`socketHandlers/occurrences.js` (`update_occurrence`)** — stamps
   `next.meta.userTouched = true` when the payload carries `__actionId`. That is the

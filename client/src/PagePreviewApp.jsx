@@ -48,7 +48,7 @@ export default function PagePreviewApp({ occurrenceId }) {
 // React tree) can mount it inline without an iframe. Same subtree
 // filtering, same context-override architecture — only the state source
 // changes.
-export function PagePreviewBody({ parentState, occurrenceId }) {
+export function PagePreviewBody({ parentState, occurrenceId, scroll = false, publishComputed = true }) {
   // Build a SUBTREE-only view of the parent state. The iframe needs:
   //   - the target occurrence + every descendant reachable via .occurrences[]
   //     or .parentId (instances inside containers, container children of a
@@ -288,11 +288,24 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
   }), [occurrencesById, modulesById, viewsById, fieldsById, containersById, instancesById, artifactsById, textblocksById, leafModulesById, manifestsById, foldersById, operationsById, childrenByParentId, noop, parentState, getOcc, getMod, getOccMap, getModMap, getFieldMap, getParentId, getLinkedGroup, getState]);
 
   const dataValue = useMemo(() => ({ state: parentState || {} }), [parentState]);
-  // Preview iframes have their own module graph → their own computedValues
-  // store instance. Publish the parent snapshot so field displays resolve.
+  // Publish the parent snapshot so field displays resolve.
+  //
+  // `publishComputed` IS AN OPT-OUT AND IT IS LOAD-BEARING. The store is a
+  // module-level singleton (`state/computedValuesStore`), and the comment that
+  // used to sit here — "preview iframes have their own module graph → their own
+  // store instance" — went stale when `PreviewNode` stopped using an iframe and
+  // began mounting this component INLINE in the parent React tree. Inline, there
+  // is one `_map` for the whole app. PreviewNode is unharmed only because it
+  // passes the LIVE app state, so its publish re-publishes the same map.
+  //
+  // A caller handing over an ISOLATED state (reader mode) carries no computed
+  // values, and publishing `{}` would blank every display field in the app.
+  // Such a caller passes `publishComputed={false}` and touches the singleton
+  // not at all.
   useLayoutEffect(() => {
+    if (!publishComputed) return;
     publishComputedValues(parentState?.computedValues || {});
-  }, [parentState?.computedValues]);
+  }, [parentState?.computedValues, publishComputed]);
   const liveValue = useMemo(() => ({
     canUndo: false, canRedo: false,
     undo: noop, redo: noop,
@@ -316,7 +329,10 @@ export function PagePreviewBody({ parentState, occurrenceId }) {
         <StaticTextContext.Provider value={true}>
           <div style={{
             width: "100%", height: "100%",
-            overflow: "hidden",
+            // A preview CARD is a fixed-size thumbnail and must not scroll; a
+            // READER is a page of prose and must. Same subtree, same renderers,
+            // one axis of difference.
+            overflow: scroll ? "auto" : "hidden",
             background: "var(--body-bg, #101318)",
             color: "var(--text-primary, #e0e0e0)",
             display: "flex",

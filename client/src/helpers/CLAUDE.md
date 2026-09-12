@@ -2,6 +2,29 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-12 — `readerPlan.js` NEW: the reader renders REAL occurrences)
+- **`readerPlan.js` (NEW, 6 tests)** — `readerStateFromPlan(plan)` turns an `import_plan` reply into
+  an isolated grid state for `PagePreviewBody`. User: *"the reader mode should be turning the things
+  into textblocks and containers like the wikipedia import"*.
+- **The reader used to print `reader.markdown` into a `pre-wrap` div.** Measured on the article in
+  the user's screenshot: **1,255 chars = 11.3% of the body was archive.org URLs**, plus 13 bold runs,
+  7 italics and 6 escapes rendered as literal syntax.
+- **A markdown-to-React renderer would be the hack this repo has a rule against** (*never re-render
+  occurrence content as a static copy*). `markdownToModuli` already produces containers, textblocks,
+  quotes and tables, and the app already renders all four.
+- **THE TREE IS PLANNED, NEVER MINTED, and the number is the reason:** WaPo 11 occurrences,
+  danbrown 84, Wikipedia **803** (712 inline link chips) — **avg 299 per page read against a
+  21,415-row grid**. Reading ~26 Wikipedia-sized pages would double it, and the spread page these
+  would hang off is permanent by design. `import_url` stays the deliberate "keep this page" action.
+- **The isolation is STRUCTURAL.** `PagePreviewBody` gets the plan as its own `parentState` with
+  `dispatch`/`socket` nulled inside it, so there is no path from the reader to a write — the
+  2026-08-04 phantom class made impossible rather than guarded against.
+- **`computedValues` IS DELIBERATELY ABSENT**, and that is load-bearing: the store behind it is a
+  module-level singleton shared with the live app, so a reader publishing its own empty map would
+  **blank every display field on the grid**. The caller passes `publishComputed={false}`.
+- **Refuses a plan whose root is not among its occurrences** — that renders an empty box, which is a
+  different message from "this page has no text". A/B'd (fails 1), as is carrying `computedValues`.
+
 ## Recent Changes (2026-09-11 — `spreadDock.js`: `SpreadMaximizeContext`)
 - **`SpreadMaximizeContext` / `useSpreadMaximize`** — a third viewer context beside `DockRectContext`
   and `InSpreadContext`, for the same reason they exist: the viewer's tiles render through portals,

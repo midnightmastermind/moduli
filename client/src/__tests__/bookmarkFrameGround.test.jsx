@@ -83,12 +83,14 @@ describe("a framed page is never transparent", () => {
     await act(async () => {
       c = render(<BookmarkView occurrence={occurrence} module={{ kind: "bookmark" }} socket={socket} isActivePage />).container;
     });
-    // THE INNERMOST div holding the text — the content WRAPPER's textContent is
-    // the same string and comes first in document order, which is what an
-    // earlier draft of this test matched (and then reported no background on a
-    // component that had one).
-    const reader = [...c.querySelectorAll("div")]
-      .filter((d) => d.textContent === "the article text").pop();
+    // FOUND BY ITS OWN HOOK, not by the text inside it. An earlier version
+    // matched `textContent === "the article text"`, which only worked while the
+    // reader PRINTED ITS MARKDOWN SOURCE; since 2026-09-12 it renders the
+    // planned occurrence tree instead, so that selector found nothing and the
+    // test failed while the ground it guards was perfectly intact. What this
+    // test is ABOUT is the background, so it should not also depend on how the
+    // contents happen to be rendered.
+    const reader = c.querySelector("[data-reader-pane]");
     expect(reader, "no reader pane rendered").toBeTruthy();
     expect(reader.style.background, "the reader is transparent over the grid").toBeTruthy();
   });

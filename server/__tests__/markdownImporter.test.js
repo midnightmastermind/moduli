@@ -595,3 +595,56 @@ describe("markdownToModuli — 2026-06-09 lead aside (main image + infobox table
     expect(neighborMod.role).toBe("artifact"); // single image neighbor, NOT a leadAside doc container
   });
 });
+
+// ── BACKSLASH ESCAPES (2026-09-12) ────────────────────────────────────────
+// turndown escapes markdown punctuation when converting HTML, so real prose
+// arrives carrying `\[`, `\*`, `\_`. parseInline consumed none of them, and
+// the failure deleted content: the plain-text scan stops at `[`, so `\[`
+// emitted the backslash and the bracket was then swallowed by the
+// never-infinite-loop safety.
+describe("parseInline backslash escapes", () => {
+  const textOf = (res) => {
+    const out = [];
+    (function walk(n) {
+      if (!n) return;
+      if (n.type === "text" && n.text) out.push(n.text);
+      (n.content || []).forEach(walk);
+      (Array.isArray(n) ? n : []).forEach(walk);
+    })({ content: res.occurrences.map((o) => o.textmap).filter(Boolean) });
+    return out.join("");
+  };
+  const run = async (markdown) =>
+    markdownToModuli({ gridId: "g", userId: "u", markdown, dryRun: true, title: "T" });
+
+  it("renders the escaped character and DROPS the backslash", async () => {
+    const t = textOf(await run("Prose \\[bracketed\\] and \\*starred\\* here."));
+    expect(t).toContain("[bracketed]");
+    expect(t).toContain("*starred*");
+    expect(t).not.toContain("\\");
+  });
+
+  // The sharp half: before the fix the bracket was silently deleted, so the
+  // text came back SHORTER than what the author wrote.
+  it("does not delete the escaped bracket", async () => {
+    const t = textOf(await run("Darkness \\[spoilers herein.\\] Next."));
+    expect(t).toContain("[spoilers herein.]");
+  });
+
+  // An escape means "the next character is literal", so it must beat emphasis.
+  it("an escaped asterisk does not open an italic run", async () => {
+    const res = await run("a \\*not italic\\* b");
+    const marks = res.occurrences
+      .flatMap((o) => (o.textmap?.content || []))
+      .flatMap((p) => (p.content || []))
+      .flatMap((n) => n.marks || []);
+    expect(marks.some((m) => m.type === "italic")).toBe(false);
+  });
+
+  // The guard that keeps ordinary prose safe: only ASCII punctuation is
+  // escapable, so a Windows path or a LaTeX macro is left exactly as written.
+  it("leaves a backslash before a LETTER alone", async () => {
+    const t = textOf(await run("Open C:\\Users\\me and \\alpha here."));
+    expect(t).toContain("C:\\Users\\me");
+    expect(t).toContain("\\alpha");
+  });
+});

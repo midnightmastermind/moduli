@@ -21,6 +21,16 @@
 // Side effects: emits `module_created` + `occurrence_created` to the user's
 // socket room for every minted entity (the existing client store handlers
 // fold them into local state — no client-side ID tracking needed).
+// Event: `import_plan`
+//   payload: { content, gridId?, title?, requestId }
+//   Response (via `import_plan_result`): { ok, requestId, rootOccurrenceId,
+//                                          modules, occurrences, error? }
+//
+//   The SAME importer as `import_text`, run with `dryRun: true`. Plans the
+//   tree and writes NOTHING — no Mongo, no warm cache, no broadcast. Backs
+//   reader mode, which renders the planned occurrences through the app's own
+//   renderers without minting them (see the handler for the measurement).
+//
 // Event: `import_url`  (the in-app half of POST /api/v1/import/url)
 //   payload: { url, gridId, parentId?, title?, requestId }
 //   Response (via `import_url_result`): { ok, requestId, rootOccurrenceId, sourceUrl, stats, error? }
@@ -30,7 +40,7 @@
 //   and the SERVER is the thing with network reach, so the check lives here
 //   rather than in the caller.
 import { htmlToMarkdown, wikiHtmlToMarkdown } from "../services/wikipediaTools.js";
-import { markdownToModuli } from "../services/markdownImporter.js";
+import { markdownToModuli, planReaderShape } from "../services/markdownImporter.js";
 import { persistImportResult } from "../utils/persistImport.js";
 import { fetchPageHtml } from "../utils/safeFetchUrl.js";
 import { fetchWaybackSnapshot } from "../utils/waybackSnapshot.js";
@@ -121,6 +131,78 @@ export function registerImportHandlers(socket, {
       });
     } catch (err) {
       console.error("import_text error:", err);
+      reply({ ok: false, error: err?.message || "internal error" });
+    }
+  });
+
+  // THE SAME IMPORTER, STOPPED BEFORE IT WRITES (user, 2026-09-12: *"the reader
+  // mode should be turning the things into textblocks and containers like the
+  // wikipedia import"*).
+  //
+  // Reader mode wants the STRUCTURE the importer produces — headings as
+  // containers, prose as textblocks, pull-quotes as quote artifacts, tables as
+  // table containers — rendered by the app's own renderers rather than printed
+  // as markdown source. What it must NOT do is mint those rows, and the
+  // measurement is why:
+  //
+  //     WaPo article    1,619 words  ->   11 occurrences
+  //     danbrown.com      814 words  ->   84 occurrences
+  //     Wikipedia      11,678 words  ->  803 occurrences   (712 inline links)
+  //                                 avg  299 per page read
+  //     the live grid today               21,415 occurrences
+  //
+  // Reading ~26 Wikipedia-sized pages would DOUBLE the grid, and a spread page
+  // is permanent by design ("nothing to clean up on close"), so there is no
+  // teardown to lean on. Importing on open is therefore not a heavier version
+  // of the right idea — it is a different feature, and `import_url` already is
+  // it for the pages a user deliberately keeps.
+  //
+  // So this is `markdownToModuli`'s OWN dryRun, which the planner has carried
+  // since it was written. ONE planner, two modes: a second "plan" path is
+  // exactly how the read tree and the imported tree would drift, which is the
+  // reason `readerExtract` reuses the import chain in the first place.
+  //
+  // READ-ONLY, and stronger than the other read-only handlers: it does not
+  // touch Mongo, does not touch the warm cache, and broadcasts NOTHING — an
+  // `occurrence_created` here would fold phantoms into every open tab's store,
+  // which is the 2026-08-04 dangling-child-ref class handed a megaphone.
+  socket.on("import_plan", async (payload = {}, ack) => {
+    const { content, gridId, title = "", requestId = null, shape = "magic" } = payload;
+    const userId = socket.userId;
+
+    function reply(out) {
+      if (typeof ack === "function") ack(out);
+      socket.emit("import_plan_result", { requestId, ...out });
+    }
+
+    try {
+      if (!userId) return reply({ ok: false, error: "unauthenticated" });
+      if (typeof content !== "string" || !content.trim()) {
+        return reply({ ok: false, error: "content (non-empty string) required" });
+      }
+
+      // `gridId` is stamped onto the planned rows so they look like every other
+      // occurrence to the renderers. It is NOT authorization — nothing is
+      // written — so an absent one plans fine rather than refusing.
+      // TWO SHAPES, ONE PARSER (user, 2026-09-12). "reader" keeps the article
+      // as one container + one textblock; "magic" is the importer's full tree.
+      // Anything unrecognised gets MAGIC, which is what this handler returned
+      // before the shape existed.
+      const result = shape === "reader"
+        ? planReaderShape({ gridId: gridId || null, userId, markdown: content, title: title || null })
+        : await markdownToModuli({
+            gridId: gridId || null, parentId: null, userId,
+            markdown: content, dryRun: true, title,
+          });
+
+      reply({
+        ok: true,
+        rootOccurrenceId: result.rootOccurrenceId,
+        modules: result.modules,
+        occurrences: result.occurrences,
+      });
+    } catch (err) {
+      console.error("import_plan error:", err);
       reply({ ok: false, error: err?.message || "internal error" });
     }
   });

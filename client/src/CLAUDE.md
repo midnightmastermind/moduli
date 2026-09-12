@@ -2,6 +2,20 @@
 
 _Updated: 2026-08-17. Check this file before re-reading source._
 
+## Recent Changes (2026-09-12 — `PagePreviewApp`: `scroll` + `publishComputed`, and a stale comment that hid a landmine)
+- **`PagePreviewBody` gained two props.** `scroll` — a preview CARD is a fixed-size thumbnail and
+  must not scroll, a READER is a page of prose and must; same subtree, one axis of difference.
+- **`publishComputed` (default true) IS AN OPT-OUT AND IT IS LOAD-BEARING.** The body called
+  `publishComputedValues(parentState?.computedValues || {})`, and that store is a **module-level
+  singleton** (`state/computedValuesStore`). The comment above it claimed preview iframes have their
+  own instance — **stale since `PreviewNode` stopped using an iframe and began mounting this
+  component INLINE in the parent tree.** PreviewNode is unharmed only because it passes the LIVE app
+  state, so its publish re-publishes the same map. A caller handing over an ISOLATED state (reader
+  mode) carries no computed values, and publishing `{}` would **blank every display field in the
+  app**. Found by grepping what `parentState` is read for, not by a failure.
+- *A comment asserting an invariant is not the invariant* — this file's own line, paid again, and
+  this time the stale comment was standing between a real hazard and whoever read it next.
+
 ## Recent Changes (2026-09-04 — mosaic snap: the two wirings)
 
 - **`Grid.jsx` — the Ctrl+Alt+Arrow effect no longer bails on a mosaic grid.** It opened

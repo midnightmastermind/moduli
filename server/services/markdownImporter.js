@@ -140,6 +140,33 @@ function parseInline(text, mintLink) {
   let i = 0;
   while (i < text.length) {
     const rest = text.slice(i);
+    // BACKSLASH ESCAPE — before every other token, because that is what an
+    // escape means: the NEXT character is literal, not syntax.
+    //
+    // turndown escapes markdown punctuation when it converts HTML to markdown,
+    // so real prose arrives carrying `\[`, `\*`, `\_`. Nothing here
+    // consumed them, and the failure was worse than a stray backslash: the
+    // plain-text scan below stops at `[`, so `\[` emitted the BACKSLASH, and
+    // then the bracket matched no rule and was swallowed by the
+    // never-infinite-loop safety. Measured on a real archived article:
+    // `\[Some moderate spoilers herein.\]` rendered as
+    // `\Some moderate spoilers herein.\]` — a backslash printed AND a
+    // bracket silently deleted.
+    //
+    // The escapable set is CommonMark's ASCII punctuation. Restricting it to
+    // that set is what keeps ordinary prose safe: a lone `\` before a letter
+    // (a Windows path, a LaTeX macro) is left exactly as written.
+    if (rest[0] === "\\") {
+      // A backslash before ASCII punctuation escapes it; before anything else
+      // it is just a backslash and MUST be emitted. The plain-text scan below
+      // now stops at `\\`, so falling through here would leave `stop === i`
+      // and the never-infinite-loop safety would consume the character
+      // silently — turning `C:\\Users` into `C:Users`. Caught by its own test.
+      const escaped = rest.length > 1 && /[!-\/:-@\[-`{-~]/.test(rest[1]);
+      out.push({ type: "text", text: escaped ? rest[1] : "\\" });
+      i += escaped ? 2 : 1;
+      continue;
+    }
     // Link: [text](url) — tried FIRST so it wins over a surrounding emphasis run.
     // The url group allows ONE level of balanced parens so Wikipedia titles like
     // `…/Encore_(Eminem_album)` aren't truncated at the first `)` (which left a
@@ -184,7 +211,7 @@ function parseInline(text, mintLink) {
       i += codeMatch[0].length; continue;
     }
     // Plain text up to the next special token
-    const nextSpecial = rest.search(/[\[*`]/);
+    const nextSpecial = rest.search(/[\\[*`]/);
     const stop = nextSpecial < 0 ? text.length : i + nextSpecial;
     const plain = text.slice(i, stop);
     if (plain) out.push({ type: "text", text: plain });
@@ -853,6 +880,141 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
   }
   const rootOccurrenceId = buildContainer(tree, rootParentId, true);
   return { modules, occurrences, rootOccurrenceId };
+}
+
+// ----- READER shape: the whole article as ONE textblock -----
+//
+// User, 2026-09-12: *"we should have two modes. one for reader and one for
+// magic. the reader shows one container and one textblock for the entire
+// articles. magic makes them the way i just had you do it (multiple
+// occurances)."*
+//
+// MAGIC is `mintEntities` — headings become containers, prose becomes many
+// textblocks, links become chips. READER keeps the article as a document: the
+// same `parseBlocks` + `parseInline` (so both shapes read the markdown the same
+// way and cannot disagree about what the text SAYS), but every block lands as a
+// node inside a single textblock instead of becoming its own occurrence.
+// Links stay ordinary link marks — a chip is an occurrence, and the point of
+// this shape is that there is exactly one.
+
+// ProseMirror rejects an empty text node outright ("Empty text nodes are not
+// allowed"), and parseInline returns one for an empty string. One bad node
+// throws the whole doc, so they are stripped at the boundary.
+const dropEmptyText = (nodes) => (nodes || []).filter((n) => !(n.type === "text" && !n.text));
+
+const paragraphNode = (nodes) => {
+  const content = dropEmptyText(nodes);
+  return content.length ? { type: "paragraph", content } : { type: "paragraph" };
+};
+
+// The doc editor registers heading levels 1-3 only (client/src/ui/Editor.jsx);
+// a level-5 heading would not parse.
+const READER_MAX_HEADING = 3;
+
+/**
+ * Markdown → one TipTap doc's content array. Pure.
+ * Returns { label, content } — `label` is the article's leading H1 when it has
+ * one (lifted out so the container header carries it and the body does not
+ * print it twice), else null.
+ */
+export function markdownToReaderDoc(markdown) {
+  const blocks = parseBlocks(String(markdown || ""));
+  let label = null;
+  if (blocks[0]?.kind === "heading" && blocks[0].level === 1) {
+    label = blocks.shift().text || null;
+  }
+  const content = [];
+  for (const b of blocks) {
+    if (b.kind === "heading") {
+      if (!b.text) continue;
+      content.push({
+        type: "heading",
+        attrs: { level: Math.min(Math.max(b.level || 1, 1), READER_MAX_HEADING) },
+        content: [{ type: "text", text: b.text }],
+      });
+    } else if (b.kind === "paragraph") {
+      for (const node of paragraphToBlocks(b.text)) {
+        content.push(node.type === "paragraph" ? paragraphNode(node.content) : node);
+      }
+    } else if (b.kind === "board") {
+      const items = (b.items || []).map((it) => ({
+        type: "listItem",
+        content: [paragraphNode(parseInline(String(it || "")))],
+      }));
+      if (items.length) content.push({ type: "bulletList", content: items });
+    } else if (b.kind === "quote") {
+      const inner = [paragraphNode(parseInline(b.text))];
+      if (b.attribution) {
+        inner.push({ type: "paragraph", content: [{ type: "text", text: `— ${b.attribution}`, marks: [{ type: "italic" }] }] });
+      }
+      content.push({ type: "blockquote", content: inner });
+    } else if (b.kind === "codeBlock" || b.kind === "htmlBlock") {
+      const text = b.kind === "htmlBlock" ? b.html : b.text;
+      const lang = b.kind === "htmlBlock" ? "html" : b.lang;
+      content.push({
+        type: "codeBlock",
+        attrs: lang ? { language: lang } : {},
+        ...(text ? { content: [{ type: "text", text }] } : {}),
+      });
+    } else if (b.kind === "image") {
+      content.push({ type: "image", attrs: { src: b.src, alt: b.alt || null } });
+    } else if (b.kind === "table") {
+      const cell = (type, value) => ({
+        type, content: [paragraphNode(parseInline(stripInlineMd(String(value ?? ""))))],
+      });
+      const rows = [];
+      // A header row made only of blanks (the Wikipedia infobox shape) is not a
+      // header — it would render as an empty bold band.
+      if ((b.headers || []).some((h) => String(h ?? "").trim())) {
+        rows.push({ type: "tableRow", content: b.headers.map((h) => cell("tableHeader", h)) });
+      }
+      const width = Math.max(b.headers?.length || 0, ...(b.rows || []).map((r) => r.length), 1);
+      for (const r of b.rows || []) {
+        const cells = [];
+        for (let i = 0; i < width; i++) cells.push(cell("tableCell", r[i]));
+        rows.push({ type: "tableRow", content: cells });
+      }
+      if (rows.length) content.push({ type: "table", content: rows });
+    }
+  }
+  if (!content.length) content.push({ type: "paragraph" });
+  return { label, content };
+}
+
+/**
+ * Plan the READER shape: one doc container embedding one textblock.
+ * Never writes — reader mode renders these rows in an isolated state.
+ */
+export function planReaderShape({ gridId = null, userId, markdown, title = null }) {
+  const { label, content } = markdownToReaderDoc(markdown);
+  const containerModId = uid();
+  const containerOccId = uid();
+  const textblockModId = uid();
+  const textblockOccId = uid();
+  const modules = [
+    {
+      id: containerModId, userId, gridId,
+      role: "container", kind: "doc",
+      label: label || title || "Article",
+      meta: { headingLevel: 1 },
+    },
+    { id: textblockModId, userId, gridId, role: "textblock", kind: "doc", label: "" },
+  ];
+  const occurrences = [
+    {
+      id: containerOccId, userId, gridId, moduleId: containerModId, parentId: null,
+      fields: {},
+      occurrences: [textblockOccId],
+      // A doc container renders its TEXTMAP, not its child list, so the
+      // textblock has to be embedded as well as listed or it is invisible.
+      textmap: { type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: textblockOccId } }] },
+    },
+    {
+      id: textblockOccId, userId, gridId, moduleId: textblockModId, parentId: containerOccId,
+      textmap: { type: "doc", content },
+    },
+  ];
+  return { ok: true, dryRun: true, rootOccurrenceId: containerOccId, modules, occurrences };
 }
 
 /**
