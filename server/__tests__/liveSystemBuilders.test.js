@@ -692,12 +692,36 @@ describe("makeTrackerOp", () => {
     }
     return out;
   }
-  function loopRules(op) {
-    // every AND-condition rule list of an if directly inside a $allItems loop
-    return flat(op.pipeline.steps)
-      .filter(s => s.type === "loop" && s.overExpr === "$allItems")
-      .flatMap(l => (l.body || []).filter(b => b.type === "if").map(b => b.condition.rules));
+  function trackerLoops(op) {
+    return flat(op.pipeline.steps).filter(s => s.type === "loop" && s.as === "$item");
   }
+  function loopRules(op) {
+    // every AND-condition rule list of an if directly inside a tracker loop
+    const loops = trackerLoops(op);
+    // A filter that matches no loop makes every `for` below pass vacuously.
+    expect(loops.length).toBeGreaterThan(0);
+    return loops.flatMap(l => (l.body || []).filter(b => b.type === "if").map(b => b.condition.rules));
+  }
+
+  // ── 2026-09-12: a tracker loops over INSTANCES, except completionRate ──
+  it("value/count trackers loop $allInstances (the role-filtered slice)", () => {
+    const ops = [
+      makeTrackerOp({ ...base, name: "T1", goalLabel: "G", goalFieldId: "TW", sourceFieldId: "WF", agg: "sum", timeFilter: "daily", supportsReplace: true }),
+      makeTrackerOp({ ...base, name: "T2", goalLabel: "G", goalFieldId: "B", incomeFieldId: "INC", spentFieldId: "SPN", agg: "net", timeFilter: "daily" }),
+      makeTrackerOp({ ...base, name: "T3", goalLabel: "G", goalFieldId: "C", agg: "countTrue", timeFilter: "daily" }),
+    ];
+    for (const op of ops) {
+      const overs = trackerLoops(op).map(l => l.overExpr);
+      expect(overs.length).toBeGreaterThan(0);
+      expect(new Set(overs)).toEqual(new Set(["$allInstances"]));
+    }
+  });
+
+  it("completionRate keeps $allItems — its denominator counts every in-scope row", () => {
+    const op = makeTrackerOp({ ...base, name: "CR", goalLabel: "G", goalFieldId: "R", agg: "completionRate", timeFilter: "daily" });
+    const overs = trackerLoops(op).map(l => l.overExpr);
+    expect(overs).toEqual(["$allItems", "$allItems"]);
+  });
 
   it("accountRef trackers ALSO scope to the schedule page (toolkit items never count)", () => {
     const op = makeTrackerOp({

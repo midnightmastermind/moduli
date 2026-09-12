@@ -83,6 +83,61 @@ Reader/Magic test (1), removing the cache fails the same test (1). 2,158 server 
 
 ---
 
+### 2026-09-12 (3) — EVERY ROW WITH A LINK OPENS AS A PAGE; and the trackers stop walking the media catalogue
+
+The two items the user said "yes" to after the Reader/Magic deploy. Requirement quoted from the
+09-10 logs: *"a button on the bottom right for all occurances that have a url field that opens up
+that browser page"* / *"should be opening the browser page in the panel we are in, not the viewer"*.
+
+**A ROW IS NOT A BROWSER, SO IT GETS ONE — and the row's own data is never written.**
+`openUrlInPanel` (`helpers/openBookmark.js`) mints ONE bookmark per row, found again by
+`meta.browserFor`, **parented to the row and NOT listed by it** (`addBookmarkOccurrence` gained
+`list:false` + `meta`). Parented so deleting the row takes it (the cascade follows `parentId`); not
+listed because an instance renders no children and the artifact spread reads `occurrences[]`, so
+listing it would add a file to a row that asked for none. The artifact page lists it, which is what
+makes it reachable. A bookmark opens as itself; an edited url RETARGETS the existing browser.
+
+**ONLY `from:"field"` QUALIFIES**, the gate `planSpreadBrowser` already uses: `fileRef` is an
+artifact stored BY url (the url IS the picture) and `link` is a chip with its own arrow. The row
+button (`instance-url-btn`, `ModuleInstance`) is visible at rest — the previous button shipped
+hover-only and a tablet never showed it — and sits left of the body chevron when both render.
+
+**Three guards, each A/B'd with the mutation asserted to land, each failing exactly its own test:**
+`list:true` (1), no in-flight map so a double click mints twice (1), refusing AFTER minting when
+there is no panel (1), and no retarget (1). **Two ArtifactCard suites went red on a mock** that
+lacked the new exports; they now keep the REAL `canOpenUrlAsPage` so the button's presence is
+decided by the shipped rule, not the mock.
+
+---
+
+**THE SPEED-UP: 25 TRACKERS LOOP `$allInstances`, AND THE MEASUREMENT DECIDED WHICH 25.** Every
+tracker walked `LOOP over $allItems` — ~21,500 rows, 15,700 of them media artifacts — to count
+instances. Run on a fresh poms export, each op with both collections under five triggers (load,
+Completed tick on/off, Trackers navigation, create), comparing sorted effects, plus an instrumented
+pass recording the ROLE of every row that passed each loop's first gate:
+```
+25 ops                   identical under all 5 triggers, 0 non-instance rows passing a gate
+Completion Rate          DIFFERS on a tick — a container passes; its denominator counts it
+Trackers: Media Owned    DIFFERS on load — it counts artifacts, by design
+load per op              10-85ms saved (Completed Tasks 231->146, Checking Balance 246->174)
+```
+**Small per op, and said so** — it is paid by every tracker on every sweep, which is why it is
+worth taking, but it is not the fix for the device's 26-second sweep.
+
+**The control I built to prove the gates exclude non-instance rows was WEAK and is reported as
+such:** twin container/textblock rows mostly failed the gates on their own (2 of 54 runs differed),
+so it does not show exclusion is structural. What stands is the base-grid role census.
+
+**NAMED, NOT DERIVED.** Equivalence is a fact about this grid's data, so `0331` swaps exactly the
+25 names, refuses on a missing or ambiguous name, never plans the two that differed, and reads the
+result back. `makeTrackerOp` emits `$allInstances` for every agg except `completionRate`. Dry run on
+poms grid: **25 ops, 36 loops, 0 converged** — the named expectation. Five A/Bs, each failing its
+own test. `liveSystemBuilders`' `loopRules` helper filtered on `overExpr === "$allItems"`, so the
+builder change would have made its completion-gate tests pass VACUOUSLY; it now selects loops by
+their `$item` var and asserts it found one.
+
+---
+
 ### 2026-09-12 (2) — THE READER PRINTED ITS MARKDOWN SOURCE, and RAINDROP DOES NOT PROXY
 
 User: *"the reader mode looks rather not flushed out either"*, then the directive that reshaped

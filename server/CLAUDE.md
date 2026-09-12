@@ -2,6 +2,23 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-12 (2) — tracker loops iterate `$allInstances`; migration `0331`)
+- **`utils/liveSystemBuilders.js` (`makeTrackerOp`)** — `LOOP_OVER` is `$allInstances` for every agg
+  except `completionRate`, used by `buildReplaceBaseSteps` and `buildLoopFor`. completionRate keeps
+  `$allItems` because on poms grid a container passes its gate and its denominator counts it.
+- **`migrations/0331-trackers-loop-instances.mjs`** swaps `type:"loop"` steps whose `overExpr` is
+  exactly `"$allItems"` in 25 NAMED ops measured equivalent (load / tick on / tick off / nav /
+  create — identical effects, 0 non-instance gate hits). A FIND over `$allItems` and `$allItemsById`
+  exprs are untouched. Refuses on a missing or ambiguous name; `Completion Rate` and `Trackers:
+  Media Owned` are asserted never planned and unchanged after the write. Dry run: 25 ops, 36 loops.
+- **The Build Schedule todo sweep (`$allItems` loop at ~line 1202) is deliberately NOT changed** — it
+  was not in the measured set.
+- **The runner prints `mod.describe`, and every recent migration exports `description`**, so all of
+  them show "(no description)". Pre-existing, cosmetic, not fixed here.
+- Tests: `__tests__/trackerLoopsInstancesMigration.test.js` (7) + 2 builder cases; `loopRules` now
+  finds tracker loops by `as: "$item"` and asserts it found one (it filtered on `$allItems`, which
+  would have made the completion-gate tests pass vacuously after this change).
+
 ## Recent Changes (2026-09-12 — `import_plan`, and an importer bug that DELETED content)
 - **`socketHandlers/import.js` — new `import_plan`**: `markdownToModuli` with `dryRun: true`.
   Returns the planned modules + occurrences and writes NOTHING — no Mongo, no warm cache, **no

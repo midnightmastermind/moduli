@@ -2591,6 +2591,14 @@ export function makeTrackerOp({
     ];
   }
 
+  // Tracker rows are INSTANCES, and `$allInstances` is the role-filtered slice
+  // of `$allItems` — the same gates evaluated over ~5% of the grid. Measured
+  // equivalent on poms grid (2026-09-12: 25 ops x 5 triggers, identical effects,
+  // 0 non-instance rows passing a gate). completionRate is the exception: its
+  // denominator counts every in-scope row, containers included, and on the live
+  // grid the swap changes its number.
+  const LOOP_OVER = agg === "completionRate" ? "$allItems" : "$allInstances";
+
   // Base-scan steps: find the LATEST completed in-scope replace entry on
   // `replField` → $baseDate + seed the accumulator with its value. Emitted
   // BEFORE the value loops so their date guard reads a settled $baseDate.
@@ -2598,7 +2606,7 @@ export function makeTrackerOp({
     return [
       { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$baseDate", value: "" } },
       {
-        id: uid(), type: "loop", overExpr: "$allItems", as: "$item",
+        id: uid(), type: "loop", overExpr: LOOP_OVER, as: "$item",
         body: [{
           id: uid(), type: "if",
           condition: {
@@ -2650,7 +2658,7 @@ export function makeTrackerOp({
       extraRules,
     } = opts;
     return {
-      id: uid(), type: "loop", overExpr: "$allItems", as: "$item",
+      id: uid(), type: "loop", overExpr: LOOP_OVER, as: "$item",
       body: [{
         id: uid(), type: "if",
         condition: {
