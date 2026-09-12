@@ -1308,7 +1308,7 @@ export function addScratchBrowser(args) {
  */
 export function addBookmarkOccurrence({
   dispatch, socket, gridId, userId, containerOccurrence, url = "",
-  label = null, scratch = false, index = null, list = true,
+  label = null, scratch = false, index = null, list = true, meta = null,
 }) {
   if (!gridId || !userId || !containerOccurrence) return null;
   const moduleId = crypto?.randomUUID?.() || `bm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -1333,7 +1333,7 @@ export function addBookmarkOccurrence({
     // ABSENT rather than `false` for a saved one — `isScratch` defaults to
     // saved, so writing the flag only where it is true keeps a saved bookmark
     // byte-identical to every bookmark that predates the flag.
-    meta: { ...(scratch ? { scratch: true } : null), ...(url ? { url } : null) },
+    meta: { ...(meta || null), ...(scratch ? { scratch: true } : null), ...(url ? { url } : null) },
   };
 
   dispatch?.(createModuleAction(module));
@@ -1351,7 +1351,10 @@ export function addBookmarkOccurrence({
     spliceChildIntoParent({ dispatch, socket, parentOccurrence: containerOccurrence, occurrenceId, index });
   }
 
-  return { moduleId, occurrenceId };
+  // The minted objects ride along for callers that must act on them before the
+  // store catches up — opening the new browser in a panel reads its module and
+  // occurrence in the same tick it was made.
+  return { moduleId, occurrenceId, module, occurrence };
 }
 
 // One router the container header + the InsertGap both call. Routes a QuickAddMenu

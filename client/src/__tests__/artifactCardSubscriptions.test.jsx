@@ -30,7 +30,11 @@ import { render } from "@testing-library/react";
 // renders of the card itself and nothing else.
 let renders = 0;
 vi.mock("../helpers/fileRef", () => ({ resolveFileRef: (v) => { renders++; return v || null; } }));
-vi.mock("../helpers/openBookmark", () => ({ openBookmarkInPanel: vi.fn(() => ({ ok: true })) }));
+vi.mock("../helpers/openBookmark", async (importOriginal) => ({
+  ...(await importOriginal()),
+  openBookmarkInPanel: vi.fn(() => ({ ok: true })),
+  openUrlInPanel: vi.fn(() => ({ ok: true })),
+}));
 vi.mock("../ui/ArtifactSpreadHost", () => ({ openArtifactSpread: vi.fn() }));
 vi.mock("../helpers/targetPanel", () => ({ collectPanelOccurrences: () => ({}), enclosingPanelId: () => null }));
 

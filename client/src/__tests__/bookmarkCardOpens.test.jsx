@@ -37,7 +37,14 @@ vi.mock("../modules/BookmarkView.jsx", () => ({
 }));
 
 const openBookmarkInPanel = vi.fn(() => ({ ok: true, panelId: "p1", via: "here" }));
-vi.mock("../helpers/openBookmark", () => ({ openBookmarkInPanel: (...a) => openBookmarkInPanel(...a) }));
+// The card routes through `openUrlInPanel` (which delegates a bookmark to
+// `openBookmarkInPanel` internally); the gate `canOpenUrlAsPage` stays REAL so
+// the button's presence is decided by the shipped rule, not by the mock.
+vi.mock("../helpers/openBookmark", async (importOriginal) => ({
+  ...(await importOriginal()),
+  openBookmarkInPanel: (...a) => openBookmarkInPanel(...a),
+  openUrlInPanel: (...a) => openBookmarkInPanel(...a),
+}));
 
 const openArtifactSpread = vi.fn();
 vi.mock("../ui/ArtifactSpreadHost", () => ({ openArtifactSpread: (...a) => openArtifactSpread(...a) }));

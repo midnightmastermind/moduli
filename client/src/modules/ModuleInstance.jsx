@@ -26,14 +26,15 @@ import {
   PopoverContent,
   PopoverAnchor,
 } from "@/components/ui/popover";
-import { Link2, Unlink, Settings, Copy, Move, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type, FileDown, ChevronDown, Check, PanelRight } from "lucide-react";
+import { Link2, Unlink, Settings, Copy, Move, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type, FileDown, ChevronDown, Check, PanelRight, ExternalLink } from "lucide-react";
 import { convertLeafRole, CONVERTIBLE_LEAF_ROLES } from "../helpers/convertOccurrence";
 import { convertLinkToPage } from "../helpers/linkToPage";
 import { planConvertRelink } from "../helpers/convertRelink";
 import { toast } from "sonner";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { occurrenceUrl } from "../helpers/occurrenceUrl";
-import { collectPanelOccurrences, panelChoices, getTargetPanelId, targetPanelPatch } from "../helpers/targetPanel";
+import { collectPanelOccurrences, panelChoices, getTargetPanelId, targetPanelPatch, enclosingPanelId } from "../helpers/targetPanel";
+import { openUrlInPanel, canOpenUrlAsPage } from "../helpers/openBookmark";
 import { targetPanelMenuItems, shouldOfferTargetPicker } from "../helpers/targetPanelMenu";
 import {
   useDragDrop,
@@ -202,6 +203,25 @@ function InstanceInner({
   const getOcc = useGridActionsSelector(s => s.getOcc || ((oid) => (oid ? s.occurrencesById?.[oid] || null : null)));
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const getState = useGridActionsSelector(s => s.getState || (() => s.state || {}));
+  // Open this row's link as a browser page in the panel it sits in (user,
+  // 2026-09-10: *"a button ... for all occurances that have a url field"*).
+  // Every map is read at CLICK time through the non-subscribing getters, so a
+  // board of rows does not re-render on every write to wire a button.
+  const openUrlHere = useCallback((e) => {
+    e?.stopPropagation(); e?.preventDefault();
+    if (!occurrence?.id) return;
+    const occurrencesById = getOccMap?.() || {};
+    const modulesById = getModMapInner?.() || {};
+    const { viewsById = {}, grid = null } = getState?.() || {};
+    const panelsById = collectPanelOccurrences(occurrencesById, modulesById);
+    const fromPanelOccId = enclosingPanelId(occurrence.id, occurrencesById, panelsById);
+    const res = openUrlInPanel({
+      occId: occurrence.id, grid, fromPanelOccId, panelsById,
+      occurrencesById, modulesById, viewsById, fieldsById: fieldsById || {}, dispatch, socket,
+    });
+    if (res.ok && res.via === "stale") toast("That panel is gone — opened here instead");
+    else if (!res.ok) toast.error(res.reason || "Could not open this");
+  }, [occurrence?.id, getOccMap, getModMapInner, getState, fieldsById, dispatch, socket]);
   // Own linked-group members — element-wise stable, so only a change to one
   // of THIS instance's linked siblings re-renders it.
   const linkedGroup = useGridActionsSelectorShallow(s =>
@@ -770,6 +790,21 @@ function InstanceInner({
           body — the chevron would walk away from the row it belongs to.
           `stopPropagation` matters: `.instance-wrap` owns a click (selection) and
           a context menu of its own. */}
+      {/* Open this row's link as a browser page in THIS panel. An artifact row
+          is skipped: ArtifactCard carries its own button on the card. */}
+      {occurrence && !overlay && instance?.role !== "artifact" && canOpenUrlAsPage(occurrence, instance) && (
+        <button
+          type="button"
+          className={toggleDoc ? "instance-url-btn instance-url-btn--beside-body" : "instance-url-btn"}
+          data-testid="instance-url-btn"
+          aria-label="Open link as a page in this panel"
+          title="Open link as a page in this panel"
+          onClick={openUrlHere}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <ExternalLink style={{ width: 12, height: 12 }} />
+        </button>
+      )}
       {occurrence && toggleDoc && !overlay && (
         <button
           type="button"

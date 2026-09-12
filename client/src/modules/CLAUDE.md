@@ -2,6 +2,17 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-09-12 (4) — an open-as-page button on every row with a url)
+- **`ModuleInstance.jsx`** — `InstanceInner` renders `.instance-url-btn` (ExternalLink, bottom-right,
+  visible at rest) when `canOpenUrlAsPage(occurrence, instance)` and the row is not an artifact (the
+  card carries its own button) or an overlay. It opens the url as a browser page in the ENCLOSING
+  panel via `openUrlInPanel`; maps are read at click time through the non-subscribing getters, so
+  the row subscribes to nothing new. With a body chevron beside it, the `--beside-body` modifier
+  moves it left.
+- **`ArtifactCard.jsx`** — the card's button and double-click now call `openUrlInPanel` (a bookmark
+  delegates to itself) with the field map from `getFieldMap`.
+- **NOT verified in a browser** at the time of writing; see the root CLAUDE.md entry.
+
 ## Recent Changes (2026-09-12 (3) — ArtifactCard: the open-as-page chip is visible; no zoom cursors)
 - **`ArtifactCard.jsx`** — the bookmark's open-as-page button (`.artifact-thumb-page-hint`) is always
   visible now (26px dark chip, `opacity .9`, icon 15px). It had shipped hover-revealed at opacity 0,

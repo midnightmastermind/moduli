@@ -2,6 +2,19 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-12 (2) — `openBookmark.js`: any row with a url opens as a page)
+- **`openUrlInPanel`** — a bookmark delegates to `openBookmarkInPanel`; any other row whose url
+  comes `from:"field"` gets ONE browser bookmark of its own (`meta.browserFor = rowId`), minted via
+  `CommitHelpers.addBookmarkOccurrence({ list:false, meta })` — parented to the row, not listed by
+  it, so the row's data is never written. Refuses BEFORE minting when there is no panel. An edited
+  url retargets the existing browser (`updateModule` fileRef + `updateOccurrence` meta.url).
+- **`pendingBrowsers`** remembers a browser minted a moment ago: the store has not caught up when a
+  double click lands, and without it the second click mints another (the `browserMintRef` job).
+- **`canOpenUrlAsPage(occ, module, fieldsById)`** is the one gate both `ArtifactCard` and
+  `ModuleInstance` use; `browserForOccurrence(rowId, occurrencesById)` finds a row's browser.
+- **`CommitHelpers.addBookmarkOccurrence`** gained `meta` (merged under `scratch`/`url`).
+- 16 tests; each guard A/B'd (list:false, the in-flight map, refuse-before-mint, retarget).
+
 ## Recent Changes (2026-09-12 — `readerPlan.js` NEW: the reader renders REAL occurrences)
 - **`readerPlan.js` (NEW, 6 tests)** — `readerStateFromPlan(plan)` turns an `import_plan` reply into
   an isolated grid state for `PagePreviewBody`. User: *"the reader mode should be turning the things

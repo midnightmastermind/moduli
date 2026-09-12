@@ -12,7 +12,7 @@ import { getUploadController } from "../helpers/uploadWithProgress";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 import { toast } from "sonner";
-import { openBookmarkInPanel } from "../helpers/openBookmark";
+import { openUrlInPanel, canOpenUrlAsPage } from "../helpers/openBookmark";
 import { collectPanelOccurrences, enclosingPanelId } from "../helpers/targetPanel";
 import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
 import LoadingImage from "../ui/LoadingImage.jsx";
@@ -77,7 +77,12 @@ export default function ArtifactCard({ module, label, occurrence }) {
   const getOccMap = useGridActionsSelector(s => s.getOccMap);
   const getModMap = useGridActionsSelector(s => s.getModMap);
   const getState = useGridActionsSelector(s => s.getState);
+  const getFieldMap = useGridActionsSelector(s => s.getFieldMap);
   const isBookmark = module?.role === "artifact" && module?.kind === "bookmark";
+  // A bookmark IS a page; any other artifact with a URL in a FIELD (a song's
+  // Spotify page, an album's) gets a browser of its own. Presence needs no field
+  // map — which url wins only matters at click time, where the map is read.
+  const canOpenPage = canOpenUrlAsPage(occurrence, module);
   // A BOOKMARK IN THE SPREAD IS THE PAGE, NOT A PICTURE OF IT.
   //
   // User, 2026-09-10: *"theres currently no way to open up bookmarks"* ->
@@ -196,7 +201,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
   // 1,467 bookmark cards does not re-render on every occurrence write — the
   // same reason `openViewer` above reads its parent lazily.
   const openInPanel = useCallback((e) => {
-    if (!isBookmark || !occurrence?.id) return;
+    if (!canOpenPage || !occurrence?.id) return;
     e?.stopPropagation(); e?.preventDefault();
     const occurrencesById = getOccMap?.() || {};
     const modulesById = getModMap?.() || {};
@@ -204,15 +209,15 @@ export default function ArtifactCard({ module, label, occurrence }) {
     const panelsById = collectPanelOccurrences(occurrencesById, modulesById);
     // The panel this card is IN — the fallback when no sticky target is set.
     const fromPanelOccId = enclosingPanelId(occurrence.id, occurrencesById, panelsById);
-    const res = openBookmarkInPanel({
+    const res = openUrlInPanel({
       occId: occurrence.id, grid, fromPanelOccId, panelsById,
-      occurrencesById, modulesById, viewsById, dispatch, socket,
+      occurrencesById, modulesById, viewsById, fieldsById: getFieldMap?.() || {}, dispatch, socket,
     });
     // Silence is right for the ordinary case; a STALE target is worth a word,
     // because the setting the user made has quietly stopped applying.
     if (res.ok && res.via === "stale") toast("That panel is gone — opened here instead");
     else if (!res.ok) toast.error(res.reason || "Could not open this");
-  }, [isBookmark, occurrence?.id, getOccMap, getModMap, getState, dispatch, socket]);
+  }, [canOpenPage, occurrence?.id, getOccMap, getModMap, getState, getFieldMap, dispatch, socket]);
 
   // Full-bleed logo (Viafluere top-middle cell): on first mount, scroll the
   // nearest scrollable ancestor so the LOGO sits vertically centered in the
@@ -534,7 +539,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
       className={showInfo ? "artifact-card artifact-card--with-info" : "artifact-card"}
       data-kind={kind}
       onClick={openViewer}
-      onDoubleClick={isBookmark ? openInPanel : undefined}
+      onDoubleClick={canOpenPage ? openInPanel : undefined}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openViewer(e); }}
@@ -574,7 +579,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
           BOTTOM right, opposite the expand hint at the top — the two are
           different destinations (here vs. a panel) and putting them in one
           corner would make them one control with a coin flip in the middle. */}
-      {isBookmark && (
+      {canOpenPage && (
         <button
           type="button"
           className="artifact-thumb-page-hint"

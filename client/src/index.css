@@ -7494,6 +7494,38 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   .instance-body-btn { opacity: 1; width: 26px; height: 26px; }
 }
 
+/* ── Open this row's link as a page, in this panel ─────────────────────────
+   The row twin of `.artifact-thumb-page-hint`. VISIBLE AT REST, unlike the
+   notes button beside it: the card version shipped hover-only on 09-10 and
+   nobody on a tablet ever saw it. Few rows carry a url field, so a resting
+   icon costs little. Bottom-right, left of the notes button when both exist. */
+.instance-url-btn {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0.7;
+  transition: opacity 120ms ease-out, color 120ms ease-out;
+  cursor: pointer;
+  z-index: 3;
+}
+.instance-url-btn--beside-body { right: 24px; }
+.instance-wrap:hover .instance-url-btn { opacity: 1; }
+.instance-url-btn:hover { color: var(--text-primary); }
+@media (pointer: coarse) {
+  .instance-url-btn { opacity: 1; width: 26px; height: 26px; }
+  .instance-url-btn--beside-body { right: 32px; }
+}
+
 /* The instance's mini doc body. "it just is mini" (user 2026-08-16) — and an
    EMPTY body was a ~100px empty slab, because `.doc-editor-wrapper` carries a
    Tailwind `min-h-[100px]` sized for a full doc page. Floored at one line here
