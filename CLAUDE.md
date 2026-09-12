@@ -6,6 +6,48 @@
 
 ---
 
+### 2026-09-12 (5) — THE LINK ICON DID NOTHING, THREE DIFFERENT WAYS; and it is only an icon now
+
+Continued the other account's session, which hit its limit mid-diagnosis. Its own post-deploy probe
+of `2c848d52` showed the row button MINTING a browser while the panel stayed on People. User, mid-way:
+*"it shouldnt say open as page. it should just be like an icon to click."*
+
+**THREE DEFECTS, each hiding the next, all found by clicking on prod and reading Mongo back:**
+```
+1  viewsById was read off getState()     the reducer state has `views` as an ARRAY — the view
+                                         was always null, so the page was pinned and never
+                                         made active. Bookmark CARDS too, since 67d3ad88 (09-10).
+2  list:false was client-only            the server's create batch pushed every parented child
+                                         into its parent, so the row LISTED its own browser.
+3  first click minted, never opened      ensureArtifactPageOcc returned only an id; the open
+                                         walks that id to a page module the store did not hold
+                                         yet, returned ok:false, and the caller reported success.
+```
+**Defect 3 was invisible until 1 was fixed**, and only because the second probe clicked a row that
+had no browser yet — the first probe's row already had one, so it took the working path and read as
+fixed. *A probe that reuses state from an earlier probe is not testing the first-time path.*
+
+- `getViewMap()` on both providers (App + PagePreviewApp); ArtifactCard selects it with NO fallback
+  closure — a fallback mints a fresh function per store read and re-rendered every card on every
+  write (`artifactCardSubscriptions` caught it).
+- `create_occurrence` carries `list: false`; `linkRowsToParents` skips those rows.
+- `ensureArtifactPage` returns `{ id, occurrence, module }` (the old function wraps it), the open is
+  handed the just-minted page, a failed open is reported, and a pending-page memory stops a double
+  click minting two pages.
+- No tooltip on either icon; `aria-label="Open link"`.
+
+**Every guard A/B'd with the mutation asserted to land, each failing exactly its own test.**
+4336 client + 2168 server tests. Deployed twice (the server change restarted pm2; the second was
+client-only), prod HEAD `ba278efc`, served chunks sha256-identical.
+
+**VERIFIED ON PROD by clicking three People rows on test grid 2**: the panel switched to the person's
+page with the site framed, `pin_page_to_panel` + `update_view` sent on the first click, 0 tooltips.
+Read back: **3 browsers, 1 per row, each parented to its row and listed only by its page.** The one
+browser the earlier probe left listed by Ava Martinez's row was `$pull`ed. test grid 2's People panel
+is left open on Chloe Patel's page.
+
+---
+
 ### 2026-09-12 (4) — THE BUTTON SHIPPED INVISIBLE, and a queued request nobody answered
 
 User: *"i still dont see the little button we were supposed to add on these artifacts … and also the

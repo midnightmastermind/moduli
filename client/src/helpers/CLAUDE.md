@@ -2,6 +2,22 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-12 (5) — `importsFolder.ensureArtifactPage` + `openBookmark`: the first click opens)
+- **`ensureArtifactPage` (NEW) returns `{ id, occurrence, module }`** — the page objects when it had
+  to mint them, `null` for both when the page already existed. `ensureArtifactPageOcc` is now a thin
+  wrapper, so ManifestTree / PageFolder are unchanged.
+- **Why:** `openBookmarkInPanel` passed only the page id to `openOccurrenceInPanel`, which walks it to a
+  `role:"page"` module the store did not hold yet → no page → `ok:false`, silently ignored. Every
+  FIRST click on a row minted a browser + page and left the panel where it was. The just-minted page
+  is now merged into the maps handed to the open, and a failed open returns `ok:false` with a reason.
+- **`pendingArtifactPages`** remembers an in-flight page per artifact (cleared once the store has it),
+  so a double click reuses it instead of minting a second page — the same shape as `pendingBrowsers`.
+  Test seam `__resetPendingArtifactPages`.
+- **`CommitHelpers.addBookmarkOccurrence`** emits `list: false` on the create; the server honours it
+  (it used to push every parented child into its parent, so a row listed its own browser).
+- Callers read views via `getViewMap()`, never `getState().viewsById` — the reducer state carries
+  `views` as an array. Details in the root CLAUDE.md 2026-09-12 (5).
+
 ## Recent Changes (2026-09-12 (3) — `targetPanel.js`: "the panel we are in" was null for every board row)
 - **The button shipped and did nothing — found by clicking it in a browser, not by any test.** On
   test grid 2's People page: 20 buttons rendered, the click minted NOTHING (DB read back: 0 browsers)
