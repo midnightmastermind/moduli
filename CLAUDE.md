@@ -6,6 +6,75 @@
 
 ---
 
+### 2026-09-12 — THE BOARD LABEL PRINTED TWICE FOR THREE WEEKS, and the reason I held the fix back did not exist
+
+The viewer's duplicate was fixed on 2026-09-11 and its note said the same duplicate *"on the boards
+is reported rather than changed unasked."* Asked to keep going, this is that half — plus the
+`deploy.sh` mode and the WaPo decision (recorded in the entry below).
+
+**THE RULE HAD BEEN INERT SINCE 2026-08-23.** `index.css` suppressed the row label for an
+info-bearing artifact card with `.instance-content:has(.artifact-card--with-info) > div:first-child
+.instance-label`. That first child is `.instance-handle-group` — **unconditional**, and the label
+moved into `.instance-textcol` when `ModuleInstance` was restructured. So the selector matched
+nothing, `labelRowRendered` has no artifact-card case, and every artifact card on every board
+printed its name twice. Repointed at the current DOM as a **direct-child chain**
+(`> .instance-textcol > .instance-label`) so it cannot reach into a NESTED row's label. The
+comment also credited the suppression to `ModuleInstance hideLabelForArtifactCard` — **an identifier
+that exists nowhere in `client/src`**; a comment naming a function that was never written is worse
+than no comment, and it is gone.
+
+**AND THE BLOCKER I STATED WAS RETIRED BY MEASURING IT — my own reason, retracted.** I had written:
+*"before changing it I need to know whether the two strings are actually the same (a filename and a
+title are two different facts, not a duplicate)."* `ArtifactCard` computes
+`fileName = meta.originalName || label`, so the caption CAN be a filename beside a different title,
+and CSS cannot compare two strings. Censused over the live grid's own artifact rows through the
+card's own rule:
+```
+artifact rows                15,710
+caption === label            15,709   <- a true duplicate
+caption =/= label (2 facts)       0   <- the case I was protecting
+no info block                     1
+image 1,507 · song 5,484 · album 3,027 · artist 1,679 · bookmark 1,469 · quote 466 · movie 993 …
+```
+**Zero, in every kind.** An upload takes its label from its filename (`Earthrise (Apollo 8).jpg`),
+so even the rows that DO carry `originalName` agree with their label. The hypothetical I was
+guarding describes nothing on this grid, so the blanket suppression loses no title — and the census
+is in the rule's own comment, because the next reader will have the same doubt.
+
+**THE FIRST RUN OF THE PROBE REPORTED `total: 0`, WHICH READS EXACTLY LIKE "THERE ARE NO
+DUPLICATES".** `full_state` arrives in two halves and **every media row is in the second one**; the
+probe waited for the store rather than for `awaitingDeferred === false`, so it censused the ~5,700
+core occurrences, found no artifacts, and answered the question with a confident zero. The tell was
+in its own output — `occurrences: 5708` against a 21,415-row grid. *A zero is a claim about the
+probe until the probe has been shown able to report non-zero*, and the fixed probe now prints the
+occurrence count beside the tally so that can never pass silently again.
+
+**THE VIEWER RULE STAYS, and it is not redundant.** It matches ANY `.artifact-card`, not just an
+info-bearing one — a browser tile is a bookmark with an address and no info block, so it carries no
+`--with-info` and the board rule cannot reach it. Its comment now says that instead of claiming to
+be the only thing holding the duplicate back.
+
+**VERIFIED AGAINST THE BUILT STYLESHEET WITH CONTROLS** (the compiler will not tell you — 2026-09-03
+class): new rule present **1**, the old inert `div:first-child` form **0**, the viewer rule **1**,
+and `.instance-textcol` at **11** as the control proving the grep can find anything at all. On
+screen beforehand, 80 of 80 painted labels printed their caption verbatim.
+
+**`deploy.sh` WAS NEVER EXECUTABLE, for its whole history.** `git ls-files -s` reads `100644` on all
+five commits that ever touched it, so every CLAUDE.md line saying `./deploy.sh` was describing
+`bash deploy.sh`, and the prior session's `EXIT=126 Permission denied` was not a local accident.
+Fixed in the tree AND in the index (`chmod +x` + `git update-index --chmod=+x`) so the mode is
+recorded in git rather than in one working copy. (`deploydata.sh` does not exist — an early
+`ls -l deploy.sh deploydata.sh && git ls-files …` exited 2 for that reason and swallowed the query
+that would have answered this immediately.)
+
+**4,281 client tests pass across 362 of 364 files. The 2 incomplete files are the documented
+pre-existing OOM** (`trackerValues`, plus `balanceFlow` caught in the same worker's collapse) —
+**measured rather than argued: run alone, with no stylesheet in the run at all, they still exit the
+worker** (23 of 48 tests, same signature). A CSS edit cannot reach a JS worker's heap, and that is
+now a measurement instead of a claim.
+
+---
+
 ### 2026-09-11 (2) — THE VIEWER, ROUND 3: the browser opens itself, the cover is a picture, and any tile can fill the viewer
 
 Continued from the other account's session, which hit its monthly spend limit mid-diagnosis. User:
@@ -59,13 +128,17 @@ url tile and gains the cover→lightbox case. 4275 client tests pass. **`tracker
 its worker — identically on untouched HEAD** (A/B'd with the change stashed), so it predates this
 and is not caused by it.
 
-**STILL OPEN — the Washington Post will not frame, and the fix is a security decision, not a bug.**
-It sends `X-Frame-Options: SAMEORIGIN`, so Web mode falls back to the archive frame. Raindrop shows
-the live page because it proxies. Proxying through our origin is the only route — and serving
+**SETTLED — the Washington Post stays on the ARCHIVE, and it was a security decision rather than a
+bug.** It sends `X-Frame-Options: SAMEORIGIN`, so Web mode falls back to the archive frame. Raindrop
+shows the live page because it proxies. Proxying through our origin is the only route — and serving
 third-party HTML on the app's origin hands that page's script `localStorage`, where the auth token
 lives. Doing it safely needs a separate origin (or a sandbox without `allow-same-origin`, which
-breaks most sites' own JavaScript). Put to the user rather than built. The live page is paywalled
-anyway: a headline and one paragraph.
+breaks most sites' own JavaScript). **Put to the user as three options, and they chose the third:
+leave Web mode falling back to the archive** (*"i guess 3 if 2 will break pages"* — the sandbox
+route breaks most sites' own JavaScript, which is what made option 2 not worth having). So there is
+no code owed here and the archive fallback is the intended behaviour, not a workaround waiting on a
+fix. The live page is paywalled anyway: a headline and one paragraph. **Recorded so it is not
+re-opened** — the next session should not go looking for a proxy.
 
 ---
 

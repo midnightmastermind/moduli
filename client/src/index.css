@@ -3714,15 +3714,30 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    go underneath the image"). It rides in the info block, which `order: 1`
    already places below the image — so the name just has to render. It was
    briefly hidden here as a duplicate of the row label above the card; the row
-   label is suppressed for these cards instead (ModuleInstance `hideLabelForArtifactCard`),
-   so the name appears exactly once, under the image where it was asked for. */
+   label is suppressed for these cards instead (the rule below), so the name
+   appears exactly once, under the image where it was asked for. */
 .artifact-card--with-info .artifact-thumb-info-name {
   display: -webkit-box;
 }
 /* …and the row label above the card is dropped, so the file name reads once,
    under the picture, instead of twice. Scoped by :has() to rows whose body IS
-   an info-bearing artifact card — every other instance row keeps its label. */
-.instance-content:has(.artifact-card--with-info) > div:first-child .instance-label {
+   an info-bearing artifact card — every other instance row keeps its label.
+
+   THIS RULE WAS INERT FROM 2026-08-23 UNTIL 2026-09-12. It read
+   `> div:first-child .instance-label`, and that first child is
+   `.instance-handle-group` — the label moved into `.instance-textcol` when
+   ModuleInstance was restructured, so the selector stopped matching anything and
+   every artifact card on the boards printed its name twice. The direct-child
+   chain is deliberate: it must not reach into a NESTED row's label.
+
+   SUPPRESSING THE LABEL LOSES NOTHING, and that is measured rather than assumed.
+   `ArtifactCard` computes the caption as `meta.originalName || label`, so the
+   caption CAN in principle be a filename beside a different title — two facts,
+   not a duplicate. Censused over the live grid's own 15,710 artifact rows:
+   15,709 have caption === label, 1 has no info block, and the two-facts case
+   occurs ZERO times (an upload takes its label from its filename, so even those
+   agree). Nothing on this grid has a title that this rule hides. */
+.instance-content:has(.artifact-card--with-info) > .instance-textcol > .instance-label {
   display: none;
 }
 /* Frame the picture itself the way a doc figure is framed, so a stacked card
@@ -6958,13 +6973,16 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 .artifact-spread-body .container-items--wrap > .instance-wrap > .instance-row {
   height: 100%;
 }
-/* The name reads ONCE, in the caption under the picture — the rule this file
-   states for every artifact card (`.instance-content:has(.artifact-card--with-info)
-   > div:first-child .instance-label`) stopped matching when the label moved into
-   `.instance-textcol` on 2026-08-23, so in the viewer the title printed twice:
-   once in the caption, once under it. Scoped to the viewer here; the same
-   duplicate on the boards is reported rather than changed unasked. A browser tile
-   needs no label either — its address bar says where it is. */
+/* The name reads ONCE, in the caption under the picture. The board-wide rule
+   above now covers that case too (it was inert from 2026-08-23 until 2026-09-12
+   — see its own comment), so this is no longer the only thing holding the
+   viewer's duplicate back.
+
+   IT STILL EARNS ITS PLACE, on the tiles the board rule cannot reach: it matches
+   ANY `.artifact-card`, not just an info-bearing one. A browser tile is a
+   bookmark with an address and no info block, so it carries no
+   `--with-info` — and it needs no label either, because its address bar says
+   where it is. */
 .artifact-spread-body .instance-content:has(.artifact-card) .instance-label {
   display: none;
 }
