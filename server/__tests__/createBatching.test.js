@@ -203,6 +203,22 @@ describe("the create burst", () => {
       .toEqual(["slot-01", "slot-09", "slot-02"]);
   });
 
+  // `list: false` is the client saying it owns the parent's array for this
+  // child. The row's browser (openBookmark.openUrlInPanel) is PARENTED to the
+  // row and must not be LISTED by it — a listed child is a file in that row's
+  // viewer. Before this, the server pushed it anyway (test grid 2, 2026-09-12).
+  it("parents without listing when the create says list:false", async () => {
+    const create = fire("create_occurrence");
+    await Promise.all([
+      create({ occurrence: slot(1) }),
+      create({ occurrence: slot(2), list: false }),
+      create({ occurrence: slot(3) }),
+    ]);
+    await delayed(30);
+    expect(db.occurrences.get("slot-02")?.parentId).toBe("day-col");
+    expect(db.occurrences.get("day-col").occurrences).toEqual(["slot-01", "slot-03"]);
+  });
+
   it("writes nothing to Atlas when the socket is already gone", async () => {
     fire("disconnect")();
     await burst(10);

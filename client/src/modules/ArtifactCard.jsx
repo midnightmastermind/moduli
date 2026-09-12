@@ -77,6 +77,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
   const getOccMap = useGridActionsSelector(s => s.getOccMap);
   const getModMap = useGridActionsSelector(s => s.getModMap);
   const getState = useGridActionsSelector(s => s.getState);
+  const getViewMap = useGridActionsSelector(s => s.getViewMap);
   const getFieldMap = useGridActionsSelector(s => s.getFieldMap);
   const isBookmark = module?.role === "artifact" && module?.kind === "bookmark";
   // A bookmark IS a page; any other artifact with a URL in a FIELD (a song's
@@ -205,7 +206,8 @@ export default function ArtifactCard({ module, label, occurrence }) {
     e?.stopPropagation(); e?.preventDefault();
     const occurrencesById = getOccMap?.() || {};
     const modulesById = getModMap?.() || {};
-    const { viewsById = {}, grid = null } = getState?.() || {};
+    const viewsById = getViewMap?.() || {};
+    const grid = getState?.()?.grid || null;
     const panelsById = collectPanelOccurrences(occurrencesById, modulesById);
     // The panel this card is IN — the fallback when no sticky target is set.
     const fromPanelOccId = panelOccIdForElement(e?.currentTarget, panelsById)
@@ -218,7 +220,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
     // because the setting the user made has quietly stopped applying.
     if (res.ok && res.via === "stale") toast("That panel is gone — opened here instead");
     else if (!res.ok) toast.error(res.reason || "Could not open this");
-  }, [canOpenPage, occurrence?.id, getOccMap, getModMap, getState, getFieldMap, dispatch, socket]);
+  }, [canOpenPage, occurrence?.id, getOccMap, getModMap, getState, getViewMap, getFieldMap, dispatch, socket]);
 
   // Full-bleed logo (Viafluere top-middle cell): on first mount, scroll the
   // nearest scrollable ancestor so the LOGO sits vertically centered in the
@@ -584,8 +586,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
         <button
           type="button"
           className="artifact-thumb-page-hint"
-          title="Open as a page in this panel"
-          aria-label="Open as a page in this panel"
+          aria-label="Open link"
           onClick={openInPanel}
           onPointerDown={(e) => e.stopPropagation()}
         >

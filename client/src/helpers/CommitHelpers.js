@@ -1339,7 +1339,8 @@ export function addBookmarkOccurrence({
   dispatch?.(createModuleAction(module));
   dispatch?.(createOccurrenceAction(occurrence));
   safeEmit(socket, "create_module", { module });
-  safeEmit(socket, "create_occurrence", { occurrence });
+  // The server lists a created child in its parent unless told not to.
+  safeEmit(socket, "create_occurrence", list ? { occurrence } : { occurrence, list: false });
 
   // `list: false` PARENTS without listing, for the one caller that must own the
   // parent's array itself. The artifact spread writes its page's `occurrences[]`

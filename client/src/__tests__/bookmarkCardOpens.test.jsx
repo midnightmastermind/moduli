@@ -24,6 +24,11 @@ const STATE = {
   dispatch: vi.fn(), socket: {}, grid: {}, state: { grid: {} },
   getOcc: () => null, getOccMap: () => ({}), foldersById: {},
   modulesById: {}, viewsById: {}, occurrencesById: {}, fieldsById: {},
+  // The app's getState() returns the raw reducer state, which carries `views`
+  // as an ARRAY and no `viewsById`. Reading views off it is what left the open
+  // unable to activate the page (2026-09-12); the views come from getViewMap.
+  getState: () => ({ grid: {}, views: [{ id: "v-panel" }] }),
+  getViewMap: () => ({ "v-panel": { id: "v-panel" } }),
 };
 vi.mock("../GridActionsContext.js", () => ({
   useGridActionsSelector: (sel) => sel(STATE),
@@ -191,6 +196,21 @@ describe("a bookmark opens inside the spread", () => {
     expect(openBookmarkInPanel).toHaveBeenCalledTimes(1);
     // THE DISTINCTION the user drew: a panel, never the viewer.
     expect(openArtifactSpread).not.toHaveBeenCalled();
+  });
+
+  // Without the panel's VIEW the open pins the page and never makes it active,
+  // so the panel stays where it was — the button "does nothing".
+  it("hands the open the panel views, not an empty map", () => {
+    fireEvent.click(mount(BOOKMARK).querySelector(".artifact-thumb-page-hint"));
+    expect(openBookmarkInPanel.mock.calls[0][0].viewsById).toEqual({ "v-panel": { id: "v-panel" } });
+  });
+
+  // User, 2026-09-12: *"it shouldnt say open as page. it should just be like an
+  // icon to click"*.
+  it("is an icon with no open-as-page wording", () => {
+    const btn = mount(BOOKMARK).querySelector(".artifact-thumb-page-hint");
+    expect(btn.getAttribute("title")).toBeNull();
+    expect(btn.textContent.trim()).toBe("");
   });
 
   // THE CONTROL. Without it, "a bookmark has the button" is equally satisfied by

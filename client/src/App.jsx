@@ -879,7 +879,7 @@ export default function App() {
   // subscribing to the whole map — subscribing made every container/instance
   // re-render on every occurrence write (the multi-second drop pause).
   const lookupsRef = useRef({});
-  lookupsRef.current = { occurrencesById, modulesById, parentByChildId, linkedGroupIndex, state, fieldsById };
+  lookupsRef.current = { occurrencesById, modulesById, parentByChildId, linkedGroupIndex, state, fieldsById, viewsById };
   const getOcc = useCallback((id) => (id ? lookupsRef.current.occurrencesById?.[id] || null : null), []);
   const getMod = useCallback((id) => (id ? lookupsRef.current.modulesById?.[id] || null : null), []);
   const getOccMap = useCallback(() => lookupsRef.current.occurrencesById || {}, []);
@@ -890,6 +890,9 @@ export default function App() {
   const getParentId = useCallback((id) => (id ? lookupsRef.current.parentByChildId?.[id] || null : null), []);
   const getLinkedGroup = useCallback((groupId) => (groupId ? lookupsRef.current.linkedGroupIndex?.[groupId] || [] : []), []);
   const getState = useCallback(() => lookupsRef.current.state || {}, []);
+  // `state` holds `views` as an ARRAY — reading `viewsById` off getState() is
+  // always undefined, which left open-in-panel unable to activate the page.
+  const getViewMap = useCallback(() => lookupsRef.current.viewsById || {}, []);
 
   const actionsValue = useMemo(
     () => ({
@@ -903,6 +906,7 @@ export default function App() {
       getParentId,
       getLinkedGroup,
       getState,
+      getViewMap,
 
       // Full state object for calculations
       state,

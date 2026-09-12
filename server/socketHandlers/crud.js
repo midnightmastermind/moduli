@@ -1289,7 +1289,10 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
   socket.on("create_occurrence", (payload = {}) => {
     const { occurrence } = payload;
     if (!occurrence) return createQueue;
-    pendingCreates.push({ occurrence, actionId: payload?.__actionId || null });
+    // `list: false` parents without listing: the client owns the parent's array
+    // for that child (see addBookmarkOccurrence). Pushing it here anyway is how a
+    // row's browser ended up in the row's own occurrences[].
+    pendingCreates.push({ occurrence, actionId: payload?.__actionId || null, list: payload?.list !== false });
     if (!drainScheduled) {
       drainScheduled = true;
       createQueue = createQueue
@@ -1461,7 +1464,7 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
 
       // ---- 1. build, cache, and upsert every row in one write --------------
       const rows = [];
-      for (const { occurrence, actionId } of batch) {
+      for (const { occurrence, actionId, list = true } of batch) {
         const id = occurrence?.id;
         if (!id) continue;
         if (refusedIds.has(id)) continue;
@@ -1491,7 +1494,7 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
         rollbacks.push(() => {
           if (uc.occurrencesById[id] === occurrenceData) delete uc.occurrencesById[id];
         });
-        rows.push({ id, occurrenceData, actionId, insertAtIndex: occurrence.insertAtIndex });
+        rows.push({ id, occurrenceData, actionId, list, insertAtIndex: occurrence.insertAtIndex });
       }
       if (!rows.length) return;
 
@@ -1573,8 +1576,9 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
     // A drag-drop insert names a position. `$each` + `$position` cannot express
     // several different positions in one update, and these arrive one at a time
     // anyway, so they keep the original single-row path.
-    const positioned = rows.filter((r) => typeof r.insertAtIndex === "number" && r.occurrenceData.parentId);
-    const appended = rows.filter((r) => typeof r.insertAtIndex !== "number" && r.occurrenceData.parentId);
+    const listed = rows.filter((r) => r.list !== false && r.occurrenceData.parentId);
+    const positioned = listed.filter((r) => typeof r.insertAtIndex === "number");
+    const appended = listed.filter((r) => typeof r.insertAtIndex !== "number");
 
     const byParent = new Map();
     for (const r of appended) {

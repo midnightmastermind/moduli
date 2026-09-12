@@ -203,6 +203,7 @@ function InstanceInner({
   const getOcc = useGridActionsSelector(s => s.getOcc || ((oid) => (oid ? s.occurrencesById?.[oid] || null : null)));
   const getOccMap = useGridActionsSelector(s => s.getOccMap || (() => s.occurrencesById || {}));
   const getState = useGridActionsSelector(s => s.getState || (() => s.state || {}));
+  const getViewMap = useGridActionsSelector(s => s.getViewMap || (() => s.viewsById || {}));
   // Open this row's link as a browser page in the panel it sits in (user,
   // 2026-09-10: *"a button ... for all occurances that have a url field"*).
   // Every map is read at CLICK time through the non-subscribing getters, so a
@@ -212,7 +213,8 @@ function InstanceInner({
     if (!occurrence?.id) return;
     const occurrencesById = getOccMap?.() || {};
     const modulesById = getModMapInner?.() || {};
-    const { viewsById = {}, grid = null } = getState?.() || {};
+    const viewsById = getViewMap?.() || {};
+    const grid = getState?.()?.grid || null;
     const panelsById = collectPanelOccurrences(occurrencesById, modulesById);
     // The panel around the click is the panel we are in; the data walk is the
     // fallback for a click that did not come from inside a panel shell.
@@ -224,7 +226,7 @@ function InstanceInner({
     });
     if (res.ok && res.via === "stale") toast("That panel is gone — opened here instead");
     else if (!res.ok) toast.error(res.reason || "Could not open this");
-  }, [occurrence?.id, getOccMap, getModMapInner, getState, fieldsById, dispatch, socket]);
+  }, [occurrence?.id, getOccMap, getModMapInner, getState, getViewMap, fieldsById, dispatch, socket]);
   // Own linked-group members — element-wise stable, so only a change to one
   // of THIS instance's linked siblings re-renders it.
   const linkedGroup = useGridActionsSelectorShallow(s =>
@@ -800,8 +802,7 @@ function InstanceInner({
           type="button"
           className={toggleDoc ? "instance-url-btn instance-url-btn--beside-body" : "instance-url-btn"}
           data-testid="instance-url-btn"
-          aria-label="Open link as a page in this panel"
-          title="Open link as a page in this panel"
+          aria-label="Open link"
           onClick={openUrlHere}
           onPointerDown={(e) => e.stopPropagation()}
         >

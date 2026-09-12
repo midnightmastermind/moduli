@@ -3402,3 +3402,16 @@ the open-as-page button on every row with a link.
 
 Found in the logs (queued messages, 09-10 20:10–20:15 and 09-11 12:44). The button had shipped
 hover-only and invisible on a tablet; the zoom-cursor request was never answered. Both fixed.
+
+---
+
+## 2026-09-12 (4) — the row button did nothing, and it should be only an icon
+
+Continued the other account's session (session limit, mid-diagnosis). After `2c848d52` the click on
+a row's link button MINTED a browser but the panel never moved, and the minted browser was listed
+in the row's own `occurrences[]`.
+
+> **"it shouldnt say open as page. it should just be like an icon to click"**
+
+Both buttons already render only an `ExternalLink` icon; the words were the hover tooltip. The
+tooltip is gone (aria-label `Open link` kept for screen readers).
