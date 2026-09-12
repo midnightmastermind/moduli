@@ -3341,3 +3341,64 @@ viewer (viewer shows files and urls)."*
 **Open, and it is a decision for the user:** the Washington Post refuses to be framed; showing the
 live site means proxying it through our own origin, which exposes the auth token to that page's
 script unless it is served from a separate origin.
+
+---
+
+## 2026-09-12 — the reader renders occurrences, not markdown source
+
+1. > **"i saved a new screenshot, the reader mode looks rather not flushed out either"**
+2. > **"the reader mode should be turning the things into textblocks and containers like the
+   wikipedia import"**
+
+The second sentence is the design, and it overrode the fix in progress: a markdown→React renderer
+would have been the *"never re-render occurrence content as a static copy"* hack. Reader mode now
+runs the IMPORTER's own planner (`import_plan`, `dryRun: true`) and renders the planned occurrences
+through the app's real renderers — writing nothing, because a page read averages 299 occurrences
+against a 21,415-row grid.
+
+**Question answered, and it RETRACTS an earlier claim of mine.** Carried over from 2026-09-11 (2):
+> **"i just dont understand how raindrop gets away wiht it"**
+
+They do not proxy. `rdl.ink/render/<url>` returns a **1200x800 WebP image** — a server-side
+screenshot on a separate registrable domain, so no third-party HTML ever reaches the browser and the
+`localStorage` hazard I described does not exist. The three options put to the user on 2026-09-11
+rested on a false premise about what Raindrop does. A fourth option exists (screenshot it
+server-side; `playwright` is already a dependency) and is **reported, not built** — it produces an
+image, and for the Washington Post specifically the live page is paywalled at 91 words while the
+2023 archive holds the full 1,617-word article.
+
+---
+
+## 2026-09-12 (2) — two text modes: Reader and Magic
+
+> **"we should have two modes. one for reader and one for magic. the reader shows one container
+> and one textblock for the entire articles. magic makes them the way i just had you do it
+> (multiple occurances)."**
+
+(Sent to the other account three times; it ran out of context and then spend before answering.)
+
+**Built.** The strip reads `Reader · Magic · Web · Archive`. Both text modes read the SAME text
+(live, falling back to the archive exactly as before) and differ only in layout:
+- **Reader** — `import_plan { shape: "reader" }` → one `container/doc` embedding one
+  `textblock/doc` whose textmap is the whole article (headings, lists, quotes, code, tables, images
+  as nodes; links as ordinary link marks). Measured on Wikipedia "Eminem": **2 occurrences**.
+- **Magic** — `shape: "magic"` (and the default) → the importer's full tree, what the previous
+  session shipped. Same article: **806 occurrences**.
+
+Neither mints anything. Not deployed; nobody has clicked either button in a browser yet.
+
+---
+
+## 2026-09-12 (3) — the missing button, the zoom cursor, and an audit of all three accounts
+
+> **"i still dont see the little button we were supposed to add on these artifacts that allows me
+> to open the link in a browser page and not the viewer. clicking on the image should open up the
+> viewer but clicking on this small button should open it as a browser page in the panel we are in.
+> and also the cover image still has a zoom in cursor when hovered over, i wanted that changed too.
+> we are missing alot of stuff we talked about, can you search the chat logs of all three accounts"**
+
+Then **"yes"** to: deploy it with Reader/Magic, then do the unshipped ~244ms tick speed-up and put
+the open-as-page button on every row with a link.
+
+Found in the logs (queued messages, 09-10 20:10–20:15 and 09-11 12:44). The button had shipped
+hover-only and invisible on a tablet; the zoom-cursor request was never answered. Both fixed.

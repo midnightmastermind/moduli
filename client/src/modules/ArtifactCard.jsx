@@ -583,7 +583,7 @@ export default function ArtifactCard({ module, label, occurrence }) {
           onClick={openInPanel}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <ExternalLink size={12} />
+          <ExternalLink size={15} />
         </button>
       )}
     </div>

@@ -3638,7 +3638,9 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   justify-content: center;
   width: 100%;
   min-height: 80px;
-  cursor: zoom-in;
+  /* POINTER, not zoom-in (user, 2026-09-11: "i dont want zoom in cursors on the
+     app so change those to pointer cursors (the ones that go on links)"). */
+  cursor: pointer;
   border-radius: 4px;
   overflow: hidden;
   background: var(--input-bg);
@@ -3837,23 +3839,36 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    the file WHERE IT SITS, this one sends it to a PANEL as a page. Two
    destinations, two corners — in one corner they would read as one control.
    Same hover-reveal so neither is chrome you have to look at. */
+/* ALWAYS VISIBLE (user, 2026-09-12: "i still dont see the little button"). It
+   shipped hover-revealed at opacity 0 — which a tablet never triggers, and on a
+   mouse it was a 12px ghost in the card's corner. Unlike the expand hint, this
+   is a DESTINATION you have to know exists, so it is chrome you can see: light
+   ink on a dark chip (a cover photo is any colour, so theme ink would vanish on
+   half of them), a finger-sized box, and above the image and its load badge. */
 .artifact-thumb-page-hint {
-  background: none; border: none; padding: 2px; cursor: pointer;
+  border: none; cursor: pointer;
   position: absolute;
-  bottom: 4px;
-  right: 4px;
-  color: var(--text-faint);
-  background: rgba(0, 0, 0, 0.35);
-  border-radius: 3px;
-  opacity: 0;
-  transition: opacity 0.12s ease-out;
-  z-index: 2;
+  bottom: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(0, 0, 0, 0.55);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  opacity: 0.9;
+  transition: opacity 0.12s ease-out, background 0.12s ease-out;
+  z-index: 4;
 }
 .artifact-card:hover .artifact-thumb-page-hint,
 .artifact-thumb-page-hint:focus-visible {
   opacity: 1;
 }
-.artifact-thumb-page-hint:hover { color: var(--text-primary); }
+.artifact-thumb-page-hint:hover { background: rgba(0, 0, 0, 0.8); color: #fff; }
 
 .artifact-card:hover .artifact-thumb-expand-hint {
   opacity: 1;

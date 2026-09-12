@@ -6,6 +6,186 @@
 
 ---
 
+### 2026-09-12 (4) — THE BUTTON SHIPPED INVISIBLE, and a queued request nobody answered
+
+User: *"i still dont see the little button we were supposed to add on these artifacts … and also the
+cover image still has a zoom in cursor … we are missing alot of stuff we talked about, can you
+search the chat logs of all three accounts."*
+
+**THE CHAT LOGS HOLD USER MESSAGES IN TWO PLACES, and searching one misses most of them.** A message
+typed while Claude is busy is NOT a `type:"user"` record — it lands as `type:"queue-operation"` or an
+`attachment` of type `queued_command`. The first pass over `user` records found 45 messages since
+09-01; the queued records held **148 more**, including both requests below. *Rebuild a task list from
+BOTH, or it reads as complete while missing the requests made mid-work.*
+
+**THE OPEN-AS-PAGE BUTTON EXISTED (`82be6d78`, 09-10) AND NOBODY COULD SEE IT.** `.artifact-thumb-page-hint`
+was `opacity: 0` until `.artifact-card:hover` — a tablet never hovers — and a 12px icon on a mouse.
+It is now always visible: a 26px dark chip (`opacity .9`, light ink, because a cover photo is any
+colour and theme ink vanishes on half of them), `z-index: 4` above the image. **I first told the user
+the class had no CSS rule; that was my grep's pattern, not the file — retracted.**
+
+**"no zoom in cursors on the app" (09-11 12:44) was queued during account2's session and never
+answered.** Both sites (`.artifact-card`, the inline row thumbnail in `ModuleInstance`) are `pointer`.
+`__tests__/noZoomCursor.test.js` greps the source for a zoom CURSOR (not the `zoom-in-95` animation
+classes — the control asserts the regex tells them apart) and pins the page-hint's resting opacity.
+
+**The archive view's loading state was bare text** while the reader and frame had spinners (09-10:
+*"loading circles for the reader and archive view"*). Same `Spinner` now.
+
+**Verified in the BUILT stylesheet:** `cursor:zoom-in` 0, page-hint `opacity:.9`, expand-hint control 3.
+
+**Audited and found NOT shipped:** the 09-06 measurement that 27 ops could read `$allInstances`
+instead of `$allItems` (effects identical, est. ~244ms per tick) was announced "I'll come back to
+that" and never landed; and the open-as-page button is on bookmark CARDS only, where 09-10 asked for
+*"all occurances that have a url field"*.
+
+---
+
+### 2026-09-12 (3) — READER AND MAGIC: one parser, two shapes
+
+User (sent three times to the other account, which ran out of context and then spend before
+answering): *"we should have two modes. one for reader and one for magic. the reader shows one
+container and one textblock for the entire articles. magic makes them the way i just had you do it
+(multiple occurances)."*
+
+**THE SHAPE IS A PLANNER ARGUMENT, NOT A SECOND IMPORTER.** `import_plan` takes
+`shape: "reader" | "magic"`; anything else (including absent) is MAGIC, which is what the handler
+returned before the argument existed. `markdownToReaderDoc` reuses `parseBlocks` + `parseInline` +
+`paragraphToBlocks`, so the two shapes cannot disagree about what the text SAYS — they only disagree
+about how many occurrences it becomes. Measured on Wikipedia "Eminem" (107,417 chars of markdown):
+```
+reader    2 occurrences   one textblock: 89 paragraphs · 42 headings · 9 images · 6 quotes · 6 lists · 2 tables
+magic   806 occurrences
+```
+**Links stay link MARKS in Reader** — a chip is an occurrence, and the point of the shape is that
+there is exactly one textblock. The leading H1 becomes the container label and leaves the body, or
+it prints twice.
+
+**THREE SCHEMA TRAPS, each of which throws the WHOLE doc rather than one node:** ProseMirror rejects
+an empty text node (and `parseInline("")` returns one — a `- ` bullet produces it); the doc editor
+registers heading levels 1-3 only, so `#####` is clamped; and a table cell's content is `block+`, so
+every cell carries a paragraph. **Verified against the REAL schema, not a hand copy:** a throwaway
+client test built `getSchema([StarterKit(levels 1-3), Image, Table…])` — the editor's own extension
+set — and ran `nodeFromJSON(...).check()` over a synthetic every-block-kind doc AND the real Eminem
+article. Both passed; the probe was deleted (it imports server code across packages).
+
+**Client:** a Magic button beside Reader; `resolveMode` treats `magic` exactly like `reader`
+(explicit pick wins, archive text fallback, the "from the archive" label). Plans are **cached per
+url, keyed shape + markdown**, so flipping Reader ↔ Magic to compare does not re-plan an 806-row
+tree; the request counter is bumped on EVERY switch, cached or not, so a slow reply for the shape
+just left cannot land on the one just picked.
+
+**Four A/Bs, each failing exactly its own tests:** server ignoring shape → always-reader fails the
+Magic control (1), always-magic fails both Reader tests (2); client sending a fixed shape fails the
+Reader/Magic test (1), removing the cache fails the same test (1). 2,158 server tests.
+
+**NOT VERIFIED, unchanged from (2): nobody has clicked Reader or Magic in a browser. Not deployed.**
+
+---
+
+### 2026-09-12 (2) — THE READER PRINTED ITS MARKDOWN SOURCE, and RAINDROP DOES NOT PROXY
+
+User: *"the reader mode looks rather not flushed out either"*, then the directive that reshaped
+the fix: *"the reader mode should be turning the things into textblocks and containers like the
+wikipedia import"*. Plus a question owed from the previous session, answered below.
+
+**RAINDROP DOES NOT PROXY — my earlier claim is RETRACTED, and the three options I gave rested on
+it.** 2026-09-11 (2) recorded *"Raindrop shows the live page because it proxies"* and built a
+security dilemma on it. Measured instead:
+```
+rdl.ink/render/<encoded url>   200, content-type: image/webp, 1200x800, 193 KB
+rdl.ink/cache|page|proxy/...   404          <- no HTML-serving path exists
+```
+Downloaded and **looked at**: the live Washington Post homepage, "Updated 1 hour ago". And
+`rdl.ink` is a different registrable domain from `raindrop.io`, so no cookie or `localStorage`
+sharing is even possible. **They render the page server-side and send a PICTURE.** A picture has
+no script, so the hazard I described — a third-party page reading the auth token — never arises.
+**There is a fourth option I never offered** (screenshot it server-side; `playwright` is already a
+dependency), with none of the cost. NOT BUILT: it is an image, so it is not selectable or
+clickable, and for WaPo specifically the live page is paywalled at 91 words while the 2023 archive
+holds the 1,617-word article — so for that bookmark the archive really is better. Reported rather
+than acted on.
+
+**THE READER DUMPED `reader.markdown` INTO A `pre-wrap` DIV.** Measured on the exact article in
+the user's screenshot, through the real extractor:
+```
+reader body          11,077 chars / 1,617 words
+URL targets printed   9 links = 1,255 chars = 11.3% of what you were reading
+longest single URL    196 chars
+bold **x** 13 · italic 7 · escaped \[ \] 6 · heading # 1   -> all printed as syntax
+```
+**An eighth of the reader was archive.org URLs.**
+
+**AND A MARKDOWN-TO-REACT RENDERER WOULD HAVE BEEN THE HACK THIS REPO HAS A RULE AGAINST** — *never
+re-render occurrence content as a static copy; use the real occurrences.* The user named the right
+answer: `markdownToModuli` already turns this exact markdown into containers, textblocks, quote
+artifacts and tables, and the app already renders all four.
+
+**BUT READING CANNOT MINT, and the measurement is what settles the design.** Through the real
+planner (`dryRun: true`) over three real pages:
+```
+WaPo article    1,619 words  ->   11 occurrences
+danbrown.com      814 words  ->   84 occurrences
+Wikipedia      11,678 words  ->  803 occurrences   (712 inline link chips)
+                            avg  299 per page read
+the live grid today               21,415 occurrences
+```
+**Reading ~26 Wikipedia-sized pages would double the grid**, and the spread page these would hang
+off is permanent by design (*"nothing to clean up on close"*) — there is no teardown to lean on.
+So `import_plan` is the importer's OWN dryRun: one planner, two modes. A second "plan" path is
+exactly how the read tree and the imported tree would drift, which is why `readerExtract` reuses
+the import chain in the first place. `import_url` remains the deliberate "keep this page" action.
+
+**THE ISOLATION IS STRUCTURAL, NOT A PROMISE.** The planned rows go to `PagePreviewBody` as its own
+`parentState` — the seam preview cards already render through, with `dispatch` and `socket` nulled
+inside it — so there is **no path from the reader to a write at all**. That is the 2026-08-04
+phantom class (a client-held row Mongo never saw, which taught `update_occurrence`'s guard that a
+dangling child id was real) made impossible rather than guarded against.
+
+**AND THAT SEAM HELD A LANDMINE I NEARLY STEPPED ON.** `PagePreviewBody` calls
+`publishComputedValues(parentState?.computedValues || {})`, and that store is a **module-level
+singleton**. Its comment claimed preview iframes have their own instance — **stale since
+`PreviewNode` stopped using an iframe and began mounting this component INLINE**. PreviewNode is
+unharmed only because it passes the LIVE state, so its publish re-publishes the same map. A reader
+handing over an isolated state would have **blanked every display field on the grid**. New
+`publishComputed={false}`; `readerStateFromPlan` omits the key and says why.
+
+**THEN RENDERING IT FOUND A PRE-EXISTING IMPORTER BUG THAT DELETED CONTENT.** `parseInline` had no
+backslash-escape handling, and turndown escapes markdown punctuation — so `\[` printed the
+BACKSLASH and then the bracket was **swallowed by the never-infinite-loop safety**. Not a stray
+character: text came back shorter than the author wrote it. This hit the wikipedia import too.
+Fixed at the source; the escapable set is CommonMark's ASCII punctuation, so `C:\Users` and
+`\alpha` are left exactly as written.
+```
+rendered text                 before        after
+link literals "](url)"        1,255 chars      0
+bold "**x**"                        13         0
+escapes "\[" "\]"                   3         0    <- and the brackets RESTORED
+link occurrences (control)           9         9    <- links exist, not dropped
+```
+That control is what makes the zeros mean something: the syntax is gone because it became
+structure, not because the links were discarded.
+
+**MY FIRST FIX INTRODUCED ITS OWN BUG AND A TEST CAUGHT IT.** Adding `\\` to the plain-text scan
+meant a NON-escapable backslash left `stop === i`, and the safety consumed it silently —
+`C:\Users` became `C:Users`. A backslash is now always emitted; only a valid escape consumes two.
+
+**TWO EXISTING TESTS WENT RED AND THEY WERE MINE**, asserting the raw markdown is on screen — the
+behaviour being replaced. Updated to assert **which markdown was sent for layout**, which is
+stricter than a DOM substring: it names the source, so an archive read that was fetched and then
+ignored fails. A/B'd — planning the live text instead of the resolved source fails exactly that.
+
+**Every guard A/B'd with the mutation asserted to LAND:** the root-membership check (1), carrying
+`computedValues` (1), `dryRun: false` on the planner — which is the control proving the
+writes-nothing test can SEE a write (1), and the archive-source assertion (1). 2,151 server tests
+across 203 files, build clean.
+
+**NOT VERIFIED, and it is the honest gap: nobody has opened the reader in a browser.** The chain is
+driven end to end through the real extractor and the real planner, and the rendered tree is
+measured — but no one has watched it paint. Not deployed for that reason.
+
+---
+
 ### 2026-09-12 — THE BOARD LABEL PRINTED TWICE FOR THREE WEEKS, and the reason I held the fix back did not exist
 
 The viewer's duplicate was fixed on 2026-09-11 and its note said the same duplicate *"on the boards

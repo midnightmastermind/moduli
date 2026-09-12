@@ -2,6 +2,44 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-09-12 (3) — ArtifactCard: the open-as-page chip is visible; no zoom cursors)
+- **`ArtifactCard.jsx`** — the bookmark's open-as-page button (`.artifact-thumb-page-hint`) is always
+  visible now (26px dark chip, `opacity .9`, icon 15px). It had shipped hover-revealed at opacity 0,
+  which a tablet never shows. `.artifact-card` cursor is `pointer` (was `zoom-in`).
+- **`ModuleInstance.jsx`** — the inline row thumbnail's cursor is `pointer` (was `zoom-in`).
+- **`BookmarkView.jsx`** — the archive mode's loading state uses the shared `Spinner`.
+- Guard: `__tests__/noZoomCursor.test.js`.
+
+## Recent Changes (2026-09-12 (2) — BookmarkView: Reader and Magic)
+- **Two text modes over the same text** (user: *"one for reader and one for magic"*). Strip order
+  `Reader · Magic · Web · Archive`. `resolveMode` returns `chosen` for either; the archive-text
+  fallback (`wantsArchiveText`) and the "from the archive" label apply to both via `isTextMode`.
+- The plan effect sends `shape: mode` to `import_plan` — Reader gets one container + one textblock,
+  Magic gets the importer's full tree (server/CLAUDE.md). Rendering is unchanged: both go through
+  `readerStateFromPlan` → isolated `PagePreviewBody`.
+- **Plans are cached per url, keyed shape + markdown** (a `Map` cleared on url change), so flipping
+  modes to compare does not re-plan. The request counter bumps on every switch, cached or not, so a
+  late reply for the shape just left is dropped. A/B'd: removing the cache fails the mode test.
+
+## Recent Changes (2026-09-12 — BookmarkView: the reader renders occurrences, not markdown source)
+- **`BookmarkView.jsx`** — reader mode emits `import_plan` (the importer's own `dryRun`) and renders
+  the planned tree via `PagePreviewBody` with `scroll` + `publishComputed={false}`. The old branch
+  dumped `reader.markdown` into a `pre-wrap` div, so an eighth of what you read was archive.org URLs.
+- **KEYED ON THE MARKDOWN, not the url.** The same page yields a live read and an archive read with
+  different text, and the plan must follow whichever `readerSource` picked — keying on the url would
+  leave the archive's structure showing the live page's.
+- **Planned only when `mode === "reader"`.** The READ runs on every open (it is what decides the
+  mode); a page you never switch to Reader on should not pay for a tree nobody looks at.
+- **`PagePreviewBody` is `React.lazy`, and that is a CYCLE BREAK, not a bundle tweak.** The static
+  graph is BookmarkView → PagePreviewApp → ModuleContainer → ArtifactCard → BookmarkView, because a
+  container renders artifact cards and an artifact card renders this.
+- **TDZ, caught before it shipped:** the plan effect first sat ABOVE `const mode = resolveMode(...)`
+  and named `mode` in its dep array — a dep array is evaluated at RENDER time, so it throws before
+  the effect ever runs. Same trap `CanvasContent` paid for on 2026-05-21. Moved below `mode`.
+- **Two existing tests went red and they were MINE** — `bookmarkReaderFromArchive` asserted the raw
+  markdown is on screen. Updated to assert WHICH markdown was sent for layout, which is stricter
+  than a DOM substring: it names the source. A/B'd — planning the live text fails exactly that.
+
 ## Recent Changes (2026-09-11 — viewer tiles: url tile opens itself, cover lightboxes, a maximize button on every tile)
 - **`ArtifactCard.jsx`** — the bookmark-in-viewer arm is `inSpread && !coverSrc` (was
   `… && (expanded || (!coverSrc && !hasAddress))`): the url tile IS the browser and opens without a

@@ -889,7 +889,9 @@ function InstanceInner({
                 // label beside it and is untouched.
                 role="button"
                 title={`Open ${mediaBinding?.field?.name || "media"}`}
-                style={{ cursor: "zoom-in" }}
+                // Pointer, never zoom-in — no zoom cursors anywhere in the app
+                // (user, 2026-09-11).
+                style={{ cursor: "pointer" }}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation();
