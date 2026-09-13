@@ -235,6 +235,20 @@ export function fallbackReason(fetched) {
 // their own body.
 const FRAME_STYLE = { width: "100%", height: "100%", border: 0, display: "block", background: "#fff" };
 
+// One waiting state for Reader and Magic, so every wait looks the same.
+function ReaderWaiting({ label }) {
+  return (
+    <div data-reader-waiting="1" style={{
+      height: "100%", display: "flex", flexDirection: "column", gap: 10,
+      alignItems: "center", justifyContent: "center", color: "var(--text-muted)",
+      fontSize: 12, fontFamily: "var(--font-mono)",
+    }}>
+      <Spinner size="md" className="staged-hold-spinner" />
+      <span>{label}</span>
+    </div>
+  );
+}
+
 export default function BookmarkView({ occurrence, module = null, fieldsById = null, socket, isActivePage = true }) {
   // ── THE FIELD MAP IS NOT OPTIONAL HERE, and it took a live probe to see it ──
   //
@@ -467,6 +481,17 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   }, [liveReaderIsThin, liveSlowNoReply, archive, socket, archiveRead]);
 
   const reader = readerSource({ fetched, archiveRead });
+  // STILL FINDING THE TEXT (user, 2026-09-13: *"we need a loading circle for
+  // magic and reader mode"*). Without this every one of these waits fell
+  // straight through to "This page has no readable text", a verdict printed
+  // while the live read, the archive lookup or the archive read was still out.
+  const readerWaitLabel = reader.markdown ? null
+    : !fetched ? "Reading the page…"
+    : archive?.loading ? "Looking for a saved copy…"
+    : archiveRead?.loading ? "Reading the saved copy…"
+    : (liveReaderIsThin && !archive) ? "Looking for a saved copy…"
+    : (liveReaderIsThin && archive?.ok && !archiveRead) ? "Reading the saved copy…"
+    : null;
 
   // The embeddable form of this url, or null. Computed here rather than inside
   // `resolveMode` so that function stays pure over its inputs and testable
@@ -753,15 +778,8 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
         {url && isTextMode && (
           // OUR DOM: selection and right-click work here, which is the whole
           // point of preferring this mode.
-          reader.from === "loading" ? (
-            <div style={{
-              height: "100%", display: "flex", flexDirection: "column", gap: 10,
-              alignItems: "center", justifyContent: "center", color: "var(--text-muted)",
-              fontSize: 12, fontFamily: "var(--font-mono)",
-            }}>
-              <Spinner size="md" className="staged-hold-spinner" />
-              <span>Reading the saved copy…</span>
-            </div>
+          readerWaitLabel ? (
+            <ReaderWaiting label={readerWaitLabel} />
           ) : (
           <div data-reader-pane="1"
                style={{ height: "100%", overflowY: "auto", padding: 0,
@@ -792,7 +810,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
                 against. `publishComputed={false}` keeps it away from the
                 computed-values singleton it would otherwise blank. */}
             {readerTree ? (
-              <React.Suspense fallback={null}>
+              <React.Suspense fallback={<ReaderWaiting label="Laying out the page…" />}>
                 <PagePreviewBody
                   parentState={readerTree.state}
                   occurrenceId={readerTree.rootOccurrenceId}

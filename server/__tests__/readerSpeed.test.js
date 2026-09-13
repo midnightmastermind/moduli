@@ -1,5 +1,5 @@
-// Reader speed (2026-09-13): a stalled host is not waited on twice, Magic plans
-// one textblock per paragraph, and Reader's container carries the page title.
+// Reader speed (2026-09-13): a stalled host is not waited on twice, Magic builds
+// section containers around merged prose, and Reader's container carries the title.
 //
 // Measured from the production droplet: every Washington Post article times the
 // live reader fetch out at the full 6s deadline, and the viewer could not look
@@ -130,15 +130,39 @@ describe("promoteBoldParagraphs", () => {
 });
 
 describe("import_plan shapes", () => {
-  it("MAGIC plans one textblock per paragraph and a container per bold section", async () => {
+  // user, 2026-09-13: *"magic mode shouldnt be every paragraph is just a
+  // textblock. it needs to be smart like the wikipedia import."* So prose MERGES
+  // (one textblock per section, like an import) and the structure comes from
+  // the sections.
+  it("MAGIC structures the page: section containers holding merged prose", async () => {
     const h = harness();
     const out = await call(h, "import_plan", { content: ARTICLE, gridId: "g", shape: "magic", title: "House of Cards" });
-    const role = (id) => out.modules.find((m) => m.id === out.occurrences.find((o) => o.id === id)?.moduleId)?.role;
-    const textblocks = out.occurrences.filter((o) => role(o.id) === "textblock");
-    const sectionLabels = out.modules.filter((m) => m.role === "container").map((m) => m.label);
-    expect(textblocks.length).toBe(5);
-    expect(sectionLabels).toContain("There are only one or two smart people in Washington.");
-    expect(sectionLabels).toContain("Congressional leaders hand-pick presidential nominees.");
+    const modOf = (o) => out.modules.find((m) => m.id === o.moduleId);
+    const byLabel = (label) => out.occurrences.find((o) => modOf(o)?.label === label);
+    const textblocksUnder = (occ) => (occ.occurrences || [])
+      .map((id) => out.occurrences.find((o) => o.id === id))
+      .filter((o) => o && modOf(o)?.role === "textblock");
+    const root = out.occurrences.find((o) => o.id === out.rootOccurrenceId);
+    const s1 = byLabel("There are only one or two smart people in Washington.");
+    const s2 = byLabel("Congressional leaders hand-pick presidential nominees.");
+    expect(modOf(s1)).toMatchObject({ role: "container", kind: "doc" });
+    expect(root.occurrences).toEqual(expect.arrayContaining([s1.id, s2.id]));
+    // The three lead paragraphs are ONE textblock under the root, not three.
+    expect(textblocksUnder(root)).toHaveLength(1);
+    expect(textblocksUnder(s1)).toHaveLength(1);
+    expect(textblocksUnder(s2)).toHaveLength(1);
+  });
+
+  it("MAGIC nests a bold sub-section INSIDE the real heading above it", async () => {
+    const h = harness();
+    const md = ["## Part One", "", "Opening prose.", "", "**A smaller point**", "", "Detail prose."].join("\n");
+    const out = await call(h, "import_plan", { content: md, gridId: "g", shape: "magic", title: "T" });
+    const modOf = (o) => out.modules.find((m) => m.id === o.moduleId);
+    const part = out.occurrences.find((o) => modOf(o)?.label === "Part One");
+    const sub = out.occurrences.find((o) => modOf(o)?.label === "A smaller point");
+    expect(part.occurrences).toContain(sub.id); // doc container inside doc container
+    const subText = sub.occurrences.map((id) => out.occurrences.find((o) => o.id === id));
+    expect(subText.some((o) => modOf(o)?.role === "textblock")).toBe(true);
   });
 
   it("READER stays one container + one textblock, headed by the title", async () => {

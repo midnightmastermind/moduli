@@ -458,7 +458,7 @@ function blocksToTree(blocks, rootTitle) {
 }
 
 // ----- Mint entities from the tree -----
-function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, sourceLabel = null, granular = false }) {
+function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, sourceLabel = null }) {
   const modules = [];
   const occurrences = [];
 
@@ -745,9 +745,6 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
         // images into their own nodes within the same textblock); a blank-line gap
         // between paragraphs is preserved as separate paragraph nodes in the block.
         pendingPara.push(...paragraphToBlocks(c.text, buildInlineLink));
-        // GRANULAR (the Magic reader shape): every paragraph is its own
-        // textblock rather than joining the running chunk.
-        if (granular) flushPara();
         continue;
       }
       if (c.kind === "quote") {
@@ -1030,23 +1027,31 @@ export function planReaderShape({ gridId = null, userId, markdown, title = null 
 /**
  * A paragraph that is ONLY bold text ("**There are only one or two smart people
  * in Washington.**") is how most news and blog pages mark a section — they
- * rarely emit real headings. Granular planning treats it as one, so the
- * sections become containers. Pure.
+ * rarely emit real headings. The Magic reader shape treats it as one, so the
+ * page gets section containers the way a Wikipedia import does. Pure.
+ *
+ * DEPTH FOLLOWS THE PAGE'S OWN HEADINGS: a bold line sits one level below the
+ * nearest real heading above it, so bold sub-sections nest INSIDE a `##`
+ * section's container rather than beside it (user, 2026-09-13: *"textblocks
+ * inside doccontainers inside doccontainers"*). Before any real heading it is a
+ * top-level section (level 2 — level 1 is the article itself).
  */
 export function promoteBoldParagraphs(blocks) {
+  let nearest = 1;
   return blocks.map((b) => {
+    if (b.kind === "heading") { nearest = b.level || 1; return b; }
     if (b.kind !== "paragraph") return b;
     const m = /^(?:\*\*|__)([^*_][\s\S]*?)(?:\*\*|__)$/.exec(String(b.text || "").trim());
     if (!m || m[1].length > 160 || /\*\*|__/.test(m[1])) return b;
-    return { kind: "heading", level: 2, text: stripInlineMd(m[1].trim()) };
+    return { kind: "heading", level: Math.min(nearest + 1, 6), text: stripInlineMd(m[1].trim()) };
   });
 }
 
-export async function markdownToModuli({ gridId, parentId = null, userId, markdown, dryRun = false, title = null, sourceUrl = null, granular = false }) {
+export async function markdownToModuli({ gridId, parentId = null, userId, markdown, dryRun = false, title = null, sourceUrl = null, boldSections = false }) {
   const parsed = parseBlocks(markdown);
-  const blocks = granular ? promoteBoldParagraphs(parsed) : parsed;
+  const blocks = boldSections ? promoteBoldParagraphs(parsed) : parsed;
   const tree = blocksToTree(blocks, title);
-  const planned = mintEntities(tree, { gridId, userId, rootParentId: parentId, sourceUrl, sourceLabel: title ? `${title} — Wikipedia ↗` : null, granular });
+  const planned = mintEntities(tree, { gridId, userId, rootParentId: parentId, sourceUrl, sourceLabel: title ? `${title} — Wikipedia ↗` : null });
 
   if (!dryRun) {
     // Insert in dependency order: modules first (no FK between them),

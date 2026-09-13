@@ -79,6 +79,35 @@ describe("hedged archive lookup", () => {
     expect(emitted(socket, "wayback_lookup")).toHaveLength(0);
   });
 
+  // user, 2026-09-13: *"we need a loading circle for magic and reader mode"*. The
+  // pane used to print "no readable text" while the read was still out.
+  it("Reader shows a loading circle, not a verdict, while the live read is out", async () => {
+    const socket = socketFor(undefined);
+    const c = await mount(socket);
+    const reader = [...c.querySelectorAll("button")].find((b) => b.textContent === "Reader");
+    await act(async () => { fireEvent.click(reader); });
+    expect(c.querySelector("[data-reader-waiting]")).toBeTruthy();
+    expect(c.textContent).not.toMatch(/no readable text/);
+  });
+
+  // THE CONTROL: a page that truly has no text anywhere still says so, rather
+  // than spinning forever.
+  it("a page with no text live or archived still gets the verdict", async () => {
+    const socket = {
+      emit: vi.fn((ev, payload, ack) => {
+        if (typeof ack !== "function") return;
+        if (ev === "wayback_lookup") return ack({ ok: false, reason: "not archived" });
+        if (ev === "page_reader") return ack({ ok: false, error: "HTTP 403", usable: false });
+      }),
+    };
+    const c = await mount(socket);
+    const magic = [...c.querySelectorAll("button")].find((b) => b.textContent === "Magic");
+    await act(async () => { fireEvent.click(magic); });
+    await advance(10);
+    expect(c.querySelector("[data-reader-waiting]")).toBeNull();
+    expect(c.textContent).toMatch(/no readable text/);
+  });
+
   it("with no pick, the snapshot shows as soon as it is found", async () => {
     const socket = socketFor(undefined);
     const c = await mount(socket);

@@ -193,10 +193,13 @@ export function registerImportHandlers(socket, {
         ? planReaderShape({ gridId: gridId || null, userId, markdown: content, title: title || null })
         : await markdownToModuli({
             gridId: gridId || null, parentId: null, userId,
-            // MAGIC IS GRANULAR (user, 2026-09-13): *"it should have way more
-            // occurances in magic mode"*. A real import merges running prose into
-            // one textblock; magic splits it back out, one per paragraph.
-            markdown: content, dryRun: true, title, granular: true,
+            // MAGIC STRUCTURES THE PAGE (user, 2026-09-13): *"it needs to be smart
+            // like the wikipedia import … textblocks inside doccontainers inside
+            // doccontainers"*. Same planner and same merged prose as an import;
+            // bold-only lines become sections too, since most pages use those
+            // instead of headings. One textblock per paragraph was tried and
+            // rejected the same day — it is flat, not structured.
+            markdown: content, dryRun: true, title, boldSections: true,
           });
 
       reply({
