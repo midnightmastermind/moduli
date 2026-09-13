@@ -3415,3 +3415,18 @@ in the row's own `occurrences[]`.
 
 Both buttons already render only an `ExternalLink` icon; the words were the hover tooltip. The
 tooltip is gone (aria-label `Open link` kept for screen readers).
+
+---
+
+## 2026-09-13 — the link icon is slow, and Reader and Magic look the same
+
+> **"it took way too long to load the page for the first time, clicking on that button made the site
+> slow down a shit ton and took 6 seconds to open, then another 10 to actually load the site. we
+> need to at least create the browser page faster"**
+
+> **"look at the last two screenshots … there currently isnt much of a diff. the reader should have a
+> doc container with the header and inside be a textblock of everything else. the magic mode should
+> be like for wikipedia import and import the text into occurances. it should have way more
+> occurances in magic mode"**
+
+> **"test is with the washington post article for the load time"**

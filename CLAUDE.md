@@ -6,6 +6,60 @@
 
 ---
 
+### 2026-09-13 — THE WASHINGTON POST WAS SIX SECONDS OF A TIMEOUT WE ALREADY KNEW THE ANSWER TO
+
+User: *"took 6 seconds to open, then another 10 to actually load the site. we need to at least create
+the browser page faster"* — tested on the Washington Post article — and, of two screenshots,
+*"there currently isnt much of a diff"* between Reader and Magic.
+
+**MEASURED BEFORE CHANGING ANYTHING, and the network was not where it looked.** The reader chain,
+timed step by step for the exact article:
+```
+                     live fetch        archive lookup   archive read   plan (either shape)
+home connection      467ms / 212ms     449ms / 73ms     651ms / 169ms  1-2ms
+PRODUCTION DROPLET   6006ms TIMEOUT    257ms            724ms          1-6ms     (both runs)
+```
+**WaPo stalls the datacenter address for the whole 6s deadline on every article**, and the client
+could not start the archive lookup until that `ok:false` came back. That serial chain is the ~10s.
+
+- **`utils/hostStallMemory.js` (NEW)** — a host whose reader fetch TIMED OUT is answered at once for
+  30 min (`stalled: true`). Only a timeout marks (a 403 is cheap to ask again — its own control test);
+  the archive host is never marked. **Verified on prod: three WaPo reads, 24-26ms each**, one of them
+  a different article on the same host. (The first was already skipped — an earlier open after the
+  restart had marked the host, so the 6s-to-25ms before/after is the droplet measurement above.)
+- **`BookmarkView` hedges** — past `READER_HEDGE_MS` (1.5s) with no live reply, the archive lookup
+  and archive read start BESIDE it. A fast page never reaches the hedge (its control test), so the
+  lookup stays lazy for everything else. With no pick, a snapshot found before the live answer shows
+  (`resolveMode`'s existing "a snapshot beats a page we know nothing about", extended to "no answer
+  yet"). This does not break the 2026-09-10 retraction — nothing waits on the lookup; it starts sooner.
+  **On prod: typed address -> Reader text on screen in 3.2s.**
+
+**THE FIRST CLICK, profiled at 4x throttle on test grid 2:** 983ms blocked before the panel switched,
+another 1.1s task before the frame mounted. Almost all React render breadth, plus one operation sweep
+and a feed pass fired by minting the page that fronts the artifact. **`ensureArtifactPage` now mints
+that page with `fireTrigger: false`** — scaffolding no tracker counts, and on poms grid a single
+`OccurrenceCreateOp` has measured ~1.5s on the user's device. **Honest limit: this removes the sweep,
+not the render breadth, and nobody has timed a first click on poms grid or the tablet since.**
+
+**READER HAD NO HEADER BECAUSE OF THE RENDERER, not the plan.** `planReaderShape` always produced a doc
+container + textblock, but `PagePreviewBody` draws a doc-kind root with `DocContent`, which prints the
+body only. New `rootChrome` prop draws it through `Container`; the reader passes the bookmark's title.
+
+**MAGIC WAS 11 OCCURRENCES ON A HEADING-LESS ARTICLE**, because the importer merges running prose into
+one textblock (right for a kept import, 2026-06-10). `import_plan` magic now plans **granular**: one
+textblock per paragraph, and a bold-only paragraph (how news pages mark sections) becomes a section
+container via `promoteBoldParagraphs`. **On prod: Reader 1 container + 1 textblock; Magic 10 containers
++ 28 textblocks** with the article's own section lines as headers.
+
+Every guard A/B'd with the mutation asserted to land, each failing exactly its own tests.
+4340 client + 2178 server tests, build clean, deployed (pm2 restarted), prod HEAD `1c7c7710`, served
+chunk sha256-identical.
+
+**Known wrinkle:** the reader heads its container with the BOOKMARK's label, so browsing a saved
+bookmark to a different address keeps the old title (the probe's Felix Romero browser showed that).
+
+---
+
 ### 2026-09-12 (5) — THE LINK ICON DID NOTHING, THREE DIFFERENT WAYS; and it is only an icon now
 
 Continued the other account's session, which hit its limit mid-diagnosis. Its own post-deploy probe
