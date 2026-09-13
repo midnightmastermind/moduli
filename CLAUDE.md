@@ -45,15 +45,25 @@ not the render breadth, and nobody has timed a first click on poms grid or the t
 container + textblock, but `PagePreviewBody` draws a doc-kind root with `DocContent`, which prints the
 body only. New `rootChrome` prop draws it through `Container`; the reader passes the bookmark's title.
 
-**MAGIC WAS 11 OCCURRENCES ON A HEADING-LESS ARTICLE**, because the importer merges running prose into
-one textblock (right for a kept import, 2026-06-10). `import_plan` magic now plans **granular**: one
-textblock per paragraph, and a bold-only paragraph (how news pages mark sections) becomes a section
-container via `promoteBoldParagraphs`. **On prod: Reader 1 container + 1 textblock; Magic 10 containers
-+ 28 textblocks** with the article's own section lines as headers.
+**MAGIC WAS 11 OCCURRENCES ON A HEADING-LESS ARTICLE**, because a page with no headings gives the
+importer no structure to build. **The first fix split prose one textblock per paragraph and was
+REJECTED the same morning** — user: *"magic mode shouldnt be every paragraph is just a textblock. it
+needs to be smart like the wikipedia import … textblocks inside doccontainers inside doccontainers."*
+Flat is not structured. What shipped (`boldSections`): the importer's own merged prose per section,
+plus `promoteBoldParagraphs` — a bold-only paragraph (how news pages mark sections) becomes a section
+container **one level below the nearest real heading above it**, so a bold sub-point under a `##`
+nests inside that section's container. **On prod: Magic 10 containers + 10 textblocks, containers two
+deep** (this article has no real headings, so its bold sections sit directly under the article).
+
+**AND THE READER PRINTED A VERDICT WHILE STILL LOADING** — user: *"we need a loading circle for magic and
+reader mode"*. Every wait before text existed (live read out, archive lookup out, archive read not yet
+started) fell through to "This page has no readable text". `readerWaitLabel` shows the shared spinner
+for each; the renderer's lazy chunk no longer shows a blank Suspense. A page with no text anywhere still
+gets the verdict (its control test). **On prod: the circle appears on picking Reader, no verdict mid-load.**
 
 Every guard A/B'd with the mutation asserted to land, each failing exactly its own tests.
-4340 client + 2178 server tests, build clean, deployed (pm2 restarted), prod HEAD `1c7c7710`, served
-chunk sha256-identical.
+4342 client + 2179 server tests, build clean, deployed twice (pm2 restarted both times), prod HEAD
+`7ef37921`, served chunk sha256-identical.
 
 **Known wrinkle:** the reader heads its container with the BOOKMARK's label, so browsing a saved
 bookmark to a different address keeps the old title (the probe's Felix Romero browser showed that).

@@ -7,10 +7,12 @@ _Updated: 2026-08-16. Check this file before re-reading source._
   `{ ok:false, stalled:true }` at once for 30 min. From the droplet WaPo times out at 6s on every
   article; the client waited for that before looking for the archive. Timeouts only; never the archive
   host; a success clears the mark.
-- **`services/markdownImporter.js`** — `markdownToModuli({ granular })` flushes a textblock per
-  paragraph and runs `promoteBoldParagraphs` (bold-only paragraph -> level-2 heading -> section
-  container). Only `import_plan` magic passes it; real imports keep merged prose.
-- Tests: `__tests__/readerSpeed.test.js` (10).
+- **`services/markdownImporter.js`** — `markdownToModuli({ boldSections })` runs
+  `promoteBoldParagraphs`: a bold-only paragraph becomes a heading one level below the nearest real
+  heading above it (level 2 before any), so it mints a nested section container. Prose stays MERGED
+  per section like an import. Only `import_plan` magic passes it. (A per-paragraph split shipped first
+  and was rejected by the user the same morning — flat, not structured.)
+- Tests: `__tests__/readerSpeed.test.js` (11).
 
 ## Recent Changes (2026-09-12 (2) — tracker loops iterate `$allInstances`; migration `0331`)
 - **`utils/liveSystemBuilders.js` (`makeTrackerOp`)** — `LOOP_OVER` is `$allInstances` for every agg

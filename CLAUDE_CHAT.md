@@ -3430,3 +3430,9 @@ tooltip is gone (aria-label `Open link` kept for screen readers).
 > occurances in magic mode"**
 
 > **"test is with the washington post article for the load time"**
+
+> **"magic mode shouldnt be every paragraph is just a textblock. it needs to be smart like the wikipedia
+> import. to structure the page. like the magic should have textblocks inside doccontainers inside
+> doccontainers"**
+
+> **"and we need a loading circle for magic and reader mode"**
