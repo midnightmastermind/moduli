@@ -125,7 +125,11 @@ export function resolveMode({ chosen = null, fetched = null, embeddable = false,
   // the site publishes a player, the player IS the content. Reader is still one
   // click away for the cases where the surrounding page is what you wanted.
   if (embeddable) return "web";
-  if (!fetched) return "loading";
+  // No live answer YET, but a snapshot is already in hand (the hedge found it
+  // while the live read stalls). Same rule as the failed-fetch branch below: a
+  // snapshot beats waiting on a page we know nothing about. If the live page
+  // later reads fine, the reader branch above takes over.
+  if (!fetched) return archived ? "archive" : "loading";
   if (fetched.ok && fetched.usable) return "reader";
   // The reader has nothing to show. The frame is the fallback — unless the site
   // refuses that too, which the fetch already told us from its own headers
@@ -188,6 +192,9 @@ export function resolveMode({ chosen = null, fetched = null, embeddable = false,
 // It also reports WHERE the text came from, because that is not a detail on a
 // news article — the strip says so, so nobody reads a two-year-old capture
 // believing it is today's page.
+// How long the live read may take before the archive lookup starts beside it.
+export const READER_HEDGE_MS = 1500;
+
 export function readerSource({ fetched, archiveRead }) {
   if (fetched?.ok && fetched.usable && fetched.markdown) {
     return { markdown: fetched.markdown, from: "live" };
@@ -344,6 +351,8 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
 
   const [chosen, setChosen] = useState(null);
   const [fetched, setFetched] = useState(null);
+  // The live read has run past READER_HEDGE_MS with no answer.
+  const [liveSlow, setLiveSlow] = useState(false);
   const reqRef = useRef(0);
 
   // The reader fetch runs once per url. It is READ-ONLY (`page_reader` creates
@@ -352,12 +361,20 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
     if (!url || !socket) return;
     const req = ++reqRef.current;
     setFetched(null);
+    setLiveSlow(false);
+    // HEDGE (2026-09-13). The Washington Post stalls the server's live fetch for
+    // the whole 6s deadline, and the archive lookup used to wait for that answer.
+    // Past the hedge the lookup starts BESIDE the live read instead. A page that
+    // answers quickly never reaches it, so the lookup stays lazy for them.
+    const hedge = setTimeout(() => { if (reqRef.current === req) setLiveSlow(true); }, READER_HEDGE_MS);
     socket.emit("page_reader", { url, requestId: String(req) }, (out) => {
+      clearTimeout(hedge);
       // A late reply for a url we have navigated away from must not overwrite
       // the current one — the same stale-response trap every fetch-on-prop has.
       if (reqRef.current !== req) return;
       setFetched(out || { ok: false, error: "no reply" });
     });
+    return () => clearTimeout(hedge);
   }, [url, socket]);
 
   // ── THE ARCHIVE LOOKUP IS LAZY, and that is deliberate ──────────────────
@@ -379,6 +396,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   // the only thing that renders, and neither is "every bookmark you open", which
   // is the request-per-open this lookup stays lazy to avoid.
   const frameUncertain = !!(fetched && (fetched.ok === false || fetched.framable === false));
+  const liveSlowNoReply = liveSlow && !fetched;
 
   // ── THE READ MAY CARRY ONE, BUT IT IS NEVER WAITED FOR ──────────────────
   //
@@ -414,14 +432,14 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
     // Reader button on such a page would have nothing to fall back to. Gated on an
     // explicit pick so it stays a request rather than a fetch everyone pays.
     const wantsArchiveText = (chosen === "reader" || chosen === "magic") && fetched && (!fetched.ok || !fetched.usable);
-    if (!(chosen === "archive" || frameUncertain || wantsArchiveText) || !url || !socket || archive) return;
+    if (!(chosen === "archive" || frameUncertain || wantsArchiveText || liveSlowNoReply) || !url || !socket || archive) return;
     const req = ++archiveReqRef.current;
     setArchive({ loading: true });
     socket.emit("wayback_lookup", { url, requestId: String(req) }, (out) => {
       if (archiveReqRef.current !== req) return;
       setArchive(out || { ok: false, reason: "no reply" });
     });
-  }, [chosen, frameUncertain, url, socket, archive, fetched]);
+  }, [chosen, frameUncertain, liveSlowNoReply, url, socket, archive, fetched]);
 
   // ── THE ARCHIVE'S OWN TEXT ──────────────────────────────────────────────
   //
@@ -437,7 +455,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   useEffect(() => { setArchiveRead(null); }, [url]);
   const liveReaderIsThin = !!(fetched && (!fetched.ok || !fetched.usable));
   useEffect(() => {
-    if (!liveReaderIsThin || !archive?.ok || !archive.url || !socket || archiveRead) return;
+    if (!(liveReaderIsThin || liveSlowNoReply) || !archive?.ok || !archive.url || !socket || archiveRead) return;
     const req = ++archiveReadReqRef.current;
     setArchiveRead({ loading: true });
     socket.emit("page_reader", { url: archive.url, requestId: `a${req}` }, (out) => {
@@ -446,7 +464,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
       if (archiveReadReqRef.current !== req) return;
       setArchiveRead(out || { ok: false, error: "no reply" });
     });
-  }, [liveReaderIsThin, archive, socket, archiveRead]);
+  }, [liveReaderIsThin, liveSlowNoReply, archive, socket, archiveRead]);
 
   const reader = readerSource({ fetched, archiveRead });
 
@@ -499,6 +517,8 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   // CACHED PER URL, because flipping Reader <-> Magic is a thing people do to
   // compare, and re-planning an 800-occurrence Wikipedia tree on every flip
   // would make the toggle feel broken.
+  // The article title heads the reader's container rather than "Article".
+  const pageTitle = occurrence?.label || module?.label || "";
   const [plan, setPlan] = useState(null);
   const planReqRef = useRef(0);
   const planForRef = useRef(null);
@@ -520,14 +540,14 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
     const cached = planCacheRef.current.get(key);
     if (cached) { setPlan(cached); return; }
     setPlan({ loading: true });
-    socket.emit("import_plan", { content: md, gridId, shape, requestId: `p${req}` }, (out) => {
+    socket.emit("import_plan", { content: md, gridId, shape, title: pageTitle, requestId: `p${req}` }, (out) => {
       const res = out || { ok: false, error: "no reply" };
       if (res.ok) planCacheRef.current.set(key, res);
       // The same stale-reply guard both reads take.
       if (planReqRef.current !== req) return;
       setPlan(res);
     });
-  }, [isTextMode, mode, reader.markdown, socket, gridId]);
+  }, [isTextMode, mode, reader.markdown, socket, gridId, pageTitle]);
   // Navigating away drops the plan and its cache. Safe in this order because
   // `fetched` is reset on the same url change, so the effect above sees no
   // markdown to plan for the page being left; and a stale reply is dropped by
@@ -777,6 +797,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
                   parentState={readerTree.state}
                   occurrenceId={readerTree.rootOccurrenceId}
                   scroll
+                  rootChrome
                   publishComputed={false}
                 />
               </React.Suspense>

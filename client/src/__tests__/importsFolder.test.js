@@ -203,6 +203,8 @@ describe("ensureArtifactPageOcc (2026-07-12 — artifact full-screen page)", () 
     expect(mod.kind).toBe("display");
     expect(mod.label).toBe("Sunset.jpg");
     const occ = CommitHelpers.createOccurrence.mock.calls[0][0].occurrence;
+    // Scaffolding: no operation sweep, feed pass or undo step for the page.
+    expect(CommitHelpers.createOccurrence.mock.calls[0][0].fireTrigger).toBe(false);
     expect(occ.meta.artifactPage).toBe("art-1");
     expect(occ.occurrences).toEqual(["art-1"]);
     expect(occ.parentId).toBeNull(); // never a tree row of its own

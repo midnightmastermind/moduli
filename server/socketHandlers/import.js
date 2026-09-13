@@ -48,6 +48,7 @@ import { fetchLinkPreview } from "../utils/linkPreview.js";
 import { extractMainContent } from "../utils/mainContent.js";
 import { readerFromHtml, readerIsUsable } from "../utils/readerExtract.js";
 import { framingVerdict } from "../utils/framingVerdict.js";
+import { readerHostStalls } from "../utils/hostStallMemory.js";
 import { extractLinks } from "../utils/harvestLinks.js";
 
 // How long the INTERACTIVE reader fetch may take before it gives up and lets the
@@ -192,7 +193,10 @@ export function registerImportHandlers(socket, {
         ? planReaderShape({ gridId: gridId || null, userId, markdown: content, title: title || null })
         : await markdownToModuli({
             gridId: gridId || null, parentId: null, userId,
-            markdown: content, dryRun: true, title,
+            // MAGIC IS GRANULAR (user, 2026-09-13): *"it should have way more
+            // occurances in magic mode"*. A real import merges running prose into
+            // one textblock; magic splits it back out, one per paragraph.
+            markdown: content, dryRun: true, title, granular: true,
           });
 
       reply({
@@ -292,7 +296,15 @@ export function registerImportHandlers(socket, {
       // not something derived from these bookmarks. If a site you care about
       // starts falling through to the frame when its reader used to work, this
       // number is the reason and it is the thing to raise.
+      // A host that stalled this deadline recently is answered at once instead
+      // of being waited on again (see utils/hostStallMemory). The client reads
+      // `ok:false` exactly like a timeout, so it goes straight to the archive.
+      if (readerHostStalls.isStalled(url)) {
+        return reply({ ok: false, error: "did not answer recently — skipped", usable: false, stalled: true });
+      }
       const fetched = await fetchPageHtml(url, { timeoutMs: READER_TIMEOUT_MS });
+      if (!fetched.ok && /timed out/i.test(fetched.reason || "")) readerHostStalls.markStalled(url);
+      else if (fetched.ok) readerHostStalls.clear(url);
       // The guard's reason is handed back verbatim so the strip can say WHY it
       // fell through to the frame ("timed out", "not a web page") rather than
       // silently switching modes.

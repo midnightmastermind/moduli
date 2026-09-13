@@ -458,7 +458,7 @@ function blocksToTree(blocks, rootTitle) {
 }
 
 // ----- Mint entities from the tree -----
-function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, sourceLabel = null }) {
+function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, sourceLabel = null, granular = false }) {
   const modules = [];
   const occurrences = [];
 
@@ -745,6 +745,9 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
         // images into their own nodes within the same textblock); a blank-line gap
         // between paragraphs is preserved as separate paragraph nodes in the block.
         pendingPara.push(...paragraphToBlocks(c.text, buildInlineLink));
+        // GRANULAR (the Magic reader shape): every paragraph is its own
+        // textblock rather than joining the running chunk.
+        if (granular) flushPara();
         continue;
       }
       if (c.kind === "quote") {
@@ -1024,10 +1027,26 @@ export function planReaderShape({ gridId = null, userId, markdown, title = null 
  * - dryRun: don't write to Mongo — just plan and return what WOULD be
  *   created. Useful for "preview" workflows from the assistant.
  */
-export async function markdownToModuli({ gridId, parentId = null, userId, markdown, dryRun = false, title = null, sourceUrl = null }) {
-  const blocks = parseBlocks(markdown);
+/**
+ * A paragraph that is ONLY bold text ("**There are only one or two smart people
+ * in Washington.**") is how most news and blog pages mark a section — they
+ * rarely emit real headings. Granular planning treats it as one, so the
+ * sections become containers. Pure.
+ */
+export function promoteBoldParagraphs(blocks) {
+  return blocks.map((b) => {
+    if (b.kind !== "paragraph") return b;
+    const m = /^(?:\*\*|__)([^*_][\s\S]*?)(?:\*\*|__)$/.exec(String(b.text || "").trim());
+    if (!m || m[1].length > 160 || /\*\*|__/.test(m[1])) return b;
+    return { kind: "heading", level: 2, text: stripInlineMd(m[1].trim()) };
+  });
+}
+
+export async function markdownToModuli({ gridId, parentId = null, userId, markdown, dryRun = false, title = null, sourceUrl = null, granular = false }) {
+  const parsed = parseBlocks(markdown);
+  const blocks = granular ? promoteBoldParagraphs(parsed) : parsed;
   const tree = blocksToTree(blocks, title);
-  const planned = mintEntities(tree, { gridId, userId, rootParentId: parentId, sourceUrl, sourceLabel: title ? `${title} — Wikipedia ↗` : null });
+  const planned = mintEntities(tree, { gridId, userId, rootParentId: parentId, sourceUrl, sourceLabel: title ? `${title} — Wikipedia ↗` : null, granular });
 
   if (!dryRun) {
     // Insert in dependency order: modules first (no FK between them),

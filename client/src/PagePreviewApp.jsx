@@ -48,7 +48,7 @@ export default function PagePreviewApp({ occurrenceId }) {
 // React tree) can mount it inline without an iframe. Same subtree
 // filtering, same context-override architecture — only the state source
 // changes.
-export function PagePreviewBody({ parentState, occurrenceId, scroll = false, publishComputed = true }) {
+export function PagePreviewBody({ parentState, occurrenceId, scroll = false, publishComputed = true, rootChrome = false }) {
   // Build a SUBTREE-only view of the parent state. The iframe needs:
   //   - the target occurrence + every descendant reachable via .occurrences[]
   //     or .parentId (instances inside containers, container children of a
@@ -351,7 +351,10 @@ export function PagePreviewBody({ parentState, occurrenceId, scroll = false, pub
                 drilldownTarget={null}
                 onDrilldownComplete={null}
               />
-            ) : (module.kind === "doc" || module.kind === "artifact") ? (
+            ) : ((module.kind === "doc" || module.kind === "artifact")
+                 // A doc CONTAINER drawn as DocContent shows only its body. The
+                 // reader asks for the container itself, so its header prints.
+                 && !(rootChrome && module.role === "container")) ? (
               <DocContent
                 occurrence={occurrence}
                 dispatch={noop}

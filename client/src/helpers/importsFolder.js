@@ -274,7 +274,11 @@ export function ensureArtifactPage({ artifactOccId, occurrencesById, modulesById
     parentId: null, viewId, occurrences: [artifactOccId],
     iteration: { mode: "persistent" }, fields: {}, meta: { artifactPage: artifactOccId },
   };
-  CommitHelpers.createOccurrence({ dispatch, socket, occurrence: pageOccurrence, emit: true });
+  // SCAFFOLDING, NOT A USER ROW (2026-09-13): the page only fronts the artifact.
+  // Firing OccurrenceCreateOp for it ran a full operation sweep — ~1.5s on the
+  // user's device on poms grid — inside the click that opens a link, for rows no
+  // tracker counts. `fireTrigger:false` also skips the feed pass and the undo step.
+  CommitHelpers.createOccurrence({ dispatch, socket, occurrence: pageOccurrence, emit: true, fireTrigger: false });
   const made = { id: occId, occurrence: pageOccurrence, module: pageModule };
   pendingArtifactPages.set(artifactOccId, made);
   return made;
