@@ -31,6 +31,51 @@ const WIKI_STRIP_SELECTORS = [
   "span.mw-editsection", ".error", ".mw-selflink",
 ].join(",");
 
+// The address an <img> should be read from. `src` alone is not enough, and
+// measured on a real article it was WRONG: badgerherald.com (WordPress) serves
+// `src="/media/2015/04/tunnel-336x448.jpg"`, which answers 404, while the same
+// element's `srcset` lists `/wp-content/uploads/…` copies that answer 200. The
+// browser never notices because it uses srcset; a reader that reads `src` shows
+// three broken images out of four.
+//
+// Order: the best srcset candidate, then a lazy-load attribute, then `src`. A
+// `data:` placeholder (lazy-loading's 1px gif) is never the answer. From srcset,
+// the widest candidate up to IMAGE_MAX_W — a reader column never needs a 4000px
+// original — else the narrowest one above it; density-only sets take the highest.
+// `get(name)` reads an attribute, so a DOM node and a raw tag string share this.
+export const IMAGE_MAX_W = 1600;
+const LAZY_SRC_ATTRS = ["data-src", "data-lazy-src", "data-original"];
+
+export function bestImageSrc(get) {
+  const read = typeof get === "function" ? get : (n) => get?.getAttribute?.(n);
+  const usable = (u) => typeof u === "string" && u.trim() && !/^data:/i.test(u.trim());
+  const fromSet = pickSrcset(read("srcset")) || pickSrcset(read("data-srcset"));
+  if (fromSet) return fromSet;
+  for (const a of LAZY_SRC_ATTRS) if (usable(read(a))) return read(a).trim();
+  return usable(read("src")) ? read("src").trim() : "";
+}
+
+function pickSrcset(srcset) {
+  if (typeof srcset !== "string" || !srcset.trim()) return "";
+  const cands = srcset.split(/,\s+/).map((part) => {
+    const [url, desc = ""] = part.trim().split(/\s+/);
+    const m = desc.match(/^(\d+(?:\.\d+)?)([wx])$/i);
+    return { url, w: m && m[2].toLowerCase() === "w" ? Number(m[1]) : null, x: m && m[2].toLowerCase() === "x" ? Number(m[1]) : null };
+  }).filter((c) => c.url && !/^data:/i.test(c.url));
+  if (!cands.length) return "";
+  const widths = cands.filter((c) => c.w != null);
+  if (widths.length) {
+    const fit = widths.filter((c) => c.w <= IMAGE_MAX_W).sort((a, b) => b.w - a.w)[0];
+    return (fit || widths.sort((a, b) => a.w - b.w)[0]).url;
+  }
+  return cands.sort((a, b) => (b.x ?? 1) - (a.x ?? 1))[0].url;
+}
+
+const tagAttr = (tag) => (name) => {
+  const m = tag.match(new RegExp(`\\s${name}=["']([^"']*)["']`, "i"));
+  return m ? m[1] : null;
+};
+
 // Convert Wikipedia article HTML → clean markdown using cheerio (reliable
 // element removal) + turndown (correct, nesting-aware HTML→MD). Replaces the
 // regex converter for the import path: no [edit] links, no leaked brackets, no
@@ -55,6 +100,18 @@ export function wikiHtmlToMarkdown(html, title = "") {
     hr: "---",
   });
   td.use(gfm);
+  // Images use the best address the element OFFERS, not just `src` (see
+  // `bestImageSrc`). turndown's default rule reads `src` only.
+  td.addRule("bestImage", {
+    filter: "img",
+    replacement: (_content, node) => {
+      let src = bestImageSrc(node);
+      if (!src) return "";
+      if (src.startsWith("//")) src = "https:" + src;
+      const alt = (node.getAttribute("alt") || "").replace(/\s+/g, " ").replace(/[[\]]/g, "").trim();
+      return `![${alt}](${src})`;
+    },
+  });
   // Figures → a BLOCK image whose alt is the caption, so the importer mints an
   // artifact (image + caption as its label) instead of leaking the caption out
   // as its own stray textblock.
@@ -63,7 +120,7 @@ export function wikiHtmlToMarkdown(html, title = "") {
     replacement: (_content, node) => {
       const img = node.querySelector("img");
       if (!img) return "";
-      let src = img.getAttribute("src") || "";
+      let src = bestImageSrc(img);
       if (!src) return "";
       if (src.startsWith("//")) src = "https:" + src;
       const capEl = node.querySelector("figcaption");
@@ -390,9 +447,8 @@ export function htmlToMarkdown(html, fallbackTitle = "", opts = {}) {
     s = s.replace(/<figure[^>]*>([\s\S]*?)<\/figure>/gi, (_, inner) => {
       const imgTagM = inner.match(/<img[^>]*>/i);
       const imgTag = imgTagM?.[0] || "";
-      const srcM = imgTag.match(/\bsrc=["']([^"']+)["']/i);
       const altM = imgTag.match(/\balt=["']([^"']*)["']/i);
-      const src = srcM?.[1] || "";
+      const src = bestImageSrc(tagAttr(imgTag));
       const alt = altM?.[1] || "";
       const capM = inner.match(/<figcaption[^>]*>([\s\S]*?)<\/figcaption>/i);
       const cap = capM ? stripTags(capM[1]).replace(/\s+/g, " ").trim() : "";
@@ -423,9 +479,8 @@ export function htmlToMarkdown(html, fallbackTitle = "", opts = {}) {
   // regex trick as the figure case for attribute-order robustness.
   if (keepImages) {
     s = s.replace(/<img[^>]*>/gi, (m) => {
-      const srcM = m.match(/\bsrc=["']([^"']+)["']/i);
       const altM = m.match(/\balt=["']([^"']*)["']/i);
-      const src = srcM?.[1] || "";
+      const src = bestImageSrc(tagAttr(m));
       const alt = altM?.[1] || "";
       if (!src) return "";
       return `\n![${alt}](${src})\n\n`;
