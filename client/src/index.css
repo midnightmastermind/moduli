@@ -7498,14 +7498,14 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   z-index: 3;
 }
 .instance-url-btn--beside-body { right: 24px; }
-/* An artifact row's button sits in the handle group, in flow beside the drag
-   handle — never in a corner, where the card's cover image is. Visible at rest:
-   it is a destination you have to know exists. */
-.instance-url-btn.instance-url-btn--in-header {
-  position: static;
-  align-self: center;
-  flex-shrink: 0;
+/* On an artifact card the corner is the caption strip under the picture, and a
+   card photo can be any colour — so the button gets its own dark chip, sits
+   above the card, and is fully visible at rest. */
+.instance-row:has(.artifact-card) > .instance-url-btn {
+  z-index: 5;
   opacity: 1;
+  background: rgba(15, 20, 28, 0.72);
+  color: rgba(255, 255, 255, 0.9);
 }
 .instance-wrap:hover .instance-url-btn { opacity: 1; }
 .instance-url-btn:hover { color: var(--text-primary); }

@@ -3458,3 +3458,5 @@ tooltip is gone (aria-label `Open link` kept for screen readers).
 
 > **"and the button to open the url as a browser page should be on the occurance and not the cover image
 > of the instance"**
+
+User (2026-09-15, later): *"put the opan as page button on the bottom right of the occurance, not top left"*

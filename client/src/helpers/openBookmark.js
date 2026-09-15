@@ -100,15 +100,13 @@ export function canOpenUrlAsPage(occurrence, module, fieldsById = {}) {
 /**
  * Where a row's open-as-page button sits, or null when it has none.
  *
- *   "header" — beside the drag handle. An ARTIFACT's card fills its row, so a
- *              corner button lands on the cover image (user, 2026-09-15: *"the
- *              button to open the url as a browser page should be on the
- *              occurance and not the cover image of the instance"*).
- *   "row"    — bottom-right of the row, for every other row with a url.
+ *   "row" — bottom-right of the OCCURRENCE, for every row with a url, bookmark
+ *           cards included (user, 2026-09-15: *"put the open as page button on
+ *           the bottom right of the occurance, not top left"*). On a card that is
+ *           the caption corner under the picture, not the cover itself.
  */
 export function urlButtonPlacement(occurrence, module, fieldsById = {}) {
-  if (!canOpenUrlAsPage(occurrence, module, fieldsById)) return null;
-  return module?.role === "artifact" ? "header" : "row";
+  return canOpenUrlAsPage(occurrence, module, fieldsById) ? "row" : null;
 }
 
 // A browser minted a moment ago is not in the maps yet — the store catches up on

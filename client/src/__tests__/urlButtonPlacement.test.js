@@ -9,12 +9,14 @@ const BOOKMARK = { id: "m-b", role: "artifact", kind: "bookmark", fileRef: "http
 const IMAGE = { id: "m-i", role: "artifact", kind: "image", fileRef: "https://example.com/a.png" };
 
 describe("urlButtonPlacement", () => {
-  it("a bookmark artifact gets its button in the HEADER, not the card corner", () => {
-    expect(urlButtonPlacement({ id: "o1", moduleId: "m-b", fields: {} }, BOOKMARK)).toBe("header");
+  // User, later the same day: *"put the open as page button on the bottom right
+  // of the occurance, not top left"*.
+  it("a bookmark artifact gets the bottom-right row button", () => {
+    expect(urlButtonPlacement({ id: "o1", moduleId: "m-b", fields: {} }, BOOKMARK)).toBe("row");
   });
 
   // The control: an image stored BY url has no page to open, so no button at
-  // all — "header" must not become the answer for every artifact.
+  // all — the button must not appear on every artifact.
   it("an image artifact gets no button", () => {
     expect(urlButtonPlacement({ id: "o2", moduleId: "m-i", fields: {} }, IMAGE)).toBe(null);
   });

@@ -37,8 +37,8 @@ describe("no zoom cursors", () => {
   // The open-as-page button shipped at opacity 0 and was never seen on a tablet.
   it("the open-as-page button is visible at rest", () => {
     const css = fs.readFileSync(path.join(SRC, "index.css"), "utf8");
-    // It moved off the card into the row's handle group (2026-09-15).
-    const rule = css.match(/\.instance-url-btn\.instance-url-btn--in-header\s*\{([^}]*)\}/);
+    // On a card it is the row's bottom-right button, over the caption (2026-09-15).
+    const rule = css.match(/\.instance-row:has\(\.artifact-card\) > \.instance-url-btn\s*\{([^}]*)\}/);
     expect(rule).toBeTruthy();
     const opacity = rule[1].match(/opacity\s*:\s*([\d.]+)/);
     expect(opacity && Number(opacity[1])).toBeGreaterThan(0.5);
