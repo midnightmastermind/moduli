@@ -2,6 +2,16 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-15 (3) — `frameSrc.js`, `caretFromPoint.js` NEW; `urlButtonPlacement`)
+- **`frameSrc.js` (NEW, 5 tests)** — `frameSrcFor(url, { embedSrc, pageProtocol })`: an embed wins;
+  on an https page an `http://` url is upgraded, because the browser blocks mixed active content and
+  the iframe never loads.
+- **`caretFromPoint.js` (NEW, 5 tests)** — `placeCaretAtPoint(el, x, y)` via
+  `caretPositionFromPoint` / `caretRangeFromPoint`; skips a range selection and a point outside `el`.
+  Used by the embedded container header and the inline textblock chip.
+- **`openBookmark.urlButtonPlacement`** — `"row"` for any occurrence that can open its url as a page,
+  bookmark artifacts included; null otherwise.
+
 ## Recent Changes (2026-09-15 — `panelHistory.seed`: the starting page is reachable by Back)
 - **`seed(viewId, occId)` (NEW)** — records the page a panel shows when this session first sees it.
   `recordActive` only hears CHANGES through `updateView`, so after a reload the landing page was never in

@@ -2,6 +2,15 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-15 — `AutoMarquee`: no synchronous layout read on mount)
+- **`AutoMarquee.jsx`** — the mount effect no longer calls `measure()` when a ResizeObserver exists;
+  the observer's initial batched callback measures every marquee after ONE layout. User: *"when i
+  click on the open page button on the bookmark, it freezes up the app and takes 10 seconds"*.
+  Profiled on poms grid: one 11.5s task, 8.0s of it that per-instance `scrollWidth` read (a page
+  switch mounts hundreds of marquees in one commit). Engines without ResizeObserver still measure
+  inline. Test: `__tests__/autoMarqueeMountMeasure.test.jsx` (0 layout reads on a 50-marquee mount,
+  50 once the observer reports; control: inline measure with no RO).
+
 ## Recent Changes (2026-09-11 — `SpreadTileMaximize.jsx` NEW; `ArtifactSpread` owns which tile fills the viewer)
 - **`SpreadTileMaximize.jsx` (NEW)** — the header button that makes one viewer tile fill the viewer,
   plus `useIsSpreadMaximized(id)` for the row class. Renders null without a `SpreadMaximizeContext`

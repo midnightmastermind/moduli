@@ -6,6 +6,49 @@
 
 ---
 
+### 2026-09-15 (4) — the bookmark-open freeze, the link button, Web mode over https, the header caret
+
+Picked up the other account's four requests (its session ended before any code changed).
+
+**THE FREEZE WAS `AutoMarquee` READING LAYOUT ONCE PER MARQUEE.** User: *"when i click on the open
+page button on the bookmark, it freezes up the app and takes 10 seconds"*. Profiled on poms grid's
+Bookmarks board (writes dropped in the page) and source-mapped: one 11.5s task, **8.0s of it
+`AutoMarquee.jsx:89`** — the mount effect read `scrollWidth` synchronously, and switching pages mounts
+~6,900 marquees in one commit, so each forced its own layout. The ResizeObserver it already created
+delivers the first measurement for all of them after one layout, so mount no longer measures inline.
+```
+                          before     after
+switch to the page        ~12s       4.3s   (header + browser chrome on screen)
+profile busy time         11.5s      4.4s
+AutoMarquee in profile    8.0s       gone from the top 30
+```
+**Not fixed, and it is the next lever:** the remaining 4.3s is render/commit of the new page and GC
+(`setValueForStyles`, `setAttribute`, `Field.jsx`). One frame gap is still 4.5s.
+
+**THE LINK BUTTON sits bottom-right of every occurrence, bookmark cards included.** A header
+placement shipped first (request d, *"on the occurance and not the cover image"*) and the user moved it
+an hour later: *"put the open as page button on the bottom right of the occurance, not top left"*.
+On a card that corner is the caption under the picture, so it gets a dark chip above the card.
+Measured on prod, each button scrolled into view: 5px from the right, 3px from the bottom, opacity 1,
+not over the image, and `elementFromPoint` at its centre returns the BUTTON. **Probe trap:** the first
+run said the hit missed — tiles are taller than their panel, so the tile's bottom edge was hidden
+under the panel's fold. Scroll the button into view before hit-testing.
+
+**WEB MODE SPUN FOREVER ON AN http BOOKMARK** (journal.sjdm.org, *"Blocked loading mixed active
+content"*). A blocked iframe never fires `load`. `helpers/frameSrc.js` upgrades `http://` to
+`https://` when the app is on https. **Not watched on that bookmark in a browser.**
+
+**THE HEADER CARET** (*"it sends the typing cursor to the end of the text"*): the embedded container
+header and the inline textblock chip now place the caret at the click point
+(`helpers/caretFromPoint.js`). **It did not reproduce headless** — Chromium and Firefox on prod put
+the caret mid-text both before and after — so this guards the Firefox draggable-ancestor path rather
+than a measured failure. Needs the user's own click to confirm.
+
+Deployed twice (`ebfd5017`, `3aca1a95`), prod HEAD verified, served chunks sha256-identical.
+4312 client tests green before the last two changes; the touched suites green after.
+
+---
+
 ### 2026-09-15 (3) — THE BACK BUTTON WAS THERE; after a reload it had nothing to go back to
 
 User: *"wheres the back button on the panel header. we need one that lets me go back to the prev page"*.

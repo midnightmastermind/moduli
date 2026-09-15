@@ -2,6 +2,21 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-09-15 (3) — bookmark freeze, link button, Web mode over https, header caret)
+- **`ArtifactCard.jsx`** — the `.artifact-thumb-page-hint` chip over the cover is gone; a bookmark
+  opens as a page from the row's own bottom-right `.instance-url-btn` (ModuleInstance), which on a
+  card gets a dark chip above the caption (`.instance-row:has(.artifact-card) > .instance-url-btn`).
+  Double-click on the card still opens it in the panel. User: *"put the open as page button on the
+  bottom right of the occurance, not top left"* — a header placement shipped for ~1 hour and was
+  reverted by that instruction; `urlButtonPlacement` now only ever answers `"row"` or null.
+- **`BookmarkView.jsx`** — `frameSrcFor` (helpers) upgrades an `http://` address to `https://` when
+  the app is on https. Mixed active content is BLOCKED and never fires `load`, so Web mode on an http
+  bookmark span forever (reported on journal.sjdm.org).
+- **`ModuleContainer.jsx`** — the embedded header's contentEditable label places the caret at the
+  click point (`placeCaretAtPoint`). Headless Chromium + Firefox on prod measured mid-text placement
+  both before and after, so the reported "cursor goes to the end" did NOT reproduce headless — the fix
+  guards the Firefox draggable-ancestor path; confirm on the user's device.
+
 ## Recent Changes (2026-09-15 (2) — ModulePanel: Back appears after the first page you open)
 - **`ModulePanel.jsx`** — seeds `helpers/panelHistory` with the page the panel starts on
   (`currentView.activeOccurrenceId`, else the first pinned page) from an effect placed ABOVE
