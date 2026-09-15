@@ -6,6 +6,46 @@
 
 ---
 
+### 2026-09-15 (2) — READER AND MAGIC, MEASURED ON SCREEN; and the Post article had silently lost its archive
+
+User: *"we are making sure magic and reader are two seperate features. the reader shows a doccontainer
+with a textblock inside of the doccontainer (with the header of the container being the name). Magic
+should show a bunch of nested doccontainers and textblocks, just like the wikipedia import."* The same
+direction as 09-12 and 09-13 across all three accounts' logs; nothing contradicts it.
+
+**Counted in a browser on prod** (test grid 2, Felix Romero panel, every `content-visibility` skip
+forced off so the counts are real):
+```
+                     containers  nesting  textblocks (all inside a container)  header
+Wikipedia  Reader         1          1          1                               the page's name
+           Magic         26          4         18                               the page's name
+WaPo       Reader         1          1          1                               the page's name
+           Magic         10          2         10                               the page's name
+```
+**Magic against the real Wikipedia import, same article, server-side:** 26 containers / depth 4 / 18
+textblocks against the import's 29 / 4 / 18. The import's extra three are the infobox aside and two
+lead images, which come from the Wikipedia API rather than the page HTML the reader reads.
+
+**THE FIRST RUN SHOWED THE POST ARTICLE AS "no readable text" IN BOTH MODES, and it was the archive
+lookup, not either mode.** The Wayback availability API matches the address EXACTLY: measured from
+the droplet, `.../ever` → `archived_snapshots: {}` and `.../ever/` → the 2023 capture. The bookmark has
+no slash, and the live read is skipped (the host stalls), so there was no text anywhere.
+`waybackSnapshot.fetchWaybackSnapshot` now asks once for the slash twin (`slashVariant`) on a definite
+"no snapshot" only, inside the same 8s deadline — never on busy/unreachable, which says nothing about
+which address it holds and would double requests into a rate limit. A/B'd: no twin fails 2, no
+reason gate fails 1, preferring the twin's failure over the first answer fails 1.
+
+**A PROBE COLLISION THAT READ LIKE THE FIX FAILING:** the first prod check after deploying took 7.2s
+and still said "no snapshot" — because the browser probe was hitting the same lookup at the same
+moment and archive.org rate-limited the twin request. Spaced out, it answers in 771ms and 300ms.
+*Do not run two archive probes at once.*
+
+**Worth deciding, not changed:** the header is the page's `<title>`, so it carries the site suffix
+("… - Wikipedia", "… - The Washington Post"); a saved bookmark on its own address still shows the name
+you gave it.
+
+---
+
 ### 2026-09-15 — THE READER HEADER NAMES THE PAGE YOU ARE ON, not the bookmark you started from
 
 Picked up the other account's session, which hit its limit one edit into the 09-13 "known wrinkle":

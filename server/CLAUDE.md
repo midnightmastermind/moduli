@@ -2,6 +2,15 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-15 (2) — the archive lookup tries the trailing-slash twin)
+- **`utils/waybackSnapshot.js`** — the availability API matches the address exactly, so the Post
+  article (captured under `.../ever/`) was "no snapshot" for a bookmark saved as `.../ever`.
+  `fetchWaybackSnapshot` is now a wrapper over `lookupOnce`: on a definite `NO_SNAPSHOT` it asks once
+  for `slashVariant(url)` (path slash toggled, query kept, `null` for a bare host) inside the same
+  deadline, and keeps the first answer unless the twin finds a snapshot. Busy/unreachable answers are
+  returned as-is.
+- Tests: 4 in `__tests__/waybackFetch.test.js` ("the slash twin"), A/B'd. Verified on prod.
+
 ## Recent Changes (2026-09-15 — `page_reader` returns the page's `title`)
 - **`socketHandlers/import.js`** — the reply carries `title: titleFromHtml(fetched.html)`, so the
   viewer can head Reader/Magic with the page actually on screen once the address bar has left the

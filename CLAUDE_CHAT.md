@@ -3436,3 +3436,9 @@ tooltip is gone (aria-label `Open link` kept for screen readers).
 > doccontainers"**
 
 > **"and we need a loading circle for magic and reader mode"**
+
+## 2026-09-15 — Reader and Magic are two separate features
+
+> **"we are making sure magic and reader are two seperate features. the reader shows a doccontainer with
+> a textblock inside of the doccontainer (with the header of the container being the name). Magic should
+> show a bunch of nested doccontainers and textblocks, just like the wikipedia import"**
