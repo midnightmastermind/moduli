@@ -6,6 +6,53 @@
 
 ---
 
+### 2026-09-15 (6) — the images are ON SCREEN; and BBC serves a comma the split could not see
+
+Closing the one gap (5) left open — *"nobody has watched it render"* — which it could not close
+because its browser probe died at a bare 400s `waitForFunction` with nothing to say about why. The
+grid was simply COLD: pm2 had restarted, so that load paid the documented Atlas read. Warm, the same
+probe reaches the grid in **16 seconds**.
+
+**WATCHED RENDERING ON PROD** (test grid 2, the article typed into a bookmark's address bar), with
+every `content-visibility` skip forced off so the counts are real:
+```
+Reader   4 loaded / 4 images   0 `/media/` aliases   0 image responses >= 400
+Magic    4 loaded / 4 images   0 `/media/` aliases   0 image responses >= 400
+```
+Screenshot `screenshots/srcset-render-Magic.png`: the Tunnel Bob photo on screen inside Magic's
+nested containers. The one page error is the framed site's own `localStorage` refusal.
+
+**MY FIRST COUNT SAID "4 of 7, three FAIL" AND ALL THREE WERE THE PROBE.** Magic renders seven
+`<img>` elements and three carry no `src` — because they are `class="ProseMirror-separator"`, the
+zero-width images ProseMirror puts beside every inline atom node view. They sit next to the
+`instance-textblock-inline` chips, they are invisible, and every doc editor in the app has them.
+*A count of "broken images" is a claim about the counting rule until you ask what each element IS.*
+
+**AND ASKING THAT FOUND A REAL DEFECT IN THE FIX THAT SHIPPED HOURS EARLIER.** `pickSrcset` split
+candidates on `/,\s+/` — a comma FOLLOWED BY SPACE. Two live shapes break that rule in opposite
+directions, and both were measured rather than imagined:
+```
+bbc.com/news        20 of 21 srcsets  "…240w,https://…"        no space after the comma
+techcrunch.com      Photon URLs       "…?resize=1536,1043 1536w"  the comma is INSIDE the URL
+```
+So a comma split is wrong either way: keep requiring the space and BBC's whole set parses as ONE
+candidate whose descriptor fails, silently serving the **240w thumbnail off a set that offers
+1536w**; drop the space requirement and TechCrunch's URL is truncated into a 404. `splitSrcset` does
+what the HTML parser does instead — **a candidate's URL runs to the next WHITESPACE, and only then
+does a comma separate candidates** — with a trailing comma on the URL token meaning that candidate
+carries no descriptor.
+```
+                          before        after
+BBC, 20 comma-tight sets  240px x20     1536px x20
+TechCrunch, comma in URL  intact        intact      <- the control, both arms
+```
+A/B'd on the LIVE pages with the mutation asserted to land (`splitSrcset` absent when reverted), and
+the unit test fails for exactly its own reason without it. **badgerherald is unaffected** — its
+srcsets are comma+space, so the article this was all reported on renders identically either way;
+this is the next reader page, not this one.
+
+---
+
 ### 2026-09-15 (5) — the page swap is instant now, and Reader/Magic read images from `srcset`
 
 **THE REST OF THE OPEN WAIT WAS A RENDER-ALL FIRED TOO EARLY.** User: *"at least have it go to the page
@@ -29,6 +76,10 @@ copies in `srcset`; a browser uses srcset, so the live page looks fine. `bestIma
 `src`, and never a `data:` placeholder. Both converters use it (the turndown one Reader/Magic/import_url
 share, and the regex drag-import one). On the saved article: 4 images, all 200. A/B: forcing `src`
 fails 6 of the 11 new tests. 2,195 server tests pass.
+
+**Verified on prod over a real socket** (prod HEAD `00e602a0`, pm2 restarted): `page_reader` on the
+article, then `import_plan` in both shapes — Reader 2 occurrences, Magic 21, each carrying 4 image
+addresses, all 200, 0 `/media/` aliases.
 
 ---
 

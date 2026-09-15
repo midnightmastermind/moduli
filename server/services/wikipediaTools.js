@@ -55,10 +55,46 @@ export function bestImageSrc(get) {
   return usable(read("src")) ? read("src").trim() : "";
 }
 
+// Split a srcset the way the HTML parser does: a candidate's URL runs to the
+// next WHITESPACE, and only then does a comma separate candidates. Splitting on
+// a comma instead is wrong in both directions, and both shapes are live:
+//   bbc.com/news        "…240w,https://…"        20 of 21 sets omit the space,
+//                                                so /,\s+/ saw ONE candidate,
+//                                                failed to parse its descriptor
+//                                                and served the 240w thumbnail
+//                                                off a set offering 1536w.
+//   techcrunch.com      "…?resize=1536,1043 1536w"  the comma is INSIDE the URL,
+//                                                so a bare-comma split truncates
+//                                                it to a 404.
+// A trailing comma on the URL token means that candidate has no descriptor.
+function splitSrcset(s) {
+  const out = [];
+  const ws = (c) => c === " " || c === "\t" || c === "\n" || c === "\r" || c === "\f";
+  let i = 0;
+  while (i < s.length) {
+    while (i < s.length && (ws(s[i]) || s[i] === ",")) i++;
+    if (i >= s.length) break;
+    const start = i;
+    while (i < s.length && !ws(s[i])) i++;
+    let url = s.slice(start, i);
+    let bare = false;
+    while (url.endsWith(",")) { url = url.slice(0, -1); bare = true; }
+    let desc = "";
+    if (!bare) {
+      while (i < s.length && ws(s[i])) i++;
+      const d = i;
+      while (i < s.length && s[i] !== ",") i++;
+      desc = s.slice(d, i).trim();
+      if (i < s.length) i++;
+    }
+    if (url) out.push({ url, desc });
+  }
+  return out;
+}
+
 function pickSrcset(srcset) {
   if (typeof srcset !== "string" || !srcset.trim()) return "";
-  const cands = srcset.split(/,\s+/).map((part) => {
-    const [url, desc = ""] = part.trim().split(/\s+/);
+  const cands = splitSrcset(srcset).map(({ url, desc }) => {
     const m = desc.match(/^(\d+(?:\.\d+)?)([wx])$/i);
     return { url, w: m && m[2].toLowerCase() === "w" ? Number(m[1]) : null, x: m && m[2].toLowerCase() === "x" ? Number(m[1]) : null };
   }).filter((c) => c.url && !/^data:/i.test(c.url));

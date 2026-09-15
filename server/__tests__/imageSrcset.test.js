@@ -25,6 +25,25 @@ describe("bestImageSrc", () => {
     expect(bestImageSrc(attrs({ srcset: "big.jpg 5000w, bigger.jpg 9000w" }))).toBe("big.jpg");
   });
 
+  // Measured on bbc.com/news: 20 of its 21 srcsets separate candidates with a
+  // comma and NO space. Splitting on /,\s+/ leaves the whole set as one
+  // candidate, whose descriptor will not parse, so the reader silently took the
+  // 240w thumbnail off a set that offers 1536w.
+  it("splits candidates separated by a comma with no space", () => {
+    const bbc = "https://i.bbci.co.uk/240/a.jpg.webp 240w,https://i.bbci.co.uk/640/a.jpg.webp 640w,"
+      + "https://i.bbci.co.uk/1024/a.jpg.webp 1024w,https://i.bbci.co.uk/1536/a.jpg.webp 1536w";
+    expect(bestImageSrc(attrs({ srcset: bbc }))).toBe("https://i.bbci.co.uk/1536/a.jpg.webp");
+  });
+
+  // The control for the rule above, and the reason a bare-comma split is wrong:
+  // techcrunch.com serves Photon URLs whose QUERY holds a comma
+  // (?resize=1536,1043). A comma only separates candidates once the URL has
+  // ended, i.e. after whitespace.
+  it("keeps a comma that is inside the URL itself", () => {
+    const tc = "https://tc.com/a.jpg?resize=150,102 150w, https://tc.com/a.jpg?resize=1536,1043 1536w";
+    expect(bestImageSrc(attrs({ srcset: tc }))).toBe("https://tc.com/a.jpg?resize=1536,1043");
+  });
+
   it("takes the highest density from a density-only srcset", () => {
     expect(bestImageSrc(attrs({ srcset: "a.jpg, b.jpg 1.5x, c.jpg 2x" }))).toBe("c.jpg");
   });
