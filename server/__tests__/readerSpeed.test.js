@@ -94,6 +94,18 @@ describe("page_reader skips a host that just stalled", () => {
     expect(out.ok).toBe(true);
     expect(readerHostStalls.isStalled("https://slow.example.com/a")).toBe(false);
   });
+
+  // The viewer heads Reader/Magic with this once the address bar has left the
+  // saved bookmark — the bookmark's label names a different page by then.
+  it("a read carries the page's own <title>", async () => {
+    const h = harness();
+    fetchPageHtml.mockResolvedValue({
+      ok: true, url: "https://ok.example.com/a",
+      html: "<html><head><title>  House of\n Cards  </title></head><body><p>hi</p></body></html>",
+    });
+    const out = await call(h, "page_reader", { url: "https://ok.example.com/a" });
+    expect(out.title).toBe("House of Cards");
+  });
 });
 
 const ARTICLE = [

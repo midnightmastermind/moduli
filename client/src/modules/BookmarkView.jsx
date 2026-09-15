@@ -57,6 +57,7 @@ import { buildContainerCrumbOptions } from "../helpers/containerCrumbs";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 import { Spinner } from "../components/ui/spinner.jsx";
 import { readerStateFromPlan } from "../helpers/readerPlan";
+import { hostOf } from "../helpers/spreadBrowser";
 
 // LAZY, and it is a CYCLE BREAK rather than a bundle tweak. The static graph is
 // BookmarkView -> PagePreviewApp -> ModuleContainer -> ArtifactCard -> BookmarkView,
@@ -543,7 +544,18 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   // compare, and re-planning an 800-occurrence Wikipedia tree on every flip
   // would make the toggle feel broken.
   // The article title heads the reader's container rather than "Article".
-  const pageTitle = occurrence?.label || module?.label || "";
+  //
+  // ON THE SAVED ADDRESS it is the bookmark's label — the name you gave it.
+  // BROWSED ELSEWHERE that label names a page you are no longer on (2026-09-13:
+  // a Felix Romero bookmark kept heading another site's article), so the header
+  // follows the <title> of whichever read `readerSource` picked, then the host.
+  const bookmarkLabel = occurrence?.label || module?.label || "";
+  const readTitle = reader.from === "live" ? fetched?.title
+    : reader.from === "archive" ? archiveRead?.title
+    : "";
+  const pageTitle = (url === storedUrl && bookmarkLabel)
+    ? bookmarkLabel
+    : (readTitle || hostOf(url) || bookmarkLabel);
   const [plan, setPlan] = useState(null);
   const planReqRef = useRef(0);
   const planForRef = useRef(null);

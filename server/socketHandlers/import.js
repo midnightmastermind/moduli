@@ -44,7 +44,7 @@ import { markdownToModuli, planReaderShape } from "../services/markdownImporter.
 import { persistImportResult } from "../utils/persistImport.js";
 import { fetchPageHtml } from "../utils/safeFetchUrl.js";
 import { fetchWaybackSnapshot } from "../utils/waybackSnapshot.js";
-import { fetchLinkPreview } from "../utils/linkPreview.js";
+import { fetchLinkPreview, titleFromHtml } from "../utils/linkPreview.js";
 import { extractMainContent } from "../utils/mainContent.js";
 import { readerFromHtml, readerIsUsable } from "../utils/readerExtract.js";
 import { framingVerdict } from "../utils/framingVerdict.js";
@@ -55,13 +55,6 @@ import { extractLinks } from "../utils/harvestLinks.js";
 // frame have the page. Exported so the rule is testable rather than a number
 // buried in a handler. See the call site for why it is not `safeFetchUrl`'s 20s.
 export const READER_TIMEOUT_MS = 6000;
-
-// Name the page from its own <title> when the caller didn't supply one, so a
-// converted link reads as the article rather than as its URL.
-function titleFromHtml(html) {
-  const m = /<title[^>]*>([\s\S]{1,300}?)<\/title>/i.exec(String(html || ""));
-  return m ? m[1].replace(/\s+/g, " ").trim() : "";
-}
 
 export function registerImportHandlers(socket, {
   io, userRoom, ensureUserCache, userCacheReady, loadUserIntoCache,
@@ -319,6 +312,10 @@ export function registerImportHandlers(socket, {
       const frame = framingVerdict({ xFrameOptions: fetched.xFrameOptions, csp: fetched.csp });
       reply({
         ok: true, url: fetched.url, markdown, words,
+        // The page's own <title>. The viewer heads its Reader/Magic container
+        // with it once you browse away from the saved address — the bookmark's
+        // label names the SAVED page, not wherever the address bar went.
+        title: titleFromHtml(fetched.html),
         usable: readerIsUsable(words),
         framable: frame.framable, frameBlockedBy: frame.why,
       });

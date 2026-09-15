@@ -108,6 +108,44 @@ describe("hedged archive lookup", () => {
     expect(c.textContent).toMatch(/no readable text/);
   });
 
+  // THE WRINKLE (2026-09-13): browsing a saved bookmark to another address kept
+  // heading Reader with the BOOKMARK's label — a name for a page you had left.
+  describe("the reader header names the page on screen", () => {
+    const OTHER = "https://other.test/x";
+    const titledSocket = (otherTitle) => ({
+      emit: vi.fn((ev, payload, ack) => {
+        if (typeof ack !== "function") return;
+        if (ev === "import_plan") return ack({ ok: true, rootOccurrenceId: null, modules: [], occurrences: [] });
+        if (ev !== "page_reader") return;
+        if (payload.url === OTHER) return ack({ ok: true, usable: true, framable: true, markdown: "other text", words: 900, title: otherTitle });
+        return ack({ ok: true, usable: true, framable: true, markdown: "saved text", words: 900, title: "Some Site Title" });
+      }),
+    });
+    const openReaderThenBrowse = async (socket) => {
+      const c = await mount(socket);
+      const reader = [...c.querySelectorAll("button")].find((b) => b.textContent === "Reader");
+      await act(async () => { fireEvent.click(reader); });
+      await advance(10);
+      const before = emitted(socket, "import_plan").at(-1)?.[1];
+      const bar = [...c.querySelectorAll("input")].find((i) => i.value === "https://wapo.test/article");
+      await act(async () => { fireEvent.change(bar, { target: { value: OTHER } }); });
+      await act(async () => { fireEvent.keyDown(bar, { key: "Enter" }); });
+      await advance(10);
+      return { before, after: emitted(socket, "import_plan").at(-1)?.[1] };
+    };
+
+    it("keeps the bookmark's own label on the saved address, then takes the page's <title>", async () => {
+      const { before, after } = await openReaderThenBrowse(titledSocket("Other Page"));
+      expect(before).toMatchObject({ content: "saved text", title: "House of Cards" });
+      expect(after).toMatchObject({ content: "other text", title: "Other Page" });
+    });
+
+    it("falls back to the host when the browsed page has no <title>", async () => {
+      const { after } = await openReaderThenBrowse(titledSocket(""));
+      expect(after).toMatchObject({ content: "other text", title: "other.test" });
+    });
+  });
+
   it("with no pick, the snapshot shows as soon as it is found", async () => {
     const socket = socketFor(undefined);
     const c = await mount(socket);
