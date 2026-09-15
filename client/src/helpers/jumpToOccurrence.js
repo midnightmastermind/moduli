@@ -66,18 +66,36 @@ export function jumpToOccurrence(occurrenceId, opts = {}) {
     return true;
   }
   // A long container renders a bounded WINDOW of its rows, so a row past the
-  // window is in the data and not yet in the DOM. Without this, searching for
-  // movie #800 would report "filtered out" — a lie, and exactly the kind a
-  // windowed list invites. Ask every window to open, then fall into the retry
-  // below, which is what finds it on the next frame.
-  requestRenderAll();
+  // window is in the data and not yet in the DOM. Without the render-all
+  // request, searching for movie #800 would report "filtered out" — a lie, and
+  // exactly the kind a windowed list invites.
+  //
+  // ── BUT NEVER BEFORE A PAGE SWAP HAS HAD ITS CHANCE ─────────────────────
+  // User, 2026-09-15: *"theres no reason it should take that long to open a
+  // browser occurance … at least have it go to the page with the loading circle
+  // right away"*. Opening a bookmark activates a NEW page and jumps to it. The
+  // first lookup always misses (the page has not mounted), and asking for
+  // render-all right then expanded every window STILL ON SCREEN — the Bookmarks
+  // board being left went from 80 cards to all 1,465 in a 2.2s commit, before
+  // the panel switched away and threw them out. A target that is about to mount
+  // cannot be hiding in the windows of the page you are leaving, so a caller
+  // that swaps or polls first looks again BEFORE anything is expanded, and only
+  // a miss after that asks the windows to open.
   if (onActivatePage || retries > 0) {
     onActivatePage?.(occurrenceId);
-    // Retry once the page swap has had a chance to mount the target.
     let left = Math.max(1, retries);
+    let expanded = false;
     const attempt = () => {
       const retry = findOccurrenceElement(occurrenceId, root);
       if (retry) { scrollAndFlash(retry, { highlightMs, scrollBlock }); return; }
+      if (!expanded) {
+        // One extra look once the windows have opened, so a caller with a
+        // single retry still finds a row that was past the seam.
+        expanded = true;
+        requestRenderAll();
+        setTimeout(attempt, retryMs);
+        return;
+      }
       if (--left > 0) setTimeout(attempt, retryMs);
       else onMissing?.();
     };
@@ -86,7 +104,8 @@ export function jumpToOccurrence(occurrenceId, opts = {}) {
   }
   // retries:0 callers ("the page is already open, a miss means filtered out")
   // still deserve one look after the windows expand — the row may simply have
-  // been past the seam.
+  // been past the seam. Nothing is changing page here, so expanding now is safe.
+  requestRenderAll();
   const afterExpand = findOccurrenceElement(occurrenceId, root);
   if (afterExpand) { scrollAndFlash(afterExpand, { highlightMs, scrollBlock }); return true; }
   return false;

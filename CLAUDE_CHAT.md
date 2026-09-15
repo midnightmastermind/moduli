@@ -3460,3 +3460,5 @@ tooltip is gone (aria-label `Open link` kept for screen readers).
 > of the instance"**
 
 User (2026-09-15, later): *"put the opan as page button on the bottom right of the occurance, not top left"*
+
+User (2026-09-15, later): *"its still taking way too long to open. theres no reason it should take that long to open a browser occurance. loading the page may take a sec in the browser page but at least have it go to the page with the loading circle right away"*

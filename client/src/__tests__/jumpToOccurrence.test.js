@@ -189,3 +189,59 @@ describe("jumpToOccurrence retries", () => {
     expect(jumpToOccurrence("nope")).toBe(false);
   });
 });
+
+// --- Render-all timing -------------------------------------------------------
+// Opening a bookmark activates a new page and jumps to it. Asking every render
+// window to open on the FIRST miss expanded the board being LEFT from 80 cards to
+// 1,465 before the panel switched (user, 2026-09-15: "it still taking way too
+// long to open"). A caller that swaps/polls must look again before expanding.
+describe("jumpToOccurrence render-all timing", () => {
+  const RENDER_ALL = "moduli:render-all";
+
+  it("does not expand any window when the target mounts on the first retry", () => {
+    vi.useFakeTimers();
+    document.body.innerHTML = `<div id="panelB" data-panel-id="B"></div>`;
+    const heard = vi.fn();
+    window.addEventListener(RENDER_ALL, heard);
+    jumpToOccurrence("page-1", { root: () => document.querySelector("#panelB"), retries: 5, retryMs: 10 });
+    expect(heard).not.toHaveBeenCalled();
+    const el = document.createElement("div");
+    el.setAttribute("data-page-occ-id", "page-1");
+    el.scrollIntoView = vi.fn();
+    document.querySelector("#panelB").appendChild(el);
+    vi.advanceTimersByTime(15);
+    expect(el.classList.contains("anchor-highlight")).toBe(true);
+    expect(heard).not.toHaveBeenCalled();
+    window.removeEventListener(RENDER_ALL, heard);
+    vi.useRealTimers();
+  });
+
+  // The control: a row genuinely past a window is still found — the expansion
+  // moved later, it did not go away.
+  it("expands after a retry misses, then finds a row that was past the window", () => {
+    vi.useFakeTimers();
+    document.body.innerHTML = `<div id="panelB" data-panel-id="B"></div>`;
+    const onMissing = vi.fn();
+    const mountOnExpand = () => {
+      const el = document.createElement("div");
+      el.setAttribute("data-occ-id", "row-800");
+      el.scrollIntoView = vi.fn();
+      document.querySelector("#panelB").appendChild(el);
+    };
+    window.addEventListener(RENDER_ALL, mountOnExpand, { once: true });
+    // A single retry must still get its look AFTER the expansion.
+    jumpToOccurrence("row-800", { root: () => document.querySelector("#panelB"), retries: 1, retryMs: 10, onMissing });
+    vi.advanceTimersByTime(30);
+    expect(document.querySelector('[data-occ-id="row-800"]').classList.contains("anchor-highlight")).toBe(true);
+    expect(onMissing).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it("with no swap and no retries it still expands synchronously", () => {
+    const heard = vi.fn();
+    window.addEventListener(RENDER_ALL, heard);
+    jumpToOccurrence("nope");
+    expect(heard).toHaveBeenCalledTimes(1);
+    window.removeEventListener(RENDER_ALL, heard);
+  });
+});
