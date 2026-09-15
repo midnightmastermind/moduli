@@ -9,11 +9,30 @@
 // navigation.
 import { describe, it, expect, beforeEach } from "vitest";
 import {
-  recordActive, canBack, canForward, back, forward, navFor, _reset,
+  recordActive, canBack, canForward, back, forward, navFor, _reset, seed,
 } from "../helpers/panelHistory";
 
 const V = "view-1";
 beforeEach(() => { _reset(); });
+
+// 2026-09-15: after a reload the page you land on was never recorded, so the first
+// page you opened had nothing behind it and Back stayed hidden.
+describe("the page a panel starts on", () => {
+  it("is reachable by Back after ONE navigation", () => {
+    seed(V, "start");
+    recordActive(V, "opened");
+    expect(canBack(V)).toBe(true);
+    expect(back(V)).toBe("start");
+  });
+
+  // THE CONTROL: a seed never overwrites a history that already exists.
+  it("does not replace an existing history", () => {
+    recordActive(V, "a"); recordActive(V, "b");
+    seed(V, "late");
+    expect(navFor(V).entries).toEqual(["a", "b"]);
+    expect(back(V)).toBe("a");
+  });
+});
 
 describe("panelHistory", () => {
   it("records pages and steps back through them", () => {

@@ -66,7 +66,7 @@ import {
   PlusSquare,
 } from "lucide-react";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
-import { canBack as canBackIn, back as historyBack, subscribe as subscribeHistory } from "../helpers/panelHistory";
+import { canBack as canBackIn, back as historyBack, subscribe as subscribeHistory, seed as seedHistory } from "../helpers/panelHistory";
 
 import Page from "./ModulePage.jsx";
 import { CanvasDrawSection } from "./CanvasContent.jsx";
@@ -856,6 +856,16 @@ function Panel({
     if (!res.ok) toast("That item isn't on a page yet");
     else if (res.found === false) toast("Found it, but it's hidden by the current filter");
   }, [panelOccurrence, occurrencesById, modulesById, viewsById, dispatch, socket]);
+
+  // THE PAGE THIS PANEL STARTS ON goes into its back history (2026-09-15). History
+  // only hears CHANGES, so without this the page you land on after a reload is
+  // never recorded and Back does not appear until your SECOND navigation. It is
+  // the page the render below actually shows: the active one, else the first.
+  // Above the hidden-panel return so the hook order never changes.
+  const startPageId = currentView?.activeOccurrenceId || pagesList[0]?.occurrence?.id || null;
+  useEffect(() => {
+    if (currentView?.id && startPageId) seedHistory(currentView.id, startPageId);
+  }, [currentView?.id, startPageId]);
 
   if (hidden && !forceFullscreen) return null;
 

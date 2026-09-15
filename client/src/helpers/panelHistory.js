@@ -73,6 +73,23 @@ export function recordActive(viewId, occId) {
   emit();
 }
 
+/**
+ * The page a panel is showing when this session first sees it.
+ *
+ * ── WITHOUT THIS, BACK NEVER APPEARED AFTER ONE NAVIGATION (2026-09-15) ──
+ * History lives in memory and `recordActive` only hears CHANGES. After a reload
+ * the page you land on was never recorded, so the first page you opened became
+ * entry 0 with nothing behind it — Back stayed hidden until a SECOND navigation.
+ * User: *"wheres the back button on the panel header."*
+ *
+ * Only ever fills an EMPTY history: once a panel has entries, the chokepoint in
+ * `updateView` is the source of truth and a seed would be a second opinion.
+ */
+export function seed(viewId, occId) {
+  if (!viewId || !occId || navFor(viewId).entries.length) return;
+  byView.set(viewId, { entries: [occId], index: 0 });
+}
+
 export const canBack = (viewId) => canGoBack(navFor(viewId));
 export const canForward = (viewId) => canGoForward(navFor(viewId));
 
