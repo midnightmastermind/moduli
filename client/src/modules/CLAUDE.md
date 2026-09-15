@@ -2,6 +2,14 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-09-15 — BookmarkView: the reader header follows the page on screen)
+- **`BookmarkView.jsx`** — `pageTitle` (sent to `import_plan` as the container label) is the
+  bookmark's label only while `url === storedUrl`. Browsed elsewhere it is the `title` of the read
+  `readerSource` picked (`fetched.title` live / `archiveRead.title` archive), then `hostOf(url)`
+  (`helpers/spreadBrowser`). Kept out of `readerSource`, whose tests pin `{ markdown, from }` exactly.
+- Tests: two cases in `__tests__/bookmarkReaderHedge.test.jsx` (saved label → page title after
+  browsing; host fallback), A/B'd. **Not watched in a browser.**
+
 ## Recent Changes (2026-09-12 (4) — an open-as-page button on every row with a url)
 - **`ModuleInstance.jsx`** — `InstanceInner` renders `.instance-url-btn` (ExternalLink, bottom-right,
   visible at rest) when `canOpenUrlAsPage(occurrence, instance)` and the row is not an artifact (the

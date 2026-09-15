@@ -6,6 +6,36 @@
 
 ---
 
+### 2026-09-15 — THE READER HEADER NAMES THE PAGE YOU ARE ON, not the bookmark you started from
+
+Picked up the other account's session, which hit its limit one edit into the 09-13 "known wrinkle":
+browsing a saved bookmark to a different address kept heading Reader/Magic with the BOOKMARK's label.
+
+**Its "empty Magic header" item was retired by measuring before this session started:** the empty
+header index moved between runs (4, then 8), the label was in `textContent`, and `innerText` was
+correct once scrolled into view — the documented content-visibility skip, i.e. the probe, not a defect.
+
+- **`page_reader` returns `title`** (the fetched page's `<title>`). `import.js` carried its own copy of
+  `titleFromHtml`, identical to `linkPreview.js`'s; it imports that one now.
+- **`BookmarkView`** — on the saved address the header is the bookmark's label (the name you gave
+  it); anywhere else it is the title of whichever read `readerSource` picked (live or archive), then
+  the host. Computed beside `readerSource` rather than added to it, because its tests pin the exact
+  `{ markdown, from }` shape.
+- **Verified on prod through a real socket:** `example.com` → `"Example Domain"`, the Wikipedia House
+  of Cards article → `"House of Cards (American TV series) - Wikipedia"`. Prod HEAD `42b2ba19`, served
+  `PagePreviewApp` chunk sha256-identical, pm2 restarted (server code changed).
+
+A/B'd with each mutation asserted to land: label-only fails 2, ignoring the saved address fails 2
+(including the existing archive test, which is a real control), dropping the host fallback fails 1,
+dropping the server title fails 1. 4321 client + 2180 server tests; the 2 client files that do not
+finish are the documented OOM pair (`trackerValues`, `balanceFlow`), re-run alone and OOMing alone.
+
+**NOT VERIFIED IN A BROWSER:** nobody has watched the header change on screen after browsing away.
+**Also worth knowing:** `BookmarkView.jsx` holds one committed NUL byte (line ~559, the plan-cache key
+separator), so `file` calls it data and plain `grep` silently matches nothing — use `grep -a`.
+
+---
+
 ### 2026-09-13 — THE WASHINGTON POST WAS SIX SECONDS OF A TIMEOUT WE ALREADY KNEW THE ANSWER TO
 
 User: *"took 6 seconds to open, then another 10 to actually load the site. we need to at least create

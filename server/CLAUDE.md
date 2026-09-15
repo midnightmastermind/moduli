@@ -2,6 +2,13 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-15 — `page_reader` returns the page's `title`)
+- **`socketHandlers/import.js`** — the reply carries `title: titleFromHtml(fetched.html)`, so the
+  viewer can head Reader/Magic with the page actually on screen once the address bar has left the
+  saved bookmark. The file's private `titleFromHtml` duplicate is gone; it imports `linkPreview.js`'s.
+- Test: `__tests__/readerSpeed.test.js` "a read carries the page's own <title>" (A/B'd). Verified on
+  prod over a real socket (`example.com` → "Example Domain").
+
 ## Recent Changes (2026-09-13 — reader: stalled hosts are skipped; Magic plans granular)
 - **`utils/hostStallMemory.js` (NEW)** + `page_reader`: a host whose fetch TIMED OUT answers
   `{ ok:false, stalled:true }` at once for 30 min. From the droplet WaPo times out at 6s on every
