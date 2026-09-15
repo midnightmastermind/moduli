@@ -188,11 +188,18 @@ describe("a bookmark opens inside the spread", () => {
   //
   // The path existed with NO affordance — reachable only by double-clicking,
   // which is undiscoverable and unreachable on a tablet (a double-tap zooms).
-  it("has a button that opens it as a page IN A PANEL, not the viewer", () => {
+  // User, 2026-09-15: *"the button to open the url as a browser page should be
+  // on the occurance and not the cover image of the instance"*. The button moved
+  // to the row's handle group (`urlButtonPlacement` → "header"); the card itself
+  // carries none.
+  it("puts NO open-as-page button on the card (it would sit on the cover image)", () => {
     const el = mount(BOOKMARK);
-    const btn = el.querySelector(".artifact-thumb-page-hint");
-    expect(btn, "no open-as-page button on a bookmark").toBeTruthy();
-    fireEvent.click(btn);
+    expect(el.querySelector(".artifact-thumb-page-hint")).toBeNull();
+    expect(el.querySelector('[aria-label="Open link"]')).toBeNull();
+  });
+
+  it("double-click opens it IN A PANEL, not the viewer", () => {
+    fireEvent.dblClick(mount(BOOKMARK).querySelector(".artifact-card"));
     expect(openBookmarkInPanel).toHaveBeenCalledTimes(1);
     // THE DISTINCTION the user drew: a panel, never the viewer.
     expect(openArtifactSpread).not.toHaveBeenCalled();
@@ -201,23 +208,15 @@ describe("a bookmark opens inside the spread", () => {
   // Without the panel's VIEW the open pins the page and never makes it active,
   // so the panel stays where it was — the button "does nothing".
   it("hands the open the panel views, not an empty map", () => {
-    fireEvent.click(mount(BOOKMARK).querySelector(".artifact-thumb-page-hint"));
+    fireEvent.dblClick(mount(BOOKMARK).querySelector(".artifact-card"));
     expect(openBookmarkInPanel.mock.calls[0][0].viewsById).toEqual({ "v-panel": { id: "v-panel" } });
   });
 
-  // User, 2026-09-12: *"it shouldnt say open as page. it should just be like an
-  // icon to click"*.
-  it("is an icon with no open-as-page wording", () => {
-    const btn = mount(BOOKMARK).querySelector(".artifact-thumb-page-hint");
-    expect(btn.getAttribute("title")).toBeNull();
-    expect(btn.textContent.trim()).toBe("");
-  });
-
-  // THE CONTROL. Without it, "a bookmark has the button" is equally satisfied by
-  // putting it on every artifact — an image has no page to open.
-  it("an IMAGE has no such button", () => {
-    const el = mount(IMAGE, { occurrence: { ...OCC, moduleId: "m-img" } });
-    expect(el.querySelector(".artifact-thumb-page-hint")).toBeNull();
+  // THE CONTROL. Without it, "a bookmark opens in a panel" is equally satisfied
+  // by sending every artifact there — an image has no page to open.
+  it("an IMAGE is not sent to a panel on double-click", () => {
+    fireEvent.dblClick(mount(IMAGE, { occurrence: { ...OCC, moduleId: "m-img" } }).querySelector(".artifact-card"));
+    expect(openBookmarkInPanel).not.toHaveBeenCalled();
   });
 
   // NOTHING IS TAKEN AWAY: the panel path the sticky "Open in <panel>" setting

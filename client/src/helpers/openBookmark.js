@@ -97,6 +97,20 @@ export function canOpenUrlAsPage(occurrence, module, fieldsById = {}) {
   return occurrenceUrl(occurrence, { module, fieldsById })?.from === "field";
 }
 
+/**
+ * Where a row's open-as-page button sits, or null when it has none.
+ *
+ *   "header" — beside the drag handle. An ARTIFACT's card fills its row, so a
+ *              corner button lands on the cover image (user, 2026-09-15: *"the
+ *              button to open the url as a browser page should be on the
+ *              occurance and not the cover image of the instance"*).
+ *   "row"    — bottom-right of the row, for every other row with a url.
+ */
+export function urlButtonPlacement(occurrence, module, fieldsById = {}) {
+  if (!canOpenUrlAsPage(occurrence, module, fieldsById)) return null;
+  return module?.role === "artifact" ? "header" : "row";
+}
+
 // A browser minted a moment ago is not in the maps yet — the store catches up on
 // the next render, and a double click lands before it. Remembered here so the
 // second call reuses it instead of minting another. Same job `browserMintRef`

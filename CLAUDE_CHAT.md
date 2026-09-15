@@ -3446,3 +3446,15 @@ tooltip is gone (aria-label `Open link` kept for screen readers).
 ## 2026-09-15 (2) — the panel Back button
 
 > **"wheres the back button on the panel header. we need one that lets me go back to the prev page"**
+
+## 2026-09-15 (3) — the open-page button freezes; the header caret lands at the end
+
+> **"when i click on the open page button on the bookmark, it freezes up the app and takes 10 seconds to
+> switch to the page and when i click on a doccontainers header, i expect the cursor to go where i click
+> in the text. right now, it sends the typing cursor to the end of the text. we need to fix that"**
+
+> **"we also got the reader and magic view of this site but going to web just infinite loads Blocked
+> loading mixed active content “http://journal.sjdm.org/20/200824b/jdm200824b.html”"**
+
+> **"and the button to open the url as a browser page should be on the occurance and not the cover image
+> of the instance"**

@@ -16,6 +16,7 @@ import { Trash2 } from "lucide-react";
 import { useGridActions } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { jumpToOccurrence } from "../../helpers/jumpToOccurrence";
+import { placeCaretAtPoint } from "../../helpers/caretFromPoint";
 import RadialMenu from "../../ui/RadialMenu.jsx";
 import { logCaretPointerDown } from "../../helpers/caretDiag";
 
@@ -147,28 +148,8 @@ export default function InstanceTextblockInlineNode({ node, editor, getPos, dele
   // selection so drag-select / double-click word-select survive. No-op on
   // Chromium (native placement already landed there; re-placing is identical).
   const placeCaretFromPoint = useCallback((e) => {
-    const el = contentRef.current;
-    if (!el || !editable) return;
-    const sel = window.getSelection();
-    if (!sel || (sel.rangeCount && !sel.isCollapsed)) return;
-    let node = null, offset = 0;
-    try {
-      if (document.caretPositionFromPoint) {
-        const p = document.caretPositionFromPoint(e.clientX, e.clientY);
-        if (p && el.contains(p.offsetNode)) { node = p.offsetNode; offset = p.offset; }
-      } else if (document.caretRangeFromPoint) {
-        const r = document.caretRangeFromPoint(e.clientX, e.clientY);
-        if (r && el.contains(r.startContainer)) { node = r.startContainer; offset = r.startOffset; }
-      }
-    } catch (_) {}
-    if (!node) return;
-    try {
-      const range = document.createRange();
-      range.setStart(node, offset);
-      range.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(range);
-    } catch (_) {}
+    if (!editable) return;
+    placeCaretAtPoint(contentRef.current, e.clientX, e.clientY);
   }, [editable]);
 
   const onKeyDown = useCallback((e) => {

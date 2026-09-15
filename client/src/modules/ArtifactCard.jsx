@@ -5,7 +5,7 @@
 //     a scaled <img>, an <audio controls>, or an <iframe> for pdf. X button collapses.
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, Maximize2, AlertCircle, ExternalLink } from "lucide-react";
+import { X, Maximize2, AlertCircle } from "lucide-react";
 import { Spinner } from "../components/ui/spinner.jsx";
 import { resolveFileRef } from "../helpers/fileRef";
 import { getUploadController } from "../helpers/uploadWithProgress";
@@ -568,31 +568,9 @@ export default function ArtifactCard({ module, label, occurrence }) {
       >
         <Maximize2 size={12} />
       </button>
-      {/* ── OPEN IT AS A PAGE, IN THIS PANEL ────────────────────────────────
-          User, 2026-09-10: *"there should be a button on the bottom right for
-          all occurances that have a url field that opens up that browser
-          page"* / *"that button should be opening the browser page in the
-          PANEL we are in, not the viewer. thats the distinction."*
-
-          The path already existed and had no affordance: `openBookmarkInPanel`
-          was reachable only by DOUBLE-CLICKING the card, which is undiscoverable
-          and unreachable on a tablet (a double-tap zooms). This is that gesture
-          given a button.
-
-          BOTTOM right, opposite the expand hint at the top — the two are
-          different destinations (here vs. a panel) and putting them in one
-          corner would make them one control with a coin flip in the middle. */}
-      {canOpenPage && (
-        <button
-          type="button"
-          className="artifact-thumb-page-hint"
-          aria-label="Open link"
-          onClick={openInPanel}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <ExternalLink size={15} />
-        </button>
-      )}
+      {/* The open-as-page button is NOT on the card: it sat in this corner over
+          the cover image, and moved to the row's handle group (user,
+          2026-09-15). Double-click still opens it in a panel. */}
     </div>
   );
 }

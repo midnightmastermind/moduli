@@ -90,8 +90,21 @@ export default function AutoMarquee({ children, className = "" }) {
       const over = inner.scrollWidth - box.clientWidth;
       setShift(over > THRESHOLD_PX ? over : 0);
     };
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
+    // ── NO SYNCHRONOUS MEASURE ON MOUNT ──────────────────────────────────
+    // User, 2026-09-15: *"when i click on the open page button on the bookmark,
+    // it freezes up the app and takes 10 seconds to switch to the page"*.
+    // Profiled on poms grid: ONE 11.5s task, and 8.0s of it was this line's old
+    // `measure()` call. Reading `scrollWidth` right after React has written the
+    // DOM forces a synchronous layout — and a page switch mounts hundreds of
+    // marquees in one commit, so every one of them paid a full layout of a
+    // ~9,000-node document, one after another.
+    //
+    // A ResizeObserver delivers an INITIAL observation for every element it is
+    // given, all together, after the browser has laid the frame out once — so
+    // the same reads cost one layout for the whole page instead of one each.
+    // The observer below already existed; it was simply being beaten to the
+    // first measurement. Only an engine without ResizeObserver measures inline.
+    if (typeof ResizeObserver === "undefined") { measure(); return; }
     const ro = new ResizeObserver(measure);
     ro.observe(box);
     ro.observe(inner);

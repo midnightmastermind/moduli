@@ -3845,30 +3845,9 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    is a DESTINATION you have to know exists, so it is chrome you can see: light
    ink on a dark chip (a cover photo is any colour, so theme ink would vanish on
    half of them), a finger-sized box, and above the image and its load badge. */
-.artifact-thumb-page-hint {
-  border: none; cursor: pointer;
-  position: absolute;
-  bottom: 6px;
-  right: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  color: rgba(255, 255, 255, 0.92);
-  background: rgba(0, 0, 0, 0.55);
-  border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
-  opacity: 0.9;
-  transition: opacity 0.12s ease-out, background 0.12s ease-out;
-  z-index: 4;
-}
-.artifact-card:hover .artifact-thumb-page-hint,
-.artifact-thumb-page-hint:focus-visible {
-  opacity: 1;
-}
-.artifact-thumb-page-hint:hover { background: rgba(0, 0, 0, 0.8); color: #fff; }
+/* MOVED OFF THE CARD (user, 2026-09-15: "should be on the occurance and not the
+   cover image"). The button now renders in the row's handle group as
+   `.instance-url-btn--in-header`; see the rule beside `.instance-url-btn`. */
 
 .artifact-card:hover .artifact-thumb-expand-hint {
   opacity: 1;
@@ -7519,6 +7498,15 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   z-index: 3;
 }
 .instance-url-btn--beside-body { right: 24px; }
+/* An artifact row's button sits in the handle group, in flow beside the drag
+   handle — never in a corner, where the card's cover image is. Visible at rest:
+   it is a destination you have to know exists. */
+.instance-url-btn.instance-url-btn--in-header {
+  position: static;
+  align-self: center;
+  flex-shrink: 0;
+  opacity: 1;
+}
 .instance-wrap:hover .instance-url-btn { opacity: 1; }
 .instance-url-btn:hover { color: var(--text-primary); }
 @media (pointer: coarse) {

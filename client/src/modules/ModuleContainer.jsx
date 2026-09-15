@@ -6,6 +6,7 @@
 import React, { useRef, useMemo, useState, useReducer, useCallback, useEffect, useLayoutEffect, useContext } from "react";
 import { createPortal } from "react-dom";
 import { isAwaitingChildren } from "../helpers/awaitingChildren";
+import { placeCaretAtPoint } from "../helpers/caretFromPoint";
 import { Spinner } from "@/components/ui/spinner";
 import RadialMenu from "../ui/RadialMenu";
 import { toast } from "../state/notificationStore";
@@ -1365,6 +1366,10 @@ function Container({
                       e.stopPropagation();
                     }}
                     onPointerDown={(e) => e.stopPropagation()}
+                    // The caret goes WHERE YOU CLICKED (user, 2026-09-15). The
+                    // container shell is draggable, and Firefox will not place a
+                    // caret inside a draggable ancestor on its own.
+                    onClick={(e) => placeCaretAtPoint(e.currentTarget, e.clientX, e.clientY)}
                     style={{ outline: "none", cursor: "text", whiteSpace: "inherit", wordBreak: "inherit" }}
                   >
                     {displayLabel || "Container"}

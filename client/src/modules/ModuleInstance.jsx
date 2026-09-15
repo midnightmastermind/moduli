@@ -34,7 +34,7 @@ import { toast } from "sonner";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { occurrenceUrl } from "../helpers/occurrenceUrl";
 import { collectPanelOccurrences, panelChoices, getTargetPanelId, targetPanelPatch, enclosingPanelId, panelOccIdForElement } from "../helpers/targetPanel";
-import { openUrlInPanel, canOpenUrlAsPage } from "../helpers/openBookmark";
+import { openUrlInPanel, urlButtonPlacement } from "../helpers/openBookmark";
 import { targetPanelMenuItems, shouldOfferTargetPicker } from "../helpers/targetPanelMenu";
 import {
   useDragDrop,
@@ -796,8 +796,9 @@ function InstanceInner({
           `stopPropagation` matters: `.instance-wrap` owns a click (selection) and
           a context menu of its own. */}
       {/* Open this row's link as a browser page in THIS panel. An artifact row
-          is skipped: ArtifactCard carries its own button on the card. */}
-      {occurrence && !overlay && instance?.role !== "artifact" && canOpenUrlAsPage(occurrence, instance) && (
+          carries it in the handle group instead — its card fills the row, so
+          this corner is the cover image (see `urlButtonPlacement`). */}
+      {occurrence && !overlay && urlButtonPlacement(occurrence, instance) === "row" && (
         <button
           type="button"
           className={toggleDoc ? "instance-url-btn instance-url-btn--beside-body" : "instance-url-btn"}
@@ -909,6 +910,22 @@ function InstanceInner({
               />
             </PopoverContent>
           </Popover>
+            {/* An ARTIFACT's open-as-page button lives here, beside the handle,
+                rather than in the card's corner over the cover image (user,
+                2026-09-15: *"should be on the occurance and not the cover image
+                of the instance"*). */}
+            {occurrence && !overlay && urlButtonPlacement(occurrence, instance) === "header" && (
+              <button
+                type="button"
+                className="instance-url-btn instance-url-btn--in-header"
+                data-testid="instance-url-btn"
+                aria-label="Open link"
+                onClick={openUrlHere}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <ExternalLink style={{ width: 12, height: 12 }} />
+              </button>
+            )}
             {/* The image sits in the HANDLE group now — "image top left next to
                 it" — rather than inside the label's conditional, where it was
                 only rendered when the label was. It guards itself through the

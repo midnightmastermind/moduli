@@ -48,6 +48,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { occurrenceUrl } from "../helpers/occurrenceUrl";
 import { embedUrlFor } from "../helpers/embedUrl";
+import { frameSrcFor } from "../helpers/frameSrc";
 import {
   initialNav, currentUrl, canGoBack, canGoForward, goBack, goForward, navigate,
   normalizeTyped, isScratch,
@@ -512,7 +513,12 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   // browser loads its own error document there) — so a site that says no stops
   // spinning instead of pretending it is still trying. Keyed on the src, so
   // navigating starts a new wait rather than showing the last page's answer.
-  const frameSrc = embedSrc || url;
+  // An http:// page is asked for over https — see helpers/frameSrc.js for why a
+  // blocked mixed-content frame never stops loading.
+  const frameSrc = frameSrcFor(url, {
+    embedSrc,
+    pageProtocol: typeof window !== "undefined" ? window.location?.protocol : null,
+  });
   const [frameLoading, setFrameLoading] = useState(true);
   useEffect(() => { setFrameLoading(true); }, [frameSrc]);
   const mode = resolveMode({
