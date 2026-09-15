@@ -10,7 +10,7 @@
 // depends on this answer, and for the Washington Post the snapshot is the ONLY
 // thing that renders.
 import { describe, it, expect, vi } from "vitest";
-import { fetchWaybackSnapshot, retryAfterMs } from "../utils/waybackSnapshot.js";
+import { fetchWaybackSnapshot, retryAfterMs, slashVariant } from "../utils/waybackSnapshot.js";
 
 const FOUND = {
   archived_snapshots: { closest: { status: "200", available: true, timestamp: "20231205055428",
@@ -22,6 +22,48 @@ const res = (body, { status = 200, ok = status < 400, retryAfter = null } = {}) 
   text: async () => (typeof body === "string" ? body : JSON.stringify(body)),
 });
 const noSleep = async () => {};
+
+// THE ARCHIVE MATCHES THE ADDRESS EXACTLY (2026-09-15). The Washington Post
+// article is captured under ".../ever/" and a bookmark saved as ".../ever" read
+// "no snapshot", so Reader and Magic said the page had no text.
+describe("the slash twin", () => {
+  const NONE = { archived_snapshots: {} };
+  const queried = (fetchImpl) => fetchImpl.mock.calls.map(([u]) => decodeURIComponent(new URL(u).searchParams.get("url")));
+
+  it("asks once more with the trailing slash toggled, and takes that snapshot", async () => {
+    const fetchImpl = vi.fn(async (u) => (decodeURIComponent(u).endsWith("/ever/") ? res(FOUND) : res(NONE)));
+    const out = await fetchWaybackSnapshot("https://www.washingtonpost.com/news/ever", { fetchImpl, sleep: noSleep });
+    expect(out.ok).toBe(true);
+    expect(queried(fetchImpl)).toEqual(["https://www.washingtonpost.com/news/ever", "https://www.washingtonpost.com/news/ever/"]);
+  });
+
+  // THE CONTROL: a hit never costs a second request, and neither does a busy archive.
+  it("does not ask twice on a hit, or when the archive is only busy", async () => {
+    const hit = vi.fn(async () => res(FOUND));
+    await fetchWaybackSnapshot("https://a.test/x", { fetchImpl: hit, sleep: noSleep });
+    expect(hit).toHaveBeenCalledTimes(1);
+    const busy = vi.fn(async () => res("", { status: 429 }));
+    const out = await fetchWaybackSnapshot("https://a.test/x", { fetchImpl: busy, sleep: noSleep, attempts: 1 });
+    expect(out.reason).toMatch(/busy/);
+    expect(busy).toHaveBeenCalledTimes(1);
+  });
+
+  // A busy answer for the twin says nothing about the page; the definite "no
+  // snapshot" for the address you asked about is the one worth showing.
+  it("keeps the first answer when the twin does not produce a snapshot", async () => {
+    const fetchImpl = vi.fn(async (u) => (decodeURIComponent(u).endsWith("/x/") ? res("", { status: 429 }) : res(NONE)));
+    const out = await fetchWaybackSnapshot("https://a.test/x", { fetchImpl, sleep: noSleep, attempts: 1 });
+    expect(out).toEqual({ ok: false, reason: "no snapshot in the Wayback Machine" });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("toggles the path only, keeping the query, and has no twin for a bare host", () => {
+    expect(slashVariant("https://a.test/x?q=1")).toBe("https://a.test/x/?q=1");
+    expect(slashVariant("https://a.test/x/")).toBe("https://a.test/x");
+    expect(slashVariant("https://a.test/")).toBe(null);
+    expect(slashVariant("not a url")).toBe(null);
+  });
+});
 
 describe("fetchWaybackSnapshot", () => {
   it("retries a 429 and takes the answer — the measured failure", async () => {

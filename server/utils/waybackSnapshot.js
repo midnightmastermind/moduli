@@ -64,7 +64,7 @@ export function snapshotFrom(json) {
   // The empty-object case, which is what "we have never captured this" looks
   // like. It is the ordinary answer for a private URL, a localhost link, or a
   // deep path nobody crawled — so it is a REASON, never an error.
-  if (!closest || !closest.url) return { ok: false, reason: "no snapshot in the Wayback Machine" };
+  if (!closest || !closest.url) return { ok: false, reason: NO_SNAPSHOT };
   if (closest.available === false) return { ok: false, reason: "the snapshot is not available" };
   return {
     ok: true,
@@ -116,18 +116,55 @@ export function retryAfterMs(header, cap = 2000) {
   return Math.min(secs * 1000, cap);
 }
 
+const NO_SNAPSHOT = "no snapshot in the Wayback Machine";
+
+// ── THE ARCHIVE MATCHES THE ADDRESS EXACTLY, SLASH INCLUDED ──────────────────
+//
+// Measured 2026-09-15 on the Washington Post article, from the droplet, twice:
+//
+//     .../house-of-cards-is-the-worst-show-about-american-politics-ever    no snapshot
+//     .../house-of-cards-is-the-worst-show-about-american-politics-ever/   20231205055428
+//
+// The site serves both addresses as one page, but the availability API treats
+// them as two, so a bookmark saved without the slash read "not in the archive"
+// for a page that is — and Reader and Magic printed "no readable text".
+
+/**
+ * The same address with its trailing slash toggled, or null when there is no
+ * such twin (a bare host, or a string that is not a url).
+ */
+export function slashVariant(url) {
+  let u;
+  try { u = new URL(String(url || "")); } catch { return null; }
+  if (!u.pathname || u.pathname === "/") return null;
+  u.pathname = u.pathname.endsWith("/") ? u.pathname.replace(/\/+$/, "") : `${u.pathname}/`;
+  return u.pathname && u.pathname !== "/" ? u.href : null;
+}
+
 /**
  * Ask the Wayback Machine for the closest snapshot of `url`.
  *
  * Always resolves — never throws — because every caller wants a REASON to show
  * rather than an exception to catch.
+ *
+ * On a definite "no snapshot" it asks ONCE more for the slash twin, inside the
+ * same deadline. Only on that answer: a busy or unreachable archive says nothing
+ * about which address it holds, and doubling requests into a rate limit would
+ * make the limit worse.
  */
-export async function fetchWaybackSnapshot(url, {
-  totalMs = 8000, attempts = 3, fetchImpl, sleep,
-} = {}) {
+export async function fetchWaybackSnapshot(url, { totalMs = 8000, ...opts } = {}) {
+  const deadline = Date.now() + totalMs;
+  const first = await lookupOnce(url, { ...opts, deadline });
+  if (first.ok || first.reason !== NO_SNAPSHOT) return first;
+  const twin = slashVariant(url);
+  if (!twin || deadline - Date.now() <= 0) return first;
+  const second = await lookupOnce(twin, { ...opts, deadline });
+  return second.ok ? second : first;
+}
+
+async function lookupOnce(url, { deadline, attempts = 3, fetchImpl, sleep }) {
   const doFetch = fetchImpl || globalThis.fetch;
   const nap = sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
-  const deadline = Date.now() + totalMs;
   let last = { ok: false, reason: "the archive could not be reached" };
 
   for (let i = 0; i < attempts; i++) {
