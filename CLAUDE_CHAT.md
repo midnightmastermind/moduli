@@ -3442,3 +3442,7 @@ tooltip is gone (aria-label `Open link` kept for screen readers).
 > **"we are making sure magic and reader are two seperate features. the reader shows a doccontainer with
 > a textblock inside of the doccontainer (with the header of the container being the name). Magic should
 > show a bunch of nested doccontainers and textblocks, just like the wikipedia import"**
+
+## 2026-09-15 (2) — the panel Back button
+
+> **"wheres the back button on the panel header. we need one that lets me go back to the prev page"**

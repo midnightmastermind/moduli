@@ -2,6 +2,13 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-15 — `panelHistory.seed`: the starting page is reachable by Back)
+- **`seed(viewId, occId)` (NEW)** — records the page a panel shows when this session first sees it.
+  `recordActive` only hears CHANGES through `updateView`, so after a reload the landing page was never in
+  the history and Back had nothing behind the first page you opened. Fills an EMPTY history only; once a
+  panel has entries the chokepoint is the source of truth. 2 tests (reachable after one navigation; never
+  replaces existing history), A/B'd.
+
 ## Recent Changes (2026-09-12 (5) — `importsFolder.ensureArtifactPage` + `openBookmark`: the first click opens)
 - **`ensureArtifactPage` (NEW) returns `{ id, occurrence, module }`** — the page objects when it had
   to mint them, `null` for both when the page already existed. `ensureArtifactPageOcc` is now a thin

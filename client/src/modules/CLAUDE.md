@@ -2,6 +2,13 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-09-15 (2) — ModulePanel: Back appears after the first page you open)
+- **`ModulePanel.jsx`** — seeds `helpers/panelHistory` with the page the panel starts on
+  (`currentView.activeOccurrenceId`, else the first pinned page) from an effect placed ABOVE
+  `if (hidden && !forceFullscreen) return null`. Without it, a reload left the landing page unrecorded
+  and the header's Back button (`canGoBackHere`, aria-label "Back to the previous page") stayed hidden
+  until a second navigation. Verified on prod: open a page → Back shows → press it → the start page.
+
 ## Recent Changes (2026-09-15 — BookmarkView: the reader header follows the page on screen)
 - **`BookmarkView.jsx`** — `pageTitle` (sent to `import_plan` as the container label) is the
   bookmark's label only while `url === storedUrl`. Browsed elsewhere it is the `title` of the read

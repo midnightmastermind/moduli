@@ -6,6 +6,37 @@
 
 ---
 
+### 2026-09-15 (3) — THE BACK BUTTON WAS THERE; after a reload it had nothing to go back to
+
+User: *"wheres the back button on the panel header. we need one that lets me go back to the prev page"*.
+
+**It existed** (`a6a2aa0f`, 09-10): a `<` in the panel header, rendered only when `canGoBackHere` is true,
+per the user's own 09-11 rule (*"only show the panels back button if there actually is something to go
+back to"*). **The defect was what counted as "something".** `helpers/panelHistory` is in memory and
+`recordActive` only hears CHANGES through `updateView`. After a reload the page a panel lands on was never
+recorded, so the first page you opened became entry 0 with nothing behind it, and Back stayed hidden until
+a SECOND navigation.
+
+- **`panelHistory.seed(viewId, occId)`** records the page a panel is showing when this session first sees
+  it, and only fills an EMPTY history, so it can never contradict the chokepoint.
+- **`ModulePanel`** calls it from an effect placed above the `if (hidden && !forceFullscreen) return null`
+  early return, so the hook order never changes when a panel is hidden.
+
+A/B'd: a no-op `seed` fails the "reachable after one navigation" test. 4323 client tests (the known OOM
+pair excluded), build clean, deployed, prod HEAD `534a41cc`, served `App` chunk sha256-identical.
+
+**VERIFIED ON PROD in a browser** (`_backbtn.mjs`, test grid 2, People panel):
+```
+fresh load        Felix Romero     Back buttons 0    <- nothing behind it yet, correctly hidden
+open Routines     Routines         Back buttons 1
+press Back        Felix Romero     Back buttons 0    <- returned to the start page
+```
+Screenshot `screenshots/back-button-visible.png`: the `<` sits beside the fullscreen button in the
+panel header. The 2 page errors are the framed site's own `localStorage` refusal, which appears whenever a
+browser page is on screen.
+
+---
+
 ### 2026-09-15 (2) — READER AND MAGIC, MEASURED ON SCREEN; and the Post article had silently lost its archive
 
 User: *"we are making sure magic and reader are two seperate features. the reader shows a doccontainer
