@@ -7,6 +7,34 @@ import { bestImageSrc, wikiHtmlToMarkdown, htmlToMarkdown, IMAGE_MAX_W } from ".
 const WP_IMG = `<img decoding="async" src="https://badgerherald.com/media/2015/04/tunnel-336x448.jpg" alt="Tunnel" srcset="https://badgerherald.com/wp-content/uploads/2015/04/tunnel-336x448.jpg 336w, https://badgerherald.com/wp-content/uploads/2015/04/tunnel-648x864.jpg 648w, https://badgerherald.com/wp-content/uploads/2015/04/tunnel-1200x1600.jpg 1200w, https://badgerherald.com/wp-content/uploads/2015/04/tunnel-3000x4000.jpg 3000w" sizes="(max-width: 336px) 100vw, 336px">`;
 const attrs = (o) => (n) => (n in o ? o[n] : null);
 
+// bbc.com wraps an article photo in a <figure> holding TWO <img> elements: a
+// grey "image unavailable" placeholder FIRST (it carries only `src`), then the
+// real photo, which carries only `srcset`. The figure rule took
+// querySelector("img") — the first — so the reader showed the placeholder and
+// dropped the photo. Measured: 1 image in the reader markdown, and it was the
+// placeholder.
+const BBC_FIGURE = `<figure>
+  <img src="https://static.files.bbci.co.uk/grey-placeholder.png" class="hide-when-no-script" aria-label="image unavailable">
+  <img sizes="96vw" srcset="https://ichef.bbci.co.uk/news/240/a.jpg.webp 240w,https://ichef.bbci.co.uk/news/1536/a.jpg.webp 1536w">
+  <figcaption>A caption</figcaption>
+</figure>`;
+
+describe("figure with a placeholder beside the real image", () => {
+  it("takes the image that OFFERS candidates, not the first one in the DOM", () => {
+    const md = wikiHtmlToMarkdown(BBC_FIGURE, "bbc");
+    expect(md).toContain("https://ichef.bbci.co.uk/news/1536/a.jpg.webp");
+    expect(md).not.toContain("grey-placeholder");
+  });
+
+  // The control: a figure with ONE image is unchanged, which is every figure on
+  // Wikipedia and on the badgerherald article this work started from.
+  it("leaves a single-image figure alone", () => {
+    const md = wikiHtmlToMarkdown(
+      `<figure><img src="https://x.com/only.jpg"><figcaption>Cap</figcaption></figure>`, "x");
+    expect(md).toContain("![Cap](https://x.com/only.jpg)");
+  });
+});
+
 describe("bestImageSrc", () => {
   it("takes srcset over a src that disagrees with it", () => {
     const src = bestImageSrc(attrs({

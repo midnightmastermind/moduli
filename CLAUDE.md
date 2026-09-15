@@ -51,6 +51,38 @@ the unit test fails for exactly its own reason without it. **badgerherald is una
 srcsets are comma+space, so the article this was all reported on renders identically either way;
 this is the next reader page, not this one.
 
+**AND THE BBC READER STILL SHOWED A GREY BOX, WHICH IS A SECOND DEFECT ONE LAYER UP.** With the
+split fixed, `bestImageSrc` returns the 1536w photo from that page's markup — and the reader's
+markdown still carried exactly one image, `grey-placeholder.png`. **A `<figure>` there holds TWO
+`<img>` elements**: a "image unavailable" placeholder carrying only `src`, then the real photo
+carrying only `srcset`. The figure rule read `querySelector("img")` — the FIRST — so the placeholder
+won and the photo was discarded. `extractMainContent` was innocent; it hands both images through.
+```
+main content     2 <img>, 1 srcset        <- the photo IS there
+reader markdown  1 image: grey-placeholder.png
+```
+`figureImage` picks **the image that OFFERS candidates** (a srcset or a lazy attribute) instead of
+the first one, because a placeholder has nothing to offer. It names no site and no filename — a
+`grey-placeholder` blocklist is exactly the domain knowledge `noDomainKnowledge` forbids — and it
+falls back to the first image with any usable address, so a single-image figure is untouched.
+Measured through the REAL reader chain:
+```
+                    before                    after
+bbc article         1 image, the placeholder  1 image, the 1536w photo
+badgerherald        4 images                  4 images     <- the control
+wikipedia          10 images                 10 images     <- the control
+arstechnica        61 images                 61 images, 0 placeholders
+```
+**A portable walk, not `querySelectorAll`:** turndown's own DOM gives a rule's node `querySelector`
+but NOT the plural form, and calling it throws INSIDE the replacement, which turndown swallows as a
+rule that silently produces nothing. Three tests caught that in one run.
+
+**Honest limit:** the BBC half is measured through the real extractor and the real converter, not
+watched in a browser — the on-screen check was run on badgerherald, which is the article the user
+reported. And `htmlToMarkdown`, the REGEX converter the drag-import path uses, still returns **0
+images** on that BBC page; it is a different code path with its own figure handling, nobody has
+asked for it, and it is reported here rather than changed.
+
 ---
 
 ### 2026-09-15 (5) — the page swap is instant now, and Reader/Magic read images from `srcset`

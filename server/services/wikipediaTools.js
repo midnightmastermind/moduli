@@ -46,9 +46,39 @@ const WIKI_STRIP_SELECTORS = [
 export const IMAGE_MAX_W = 1600;
 const LAZY_SRC_ATTRS = ["data-src", "data-lazy-src", "data-original"];
 
+const usableSrc = (u) => typeof u === "string" && u.trim() && !/^data:/i.test(u.trim());
+
+// Which <img> in a <figure> is the picture? Not simply the first: a site using
+// progressive enhancement puts a PLACEHOLDER first — measured on bbc.com, a grey
+// "image unavailable" png carrying only `src` — and the real photo second,
+// carrying only `srcset`. `querySelector("img")` took the placeholder and the
+// photo was dropped.
+//
+// The rule names no site and no filename: prefer the image that OFFERS
+// candidates (a srcset or a lazy-load attribute), because a placeholder has
+// nothing to offer. Falling back to the first image with any usable address
+// leaves every single-image figure — Wikipedia's, badgerherald's — untouched.
+export function figureImage(node) {
+  // A manual walk, not querySelectorAll: turndown's own DOM gives a rule's node
+  // `querySelector` but NOT `querySelectorAll`, and reaching for the plural one
+  // throws inside the replacement, which turndown surfaces as a dead rule.
+  const all = [];
+  (function walk(n) {
+    if (!n) return;
+    if (String(n.nodeName || "").toLowerCase() === "img") all.push(n);
+    for (const c of n.childNodes || []) walk(c);
+  })(node);
+  if (!all.length) return null;
+  const offers = (img) => {
+    const g = (n) => img.getAttribute?.(n);
+    return !!(pickSrcset(g("srcset")) || pickSrcset(g("data-srcset")) || LAZY_SRC_ATTRS.some((a) => usableSrc(g(a))));
+  };
+  return all.find(offers) || all.find((img) => bestImageSrc(img)) || all[0];
+}
+
 export function bestImageSrc(get) {
   const read = typeof get === "function" ? get : (n) => get?.getAttribute?.(n);
-  const usable = (u) => typeof u === "string" && u.trim() && !/^data:/i.test(u.trim());
+  const usable = usableSrc;
   const fromSet = pickSrcset(read("srcset")) || pickSrcset(read("data-srcset"));
   if (fromSet) return fromSet;
   for (const a of LAZY_SRC_ATTRS) if (usable(read(a))) return read(a).trim();
@@ -154,7 +184,7 @@ export function wikiHtmlToMarkdown(html, title = "") {
   td.addRule("figure", {
     filter: ["figure"],
     replacement: (_content, node) => {
-      const img = node.querySelector("img");
+      const img = figureImage(node);
       if (!img) return "";
       let src = bestImageSrc(img);
       if (!src) return "";
