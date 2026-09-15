@@ -30,7 +30,11 @@ A/B'd with each mutation asserted to land: label-only fails 2, ignoring the save
 dropping the server title fails 1. 4321 client + 2180 server tests; the 2 client files that do not
 finish are the documented OOM pair (`trackerValues`, `balanceFlow`), re-run alone and OOMing alone.
 
-**NOT VERIFIED IN A BROWSER:** nobody has watched the header change on screen after browsing away.
+**Verified in a browser on prod (test grid 2, People panel):** a bookmark saved at `romero.coffee`,
+browsed to the Wikipedia "Example.com" article, heads Reader with `example.com - Wikipedia`.
+**Honest limit:** the control half (the saved address showing the bookmark label) did not measure —
+the probe read no reader header on `romero.coffee` within 6s, so that half rests on the unit test.
+The one page error is the framed site's own `localStorage` denial (cross-origin iframe), not ours.
 **Also worth knowing:** `BookmarkView.jsx` holds one committed NUL byte (line ~559, the plan-cache key
 separator), so `file` calls it data and plain `grep` silently matches nothing — use `grep -a`.
 
