@@ -2,6 +2,15 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-15 (4) — `jumpToOccurrence` expands render windows only after a retry misses)
+- A caller that swaps pages or polls (`onActivatePage` or `retries > 0`) now looks again BEFORE calling
+  `requestRenderAll()`; the expansion happens once, after the first retry misses, with one extra look.
+  Callers with neither still expand synchronously.
+- **Why:** opening a bookmark activates a new page and jumps to it. The first lookup always misses, and
+  expanding then made the board being LEFT render all 1,465 cards (2.2s) before the panel switched.
+  Measured on prod after: first commit 0 cards, bookmark header on screen 157ms after the click.
+- Tests: 3 in `__tests__/jumpToOccurrence.test.js` ("render-all timing").
+
 ## Recent Changes (2026-09-15 (3) — `frameSrc.js`, `caretFromPoint.js` NEW; `urlButtonPlacement`)
 - **`frameSrc.js` (NEW, 5 tests)** — `frameSrcFor(url, { embedSrc, pageProtocol })`: an embed wins;
   on an https page an `http://` url is upgraded, because the browser blocks mixed active content and

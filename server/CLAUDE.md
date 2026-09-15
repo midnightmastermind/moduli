@@ -2,6 +2,16 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-15 (3) — images are read from `srcset`, not only `src`)
+- **`services/wikipediaTools.js` — `bestImageSrc(get)` (exported) + `IMAGE_MAX_W = 1600`.** Widest
+  srcset (or data-srcset) candidate up to 1600w, else the narrowest wider one; density-only sets take
+  the highest; then `data-src` / `data-lazy-src` / `data-original`; then `src`. A `data:` URI is never
+  returned. `get` is an attribute reader, so the turndown DOM node and the regex tag string share it.
+- **Why:** badgerherald.com's `src` is a `/media/` alias that answers 404 while `srcset` holds the real
+  uploads, so Reader/Magic showed 3 of 4 images broken. `wikiHtmlToMarkdown` gained a `bestImage` rule
+  and its `figure` rule uses the helper; `htmlToMarkdown`'s figure and bare-img handlers use it too.
+- Tests: `__tests__/imageSrcset.test.js` (11). A/B: forcing `src` fails 6.
+
 ## Recent Changes (2026-09-15 (2) — the archive lookup tries the trailing-slash twin)
 - **`utils/waybackSnapshot.js`** — the availability API matches the address exactly, so the Post
   article (captured under `.../ever/`) was "no snapshot" for a bookmark saved as `.../ever`.

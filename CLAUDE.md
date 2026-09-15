@@ -6,6 +6,32 @@
 
 ---
 
+### 2026-09-15 (5) — the page swap is instant now, and Reader/Magic read images from `srcset`
+
+**THE REST OF THE OPEN WAIT WAS A RENDER-ALL FIRED TOO EARLY.** User: *"at least have it go to the page
+with the loading circle right away"*. After the AutoMarquee fix the switch still took 4.3s, and the
+React commit timeline (DevTools hook injected before the app loads) showed why: the first commit after
+the click rendered **all 1,465 cards of the Bookmarks board being LEFT**, 2.2s, before the panel
+switched away from it. `jumpToOccurrence` called `requestRenderAll()` on its first miss, and the first
+lookup always misses when a page is about to mount. It now looks again after the swap and only expands
+render windows if that retry also misses (a row really past a window is still found; tests pin both).
+```
+                                   before        after (prod, same probe)
+first commit after the click       1,465 cards   0 cards
+panel header shows the bookmark    ~4.3s         157ms
+```
+The commits after that (up to ~3.5s) are the browser page itself loading behind its spinner.
+
+**READER AND MAGIC SHOWED 3 BROKEN IMAGES OUT OF 4 ON badgerherald.com**, because the converter
+read `src`. That WordPress site serves `src="/media/…"` (404) and lists working `/wp-content/uploads/…`
+copies in `srcset`; a browser uses srcset, so the live page looks fine. `bestImageSrc` in
+`wikipediaTools.js` picks the widest srcset candidate up to 1600px, then a lazy-load attribute, then
+`src`, and never a `data:` placeholder. Both converters use it (the turndown one Reader/Magic/import_url
+share, and the regex drag-import one). On the saved article: 4 images, all 200. A/B: forcing `src`
+fails 6 of the 11 new tests. 2,195 server tests pass.
+
+---
+
 ### 2026-09-15 (4) — the bookmark-open freeze, the link button, Web mode over https, the header caret
 
 Picked up the other account's four requests (its session ended before any code changed).
