@@ -5,7 +5,7 @@
 //     a scaled <img>, an <audio controls>, or an <iframe> for pdf. X button collapses.
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, Maximize2, AlertCircle } from "lucide-react";
+import { X, AlertCircle } from "lucide-react";
 import { Spinner } from "../components/ui/spinner.jsx";
 import { resolveFileRef } from "../helpers/fileRef";
 import { getUploadController } from "../helpers/uploadWithProgress";
@@ -207,74 +207,48 @@ export default function ArtifactCard({ module, label, occurrence }) {
     return () => document.removeEventListener("keydown", onKey, true);
   }, [expanded, requestClose]);
 
-  // Clicking ANY artifact occurrence opens the spread viewer (user, 2026-08-16),
-  // so a picture behaves the same wherever it is met — an inline row thumbnail,
-  // a board card, a doc embed.
+  // CLICKING THE PICTURE OPENS THE VIEWER, and it is the ONLY way in (user,
+  // 2026-09-16: *"get rid of the expand button (it should just be clicking on
+  // the image opens it in the viewer)"*). A corner button was a second control
+  // for what the picture already does, and reconciling the two cost two dead
+  // deploys — recorded below, because the guard they arrived at is the reason
+  // this one callback can be safe everywhere.
   //
-  // TWO GUARDS, both load-bearing:
+  // THREE GUARDS, each load-bearing:
   //   - a card ALREADY INSIDE a spread keeps the in-place expand, or clicking a
   //     file in the viewer would re-open the viewer on top of itself;
   //   - no occurrence (a preview render, a bare module card) has nothing to
-  //     open, so it falls back rather than throwing.
-  const openViewer = useCallback((e) => {
-    e?.stopPropagation();
-    const insideSpread = e?.currentTarget?.closest?.(".artifact-spread");
-    if (insideSpread || !occurrence?.id) { toggle(e); return; }
-    openArtifactSpread(occurrence.id, e.currentTarget);
-  }, [occurrence?.id, toggle]);
-
-  // AND THE EXPAND BUTTON OPENS IT TOO (user, 2026-09-16: *"also make sure that
-  // the expand for the images, opens it in the viewer"*).
+  //     open, so it falls back rather than throwing;
+  //   - an ISOLATED subtree (`socket === null`) cannot reach the viewer at all.
   //
-  // Measured on prod before this existed, clicking it on an image in a
-  // Magic-rendered article: `.artifact-fullscreen` 1, `.artifact-spread` 0 — the
-  // in-place lightbox, never the viewer. The card's own click has opened the
-  // viewer since 2026-08-16, so this button was the ONE affordance on a picture
-  // that did not, which is exactly the one a hand reaches for.
+  // THAT THIRD ONE IS THE EXPENSIVE LESSON. `ArtifactSpreadHost` resolves its
+  // owner as `occurrencesById[req.occurrenceId]` off the LIVE store, and a
+  // Magic/Reader row is a PLANNED occurrence living only inside an isolated
+  // `parentState` (`readerStateFromPlan`) — so that lookup finds nothing and the
+  // overlay never renders:
   //
-  // THE IN-PLACE EXPAND IS NOT LOST, which is why this re-points the button
-  // rather than removing it: `.artifact-spread-body .artifact-thumb-expand-hint`
-  // is `display: none`, so this button never renders INSIDE the viewer — and
-  // there `openViewer` already routes a tile's click to `toggle`. "Grow it where
-  // it sits" survives exactly where it is the useful gesture, and the guard
-  // below keeps that true even if the button is ever shown in a spread again.
-  //
-  // THE ORIGIN IS THE CARD, NOT THE BUTTON. `openArtifactSpread` grows the
-  // overlay out of the rect it is handed; handing it a 16px icon makes the
-  // viewer erupt from the corner of the picture instead of from the picture.
-  // THE VIEWER CAN ONLY OPEN A ROW THE APP'S OWN STORE HOLDS, and it took two
-  // deployed attempts to guard that correctly. Both are recorded because the
-  // second one looks right and is not.
-  //
-  // `ArtifactSpreadHost` resolves its owner as `occurrencesById[req.occurrenceId]`
-  // off the LIVE store. A Magic/Reader row is a PLANNED occurrence living only
-  // inside an isolated `parentState` (`readerStateFromPlan`), so that lookup
-  // finds nothing, `files` comes back empty, and the overlay never renders.
-  //
-  //   attempt 1 — no guard at all.            prod: spread 0 / fullscreen 0
-  //   attempt 2 — guard on `getOcc(id)`.      prod: spread 0 / fullscreen 0
+  //   attempt 1 — no guard at all.        prod: spread 0 / fullscreen 0  DEAD
+  //   attempt 2 — guard on `getOcc(id)`.  prod: spread 0 / fullscreen 0  DEAD
   //
   // ATTEMPT 2 FAILED FOR THE VERY REASON IT EXISTED. `PagePreviewBody` mounts
   // its OWN `GridActionsContext` whose `getOcc` reads the isolated plan
   // (`PagePreviewApp.jsx:258`), so in the reader it cheerfully returns the
-  // PLANNED row and the guard read it as live. Asking "can my context resolve
-  // this id" is worthless when the context IS the isolated one.
+  // PLANNED row and the guard read it as live. "Can my context resolve this id"
+  // is worthless when the context IS the isolated one.
   //
   // THE HONEST SIGNAL IS `socket`. The preview provider hands this subtree
   // `dispatch: noop` and `socket: null` (PagePreviewApp.jsx:270-271), which
-  // `BookmarkView` documents as the structural isolation: "there is no path
-  // from this subtree to a write". The same nulling that makes the reader
-  // unable to WRITE is what makes the viewer unable to RESOLVE — one condition,
-  // not two that can drift. It needs no new context and so cannot be forgotten
-  // by a future call site.
-  //
+  // `BookmarkView` documents as the structural isolation: "there is no path from
+  // this subtree to a write". The same nulling that makes the reader unable to
+  // WRITE is what makes the viewer unable to RESOLVE — one condition, not two
+  // that can drift, needing no new context a future call site could forget.
   // In the reader the lightbox is not a consolation prize: it is the only thing
-  // that CAN open, which is why `openViewer` likewise routes a click inside a
-  // spread to `toggle`.
-  const expandToViewer = useCallback((e) => {
+  // that CAN open.
+  const openViewer = useCallback((e) => {
     e?.stopPropagation();
+    const insideSpread = e?.currentTarget?.closest?.(".artifact-spread");
     const isolated = !socket;
-    if (e?.currentTarget?.closest?.(".artifact-spread") || isolated || !occurrence?.id) { toggle(e); return; }
+    if (insideSpread || isolated || !occurrence?.id) { toggle(e); return; }
     openArtifactSpread(occurrence.id, cardRef.current || e.currentTarget);
   }, [occurrence?.id, toggle, socket]);
 
@@ -635,23 +609,11 @@ export default function ArtifactCard({ module, label, occurrence }) {
         </div>
       )}
       {renderThumbnail(kind, src, label, thumb256Src, coverSrc)}
-      {/* This button opens the VIEWER (see `expandToViewer`). It used to run the
-          in-place lightbox, which made it the only affordance on a picture that
-          did NOT go where the card's own click goes. The label said "Expand
-          here" and that is now the wrong promise, so it moved with the wiring —
-          a control whose words outlive its behaviour is worse than no control. */}
-      <button
-        type="button"
-        className="artifact-thumb-expand-hint"
-        title="Open in the viewer"
-        aria-label="Open in the viewer"
-        onClick={expandToViewer}
-        onPointerDown={(e) => e.stopPropagation()}
-      >
-        <Maximize2 size={12} />
-      </button>
-      {/* The open-as-page button is NOT on the card: it sat in this corner over
-          the cover image, and moved to the row's handle group (user,
+      {/* NO EXPAND BUTTON. The card's own click opens the viewer (see
+          `openViewer`), so a corner control would be a second way to do the one
+          thing the picture already does — and the two spent a day disagreeing.
+          The open-as-page button is not here either: it sat in this corner over
+          the cover image and moved to the row's handle group (user,
           2026-09-15). Double-click still opens it in a panel. */}
     </div>
   );

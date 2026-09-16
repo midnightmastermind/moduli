@@ -116,23 +116,29 @@ describe("a bookmark opens inside the spread", () => {
     expect(el.querySelector(".artifact-thumb"), "no thumbnail to click").toBeTruthy();
   });
 
-  // THE EXPAND BUTTON IS A SECOND WAY IN, AND IT WENT SOMEWHERE ELSE.
-  // User, 2026-09-16: *"also make sure that the expand for the images, opens it
-  // in the viewer"*. Measured on prod first — clicking it on an image in a
-  // Magic-rendered article produced `.artifact-fullscreen` 1 / `.artifact-spread`
-  // 0, i.e. the in-place lightbox. The card's own click already opened the
-  // viewer, so this button was the one affordance on a picture that did not.
-  it("the expand button on an image opens the VIEWER, not the in-place lightbox", () => {
+  // CLICKING THE PICTURE IS THE ONLY WAY IN (user, 2026-09-16: *"get rid of the
+  // expand button (it should just be clicking on the image opens it in the
+  // viewer)"*). The corner button is gone; these two tests moved onto the card's
+  // own click, which is now the single affordance — and still has to satisfy
+  // BOTH halves below, because the reader is the surface that broke twice.
+  it("clicking an image card opens the VIEWER, not the in-place lightbox", () => {
     // A real board card: a live socket, i.e. the app's own store is behind us.
     const el = mount(IMAGE, { occurrence: { ...OCC, moduleId: "m-img" } });
-    const btn = el.querySelector(".artifact-thumb-expand-hint");
-    expect(btn, "no expand affordance to click").toBeTruthy();
-    fireEvent.click(btn);
+    const card = el.querySelector(".artifact-card");
+    expect(card, "no card to click").toBeTruthy();
+    fireEvent.click(card);
     expect(openArtifactSpread).toHaveBeenCalledTimes(1);
     expect(openArtifactSpread.mock.calls[0][0]).toBe("occ-1");
     // The lightbox PORTALS to document.body, so a query scoped to the card
     // would read null whether or not it opened — this has to ask the document.
     expect(document.querySelector(".artifact-fullscreen"), "it opened the lightbox instead").toBeNull();
+  });
+
+  // THE BUTTON MUST NOT COME BACK. It was a second control for what the picture
+  // already does, and reconciling the two cost two dead-button deploys.
+  it("renders no expand button at all", () => {
+    const el = mount(IMAGE, { occurrence: { ...OCC, moduleId: "m-img" } });
+    expect(el.querySelector(".artifact-thumb-expand-hint")).toBeNull();
   });
 
   // THE OTHER HALF, AND IT IS THE ONE THAT SHIPPED BROKEN. In Magic/Reader the
@@ -147,7 +153,7 @@ describe("a bookmark opens inside the spread", () => {
     // like this only because the fixture withheld the row; prod did not.
     SOCKET = null;
     const el = mount(IMAGE, { occurrence: { ...OCC, moduleId: "m-img" } });
-    fireEvent.click(el.querySelector(".artifact-thumb-expand-hint"));
+    fireEvent.click(el.querySelector(".artifact-card"));
     expect(openArtifactSpread, "it opened a viewer that cannot resolve this row").not.toHaveBeenCalled();
     expect(document.querySelector(".artifact-fullscreen"), "nothing opened at all").toBeTruthy();
   });

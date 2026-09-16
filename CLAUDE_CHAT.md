@@ -3489,3 +3489,12 @@ limit mid-verification at 11:57):
 > **"also make sure that the expand for the images, opens it in the viewer"**
 
 > **"the issue was that none of the handles were white. not that white is invisible"**
+
+Then, after those four shipped and were verified on prod (2026-09-16, afternoon):
+
+> **"also idk why but the last claude kept putting highlights on the drag handles of the image
+> artifacts. i dont want that. i want the icon itself to be white on dark images and a black one for
+> lighter colored images. right now it looks diff than all the other drag handles. this should be a
+> thing with all drag handles. also we still need to make sure the image artifacts expand button is
+> opening the image in our viewer element we have. give it a pointer cursor on hover. and get rid of
+> the expand button (it should just be clicking on the image opens it in the viewer)"**

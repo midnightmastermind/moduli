@@ -1541,6 +1541,23 @@ body[data-clipboard-active="true"] {
   min-height: 0 !important;
 }
 
+/* THE HANDLE ICON IS ADAPTIVE, AND IT IS ONE RULE FOR EVERY DRAG HANDLE.
+   It was hardcoded `text-white/90` in RadialMenu for every handle in the app —
+   which is why a handle vanished on a light surface and why the image handle
+   needed a disc behind it to be seen at all (user: "it looks diff than all the
+   other drag handles ... this should be a thing with all drag handles").
+   `difference` against white paints the INVERSE of whatever is behind the icon:
+   white on a dark photo, black on a light one, with no disc, no halo and no
+   knowledge of what it is sitting on. Images here are cross-origin
+   (image.tmdb.org, pinimg, …), so a canvas luminance read would taint and throw
+   — the backdrop can only be answered by the compositor, which is what this is.
+   HONEST LIMIT: on a mid-tone or saturated backdrop the inverse is a complement
+   rather than black or white — visible, but hued. */
+.radial-handle-icon {
+  color: #fff;
+  mix-blend-mode: difference;
+}
+
 /* The radial handle button — no circle, just the icon */
 .module-drag-handle .radial-handle {
   /* 18 -> 22 (user, 2026-08-26: one size bigger). This is the drag affordance
@@ -3810,49 +3827,16 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
 .artifact-thumb--audio audio {
   width: 100%;
 }
-.artifact-thumb-expand-hint {
-  /* now a real <button>; strip UA chrome so it looks exactly as it did. */
-  background: none; border: none; padding: 0; cursor: pointer;
+/* THE EXPAND BUTTON IS DELETED (user, 2026-09-16: "get rid of the expand button
+   (it should just be clicking on the image opens it in the viewer)"). The card's
+   own click has opened the viewer since 2026-08-16, so the button was a second
+   control for the thing the picture already does — and it cost two dead-button
+   deploys getting it to agree with the card. One affordance, no chrome.
+   The card carries the pointer cursor so the picture reads as clickable. */
 
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  color: var(--text-faint);
-  background: rgba(0, 0, 0, 0.35);
-  border-radius: 3px;
-  padding: 2px;
-  opacity: 0;
-  transition: opacity 0.12s ease-out;
-  pointer-events: none;
-  /* ABOVE THE PHOTO. The card's media fills it edge to edge and the card itself is
-     the click target that opens the viewer, so without a stacking context of its
-     own this button sits UNDER the image (user 2026-08-17: "that button should
-     have zindex too so i can click it over the zoom on the photo"). */
-  z-index: 3;
-}
-/* `pointer-events` HAD TO BE RESTORED HERE, and that was the actual defect: the
-   base rule sets `none` and the hover rule only ever restored OPACITY, so the
-   button was visible and completely inert — every click fell through to the card
-   underneath and opened the viewer instead. It looked like a z-index problem and
-   was not. */
-/* THE OTHER CORNER, and the separation is the point: the top-right hint expands
-   the file WHERE IT SITS, this one sends it to a PANEL as a page. Two
-   destinations, two corners — in one corner they would read as one control.
-   Same hover-reveal so neither is chrome you have to look at. */
-/* ALWAYS VISIBLE (user, 2026-09-12: "i still dont see the little button"). It
-   shipped hover-revealed at opacity 0 — which a tablet never triggers, and on a
-   mouse it was a 12px ghost in the card's corner. Unlike the expand hint, this
-   is a DESTINATION you have to know exists, so it is chrome you can see: light
-   ink on a dark chip (a cover photo is any colour, so theme ink would vanish on
-   half of them), a finger-sized box, and above the image and its load badge. */
-/* MOVED OFF THE CARD (user, 2026-09-15: "should be on the occurance and not the
-   cover image"). The button now renders in the row's handle group as
-   `.instance-url-btn--in-header`; see the rule beside `.instance-url-btn`. */
-
-.artifact-card:hover .artifact-thumb-expand-hint {
-  opacity: 1;
-  pointer-events: auto;
-}
+/* THE OPEN-AS-PAGE BUTTON lives in the row's handle group as
+   `.instance-url-btn--in-header` (moved off the cover image, user 2026-09-15);
+   see the rule beside `.instance-url-btn`. */
 
 /* Quote artifact — styled pull-quote (imported Wikipedia blockquotes/pull-quotes).
    Overrides the media-card base (flex/center/zoom) for a left-aligned text block. */
@@ -4537,25 +4521,13 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   top: 3px;
   left: 3px;
 }
-/* …and being ON the photo it needs its own contrast: it inherited the theme ink
-   and vanished on a dark image (user: "i couldnt see the drag handle" — which is
-   why that image read as not draggable at all).
-   A DISC, NOT A HALO. The first attempt was a white glyph plus a 1px black
-   drop-shadow, and on a 22px icon of thin strokes the shadow wrapped every
-   stroke and swallowed the white — the glyph read BLACK and the blur read as a
-   stray highlight, which is exactly what came back ("none of the handles were
-   white" + "some sort of highlight on it"). A solid translucent disc keeps the
-   white strokes crisp and reads as a deliberate control on any photo, light or
-   dark. Scoped to the OVERLAYING handle: an ordinary full-width image row keeps
-   its plain handle, because that one sits in the page gutter BESIDE the picture
-   (measured: handle x=57, image 90-442) where a disc would be clutter. */
-.wrap-group--on .wrap-group-content > * > :not(:last-child) .instance-row:has(.artifact-card[data-kind="image"]) .module-drag-handle {
-  color: #fff;
-}
-.wrap-group--on .wrap-group-content > * > :not(:last-child) .instance-row:has(.artifact-card[data-kind="image"]) .radial-handle {
-  background: rgba(0, 0, 0, 0.5) !important;
-  border-radius: 50% !important;
-}
+/* THE DISC IS GONE (user, 2026-09-16: "the last claude kept putting highlights
+   on the drag handles of the image artifacts. i dont want that ... right now it
+   looks diff than all the other drag handles").
+   It was a local patch for a global defect — the icon was hardcoded white
+   everywhere, so a photo needed something behind it. `.radial-handle-icon` now
+   inverts against whatever it sits on, which is the same contrast on every
+   handle in the app instead of a special case on this one. */
 /* Image neighbor = its own quiet framed card. Restyled 2026-07-09 (per user —
    the loud teal wash + bright border read as clunky): near-page-dark backdrop,
    the SAME hairline border every other card uses, slightly larger radius, and a
@@ -7055,12 +7027,6 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    `--with-info` — and it needs no label either, because its address bar says
    where it is. */
 .artifact-spread-body .instance-content:has(.artifact-card) .instance-label {
-  display: none;
-}
-/* The card's own top-right expand hint does exactly what clicking the card
-   does in here (the lightbox), and it sat a few pixels under the header button
-   that now does the other thing. Two maximize icons stacked is one too many. */
-.artifact-spread-body .artifact-thumb-expand-hint {
   display: none;
 }
 

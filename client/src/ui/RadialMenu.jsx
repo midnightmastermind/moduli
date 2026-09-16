@@ -570,7 +570,7 @@ export default function RadialMenu({
             Use React.createElement to avoid "Objects are not valid as a React child"
             that can occur when forwardRef components are used as JSX children directly. */}
         {ModeIcon && (typeof ModeIcon === 'function' || ModeIcon.$$typeof)
-          ? React.createElement(ModeIcon, { className: `${s.handleIcon} text-white/90` })
+          ? React.createElement(ModeIcon, { className: `${s.handleIcon} radial-handle-icon` })
           : ModeIcon
         }
       </button>
