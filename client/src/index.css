@@ -4316,6 +4316,15 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   contain: none !important;
   contain-intrinsic-size: auto !important;
   display: block !important;
+  /* THE HOST STARTED 2px LOWER THAN THE FLOAT, which put the whole L 2px out:
+     the notch is cut at `--notch-y: 0` — the host box's own top — so a 2px sliver
+     of the host's top border ran across into the picture's footprint, and the
+     bottom bar's line landed 16px under the image instead of BOTTOM_GAP's 14.
+     Measured: float top 387.5, host box top 389.5, and the difference is this
+     element's `margin-top: 2px` (the float's is 0). The row's margin was already
+     zeroed by the border rule above; the WRAP was not. Zeroing it aligns both
+     ends of the notch at once, which is why there is no +2 anywhere in the JS. */
+  margin-top: 0 !important;
 }
 .wrap-group--on .wrap-group-content > * > :last-child .instance-row,
 .wrap-group--on .wrap-group-content > * > :last-child .instance-content,
