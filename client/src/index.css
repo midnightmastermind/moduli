@@ -4411,8 +4411,16 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    or mid-edge (C). The prose never enters the notch (the float reserves it), so the
    clip only removes empty background, never text. The inner .textblock-card stays
    transparent so the bg isn't doubled. */
-.wrap-group--on .wrap-group-content > * > :last-child .instance-row,
-.wrap-group--on .wrap-group-content > * > :last-child .container-shell {
+.wrap-group--on .wrap-group-content > * > :last-child .instance-row:not(.instance-row *),
+.wrap-group--on .wrap-group-content > * > :last-child .container-shell:not(.container-shell *) {
+  /* `:not(.instance-row *)` — THE HOST'S OWN BOX, NOT EVERY ROW INSIDE IT. These are
+     descendant selectors, so the border and the clip were applied to every NESTED
+     `.instance-row` too, each in its OWN coordinate space: an embedded quote card
+     405px wide got its right side cut at `100% - var(--notch-w)` = 405 - 270 = 135px
+     from its own left edge, which is the quote "getting cut off on the right".
+     Measured, and A/B'd by setting `clip-path: none` on the live page — the quote
+     came back whole, borders and all. The `display:block` neutraliser above is
+     deliberately NOT scoped this way: it MUST reach the nested chain. */
   /* Border on the clipped box → the clip traces it into an L outline (top-left,
      left, bottom, bottom-right); the top-right notch is cut away so no border runs
      into the neighbor. hsl(var(--border-1)) = the SAME border the doc containers use. */
@@ -4425,8 +4433,8 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   border: none !important;
   box-shadow: none !important;
 }
-.wrap-group--on.wrap-group--right .wrap-group-content > * > :last-child .instance-row,
-.wrap-group--on.wrap-group--right .wrap-group-content > * > :last-child .container-shell {
+.wrap-group--on.wrap-group--right .wrap-group-content > * > :last-child .instance-row:not(.instance-row *),
+.wrap-group--on.wrap-group--right .wrap-group-content > * > :last-child .container-shell:not(.container-shell *) {
   clip-path: polygon(
     0 0,
     100% 0,
@@ -4438,8 +4446,8 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
     0 100%
   );
 }
-.wrap-group--on.wrap-group--left .wrap-group-content > * > :last-child .instance-row,
-.wrap-group--on.wrap-group--left .wrap-group-content > * > :last-child .container-shell {
+.wrap-group--on.wrap-group--left .wrap-group-content > * > :last-child .instance-row:not(.instance-row *),
+.wrap-group--on.wrap-group--left .wrap-group-content > * > :last-child .container-shell:not(.container-shell *) {
   clip-path: polygon(
     0 0,
     100% 0,
@@ -4458,8 +4466,8 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    edge must STOP at the text column: trace (0,0) → notch-left, down the seam wall, along
    the notch bottom, then the right edge / bottom / left. Higher specificity (extra
    --shape-top class) so it wins over the generic rule; shape-middle keeps the generic. */
-.wrap-group--on.wrap-group--shape-top.wrap-group--right .wrap-group-content > * > :last-child .instance-row,
-.wrap-group--on.wrap-group--shape-top.wrap-group--right .wrap-group-content > * > :last-child .container-shell {
+.wrap-group--on.wrap-group--shape-top.wrap-group--right .wrap-group-content > * > :last-child .instance-row:not(.instance-row *),
+.wrap-group--on.wrap-group--shape-top.wrap-group--right .wrap-group-content > * > :last-child .container-shell:not(.container-shell *) {
   clip-path: polygon(
     0 0,
     calc(100% - var(--notch-w, 0px)) 0,
@@ -4469,8 +4477,8 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
     0 100%
   );
 }
-.wrap-group--on.wrap-group--shape-top.wrap-group--left .wrap-group-content > * > :last-child .instance-row,
-.wrap-group--on.wrap-group--shape-top.wrap-group--left .wrap-group-content > * > :last-child .container-shell {
+.wrap-group--on.wrap-group--shape-top.wrap-group--left .wrap-group-content > * > :last-child .instance-row:not(.instance-row *),
+.wrap-group--on.wrap-group--shape-top.wrap-group--left .wrap-group-content > * > :last-child .container-shell:not(.container-shell *) {
   clip-path: polygon(
     var(--notch-w, 0px) 0,
     100% 0,
@@ -4484,8 +4492,8 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    the neighbor, beside it down the column, and NO full-width bar below it (the notch
    runs to the host bottom). So the clip traces a full top edge, down the right to the
    notch, in, then down the seam wall all the way to the bottom. Mirror on the left. */
-.wrap-group--on.wrap-group--shape-bottom.wrap-group--right .wrap-group-content > * > :last-child .instance-row,
-.wrap-group--on.wrap-group--shape-bottom.wrap-group--right .wrap-group-content > * > :last-child .container-shell {
+.wrap-group--on.wrap-group--shape-bottom.wrap-group--right .wrap-group-content > * > :last-child .instance-row:not(.instance-row *),
+.wrap-group--on.wrap-group--shape-bottom.wrap-group--right .wrap-group-content > * > :last-child .container-shell:not(.container-shell *) {
   clip-path: polygon(
     0 0,
     100% 0,
@@ -4495,8 +4503,8 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
     0 100%
   );
 }
-.wrap-group--on.wrap-group--shape-bottom.wrap-group--left .wrap-group-content > * > :last-child .instance-row,
-.wrap-group--on.wrap-group--shape-bottom.wrap-group--left .wrap-group-content > * > :last-child .container-shell {
+.wrap-group--on.wrap-group--shape-bottom.wrap-group--left .wrap-group-content > * > :last-child .instance-row:not(.instance-row *),
+.wrap-group--on.wrap-group--shape-bottom.wrap-group--left .wrap-group-content > * > :last-child .container-shell:not(.container-shell *) {
   clip-path: polygon(
     0 0,
     100% 0,
