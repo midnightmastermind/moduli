@@ -26,12 +26,60 @@ describe("figure with a placeholder beside the real image", () => {
     expect(md).not.toContain("grey-placeholder");
   });
 
+  // The SAME decision in the OTHER converter. htmlToMarkdown is the regex
+  // converter the drag/paste-import path uses, and it read the first <img> of a
+  // figure exactly as the turndown one did. Two converters implementing one
+  // decision differently is how they drift.
+  it("applies the same rule in the regex converter", () => {
+    const md = htmlToMarkdown(BBC_FIGURE, "bbc", { keepFigures: true, keepImages: true });
+    expect(md).toContain("https://ichef.bbci.co.uk/news/1536/a.jpg.webp");
+    expect(md).not.toContain("grey-placeholder");
+  });
+
   // The control: a figure with ONE image is unchanged, which is every figure on
   // Wikipedia and on the badgerherald article this work started from.
   it("leaves a single-image figure alone", () => {
     const md = wikiHtmlToMarkdown(
       `<figure><img src="https://x.com/only.jpg"><figcaption>Cap</figcaption></figure>`, "x");
     expect(md).toContain("![Cap](https://x.com/only.jpg)");
+  });
+});
+
+// Measured on the same bbc.com article: SIX placeholder/photo pairs sit OUTSIDE
+// any <figure>, as two <img> tags with ZERO characters between them — the
+// placeholder first, carrying only `src`, then the photo carrying only `srcset`.
+// Handling only figures left five grey boxes in a dragged import.
+describe("a placeholder touching the real image", () => {
+  const PAIR = `<p>Text</p><img src="https://static.bbci.co.uk/grey-placeholder.png" aria-label="image unavailable">`
+    + `<img sizes="96vw" srcset="https://ichef.bbci.co.uk/news/1536/b.jpg.webp 1536w"><p>More</p>`;
+
+  it("drops the one that offers nothing when they are adjacent", () => {
+    const md = htmlToMarkdown(PAIR, "bbc", { keepImages: true });
+    expect(md).toContain("https://ichef.bbci.co.uk/news/1536/b.jpg.webp");
+    expect(md).not.toContain("grey-placeholder");
+  });
+
+  it("does the same in the turndown converter", () => {
+    const md = wikiHtmlToMarkdown(PAIR, "bbc");
+    expect(md).toContain("https://ichef.bbci.co.uk/news/1536/b.jpg.webp");
+    expect(md).not.toContain("grey-placeholder");
+  });
+
+  // The control: two adjacent images that BOTH offer candidates are two real
+  // pictures — a gallery — and neither may be dropped.
+  it("keeps both when each offers candidates", () => {
+    const two = `<img srcset="https://x.com/a.jpg 800w"><img srcset="https://x.com/b.jpg 800w">`;
+    const md = htmlToMarkdown(two, "x", { keepImages: true });
+    expect(md).toContain("https://x.com/a.jpg");
+    expect(md).toContain("https://x.com/b.jpg");
+  });
+
+  // And two adjacent plain images are also both real (no srcset anywhere).
+  it("keeps both when neither offers candidates", () => {
+    const two = `<img src="https://x.com/a.jpg"><img src="https://x.com/b.jpg">`;
+    const md = htmlToMarkdown(two, "x", { keepImages: true });
+    expect(md).toContain("https://x.com/a.jpg");
+    expect(md).toContain("https://x.com/b.jpg");
   });
 });
 

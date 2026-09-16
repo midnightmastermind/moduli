@@ -58,6 +58,16 @@ const usableSrc = (u) => typeof u === "string" && u.trim() && !/^data:/i.test(u.
 // candidates (a srcset or a lazy-load attribute), because a placeholder has
 // nothing to offer. Falling back to the first image with any usable address
 // leaves every single-image figure — Wikipedia's, badgerherald's — untouched.
+// Does this <img> OFFER candidates — a srcset, or a lazy-load attribute? A
+// progressive-enhancement placeholder does not: it carries a bare `src` and
+// nothing else. `get(name)` reads an attribute, so a DOM node and a raw tag
+// string share this, which is what keeps the two converters from drifting.
+export function imgOffersCandidates(get) {
+  const read = typeof get === "function" ? get : (n) => get?.getAttribute?.(n);
+  return !!(pickSrcset(read("srcset")) || pickSrcset(read("data-srcset"))
+    || LAZY_SRC_ATTRS.some((a) => usableSrc(read(a))));
+}
+
 export function figureImage(node) {
   // A manual walk, not querySelectorAll: turndown's own DOM gives a rule's node
   // `querySelector` but NOT `querySelectorAll`, and reaching for the plural one
@@ -69,11 +79,45 @@ export function figureImage(node) {
     for (const c of n.childNodes || []) walk(c);
   })(node);
   if (!all.length) return null;
-  const offers = (img) => {
-    const g = (n) => img.getAttribute?.(n);
-    return !!(pickSrcset(g("srcset")) || pickSrcset(g("data-srcset")) || LAZY_SRC_ATTRS.some((a) => usableSrc(g(a))));
-  };
-  return all.find(offers) || all.find((img) => bestImageSrc(img)) || all[0];
+  return all.find(imgOffersCandidates) || all.find((img) => bestImageSrc(img)) || all[0];
+}
+
+// Of two <img> elements with NOTHING between them, the one that offers
+// candidates is the picture and the other is its placeholder. Measured on a
+// bbc.com article: SIX such pairs, every one of them touching with zero
+// characters between — the "image unavailable" png first, the photo second.
+// Only a figure-level rule caught them before, so a dragged import still landed
+// five grey boxes.
+//
+// Symmetric and conservative: when BOTH offer candidates (a gallery) or NEITHER
+// does (two plain photos) both are kept, which is what leaves arstechnica's 61
+// images and badgerherald's 18 untouched. Runs as a string pre-pass so the
+// cheerio converter and the regex one cannot disagree about it.
+export function dropTouchingPlaceholders(html) {
+  if (typeof html !== "string" || !html) return html;
+  const PAIR = /(<img\b[^>]*>)(\s*)(<img\b[^>]*>)/gi;
+  let out = html;
+  // A run of three collapses in two passes; the cap stops any pathological input.
+  for (let pass = 0; pass < 4; pass++) {
+    let changed = false;
+    out = out.replace(PAIR, (m, a, _gap, b) => {
+      const aOffers = imgOffersCandidates(tagAttr(a));
+      const bOffers = imgOffersCandidates(tagAttr(b));
+      if (aOffers === bOffers) return m;
+      changed = true;
+      return aOffers ? a : b;
+    });
+    if (!changed) break;
+  }
+  return out;
+}
+
+// The same choice over raw <img> TAG STRINGS, for the regex converter.
+export function pickImgTag(tags) {
+  if (!Array.isArray(tags) || !tags.length) return "";
+  return tags.find((t) => imgOffersCandidates(tagAttr(t)))
+    || tags.find((t) => bestImageSrc(tagAttr(t)))
+    || tags[0];
 }
 
 export function bestImageSrc(get) {
@@ -147,6 +191,7 @@ const tagAttr = (tag) => (name) => {
 // regex converter for the import path: no [edit] links, no leaked brackets, no
 // data-mw garbage, proper nested lists, real headings.
 export function wikiHtmlToMarkdown(html, title = "") {
+  html = dropTouchingPlaceholders(html);
   const $ = cheerioLoad(html);
   $(WIKI_STRIP_SELECTORS).remove();
   // Anchors whose only text is "edit" (section edit links that survived).
@@ -490,7 +535,7 @@ export function htmlToMarkdown(html, fallbackTitle = "", opts = {}) {
     stripClasses = ["infobox", "navbox", "navbox-styles", "references", "reflist", "metadata", "thumb", "noprint", "mw-editsection"],
   } = opts;
 
-  let s = html;
+  let s = dropTouchingPlaceholders(html);
   s = s.replace(/<script[\s\S]*?<\/script>/gi, "");
   s = s.replace(/<style[\s\S]*?<\/style>/gi, "");
 
@@ -511,8 +556,7 @@ export function htmlToMarkdown(html, fallbackTitle = "", opts = {}) {
   // more robust than a single positional regex.
   if (keepFigures) {
     s = s.replace(/<figure[^>]*>([\s\S]*?)<\/figure>/gi, (_, inner) => {
-      const imgTagM = inner.match(/<img[^>]*>/i);
-      const imgTag = imgTagM?.[0] || "";
+      const imgTag = pickImgTag(inner.match(/<img[^>]*>/gi) || []);
       const altM = imgTag.match(/\balt=["']([^"']*)["']/i);
       const src = bestImageSrc(tagAttr(imgTag));
       const alt = altM?.[1] || "";

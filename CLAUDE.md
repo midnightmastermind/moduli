@@ -77,11 +77,49 @@ arstechnica        61 images                 61 images, 0 placeholders
 but NOT the plural form, and calling it throws INSIDE the replacement, which turndown swallows as a
 rule that silently produces nothing. Three tests caught that in one run.
 
-**Honest limit:** the BBC half is measured through the real extractor and the real converter, not
-watched in a browser — the on-screen check was run on badgerherald, which is the article the user
-reported. And `htmlToMarkdown`, the REGEX converter the drag-import path uses, still returns **0
-images** on that BBC page; it is a different code path with its own figure handling, nobody has
-asked for it, and it is reported here rather than changed.
+**WATCHED IN A BROWSER TOO** (prod, the article typed into a bookmark's address bar): Reader **1
+loaded / 1 image at 1536px**, Magic the same, 0 placeholders. The probe that could not see this
+yesterday was sitting on **"Login Register"** — the token had expired overnight — which is only
+visible because it reports what IS on screen rather than timing out silently.
+
+**AND MY OWN "THE REGEX CONVERTER RETURNS 0 IMAGES" IS RETRACTED — I MEASURED THE DEFAULT.**
+`htmlToMarkdown` takes `keepImages`, which **defaults to false**; I called it with no options while
+the real caller (`import_text`, the drag/paste path) passes `keepImages: true`. Called the way the
+caller calls it, that page returns **11 images — six of them the grey placeholder**. So the claim
+was wrong AND it hid a real defect one layer down.
+```
+htmlToMarkdown(html, "bbc")                      0 images   <- the default, what I measured
+htmlToMarkdown(html, "bbc", { keepImages:true }) 11 images, 6 placeholders   <- what ships
+```
+*A measurement taken with different arguments from the caller's is a measurement of something
+else.*
+
+**SO THE PLACEHOLDER RULE IS SHARED BY BOTH CONVERTERS, AND IT IS NOT ONLY FIGURES.** Six
+placeholder/photo pairs sit OUTSIDE any `<figure>` on that page, and measuring their spacing is
+what made a general rule safe to write: **every one is two `<img>` tags with ZERO characters
+between them.**
+```
+placeholder-then-photo pairs   6 of 12 imgs
+characters between each pair   0, 0, 0, 0, 0, 0
+```
+`dropTouchingPlaceholders` runs as a string pre-pass on both converters — of two touching images,
+the one that OFFERS candidates is the picture. `imgOffersCandidates` is now one exported predicate
+used by the figure rule, the tag-string picker and this pre-pass, so the cheerio converter and the
+regex one cannot disagree about which image is real.
+
+**IT IS SYMMETRIC AND CONSERVATIVE, which is what the controls check:** when BOTH offer candidates
+(a gallery) or NEITHER does (two plain photos) both are kept. Measured across four live pages —
+only BBC changes:
+```
+                 before                 after
+bbc, regex       11 imgs / 6 placeholders    6 / 0
+badgerherald     18 / 0                      18 / 0    <- control
+arstechnica      61 / 0                      61 / 0    <- control
+wikipedia reader 10 / 0                      10 / 0    <- control
+```
+2,204 server tests. **Honest limit:** the BBC half is measured through the real extractor, the real
+converters and a real socket, and watched rendering in Reader and Magic — but nobody has dragged a
+BBC article's HTML into the grid, which is the path the regex converter serves.
 
 ---
 
