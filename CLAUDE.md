@@ -6,6 +6,95 @@
 
 ---
 
+### 2026-09-16 (3) — THE ARTICLE'S ONLY PICTURE WAS IN THE BOX WE THROW AWAY, and the previous session measured a different article
+
+Picked up account3's session, which hit its limit at 13:52 mid-investigation. It left **an
+uncommitted CSS edit that was syntactically broken**, and that is the first finding: its
+"SPECIFICITY IS LOAD-BEARING" paragraph sat AFTER the `*/` that closed the comment above it, so the
+prose stood in the stylesheet where a selector goes and swallowed the next `{...}` — which is the
+`.radial-handle-icon` rule itself. **The whole adaptive-handle fix would have shipped INERT** with
+nothing to say so: the build succeeds and the source reads correctly. Proven by stripping comments
+the way a parser does and printing what is left, then verified in the BUILT stylesheet with controls
+— and the first grep read 0 for the CONTROL too, the documented wrong-chunk tell (these rules land
+in `index-*.css`, not `PagePreviewApp-*.css`).
+
+**THE WIDENED SELECTOR IT WAS WRITING IS ITSELF LOAD-BEARING**, checked rather than assumed:
+`ModeIcon` is a lucide component, so `className` lands ON the `<svg>` — the same element
+`.module-drag-handle svg` (0,1,1) colours. A bare `.radial-handle-icon` is (0,1,0) and loses. On most
+skins the token is an inherited cream that inverts acceptably; Stardew sets it to `#14100a`.
+
+---
+
+**THE WIKIPEDIA IMAGES: THE PREVIOUS SESSION'S CONCLUSION IS RETRACTED, AND SO IS ITS ARTICLE.** It
+measured **Eminem** — 10 images in the markdown, 8 image modules in the magic plan, every URL
+answering 200 — and concluded *"the failure is downstream of the plan"*. The user's bookmark is
+**Albert Ellis** (their screenshot says so), and through the same chain:
+```
+Albert Ellis   raw 10 <img>  ->  main content 2  ->  markdown 0
+Eminem         raw 28        ->  main content 14 ->  markdown 10
+```
+Nothing downstream was ever wrong. *A measurement of a different article than the one reported is a
+measurement of something else* — the 2026-09-15 (6) class from a new direction. **The user's own
+screenshots were in `screenshots/` the whole time and named the article in one look.**
+
+**THE CAUSE: `WIKI_STRIP_SELECTORS` REMOVES `.infobox`, AND ON MOST BIOGRAPHIES THAT BOX HOLDS THE
+ARTICLE'S ONLY PICTURE.** Eminem survives only because its body is full of inline figures. The strip
+is RIGHT — the box is a metadata table, and printing born/died/alma-mater into a reader is worse than
+dropping it — so the picture is **LIFTED OUT before the strip** rather than the strip being loosened.
+A control test asserts the metadata is still gone.
+
+**THE IMPORT PATH ALREADY KNEW, WHICH IS WHAT MAKES THIS TWIN DRIFT.** `fullMarkdown`'s own comment:
+*"Wikipedia's main photo lives in the .infobox, which wikiHtmlToMarkdown strips, so the article body
+has no main image"* — fixed there with the REST summary API. **The reader never got the equivalent,
+and cannot copy that one**: it holds only the page HTML it already fetched, runs against any site
+rather than en.wikipedia, and a second network round trip inside its deadline is exactly the
+2026-09-10 (2) regression. `injectLeadBlocks` is now SHARED by both, byte-identically.
+
+**THE WIDEST INFOBOX IMAGE, NOT THE FIRST — measured across seven real articles**, which is what
+removed the need for a magic threshold: the lead photo is the widest every time (250px on the
+biographies, 288 on Tokyo's montage), a signature trails at 150, chrome icons sit at 20-40. "First"
+would take a country article's flag over its map. A/B over the real chain — **exactly +1 everywhere,
+the lead image, never doubled**:
+```
+Albert Ellis  0 -> 1      Eminem  10 -> 11
+Carl Rogers   0 -> 1      Tokyo   51 -> 52
+```
+**VERIFIED ON PROD over a real socket**, each address HEAD'd: Albert Ellis 1 image / 200, Carl Rogers
+1 / 200, Eminem 11 with the portrait now leading, first three all 200.
+
+---
+
+**"ADD AS A PAGE" ON THE MAGIC AND READER VIEWS — and the minter had no shape.** `import_plan` has
+taken `shape: "reader"|"magic"` since 2026-09-12 (it is what those views render), but `import_text`,
+the only handler that WRITES, always ran the magic tree. **The button would have handed you a page
+that was not the one on screen** — the drift `import_plan`'s own comment warns about. One
+`buildImportShape` now serves both, and the test that matters asserts plan and mint AGREE, with a
+control that the two shapes genuinely differ (or "they agree" is satisfied by an argument nothing
+reads). It sends the markdown the viewer already has rather than re-fetching: `import_url` was the
+obvious call and is wrong twice — it pays for the page again, and it has no shape.
+
+**AND IT FOUND A DEFECT BEFORE SHIPPING IT — PARENTED IS NOT LISTED.** `markdownToModuli` pushes its
+own root into the destination's `occurrences[]`; **`planReaderShape` is a pure planner and does
+not**, so a Reader-shape page would have landed complete, correct and INVISIBLE. **My first test
+only checked `parentId`, which is exactly how that class keeps surviving five repairs.**
+`utils/linkRootIntoParent.js` is atomic (`$push`, never a whole-array write) and idempotent (`$ne`
+guard), so ONE call serves both shapes rather than a per-shape branch that drifts; the parent update
+is broadcast, or the destination renders its old child list until a reload and the button reads as
+broken. The picker is the EXISTING one — "save as bookmark" and "add as page" ask the same question.
+
+2,234 server tests, lint 0 `no-undef`, build clean, deployed, prod HEAD verified, pm2 restarted
+(server code changed).
+
+**NOT VERIFIED, and it is the honest gap: nobody has clicked the + Page button.** The shape contract,
+the listing and the persist are all pinned by tests and A/B'd, but no page has been watched landing
+in a container.
+
+**STILL OPEN from the same queue, recorded in `CLAUDE_CHAT.md`:** the wikipedia bookmark COVER
+fallback, the Jonah audit (*"make sure any functionality we added in, jonah can utilize"*), and
+Reddit links not resolving in the browser.
+
+---
+
 ### 2026-09-16 (2) — THREE OF THE FOUR WERE ALREADY FIXED; the fourth took THREE attempts and TWO broken deploys
 
 Picked up the other account's session, which hit its limit at 11:57 **mid-verification** — its last
