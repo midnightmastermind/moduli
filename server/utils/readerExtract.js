@@ -44,7 +44,7 @@
 // character completely before it crosses.
 export const READER_MIN_WORDS = 200;
 
-import { wikiHtmlToMarkdown } from "../services/wikipediaTools.js";
+import { wikiHtmlToMarkdown, leadImageFromHtml, injectLeadBlocks } from "../services/wikipediaTools.js";
 import { extractMainContent } from "../utils/mainContent.js";
 
 /** Words of prose in a markdown string, ignoring syntax and link targets. */
@@ -64,7 +64,17 @@ export function wordCount(markdown) {
  */
 export function readerFromHtml(html, title = "") {
   const { html: mainHtml } = extractMainContent(html || "");
-  const markdown = wikiHtmlToMarkdown(mainHtml, title) || "";
+  let markdown = wikiHtmlToMarkdown(mainHtml, title) || "";
+  // THE ARTICLE'S ONLY PICTURE IS OFTEN THE ONE IN ITS INFOBOX, and the infobox
+  // is stripped as a metadata table — so the reader showed a wikipedia article
+  // with no images at all (user, on Albert Ellis). `leadImageFromHtml` reads it
+  // off the SAME html the converter just consumed, so this costs no fetch. The
+  // dedupe matters: an article whose body already carries the photo (Eminem)
+  // must not show it twice.
+  const lead = leadImageFromHtml(mainHtml);
+  if (lead && !markdown.includes(lead)) {
+    markdown = injectLeadBlocks(markdown, [`![${title || ""}](${lead})`]);
+  }
   return { markdown, words: wordCount(markdown) };
 }
 

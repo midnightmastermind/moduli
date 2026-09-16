@@ -187,6 +187,68 @@ const tagAttr = (tag) => (name) => {
   return m ? m[1] : null;
 };
 
+// THE ARTICLE'S MAIN PHOTO IS INSIDE THE BOX WE THROW AWAY.
+//
+// `WIKI_STRIP_SELECTORS` removes `.infobox` wholesale, and it should: the box is
+// a metadata table (born, died, alma mater), and printing that into a reader is
+// worse than dropping it. But on a great many articles the infobox photo is the
+// article's ONLY image, so the strip takes the picture with it — measured on the
+// user's own bookmark, Albert Ellis: 10 raw <img> -> 2 in the main content -> 0
+// in the markdown, while Eminem, whose body is full of inline figures, keeps 10.
+//
+// `fullMarkdown` already compensates by asking the REST summary API, and says so
+// in its own comment. The READER cannot do that: it holds only the page HTML it
+// already fetched, it runs against any site rather than en.wikipedia, and a
+// second network round trip inside its deadline is exactly the regression the
+// 2026-09-10 (2) retraction was about. So the picture is lifted out of the box
+// BEFORE the box is stripped — no network, and it works on any wiki that uses
+// the same markup (Fandom included) without naming one.
+//
+// THE WIDEST IMAGE, not the first. Measured across seven real articles — Albert
+// Ellis, Eminem, Carl Rogers, Aaron Beck, Sigmund Freud, Marie Curie, Tokyo —
+// the lead photo is the widest infobox image every time (250px on the
+// biographies, 288 on Tokyo's montage), while a signature trails at 150 and
+// chrome icons sit at 20-40. "First" would take a country article's flag over
+// its map; a fixed pixel threshold would be a guess. `LEAD_IMAGE_MIN_W` is NOT
+// that threshold — real photos measured 57-288px and icons 20-40, so 60 sits in
+// the gap and only ever decides an infobox holding nothing but chrome.
+//
+// ONE CONTAINER, deliberately. A `.navbox` or `.sidebar` is navigation chrome
+// whose images are flags and icons for things the article merely LINKS TO;
+// lifting out of those would head the page with a picture of something else.
+export const LEAD_IMAGE_MIN_W = 60;
+
+export function leadImageFromHtml(html) {
+  if (typeof html !== "string" || !html) return null;
+  let $;
+  try { $ = cheerioLoad(html); } catch { return null; }
+  const cands = [];
+  $(".infobox img").each((_, el) => {
+    const read = (name) => $(el).attr(name) ?? null;
+    const src = bestImageSrc(read);
+    if (!usableSrc(src)) return;
+    cands.push({ src: src.trim(), w: parseInt(read("width") || "0", 10) || 0 });
+  });
+  if (!cands.length) return null;
+  // Stable sort, so equal widths (and unknown ones) keep document order.
+  const best = cands.map((c, i) => ({ ...c, i }))
+    .sort((a, b) => (b.w - a.w) || (a.i - b.i))[0];
+  if (best.w && best.w < LEAD_IMAGE_MIN_W) return null;
+  return best.src.startsWith("//") ? `https:${best.src}` : best.src;
+}
+
+// Put lead blocks at the head of an article's markdown: after the H1 when there
+// is one, else at the very top. Shared by the reader and the import so the two
+// cannot disagree about where an article's picture goes — the twin drift that
+// caused this bug in the first place.
+export function injectLeadBlocks(md, parts) {
+  const list = (parts || []).filter(Boolean);
+  if (!list.length) return md;
+  const joined = list.join("\n\n");
+  if (/^#\s[^\n]*\n/.test(md)) return md.replace(/^(#\s[^\n]*\n)/, `$1\n\n${joined}\n`);
+  return `${joined}\n\n${md}`;
+}
+
 // Convert Wikipedia article HTML → clean markdown using cheerio (reliable
 // element removal) + turndown (correct, nesting-aware HTML→MD). Replaces the
 // regex converter for the import path: no [edit] links, no leaked brackets, no
@@ -456,11 +518,9 @@ export async function fullMarkdown(title) {
     const parts = [];
     if (lead && !md.includes(lead)) parts.push(`![${resolved}](${lead})`);
     if (infoTable) parts.push(infoTable);
-    if (parts.length) {
-      const leadBlock = `\n\n${parts.join("\n\n")}\n`;
-      if (/^#\s[^\n]*\n/.test(md)) md = md.replace(/^(#\s[^\n]*\n)/, `$1${leadBlock}`);
-      else md = `${parts.join("\n\n")}\n\n${md}`;
-    }
+    // Shared with the reader, so the two paths cannot disagree about where an
+    // article's picture goes — the drift that caused the reader to lose it.
+    md = injectLeadBlocks(md, parts);
   } catch { /* summary/infobox are optional enrichment */ }
 
   return {

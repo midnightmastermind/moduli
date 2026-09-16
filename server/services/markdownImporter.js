@@ -1014,7 +1014,7 @@ export function markdownToReaderDoc(markdown) {
  * Plan the READER shape: one doc container embedding one textblock.
  * Never writes — reader mode renders these rows in an isolated state.
  */
-export function planReaderShape({ gridId = null, userId, markdown, title = null }) {
+export function planReaderShape({ gridId = null, userId, markdown, title = null, parentId = null }) {
   const { label, content } = markdownToReaderDoc(markdown);
   const containerModId = uid();
   const containerOccId = uid();
@@ -1031,7 +1031,9 @@ export function planReaderShape({ gridId = null, userId, markdown, title = null 
   ];
   const occurrences = [
     {
-      id: containerOccId, userId, gridId, moduleId: containerModId, parentId: null,
+      // The reader tree is normally planned free-standing (nothing is written),
+      // but "add this as a page" mints it INTO a destination the user picked.
+      id: containerOccId, userId, gridId, moduleId: containerModId, parentId,
       fields: {},
       occurrences: [textblockOccId],
       // A doc container renders its TEXTMAP, not its child list, so the

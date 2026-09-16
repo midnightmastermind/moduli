@@ -324,8 +324,14 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   // Reuses the Pomodoro's own destination list, so "where do I put this" looks
   // and reads the same in both places rather than being a second answer to one
   // question.
-  const [saving, setSaving] = useState(false);
+  // ONE PICKER, TWO ACTIONS. "Save as bookmark" and "Add as a page" ask the
+  // identical question — WHERE does this go — so they share the destination
+  // list rather than growing a second answer to it. `picker` names which action
+  // the chosen destination belongs to; null means it is closed.
+  const [picker, setPicker] = useState(null);   // null | "bookmark" | "page"
+  const saving = picker !== null;
   const [savedTo, setSavedTo] = useState(null);
+  const [adding, setAdding] = useState(false);  // an import is in flight
   const [dest, setDest] = useState("");
   // SUBSCRIBED ONLY WHILE THE PICKER IS OPEN. `occurrencesById` and `modulesById`
   // change identity on EVERY write anywhere on the grid, so subscribing to them
@@ -357,11 +363,11 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
       scratch: false,     // an address you meant to KEEP
     });
     if (!res) return;
-    setSaving(false);
+    setPicker(null);
     // Say WHERE it went. "Saved" alone leaves you to go and check, and the
     // whole point of asking was that the destination matters.
     const label = destOptions.find((o) => o.id === dest)?.label || "";
-    setSavedTo(label);
+    setSavedTo(`Saved to ${label}`);
     setTimeout(() => setSavedTo(null), 4000);
   }, [dest, occurrencesById, url, dispatch, socket, gridId, userId, destOptions]);
 
@@ -567,6 +573,45 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   const planForRef = useRef(null);
   const planCacheRef = useRef(new Map());
   const isTextMode = mode === "reader" || mode === "magic";
+
+  // ADD WHAT YOU ARE READING AS A REAL PAGE (user, 2026-09-16: *"a button on the
+  // browsers magic and reading views. to add as a page to our grid. (outside of
+  // the bookmark occurance)"*).
+  //
+  // It sends the markdown the viewer ALREADY has plus the shape it is ALREADY
+  // rendering, so the page you get is the page you were looking at. Re-fetching
+  // through `import_url` would have been the obvious call and is wrong twice
+  // over: it pays for the page a second time, and it has no shape — it would
+  // hand a Reader view the full Magic tree.
+  //
+  // "Outside of the bookmark occurrence" is the destination picker: the root is
+  // parented into a container the user chooses, not nested under this bookmark.
+  const addAsPage = useCallback(() => {
+    const md = reader.markdown;
+    if (!md || !socket || !gridId || !dest || adding) return;
+    setAdding(true);
+    socket.emit("import_text", {
+      content: md,
+      format: "markdown",
+      gridId,
+      parentId: dest,
+      title: pageTitle || "",
+      shape: mode,            // "reader" | "magic" — what is on screen
+    }, (out) => {
+      setAdding(false);
+      if (!out?.ok) {
+        // Say WHY. A silent no-op after picking a destination reads as the
+        // button being broken.
+        setSavedTo(`Could not add the page: ${out?.error || "no reply"}`);
+        setTimeout(() => setSavedTo(null), 6000);
+        return;
+      }
+      setPicker(null);
+      const label = destOptions.find((o) => o.id === dest)?.label || "";
+      setSavedTo(`Added as a page in ${label}`);
+      setTimeout(() => setSavedTo(null), 4000);
+    });
+  }, [reader.markdown, socket, gridId, dest, adding, pageTitle, mode, destOptions]);
   useEffect(() => {
     const md = reader.markdown;
     // Planned only when a text mode is actually on screen. The read itself runs
@@ -688,10 +733,10 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
         />
         {url && (
           <button
-            onClick={() => { setDest(""); setSaving((v) => !v); }}
+            onClick={() => { setDest(""); setPicker((v) => (v === "bookmark" ? null : "bookmark")); }}
             title="Save this address as a bookmark occurrence"
             aria-label="Save as bookmark"
-            style={{ ...navBtnSt(true), color: saving ? "var(--accent-blue)" : "var(--text-muted)" }}
+            style={{ ...navBtnSt(true), color: picker === "bookmark" ? "var(--accent-blue)" : "var(--text-muted)" }}
           >☆</button>
         )}
         {!scratch && storedUrl && url !== storedUrl && (
@@ -728,6 +773,21 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
         {btn("magic", "Magic")}
         {btn("web", "Web")}
         {btn("archive", "Archive")}
+        {/* Only in a TEXT mode: this adds the article tree the viewer is
+            showing, and Web/Archive are an iframe with no tree to add. */}
+        {isTextMode && reader.markdown && (
+          <button
+            onClick={() => { setDest(""); setPicker((v) => (v === "page" ? null : "page")); }}
+            title={`Add this ${mode === "reader" ? "Reader" : "Magic"} view to the grid as a page`}
+            aria-label="Add as page"
+            style={{
+              padding: "2px 8px", fontSize: 12, fontFamily: "var(--font-mono)", cursor: "pointer",
+              borderRadius: 4, border: "1px solid var(--border-default)",
+              background: "var(--input-bg)",
+              color: picker === "page" ? "var(--accent-blue)" : "var(--text-primary)",
+            }}
+          >+ Page</button>
+        )}
         {url && <a href={url} target="_blank" rel="noreferrer noopener"
            style={{ fontSize: 12, color: "var(--text-muted)", textDecoration: "none", padding: "2px 4px" }}
            title="Open in a new tab">↗</a>}
@@ -739,7 +799,9 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
           borderBottom: "1px solid var(--border-subtle)", background: "var(--panel-bg)",
           fontSize: 12, fontFamily: "var(--font-mono)",
         }}>
-          <span style={{ color: "var(--text-faint)" }}>Save to</span>
+          <span style={{ color: "var(--text-faint)" }}>
+            {picker === "page" ? "Add page to" : "Save to"}
+          </span>
           <select
             value={dest}
             onChange={(e) => setDest(e.target.value)}
@@ -755,8 +817,12 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
           </select>
           {/* Disabled until a destination is picked: "where" is the question
               being asked, so saving without an answer would defeat it. */}
-          <button onClick={saveBookmark} disabled={!dest} style={navBtnSt(!!dest)}>Save</button>
-          <button onClick={() => setSaving(false)} style={navBtnSt(true)}>Cancel</button>
+          <button
+            onClick={picker === "page" ? addAsPage : saveBookmark}
+            disabled={!dest || adding}
+            style={navBtnSt(!!dest && !adding)}
+          >{picker === "page" ? (adding ? "Adding…" : "Add") : "Save"}</button>
+          <button onClick={() => setPicker(null)} style={navBtnSt(true)}>Cancel</button>
         </div>
       )}
       {savedTo && (
@@ -764,7 +830,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
           padding: "3px 8px", flexShrink: 0, fontSize: 12, fontFamily: "var(--font-mono)",
           color: "var(--accent-blue)", background: "var(--accent-blue-bg)",
           borderBottom: "1px solid var(--border-subtle)",
-        }}>Saved to {savedTo}</div>
+        }}>{savedTo}</div>
       )}
 
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>

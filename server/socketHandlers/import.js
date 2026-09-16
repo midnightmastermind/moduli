@@ -42,6 +42,7 @@
 import { htmlToMarkdown, wikiHtmlToMarkdown } from "../services/wikipediaTools.js";
 import { markdownToModuli, planReaderShape } from "../services/markdownImporter.js";
 import { persistImportResult } from "../utils/persistImport.js";
+import { linkRootIntoParent } from "../utils/linkRootIntoParent.js";
 import { fetchPageHtml } from "../utils/safeFetchUrl.js";
 import { fetchWaybackSnapshot } from "../utils/waybackSnapshot.js";
 import { fetchLinkPreview, titleFromHtml } from "../utils/linkPreview.js";
@@ -55,6 +56,34 @@ import { extractLinks } from "../utils/harvestLinks.js";
 // frame have the page. Exported so the rule is testable rather than a number
 // buried in a handler. See the call site for why it is not `safeFetchUrl`'s 20s.
 export const READER_TIMEOUT_MS = 6000;
+
+// WHICH TREE A PAGE BECOMES — the ONE place that decides, because two places
+// deciding is how the tree you READ and the tree you IMPORT drift apart.
+//
+// `import_plan` renders Reader/Magic; `import_text` mints what the viewer's
+// "add as a page" button asks for. They took different code paths until
+// 2026-09-16 — the planner knew about `shape` and the minter did not, so the
+// button would have handed back a magic tree no matter which view you were
+// looking at.
+//
+// "reader" keeps the article as one container + one textblock; anything else
+// (including absent) is MAGIC — the importer's full tree, which is what every
+// caller got before the argument existed.
+export async function buildImportShape({ shape, gridId, userId, markdown, title, parentId = null, dryRun }) {
+  if (shape === "reader") {
+    return planReaderShape({
+      gridId: gridId || null, userId, markdown, title: title || null, parentId,
+    });
+  }
+  return markdownToModuli({
+    gridId: gridId || null, parentId, userId, markdown, dryRun, title,
+    // MAGIC STRUCTURES THE PAGE (user, 2026-09-13): *"it needs to be smart like
+    // the wikipedia import … textblocks inside doccontainers inside
+    // doccontainers"*. Bold-only lines become sections too, since most pages use
+    // those instead of headings.
+    boldSections: true,
+  });
+}
 
 export function registerImportHandlers(socket, {
   io, userRoom, ensureUserCache, userCacheReady, loadUserIntoCache,
@@ -70,7 +99,7 @@ export function registerImportHandlers(socket, {
   socket.on("import_text", async (payload = {}, ack) => {
     const {
       content, format: rawFormat = "auto", gridId, parentId = null,
-      title = "", htmlOpts = {}, requestId = null,
+      title = "", htmlOpts = {}, requestId = null, shape = "magic",
     } = payload;
     const userId = socket.userId;
 
@@ -99,13 +128,32 @@ export function registerImportHandlers(socket, {
           })
         : content;
 
-      const result = await markdownToModuli({
-        gridId, parentId, userId, markdown, dryRun: false, title,
+      // SHAPE, so "add this as a page" mints the tree you were actually reading.
+      // Absent = magic, which is byte-identical to what the drag/paste import
+      // has always produced.
+      const result = await buildImportShape({
+        shape, gridId, userId, markdown, title, parentId, dryRun: false,
       });
 
       // Persist to the DB + warm cache so the import survives a reload, THEN broadcast.
       const uc = await getUC(userId, gridId);
       await persistImportResult({ result, userId, uc });
+
+      // LIST the root in its destination, not just parent it. `markdownToModuli`
+      // pushes its own root when it persists, but `planReaderShape` is a pure
+      // planner — so without this the reader shape lands parented, complete and
+      // INVISIBLE. The linker's `$ne` guard makes the magic case a no-op, so one
+      // call serves both shapes instead of a per-shape branch that would drift.
+      const linkedParent = await linkRootIntoParent({
+        parentId, childId: result.rootOccurrenceId, userId,
+      });
+      if (linkedParent) {
+        // Or the destination keeps rendering its old child list until a reload,
+        // which reads as the button having done nothing.
+        io.to(userRoom(userId)).emit("occurrence_updated", {
+          occurrence: typeof linkedParent.toObject === "function" ? linkedParent.toObject() : linkedParent,
+        });
+      }
 
       // Broadcast each created entity so all connected tabs (this one + others) sync.
       for (const m of result.modules) {
@@ -182,18 +230,9 @@ export function registerImportHandlers(socket, {
       // as one container + one textblock; "magic" is the importer's full tree.
       // Anything unrecognised gets MAGIC, which is what this handler returned
       // before the shape existed.
-      const result = shape === "reader"
-        ? planReaderShape({ gridId: gridId || null, userId, markdown: content, title: title || null })
-        : await markdownToModuli({
-            gridId: gridId || null, parentId: null, userId,
-            // MAGIC STRUCTURES THE PAGE (user, 2026-09-13): *"it needs to be smart
-            // like the wikipedia import … textblocks inside doccontainers inside
-            // doccontainers"*. Same planner and same merged prose as an import;
-            // bold-only lines become sections too, since most pages use those
-            // instead of headings. One textblock per paragraph was tried and
-            // rejected the same day — it is flat, not structured.
-            markdown: content, dryRun: true, title, boldSections: true,
-          });
+      const result = await buildImportShape({
+        shape, gridId, userId, markdown: content, title, parentId: null, dryRun: true,
+      });
 
       reply({
         ok: true,
