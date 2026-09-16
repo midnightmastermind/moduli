@@ -3935,17 +3935,7 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    single-line rule far above; an artifact row is never a single line. */
 .instance-content:has(.artifact-card) { align-items: flex-start; }
 .instance-content:has(.artifact-card) .module-drag-handle { align-self: flex-start; }
-/* THE HANDLE SITS ON TOP OF THE PICTURE, so it inherited the theme's ink and went
-   invisible on a dark photo (user: "i couldnt see the drag handle" — which is why
-   the image read as not draggable at all). Measured on the badgerherald tunnel
-   photo: the handle's box is x 219-241 inside an image spanning 214-472.
-   White PLUS a dark halo rather than white alone — a white glyph is just as lost
-   on a bright photo, and this grid's images are both. Scoped to an IMAGE card so
-   the quote card (a light box, not a photo) keeps the theme ink. */
-.instance-content:has(.artifact-card[data-kind="image"]) .module-drag-handle {
-  color: #fff;
-  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.95)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.75));
-}
+
 /* The filled artifact block reads as floating media (rounded corners already on
    .artifact-card) — give it a subtle drop shadow so it pops off the doc surface. */
 .artifact-card:not(.artifact-card--expanded):not(.artifact-card--quote) {
@@ -4295,6 +4285,17 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   width: auto !important;
   float: none !important;
 }
+/* ONE EXCEPTION to the no-BFC rule below, and it is the opposite case: an EMBEDDED
+   BLOCK inside the host's prose (a quote card, a table) is a box, and a float only
+   shortens LINE boxes — so its box spanned the host's full width, ran under the
+   picture, and the notch clipped its right BORDER clean off. That is the quote
+   "getting cut off on the right side". `flow-root` makes that one block avoid the
+   float, so it sits inside the prose column with its border intact. It does NOT
+   stop the host wrapping: the rule below neutralises the host's own chain, while
+   this applies to a leaf block nested in its prose. */
+.wrap-group--on .wrap-group-content > * > :last-child .ProseMirror .node-moduleEmbed {
+  display: flow-root;
+}
 /* No BFC anywhere in the host subtree — overflow/flow-root would stop the wrap-under. */
 .wrap-group--on .wrap-group-content > * > :last-child .textblock-card,
 .wrap-group--on .wrap-group-content > * > :last-child .doc-editor-wrapper,
@@ -4512,6 +4513,25 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   position: absolute;
   top: 3px;
   left: 3px;
+}
+/* …and being ON the photo it needs its own contrast: it inherited the theme ink
+   and vanished on a dark image (user: "i couldnt see the drag handle" — which is
+   why that image read as not draggable at all).
+   A DISC, NOT A HALO. The first attempt was a white glyph plus a 1px black
+   drop-shadow, and on a 22px icon of thin strokes the shadow wrapped every
+   stroke and swallowed the white — the glyph read BLACK and the blur read as a
+   stray highlight, which is exactly what came back ("none of the handles were
+   white" + "some sort of highlight on it"). A solid translucent disc keeps the
+   white strokes crisp and reads as a deliberate control on any photo, light or
+   dark. Scoped to the OVERLAYING handle: an ordinary full-width image row keeps
+   its plain handle, because that one sits in the page gutter BESIDE the picture
+   (measured: handle x=57, image 90-442) where a disc would be clutter. */
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .instance-row:has(.artifact-card[data-kind="image"]) .module-drag-handle {
+  color: #fff;
+}
+.wrap-group--on .wrap-group-content > * > :not(:last-child) .instance-row:has(.artifact-card[data-kind="image"]) .radial-handle {
+  background: rgba(0, 0, 0, 0.5) !important;
+  border-radius: 50% !important;
 }
 /* Image neighbor = its own quiet framed card. Restyled 2026-07-09 (per user —
    the loud teal wash + bright border read as clunky): near-page-dark backdrop,
