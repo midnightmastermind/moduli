@@ -121,6 +121,27 @@ wikipedia reader 10 / 0                      10 / 0    <- control
 converters and a real socket, and watched rendering in Reader and Magic — but nobody has dragged a
 BBC article's HTML into the grid, which is the path the regex converter serves.
 
+**AND THE USER'S OWN ARTICLE WAS HEADED WITH RAW ENTITIES, which the socket check printed in
+passing.** `titleFromHtml` returned the `<title>` verbatim, so Reader and Magic headed that page
+`exploring UW&#8217;s underground labyrinth &#8211; The Badger Herald`. **Not only cosmetic** — the
+same function names a saved bookmark, so the entities are STORED as a label. Censused over six live
+sites: **1 of 6 titles carries them, and it is the article this whole thread is about.**
+
+**THE DECODER ALREADY EXISTED AND WAS THE WRONG SHAPE — an inline `.replace` chain inside
+`htmlToMarkdown`, reachable by nobody else.** `utils/htmlEntities.js` is that chain extracted,
+widened to hex and the named entities real pages use, and now called by BOTH the converter and
+`titleFromHtml`, so the two cannot disagree about what a page's text says.
+```
+                              before                          after
+badgerherald <title>   UW&#8217;s … &#8211; The Badger Herald   UW’s … – The Badger Herald
+titles carrying entities            1 of 6                          0 of 6
+```
+**ORDER IS LOAD-BEARING AND THE OLD CHAIN HAD IT WRONG:** `&amp;` must be decoded LAST, because
+decoding it first turns `&amp;lt;` — the literal text `&lt;` — into `<`, i.e. it decodes something
+the author deliberately escaped. Its own test pins that. **An unknown entity is left exactly as
+written**: this string is shown to the user and stored as a label, so a wrong guess is worse than a
+visible `&foo;`. 8 tests, 2,212 server tests across 207 files.
+
 ---
 
 ### 2026-09-15 (5) — the page swap is instant now, and Reader/Magic read images from `srcset`

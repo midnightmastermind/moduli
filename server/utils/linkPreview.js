@@ -14,10 +14,15 @@
 // the host, no declared icon falls back to `/favicon.ico`. The ONLY failure is
 // "could not reach it at all", which the caller reports.
 
+import { decodeEntities } from "./htmlEntities.js";
+
 /** The page's own name, or "" — same extractor `import_url` already uses. */
 export function titleFromHtml(html) {
   const m = /<title[^>]*>([\s\S]{1,300}?)<\/title>/i.exec(String(html || ""));
-  return m ? m[1].replace(/\s+/g, " ").trim() : "";
+  // Decoded, because this string is SHOWN (the reader heads its container with
+  // it) and STORED (a saved bookmark takes it as a label). badgerherald's title
+  // reaches us as "UW&#8217;s underground labyrinth &#8211; The Badger Herald".
+  return m ? decodeEntities(m[1]).replace(/\s+/g, " ").trim() : "";
 }
 
 /**

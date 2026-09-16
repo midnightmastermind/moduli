@@ -11,6 +11,7 @@
 import TurndownService from "turndown";
 import { gfm } from "turndown-plugin-gfm";
 import { load as cheerioLoad } from "cheerio";
+import { decodeEntities } from "../utils/htmlEntities.js";
 
 const UA = "Moduli/1.0 (https://moduli.local; jarvis-assistant) node-fetch";
 const API_BASE = "https://en.wikipedia.org/w/api.php";
@@ -634,15 +635,11 @@ export function htmlToMarkdown(html, fallbackTitle = "", opts = {}) {
   // the entire string without corrupting the raw table HTML.
   s = stripTags(s);
 
-  // Decode common entities
-  s = s
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));
+  // Decode entities through the SHARED decoder, so this converter and
+  // `titleFromHtml` cannot disagree about what a page's text says. It also
+  // decodes `&amp;` LAST, which this inline chain did second — so "&amp;lt;",
+  // the literal text "&lt;", used to come out as "<".
+  s = decodeEntities(s);
   // Restore table stashes — now safe because tag-stripping is done.
   // Wrap each in a ```html fenced block; markdownImporter Phase A
   // recognises the fence as a textblock codeBlock node, preserving
