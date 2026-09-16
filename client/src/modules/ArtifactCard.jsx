@@ -242,26 +242,41 @@ export default function ArtifactCard({ module, label, occurrence }) {
   // THE ORIGIN IS THE CARD, NOT THE BUTTON. `openArtifactSpread` grows the
   // overlay out of the rect it is handed; handing it a 16px icon makes the
   // viewer erupt from the corner of the picture instead of from the picture.
-  // THE VIEWER CAN ONLY OPEN AN OCCURRENCE THE REAL STORE HOLDS, and the first
-  // version of this shipped without that guard.
+  // THE VIEWER CAN ONLY OPEN A ROW THE APP'S OWN STORE HOLDS, and it took two
+  // deployed attempts to guard that correctly. Both are recorded because the
+  // second one looks right and is not.
   //
   // `ArtifactSpreadHost` resolves its owner as `occurrencesById[req.occurrenceId]`
-  // off the LIVE store. A Magic/Reader row is a PLANNED occurrence that exists
-  // only inside an isolated `parentState` (`readerStateFromPlan`), so that lookup
-  // finds nothing, `files` comes back empty and the overlay never renders.
-  // Measured on prod after deploying the unguarded version: `.artifact-spread` 0
-  // AND `.artifact-fullscreen` 0 — a DEAD button, strictly worse than the
-  // lightbox it replaced.
+  // off the LIVE store. A Magic/Reader row is a PLANNED occurrence living only
+  // inside an isolated `parentState` (`readerStateFromPlan`), so that lookup
+  // finds nothing, `files` comes back empty, and the overlay never renders.
   //
-  // So the lightbox is not a second-best fallback here: in the reader it is the
-  // only thing that CAN open, which is the same reason `openViewer` routes a
-  // click inside a spread to `toggle`.
+  //   attempt 1 — no guard at all.            prod: spread 0 / fullscreen 0
+  //   attempt 2 — guard on `getOcc(id)`.      prod: spread 0 / fullscreen 0
+  //
+  // ATTEMPT 2 FAILED FOR THE VERY REASON IT EXISTED. `PagePreviewBody` mounts
+  // its OWN `GridActionsContext` whose `getOcc` reads the isolated plan
+  // (`PagePreviewApp.jsx:258`), so in the reader it cheerfully returns the
+  // PLANNED row and the guard read it as live. Asking "can my context resolve
+  // this id" is worthless when the context IS the isolated one.
+  //
+  // THE HONEST SIGNAL IS `socket`. The preview provider hands this subtree
+  // `dispatch: noop` and `socket: null` (PagePreviewApp.jsx:270-271), which
+  // `BookmarkView` documents as the structural isolation: "there is no path
+  // from this subtree to a write". The same nulling that makes the reader
+  // unable to WRITE is what makes the viewer unable to RESOLVE — one condition,
+  // not two that can drift. It needs no new context and so cannot be forgotten
+  // by a future call site.
+  //
+  // In the reader the lightbox is not a consolation prize: it is the only thing
+  // that CAN open, which is why `openViewer` likewise routes a click inside a
+  // spread to `toggle`.
   const expandToViewer = useCallback((e) => {
     e?.stopPropagation();
-    const live = occurrence?.id ? getOcc?.(occurrence.id) : null;
-    if (e?.currentTarget?.closest?.(".artifact-spread") || !live) { toggle(e); return; }
+    const isolated = !socket;
+    if (e?.currentTarget?.closest?.(".artifact-spread") || isolated || !occurrence?.id) { toggle(e); return; }
     openArtifactSpread(occurrence.id, cardRef.current || e.currentTarget);
-  }, [occurrence?.id, toggle, getOcc]);
+  }, [occurrence?.id, toggle, socket]);
 
   // Resolved at CALLBACK time through the non-subscribing getter, so a board of
   // 1,467 bookmark cards does not re-render on every occurrence write — the

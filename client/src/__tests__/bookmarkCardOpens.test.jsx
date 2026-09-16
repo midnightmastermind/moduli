@@ -20,15 +20,22 @@ import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 
-// Which occurrence ids the REAL store holds. A Magic/Reader row is a PLANNED
-// occurrence that lives only in an isolated parentState, so the store does NOT
-// hold it — and that difference is exactly what the expand button must respect,
-// because the spread host resolves its owner from this map.
-const LIVE_OCCS = new Set();
+// ISOLATION IS SIGNALLED BY `socket`, NOT BY WHETHER AN ID RESOLVES.
+//
+// `PagePreviewBody` mounts its own provider with `dispatch: noop` / `socket:
+// null` over the PLANNED reader rows — so `getOcc` there RESOLVES the planned
+// row and cannot distinguish the reader from the app. A guard keyed on getOcc
+// shipped to prod and stayed dead for exactly that reason. `socket` is the
+// condition that actually differs, and it is the same nulling that makes the
+// reader unable to write.
+let SOCKET = {};
 
 const STATE = {
-  dispatch: vi.fn(), socket: {}, grid: {}, state: { grid: {} },
-  getOcc: (id) => (LIVE_OCCS.has(id) ? { id } : null), getOccMap: () => ({}), foldersById: {},
+  dispatch: vi.fn(), grid: {}, state: { grid: {} },
+  get socket() { return SOCKET; },
+  // Resolves in BOTH contexts, mirroring the preview provider — so a test that
+  // passes here cannot be passing because the id happened not to resolve.
+  getOcc: (id) => ({ id }), getOccMap: () => ({}), foldersById: {},
   modulesById: {}, viewsById: {}, occurrencesById: {}, fieldsById: {},
   // The app's getState() returns the raw reducer state, which carries `views`
   // as an ARRAY and no `viewsById`. Reading views off it is what left the open
@@ -88,7 +95,7 @@ const mount = (module, { inSpread = false, occurrence = OCC } = {}) => {
     : card).container;
 };
 
-beforeEach(() => { openBookmarkInPanel.mockClear(); openArtifactSpread.mockClear(); LIVE_OCCS.clear(); });
+beforeEach(() => { openBookmarkInPanel.mockClear(); openArtifactSpread.mockClear(); SOCKET = {}; });
 
 describe("a bookmark opens inside the spread", () => {
   it("tapping the cover opens the spread — the gesture that was already there", () => {
@@ -116,7 +123,7 @@ describe("a bookmark opens inside the spread", () => {
   // 0, i.e. the in-place lightbox. The card's own click already opened the
   // viewer, so this button was the one affordance on a picture that did not.
   it("the expand button on an image opens the VIEWER, not the in-place lightbox", () => {
-    LIVE_OCCS.add("occ-1");   // a real board card: the store holds this occurrence
+    // A real board card: a live socket, i.e. the app's own store is behind us.
     const el = mount(IMAGE, { occurrence: { ...OCC, moduleId: "m-img" } });
     const btn = el.querySelector(".artifact-thumb-expand-hint");
     expect(btn, "no expand affordance to click").toBeTruthy();
@@ -135,7 +142,10 @@ describe("a bookmark opens inside the spread", () => {
   // 0 — the button did NOTHING, worse than the lightbox it replaced. Here the
   // lightbox is not a consolation prize; it is the only thing that can open.
   it("on a PLANNED (reader) occurrence it falls back to the lightbox — never a dead button", () => {
-    // LIVE_OCCS deliberately left empty: the store does not hold this row.
+    // The reader's provider: socket null. NOTE `getOcc` still RESOLVES this id
+    // — that is the whole point. The guard that keyed on getOcc passed a test
+    // like this only because the fixture withheld the row; prod did not.
+    SOCKET = null;
     const el = mount(IMAGE, { occurrence: { ...OCC, moduleId: "m-img" } });
     fireEvent.click(el.querySelector(".artifact-thumb-expand-hint"));
     expect(openArtifactSpread, "it opened a viewer that cannot resolve this row").not.toHaveBeenCalled();
