@@ -4296,6 +4296,21 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
 .wrap-group--on .wrap-group-content > * > :last-child .ProseMirror .node-moduleEmbed {
   display: flow-root;
 }
+/* …and it has to be allowed to SHRINK. The host-chain rules above force
+   `width: 100% !important` on `.instance-textcol / .instance-body /
+   .textblock-card` to stop the host's prose collapsing — but they are DESCENDANT
+   selectors, so they also reach the chain INSIDE an embedded block, pinning it to
+   the host's full width. `flow-root` then had nothing to do: the box could not
+   narrow beside the float, so it still ran under the picture and lost its right
+   border to the notch. Releasing the width inside an embed is what lets the BFC
+   actually avoid the float. */
+.wrap-group--on .wrap-group-content > * > :last-child .node-moduleEmbed .instance-textcol,
+.wrap-group--on .wrap-group-content > * > :last-child .node-moduleEmbed .instance-body,
+.wrap-group--on .wrap-group-content > * > :last-child .node-moduleEmbed .textblock-card,
+.wrap-group--on .wrap-group-content > * > :last-child .node-moduleEmbed .instance-content,
+.wrap-group--on .wrap-group-content > * > :last-child .node-moduleEmbed .instance-row {
+  width: auto !important;
+}
 /* No BFC anywhere in the host subtree — overflow/flow-root would stop the wrap-under. */
 .wrap-group--on .wrap-group-content > * > :last-child .textblock-card,
 .wrap-group--on .wrap-group-content > * > :last-child .doc-editor-wrapper,
