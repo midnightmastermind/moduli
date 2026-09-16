@@ -23,20 +23,45 @@ import BookmarkView from "./BookmarkView.jsx";
 // Must match `.artifact-fullscreen--closing` in index.css.
 const FULLSCREEN_CLOSE_MS = 190;
 
-// Render a plain string with bare URLs turned into clickable links (quote artifacts
-// store their text as a plain string, so http(s):// links weren't resolving — 2026-07-10).
+// Render a plain string with its links resolved. TWO shapes reach here:
+//   `https://…`        a bare URL (quote artifacts store plain text — 2026-07-10)
+//   `[text](https://…)`  a MARKDOWN link, which the importer deliberately leaves
+//                        intact in a quote so it can become a real anchor here
+//                        (user: "those quotes are links on the inside that arent
+//                        being resolved to a link either").
+// Doing the markdown pass in the RENDERER rather than the importer is what also
+// repairs quotes ALREADY imported — their stored text still carries the raw
+// `[text](url)`, which printed verbatim and, being unbreakable, overflowed and
+// clipped its column.
+const MD_LINK = /\[([^\]]+)\]\((https?:\/\/(?:[^()\s]|\([^)\s]*\))*)\)/g;
+const BARE_URL = /(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/g;
+
 function linkifyText(text) {
   if (!text || typeof text !== "string") return text;
-  // Capturing split keeps the URLs as their own array entries; a start-anchored
-  // (non-global) test avoids the stateful-lastIndex bug of a /g regex + .test().
-  const parts = text.split(/(https?:\/\/[^\s<>()]+[^\s<>().,;:!?'"])/g);
-  if (parts.length === 1) return text;
-  return parts.map((part, i) =>
-    /^https?:\/\//.test(part)
-      ? <a key={i} href={part} target="_blank" rel="noopener noreferrer"
-           onClick={(e) => e.stopPropagation()} className="artifact-quote-link">{part}</a>
-      : part
+  const anchor = (href, label, key) => (
+    <a key={key} href={href} target="_blank" rel="noopener noreferrer"
+       onClick={(e) => e.stopPropagation()} className="artifact-quote-link">{label}</a>
   );
+  const out = [];
+  let last = 0, m, k = 0;
+  MD_LINK.lastIndex = 0;
+  while ((m = MD_LINK.exec(text)) !== null) {
+    if (m.index > last) out.push(...bareUrlParts(text.slice(last, m.index), anchor, `b${k++}`));
+    out.push(anchor(m[2], m[1], `m${k++}`));
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(...bareUrlParts(text.slice(last), anchor, `b${k++}`));
+  if (!out.length) return text;
+  // A string with no links at all comes back as itself, so nothing that used to
+  // render as plain text starts rendering as an array of one.
+  return out.length === 1 && typeof out[0] === "string" ? out[0] : out;
+}
+
+function bareUrlParts(chunk, anchor, keyBase) {
+  const parts = chunk.split(BARE_URL);
+  if (parts.length === 1) return [chunk];
+  return parts.filter((p) => p !== "").map((part, i) =>
+    /^https?:\/\//.test(part) ? anchor(part, part, `${keyBase}-${i}`) : part);
 }
 
 export default function ArtifactCard({ module, label, occurrence }) {

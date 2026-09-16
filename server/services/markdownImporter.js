@@ -236,9 +236,14 @@ function headerWidth(title) {
   return Math.max(150, Math.min(360, 28 + n * 9));
 }
 
-function stripInlineMd(s) {
-  return String(s)
-    .replace(/\[([^\]]+)\]\((?:[^()]|\([^)]*\))*\)/g, "$1")
+// `keepLinks` leaves `[text](url)` intact for a caller that can RESOLVE it — the
+// quote card renders those as real anchors (user: "those specific quotes are
+// links on the inside that arent being resolved to a link either"). Everything
+// else — bold, italic, code — has no interactive meaning and is always stripped.
+function stripInlineMd(s, { keepLinks = false } = {}) {
+  let out = String(s);
+  if (!keepLinks) out = out.replace(/\[([^\]]+)\]\((?:[^()]|\([^)]*\))*\)/g, "$1");
+  return out
     .replace(/\*\*\*([^*]+)\*\*\*/g, "$1")
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/\*([^*]+)\*/g, "$1")
@@ -392,17 +397,41 @@ export function parseBlocks(markdown) {
         qLines.push(lines[i].replace(/^\s*>\s?/, ""));
         i++;
       }
-      const text = qLines.join(" ").replace(/\s+/g, " ").trim();
+      // Inline markdown is STRIPPED here, as it already is for headings and table
+      // headers. Measured on the badgerherald article: two blockquotes are a
+      // single markdown link, and storing the raw text printed
+      // "[Bodies of two Madison men…](https://…)" in the quote card — where the
+      // unbreakable URL could not wrap, overflowed its column and clipped.
+      //
+      // It also has to happen BEFORE the attribution split below: an em-dash
+      // inside a URL would otherwise be read as "— Author" and tear the tail off
+      // the quote (its own test).
+      const raw = qLines.join(" ").replace(/\s+/g, " ").trim();
+      const text = stripInlineMd(raw, { keepLinks: true }).trim();
       // AN ANNOTATION IS NOT A PULL-QUOTE, so it never gets an attribution.
       // These are prose written ABOUT a note, and prose contains em-dashes:
       // measured on the codex corpus, 54 of 460 blockquotes end in a short
       // em-dash clause, and every one would have its last sentence torn off and
       // rendered as "— …". The bracketed marker is what tells the two apart.
-      const annotation = annotationLabelOf(text);
+      // DETECTED ON THE RAW TEXT: `ANNOTATION_RE` keys on the BOLD marker
+      // `**[label]**`, and the strip above removes the `**` — reading it off the
+      // stripped text made every annotation look like an ordinary quote, which
+      // then had its tail torn off as an "attribution".
+      const annotation = annotationLabelOf(raw);
       let quote = text, attribution = "";
       if (!annotation) {
-        const m = /^(.+?)\s*[—–]\s*([^—–]{2,80})$/.exec(text);
-        if (m) { quote = m[1].trim(); attribution = m[2].trim(); }
+        // AN ATTRIBUTION IS NEVER INSIDE A LINK. Now that quotes KEEP their
+        // markdown links, a dash in the url would otherwise split
+        // "[Bodies buried](https://x.com/a—b)" into a quote ending mid-url and
+        // an author of "b)". Mask each link to one opaque token, split, restore.
+        const links = [];
+        const masked = text.replace(/\[([^\]]+)\]\((?:[^()]|\([^)]*\))*\)/g, (hit) => {
+          links.push(hit);
+          return `\u0000${links.length - 1}\u0000`;
+        });
+        const unmask = (str) => str.replace(/\u0000(\d+)\u0000/g, (_, i) => links[Number(i)] ?? "");
+        const m = /^(.+?)\s*[—–]\s*([^—–]{2,80})$/.exec(masked);
+        if (m) { quote = unmask(m[1]).trim(); attribution = unmask(m[2]).trim(); }
       }
       if (quote) blocks.push({ kind: "quote", text: quote, attribution, annotation });
       continue;

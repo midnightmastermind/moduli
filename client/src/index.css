@@ -3881,6 +3881,11 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
 }
 .artifact-quote-text {
   margin: 0;
+  /* A BARE url in a quote has no break opportunity, so in a narrow wrap column it
+     overflowed and was clipped by the card — which is how the badgerherald quotes
+     reached the user cut off mid-word. The markdown-link fix removes the common
+     case; this keeps any other long token inside the box. */
+  overflow-wrap: anywhere;
   font-style: italic;
   /* Match the doc editor's 13px body text (.doc-editor-content.ProseMirror)
      so quotes read at the same size as sibling textblocks. */
@@ -3930,6 +3935,17 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    single-line rule far above; an artifact row is never a single line. */
 .instance-content:has(.artifact-card) { align-items: flex-start; }
 .instance-content:has(.artifact-card) .module-drag-handle { align-self: flex-start; }
+/* THE HANDLE SITS ON TOP OF THE PICTURE, so it inherited the theme's ink and went
+   invisible on a dark photo (user: "i couldnt see the drag handle" — which is why
+   the image read as not draggable at all). Measured on the badgerherald tunnel
+   photo: the handle's box is x 219-241 inside an image spanning 214-472.
+   White PLUS a dark halo rather than white alone — a white glyph is just as lost
+   on a bright photo, and this grid's images are both. Scoped to an IMAGE card so
+   the quote card (a light box, not a photo) keeps the theme ink. */
+.instance-content:has(.artifact-card[data-kind="image"]) .module-drag-handle {
+  color: #fff;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.95)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.75));
+}
 /* The filled artifact block reads as floating media (rounded corners already on
    .artifact-card) — give it a subtle drop shadow so it pops off the doc surface. */
 .artifact-card:not(.artifact-card--expanded):not(.artifact-card--quote) {
@@ -4303,6 +4319,7 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
 }
 .wrap-group--on .wrap-group-content > * > :last-child .instance-row,
 .wrap-group--on .wrap-group-content > * > :last-child .instance-content,
+.wrap-group--on .wrap-group-content > * > :last-child .instance-textcol,
 .wrap-group--on .wrap-group-content > * > :last-child .instance-body,
 .wrap-group--on .wrap-group-content > * > :last-child .textblock-card {
   display: block !important;
@@ -4311,6 +4328,14 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    and shrink-wrapped to min-content (~one word wide → an 8000px-tall sliver).
    Force the body chain back to full width so the prose fills the host and the
    pseudo-float can shape it into the L. */
+/* `.instance-textcol` JOINED THIS CHAIN LATER (the ModuleInstance restructure that
+   moved the label in beside the fields) and the wrap rules never learned about it.
+   It is a FLEX container, so it shrink-wrapped to ~157px of a 441px host and its
+   BOX sat beside the float for its whole height — the prose could never reclaim
+   full width below the image, which is exactly the failure the comment above
+   describes. Measured on the badgerherald article: lines beside the float reached
+   x=191 and lines BELOW it reached x=192, against a host whose right edge is 473. */
+.wrap-group--on .wrap-group-content > * > :last-child .instance-textcol,
 .wrap-group--on .wrap-group-content > * > :last-child .instance-body,
 .wrap-group--on .wrap-group-content > * > :last-child .textblock-card,
 .wrap-group--on .wrap-group-content > * > :last-child .doc-editor-wrapper,
