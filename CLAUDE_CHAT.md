@@ -3498,3 +3498,24 @@ Then, after those four shipped and were verified on prod (2026-09-16, afternoon)
 > thing with all drag handles. also we still need to make sure the image artifacts expand button is
 > opening the image in our viewer element we have. give it a pointer cursor on hover. and get rid of
 > the expand button (it should just be clicking on the image opens it in the viewer)"**
+
+**2026-09-16 13:47** — "also we should either grabbing a wikipedia logo or the first image for
+wikipedia article bookmarks" / "the cover image i mean" — a wikipedia bookmark's COVER should fall
+back to the article's first image (or the Wikipedia logo) rather than coming up blank.
+
+**2026-09-16 13:47** — "ik im giving alot of tasks but make sure you remember them"
+
+**2026-09-16 13:40** — "also on the cover images of occurances like bookmarks, it shouldnt have the
+expand button on it either (the hover one)" — shipped in `62f9443a` (the button was deleted from
+`ArtifactCard` itself, so it is gone from every card kind, not just images).
+
+**2026-09-16 13:44** — "we also need to add in a button on the browsers magic and reading views. to
+add as a page to our grid. (outside of the bookmark occurance). and also i clicked on a wikipedia
+bookmark and it didnt have any images brought over in reader mode or magic mode"
+
+**2026-09-16 13:54** — "we also need an audit on jonah and make sure he can do all this stuff if i
+ask (make bookmark occurances out of a link or make its own page over it (like the eminem wikipedia
+article we made with Jonah). we need to make sure any functionality we added in, jonah can utilize"
+
+**2026-09-16 14:04** — "also reddit links arent being able to resolve with our browser. raindrops
+preview allows you to open it inline in web. why cant we."

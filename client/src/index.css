@@ -1552,7 +1552,19 @@ body[data-clipboard-active="true"] {
    (image.tmdb.org, pinimg, …), so a canvas luminance read would taint and throw
    — the backdrop can only be answered by the compositor, which is what this is.
    HONEST LIMIT: on a mid-tone or saturated backdrop the inverse is a complement
-   rather than black or white — visible, but hued. */
+   rather than black or white — visible, but hued.
+
+   SPECIFICITY IS LOAD-BEARING HERE. `.module-drag-handle svg` (0,1,1) further
+   down sets `color: var(--drag-handle-color)` — the PREVIOUS attempt at this
+   same problem (a white glyph vanishing on a cream panel). It beat a bare
+   `.radial-handle-icon` (0,1,0), so `#fff` never applied: on most skins the
+   inherited cream still inverts acceptably, but Stardew sets that token to
+   `#14100a`, and differencing near-black against a photo leaves the icon all
+   but invisible. Measured on prod before this selector was widened. The token
+   rule is now moot for the icon and kept only for handles that render no
+   `.radial-handle-icon`. */
+.module-drag-handle .radial-handle-icon,
+[data-dnd-handle] .radial-handle-icon,
 .radial-handle-icon {
   color: #fff;
   mix-blend-mode: difference;
