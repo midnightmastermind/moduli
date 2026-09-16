@@ -103,6 +103,24 @@ describe("a bookmark opens inside the spread", () => {
     expect(el.querySelector(".artifact-thumb"), "no thumbnail to click").toBeTruthy();
   });
 
+  // THE EXPAND BUTTON IS A SECOND WAY IN, AND IT WENT SOMEWHERE ELSE.
+  // User, 2026-09-16: *"also make sure that the expand for the images, opens it
+  // in the viewer"*. Measured on prod first — clicking it on an image in a
+  // Magic-rendered article produced `.artifact-fullscreen` 1 / `.artifact-spread`
+  // 0, i.e. the in-place lightbox. The card's own click already opened the
+  // viewer, so this button was the one affordance on a picture that did not.
+  it("the expand button on an image opens the VIEWER, not the in-place lightbox", () => {
+    const el = mount(IMAGE, { occurrence: { ...OCC, moduleId: "m-img" } });
+    const btn = el.querySelector(".artifact-thumb-expand-hint");
+    expect(btn, "no expand affordance to click").toBeTruthy();
+    fireEvent.click(btn);
+    expect(openArtifactSpread).toHaveBeenCalledTimes(1);
+    expect(openArtifactSpread.mock.calls[0][0]).toBe("occ-1");
+    // The lightbox PORTALS to document.body, so a query scoped to the card
+    // would read null whether or not it opened — this has to ask the document.
+    expect(document.querySelector(".artifact-fullscreen"), "it opened the lightbox instead").toBeNull();
+  });
+
   // THE CONTROL. Without it, "the spread renders a bookmark" is also satisfied
   // by a spread that renders the reader for EVERY kind.
   it("an IMAGE in the spread is untouched — it still draws its own picture", () => {

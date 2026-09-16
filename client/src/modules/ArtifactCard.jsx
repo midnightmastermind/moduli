@@ -223,6 +223,31 @@ export default function ArtifactCard({ module, label, occurrence }) {
     openArtifactSpread(occurrence.id, e.currentTarget);
   }, [occurrence?.id, toggle]);
 
+  // AND THE EXPAND BUTTON OPENS IT TOO (user, 2026-09-16: *"also make sure that
+  // the expand for the images, opens it in the viewer"*).
+  //
+  // Measured on prod before this existed, clicking it on an image in a
+  // Magic-rendered article: `.artifact-fullscreen` 1, `.artifact-spread` 0 — the
+  // in-place lightbox, never the viewer. The card's own click has opened the
+  // viewer since 2026-08-16, so this button was the ONE affordance on a picture
+  // that did not, which is exactly the one a hand reaches for.
+  //
+  // THE IN-PLACE EXPAND IS NOT LOST, which is why this re-points the button
+  // rather than removing it: `.artifact-spread-body .artifact-thumb-expand-hint`
+  // is `display: none`, so this button never renders INSIDE the viewer — and
+  // there `openViewer` already routes a tile's click to `toggle`. "Grow it where
+  // it sits" survives exactly where it is the useful gesture, and the guard
+  // below keeps that true even if the button is ever shown in a spread again.
+  //
+  // THE ORIGIN IS THE CARD, NOT THE BUTTON. `openArtifactSpread` grows the
+  // overlay out of the rect it is handed; handing it a 16px icon makes the
+  // viewer erupt from the corner of the picture instead of from the picture.
+  const expandToViewer = useCallback((e) => {
+    e?.stopPropagation();
+    if (e?.currentTarget?.closest?.(".artifact-spread") || !occurrence?.id) { toggle(e); return; }
+    openArtifactSpread(occurrence.id, cardRef.current || e.currentTarget);
+  }, [occurrence?.id, toggle]);
+
   // Resolved at CALLBACK time through the non-subscribing getter, so a board of
   // 1,467 bookmark cards does not re-render on every occurrence write — the
   // same reason `openViewer` above reads its parent lazily.
@@ -580,15 +605,17 @@ export default function ArtifactCard({ module, label, occurrence }) {
         </div>
       )}
       {renderThumbnail(kind, src, label, thumb256Src, coverSrc)}
-      {/* The in-place expand keeps its own affordance — the card's click now
-          opens the viewer, and losing "grow it where it sits" entirely would be
-          taking a behaviour away rather than adding one. */}
+      {/* This button opens the VIEWER (see `expandToViewer`). It used to run the
+          in-place lightbox, which made it the only affordance on a picture that
+          did NOT go where the card's own click goes. The label said "Expand
+          here" and that is now the wrong promise, so it moved with the wiring —
+          a control whose words outlive its behaviour is worse than no control. */}
       <button
         type="button"
         className="artifact-thumb-expand-hint"
-        title="Expand here"
-        aria-label="Expand here"
-        onClick={toggle}
+        title="Open in the viewer"
+        aria-label="Open in the viewer"
+        onClick={expandToViewer}
         onPointerDown={(e) => e.stopPropagation()}
       >
         <Maximize2 size={12} />

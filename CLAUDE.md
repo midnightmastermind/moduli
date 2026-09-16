@@ -6,6 +6,71 @@
 
 ---
 
+### 2026-09-16 (2) — TWO OF THE FOUR WERE ALREADY FIXED, and the border is settled by COLOUR
+
+Picked up the other account's session, which hit its limit at 11:57 **mid-verification** — its last
+act was cropping a screenshot of the drag handle it had just changed, and it never saw the result.
+Four requests were open (`CLAUDE_CHAT.md`, 2026-09-16). All four were measured on prod before
+anything was edited, and **only one was still a live defect.**
+
+**THE QUOTE BORDER AND THE LAST TEXTBLOCK'S BOTTOM BORDER WERE BOTH REPAIRED BY `4a0708c4`, which
+shipped 19 MINUTES AFTER the report and nobody ever looked at.** That commit scoped the notch's
+border and clip to the host's OWN box (`:not(.instance-row *)`); before it every NESTED row was
+clipped in its own coordinate space, which is what cut the quote AND ate the last textblock's edge.
+
+**THE BORDER IS PROVEN BY COLOUR, NOT BY SQUINTING AT A CROP.** Each shot was taken so the row's
+bottom edge lands at y=60, and the declared border colour is `rgb(70,56,52)`:
+```
+y=58   rgb(49, 36, 28)    the card fill
+y=59   rgb(70, 56, 52)    distance 0 from the border colour   <- PAINTED
+y=60   rgb(29, 25, 21)    the page behind it
+```
+The neighbouring textblock shows the same signature at its own edge, so this is the border rather
+than a gradient or the panel bar below it. *"There is a line there" read off a 458px crop is an
+opinion; a pixel's distance from the declared colour is not.*
+
+**THE HANDLE IS WHITE ON A DISC AND THE "HIGHLIGHT" IS GONE**, measured over the real photo:
+`color rgb(255,255,255)`, the `radial-handle` at `rgba(0,0,0,0.5)` and 50% radius, **`filter: none`,
+`text-shadow: none`** — the blur that wrapped every thin stroke and read as a stray highlight is not
+there. Screenshotted and looked at. **Worth knowing before the next report:** that rule is scoped to
+the FLOATED neighbour, so the article's other three images keep theme ink — measured, their handles
+sit at x=56 against the float's x=219, i.e. in the page gutter BESIDE the picture rather than on it,
+which is exactly what the scoping was written for.
+
+**THE ONE REAL GAP WAS THE EXPAND BUTTON, and prod said so before a line changed:** clicking it on an
+image produced **`.artifact-fullscreen` 1 / `.artifact-spread` 0** — the in-place lightbox. The card's
+own click has opened the viewer since 2026-08-16, so this was **the single affordance on a picture
+that did not go where the picture goes**, which is the one a hand reaches for.
+- `expandToViewer` opens the spread, and **the origin is the CARD, not the button** —
+  `openArtifactSpread` grows the overlay out of the rect it is handed, and a 16px icon would make the
+  viewer erupt from a corner instead of from the photo.
+- **The in-place expand is NOT lost**, which is why this re-points the button rather than removing it:
+  `.artifact-spread-body .artifact-thumb-expand-hint` is `display: none`, so it never renders INSIDE
+  the viewer — and there `openViewer` already routes a tile's click to `toggle`. "Grow it where it
+  sits" survives exactly where it is the useful gesture.
+- **The label moved with the wiring** ("Expand here" -> "Open in the viewer"). A control whose words
+  outlive its behaviour is worse than no control.
+
+**AND I SHIPPED THE CALLBACK WITHOUT WIRING IT.** The handler landed while the button still read
+`onClick={toggle}` — caught only because the test was written FIRST and failed for its own reason.
+A/B'd with the mutation asserted to land: reverting that one attribute fails **exactly 1 of 14**.
+
+**MY OWN PROBE LIED ONCE, AND ITS OUTPUT IS WHAT CAUGHT IT.** `shoot(-1 + 0, …)` collided with the
+`i === -1` sentinel I had given the same function for "the floated image row", so the shot labelled
+"the last textblock" was a SECOND COPY of that image row — **rects identical to the pixel** is what
+gave it away. *A probe that labels its own target is only as trustworthy as the labelling.*
+
+**REPORTED, NOT CLAIMED:** clicking the image CARD (not the button) inside the Magic doc opened
+NEITHER overlay. That may be the probe's click point rather than a defect — one mouse click at 75% of
+the card's height, with nothing isolating what received it — so it is written down rather than fixed
+on a guess.
+
+4,366 client tests across 371 files, build clean, lint 0 `no-undef` on both edited files. **Probe
+debris: none** — 0 occurrences touched and 0 created on poms grid across 45 minutes, so the
+address-bar + Magic path plans without writing.
+
+---
+
 ### 2026-09-16 — THE PROSE NEVER WRAPPED UNDER THE PICTURE, and one element is why
 
 User, on the Magic render of the badgerherald article: *"the quotes are being cut off"*, *"the
