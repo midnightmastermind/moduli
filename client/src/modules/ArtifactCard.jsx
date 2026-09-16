@@ -242,11 +242,26 @@ export default function ArtifactCard({ module, label, occurrence }) {
   // THE ORIGIN IS THE CARD, NOT THE BUTTON. `openArtifactSpread` grows the
   // overlay out of the rect it is handed; handing it a 16px icon makes the
   // viewer erupt from the corner of the picture instead of from the picture.
+  // THE VIEWER CAN ONLY OPEN AN OCCURRENCE THE REAL STORE HOLDS, and the first
+  // version of this shipped without that guard.
+  //
+  // `ArtifactSpreadHost` resolves its owner as `occurrencesById[req.occurrenceId]`
+  // off the LIVE store. A Magic/Reader row is a PLANNED occurrence that exists
+  // only inside an isolated `parentState` (`readerStateFromPlan`), so that lookup
+  // finds nothing, `files` comes back empty and the overlay never renders.
+  // Measured on prod after deploying the unguarded version: `.artifact-spread` 0
+  // AND `.artifact-fullscreen` 0 — a DEAD button, strictly worse than the
+  // lightbox it replaced.
+  //
+  // So the lightbox is not a second-best fallback here: in the reader it is the
+  // only thing that CAN open, which is the same reason `openViewer` routes a
+  // click inside a spread to `toggle`.
   const expandToViewer = useCallback((e) => {
     e?.stopPropagation();
-    if (e?.currentTarget?.closest?.(".artifact-spread") || !occurrence?.id) { toggle(e); return; }
+    const live = occurrence?.id ? getOcc?.(occurrence.id) : null;
+    if (e?.currentTarget?.closest?.(".artifact-spread") || !live) { toggle(e); return; }
     openArtifactSpread(occurrence.id, cardRef.current || e.currentTarget);
-  }, [occurrence?.id, toggle]);
+  }, [occurrence?.id, toggle, getOcc]);
 
   // Resolved at CALLBACK time through the non-subscribing getter, so a board of
   // 1,467 bookmark cards does not re-render on every occurrence write — the

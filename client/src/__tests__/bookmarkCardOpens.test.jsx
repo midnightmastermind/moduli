@@ -20,9 +20,15 @@ import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
 
+// Which occurrence ids the REAL store holds. A Magic/Reader row is a PLANNED
+// occurrence that lives only in an isolated parentState, so the store does NOT
+// hold it — and that difference is exactly what the expand button must respect,
+// because the spread host resolves its owner from this map.
+const LIVE_OCCS = new Set();
+
 const STATE = {
   dispatch: vi.fn(), socket: {}, grid: {}, state: { grid: {} },
-  getOcc: () => null, getOccMap: () => ({}), foldersById: {},
+  getOcc: (id) => (LIVE_OCCS.has(id) ? { id } : null), getOccMap: () => ({}), foldersById: {},
   modulesById: {}, viewsById: {}, occurrencesById: {}, fieldsById: {},
   // The app's getState() returns the raw reducer state, which carries `views`
   // as an ARRAY and no `viewsById`. Reading views off it is what left the open
@@ -82,7 +88,7 @@ const mount = (module, { inSpread = false, occurrence = OCC } = {}) => {
     : card).container;
 };
 
-beforeEach(() => { openBookmarkInPanel.mockClear(); openArtifactSpread.mockClear(); });
+beforeEach(() => { openBookmarkInPanel.mockClear(); openArtifactSpread.mockClear(); LIVE_OCCS.clear(); });
 
 describe("a bookmark opens inside the spread", () => {
   it("tapping the cover opens the spread — the gesture that was already there", () => {
@@ -110,6 +116,7 @@ describe("a bookmark opens inside the spread", () => {
   // 0, i.e. the in-place lightbox. The card's own click already opened the
   // viewer, so this button was the one affordance on a picture that did not.
   it("the expand button on an image opens the VIEWER, not the in-place lightbox", () => {
+    LIVE_OCCS.add("occ-1");   // a real board card: the store holds this occurrence
     const el = mount(IMAGE, { occurrence: { ...OCC, moduleId: "m-img" } });
     const btn = el.querySelector(".artifact-thumb-expand-hint");
     expect(btn, "no expand affordance to click").toBeTruthy();
@@ -119,6 +126,20 @@ describe("a bookmark opens inside the spread", () => {
     // The lightbox PORTALS to document.body, so a query scoped to the card
     // would read null whether or not it opened — this has to ask the document.
     expect(document.querySelector(".artifact-fullscreen"), "it opened the lightbox instead").toBeNull();
+  });
+
+  // THE OTHER HALF, AND IT IS THE ONE THAT SHIPPED BROKEN. In Magic/Reader the
+  // row is a PLANNED occurrence the real store does not hold, so the spread host
+  // can never resolve it. The first version of this feature reached for the
+  // viewer anyway and prod measured `.artifact-spread` 0 / `.artifact-fullscreen`
+  // 0 — the button did NOTHING, worse than the lightbox it replaced. Here the
+  // lightbox is not a consolation prize; it is the only thing that can open.
+  it("on a PLANNED (reader) occurrence it falls back to the lightbox — never a dead button", () => {
+    // LIVE_OCCS deliberately left empty: the store does not hold this row.
+    const el = mount(IMAGE, { occurrence: { ...OCC, moduleId: "m-img" } });
+    fireEvent.click(el.querySelector(".artifact-thumb-expand-hint"));
+    expect(openArtifactSpread, "it opened a viewer that cannot resolve this row").not.toHaveBeenCalled();
+    expect(document.querySelector(".artifact-fullscreen"), "nothing opened at all").toBeTruthy();
   });
 
   // THE CONTROL. Without it, "the spread renders a bookmark" is also satisfied
