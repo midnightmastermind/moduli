@@ -6,6 +6,73 @@
 
 ---
 
+### 2026-09-16 — THE PROSE NEVER WRAPPED UNDER THE PICTURE, and one element is why
+
+User, on the Magic render of the badgerherald article: *"the quotes are being cut off"*, *"the
+textblock wraps texts isnt wrapping. the text itself should wrap around that image occurance"*,
+*"the lines in the wrap … it needs to shift down 2px"*, and *"can you make the drag handle be white
+for dark images … cause that was the issue, i couldnt see the drag handle"*. Four reports, four
+causes, all measured on screen before anything changed.
+
+**THE WRAP WAS DEAD AND ONE CLASS NAME EXPLAINS IT.** The wrap CSS deliberately neutralises every
+formatting context down the host chain — its own comment says *"this is why the L never happened"* —
+forcing `.instance-row`, `.instance-content`, `.instance-body` and `.textblock-card` to `display:
+block`. **`.instance-textcol` joined that chain later** (the ModuleInstance restructure that moved
+the label in beside the fields) and was never added to the list. Being FLEX it shrink-wrapped, so
+its BOX sat beside the float for its whole height and the line boxes could never flow under it.
+```
+                           before      after
+.instance-textcol width    157px       423px
+lines BESIDE the float     right 191   right 197   (the float starts at x=213)
+lines BELOW  the float     right 192   right 458   (the host's edge is 473, over 35 lines)
+```
+That second row is the whole report: the text stayed in a 180px column all the way down instead of
+reclaiming the page under the picture. **CSS that outlived the DOM it was written for**, which this
+file records repeatedly — and the only reason it was found is that walking the host chain printed
+every element's width instead of trusting the rule to still match.
+
+**THE 2px WAS ONE MARGIN, NOT A FUDGE.** The notch is cut at `--notch-y: 0` — the HOST box's own
+top — so the whole L is only aligned if the host and the float start at the same y. They did not:
+```
+float top 387.5   host box top 389.5   ->  the notch began 2px BELOW the picture
+notch bottom      16.2px under the float, where BOTTOM_GAP says 14
+```
+So a 2px sliver of the host's top border ran across into the picture's footprint, and the bottom
+bar's line sat 2px low. The difference is the host `.instance-wrap`'s own `margin-top: 2px` (the
+float's is 0) — the border rule had already zeroed the host `.instance-row`'s margin and never
+covered the wrap. **Zeroing it aligns both ends at once, which is why there is no `+2` anywhere in
+the JS:** after it, `notchTop - floatTop = 0` and the bottom gap is 14.2.
+
+**THE QUOTES WERE RAW MARKDOWN, AND THE FIX BELONGS IN THE RENDERER.** Two of that article's
+blockquotes are a single markdown link, stored verbatim — so the card printed
+`[Bodies of two Madison men…](https://…)`, and a URL has no break opportunity, so in a narrow wrap
+column it overflowed and clipped. **Stripping the link was my first fix and it was wrong** — the
+user: *"those specific quotes are links on the inside that arent be resolved to a link either"*. So
+the importer now strips only bold/italic/code and KEEPS `[text](url)`, and `linkifyText` resolves
+both markdown links and bare URLs. **Putting the markdown pass in the RENDERER is what also repairs
+quotes ALREADY imported**, whose stored text still carries the raw syntax; an importer-only change
+helps nothing that exists. Measured after: `rawMarkdown false · links 1 · clipped false`.
+
+**AND KEEPING THE LINK REINTRODUCED A HAZARD THE STRIP HAD HIDDEN.** The attribution split reads a
+trailing em-dash clause as "— Author", and a dash inside a URL then tore the quote in half
+(`[Bodies buried](https://x.com/a` with an author of `b)`). It masks each link to one opaque token
+before splitting. **The same change broke annotations and the full suite caught it:**
+`ANNOTATION_RE` keys on the BOLD marker `**[label]**`, which the strip removes — so every annotation
+read as an ordinary quote and had its tail torn off as an attribution. The marker is detected on the
+RAW text now. *A strip that runs before a detector is a change to that detector.*
+
+**THE HANDLE WAS NEVER MISSING — IT WAS THE THEME'S INK ON A DARK PHOTO.** That is also what the
+retracted "the images aren't draggable" report was: measured, the handle's box is x 219-241 inside
+an image spanning 214-472, fully opaque, simply invisible. It is white with a dark halo over an
+image card now — **white ALONE is just as lost on a bright photo, and this grid has both** — and
+scoped to `data-kind="image"` so the quote card, which is a light box rather than a photo, keeps the
+theme ink.
+
+Every number above re-measured on prod after deploying. 2,217 server tests across 208 files.
+**Not done:** the wrap was verified by geometry and a crop, not by dragging a picture by that handle.
+
+---
+
 ### 2026-09-15 (6) — the images are ON SCREEN; and BBC serves a comma the split could not see
 
 Closing the one gap (5) left open — *"nobody has watched it render"* — which it could not close
