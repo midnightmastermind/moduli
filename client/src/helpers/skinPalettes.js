@@ -98,6 +98,26 @@ export const BLUEPRINT_PALETTE = {
   sourceLightRange: [22, 58],
 };
 
+/**
+ * Stardew Night — hue anchors read off the moonlit-mountains art the user
+ * saved (2026-09-16), sampled rather than invented: sky indigo #222240, lit
+ * mountain teal #285c67, cloud lavender #adb3c5, moon cream #dbd1c1, plus the
+ * barn crimson and ember wood a farm still has at night.
+ *
+ * THE BAND IS DARKER AND LESS SATURATED THAN DAY STARDEW'S, because the ground
+ * is. A stored colour here sits translucent over an indigo panel, not an opaque
+ * cream one: a day-bright 70% lightness would glow like a sign, and the day
+ * palette's saturation reads as neon against a night sky.
+ */
+export const STARDEW_NIGHT_PALETTE = {
+  id: "stardew-night",
+  hues: [345, 22, 42, 140, 172, 196, 236, 268],
+  satRange: [30, 58],
+  lightRange: [34, 58],
+  huePull: 0.4,
+  sourceLightRange: [22, 58],
+};
+
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 
 /** Circular distance between two hues, in degrees (0-180). */

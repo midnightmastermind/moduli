@@ -22,7 +22,7 @@
 // and the stored-colour half being one source is the whole reason SURFACE_ALPHA
 // was centralised in 2026-08-17.
 import { useEffect } from "react";
-import { getSkin, resolveSkinId, DEFAULT_SKIN } from "../helpers/skins";
+import { getSkin, resolveSkinId, DEFAULT_SKIN, LIGHT_THEMES } from "../helpers/skins";
 import { setActiveSkin, setThemeInk } from "../helpers/StyleHelpers";
 
 const STORAGE_KEY = "moduli-skin";
@@ -43,7 +43,7 @@ export function applySkin(skin) {
     // The `dark` class is what Tailwind's dark: variants read, and it is set
     // alongside data-theme everywhere else. A skin that pins a LIGHT theme has
     // to clear it or half the app stays in dark mode.
-    const dark = !/light|stardew/.test(skin.theme);
+    const dark = !LIGHT_THEMES.has(skin.theme);
     el.classList.toggle("dark", dark);
   }
   // EVERY VALUE THE SKIN DECLARES IS PUBLISHED FROM HERE, not just the alpha.

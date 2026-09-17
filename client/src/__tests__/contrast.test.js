@@ -116,7 +116,7 @@ describe("every theme's ink clears WCAG AA on its own surfaces", () => {
 
   const base = blockOf(":root");
   const THEMES = ["moduli-dark", "moduli-light", "midnight",
-                  "vintage-light", "vintage-dark", "stardew"];
+                  "vintage-light", "vintage-dark", "stardew", "stardew-night"];
 
   // A translucent SURFACE has to be flattened over the page first, or ink and
   // background are compared as two nearly identical colours and the pair reads

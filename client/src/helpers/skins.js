@@ -18,7 +18,7 @@
 // A skin may PIN a theme (`theme`). Without that, a light theme under a dark
 // skin is reachable in two clicks and reads as broken.
 
-import { STARDEW_PALETTE, BLUEPRINT_PALETTE } from "./skinPalettes";
+import { STARDEW_PALETTE, STARDEW_NIGHT_PALETTE, BLUEPRINT_PALETTE } from "./skinPalettes";
 
 export const DEFAULT_SKIN = "retro-rainbow";
 
@@ -130,6 +130,38 @@ export const SKINS = [
     palette: STARDEW_PALETTE,
   },
 
+  // ── Stardew Night ────────────────────────────────────────────────────────
+  // User, 2026-09-16: *"lets move on to making a stardew valley darkmode theme
+  // using the image i just saved to the screenshots folder as the background"*
+  // — the moonlit mountains.
+  //
+  // A SIBLING OF STARDEW, NOT A MODE OF IT. Day Stardew is a LIGHT theme with a
+  // stack of parchment-specific overrides (near-black ink, mint headers forced
+  // dark) that would all be wrong on a night sky. What the two share is the
+  // LETTERING and the type sizes, and index.css gives both skins those rules.
+  {
+    id: "stardew-night",
+    label: "Stardew Night",
+    description: "Moonlit mountains, indigo sky, moon-cream ink",
+    swatches: ["#222240", "#285c67", "#dbd1c1"],
+    // Pinned for the same reason day Stardew is — its tokens are tuned to this
+    // wallpaper, and another theme under it would put the wrong ink on the sky.
+    theme: "stardew-night",
+    wallpaper: 'url("/stardew-night-wallpaper.webp")',
+    // The frame Stardew puts around every panel, in the wood of a dark room.
+    band: "linear-gradient(90deg, #4a3322 0%, #7a5634 50%, #4a3322 100%)",
+    // The art is ALREADY dark, so it needs far less dimming than day Stardew's
+    // bright sky (0.52): the scrim here is protecting the moon and the clouds,
+    // not the whole sheet.
+    wallpaperScrim: 0.36,
+    headerScrim: 0.55,
+    panelScrim: 0.55,
+    // Translucent, like every wallpaper skin the user has kept.
+    surfaceAlpha: 0.32,
+    storedColorAlpha: 0.36,
+    palette: STARDEW_NIGHT_PALETTE,
+  },
+
   // ── Blueprint ────────────────────────────────────────────────────────────
   // A custom skin for a second grid (user, 2026-08-19: "on the claude grid,
   // change up the theme … custom"), and deliberately the one that proves the
@@ -166,6 +198,14 @@ export const SKINS = [
     palette: BLUEPRINT_PALETTE,
   },
 ];
+
+/**
+ * Themes a skin may pin that are LIGHT. The `dark` class (Tailwind's `dark:`
+ * variants) follows this list rather than the theme's NAME: it used to be
+ * `!/light|stardew/.test(theme)`, which would have read "stardew-night" as a
+ * light theme and cleared the class under a night sky.
+ */
+export const LIGHT_THEMES = new Set(["moduli-light", "vintage-light", "stardew"]);
 
 export function getSkin(id) {
   return SKINS.find(s => s.id === id) || SKINS.find(s => s.id === DEFAULT_SKIN);

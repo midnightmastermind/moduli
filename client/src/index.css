@@ -8005,6 +8005,147 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 }
 
 
+/* =============================================================================
+   SKIN + THEME: Stardew Night (user, 2026-09-16)
+
+   The moonlit-mountains art as a DARK sibling of day Stardew. Every colour
+   below was sampled off the image, not invented:
+
+     sky top #211c28 · sky mid #222240 · sky low #22254f   -> backgrounds/surfaces
+     moon #dbd1c1                                          -> the ink
+     cloud #adb3c5                                         -> secondary ink, grid lines
+     lit mountain #285c67, brightened                      -> primary / pill accent
+
+   It shares day Stardew's LETTERING and type-size rules (see the selector lists
+   those rules now carry) and NONE of its parchment overrides — those force
+   near-black ink, which is exactly wrong on a night sky.
+   ============================================================================= */
+:root[data-skin="stardew-night"] {
+  --grid-wallpaper: url("/stardew-night-wallpaper.webp");
+  --grid-wallpaper-scrim: 0.36;
+  --grid-surface-a: 0.32;
+  --retro-rainbow: linear-gradient(90deg, #4a3322 0%, #7a5634 50%, #4a3322 100%);
+  --retro-header-scrim: 0.55;
+  --retro-panel-scrim: 0.55;
+  --font-display: "Silkscreen", "VT323", var(--font-mono);
+  --font-mono: "VT323", "JetBrains Mono", ui-monospace, monospace;
+  /* The teal textblock tint in the bare :root was chosen for a dark ground and
+     reads fine here — but indigo is the sky, so the doc tints follow it. */
+  --doc-container-tint: rgba(34, 34, 64, 0.22);
+  --doc-container-tint-hover: rgba(40, 92, 103, 0.22);
+  --doc-textblock-tint: transparent;
+  --doc-textblock-tint-hover: rgba(40, 92, 103, 0.18);
+}
+
+[data-theme="stardew-night"] {
+  --scrim: rgba(8, 8, 20, 0.55);
+  --menu-shadow-color: rgba(4, 4, 14, 0.55);
+  --menu-shadow-1: 0 6px 16px rgba(4, 4, 14, 0.40);
+  --menu-shadow-2: 0 10px 30px rgba(4, 4, 14, 0.50);
+  --menu-shadow-3: 0 18px 50px rgba(4, 4, 14, 0.60);
+
+  /* Value-state signal trio — moonlight blue / mountain teal-green / ember red */
+  --signal-zero: 128 164 222;
+  --signal-pos: 104 190 150;
+  --signal-neg: 226 112 104;
+  --signal-warn: 236 196 110;
+
+  --occ-card: 34 40 78;
+  --occ-card-a: .38;
+  --occ-card-soft-a: .48;
+  --occ-card-hover-a: .70;
+  --occ-pill: 110 190 175;
+  --occ-pill-text: rgb(156 222 208);
+  --figure-well: 16 16 30;
+
+  /* Backgrounds — the sky, top to horizon */
+  --background-0: 248 30% 10%;
+  --background-1: 248 28% 12%;
+  --background-2: 246 26% 15%;
+
+  /* Surfaces */
+  --surface-0: 240 28% 14%;
+  --surface-1: 240 27% 16%;
+  --surface-2: 238 25% 20%;
+
+  /* Popovers */
+  --popover-0: 248 30% 11%;
+  --popover-1: 248 30% 12%;
+  --popover-2: 246 27% 15%;
+  --popover-foreground: 40 38% 90%;
+
+  /* Inputs */
+  --input-0: 240 24% 17%;
+  --input-1: 240 24% 18%;
+  --input-2: 238 22% 21%;
+
+  /* Overlays */
+  --overlay-0: 248 35% 4%;
+  --overlay-1: 248 35% 5%;
+  --overlay-2: 248 35% 7%;
+
+  /* Borders — cloud-grey, quiet */
+  --border-0: 230 18% 32%;
+  --border-1: 232 18% 26%;
+  --border-2: 230 20% 38%;
+
+  /* Text — moon cream */
+  --foreground-0: 40 32% 86%;
+  --foreground-1: 40 38% 91%;
+  --foreground-2: 226 16% 68%;
+
+  /* Tailwind aliases */
+  --background: var(--background-1);
+  --foreground: var(--foreground-1);
+  --border: var(--border-1);
+  --popover: var(--popover-1);
+  --primary: 170 40% 52%;
+  --primary-foreground: 248 30% 10%;
+  --accent: var(--surface-2);
+  --accent-foreground: var(--foreground-1);
+
+  /* Named aliases */
+  --background2: var(--surface-0);
+  --input2: var(--input-1);
+  --overlay: var(--overlay-0);
+
+  /* Body colors */
+  --body-bg: hsl(var(--background-0));
+  --body-color: hsl(var(--foreground-1));
+
+  --grid-cell-border: hsl(var(--border-0));
+  --grid-line: rgba(173, 179, 197, 0.45);
+
+  /* Semantic tokens */
+  --text-primary: hsl(var(--foreground-1));
+  --text-muted: rgba(232, 224, 206, 0.726);
+  --text-faint: rgba(232, 224, 206, 0.541);
+  --border-default: rgba(232, 224, 206, 0.12);
+  --border-subtle: rgba(232, 224, 206, 0.06);
+  --surface-card: hsl(var(--surface-1));
+  --surface-overlay: rgba(20, 18, 36, 0.92);
+  --input-bg: rgba(232, 224, 206, 0.06);
+  --input-border: rgba(232, 224, 206, 0.14);
+  --accent-blue: #5fbfae;            /* mountain teal = the primary action colour */
+  --accent-blue-hover: #4aa897;
+  /* Cream ink on a mid teal is ~2:1; the sky's own indigo reads instead. */
+  --on-accent: #10121f;
+  --accent-blue-text: #8fd6c8;
+  --accent-blue-bg: rgba(95, 191, 174, 0.16);
+  --accent-blue-border: rgba(95, 191, 174, 0.45);
+  --accent-green-text: #9fd49a;
+  --accent-green-bg: rgba(96, 170, 90, 0.18);
+  --accent-green-border: rgba(96, 170, 90, 0.45);
+  --accent-purple-text: #b9a6e0;     /* twilight violet */
+  --accent-purple-bg: rgba(120, 96, 180, 0.22);
+  --accent-purple-border: rgba(120, 96, 180, 0.50);
+  --danger: #e0675a;
+  --danger-bg: rgba(224, 103, 90, 0.14);
+  --danger-border: rgba(224, 103, 90, 0.35);
+  --danger-text: rgb(240, 175, 165);
+}
+
+
 /* THE HEADING FACE. `--font-display` is declared by the Stardew skin and would
    be read by nothing without this rule — an inert token is a control that does
    nothing, which is the defect this session has spent its time removing. Scoped
@@ -8013,7 +8154,10 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    rather than one. */
 :root[data-skin="stardew"] .page-header,
 :root[data-skin="stardew"] .container-header,
-:root[data-skin="stardew"] .toolbar {
+:root[data-skin="stardew"] .toolbar,
+:root[data-skin="stardew-night"] .page-header,
+:root[data-skin="stardew-night"] .container-header,
+:root[data-skin="stardew-night"] .toolbar {
   font-family: var(--font-display);
 }
 
@@ -8065,7 +8209,10 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 /* (2) — the `#` level only. Inline style, so !important. */
 :root[data-skin="stardew"] .container-header .auto-marquee,
 :root[data-skin="stardew"] .container-header span,
-:root[data-skin="stardew"] .page-header span {
+:root[data-skin="stardew"] .page-header span,
+:root[data-skin="stardew-night"] .container-header .auto-marquee,
+:root[data-skin="stardew-night"] .container-header span,
+:root[data-skin="stardew-night"] .page-header span {
   font-weight: 400 !important;
 }
 
@@ -8076,7 +8223,9 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    375px column with one font does not with another. Only the top level: the
    user was explicit that the others are right. Inline style, so !important. */
 :root[data-skin="stardew"] .container-header[data-heading-level="1"] .auto-marquee,
-:root[data-skin="stardew"] .container-header[data-heading-level="1"] span {
+:root[data-skin="stardew"] .container-header[data-heading-level="1"] span,
+:root[data-skin="stardew-night"] .container-header[data-heading-level="1"] .auto-marquee,
+:root[data-skin="stardew-night"] .container-header[data-heading-level="1"] span {
   font-size: 14px !important;
 }
 
@@ -8095,7 +8244,10 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    children carry their own explicit sizes. */
 :root[data-skin="stardew"] .doc-editor-content,
 :root[data-skin="stardew"] .doc-editor-content p,
-:root[data-skin="stardew"] .textblock-card {
+:root[data-skin="stardew"] .textblock-card,
+:root[data-skin="stardew-night"] .doc-editor-content,
+:root[data-skin="stardew-night"] .doc-editor-content p,
+:root[data-skin="stardew-night"] .textblock-card {
   font-size: 13px;
 }
 /* DISPLAY UP, INPUT DOWN (user: "its display fields that need increase and
@@ -8153,7 +8305,11 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
 :root[data-skin="blueprint"] .field-display,
 :root[data-skin="blueprint"] .field-display *,
 :root[data-skin="blueprint"] .field-input,
-:root[data-skin="blueprint"] .field-input * {
+:root[data-skin="blueprint"] .field-input *,
+:root[data-skin="stardew-night"] .field-display,
+:root[data-skin="stardew-night"] .field-display *,
+:root[data-skin="stardew-night"] .field-input,
+:root[data-skin="stardew-night"] .field-input * {
   font-size: var(--field-font-px, 13px) !important;
 }
 
@@ -8256,6 +8412,7 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
    answers for its own ground rather than hardcoding one. */
 :root[data-skin="stardew"] .textblock-card:not(.textblock-card--inline),
 :root[data-skin="blueprint"] .textblock-card:not(.textblock-card--inline),
+:root[data-skin="stardew-night"] .textblock-card:not(.textblock-card--inline),
 :root[data-skin="retro-rainbow"] .textblock-card:not(.textblock-card--inline) {
   border: 1px solid hsl(var(--border));
   border-radius: 4px;
