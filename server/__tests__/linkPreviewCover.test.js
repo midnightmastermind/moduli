@@ -108,3 +108,47 @@ describe("fetchLinkPreview carries the cover", () => {
     expect(out.cover).toBeUndefined();
   });
 });
+
+// A NEW BOOKMARK IS NAMED THE WAY `0330` NAMES ONE.
+//
+// Measured on the same YouTube video the same afternoon: `0330` (og:title)
+// produced "Jung, Alcoholics Anonymous, And Drug Seeking Behaviour" while
+// `fetchLinkPreview` (raw <title>) produced "- YouTube". So a bookmark saved in
+// the app was about to be labelled with the very shape the migration exists to
+// repair. One shared `bestTitleFrom` now, imported by both.
+describe("fetchLinkPreview names a page the way 0330 does", () => {
+  it("prefers og:title over the tab title", async () => {
+    const out = await fetchLinkPreview("https://www.youtube.com/watch?v=x", {
+      fetchPageHtml: fetcher(html(`
+        <title>- YouTube</title>
+        <meta property="og:title" content="Jung, Alcoholics Anonymous, And Drug Seeking Behaviour">`),
+        "https://www.youtube.com/watch?v=x"),
+    });
+    expect(out.title).toBe("Jung, Alcoholics Anonymous, And Drug Seeking Behaviour");
+  });
+
+  it("falls back to <title> with the site's own name trimmed off the end", async () => {
+    const out = await fetchLinkPreview("https://www.youtube.com/watch?v=x", {
+      fetchPageHtml: fetcher(html(`<title>Futuristic HUD Sound Design - YouTube</title>`),
+        "https://www.youtube.com/watch?v=x"),
+    });
+    expect(out.title).toBe("Futuristic HUD Sound Design");
+  });
+
+  // THE CONTROL: only the SITE's own name, only at the END. A title that
+  // legitimately ends in a dashed clause must survive untouched.
+  it("does not trim a dash that is part of the real title", async () => {
+    const out = await fetchLinkPreview("https://example.com/a", {
+      fetchPageHtml: fetcher(html(`<title>The Egg - A Short Story</title>`)),
+    });
+    expect(out.title).toBe("The Egg - A Short Story");
+  });
+
+  it("still decodes entities, which is why this function existed", async () => {
+    const out = await fetchLinkPreview("https://badgerherald.com/a", {
+      fetchPageHtml: fetcher(html(`<title>UW&#0039;s labyrinth &amp; tunnels</title>`),
+        "https://badgerherald.com/a"),
+    });
+    expect(out.title).toBe("UW's labyrinth & tunnels");
+  });
+});

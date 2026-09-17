@@ -15,6 +15,7 @@
 // "could not reach it at all", which the caller reports.
 
 import { coverFromHtml } from "./pageCover.js";
+import { bestTitleFrom } from "./pageTitle.js";
 import { decodeEntities } from "./htmlEntities.js";
 
 /** The page's own name, or "" — same extractor `import_url` already uses. */
@@ -90,7 +91,11 @@ export async function fetchLinkPreview(url, { fetchPageHtml }) {
     return {
       ok: true,
       url: finalUrl,
-      title: titleFromHtml(fetched?.html) || hostLabel(finalUrl) || finalUrl,
+      // `bestTitleFrom`, NOT `titleFromHtml` — this title becomes a bookmark's
+      // LABEL, so it wants what the page calls itself (og:title), not what its
+      // tab says. `titleFromHtml` stays exported for the reader header, which
+      // is a different question. See utils/pageTitle.js.
+      title: bestTitleFrom(fetched?.html, finalUrl) || hostLabel(finalUrl) || finalUrl,
       favicon: faviconFromHtml(fetched?.html, finalUrl),
       cover: cover?.url || null,
       coverVia: cover?.via || null,
