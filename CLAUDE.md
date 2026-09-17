@@ -6,6 +6,90 @@
 
 ---
 
+### 2026-09-16 (4) — THE BOOKMARKS YOU MADE NEVER GOT A PICTURE; and REDDIT CANNOT BE READ OR FRAMED
+
+**THE COVER REQUEST WAS NOT ABOUT WIKIPEDIA AND NOT ABOUT A RULE.** User: *"we should either
+grabbing a wikipedia logo or the first image for wikipedia article bookmarks. the cover image i
+mean."* Censused before writing anything:
+```
+bookmark modules          1472
+  with a cover            1464
+  NO cover                   8      <- 3 reddit, 1 wikipedia, 1 youtube, 1 wapo, 1 chopra, 1 blank
+wikipedia bookmarks         39      (38 covered, 1 not)
+```
+**THE FALLBACK BEING ASKED FOR ALREADY SHIPPED.** `coverFromHtml`'s order is og:image → declared
+icon → site favicon — literally *"the first image OR the logo"* — authored for `0201` and measured
+there. **Re-running `0201` today plans ZERO fetches**, and that article answers with an og:image
+right now. Nothing was missing for want of a rule; **nothing ever asked the page.**
+
+**THE GAP IS `0201`'s SCOPE:** it selects `meta.raindropId: /^b:/`, so it has never covered a
+bookmark created IN THE APP. All 8 are app-made. Same reason they are labelled by a bare host —
+`addBookmarkOccurrence` mints `meta: { external: true }` and fetches neither title nor picture.
+
+**SO THE FIX IS THAT SOMETHING ASKS, in the one place already asking.** `fetchLinkPreview` ALREADY
+fetches the page for the title, so the cover costs no second request, and it calls `coverFromHtml`
+rather than re-deriving an order. The mint then enriches **fire-and-forget** — the row is already on
+screen, so a dead site delays nothing.
+
+**AND IT WOULD HAVE SHIPPED COMPLETELY INERT.** `safeEmit(socket, event, data)` takes THREE
+parameters and **DROPS a callback**, so the ack could never fire and nothing would ever have patched
+— with every log line reading correctly. Caught by reading the callee. The test asserts the ACK, not
+the result, so it cannot regress silently; A/B'd, it fails exactly the 3 ack-dependent cases.
+
+**`0332` backfills the 8** using `0201`'s OWN helpers. Dry run named exactly the 7 the independent
+census predicted (8 minus the blank browser). Read back out of Mongo: **1464 → 1470 covered,
+wikipedia 39 of 39**; the 2 left are the blank browser (no url) and chopra (404). **`0330` — already
+written, already idempotent — then re-ran cleanly** now the pages are reachable: 3 labels, including
+`"en.wikipedia.org"` → `"Albert Ellis - Wikipedia"`. No new code for that half.
+
+**A PROBE NOTE: reading the result back with `.find()` returned a DIFFERENT row than the migration
+wrote.** There are TWO Albert Ellis bookmarks at the same URL, one already covered — the first match
+was not the one under test.
+
+**AND VERIFYING ON PROD FOUND A THIRD TWIN.** `link_preview` returned the title **"- YouTube"** for
+a video `0330` had named *"Jung, Alcoholics Anonymous, And Drug Seeking Behaviour"* the same
+afternoon: `0330` prefers `og:title` and trims the site suffix, `titleFromHtml` read `<title>` raw.
+`utils/pageTitle.js` is that rule in one place. **`titleFromHtml` is deliberately LEFT ALONE for the
+Reader/Magic header** — whether that should carry the site suffix is an open decision (09-15 (2)),
+and answering it as a side effect of a label fix would be a silent answer to someone else's
+question. **My own first version re-typed a fourth `decodeEntities` chain whose `&#0?39;` misses
+`&#0039;`** — the shared `utils/htmlEntities.js` exists for exactly that and is imported now.
+
+---
+
+**REDDIT: MEASURED, AND EVERY PATH IS CLOSED. NOT BUILT — it needs a decision.** User: *"reddit
+links arent being able to resolve with our browser. raindrops preview allows you to open it inline
+in web. why cant we."*
+```
+Web (iframe)          x-frame-options: SAMEORIGIN        -> blocked, permanently
+Reader/Magic (www)    8,476 bytes of JS shell            -> 1 word
+Reader/Magic (old.)   302 -> login wall; guarded fetch 403
+Archive (Wayback)     no snapshot for either post
+Raindrop              rdl.ink/render/<url>  200 image/webp 124 KB
+```
+**MY OWN FIRST READING WAS WRONG AND THE BYTE COUNT IS WHY.** `old.reddit.com` returned **322,014
+bytes** where www returned 8,476, and I nearly concluded old.reddit serves real HTML. It is a LOGIN
+PAGE — `<title>` "Welcome to Reddit", 5 reader words, no post title anywhere. *A large response is
+not the right response.*
+
+**RAINDROP IS NOT OPENING IT INLINE — it renders server-side and sends a PICTURE**, which 2026-09-12
+(2) already retracted the proxy theory for and measured. Re-measured today: still a webp.
+
+**SO THE ONLY WORKING ROUTE IS THE ONE THAT ENTRY NAMED AND DID NOT BUILD:** screenshot it
+server-side. **Playwright IS available** (root `package.json`, `^1.58.2`) — *my first probe read only
+`server/` and `client/` package.json and reported it absent.* But it is a **root devDependency for
+e2e tests**, so shipping this means Chromium on the droplet (~300MB + memory), a render endpoint
+with a cache, a Snapshot mode, and an SSRF story (playwright navigates directly, around
+`safeFetchUrl`). That is a heavy, hard-to-reverse change to their production box — and the same
+question was put to the user in 09-11 (2), where they chose to leave Web mode falling back. **Put to
+them again rather than installed unilaterally.**
+
+2,244 server + 4,346 client tests (the 2 incomplete client files are the documented OOM pair,
+verified by running them ALONE). Deployed three times, prod HEAD verified each time, `0332` + `0330`
+applied to poms grid and read back out of Mongo.
+
+---
+
 ### 2026-09-16 (3) — THE ARTICLE'S ONLY PICTURE WAS IN THE BOX WE THROW AWAY, and the previous session measured a different article
 
 Picked up account3's session, which hit its limit at 13:52 mid-investigation. It left **an
