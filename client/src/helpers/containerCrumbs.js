@@ -54,3 +54,39 @@ export function buildContainerCrumbOptions(occurrencesById, modulesById) {
   out.sort((a, b) => (a.label || "").localeCompare(b.label || ""));
   return out;
 }
+
+/**
+ * Every folder in a manifest's tree, labelled with its `Root › Parent › Folder`
+ * chain — the answer to "where does this PAGE go?".
+ *
+ * A page is not placed in a container; it is FILED in a folder, the same tree
+ * the sidebar shows (user, 2026-09-17: *"it shouldnt be containers in there.
+ * this is a page im saving. it should be asking what folder to put it in"*).
+ *
+ * Scoped by reachability from the manifest's `rootFolderId` rather than by a
+ * folder's own manifest key — the Folder schema carries none (strict mode strips
+ * it; see CLAUDE.md 2026-08-23 (2)), so the parent chain is the only honest
+ * answer to "is this folder in this tree". That also leaves out the field and
+ * operation CATEGORY folders, which are never under the root.
+ */
+export function buildFolderCrumbOptions(foldersById, rootFolderId) {
+  const folders = foldersById || {};
+  if (!rootFolderId || !folders[rootFolderId]) return [];
+  const out = [];
+  for (const folder of Object.values(folders)) {
+    if (!folder?.id) continue;
+    const names = [];
+    let cur = folder;
+    const seen = new Set();
+    let reachesRoot = false;
+    while (cur && !seen.has(cur.id) && seen.size < 32) {
+      seen.add(cur.id);
+      names.unshift(cur.name || "Untitled");
+      if (cur.id === rootFolderId) { reachesRoot = true; break; }
+      cur = cur.parentId ? folders[cur.parentId] : null;
+    }
+    if (reachesRoot) out.push({ id: folder.id, label: names.join(" › ") });
+  }
+  out.sort((a, b) => a.label.localeCompare(b.label));
+  return out;
+}

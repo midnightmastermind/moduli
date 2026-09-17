@@ -54,7 +54,8 @@ import {
   normalizeTyped, isScratch,
 } from "../helpers/browserNav";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { buildContainerCrumbOptions } from "../helpers/containerCrumbs";
+import { buildContainerCrumbOptions, buildFolderCrumbOptions } from "../helpers/containerCrumbs";
+import { createImportsDocPage } from "../helpers/importsFolder";
 import DestinationPicker from "../ui/DestinationPicker";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 import { Spinner } from "../components/ui/spinner.jsx";
@@ -349,10 +350,24 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   // BUILT ONLY WHILE THE PICKER IS OPEN — the same discipline the Pomodoro panel
   // took after a profile put this walk at 156ms of an effect window: it walks
   // every occurrence twice to fill a `<select>` nobody has open.
-  const destOptions = useMemo(
-    () => (saving ? buildContainerCrumbOptions(occurrencesById, modulesById) : EMPTY_OPTIONS),
-    [saving, occurrencesById, modulesById],
+  // A BOOKMARK GOES IN A CONTAINER; A PAGE GOES IN A FOLDER (user, 2026-09-17:
+  // *"it shouldnt be containers in there. this is a page im saving. it should be
+  // asking what folder to put it in"* / *"a folder lookup (including Root)"*).
+  // Same picker, two different questions — so the list follows the action.
+  const savingPage = picker === "page";
+  const foldersById = useGridActionsSelector((s) => (savingPage ? s.foldersById : EMPTY_MAP));
+  const manifestsById = useGridActionsSelector((s) => (savingPage ? s.manifestsById : EMPTY_MAP));
+  const grid = useGridActionsSelector((s) => s.state?.grid ?? null);
+  const containerOptions = useMemo(
+    () => (picker === "bookmark" ? buildContainerCrumbOptions(occurrencesById, modulesById) : EMPTY_OPTIONS),
+    [picker, occurrencesById, modulesById],
   );
+  const folderOptions = useMemo(() => {
+    if (!savingPage) return EMPTY_OPTIONS;
+    const rootFolderId = manifestsById?.[grid?.manifestId]?.rootFolderId;
+    return buildFolderCrumbOptions(foldersById, rootFolderId);
+  }, [savingPage, foldersById, manifestsById, grid?.manifestId]);
+  const destOptions = savingPage ? folderOptions : containerOptions;
 
   const saveBookmark = useCallback(() => {
     const parent = dest ? occurrencesById?.[dest] : null;
@@ -591,28 +606,35 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
     const md = reader.markdown;
     if (!md || !socket || !gridId || !dest || adding) return;
     setAdding(true);
+    // Imported with NO parent, then filed: the page wrapper is what lives in the
+    // folder (a folder holds pages, not containers), and it embeds the imported
+    // root — the same shape every other import lands as.
     socket.emit("import_text", {
       content: md,
       format: "markdown",
       gridId,
-      parentId: dest,
+      parentId: null,
       title: pageTitle || "",
       shape: mode,            // "reader" | "magic" — what is on screen
     }, (out) => {
       setAdding(false);
-      if (!out?.ok) {
+      if (!out?.ok || !out.rootOccurrenceId) {
         // Say WHY. A silent no-op after picking a destination reads as the
         // button being broken.
         setSavedTo(`Could not add the page: ${out?.error || "no reply"}`);
         setTimeout(() => setSavedTo(null), 6000);
         return;
       }
+      createImportsDocPage({
+        rootOccId: out.rootOccurrenceId, folderId: dest, grid,
+        dispatch, socket, userId, label: pageTitle || "Imported",
+      });
       setPicker(null);
       const label = destOptions.find((o) => o.id === dest)?.label || "";
       setSavedTo(`Added as a page in ${label}`);
       setTimeout(() => setSavedTo(null), 4000);
     });
-  }, [reader.markdown, socket, gridId, dest, adding, pageTitle, mode, destOptions]);
+  }, [reader.markdown, socket, gridId, dest, adding, pageTitle, mode, destOptions, grid, dispatch, userId]);
   useEffect(() => {
     const md = reader.markdown;
     // Planned only when a text mode is actually on screen. The read itself runs
@@ -808,8 +830,8 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
               options={destOptions}
               value={dest || null}
               onChange={(id) => setDest(id || "")}
-              placeholder="Choose a container…"
-              searchPlaceholder="Search containers…"
+              placeholder={picker === "page" ? "Choose a folder…" : "Choose a container…"}
+              searchPlaceholder={picker === "page" ? "Search folders…" : "Search containers…"}
             />
           </div>
           {/* Disabled until a destination is picked: "where" is the question

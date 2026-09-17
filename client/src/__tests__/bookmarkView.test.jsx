@@ -5,7 +5,7 @@
 // reverts, or a frame that renders where it should not.
 import { describe, it, expect, vi } from "vitest";
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import BookmarkView, { resolveMode, fallbackReason, FRAME_SANDBOX } from "../modules/BookmarkView.jsx";
 
 // Mounting the real surface needs the grid store. The destination picker reads
@@ -23,6 +23,13 @@ globalThis.__bvStore = {
   modulesById: {
     pm1: { id: "pm1", role: "page", label: "Bookmarks" },
     cm1: { id: "cm1", role: "container", label: "Reading" },
+  },
+  // The file tree a PAGE is filed into (2026-09-17).
+  state: { grid: { _id: "g1", manifestId: "man1" } },
+  manifestsById: { man1: { id: "man1", rootFolderId: "root" } },
+  foldersById: {
+    root: { id: "root", name: "Root", parentId: null },
+    codex: { id: "codex", name: "Codex", parentId: "root" },
   },
 };
 vi.mock("../GridActionsContext.js", () => ({
@@ -343,5 +350,61 @@ describe("saving the current address as a bookmark", () => {
     fireEvent.click(screen.getByRole("button", { name: /choose destination/i }));
     expect(screen.getByText("Bookmarks › Reading")).toBeTruthy();
     expect(screen.getByPlaceholderText(/search containers/i)).toBeTruthy();
+  });
+});
+
+// ── ADD AS PAGE FILES INTO A FOLDER (2026-09-17) ──────────────────────────
+// User: *"it shouldnt be containers in there. this is a page im saving. it
+// should be asking what folder to put it in, not what container."* and *"it
+// should be a folder lookup (including Root in there)"*.
+describe("adding what you are reading as a page", () => {
+  const withUrl = {
+    id: "b5", meta: { scratch: true, url: "https://example.com/article" },
+    moduleId: "m5",
+  };
+  const makeSocket = () => {
+    const sent = [];
+    return {
+      sent,
+      connected: true,
+      emit: (ev, payload, ack) => {
+        sent.push({ ev, payload });
+        if (typeof ack !== "function") return;
+        if (ev === "page_reader") ack({ ok: true, usable: true, framable: true, words: 900, markdown: "# Title\n\nBody text.", title: "Title", url: payload.url });
+        if (ev === "import_plan") ack({ ok: true, rootOccurrenceId: "plan", modules: [], occurrences: [] });
+        if (ev === "import_text") ack({ ok: true, rootOccurrenceId: "root-occ" });
+      },
+    };
+  };
+  const open = async (socket) => {
+    render(<BookmarkView occurrence={withUrl}
+      module={{ id: "m5", role: "artifact", kind: "bookmark", fileRef: "https://example.com/article" }}
+      socket={socket} />);
+    fireEvent.click(await screen.findByLabelText("Add as page"));
+    fireEvent.click(screen.getByRole("button", { name: /choose destination/i }));
+  };
+
+  it("offers FOLDERS, Root included, and no containers", async () => {
+    await open(makeSocket());
+    expect(screen.getByPlaceholderText(/search folders/i)).toBeTruthy();
+    expect(screen.getByText("Root")).toBeTruthy();
+    expect(screen.getByText("Root › Codex")).toBeTruthy();
+    // The control: the bookmark picker's container would appear here if the list
+    // did not follow the action.
+    expect(screen.queryByText("Bookmarks › Reading")).toBeNull();
+  });
+
+  it("imports with no parent, then files a page wrapping it in the chosen folder", async () => {
+    const socket = makeSocket();
+    await open(socket);
+    fireEvent.click(screen.getByText("Root › Codex"));
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(socket.sent.some(e => e.ev === "create_page")).toBe(true));
+    const imp = socket.sent.find(e => e.ev === "import_text").payload;
+    expect(imp.parentId).toBeNull();
+    const page = socket.sent.find(e => e.ev === "create_page").payload;
+    expect(page.module.role).toBe("page");
+    expect(page.occurrence.parentId).toBe("codex");
+    expect(page.occurrence.occurrences).toEqual(["root-occ"]);
   });
 });
