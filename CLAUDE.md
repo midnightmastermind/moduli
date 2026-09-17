@@ -225,9 +225,24 @@ doc merely CONTAINS a quote — the exact leak the stacked wrap-group rule cost 
 date. Three A/Bs each fail their own case; verified in the BUILT stylesheet with the old rule at 0
 and a control at 1.
 
-**NOT VERIFIED, and it is the honest gap: nobody has looked at the quote card on screen since.** The
-geometry it was built from is measured, the rules are in the served CSS, and the scope is tested —
-but the new layout has not been re-measured in a browser.
+**AND THE FIRST VERSION OF THE HANDLE RULE SHIPPED INERT — only re-measuring on prod caught it.**
+The marks moved and the handle did not, still at `card-5..17`. The chain is
+`content > textcol > body > card`; I had written `content > body > card`, so the `:has()` matched
+nothing. **`.instance-textcol` arrived with the ModuleInstance restructure that moved the label into
+it, and this is the SECOND selector in this file that level has silently broken** (2026-09-12
+records the first — an artifact-card label-suppression rule pointed at `div:first-child`). The test
+pins the WHOLE chain now, so a missing level fails rather than matching nothing. *A CSS rule present
+in the served stylesheet is not a rule that matches anything.*
+
+**VERIFIED ON PROD, measured and then LOOKED AT** (`screenshots/quote-card-after.png`):
+```
+              before          after
+handle      card-5 .. +17   card+7 .. +29     <- inside the card, off the border
+open mark   card+15 .. +33  card+37 .. +52    <- clear of the handle by 8px
+text        card+45         card+61
+close mark  absent          after the last word, visible
+overlap     2px             none
+```
 
 ### 2026-09-17 — THE PAGE JUMPED BECAUSE A STACKED WRAP GROUP'S CSS REACHED THE GROUPS INSIDE IT; the panel you removed is back; folder pages drag and right-click
 
