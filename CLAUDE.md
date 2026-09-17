@@ -90,6 +90,56 @@ drawer**, so the confirm card and the model choosing these tools are unexercised
 
 ---
 
+### 2026-09-17 (3) — COMPLETED GETS ITS OWN PAGE, and a feed's SCOPE is not its container's PARENT
+
+User: *"could we put tasks completed in a seperate page instead of on the tasks page. that way we
+dont have a bunch of duplicates on the page (through copylink)."*
+
+**THE DUPLICATES ARE (2)'s OWN DOING, and that is the honest framing.** `0334` removed the
+`hide-completed` filters so a ticked task stays in its dimension container — which is what was
+asked for, and which is also what puts the feed's copy on screen BESIDE the original. The feed was
+always minting that copy; until 0334 the original was hidden, so only one of the two was ever
+visible. Moving the container is the other half of that change, not a new problem.
+
+**THE SHARP EDGE, and it is the whole migration:**
+```
+feed.scope: "9zU5UYHq5FMn"      <- the TASKS page
+```
+A feed's SCOPE (what it looks at) and its container's PARENT (where it lives) are independent.
+Re-pointing the scope at the new page would leave the feed looking at a page whose only instances
+are its OWN copies — and `resolveFeedItems` skips anything carrying `meta.feedSourceId` — so it
+would resolve to ZERO and sweep every copy it had. **Completed would empty itself and read as data
+loss.** So the container moves and the scope does not, with a post-write assertion for exactly
+that, because the failure is silent until the next sync.
+
+**MEASURED BEFORE WRITING, and the census is why this is a re-parent rather than a rebuild:**
+```
+operations naming the Completed container   0
+textmaps embedding it                       0
+parents listing it                          1   (the Tasks page)
+```
+
+**AND THE CONTROL IS WHAT MAKES THE VERIFICATION MEAN ANYTHING.** Driving the REAL
+`resolveFeedItems` over a post-migration dump:
+```
+scope on Tasks (shipped)          resolves 9 sources  == the 9 existing copies -> next sync is a no-op
+scope re-pointed at the new page  resolves 0          <- every copy swept
+```
+That second row is the mistake the refusal guards against, demonstrated rather than asserted.
+
+**Two A/Bs, each failing exactly its own case:** dropping the scope refusal fails 2, dropping the
+idempotency guard fails 1 (a re-run would mint a SECOND page). The plan also adopts a page left by
+a partial run rather than minting beside it, and skips the unlist when the Tasks page no longer
+lists the container — both half-applied states, both tested.
+
+**Read back out of Mongo, and then RENDERED on prod:** Tasks page 12 -> 11 children and no longer
+lists Completed; the new `page/board` "Completed" sits in the same Tasks FOLDER carrying
+`filterOverride: {}` (an archive filtered to today is empty every morning), listed by exactly one
+parent, pinned to Panel A beside Tasks; 9 copies intact; scope unmoved. On screen: Tasks draws 8
+dimension containers / 25 rows with no Completed, the new page draws 1 container / 9 rows, 0 page
+errors. pm2 restarted — the warm cache is authoritative for reads and would have re-served the old
+parentage.
+
 ### 2026-09-17 (2) — THE FEED WAS NEVER WHAT HID YOUR TASK; the scrub reached every tab but the one that deleted
 
 Picked up account3's session (limit hit at 08:42 mid-answer on the Keith copy). Four items.
