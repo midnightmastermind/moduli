@@ -6,6 +6,55 @@
 
 ---
 
+### 2026-09-16 (5) — JONAH COULD NOT BOOKMARK A LINK OR MAKE A PAGE FROM ONE; and the link importer never learned the lead image
+
+Picked up the other account's session (hit its limit mid-report). The open queue item was the user's:
+*"we also need an audit on jonah and make sure he can do all this stuff if i ask (make bookmark
+occurances out of a link or make its own page over it ...). we need to make sure any functionality
+we added in, jonah can utilize"*.
+
+**THE AUDIT: HE COULD DO NEITHER.** Jonah reaches the app ONLY through `/api/v1` (his tool pack is
+thin REST wrappers), and there was no REST route that mints a bookmark at all, while `/import/url`
+existed with no tool calling it. Every recent link feature — covers, titles, Reader/Magic shape,
+"+ Page" — was socket-only or client-only.
+
+**AND THE ROUTE HE WOULD HAVE USED HAD DRIFTED FROM THE VIEWER.** `/import/url` and the `import_url`
+socket handler each carried a private `extractMainContent → wikiHtmlToMarkdown` chain, so neither
+got 09-16 (3)'s infobox lead image (Albert Ellis imported with no portrait) and neither took `shape`
+(only Magic was possible). Both now read through `utils/linkImport.readLinkForImport` — the viewer's
+own `readerFromHtml` — and shape through `buildImportShape`, moved to `services/importShape.js` so a
+REST route does not import a socket-handler module. Both also LIST the root: the reader planner does
+not push its own, the 09-16 (3) class. `deriveTitleFromHtml` (an undecoded `<title>` twin) is gone.
+
+- **`POST /api/v1/bookmarks`** — server twin of `addBookmarkOccurrence`; `bookmarkRecords` is pinned
+  by a test on exactly the keys the renderer reads. It WAITS for `fetchLinkPreview` (no row on screen
+  to keep responsive), a dead site still gets a host-named bookmark, a typed label outranks the
+  page's title, non-http(s) and missing parents are refused before anything is written.
+- **Tools `save_bookmark` + `import_url`** (both confirm-carded, both in the offline allowlist, both
+  in the system prompt). `import_url` strips the planned rows from what the model sees — hundreds of
+  records a local model cannot use. With no `parentId` the drawer wraps the root in the Imports
+  folder like every other import; WITH one it does not (it is already listed — a wrapper would be a
+  second home).
+- **Three existing tools were rewriting whole `occurrences[]` arrays on top of the server's atomic
+  `$push`/`$pull`** — `create_occurrence`, `copy_occurrence`, and `move_occurrence` (which also did its
+  own unlink). That is the stale-snapshot clobber this file records repeatedly. A cross-parent move is
+  now ONE `parentId` PATCH; only a same-parent reorder writes a list. `create_occurrence` also stopped
+  minting the inert `kind:"list"` (2026-07-29).
+
+19 tests, four A/Bs each failing exactly their own case (unlisted reader root, old extraction chain,
+inert kind, label precedence). 2,263 server tests, client assistant suites 78, lint 0 `no-undef`,
+build clean, deployed, prod HEAD `7350efa5`.
+
+**VERIFIED ON PROD against test grid 2 through the real routes** (a scratch API token, swept after):
+bookmark 201 · title "Albert Ellis - Wikipedia" · the dust-jacket cover · listed; reader page 200 ·
+2 occurrences · lead image present · listed. Debris read back out of Mongo: 0 modules, 0 tokens.
+**Honest gap: the probe's FIRST run crashed on a page response with no `occurrences`, and nothing in
+the log says why** — both requests logged, no error line, and it wrote nothing (checked by label,
+host label and fileRef). The second run was clean. **Not verified: nobody has asked Jonah in the chat
+drawer**, so the confirm card and the model choosing these tools are unexercised.
+
+---
+
 ### 2026-09-16 (4) — THE BOOKMARKS YOU MADE NEVER GOT A PICTURE; and REDDIT CANNOT BE READ OR FRAMED
 
 **THE COVER REQUEST WAS NOT ABOUT WIKIPEDIA AND NOT ABOUT A RULE.** User: *"we should either
