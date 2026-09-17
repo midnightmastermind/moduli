@@ -3856,7 +3856,9 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   display: block;
   cursor: default;
   min-height: 0;
-  padding: 14px 18px 12px 42px;
+  /* Left gutter holds the drag handle AND the opening mark side by side —
+     measured on prod, they used to sit on top of each other at the card's edge. */
+  padding: 14px 18px 12px 58px;
   text-align: left;
   background: rgba(110, 170, 230, 0.06);
   border: 1px solid var(--border-subtle);
@@ -3865,15 +3867,37 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   overflow: visible;
 }
 .artifact-quote-mark {
-  position: absolute;
-  left: 12px;
-  top: 2px;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 36px;
-  line-height: 1;
+  font-size: 30px;
   color: var(--accent-blue, rgb(110, 170, 230));
   opacity: 0.5;
   pointer-events: none;
+}
+/* THE OPENING MARK MOVED RIGHT, past the drag handle. Measured on prod before
+   changing it: the handle group is absolute at the ROW's left edge, and a quote
+   card starts 6px further in, so the handle ran 17px INTO the card and covered
+   the opening glyph by 2px (an image card's handle sits at +5, clear of its
+   content). Both move: the handle is nudged right below, the mark right of it. */
+.artifact-quote-mark--open {
+  position: absolute;
+  left: 34px;
+  top: 4px;
+  line-height: 1;
+}
+/* Inline, so it trails the last word instead of racing the attribution for the
+   card's bottom-right corner. `line-height: 0` keeps it from growing the last
+   line's height, which would shift every line below a wrapped quote. */
+.artifact-quote-mark--close {
+  display: inline;
+  line-height: 0;
+  vertical-align: -0.32em;
+  margin-left: 3px;
+}
+/* The handle gets out of the mark's way. Scoped by the DIRECT chain
+   content > body > card, so a doc that merely CONTAINS a quote card cannot move
+   its own host row's handle — the quote cards here are embedded in an article. */
+.instance-content:has(> .instance-body > .artifact-card--quote) > .instance-handle-group {
+  transform: translateX(12px);
 }
 .artifact-quote-text {
   margin: 0;

@@ -435,7 +435,15 @@ export function registerCrudHandlers(socket, {
           { id: occ.id, userId },
           { textmap: compressTextmap(textmap) },
         );
+        // BOTH EMITS. `socket.to(room)` EXCLUDES the sender, and the client
+        // does NOT scrub its own textmap optimistically — so without the
+        // self-emit the one tab that performed the delete is the only tab
+        // still painting `embed: missing` (user, 2026-09-17: "it leaved an
+        // embed: missing element in its spot"). Worse, that tab then echoes
+        // its stale textmap back on the next edit and the junk becomes
+        // permanent. Same pair as the file-placement unlink above.
         socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: next });
+        socket.emit("occurrence_updated", { occurrence: next });
       }
 
       // ── THE MODULE BEHIND A DELETED PLACEMENT ───────────────────────────

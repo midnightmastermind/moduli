@@ -69,3 +69,56 @@ describe("occurrencesEmbedding", () => {
     expect(occurrencesEmbedding({ a: { id: "a", textmap: doc(embed("x")) } }, new Set())).toEqual([]);
   });
 });
+
+// ── 2026-09-17: the two gaps a real delete walked straight through ──────────
+//
+// User: *"i went to delete the empty container i just produced by moving the
+// sections in the new page article and it leaved an embed: missing element in
+// its spot."* The scrub existed and was correct; what was missing was (a) the
+// inline link chip's node type, and (b) the wrapper that the removed embed left
+// standing empty.
+describe("scrubDeletedEmbeds — the inline link chip", () => {
+  const chip = (id) => ({ type: "instanceTextblockInline", attrs: { occurrenceId: id } });
+
+  it("removes an inline chip whose occurrence was deleted", () => {
+    const tm = doc({ type: "paragraph", content: [{ type: "text", text: "see " }, chip("gone")] });
+    const res = scrubDeletedEmbeds(tm, new Set(["gone"]));
+    expect(res?.removed).toBe(1);
+    expect(res.textmap.content[0].content.map(n => n.type)).toEqual(["text"]);
+  });
+
+  // The CONTROL: a chip whose occurrence still exists is never touched. Without
+  // this, "removes chips" is also satisfied by a scrub that removes all of them.
+  it("leaves a live chip alone", () => {
+    const tm = doc({ type: "paragraph", content: [chip("alive")] });
+    expect(scrubDeletedEmbeds(tm, new Set(["gone"]))).toBe(null);
+  });
+});
+
+describe("scrubDeletedEmbeds — a wrap group emptied by the scrub", () => {
+  const group = (...content) => ({ type: "wrapGroup", content });
+
+  it("drops a wrap group whose only members were deleted", () => {
+    const tm = doc(para("before"), group(embed("a"), embed("b")), para("after"));
+    const res = scrubDeletedEmbeds(tm, new Set(["a", "b"]));
+    expect(res.removed).toBe(2);
+    expect(res.textmap.content.map(n => n.type)).toEqual(["paragraph", "paragraph"]);
+  });
+
+  it("KEEPS a wrap group that still has a member", () => {
+    const tm = doc(group(embed("a"), embed("b")));
+    const res = scrubDeletedEmbeds(tm, new Set(["a"]));
+    expect(res.removed).toBe(1);
+    expect(res.textmap.content[0].type).toBe("wrapGroup");
+    expect(res.textmap.content[0].content).toHaveLength(1);
+  });
+
+  // A group that was ALREADY empty is not this scrub's business — it is dropped
+  // only when this pass is what emptied it, so nothing else can be swept here.
+  it("leaves an already-empty group alone", () => {
+    const tm = doc(group(), embed("gone"));
+    const res = scrubDeletedEmbeds(tm, new Set(["gone"]));
+    expect(res.removed).toBe(1);
+    expect(res.textmap.content.map(n => n.type)).toEqual(["wrapGroup"]);
+  });
+});

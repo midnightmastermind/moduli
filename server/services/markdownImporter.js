@@ -173,13 +173,23 @@ function parseInline(text, mintLink) {
     // stray trailing `)` after the chip — "The Monster Tour)").
     const linkMatch = /^\[([^\]]+)\]\(((?:[^()]|\([^)]*\))*)\)/.exec(rest);
     if (linkMatch) {
+      // THE LABEL IS STRIPPED, and that is not cosmetic. A minted chip is an
+      // OCCURRENCE whose text is a module LABEL — a plain string that cannot
+      // carry a bold or italic mark — so emphasis inside a link label has
+      // nowhere to go and was being STORED as literal syntax: measured on the
+      // live grid, 21 chips reading `*Billboard* 200` and
+      // `***The Book: On the Taboo…***`. Emphasis is parsed everywhere ELSE in
+      // this function; the link branch is tried FIRST (so it wins over a
+      // surrounding emphasis run), which is exactly why the inside of a label
+      // never reached it.
+      const linkLabel = stripInlineMd(linkMatch[1]);
       if (mintLink) {
-        const { occurrenceId, moduleId } = mintLink(linkMatch[1], linkMatch[2]);
+        const { occurrenceId, moduleId } = mintLink(linkLabel, linkMatch[2]);
         out.push({ type: "instanceTextblockInline", attrs: { occurrenceId, instanceId: moduleId } });
       } else {
         out.push({
           type: "text",
-          text: deriveLinkLabel(linkMatch[1], linkMatch[2]),
+          text: deriveLinkLabel(linkLabel, linkMatch[2]),
           marks: [{ type: "link", attrs: { href: linkMatch[2] } }],
         });
       }
@@ -240,7 +250,7 @@ function headerWidth(title) {
 // quote card renders those as real anchors (user: "those specific quotes are
 // links on the inside that arent being resolved to a link either"). Everything
 // else — bold, italic, code — has no interactive meaning and is always stripped.
-function stripInlineMd(s, { keepLinks = false } = {}) {
+export function stripInlineMd(s, { keepLinks = false } = {}) {
   let out = String(s);
   if (!keepLinks) out = out.replace(/\[([^\]]+)\]\((?:[^()]|\([^)]*\))*\)/g, "$1");
   return out

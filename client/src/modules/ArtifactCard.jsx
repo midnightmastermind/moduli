@@ -402,8 +402,15 @@ export default function ArtifactCard({ module, label, occurrence }) {
     const attribution = module?.meta?.attribution || "";
     return (
       <div className="artifact-card artifact-card--quote" data-kind="quote">
-        <span className="artifact-quote-mark" aria-hidden="true">&ldquo;</span>
-        <blockquote className="artifact-quote-text">{linkifyText(quote)}</blockquote>
+        <span className="artifact-quote-mark artifact-quote-mark--open" aria-hidden="true">&ldquo;</span>
+        {/* The CLOSING mark lives INSIDE the blockquote, after the text, rather than
+            absolutely at the card's bottom-right — an attribution line renders there
+            (right-aligned) and the two would sit on top of each other. Inline, it
+            always follows the last word and cannot collide with anything. */}
+        <blockquote className="artifact-quote-text">
+          {linkifyText(quote)}
+          <span className="artifact-quote-mark artifact-quote-mark--close" aria-hidden="true">&rdquo;</span>
+        </blockquote>
         {attribution && <cite className="artifact-quote-attr">&mdash; {attribution}</cite>}
       </div>
     );

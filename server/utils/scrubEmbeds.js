@@ -19,8 +19,17 @@
 // paint as junk. It never scans, never guesses, and never touches a node whose
 // target still exists.
 
-/** Node types that carry a pointer to an occurrence. */
-const EMBED_TYPES = new Set(["moduleEmbed", "instanceTextblock", "instancePill"]);
+// Node types that carry a pointer to an occurrence — READ OFF THE EXTENSIONS'
+// own `name:` fields (client/src/docs/*Extension.js), not from memory.
+// `instanceTextblockInline` (the inline link chip) was missing, so deleting a
+// chip's occurrence left the same `embed: missing` junk this file exists to
+// prevent — a Set lookup is exact, and the plural name never matched.
+const EMBED_TYPES = new Set([
+  "moduleEmbed",
+  "instanceTextblock",
+  "instanceTextblockInline",
+  "instancePill",
+]);
 
 function embeddedId(node) {
   const a = node?.attrs;
@@ -38,14 +47,22 @@ export function scrubDeletedEmbeds(textmap, deletedIds) {
   if (!textmap || typeof textmap !== "object" || !deletedIds?.size) return null;
   let removed = 0;
 
+  // A WRAP GROUP THAT LOSES ITS LAST MEMBER GOES WITH IT. The group is a
+  // layout wrapper around two or more embeds; emptied, it renders as a bare
+  // box with nothing in it — which reads as junk for the same reason the
+  // dangling embed did. It is dropped only when the scrub itself emptied it,
+  // never merely because it is empty, so nothing else can be swept by this.
   const walk = (node) => {
     if (!node || !Array.isArray(node.content)) return node;
     const kept = [];
     for (const child of node.content) {
       if (EMBED_TYPES.has(child?.type) && deletedIds.has(embeddedId(child))) { removed++; continue; }
-      kept.push(walk(child));
+      const next = walk(child);
+      if (next?.type === "wrapGroup" && Array.isArray(child.content)
+          && child.content.length > 0 && next.content.length === 0) continue;
+      kept.push(next);
     }
-    return kept.length === node.content.length ? { ...node, content: kept } : { ...node, content: kept };
+    return { ...node, content: kept };
   };
 
   const next = walk(textmap);

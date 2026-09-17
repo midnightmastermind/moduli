@@ -90,6 +90,145 @@ drawer**, so the confirm card and the model choosing these tools are unexercised
 
 ---
 
+### 2026-09-17 (2) — THE FEED WAS NEVER WHAT HID YOUR TASK; the scrub reached every tab but the one that deleted
+
+Picked up account3's session (limit hit at 08:42 mid-answer on the Keith copy). Four items.
+
+**THE COPY IS WHERE YOU WANTED IT.** The stray "Therapy with Keith" was in a `Todo` container on an
+old Aug 17 Day Page column — the only thing listing it — still `Completed: true`, dated today. Moved
+to Emotional, unchecked, both dates cleared, with Duration 60 / Dewey Center / Therapy / Keith
+intact. Unlinked from the old parent BEFORE re-parenting, `$pull`/`$push` rather than a whole-array
+write.
+
+**AND THE DESIGN AROUND IT WAS DECIDED BY MEASURING WHAT THE FEED ACTUALLY DOES.** The user's first
+instruction was to retire the Completed feed for an end-of-day op; three messages later they
+reversed it themselves (*"maybe dont do an operation but keep completed as a feed"*), and the code
+says why both readings were reaching for the same thing. Two of their three claims are ALREADY TRUE:
+`feedSync` sweeps only rows it minted (`meta.feedSourceId`) and says so in its own header — *"only
+rows THIS feed minted are ever removed, never a hand-placed child"* — so a container holds a feed
+AND hand-placed rows, and a copy you make inside Completed survives being unchecked.
+```
+what hid the ticked task      a hide-completed LOCAL FILTER on each dimension container
+                              rule: $occ.fields.<Completed>.value IS_NOT true, hides: true
+what the feed did             minted a copy-link into Completed. It never touched the original.
+```
+So *"feeds should not be removing the original from its spot"* was right about feeds and wrong about
+the culprit. **`0334` removes those 10 filters and nothing else** — and the whole end-of-day op
+dissolves with them, because the original never leaves.
+
+**SCOPED BY THE RULE'S SHAPE, NOT BY THE `hide-completed-` ID.** A filter goes only if it HIDES and
+its WHOLE condition is one rule reading the Completed field: "hide completed things dated before
+today" is a narrower deliberate filter, and dropping it would change what a container shows. Dry run
+named exactly the 10 measured independently; **Completed and Via Fluere were correctly untouched**
+(they carry no such filter). Three A/Bs — dropping the `hides` check, allowing multi-rule
+conditions, resolving the field by NAME without TYPE — each fail exactly one case.
+
+**AND THE DATE HALF NEEDED NO CHANGE AT ALL, which only measuring showed.** User: *"i dont like
+completed and date filter"* / *"dont use any filter on those"*. Driven through the REAL
+`getEffectiveFilterForOccurrence` over a live dump: the Tasks PAGE carries `filterOverride: {}`,
+and the cascade reads an empty override as *clear every filter*, so **`eff={}` on all twelve
+children** — the grid's `filter_daily` condition is still evaluated, its right-hand value resolves
+to undefined, and every row passes. Three containers carry `filterOverride: null` and three `{}`;
+the page had already settled it for all of them. *The filter the report named was real; the layer it
+was on was not.*
+
+**THE A/B IS THE CONTROL that makes "everything is visible" mean anything** — replaying ONE
+hide-completed filter onto Emotional against the same live dump:
+```
+after 0334                  6/6 visible
+the filter replayed         4/6   HIDDEN: Talk to Angela about Vivance, Therapy with Keith
+```
+Exactly the two COMPLETED rows, which is the user's report reproduced and then removed.
+
+**AND MY OWN PROBE REPORTED TWO ROWS HIDDEN THAT ARE NOT.** It resolved each CHILD's filter with its
+own global walk — and `buildParentMap` keys child -> ONE parent, **last writer wins**, so a task
+multi-parented into an old day column's `Todo` (three of Emotional's six are) resolved through THAT
+column and inherited its date. **`ModuleContainer` does not work that way**: it computes the
+CONTAINER's effective filter once and applies it to every child, which is multi-parent-safe by
+construction. Re-run with the renderer's own inputs — container filter + grid named conditions +
+`getLocalFilterConditions` — all twelve read `kids N/N`. *A visibility claim measured through a
+different walk than the renderer uses is a claim about the walk.*
+
+**ANSWERED RATHER THAN BUILT: deleting the original takes the Completed copy with it.** User:
+*"if i were to delete the original then, it would still be minted in completed correct"*. No —
+`feedSync` sweeps any copy whose source no longer matches (`if (!wantedSourceIds.has(srcId))
+sweep(copy)`). Completed is a live VIEW, not an archive. Worth knowing before deleting something you
+want kept there.
+
+---
+
+**THE `***` WAS STORED, NOT MIS-RENDERED.** User: *"the *** arent resolving for markdown like they
+should"* → *"the *** was in a minitextblock occurance btw"*. `parseInline` tries `[text](url)` FIRST
+— deliberately, so a link wins over a surrounding emphasis run — and then minted the chip with the
+label **verbatim**. Every other token in that function is parsed into real marks; the inside of a
+link LABEL was the one place the parser never looked. And a chip CANNOT carry a mark even if it did:
+it is an occurrence whose text is a module LABEL, a plain string. So the label is stripped through
+`stripInlineMd`, which is what container headers already do.
+```
+inline (link chip) modules on poms grid   1867
+  carrying raw markdown in the label        21   "*Billboard* 200" · "***The Book: …***"
+```
+**`0333` repairs what is already there**, because an importer-only change helps nothing that exists.
+**Scoped to `kind:"inline"`, and that is the safety**: 414 modules carry `**…**` in their label and
+almost all are the codex `**[annotation]**` markers — `ANNOTATION_RE` keys on exactly that bold
+marker, so a blanket "strip markdown from every label" pass would have made every annotation read as
+an ordinary quote. Applied: 21 cleaned, 0 left. The control holds — bare `***bold italic***` in
+prose still becomes real bold+italic marks.
+
+---
+
+**THE `embed: missing element` A DELETE LEAVES BEHIND: the scrub was right and reached every tab
+except the one that deleted.** `socket.to(userRoom(userId))` **EXCLUDES the sender**, and the client
+does not scrub its own textmap optimistically — so the deleting tab kept the dead `moduleEmbed` and
+kept painting `embed: missing`, and its next edit would echo that stale textmap back and make it
+permanent. The same handler already does BOTH emits 100 lines above for the file-placement unlink;
+this one never got the pair. Fourth time this file records that exclusion biting.
+
+**Two gaps in the scrub itself, found by reading it rather than by the report.**
+`EMBED_TYPES` was missing **`instanceTextblockInline`** — the inline link chip — so deleting a chip's
+occurrence left the same junk (a Set lookup is exact; the plural name never matched). And a
+**wrapGroup emptied by the scrub** now goes with it: the group is a wrapper around two or more
+embeds, and emptied it draws a bare box. It is dropped ONLY when this pass is what emptied it, never
+merely because it is empty — its own control test.
+
+**MY FIRST TEST FOR THE SELF-EMIT COULD NOT DISCRIMINATE.** The parent cleanup ALSO emits
+`occurrence_updated` for that same doc, carrying the textmap UNSCRUBBED, so filtering on the
+occurrence id alone counted both — *"the scrub was broadcast"* would have passed against a run where
+the scrub never happened. It matches on the thing under test now: a body that no longer embeds the
+deleted id. A/B'd — removing the self-emit fails exactly that one test while the control ("the other
+tabs still get it") passes, so a fix that merely SWAPPED the two emits cannot slip through.
+
+---
+
+**THE QUOTE CARD, MEASURED ON PROD BEFORE ANYTHING CHANGED** (test grid 2, the Watts article):
+```
+card          left 81, width 753
+handle group  absolute at the ROW's left edge -> 76..98  = 17px INTO the card
+opening mark  card+15 .. card+33                        = 2px UNDER the handle
+closing mark  absent
+control       an IMAGE card's handle sits at card+5, clear of its content
+```
+**AND MY FIRST TWO READINGS WERE OF THE WRONG ELEMENT.** The probe resolved the row with
+`card.closest(".instance-wrap")` — which climbs PAST the quote's own row into the doc that EMBEDS it
+— so it reported the host article's handle. A CSSOM scan for the rule positioning it then found
+nothing at all, which is what said the element was wrong (my selector-matching loop also split
+compound selectors on commas, so any `:has(a, b)` rule threw and was skipped). Re-measured against
+`card.closest(".instance-row")`, the numbers reproduce identically across three cards.
+
+The opening mark moves right past the handle, the handle is nudged right out of the border, and the
+closing mark is **inline inside the blockquote** rather than absolute at the card's bottom-right —
+that corner belongs to `.artifact-quote-attr`, which is `text-align: right`, so every quote carrying
+an attribution would have printed the two on top of each other. **The handle rule is scoped by the
+DIRECT chain** `.instance-content:has(> .instance-body > .artifact-card--quote)`: these cards are
+embedded in an ARTICLE, so a descendant selector would shove the handle of every ancestor row whose
+doc merely CONTAINS a quote — the exact leak the stacked wrap-group rule cost a day for on the same
+date. Three A/Bs each fail their own case; verified in the BUILT stylesheet with the old rule at 0
+and a control at 1.
+
+**NOT VERIFIED, and it is the honest gap: nobody has looked at the quote card on screen since.** The
+geometry it was built from is measured, the rules are in the served CSS, and the scope is tested —
+but the new layout has not been re-measured in a browser.
+
 ### 2026-09-17 — THE PAGE JUMPED BECAUSE A STACKED WRAP GROUP'S CSS REACHED THE GROUPS INSIDE IT; the panel you removed is back; folder pages drag and right-click
 
 **THE JUMPING, reproduced before anything changed.** User: *"i went to move a section outside of a
