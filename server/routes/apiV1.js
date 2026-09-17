@@ -49,12 +49,6 @@ const SELF_BASE_URL =
 
 const uid = () => crypto.randomUUID();
 
-// Name an imported page from its own <title> when the caller didn't supply one,
-// so a converted link reads as the article rather than as its URL.
-function deriveTitleFromHtml(html) {
-  const m = /<title[^>]*>([\s\S]{1,300}?)<\/title>/i.exec(String(html || ""));
-  return m ? m[1].replace(/\s+/g, " ").trim() : "";
-}
 const err = (res, status, code, message, details) =>
   res.status(status).json({ error: code, message, ...(details ? { details } : {}) });
 
@@ -1119,25 +1113,22 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
   router.post("/import/url", authAndLimit({ requireScope: "write" }), async (req, res) => {
     try {
       const { fetchPageHtml } = await import("../utils/safeFetchUrl.js");
-      const { wikiHtmlToMarkdown } = await import("../services/wikipediaTools.js");
-      const { markdownToModuli } = await import("../services/markdownImporter.js");
-      const { extractMainContent } = await import("../utils/mainContent.js");
-      const { gridId, url, parentId = null, title = "", dryRun = false } = req.body || {};
+      const { readLinkForImport } = await import("../utils/linkImport.js");
+      const { buildImportShape } = await import("../services/importShape.js");
+      const { gridId, url, parentId = null, title = "", dryRun = false, shape = "magic" } = req.body || {};
       if (!gridId) return err(res, 400, "validation_error", "gridId required");
       if (!url) return err(res, 400, "validation_error", "url required");
 
-      const fetched = await fetchPageHtml(url);
+      // The same read the Reader/Magic viewer does, so "make a page from this
+      // link" builds the page the viewer shows — see utils/linkImport.js for
+      // why the old private chain here was wrong.
+      const read = await readLinkForImport(url, { title, fetchPageHtml });
       // 400, not 500: a refused or unreachable URL is the caller's input being
       // wrong, and the reason is safe to hand back so the UI can say WHY.
-      if (!fetched.ok) return err(res, 400, "fetch_failed", fetched.reason);
+      if (!read.ok) return err(res, 400, "fetch_failed", read.reason);
 
-      // Narrow to the article before converting — a raw page imports its
-      // nav chrome as prose (measured on Wikipedia).
-      const { html: mainHtml } = extractMainContent(fetched.html);
-      const markdown = wikiHtmlToMarkdown(mainHtml, title);
-      const result = await markdownToModuli({
-        gridId, parentId, userId: req.userId, markdown, dryRun,
-        title: title || deriveTitleFromHtml(fetched.html) || fetched.url,
+      const result = await buildImportShape({
+        shape, gridId, userId: req.userId, markdown: read.markdown, title: read.title, parentId, dryRun,
       });
 
       if (!dryRun) {
@@ -1145,15 +1136,62 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         await persistImportResult({ result, userId: req.userId, uc: await getUserCache(req.userId, gridId) });
         for (const m of result.modules) io.to(userRoom(req.userId)).emit("module_created", { module: m });
         for (const o of result.occurrences) io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: o });
+        // Listed, not just parented — the reader planner does not push its own
+        // root. Idempotent, so a no-op for magic.
+        await linkIntoParent({ userId: req.userId, parentId, childId: result.rootOccurrenceId });
       }
 
       res.json({
         ...result,
-        sourceUrl: fetched.url,
+        sourceUrl: read.sourceUrl,
+        source: { title: read.title, url: read.sourceUrl },
+        shape: shape === "reader" ? "reader" : "magic",
         // A dry run plans the tree but persists nothing, so it must NOT hand
         // back a root id — the 2026-06-12 "empty embed" bug was exactly that.
         rootOccurrenceId: dryRun ? null : result.rootOccurrenceId,
         dryRun,
+      });
+    } catch (e) { err(res, 500, "internal_error", e.message); }
+  });
+
+  // ── POST /bookmarks — save a link as a bookmark ───────────────────────
+  //
+  // The REST twin of the in-app "Save bookmark" (CommitHelpers
+  // addBookmarkOccurrence), so an integration — and Jonah — can do what the
+  // browser's button does. Unlike the client, this WAITS for the preview before
+  // minting: there is no row on screen to keep responsive, and minting the
+  // finished bookmark in one write beats a second patch a moment later.
+  router.post("/bookmarks", authAndLimit({ requireScope: "write" }), async (req, res) => {
+    try {
+      const { fetchPageHtml } = await import("../utils/safeFetchUrl.js");
+      const { fetchLinkPreview } = await import("../utils/linkPreview.js");
+      const { bookmarkRecords, isBookmarkableUrl } = await import("../utils/linkImport.js");
+      const { gridId, url, parentId = null, label = null, index } = req.body || {};
+      if (!gridId) return err(res, 400, "validation_error", "gridId required");
+      if (!isBookmarkableUrl(url)) return err(res, 400, "validation_error", "url must be an http(s) address");
+      if (parentId) {
+        const parent = await Occurrence.findOne({ id: parentId, userId: req.userId }).lean();
+        if (!parent) return err(res, 404, "not_found", `parent ${parentId} not found`);
+      }
+
+      // A dead site still gets its bookmark, named for its host.
+      const preview = await fetchLinkPreview(url, { fetchPageHtml });
+      const { module, occurrence } = bookmarkRecords({
+        gridId, userId: req.userId, url, parentId, label, preview, newId: uid,
+      });
+
+      const modObj = (await Module.create(module)).toObject();
+      mirrorToCache(req.userId, gridId, "module", modObj);
+      io.to(userRoom(req.userId)).emit("module_created", { module: modObj });
+      const occObj = (await Occurrence.create(occurrence)).toObject();
+      mirrorToCache(req.userId, gridId, "occurrence", occObj);
+      io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: occObj });
+      const parent = await linkIntoParent({ userId: req.userId, parentId, childId: occObj.id, index });
+
+      res.status(201).json({
+        occurrence: occObj, module: modObj, linkedToParent: !!parent,
+        title: modObj.label, cover: modObj.meta?.cover || null,
+        reachable: preview?.ok === true,
       });
     } catch (e) { err(res, 500, "internal_error", e.message); }
   });

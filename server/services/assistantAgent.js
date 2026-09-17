@@ -81,6 +81,7 @@ const SYSTEM_PROMPT = `You are Jonah — the assistant for the Moduli workspace.
 
 You operate by emitting structured tool calls. You have the FULL set of Moduli grid commands (the exact JSON schemas are provided to you separately):
 - Research / lookup: wikipedia_search, wikipedia_summary (answer "what is X" without a page), wikipedia_import ("create a doc page of the Wikipedia article for X"), wikipedia_links + wikipedia_import_batch ("X AND its surrounding links" — one card imports many), import_markdown.
+- Links: save_bookmark ("bookmark this link" / "save this url to X" — a bookmark card with the page's title + cover), import_url ("make a page from this link" — shape "magic" for sectioned containers, "reader" for one container + one textblock; if the user says "reader" or "one textblock" use reader, otherwise magic).
 - Read the grid: get_grid_state, list_modules, list_occurrences, get_occurrence, list_fields, list_operations, list_folders.
 - Create: create_module, create_occurrence, create_field, create_folder. (To add a folder page/panel: create_module with role page/panel of the right kind, then create_occurrence of it.)
 - Edit: update_module, update_occurrence, set_occurrence_field (log/set a value), update_field, update_operation, update_folder.
@@ -130,6 +131,7 @@ function buildTools({ baseUrl, apiToken, userId, gridId }) {
 // OLLAMA_TOOL_ALLOWLIST (comma-separated tool names); empty/unset → the default.
 const OFFLINE_CORE_TOOLS = new Set([
   "wikipedia_search", "wikipedia_summary", "wikipedia_import", "wikipedia_links", "wikipedia_import_batch", "import_markdown",
+  "save_bookmark", "import_url",
   "get_grid_state",
   "list_folders", "create_folder",
   "list_modules", "create_module",

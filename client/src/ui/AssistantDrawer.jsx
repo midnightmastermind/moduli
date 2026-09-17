@@ -345,7 +345,7 @@ export default function AssistantDrawer() {
           { role: "tool", name: card.name, output: j.output },
           ...(folderPageOccId ? [{ role: "panel_pick", occId: folderPageOccId }] : []),
         ]);
-      } else if (isImportTool(card.name) && j.output?.dryRun) {
+      } else if (isImportTool(card.name, finalInput) && j.output?.dryRun) {
         // A DRY RUN planned the tree but minted/persisted nothing. It still returns a
         // (planned) rootOccurrenceId — wrapping that into a persisted Imports page
         // leaves a page whose embed points at an occurrence that never existed (the
@@ -355,7 +355,7 @@ export default function AssistantDrawer() {
           { role: "tool", name: card.name, output: j.output },
           { role: "assistant", content: "(planned only — nothing was imported. Re-run without dry-run to actually import it.)" },
         ]);
-      } else if (isImportTool(card.name) && shouldWrapImportOutput(j.output)) {
+      } else if (isImportTool(card.name, finalInput) && shouldWrapImportOutput(j.output)) {
         // SINGLE import (wikipedia_import / import_markdown / import_html): wrap the
         // root in a doc page under the shared "Imports" folder — same as the batch
         // path — so an import ALWAYS lands somewhere visible (the importer roots
@@ -985,7 +985,11 @@ function ConfirmCard({ msg, busy, onResolve }) {
 // True for the single-root importer tools whose output is `{ rootOccurrenceId }`
 // (the batch importer has its own `{ imported: [...] }` branch). Used so an import
 // always gets wrapped into the shared "Imports" folder, not left loose at root.
-function isImportTool(name) {
+function isImportTool(name, input = null) {
+  // `import_url` WITH a destination is already listed there by the server, so
+  // wrapping it in an Imports page would give it a second home. Only a
+  // destination-less one needs the wrapper to be visible anywhere.
+  if (name === "import_url") return !input?.parentId;
   return ["wikipedia_import", "import_markdown", "import_html", "import_text"].includes(name);
 }
 

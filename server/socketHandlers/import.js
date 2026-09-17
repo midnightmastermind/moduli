@@ -39,8 +39,7 @@
 //   as the REST route — the client cannot be trusted to have vetted the URL,
 //   and the SERVER is the thing with network reach, so the check lives here
 //   rather than in the caller.
-import { htmlToMarkdown, wikiHtmlToMarkdown } from "../services/wikipediaTools.js";
-import { markdownToModuli, planReaderShape } from "../services/markdownImporter.js";
+import { htmlToMarkdown } from "../services/wikipediaTools.js";
 import { persistImportResult } from "../utils/persistImport.js";
 import { linkRootIntoParent } from "../utils/linkRootIntoParent.js";
 import { fetchPageHtml } from "../utils/safeFetchUrl.js";
@@ -50,6 +49,7 @@ import { extractMainContent } from "../utils/mainContent.js";
 import { readerFromHtml, readerIsUsable } from "../utils/readerExtract.js";
 import { framingVerdict } from "../utils/framingVerdict.js";
 import { readerHostStalls } from "../utils/hostStallMemory.js";
+import { readLinkForImport } from "../utils/linkImport.js";
 import { extractLinks } from "../utils/harvestLinks.js";
 
 // How long the INTERACTIVE reader fetch may take before it gives up and lets the
@@ -57,33 +57,10 @@ import { extractLinks } from "../utils/harvestLinks.js";
 // buried in a handler. See the call site for why it is not `safeFetchUrl`'s 20s.
 export const READER_TIMEOUT_MS = 6000;
 
-// WHICH TREE A PAGE BECOMES — the ONE place that decides, because two places
-// deciding is how the tree you READ and the tree you IMPORT drift apart.
-//
-// `import_plan` renders Reader/Magic; `import_text` mints what the viewer's
-// "add as a page" button asks for. They took different code paths until
-// 2026-09-16 — the planner knew about `shape` and the minter did not, so the
-// button would have handed back a magic tree no matter which view you were
-// looking at.
-//
-// "reader" keeps the article as one container + one textblock; anything else
-// (including absent) is MAGIC — the importer's full tree, which is what every
-// caller got before the argument existed.
-export async function buildImportShape({ shape, gridId, userId, markdown, title, parentId = null, dryRun }) {
-  if (shape === "reader") {
-    return planReaderShape({
-      gridId: gridId || null, userId, markdown, title: title || null, parentId,
-    });
-  }
-  return markdownToModuli({
-    gridId: gridId || null, parentId, userId, markdown, dryRun, title,
-    // MAGIC STRUCTURES THE PAGE (user, 2026-09-13): *"it needs to be smart like
-    // the wikipedia import … textblocks inside doccontainers inside
-    // doccontainers"*. Bold-only lines become sections too, since most pages use
-    // those instead of headings.
-    boldSections: true,
-  });
-}
+// buildImportShape moved to services/importShape.js (shared with the REST
+// import route); re-exported so existing importers keep resolving.
+export { buildImportShape } from "../services/importShape.js";
+import { buildImportShape } from "../services/importShape.js";
 
 export function registerImportHandlers(socket, {
   io, userRoom, ensureUserCache, userCacheReady, loadUserIntoCache,
@@ -430,7 +407,7 @@ export function registerImportHandlers(socket, {
   });
 
   socket.on("import_url", async (payload = {}, ack) => {
-    const { url, gridId, parentId = null, title = "", requestId = null } = payload;
+    const { url, gridId, parentId = null, title = "", requestId = null, shape = "magic" } = payload;
     const userId = socket.userId;
 
     function reply(out) {
@@ -443,23 +420,27 @@ export function registerImportHandlers(socket, {
       if (!gridId) return reply({ ok: false, error: "gridId required" });
       if (!url) return reply({ ok: false, error: "url required" });
 
-      const fetched = await fetchPageHtml(url);
-      // The guard's reason is handed back verbatim so the UI can say WHY a
-      // link refused to convert ("not a web page", "timed out", "redirected")
-      // instead of a generic failure.
-      if (!fetched.ok) return reply({ ok: false, error: fetched.reason });
+      // The SAME read the viewer does (utils/linkImport.js), so the page this
+      // mints matches the Reader/Magic view of that link — lead image included.
+      // The guard's reason is handed back verbatim so the UI can say WHY a link
+      // refused to convert ("not a web page", "timed out", "redirected").
+      const read = await readLinkForImport(url, { title, fetchPageHtml });
+      if (!read.ok) return reply({ ok: false, error: read.reason });
 
-      // Narrow to the article before converting — a raw page imports its
-      // nav chrome as prose (measured on Wikipedia).
-      const { html: mainHtml } = extractMainContent(fetched.html);
-      const markdown = wikiHtmlToMarkdown(mainHtml, title);
-      const result = await markdownToModuli({
-        gridId, parentId, userId, markdown, dryRun: false,
-        title: title || titleFromHtml(fetched.html) || fetched.url,
+      const result = await buildImportShape({
+        shape, gridId, userId, markdown: read.markdown, title: read.title, parentId, dryRun: false,
       });
 
       const uc = await getUC(userId, gridId);
       await persistImportResult({ result, userId, uc });
+      // Listed, not just parented — the reader shape's planner does not push
+      // its own root (see import_text above). A no-op for magic.
+      const linkedParent = await linkRootIntoParent({ parentId, childId: result.rootOccurrenceId, userId });
+      if (linkedParent) {
+        const parentObj = typeof linkedParent.toObject === "function" ? linkedParent.toObject() : linkedParent;
+        if (uc?.occurrencesById?.[parentObj.id]) uc.occurrencesById[parentObj.id] = { ...uc.occurrencesById[parentObj.id], occurrences: parentObj.occurrences };
+        io.to(userRoom(userId)).emit("occurrence_updated", { occurrence: parentObj });
+      }
 
       for (const m of result.modules) io.to(userRoom(userId)).emit("module_created", { module: m });
       for (const o of result.occurrences) io.to(userRoom(userId)).emit("occurrence_created", { occurrence: o });
@@ -467,7 +448,7 @@ export function registerImportHandlers(socket, {
       reply({
         ok: true,
         rootOccurrenceId: result.rootOccurrenceId,
-        sourceUrl: fetched.url,
+        sourceUrl: read.sourceUrl,
         stats: result.stats,
       });
     } catch (err) {

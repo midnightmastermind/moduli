@@ -229,6 +229,52 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
       },
     },
     {
+      name: "save_bookmark",
+      description: "Save a web link as a BOOKMARK occurrence (a card with the page's title and cover picture that opens the page in the in-app browser). Use for 'bookmark this', 'save this link', 'add this url to X'. The title and cover are fetched from the page; pass `label` only if the user named it. `parentId` is the container/page it goes in.",
+      input_schema: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "http(s) address" },
+          parentId: { type: "string", description: "Real container/page occurrence id to put it in" },
+          label: { type: "string", description: "Only when the user gave a name; otherwise the page's own title is used" },
+        },
+        required: ["url"],
+      },
+      destructive: false,
+      requires_confirm: true,
+      run: async ({ url, parentId, label }) => {
+        const r = await call("POST", `/bookmarks`, { gridId, url, parentId: parentId || null, label: label || null });
+        if (r.status >= 400) return { error: r.body?.message || r.body?.error || `failed (${r.status})` };
+        const { occurrence, title, cover, reachable, linkedToParent } = r.body || {};
+        return { ok: true, occurrenceId: occurrence?.id, title, cover, reachable, placedIn: parentId || "(root — no parent)", linkedToParent };
+      },
+    },
+    {
+      name: "import_url",
+      description: "Turn any web link into a PAGE on the grid — the same page the in-app browser's '+ Page' button makes. shape 'magic' (default) = structured: nested doc containers + textblocks per section; shape 'reader' = the whole article as ONE container with ONE textblock. Use for 'make a page from this link/article'. For a Wikipedia TOPIC by name prefer wikipedia_import; for a Wikipedia URL this works too.",
+      input_schema: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "http(s) address of the page" },
+          parentId: { type: "string", description: "Optional container/page occurrence id to put the page in" },
+          shape: { type: "string", enum: ["magic", "reader"], description: "magic = sections as nested containers (default); reader = one container + one textblock" },
+          title: { type: "string", description: "Only when the user named it; otherwise the page's own title" },
+          dryRun: { type: "boolean", default: false, description: "Plan without minting" },
+        },
+        required: ["url"],
+      },
+      destructive: false,
+      requires_confirm: true,
+      run: async ({ url, parentId, shape = "magic", title, dryRun }) => {
+        const r = await call("POST", `/import/url`, { gridId, url, parentId: parentId || null, shape, title: title || "", dryRun: !!dryRun });
+        if (r.status >= 400) return { error: r.body?.message || r.body?.error || `failed (${r.status})` };
+        const b = r.body || {};
+        // Drop the planned rows: hundreds of records the model cannot use and
+        // that would blow a local model's context.
+        return { ok: true, rootOccurrenceId: b.rootOccurrenceId, shape: b.shape, sourceUrl: b.sourceUrl, source: b.source, stats: b.stats, dryRun: !!b.dryRun };
+      },
+    },
+    {
       name: "list_operations",
       description: "List the user's operations. Use ?runnable=true to filter to externally-invokable ones.",
       input_schema: {
@@ -342,7 +388,9 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
         let resolvedModuleId = moduleId;
         if (isPlaceholder(resolvedModuleId)) {
           if (!label) return { error: "Provide a `label` for the new item (or a real `moduleId`)." };
-          const mr = await call("POST", `/modules`, { gridId, role: "instance", kind: "list", label });
+          // No `kind`: an instance has no sub-types, and an inert kind makes the
+          // icon resolver draw a BOARD (gridIntegrity `inert-kind`, 2026-07-29).
+          const mr = await call("POST", `/modules`, { gridId, role: "instance", label });
           resolvedModuleId = mr.body?.module?.id;
           if (!resolvedModuleId) return { error: `couldn't create template: ${JSON.stringify(mr.body)}` };
         }
@@ -351,17 +399,10 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
         const cr = await call("POST", `/occurrences`, { gridId, moduleId: resolvedModuleId, parentId: cleanParent, fields: fields || {} });
         const occ = cr.body?.occurrence;
         if (!occ?.id) return cr.body;
-        // 3. Link into the parent's occurrences[] — containers render children
-        //    from that array, so without this the item wouldn't appear.
-        if (cleanParent) {
-          const pr = await call("GET", `/occurrences/${cleanParent}`);
-          const parent = pr.body?.occurrence;
-          if (parent) {
-            const list = Array.isArray(parent.occurrences) ? parent.occurrences : [];
-            if (!list.includes(occ.id)) await call("PATCH", `/occurrences/${cleanParent}`, { occurrences: [...list, occ.id] });
-          }
-        }
-        return { occurrence: occ, moduleId: resolvedModuleId, parentId: cleanParent || null, placedIn: cleanParent || "(root — no parent)" };
+        // 3. The server LISTS it in the parent (POST /occurrences links atomically
+        //    with $push). A second whole-array write here raced that push and
+        //    could drop a sibling written in between.
+        return { occurrence: occ, moduleId: resolvedModuleId, parentId: cleanParent || null, placedIn: cleanParent || "(root — no parent)", linkedToParent: !!cr.body?.linkedToParent };
       },
     },
     {
@@ -379,27 +420,26 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
       destructive: true,
       requires_confirm: true,
       run: async ({ id, toParentId, index }) => {
-        const sr = await call("GET", `/occurrences/${id}`);
-        const occ = sr.body?.occurrence;
+        const occ = (await call("GET", `/occurrences/${id}`)).body?.occurrence;
         if (!occ?.id) return { error: `occurrence ${id} not found` };
+        const dest = (await call("GET", `/occurrences/${toParentId}`)).body?.occurrence;
+        if (!dest?.id) return { error: `destination ${toParentId} not found` };
         const oldParentId = occ.parentId || null;
-        // Unlink from the old parent's occurrences[]
-        if (oldParentId && oldParentId !== toParentId) {
-          const op = (await call("GET", `/occurrences/${oldParentId}`)).body?.occurrence;
-          if (op) {
-            const list = (op.occurrences || []).filter(x => x !== id);
-            await call("PATCH", `/occurrences/${oldParentId}`, { occurrences: list });
-          }
+        const at = Number.isInteger(index) && index >= 0 ? index : undefined;
+        if (oldParentId !== toParentId) {
+          // A parentId PATCH is a move on the server: re-parent, $pull from the
+          // old list, $push into the new one. Atomic list edits — never a
+          // whole-array write that could clobber a concurrent sibling.
+          const r = await call("PATCH", `/occurrences/${id}`, { parentId: toParentId, ...(at != null ? { insertAtIndex: at } : {}) });
+          if (!r.body?.occurrence) return r.body;
+          return { moved: id, from: oldParentId, to: toParentId, index: at ?? "end" };
         }
-        // Re-parent + link into the destination's occurrences[] at index (or end)
-        await call("PATCH", `/occurrences/${id}`, { parentId: toParentId });
-        const dp = (await call("GET", `/occurrences/${toParentId}`)).body?.occurrence;
-        if (!dp) return { error: `destination ${toParentId} not found` };
-        const list = (dp.occurrences || []).filter(x => x !== id);
-        const at = typeof index === "number" && index >= 0 && index <= list.length ? index : list.length;
-        list.splice(at, 0, id);
+        // Same parent: a pure reorder, which only a list write can express.
+        const list = (dest.occurrences || []).filter(x => x !== id);
+        const pos = at != null && at <= list.length ? at : list.length;
+        list.splice(pos, 0, id);
         await call("PATCH", `/occurrences/${toParentId}`, { occurrences: list });
-        return { moved: id, from: oldParentId, to: toParentId, index: at };
+        return { moved: id, from: oldParentId, to: toParentId, index: pos };
       },
     },
     {
@@ -427,14 +467,7 @@ export function moduliToolPack({ baseUrl, apiToken, gridId }) {
           });
           const copy = cr.body?.occurrence;
           if (!copy?.id) return cr.body;
-          // Link into the destination's occurrences[]
-          if (destId) {
-            const dp = (await call("GET", `/occurrences/${destId}`)).body?.occurrence;
-            if (dp) {
-              const list = Array.isArray(dp.occurrences) ? dp.occurrences : [];
-              if (!list.includes(copy.id)) await call("PATCH", `/occurrences/${destId}`, { occurrences: [...list, copy.id] });
-            }
-          }
+          // POST /occurrences lists the copy in its parent atomically.
           // Deep copy children into the new occurrence (copylink group is per-pair,
           // so each child mints its OWN group — pass no override).
           if (deep && Array.isArray(src.occurrences) && src.occurrences.length) {
