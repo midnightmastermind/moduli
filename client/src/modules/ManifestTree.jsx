@@ -7,7 +7,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useGridActions } from "../GridActionsContext.js";
 import * as CommitHelpers from "../helpers/CommitHelpers.js";
-import { ChevronRight, Plus, Layout, FolderPlus, Folder, Pencil, Trash2, X, Image as ImageIcon } from "lucide-react";
+import { ChevronRight, Plus, Layout, FolderPlus, Folder, Pencil, Trash2, X, Image as ImageIcon, ExternalLink, FilePlus, Pin } from "lucide-react";
 import ContextMenu from "../ui/ContextMenu.jsx";
 import { draggable, dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 
@@ -21,7 +21,9 @@ import { isFolderOpen, setFolderOpen, ROOT_SCOPE } from "../helpers/treeExpansio
 import { resolveFileRef, isExternalFileRef } from "../helpers/fileRef.js";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import NodePill from "./NodePill.jsx";
-
+import { edgeForPoint, sortOrderForDrop, sortOrderAtEnd, wouldNestInsideItself, isInnermostTarget } from "../helpers/treeOrder.js";
+import { createPageInFolder } from "../helpers/createPageInFolder.js";
+import { confirmDeleteOccurrence } from "../helpers/confirmDeleteOccurrence.js";
 
 /**
  * The pinned section's contents: a FLAT list of the panel's pinned page ids.
@@ -80,7 +82,11 @@ function getDocHeading(textmap) {
 // ─── DocNode — occurrence item ──────────────────────────────────────────────
 // isAnchor=false: renders as a clickable file row (opens the doc)
 // isAnchor=true: renders as a small anchor chip (scrolls to heading in parent doc)
-function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, collapseGen = 0, onSetDefault, defaultOccurrenceId, showAnchors = true, dispatch, socket, siblingOccs }) {
+function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesById, childrenByParentId, activeOccurrenceId, onSelect, onScrollTo, collapseGen = 0, onSetDefault, defaultOccurrenceId, showAnchors = true, dispatch: dispatchProp, socket: socketProp, siblingOccs }) {
+  const ga = useGridActions();
+  const dispatch = dispatchProp || ga.dispatch;
+  const socket = socketProp || ga.socket;
+  const [ctxMenu, setCtxMenu] = useState(null);
   const childOccs = useMemo(() =>
     (childrenByParentId?.[occ.id] || [])
       .slice()
@@ -183,7 +189,8 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
         setDropEdge(edge); dropEdgeRef.current = edge;
       },
       onDragLeave: () => { setDropEdge(null); dropEdgeRef.current = null; },
-      onDrop: ({ source }) => {
+      onDrop: ({ source, location }) => {
+        if (!isInnermostTarget(location, rowRef.current)) { setDropEdge(null); dropEdgeRef.current = null; return; }
         const edge = dropEdgeRef.current;
         setDropEdge(null); dropEdgeRef.current = null;
         const { occurrenceId } = source.data;
@@ -252,7 +259,14 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
       {dropEdge === "top" && <div style={{ position: "absolute", top: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1 }} />}
       {dropEdge === "bottom" && <div style={{ position: "absolute", bottom: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1 }} />}
       <div style={{ display: "flex", alignItems: "center" }}
-        onContextMenu={(e) => { if (onSetDefault) { e.preventDefault(); onSetDefault(occ.id); } }}
+        onContextMenu={(e) => {
+          // ITS OWN MENU, always — a row that lets a right-click fall through
+          // hands it to the PANEL's menu, which is how "Remove from grid" once
+          // deleted a whole panel from here (2026-09-17). Setting the default
+          // page used to BE the right-click; it is an item in the menu now.
+          e.preventDefault(); e.stopPropagation();
+          setCtxMenu({ x: e.clientX, y: e.clientY });
+        }}
       >
         {/* Chevron placeholder is ALWAYS rendered (opacity 0 when not
             applicable) so every row — folders, pages, docs with or without
@@ -318,6 +332,18 @@ function DocNode({ occ, depth, isAnchor, parentOccId, occurrencesById, modulesBy
         </NodePill>
         )}
       </div>
+      {ctxMenu && (
+        <ContextMenu
+          ctx={{ x: ctxMenu.x, y: ctxMenu.y, items: [
+            { label: "Open", icon: ExternalLink, onClick: () => onSelect?.(occ.id) },
+            ...(canRename ? [{ label: "Rename", icon: Pencil, onClick: () => { setRenameValue(mod?.label || ""); setIsRenaming(true); } }] : []),
+            ...(onSetDefault ? [{ label: "Set as default page", icon: Pin, onClick: () => onSetDefault(occ.id) }] : []),
+            { separator: true },
+            { label: "Delete", icon: Trash2, danger: true, onClick: () => confirmDeleteOccurrence({ occurrence: occ, module: mod, dispatch, socket }) },
+          ] }}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
       {showAnchors && hasChildren && open && (
         <div style={{ paddingBottom: 4 }}>
           {childOccs.map(co => (
@@ -560,59 +586,47 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
   // row's top/bottom edge and rewrites sortOrder so the dropped folder
   // slots above/below this one. Skipped for the manifest root folder
   // (folder.parentId == null and there are no siblings).
+  // A FOLDER dragged onto this row: top/bottom thirds reorder beside it, the
+  // middle moves it INTO this folder. The root row has no siblings, so it only
+  // takes "into" — which the whole-folder target below already handles.
   useEffect(() => {
     if (!rowRef.current || !dispatch || !socket || !folder.parentId) return;
+    const edgeAt = (location) => edgeForPoint(rowRef.current.getBoundingClientRect(), location.current.input.clientY, { into: true });
+    const show = (edge) => {
+      if (folderDropEdgeRef.current === edge) return;
+      folderDropEdgeRef.current = edge;
+      setFolderDropEdge(edge);
+    };
     return dropTargetForElements({
       element: rowRef.current,
       canDrop: ({ source }) =>
         source.data?.type === "folder" &&
         source.data?.folderId &&
-        source.data.folderId !== folder.id,
-      onDragEnter: ({ location }) => {
-        const rect = rowRef.current.getBoundingClientRect();
-        const edge = location.current.input.clientY < rect.top + rect.height / 2 ? "top" : "bottom";
-        setFolderDropEdge(edge);
-        folderDropEdgeRef.current = edge;
-      },
-      onDrag: ({ location }) => {
-        const rect = rowRef.current.getBoundingClientRect();
-        const edge = location.current.input.clientY < rect.top + rect.height / 2 ? "top" : "bottom";
-        if (folderDropEdgeRef.current !== edge) {
-          setFolderDropEdge(edge);
-          folderDropEdgeRef.current = edge;
-        }
-      },
-      onDragLeave: () => { setFolderDropEdge(null); folderDropEdgeRef.current = null; },
-      onDrop: ({ source }) => {
+        !wouldNestInsideItself(foldersById, source.data.folderId, folder.id),
+      onDragEnter: ({ location }) => show(edgeAt(location)),
+      onDrag: ({ location }) => show(edgeAt(location)),
+      onDragLeave: () => show(null),
+      onDrop: ({ source, location }) => {
         const edge = folderDropEdgeRef.current;
-        setFolderDropEdge(null);
-        folderDropEdgeRef.current = null;
+        show(null);
+        if (!isInnermostTarget(location, rowRef.current)) return;
         const draggedId = source.data?.folderId;
         if (!draggedId) return;
-        // Build siblings list including SELF so midpoint math has a stable
-        // anchor index for "this row". Use foldersById directly (siblings
-        // useMemo above excluded self for simpler iteration elsewhere).
-        const allSiblings = Object.values(foldersById ?? {})
-          .filter(f => f.parentId === folder.parentId)
-          .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-        const myIdx = allSiblings.findIndex(s => s.id === folder.id);
-        const myOrder = folder.sortOrder ?? 0;
-        let newOrder;
-        if (edge === "top") {
-          const prev = myIdx > 0 ? allSiblings[myIdx - 1] : null;
-          newOrder = prev ? ((prev.sortOrder ?? 0) + myOrder) / 2 : myOrder - 1;
-        } else {
-          const next = myIdx < allSiblings.length - 1 ? allSiblings[myIdx + 1] : null;
-          newOrder = next ? (myOrder + (next.sortOrder ?? 0)) / 2 : myOrder + 1;
+        if (edge === "into") {
+          const kids = Object.values(foldersById ?? {}).filter(f => f.parentId === folder.id);
+          CommitHelpers.updateFolder({ dispatch, socket, folder: { id: draggedId, parentId: folder.id, sortOrder: sortOrderAtEnd(kids) }, emit: true });
+          setOpen(true);
+          return;
         }
+        const siblings = Object.values(foldersById ?? {}).filter(f => f.parentId === folder.parentId);
         CommitHelpers.updateFolder({
           dispatch, socket,
-          folder: { id: draggedId, parentId: folder.parentId, sortOrder: newOrder },
+          folder: { id: draggedId, parentId: folder.parentId, sortOrder: sortOrderForDrop(siblings, folder.id, edge, draggedId) },
           emit: true,
         });
       },
     });
-  }, [folder.id, folder.parentId, folder.sortOrder, foldersById, dispatch, socket]);
+  }, [folder.id, folder.parentId, foldersById, dispatch, socket, setOpen]);
 
   // Drop target — accept artifact doc nodes dragged from tree
   useEffect(() => {
@@ -622,13 +636,26 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
       // Pages drag as type "page" (tree-page), artifacts as "artifact". Both are
       // droppable into a folder: an artifact re-homes, and a page is how you
       // make a template of it (the Templates folder copies — resolveFolderDrop).
+      // A folder too (2026-09-17: *"move to a diff folder"*), never into itself
+      // or one of its own descendants.
       canDrop: ({ source }) =>
-        (source.data.type === "artifact" || source.data.type === "page")
-        && source.data.occurrenceId !== undefined,
-      onDragEnter: () => setIsDragOver(true),
+        ((source.data.type === "artifact" || source.data.type === "page") && source.data.occurrenceId !== undefined)
+        || (source.data.type === "folder" && source.data.folderId
+            && !wouldNestInsideItself(foldersById, source.data.folderId, folder.id)),
+      // Every ancestor folder is also under the pointer; only the innermost one
+      // lights up, or dropping into a sub-folder highlights the whole chain.
+      onDragEnter: ({ location }) => setIsDragOver(isInnermostTarget(location, folderRef.current)),
+      onDrag: ({ location }) => setIsDragOver(isInnermostTarget(location, folderRef.current)),
       onDragLeave: () => setIsDragOver(false),
-      onDrop: ({ source }) => {
+      onDrop: ({ source, location }) => {
         setIsDragOver(false);
+        if (!isInnermostTarget(location, folderRef.current)) return;
+        if (source.data.type === "folder") {
+          if (!dispatch || !socket || source.data.folderId === folder.id) return;
+          CommitHelpers.updateFolder({ dispatch, socket, folder: { id: source.data.folderId, parentId: folder.id, sortOrder: sortOrderAtEnd(childFolders) }, emit: true });
+          setOpen(true);
+          return;
+        }
         const { occurrenceId } = source.data;
         if (!occurrenceId || !dispatch || !socket) return;
 
@@ -654,7 +681,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
         setOpen(true);
       },
     });
-  }, [folder, allChildOccs, dispatch, socket, modulesById, occurrencesById]);
+  }, [folder, allChildOccs, childFolders, foldersById, dispatch, socket, modulesById, occurrencesById, setOpen]);
 
   // Rename handler — saves on Enter/blur, cancels on Escape
   const renameInputRef = useRef(null);
@@ -739,33 +766,13 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
   const [addTrigger, setAddTrigger] = useState(0);
 
   const createInFolder = useCallback(({ kind } = {}) => {
-    const userId = state?.userId;
-    const gridId = state?.grid?._id;
-    if (!userId || !gridId || !dispatch || !socket || !kind) return;
-    const modId = crypto.randomUUID();
-    const occId = crypto.randomUUID();
-    const maxOrder = allChildOccs.reduce((m, o) => Math.max(m, o.sortOrder ?? 0), -1);
-    CommitHelpers.createModule({
-      dispatch, socket,
-      module: { id: modId, userId, gridId, role: "page", kind, label: "Untitled" }, emit: true,
+    const occId = createPageInFolder({
+      folderId: folder.id, kind, sortOrder: sortOrderAtEnd(allChildOccs), state, dispatch, socket,
     });
-    // `moduleId` is the schema-canonical pointer PageFolder / pagesList / role
-    // lookups read; `targetId` is the legacy alias the server's
-    // createOccurrenceData still uses. Without moduleId the new page renders as
-    // `modulesById[undefined]` — a blank card in the folder grid.
-    CommitHelpers.createOccurrence({
-      dispatch, socket,
-      occurrence: {
-        id: occId, userId, gridId, moduleId: modId, targetId: modId, targetType: "module",
-        parentId: folder.id, sortOrder: maxOrder + 1, iteration: { mode: "persistent" },
-        // A doc page renders its OWN textmap (`PageDoc`), so it needs one to
-        // open into; the other kinds render children and must not carry one.
-        ...(kind === "doc" ? { textmap: { type: "doc", content: [{ type: "paragraph" }] } } : {}),
-      }, emit: true,
-    });
+    if (!occId) return;
     setOpen(true);
     onSelect(occId);
-  }, [state, socket, dispatch, folder.id, allChildOccs, onSelect]);
+  }, [state, socket, dispatch, folder.id, allChildOccs, onSelect, setOpen]);
 
   // Folder pill click — open folder as a page (mint a folder-page occurrence
   // on demand if one doesn't exist yet). Falls back to onSelect when
@@ -884,6 +891,9 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
       {ctxMenu && (
         <ContextMenu
           ctx={{ x: ctxMenu.x, y: ctxMenu.y, items: [
+            { label: "New page…", icon: FilePlus, onClick: () => setAddTrigger(n => n + 1) },
+            { label: "Open folder page", icon: Layout, onClick: handleFolderClick },
+            { separator: true },
             { label: "Rename", icon: Pencil, onClick: () => { setRenameValue(folder.name); setIsRenaming(true); } },
             { label: "Set cover…", icon: ImageIcon, onClick: () => setCoverEditor({ x: ctxMenu.x, y: ctxMenu.y }) },
             ...(folder.meta?.cover ? [{ label: "Clear cover", icon: X, onClick: () => CommitHelpers.updateFolder({ dispatch, socket, folder: { id: folder.id, meta: { ...(folder.meta || {}), cover: null } }, emit: true }) }] : []),
@@ -935,7 +945,9 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
 
 // ─── PageTreeNode — pill style page entry + container anchor chips (draggable) ──
 function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurrencesById, modulesById, childrenByParentId, onSelect, onScrollTo, activeOccurrenceId, reverseIndent = false, depth = 0, siblingOccs = null }) {
-  const { dispatch, socket } = useGridActions();
+  const { dispatch, socket, state, foldersById } = useGridActions();
+  const [ctxMenu, setCtxMenu] = useState(null);
+  const [addTrigger, setAddTrigger] = useState(0);
   const pageOcc = occurrencesById?.[pageOccId];
   const pageMod = pageOcc ? modulesById?.[pageOcc.moduleId] : null;
   const [open, setOpen] = useState(false);
@@ -950,42 +962,46 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurre
     if (!rowRef.current || !siblingOccs || !dispatch || !socket || !pageOcc) return;
     return dropTargetForElements({
       element: rowRef.current,
-      canDrop: ({ source }) => source.data?.type === "module" && source.data?.sourceType === "tree-page" && source.data?.occurrenceId && source.data.occurrenceId !== pageOccId,
+      // Page rows drag as type "page" (see dragData below). This read "module"
+      // for as long as it existed, so reordering pages in the tree never worked.
+      canDrop: ({ source }) => source.data?.type === "page" && source.data?.sourceType === "tree-page" && source.data?.occurrenceId && source.data.occurrenceId !== pageOccId,
       onDragEnter: ({ location }) => {
-        const rect = rowRef.current.getBoundingClientRect();
-        const edge = location.current.input.clientY < rect.top + rect.height / 2 ? "top" : "bottom";
+        const edge = edgeForPoint(rowRef.current.getBoundingClientRect(), location.current.input.clientY);
         setDropEdge(edge); dropEdgeRef.current = edge;
       },
       onDrag: ({ location }) => {
-        const rect = rowRef.current.getBoundingClientRect();
-        const edge = location.current.input.clientY < rect.top + rect.height / 2 ? "top" : "bottom";
+        const edge = edgeForPoint(rowRef.current.getBoundingClientRect(), location.current.input.clientY);
         if (dropEdgeRef.current !== edge) { setDropEdge(edge); dropEdgeRef.current = edge; }
       },
       onDragLeave: () => { setDropEdge(null); dropEdgeRef.current = null; },
-      onDrop: ({ source }) => {
+      onDrop: ({ source, location }) => {
         const edge = dropEdgeRef.current;
         setDropEdge(null); dropEdgeRef.current = null;
+        if (!isInnermostTarget(location, rowRef.current)) return;
         const occurrenceId = source.data?.occurrenceId;
         if (!occurrenceId) return;
-        const myOrder = pageOcc.sortOrder ?? 0;
-        const sorted = siblingOccs.slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-        const myIdx = sorted.findIndex(s => s.id === pageOccId);
-        let newOrder;
-        if (edge === "top") {
-          const prev = myIdx > 0 ? sorted[myIdx - 1] : null;
-          newOrder = prev ? ((prev.sortOrder ?? 0) + myOrder) / 2 : myOrder - 1;
-        } else {
-          const next = myIdx < sorted.length - 1 ? sorted[myIdx + 1] : null;
-          newOrder = next ? (myOrder + (next.sortOrder ?? 0)) / 2 : myOrder + 1;
-        }
+        // Beside THIS row — which moves it into this row's folder when it came
+        // from another one, and reorders it when it did not.
         CommitHelpers.updateOccurrence({
           dispatch, socket,
-          occurrence: { id: occurrenceId, parentId: pageOcc.parentId, sortOrder: newOrder },
+          occurrence: { id: occurrenceId, parentId: pageOcc.parentId, sortOrder: sortOrderForDrop(siblingOccs, pageOccId, edge, occurrenceId) },
           emit: true,
         });
       },
     });
   }, [pageOccId, pageOcc, siblingOccs, dispatch, socket]);
+
+  // The folder this page is filed in — "New page here" creates beside it.
+  const parentFolder = pageOcc?.parentId ? foldersById?.[pageOcc.parentId] : null;
+  const createHere = ({ kind } = {}) => {
+    const siblings = siblingOccs || (childrenByParentId?.[parentFolder?.id] || []);
+    const occId = createPageInFolder({
+      folderId: parentFolder?.id, kind,
+      sortOrder: sortOrderForDrop(siblings, pageOccId, "bottom"),
+      state, dispatch, socket,
+    });
+    if (occId) onOpenPage?.(occId);
+  };
 
   if (!pageOcc || !pageMod || pageMod.role !== "page") return null;
 
@@ -1038,7 +1054,9 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurre
     <div ref={rowRef} style={{ paddingRight: 2, position: "relative", marginLeft: depth * 8 }}>
       {dropEdge === "top"    && <div style={{ position: "absolute", top: 0,    left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1, zIndex: 2 }} />}
       {dropEdge === "bottom" && <div style={{ position: "absolute", bottom: 0, left: 4, right: 4, height: 2, background: "var(--accent-blue)", borderRadius: 1, zIndex: 2 }} />}
-      <div style={{ display: "flex", alignItems: "center", flexDirection: "row", gap: 1 }} className="manifest-row">
+      <div style={{ display: "flex", alignItems: "center", flexDirection: "row", gap: 1 }} className="manifest-row"
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
+      >
         {!reverseIndent && chevron}
         <NodePill
           occurrence={pageOcc}
@@ -1071,6 +1089,29 @@ function PageTreeNode({ pageOccId, activeOccId, onOpenPage, onClosePage, occurre
         />
         {reverseIndent && chevron}
       </div>
+      {ctxMenu && (
+        <ContextMenu
+          ctx={{ x: ctxMenu.x, y: ctxMenu.y, items: [
+            { label: "Open", icon: ExternalLink, onClick: () => onOpenPage?.(pageOccId) },
+            ...(parentFolder ? [{ label: "New page here…", icon: FilePlus, onClick: () => setAddTrigger(n => n + 1) }] : []),
+            ...(onClosePage ? [{ label: "Close page", icon: X, onClick: () => onClosePage(pageOccId) }] : []),
+            { separator: true },
+            { label: "Delete page", icon: Trash2, danger: true, onClick: () => confirmDeleteOccurrence({ occurrence: pageOcc, module: pageMod, dispatch, socket }) },
+          ] }}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
+      {parentFolder && addTrigger > 0 && (
+        <div style={{ display: "none" }}>
+          <QuickAddMenu
+            targetRole="page"
+            openTrigger={addTrigger}
+            createLabel={`Add to ${parentFolder.name}`}
+            onCreateNew={createHere}
+            onSelect={createHere}
+          />
+        </div>
+      )}
       {/* Children — visible when expanded */}
       {hasChildren && open && (
         <div style={{ paddingLeft: reverseIndent ? 0 : (hasDocNodeProps ? 6 : 10), paddingRight: reverseIndent ? (hasDocNodeProps ? 6 : 10) : 0, paddingBottom: 2 }}>
@@ -1283,6 +1324,7 @@ export default function ManifestTree({ manifestId, view, dispatch, socket, colla
 
   return (
     <div
+      data-manifest-tree=""
       style={{
         width: collapsed ? 24 : "220px",
         height: "100%",

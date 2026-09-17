@@ -616,10 +616,21 @@ function Panel({
 
   const handleRemovePanel = useCallback(() => {
     if (!panelOccurrence?.id) return;
+    // CONFIRMED, and it says it is the PANEL (user, 2026-09-17: a right-click on
+    // a page in the sidebar reached this menu and "Remove from grid" deleted the
+    // whole hub panel with one click). Removing a panel is the biggest thing a
+    // single menu item can do on this grid; it must never be one stray click.
+    const name = module?.label || "this panel";
+    if (typeof window !== "undefined"
+      && !window.confirm(`Remove the panel "${name}" from the grid?\n\nIts pages stay in your files; the panel itself is removed.`)) return;
     CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: panelOccurrence.id, grid: state?.grid, emit: true });
-  }, [panelOccurrence, dispatch, socket, state?.grid]);
+  }, [panelOccurrence, dispatch, socket, state?.grid, module?.label]);
 
   const handlePanelContextMenu = useCallback((e) => {
+    // The sidebar tree owns right-clicks on its own rows. A row without a menu
+    // must NEVER fall through to this one — that is exactly how "Remove from
+    // grid" got clicked on a page (2026-09-17).
+    if (e.target?.closest?.("[data-manifest-tree]")) { e.preventDefault(); return; }
     e.preventDefault();
     e.stopPropagation();
     setCtxMenu({
@@ -650,14 +661,19 @@ function Panel({
           ? { label: "Merge back", icon: Merge, onClick: handleUnsplitPanel }
           : { label: "Split panel", icon: SplitSquareHorizontal, onClick: handleSplitPanel },
         { separator: true },
-        { label: "Remove from grid", icon: Trash2, danger: true, onClick: handleRemovePanel },
+        { label: "Remove panel from grid", icon: Trash2, danger: true, onClick: handleRemovePanel },
       ].filter(Boolean),
     });
   }, [handleCopyPanel, handleCopylinkPanel, handleSplitPanel, handleUnsplitPanel, handleRemovePanel, isSplit, panelOccurrence, module.id, dispatch, socket, showHeader, addNewPanel]);
 
   // Touch: long-press opens the same panel menu.
   const panelLongPress = useLongPress(({ x, y }) =>
-    handlePanelContextMenu({ clientX: x, clientY: y, preventDefault() {}, stopPropagation() {} }));
+    handlePanelContextMenu({
+      clientX: x, clientY: y, preventDefault() {}, stopPropagation() {},
+      // The synthetic event has no target; the point does. Without it a
+      // long-press on a sidebar row would skip the tree guard above.
+      target: typeof document !== "undefined" ? document.elementFromPoint(x, y) : null,
+    }));
 
   // DISPLAY STATE
   const display = layout?.style?.display ?? "block";

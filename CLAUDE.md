@@ -90,6 +90,66 @@ drawer**, so the confirm card and the model choosing these tools are unexercised
 
 ---
 
+### 2026-09-17 — THE PAGE JUMPED BECAUSE A STACKED WRAP GROUP'S CSS REACHED THE GROUPS INSIDE IT; the panel you removed is back; folder pages drag and right-click
+
+**THE JUMPING, reproduced before anything changed.** User: *"i went to move a section outside of a
+container in my new page (the alan watts ego and the universe article) … the page start glitching
+like crazy. its jumping up and down rapidly."* Read out of Mongo, the drop did not just move "By Maria
+Popova" out: it landed on the SIDE of the article's title container and built a `wrapGroup` whose
+neighbour is the whole section and whose host is the now-empty title. Rebuilt in that exact shape on
+**test grid 2** and measured in a browser:
+```
+                                  group height states over 4s
+current CSS                       2   (7416 <-> 7435px, every few frames)
+selectors scoped (in-page CSSOM)  1
+```
+**The outer group was NOT flipping — it sat stacked the whole time.** Diffing every descendant's box
+across frames named the real movers: the image+prose wrap groups INSIDE the moved section, their seams
+appearing and vanishing. The outer group's stacked rule is a DESCENDANT selector with `!important`:
+```css
+.wrap-group--auto-stacked .wrap-group-content > * > :not(:last-child) { float: none !important; width: 100% }
+```
+so it un-floated every nested group's image. Each then measured "no room", stacked, measured "room",
+wrapped — forever. All 75 wrap-group mode selectors now use `> .wrap-group-content`, so a group styles
+only its own content. `wrapGroupSelectorScope.test.js` greps the stylesheet for the descendant form and
+fails on the old CSS (with a control that the scoped form exists). **Nested groups were always
+possible (the importer makes them); this is the first time one sat inside a STACKED group.**
+
+**Your live page still has the wrap group** (section beside an empty title). It stops jumping with the
+fix; drag the section onto the empty title container's top/bottom edge, or delete that container,
+to get the flat shape you meant.
+
+**THE PANEL "REMOVE FROM GRID" DELETED: restored + guarded.** A right-click on a page row in the Root
+tree had no menu of its own, bubbled to the panel's, and "Remove from grid" deleted the whole panel.
+Restored on prod from the delete's own SnapshotOp `before` + the 04:17 backup's grid list/layout tree
+(guarded by an equality check), pm2 restarted. Now: every tree row has its own menu, the panel menu
+ignores `[data-manifest-tree]`, the item reads "Remove panel from grid" and asks first.
+
+**THE TREE AND FOLDER PAGES: drag to reorder, drag into a folder, right-click to add or delete.**
+`helpers/treeOrder.js` holds the rules once (they were written out four times in ManifestTree):
+`edgeForPoint`, `sortOrderForDrop`, `wouldNestInsideItself`, `isInnermostTarget` (Pragmatic fires
+`onDrop` on EVERY nested target, so a page row inside two folders ran three handlers), and for folder
+pages `cardZoneForPoint` + `planFolderPageDrop`. **Two tree defects found on the way:** the page-row
+reorder checked for drag type `"module"` while page drags are `"page"`, so reordering pages had never
+worked; and nested folder targets double-handled one drop. On a folder page the middle of a FOLDER card
+files the dragged page there (a sub-folder card moves the folder itself, never into its own
+descendant); the rim reorders; an instance or container is never re-filed (a folder `parentId` would
+strand it out of the container that renders it). Right-click the background for New board/doc/canvas/
+table page; right-click a card for the same, "…inside" on a folder card, Open, and Delete (confirmed,
+through the one cascading delete path). `createPageInFolder` moved to `helpers/` so the tree and the
+folder page mint the same shape. A/B'd: dropping the fileable guard, the cycle guard or the
+folder-card guard each fails exactly one test.
+
+**PROBE DEBRIS on test grid 2 (disposable):** a "WATTS REPRO" page and its 96 imported occurrences, pinned
+to Panel C. **Probe lesson:** a socket that never sent `request_full_state` has no active grid, so
+`create_page` wrote into a `userId:null` cache — the page was in Mongo and invisible to the grid until
+re-sent on a socket bound to the grid.
+
+**NOT VERIFIED:** nobody has dragged a card on a folder page or used the new right-click items in a
+browser; the rules are unit-tested and the build is clean.
+
+---
+
 ### 2026-09-16 (4) — THE BOOKMARKS YOU MADE NEVER GOT A PICTURE; and REDDIT CANNOT BE READ OR FRAMED
 
 **THE COVER REQUEST WAS NOT ABOUT WIKIPEDIA AND NOT ABOUT A RULE.** User: *"we should either

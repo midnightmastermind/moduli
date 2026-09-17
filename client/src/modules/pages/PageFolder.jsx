@@ -4,14 +4,25 @@
 // prev/next arrows navigate peer pages at the same depth.
 
 import React, { useRef, useMemo, useState, useCallback, useEffect } from "react";
-import { ChevronLeft, ChevronRight, LayoutGrid, List, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, LayoutGrid, List, Search, FilePlus, FileText, LayoutPanelLeft, PenTool, Table2, Trash2, ExternalLink } from "lucide-react";
 import { dropTargetForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
-import { attachClosestEdge, extractClosestEdge } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import PreviewNode from "../PreviewNode.jsx";
 import useDrilldown, { getCardAnimStyle } from "../../hooks/useDrilldown.js";
 import { useGridActions } from "../../GridActionsContext";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { ensureArtifactPageOcc } from "../../helpers/importsFolder";
+import ContextMenu from "../../ui/ContextMenu";
+import { cardZoneForPoint, planFolderPageDrop, sortOrderAtEnd } from "../../helpers/treeOrder.js";
+import { createPageInFolder } from "../../helpers/createPageInFolder.js";
+import { confirmDeleteOccurrence } from "../../helpers/confirmDeleteOccurrence.js";
+
+// The page kinds a right-click can make, in the order the add menu lists them.
+const NEW_PAGE_KINDS = [
+  { kind: "board", label: "New board page", icon: LayoutPanelLeft },
+  { kind: "doc", label: "New doc page", icon: FileText },
+  { kind: "canvas", label: "New canvas page", icon: PenTool },
+  { kind: "table", label: "New table page", icon: Table2 },
+];
 
 export default function PageFolder({
   childOccs,
@@ -28,7 +39,9 @@ export default function PageFolder({
   onAutoNavigateComplete,
 }) {
   const folderRef = useRef(null);
-  const { occurrencesById, fieldsById } = useGridActions();
+  const { occurrencesById, fieldsById, foldersById, childrenByParentId, state } = useGridActions();
+  const currentFolderId = folderPageOccId ? occurrencesById?.[folderPageOccId]?.parentId : null;
+  const [ctxMenu, setCtxMenu] = useState(null);
 
   // F5-ext (2026-05-24) — search-in-folder. Filters cards by label OR
   // field values OR occurrence content. Defaults to all three scopes; the
@@ -90,28 +103,73 @@ export default function PageFolder({
     });
   }, [folderPageOcc, dispatch, socket]);
 
-  // F3 — drag-reorder within the folder page. Persisted via the dragged
-  // occurrence's sortOrder; we set it to the midpoint between the neighbors
-  // on either side of the closest edge so neither neighbor needs to be
-  // rewritten. This is the same midpoint-by-sortOrder pattern used by
-  // ManifestTree's between-folder reorder (Apr 6 2026 / Mar 31 2026).
-  const reorderToNeighbor = useCallback((draggedOccId, targetOccId, edge) => {
-    if (!draggedOccId || !targetOccId || draggedOccId === targetOccId) return;
-    const idx = childOccs.findIndex(o => o.id === targetOccId);
-    if (idx < 0) return;
-    const target = childOccs[idx];
-    const before = edge === "top" || edge === "left";
-    const neighborIdx = before ? idx - 1 : idx + 1;
-    const neighbor = childOccs[neighborIdx] || null;
-    const targetSort = target.sortOrder ?? idx;
-    const neighborSort = neighbor ? (neighbor.sortOrder ?? neighborIdx) : (before ? targetSort - 2 : targetSort + 2);
-    const newSort = (targetSort + neighborSort) / 2;
+  // F3 — drag on a folder page. A card's RIM reorders; the middle of a FOLDER
+  // card files the dragged thing INTO that folder (user, 2026-09-17: *"make
+  // sure i can drag and drop to reorder or move to a diff folder"*). The
+  // decision is `planFolderPageDrop`, shared with nothing else yet but pure so
+  // the rules are testable without mounting a grid.
+  const applyCardDrop = useCallback((draggedOccId, targetOccId, zone) => {
+    const dragged = occurrencesById?.[draggedOccId];
+    const target = occurrencesById?.[targetOccId];
+    const plan = planFolderPageDrop({
+      dragged, draggedModule: modulesById?.[dragged?.moduleId],
+      target, targetModule: modulesById?.[target?.moduleId],
+      zone, currentFolderId,
+      // Reorder against what is on screen: the list is already sortOrder-sorted.
+      siblings: childOccs,
+      childrenOf: (fid) => childrenByParentId?.[fid] || [],
+      foldersById,
+    });
+    if (!plan) return;
+    if (plan.kind === "folder") {
+      CommitHelpers.updateFolder({ dispatch, socket, folder: { id: plan.id, parentId: plan.parentId, sortOrder: plan.sortOrder }, emit: true });
+      return;
+    }
     CommitHelpers.updateOccurrence({
       dispatch, socket,
-      occurrence: { id: draggedOccId, sortOrder: newSort },
+      occurrence: { id: plan.id, parentId: plan.parentId, sortOrder: plan.sortOrder },
       emit: true,
     });
-  }, [childOccs, dispatch, socket]);
+  }, [occurrencesById, modulesById, currentFolderId, childOccs, childrenByParentId, foldersById, dispatch, socket]);
+
+  // Right-click on the folder page: make a page in THIS folder, or — on a card —
+  // open / delete it, and on a folder card make a page inside that folder.
+  const newPageItems = useCallback((folderId) => NEW_PAGE_KINDS.map(({ kind, label, icon }) => ({
+    label, icon,
+    onClick: () => createPageInFolder({
+      folderId, kind, sortOrder: sortOrderAtEnd(childrenByParentId?.[folderId]), state, dispatch, socket,
+    }),
+  })), [childrenByParentId, state, dispatch, socket]);
+
+  const handleBackgroundContextMenu = useCallback((e) => {
+    if (!currentFolderId) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setCtxMenu({ x: e.clientX, y: e.clientY, items: newPageItems(currentFolderId) });
+  }, [currentFolderId, newPageItems]);
+
+  const cardMenuItems = useCallback((occ, mod) => {
+    const isFolder = mod?.role === "page" && mod?.kind === "folder";
+    return [
+      ...(isFolder && occ.parentId ? [...newPageItems(occ.parentId).map((it) => ({ ...it, label: `${it.label} inside` })), { separator: true }] : []),
+      ...newPageItems(currentFolderId).map((it) => ({ ...it, icon: FilePlus })),
+    ];
+  }, [newPageItems, currentFolderId]);
+
+  const handleRowContextMenu = useCallback((e, occ, mod, open) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCtxMenu({
+      x: e.clientX, y: e.clientY,
+      items: [
+        { label: "Open", icon: ExternalLink, onClick: open },
+        { separator: true },
+        ...cardMenuItems(occ, mod),
+        { separator: true },
+        { label: "Delete", icon: Trash2, danger: true, onClick: () => confirmDeleteOccurrence({ occurrence: occ, module: mod, dispatch, socket }) },
+      ],
+    });
+  }, [cardMenuItems, dispatch, socket]);
 
   // Briefly highlight cards that NEWLY appear in this folder — e.g. a fresh
   // import landing in the "Imports" folder (the user: "since the import folder
@@ -398,7 +456,7 @@ export default function PageFolder({
           >×</button>
         )}
       </div>
-      <div className="page-scroll" style={{
+      <div className="page-scroll" onContextMenu={handleBackgroundContextMenu} style={{
         flex: 1, minHeight: 0,
         overflowY: "auto",
         WebkitOverflowScrolling: "touch",
@@ -416,7 +474,9 @@ export default function PageFolder({
                 index={i}
                 viewLayout={viewLayout}
                 onDrillDown={handleDrillDown}
-                onReorder={reorderToNeighbor}
+                onCardDrop={applyCardDrop}
+                extraMenuItems={cardMenuItems}
+                onRowContextMenu={handleRowContextMenu}
                 isAnimating={!!animState}
                 autoNavigateTo={autoNavigateTo}
                 animState={animState}
@@ -426,11 +486,12 @@ export default function PageFolder({
           })}
           {filteredChildOccs.length === 0 && (
             <div className="text-xs text-muted-foreground text-center empty-placeholder" style={{ gridColumn: "1 / -1" }}>
-              {searchQuery.trim() ? `No matches for "${searchQuery}"` : "Drop items here"}
+              {searchQuery.trim() ? `No matches for "${searchQuery}"` : "Right-click to add a page"}
             </div>
           )}
         </div>
       </div>
+      <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />
     </div>
   );
 }
@@ -440,36 +501,43 @@ export default function PageFolder({
 // switches between the existing PreviewNode card render (grid) and a
 // compact row render (list). Row mode renders directly here so PreviewNode
 // stays a pure card.
-function FolderItem({ occ, mod, index, viewLayout, onDrillDown, onReorder, isAnimating, autoNavigateTo, animState, isNew }) {
+function FolderItem({ occ, mod, index, viewLayout, onDrillDown, onCardDrop, extraMenuItems, onRowContextMenu, isAnimating, autoNavigateTo, animState, isNew }) {
   const wrapRef = useRef(null);
-  const [edgeHint, setEdgeHint] = useState(null); // "top" | "bottom" | "left" | "right" | null
+  // "top" | "bottom" | "left" | "right" | "into" | null
+  const [edgeHint, setEdgeHint] = useState(null);
+  const isFolderCard = mod?.role === "page" && mod?.kind === "folder";
 
   useEffect(() => {
     if (!wrapRef.current) return;
+    const zoneOf = (location) => {
+      const input = location?.current?.input;
+      const rect = wrapRef.current?.getBoundingClientRect();
+      return cardZoneForPoint(rect, input?.clientX, input?.clientY, {
+        into: isFolderCard, horizontal: viewLayout !== "list",
+      });
+    };
     return dropTargetForElements({
       element: wrapRef.current,
       canDrop: ({ source }) => {
         const s = source?.data || {};
-        // Accept any module/occurrence drag whose payload has an occurrenceId
-        // (folder-node drags are the canonical case, but instance + container
-        // drags from elsewhere on the grid should reorder too).
         return !!s.occurrenceId && s.occurrenceId !== occ.id;
       },
-      getData: ({ input, element }) => attachClosestEdge(
-        { type: "folder-item", occurrenceId: occ.id, index },
-        { input, element, allowedEdges: viewLayout === "list" ? ["top", "bottom"] : ["top", "bottom", "left", "right"] }
-      ),
-      onDragEnter: ({ self }) => setEdgeHint(extractClosestEdge(self.data) || null),
-      onDrag: ({ self }) => setEdgeHint(extractClosestEdge(self.data) || null),
+      getData: () => ({ type: "folder-item", occurrenceId: occ.id, index }),
+      onDragEnter: ({ location }) => setEdgeHint(zoneOf(location)),
+      onDrag: ({ location }) => setEdgeHint(zoneOf(location)),
       onDragLeave: () => setEdgeHint(null),
-      onDrop: ({ source, self }) => {
-        const draggedOccId = source?.data?.occurrenceId;
-        const edge = extractClosestEdge(self.data);
+      onDrop: ({ source, location }) => {
+        const zone = zoneOf(location);
         setEdgeHint(null);
-        if (draggedOccId && edge) onReorder?.(draggedOccId, occ.id, edge);
+        const draggedOccId = source?.data?.occurrenceId;
+        if (draggedOccId && zone) onCardDrop?.(draggedOccId, occ.id, zone);
       },
     });
-  }, [occ.id, index, viewLayout, onReorder]);
+  }, [occ.id, index, viewLayout, onCardDrop, isFolderCard]);
+
+  const intoRing = edgeHint === "into"
+    ? <div style={{ position: "absolute", inset: 0, border: "2px solid var(--accent-blue, #38bdf8)", borderRadius: 6, background: "rgba(56,189,248,0.08)", pointerEvents: "none" }} />
+    : null;
 
   if (viewLayout === "list") {
     const role = mod?.role || "instance";
@@ -490,6 +558,7 @@ function FolderItem({ occ, mod, index, viewLayout, onDrillDown, onReorder, isAni
         ref={wrapRef}
         data-occurrence-id={occ.id}
         onClick={() => onDrillDown?.(occ.id, wrapRef.current)}
+        onContextMenu={(e) => onRowContextMenu?.(e, occ, mod, () => onDrillDown?.(occ.id, wrapRef.current))}
         className={isNew ? "preview-node-list-row preview-node-flash" : "preview-node-list-row"}
         style={{
           position: "relative",
@@ -516,6 +585,7 @@ function FolderItem({ occ, mod, index, viewLayout, onDrillDown, onReorder, isAni
         </span>
         {edgeHint === "top" && <div style={{ position: "absolute", left: 0, right: 0, top: -1, height: 2, background: "var(--accent-blue, #38bdf8)" }} />}
         {edgeHint === "bottom" && <div style={{ position: "absolute", left: 0, right: 0, bottom: -1, height: 2, background: "var(--accent-blue, #38bdf8)" }} />}
+        {intoRing}
       </div>
     );
   }
@@ -529,8 +599,10 @@ function FolderItem({ occ, mod, index, viewLayout, onDrillDown, onReorder, isAni
         isAnimating={isAnimating}
         loadPreview={autoNavigateTo ? occ.id === autoNavigateTo : true}
         loadIndex={index}
+        extraMenuItems={extraMenuItems}
         style={getCardAnimStyle(occ.id, animState)}
       />
+      {intoRing}
       {edgeHint === "left" && <div style={{ position: "absolute", left: -1, top: 4, bottom: 4, width: 2, background: "var(--accent-blue, #38bdf8)" }} />}
       {edgeHint === "right" && <div style={{ position: "absolute", right: -1, top: 4, bottom: 4, width: 2, background: "var(--accent-blue, #38bdf8)" }} />}
       {edgeHint === "top" && <div style={{ position: "absolute", left: 4, right: 4, top: -1, height: 2, background: "var(--accent-blue, #38bdf8)" }} />}

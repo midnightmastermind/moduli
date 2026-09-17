@@ -31,6 +31,7 @@ import ContextMenu from "../ui/ContextMenu";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { PagePreviewBody } from "../PagePreviewApp.jsx";
 import { requestPreviewSlot } from "../helpers/previewAdmission.js";
+import { confirmDeleteOccurrence } from "../helpers/confirmDeleteOccurrence.js";
 
 // Inline preview — mounts PagePreviewBody directly in the parent React tree.
 // Scaled to fit the card via CSS transform; pointer-events:none keeps it
@@ -121,6 +122,8 @@ export default function PreviewNode({
   loadIndex = 0,
   style: extraStyle,
   className = "",
+  // (occurrence, module) => menu items prepended to the card's right-click menu.
+  extraMenuItems = null,
 }) {
   const ref = useRef(null);
   const Icon = getModuleTypeIcon(module);
@@ -265,15 +268,8 @@ export default function PreviewNode({
   // document, the card gives no undo affordance of its own, and the count of
   // children is the part they cannot see from the tile.
   const handleDelete = useCallback(() => {
-    if (!occurrence?.id) return;
-    const kids = occurrence.occurrences?.length || 0;
-    const what = module?.label || occurrence.label || "this item";
-    const msg = kids
-      ? `Delete "${what}" and its ${kids} item${kids === 1 ? "" : "s"}?`
-      : `Delete "${what}"?`;
-    if (typeof window !== "undefined" && !window.confirm(msg)) return;
-    CommitHelpers.deleteOccurrence({ dispatch, socket, occurrenceId: occurrence.id, occurrence });
-  }, [occurrence, module?.label, dispatch, socket]);
+    confirmDeleteOccurrence({ occurrence, module, dispatch, socket });
+  }, [occurrence, module, dispatch, socket]);
 
   const handleContextMenu = useCallback((e) => {
     if (!occurrence?.id) return;
@@ -282,13 +278,14 @@ export default function PreviewNode({
     setCtxMenu({
       x: e.clientX, y: e.clientY,
       items: [
+        ...(extraMenuItems ? [...extraMenuItems(occurrence, module), { separator: true }] : []),
         { label: coverSrc ? "Change cover image…" : "Set cover image…", icon: ImageIcon, onClick: handleSetCover },
         coverSrc ? { label: "Clear cover", icon: X, onClick: handleClearCover, danger: true } : null,
         { separator: true },
         { label: "Delete", icon: Trash2, onClick: handleDelete, danger: true },
       ].filter(Boolean),
     });
-  }, [occurrence?.id, coverSrc, handleSetCover, handleClearCover, handleDelete]);
+  }, [occurrence, module, extraMenuItems, coverSrc, handleSetCover, handleClearCover, handleDelete]);
 
   // Representation mode renders a single chip (no iframe, no preview
   // body) — the user can still drill in by clicking it.
@@ -299,6 +296,7 @@ export default function PreviewNode({
         className={`preview-node-card preview-node-card-representation ${className}`}
         data-preview-node-id={occurrence?.id}
         data-occurrence-id={occurrence?.id}
+        onContextMenu={handleContextMenu}
         style={{
           display: "flex", flexDirection: "column", gap: 4,
           padding: 6, ...extraStyle,
@@ -316,6 +314,7 @@ export default function PreviewNode({
           size="sm"
           className="preview-node-mode-switcher"
         />
+        <ContextMenu ctx={ctxMenu} onClose={() => setCtxMenu(null)} />
       </div>
     );
   }
