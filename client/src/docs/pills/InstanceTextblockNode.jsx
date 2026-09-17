@@ -19,6 +19,7 @@ import {
 } from "../../helpers/provisionalTextblock.js";
 import { forceLiveNow } from "../../helpers/lazyEditor.js";
 import { nextDragMode } from "../../helpers/dragModes";
+import { caretPosBeforeBlock } from "../../helpers/caretLanding";
 
 // The caret hand-off below focuses the NEIGHBOUR's inner editor directly. Now that
 // the block body mounts lazily, a neighbour off screen renders a placeholder and
@@ -324,7 +325,18 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
           sel?.addRange(range);
         }
       } else {
-        editor.chain().setTextSelection(pos - 1).focus().run();
+        // A previous sibling that holds no inline content (a wrapGroup, an image)
+        // cannot take a text caret — `setTextSelection` THROWS there, and the
+        // throw lands between the delete above and the drop below, stranding the
+        // occurrence. Ask the schema instead of assuming (helpers/caretLanding).
+        const caretPos = caretPosBeforeBlock(prevSibling, pos);
+        try {
+          if (caretPos !== null) editor.chain().setTextSelection(caretPos).focus().run();
+          else editor.chain().focus().run();
+        } catch (_) {
+          // Belt and braces: the drop is what stops an abandoned block leaking,
+          // so no caret placement may ever prevent it.
+        }
       }
       dropOccurrenceData();
       return;
@@ -352,8 +364,12 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
         sel?.addRange(range);
       }
     } else {
-      // Regular block (paragraph, heading, etc.) — move outer cursor to its end
-      editor.chain().setTextSelection(pos - 1).focus().run();
+      // Regular block (paragraph, heading, …) — move the outer cursor to its end.
+      // A block with no inline content cannot hold one, so we just focus rather
+      // than throw (helpers/caretLanding).
+      const caretPos = caretPosBeforeBlock(prevSibling, pos);
+      if (caretPos !== null) editor.chain().setTextSelection(caretPos).focus().run();
+      else editor.chain().focus().run();
     }
   }, [editor, getPos, node.nodeSize, dropOccurrenceData]);
 

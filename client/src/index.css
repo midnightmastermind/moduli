@@ -3878,9 +3878,16 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
    card starts 6px further in, so the handle ran 17px INTO the card and covered
    the opening glyph by 2px (an image card's handle sits at +5, clear of its
    content). Both move: the handle is nudged right below, the mark right of it. */
+/* THE TWO MARKS SIT THE SAME DISTANCE FROM THE WORDS. User, 2026-09-17:
+   *"the quotes first quote icon is way further than the end quote icon (to the
+   actual quote)"*. Derived from the geometry recorded on prod that morning —
+   open mark card+37..+52, text ink card+61, so the opening gap was 9px while
+   the closing mark's is its 3px margin. Moving the mark 6px right closes the
+   9px to ~3px and matches them. It still clears the handle (card+7..+29) by a
+   wide margin. */
 .artifact-quote-mark--open {
   position: absolute;
-  left: 34px;
+  left: 40px;
   top: 4px;
   line-height: 1;
 }

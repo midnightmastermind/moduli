@@ -47,19 +47,39 @@ export function scrubDeletedEmbeds(textmap, deletedIds) {
   if (!textmap || typeof textmap !== "object" || !deletedIds?.size) return null;
   let removed = 0;
 
-  // A WRAP GROUP THAT LOSES ITS LAST MEMBER GOES WITH IT. The group is a
-  // layout wrapper around two or more embeds; emptied, it renders as a bare
-  // box with nothing in it — which reads as junk for the same reason the
-  // dangling embed did. It is dropped only when the scrub itself emptied it,
-  // never merely because it is empty, so nothing else can be swept by this.
+  // A WRAP GROUP THE SCRUB SHRINKS BELOW TWO IS FLATTENED, NOT LEFT SHORT.
+  //
+  // The group is a layout wrapper whose content is `moduleEmbed{2,}`
+  // (client/src/docs/WrapGroupExtension.js). Emptied, it renders as a bare box
+  // with nothing in it. Left with ONE member it is worse than that: the
+  // document is invalid, so ProseMirror's schema repair FILLS the missing
+  // required node with a default `moduleEmbed` — whose `occurrenceId` default
+  // is `""` — and that paints `embed: missing` forever while naming no id any
+  // later scrub could match. Measured on poms grid 2026-09-17: deleting one
+  // member of the Watts article's wrap group left exactly
+  // `wrapGroup[ moduleEmbed(e027b531…), moduleEmbed("") ]`.
+  //
+  // So the survivors are spliced into the parent in the group's place. The
+  // client has had this rule since the wrap work — `detachGroupMember`
+  // (helpers/wrapGroupOps.js): "A group needs >=2 children ... when fewer
+  // remain it flattens to plain sibling embeds." This is its server twin.
+  // DROPPING the group wholesale would delete an embed the user never deleted.
+  //
+  // It still only ever reshapes a group THIS PASS changed — a group that was
+  // already short is not this scrub's business, so nothing else can be swept.
   const walk = (node) => {
     if (!node || !Array.isArray(node.content)) return node;
     const kept = [];
     for (const child of node.content) {
       if (EMBED_TYPES.has(child?.type) && deletedIds.has(embeddedId(child))) { removed++; continue; }
       const next = walk(child);
-      if (next?.type === "wrapGroup" && Array.isArray(child.content)
-          && child.content.length > 0 && next.content.length === 0) continue;
+      if (next?.type === "wrapGroup"
+          && Array.isArray(child.content)
+          && next.content.length < child.content.length   // THIS pass shrank it
+          && next.content.length < 2) {
+        kept.push(...next.content);                        // 1 survivor inline, 0 = gone
+        continue;
+      }
       kept.push(next);
     }
     return { ...node, content: kept };
