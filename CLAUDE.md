@@ -6,6 +6,41 @@
 
 ---
 
+### 2026-09-16 (6) — STARDEW NIGHT: the moonlit mountains as a dark skin; and the regex that would have made it light
+
+User: *"lets move on to making a stardew valley darkmode theme using the image i just saved to the
+screenshots folder as the background"* (Reddit snapshot tabled by the user the same turn — not built).
+
+**A SIBLING OF DAY STARDEW, NOT A MODE OF IT.** Day Stardew is a LIGHT theme carrying a stack of
+parchment-only overrides (near-black `--stardew-ink`, mint headers forced dark) that are exactly wrong on
+a night sky. What the two share is the lettering and the type sizes, so those rules now list both skins
+and the parchment ones list only day Stardew. New: a `stardew-night` theme block, a
+`:root[data-skin="stardew-night"]` token block (parity test covers it), `STARDEW_NIGHT_PALETTE`, and
+`public/stardew-night-wallpaper.webp` (the 911 KB png as a q90 WebP, 130 KB — lossless was 725 KB for art
+that sits under a scrim).
+
+**EVERY COLOUR WAS SAMPLED OFF THE IMAGE**, not invented: sky #211c28 / #222240 / #22254f → backgrounds
+and surfaces, moon #dbd1c1 → the ink, cloud #adb3c5 → secondary ink and grid lines, lit mountain #285c67
+(brightened) → primary. The stored-colour band is darker and less saturated than day's, because a
+translucent card over indigo at day-Stardew's 70% lightness glows like a sign. Scrim 0.36 against day's
+0.52: the art is already dark.
+
+**THE TRAP IT WOULD HAVE WALKED INTO:** `applySkin` set Tailwind's `dark` class with
+`!/light|stardew/.test(skin.theme)` — right while "stardew" named one theme, and it reads
+`"stardew-night"` as LIGHT, so every `dark:` variant would have rendered its light form over a night sky.
+It reads an explicit `LIGHT_THEMES` set now. A/B'd: the old regex fails exactly "Stardew Night is dark".
+
+**VERIFIED ON PROD, and LOOKED AT**, on test grid 2 via `localStorage["moduli-skin"]` — the real
+`resolveSkinId` fallback, so no grid's saved skin was written: data-skin/data-theme `stardew-night`,
+`dark` on, wallpaper resolving, Silkscreen + VT323 loaded, body rgb(20,18,33) under rgb(241,235,223)
+ink, 0 page errors at 1440x900 and 390x844. Screenshots read well at both sizes. The contrast suite now
+includes the theme. Client-only deploy (`341a6e95`), no restart.
+
+**Not done: nothing picks it for you.** It is in the Appearance picker (it reads `SKINS`); poms grid's own
+skin is unchanged.
+
+---
+
 ### 2026-09-16 (5) — JONAH COULD NOT BOOKMARK A LINK OR MAKE A PAGE FROM ONE; and the link importer never learned the lead image
 
 Picked up the other account's session (hit its limit mid-report). The open queue item was the user's:
