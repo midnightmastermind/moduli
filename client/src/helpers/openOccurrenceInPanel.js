@@ -40,20 +40,18 @@ function panelRootResolver(panelOccurrence, modulesById) {
   return () => document.querySelector(`[data-panel-id="${safe}"]`);
 }
 
-export function openOccurrenceInPanel({
-  occId, panelOccurrence, occurrencesById = {}, modulesById = {}, viewsById = {}, dispatch, socket,
-  onMissing,
-}) {
-  if (!occId || !panelOccurrence?.id) return { ok: false, pageOccId: null, alreadyOpen: false };
-
-  const pageOccId = nearestPageOccId(occId, { occurrencesById, modulesById });
-  if (!pageOccId) return { ok: false, pageOccId: null, alreadyOpen: false };
-
+/**
+ * Make a PAGE the panel's active tab: pin it if the panel does not list it yet,
+ * then point the panel's view at it. The page itself is known — no ancestor walk
+ * — which is what a caller that just CREATED the page needs, since its own
+ * occurrence map may not hold the new row yet.
+ */
+export function activatePageInPanel({ pageOccId, panelOccurrence, modulesById = {}, viewsById = {}, dispatch, socket }) {
+  if (!pageOccId || !panelOccurrence?.id) return { ok: false, alreadyOpen: false };
   const viewId = panelOccurrence.viewId
     || modulesById[panelOccurrence.moduleId]?.viewId;
   const view = viewId ? viewsById[viewId] : null;
   const alreadyOpen = view?.activeOccurrenceId === pageOccId;
-
   if (!alreadyOpen) {
     if (!(panelOccurrence.occurrences || []).includes(pageOccId)) {
       CommitHelpers.pinPageToPanel({
@@ -66,6 +64,21 @@ export function openOccurrenceInPanel({
       });
     }
   }
+  return { ok: true, alreadyOpen };
+}
+
+export function openOccurrenceInPanel({
+  occId, panelOccurrence, occurrencesById = {}, modulesById = {}, viewsById = {}, dispatch, socket,
+  onMissing,
+}) {
+  if (!occId || !panelOccurrence?.id) return { ok: false, pageOccId: null, alreadyOpen: false };
+
+  const pageOccId = nearestPageOccId(occId, { occurrencesById, modulesById });
+  if (!pageOccId) return { ok: false, pageOccId: null, alreadyOpen: false };
+
+  const { alreadyOpen } = activatePageInPanel({
+    pageOccId, panelOccurrence, modulesById, viewsById, dispatch, socket,
+  });
 
   // Scoped to THIS panel: the same occurrence is often mounted in another cell
   // too (a page pinned twice, a copy-link, a feed copy), and an unscoped lookup

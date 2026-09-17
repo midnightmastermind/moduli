@@ -394,6 +394,28 @@ describe("adding what you are reading as a page", () => {
     expect(screen.queryByText("Bookmarks › Reading")).toBeNull();
   });
 
+  it("switches the panel it is in to the new page", async () => {
+    const store = globalThis.__bvStore;
+    const saved = { occ: store.occurrencesById, mod: store.modulesById, views: store.viewsById };
+    store.occurrencesById = { ...saved.occ,
+      pan1: { id: "pan1", moduleId: "panm", viewId: "v1", occurrences: ["b5"] },
+      b5: { id: "b5", moduleId: "m5", occurrences: [] },
+    };
+    store.modulesById = { ...saved.mod, panm: { id: "panm", role: "panel", label: "Hub" } };
+    store.viewsById = { v1: { id: "v1", activeOccurrenceId: "b5" } };
+    try {
+      const socket = makeSocket();
+      await open(socket);
+      fireEvent.click(screen.getByText("Root"));
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+      await waitFor(() => expect(socket.sent.some(e => e.ev === "update_view")).toBe(true));
+      const pageId = socket.sent.find(e => e.ev === "create_page").payload.occurrence.id;
+      expect(socket.sent.find(e => e.ev === "update_view").payload.view.activeOccurrenceId).toBe(pageId);
+    } finally {
+      store.occurrencesById = saved.occ; store.modulesById = saved.mod; store.viewsById = saved.views;
+    }
+  });
+
   it("imports with no parent, then files a page wrapping it in the chosen folder", async () => {
     const socket = makeSocket();
     await open(socket);

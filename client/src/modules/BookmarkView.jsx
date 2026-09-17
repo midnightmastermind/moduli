@@ -56,6 +56,8 @@ import {
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { buildContainerCrumbOptions, buildFolderCrumbOptions } from "../helpers/containerCrumbs";
 import { createImportsDocPage } from "../helpers/importsFolder";
+import { activatePageInPanel } from "../helpers/openOccurrenceInPanel";
+import { collectPanelOccurrences, enclosingPanelId, panelOccIdForElement } from "../helpers/targetPanel";
 import DestinationPicker from "../ui/DestinationPicker";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 import { Spinner } from "../components/ui/spinner.jsx";
@@ -358,6 +360,9 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   const foldersById = useGridActionsSelector((s) => (savingPage ? s.foldersById : EMPTY_MAP));
   const manifestsById = useGridActionsSelector((s) => (savingPage ? s.manifestsById : EMPTY_MAP));
   const grid = useGridActionsSelector((s) => s.state?.grid ?? null);
+  const viewsById = useGridActionsSelector((s) => (savingPage ? s.viewsById : EMPTY_MAP));
+  // Which panel this browser is on screen in — so an added page opens HERE.
+  const rootRef = useRef(null);
   const containerOptions = useMemo(
     () => (picker === "bookmark" ? buildContainerCrumbOptions(occurrencesById, modulesById) : EMPTY_OPTIONS),
     [picker, occurrencesById, modulesById],
@@ -625,16 +630,28 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
         setTimeout(() => setSavedTo(null), 6000);
         return;
       }
-      createImportsDocPage({
+      const pageOccId = createImportsDocPage({
         rootOccId: out.rootOccurrenceId, folderId: dest, grid,
         dispatch, socket, userId, label: pageTitle || "Imported",
       });
+      // SWITCH TO IT (user, 2026-09-17: *"could you switch to the page when i
+      // add it"*). The panel is read off the DOM first — the literal "panel we
+      // are in" — and the data walk only as a fallback, the same order the
+      // open-link button uses. No panel (a preview surface) just leaves you here.
+      const panelsById = collectPanelOccurrences(occurrencesById, modulesById);
+      const panelId = panelOccIdForElement(rootRef.current, panelsById)
+        || enclosingPanelId(occurrence?.id, occurrencesById, panelsById);
+      if (pageOccId && panelId) {
+        activatePageInPanel({
+          pageOccId, panelOccurrence: panelsById[panelId], modulesById, viewsById, dispatch, socket,
+        });
+      }
       setPicker(null);
       const label = destOptions.find((o) => o.id === dest)?.label || "";
       setSavedTo(`Added as a page in ${label}`);
       setTimeout(() => setSavedTo(null), 4000);
     });
-  }, [reader.markdown, socket, gridId, dest, adding, pageTitle, mode, destOptions, grid, dispatch, userId]);
+  }, [reader.markdown, socket, gridId, dest, adding, pageTitle, mode, destOptions, grid, dispatch, userId, occurrencesById, modulesById, viewsById, occurrence?.id]);
   useEffect(() => {
     const md = reader.markdown;
     // Planned only when a text mode is actually on screen. The read itself runs
@@ -710,7 +727,7 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
   );
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+    <div ref={rootRef} style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       {/* THE STRIP — outside the frame, which is the only place our clicks and
           right-clicks can reach us. A menu drawn over the frame can be SEEN but
           never triggered from inside it. */}
