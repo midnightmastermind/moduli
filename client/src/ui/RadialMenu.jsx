@@ -26,11 +26,16 @@ export function calcOpenDirection(centerX, centerY, viewportW, viewportH, spread
 
 import React, { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Settings, Copy, Move, ChevronUp, ChevronDown, ChevronRight, Eye, EyeOff, Filter, LayoutTemplate, Clock, Trash2 } from "lucide-react";
+import { Settings, ChevronUp, ChevronDown, ChevronRight, Eye, EyeOff, Filter, LayoutTemplate, Clock, Trash2 } from "lucide-react";
+import { DEFAULT_DRAG_MODES, dragModeMeta, dragModeItem } from "../helpers/dragModes";
 
 export default function RadialMenu({
   // Standard drag handle props (used when items not provided)
   dragMode = "move",
+  // WHICH modes this surface may cycle through. Defaults to the two every drop
+  // path implements — a surface passes a wider list only when its own drop
+  // path honours the extra mode (see helpers/dragModes.js).
+  allowedDragModes = DEFAULT_DRAG_MODES,
   onToggleDragMode,
   onSettings,
 
@@ -259,9 +264,12 @@ export default function RadialMenu({
 
   const s = sizes[size] || sizes.sm;
 
-  // Mode indicator icon inside handle (or custom icon)
-  const ModeIcon = handleIcon || (dragMode === "copy" ? Copy : Move);
-  const titleText = handleTitle || `${dragMode === "copy" ? "Copy" : "Move"} mode - Click for menu`;
+  // Mode indicator icon inside handle (or custom icon). Read off the mode
+  // itself rather than a copy/else ternary, which drew the MOVE icon for a
+  // copylink row — a lie about what the drag is about to do.
+  const modeMeta = dragModeMeta(dragMode);
+  const ModeIcon = handleIcon || modeMeta.Icon;
+  const titleText = handleTitle || `${modeMeta.name} mode - Click for menu`;
 
   // Get angles based on direction and item count
   const getAnglesForDirection = useCallback((direction, count) => {
@@ -318,12 +326,7 @@ export default function RadialMenu({
           onClick: onSettings,
           color: "bg-slate-600 hover:bg-slate-500",
         },
-        {
-          icon: dragMode === "move" ? Copy : Move,
-          label: dragMode === "move" ? "Set to Copy" : "Set to Move",
-          onClick: onToggleDragMode,
-          color: dragMode === "move" ? "bg-blue-600 hover:bg-blue-500" : "bg-slate-600 hover:bg-slate-500",
-        },
+        dragModeItem({ dragMode, allowed: allowedDragModes, onClick: onToggleDragMode }),
       ];
       if (onToggleCollapse) {
         defaultItems.push({
@@ -385,7 +388,7 @@ export default function RadialMenu({
       const angles = getAnglesForDirection(openDirection, defaultItems.length);
       return defaultItems.map((item, i) => ({ ...item, angle: angles[i] }));
     },
-    [items, extraItems, dragMode, onSettings, onToggleDragMode, onToggleCollapse, isCollapsed, onToggleHeader, showHeader, onFilter, onTemplate, onHistory, onToggleDoc, onDelete, deleteLabel, openDirection, getAnglesForDirection]
+    [items, extraItems, dragMode, allowedDragModes, onSettings, onToggleDragMode, onToggleCollapse, isCollapsed, onToggleHeader, showHeader, onFilter, onTemplate, onHistory, onToggleDoc, onDelete, deleteLabel, openDirection, getAnglesForDirection]
   );
 
   // PORTALED arc menu

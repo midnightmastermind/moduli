@@ -47,6 +47,7 @@ import RepresentationView from "../ui/RepresentationView";
 import { getEffectiveViewMode } from "../helpers/viewMode";
 import { buildLayoutCascadeContext, resolveLayoutCascade } from "../helpers/layoutCascade";
 import { resolveContainerChildLayout } from "../helpers/containerChildLayout";
+import { nextDragMode } from "../helpers/dragModes";
 
 // Embedded-container header font size by section-hierarchy level (meta.headingLevel).
 // 1 = article title (H1) … 6. Smaller + cascading; containers without a level
@@ -871,7 +872,7 @@ function Container({
   }, [isLongList, childOccsKey]);
 
   const toggleContainerDragModeQuick = useCallback(() => {
-    const nextMode = containerDragMode === "move" ? "copy" : "move";
+    const nextMode = nextDragMode(containerDragMode);
     if (containerOccurrence) {
       CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { id: containerOccurrence.id, dragMode: nextMode }, emit: true });
     } else {

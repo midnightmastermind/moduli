@@ -18,6 +18,7 @@ import {
   getProvisionalOccurrence,
 } from "../../helpers/provisionalTextblock.js";
 import { forceLiveNow } from "../../helpers/lazyEditor.js";
+import { nextDragMode } from "../../helpers/dragModes";
 
 // The caret hand-off below focuses the NEIGHBOUR's inner editor directly. Now that
 // the block body mounts lazily, a neighbour off screen renders a placeholder and
@@ -55,7 +56,9 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
   const entityDragMode = occurrence?.dragMode ?? instance?.defaultDragMode ?? "move";
   const toggleEntityDragMode = useCallback(() => {
     if (!occurrenceId || !dispatch || !socket) return;
-    const nextMode = entityDragMode === "move" ? "copy" : "move";
+    // Two-way: handleDocEmbedDrop branches on copy and nothing else, so a
+    // doc embed must not be able to reach copylink (helpers/dragModes.js).
+    const nextMode = nextDragMode(entityDragMode);
     CommitHelpers.updateOccurrence({
       dispatch, socket,
       occurrence: { id: occurrenceId, dragMode: nextMode },

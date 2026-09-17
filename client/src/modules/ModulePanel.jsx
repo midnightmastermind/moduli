@@ -78,6 +78,7 @@ import OccurrenceSearch from "../ui/OccurrenceSearch.jsx";
 import { openOccurrenceInPanel } from "../helpers/openOccurrenceInPanel";
 import { toast } from "../state/notificationStore";
 import SortSection from "../ui/SortSection";
+import { nextDragMode } from "../helpers/dragModes";
 import FieldVisibilitySection from "../ui/FieldVisibilitySection";
 import LayoutCascadeSection from "../ui/LayoutCascadeSection";
 import TemplatesSection from "../ui/TemplatesSection";
@@ -426,7 +427,7 @@ function Panel({
   }, [module?.customCss, module?.id]);
 
   const togglePanelDragModeQuick = useCallback(() => {
-    const nextMode = panelDragMode === "move" ? "copy" : "move";
+    const nextMode = nextDragMode(panelDragMode);
     CommitHelpers.updateModule({ dispatch, socket, module: { ...module, defaultDragMode: nextMode }, emit: true });
   }, [module, panelDragMode, dispatch, socket]);
 

@@ -26,7 +26,8 @@ import {
   PopoverContent,
   PopoverAnchor,
 } from "@/components/ui/popover";
-import { Link2, Unlink, Settings, Copy, Move, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type, FileDown, ChevronDown, Check, PanelRight, ExternalLink } from "lucide-react";
+import { Link2, Unlink, Settings, Copy, Play, Zap, Eye, EyeOff, X, Trash2, Focus, ClipboardCopy, MoveRight, Shuffle, Box, Type, FileDown, ChevronDown, Check, PanelRight, ExternalLink } from "lucide-react";
+import { INSTANCE_DRAG_MODES, nextDragMode, dragModeItem } from "../helpers/dragModes";
 import { convertLeafRole, CONVERTIBLE_LEAF_ROLES } from "../helpers/convertOccurrence";
 import { convertLinkToPage } from "../helpers/linkToPage";
 import { planConvertRelink } from "../helpers/convertRelink";
@@ -367,10 +368,12 @@ function InstanceInner({
     });
   }, [occurrence, containerOccurrence, dispatch, socket]);
 
-  // Toggle drag mode — writes to occurrence if it has its own dragMode, otherwise to instance template
+  // Cycle drag mode — writes to occurrence if it has its own dragMode, otherwise to instance template.
+  // An instance is the ONE kind whose drop path runs copylinkInstanceToContainer,
+  // so it is the one surface that cycles all three (helpers/dragModes.js).
   const toggleEntityDragMode = useCallback(() => {
     if (!occurrence?.id) return;
-    const newMode = entityDragMode === "move" ? "copy" : "move";
+    const newMode = nextDragMode(entityDragMode, INSTANCE_DRAG_MODES);
     CommitHelpers.updateOccurrence({
       dispatch, socket,
       occurrence: { id: occurrence.id, dragMode: newMode },
@@ -679,12 +682,7 @@ function InstanceInner({
         onClick: () => setSettingsOpen(true),
         color: "bg-slate-600 hover:bg-slate-500",
       },
-      {
-        icon: entityDragMode === "move" ? Copy : Move,
-        label: entityDragMode === "move" ? "Set to Copy" : "Set to Move",
-        onClick: toggleEntityDragMode,
-        color: entityDragMode === "move" ? "bg-blue-600 hover:bg-blue-500" : "bg-slate-600 hover:bg-slate-500",
-      },
+      dragModeItem({ dragMode: entityDragMode, allowed: INSTANCE_DRAG_MODES, onClick: toggleEntityDragMode }),
       {
         icon: Unlink,
         label: "Break Link",
@@ -876,6 +874,7 @@ function InstanceInner({
               >
                 <RadialMenu
                   dragMode={entityDragMode}
+                  allowedDragModes={INSTANCE_DRAG_MODES}
                   onToggleDragMode={toggleEntityDragMode}
                   onSettings={() => setSettingsOpen(true)}
                   size="sm"
