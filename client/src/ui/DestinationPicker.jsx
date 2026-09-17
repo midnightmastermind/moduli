@@ -54,7 +54,9 @@ export default function DestinationPicker({
 
   const renderOption = useCallback((o) => (
     <span className="flex items-center gap-2 min-w-0 w-full">
-      <span className="truncate">{o.label}</span>
+      {/* WRAPPED, NOT TRUNCATED: a crumb's most specific part is its END
+          ("… › Wednesday › 9:30pm"), which is exactly what an ellipsis cuts. */}
+      <span style={{ whiteSpace: "normal", overflowWrap: "anywhere", lineHeight: 1.3 }}>{o.label}</span>
       {o.hint && <span className="ml-auto text-[10px] opacity-50 flex-shrink-0">{o.hint}</span>}
     </span>
   ), []);
