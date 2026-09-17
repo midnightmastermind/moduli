@@ -21,9 +21,16 @@
 // rather than listing the block types that happen to fail today — a wrapGroup, an
 // image, a table row and whatever is added next are all covered by construction.
 
-/** Can a text caret sit inside this node at all? */
+/**
+ * Can a text caret sit inside this node at all?
+ *
+ * ProseMirror exposes `inlineContent` on the NODE and on its TYPE (Node's is a
+ * getter over the type's), so both are read — a caller holding only a resolved
+ * type still gets a truthful answer.
+ */
 export function canHoldCaret(node) {
-  return !!node?.inlineContent;
+  if (!node) return false;
+  return !!(node.inlineContent ?? node.type?.inlineContent);
 }
 
 /**

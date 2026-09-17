@@ -90,6 +90,94 @@ drawer**, so the confirm card and the model choosing these tools are unexercised
 
 ---
 
+### 2026-09-17 (5) — THE `embed: missing` IS PROSEMIRROR'S OWN FILLER; and 0333 verified the field it WROTE, not the field the RENDERER reads
+
+Picked up the other account's session (monthly spend limit, 20:50, mid-wiring). Its open item was the
+user's *"it should be a third option in the radial menu"*; four more arrived from a screen recording.
+
+**COPY-LINK IS THE THIRD RADIAL MODE, and the NARROWING is the load-bearing half.** The handle
+toggled two ways (`move ? "copy" : "move"`) so copy-link was unreachable, and it drew the **Move**
+icon for a copylink row. Only `handleOccurrenceMove` runs `copylinkInstanceToContainer`;
+`handleContainerDrop` and `handleDocEmbedDrop` branch on copy and nothing else, and
+**`handlePanelDrop` DESTRUCTURES `mode` and never reads it**. So the cycle is over an ALLOWED list and
+an instance is the only surface that opts into three. `dragModeItem` is one definition of the menu
+row — RadialMenu's default items and ModuleInstance's copy-linked custom list carried two
+hand-written copies of the same ternary. **Reported, not changed:** the panel toggle is ALREADY inert
+by that table, and narrowing it would remove a control rather than add one.
+
+**THE `embed: missing` IS NOT A STALE POINTER — IT IS A DEFAULT NODE.** `wrapGroup` content is
+`moduleEmbed{2,}`. The delete-scrub handled a group dropping to ZERO and not to ONE, and a one-child
+group is a document ProseMirror will not accept: on the next load its schema repair **FILLS the
+missing required node with a default `moduleEmbed`, whose `occurrenceId` default is `""`**. Measured
+out of Mongo on the Watts article:
+```
+wrapGroup[ moduleEmbed("e027b531…"), moduleEmbed("") ]
+```
+That is why no later scrub could clear it — **every scrub matches the ids a delete just removed, and
+this node names no id at all.** The client has had the right rule since the wrap work
+(`detachGroupMember`: *"a group needs >=2 children … when fewer remain it flattens"*); the server's
+scrub is its twin and never learned it. It flattens now, KEEPING the survivor — dropping the group
+wholesale would delete an embed the user never deleted. **An existing test pinned the bug**
+(`expect(...content).toHaveLength(1)`) and is INVERTED with the reason in place.
+
+**AND ONE PRE-EXISTING FIXTURE WAS A SHAPE THE SCHEMA CANNOT HOLD** — `wrapGroup[paragraph, embed]`,
+used to test that the walk reaches DEPTH. It now nests in a blockquote, so it tests one thing.
+
+**`0336` repairs the live document, scoped to an EMPTY id and never to "does this pointer resolve?"**
+— that second question is the 2026-08-01 (19) regression, where a scrub removed the only node
+rendering a surviving sibling. An empty id names nothing BY CONSTRUCTION. Dry run named exactly the
+one document measured independently; applied and read back out of Mongo.
+
+**THE CARET THROW IS THE SAME NODE, AND IT IS NOT COSMETIC.** Backspacing an empty textblock hands
+the caret to `pos - 1` — inside the previous sibling — and a wrapGroup holds no inline content, so
+ProseMirror throws `TextSelection endpoint not pointing into a node with inline content (wrapGroup)`
+**BETWEEN the delete and `dropOccurrenceData()`**: the node leaves the document and the occurrence is
+never discarded. `helpers/caretLanding` asks the SCHEMA (`node.inlineContent ?? type.inlineContent`)
+rather than listing the block types that fail today, so an image, a table row and whatever is added
+next are covered. A/B'd — the discriminating sibling fails alone while the paragraph-join case holds.
+
+**`0333` CLEANED THE WRONG FIELD AND VERIFIED IT.** It stripped markdown from inline chip MODULE
+LABELS and reported *"21 cleaned, 0 left"* — still true today (1867 inline modules, 0 dirty labels).
+But `InstanceTextblockInlineNode` renders `textmapToInlineText(occurrence.textmap)`, and the raw text
+lives THERE:
+```
+{"type":"text","text":"***The Book: On the Taboo Against Knowing Who You Are***"}
+```
+***A migration that verifies the field it WROTE rather than the field the RENDERER reads can report
+success and change nothing on screen.*** `0337` strips the textmaps with 0333's own `stripInlineMd`.
+
+**AND THE FIRST DRY RUN PLANNED 297 ROWS, WHICH THE BEFORE/AFTER DIFF IS WHAT CAUGHT.** The plan
+printed only the AFTER; diffing showed **0 rows where content differs** (all pure marker removal) but
+65 whose only change was a leading space — and `textmapToInlineText` already collapses whitespace
+before painting, so rewriting the user's prose for no visible change is churn. Compared TRIMMED, it
+narrows to **21 — the same 21 `0333` found**, which is independent confirmation it is the same set in
+the field that renders. Applied, read back clean.
+
+**THE ERRATIC EMPTY TEXTBLOCKS: NOTHING WAS LOST, and that is measured rather than reassuring.**
+```
+block textblocks 717 · empty 54 · empty AND created today  0
+```
+So the blocks stacking up in the recording were PROVISIONAL — local-only, never emitted, which is the
+design working. The backspace throw above provably strands one; **the click-off case goes through
+`handleEmptyBlur`, which writes no selection at all, and is NOT explained.** Said plainly rather than
+folded into the fix. The lazy-editor theory was checked and is dead: `live` is one-way, so a focused
+block stays live and its `onBlur` fires. Next step is one repro with `window.__mintDiag = true`.
+
+**THE QUOTE MARKS** now sit the same distance from the words (open was 9px against the close's 3px),
+derived from the prod geometry recorded that morning. **NOT re-measured on screen** — and the probe
+is why: `?previewOcc=` mounts `PagePreviewApp`, which reads `window.parent.__moduli_state__`, so
+opened TOP-LEVEL it renders nothing (both arms zero, 0 page errors — the documented tell). Driven
+through a real iframe it loads, and still does not reach those cards: the preview walks
+`occurrences[]`/`parentId` and under-renders textmap-only embeds (2026-08-23 (2)).
+
+2,310 server + 4,424 client tests. **The 3 files that do not finish are the documented OOM family**
+(`trackerValues`, `balanceFlow`, `accountBalances`) — verified by running each ALONE, where each
+still exits its worker mid-file. Deployed, prod HEAD verified, served CSS sha-matched with a control
+non-zero and the old value at 0. **pm2 restarted, and it mattered:** both migrations wrote straight
+to Mongo, so the warm cache was still serving the pre-migration values.
+
+---
+
 ### 2026-09-17 (4) — A COPY OF A LINKED ROW IS A PLAIN COPY (confirmed); and COPY-LINK IS NOT IN THE RADIAL MENU
 
 User: *"i want to comfirm, if i copy a copylinked occurance (lets say i copy something from tasks

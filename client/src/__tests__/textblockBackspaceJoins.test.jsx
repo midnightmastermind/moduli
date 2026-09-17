@@ -97,7 +97,7 @@ describe("backspace on an empty textblock", () => {
   it("deletes the block and does NOT leave an empty paragraph behind", () => {
     // The whole bug: the leftover paragraph is the line that could never be
     // deleted, because the mint re-created a block on it.
-    const ed = makeEditor({ type: { name: "paragraph" } });
+    const ed = makeEditor({ type: { name: "paragraph", inlineContent: true } });
     render(<InstanceTextblockNode {...props(ed)} />);
     onDeleteBlock(true);
     expect(namesOf(ed.calls)).toContain("deleteRange");
@@ -105,12 +105,26 @@ describe("backspace on an empty textblock", () => {
   });
 
   it("joins the caret to the END of the previous block", () => {
-    const ed = makeEditor({ type: { name: "paragraph" } });
+    const ed = makeEditor({ type: { name: "paragraph", inlineContent: true } });
     render(<InstanceTextblockNode {...props(ed)} />);
     onDeleteBlock(true);
     const sel = ed.calls.find((c) => c[0] === "setTextSelection");
     // getPos() is 10, so pos-1 is the last position inside the previous block.
     expect(sel?.[1]).toBe(9);
+  });
+
+  // THE DISCRIMINATING SIBLING (2026-09-17). A previous sibling that holds no
+  // inline content cannot take a text caret — `setTextSelection` THROWS there,
+  // and on the Alan Watts article the throw landed between the delete above and
+  // `dropOccurrenceData()`, so the occurrence was never discarded and the block
+  // leaked. The caret is skipped; the DROP must still happen.
+  it("does not aim a text caret into a wrapGroup, and still drops the occurrence", () => {
+    const ed = makeEditor({ type: { name: "wrapGroup" }, inlineContent: false });
+    render(<InstanceTextblockNode {...props(ed)} />);
+    onDeleteBlock(true);
+    expect(namesOf(ed.calls)).toContain("deleteRange");
+    expect(namesOf(ed.calls)).not.toContain("setTextSelection");
+    expect(discard).toHaveBeenCalledWith("occ-1");
   });
 
   it("KEEPS the empty paragraph when there is nothing above to join into", () => {
@@ -123,7 +137,7 @@ describe("backspace on an empty textblock", () => {
   });
 
   it("suppresses the mint at the vacated position, or the block comes straight back", () => {
-    const ed = makeEditor({ type: { name: "paragraph" } });
+    const ed = makeEditor({ type: { name: "paragraph", inlineContent: true } });
     render(<InstanceTextblockNode {...props(ed)} />);
     onDeleteBlock(true);
     expect(suppress).toHaveBeenCalledWith(10);
@@ -133,7 +147,7 @@ describe("backspace on an empty textblock", () => {
     // Without this the caret lands on an empty line above, the caret-entry mint
     // fires there, and a fresh block appears one line up: the old block vanishes
     // and a new one takes its place, which reads as "backspace did nothing".
-    const ed = makeEditor({ type: { name: "paragraph" }, nodeSize: 2 });
+    const ed = makeEditor({ type: { name: "paragraph", inlineContent: true }, nodeSize: 2 });
     render(<InstanceTextblockNode {...props(ed)} />);
     onDeleteBlock(true);
     expect(suppress).toHaveBeenCalledWith(8); // pos(10) - prev.nodeSize(2)
@@ -150,7 +164,7 @@ describe("backspace on an empty textblock", () => {
   });
 
   it("still drops the occurrence so no orphan row is left behind", () => {
-    const ed = makeEditor({ type: { name: "paragraph" } });
+    const ed = makeEditor({ type: { name: "paragraph", inlineContent: true } });
     render(<InstanceTextblockNode {...props(ed)} />);
     onDeleteBlock(true);
     expect(removeOccurrence).toHaveBeenCalled();
