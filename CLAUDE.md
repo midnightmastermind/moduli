@@ -90,6 +90,80 @@ drawer**, so the confirm card and the model choosing these tools are unexercised
 
 ---
 
+### 2026-09-17 (4) — A COPY OF A LINKED ROW IS A PLAIN COPY (confirmed); and COPY-LINK IS NOT IN THE RADIAL MENU
+
+User: *"i want to comfirm, if i copy a copylinked occurance (lets say i copy something from tasks
+completed and drag it elsewhere), that it creates a copy and not copylink. it should only ever
+copylink for feeds or if i do a copy link myself … which im not sure that we have on in the radial
+menu. just double check."*
+
+**THE WORRY IS WELL-FOUNDED IN SHAPE, and the drop path is exactly where it would go wrong.** A feed
+copy carries BOTH `linkedGroupId` and `meta.feedSourceId`, and `handleInstanceDrop`'s copy branch
+hands the helper **the whole source object** (`sourceOccurrence: { ...sourceOcc, fields:
+stampedFields }`). If either key travelled: the new row would silently join the linked group (the
+server fans field writes across it), and `feedSync` would treat a hand-placed row as one of ITS
+copies and sweep it the moment it stopped matching.
+
+**IT DOES NOT, because the builder never spreads the source.** `copyInstanceToContainer` constructs
+a fresh occurrence — id, userId, moduleId, gridId, iteration, timestamp, fields, parentId — and
+reads `sourceOccurrence.fields` and nothing else. The server agrees:
+`createOccurrenceData` sets the key only when the payload carries it
+(`...(linkedGroupId && { linkedGroupId })`).
+
+**AND THE FEED COPIES ARE DRAG-LOCKED, which is what makes the user's exact case safe.** `feedSync`
+stamps `dragMode: "copy"` on every copy it mints. Measured on all 9 rows now in Completed — 8 of
+them sit on a module whose `defaultDragMode` is **move**, so without that per-occurrence lock
+dragging one would MOVE it out of the feed container and feedSync would re-mint it:
+```
+row                                   occurrence.dragMode   module.default   drag does
+Sign up for foodstamps                copy                  move             COPY
+Therapy with Keith                    copy                  move             COPY
+Psych appointment with Angela         copy                  copy             COPY
+  … 9 of 9 identical
+```
+
+**THE CENSUS SAYS NOTHING HAS LEAKED, on live data:**
+```
+occurrences carrying a linkedGroupId   949   across 462 groups
+  feed copies                           66
+  non-feed                             883
+groups mixing SEVERAL non-feed members with feed copies    0   <- the accidental-link signature
+```
+
+**THERE IS A THIRD LEGITIMATE SOURCE OF COPY-LINKS, and it is not in the user's list: OPERATIONS.**
+The 883 non-feed linked rows are almost entirely the Schedule's own `COPY_LINK` pipeline action —
+each timeslot is one occurrence shared across every day column (`12:00am` linked across 9 parents),
+plus the Todo container and `Sync To Todo List`'s mirror. That is by design and predates this.
+
+**THE RADIAL MENU: the user is RIGHT, copy-link is not there.** Its toggle is strictly two-way —
+```
+const newMode = entityDragMode === "move" ? "copy" : "move";
+```
+— so `copylink` is unreachable from it, and `RadialMenu` also draws the **Move** icon for a
+copylink-mode row (`dragMode === "copy" ? Copy : Move`), which is actively misleading. **And
+`DragProvider.toggleDragMode` — which DOES cycle move → copy → copylink — has ZERO callers**, so
+the three-way cycle is dead code.
+
+**Copy-link IS reachable, by two paths, both verified wired end to end:**
+- **The occurrence's settings sheet** — `InstanceForm`/`ContainerForm`/`LayoutForm` all offer
+  `{ value: "copylink", label: "Copylink (linked occurrence)" }`, and the chain is honored:
+  `occurrence.dragMode` → `dragSystem` (`liveData?.occurrence?.dragMode ?? defaultDragMode`) →
+  `handleDragStart({ mode })` → `sessionRef.current.mode` → the drop's `isCopylinkMode` branch. Not
+  an inert control.
+- **The multi-select clipboard** — shift-click a selection, right-click → *"Copy-link N selected"*,
+  then *"Paste linked N here"*.
+
+**A/B'd by planting the exact regression** (`...sourceOccurrence` spread into the builder, asserted
+to LAND — the first attempt did not, and the assert said so rather than reporting a pass): it fails
+exactly the two tests naming `linkedGroupId` and `meta.feedSourceId` while all four controls hold.
+The controls are what stop "carries no link" being satisfied by a copy that carries nothing: the
+fields ARE carried, deep-cloned, and a **discriminating sibling** asserts
+`copylinkInstanceToContainer` on the same source DOES produce a `linkedGroupId`.
+
+**NOT CHANGED, and it is the open question rather than an oversight:** whether the radial should
+offer copy-link as a third state (and stop drawing the Move icon for it), or whether the settings
+sheet + clipboard are the right homes for a deliberate action. That is the user's call.
+
 ### 2026-09-17 (3) — COMPLETED GETS ITS OWN PAGE, and a feed's SCOPE is not its container's PARENT
 
 User: *"could we put tasks completed in a seperate page instead of on the tasks page. that way we
