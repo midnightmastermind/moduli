@@ -256,7 +256,7 @@ function RandomizeSegment({ onClick, disabled, compact }) {
 // carries the array, while the single path lets `handleOccurrenceAddNew` write
 // the real occurrence id directly. Folding those in here is how the two would
 // drift again.
-function OptionSearchList({
+export function OptionSearchList({
   options,
   selected = [],
   onPick,
@@ -268,6 +268,12 @@ function OptionSearchList({
   onImportResult = null,
   renderOption = null,
   emptyText = "No options available",
+  // SEARCH WITHOUT ADDING. The box has only ever appeared when the list can add
+  // (`onAddOption`), because that is where it started. A destination picker
+  // wants the same filtering and has nothing to add — so a placeholder here
+  // turns the box on by itself, and Enter picks the top match.
+  searchPlaceholder = null,
+  autoFocus = false,
 }) {
   const [newValue, setNewValue] = useState("");
   const [choosingDest, setChoosingDest] = useState(false);
@@ -315,8 +321,18 @@ function OptionSearchList({
     doImport(r, addNewTargets?.[0]?.id ?? null);
   }, [addNewTargets, doImport]);
 
+  const searchOnly = !onAddOption && !!searchPlaceholder;
+
   return (
     <>
+      {searchOnly && (
+        <div className="p-2 border-b border-border" onClick={e => e.stopPropagation()}>
+          <Input type="text" value={newValue} autoFocus={autoFocus}
+            onChange={e => setNewValue(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && sections.local[0]) onPick?.(sections.local[0].value); }}
+            className="h-6 text-xs w-full" placeholder={searchPlaceholder} />
+        </div>
+      )}
       {onAddOption && (
         <div className="p-2 border-b border-border" onClick={e => e.stopPropagation()}>
           <div className="flex items-center gap-1">
@@ -352,7 +368,7 @@ function OptionSearchList({
           <div className="text-[12px] uppercase tracking-wide text-muted-foreground px-2 pt-1 pb-0.5">On your grid</div>
         )}
         {sections.local.length === 0 && !searchProvider
-          ? <div className="py-4 text-center text-xs text-muted-foreground">{emptyText}</div>
+          ? <div className="py-4 text-center text-xs text-muted-foreground">{newValue.trim() ? "No matches" : emptyText}</div>
           : sections.local.map(o => (
               <button key={o.value} type="button" onClick={() => onPick?.(o.value)}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-sm text-left text-xs transition-colors

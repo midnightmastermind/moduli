@@ -55,6 +55,7 @@ import {
 } from "../helpers/browserNav";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { buildContainerCrumbOptions } from "../helpers/containerCrumbs";
+import DestinationPicker from "../ui/DestinationPicker";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 import { Spinner } from "../components/ui/spinner.jsx";
 import { readerStateFromPlan } from "../helpers/readerPlan";
@@ -802,19 +803,15 @@ export default function BookmarkView({ occurrence, module = null, fieldsById = n
           <span style={{ color: "var(--text-faint)" }}>
             {picker === "page" ? "Add page to" : "Save to"}
           </span>
-          <select
-            value={dest}
-            onChange={(e) => setDest(e.target.value)}
-            style={{
-              flex: 1, minWidth: 0, padding: "3px 5px",
-              background: "var(--input-bg)", color: "var(--text-primary)",
-              border: "1px solid var(--input-border)", borderRadius: 3,
-              fontSize: 12, fontFamily: "var(--font-mono)",
-            }}
-          >
-            <option value="">Choose a container…</option>
-            {destOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-          </select>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <DestinationPicker
+              options={destOptions}
+              value={dest || null}
+              onChange={(id) => setDest(id || "")}
+              placeholder="Choose a container…"
+              searchPlaceholder="Search containers…"
+            />
+          </div>
           {/* Disabled until a destination is picked: "where" is the question
               being asked, so saving without an answer would defeat it. */}
           <button

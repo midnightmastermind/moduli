@@ -22,6 +22,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { openOccurrenceInPanel } from "../helpers/openOccurrenceInPanel";
 import { createImportsDocPage, ensureImportsFolderAndPage, shouldWrapImportOutput } from "../helpers/importsFolder";
+import DestinationPicker from "./DestinationPicker";
 
 const STORAGE_KEY = "moduli_api_token";
 const HISTORY_KEY = "moduli_assistant_history";
@@ -693,6 +694,14 @@ function friendlyArgValue(key, val, { occurrencesById, modulesById, fieldsById }
 function ConfirmCard({ msg, busy, onResolve }) {
   const pending = msg.status === "pending";
   const isCreate = msg.name === "create_occurrence";
+  // The link tools place something too, so they get the same location picker
+  // rather than a raw `parentId` argument the user cannot read. A page with no
+  // destination still lands somewhere visible (the Imports folder); a bookmark
+  // with none would be listed by nothing, so it needs one like create does.
+  const isSaveBookmark = msg.name === "save_bookmark";
+  const isImportUrl = msg.name === "import_url";
+  const placesSomething = isCreate || isSaveBookmark || isImportUrl;
+  const needsLocation = isCreate || isSaveBookmark;
   const isWiki = msg.name === "wikipedia_import";
   const isCreatePage = msg.name === "create_module" && msg.input?.role === "page";
   const isCreateField = msg.name === "create_field";
@@ -703,8 +712,8 @@ function ConfirmCard({ msg, busy, onResolve }) {
   const wikiTitle = msg.input?.title || msg.input?.query || "";
   const { options, labelOf } = useLocations();
   const { occurrencesById, modulesById, fieldsById } = useGridActions();
-  const [parentId, setParentId] = useState(() => (isCreate ? bestGuessLocation(msg.input, options, labelOf, msg.userText) : null));
-  const [filter, setFilter] = useState("");
+  const [parentId, setParentId] = useState(() => (isCreate ? bestGuessLocation(msg.input, options, labelOf, msg.userText)
+    : placesSomething ? (msg.input?.parentId && labelOf(msg.input.parentId) ? msg.input.parentId : "") : null));
   const [wiki, setWiki] = useState(null);     // { title, extract, thumbnail, url }
   const [wikiErr, setWikiErr] = useState(false);
   const [pageKind, setPageKind] = useState(msg.input?.kind || "doc");
@@ -732,20 +741,16 @@ function ConfirmCard({ msg, busy, onResolve }) {
     return () => { cancelled = true; };
   }, [isWiki, pending, wikiTitle]);
 
-  const verb = isCreate ? "Create item" : isWiki ? "Import Wikipedia article"
+  const verb = isCreate ? "Create item" : isSaveBookmark ? "Save bookmark" : isImportUrl ? "Make a page from a link" : isWiki ? "Import Wikipedia article"
     : isImportBatch ? `Import ${picked.size} Wikipedia page${picked.size === 1 ? "" : "s"}`
     : isCreateField ? "Create field" : String(msg.name || "action").replace(/_/g, " ");
   const itemLabel = msg.input?.label || msg.input?.moduleId || "new item";
   const approve = () => onResolve?.(true,
-    isCreate ? { ...msg.input, parentId: parentId || undefined }
+    placesSomething ? { ...msg.input, parentId: parentId || undefined }
     : isCreatePage ? { ...msg.input, kind: pageKind }
     : isCreateField ? { ...msg.input, name: fieldName.trim(), type: fieldType, unit: fieldUnit.trim() || undefined }
     : isImportBatch ? { ...msg.input, titles: batchTitles.filter(t => picked.has(t)) }
     : msg.input);
-
-  const shown = filter
-    ? options.filter(o => o.label.toLowerCase().includes(filter.toLowerCase())).slice(0, 8)
-    : options.slice(0, 8);
 
   return (
     <div style={{
@@ -757,43 +762,30 @@ function ConfirmCard({ msg, busy, onResolve }) {
         ⚠ Confirm: <span style={{ fontFamily: "inherit" }}>{verb}</span>
       </div>
 
-      {isCreate ? (
+      {placesSomething ? (
         <div style={{ marginBottom: 6 }}>
-          <div style={{ fontSize: 11, marginBottom: 4 }}>Create <b>“{itemLabel}”</b> in:</div>
+          <div style={{ fontSize: 11, marginBottom: 4 }}>
+            {isCreate ? <>Create <b>“{itemLabel}”</b> in:</>
+              : isSaveBookmark ? <>Bookmark <b style={{ wordBreak: "break-all" }}>{msg.input?.url}</b> in:</>
+              : <>Page from <b style={{ wordBreak: "break-all" }}>{msg.input?.url}</b>{msg.input?.shape === "reader" ? " (reader)" : ""} in:</>}
+          </div>
           <div style={{
             fontSize: 11, padding: "3px 7px", borderRadius: 4, marginBottom: 4,
-            background: parentId ? "rgba(110,180,130,0.16)" : "rgba(190,90,80,0.16)",
-            border: `1px solid ${parentId ? "rgba(110,180,130,0.4)" : "rgba(190,90,80,0.4)"}`,
+            background: parentId || !needsLocation ? "rgba(110,180,130,0.16)" : "rgba(190,90,80,0.16)",
+            border: `1px solid ${parentId || !needsLocation ? "rgba(110,180,130,0.4)" : "rgba(190,90,80,0.4)"}`,
           }}>
-            📍 {parentId ? labelOf(parentId) : "— pick a location —"}
+            📍 {parentId ? labelOf(parentId) : isImportUrl ? "Imports folder" : "— pick a location —"}
           </div>
           {pending && (
-            <>
-              <input
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder="search containers / pages…"
-                style={{
-                  width: "100%", padding: 5, fontSize: 11, fontFamily: "inherit", marginBottom: 3,
-                  background: "var(--input-bg, #14171c)", color: "inherit",
-                  border: "1px solid var(--border-default, rgba(255,255,255,0.12))", borderRadius: 4,
-                }}
-              />
-              <div style={{ maxHeight: 120, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
-                {shown.map((o) => (
-                  <div
-                    key={o.id}
-                    onClick={() => setParentId(o.id)}
-                    style={{
-                      cursor: "pointer", padding: "3px 7px", borderRadius: 4, fontSize: 11,
-                      background: o.id === parentId ? "rgba(110,180,130,0.22)" : "rgba(255,255,255,0.04)",
-                      border: "1px solid rgba(255,255,255,0.07)",
-                    }}
-                  >{o.label} <span style={{ opacity: 0.45, fontSize: 9 }}>{o.role}</span></div>
-                ))}
-                {shown.length === 0 && <div style={{ opacity: 0.5, fontSize: 10 }}>No matches.</div>}
-              </div>
-            </>
+            <DestinationPicker
+              options={options.map((o) => ({ id: o.id, label: o.label, hint: o.role }))}
+              value={parentId || null}
+              onChange={(id) => setParentId(id || "")}
+              placeholder="Change location…"
+              noneLabel={isImportUrl ? "Imports folder" : null}
+              searchPlaceholder="Search containers / pages…"
+              style={{ fontSize: 11 }}
+            />
           )}
         </div>
       ) : isWiki ? (
@@ -950,15 +942,15 @@ function ConfirmCard({ msg, busy, onResolve }) {
         <div style={{ display: "flex", gap: 6 }}>
           <button
             onClick={approve}
-            disabled={busy || (isCreate && !parentId) || (isCreateField && !fieldName.trim()) || (isImportBatch && picked.size === 0)}
-            title={isCreate && !parentId ? "Pick a location first"
+            disabled={busy || (needsLocation && !parentId) || (isCreateField && !fieldName.trim()) || (isImportBatch && picked.size === 0)}
+            title={needsLocation && !parentId ? "Pick a location first"
               : isCreateField && !fieldName.trim() ? "Name the field first"
               : isImportBatch && picked.size === 0 ? "Select at least one page" : ""}
             style={{
               padding: "4px 12px", fontSize: 11, borderRadius: 4, border: "none",
               cursor: busy ? "wait" : "pointer",
               background: "rgb(90,160,110)", color: "white",
-              opacity: (busy || (isCreate && !parentId) || (isCreateField && !fieldName.trim()) || (isImportBatch && picked.size === 0)) ? 0.4 : 1,
+              opacity: (busy || (needsLocation && !parentId) || (isCreateField && !fieldName.trim()) || (isImportBatch && picked.size === 0)) ? 0.4 : 1,
             }}
           >Approve</button>
           <button

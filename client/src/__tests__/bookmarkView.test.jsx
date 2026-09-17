@@ -338,6 +338,10 @@ describe("saving the current address as a bookmark", () => {
       module={{ id: "m3", role: "artifact", kind: "bookmark", fileRef: "https://example.com/x" }}
       socket={socket} />);
     fireEvent.click(screen.getByLabelText("Save as bookmark"));
-    expect(screen.getByRole("option", { name: "Bookmarks › Reading" })).toBeTruthy();
+    // The list lives in the searchable DestinationPicker now (2026-09-16), so
+    // open it — an empty list would still fail here, which is the point.
+    fireEvent.click(screen.getByRole("button", { name: /choose destination/i }));
+    expect(screen.getByText("Bookmarks › Reading")).toBeTruthy();
+    expect(screen.getByPlaceholderText(/search containers/i)).toBeTruthy();
   });
 });

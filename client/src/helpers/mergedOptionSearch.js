@@ -40,7 +40,14 @@ function matches(text, q) {
 export function filterLocalOptions(options, query) {
   const q = String(query || "").trim().toLowerCase();
   if (!q) return options || [];
-  return (options || []).filter((o) => matches(o?.label, q) || matches(o?.value, q));
+  // EVERY WORD, IN ANY ORDER. A destination reads "Schedule › Wednesday ›
+  // 9:00pm", so "schedule 9pm"-style queries have to match across the chain
+  // rather than as one substring. A single word is exactly the old behaviour.
+  const terms = q.split(/\s+/).filter(Boolean);
+  return (options || []).filter((o) => {
+    const hay = `${o?.label ?? ""} ${o?.value ?? ""} ${o?.hint ?? ""}`;
+    return terms.every((t) => matches(hay, t));
+  });
 }
 
 /** `${provider}:${externalId}` for an option that was imported from a provider. */

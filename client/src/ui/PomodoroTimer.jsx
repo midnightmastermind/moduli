@@ -13,6 +13,7 @@ import { operationsBridge } from "../state/bindSocketToStore";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "./../helpers/CommitHelpers";
 import { buildContainerCrumbOptions } from "../helpers/containerCrumbs";
+import DestinationPicker from "./DestinationPicker";
 
 // Module-level, not a fresh `[]`: a new array per collapsed render would give
 // every consumer a changed identity, which is the trap `EMPTY_OPERATIONS`
@@ -369,23 +370,16 @@ export default function PomodoroTimer() {
           <label style={{ display: "block", fontSize: 9, color: "var(--text-faint)", marginBottom: 3 }}>
             Send pomodoros to
           </label>
-          <select
-            value={targetContainerId || ""}
-            onChange={(e) => setTargetContainer(e.target.value || null)}
-            style={{
-              width: "100%", padding: "3px 5px",
-              background: "var(--input-bg)", color: "var(--text-primary)",
-              border: "1px solid var(--input-border)", borderRadius: 3,
-              fontSize: 10, fontFamily: "var(--font-mono)",
-            }}
-          >
-            {/* No wording — where "none" routes is the operation's business,
-                not something the UI pretends to know. */}
-            <option value="">None</option>
-            {containerOptions.map(o => (
-              <option key={o.id} value={o.id}>{o.label}</option>
-            ))}
-          </select>
+          {/* No wording on the none row — where "none" routes is the
+              operation's business, not something the UI pretends to know. */}
+          <DestinationPicker
+            options={containerOptions}
+            value={targetContainerId || null}
+            onChange={(id) => setTargetContainer(id || null)}
+            noneLabel="None"
+            searchPlaceholder="Search containers…"
+            style={{ fontSize: 10 }}
+          />
         </div>
       </div>
     </div>
