@@ -3893,10 +3893,18 @@ body[data-drag-type="url"]      [data-drop-over] > .drop-indicator-insert--auto 
   vertical-align: -0.32em;
   margin-left: 3px;
 }
-/* The handle gets out of the mark's way. Scoped by the DIRECT chain
-   content > body > card, so a doc that merely CONTAINS a quote card cannot move
-   its own host row's handle — the quote cards here are embedded in an article. */
-.instance-content:has(> .instance-body > .artifact-card--quote) > .instance-handle-group {
+/* The handle gets out of the mark's way. Scoped by the DIRECT chain, so a doc
+   that merely CONTAINS a quote card cannot move its own host row's handle — the
+   quote cards here are embedded in an article, so a descendant selector would
+   reach every ancestor row.
+   THE CHAIN IS content > textcol > body > card. The first version left
+   `.instance-textcol` out and the rule was INERT — measured on prod, the handle
+   never moved off the card's border. That level arrived with the ModuleInstance
+   restructure that moved the label into the textcol, and it is the second
+   selector in this file to be silently broken by it (2026-09-12 records the
+   first). */
+.instance-content:has(> .instance-textcol > .instance-body > .artifact-card--quote)
+  > .instance-handle-group {
   transform: translateX(12px);
 }
 .artifact-quote-text {

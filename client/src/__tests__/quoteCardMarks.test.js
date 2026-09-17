@@ -65,7 +65,9 @@ describe("quote card handle scope", () => {
   it("moves only the quote row's own handle", () => {
     const rule = /\.instance-content:has\(([^)]*)\)\s*>\s*\.instance-handle-group/.exec(css);
     expect(rule).toBeTruthy();
-    expect(rule[1]).toContain("> .instance-body > .artifact-card--quote");
+    // THE WHOLE CHAIN, because a missing level makes the rule match nothing —
+    // the first version omitted `.instance-textcol` and was inert on prod.
+    expect(rule[1]).toContain("> .instance-textcol > .instance-body > .artifact-card--quote");
   });
 
   it("uses no descendant form that could reach an outer row", () => {
