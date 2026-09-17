@@ -14,6 +14,7 @@
 // the host, no declared icon falls back to `/favicon.ico`. The ONLY failure is
 // "could not reach it at all", which the caller reports.
 
+import { coverFromHtml } from "./pageCover.js";
 import { decodeEntities } from "./htmlEntities.js";
 
 /** The page's own name, or "" — same extractor `import_url` already uses. */
@@ -71,11 +72,28 @@ export async function fetchLinkPreview(url, { fetchPageHtml }) {
   try {
     const fetched = await fetchPageHtml(url);
     const finalUrl = fetched?.url || url;
+    // THE COVER IS FREE HERE, and that is the whole reason it belongs in this
+    // function: the page is ALREADY fetched for the title and the favicon, so
+    // asking for its og:image costs no second request.
+    //
+    // `coverFromHtml` is the SAME extractor that produced all 1,464 covers the
+    // Raindrop import has (migration 0201) — og:image, then a declared icon,
+    // then the site favicon. Re-deriving a preference order here would be a
+    // second opinion about what a page's picture is, and the two would drift.
+    //
+    // WHY THIS WAS MISSING AND WHY IT MATTERS: 0201 only ever covered rows
+    // carrying `meta.raindropId`, so a bookmark created IN THE APP never got a
+    // picture at all — measured on the live grid, every one of the 8 coverless
+    // bookmarks is an app-made one, and each is labelled by its bare host
+    // because nothing fetched its title either.
+    const cover = coverFromHtml(fetched?.html, finalUrl);
     return {
       ok: true,
       url: finalUrl,
       title: titleFromHtml(fetched?.html) || hostLabel(finalUrl) || finalUrl,
       favicon: faviconFromHtml(fetched?.html, finalUrl),
+      cover: cover?.url || null,
+      coverVia: cover?.via || null,
     };
   } catch (err) {
     return { ok: false, error: err?.message || "could not reach that link" };

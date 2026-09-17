@@ -1352,6 +1352,48 @@ export function addBookmarkOccurrence({
     spliceChildIntoParent({ dispatch, socket, parentOccurrence: containerOccurrence, occurrenceId, index });
   }
 
+  // A BOOKMARK MADE IN THE APP GETS ITS TITLE AND ITS PICTURE (user, 2026-09-16:
+  // *"we should either grabbing a wikipedia logo or the first image for
+  // wikipedia article bookmarks. the cover image i mean"*).
+  //
+  // Measured on the live grid: 1,464 of 1,472 bookmarks have a cover, and every
+  // one of the 8 that do not was made HERE rather than imported. Migration 0201
+  // scopes itself to rows carrying `meta.raindropId`, so it never covered an
+  // app-made bookmark — which is also why those 8 are labelled by a bare host
+  // ("en.wikipedia.org"): nothing fetched their title either. One `link_preview`
+  // answers BOTH, because the handler already fetches the page for the title.
+  //
+  // FIRE-AND-FORGET, and that is deliberate: the row is already on screen and
+  // already emitted, so a slow or dead site delays nothing and a failure leaves
+  // exactly today's behaviour. Saving a bookmark must never wait on the network.
+  if (url && socket && !scratch) {
+    // NOT for a scratch browser: it is a workspace whose address changes as you
+    // navigate, so a cover fetched once goes stale and "Browser" is the name it
+    // should keep.
+    try {
+      // `socket.emit` DIRECTLY, not `safeEmit` — safeEmit takes (socket, event,
+      // data) and DROPS a callback, so an ack passed to it never fires and this
+      // whole enrichment would be inert. It is also the right call on its own
+      // terms: `link_preview` is READ-ONLY, so there is nothing to stamp with an
+      // action id and nothing worth replaying from the offline queue — a preview
+      // that missed its moment should simply not happen. `intakeApply` emits it
+      // the same way.
+      if (!socket.connected) return { moduleId, occurrenceId, module, occurrence };
+      socket.emit("link_preview", { url }, (res) => {
+        if (!res?.ok) return;
+        const patch = { ...module };
+        let changed = false;
+        // The label is only replaced when it is still the HOST FALLBACK. A label
+        // the caller passed is someone's choice and outranks a page's <title>.
+        if (res.title && !label && patch.label === (hostLabel(url) || "Bookmark")) {
+          patch.label = res.title; changed = true;
+        }
+        if (res.cover) { patch.meta = { ...(patch.meta || null), cover: res.cover }; changed = true; }
+        if (changed) updateModule({ dispatch, socket, module: patch });
+      });
+    } catch { /* enrichment is best-effort by construction */ }
+  }
+
   // The minted objects ride along for callers that must act on them before the
   // store catches up — opening the new browser in a panel reads its module and
   // occurrence in the same tick it was made.
