@@ -92,7 +92,7 @@ import { toast } from "sonner";
 import QuickAddMenu from "./QuickAddMenu.jsx";
 import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type, Plus, Shuffle } from "lucide-react";
 import { convertLeafRole } from "../helpers/convertOccurrence";
-import { consumeTextblockFocus } from "../helpers/pendingTextblockFocus";
+import { consumeTextblockFocus, hasTextblockFocus } from "../helpers/pendingTextblockFocus";
 import { markLoad } from "../helpers/loadDiag";
 import { mintMark } from "../helpers/mintDiag";
 import {
@@ -582,6 +582,22 @@ const Editor = forwardRef(function Editor({
       if (occurrence?.id && content && consumeTextblockFocus(occurrence.id)) {
         mintMark("focus:claimed", { occId: occurrence.id.slice(0, 8), at: "onCreate" });
         editor.commands.focus("end");
+      } else if (occurrence?.id && hasTextblockFocus(occurrence.id)) {
+        // THE CLAIM IS OUTSTANDING AND THIS EDITOR COULD NOT TAKE IT — the gate
+        // above needs `content`, and without it the block mounts UNFOCUSED and
+        // waits for the content-sync effect. User, 2026-09-18: *"i click on a
+        // line, it creates a textblock (not focused)"*. If the sync never
+        // arrives, no focus means no blur, and no blur means it never vanishes.
+        mintMark("focus:deferred", {
+          occId: occurrence.id.slice(0, 8), at: "onCreate", hasContent: !!content,
+        });
+      } else if (occurrence?.id && isProvisionalTextblock(occurrence.id)) {
+        // A PROVISIONAL BLOCK MOUNTING WITH NO CLAIM AT ALL. Neither branch above
+        // fires, so without this the case is SILENT — and it is the one a claim
+        // registered after the dispatch produces, since the sub-editor's onCreate
+        // runs inside it. Named so a report can tell "the claim was late" from
+        // "the claim was taken and focus still did not land".
+        mintMark("focus:none", { occId: occurrence.id.slice(0, 8), at: "onCreate" });
       }
       // Migrate old instancePill+pillDisplay:block nodes to instanceTextblock.
       // These were created before the textblock was its own node type.

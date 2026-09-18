@@ -22,6 +22,13 @@ export function requestTextblockFocus(occurrenceId) {
   if (occurrenceId) pending.add(occurrenceId);
 }
 
+// Is a claim outstanding? PEEKS — it must not consume, or asking the question
+// would answer it. Used only to report "this block asked for the caret and never
+// got it", which is the shape of *"it creates a textblock (not focused)"*.
+export function hasTextblockFocus(occurrenceId) {
+  return !!occurrenceId && pending.has(occurrenceId);
+}
+
 // True exactly once per requested id, then clears it.
 export function consumeTextblockFocus(occurrenceId) {
   if (occurrenceId && pending.has(occurrenceId)) {

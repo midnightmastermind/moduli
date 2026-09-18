@@ -24,7 +24,11 @@
 // `handleEmptyBlur` ... and is NOT explained"). A block only blurs if it
 // focused first, so the marks name both.
 
-const on = () => typeof window !== "undefined" && window.__mintDiag === true;
+// ON BY DEFAULT (`window.__mintDiag = false` mutes). The same posture `[tb]`,
+// `[gap]` and caretDiag take for a live user-facing bug: a report should cost the
+// person seeing it no setup. User, 2026-09-18: *"put in console logs to
+// diagnose."*
+const on = () => typeof window !== "undefined" && window.__mintDiag !== false;
 
 /** Zero the clock (the gesture that starts a mint attempt). */
 export function startMintTimer(label = "gesture") {

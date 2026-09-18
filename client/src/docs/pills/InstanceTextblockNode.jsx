@@ -49,6 +49,21 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
   // typeable in the frame it appears instead of a second later.
   const occurrence = occurrencesById?.[occurrenceId] || getProvisionalOccurrence(occurrenceId) || null;
   const instance = modulesById?.[instanceId] || null;
+
+  // A NODE FOR AN OCCURRENCE THAT RESOLVES FROM NOWHERE — not the store, not the
+  // provisional registry. This node draws the "—" below, and it is the shape of
+  // user 2026-09-18: *"when it does disappear, it will pop up again randomly when
+  // i click on a new line"*. The block really was discarded; what came back is the
+  // PARENT's textmap, re-synced from a copy that still embeds it (the save the
+  // leaked-ledger bug used to block). Reported ONCE per id — this sits in a render
+  // path, and a mark per render would bury the table it prints into.
+  const zombieReportedRef = useRef(null);
+  useEffect(() => {
+    if (occurrence || !occurrenceId) return;
+    if (zombieReportedRef.current === occurrenceId) return;
+    zombieReportedRef.current = occurrenceId;
+    mintMark("block:zombie", { occId: String(occurrenceId).slice(0, 8) });
+  }, [occurrence, occurrenceId]);
   const wrapperRef = useRef(null);
   const handleRef = useRef(null);
 
