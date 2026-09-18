@@ -10,10 +10,115 @@
 > **The log is TRUNCATED.** This file carries only the most recent entries; everything older
 > lives in [`CLAUDE.backup.2026-09-18.md`](./CLAUDE.backup.2026-09-18.md) — same content, same order, nothing rewritten.
 > It was 1,106,326 characters on 2026-09-18, which is past what any session can read, so the
-> narrative below stops at **2026-09-16** and the archive picks up at **2026-09-15 (6)**.
-> **Grep the archive before concluding something was never done** — it holds ~225 entries and
+> narrative below stops at **2026-09-16 (5)** and the archive picks up at **2026-09-16 (4)**.
+> **Grep the archive before concluding something was never done** — it holds ~229 entries and
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
+
+### 2026-09-18 (2) — THE MINT IS WATCHED WORKING ON PROD, and every page load was minting an invisible day page
+
+Picked up this session's own open gap. Four commits had shipped and been deployed after the entry
+below was written — the focus claim surviving a re-mount, a positional backspace hold, a vanish that
+a teardown must not trigger, and a doc that must not end with an atom (`cad16186` `2a5b9e11`
+`a6df87d0` `a1230349`, prod HEAD verified). **Their own commit messages carry the reasoning; what
+none of them had was a single click.** That is what this entry is.
+
+**WATCHED ON PROD, and it is the whole user spec in one table.** Clicking the trailing empty line of
+a doc page (`viafluere.com`, the live grid, 0 page errors):
+```
+t=0      editor:focus b93dc523            the page editor
+t=23.3   mint:go                          <- ONCE. the 09-18 gesture-consume fix holding
+t=42.8   focus:requested e69b921b         <- the claim, BEFORE the create
+t=62.5   editor:create   e69b921b inst=9
+t=63.4   focus:claimed   at=content-sync  <- HEARD. this is the defect the entry below fixed
+t=64.0   nodeview:mount  e69b921b nv=1
+t=64.8   mint:tail-paragraph at=16        <- a1230349, on the LAST line, which is the reported case
+t=95.5   editor:focus    e69b921b         <- THE BLOCK TOOK THE CARET
+blocks on screen 0 -> 1
+```
+Then clicking away: `editor:blur empty=true vanishes=true` → `vanish:fire` → `emptyBlur:collapse
+pos=15` → **blocks 1 -> 0**, with `nodeview:unmount` arriving 229ms AFTER the collapse — so
+`a6df87d0`'s cancel-on-unmount did not swallow a real click-away, which is the control that change
+needed. *"each click should negate the last empty textblock … but when clicked off and empty, it
+should disappear"* — both halves, measured.
+
+**AND THE ~200ms RE-MOUNT DID NOT REPRODUCE.** Three commits name it as the last unexplained thing
+and as upstream of everything they fixed. Across the whole captured window — the table flushes 1200ms
+after the last mark, so anything inside ~1.3s would be in it — there is **no `editor:destroy`, no
+`nodeview:unmount`, no second `editor:create`.** Said precisely rather than claimed as fixed: this is
+one page and one flow, and the user's capture was a different doc. What it does establish is that the
+churn is not intrinsic to the mint path.
+
+**NOTHING PERSISTED, WHICH IS THE CONTRACT.** Read back out of Mongo: both provisional occurrences
+(`eaa4f793`, `e69b921b`) are **absent**, and the host doc's `updatedAt` predated the run — so the
+parent's save was correctly held while a provisional block existed. *A block that is never emitted
+leaves no row and does not dirty the doc that hosts it.*
+
+**FOUR MORE PROBE FAULTS, and each cost a run.** The five earlier sessions that "never reached a
+clickable empty line" were right about the symptom and the causes are now named:
+```
+a tagged DOM node          ProseMirror STRIPS unknown attributes on re-render, so
+                           `data-probe-line` was gone before the click — carry the target
+                           as an (editor index, child index) pair and re-resolve it
+getBoundingClientRect      reports a box for a CLIPPED element. The line read y=987 in a
+                           1000px viewport and `elementFromPoint` there returned
+                           `DIV.page-shell` — verify with elementFromPoint, never the box
+"visible prose" filtering  skipped the ONE editor that mints: a page editor's children are
+                           big nodes plus a trailing empty line, with no prose paragraph
+the trailing line is h=0   it un-collapses on hover — hover its own position first, then
+                           RE-MEASURE (the hover moved it 20px and the stale y clicked out
+                           of the viewport)
+```
+**And the mint-wired editor is found BEHAVIORALLY, not by DOM class.** Only `DocContent` passes
+`onCaretMintTextblock`, and it passes `null` whenever `onExitBlock` is set. A mint-wired editor marks
+`mint:check-scheduled` on EVERY selection update — so clicking each candidate and reading the marks
+answers it in one pass. Measured: **8 of 9 editors on that page are not mint-wired**, which is the
+documented "clicking prose lands in a body editor" fault with a number against it.
+
+---
+
+**AND THE PROBE FOUND SOMETHING BIGGER THAN IT WENT LOOKING FOR: every page load mints an ORPHANED
+DAY PAGE.** Counting what appeared while probing:
+```
+occurrences created in one hour        96      ~7 per load, 0 feed copies
+their shape   1 root with NO MODULE + ~6 sections (Journal, Notes, Daily Question,
+              Daily Answer, Tasks Completed), each carrying its daypage:* signature
+the root      identitySignature: null   listedBy: 0   <- unreachable, so the next load
+                                                        cannot find it and builds another
+grid-wide     79 module-less roots · 107 children · 0 of the first 40 listed by anything
+by day        07-18: 40 · 07-28: 1 · 07-30: 1 · 09-17: 2 · 09-18: 35
+day columns   52, and SIX dates carry two (09-09, 09-12, 09-13, 09-15, 09-16, 09-17)
+```
+**The mechanism is the documented create/disconnect asymmetry** — `create_occurrence` is queued
+server-side and bails at every stage on disconnect while the module write is not — so a load that
+ends mid-burst leaves a module with no occurrence or an occurrence with no module. `sweepOrphans`
+named the other half in the same run: 68 orphan MODULES labelled *"Friday, September 18th, …"*, i.e.
+day columns whose occurrence never landed.
+
+**MY OWN PROBE IS MOST OF TODAY'S 35, and saying so is the point.** Thirteen runs each closed the
+browser seconds after the click — *"a probe that loads the live grid can trigger the day rollover.
+Keep it open, or expect to repair"* (2026-07-30 (2)), walked into thirteen times in one afternoon.
+**The leak is the app's and predates this session** (09-17 has 2, July has 42); the acceleration is
+mine.
+
+**SWEPT, with the tool refusing exactly what it should.** `sweepOrphans --apply` removed 4 empty +
+unreachable module-less occurrences and 68 orphan modules (72 dumped to `backups/orphans/` first) and
+**KEPT every root that would strand a child**, plus the recent day-column modules whose placement may
+still be in flight. No pm2 restart: whole unreferenced documents were deleted rather than an
+`occurrences[]` array repaired, so the warm cache has nothing stale to re-serve (the 2026-08-01 (18)
+distinction). poms grid ends at **2 errors** — 33 module-less roots the sweep correctly declined, and
+the 2 pre-existing `container-filtered-empty`.
+
+**NOT FIXED, deliberately: `Day Page: Build` still mints an unreachable subtree on a load that ends
+mid-burst.** That is a shared op writing live data, and the honest next step is the one the data
+already points at — the root is created without a resolvable module and nothing lists it, so merge's
+signature scan cannot see it. It wants its own reviewed pass, not the tail of this one.
+
+74 mint tests across 7 suites green. The archive took the four oldest 2026-09-16 entries to make room
+for this one — 4 headings moved, live 43 -> 39, archive 225 -> 229, each asserted present in exactly
+one half.
+
+---
 
 ### 2026-09-16 (6) — STARDEW NIGHT: the moonlit mountains as a dark skin; and the regex that would have made it light
 
@@ -96,6 +201,141 @@ bookmark 201 · title "Albert Ellis - Wikipedia" · the dust-jacket cover · lis
 the log says why** — both requests logged, no error line, and it wrote nothing (checked by label,
 host label and fileRef). The second run was clean. **Not verified: nobody has asked Jonah in the chat
 drawer**, so the confirm card and the model choosing these tools are unexercised.
+
+---
+
+### 2026-09-18 (2) — ONE REFUSED DUPLICATE LOST THE WHOLE CREATE BATCH; and the recreation was never the bug
+
+User: *"im not sure why im getting those warnings or the failed to create occurance server_error
+either"*, with `[mint]` tables.
+
+**THE SERVER ERROR IS READ OUT OF PROD'S OWN LOG, NOT INFERRED** — and `pm2 list` as root shows
+NOTHING: the app runs as the **`deploy`** user, so the log is
+`/home/deploy/.pm2/logs/moduli-error-0.log`. Twenty-one identical stacks:
+```
+create_occurrence error: ReferenceError: io is not defined
+  at handleCreateBatch (.../server/socketHandlers/crud.js:1470:39)
+```
+**`io` IS NOT IN SCOPE IN `crud.js`.** `registerCrudHandlers` destructures `userRoom`/`gridRoom`,
+never the server instance — and **this file's own 2026-08-28 (2) entry records catching exactly
+that, in exactly this file**, plus `watchRegion` and `ctxGrid` before it. It came back through a
+door nobody had used yet: the duplicate-signature refusal, whose "tell the originator" emit is the
+only line in the handler that reached for `io`.
+
+**AND IT THROWS INSIDE THE TRY, BEFORE `upsertRows`.** So a batch containing ONE refused duplicate
+loses **every legitimate create beside it** — the rows never persist, the client's optimistic copies
+linger, and the user gets `server_error: Failed to create occurrence`. A guard against one bad row
+was dropping the other 48.
+
+**THE SAME LINE WAS WRONG A SECOND WAY, which is why it could never have worked even with `io`
+bound.** It emitted a bare STRING; the client reads `payload.occurrenceId || payload.id` and returns
+early on `undefined`. And `socket.to(room)` **EXCLUDES the sender** — the originator is precisely the
+one holding the optimistic copy this message exists to clear, so it needs its own `socket.emit`. The
+comment above the line said so; the code did neither. Both emits now, object payload.
+**4 tests, A/B'd against the restored bug — all four fail**, the load-bearing one being *"does not
+take the rest of the batch down with it"*.
+
+---
+
+**THE `[mint]` TABLES SETTLE THE FOCUS BUG, AND THE ANSWER IS NOT WHAT FOUR SESSIONS ASSUMED.** The
+node view really is recreated ~200ms after every mint — but the SAME recreation has two outcomes,
+and the discriminator is whether the caret had already landed:
+```
+BAD  (caret landed, claim spent)          GOOD (caret still in flight)
+ 31  focus:claimed   content-sync         1332  focus:claimed   content-sync
+ 35  editor:focus          <- landed        ..  (no editor:focus yet)
+223  editor:blur    empty=true            1519  editor:destroy / editor:create
+223  editor:focus   b93dc523  <- PARENT    1520  focus:claimed   content-sync  <- SURVIVED
+236  editor:destroy / editor:create        1532  editor:focus          <- lands
+256  focus:none     onCreate  <- nothing
+```
+*"Empty textblocks losing focus and having it on the next line after"* is that left column. **So the
+recreation was never the thing to fix — the spent claim was**, and the cure needs no theory about
+why the view was recreated. `Editor`'s vanish-cancel cleanup re-requests the focus claim, so the
+recreated view takes the caret back.
+
+**THE DISCRIMINATOR IS ALREADY EARNED, which is what makes this safe.** A vanish pending at unmount
+means this component was focused and empty ONE MACROTASK ago — a user moving away cannot produce
+that, only a teardown can. Gated on the block still being PROVISIONAL, so a textblock the user
+deliberately made and left cannot snatch the caret when it scrolls back into view. **The control is
+what stops the fix degrading into the opposite bug:** a test asserts the claim is still SPENT when
+the caret lands, or "the claim survives" is also satisfied by a build that never releases one.
+
+---
+
+**BACKSPACE NOW SPENDS ITS GESTURE, because a position goes stale and a gesture cannot.** User:
+*"sometimes, when i backspace delete the empty container (from within), it shows up again."*
+**SOMETIMES is the diagnosis** — the same backspace reads `mint:skip suppressed` on one line and
+`mint:go` on the next. The positional hold is the right rule and it misses intermittently: the mint
+check is deferred AND coalesced, so it reads the caret after the delete transaction AND after the
+occurrence drop has re-rendered the doc, by which point a pre-delete position describes a document
+that no longer exists. The keystroke that REMOVED a block must not also be the recent input that
+mints one. Precedent: the mint already consumes the gesture that caused it.
+
+**DELIBERATELY NOT DONE IN `handleEmptyBlur`, and that restraint is the other half of the user's
+report.** There the user clicked AWAY, often onto another empty line — a real gesture that SHOULD
+mint (measured: `emptyBlur:collapse` at t=3415 → `mint:go` at t=3627, and it works). Consuming it is
+*"it removes the old one but never creates a new one"* written by hand. That is the test's CONTROL.
+**Nothing else reads this window — grepped, one consumer** — so the blast radius is exactly the mint.
+
+---
+
+**THE `TextSelection ... (doc)` THROW HAS A CONCRETE SOURCE, and it is an ordinary gesture on an
+ordinary document.** A textblock is an ATOM, so a doc ending in one has no inline position at
+`doc.content.size` and `focus("end")` throws. It comes from **clicking the padding below the
+document**. `Editor.jsx`'s padding-click has caught this for months; `DocContent.jsx`'s
+padding-click — the same decision one file over — never did. **Two implementations of one question,
+only one ever fixed**, which is this file's most-repeated class. `caretLanding.focusDocEnd` is that
+decision once, called by both, reporting WHICH branch ran so a doc that can never take an end-caret
+is visible rather than silent.
+
+---
+
+**THE CARET NO LONGER SHOWS ON AN EMPTY DOC LINE** (user: *"id like the input cursor to not show up
+on an empty line (before the textblock is created) … this should be for outside textblocks, not
+inside of them"*). `caret-color: transparent` HIDES it without moving the selection, so the click
+still focuses the line and the mint's own focus/recent-input checks are untouched.
+
+**MATCHED ON PROSEMIRROR'S OWN TRAILING HACK, NOT THE PLACEHOLDER PLUGIN'S `is-empty`** —
+`prosemirror-view` appends `<br class="ProseMirror-trailingBreak">` to an empty textblock from CORE
+(`dist/index.js:1993`, read rather than assumed), so this cannot be switched off by a Placeholder
+config change. `:only-child` is what restricts it to an EMPTY line: a paragraph ending in a hard
+break carries the same `br` with a sibling before it.
+
+**VERIFIED AGAINST THE BUILT STYLESHEET IN BOTH ENGINES, WITH THREE CONTROLS** — the user is on
+Firefox, and a rule present in a stylesheet is not a rule that matches anything:
+```
+                    chromium        firefox
+doc-empty           transparent     transparent   <- the target
+doc-prose           visible         visible       <- prose still shows a caret
+doc-hardbreak       visible         visible       <- :only-child does its job
+block-empty         visible         visible       <- "inside textblocks, not outside"
+chip-empty          visible         visible
+```
+**AND MY FIRST GREP OF THE BUILT CSS READ AS "THE RULE IS MISSING".** The minifier rewrites
+`transparent` -> `#0000`, and `grep -o "caret-color:[a-z]*"` cannot match a `#`. *Grep the built
+value VERBATIM, not a token you assumed it would keep* — the same trap this file records for
+`flex: 0 0 auto` -> `flex:none`.
+
+---
+
+**STILL UNEXPLAINED, and said plainly: what recreates the node view.** `nv` incrementing proves
+ProseMirror recreated it rather than React re-rendering, and the parent doc logs **no `onUpdate`**
+between the mint and the recreation — so it is not a doc transaction. The re-claim makes it
+harmless; it does not explain it.
+
+**AND I BROKE `Editor.jsx` PUTTING AN IMPORT IN.** My inserter took "the first newline after the
+first `import `", which landed INSIDE a multi-line `import {` — the near-duplicate-anchor class from
+2026-09-03, one variant over. Seven test files passed anyway (none import Editor); the eighth failed
+on the esbuild transform, and **the source-guard test read the file as TEXT and passed straight
+through a syntax error.** A source guard cannot see a broken parse; the build is what says so.
+
+**NOT VERIFIED, and it is the honest gap: nobody has clicked an empty line since.** Every fix here
+is A/B'd with the mutation asserted to land, and the caret rules are measured in two real browsers —
+but the focus re-claim only runs on a real teardown, which no test can mount. **And one case is
+worse on purpose:** a line whose mint is deliberately suppressed (the one backspace just vacated)
+now shows no caret either, so it reads as dead until you type. That is what was asked for; it is one
+CSS rule to revert.
 
 ---
 
@@ -727,335 +967,6 @@ re-sent on a socket bound to the grid.
 
 **NOT VERIFIED:** nobody has dragged a card on a folder page or used the new right-click items in a
 browser; the rules are unit-tested and the build is clean.
-
----
-
-### 2026-09-16 (4) — THE BOOKMARKS YOU MADE NEVER GOT A PICTURE; and REDDIT CANNOT BE READ OR FRAMED
-
-**THE COVER REQUEST WAS NOT ABOUT WIKIPEDIA AND NOT ABOUT A RULE.** User: *"we should either
-grabbing a wikipedia logo or the first image for wikipedia article bookmarks. the cover image i
-mean."* Censused before writing anything:
-```
-bookmark modules          1472
-  with a cover            1464
-  NO cover                   8      <- 3 reddit, 1 wikipedia, 1 youtube, 1 wapo, 1 chopra, 1 blank
-wikipedia bookmarks         39      (38 covered, 1 not)
-```
-**THE FALLBACK BEING ASKED FOR ALREADY SHIPPED.** `coverFromHtml`'s order is og:image → declared
-icon → site favicon — literally *"the first image OR the logo"* — authored for `0201` and measured
-there. **Re-running `0201` today plans ZERO fetches**, and that article answers with an og:image
-right now. Nothing was missing for want of a rule; **nothing ever asked the page.**
-
-**THE GAP IS `0201`'s SCOPE:** it selects `meta.raindropId: /^b:/`, so it has never covered a
-bookmark created IN THE APP. All 8 are app-made. Same reason they are labelled by a bare host —
-`addBookmarkOccurrence` mints `meta: { external: true }` and fetches neither title nor picture.
-
-**SO THE FIX IS THAT SOMETHING ASKS, in the one place already asking.** `fetchLinkPreview` ALREADY
-fetches the page for the title, so the cover costs no second request, and it calls `coverFromHtml`
-rather than re-deriving an order. The mint then enriches **fire-and-forget** — the row is already on
-screen, so a dead site delays nothing.
-
-**AND IT WOULD HAVE SHIPPED COMPLETELY INERT.** `safeEmit(socket, event, data)` takes THREE
-parameters and **DROPS a callback**, so the ack could never fire and nothing would ever have patched
-— with every log line reading correctly. Caught by reading the callee. The test asserts the ACK, not
-the result, so it cannot regress silently; A/B'd, it fails exactly the 3 ack-dependent cases.
-
-**`0332` backfills the 8** using `0201`'s OWN helpers. Dry run named exactly the 7 the independent
-census predicted (8 minus the blank browser). Read back out of Mongo: **1464 → 1470 covered,
-wikipedia 39 of 39**; the 2 left are the blank browser (no url) and chopra (404). **`0330` — already
-written, already idempotent — then re-ran cleanly** now the pages are reachable: 3 labels, including
-`"en.wikipedia.org"` → `"Albert Ellis - Wikipedia"`. No new code for that half.
-
-**A PROBE NOTE: reading the result back with `.find()` returned a DIFFERENT row than the migration
-wrote.** There are TWO Albert Ellis bookmarks at the same URL, one already covered — the first match
-was not the one under test.
-
-**AND VERIFYING ON PROD FOUND A THIRD TWIN.** `link_preview` returned the title **"- YouTube"** for
-a video `0330` had named *"Jung, Alcoholics Anonymous, And Drug Seeking Behaviour"* the same
-afternoon: `0330` prefers `og:title` and trims the site suffix, `titleFromHtml` read `<title>` raw.
-`utils/pageTitle.js` is that rule in one place. **`titleFromHtml` is deliberately LEFT ALONE for the
-Reader/Magic header** — whether that should carry the site suffix is an open decision (09-15 (2)),
-and answering it as a side effect of a label fix would be a silent answer to someone else's
-question. **My own first version re-typed a fourth `decodeEntities` chain whose `&#0?39;` misses
-`&#0039;`** — the shared `utils/htmlEntities.js` exists for exactly that and is imported now.
-
----
-
-**REDDIT: MEASURED, AND EVERY PATH IS CLOSED. NOT BUILT — it needs a decision.** User: *"reddit
-links arent being able to resolve with our browser. raindrops preview allows you to open it inline
-in web. why cant we."*
-```
-Web (iframe)          x-frame-options: SAMEORIGIN        -> blocked, permanently
-Reader/Magic (www)    8,476 bytes of JS shell            -> 1 word
-Reader/Magic (old.)   302 -> login wall; guarded fetch 403
-Archive (Wayback)     no snapshot for either post
-Raindrop              rdl.ink/render/<url>  200 image/webp 124 KB
-```
-**MY OWN FIRST READING WAS WRONG AND THE BYTE COUNT IS WHY.** `old.reddit.com` returned **322,014
-bytes** where www returned 8,476, and I nearly concluded old.reddit serves real HTML. It is a LOGIN
-PAGE — `<title>` "Welcome to Reddit", 5 reader words, no post title anywhere. *A large response is
-not the right response.*
-
-**RAINDROP IS NOT OPENING IT INLINE — it renders server-side and sends a PICTURE**, which 2026-09-12
-(2) already retracted the proxy theory for and measured. Re-measured today: still a webp.
-
-**SO THE ONLY WORKING ROUTE IS THE ONE THAT ENTRY NAMED AND DID NOT BUILD:** screenshot it
-server-side. **Playwright IS available** (root `package.json`, `^1.58.2`) — *my first probe read only
-`server/` and `client/` package.json and reported it absent.* But it is a **root devDependency for
-e2e tests**, so shipping this means Chromium on the droplet (~300MB + memory), a render endpoint
-with a cache, a Snapshot mode, and an SSRF story (playwright navigates directly, around
-`safeFetchUrl`). That is a heavy, hard-to-reverse change to their production box — and the same
-question was put to the user in 09-11 (2), where they chose to leave Web mode falling back. **Put to
-them again rather than installed unilaterally.**
-
-2,244 server + 4,346 client tests (the 2 incomplete client files are the documented OOM pair,
-verified by running them ALONE). Deployed three times, prod HEAD verified each time, `0332` + `0330`
-applied to poms grid and read back out of Mongo.
-
----
-
-### 2026-09-16 (3) — THE ARTICLE'S ONLY PICTURE WAS IN THE BOX WE THROW AWAY, and the previous session measured a different article
-
-Picked up account3's session, which hit its limit at 13:52 mid-investigation. It left **an
-uncommitted CSS edit that was syntactically broken**, and that is the first finding: its
-"SPECIFICITY IS LOAD-BEARING" paragraph sat AFTER the `*/` that closed the comment above it, so the
-prose stood in the stylesheet where a selector goes and swallowed the next `{...}` — which is the
-`.radial-handle-icon` rule itself. **The whole adaptive-handle fix would have shipped INERT** with
-nothing to say so: the build succeeds and the source reads correctly. Proven by stripping comments
-the way a parser does and printing what is left, then verified in the BUILT stylesheet with controls
-— and the first grep read 0 for the CONTROL too, the documented wrong-chunk tell (these rules land
-in `index-*.css`, not `PagePreviewApp-*.css`).
-
-**THE WIDENED SELECTOR IT WAS WRITING IS ITSELF LOAD-BEARING**, checked rather than assumed:
-`ModeIcon` is a lucide component, so `className` lands ON the `<svg>` — the same element
-`.module-drag-handle svg` (0,1,1) colours. A bare `.radial-handle-icon` is (0,1,0) and loses. On most
-skins the token is an inherited cream that inverts acceptably; Stardew sets it to `#14100a`.
-
----
-
-**THE WIKIPEDIA IMAGES: THE PREVIOUS SESSION'S CONCLUSION IS RETRACTED, AND SO IS ITS ARTICLE.** It
-measured **Eminem** — 10 images in the markdown, 8 image modules in the magic plan, every URL
-answering 200 — and concluded *"the failure is downstream of the plan"*. The user's bookmark is
-**Albert Ellis** (their screenshot says so), and through the same chain:
-```
-Albert Ellis   raw 10 <img>  ->  main content 2  ->  markdown 0
-Eminem         raw 28        ->  main content 14 ->  markdown 10
-```
-Nothing downstream was ever wrong. *A measurement of a different article than the one reported is a
-measurement of something else* — the 2026-09-15 (6) class from a new direction. **The user's own
-screenshots were in `screenshots/` the whole time and named the article in one look.**
-
-**THE CAUSE: `WIKI_STRIP_SELECTORS` REMOVES `.infobox`, AND ON MOST BIOGRAPHIES THAT BOX HOLDS THE
-ARTICLE'S ONLY PICTURE.** Eminem survives only because its body is full of inline figures. The strip
-is RIGHT — the box is a metadata table, and printing born/died/alma-mater into a reader is worse than
-dropping it — so the picture is **LIFTED OUT before the strip** rather than the strip being loosened.
-A control test asserts the metadata is still gone.
-
-**THE IMPORT PATH ALREADY KNEW, WHICH IS WHAT MAKES THIS TWIN DRIFT.** `fullMarkdown`'s own comment:
-*"Wikipedia's main photo lives in the .infobox, which wikiHtmlToMarkdown strips, so the article body
-has no main image"* — fixed there with the REST summary API. **The reader never got the equivalent,
-and cannot copy that one**: it holds only the page HTML it already fetched, runs against any site
-rather than en.wikipedia, and a second network round trip inside its deadline is exactly the
-2026-09-10 (2) regression. `injectLeadBlocks` is now SHARED by both, byte-identically.
-
-**THE WIDEST INFOBOX IMAGE, NOT THE FIRST — measured across seven real articles**, which is what
-removed the need for a magic threshold: the lead photo is the widest every time (250px on the
-biographies, 288 on Tokyo's montage), a signature trails at 150, chrome icons sit at 20-40. "First"
-would take a country article's flag over its map. A/B over the real chain — **exactly +1 everywhere,
-the lead image, never doubled**:
-```
-Albert Ellis  0 -> 1      Eminem  10 -> 11
-Carl Rogers   0 -> 1      Tokyo   51 -> 52
-```
-**VERIFIED ON PROD over a real socket**, each address HEAD'd: Albert Ellis 1 image / 200, Carl Rogers
-1 / 200, Eminem 11 with the portrait now leading, first three all 200.
-
----
-
-**"ADD AS A PAGE" ON THE MAGIC AND READER VIEWS — and the minter had no shape.** `import_plan` has
-taken `shape: "reader"|"magic"` since 2026-09-12 (it is what those views render), but `import_text`,
-the only handler that WRITES, always ran the magic tree. **The button would have handed you a page
-that was not the one on screen** — the drift `import_plan`'s own comment warns about. One
-`buildImportShape` now serves both, and the test that matters asserts plan and mint AGREE, with a
-control that the two shapes genuinely differ (or "they agree" is satisfied by an argument nothing
-reads). It sends the markdown the viewer already has rather than re-fetching: `import_url` was the
-obvious call and is wrong twice — it pays for the page again, and it has no shape.
-
-**AND IT FOUND A DEFECT BEFORE SHIPPING IT — PARENTED IS NOT LISTED.** `markdownToModuli` pushes its
-own root into the destination's `occurrences[]`; **`planReaderShape` is a pure planner and does
-not**, so a Reader-shape page would have landed complete, correct and INVISIBLE. **My first test
-only checked `parentId`, which is exactly how that class keeps surviving five repairs.**
-`utils/linkRootIntoParent.js` is atomic (`$push`, never a whole-array write) and idempotent (`$ne`
-guard), so ONE call serves both shapes rather than a per-shape branch that drifts; the parent update
-is broadcast, or the destination renders its old child list until a reload and the button reads as
-broken. The picker is the EXISTING one — "save as bookmark" and "add as page" ask the same question.
-
-2,234 server tests, lint 0 `no-undef`, build clean, deployed, prod HEAD verified, pm2 restarted
-(server code changed).
-
-**NOT VERIFIED, and it is the honest gap: nobody has clicked the + Page button.** The shape contract,
-the listing and the persist are all pinned by tests and A/B'd, but no page has been watched landing
-in a container.
-
-**STILL OPEN from the same queue, recorded in `CLAUDE_CHAT.md`:** the wikipedia bookmark COVER
-fallback, the Jonah audit (*"make sure any functionality we added in, jonah can utilize"*), and
-Reddit links not resolving in the browser.
-
----
-
-### 2026-09-16 (2) — THREE OF THE FOUR WERE ALREADY FIXED; the fourth took THREE attempts and TWO broken deploys
-
-Picked up the other account's session, which hit its limit at 11:57 **mid-verification** — its last
-act was cropping a screenshot of the drag handle it had just changed, and it never saw the result.
-Four requests were open (`CLAUDE_CHAT.md`, 2026-09-16). All four were measured on prod before
-anything was edited, and **three were already repaired by commits nobody had looked at.**
-
-**`4a0708c4` AND `d7f516b2` FIXED THE QUOTE BORDER, THE HANDLE AND THE LAST TEXTBLOCK'S BOTTOM
-BORDER in that session's final 20 minutes.** The scoping commit (`:not(.instance-row *)`) stopped
-the notch clipping every NESTED row in its own coordinate space, which is what cut the quote AND ate
-the last textblock's edge.
-
-**THE BORDER IS PROVEN BY COLOUR, NOT BY SQUINTING AT A CROP.** Each shot was taken so the row's
-bottom edge lands at y=60, and the declared border colour is `rgb(70,56,52)`:
-```
-y=58   rgb(49, 36, 28)    the card fill
-y=59   rgb(70, 56, 52)    distance 0 from the declared border colour   <- PAINTED
-y=60   rgb(29, 25, 21)    the page behind it
-```
-*"There is a line there" read off a 458px crop is an opinion; a pixel's distance from the declared
-colour is not.* The handle measured `rgb(255,255,255)` on an `rgba(0,0,0,0.5)` disc with
-`filter: none` and `text-shadow: none` — the blur that read as a "highlight" is gone.
-
----
-
-**AND THEN I BROKE THE FOURTH ONE TWICE, ON PRODUCTION, FOR ~40 MINUTES.** The ask was *"make sure
-that the expand for the images, opens it in the viewer"*. Prod measured the defect first —
-`.artifact-fullscreen 1 / .artifact-spread 0`, the in-place lightbox — and then:
-```
-attempt 1  8dfef487   no guard; always openArtifactSpread     prod: spread 0 / fullscreen 0  DEAD
-attempt 2  4f232ed2   guard on getOcc(id) resolving           prod: spread 0 / fullscreen 0  DEAD
-attempt 3  0e58d060   guard on socket === null                prod: spread 0 / fullscreen 1  OK
-```
-**Attempt 1 removed the lightbox without the viewer taking over.** `ArtifactSpreadHost` resolves its
-owner as `occurrencesById[req.occurrenceId]` off the LIVE store, and a Magic/Reader row is a PLANNED
-occurrence that exists only inside an isolated `parentState` (`readerStateFromPlan`) — so the lookup
-found nothing and the overlay never rendered. A dead button is strictly worse than the thing it
-replaced.
-
-**ATTEMPT 2 FAILED FOR THE EXACT REASON IT EXISTED, and that is the entry.** It guarded by asking
-whether the occurrence resolved — and `PagePreviewBody` mounts its OWN `GridActionsContext` whose
-`getOcc` reads the isolated plan (`PagePreviewApp.jsx:258`). Inside the reader it cheerfully returns
-the PLANNED row, so the guard read it as live and called the viewer anyway. **I wrote a guard about
-consulting the wrong store BY consulting the wrong store.** *"Can my context resolve this id" is
-worthless when the context IS the isolated one.*
-
-**ITS TEST PASSED ONLY BECAUSE THE FIXTURE WITHHELD THE ROW.** Production does not. The test now
-RESOLVES the id in BOTH contexts, so it can never again pass for that reason — which is the whole
-difference between a test that pins the contract and one that pins the fixture.
-
-**THE HONEST SIGNAL IS `socket`.** The preview provider hands the subtree `dispatch: noop` and
-`socket: null` (`PagePreviewApp.jsx:270-271`), which `BookmarkView` already documents as the
-structural isolation — *"there is no path from this subtree to a write"*. **The same nulling that
-makes the reader unable to WRITE is what makes the viewer unable to RESOLVE**: one condition rather
-than two that can drift, needing no new context a future call site could forget. In the reader the
-lightbox is not a consolation prize — it is the only thing that CAN open.
-
-**VERIFIED ON PROD WITH A FRESHNESS CHECK THE EARLIER RUNS DID NOT HAVE:**
-```
-LOADED CHUNKS ["PagePreviewApp-IxC777SD.js"]   the browser is running THIS build
-EXPAND {"spread":0,"fullscreen":1}             PASS — the reader falls back to the lightbox
-```
-
-**FOUR OF MY OWN TOOLS LIED TODAY, and each cost a cycle:**
-- **The probe's freshness check was an `aria-label` present in BOTH builds** — I introduced it in the
-  broken commit, so it could never discriminate fixed from broken. It reports the LOADED CHUNK now.
-- **I verified a chunk EXISTED at a URL and called it deployed.** That proves a file is reachable,
-  not that the page loads it. The check that means something is tracing the ENTRY chunk's reference.
-- **Two greps on `BookmarkView.jsx` silently matched NOTHING** and I nearly concluded it does not
-  render the reader at all. That file carries a committed NUL byte, so plain `grep` treats it as
-  binary — **a trap this very file documents (2026-09-15) and I hit anyway.** `grep -a`.
-- **The full suite was OOM-killed twice** because I ran it alongside the build, then died a third
-  time on `--minWorkers`, a flag vitest does not have. `--maxWorkers=2` completes in 326s.
-
-4,367 client tests across 371 files, lint 0 `no-undef` (and `getOcc` is NOT orphaned — the delete
-path still uses it). **Probe debris: none** — 0 occurrences touched and 0 created on poms grid
-across the whole session, so the address-bar + Magic path plans without writing.
-
-**NOT VERIFIED, and it is the honest gap: the VIEWER half has never been watched in a browser.**
-Expand on a real board card opening the spread is covered by a unit test and an A/B against the
-exact code that broke — but the Magic article is, by construction, the one page where it cannot
-work, so nothing here exercised it.
-
----
-
-### 2026-09-16 — THE PROSE NEVER WRAPPED UNDER THE PICTURE, and one element is why
-
-User, on the Magic render of the badgerherald article: *"the quotes are being cut off"*, *"the
-textblock wraps texts isnt wrapping. the text itself should wrap around that image occurance"*,
-*"the lines in the wrap … it needs to shift down 2px"*, and *"can you make the drag handle be white
-for dark images … cause that was the issue, i couldnt see the drag handle"*. Four reports, four
-causes, all measured on screen before anything changed.
-
-**THE WRAP WAS DEAD AND ONE CLASS NAME EXPLAINS IT.** The wrap CSS deliberately neutralises every
-formatting context down the host chain — its own comment says *"this is why the L never happened"* —
-forcing `.instance-row`, `.instance-content`, `.instance-body` and `.textblock-card` to `display:
-block`. **`.instance-textcol` joined that chain later** (the ModuleInstance restructure that moved
-the label in beside the fields) and was never added to the list. Being FLEX it shrink-wrapped, so
-its BOX sat beside the float for its whole height and the line boxes could never flow under it.
-```
-                           before      after
-.instance-textcol width    157px       423px
-lines BESIDE the float     right 191   right 197   (the float starts at x=213)
-lines BELOW  the float     right 192   right 458   (the host's edge is 473, over 35 lines)
-```
-That second row is the whole report: the text stayed in a 180px column all the way down instead of
-reclaiming the page under the picture. **CSS that outlived the DOM it was written for**, which this
-file records repeatedly — and the only reason it was found is that walking the host chain printed
-every element's width instead of trusting the rule to still match.
-
-**THE 2px WAS ONE MARGIN, NOT A FUDGE.** The notch is cut at `--notch-y: 0` — the HOST box's own
-top — so the whole L is only aligned if the host and the float start at the same y. They did not:
-```
-float top 387.5   host box top 389.5   ->  the notch began 2px BELOW the picture
-notch bottom      16.2px under the float, where BOTTOM_GAP says 14
-```
-So a 2px sliver of the host's top border ran across into the picture's footprint, and the bottom
-bar's line sat 2px low. The difference is the host `.instance-wrap`'s own `margin-top: 2px` (the
-float's is 0) — the border rule had already zeroed the host `.instance-row`'s margin and never
-covered the wrap. **Zeroing it aligns both ends at once, which is why there is no `+2` anywhere in
-the JS:** after it, `notchTop - floatTop = 0` and the bottom gap is 14.2.
-
-**THE QUOTES WERE RAW MARKDOWN, AND THE FIX BELONGS IN THE RENDERER.** Two of that article's
-blockquotes are a single markdown link, stored verbatim — so the card printed
-`[Bodies of two Madison men…](https://…)`, and a URL has no break opportunity, so in a narrow wrap
-column it overflowed and clipped. **Stripping the link was my first fix and it was wrong** — the
-user: *"those specific quotes are links on the inside that arent be resolved to a link either"*. So
-the importer now strips only bold/italic/code and KEEPS `[text](url)`, and `linkifyText` resolves
-both markdown links and bare URLs. **Putting the markdown pass in the RENDERER is what also repairs
-quotes ALREADY imported**, whose stored text still carries the raw syntax; an importer-only change
-helps nothing that exists. Measured after: `rawMarkdown false · links 1 · clipped false`.
-
-**AND KEEPING THE LINK REINTRODUCED A HAZARD THE STRIP HAD HIDDEN.** The attribution split reads a
-trailing em-dash clause as "— Author", and a dash inside a URL then tore the quote in half
-(`[Bodies buried](https://x.com/a` with an author of `b)`). It masks each link to one opaque token
-before splitting. **The same change broke annotations and the full suite caught it:**
-`ANNOTATION_RE` keys on the BOLD marker `**[label]**`, which the strip removes — so every annotation
-read as an ordinary quote and had its tail torn off as an attribution. The marker is detected on the
-RAW text now. *A strip that runs before a detector is a change to that detector.*
-
-**THE HANDLE WAS NEVER MISSING — IT WAS THE THEME'S INK ON A DARK PHOTO.** That is also what the
-retracted "the images aren't draggable" report was: measured, the handle's box is x 219-241 inside
-an image spanning 214-472, fully opaque, simply invisible. It is white with a dark halo over an
-image card now — **white ALONE is just as lost on a bright photo, and this grid has both** — and
-scoped to `data-kind="image"` so the quote card, which is a light box rather than a photo, keeps the
-theme ink.
-
-Every number above re-measured on prod after deploying. 2,217 server tests across 208 files.
-**Not done:** the wrap was verified by geometry and a crop, not by dragging a picture by that handle.
-
----
-
-<!-- Entries older than 2026-09-16 continue in CLAUDE.backup.2026-09-18.md (2026-09-15 (6) and back). -->
 
 ## Claude Session Directives (ALWAYS FOLLOW)
 

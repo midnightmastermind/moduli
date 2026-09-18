@@ -11,6 +11,334 @@ retractions and the probe-fault war stories the live file no longer has room for
 
 ---
 
+### 2026-09-16 (4) — THE BOOKMARKS YOU MADE NEVER GOT A PICTURE; and REDDIT CANNOT BE READ OR FRAMED
+
+**THE COVER REQUEST WAS NOT ABOUT WIKIPEDIA AND NOT ABOUT A RULE.** User: *"we should either
+grabbing a wikipedia logo or the first image for wikipedia article bookmarks. the cover image i
+mean."* Censused before writing anything:
+```
+bookmark modules          1472
+  with a cover            1464
+  NO cover                   8      <- 3 reddit, 1 wikipedia, 1 youtube, 1 wapo, 1 chopra, 1 blank
+wikipedia bookmarks         39      (38 covered, 1 not)
+```
+**THE FALLBACK BEING ASKED FOR ALREADY SHIPPED.** `coverFromHtml`'s order is og:image → declared
+icon → site favicon — literally *"the first image OR the logo"* — authored for `0201` and measured
+there. **Re-running `0201` today plans ZERO fetches**, and that article answers with an og:image
+right now. Nothing was missing for want of a rule; **nothing ever asked the page.**
+
+**THE GAP IS `0201`'s SCOPE:** it selects `meta.raindropId: /^b:/`, so it has never covered a
+bookmark created IN THE APP. All 8 are app-made. Same reason they are labelled by a bare host —
+`addBookmarkOccurrence` mints `meta: { external: true }` and fetches neither title nor picture.
+
+**SO THE FIX IS THAT SOMETHING ASKS, in the one place already asking.** `fetchLinkPreview` ALREADY
+fetches the page for the title, so the cover costs no second request, and it calls `coverFromHtml`
+rather than re-deriving an order. The mint then enriches **fire-and-forget** — the row is already on
+screen, so a dead site delays nothing.
+
+**AND IT WOULD HAVE SHIPPED COMPLETELY INERT.** `safeEmit(socket, event, data)` takes THREE
+parameters and **DROPS a callback**, so the ack could never fire and nothing would ever have patched
+— with every log line reading correctly. Caught by reading the callee. The test asserts the ACK, not
+the result, so it cannot regress silently; A/B'd, it fails exactly the 3 ack-dependent cases.
+
+**`0332` backfills the 8** using `0201`'s OWN helpers. Dry run named exactly the 7 the independent
+census predicted (8 minus the blank browser). Read back out of Mongo: **1464 → 1470 covered,
+wikipedia 39 of 39**; the 2 left are the blank browser (no url) and chopra (404). **`0330` — already
+written, already idempotent — then re-ran cleanly** now the pages are reachable: 3 labels, including
+`"en.wikipedia.org"` → `"Albert Ellis - Wikipedia"`. No new code for that half.
+
+**A PROBE NOTE: reading the result back with `.find()` returned a DIFFERENT row than the migration
+wrote.** There are TWO Albert Ellis bookmarks at the same URL, one already covered — the first match
+was not the one under test.
+
+**AND VERIFYING ON PROD FOUND A THIRD TWIN.** `link_preview` returned the title **"- YouTube"** for
+a video `0330` had named *"Jung, Alcoholics Anonymous, And Drug Seeking Behaviour"* the same
+afternoon: `0330` prefers `og:title` and trims the site suffix, `titleFromHtml` read `<title>` raw.
+`utils/pageTitle.js` is that rule in one place. **`titleFromHtml` is deliberately LEFT ALONE for the
+Reader/Magic header** — whether that should carry the site suffix is an open decision (09-15 (2)),
+and answering it as a side effect of a label fix would be a silent answer to someone else's
+question. **My own first version re-typed a fourth `decodeEntities` chain whose `&#0?39;` misses
+`&#0039;`** — the shared `utils/htmlEntities.js` exists for exactly that and is imported now.
+
+---
+
+**REDDIT: MEASURED, AND EVERY PATH IS CLOSED. NOT BUILT — it needs a decision.** User: *"reddit
+links arent being able to resolve with our browser. raindrops preview allows you to open it inline
+in web. why cant we."*
+```
+Web (iframe)          x-frame-options: SAMEORIGIN        -> blocked, permanently
+Reader/Magic (www)    8,476 bytes of JS shell            -> 1 word
+Reader/Magic (old.)   302 -> login wall; guarded fetch 403
+Archive (Wayback)     no snapshot for either post
+Raindrop              rdl.ink/render/<url>  200 image/webp 124 KB
+```
+**MY OWN FIRST READING WAS WRONG AND THE BYTE COUNT IS WHY.** `old.reddit.com` returned **322,014
+bytes** where www returned 8,476, and I nearly concluded old.reddit serves real HTML. It is a LOGIN
+PAGE — `<title>` "Welcome to Reddit", 5 reader words, no post title anywhere. *A large response is
+not the right response.*
+
+**RAINDROP IS NOT OPENING IT INLINE — it renders server-side and sends a PICTURE**, which 2026-09-12
+(2) already retracted the proxy theory for and measured. Re-measured today: still a webp.
+
+**SO THE ONLY WORKING ROUTE IS THE ONE THAT ENTRY NAMED AND DID NOT BUILD:** screenshot it
+server-side. **Playwright IS available** (root `package.json`, `^1.58.2`) — *my first probe read only
+`server/` and `client/` package.json and reported it absent.* But it is a **root devDependency for
+e2e tests**, so shipping this means Chromium on the droplet (~300MB + memory), a render endpoint
+with a cache, a Snapshot mode, and an SSRF story (playwright navigates directly, around
+`safeFetchUrl`). That is a heavy, hard-to-reverse change to their production box — and the same
+question was put to the user in 09-11 (2), where they chose to leave Web mode falling back. **Put to
+them again rather than installed unilaterally.**
+
+2,244 server + 4,346 client tests (the 2 incomplete client files are the documented OOM pair,
+verified by running them ALONE). Deployed three times, prod HEAD verified each time, `0332` + `0330`
+applied to poms grid and read back out of Mongo.
+
+---
+
+### 2026-09-16 (3) — THE ARTICLE'S ONLY PICTURE WAS IN THE BOX WE THROW AWAY, and the previous session measured a different article
+
+Picked up account3's session, which hit its limit at 13:52 mid-investigation. It left **an
+uncommitted CSS edit that was syntactically broken**, and that is the first finding: its
+"SPECIFICITY IS LOAD-BEARING" paragraph sat AFTER the `*/` that closed the comment above it, so the
+prose stood in the stylesheet where a selector goes and swallowed the next `{...}` — which is the
+`.radial-handle-icon` rule itself. **The whole adaptive-handle fix would have shipped INERT** with
+nothing to say so: the build succeeds and the source reads correctly. Proven by stripping comments
+the way a parser does and printing what is left, then verified in the BUILT stylesheet with controls
+— and the first grep read 0 for the CONTROL too, the documented wrong-chunk tell (these rules land
+in `index-*.css`, not `PagePreviewApp-*.css`).
+
+**THE WIDENED SELECTOR IT WAS WRITING IS ITSELF LOAD-BEARING**, checked rather than assumed:
+`ModeIcon` is a lucide component, so `className` lands ON the `<svg>` — the same element
+`.module-drag-handle svg` (0,1,1) colours. A bare `.radial-handle-icon` is (0,1,0) and loses. On most
+skins the token is an inherited cream that inverts acceptably; Stardew sets it to `#14100a`.
+
+---
+
+**THE WIKIPEDIA IMAGES: THE PREVIOUS SESSION'S CONCLUSION IS RETRACTED, AND SO IS ITS ARTICLE.** It
+measured **Eminem** — 10 images in the markdown, 8 image modules in the magic plan, every URL
+answering 200 — and concluded *"the failure is downstream of the plan"*. The user's bookmark is
+**Albert Ellis** (their screenshot says so), and through the same chain:
+```
+Albert Ellis   raw 10 <img>  ->  main content 2  ->  markdown 0
+Eminem         raw 28        ->  main content 14 ->  markdown 10
+```
+Nothing downstream was ever wrong. *A measurement of a different article than the one reported is a
+measurement of something else* — the 2026-09-15 (6) class from a new direction. **The user's own
+screenshots were in `screenshots/` the whole time and named the article in one look.**
+
+**THE CAUSE: `WIKI_STRIP_SELECTORS` REMOVES `.infobox`, AND ON MOST BIOGRAPHIES THAT BOX HOLDS THE
+ARTICLE'S ONLY PICTURE.** Eminem survives only because its body is full of inline figures. The strip
+is RIGHT — the box is a metadata table, and printing born/died/alma-mater into a reader is worse than
+dropping it — so the picture is **LIFTED OUT before the strip** rather than the strip being loosened.
+A control test asserts the metadata is still gone.
+
+**THE IMPORT PATH ALREADY KNEW, WHICH IS WHAT MAKES THIS TWIN DRIFT.** `fullMarkdown`'s own comment:
+*"Wikipedia's main photo lives in the .infobox, which wikiHtmlToMarkdown strips, so the article body
+has no main image"* — fixed there with the REST summary API. **The reader never got the equivalent,
+and cannot copy that one**: it holds only the page HTML it already fetched, runs against any site
+rather than en.wikipedia, and a second network round trip inside its deadline is exactly the
+2026-09-10 (2) regression. `injectLeadBlocks` is now SHARED by both, byte-identically.
+
+**THE WIDEST INFOBOX IMAGE, NOT THE FIRST — measured across seven real articles**, which is what
+removed the need for a magic threshold: the lead photo is the widest every time (250px on the
+biographies, 288 on Tokyo's montage), a signature trails at 150, chrome icons sit at 20-40. "First"
+would take a country article's flag over its map. A/B over the real chain — **exactly +1 everywhere,
+the lead image, never doubled**:
+```
+Albert Ellis  0 -> 1      Eminem  10 -> 11
+Carl Rogers   0 -> 1      Tokyo   51 -> 52
+```
+**VERIFIED ON PROD over a real socket**, each address HEAD'd: Albert Ellis 1 image / 200, Carl Rogers
+1 / 200, Eminem 11 with the portrait now leading, first three all 200.
+
+---
+
+**"ADD AS A PAGE" ON THE MAGIC AND READER VIEWS — and the minter had no shape.** `import_plan` has
+taken `shape: "reader"|"magic"` since 2026-09-12 (it is what those views render), but `import_text`,
+the only handler that WRITES, always ran the magic tree. **The button would have handed you a page
+that was not the one on screen** — the drift `import_plan`'s own comment warns about. One
+`buildImportShape` now serves both, and the test that matters asserts plan and mint AGREE, with a
+control that the two shapes genuinely differ (or "they agree" is satisfied by an argument nothing
+reads). It sends the markdown the viewer already has rather than re-fetching: `import_url` was the
+obvious call and is wrong twice — it pays for the page again, and it has no shape.
+
+**AND IT FOUND A DEFECT BEFORE SHIPPING IT — PARENTED IS NOT LISTED.** `markdownToModuli` pushes its
+own root into the destination's `occurrences[]`; **`planReaderShape` is a pure planner and does
+not**, so a Reader-shape page would have landed complete, correct and INVISIBLE. **My first test
+only checked `parentId`, which is exactly how that class keeps surviving five repairs.**
+`utils/linkRootIntoParent.js` is atomic (`$push`, never a whole-array write) and idempotent (`$ne`
+guard), so ONE call serves both shapes rather than a per-shape branch that drifts; the parent update
+is broadcast, or the destination renders its old child list until a reload and the button reads as
+broken. The picker is the EXISTING one — "save as bookmark" and "add as page" ask the same question.
+
+2,234 server tests, lint 0 `no-undef`, build clean, deployed, prod HEAD verified, pm2 restarted
+(server code changed).
+
+**NOT VERIFIED, and it is the honest gap: nobody has clicked the + Page button.** The shape contract,
+the listing and the persist are all pinned by tests and A/B'd, but no page has been watched landing
+in a container.
+
+**STILL OPEN from the same queue, recorded in `CLAUDE_CHAT.md`:** the wikipedia bookmark COVER
+fallback, the Jonah audit (*"make sure any functionality we added in, jonah can utilize"*), and
+Reddit links not resolving in the browser.
+
+---
+
+### 2026-09-16 (2) — THREE OF THE FOUR WERE ALREADY FIXED; the fourth took THREE attempts and TWO broken deploys
+
+Picked up the other account's session, which hit its limit at 11:57 **mid-verification** — its last
+act was cropping a screenshot of the drag handle it had just changed, and it never saw the result.
+Four requests were open (`CLAUDE_CHAT.md`, 2026-09-16). All four were measured on prod before
+anything was edited, and **three were already repaired by commits nobody had looked at.**
+
+**`4a0708c4` AND `d7f516b2` FIXED THE QUOTE BORDER, THE HANDLE AND THE LAST TEXTBLOCK'S BOTTOM
+BORDER in that session's final 20 minutes.** The scoping commit (`:not(.instance-row *)`) stopped
+the notch clipping every NESTED row in its own coordinate space, which is what cut the quote AND ate
+the last textblock's edge.
+
+**THE BORDER IS PROVEN BY COLOUR, NOT BY SQUINTING AT A CROP.** Each shot was taken so the row's
+bottom edge lands at y=60, and the declared border colour is `rgb(70,56,52)`:
+```
+y=58   rgb(49, 36, 28)    the card fill
+y=59   rgb(70, 56, 52)    distance 0 from the declared border colour   <- PAINTED
+y=60   rgb(29, 25, 21)    the page behind it
+```
+*"There is a line there" read off a 458px crop is an opinion; a pixel's distance from the declared
+colour is not.* The handle measured `rgb(255,255,255)` on an `rgba(0,0,0,0.5)` disc with
+`filter: none` and `text-shadow: none` — the blur that read as a "highlight" is gone.
+
+---
+
+**AND THEN I BROKE THE FOURTH ONE TWICE, ON PRODUCTION, FOR ~40 MINUTES.** The ask was *"make sure
+that the expand for the images, opens it in the viewer"*. Prod measured the defect first —
+`.artifact-fullscreen 1 / .artifact-spread 0`, the in-place lightbox — and then:
+```
+attempt 1  8dfef487   no guard; always openArtifactSpread     prod: spread 0 / fullscreen 0  DEAD
+attempt 2  4f232ed2   guard on getOcc(id) resolving           prod: spread 0 / fullscreen 0  DEAD
+attempt 3  0e58d060   guard on socket === null                prod: spread 0 / fullscreen 1  OK
+```
+**Attempt 1 removed the lightbox without the viewer taking over.** `ArtifactSpreadHost` resolves its
+owner as `occurrencesById[req.occurrenceId]` off the LIVE store, and a Magic/Reader row is a PLANNED
+occurrence that exists only inside an isolated `parentState` (`readerStateFromPlan`) — so the lookup
+found nothing and the overlay never rendered. A dead button is strictly worse than the thing it
+replaced.
+
+**ATTEMPT 2 FAILED FOR THE EXACT REASON IT EXISTED, and that is the entry.** It guarded by asking
+whether the occurrence resolved — and `PagePreviewBody` mounts its OWN `GridActionsContext` whose
+`getOcc` reads the isolated plan (`PagePreviewApp.jsx:258`). Inside the reader it cheerfully returns
+the PLANNED row, so the guard read it as live and called the viewer anyway. **I wrote a guard about
+consulting the wrong store BY consulting the wrong store.** *"Can my context resolve this id" is
+worthless when the context IS the isolated one.*
+
+**ITS TEST PASSED ONLY BECAUSE THE FIXTURE WITHHELD THE ROW.** Production does not. The test now
+RESOLVES the id in BOTH contexts, so it can never again pass for that reason — which is the whole
+difference between a test that pins the contract and one that pins the fixture.
+
+**THE HONEST SIGNAL IS `socket`.** The preview provider hands the subtree `dispatch: noop` and
+`socket: null` (`PagePreviewApp.jsx:270-271`), which `BookmarkView` already documents as the
+structural isolation — *"there is no path from this subtree to a write"*. **The same nulling that
+makes the reader unable to WRITE is what makes the viewer unable to RESOLVE**: one condition rather
+than two that can drift, needing no new context a future call site could forget. In the reader the
+lightbox is not a consolation prize — it is the only thing that CAN open.
+
+**VERIFIED ON PROD WITH A FRESHNESS CHECK THE EARLIER RUNS DID NOT HAVE:**
+```
+LOADED CHUNKS ["PagePreviewApp-IxC777SD.js"]   the browser is running THIS build
+EXPAND {"spread":0,"fullscreen":1}             PASS — the reader falls back to the lightbox
+```
+
+**FOUR OF MY OWN TOOLS LIED TODAY, and each cost a cycle:**
+- **The probe's freshness check was an `aria-label` present in BOTH builds** — I introduced it in the
+  broken commit, so it could never discriminate fixed from broken. It reports the LOADED CHUNK now.
+- **I verified a chunk EXISTED at a URL and called it deployed.** That proves a file is reachable,
+  not that the page loads it. The check that means something is tracing the ENTRY chunk's reference.
+- **Two greps on `BookmarkView.jsx` silently matched NOTHING** and I nearly concluded it does not
+  render the reader at all. That file carries a committed NUL byte, so plain `grep` treats it as
+  binary — **a trap this very file documents (2026-09-15) and I hit anyway.** `grep -a`.
+- **The full suite was OOM-killed twice** because I ran it alongside the build, then died a third
+  time on `--minWorkers`, a flag vitest does not have. `--maxWorkers=2` completes in 326s.
+
+4,367 client tests across 371 files, lint 0 `no-undef` (and `getOcc` is NOT orphaned — the delete
+path still uses it). **Probe debris: none** — 0 occurrences touched and 0 created on poms grid
+across the whole session, so the address-bar + Magic path plans without writing.
+
+**NOT VERIFIED, and it is the honest gap: the VIEWER half has never been watched in a browser.**
+Expand on a real board card opening the spread is covered by a unit test and an A/B against the
+exact code that broke — but the Magic article is, by construction, the one page where it cannot
+work, so nothing here exercised it.
+
+---
+
+### 2026-09-16 — THE PROSE NEVER WRAPPED UNDER THE PICTURE, and one element is why
+
+User, on the Magic render of the badgerherald article: *"the quotes are being cut off"*, *"the
+textblock wraps texts isnt wrapping. the text itself should wrap around that image occurance"*,
+*"the lines in the wrap … it needs to shift down 2px"*, and *"can you make the drag handle be white
+for dark images … cause that was the issue, i couldnt see the drag handle"*. Four reports, four
+causes, all measured on screen before anything changed.
+
+**THE WRAP WAS DEAD AND ONE CLASS NAME EXPLAINS IT.** The wrap CSS deliberately neutralises every
+formatting context down the host chain — its own comment says *"this is why the L never happened"* —
+forcing `.instance-row`, `.instance-content`, `.instance-body` and `.textblock-card` to `display:
+block`. **`.instance-textcol` joined that chain later** (the ModuleInstance restructure that moved
+the label in beside the fields) and was never added to the list. Being FLEX it shrink-wrapped, so
+its BOX sat beside the float for its whole height and the line boxes could never flow under it.
+```
+                           before      after
+.instance-textcol width    157px       423px
+lines BESIDE the float     right 191   right 197   (the float starts at x=213)
+lines BELOW  the float     right 192   right 458   (the host's edge is 473, over 35 lines)
+```
+That second row is the whole report: the text stayed in a 180px column all the way down instead of
+reclaiming the page under the picture. **CSS that outlived the DOM it was written for**, which this
+file records repeatedly — and the only reason it was found is that walking the host chain printed
+every element's width instead of trusting the rule to still match.
+
+**THE 2px WAS ONE MARGIN, NOT A FUDGE.** The notch is cut at `--notch-y: 0` — the HOST box's own
+top — so the whole L is only aligned if the host and the float start at the same y. They did not:
+```
+float top 387.5   host box top 389.5   ->  the notch began 2px BELOW the picture
+notch bottom      16.2px under the float, where BOTTOM_GAP says 14
+```
+So a 2px sliver of the host's top border ran across into the picture's footprint, and the bottom
+bar's line sat 2px low. The difference is the host `.instance-wrap`'s own `margin-top: 2px` (the
+float's is 0) — the border rule had already zeroed the host `.instance-row`'s margin and never
+covered the wrap. **Zeroing it aligns both ends at once, which is why there is no `+2` anywhere in
+the JS:** after it, `notchTop - floatTop = 0` and the bottom gap is 14.2.
+
+**THE QUOTES WERE RAW MARKDOWN, AND THE FIX BELONGS IN THE RENDERER.** Two of that article's
+blockquotes are a single markdown link, stored verbatim — so the card printed
+`[Bodies of two Madison men…](https://…)`, and a URL has no break opportunity, so in a narrow wrap
+column it overflowed and clipped. **Stripping the link was my first fix and it was wrong** — the
+user: *"those specific quotes are links on the inside that arent be resolved to a link either"*. So
+the importer now strips only bold/italic/code and KEEPS `[text](url)`, and `linkifyText` resolves
+both markdown links and bare URLs. **Putting the markdown pass in the RENDERER is what also repairs
+quotes ALREADY imported**, whose stored text still carries the raw syntax; an importer-only change
+helps nothing that exists. Measured after: `rawMarkdown false · links 1 · clipped false`.
+
+**AND KEEPING THE LINK REINTRODUCED A HAZARD THE STRIP HAD HIDDEN.** The attribution split reads a
+trailing em-dash clause as "— Author", and a dash inside a URL then tore the quote in half
+(`[Bodies buried](https://x.com/a` with an author of `b)`). It masks each link to one opaque token
+before splitting. **The same change broke annotations and the full suite caught it:**
+`ANNOTATION_RE` keys on the BOLD marker `**[label]**`, which the strip removes — so every annotation
+read as an ordinary quote and had its tail torn off as an attribution. The marker is detected on the
+RAW text now. *A strip that runs before a detector is a change to that detector.*
+
+**THE HANDLE WAS NEVER MISSING — IT WAS THE THEME'S INK ON A DARK PHOTO.** That is also what the
+retracted "the images aren't draggable" report was: measured, the handle's box is x 219-241 inside
+an image spanning 214-472, fully opaque, simply invisible. It is white with a dark halo over an
+image card now — **white ALONE is just as lost on a bright photo, and this grid has both** — and
+scoped to `data-kind="image"` so the quote card, which is a light box rather than a photo, keeps the
+theme ink.
+
+Every number above re-measured on prod after deploying. 2,217 server tests across 208 files.
+**Not done:** the wrap was verified by geometry and a crop, not by dragging a picture by that handle.
+
+---
+
+<!-- Entries older than 2026-09-16 continue in CLAUDE.backup.2026-09-18.md (2026-09-15 (6) and back). -->
+
+
 ### 2026-09-15 (6) — the images are ON SCREEN; and BBC serves a comma the split could not see
 
 Closing the one gap (5) left open — *"nobody has watched it render"* — which it could not close
