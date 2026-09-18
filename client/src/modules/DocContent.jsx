@@ -9,9 +9,10 @@ import { Lock, Unlock } from "lucide-react";
 import { logCaretInterference } from "../helpers/caretDiag";
 import { requestTextblockFocus, cancelTextblockFocus } from "../helpers/pendingTextblockFocus";
 import { registerProvisionalTextblock, discardProvisionalTextblock, isProvisionalTextblock } from "../helpers/provisionalTextblock";
-import { mintStep } from "../helpers/mintDiag";
+import { mintStep, mintMark } from "../helpers/mintDiag";
 import { useLazyEditor, LAZY_PLACEHOLDER_CLASS } from "../helpers/lazyEditor.js";
 import { createMintLedger } from "../helpers/provisionalMints.js";
+import { planStaleCollapses } from "../helpers/staleProvisionalBlocks.js";
 import { afterPaint } from "../helpers/afterPaint";
 
 // One plain-text string per top-level block. Roughly height-matched — and, just as
@@ -277,17 +278,52 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       },
     });
 
+    // THE CARET IS CLAIMED BEFORE THE TRANSACTION, for the same reason the
+    // registry entry above is: dispatching runs handlers SYNCHRONOUSLY, and the
+    // sub-editor takes the caret in its own `onCreate`. A claim added afterwards
+    // can arrive too late to be seen, and then the block mounts UNFOCUSED — which
+    // never blurs, and a block that never blurs never vanishes. User, 2026-09-18:
+    // *"it creates a textblock (not focused)"*. Adding to a Set costs nothing and
+    // cannot be too early.
+    requestTextblockFocus(occId);
+    mintMark("focus:requested", { occId: occId.slice(0, 8) });
+
     const tr = editor.state.tr;
     tr.setMeta("skipAutoCreate", true);
     tr.replaceWith(nodeStart, nodeStart + nodeSize, schema.nodes.instanceTextblock.create({
       instanceId: modId,
       occurrenceId: occId,
     }));
+
+    // ── ONE PROVISIONAL BLOCK AT A TIME ──────────────────────────────────────
+    // User's spec, verbatim: *"each click should, negate the last empty textblock,
+    // and then focus on a new textblock."* A provisional block is empty and
+    // unclaimed by definition — typing commits it out of the registry on the first
+    // character — so at this moment every OTHER one is garbage the vanish path
+    // failed to collect.
+    //
+    // It happens in the SAME transaction as the insert, which is what removes the
+    // ordering hazard entirely: `nodeStart` was computed by the caller against the
+    // pre-edit doc, so collapsing anything first would invalidate it. Planned
+    // against `tr.doc` (post-insert) and applied DESCENDING — see
+    // helpers/staleProvisionalBlocks.
+    const stale = planStaleCollapses(tr.doc, occId, isProvisionalTextblock);
+    for (const st of stale) {
+      const para = schema.nodes.paragraph?.create();
+      if (!para) break;
+      // Back to an empty LINE, not deleted: the user clicked that line, and taking
+      // the line away too would move everything under the pointer.
+      tr.replaceWith(st.pos, st.pos + st.size, para);
+    }
+
     mintStep("replaceLine", () => editor.view.dispatch(tr));
 
-    // The sub-editor claims the caret in its own onCreate — the first frame it
-    // exists. Nothing here polls the DOM for it.
-    requestTextblockFocus(occId);
+    // Local removal only — a provisional block was never emitted, so this cannot
+    // race a create the way deleting a real row would.
+    for (const st of stale) {
+      mintMark("stale:collapsed", { occId: st.id.slice(0, 8) });
+      discardProvisionalTextblock(st.id);
+    }
 
     // ── THE STORE WRITES GO IN A LATER TASK, AND THAT ORDERING IS THE FIX ──
     // Measured (2026-08-07, docs/superpowers/plans/2026-08-07-instant-textblock-mint.md):
