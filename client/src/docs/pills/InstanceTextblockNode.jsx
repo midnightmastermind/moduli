@@ -20,6 +20,7 @@ import {
 import { forceLiveNow } from "../../helpers/lazyEditor.js";
 import { nextDragMode } from "../../helpers/dragModes";
 import { caretPosBeforeBlock } from "../../helpers/caretLanding";
+import { mintMark } from "../../helpers/mintDiag";
 
 // The caret hand-off below focuses the NEIGHBOUR's inner editor directly. Now that
 // the block body mounts lazily, a neighbour off screen renders a placeholder and
@@ -216,12 +217,19 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
   // and left empty is theirs to keep.
   const handleEmptyBlur = useCallback(() => {
     if (!editor || !getPos || !occurrenceId) return;
-    if (!isProvisionalTextblock(occurrenceId)) return;
+    // A block that is no longer in the registry has already been committed or
+    // discarded — but if its NODE is still in the document, this is exactly the
+    // "empty textblock stuck on screen" case, so name it rather than bail quietly.
+    if (!isProvisionalTextblock(occurrenceId)) {
+      mintMark("emptyBlur:skip", { why: "not-provisional", occId: occurrenceId.slice(0, 8) });
+      return;
+    }
     let pos;
-    try { pos = getPos(); } catch { return; }
-    if (typeof pos !== "number") return;
+    try { pos = getPos(); } catch { mintMark("emptyBlur:skip", { why: "getPos-threw" }); return; }
+    if (typeof pos !== "number") { mintMark("emptyBlur:skip", { why: "no-pos" }); return; }
     const paragraph = editor.state.schema.nodes.paragraph?.create();
-    if (!paragraph) return;
+    if (!paragraph) { mintMark("emptyBlur:skip", { why: "no-paragraph-node" }); return; }
+    mintMark("emptyBlur:collapse", { occId: occurrenceId.slice(0, 8), pos });
     // The caret may land back on the restored line; without this the mint
     // fires again on the next selection update and the block never dies. Scoped
     // to THIS line so clicking a different empty line still mints there.

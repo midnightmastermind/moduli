@@ -588,6 +588,7 @@ const Editor = forwardRef(function Editor({
       // When content isn't here yet the claim stays pending and the sync effect
       // below consumes it the moment it lands.
       if (occurrence?.id && content && consumeTextblockFocus(occurrence.id)) {
+        mintMark("focus:claimed", { occId: occurrence.id.slice(0, 8), at: "onCreate" });
         editor.commands.focus("end");
       }
       // Migrate old instancePill+pillDisplay:block nodes to instanceTextblock.
@@ -911,9 +912,19 @@ const Editor = forwardRef(function Editor({
     // while clicking into an editor whose caret is already on the empty line
     // (a one-line doc, or re-entering where you left) only fires focus.
     onSelectionUpdate: ({ editor }) => { maybeMintAtCaret(editor); },
-    onFocus: ({ editor }) => { maybeMintAtCaret(editor); },
+    onFocus: ({ editor }) => {
+      mintMark("editor:focus", { occId: (occurrence?.id || "").slice(0, 8) });
+      maybeMintAtCaret(editor);
+    },
     onBlur: ({ editor }) => {
       const json = editor.getJSON();
+      mintMark("editor:blur", {
+        occId: (occurrence?.id || "").slice(0, 8),
+        empty: isEmptyTextblockDoc(json),
+        // No handler means this editor is not a click-minted block at all —
+        // which is itself the answer when a block fails to remove itself.
+        vanishes: !!onEmptyBlurRef.current,
+      });
       onBlur?.(json);
       persistContent(json, true);
       setTimeout(() => setShowSuggestion(false), 200);
@@ -923,8 +934,10 @@ const Editor = forwardRef(function Editor({
       // comes straight back.
       if (onEmptyBlurRef.current && isEmptyTextblockDoc(json)) {
         setTimeout(() => {
-          if (editor.isDestroyed || editor.isFocused) return;
-          if (!isEmptyTextblockDoc(editor.getJSON())) return;
+          if (editor.isDestroyed) { mintMark("vanish:skip", { why: "editor-destroyed" }); return; }
+          if (editor.isFocused) { mintMark("vanish:skip", { why: "refocused" }); return; }
+          if (!isEmptyTextblockDoc(editor.getJSON())) { mintMark("vanish:skip", { why: "no-longer-empty" }); return; }
+          mintMark("vanish:fire");
           onEmptyBlurRef.current?.();
         }, 0);
       }
@@ -1525,6 +1538,7 @@ const Editor = forwardRef(function Editor({
         // takes the caret now — content first, then focus, so the character that
         // created it is never dropped (see the onCreate claim above).
         if (occurrence?.id && consumeTextblockFocus(occurrence.id)) {
+          mintMark("focus:claimed", { occId: occurrence.id.slice(0, 8), at: "content-sync" });
           editor.commands.focus("end");
           return;
         }
