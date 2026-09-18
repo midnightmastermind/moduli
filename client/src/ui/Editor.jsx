@@ -247,6 +247,8 @@ function tryMoveEmbedNodeInDoc(editor, nodeTypeName, match, insertPos) {
   return true;
 }
 
+let _editorInstSeq = 0;
+
 const Editor = forwardRef(function Editor({
   content = null,
   onChange,
@@ -1180,10 +1182,21 @@ const Editor = forwardRef(function Editor({
   // [mint] lifecycle — counting CREATE vs DESTROY inside a single mint is what
   // separates "one expensive mount" from "everything on the page remounted".
   // Inert unless `window.__mintDiag`.
+  // `inst` is a per-COMPONENT-INSTANCE id: it survives re-renders and dies with
+  // the component. It is what separates the two explanations for the destroy/
+  // create churn the user's 2026-09-18 logs show ~200ms after every mint:
+  //   inst CHANGES  -> React unmounted and remounted the component
+  //   inst is SAME  -> the component lived; TipTap recreated the editor under it
+  // Those have completely different fixes, and the mark alone could not tell them
+  // apart. Every symptom fixed so far (lost focus, a stale getPos, a block that
+  // never vanishes) is downstream of this, so naming it is the next real step.
+  const editorInstRef = useRef(null);
+  if (editorInstRef.current == null) editorInstRef.current = (_editorInstSeq += 1);
   useEffect(() => {
     if (!editor) return;
-    mintMark("editor:create", { occId: (occurrence?.id || "").slice(0, 8) });
-    return () => mintMark("editor:destroy", { occId: (occurrence?.id || "").slice(0, 8) });
+    const tag = { occId: (occurrence?.id || "").slice(0, 8), inst: editorInstRef.current };
+    mintMark("editor:create", tag);
+    return () => mintMark("editor:destroy", tag);
   }, [editor, occurrence?.id]);
 
   // Sync editable prop → TipTap after initialization (useEditor doesn't auto-sync)
