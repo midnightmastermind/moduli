@@ -15,6 +15,80 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-18 (5) — THE LEAK WAS ALREADY FIXED; and the naive sweep would have DELETED THE EMOTIONS WHEEL
+
+User: *"lets fix that"* — the orphaned Day Page subtrees (4) measured — then, mid-work, *"make sure
+the emotions wheel is showing up on the daypage still"*. **That instinct was right, and it is the
+entry.**
+
+**THERE WAS NOTHING TO FIX: `6b26dec5` had already fixed it, and the evidence is four independent
+facts rather than a reading of the diff.**
+```
+pm2 restarted          16:52:43Z   AFTER the fix committed at 16:51:22Z -> prod runs it
+error log last write   16:42:15Z   BEFORE that -> all 34 `io is not defined` stacks are STALE
+new orphan roots       0           since 16:47Z, across an hour of real user traffic
+the refusal path       EXERCISED   `🟣 create_batch REFUSED (duplicate signature)` x68, no throw
+```
+**The positive control is what makes the zero mean anything** — prod's own log carries the user's
+`[load]` lines (`Firefox/155.0`, their userId) through the whole window, so loads demonstrably
+happened. *A zero from a probe that never ran is not a measurement.* And account2's own commit had
+said the refusal path was **unexercised**; it is exercised now, and the ids it names
+(`88dea995`, `a393e466`) are the orphan roots the sweeper had refused to delete — the debris was
+being correctly rejected as a duplicate of today's real column.
+
+**SO THE WORK WAS THE DEBRIS, AND THE FIRST SCOPE I WROTE WOULD HAVE DESTROYED LIVE DATA.** Walking
+each orphan root's subtree by `parentId` OR `occurrences[]` pulled in **`19ed6e9e` — the Emotions
+Wheel — and `d508c242`, the shared Todo**, both listed by **31** parents including today's live day
+column. They are the ONE shared wheel from `0068` ("one wheel, multi-parented into every day
+column") and the Todo container, multi-parenting being the whole design. *A subtree walk that
+follows `occurrences[]` does not describe a subtree on this grid; it describes everything the
+subtree can see.*
+
+**THE RULE THAT IS CORRECT IS EXCLUSIVE REACHABILITY**, as a fixed point: a node joins the doomed
+set only when EVERY parent that lists it AND its `parentId` are already doomed. 281 nodes from 75
+roots.
+```
+                       naive walk        exclusive reachability
+Emotions Wheel         DELETED           excluded
+shared Todo            DELETED           excluded
+outside references     47                0
+```
+**And the guard is NAMED, not merely implied by the algorithm** — the sweep refuses outright if the
+wheel or the Todo appear in the doomed set, because the next person to touch this will reach for the
+obvious walk too. **A/B'd by running the naive version through the real guard: it REFUSES, naming
+`19ed6e9e` and the live columns that list it.** A guard nobody has watched fail is a guess.
+
+**MEASURED AT FULL DEPTH THROUGH `decompressTextmap`, which is the only honest way** — textmaps are
+stored COMPRESSED, so a raw scan reports "no text" for every row on this grid (the `0032` trap).
+Across all 281: **0 characters of text, 0 TRUE field values** (a real completion), 0 referenced from
+outside. Dumped raw, unlinked from 132 parents BEFORE deleting, then read back.
+```
+module-less occurrences   75 -> 0        dangling child refs  0
+poms grid errors          2 -> 1         (the 1 is the pre-existing container-filtered-empty)
+orphan modules            14 swept, 1 correctly KEPT (referenced by an operation)
+```
+
+**THE WHEEL IS SHOWING UP, and the proof is what it RENDERS rather than what Mongo holds.** Driven
+through a real iframe (`?previewOcc=` on today's column — it pins nothing, so the grid took no
+write): *"Emotions Wheel — Nothing to chart yet"*, alongside Todo, Journal, Daily Question, Notes,
+Tasks Completed and Highlights. Screenshot `screenshots/daypage-emotions-wheel.png`.
+**My first selector read `present: false` and that was the PROBE** — `data-container-id` holds the
+MODULE id and I searched it for an OCCURRENCE id. The rendered text is what settled it.
+
+**AND THE EMPTY STATE IS PRE-EXISTING, established against yesterday rather than argued.**
+```
+                          2026-09-17 21:45Z backup      now
+wheel children                     0                     0
+wheel listedBy                    12                    13   <- GAINED today's column
+rows of the wheel's in my dump                           0
+```
+So the sweep took nothing of the wheel's and it ends the day listed by one MORE parent. **Reported
+rather than fixed: its feed resolves 129 emotions** (`Board Category CONTAINS "emotion"`, scoped to
+the Emotions board) **and it has 0 children**, so the graph has no slices to click. That is its own
+bug, older than today, and rolling it into a debris sweep is how a cleanup becomes the damage.
+
+---
+
 ### 2026-09-18 (4) — ONE BACKSPACE TAKES THE LINE WITH IT; and the artifact it absorbs is the mint's OWN
 
 Picked up the other account's session at the user's ask (*"continue with the requests i gave the
