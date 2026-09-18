@@ -79,10 +79,10 @@ the decisive check, since minification renames `planBlockBackspace` and `canHold
 greppable. `keepParagraph`, the planner's return PROPERTY (which minifiers preserve), reads 2 in the
 served bytes with `__mintDiag` as a positive control at 1 and a nonsense string at 0.
 
-**NOT VERIFIED, and it is the honest gap: nobody has pressed backspace on the deployed build.** The
-planner is pure and A/B'd, the wiring is pinned, and the prod click-path was watched working an hour
-earlier — but the gesture this entry is about is unexercised. Two entries above records how to reach
-a mint-wired editor with a probe if that is wanted.
+**CONFIRMED BY THE USER ON THE DEPLOYED BUILD** (*"its working now"*, 12:35 CDT) — which is what
+closes this, because the gesture is the one thing no suite here can reach. The planner is pure and
+A/B'd and the wiring is pinned, but every earlier round of this bug had passing tests too; the press
+itself was the missing evidence and it is no longer missing.
 
 The archive took the four oldest 2026-09-17 entries to make room: 4 headings, live 40 -> 36, archive
 229 -> 233, each asserted present in exactly one half. **My first banner edit named the wrong split**
