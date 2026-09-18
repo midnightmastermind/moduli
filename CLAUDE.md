@@ -141,6 +141,15 @@ first `import `", which landed INSIDE a multi-line `import {` — the near-dupli
 on the esbuild transform, and **the source-guard test read the file as TEXT and passed straight
 through a syntax error.** A source guard cannot see a broken parse; the build is what says so.
 
+**DEPLOYED AND VERIFIED, prod HEAD `6b26dec5`**, pm2 restarted (a server file changed, so the warm
+cache had to go). On the box: the old `io.to(...)` reads **0** and the new pair reads 1. Both served
+chunks **sha256-identical** to the local build, with the feature present in `PagePreviewApp` beside a
+non-zero control — and `App` reading **0 for the CONTROLS TOO**, which is the documented tell that it
+is the wrong chunk rather than a missing feature. The served stylesheet carries both caret rules.
+**The refusal path is deployed but UNEXERCISED:** the last refusal in prod's log (`REFUSED (duplicate
+signature) 1`) landed at 16:42, on the OLD build, minutes before the restart — so that batch really
+did lose its other row. Nothing has refused since.
+
 **NOT VERIFIED, and it is the honest gap: nobody has clicked an empty line since.** Every fix here
 is A/B'd with the mutation asserted to land, and the caret rules are measured in two real browsers —
 but the focus re-claim only runs on a real teardown, which no test can mount. **And one case is
