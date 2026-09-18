@@ -26,7 +26,15 @@ const pending = new Map();
 // line. Without a suppression window the caret-entry mint fires immediately and
 // re-creates the block the user just dismissed — backspace becomes a no-op loop.
 const MINT_SUPPRESS_MS = 600;
+// A POSITIONAL hold is not on a clock — see suppressTextblockMint. This is only a
+// FAIL-SAFE, and it fails OPEN: when it expires minting resumes, i.e. the worst
+// case is the behaviour that shipped before. It exists because positions are bare
+// numbers shared by every doc editor, so a hold must not be able to wedge minting
+// in a document the user never went back to.
+const MINT_SUPPRESS_CAP_MS = 10000;
 let suppressUntil = 0;
+let positionsUntil = 0;
+const suppressedPositions = new Set();
 // …but it must be suppressed AT THAT LINE ONLY. A blanket time window also ate
 // the mint at a DIFFERENT line, which is exactly the reported bug (2026-08-06,
 // user): "if i click on a diff empty line it should create it there as well.
@@ -92,15 +100,44 @@ export function forgetProvisionalTextblock(occurrenceId) {
  *                           suppresses everywhere (the old blanket behaviour),
  *                           kept for callers that genuinely cannot say where.
  */
-export function suppressTextblockMint(pos = null, ms = MINT_SUPPRESS_MS) {
-  suppressUntil = Date.now() + ms;
-  suppressPos = pos;
+export function suppressTextblockMint(pos = null, ms = null) {
+  if (pos == null) {                       // blanket window, still a clock
+    suppressUntil = Date.now() + (ms ?? MINT_SUPPRESS_MS);
+    suppressPos = null;
+    return;
+  }
+  // A SET, because callers legitimately hold BOTH ends of a collapse — the
+  // vacated line and the one the caret joins into. A single slot made the second
+  // call silently overwrite the first, so the comment at that call site
+  // ("SUPPRESS AT BOTH ENDS") described something the store could not do.
+  suppressedPositions.add(pos);
+  positionsUntil = Date.now() + (ms ?? MINT_SUPPRESS_CAP_MS);
+}
+
+/**
+ * A positional hold is released when the caret is demonstrably SOMEWHERE ELSE,
+ * not when a timer expires.
+ *
+ * User, 2026-09-18: *"it deletes the textblock, but stays on the same line so it
+ * creates a new textblock right away. **unless im quick with it**, that gets me
+ * stuck in a loop."* That last clause is the diagnosis: a 600ms window only
+ * DEFERS the re-mint, so whether backspace works depended on how fast you were.
+ * The line a removal vacated stays un-mintable until you actually leave it.
+ */
+export function releaseTextblockMintSuppression() {
+  suppressedPositions.clear();
+  positionsUntil = 0;
 }
 
 export function isTextblockMintSuppressed(pos = null, now = Date.now()) {
-  if (now >= suppressUntil) return false;
-  if (suppressPos == null) return true;      // blanket window
-  return pos == null || pos === suppressPos; // only the line we just collapsed
+  if (now < suppressUntil) return true;                 // blanket window
+  if (suppressedPositions.size === 0) return false;
+  if (now >= positionsUntil) {                          // fail-safe, fails OPEN
+    suppressedPositions.clear();
+    return false;
+  }
+  if (pos == null) return true;                         // caller cannot say where
+  return suppressedPositions.has(pos);
 }
 
 // TEST ONLY — the registry is module state shared by every doc editor.
@@ -108,6 +145,8 @@ export function _resetProvisionalTextblocks() {
   pending.clear();
   suppressUntil = 0;
   suppressPos = null;
+  positionsUntil = 0;
+  suppressedPositions.clear();
 }
 
 // A TipTap doc holding nothing the user would miss: no text, no non-paragraph

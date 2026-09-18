@@ -29,13 +29,35 @@ export function hasTextblockFocus(occurrenceId) {
   return !!occurrenceId && pending.has(occurrenceId);
 }
 
-// True exactly once per requested id, then clears it.
-export function consumeTextblockFocus(occurrenceId) {
-  if (occurrenceId && pending.has(occurrenceId)) {
-    pending.delete(occurrenceId);
-    return true;
-  }
-  return false;
+/**
+ * Does this block still want the caret?
+ *
+ * IT DOES NOT CLEAR THE CLAIM — `releaseTextblockFocus` does, from the editor's
+ * own `onFocus`, i.e. when the caret has DEMONSTRABLY landed. Clearing here
+ * instead meant a single failed attempt spent the claim forever, and the node
+ * view is recreated ~200ms after a mint (user's `[mint]` table, 2026-09-18):
+ *
+ *     focus:claimed  27ef6c59  content-sync   <- claim spent, focus() called
+ *     editor:destroy 27ef6c59                 <- the view is recreated
+ *     editor:create  27ef6c59
+ *     focus:none     27ef6c59  onCreate       <- nothing left to claim
+ *
+ * which is *"empty textblocks losing focus and having it on the next line after
+ * (the typing cursor) with no textblock created there"* — the mint replaces the
+ * line with an ATOM, so the caret sits AFTER it until the block pulls it in, and
+ * a spent claim never pulls.
+ *
+ * The original contract ("once, so a re-mount cannot steal the caret again") is
+ * PRESERVED, just keyed on the right event: once the caret has landed the claim
+ * is released, so a block scrolled back into view later claims nothing.
+ */
+export function claimTextblockFocus(occurrenceId) {
+  return !!occurrenceId && pending.has(occurrenceId);
+}
+
+// The caret LANDED. Only now is the claim spent.
+export function releaseTextblockFocus(occurrenceId) {
+  if (occurrenceId) pending.delete(occurrenceId);
 }
 
 // A create that never mounts (undo, a failed save) would otherwise leave its id

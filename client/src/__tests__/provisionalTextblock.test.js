@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, vi } from "vitest";
 import {
   registerProvisionalTextblock, isProvisionalTextblock,
   commitProvisionalTextblock, discardProvisionalTextblock, forgetProvisionalTextblock,
-  suppressTextblockMint, isTextblockMintSuppressed,
+  suppressTextblockMint, isTextblockMintSuppressed, releaseTextblockMintSuppression,
   isEmptyTextblockDoc, hasProvisionalTextblock,
   _resetProvisionalTextblocks,
 } from "../helpers/provisionalTextblock";
@@ -142,5 +142,55 @@ describe("hasProvisionalTextblock", () => {
     expect(hasProvisionalTextblock(parent)).toBe(true);
     commitProvisionalTextblock("o1", doc(para("typed")));
     expect(hasProvisionalTextblock(parent)).toBe(false);
+  });
+});
+
+// ── THE BACKSPACE LOOP ─────────────────────────────────────────────────────
+//
+// User, 2026-09-18: *"it deletes the textblock, but stays on the same line so it
+// creates a new textblock right away. **unless im quick with it**, that gets me
+// stuck in a loop."* "Unless I'm quick" IS the diagnosis — the hold was a 600ms
+// clock, so whether backspace worked depended on how fast you were.
+describe("mint suppression is positional and durable", () => {
+  beforeEach(() => _resetProvisionalTextblocks());
+
+  test("a vacated line stays suppressed long after the old 600ms window", () => {
+    suppressTextblockMint(30);
+    const wayLater = Date.now() + 5000;
+    expect(isTextblockMintSuppressed(30, wayLater)).toBe(true);
+  });
+
+  // THE OTHER HALF, and the control: a hold must never become "nothing mints".
+  test("a DIFFERENT line still mints immediately", () => {
+    suppressTextblockMint(30);
+    expect(isTextblockMintSuppressed(42)).toBe(false);
+  });
+
+  // The collapse path holds BOTH ends — the vacated line and the one the caret
+  // joins into. A single slot made the second call overwrite the first.
+  test("holds both ends of a collapse, not just the last one", () => {
+    suppressTextblockMint(30);
+    suppressTextblockMint(12);
+    expect(isTextblockMintSuppressed(30)).toBe(true);
+    expect(isTextblockMintSuppressed(12)).toBe(true);
+  });
+
+  test("the hold lifts when the caret is demonstrably elsewhere", () => {
+    suppressTextblockMint(30);
+    releaseTextblockMintSuppression();
+    expect(isTextblockMintSuppressed(30)).toBe(false);
+  });
+
+  // FAIL-SAFE, and it fails OPEN: positions are bare numbers shared by every doc
+  // editor, so a hold must not be able to wedge minting somewhere else forever.
+  test("a hold expires eventually rather than wedging", () => {
+    suppressTextblockMint(30);
+    expect(isTextblockMintSuppressed(30, Date.now() + 60_000)).toBe(false);
+  });
+
+  test("a pos-less caller still gets the blanket window", () => {
+    suppressTextblockMint(null);
+    expect(isTextblockMintSuppressed(99)).toBe(true);
+    expect(isTextblockMintSuppressed(99, Date.now() + 5000)).toBe(false);
   });
 });

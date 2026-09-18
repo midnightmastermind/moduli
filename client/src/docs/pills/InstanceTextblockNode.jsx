@@ -20,6 +20,7 @@ import {
 import { forceLiveNow } from "../../helpers/lazyEditor.js";
 import { nextDragMode } from "../../helpers/dragModes";
 import { caretPosBeforeBlock } from "../../helpers/caretLanding";
+import { findBlockPos } from "../../helpers/staleProvisionalBlocks";
 import { mintMark } from "../../helpers/mintDiag";
 
 // The caret hand-off below focuses the NEIGHBOUR's inner editor directly. Now that
@@ -239,9 +240,24 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
       mintMark("emptyBlur:skip", { why: "not-provisional", occId: occurrenceId.slice(0, 8) });
       return;
     }
+    // `getPos` is captured by the node view, and the view is recreated shortly
+    // after a mint — so by the time this runs (a `setTimeout(0)` after blur) the
+    // closure can belong to a destroyed view and hand back `undefined`. The
+    // user's own [mint] table, 2026-09-18:
+    //     vanish:fire
+    //     emptyBlur:skip  why=no-pos      <- and the block stays on screen
+    // which is *"sometimes the first one disappears, sometimes it doesnt"*.
+    // Asking the CURRENT doc where this occurrence is cannot go stale.
     let pos;
-    try { pos = getPos(); } catch { mintMark("emptyBlur:skip", { why: "getPos-threw" }); return; }
-    if (typeof pos !== "number") { mintMark("emptyBlur:skip", { why: "no-pos" }); return; }
+    try { pos = getPos(); } catch { pos = undefined; }
+    let size = node.nodeSize;
+    if (typeof pos !== "number") {
+      const found = findBlockPos(editor.state?.doc, occurrenceId);
+      if (!found) { mintMark("emptyBlur:skip", { why: "no-pos" }); return; }
+      pos = found.pos;
+      size = found.size;
+      mintMark("emptyBlur:relocated", { occId: occurrenceId.slice(0, 8), pos });
+    }
     const paragraph = editor.state.schema.nodes.paragraph?.create();
     if (!paragraph) { mintMark("emptyBlur:skip", { why: "no-paragraph-node" }); return; }
     mintMark("emptyBlur:collapse", { occId: occurrenceId.slice(0, 8), pos });
@@ -251,7 +267,7 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
     suppressTextblockMint(pos);
     const tr = editor.state.tr;
     tr.setMeta("skipAutoCreate", true);
-    tr.replaceWith(pos, pos + node.nodeSize, paragraph);
+    tr.replaceWith(pos, pos + size, paragraph);
     // NO .focus() — the user moved away on purpose.
     editor.view.dispatch(tr);
     discardProvisionalTextblock(occurrenceId);

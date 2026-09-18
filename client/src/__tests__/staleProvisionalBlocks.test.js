@@ -150,3 +150,32 @@ describe("DocContent's mint implements the spec", () => {
     expect(src).toContain("registerProvisionalTextblock");
   });
 });
+
+// ── findBlockPos ───────────────────────────────────────────────────────────
+//
+// The node view's captured `getPos` goes stale when the view is recreated, and
+// the user's 2026-09-18 logs show exactly that costing the vanish:
+//   vanish:fire / emptyBlur:skip why=no-pos   -> the block stays on screen.
+import { findBlockPos } from "../helpers/staleProvisionalBlocks";
+
+describe("findBlockPos", () => {
+  const doc = docOf([
+    { type: "paragraph", id: null, size: 2 },
+    { type: "instanceTextblock", id: "a", size: 3 },
+    { type: "instanceTextblock", id: "b", size: 1 },
+  ]);
+
+  test("locates a block by occurrenceId in the CURRENT doc", () => {
+    expect(findBlockPos(doc, "a")).toEqual({ pos: 2, size: 3 });
+    expect(findBlockPos(doc, "b")).toEqual({ pos: 5, size: 1 });
+  });
+
+  test("returns null for a block that is no longer there", () => {
+    expect(findBlockPos(doc, "gone")).toBeNull();
+  });
+
+  test("is inert for a missing doc or id", () => {
+    expect(findBlockPos(null, "a")).toBeNull();
+    expect(findBlockPos(doc, null)).toBeNull();
+  });
+});

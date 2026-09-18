@@ -92,11 +92,12 @@ import { toast } from "sonner";
 import QuickAddMenu from "./QuickAddMenu.jsx";
 import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type, Plus, Shuffle } from "lucide-react";
 import { convertLeafRole } from "../helpers/convertOccurrence";
-import { consumeTextblockFocus, hasTextblockFocus } from "../helpers/pendingTextblockFocus";
+import { claimTextblockFocus, releaseTextblockFocus, hasTextblockFocus } from "../helpers/pendingTextblockFocus";
 import { markLoad } from "../helpers/loadDiag";
 import { mintMark } from "../helpers/mintDiag";
 import {
   isProvisionalTextblock, commitProvisionalTextblock, hasProvisionalTextblock,
+  releaseTextblockMintSuppression,
   isEmptyTextblockDoc, isTextblockMintSuppressed,
 } from "../helpers/provisionalTextblock";
 import { operationsBridge } from "../state/bindSocketToStore";
@@ -471,10 +472,20 @@ const Editor = forwardRef(function Editor({
       if (!editor.isEditable || !editor.view?.hasFocus?.()) { mintMark("mint:skip", { why: "no-focus" }); return; }
       if (!userInputRecently(askedAt)) { mintMark("mint:skip", { why: "no-recent-input" }); return; }
       const target = emptyLineAtCaret(editor.state);
-      if (!target) { mintMark("mint:skip", { why: "not-an-empty-line" }); return; }
+      if (!target) {
+        // The caret is in real content — every positional hold is spent. This is
+        // what makes the hold DURABLE instead of timed: it lifts when you leave
+        // the line, not after 600ms.
+        releaseTextblockMintSuppression();
+        mintMark("mint:skip", { why: "not-an-empty-line" });
+        return;
+      }
       // Suppression is checked with the TARGET LINE in hand: a collapse only
       // blocks a re-mint at the line it collapsed, never at a different one.
       if (isTextblockMintSuppressed(target.start)) { mintMark("mint:skip", { why: "suppressed" }); return; }
+      // A DIFFERENT empty line — the caret left the vacated one, so the hold on
+      // it is spent too.
+      releaseTextblockMintSuppression();
       mintMark("mint:go");
       // THE GESTURE IS SPENT. The mint replaces the line with an atom, which
       // moves the caret to the NEXT line and schedules another check ~17ms
@@ -579,7 +590,7 @@ const Editor = forwardRef(function Editor({
       // created the textblock is then dropped and the user sees "robe check".
       // When content isn't here yet the claim stays pending and the sync effect
       // below consumes it the moment it lands.
-      if (occurrence?.id && content && consumeTextblockFocus(occurrence.id)) {
+      if (occurrence?.id && content && claimTextblockFocus(occurrence.id)) {
         mintMark("focus:claimed", { occId: occurrence.id.slice(0, 8), at: "onCreate" });
         editor.commands.focus("end");
       } else if (occurrence?.id && hasTextblockFocus(occurrence.id)) {
@@ -922,6 +933,11 @@ const Editor = forwardRef(function Editor({
     onSelectionUpdate: ({ editor }) => { maybeMintAtCaret(editor); },
     onFocus: ({ editor }) => {
       mintMark("editor:focus", { occId: (occurrence?.id || "").slice(0, 8) });
+      // THE CARET LANDED — only now is the focus claim spent. Releasing it at
+      // claim time meant one failed attempt burned it, and the node view is
+      // recreated shortly after a mint, so the block came back unfocused with
+      // the caret stranded on the next line.
+      releaseTextblockFocus(occurrence?.id);
       maybeMintAtCaret(editor);
     },
     onBlur: ({ editor }) => {
@@ -1545,7 +1561,7 @@ const Editor = forwardRef(function Editor({
         // A just-typed textblock whose editor mounted BEFORE its content arrived
         // takes the caret now — content first, then focus, so the character that
         // created it is never dropped (see the onCreate claim above).
-        if (occurrence?.id && consumeTextblockFocus(occurrence.id)) {
+        if (occurrence?.id && claimTextblockFocus(occurrence.id)) {
           mintMark("focus:claimed", { occId: occurrence.id.slice(0, 8), at: "content-sync" });
           editor.commands.focus("end");
           return;

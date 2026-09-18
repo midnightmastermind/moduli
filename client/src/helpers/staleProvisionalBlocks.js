@@ -54,3 +54,33 @@ export function planStaleCollapses(doc, keepId, isPending) {
 
   return out.sort((a, b) => b.pos - a.pos);
 }
+
+/**
+ * Where is this block RIGHT NOW?
+ *
+ * The node view captures `getPos` in a closure, and it goes stale the moment the
+ * view is recreated — which the mint diagnostics show happening ~200ms after a
+ * block mounts (user's logs, 2026-09-18). The vanish path runs on a
+ * `setTimeout(..., 0)` after blur, so it can easily read a `getPos` belonging to
+ * a destroyed view and get `undefined` back:
+ *
+ *     253  vanish:fire
+ *     253  emptyBlur:skip   why=no-pos      <- and the block never disappears
+ *
+ * Asking the CURRENT doc where the node is cannot go stale. Identity is the
+ * occurrenceId, which is what every other layer already keys on.
+ *
+ * @returns {{pos:number,size:number}|null}
+ */
+export function findBlockPos(doc, occurrenceId) {
+  if (!doc || typeof doc.descendants !== "function" || !occurrenceId) return null;
+  let found = null;
+  doc.descendants((node, pos) => {
+    if (found) return false;               // stop walking once located
+    if (node?.type?.name !== "instanceTextblock") return;
+    if (node.attrs?.occurrenceId !== occurrenceId) return;
+    found = { pos, size: node.nodeSize };
+    return false;
+  });
+  return found;
+}
