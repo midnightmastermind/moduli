@@ -100,6 +100,7 @@ import {
   isEmptyTextblockDoc, isTextblockMintSuppressed,
 } from "../helpers/provisionalTextblock";
 import { operationsBridge } from "../state/bindSocketToStore";
+import { stampUserInput, userInputRecently, consumeUserInput } from "../helpers/userInputWindow";
 
 import { normalizeFieldBindings } from "../helpers/siblingFieldBindings.js";
 // The caret-entry mint must only fire for a caret the USER placed. Every other
@@ -107,27 +108,13 @@ import { normalizeFieldBindings } from "../helpers/siblingFieldBindings.js";
 // effect, a drop's setTextSelection — would otherwise mint a textblock nobody
 // asked for, on a doc nobody is looking at. One shared pair of capture-phase
 // listeners stamps the last real input; a mint is only allowed in its wake.
-let _lastUserInputAt = 0;
 let _userInputListenersOn = false;
 function trackUserInput() {
   if (_userInputListenersOn || typeof document === "undefined") return;
   _userInputListenersOn = true;
-  const stamp = () => { _lastUserInputAt = Date.now(); };
+  const stamp = () => stampUserInput();
   document.addEventListener("pointerdown", stamp, true);
   document.addEventListener("keydown", stamp, true);
-}
-const USER_INPUT_WINDOW_MS = 1000;
-/**
- * Was there a real gesture behind this? `at` is WHEN THE QUESTION WAS ASKED, not
- * when it is being answered, and that distinction is a fix, not a nicety: the
- * check is deferred and coalesced, and minting the previous block can block the
- * main thread for ~1s (measured), so a check scheduled by a real click ran after
- * the window had closed and skipped with `no-recent-input` — the second click
- * produced nothing. Measuring from the scheduling instant makes the answer
- * independent of how busy the thread was in between.
- */
-function userInputRecently(at = Date.now()) {
-  return at - _lastUserInputAt < USER_INPUT_WINDOW_MS;
 }
 
 // The caret sits in an EMPTY top-level line → the {start, size} of the line to
@@ -489,6 +476,11 @@ const Editor = forwardRef(function Editor({
       // blocks a re-mint at the line it collapsed, never at a different one.
       if (isTextblockMintSuppressed(target.start)) { mintMark("mint:skip", { why: "suppressed" }); return; }
       mintMark("mint:go");
+      // THE GESTURE IS SPENT. The mint replaces the line with an atom, which
+      // moves the caret to the NEXT line and schedules another check ~17ms
+      // later — still inside the input window, so it minted again and walked
+      // down a run of empty lines. One gesture, one block.
+      consumeUserInput();
       mint(target.start, target.size);
       mintMark("mint:returned");
     }, 0);
