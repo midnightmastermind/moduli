@@ -15,6 +15,52 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-18 (8) — MY OWN HAND-WRITE UN-HID THREE FIELDS, and a field name is not unique ACROSS GRIDS
+
+Closing out (7). Its Last Seen half was fixed correctly by `0340` — which hides the **module
+BINDING** (`0067`'s mechanism: a container's chips are bookkeeping, the stored VALUE is never
+touched). Verified in the pre-`0341` backup: `container:Todo [hidden]`, applied before that snapshot.
+
+**AND I HAD ALSO WRITTEN `fieldVisibility` ON THE DAY PAGE OCCURRENCE BY HAND, straight into Mongo,
+with no migration.** That write was debris on top of a fix that already worked, and it did damage:
+
+```
+                        Day Page fieldVisibility        what the Todo renders
+pre-0341 backup         null                            (grid cascade)  Add new item
+after my hand-write     {hide: [AhJGm1Cm5Pka]}          Date: —         Add new item
+restored                null                            (grid cascade)  Add new item
+```
+
+**`fieldVisibility` IS NEAREST-WINS, so a narrow list at a LOWER level REPLACES the grid's, it does
+not add to it.** The grid hides `[Tags, Date, Kanban Column]`; my one-entry list became the complete
+list for that page, so all three came back. The Schedule page states the same semantics from the
+other side — it carries `[Tags, Time Slot, Last Seen]` in full, and Date deliberately SHOWS there.
+*A cascade level is a complete answer, not a delta.*
+
+**AND THE ID I WROTE WAS ANOTHER GRID'S FIELD.**
+```
+AhJGm1Cm5Pka   Last Seen (date)   grid …5a116b     <- what my script resolved
+XeKiw-azlD8_   Last Seen (date)   grid …1a9f3c     <- poms grid, the real one (0340 hid this)
+OkRqFsgmcAaw   Last Seen (date)   grid …f43266
+```
+Three grids each carry a field named `Last Seen`. My script resolved by NAME with **no `gridId`
+filter**, and its `!== 1` uniqueness guard passed because it was scoped to nothing. So the hide named
+a foreign id — inert as a hide, and destructive only because of the replace-not-merge rule above.
+`0340` gets this right (`Field.find({ gridId })` first). **This file has recorded "a label is two
+fields on THIS grid" four times; this is the cross-grid form, and the uniqueness guard reads as
+protection while checking the wrong set.**
+
+**The tell was in my own verification and I read past it.** The probe reported `todoHasLastSeen:
+false` — true, and true for `0340`'s reason, not mine — while the same line printed
+`"Todo Date: — Add new item"`. *A pass on the thing you were looking for is not a pass on the line
+it is printed in.*
+
+Restored to `null` against the pre-`0341` backup, read back, pm2 restarted (the warm cache is
+authoritative for reads). `0340`'s own fix re-confirmed intact on all four Todo container modules.
+**Net data change from this session: zero — the grid is back to what `0341` left.**
+
+---
+
 ### 2026-09-18 (7) — THE WHEEL REALLY WAS BROKEN, and a ledger entry is not evidence an effect survived
 
 User, with two screenshots: *"id like the daypage todo to have the last seen field hidden and though
