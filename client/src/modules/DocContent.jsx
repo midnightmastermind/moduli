@@ -11,6 +11,7 @@ import { requestTextblockFocus, cancelTextblockFocus } from "../helpers/pendingT
 import { registerProvisionalTextblock, discardProvisionalTextblock, isProvisionalTextblock } from "../helpers/provisionalTextblock";
 import { mintStep } from "../helpers/mintDiag";
 import { useLazyEditor, LAZY_PLACEHOLDER_CLASS } from "../helpers/lazyEditor.js";
+import { createMintLedger } from "../helpers/provisionalMints.js";
 import { afterPaint } from "../helpers/afterPaint";
 
 // One plain-text string per top-level block. Roughly height-matched — and, just as
@@ -48,13 +49,13 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
   // time gate (~200ms) so deliberate gestures that happen later — Enter,
   // Shift+Enter, click, cursor move — don't fall into the merge path.
   const recentAutoCreateRef = useRef({ occId: null, expireAt: 0 });
-  // The most recent click-minted textblock that has not committed yet, so an
-  // unmount can drop it (see the cleanup effect below).
-  const provisionalOccIdRef = useRef(null);
-  // The deferred store writes for a just-minted block. Held so an unmount (or a
-  // second mint) can cancel them — a write that lands after the tree is gone
-  // mints an occurrence nothing renders.
-  const mintWritesRef = useRef(null);
+  // EVERY click-minted textblock that has not committed or been discarded yet,
+  // with the deferred store writes for each — so an unmount can drop ALL of
+  // them (a write that lands after the tree is gone mints an occurrence nothing
+  // renders, and a LEAKED registry entry stops this document saving entirely).
+  // Was two single slots holding only the last; see helpers/provisionalMints.
+  const mintLedgerRef = useRef(null);
+  if (!mintLedgerRef.current) mintLedgerRef.current = createMintLedger();
 
   // Scroll-to-anchor: when scrollAnchor is set, find the element and scroll to it
   useEffect(() => {
@@ -247,6 +248,7 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       // store write lands — see getProvisionalOccurrence.
       occurrence: newOccurrence,
       commit: (textmap) => {
+        mintLedgerRef.current.settle(occId);
         CommitHelpers.createModule({ dispatch, socket, module, emit: true });
         CommitHelpers.createOccurrence({
           dispatch, socket,
@@ -266,6 +268,7 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
         }
       },
       discard: () => {
+        mintLedgerRef.current.settle(occId);
         cancelTextblockFocus(occId);
         CommitHelpers.removeOccurrence({
           dispatch, socket, occurrenceId: occId, emit: false, fireTrigger: false,
@@ -284,7 +287,6 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
 
     // The sub-editor claims the caret in its own onCreate — the first frame it
     // exists. Nothing here polls the DOM for it.
-    provisionalOccIdRef.current = occId;
     requestTextblockFocus(occId);
 
     // ── THE STORE WRITES GO IN A LATER TASK, AND THAT ORDERING IS THE FIX ──
@@ -295,9 +297,10 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
     // cannot paint the block the user just clicked for. So: insert, paint, then
     // write. Until they land the node view renders an empty shell (it knows the
     // id is provisional), so nothing flashes and nothing moves.
-    mintWritesRef.current?.cancel?.();
+    // NOT `cancel the previous block's writes` — that denied a block still on
+    // screen its server row the moment a second empty line was clicked. The
+    // guard below already covers the case that cancel was written for.
     const cancel = afterPaint(() => {
-      mintWritesRef.current = null;
       // The block may already be gone — abandoned, undone, the panel closed —
       // in which case the registry no longer holds it and writing would mint
       // an occurrence nothing renders.
@@ -307,15 +310,20 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
         dispatch, socket, occurrence: newOccurrence, emit: false, fireTrigger: false,
       }));
     });
-    mintWritesRef.current = { cancel };
+    mintLedgerRef.current.add(occId, cancel);
   }, [occurrence, socket, dispatch]);
 
   // A doc that unmounts still holding an uncommitted block (panel closed, page
   // switched) drops it. Nothing was emitted, so this is local cleanup only —
   // without it the empty module + occurrence linger in client state until reload.
-  useEffect(() => () => {
-    mintWritesRef.current?.cancel?.();
-    if (provisionalOccIdRef.current) discardProvisionalTextblock(provisionalOccIdRef.current);
+  useEffect(() => {
+    const ledger = mintLedgerRef.current;
+    return () => {
+      // EVERY outstanding block, not just the last. A leaked registry entry
+      // keeps `hasProvisionalTextblock` true, and Editor.persistContent returns
+      // early while it is — so one leak silently stops this document saving.
+      for (const id of ledger.drain()) discardProvisionalTextblock(id);
+    };
   }, []);
 
   const handleToggleLock = (e) => {
