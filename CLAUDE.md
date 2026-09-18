@@ -15,6 +15,57 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-18 (6) — RETRACTION: THE WHEEL WAS NEVER BROKEN, and "0 children" is the design
+
+User: *"yes fix that please"* — the Emotions Wheel showing *"Nothing to chart yet"*. **There is
+nothing to fix. The entry below reported a bug that does not exist, and this is the correction.**
+
+**"0 CHILDREN" IS CORRECT, NOT A SYMPTOM.** `feedSync` bails `"pull-only"` for a graph
+(`isPullOnlyFeed` → the occurrence carries `meta.graph`) and **sweeps anything it previously
+minted**: a chart draws a REPRESENTATION of each row, so owning copies buys nothing.
+`helpers/feedPull`'s own header records why — the wheel used to materialise 128 copies and
+APPLY_TEMPLATE cloned all of them into every day column, 136 occurrences for one day. *The number I
+read as breakage is the fix for a worse bug.*
+
+**AND THE PIPELINE PRODUCES A CHART, driven through the REAL functions over the REAL live data**
+(vitest, node environment, so vite resolves the client's own imports):
+```
+resolveFeedItems(wheel)                    -> 128 items
+buildGraphData(wheel, {rows: 128})         -> 8 nodes, 0 warnings
+```
+Eight nodes is the eight core emotions with their secondary/tertiary children — a sunburst. And
+`ContainerGraph` renders the empty state on exactly `nodes.length === 0`. Gate by gate for one row:
+`role instance` ✓ · not a feed copy ✓ · `feed.scope` in its ancestors ✓ · `category: null` is
+DOCUMENTED as "use the occurrence's label", not a missing setting.
+
+**SO WHERE DID "Nothing to chart yet" COME FROM? MY OWN PROBE.** I measured through
+`?previewOcc=`, and `PagePreviewApp` builds its `occurrencesById` **from the SUBTREE, not by
+scanning the grid** (its own comment says so) — `getOccMap()` there returns the day column's dozen
+occurrences, which cannot contain 128 emotions living on the Emotions board. The preview renders the
+container and correctly finds nothing to chart. **The window-level state was a red herring: the
+iframe CAN reach the parent's full 22,204 occurrences** (measured), so "it has no state" would have
+been the wrong explanation too — it is the CONTEXT map that is narrowed, one layer in.
+
+**THREE PROBE FAULTS IN ONE INVESTIGATION, all mine:**
+```
+[data-container-id] holds the MODULE id      I searched it for an OCCURRENCE id and read
+                                             `present: false` TWICE on a wheel that was there
+the preview's getOccMap is subtree-scoped    so an empty chart there says nothing about the app
+`bodyHas: "emotions wheel"` = true           it was the SEARCH DROPDOWN's own row, still open
+```
+
+**NOT VERIFIED, and it is the honest gap: nobody has watched the chart PAINT in the real app.**
+Four navigation attempts failed — the manifest tree's Root and Day Pages folders default closed and
+my clicks hit the wrong element, and the occurrence-search result did not navigate (panels stayed on
+Tasks / Trackers / the Watts article). What IS established is every input the renderer consumes,
+through the renderer's own functions, on the live data. **One look at the Day Page settles the last
+step, and no code change is pending on it.**
+
+*The rule this cost: a renderer's empty state measured through a DIFFERENT renderer is a claim about
+that renderer. The preview is not the app — its own source says it builds a subtree.*
+
+---
+
 ### 2026-09-18 (5) — THE LEAK WAS ALREADY FIXED; and the naive sweep would have DELETED THE EMOTIONS WHEEL
 
 User: *"lets fix that"* — the orphaned Day Page subtrees (4) measured — then, mid-work, *"make sure
@@ -82,10 +133,8 @@ wheel children                     0                     0
 wheel listedBy                    12                    13   <- GAINED today's column
 rows of the wheel's in my dump                           0
 ```
-So the sweep took nothing of the wheel's and it ends the day listed by one MORE parent. **Reported
-rather than fixed: its feed resolves 129 emotions** (`Board Category CONTAINS "emotion"`, scoped to
-the Emotions board) **and it has 0 children**, so the graph has no slices to click. That is its own
-bug, older than today, and rolling it into a debris sweep is how a cleanup becomes the damage.
+So the sweep took nothing of the wheel's and it ends the day listed by one MORE parent. **And the empty state I
+reported is RETRACTED one entry down — it was my probe, not the wheel.**
 
 ---
 
