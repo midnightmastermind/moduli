@@ -259,8 +259,41 @@ mint path needs the whole grid store, so a source guard pins the wiring (with a 
 path still exists, or "no single slot" also passes against a file with the feature deleted). A/B'd:
 reinstating the last-only slot fails exactly the four cases that describe it.
 
-**AND THE ORIGINAL SYMPTOM IS STILL NOT FULLY ACCOUNTED FOR.** This explains blocks surviving and a
-document going quiet; it does not explain a single click minting on TWO lines. Said plainly.
+**AND THEN THE SECOND HALF WAS REPRODUCED AND FIXED (2026-09-18): THE MINT FED ITSELF.**
+User: *"the clicking around and empty textblock thing is still happening glitchy wise like the
+video"*. Armed `[mint]` on prod and clicked ONE empty line:
+```
+t=11.1  mint:go              <- block 1
+t=28.3  editor:create
+t=28.9  mint:check-scheduled <- the mint's OWN transaction
+t=46.2  mint:go              <- block 2, SAME CLICK
+```
+The mint replaces the empty line with an ATOM, the caret moves to the NEXT empty line, that
+selection update schedules another check ~17ms later — and the click is still well inside the
+1000ms input window, so it mints again. On a run of empty lines it walks down them. That is
+*"rapidly being created weirdly"* and *"ones will randomly create it on two lines"*, exactly.
+
+**The window only ever asked "was there a gesture", never "has it already produced a block".** It is
+CONSUMED by the mint it caused (`helpers/userInputWindow`), so a second block needs a second
+gesture. Consuming rather than widening a window is the point: `provisionalTextblock` already
+records a blanket time window going wrong in the OTHER direction (*"it also ate the mint at a
+DIFFERENT line"*). Verified on the deployed build, same click, same document: `mint:go` once, then
+`mint:skip why:no-recent-input`.
+
+**FOUR PROBE FAULTS COST FIVE RUNS BEFORE ANY OF THIS WAS VISIBLE, and each is reusable.**
+- **`mintDiag` prints with `console.table`**, so a console filter on the string `[mint]` matches
+  NOTHING. Every earlier run reported "0 logs" and I read it as "no mints ran".
+- **The doc GROWS while you scroll** (lazy editors go live), so one scroll-to-bottom lands short —
+  measured 4256 of a max that was 3968 when set and 5538 by the time it settled. It has to be
+  re-driven until the max stops moving. A loop that breaks on `top >= max` breaks too early.
+- **Clicking prose lands in a textblock BODY editor**, which is passed `onCaretMintTextblock: null`
+  and returns before the first mark — so it can never mint and never says so. Only an empty line in
+  a PAGE or CONTAINER editor mints.
+- **Comparing element tops across two RUNS** made a working scroll look broken (`2535 -> 2529`).
+
+***And the user was right that a failed headless repro is not a reason to stop: "you can see it
+happening in the video, thats proof."* The recording was the measurement; the probe was the thing
+that was wrong, four times over.**
 
 **NOTHING WAS LOST, and that is measured rather than reassuring.**
 ```
