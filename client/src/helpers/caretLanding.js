@@ -80,3 +80,72 @@ export function focusDocEnd(editor) {
     catch (_) { return "failed"; }
   }
 }
+
+/**
+ * What backspace on an EMPTY textblock should remove, and where the caret goes.
+ *
+ * User, 2026-09-18: *"can we delete the line too if i backspace delete a
+ * textblock"*, *"have the line go up one on the first backspace. right now i
+ * have to press it twice"*, *"like put it on the next line so it creates a
+ * textblock there"*.
+ *
+ * ── WHY IT TOOK TWO PRESSES ────────────────────────────────────────────────
+ *
+ * The mint appends a trailing paragraph when it lands on the LAST line, because
+ * a doc must not end with an atom (`trailingParagraphPos`). Backspace then
+ * removed only the block:
+ *
+ *     click the last line   [para("hi"), para("")]
+ *     mint                  [para("hi"), block, para("")]   <- tail added
+ *     backspace             [para("hi"), para("")]          <- back where you started
+ *
+ * so the first press looked like it did nothing to the LINE, and the empty line
+ * it left behind accumulates one per mint-then-backspace. **The artifact this
+ * absorbs is the mint's own**, which is why absorbing it is not reaching into
+ * the user's document.
+ *
+ * ── THE RULE, stated once ──────────────────────────────────────────────────
+ *
+ * Backspace on an empty textblock behaves like backspace on an empty LINE:
+ * the line goes, and the caret lands at the end of the previous one. What
+ * happens next is then the ordinary mint rule — if the line above is itself
+ * empty, a textblock appears there, which is *"put it on the next line so it
+ * creates a textblock there"*. This function does not decide that; it only
+ * refuses to leave a line behind for it to be confused by.
+ *
+ * ── THE GUARD ──────────────────────────────────────────────────────────────
+ *
+ * The trailing line is absorbed only when the PREVIOUS sibling can hold a caret.
+ * Otherwise the doc would end in an atom again — the exact state the tail
+ * paragraph exists to prevent — and `focus("end")` throws
+ * `TextSelection endpoint not pointing into a node with inline content (doc)`.
+ * So the two rules cannot fight: one adds the line, this removes it, and both
+ * answer to `canHoldCaret`.
+ *
+ * @returns {{ extra: number, keepParagraph: boolean }}
+ *   `extra` — doc positions to add to the delete range (0, or the trailing
+ *   empty paragraph's nodeSize).
+ *   `keepParagraph` — the caller must insert a replacement paragraph, because
+ *   nothing above and nothing usable below could hold the caret.
+ */
+export function planBlockBackspace({ doc, pos, nodeSize, prevSibling } = {}) {
+  const none = { extra: 0, keepParagraph: !prevSibling };
+  if (!doc || typeof pos !== "number" || typeof nodeSize !== "number") return none;
+
+  const end = pos + nodeSize;
+  let after = null;
+  try { after = doc.resolve?.(end)?.nodeAfter ?? null; } catch (_) { after = null; }
+
+  // Nothing above to join into. A doc whose only block is deleted leaves
+  // ProseMirror with no valid cursor position — UNLESS something below can hold
+  // one, in which case inserting another paragraph would leave TWO empty lines
+  // (which is what a mint on the only line + backspace produced).
+  if (!prevSibling) return { extra: 0, keepParagraph: !canHoldCaret(after) };
+
+  if (!after || after.type?.name !== "paragraph") return none;
+  if ((after.content?.size ?? 0) !== 0) return none;        // the user wrote there
+  if (end + after.nodeSize !== doc.content?.size) return none;  // not the last line
+  if (!canHoldCaret(prevSibling)) return none;              // would end in an atom
+
+  return { extra: after.nodeSize, keepParagraph: false };
+}

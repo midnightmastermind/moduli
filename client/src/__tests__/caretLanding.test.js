@@ -8,7 +8,7 @@
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import { describe, test, expect } from "vitest";
-import { canHoldCaret, caretPosBeforeBlock, focusDocEnd } from "../helpers/caretLanding";
+import { canHoldCaret, caretPosBeforeBlock, focusDocEnd, planBlockBackspace } from "../helpers/caretLanding";
 
 // Stand-ins shaped like a ProseMirror node — `inlineContent` is what the schema
 // exposes, so this asks the same question the editor does.
@@ -119,5 +119,89 @@ describe("focusDocEnd", () => {
       expect(src).toContain("focusDocEnd(editor)");
       expect(src).not.toContain("editor.commands.focus('end')");
     });
+  });
+});
+
+// ── ONE PRESS, NOT TWO ─────────────────────────────────────────────────────
+//
+// User, 2026-09-18: *"can we delete the line too if i backspace delete a
+// textblock"* / *"have the line go up one on the first backspace. right now i
+// have to press it twice"*. The mint appends a trailing paragraph when it lands
+// on the LAST line (a doc must not end with an atom), and backspace removed only
+// the block — so the first press put the document back exactly as it was before
+// the click, and the empty line accumulated one per mint-then-backspace.
+describe("planBlockBackspace", () => {
+  const para = (text = "") => ({
+    type: { name: "paragraph", inlineContent: true },
+    inlineContent: true,
+    content: { size: text.length },
+    nodeSize: text.length + 2,
+  });
+  const block = () => ({ type: { name: "instanceTextblock" }, nodeSize: 1 });
+
+  // A doc built from a node list: positions are cumulative nodeSizes.
+  const docOf = (nodes) => {
+    const starts = [];
+    let at = 0;
+    for (const n of nodes) { starts.push(at); at += n.nodeSize; }
+    return {
+      content: { size: at },
+      resolve: (p) => ({ nodeAfter: nodes[starts.indexOf(p)] ?? null }),
+    };
+  };
+
+  // THE REPORTED CASE: [para("hi"), block, para("")] — the mint's own tail.
+  test("absorbs the trailing empty line the mint left behind", () => {
+    const prev = para("hi");
+    const b = block();
+    const tail = para("");
+    const doc = docOf([prev, b, tail]);
+    const plan = planBlockBackspace({ doc, pos: prev.nodeSize, nodeSize: 1, prevSibling: prev });
+    expect(plan.extra).toBe(tail.nodeSize);
+    expect(plan.keepParagraph).toBe(false);
+  });
+
+  // THE GUARD, and it is the rule that stops this fighting the mint: absorbing
+  // the tail would leave the doc ending in an ATOM, which is the state the tail
+  // exists to prevent.
+  test("refuses when the previous sibling cannot hold a caret", () => {
+    const prev = block();
+    const doc = docOf([prev, block(), para("")]);
+    expect(planBlockBackspace({ doc, pos: 1, nodeSize: 1, prevSibling: prev }).extra).toBe(0);
+  });
+
+  test("never touches a line the user wrote in", () => {
+    const prev = para("hi");
+    const doc = docOf([prev, block(), para("still here")]);
+    expect(planBlockBackspace({ doc, pos: prev.nodeSize, nodeSize: 1, prevSibling: prev }).extra).toBe(0);
+  });
+
+  // Only the LAST line. An empty paragraph in the middle of a document is a
+  // line the user is using as spacing.
+  test("only absorbs the last line", () => {
+    const prev = para("hi");
+    const doc = docOf([prev, block(), para(""), para("after")]);
+    expect(planBlockBackspace({ doc, pos: prev.nodeSize, nodeSize: 1, prevSibling: prev }).extra).toBe(0);
+  });
+
+  // A mint on the ONLY line leaves [block, para("")]. Inserting a replacement
+  // there gave TWO empty lines.
+  test("does not add a second empty line when one already follows", () => {
+    const doc = docOf([block(), para("")]);
+    const plan = planBlockBackspace({ doc, pos: 0, nodeSize: 1, prevSibling: null });
+    expect(plan.keepParagraph).toBe(false);
+  });
+
+  // THE CONTROL. Deleting the only block with nothing below leaves ProseMirror
+  // with no valid cursor position, so that one case must still keep a line.
+  test("keeps a line when there is nothing above AND nothing below", () => {
+    const doc = docOf([block()]);
+    expect(planBlockBackspace({ doc, pos: 0, nodeSize: 1, prevSibling: null }).keepParagraph).toBe(true);
+  });
+
+  test("is inert on a malformed call rather than throwing", () => {
+    expect(planBlockBackspace()).toEqual({ extra: 0, keepParagraph: true });
+    expect(planBlockBackspace({ doc: null, pos: 0, nodeSize: 1, prevSibling: para("x") }))
+      .toEqual({ extra: 0, keepParagraph: false });
   });
 });

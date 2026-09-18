@@ -60,7 +60,8 @@ const OCC = { id: "occ-1", moduleId: "mod-1", textmap: null };
 const MOD = { id: "mod-1", label: "Block", role: "textblock" };
 
 // A chain recorder — every editor command lands here in call order.
-function makeEditor(prevSibling) {
+// `after` is the node just past the block (getPos()=10, nodeSize=3 -> pos 13).
+function makeEditor(prevSibling, { after = null, docSize } = {}) {
   const calls = [];
   const chain = {
     focus: () => (calls.push(["focus"]), chain),
@@ -73,8 +74,13 @@ function makeEditor(prevSibling) {
     calls,
     chain: () => chain,
     view: { nodeDOM: () => null },
-    state: { doc: { resolve: () => ({ nodeBefore: prevSibling }) },
-      schema: { nodes: { paragraph: { create: () => ({}) } } } },
+    state: {
+      doc: {
+        content: { size: docSize },
+        resolve: (p) => ({ nodeBefore: prevSibling, nodeAfter: p === 13 ? after : null }),
+      },
+      schema: { nodes: { paragraph: { create: () => ({}) } } },
+    },
   };
 }
 
@@ -145,14 +151,19 @@ describe("backspace on an empty textblock", () => {
     expect(suppress).toHaveBeenCalledWith(10);
   });
 
-  it("ALSO suppresses at the destination — the line above may itself be empty", () => {
-    // Without this the caret lands on an empty line above, the caret-entry mint
-    // fires there, and a fresh block appears one line up: the old block vanishes
-    // and a new one takes its place, which reads as "backspace did nothing".
+  // INVERTED 2026-09-18, with the reason kept rather than deleted. It pinned
+  // "also suppress the DESTINATION", written when a block reappearing one line
+  // up read as a bug ("backspace did nothing"). What made it read that way is
+  // that the block's own line SURVIVED, so nothing visibly moved. User, once
+  // the line goes too: *"like put it on the next line so it creates a textblock
+  // there … without having to press backspace twice."*
+  it("does NOT suppress the destination — the line above is where you want to be", () => {
     const ed = makeEditor({ type: { name: "paragraph", inlineContent: true }, nodeSize: 2 });
     render(<InstanceTextblockNode {...props(ed)} />);
     onDeleteBlock(true);
-    expect(suppress).toHaveBeenCalledWith(8); // pos(10) - prev.nodeSize(2)
+    // 10 is the vacated line and is still held; 8 is the destination.
+    expect(suppress).toHaveBeenCalledWith(10);
+    expect(suppress).not.toHaveBeenCalledWith(8);
   });
 
   it("does NOT use setTextSelection when the previous sibling is a textblock", () => {
@@ -185,13 +196,16 @@ describe("backspace on an empty textblock", () => {
 // A gesture cannot go stale. The keystroke that REMOVED a block must not also be
 // the recent input that mints one.
 describe("the backspace that removed a block cannot mint another", () => {
-  it("spends the gesture when it joins into the previous block", () => {
+  // INVERTED for the same reason. Spending the gesture killed the mint
+  // everywhere, including the destination — which is exactly the second press
+  // the user was having to make. The loop it was added for is a re-mint on the
+  // VACATED line, and `suppressTextblockMint(pos)` still covers that.
+  it("KEEPS the gesture when it joins, so the line above can mint", () => {
     stampUserInput();
-    expect(userInputRecently()).toBe(true);
-    const ed = makeEditor({ type: { name: "paragraph", inlineContent: true } });
+    const ed = makeEditor({ type: { name: "paragraph", inlineContent: true }, nodeSize: 2 });
     render(<InstanceTextblockNode {...props(ed)} />);
     onDeleteBlock(true);
-    expect(userInputRecently()).toBe(false);
+    expect(userInputRecently()).toBe(true);
   });
 
   // The other branch — nothing above to join into, so a paragraph is kept. The
@@ -213,5 +227,47 @@ describe("the backspace that removed a block cannot mint another", () => {
     const ed = makeEditor({ type: { name: "paragraph", inlineContent: true } });
     render(<InstanceTextblockNode {...props(ed)} />);
     expect(userInputRecently()).toBe(true);
+  });
+});
+
+// ── THE LINE GOES WITH THE BLOCK, IN ONE PRESS ─────────────────────────────
+//
+// The mint appends a trailing paragraph when it lands on the LAST line, so
+// backspace removing only the block put the doc back exactly as it was before
+// the click — *"right now i have to press it twice"*.
+describe("the trailing line the mint left behind", () => {
+  const paraNode = (text = "") => ({
+    type: { name: "paragraph", inlineContent: true },
+    inlineContent: true,
+    content: { size: text.length },
+    nodeSize: text.length + 2,
+  });
+  const prev = { type: { name: "paragraph", inlineContent: true }, inlineContent: true, nodeSize: 10 };
+
+  const rangeOf = (ed) => ed.calls.find((c) => c[0] === "deleteRange")?.[1];
+
+  it("is absorbed by the same backspace", () => {
+    const tail = paraNode("");
+    // getPos()=10, nodeSize=3 -> the block ends at 13, tail is 2 wide, doc ends at 15.
+    const ed = makeEditor(prev, { after: tail, docSize: 15 });
+    render(<InstanceTextblockNode {...props(ed)} />);
+    onDeleteBlock(true);
+    expect(rangeOf(ed)).toEqual({ from: 10, to: 15 });
+  });
+
+  // THE CONTROL. Without it "the range is bigger" also passes against a build
+  // that swallows whatever follows.
+  it("leaves a line the user wrote in alone", () => {
+    const ed = makeEditor(prev, { after: paraNode("still here"), docSize: 25 });
+    render(<InstanceTextblockNode {...props(ed)} />);
+    onDeleteBlock(true);
+    expect(rangeOf(ed)).toEqual({ from: 10, to: 13 });
+  });
+
+  it("leaves the range alone when there is nothing after the block", () => {
+    const ed = makeEditor(prev);
+    render(<InstanceTextblockNode {...props(ed)} />);
+    onDeleteBlock(true);
+    expect(rangeOf(ed)).toEqual({ from: 10, to: 13 });
   });
 });

@@ -20,7 +20,7 @@ import {
 } from "../../helpers/provisionalTextblock.js";
 import { forceLiveNow } from "../../helpers/lazyEditor.js";
 import { nextDragMode } from "../../helpers/dragModes";
-import { caretPosBeforeBlock } from "../../helpers/caretLanding";
+import { caretPosBeforeBlock, planBlockBackspace } from "../../helpers/caretLanding";
 import { findBlockPos } from "../../helpers/staleProvisionalBlocks";
 import { mintMark } from "../../helpers/mintDiag";
 
@@ -326,6 +326,11 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
       const pos = getPos();
       const nodeSize = node.nodeSize;
       const prevSibling = pos > 0 ? editor.state.doc.resolve(pos).nodeBefore : null;
+      // The line goes with the block, and the caret lands one line UP — in ONE
+      // press. See helpers/caretLanding.planBlockBackspace for why it used to
+      // take two (the mint's own trailing paragraph outlived the block).
+      const plan = planBlockBackspace({ doc: editor.state.doc, pos, nodeSize, prevSibling });
+      const delTo = pos + nodeSize + plan.extra;
       // ON BY DEFAULT (`window.__tbDiag = false` mutes) — the same posture
       // caretDiag took for a user-facing bug: a report should cost no setup.
       // "it still doesn't delete the line" has already had two different causes.
@@ -361,47 +366,40 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
         // creates a new one" bug, written by hand.
         consumeUserInput();
 
-        editor.chain().focus()
-          .deleteRange({ from: pos, to: pos + nodeSize })
-          .insertContentAt(pos, { type: "paragraph" })
-          .setTextSelection(pos + 1)
-          .run();
+        // Only insert a replacement line when there is nothing below that can
+        // hold the caret. A mint on the ONLY line leaves [block, para("")], and
+        // inserting another there gave TWO empty lines.
+        const chain = editor.chain().focus().deleteRange({ from: pos, to: delTo });
+        if (plan.keepParagraph) chain.insertContentAt(pos, { type: "paragraph" });
+        chain.setTextSelection(pos + 1).run();
         dropOccurrenceData();
         return;
       }
 
-      // SUPPRESS AT BOTH ENDS, and the destination is the one that was missing.
-      // The caret ends up on the PREVIOUS block, and if that block is itself an
-      // empty line the caret-entry mint fires there and creates a fresh
-      // textblock — so the old block vanishes, a new one appears one line up,
-      // and it reads as "backspace did nothing". The vacated position needs it
-      // too: the caret passes through on the way up and the mint check is
-      // deferred + coalesced, so it reads the caret AFTER this transaction.
+      // SUPPRESS THE VACATED LINE ONLY. The caret passes through `pos` on its
+      // way up and the mint check is deferred + coalesced, so it reads the caret
+      // AFTER this transaction — without this the block can come back exactly
+      // where it was, which reads as backspace doing nothing.
       const prevPos = pos - prevSibling.nodeSize;
       suppressTextblockMint(pos);
-      suppressTextblockMint(prevPos);
-      // AND SPEND THE GESTURE. Positional suppression is the right rule and it
-      // MISSES intermittently — the user's tables show the same backspace
-      // reading `mint:skip suppressed` on one line and `mint:go` on the next,
-      // which is *"sometimes, when i backspace delete the empty container (from
-      // within), it shows up again."* The mint check is deferred AND coalesced,
-      // so it reads the caret after this transaction AND after `dropOccurrence
-      // Data`'s store write has re-rendered the doc — by which point a
-      // pre-delete position is a claim about a document that no longer exists.
+      // THE DESTINATION IS DELIBERATELY *NOT* SUPPRESSED, and the gesture is
+      // deliberately NOT spent. User, 2026-09-18: *"like put it on the next line
+      // so it creates a textblock there … without having to press backspace
+      // twice."* If the line above is itself empty, the caret landing on it
+      // SHOULD mint — that is the ordinary rule, and it is what makes one press
+      // enough.
       //
-      // The gesture cannot go stale. Backspace is the keystroke that REMOVED a
-      // block; it must not also be the recent input that mints one. Precedent:
-      // the mint already consumes the gesture that caused it, so one click
-      // cannot mint on two lines. Nothing else reads this window (grepped), so
-      // the blast radius is exactly the mint.
+      // An earlier pass suppressed `prevPos` reading the same behaviour as a bug
+      // ("a new one appears one line up … backspace did nothing"). What made it
+      // read that way was that the block's own line SURVIVED, so nothing visibly
+      // moved. With the line absorbed above, the block reappearing one line up
+      // is visible progress rather than a no-op, which is what the user is
+      // asking for. Recorded rather than silently reversed.
       //
-      // Deliberately NOT done in `handleEmptyBlur`: there the user clicked
-      // AWAY, often onto another empty line, and that click is a real gesture
-      // that SHOULD mint. Consuming it is the "removes the old one but never
-      // creates a new one" bug, written by hand.
-      consumeUserInput();
-
-      editor.chain().focus().deleteRange({ from: pos, to: pos + nodeSize }).run();
+      // The loop that suppression really guards is a re-mint on the VACATED
+      // line, and `suppressTextblockMint(pos)` above still covers it. The walk
+      // up terminates: each press consumes one line.
+      editor.chain().focus().deleteRange({ from: pos, to: delTo }).run();
 
       // THE CARET IS PLACED BEFORE THE OCCURRENCE IS DROPPED. Dropping dispatches
       // a store write, which re-renders the parent doc and can remount node
