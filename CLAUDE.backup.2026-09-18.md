@@ -11,6 +11,343 @@ retractions and the probe-fault war stories the live file no longer has room for
 
 ---
 
+### 2026-09-17 (4) — A COPY OF A LINKED ROW IS A PLAIN COPY (confirmed); and COPY-LINK IS NOT IN THE RADIAL MENU
+
+User: *"i want to comfirm, if i copy a copylinked occurance (lets say i copy something from tasks
+completed and drag it elsewhere), that it creates a copy and not copylink. it should only ever
+copylink for feeds or if i do a copy link myself … which im not sure that we have on in the radial
+menu. just double check."*
+
+**THE WORRY IS WELL-FOUNDED IN SHAPE, and the drop path is exactly where it would go wrong.** A feed
+copy carries BOTH `linkedGroupId` and `meta.feedSourceId`, and `handleInstanceDrop`'s copy branch
+hands the helper **the whole source object** (`sourceOccurrence: { ...sourceOcc, fields:
+stampedFields }`). If either key travelled: the new row would silently join the linked group (the
+server fans field writes across it), and `feedSync` would treat a hand-placed row as one of ITS
+copies and sweep it the moment it stopped matching.
+
+**IT DOES NOT, because the builder never spreads the source.** `copyInstanceToContainer` constructs
+a fresh occurrence — id, userId, moduleId, gridId, iteration, timestamp, fields, parentId — and
+reads `sourceOccurrence.fields` and nothing else. The server agrees:
+`createOccurrenceData` sets the key only when the payload carries it
+(`...(linkedGroupId && { linkedGroupId })`).
+
+**AND THE FEED COPIES ARE DRAG-LOCKED, which is what makes the user's exact case safe.** `feedSync`
+stamps `dragMode: "copy"` on every copy it mints. Measured on all 9 rows now in Completed — 8 of
+them sit on a module whose `defaultDragMode` is **move**, so without that per-occurrence lock
+dragging one would MOVE it out of the feed container and feedSync would re-mint it:
+```
+row                                   occurrence.dragMode   module.default   drag does
+Sign up for foodstamps                copy                  move             COPY
+Therapy with Keith                    copy                  move             COPY
+Psych appointment with Angela         copy                  copy             COPY
+  … 9 of 9 identical
+```
+
+**THE CENSUS SAYS NOTHING HAS LEAKED, on live data:**
+```
+occurrences carrying a linkedGroupId   949   across 462 groups
+  feed copies                           66
+  non-feed                             883
+groups mixing SEVERAL non-feed members with feed copies    0   <- the accidental-link signature
+```
+
+**THERE IS A THIRD LEGITIMATE SOURCE OF COPY-LINKS, and it is not in the user's list: OPERATIONS.**
+The 883 non-feed linked rows are almost entirely the Schedule's own `COPY_LINK` pipeline action —
+each timeslot is one occurrence shared across every day column (`12:00am` linked across 9 parents),
+plus the Todo container and `Sync To Todo List`'s mirror. That is by design and predates this.
+
+**THE RADIAL MENU: the user is RIGHT, copy-link is not there.** Its toggle is strictly two-way —
+```
+const newMode = entityDragMode === "move" ? "copy" : "move";
+```
+— so `copylink` is unreachable from it, and `RadialMenu` also draws the **Move** icon for a
+copylink-mode row (`dragMode === "copy" ? Copy : Move`), which is actively misleading. **And
+`DragProvider.toggleDragMode` — which DOES cycle move → copy → copylink — has ZERO callers**, so
+the three-way cycle is dead code.
+
+**Copy-link IS reachable, by two paths, both verified wired end to end:**
+- **The occurrence's settings sheet** — `InstanceForm`/`ContainerForm`/`LayoutForm` all offer
+  `{ value: "copylink", label: "Copylink (linked occurrence)" }`, and the chain is honored:
+  `occurrence.dragMode` → `dragSystem` (`liveData?.occurrence?.dragMode ?? defaultDragMode`) →
+  `handleDragStart({ mode })` → `sessionRef.current.mode` → the drop's `isCopylinkMode` branch. Not
+  an inert control.
+- **The multi-select clipboard** — shift-click a selection, right-click → *"Copy-link N selected"*,
+  then *"Paste linked N here"*.
+
+**A/B'd by planting the exact regression** (`...sourceOccurrence` spread into the builder, asserted
+to LAND — the first attempt did not, and the assert said so rather than reporting a pass): it fails
+exactly the two tests naming `linkedGroupId` and `meta.feedSourceId` while all four controls hold.
+The controls are what stop "carries no link" being satisfied by a copy that carries nothing: the
+fields ARE carried, deep-cloned, and a **discriminating sibling** asserts
+`copylinkInstanceToContainer` on the same source DOES produce a `linkedGroupId`.
+
+**NOT CHANGED, and it is the open question rather than an oversight:** whether the radial should
+offer copy-link as a third state (and stop drawing the Move icon for it), or whether the settings
+sheet + clipboard are the right homes for a deliberate action. That is the user's call.
+
+### 2026-09-17 (3) — COMPLETED GETS ITS OWN PAGE, and a feed's SCOPE is not its container's PARENT
+
+User: *"could we put tasks completed in a seperate page instead of on the tasks page. that way we
+dont have a bunch of duplicates on the page (through copylink)."*
+
+**THE DUPLICATES ARE (2)'s OWN DOING, and that is the honest framing.** `0334` removed the
+`hide-completed` filters so a ticked task stays in its dimension container — which is what was
+asked for, and which is also what puts the feed's copy on screen BESIDE the original. The feed was
+always minting that copy; until 0334 the original was hidden, so only one of the two was ever
+visible. Moving the container is the other half of that change, not a new problem.
+
+**THE SHARP EDGE, and it is the whole migration:**
+```
+feed.scope: "9zU5UYHq5FMn"      <- the TASKS page
+```
+A feed's SCOPE (what it looks at) and its container's PARENT (where it lives) are independent.
+Re-pointing the scope at the new page would leave the feed looking at a page whose only instances
+are its OWN copies — and `resolveFeedItems` skips anything carrying `meta.feedSourceId` — so it
+would resolve to ZERO and sweep every copy it had. **Completed would empty itself and read as data
+loss.** So the container moves and the scope does not, with a post-write assertion for exactly
+that, because the failure is silent until the next sync.
+
+**MEASURED BEFORE WRITING, and the census is why this is a re-parent rather than a rebuild:**
+```
+operations naming the Completed container   0
+textmaps embedding it                       0
+parents listing it                          1   (the Tasks page)
+```
+
+**AND THE CONTROL IS WHAT MAKES THE VERIFICATION MEAN ANYTHING.** Driving the REAL
+`resolveFeedItems` over a post-migration dump:
+```
+scope on Tasks (shipped)          resolves 9 sources  == the 9 existing copies -> next sync is a no-op
+scope re-pointed at the new page  resolves 0          <- every copy swept
+```
+That second row is the mistake the refusal guards against, demonstrated rather than asserted.
+
+**Two A/Bs, each failing exactly its own case:** dropping the scope refusal fails 2, dropping the
+idempotency guard fails 1 (a re-run would mint a SECOND page). The plan also adopts a page left by
+a partial run rather than minting beside it, and skips the unlist when the Tasks page no longer
+lists the container — both half-applied states, both tested.
+
+**Read back out of Mongo, and then RENDERED on prod:** Tasks page 12 -> 11 children and no longer
+lists Completed; the new `page/board` "Completed" sits in the same Tasks FOLDER carrying
+`filterOverride: {}` (an archive filtered to today is empty every morning), listed by exactly one
+parent, pinned to Panel A beside Tasks; 9 copies intact; scope unmoved. On screen: Tasks draws 8
+dimension containers / 25 rows with no Completed, the new page draws 1 container / 9 rows, 0 page
+errors. pm2 restarted — the warm cache is authoritative for reads and would have re-served the old
+parentage.
+
+### 2026-09-17 (2) — THE FEED WAS NEVER WHAT HID YOUR TASK; the scrub reached every tab but the one that deleted
+
+Picked up account3's session (limit hit at 08:42 mid-answer on the Keith copy). Four items.
+
+**THE COPY IS WHERE YOU WANTED IT.** The stray "Therapy with Keith" was in a `Todo` container on an
+old Aug 17 Day Page column — the only thing listing it — still `Completed: true`, dated today. Moved
+to Emotional, unchecked, both dates cleared, with Duration 60 / Dewey Center / Therapy / Keith
+intact. Unlinked from the old parent BEFORE re-parenting, `$pull`/`$push` rather than a whole-array
+write.
+
+**AND THE DESIGN AROUND IT WAS DECIDED BY MEASURING WHAT THE FEED ACTUALLY DOES.** The user's first
+instruction was to retire the Completed feed for an end-of-day op; three messages later they
+reversed it themselves (*"maybe dont do an operation but keep completed as a feed"*), and the code
+says why both readings were reaching for the same thing. Two of their three claims are ALREADY TRUE:
+`feedSync` sweeps only rows it minted (`meta.feedSourceId`) and says so in its own header — *"only
+rows THIS feed minted are ever removed, never a hand-placed child"* — so a container holds a feed
+AND hand-placed rows, and a copy you make inside Completed survives being unchecked.
+```
+what hid the ticked task      a hide-completed LOCAL FILTER on each dimension container
+                              rule: $occ.fields.<Completed>.value IS_NOT true, hides: true
+what the feed did             minted a copy-link into Completed. It never touched the original.
+```
+So *"feeds should not be removing the original from its spot"* was right about feeds and wrong about
+the culprit. **`0334` removes those 10 filters and nothing else** — and the whole end-of-day op
+dissolves with them, because the original never leaves.
+
+**SCOPED BY THE RULE'S SHAPE, NOT BY THE `hide-completed-` ID.** A filter goes only if it HIDES and
+its WHOLE condition is one rule reading the Completed field: "hide completed things dated before
+today" is a narrower deliberate filter, and dropping it would change what a container shows. Dry run
+named exactly the 10 measured independently; **Completed and Via Fluere were correctly untouched**
+(they carry no such filter). Three A/Bs — dropping the `hides` check, allowing multi-rule
+conditions, resolving the field by NAME without TYPE — each fail exactly one case.
+
+**AND THE DATE HALF NEEDED NO CHANGE AT ALL, which only measuring showed.** User: *"i dont like
+completed and date filter"* / *"dont use any filter on those"*. Driven through the REAL
+`getEffectiveFilterForOccurrence` over a live dump: the Tasks PAGE carries `filterOverride: {}`,
+and the cascade reads an empty override as *clear every filter*, so **`eff={}` on all twelve
+children** — the grid's `filter_daily` condition is still evaluated, its right-hand value resolves
+to undefined, and every row passes. Three containers carry `filterOverride: null` and three `{}`;
+the page had already settled it for all of them. *The filter the report named was real; the layer it
+was on was not.*
+
+**THE A/B IS THE CONTROL that makes "everything is visible" mean anything** — replaying ONE
+hide-completed filter onto Emotional against the same live dump:
+```
+after 0334                  6/6 visible
+the filter replayed         4/6   HIDDEN: Talk to Angela about Vivance, Therapy with Keith
+```
+Exactly the two COMPLETED rows, which is the user's report reproduced and then removed.
+
+**AND MY OWN PROBE REPORTED TWO ROWS HIDDEN THAT ARE NOT.** It resolved each CHILD's filter with its
+own global walk — and `buildParentMap` keys child -> ONE parent, **last writer wins**, so a task
+multi-parented into an old day column's `Todo` (three of Emotional's six are) resolved through THAT
+column and inherited its date. **`ModuleContainer` does not work that way**: it computes the
+CONTAINER's effective filter once and applies it to every child, which is multi-parent-safe by
+construction. Re-run with the renderer's own inputs — container filter + grid named conditions +
+`getLocalFilterConditions` — all twelve read `kids N/N`. *A visibility claim measured through a
+different walk than the renderer uses is a claim about the walk.*
+
+**ANSWERED RATHER THAN BUILT: deleting the original takes the Completed copy with it.** User:
+*"if i were to delete the original then, it would still be minted in completed correct"*. No —
+`feedSync` sweeps any copy whose source no longer matches (`if (!wantedSourceIds.has(srcId))
+sweep(copy)`). Completed is a live VIEW, not an archive. Worth knowing before deleting something you
+want kept there.
+
+---
+
+**THE `***` WAS STORED, NOT MIS-RENDERED.** User: *"the *** arent resolving for markdown like they
+should"* → *"the *** was in a minitextblock occurance btw"*. `parseInline` tries `[text](url)` FIRST
+— deliberately, so a link wins over a surrounding emphasis run — and then minted the chip with the
+label **verbatim**. Every other token in that function is parsed into real marks; the inside of a
+link LABEL was the one place the parser never looked. And a chip CANNOT carry a mark even if it did:
+it is an occurrence whose text is a module LABEL, a plain string. So the label is stripped through
+`stripInlineMd`, which is what container headers already do.
+```
+inline (link chip) modules on poms grid   1867
+  carrying raw markdown in the label        21   "*Billboard* 200" · "***The Book: …***"
+```
+**`0333` repairs what is already there**, because an importer-only change helps nothing that exists.
+**Scoped to `kind:"inline"`, and that is the safety**: 414 modules carry `**…**` in their label and
+almost all are the codex `**[annotation]**` markers — `ANNOTATION_RE` keys on exactly that bold
+marker, so a blanket "strip markdown from every label" pass would have made every annotation read as
+an ordinary quote. Applied: 21 cleaned, 0 left. The control holds — bare `***bold italic***` in
+prose still becomes real bold+italic marks.
+
+---
+
+**THE `embed: missing element` A DELETE LEAVES BEHIND: the scrub was right and reached every tab
+except the one that deleted.** `socket.to(userRoom(userId))` **EXCLUDES the sender**, and the client
+does not scrub its own textmap optimistically — so the deleting tab kept the dead `moduleEmbed` and
+kept painting `embed: missing`, and its next edit would echo that stale textmap back and make it
+permanent. The same handler already does BOTH emits 100 lines above for the file-placement unlink;
+this one never got the pair. Fourth time this file records that exclusion biting.
+
+**Two gaps in the scrub itself, found by reading it rather than by the report.**
+`EMBED_TYPES` was missing **`instanceTextblockInline`** — the inline link chip — so deleting a chip's
+occurrence left the same junk (a Set lookup is exact; the plural name never matched). And a
+**wrapGroup emptied by the scrub** now goes with it: the group is a wrapper around two or more
+embeds, and emptied it draws a bare box. It is dropped ONLY when this pass is what emptied it, never
+merely because it is empty — its own control test.
+
+**MY FIRST TEST FOR THE SELF-EMIT COULD NOT DISCRIMINATE.** The parent cleanup ALSO emits
+`occurrence_updated` for that same doc, carrying the textmap UNSCRUBBED, so filtering on the
+occurrence id alone counted both — *"the scrub was broadcast"* would have passed against a run where
+the scrub never happened. It matches on the thing under test now: a body that no longer embeds the
+deleted id. A/B'd — removing the self-emit fails exactly that one test while the control ("the other
+tabs still get it") passes, so a fix that merely SWAPPED the two emits cannot slip through.
+
+---
+
+**THE QUOTE CARD, MEASURED ON PROD BEFORE ANYTHING CHANGED** (test grid 2, the Watts article):
+```
+card          left 81, width 753
+handle group  absolute at the ROW's left edge -> 76..98  = 17px INTO the card
+opening mark  card+15 .. card+33                        = 2px UNDER the handle
+closing mark  absent
+control       an IMAGE card's handle sits at card+5, clear of its content
+```
+**AND MY FIRST TWO READINGS WERE OF THE WRONG ELEMENT.** The probe resolved the row with
+`card.closest(".instance-wrap")` — which climbs PAST the quote's own row into the doc that EMBEDS it
+— so it reported the host article's handle. A CSSOM scan for the rule positioning it then found
+nothing at all, which is what said the element was wrong (my selector-matching loop also split
+compound selectors on commas, so any `:has(a, b)` rule threw and was skipped). Re-measured against
+`card.closest(".instance-row")`, the numbers reproduce identically across three cards.
+
+The opening mark moves right past the handle, the handle is nudged right out of the border, and the
+closing mark is **inline inside the blockquote** rather than absolute at the card's bottom-right —
+that corner belongs to `.artifact-quote-attr`, which is `text-align: right`, so every quote carrying
+an attribution would have printed the two on top of each other. **The handle rule is scoped by the
+DIRECT chain** `.instance-content:has(> .instance-body > .artifact-card--quote)`: these cards are
+embedded in an ARTICLE, so a descendant selector would shove the handle of every ancestor row whose
+doc merely CONTAINS a quote — the exact leak the stacked wrap-group rule cost a day for on the same
+date. Three A/Bs each fail their own case; verified in the BUILT stylesheet with the old rule at 0
+and a control at 1.
+
+**AND THE FIRST VERSION OF THE HANDLE RULE SHIPPED INERT — only re-measuring on prod caught it.**
+The marks moved and the handle did not, still at `card-5..17`. The chain is
+`content > textcol > body > card`; I had written `content > body > card`, so the `:has()` matched
+nothing. **`.instance-textcol` arrived with the ModuleInstance restructure that moved the label into
+it, and this is the SECOND selector in this file that level has silently broken** (2026-09-12
+records the first — an artifact-card label-suppression rule pointed at `div:first-child`). The test
+pins the WHOLE chain now, so a missing level fails rather than matching nothing. *A CSS rule present
+in the served stylesheet is not a rule that matches anything.*
+
+**VERIFIED ON PROD, measured and then LOOKED AT** (`screenshots/quote-card-after.png`):
+```
+              before          after
+handle      card-5 .. +17   card+7 .. +29     <- inside the card, off the border
+open mark   card+15 .. +33  card+37 .. +52    <- clear of the handle by 8px
+text        card+45         card+61
+close mark  absent          after the last word, visible
+overlap     2px             none
+```
+
+### 2026-09-17 — THE PAGE JUMPED BECAUSE A STACKED WRAP GROUP'S CSS REACHED THE GROUPS INSIDE IT; the panel you removed is back; folder pages drag and right-click
+
+**THE JUMPING, reproduced before anything changed.** User: *"i went to move a section outside of a
+container in my new page (the alan watts ego and the universe article) … the page start glitching
+like crazy. its jumping up and down rapidly."* Read out of Mongo, the drop did not just move "By Maria
+Popova" out: it landed on the SIDE of the article's title container and built a `wrapGroup` whose
+neighbour is the whole section and whose host is the now-empty title. Rebuilt in that exact shape on
+**test grid 2** and measured in a browser:
+```
+                                  group height states over 4s
+current CSS                       2   (7416 <-> 7435px, every few frames)
+selectors scoped (in-page CSSOM)  1
+```
+**The outer group was NOT flipping — it sat stacked the whole time.** Diffing every descendant's box
+across frames named the real movers: the image+prose wrap groups INSIDE the moved section, their seams
+appearing and vanishing. The outer group's stacked rule is a DESCENDANT selector with `!important`:
+```css
+.wrap-group--auto-stacked .wrap-group-content > * > :not(:last-child) { float: none !important; width: 100% }
+```
+so it un-floated every nested group's image. Each then measured "no room", stacked, measured "room",
+wrapped — forever. All 75 wrap-group mode selectors now use `> .wrap-group-content`, so a group styles
+only its own content. `wrapGroupSelectorScope.test.js` greps the stylesheet for the descendant form and
+fails on the old CSS (with a control that the scoped form exists). **Nested groups were always
+possible (the importer makes them); this is the first time one sat inside a STACKED group.**
+
+**Your live page still has the wrap group** (section beside an empty title). It stops jumping with the
+fix; drag the section onto the empty title container's top/bottom edge, or delete that container,
+to get the flat shape you meant.
+
+**THE PANEL "REMOVE FROM GRID" DELETED: restored + guarded.** A right-click on a page row in the Root
+tree had no menu of its own, bubbled to the panel's, and "Remove from grid" deleted the whole panel.
+Restored on prod from the delete's own SnapshotOp `before` + the 04:17 backup's grid list/layout tree
+(guarded by an equality check), pm2 restarted. Now: every tree row has its own menu, the panel menu
+ignores `[data-manifest-tree]`, the item reads "Remove panel from grid" and asks first.
+
+**THE TREE AND FOLDER PAGES: drag to reorder, drag into a folder, right-click to add or delete.**
+`helpers/treeOrder.js` holds the rules once (they were written out four times in ManifestTree):
+`edgeForPoint`, `sortOrderForDrop`, `wouldNestInsideItself`, `isInnermostTarget` (Pragmatic fires
+`onDrop` on EVERY nested target, so a page row inside two folders ran three handlers), and for folder
+pages `cardZoneForPoint` + `planFolderPageDrop`. **Two tree defects found on the way:** the page-row
+reorder checked for drag type `"module"` while page drags are `"page"`, so reordering pages had never
+worked; and nested folder targets double-handled one drop. On a folder page the middle of a FOLDER card
+files the dragged page there (a sub-folder card moves the folder itself, never into its own
+descendant); the rim reorders; an instance or container is never re-filed (a folder `parentId` would
+strand it out of the container that renders it). Right-click the background for New board/doc/canvas/
+table page; right-click a card for the same, "…inside" on a folder card, Open, and Delete (confirmed,
+through the one cascading delete path). `createPageInFolder` moved to `helpers/` so the tree and the
+folder page mint the same shape. A/B'd: dropping the fileable guard, the cycle guard or the
+folder-card guard each fails exactly one test.
+
+**PROBE DEBRIS on test grid 2 (disposable):** a "WATTS REPRO" page and its 96 imported occurrences, pinned
+to Panel C. **Probe lesson:** a socket that never sent `request_full_state` has no active grid, so
+`create_page` wrote into a `userId:null` cache — the page was in Mongo and invisible to the grid until
+re-sent on a socket bound to the grid.
+
+**NOT VERIFIED:** nobody has dragged a card on a folder page or used the new right-click items in a
+browser; the rules are unit-tested and the build is clean.
+
+
 ### 2026-09-16 (4) — THE BOOKMARKS YOU MADE NEVER GOT A PICTURE; and REDDIT CANNOT BE READ OR FRAMED
 
 **THE COVER REQUEST WAS NOT ABOUT WIKIPEDIA AND NOT ABOUT A RULE.** User: *"we should either
