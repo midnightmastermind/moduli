@@ -41,6 +41,8 @@ function innerProseMirror(domNode) {
   return null;
 }
 
+let _nvInstSeq = 0;
+
 export default function InstanceTextblockNode({ node, editor, getPos, deleteNode }) {
   const { occurrencesById, modulesById, dispatch, socket } = useGridActions() || {};
 
@@ -58,6 +60,20 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
   // PARENT's textmap, re-synced from a copy that still embeds it (the save the
   // leaked-ledger bug used to block). Reported ONCE per id — this sits in a render
   // path, and a mark per render would bury the table it prints into.
+  // A per-INSTANCE id for the NODE VIEW, the same trick Editor uses one level
+  // down. Between them a report says WHICH component React remounted: if the node
+  // view's `nv` changes too, ProseMirror recreated the whole view (a doc-level
+  // transaction replaced the node); if only Editor's `inst` changes, the remount
+  // is inside this subtree. Those have different fixes, and the ~200ms churn
+  // behind every symptom here is still unexplained.
+  const nvInstRef = useRef(null);
+  if (nvInstRef.current == null) nvInstRef.current = (_nvInstSeq += 1);
+  useEffect(() => {
+    const tag = { occId: String(occurrenceId || "").slice(0, 8), nv: nvInstRef.current };
+    mintMark("nodeview:mount", tag);
+    return () => mintMark("nodeview:unmount", tag);
+  }, [occurrenceId]);
+
   const zombieReportedRef = useRef(null);
   useEffect(() => {
     if (occurrence || !occurrenceId) return;

@@ -549,6 +549,17 @@ const Editor = forwardRef(function Editor({
     else { saveTimeout.current = setTimeout(doSave, 500); }
   }, [occurrence, dispatch, socket]);
 
+  // A vanish scheduled by a blur must not outlive the component that scheduled
+  // it — see the onBlur handler.
+  const vanishTimerRef = useRef(0);
+  useEffect(() => () => {
+    if (vanishTimerRef.current) {
+      clearTimeout(vanishTimerRef.current);
+      vanishTimerRef.current = 0;
+      mintMark("vanish:cancelled", { why: "unmounted-before-it-ran" });
+    }
+  }, []);
+
   // ── TipTap editor ─────────────────────────────────────────────
   const editor = useEditor({
     extensions: [
@@ -959,7 +970,21 @@ const Editor = forwardRef(function Editor({
       // focus travels to this block's own radial handle or toolbar, and it
       // comes straight back.
       if (onEmptyBlurRef.current && isEmptyTextblockDoc(json)) {
-        setTimeout(() => {
+        // THE HANDLE IS KEPT SO AN UNMOUNT CAN CANCEL IT. A blur followed by this
+        // component being torn down is NOT the user moving away — it is the DOM
+        // node holding the caret being removed, and the browser fires blur either
+        // way. The user's 2026-09-18 table, on a block they had just clicked into
+        // and were still in:
+        //     304  editor:blur    f5db8f70
+        //     318  editor:destroy f5db8f70  inst=5
+        //     318  editor:create  f5db8f70  inst=6    <- a REMOUNT, not a click
+        //     339  vanish:fire                        <- so it deleted itself
+        // which is *"deleting the textblock right away ... immediately after being
+        // clicked on and focused"*. Cancelling on unmount is what tells the two
+        // apart, and it needs no guess about WHY the remount happened.
+        if (vanishTimerRef.current) clearTimeout(vanishTimerRef.current);
+        vanishTimerRef.current = setTimeout(() => {
+          vanishTimerRef.current = 0;
           if (editor.isDestroyed) { mintMark("vanish:skip", { why: "editor-destroyed" }); return; }
           if (editor.isFocused) { mintMark("vanish:skip", { why: "refocused" }); return; }
           if (!isEmptyTextblockDoc(editor.getJSON())) { mintMark("vanish:skip", { why: "no-longer-empty" }); return; }
