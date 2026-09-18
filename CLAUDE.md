@@ -15,6 +15,93 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-18 (7) — THE WHEEL REALLY WAS BROKEN, and a ledger entry is not evidence an effect survived
+
+User, with two screenshots: *"id like the daypage todo to have the last seen field hidden and though
+the selection of the emotions on the emotion wheel works in creating a checkin occurance, the
+emotions arent being shown on the third level and the graph isnt selecting the emotions. it should be
+highlighted if selected. also those checkins are showing up in todo but it should be in tasks
+completed."*
+
+**THE ENTRY ABOVE RETRACTED A BUG THAT WAS REAL.** It proved the PIPELINE was sound — 128 items, 8
+nodes, 0 warnings — and concluded the wheel was fine. Every one of those numbers is still true. What
+was never checked is the thing between the data and the screen: **`meta.graph` itself.**
+
+```
+                     0046 mints    live wheel    0084/0085/0138 set
+dayFieldId               -          ABSENT             yes   (applied)
+valueFieldId             -          ABSENT             yes   (applied)
+labelFontPx              -          ABSENT             yes   (applied)
+labelMinArcPx            -          ABSENT             yes   (applied)
+hideTooltipValue         -          ABSENT             yes   (applied)
+```
+
+**ONE EVENT EXPLAINS BOTH SYMPTOMS, and `0296` wrote it down at the time:** the wheel was REBUILT on
+2026-09-09 by re-running `0046`, which is the authoritative builder and mints exactly
+`{type, encoding, literals}`. The four later migrations had written to the occurrence it replaced.
+***`grid.meta.migrations[]` still lists all four as applied — a ledger entry records that a migration
+RAN, never that its effect survived a rebuild.***
+
+**AND EACH ABSENCE IS EXACTLY ONE OF THE TWO REPORTS.** `ContainerGraph` lights slices only when
+`derivesSelection(spec)` — which asks for `valueFieldId` AND `dayFieldId` — so the click recorded a
+Check In perfectly while the wheel stayed dark. The labels fall back to `LABEL_MIN_ARC_PX` 15.03px,
+and `minArcPx*360/(2*pi*r) <= 4.5deg` needs **r >= 191px, a 416px box**; a day column gives the wheel
+~330. All 80 tertiary slices are a FIXED 4.5deg, so the whole ring blanks at once. `0138` measured 6
+against the live chart; both numbers are imported from it rather than retyped, and **`0046` now mints
+the full spec so the next rebuild carries it.**
+
+**THE CHECK-INS TOOK TWO MIGRATIONS, and the second is the one worth reading.** `Mood: Record
+Selection` finds its section by `Time Slot IS "Todo"` — which **8 of 47 day columns have, against 47
+with a Tasks Completed**, so on 39 days the `ADD_CHILD` was skipped entirely. Re-pointed at
+`identitySignature IS "daypage:Tasks Completed"`: carried by all 50 placements and by nothing else,
+measured before choosing it. `meta.clonedFromModuleId` was the obvious anchor and was **rejected —
+24 of the 50 predate it**, so July and August would have filed nothing.
+
+**AND THEY STILL VANISHED. A BROWSER POLLING THE CLIENT'S OWN STATE IS WHAT SAID WHY:**
+```
+t=7.1s   Tasks Completed has 5 children     <- full_state delivers them
+t=9.3s   still 5
+t=10.4s  0                                  <- load-time operations run
+```
+**`Day Page: Build Tasks Completed` SWEEPS that board on every load** and re-adds the day's completed
+tasks from the Schedule page. It is not a container you put things in; it is one something KEEPS. The
+clause that removed them is the third: `_boundFieldIds ARRAY_NOT_INCLUDES <Habit>` — **a Check In
+binds Habit**, so it was excluded for being a habit, which it is not. Completed and the Date both
+matched. The REMOVE_CHILD is wrapped in the mirror of the rule that failed, and a second ADD loop
+re-lists the day's mood rows **from under the DAY PAGE** — a journal carries a Mood and a Date too and
+lives under the Schedule page. That loop is what makes it self-healing: one `ADD_CHILD` from the Mood
+op is a write nobody repeats.
+
+*The rule: three sessions read this wheel's DATA and pronounced it healthy. A chart is data plus a
+SPEC plus a box, and only the box was ever the thing nobody measured.*
+
+**THE DRY RUN CAUGHT A MIGRATION PLANNING TO MOVE NINE REAL TASKS.** `planCheckInMoves` was called
+with `checkInSource` where it destructures `checkInSourceId`, so `child.meta?.copyLinkSource !==
+undefined` was TRUE for every Todo child that is NOT a check-in — a mistyped key inverted the filter.
+The readback assert had the same typo and would have been vacuous. It throws on a missing id now and
+a test pins it. *A default that reads as "match everything" is not a default.*
+
+**VERIFIED ON PROD IN A REAL BROWSER, which is the whole point after the entry above.** Screenshot of
+the wheel: the outer ring is labelled end to end, and **Judgmental, Bored, Dismayed, Betrayed and
+Disappointed carry the thick black ring** — the exact five Check Ins in the user's screenshot. The
+Day Page reads `Todo | Add new item` (no Last Seen chip) and `Tasks Completed | Check In | Mood:
+Dismayed | ...` five times, and the child count settles at 5 ACROSS the load-time op run rather than
+before it. 0 page errors.
+
+**A CLOBBER WAS WATCHED HAPPENING, and it is the reason a data migration is not done when Mongo is
+right.** Between the apply and the verify the count went 5 -> 0 -> 2: the server's warm cache was
+serving the pre-migration array to clients whose own writes echoed it back. pm2 restarted twice, and
+the second restart is what made the measurement stable. **The user's own tab was in the log the whole
+time (`Firefox/155.0`, `sinceNav=2598670ms`) — an open tab from before a migration is a writer.**
+
+4 migrations, 4 test files, 50 assertions. Server 2,364 pass; client 4,524 pass (the 3 incomplete are
+the documented `trackerValues` OOM family). Both behavioural suites drive the REAL renderer and the
+REAL executor and are A/B'd against the shipped-today behaviour, so each control reproduces the
+user's report before the fix is asserted — and a completed HABIT is still swept in both arms, which
+is what says the sweep was narrowed rather than disabled.
+
+---
+
 ### 2026-09-18 (6) — RETRACTION: THE WHEEL WAS NEVER BROKEN, and "0 children" is the design
 
 User: *"yes fix that please"* — the Emotions Wheel showing *"Nothing to chart yet"*. **There is

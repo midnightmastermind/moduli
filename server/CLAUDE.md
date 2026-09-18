@@ -2,6 +2,33 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-18 — the rebuilt wheel lost four migrations, and Tasks Completed sweeps)
+- **`migrations/0338`** — the Emotions Wheel occurrence carried only `{type, encoding, literals}`.
+  `0296` records it being REBUILT on 2026-09-09 by re-running `0046`, and that is all `0046` minted;
+  `dayFieldId`/`valueFieldId` (0084/0085) and `labelFontPx`/`labelMinArcPx`/`hideTooltipValue` (0138)
+  went with the occurrence it replaced while `grid.meta.migrations[]` still lists all four as applied.
+  **A ledger entry records that a migration RAN, never that its effect survived.** Also re-points the
+  Mood op's `$graph` FIND, which still named the deleted id.
+- **`migrations/0046` — `buildGraphSpec` now mints the FULL spec** (optional `moodFieldId`/`dateFieldId`,
+  omitted rather than nulled when absent), so the next rebuild carries it. Guarded by a test.
+- **`migrations/0339`** — `Mood: Record Selection` filed check-ins under a container found by
+  `Time Slot IS "Todo"`, which only 8 of 47 day columns have. It matches
+  `identitySignature IS "daypage:Tasks Completed"` now — on all 50 placements and nothing else.
+  `meta.clonedFromModuleId` was the obvious anchor and was rejected: 24 of the 50 predate it.
+- **`migrations/0341`** — and the check-ins still vanished, because **`Day Page: Build Tasks Completed`
+  SWEEPS that board on every load** (measured in a browser: 5 children at t=7.1s, 0 at t=10.4s). Its
+  keep rule excludes anything binding `Habit`, which a Check In does. The REMOVE_CHILD is now wrapped
+  in a "carries a Mood dated this day" test, and a second ADD loop re-lists the day's mood rows from
+  under the DAY PAGE (a journal carries a Mood too, and lives under the Schedule page). Self-healing:
+  one ADD_CHILD from the Mood op is a write nobody repeats.
+- **`migrations/0340`** — the Todo container's `Last Seen` binding is `hidden: true` (0067's rule: the
+  VALUE is untouched, ops FIND containers by it).
+- Tests: `__tests__/wheelSpecRestore.test.js` (16), `checkInPlacement.test.js` (14),
+  `todoLastSeen.test.js` (9), `tasksCompletedKeepsMoods.test.js` (11), plus two client suites driving
+  the real renderer and the real executor. **A dry run caught `planCheckInMoves` planning to move nine
+  REAL tasks** through a mistyped option key (`checkInSource` vs `checkInSourceId`), which made
+  `!== undefined` match everything without a `copyLinkSource`; it throws on a missing id now.
+
 ## Recent Changes (2026-09-15 (3) — images are read from `srcset`, not only `src`)
 - **`services/wikipediaTools.js` — `bestImageSrc(get)` (exported) + `IMAGE_MAX_W = 1600`.** Widest
   srcset (or data-srcset) candidate up to 1600w, else the narrowest wider one; density-only sets take
