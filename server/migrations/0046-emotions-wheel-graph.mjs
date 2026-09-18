@@ -43,6 +43,13 @@
 //   maintained as two truths.
 //
 // DELETES NOTHING. Purely additive: one module, one occurrence, one operation.
+// The label sizing is imported from where it was MEASURED (0138, on the live
+// chart) rather than retyped here. A later migration is an odd thing for an
+// earlier one to import — but this file is re-run as the authoritative builder,
+// so it is live code, and two copies of a number settled by looking at a
+// rendered wheel is exactly the drift 0338 had to repair.
+import { LABEL_FONT_PX, LABEL_MIN_ARC_PX } from "./0138-wheel-outer-ring-labels.mjs";
+
 export const id = "0046-emotions-wheel-graph";
 export const describe =
   "Add an Emotions Wheel graph (sunburst, fed from the Emotions board) and the 'Mood: Record Selection' " +
@@ -148,8 +155,31 @@ export function buildRecordSelectionPipeline({ graphOccId, moodFieldId, dateFiel
 }
 
 /** PURE — the graph occurrence's stored configuration. */
-export function buildGraphSpec({ parentFieldId, levelFieldId }) {
+export function buildGraphSpec({ parentFieldId, levelFieldId, moodFieldId = null, dateFieldId = null }) {
   return {
+    // THE SPEC THIS MINTS IS THE WHOLE SPEC, and that is not decoration.
+    //
+    // This file is the authoritative builder and it gets RE-RUN (0296 rebuilt
+    // the wheel with it on 2026-09-09). When it minted only `type`/`encoding`/
+    // `literals`, the rebuild silently discarded everything 0084, 0085 and 0138
+    // had added to the occurrence it replaced — while `grid.meta.migrations[]`
+    // went on listing all three as applied. The user saw an outer ring with no
+    // labels and a wheel that never lit what they picked (0338 is the repair).
+    //
+    // So the tuning those three settled lives HERE, where a rebuild carries it:
+    // a ledger entry records that a migration ran, never that its effect
+    // survived the next rebuild.
+    //
+    // The two field keys are omitted rather than written as null when the grid
+    // has no such field — `derivesSelection` asks for both, and a key holding
+    // null is a configured graph that cannot derive.
+    ...(moodFieldId && dateFieldId ? { valueFieldId: moodFieldId, dayFieldId: dateFieldId } : {}),
+    // 0138's measured pair: the outer ring is 80 slices of a fixed 4.5deg, and
+    // at the box this wheel renders in the DEFAULTS blank every one of them.
+    labelFontPx: LABEL_FONT_PX,
+    labelMinArcPx: LABEL_MIN_ARC_PX,
+    // 0138: "Trust 8" on a tally wheel is the row count, which means nothing.
+    hideTooltipValue: true,
     type: "sunburst",
     encoding: {
       // null category = the occurrence's own LABEL, which is the emotion word.
@@ -353,7 +383,13 @@ export async function up({ gridId, models, log, dryRun }) {
       fields: {},
       occurrences: [],
       feed: buildEmotionsFeed({ boardCategoryFieldId: boardCategory.id, scopeOccId: emotionsPageOcc?.id || null }),
-      meta: { graph: buildGraphSpec({ parentFieldId: parentField.id, levelFieldId: levelField.id }), createdBy: id },
+      meta: {
+        graph: buildGraphSpec({
+          parentFieldId: parentField.id, levelFieldId: levelField.id,
+          moodFieldId: moodField?.id || null, dateFieldId: dateField?.id || null,
+        }),
+        createdBy: id,
+      },
     });
     // Listed as a child, not merely parented: a container renders its
     // occurrences[] — the 2026-08-01 (19) "listed but not embedded" failure
