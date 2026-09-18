@@ -226,6 +226,76 @@ describe("the create burst", () => {
     expect(db.occurrences.size).toBe(1);             // the parent only
   });
 
+  // ── ONE REFUSED DUPLICATE USED TO LOSE THE WHOLE BURST ───────────────────
+  //
+  // Measured on prod 2026-09-18, in `moduli-error-0.log`:
+  //
+  //     create_occurrence error: ReferenceError: io is not defined
+  //       at handleCreateBatch (.../crud.js:1470:39)
+  //
+  // `io` is not destructured by `registerCrudHandlers`, so the refusal's own
+  // "tell the originator" emit threw INSIDE the try — before `upsertRows` —
+  // and took every legitimate create in the same batch down with it. The user
+  // sees `server_error: Failed to create occurrence` and a row that silently
+  // never persists.
+  describe("a refused duplicate", () => {
+    const signed = (id) => ({
+      id, userId: "u1", gridId: "g1", moduleId: "m-col", parentId: "day-col",
+      identitySignature: "daypage:col:2026-09-18", meta: { signatureUnique: true }, fields: {},
+    });
+
+    beforeEach(() => {
+      // The sibling that ALREADY exists, in the warm cache the refusal reads.
+      uc.occurrencesById["col-original"] = signed("col-original");
+      db.occurrences.set("col-original", signed("col-original"));
+    });
+
+    // THE ONE THAT MATTERS. A refusal is supposed to drop ONE row.
+    it("does not take the rest of the batch down with it", async () => {
+      const create = fire("create_occurrence");
+      await Promise.all([
+        create({ occurrence: slot(1) }),
+        create({ occurrence: signed("col-duplicate") }),
+        create({ occurrence: slot(2) }),
+      ]);
+      await delayed(30);
+      expect(db.occurrences.has("slot-01")).toBe(true);
+      expect(db.occurrences.has("slot-02")).toBe(true);
+      expect(db.occurrences.has("col-duplicate")).toBe(false);   // still refused
+    });
+
+    it("reports no server_error", async () => {
+      const create = fire("create_occurrence");
+      await Promise.all([create({ occurrence: slot(1) }), create({ occurrence: signed("col-duplicate") })]);
+      await delayed(30);
+      const errs = socket.emit.mock.calls.filter(([e]) => e === "server_error");
+      expect(errs).toEqual([]);
+    });
+
+    // `socket.to(room)` EXCLUDES the sender, and the sender is the one holding
+    // the optimistic copy this message exists to clear. Without the direct
+    // emit the phantom lingers and the next parent-list write launders it into
+    // a persisted dangling child ref.
+    it("tells the ORIGINATOR, in the shape the client reads", async () => {
+      const create = fire("create_occurrence");
+      await Promise.all([create({ occurrence: signed("col-duplicate") })]);
+      await delayed(30);
+      const mine = socket.emit.mock.calls.filter(([e]) => e === "occurrence_deleted");
+      expect(mine).toHaveLength(1);
+      // The client reads `payload.occurrenceId || payload.id`; a bare string is
+      // undefined on both and returns early.
+      expect(mine[0][1]).toEqual({ occurrenceId: "col-duplicate" });
+    });
+
+    it("tells the other tabs too", async () => {
+      const create = fire("create_occurrence");
+      await Promise.all([create({ occurrence: signed("col-duplicate") })]);
+      await delayed(30);
+      expect(emitted.filter(([e]) => e === "occurrence_deleted"))
+        .toEqual([["occurrence_deleted", { occurrenceId: "col-duplicate" }]]);
+    });
+  });
+
   it("leaves no phantom in the warm cache for rows that never persisted", async () => {
     const create = fire("create_occurrence");
     const inFlight = Promise.all([create({ occurrence: slot(1) }), create({ occurrence: slot(2) })]);

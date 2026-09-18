@@ -13,6 +13,7 @@ import ModuleTextblock from "../../modules/ModuleTextblock.jsx";
 import RadialMenu from "../../ui/RadialMenu.jsx";
 import * as CommitHelpers from "../../helpers/CommitHelpers";
 import { embedDeleteRegistry } from "../../helpers/embedRegistry.js";
+import { consumeUserInput } from "../../helpers/userInputWindow";
 import {
   isProvisionalTextblock, discardProvisionalTextblock, suppressTextblockMint,
   getProvisionalOccurrence,
@@ -339,6 +340,27 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
       // the old behaviour is correct for this one case.
       if (!prevSibling) {
         suppressTextblockMint(pos);
+        // AND SPEND THE GESTURE. Positional suppression is the right rule and it
+        // MISSES intermittently — the user's tables show the same backspace
+        // reading `mint:skip suppressed` on one line and `mint:go` on the next,
+        // which is *"sometimes, when i backspace delete the empty container (from
+        // within), it shows up again."* The mint check is deferred AND coalesced,
+        // so it reads the caret after this transaction AND after `dropOccurrence
+        // Data`'s store write has re-rendered the doc — by which point a
+        // pre-delete position is a claim about a document that no longer exists.
+        //
+        // The gesture cannot go stale. Backspace is the keystroke that REMOVED a
+        // block; it must not also be the recent input that mints one. Precedent:
+        // the mint already consumes the gesture that caused it, so one click
+        // cannot mint on two lines. Nothing else reads this window (grepped), so
+        // the blast radius is exactly the mint.
+        //
+        // Deliberately NOT done in `handleEmptyBlur`: there the user clicked
+        // AWAY, often onto another empty line, and that click is a real gesture
+        // that SHOULD mint. Consuming it is the "removes the old one but never
+        // creates a new one" bug, written by hand.
+        consumeUserInput();
+
         editor.chain().focus()
           .deleteRange({ from: pos, to: pos + nodeSize })
           .insertContentAt(pos, { type: "paragraph" })
@@ -358,6 +380,27 @@ export default function InstanceTextblockNode({ node, editor, getPos, deleteNode
       const prevPos = pos - prevSibling.nodeSize;
       suppressTextblockMint(pos);
       suppressTextblockMint(prevPos);
+      // AND SPEND THE GESTURE. Positional suppression is the right rule and it
+      // MISSES intermittently — the user's tables show the same backspace
+      // reading `mint:skip suppressed` on one line and `mint:go` on the next,
+      // which is *"sometimes, when i backspace delete the empty container (from
+      // within), it shows up again."* The mint check is deferred AND coalesced,
+      // so it reads the caret after this transaction AND after `dropOccurrence
+      // Data`'s store write has re-rendered the doc — by which point a
+      // pre-delete position is a claim about a document that no longer exists.
+      //
+      // The gesture cannot go stale. Backspace is the keystroke that REMOVED a
+      // block; it must not also be the recent input that mints one. Precedent:
+      // the mint already consumes the gesture that caused it, so one click
+      // cannot mint on two lines. Nothing else reads this window (grepped), so
+      // the blast radius is exactly the mint.
+      //
+      // Deliberately NOT done in `handleEmptyBlur`: there the user clicked
+      // AWAY, often onto another empty line, and that click is a real gesture
+      // that SHOULD mint. Consuming it is the "removes the old one but never
+      // creates a new one" bug, written by hand.
+      consumeUserInput();
+
       editor.chain().focus().deleteRange({ from: pos, to: pos + nodeSize }).run();
 
       // THE CARET IS PLACED BEFORE THE OCCURRENCE IS DROPPED. Dropping dispatches

@@ -1467,7 +1467,30 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
       } catch (e) { console.warn("create_batch: stored-sibling check skipped —", e?.message); }
       if (refusedIds.size) {
         console.log("🟣 create_batch REFUSED (duplicate signature)", refusedIds.size, [...refusedIds].slice(0, 6));
-        for (const rid of refusedIds) io.to(userRoom(userId)).emit("occurrence_deleted", rid);
+        // BOTH emits, and the payload is an OBJECT — this line was wrong twice.
+        //
+        // `io` IS NOT IN SCOPE HERE. `registerCrudHandlers` destructures
+        // `userRoom`/`gridRoom`, never the server instance, so `io.to(...)`
+        // threw `ReferenceError: io is not defined` INSIDE the try — which
+        // means every create batch containing ONE refused duplicate lost the
+        // whole burst: the throw lands before `upsertRows`, so the legitimate
+        // rows beside it never persisted and the user saw
+        // `server_error: Failed to create occurrence`. Measured on prod, 2026-09-18.
+        // CLAUDE.md records this exact class twice (`watchRegion`, `ctxGrid`)
+        // and once in this very file (2026-08-28 (2)); it came back through a
+        // door nobody had used yet.
+        //
+        // And `socket.to(room)` EXCLUDES the sender, so the ORIGINATOR — the
+        // one holding the optimistic copy this message exists to clear — needs
+        // its own `socket.emit`. The comment above says so; the code did not.
+        // The client reads `payload.occurrenceId || payload.id`, so a bare
+        // string resolves to undefined and returns early: even with `io` bound,
+        // this emit could never have cleared anything.
+        for (const rid of refusedIds) {
+          const msg = { occurrenceId: rid };
+          socket.emit("occurrence_deleted", msg);
+          socket.to(userRoomFn(userId)).emit("occurrence_deleted", msg);
+        }
       }
 
       // ---- 1. build, cache, and upsert every row in one write --------------

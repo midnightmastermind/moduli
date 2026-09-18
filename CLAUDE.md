@@ -15,6 +15,141 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-18 (3) — ONE REFUSED DUPLICATE LOST THE WHOLE CREATE BATCH; and the recreation was never the bug
+
+User: *"im not sure why im getting those warnings or the failed to create occurance server_error
+either"*, with `[mint]` tables.
+
+**THE SERVER ERROR IS READ OUT OF PROD'S OWN LOG, NOT INFERRED** — and `pm2 list` as root shows
+NOTHING: the app runs as the **`deploy`** user, so the log is
+`/home/deploy/.pm2/logs/moduli-error-0.log`. Twenty-one identical stacks:
+```
+create_occurrence error: ReferenceError: io is not defined
+  at handleCreateBatch (.../server/socketHandlers/crud.js:1470:39)
+```
+**`io` IS NOT IN SCOPE IN `crud.js`.** `registerCrudHandlers` destructures `userRoom`/`gridRoom`,
+never the server instance — and **this file's own 2026-08-28 (2) entry records catching exactly
+that, in exactly this file**, plus `watchRegion` and `ctxGrid` before it. It came back through a
+door nobody had used yet: the duplicate-signature refusal, whose "tell the originator" emit is the
+only line in the handler that reached for `io`.
+
+**AND IT THROWS INSIDE THE TRY, BEFORE `upsertRows`.** So a batch containing ONE refused duplicate
+loses **every legitimate create beside it** — the rows never persist, the client's optimistic copies
+linger, and the user gets `server_error: Failed to create occurrence`. A guard against one bad row
+was dropping the other 48.
+
+**THE SAME LINE WAS WRONG A SECOND WAY, which is why it could never have worked even with `io`
+bound.** It emitted a bare STRING; the client reads `payload.occurrenceId || payload.id` and returns
+early on `undefined`. And `socket.to(room)` **EXCLUDES the sender** — the originator is precisely the
+one holding the optimistic copy this message exists to clear, so it needs its own `socket.emit`. The
+comment above the line said so; the code did neither. Both emits now, object payload.
+**4 tests, A/B'd against the restored bug — all four fail**, the load-bearing one being *"does not
+take the rest of the batch down with it"*.
+
+---
+
+**THE `[mint]` TABLES SETTLE THE FOCUS BUG, AND THE ANSWER IS NOT WHAT FOUR SESSIONS ASSUMED.** The
+node view really is recreated ~200ms after every mint — but the SAME recreation has two outcomes,
+and the discriminator is whether the caret had already landed:
+```
+BAD  (caret landed, claim spent)          GOOD (caret still in flight)
+ 31  focus:claimed   content-sync         1332  focus:claimed   content-sync
+ 35  editor:focus          <- landed        ..  (no editor:focus yet)
+223  editor:blur    empty=true            1519  editor:destroy / editor:create
+223  editor:focus   b93dc523  <- PARENT    1520  focus:claimed   content-sync  <- SURVIVED
+236  editor:destroy / editor:create        1532  editor:focus          <- lands
+256  focus:none     onCreate  <- nothing
+```
+*"Empty textblocks losing focus and having it on the next line after"* is that left column. **So the
+recreation was never the thing to fix — the spent claim was**, and the cure needs no theory about
+why the view was recreated. `Editor`'s vanish-cancel cleanup re-requests the focus claim, so the
+recreated view takes the caret back.
+
+**THE DISCRIMINATOR IS ALREADY EARNED, which is what makes this safe.** A vanish pending at unmount
+means this component was focused and empty ONE MACROTASK ago — a user moving away cannot produce
+that, only a teardown can. Gated on the block still being PROVISIONAL, so a textblock the user
+deliberately made and left cannot snatch the caret when it scrolls back into view. **The control is
+what stops the fix degrading into the opposite bug:** a test asserts the claim is still SPENT when
+the caret lands, or "the claim survives" is also satisfied by a build that never releases one.
+
+---
+
+**BACKSPACE NOW SPENDS ITS GESTURE, because a position goes stale and a gesture cannot.** User:
+*"sometimes, when i backspace delete the empty container (from within), it shows up again."*
+**SOMETIMES is the diagnosis** — the same backspace reads `mint:skip suppressed` on one line and
+`mint:go` on the next. The positional hold is the right rule and it misses intermittently: the mint
+check is deferred AND coalesced, so it reads the caret after the delete transaction AND after the
+occurrence drop has re-rendered the doc, by which point a pre-delete position describes a document
+that no longer exists. The keystroke that REMOVED a block must not also be the recent input that
+mints one. Precedent: the mint already consumes the gesture that caused it.
+
+**DELIBERATELY NOT DONE IN `handleEmptyBlur`, and that restraint is the other half of the user's
+report.** There the user clicked AWAY, often onto another empty line — a real gesture that SHOULD
+mint (measured: `emptyBlur:collapse` at t=3415 → `mint:go` at t=3627, and it works). Consuming it is
+*"it removes the old one but never creates a new one"* written by hand. That is the test's CONTROL.
+**Nothing else reads this window — grepped, one consumer** — so the blast radius is exactly the mint.
+
+---
+
+**THE `TextSelection ... (doc)` THROW HAS A CONCRETE SOURCE, and it is an ordinary gesture on an
+ordinary document.** A textblock is an ATOM, so a doc ending in one has no inline position at
+`doc.content.size` and `focus("end")` throws. It comes from **clicking the padding below the
+document**. `Editor.jsx`'s padding-click has caught this for months; `DocContent.jsx`'s
+padding-click — the same decision one file over — never did. **Two implementations of one question,
+only one ever fixed**, which is this file's most-repeated class. `caretLanding.focusDocEnd` is that
+decision once, called by both, reporting WHICH branch ran so a doc that can never take an end-caret
+is visible rather than silent.
+
+---
+
+**THE CARET NO LONGER SHOWS ON AN EMPTY DOC LINE** (user: *"id like the input cursor to not show up
+on an empty line (before the textblock is created) … this should be for outside textblocks, not
+inside of them"*). `caret-color: transparent` HIDES it without moving the selection, so the click
+still focuses the line and the mint's own focus/recent-input checks are untouched.
+
+**MATCHED ON PROSEMIRROR'S OWN TRAILING HACK, NOT THE PLACEHOLDER PLUGIN'S `is-empty`** —
+`prosemirror-view` appends `<br class="ProseMirror-trailingBreak">` to an empty textblock from CORE
+(`dist/index.js:1993`, read rather than assumed), so this cannot be switched off by a Placeholder
+config change. `:only-child` is what restricts it to an EMPTY line: a paragraph ending in a hard
+break carries the same `br` with a sibling before it.
+
+**VERIFIED AGAINST THE BUILT STYLESHEET IN BOTH ENGINES, WITH THREE CONTROLS** — the user is on
+Firefox, and a rule present in a stylesheet is not a rule that matches anything:
+```
+                    chromium        firefox
+doc-empty           transparent     transparent   <- the target
+doc-prose           visible         visible       <- prose still shows a caret
+doc-hardbreak       visible         visible       <- :only-child does its job
+block-empty         visible         visible       <- "inside textblocks, not outside"
+chip-empty          visible         visible
+```
+**AND MY FIRST GREP OF THE BUILT CSS READ AS "THE RULE IS MISSING".** The minifier rewrites
+`transparent` -> `#0000`, and `grep -o "caret-color:[a-z]*"` cannot match a `#`. *Grep the built
+value VERBATIM, not a token you assumed it would keep* — the same trap this file records for
+`flex: 0 0 auto` -> `flex:none`.
+
+---
+
+**STILL UNEXPLAINED, and said plainly: what recreates the node view.** `nv` incrementing proves
+ProseMirror recreated it rather than React re-rendering, and the parent doc logs **no `onUpdate`**
+between the mint and the recreation — so it is not a doc transaction. The re-claim makes it
+harmless; it does not explain it.
+
+**AND I BROKE `Editor.jsx` PUTTING AN IMPORT IN.** My inserter took "the first newline after the
+first `import `", which landed INSIDE a multi-line `import {` — the near-duplicate-anchor class from
+2026-09-03, one variant over. Seven test files passed anyway (none import Editor); the eighth failed
+on the esbuild transform, and **the source-guard test read the file as TEXT and passed straight
+through a syntax error.** A source guard cannot see a broken parse; the build is what says so.
+
+**NOT VERIFIED, and it is the honest gap: nobody has clicked an empty line since.** Every fix here
+is A/B'd with the mutation asserted to land, and the caret rules are measured in two real browsers —
+but the focus re-claim only runs on a real teardown, which no test can mount. **And one case is
+worse on purpose:** a line whose mint is deliberately suppressed (the one backspace just vacated)
+now shows no caret either, so it reads as dead until you type. That is what was asked for; it is one
+CSS rule to revert.
+
+---
+
 ### 2026-09-18 (2) — THE MINT IS WATCHED WORKING ON PROD, and every page load was minting an invisible day page
 
 Picked up this session's own open gap. Four commits had shipped and been deployed after the entry
@@ -201,141 +336,6 @@ bookmark 201 · title "Albert Ellis - Wikipedia" · the dust-jacket cover · lis
 the log says why** — both requests logged, no error line, and it wrote nothing (checked by label,
 host label and fileRef). The second run was clean. **Not verified: nobody has asked Jonah in the chat
 drawer**, so the confirm card and the model choosing these tools are unexercised.
-
----
-
-### 2026-09-18 (2) — ONE REFUSED DUPLICATE LOST THE WHOLE CREATE BATCH; and the recreation was never the bug
-
-User: *"im not sure why im getting those warnings or the failed to create occurance server_error
-either"*, with `[mint]` tables.
-
-**THE SERVER ERROR IS READ OUT OF PROD'S OWN LOG, NOT INFERRED** — and `pm2 list` as root shows
-NOTHING: the app runs as the **`deploy`** user, so the log is
-`/home/deploy/.pm2/logs/moduli-error-0.log`. Twenty-one identical stacks:
-```
-create_occurrence error: ReferenceError: io is not defined
-  at handleCreateBatch (.../server/socketHandlers/crud.js:1470:39)
-```
-**`io` IS NOT IN SCOPE IN `crud.js`.** `registerCrudHandlers` destructures `userRoom`/`gridRoom`,
-never the server instance — and **this file's own 2026-08-28 (2) entry records catching exactly
-that, in exactly this file**, plus `watchRegion` and `ctxGrid` before it. It came back through a
-door nobody had used yet: the duplicate-signature refusal, whose "tell the originator" emit is the
-only line in the handler that reached for `io`.
-
-**AND IT THROWS INSIDE THE TRY, BEFORE `upsertRows`.** So a batch containing ONE refused duplicate
-loses **every legitimate create beside it** — the rows never persist, the client's optimistic copies
-linger, and the user gets `server_error: Failed to create occurrence`. A guard against one bad row
-was dropping the other 48.
-
-**THE SAME LINE WAS WRONG A SECOND WAY, which is why it could never have worked even with `io`
-bound.** It emitted a bare STRING; the client reads `payload.occurrenceId || payload.id` and returns
-early on `undefined`. And `socket.to(room)` **EXCLUDES the sender** — the originator is precisely the
-one holding the optimistic copy this message exists to clear, so it needs its own `socket.emit`. The
-comment above the line said so; the code did neither. Both emits now, object payload.
-**4 tests, A/B'd against the restored bug — all four fail**, the load-bearing one being *"does not
-take the rest of the batch down with it"*.
-
----
-
-**THE `[mint]` TABLES SETTLE THE FOCUS BUG, AND THE ANSWER IS NOT WHAT FOUR SESSIONS ASSUMED.** The
-node view really is recreated ~200ms after every mint — but the SAME recreation has two outcomes,
-and the discriminator is whether the caret had already landed:
-```
-BAD  (caret landed, claim spent)          GOOD (caret still in flight)
- 31  focus:claimed   content-sync         1332  focus:claimed   content-sync
- 35  editor:focus          <- landed        ..  (no editor:focus yet)
-223  editor:blur    empty=true            1519  editor:destroy / editor:create
-223  editor:focus   b93dc523  <- PARENT    1520  focus:claimed   content-sync  <- SURVIVED
-236  editor:destroy / editor:create        1532  editor:focus          <- lands
-256  focus:none     onCreate  <- nothing
-```
-*"Empty textblocks losing focus and having it on the next line after"* is that left column. **So the
-recreation was never the thing to fix — the spent claim was**, and the cure needs no theory about
-why the view was recreated. `Editor`'s vanish-cancel cleanup re-requests the focus claim, so the
-recreated view takes the caret back.
-
-**THE DISCRIMINATOR IS ALREADY EARNED, which is what makes this safe.** A vanish pending at unmount
-means this component was focused and empty ONE MACROTASK ago — a user moving away cannot produce
-that, only a teardown can. Gated on the block still being PROVISIONAL, so a textblock the user
-deliberately made and left cannot snatch the caret when it scrolls back into view. **The control is
-what stops the fix degrading into the opposite bug:** a test asserts the claim is still SPENT when
-the caret lands, or "the claim survives" is also satisfied by a build that never releases one.
-
----
-
-**BACKSPACE NOW SPENDS ITS GESTURE, because a position goes stale and a gesture cannot.** User:
-*"sometimes, when i backspace delete the empty container (from within), it shows up again."*
-**SOMETIMES is the diagnosis** — the same backspace reads `mint:skip suppressed` on one line and
-`mint:go` on the next. The positional hold is the right rule and it misses intermittently: the mint
-check is deferred AND coalesced, so it reads the caret after the delete transaction AND after the
-occurrence drop has re-rendered the doc, by which point a pre-delete position describes a document
-that no longer exists. The keystroke that REMOVED a block must not also be the recent input that
-mints one. Precedent: the mint already consumes the gesture that caused it.
-
-**DELIBERATELY NOT DONE IN `handleEmptyBlur`, and that restraint is the other half of the user's
-report.** There the user clicked AWAY, often onto another empty line — a real gesture that SHOULD
-mint (measured: `emptyBlur:collapse` at t=3415 → `mint:go` at t=3627, and it works). Consuming it is
-*"it removes the old one but never creates a new one"* written by hand. That is the test's CONTROL.
-**Nothing else reads this window — grepped, one consumer** — so the blast radius is exactly the mint.
-
----
-
-**THE `TextSelection ... (doc)` THROW HAS A CONCRETE SOURCE, and it is an ordinary gesture on an
-ordinary document.** A textblock is an ATOM, so a doc ending in one has no inline position at
-`doc.content.size` and `focus("end")` throws. It comes from **clicking the padding below the
-document**. `Editor.jsx`'s padding-click has caught this for months; `DocContent.jsx`'s
-padding-click — the same decision one file over — never did. **Two implementations of one question,
-only one ever fixed**, which is this file's most-repeated class. `caretLanding.focusDocEnd` is that
-decision once, called by both, reporting WHICH branch ran so a doc that can never take an end-caret
-is visible rather than silent.
-
----
-
-**THE CARET NO LONGER SHOWS ON AN EMPTY DOC LINE** (user: *"id like the input cursor to not show up
-on an empty line (before the textblock is created) … this should be for outside textblocks, not
-inside of them"*). `caret-color: transparent` HIDES it without moving the selection, so the click
-still focuses the line and the mint's own focus/recent-input checks are untouched.
-
-**MATCHED ON PROSEMIRROR'S OWN TRAILING HACK, NOT THE PLACEHOLDER PLUGIN'S `is-empty`** —
-`prosemirror-view` appends `<br class="ProseMirror-trailingBreak">` to an empty textblock from CORE
-(`dist/index.js:1993`, read rather than assumed), so this cannot be switched off by a Placeholder
-config change. `:only-child` is what restricts it to an EMPTY line: a paragraph ending in a hard
-break carries the same `br` with a sibling before it.
-
-**VERIFIED AGAINST THE BUILT STYLESHEET IN BOTH ENGINES, WITH THREE CONTROLS** — the user is on
-Firefox, and a rule present in a stylesheet is not a rule that matches anything:
-```
-                    chromium        firefox
-doc-empty           transparent     transparent   <- the target
-doc-prose           visible         visible       <- prose still shows a caret
-doc-hardbreak       visible         visible       <- :only-child does its job
-block-empty         visible         visible       <- "inside textblocks, not outside"
-chip-empty          visible         visible
-```
-**AND MY FIRST GREP OF THE BUILT CSS READ AS "THE RULE IS MISSING".** The minifier rewrites
-`transparent` -> `#0000`, and `grep -o "caret-color:[a-z]*"` cannot match a `#`. *Grep the built
-value VERBATIM, not a token you assumed it would keep* — the same trap this file records for
-`flex: 0 0 auto` -> `flex:none`.
-
----
-
-**STILL UNEXPLAINED, and said plainly: what recreates the node view.** `nv` incrementing proves
-ProseMirror recreated it rather than React re-rendering, and the parent doc logs **no `onUpdate`**
-between the mint and the recreation — so it is not a doc transaction. The re-claim makes it
-harmless; it does not explain it.
-
-**AND I BROKE `Editor.jsx` PUTTING AN IMPORT IN.** My inserter took "the first newline after the
-first `import `", which landed INSIDE a multi-line `import {` — the near-duplicate-anchor class from
-2026-09-03, one variant over. Seven test files passed anyway (none import Editor); the eighth failed
-on the esbuild transform, and **the source-guard test read the file as TEXT and passed straight
-through a syntax error.** A source guard cannot see a broken parse; the build is what says so.
-
-**NOT VERIFIED, and it is the honest gap: nobody has clicked an empty line since.** Every fix here
-is A/B'd with the mutation asserted to land, and the caret rules are measured in two real browsers —
-but the focus re-claim only runs on a real teardown, which no test can mount. **And one case is
-worse on purpose:** a line whose mint is deliberately suppressed (the one backspace just vacated)
-now shows no caret either, so it reads as dead until you type. That is what was asked for; it is one
-CSS rule to revert.
 
 ---
 

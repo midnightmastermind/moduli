@@ -17,6 +17,7 @@ import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "@testing-library/react";
 import InstanceTextblockNode from "../docs/pills/InstanceTextblockNode.jsx";
+import { stampUserInput, userInputRecently, __resetUserInputWindow } from "../helpers/userInputWindow";
 
 vi.mock("@tiptap/react", () => ({
   NodeViewWrapper: ({ children }) => <div>{children}</div>,
@@ -89,6 +90,7 @@ beforeEach(() => {
   discard.mockClear(); suppress.mockClear(); removeOccurrence.mockClear();
   ctx = { occurrencesById: { "occ-1": OCC }, modulesById: { "mod-1": MOD },
     dispatch: vi.fn(), socket: { connected: true } };
+  __resetUserInputWindow();
 });
 
 const namesOf = (calls) => calls.map((c) => c[0]);
@@ -168,5 +170,48 @@ describe("backspace on an empty textblock", () => {
     render(<InstanceTextblockNode {...props(ed)} />);
     onDeleteBlock(true);
     expect(removeOccurrence).toHaveBeenCalled();
+  });
+});
+
+// ── BACKSPACE SPENDS ITS GESTURE ────────────────────────────────────────────
+//
+// User, 2026-09-18: *"sometimes, when i backspace delete the empty container
+// (from within), it shows up again."* SOMETIMES is the diagnosis. The positional
+// hold above is the right rule and it misses intermittently — the mint check is
+// deferred AND coalesced, so it reads the caret after this transaction and after
+// the occurrence drop has re-rendered the doc, by which point a pre-delete
+// position describes a document that no longer exists.
+//
+// A gesture cannot go stale. The keystroke that REMOVED a block must not also be
+// the recent input that mints one.
+describe("the backspace that removed a block cannot mint another", () => {
+  it("spends the gesture when it joins into the previous block", () => {
+    stampUserInput();
+    expect(userInputRecently()).toBe(true);
+    const ed = makeEditor({ type: { name: "paragraph", inlineContent: true } });
+    render(<InstanceTextblockNode {...props(ed)} />);
+    onDeleteBlock(true);
+    expect(userInputRecently()).toBe(false);
+  });
+
+  // The other branch — nothing above to join into, so a paragraph is kept. The
+  // caret lands on exactly that paragraph, which is the line the mint watches.
+  it("spends the gesture when it keeps the empty paragraph", () => {
+    stampUserInput();
+    const ed = makeEditor(null);
+    render(<InstanceTextblockNode {...props(ed)} />);
+    onDeleteBlock(true);
+    expect(userInputRecently()).toBe(false);
+  });
+
+  // THE CONTROL, and it is the whole reason this is not done in
+  // `handleEmptyBlur`: a click that lands on ANOTHER empty line is a real
+  // gesture and must still mint there. Consuming it is the user's other report
+  // — *"it removes the old one but never creates a new one"* — written by hand.
+  it("leaves the window alone when the block is merely rendered", () => {
+    stampUserInput();
+    const ed = makeEditor({ type: { name: "paragraph", inlineContent: true } });
+    render(<InstanceTextblockNode {...props(ed)} />);
+    expect(userInputRecently()).toBe(true);
   });
 });

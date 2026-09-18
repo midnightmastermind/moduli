@@ -45,3 +45,38 @@ export function caretPosBeforeBlock(prevSibling, pos) {
   if (typeof pos !== "number" || pos <= 0) return null;
   return pos - 1;
 }
+
+/**
+ * Put the caret at the END of a doc, or as close as the schema allows.
+ *
+ * `focus("end")` asks for a TextSelection at `doc.content.size`, and a doc whose
+ * LAST node is an ATOM has no inline position there — so it throws
+ *
+ *     TextSelection endpoint not pointing into a node with inline content (doc)
+ *
+ * which the user hit on 2026-09-18, alongside the [mint] tables. A textblock IS
+ * an atom, so any doc ending in one — an import, an embed, a block minted before
+ * the mint learned to leave a trailing paragraph — is in that state, and the
+ * throw comes from CLICKING THE PADDING BELOW IT: an ordinary gesture on an
+ * ordinary document.
+ *
+ * `Editor.jsx`'s padding-click already caught this; `DocContent.jsx`'s
+ * padding-click, the same decision one file over, never did. Both call this now,
+ * so there is one answer to "what does clicking the empty space below a document
+ * do" rather than two that drift.
+ *
+ * Falls back to a plain `focus()` — the caret lands wherever the editor last had
+ * it, which is strictly better than the click doing nothing.
+ *
+ * @returns {"end"|"fallback"|"failed"|"no-editor"} which branch ran — the caller
+ *   logs it, so a document that can never take an end-caret is visible rather
+ *   than silent.
+ */
+export function focusDocEnd(editor) {
+  if (!editor || editor.isDestroyed) return "no-editor";
+  try { editor.commands.focus("end"); return "end"; }
+  catch (_) {
+    try { editor.commands.focus(); return "fallback"; }
+    catch (_) { return "failed"; }
+  }
+}

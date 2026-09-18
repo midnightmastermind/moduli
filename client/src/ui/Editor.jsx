@@ -22,6 +22,7 @@ import {
   forwardRef, useImperativeHandle, useSyncExternalStore,
 } from "react";
 import { subscribeForceSync, getForceSyncToken } from "../helpers/editorSyncSignal";
+import { focusDocEnd } from "../helpers/caretLanding";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { watchRegion, claimExclusiveGap, releaseExclusiveGap } from "../helpers/gapHover.js";
 import StarterKit from "@tiptap/starter-kit";
@@ -92,7 +93,7 @@ import { toast } from "sonner";
 import QuickAddMenu from "./QuickAddMenu.jsx";
 import { Bold, Italic, Strikethrough, Code, RemoveFormatting, AtSign, List, Box, Type, Plus, Shuffle } from "lucide-react";
 import { convertLeafRole } from "../helpers/convertOccurrence";
-import { claimTextblockFocus, releaseTextblockFocus, hasTextblockFocus } from "../helpers/pendingTextblockFocus";
+import { claimTextblockFocus, releaseTextblockFocus, hasTextblockFocus, requestTextblockFocus } from "../helpers/pendingTextblockFocus";
 import { markLoad } from "../helpers/loadDiag";
 import { mintMark } from "../helpers/mintDiag";
 import {
@@ -552,11 +553,43 @@ const Editor = forwardRef(function Editor({
   // A vanish scheduled by a blur must not outlive the component that scheduled
   // it — see the onBlur handler.
   const vanishTimerRef = useRef(0);
+  // Read in the cleanup below, which closes over the FIRST render.
+  const occIdRef = useRef(occurrence?.id || null);
+  occIdRef.current = occurrence?.id || null;
   useEffect(() => () => {
-    if (vanishTimerRef.current) {
-      clearTimeout(vanishTimerRef.current);
-      vanishTimerRef.current = 0;
-      mintMark("vanish:cancelled", { why: "unmounted-before-it-ran" });
+    if (!vanishTimerRef.current) return;
+    clearTimeout(vanishTimerRef.current);
+    vanishTimerRef.current = 0;
+    mintMark("vanish:cancelled", { why: "unmounted-before-it-ran" });
+    // ── AND TAKE THE CARET BACK ──────────────────────────────────────────
+    //
+    // Cancelling the vanish keeps the BLOCK; it does not keep the CARET. The
+    // teardown blurs the editor, focus falls to the parent doc, and the
+    // recreated view has nothing to claim — because the claim was already
+    // spent when the caret first landed. The user's [mint] table, 2026-09-18,
+    // on a block they had just clicked into:
+    //
+    //      31  focus:claimed  963c41a1  content-sync
+    //      35  editor:focus   963c41a1            <- landed, claim released
+    //     223  editor:blur    963c41a1  empty=true
+    //     223  editor:focus   b93dc523            <- the PARENT takes it
+    //     236  editor:destroy / editor:create     <- the recreation
+    //     256  focus:none     963c41a1  onCreate  <- nothing left to claim
+    //
+    // which is *"empty textblocks losing focus and having it on the next line
+    // after (the typing cursor) with no textblock created there"*. The SAME
+    // recreation is harmless when the caret has not landed yet — the claim is
+    // still outstanding and the new view re-claims it (t=1519 in that table).
+    // So the recreation was never the thing to fix; the spent claim was.
+    //
+    // Re-requesting here needs no theory about WHY the view was recreated, and
+    // the discriminator is already earned: a vanish pending at unmount means
+    // this component was focused and empty ONE macrotask ago, which a user
+    // moving away cannot produce.
+    const id = occIdRef.current;
+    if (id && isProvisionalTextblock(id)) {
+      requestTextblockFocus(id);
+      mintMark("focus:reclaimed", { occId: id.slice(0, 8), at: "teardown" });
     }
   }, []);
 
@@ -2787,8 +2820,10 @@ const Editor = forwardRef(function Editor({
           // Guard: when the doc ends in an ATOM (embed/textblock), 'end' is a
           // doc-level position with no inline content → ProseMirror throws
           // "TextSelection endpoint not pointing into a node with inline content".
-          logCaretInterference("editor.padding-click focus('end')", { occId: (occurrence?.id || "").slice(0, 8) });
-          try { editor.commands.focus('end'); } catch (_) { try { editor.commands.focus(); } catch (_) {} }
+          // Shared with DocContent's padding-click — see focusDocEnd. The guard
+          // used to live only here, so the same click one file over threw.
+          const how = focusDocEnd(editor);
+          logCaretInterference("editor.padding-click focus('end')", { occId: (occurrence?.id || "").slice(0, 8), how });
         }}
       >
         <CellEmbedContext.Provider value={{ displayFieldId, fieldVisibility, hideLabel, __inCell: true }}>

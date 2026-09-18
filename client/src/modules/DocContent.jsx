@@ -3,6 +3,7 @@
 // Extracted from containerHelpers.jsx.
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
+import { focusDocEnd } from "../helpers/caretLanding";
 import Editor from "../ui/Editor";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { Lock, Unlock } from "lucide-react";
@@ -410,10 +411,14 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
         if (!editor || !editor.isEditable) return;
         // Use 'end' so TipTap doesn't default to editor.state.selection (pos 1
         // for an unfocused editor), which always places cursor at the beginning.
+        // A doc ending in an ATOM (a textblock, an embed) has no inline
+        // position at `doc.content.size`, so a bare focus("end") THROWS — the
+        // `TextSelection ... (doc)` the user reported on 2026-09-18. Shared
+        // with Editor.jsx's padding-click so the two cannot answer differently.
+        const how = focusDocEnd(editor);
         logCaretInterference("docContent.padding-click focus('end')", {
-          occId: (occurrence?.id || "").slice(0, 8),
+          occId: (occurrence?.id || "").slice(0, 8), how,
         });
-        editor.commands.focus('end');
       }}
     >
       {(showLockBtn || isLocked) && (

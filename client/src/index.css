@@ -1828,6 +1828,36 @@ body[data-drag-kind="panel"] .container-shell {
   flex: 1;
 }
 
+/* ── NO CARET ON AN EMPTY DOC LINE ──────────────────────────────────────────
+   User 2026-09-18: *"id like the input cursor to not show up on an empty line
+   (before the textblock is created), is it possible to have it but hide it
+   (this should be for outside textblocks, not inside of them)."*
+
+   An empty line in a doc BODY is not somewhere you type — clicking it mints a
+   textblock and the caret moves into that block, whose caret is the real one.
+   Two carets in two elements a few pixels apart is what reads as the cursor
+   being "on the next line with no textblock there".
+
+   HIDDEN, NOT REMOVED: `caret-color: transparent` keeps the selection exactly
+   where it is, so the click still focuses the line and the mint's own
+   focus/recent-input checks are untouched. Nothing about the behaviour moves.
+
+   Matched on ProseMirror's OWN trailing hack rather than the Placeholder
+   plugin's `is-empty`: prosemirror-view appends `<br class=ProseMirror-
+   trailingBreak>` to an empty textblock from core (dist/index.js:1993), so this
+   cannot be turned off by a Placeholder config change. `:only-child` is what
+   restricts it to an EMPTY line — a paragraph ending in a hard break carries
+   the same br with a sibling before it. */
+.doc-editor-content.ProseMirror p:has(> br.ProseMirror-trailingBreak:only-child) {
+  caret-color: transparent;
+}
+/* …but INSIDE a textblock the caret IS the writing cursor. Higher specificity
+   than the rule above, so it wins wherever both match. */
+.textblock-card .doc-editor-content.ProseMirror p:has(> br.ProseMirror-trailingBreak:only-child),
+.instance-textblock-inline .doc-editor-content.ProseMirror p:has(> br.ProseMirror-trailingBreak:only-child) {
+  caret-color: auto;
+}
+
 .doc-editor-content.ProseMirror {
   /* Body sits BELOW the deepest heading. At 13 it outsized the `####` question
      header, so the hierarchy read upside-down at the bottom (user 2026-08-01:
