@@ -99,6 +99,69 @@ drawer**, so the confirm card and the model choosing these tools are unexercised
 
 ---
 
+### 2026-09-18 — THE CLAIM WAS MADE TOO LATE TO BE HEARD; and CLAUDE.md was 1.1M characters
+
+Picked up the other account's session, which died on **"Prompt is too long · automatic compaction
+failed"** — this file at **1,106,326 characters** was the cause. Archived first, at the user's ask:
+`CLAUDE.backup.2026-09-18.md` holds every entry from 2026-09-15 (6) back, VERBATIM. Split, not
+summarised, and verified rather than assumed — **305 headings = 49 live + 256 archived, zero lost,
+zero in both**, with each half asserted to be a substring of the original. 1,106,326 -> 91,846.
+*A log past what a session can read is the same as no log, except it also costs the context it
+does use.*
+
+**THE USER GAVE A SPEC, and it is the deliverable:** *"each click should, negate the last empty
+textblock, and then focus on a new textblock. but when clicked off and empty, it should
+disappear."* Plus two new specifics — the new block is **NOT focused**, and a vanished one **comes
+back**.
+
+**THE FOCUS CLAIM WAS MADE AFTER THE TRANSACTION THAT IT HAD TO BE HEARD BY.**
+`editor.view.dispatch` runs handlers SYNCHRONOUSLY and the sub-editor claims the caret in its own
+`onCreate`, so `requestTextblockFocus(occId)` sitting after the dispatch can arrive too late to be
+seen. **And that single ordering explains BOTH halves of the report**: the block mounts unfocused
+(*"it creates a textblock (not focused)"*), and the vanish path is `onBlur` — **a block that never
+focused never blurs, so it never disappears.** The file already knew the rule and applied it to the
+registry entry ten lines up: *"REGISTER BEFORE the transaction ... an entry added afterwards is too
+late."* The caret claim has the identical requirement and was left after it.
+
+**AND THE MINT NOW STATES THE INVARIANT RATHER THAN RELYING ON THE BLUR.** A provisional block is
+empty and unclaimed BY DEFINITION — typing commits it out of the registry on the first character —
+so when a new one is minted every other one is garbage the vanish path failed to collect.
+`planStaleCollapses` runs in the **SAME transaction as the insert**, which removes the ordering
+hazard rather than managing it: `nodeStart` was computed by the caller against the pre-edit doc, so
+collapsing first would invalidate it. Planned against `tr.doc` and applied **DESCENDING** —
+replacing at one position shifts everything after it, so a top-down plan invalidates its own later
+entries. Back to an empty LINE, never deleted: the user clicked that line.
+
+**ONE OF MY OWN GUARDS WAS VACUOUS AND ONLY THE A/B SAID SO.** The "claimed before the dispatch"
+assertion used a bare `src.indexOf`, which matched the **AUTO-CREATE path's** claim earlier in the
+file — before every dispatch, so it **passed against the exact defect it exists to catch**. Scoped
+to the mint's own body it fails correctly. *An ordering assertion over a whole file is a claim about
+which occurrence you matched.* Every other mutation discriminates with the change asserted to land:
+ascending order fails 2, collapsing the just-minted block fails 6, and dropping the `isPending`
+check — the guard that stops this touching writing the user did — fails EXACTLY its own one test.
+
+**THE DIAGNOSTIC IS ON BY DEFAULT** (`window.__mintDiag = false` mutes) — a report should cost the
+person seeing it no setup. Three marks were added for the three things they described, and one of
+them exists because the case was **SILENT**: `focus:none` fires when a provisional block mounts with
+NO outstanding claim, which is precisely what a late claim produces and which neither existing
+branch reported. `focus:requested` dates the claim against `editor:create`; `block:zombie` names a
+node whose occurrence resolves from neither the store nor the registry — the shape of *"it will pop
+up again randomly"*, i.e. the parent textmap re-synced from a copy that still embeds it.
+
+4,456 client tests across 382 of 385 files, **zero failures** (the 3 incomplete are the documented
+OOM family). Deployed; client-only, so `deploy.sh` correctly reported *"Server unchanged — NOT
+restarting"*. Prod HEAD `9dbba40f` verified over SSH, index + entry chunk 200, the served
+`PagePreviewApp` **sha256-identical** to the local build carrying all five new marks with three
+pre-existing controls, and `__mintDiag!==!1` in the served bytes with **zero** of the `=== true`
+form — so it really is on.
+
+**NOT VERIFIED, and it is the honest gap: nobody has clicked two empty lines on the deployed
+build.** The ordering fix is reasoned from the synchronous dispatch and pinned by a source guard;
+the collapse is pinned by a pure planner. Neither has been watched. One click each way with the
+console open settles it, and the table prints itself.
+
+---
+
 ### 2026-09-17 (6) — A DOC TRACKED EVERY MINTED BLOCK IN TWO SINGLE SLOTS; and the video is still not explained
 
 Picked up the other account's session (limit hit at 22:26, mid-edit, `DocContent.jsx` dirty with
