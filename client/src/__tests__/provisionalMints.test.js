@@ -8,6 +8,8 @@
  * early FOREVER. The parent document stops saving and says nothing.
  */
 import { describe, test, expect, vi } from "vitest";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import { createMintLedger } from "../helpers/provisionalMints";
 
 describe("createMintLedger", () => {
@@ -66,5 +68,32 @@ describe("createMintLedger", () => {
     l.add(null); l.settle(null); l.settle("never-added");
     l.add("a");
     expect(l.drain()).toEqual(["a"]);
+  });
+});
+
+// ── THE WIRING, WHICH NO TEST CAN MOUNT ────────────────────────────────────
+//
+// DocContent's mint path needs the whole grid store, so the ledger above is
+// where the decision is testable — and a source guard is what stops the two
+// single slots coming back and taking the fix with them.
+describe("DocContent uses the ledger, not a single slot", () => {
+  const src = readFileSync(resolve(__dirname, "../modules/DocContent.jsx"), "utf-8");
+
+  test("the ledger is wired", () => {
+    expect(src).toContain("createMintLedger");
+    expect(src).toContain("ledger.drain()");
+  });
+
+  // The exact shapes that held only the LAST minted block.
+  test("neither single slot is back", () => {
+    expect(src).not.toContain("provisionalOccIdRef");
+    expect(src).not.toContain("mintWritesRef");
+  });
+
+  // The CONTROL: without it, "no single slot" also passes against a file where
+  // the whole mint path was deleted.
+  test("the mint path is still there", () => {
+    expect(src).toContain("registerProvisionalTextblock");
+    expect(src).toContain("handleCaretMintTextblock");
   });
 });

@@ -233,7 +233,36 @@ before painting, so rewriting the user's prose for no visible change is churn. C
 narrows to **21 — the same 21 `0333` found**, which is independent confirmation it is the same set in
 the field that renders. Applied, read back clean.
 
-**THE ERRATIC EMPTY TEXTBLOCKS: NOTHING WAS LOST, and that is measured rather than reassuring.**
+**THE ERRATIC EMPTY TEXTBLOCKS: TWO SINGLE SLOTS FOR A MAP, and the leak STOPS THE DOC SAVING.**
+User: *"you can see it happening in the video, thats proof."* They were right, and my "I could not
+reproduce it headlessly" was not a reason to stop — the recording IS the measurement. Five probe runs
+never reached a clickable empty line (the article's sit below a scroller that moved `0 -> 3902` while
+they moved 6px), and that is a fact about the probe, not the bug.
+
+Reading the mint path with the video's symptoms in hand found it. `DocContent` tracked its
+click-minted blocks in **two single slots** while the registry they feed is a **Map**:
+```
+const provisionalOccIdRef = useRef(null);   // the LAST id
+const mintWritesRef       = useRef(null);   // the LAST pending write
+```
+One empty line is fine. The video shows THREE blocks at once, and then:
+- **The unmount cleanup discards only the LAST id**, so every earlier block LEAKS in the registry.
+  **That is not cosmetic:** `Editor.persistContent` returns early while `hasProvisionalTextblock(json)`
+  is true, and a leaked entry whose node is still in the document keeps it true FOREVER — **the parent
+  doc silently stops saving and every later edit is dropped.** That is the "finicky as hell".
+- **Minting a second block CANCELLED the first's store writes**, denying a block still on screen its
+  server row. The `isProvisionalTextblock` guard inside the deferred write already covers the case
+  that cancel was written for (an abandoned block), so cancelling a DIFFERENT block was never needed.
+
+`helpers/provisionalMints.createMintLedger` is that bookkeeping where it can be tested — DocContent's
+mint path needs the whole grid store, so a source guard pins the wiring (with a control that the mint
+path still exists, or "no single slot" also passes against a file with the feature deleted). A/B'd:
+reinstating the last-only slot fails exactly the four cases that describe it.
+
+**AND THE ORIGINAL SYMPTOM IS STILL NOT FULLY ACCOUNTED FOR.** This explains blocks surviving and a
+document going quiet; it does not explain a single click minting on TWO lines. Said plainly.
+
+**NOTHING WAS LOST, and that is measured rather than reassuring.**
 ```
 block textblocks 717 · empty 54 · empty AND created today  0
 ```
