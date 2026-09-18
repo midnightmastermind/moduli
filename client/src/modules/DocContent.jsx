@@ -397,10 +397,23 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
     );
   }
 
+  // WHETHER THIS EDITOR MINTS, stamped so CSS can key on it. Derived from the
+  // SAME expression the two mint props use below (`onExitBlock ? null : …`), and
+  // read from this one const by all three, so the class cannot drift from the
+  // behaviour. A textblock BODY is handed `onExitBlock` and therefore never
+  // mints; a doc PAGE or CONTAINER does.
+  //
+  // It exists because the caret rule guessed a wrapper class and was wrong: the
+  // in-doc block renders DocContent with NO `.textblock-card` around it (that
+  // class is the board-row rendering), so the override matched nothing and the
+  // caret vanished inside textblocks too. A class computed from the condition
+  // itself cannot be wrong about the condition.
+  const mintsOnEmptyLine = !onExitBlock;
+
   return (
     <div
       ref={wrapRef}
-      className="doc-container flex flex-col flex-1 min-h-0 relative"
+      className={`doc-container flex flex-col flex-1 min-h-0 relative${mintsOnEmptyLine ? " doc-editor--mints" : ""}`}
       onMouseEnter={() => setShowLockBtn(true)}
       onMouseLeave={() => setShowLockBtn(false)}
       style={{ cursor: isLocked ? "default" : "text" }}
@@ -448,10 +461,10 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
         onExitBlock={onExitBlock}
         onDeleteBlock={onDeleteBlock}
         recentAutoCreateRef={recentAutoCreateRef}
-        onAutoCreateTextblock={onExitBlock ? null : (onAutoCreateTextblock || handleAutoCreateTextblock)}
+        onAutoCreateTextblock={mintsOnEmptyLine ? (onAutoCreateTextblock || handleAutoCreateTextblock) : null}
         // Same gate as auto-create: PRIMARY doc editors only, never a textblock
         // sub-editor (which is itself the thing being minted) or a table cell.
-        onCaretMintTextblock={onExitBlock ? null : handleCaretMintTextblock}
+        onCaretMintTextblock={mintsOnEmptyLine ? handleCaretMintTextblock : null}
         onEmptyBlur={onEmptyBlur}
         enableInsertGaps={!onExitBlock && !onDeleteBlock}
       />

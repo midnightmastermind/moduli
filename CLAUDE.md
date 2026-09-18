@@ -130,6 +130,48 @@ value VERBATIM, not a token you assumed it would keep* — the same trap this fi
 
 ---
 
+**RETRACTED THE SAME HOUR: THE CARET RULE BLANKED IT INSIDE TEXTBLOCKS TOO.** User: *"the input
+cursor should still be INSIDE the textblock, i specified that. currently thats gone as well."*
+The restore was keyed on `.textblock-card` — **and the in-doc block never carries it.**
+`ModuleTextblock` routes `context === "card"` (the BOARD ROW) through `TextblockCard`, the only
+thing that renders that class; `context === "block"` returns `DocContent` **bare**. So the override
+matched nothing, the broad rule reached the nested editor as a descendant, and the caret went out
+everywhere.
+
+***AND THE "VERIFICATION" WAS A DOM I WROTE MYSELF.*** The probe's fixture put
+`.textblock-card` around the inner editor because that is what I assumed, so it reported five
+controls passing against a structure the app does not produce. *A measurement against a fixture you
+invented is a measurement of your assumption* — the same class as the 2026-09-16 (3) entry measuring
+a different article, reached from the DOM side.
+
+**THE FIX STOPS GUESSING AT DOM AND ASKS THE THING THAT DECIDES.** `onCaretMintTextblock={onExitBlock
+? null : …}` is what makes a line mintable, so `DocContent` computes `mintsOnEmptyLine = !onExitBlock`
+ONCE and feeds it to the class AND both mint props. The class cannot be wrong about the condition
+because it IS the condition. **And the second rule is still required**: a textblock body sits inside
+the page editor, so the first rule reaches it as a descendant.
+
+**THE STRUCTURAL ALTERNATIVE — "an editor inside an editor" — WOULD HAVE BEEN WRONG, and only asking
+what mints showed it.** A NESTED DOC CONTAINER is also an editor inside an editor, and it DOES mint,
+so its empty line must stay hidden. That case is now a control in the probe:
+```
+                          shipped CSS      fixed
+page empty line           hidden           hidden
+prose / hard-break        visible          visible
+INSIDE a textblock        hidden  <- bug   visible
+nested doc container      hidden           hidden   <- the case the structural rule breaks
+```
+Both engines, against the structure read off the components (`.doc-container[.doc-editor--mints]` >
+`.doc-editor-content.ProseMirror` > `.instance-textblock-block` > a second `DocContent`; node views
+live in the editor's own DOM, which `index.css:1919`'s `.doc-editor-content.ProseMirror
+.container-shell` and the 2026-08-01 (17) nested-editor bug both attest). **The A/B runs the CSS the
+user is actually seeing and reproduces their report exactly** — `block-empty: hidden`.
+
+**AND MY FIRST TWO GUARDS FAILED ON THEIR OWN COMMENT.** They grepped for `.textblock-card` and
+`caret-color` in `index.css`, and the comment above the rules NAMES both while explaining why
+neither belongs there — the `noDomainKnowledge` trap, from the CSS side. They strip comments the way
+a parser does now. 7 tests, both halves A/B'd: restoring the shipped pair fails 3, letting a mint
+prop re-derive `onExitBlock` behind the class's back fails 2.
+
 **STILL UNEXPLAINED, and said plainly: what recreates the node view.** `nv` incrementing proves
 ProseMirror recreated it rather than React re-rendering, and the parent doc logs **no `onUpdate`**
 between the mint and the recreation — so it is not a doc transaction. The re-claim makes it
