@@ -90,6 +90,86 @@ drawer**, so the confirm card and the model choosing these tools are unexercised
 
 ---
 
+### 2026-09-17 (6) — A DOC TRACKED EVERY MINTED BLOCK IN TWO SINGLE SLOTS; and the video is still not explained
+
+Picked up the other account's session (limit hit at 22:26, mid-edit, `DocContent.jsx` dirty with
+`helpers/provisionalMints.js` + its test untracked). Its last user message was *"you can see it
+happening in the video, thats proof that the empty textblocks being created by clicking an empty
+line is finicky as hell"* — and it was right to stop demanding its own repro, because the video IS
+the measurement.
+
+**WHAT IT FOUND IS REAL AND IS WORSE THAN THE REPORT.** `DocContent` held its click-minted
+provisional blocks in **two single slots** — `provisionalOccIdRef` (one id) and `mintWritesRef`
+(one cancel) — while the registry they feed (`helpers/provisionalTextblock`) is a MAP. One click is
+fine; the user clicks several, and then:
+```
+unmount cleanup   discards only the LAST id  ->  every earlier block LEAKS in the registry
+minting block B   cancels block A's writes   ->  a block still on screen loses its local row
+```
+**THE LEAK IS SILENT DATA LOSS, not cosmetic.** `Editor.persistContent` returns early while
+`hasProvisionalTextblock(json)` is true, and that walk asks whether the doc embeds a node whose
+occurrenceId is still in `pending` — so **a leaked entry whose node is still in the document keeps
+it true FOREVER and the parent document stops saving.** Verified by reading both ends
+(`Editor.jsx:528`, `provisionalTextblock.js:130`) rather than inheriting the claim.
+
+**THE SECOND HALF WAS NEVER NEEDED.** The deferred write already re-checks
+`isProvisionalTextblock(occId)` before writing, which is the case the pre-emptive cancel was written
+for (an abandoned block). Cancelling a DIFFERENT block was always wrong.
+
+`createMintLedger` is that bookkeeping as a testable unit, out of `DocContent` because mounting it
+needs the whole grid store. **A/B'd by rebuilding the old single-slot behaviour INSIDE the ledger** —
+the honest shape for new code, since a passing suite otherwise only proves the new code agrees with
+itself: 4 of 6 fail, each for its own reason (the leak reads `expected 1 to be 3`). **The other 2
+pass either way and are NOT counted as coverage.**
+
+**AND IT DOES NOT EXPLAIN THE VIDEO — said plainly rather than folded into the fix.** A leaked
+registry entry and a cancelled local write do not make a block on screen refuse to disappear. The
+vanish path is `Editor.onBlur → onEmptyBlur → handleEmptyBlur`, and **a block can only blur if it
+focused first**, so the open question is which of those two never happened.
+
+**THREE CANDIDATES RULED OUT BY READING, so the next session does not re-walk them:**
+```
+double-mint on one line   emptyLineAtCaret requires depth 1 + an EMPTY paragraph — it cannot
+                          target a line already holding an instanceTextblock
+lazy editor destroying    useLazyEditor is setLive(true) only; `live` is genuinely ONE-WAY
+  a live block            (CLAUDE.md asserted this; now verified at the line)
+mint firing twice         the check is coalesced, deferred, focus-gated, input-gated,
+  per click               empty-line-gated and suppression-gated
+```
+
+**THE DIAGNOSTIC COULD NOT HAVE ANSWERED IT, AND THAT IS WHY THIS SESSION SHIPPED ONE.** `[mint]`
+**recorded into `window.__mintMarks` and NEVER PRINTED** — using it meant knowing to type
+`console.table(window.__mintMarks)`, on a report whose whole value is one click from the person who
+can see it. And it only ever covered the MINT: the vanish path had **no marks at all**, which is
+precisely the half (5) recorded as unexplained. It prints itself now (1200ms after the last mark, so
+a mint and the blur that undoes it land in the SAME table) and names both ends — `focus:claimed`
+(with which claim site won), `editor:focus`, `editor:blur` (empty? has a vanish handler?),
+`vanish:skip` **with the guard that bailed**, `vanish:fire`, `emptyBlur:skip`/`collapse`.
+**OFF is completely inert** — no marks, no timer, no print — and that is the contract under test,
+because this runs on every click into an empty line. A/B'd: reverting to record-but-never-print
+fails both "prints" tests while the three off-is-inert pins pass either way.
+
+**NOT BUILT, deliberately, and the seam is named so it is one session's work.** The defensible fix
+if the measurement confirms a missing blur is *"at most one provisional block"* — minting B discards
+any still-provisional A — since a provisional block is empty and unclaimed by definition, and typing
+commits it out of that state. `embedDeleteRegistry.get(occId)?.()` is the existing seam that removes
+the node. **The hazard is ORDERING**: `handleCaretMintTextblock` is handed `nodeStart` by the
+caller, so removing A's node first makes B's position stale. That is surgery on the mint path at the
+end of a long session, which this file records going badly.
+
+4,437 client tests across 380 of 383 files; the 3 incomplete are the documented OOM family
+(`trackerValues` named in the run) — **zero `FAIL`, zero `×`**, and nothing here goes near the
+tracker executor. Deployed, client-only so `deploy.sh` correctly reported *"Server unchanged — NOT
+restarting"*. Prod HEAD `d5d29467` verified over SSH, index + entry chunk 200, both served chunks
+**sha256-identical** to the local build, and all six new marks present in the SERVED
+`PagePreviewApp` with three pre-existing controls — **`App` reading 0 for the CONTROLS too, which is
+the documented wrong-chunk tell.**
+
+**THE ONE-MINUTE STEP THAT SETTLES IT:** `window.__mintDiag = true` in the console, then reproduce
+the video once. The table prints itself and names which guard bailed.
+
+---
+
 ### 2026-09-17 (5) — THE `embed: missing` IS PROSEMIRROR'S OWN FILLER; and 0333 verified the field it WROTE, not the field the RENDERER reads
 
 Picked up the other account's session (monthly spend limit, 20:50, mid-wiring). Its open item was the
