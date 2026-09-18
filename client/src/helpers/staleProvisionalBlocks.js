@@ -1,5 +1,10 @@
 // helpers/staleProvisionalBlocks.js
 //
+// WHERE instanceTextblock nodes SIT IN A DOC — the position questions the mint
+// and the vanish both have to answer. Pure, because `DocContent`'s mint cannot be
+// mounted without the whole grid store and positions are the part that is easy to
+// get wrong.
+//
 // ONE PROVISIONAL BLOCK AT A TIME.
 //
 // User, 2026-09-18: *"i click on a line, it creates a textblock (not focused), i
@@ -83,4 +88,35 @@ export function findBlockPos(doc, occurrenceId) {
     return false;
   });
   return found;
+}
+
+/**
+ * A DOC MUST NOT END WITH AN ATOM.
+ *
+ * The mint replaces an empty LINE with an `instanceTextblock`, which is an atom —
+ * it holds no inline content. Do that on the last line and the document ends with
+ * a node the caret cannot be placed in or after, and ProseMirror says so:
+ *
+ *     TextSelection endpoint not pointing into a node with inline content (doc)
+ *
+ * User, 2026-09-18: *"it seems to be the last line (where it doesnt get created)
+ * and the second last line, creates it but disappears"*, and *"the last line of a
+ * doccontainer too"* — a position-shaped report, which is what pointed here.
+ *
+ * This codebase already knows the mirror case: the backspace path keeps an empty
+ * paragraph when there is nothing ABOVE to join into, because "a doc whose only
+ * block is deleted leaves ProseMirror with no valid cursor position". The mint has
+ * the same problem at the other end and never got the same treatment.
+ *
+ * @returns {number|null} the position to insert a trailing paragraph, or null when
+ *   the block is not last and nothing is needed.
+ */
+export function trailingParagraphPos(doc, blockPos, blockSize) {
+  if (!doc || typeof blockPos !== "number" || typeof blockSize !== "number") return null;
+  const size = doc.content?.size;
+  if (typeof size !== "number") return null;
+  const end = blockPos + blockSize;
+  // Only when the block is genuinely the LAST thing in the document. A block with
+  // anything after it already has somewhere for the caret to go.
+  return end >= size ? end : null;
 }

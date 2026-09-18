@@ -179,3 +179,36 @@ describe("findBlockPos", () => {
     expect(findBlockPos(doc, null)).toBeNull();
   });
 });
+
+// ── trailingParagraphPos ───────────────────────────────────────────────────
+//
+// User, 2026-09-18: *"it seems to be the last line (where it doesnt get created)
+// and the second last line, creates it but disappears"* / *"the last line of a
+// doccontainer too"*. An instanceTextblock is an ATOM; a doc ending in one has no
+// caret position after it, which is the `TextSelection ... (doc)` throw in their
+// console.
+import { trailingParagraphPos } from "../helpers/staleProvisionalBlocks";
+
+describe("trailingParagraphPos", () => {
+  const doc = (size) => ({ content: { size } });
+
+  test("asks for a trailing paragraph when the block ends the doc", () => {
+    expect(trailingParagraphPos(doc(10), 8, 2)).toBe(10);
+  });
+
+  // THE CONTROL: a block with anything after it already has somewhere for the
+  // caret to go, and inserting there would add a blank line on every mint.
+  test("asks for nothing when something follows the block", () => {
+    expect(trailingParagraphPos(doc(20), 8, 2)).toBeNull();
+  });
+
+  test("still asks when the block is the ONLY node", () => {
+    expect(trailingParagraphPos(doc(2), 0, 2)).toBe(2);
+  });
+
+  test("is inert for a missing doc or non-numeric geometry", () => {
+    expect(trailingParagraphPos(null, 0, 2)).toBeNull();
+    expect(trailingParagraphPos(doc(10), undefined, 2)).toBeNull();
+    expect(trailingParagraphPos({}, 0, 2)).toBeNull();
+  });
+});

@@ -12,7 +12,7 @@ import { registerProvisionalTextblock, discardProvisionalTextblock, isProvisiona
 import { mintStep, mintMark } from "../helpers/mintDiag";
 import { useLazyEditor, LAZY_PLACEHOLDER_CLASS } from "../helpers/lazyEditor.js";
 import { createMintLedger } from "../helpers/provisionalMints.js";
-import { planStaleCollapses } from "../helpers/staleProvisionalBlocks.js";
+import { planStaleCollapses, trailingParagraphPos } from "../helpers/staleProvisionalBlocks.js";
 import { afterPaint } from "../helpers/afterPaint";
 
 // One plain-text string per top-level block. Roughly height-matched — and, just as
@@ -316,7 +316,20 @@ export const DocContent = React.memo(function DocContent({ occurrence, dispatch,
       tr.replaceWith(st.pos, st.pos + st.size, para);
     }
 
+    // A DOC MUST NOT END WITH AN ATOM. The node just inserted is one, so if it
+    // landed on the LAST line the document now ends with something the caret
+    // cannot be placed in or after — which is the `TextSelection ... (doc)` throw
+    // in the user's console, and their *"the last line ... doesnt get created"*.
+    // The caret needs somewhere to go; this gives it one. Computed AFTER the
+    // replace so the geometry is the post-edit doc's.
+    const tailAt = trailingParagraphPos(tr.doc, nodeStart, 1);
+    if (tailAt != null) {
+      const tailPara = schema.nodes.paragraph?.create();
+      if (tailPara) tr.insert(tailAt, tailPara);
+    }
+
     mintStep("replaceLine", () => editor.view.dispatch(tr));
+    if (tailAt != null) mintMark("mint:tail-paragraph", { at: tailAt });
 
     // Local removal only — a provisional block was never emitted, so this cannot
     // race a create the way deleting a real row would.
