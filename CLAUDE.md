@@ -34,6 +34,13 @@ Day Page next day         9254ms       966ms visible · blocked 9409 -> 1163ms
 Day Page prev day        10903ms       734ms
 toolbar prev day   busy 13387ms      2216ms
 ```
+**TOOLBAR STEP, SAME SESSION: an echoed FEED COPY ran the whole OccurrenceCreateOp sweep in every OTHER
+tab** (11 x ~145ms per date step). The minting tab uses `fireTrigger: false`; the echo was unmarked
+elsewhere. `onOccurrenceCreated` now skips `meta.feedSourceId` (`826722f7`). **OPEN: two tabs each MATERIALISE
+the same feeds** — one mints 11, the other's copies arrive as duplicates, each sweeps the other's (`swept 10`,
+`swept 13`, `minted 6` in one step). Wants one feed-syncing tab (or server-side sync), not a patch.
+**AND A PROBE THAT CLICKS THE TOOLBAR DATE MOVES THE USER'S GRID** — `grid.activeFilterValues` is shared.
+A next-day-only run left poms grid on Sep 20 for ~77s; stepped back through the app. Always pair the steps.
 Also fixed a stale `deleteVerb` source guard left failing by `9c43d5b2`. Client 4,631 pass. Prod `8d4842d5`,
 served index chunk sha-matched. **Not re-watched by a person.**
 
