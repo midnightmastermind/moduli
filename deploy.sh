@@ -113,7 +113,7 @@ ssh "$REMOTE_HOST" bash -s -- "$REMOTE_DIR" "${DEPLOY_RESTART:-}" <<'REMOTE'
   if [ -n "$BEFORE" ] && [ "$BEFORE" != "$AFTER" ]; then
     CHANGED=$(git diff --name-only "$BEFORE" "$AFTER")
     # printf, not echo: CHANGED is multi-line and must reach grep as lines.
-    if [ -n "$CHANGED" ] && ! printf '%s\n' "$CHANGED" | grep -qvE '^(client/|docs/|screenshots/|\.remember/|deploy(data)?\.sh$|[^/]*\.md$)'; then
+    if [ -n "$CHANGED" ] && ! printf '%s\n' "$CHANGED" | grep -qvE '^(client/|docs/|screenshots/|\.remember/|deploy(data)?\.sh$|.*\.md$)'; then
       RESTART=0
     fi
   fi
