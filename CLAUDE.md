@@ -44,6 +44,16 @@ once on joining (ONCE — twice would ping-pong two focused devices); a disconne
 Verified on prod with two headless tabs: A synced alone, B opened and claimed, A went silent, B synced.
 **AND A PROBE THAT CLICKS THE TOOLBAR DATE MOVES THE USER'S GRID** — `grid.activeFilterValues` is shared.
 A next-day-only run left poms grid on Sep 20 for ~77s; stepped back through the app. Always pair the steps.
+**AND EVERY TAB RE-RAN THE DATE-CHANGE OPS.** `onGridUpdated` fired the full NavigationOp sweep in each tab
+that RECEIVED a toolbar date change, so every tab rebuilt the same columns and handled the other's echoes
+(~5.7s per step with two tabs). `67f45025`: socket-originated `grid_updated` carries `originSocketId`; receivers
+skip the ops; an untagged change (REST) runs in the sync leader only — the rule a page's own date change
+already followed. Verified with two prod tabs: B fires 0 NavigationOps and follows A's date. **Still open:**
+each tab still fires Create/DeleteOp sweeps on the other's echoes (14–26 per step), left alone because
+computedValues are tab-local. Also: the REST `grid_updated` (`{ grid: { id } }`) was ignored by clients
+entirely; `deploy.sh` restarted on ANY non-root `.md` (fixed); the ancestor-row `[object Object]`
+(`3c88d90d`). **The 3 "incomplete" OOM files (`trackerValues`, `balanceFlow`, `accountBalances`) now finish
+and pass** — full client run 401/401.
 Also fixed a stale `deleteVerb` source guard left failing by `9c43d5b2`. Client 4,631 pass. Prod `8d4842d5`,
 served index chunk sha-matched. **Not re-watched by a person.**
 
