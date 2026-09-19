@@ -39,6 +39,12 @@ flight. (2) `create_batch` remembers refused ids per socket and refuses their ch
 raw `socket.emit` among nine sites; it is `safeEmit` now. **Not proven to be how the module was lost** —
 a write into a dying socket can be lost either way; (1) is what makes the consequence self-healing.
 Each guard A/B'd with controls (module present, just-created holder, sibling under a real parent).
+**AND 14 STALE TODOS ON TOMORROW'S DAY PAGE, which the first repair correctly SKIPPED.** Each refused build
+also minted a Todo, and `Day Page: Build` LISTED it into the Sep 20 day column, so "listed by a live parent"
+excluded it from the orphan sweep. Removed through the app (parent missing, listed only by that column,
+0 children, 0 TRUE values; backup `server/backups/orphans/2026-09-19-stale-todos-sep20.json`). All 55 day
+columns now hold at most one Todo. The refused-parent cascade stops new ones: the Todo is a refused
+column's child.
 
 ---
 
