@@ -103,6 +103,21 @@ export default function RadialMenu({
   const handleRef = useRef(null);
   const timeoutRef = useRef(null);
 
+  // HOLD THE LAYOUT WHILE OPEN. The menu is portalled out of the card it
+  // belongs to, so moving onto an arc item ends the card's :hover — and its
+  // trailing empty line (revealed on hover, index.css) collapsed. On a page
+  // scrolled to the bottom that clamped the scroll and slid the row ~21px, so
+  // Delete moved out from under the pointer and took two clicks (user video,
+  // 2026-09-19). While open, the nearest card and editor wrapper keep the
+  // revealed state via `data-radial-hold`.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const el = handleRef.current;
+    const held = [el?.closest?.(".container-shell"), el?.closest?.(".doc-editor-wrapper")].filter(Boolean);
+    held.forEach((h) => h.setAttribute("data-radial-hold", ""));
+    return () => held.forEach((h) => h.removeAttribute("data-radial-hold"));
+  }, [isOpen]);
+
   // fixed-position anchor for portal (null until measured)
   const [anchor, setAnchor] = useState({ x: null, y: null });
 

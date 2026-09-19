@@ -2341,7 +2341,13 @@ body[data-layout="mobile"] .page-shell:not(.page-shell--nested) {
    PAGES), where it is the only trigger and reachability was never a problem. */
 .container-shell:hover:not(:has(.container-shell:hover)) > .container-doc > .doc-container > .doc-editor > .doc-editor-wrapper > * > .doc-editor-content.ProseMirror > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child),
 .doc-editor-wrapper:hover:not(:has(.doc-editor-wrapper:hover)) > * > .doc-editor-content.ProseMirror > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child),
-.doc-editor-content.ProseMirror:focus-within:not(:has(.doc-editor-content:focus-within)) > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child) {
+.doc-editor-content.ProseMirror:focus-within:not(:has(.doc-editor-content:focus-within)) > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child),
+/* …and while a radial menu opened from inside is open (RadialMenu sets
+   `data-radial-hold`): the menu is portalled outside the card, so reaching an
+   arc item ended the :hover above and the collapse slid the row out from under
+   the pointer. Same child chains, so it still reaches only that card's editor. */
+.container-shell[data-radial-hold] > .container-doc > .doc-container > .doc-editor > .doc-editor-wrapper > * > .doc-editor-content.ProseMirror > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child),
+.doc-editor-wrapper[data-radial-hold] > * > .doc-editor-content.ProseMirror > p:last-child:not(:first-child):has(> br.ProseMirror-trailingBreak:only-child) {
   height: auto;
   /* Gap read too tall for an 11px line, so the 0.25em top+bottom margins are
      dropped — that is the "drop it like 5px" (0.25em x 2 at 11px = 5.5px). */

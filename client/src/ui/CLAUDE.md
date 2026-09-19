@@ -2,6 +2,15 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-19 — RadialMenu holds its card's layout while open: Delete no longer jumps)
+- User video: clicking a Check In row's radial Delete took two clicks — reaching the button, the whole
+  row slid ~21px (measured frame by frame) and the button left the pointer. The menu is PORTALLED out of
+  the card, so moving onto an arc item ended the card's `:hover`; its trailing empty line (revealed on
+  hover, `index.css`) collapsed, and on a page scrolled to the bottom that clamped the scroll.
+- While open, RadialMenu sets `data-radial-hold` on the nearest `.container-shell` and
+  `.doc-editor-wrapper` around its handle; the reveal rule honours it on both child chains, so it still
+  reaches only that card's own editor. Cleared on close. Guard: `radialHoldsLayout.test.js`.
+
 ## Recent Changes (2026-09-15 — `AutoMarquee`: no synchronous layout read on mount)
 - **`AutoMarquee.jsx`** — the mount effect no longer calls `measure()` when a ResizeObserver exists;
   the observer's initial batched callback measures every marquee after ONE layout. User: *"when i
