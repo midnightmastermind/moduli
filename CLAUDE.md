@@ -15,6 +15,33 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-19 (10) — A COLUMN WITHOUT ITS MODULE BLOCKED ITS DAY FOREVER; and my probe made it
+
+User: *"its not spinning up future date col ... it looked like it created it for a second and then
+disappeared."* The Sep 20 Schedule column `4a6f77ab` held `schedule:col:2026-09-20` and was listed on the
+page, but **its module never reached Mongo**. It was minted at 14:08:46 BY MY PROBE, during the unintended
+restart of the `3c88d90d` deploy (the `server/CLAUDE.md` restart rule fixed above). Invisible and
+unrecognisable to the builder, it still made `create_batch` refuse every rebuild as a duplicate — the
+refusal's `occurrence_deleted` is the "for a second" — and each refused build persisted its ~48 slots
+under a parent that never existed.
+
+**Repaired through the app's own `delete_occurrence`, not raw Mongo**, so the warm cache and open tabs
+stayed coherent with no restart: 1,450 rows (the column + 49 slots, 771 orphan slots from 16 refused
+builds, 629 routine rows under them). Scoped by EXCLUSIVE reachability (09-18 (5)'s rule): 0 listed by a
+live parent, all created today, 0 TRUE values, 0 text. Dumped first to
+`server/backups/orphans/2026-09-19-refused-schedule-cols.json`. The user's tab rebuilt Sep 20 correctly
+seconds later; both columns read back with their modules and 49 slots.
+
+**`4011d8c4`, so it cannot recur:** (1) a signature holder whose module is gone and which is older than
+5 minutes blocks nothing — both passes; the age floor is the orphan sweeper's, since a module can be in
+flight. (2) `create_batch` remembers refused ids per socket and refuses their children in LATER batches
+(APPLY_TEMPLATE sends a column and its slots separately). (3) the op path's `create_module` was the one
+raw `socket.emit` among nine sites; it is `safeEmit` now. **Not proven to be how the module was lost** —
+a write into a dying socket can be lost either way; (1) is what makes the consequence self-healing.
+Each guard A/B'd with controls (module present, just-created holder, sibling under a real parent).
+
+---
+
 ### 2026-09-19 (9) — THE DATE PICKER WAS 9.4s OF PER-SWEEP GRID COPIES; now ~1s
 
 Picked up the other account's perf audit (it hit its spend limit mid-edit, the fix uncommitted). User:
