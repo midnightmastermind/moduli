@@ -1109,6 +1109,12 @@ function* _runMatchingOperationsGen(operations, transactionType, transaction, co
     return (a.op.sortOrder ?? 50) - (b.op.sortOrder ?? 50);
   });
 
+  // Nothing matched: stop BEFORE the live copy below, which spreads the whole
+  // grid (~22k keys). A date change fires one sweep per inheriting descendant
+  // and the cascade dedup leaves most of them empty, so that copy was ~2.7s of
+  // a Day Page date step (prod profile, 2026-09-19).
+  if (matched.length === 0) return updates;
+
   // Live overlay of occurrencesById that picks up each op's CREATE_ITEM /
   // UPDATE_ITEM_* / DELETE_ITEM effects in batch-order. Without this the next
   // op in the priority chain sees the same stale snapshot — e.g. on first

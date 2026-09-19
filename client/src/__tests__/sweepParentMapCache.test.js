@@ -77,3 +77,44 @@ describe("sweepParentMap", () => {
     expect(sweepParentMap(o, 9).row).toBeUndefined();
   });
 });
+
+// A date change fires one sweep per inheriting descendant, and the cascade
+// dedup leaves most of them with NO matching op. Each still spread the whole
+// grid into its live copy — ~2.7s of a Day Page date step on prod. `ownKeys`
+// is what a spread calls, so a Proxy counting it sees the copy directly.
+describe("an empty sweep does not copy the grid", () => {
+  const counted = () => {
+    const box = { n: 0 };
+    const occs = new Proxy(occs_(), { ownKeys(t) { box.n++; return Reflect.ownKeys(t); } });
+    return { box, occs };
+  };
+  const occs_ = () => ({ col: { id: "col", occurrences: [] }, row: { id: "row", occurrences: [] } });
+  const addOp = (eventType) => ({
+    id: "op-add", name: "Add Row", enabled: true,
+    triggerTypes: [eventType],
+    triggerObjects: [{ eventType, subjectType: "grid" }],
+    pipeline: { sources: [], steps: [
+      { id: "s1", type: "action", config: { type: "ADD_CHILD", parentId: "col", childId: "row" } },
+    ] },
+  });
+  const run = (op) => {
+    const { box, occs } = counted();
+    const ctx = { occurrencesById: occs, modulesById: {}, fieldsById: {}, operationsById: { [op.id]: op },
+      state: { grid: { activeFilterValues: {} } }, _parentByChildId: {} };
+    const updates = runMatchingOperations([op], "NavigationOp", {}, ctx, {});
+    return { copies: box.n, updates };
+  };
+
+  it("skips the copy when no op matches", () => {
+    const { copies, updates } = run(addOp("onLoad"));
+    expect(updates).toEqual([]);
+    expect(copies).toBe(0);
+  });
+
+  it("control: a sweep with a matching op does copy (the detector works)", () => {
+    const { copies, updates } = run(addOp("onFilterChange"));
+    expect(updates.length).toBeGreaterThan(0);
+    expect(copies).toBeGreaterThan(0);
+  });
+});
+
