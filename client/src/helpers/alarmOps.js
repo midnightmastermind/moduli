@@ -9,13 +9,19 @@
 import { uid } from "../uid";
 
 // "17:00" → "5:00 PM" (Android-style display).
-export function formatAlarmTime(hhmm) {
+// The display pieces of "HH:MM" — `{ t: "5:00", ampm: "PM" }` — for a UI that
+// sizes the number and the suffix differently. An unparseable value comes back
+// whole in `t` with an empty suffix, never as undefined.
+export function alarmTimeParts(hhmm) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || ""));
-  if (!m) return String(hhmm || "");
-  let h = Number(m[1]);
-  const suffix = h >= 12 ? "PM" : "AM";
-  h = h % 12 || 12;
-  return `${h}:${m[2]} ${suffix}`;
+  if (!m) return { t: String(hhmm || ""), ampm: "" };
+  const h = Number(m[1]);
+  return { t: `${h % 12 || 12}:${m[2]}`, ampm: h >= 12 ? "PM" : "AM" };
+}
+
+export function formatAlarmTime(hhmm) {
+  const { t, ampm } = alarmTimeParts(hhmm);
+  return ampm ? `${t} ${ampm}` : t;
 }
 
 // The alarm's time as a slot-style timeslot label ("17:00" → "5:00pm",

@@ -10,14 +10,39 @@ import { AlarmClock, BellRing, Plus, Trash2, Volume2, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { buildAlarmOperation, applyAlarmToOperation, listAlarmOperations, formatAlarmTime } from "../helpers/alarmOps";
+import { buildAlarmOperation, applyAlarmToOperation, listAlarmOperations, alarmTimeParts } from "../helpers/alarmOps";
 import { ringAlarm } from "../helpers/alarmSound";
 import { subscribeAlarmRing, getAlarmRing, stopAlarmRing, snoozeAlarmRing } from "../state/alarmRingStore";
 
-function AlarmRow({ op, onPatch, onDelete }) {
+// The current time, so an alarm can be set relative to NOW without looking
+// elsewhere (user, 2026-09-19). Mounted only while the panel is open, so the
+// one-second tick costs nothing the rest of the time. Same pieces as the alarm
+// rows (alarmTimeParts), so "now" and an alarm read the same way.
+export function NowClock({ now: fixedNow = null }) {
+  const [now, setNow] = useState(() => fixedNow || new Date());
+  useEffect(() => {
+    if (fixedNow) return undefined;
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, [fixedNow]);
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const { t, ampm } = alarmTimeParts(`${hh}:${mm}`);
+  return (
+    <div className="flex items-baseline gap-1 px-1" data-testid="alarm-now" title="Current time">
+      <span className="text-[10px] uppercase tracking-wide text-text-faint mr-1">Now</span>
+      <span className="text-lg font-light tabular-nums" style={{ color: "var(--text-primary)" }}>{t}</span>
+      <span className="text-[10px] text-text-muted">{ampm}</span>
+    </div>
+  );
+}
+
+export function AlarmRow({ op, onPatch, onDelete }) {
   const alarm = op.alarm || {};
   const isAlarm = (alarm.type || "alarm") === "alarm";
-  const { t, ampm } = formatAlarmTime(alarm.time || "08:00");
+  // alarmTimeParts, NOT formatAlarmTime: that one returns a STRING, and
+  // destructuring `{ t, ampm }` from it left every row's time blank.
+  const { t, ampm } = alarmTimeParts(alarm.time || "08:00");
   return (
     <div className="flex items-center gap-2 rounded-lg border px-2 py-1.5"
       style={{ background: "var(--input-bg)", borderColor: "var(--border-subtle, rgba(255,255,255,0.08))", opacity: op.enabled ? 1 : 0.55 }}>
@@ -189,6 +214,8 @@ export default function AlarmDropdown() {
               <button type="button" onClick={() => setOpen(false)} className="text-text-muted hover:text-foreground cursor-pointer ml-0.5"><X className="w-3.5 h-3.5" /></button>
             </div>
           </div>
+
+          <NowClock />
 
           {alarms.length === 0 && (
             <div className="px-3 py-6 text-center text-text-faint text-[11px]">No alarms yet — add one above.</div>

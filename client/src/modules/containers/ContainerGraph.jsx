@@ -21,6 +21,7 @@
 // renders). It knows nothing about emotions, moods, or wheels — a feeling wheel
 // is data plus one operation, and `noDomainKnowledge.test.js` guards that.
 // ============================================================
+import { fireGraphSelect } from "../../helpers/graphSelect";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BarChart3, Minimize2 } from "lucide-react";
 import EChart, { readChartTheme } from "../../ui/EChart";
@@ -230,7 +231,8 @@ export default function ContainerGraph({ occurrence, renderParentOccurrenceId = 
         `build=${GRAPH_BUILD}`);
     }
     try {
-      operationsBridge.fireOperations?.("GraphSelectOp", {
+      // One undo step per click — see helpers/graphSelect.
+      fireGraphSelect({
         type: "GraphSelectOp",
         occurrenceId: sel.occurrenceId,
         containerId: occurrence?.id,

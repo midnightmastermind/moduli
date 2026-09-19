@@ -146,7 +146,7 @@ function formatSummary(shape) {
   return summarizeSelection(shape, { maxSegments: 3 }) || "Pick";
 }
 
-export default function NavPickerPopover({ value, onCommit, constraints, triggerLabel = null }) {
+export default function NavPickerPopover({ value, onCommit, constraints, triggerLabel = null, nowrap = false }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
   const popoverRef = useRef(null);
@@ -311,7 +311,7 @@ export default function NavPickerPopover({ value, onCommit, constraints, trigger
   const pickerValue = useMemo(() => sel.keys, [sel.keys]);
 
   return (
-    <span ref={wrapRef} style={{ position: "relative", display: "inline-flex" }}>
+    <span ref={wrapRef} style={{ position: "relative", display: "inline-flex", ...(nowrap ? { minWidth: 0, maxWidth: "100%" } : null) }}>
       <button
         onClick={() => setOpen(v => !v)}
         title="Pick date / range / multi / weeks / months"
@@ -329,10 +329,13 @@ export default function NavPickerPopover({ value, onCommit, constraints, trigger
           background: "transparent", color: "inherit",
           border: "1px solid var(--panel-border, #374151)", borderRadius: 4,
           cursor: "pointer",
+          // ONE LINE, shrinking to an ellipsis (the toolbar): a wrapped label
+          // grew the toolbar's height on narrow screens (user, 2026-09-19).
+          ...(nowrap ? { whiteSpace: "nowrap", minWidth: 0, maxWidth: "100%" } : null),
         }}
       >
-        <CalendarIcon size={11} />
-        <span>{triggerLabel || summary}</span>
+        <CalendarIcon size={11} style={nowrap ? { flexShrink: 0 } : undefined} />
+        <span style={nowrap ? { overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 } : undefined}>{triggerLabel || summary}</span>
       </button>
       {open && (
         <MenuSurface

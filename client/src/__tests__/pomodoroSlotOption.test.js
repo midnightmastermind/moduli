@@ -55,10 +55,36 @@ describe("buildContainerCrumbOptions", () => {
 
   it("lists containers only — pages and instances are not destinations", () => {
     const [occs, mods] = world(
-      [{ id: "a", moduleId: "mc" }, { id: "b", moduleId: "mi" }, { id: "d", moduleId: "mp" }],
+      [{ id: "a", moduleId: "mc" }, { id: "b", moduleId: "mi" }, { id: "d", moduleId: "mp", occurrences: ["a", "b"] }],
       [{ id: "mc", role: "container", label: "C" }, { id: "mi", role: "instance", label: "I" }, { id: "mp", role: "page", label: "P" }],
     );
     expect(buildContainerCrumbOptions(occs, mods).map((o) => o.id)).toEqual(["a"]);
+  });
+
+  // 2026-09-19: 325 of 2,107 options on poms grid were containers nothing lists
+  // and whose parent no longer exists, each a bare "9:00am" beside the real ones.
+  it("leaves out a container you cannot get to", () => {
+    const [occs, mods] = world(
+      [
+        { id: "p", moduleId: "mp", occurrences: ["live"] },
+        { id: "live", moduleId: "mc" },
+        { id: "orphan", moduleId: "mc", parentId: "deleted-column" },
+        { id: "loose", moduleId: "mc" },
+      ],
+      [{ id: "mp", role: "page", label: "Schedule" }, { id: "mc", role: "container", label: "9:00am" }],
+    );
+    expect(buildContainerCrumbOptions(occs, mods)).toEqual([{ id: "live", label: "Schedule › 9:00am" }]);
+  });
+
+  it("keeps a container filed in a folder, with the folder as its crumb", () => {
+    const [occs, mods] = world(
+      [{ id: "c", moduleId: "mc", parentId: "f1" }],
+      [{ id: "mc", role: "container", label: "Notes" }],
+    );
+    expect(buildContainerCrumbOptions(occs, mods, { foldersById: { f1: { id: "f1", name: "Documents" } } }))
+      .toEqual([{ id: "c", label: "Documents › Notes" }]);
+    // control: without the folder map it cannot be placed, so it is left out
+    expect(buildContainerCrumbOptions(occs, mods)).toEqual([]);
   });
 
   // Placement on this grid IS the parent's child list, so a row can be listed
@@ -106,8 +132,8 @@ describe("buildContainerCrumbOptions", () => {
 
   it("sorts by label and falls back when a module carries none", () => {
     const [occs, mods] = world(
-      [{ id: "zzzzzzzz", moduleId: "m1" }, { id: "aaaaaaaa", moduleId: "m2" }],
-      [{ id: "m1", role: "container" }, { id: "m2", role: "container", label: "Alpha" }],
+      [{ id: "zzzzzzzz", moduleId: "m1" }, { id: "aaaaaaaa", moduleId: "m2" }, { id: "p", moduleId: "mp", occurrences: ["zzzzzzzz", "aaaaaaaa"] }],
+      [{ id: "m1", role: "container" }, { id: "m2", role: "container", label: "Alpha" }, { id: "mp", role: "page" }],
     );
     const out = buildContainerCrumbOptions(occs, mods);
     expect(out.map((o) => o.label)).toEqual(["Alpha", "zzzzzz"]);

@@ -18,7 +18,15 @@
  * It stops at the first `page` ancestor, guards against a cycle with `seen`,
  * and caps at 8 so a malformed chain cannot hang the toolbar.
  */
-export function buildContainerCrumbOptions(occurrencesById, modulesById) {
+// ── ONLY PLACES YOU CAN GET TO ────────────────────────────────────────────
+// A container that nothing lists and whose `parentId` names nothing that
+// exists is invisible everywhere in the app, and sending something there loses
+// it. Measured on poms grid 2026-09-19: 325 of 2,107 options were exactly that
+// (the leftovers of refused Schedule builds among them), each reading as a bare
+// "9:00am" beside the real "Schedule › Schedule - Saturday … › 9:00am". A
+// container filed in a FOLDER is reachable through the tree and keeps that
+// folder as its crumb.
+export function buildContainerCrumbOptions(occurrencesById, modulesById, { foldersById = null } = {}) {
   const occMap = occurrencesById || {};
   // Reverse parent map: childOccId → parentOccId via occurrences[].
   const parentByChild = {};
@@ -33,9 +41,12 @@ export function buildContainerCrumbOptions(occurrencesById, modulesById) {
   for (const occ of Object.values(occMap)) {
     const mod = modulesById?.[occ.moduleId];
     if (!mod || mod.role !== "container") continue;
+    const listedBy = parentByChild[occ.id];
+    const folder = !listedBy && occ.parentId && !occMap[occ.parentId] ? foldersById?.[occ.parentId] : null;
+    if (!listedBy && !occMap[occ.parentId] && !folder) continue; // unreachable
     // Walk up to find page-chain crumbs.
-    const crumbs = [];
-    let cur = parentByChild[occ.id] || occ.parentId;
+    const crumbs = folder?.name ? [folder.name] : [];
+    let cur = listedBy || occ.parentId;
     const seen = new Set();
     let depth = 0;
     while (cur && !seen.has(cur) && depth++ < 8) {

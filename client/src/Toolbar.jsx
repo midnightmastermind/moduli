@@ -26,6 +26,9 @@ import SelectionStatusBanner from "./ui/SelectionStatusBanner";
 import FilterNavWidget from "./ui/FilterNavWidgets";
 import { useGridActions } from "./GridActionsContext";
 import * as CommitHelpers from "./helpers/CommitHelpers";
+import { useMinWidth } from "./hooks/useMinWidth";
+
+export const TOAST_STACK_MIN_W = 1200;
 import { useActiveCell, useZoomedOut, setZoomedOut } from "./state/activeCellStore";
 
 export default function Toolbar({
@@ -65,6 +68,10 @@ export default function Toolbar({
   // Subscribed here — App no longer holds navigation state, so a cell change
   // never re-renders the root (see state/activeCellStore).
   const activeCell = useActiveCell();
+  // The centred toast stack (up to ~400px, beside the status pills) overlaps the
+  // toolbar's side controls below this width. Measured on prod 2026-09-19: the
+  // right cluster is ~307px and the left ends at 218px.
+  const roomForToasts = useMinWidth(TOAST_STACK_MIN_W);
   const zoomedOut = useZoomedOut();
   const [toolbarVisible, setToolbarVisible] = useState(true);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -197,7 +204,10 @@ const gridOptions = useMemo(
           <div className="pointer-events-auto flex items-center gap-1.5">
             <SocketStatusBanner />
             <OpActivityPill />
-            <TransactionNotificationStack />
+            {/* Toasts need the room; below TOAST_STACK_MIN_W they collapse to
+                the count pill that opens the history, so they cannot overlap the
+                controls on either side. */}
+            <TransactionNotificationStack compact={!roomForToasts} />
           </div>
           <div className="pointer-events-auto">
             <SelectionStatusBanner />
@@ -272,6 +282,7 @@ const gridOptions = useMemo(
             foldersById={foldersById}
             dispatch={dispatch}
             onNav={handleToolbarNav}
+            nowrap
           />
         )}
 

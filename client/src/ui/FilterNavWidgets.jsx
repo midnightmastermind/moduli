@@ -127,7 +127,7 @@ function resolveArrowBehavior(shape, navConfig, filter) {
   };
 }
 
-function ArrowsWidget({ filter, navConfig, value, dispatch, onNav }) {
+function ArrowsWidget({ filter, navConfig, value, dispatch, onNav, nowrap = false }) {
   const shape = readValueShape(value);
   // Unit precedence: the value's own unit (object form) wins over the filter's
   // static timeUnit. Lets users pick D/W/M/Y per-occurrence without rewriting
@@ -203,7 +203,10 @@ function ArrowsWidget({ filter, navConfig, value, dispatch, onNav }) {
   // D/W/M/Y toggle removed per user direction — the calendar handles
   // ranges and multi-day natively via the picker's own modes.
   return (
-    <div style={{ display: "inline-flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+    <div style={{ display: "inline-flex", gap: 4, alignItems: "center",
+      // `nowrap` (the toolbar): arrows and date stay on ONE line and the date
+      // shrinks instead; wrapping there stacked them and grew the toolbar.
+      ...(nowrap ? { flexWrap: "nowrap", minWidth: 0, maxWidth: "100%" } : { flexWrap: "wrap" }) }}>
       <button
         onClick={onPrev}
         disabled={arrow.disabled}
@@ -213,6 +216,7 @@ function ArrowsWidget({ filter, navConfig, value, dispatch, onNav }) {
           color: arrow.disabled ? "var(--text-faint, #666)" : "inherit",
           cursor: arrow.disabled ? "not-allowed" : "pointer",
           opacity: arrow.disabled ? 0.4 : 1,
+          flexShrink: 0,
         }}
       ><ChevronLeft size={14} /></button>
       <NavPickerPopover
@@ -220,6 +224,7 @@ function ArrowsWidget({ filter, navConfig, value, dispatch, onNav }) {
         constraints={constraints}
         onCommit={onPickerCommit}
         triggerLabel={label}
+        nowrap={nowrap}
       />
       <button
         onClick={onNext}
@@ -230,6 +235,7 @@ function ArrowsWidget({ filter, navConfig, value, dispatch, onNav }) {
           color: arrow.disabled ? "var(--text-faint, #666)" : "inherit",
           cursor: arrow.disabled ? "not-allowed" : "pointer",
           opacity: arrow.disabled ? 0.4 : 1,
+          flexShrink: 0,
         }}
       ><ChevronRight size={14} /></button>
     </div>
@@ -304,11 +310,11 @@ function InputWidget({ filter, value, dispatch, onNav }) {
   );
 }
 
-export default function FilterNavWidget({ filter, navConfig, value, fieldsById, occurrencesById, modulesById, foldersById, dispatch, onNav }) {
+export default function FilterNavWidget({ filter, navConfig, value, fieldsById, occurrencesById, modulesById, foldersById, dispatch, onNav, nowrap = false }) {
   const style = navConfig?.style || defaultStyleForFilter(filter, fieldsById);
   const ctx = { occurrencesById, modulesById, foldersById };
   const options = navConfig?.options || derivedOptionsForFilter(filter, fieldsById, ctx);
-  if (style === "arrows") return <ArrowsWidget filter={filter} navConfig={navConfig} value={value} dispatch={dispatch} onNav={onNav} />;
+  if (style === "arrows") return <ArrowsWidget filter={filter} navConfig={navConfig} value={value} dispatch={dispatch} onNav={onNav} nowrap={nowrap} />;
   if (style === "pills" || style === "custom") return <PillsWidget filter={filter} value={value} options={options} dispatch={dispatch} onNav={onNav} />;
   if (style === "select") return <SelectWidget filter={filter} value={value} options={options} dispatch={dispatch} onNav={onNav} />;
   if (style === "input") return <InputWidget filter={filter} value={value} dispatch={dispatch} onNav={onNav} />;

@@ -73,7 +73,7 @@ export default function PomodoroTimer() {
   // When unset, the op falls back to its existing slotLabel-based FIND
   // (current behavior). When set, the transaction carries `targetContainerId`
   // so the op (or future ops) can route directly to the chosen container.
-  const { dispatch, socket, state, modulesById, occurrencesById, fieldsById } = useGridActions();
+  const { dispatch, socket, state, modulesById, occurrencesById, fieldsById, foldersById } = useGridActions();
   const grid = state?.grid;
   const targetContainerId = grid?.meta?.pomodoroTargetContainerId || null;
   // The timeslot field is named by the grid's own configuration; its options are
@@ -104,8 +104,8 @@ export default function PomodoroTimer() {
   // flag to remember. Collapsed, the select renders no options and is invisible;
   // opening it recomputes before the panel finishes its 0.2s slide.
   const containerOptions = useMemo(
-    () => (expanded ? buildContainerCrumbOptions(occurrencesById, modulesById) : EMPTY_OPTIONS),
-    [expanded, modulesById, occurrencesById],
+    () => (expanded ? buildContainerCrumbOptions(occurrencesById, modulesById, { foldersById }) : EMPTY_OPTIONS),
+    [expanded, modulesById, occurrencesById, foldersById],
   );
   const setTargetContainer = useCallback((id) => {
     if (!grid?.id && !grid?._id) return;
