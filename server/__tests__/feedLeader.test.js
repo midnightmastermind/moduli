@@ -1,7 +1,7 @@
 // One tab per user+grid materialises feeds (services/feedLeader.js). Two tabs
 // each minting their own copies of the same sources swept each other's as
 // duplicates on every date step (prod, 2026-09-19).
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createFeedLeaderRegistry } from "../services/feedLeader.js";
 import { joinFeedGroup, registerFeedLeaderHandlers } from "../socketHandlers/feedLeader.js";
 
@@ -91,5 +91,21 @@ describe("socket wiring", () => {
     const g1 = io.sent.filter((s) => s.room === gridRoom(u, "g1"));
     expect(g1.at(-1).p.leaderSocketId).toBe("B");
     expect(io.sent.at(-1)).toMatchObject({ room: gridRoom(u, "g2"), p: { leaderSocketId: "A" } });
+  });
+});
+
+describe("disconnect_other_sessions", () => {
+  it("disconnects every socket of the caller's user except the caller", async () => {
+    const { registerSessionHandlers } = await import("../socketHandlers/feedLeader.js");
+    const others = [{ id: "A", disconnect: vi.fn() }, { id: "B", disconnect: vi.fn() }];
+    const me = { id: "ME", userId: "u", on: (ev, fn) => { me[ev] = fn; } };
+    const rooms = [];
+    const io = { in: (room) => { rooms.push(room); return { fetchSockets: async () => [...others, { id: "ME", disconnect: vi.fn() }] }; } };
+    registerSessionHandlers(me, { io, userRoom: (u) => `user:${u}` });
+    const ack = vi.fn();
+    await me.disconnect_other_sessions({}, ack);
+    expect(rooms).toEqual(["user:u"]);
+    expect(others.every((s) => s.disconnect.mock.calls[0][0] === true)).toBe(true);
+    expect(ack).toHaveBeenCalledWith({ closed: 2 });
   });
 });

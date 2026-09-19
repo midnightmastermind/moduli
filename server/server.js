@@ -60,7 +60,7 @@ import { registerOccurrenceHandlers } from "./socketHandlers/occurrences.js";
 import { registerTransactionHandlers } from "./socketHandlers/transactions.js";
 import { registerTemplateHandlers } from "./socketHandlers/templates.js";
 import { registerImportHandlers } from "./socketHandlers/import.js";
-import { registerFeedLeaderHandlers } from "./socketHandlers/feedLeader.js";
+import { registerFeedLeaderHandlers, registerSessionHandlers } from "./socketHandlers/feedLeader.js";
 import { makeApiV1Router } from "./routes/apiV1.js";
 import { createOpRunBridge } from "./utils/opRunBridge.js";
 import { handleProvidersList, handleProviderSearch, handleProviderDetail } from "./utils/searchRouteHandlers.js";
@@ -461,6 +461,7 @@ io.on("connection", (socket) => {
   registerTemplateHandlers(socket, ctx);
   registerImportHandlers(socket, ctx);
   registerFeedLeaderHandlers(socket, ctx);
+  registerSessionHandlers(socket, ctx);
 
   // Result of a /api/v1/operations/:id/run request that this socket picked
   // up — resolves the HTTP response held open by opRunBridge.

@@ -44,3 +44,30 @@ export function registerFeedLeaderHandlers(socket, { io, gridRoom }) {
     if (changed && leader) announce(io, gridRoom, userId, gridId);
   });
 }
+
+/**
+ * `disconnect_other_sessions`: disconnect every socket of THIS user except the
+ * caller. A server-initiated disconnect (`"io server disconnect"`) is the one
+ * reason a socket.io client does NOT reconnect by itself, and this app never
+ * calls `socket.connect()` after it, so the other tabs stay down until they are
+ * reloaded, which brings them back on the current build. Needed because a tab
+ * left open on an old bundle keeps running the old sync and op behaviour
+ * (2026-09-19: a phone tab kept syncing feeds after the one-tab fix shipped).
+ * Scoped to the caller's own user room, so it can only ever touch its own tabs.
+ */
+export function registerSessionHandlers(socket, { io, userRoom }) {
+  socket.on("disconnect_other_sessions", async (_payload, ack) => {
+    const userId = socket.userId;
+    if (!userId) return;
+    const sockets = await io.in(userRoom(userId)).fetchSockets();
+    let n = 0;
+    for (const s of sockets) {
+      if (s.id === socket.id) continue;
+      s.disconnect(true);
+      n++;
+    }
+    console.log(`🔌 disconnect_other_sessions user=${userId} closed=${n}`);
+    if (typeof ack === "function") ack({ closed: n });
+  });
+}
+
