@@ -2,6 +2,17 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-19 (8) — "Remove" on a row the doc OWNS deletes it: `embedRemoval`)
+- **User: deleting a Check In on the day page left its mood selected on the wheel.** The embedded row's
+  radial "Remove" was `deleteNode` — it took the NODE out and left the occurrence alive, still listed by
+  the column with its Mood and Date, so the wheel kept it lit and the next `Day Page: Build` re-embedded it.
+- `embedRegistry.embedRemoval(occurrence, hostId)`: an occurrence whose `parentId` IS the doc it is shown
+  in lives there, so Remove = `removeOccurrence` (the label reads "Delete"); one referenced from elsewhere
+  keeps the old unlink. `hostOccurrenceIdOf(editor)` reads the host from the nearest `[data-occ-id]`
+  ABOVE the editor root (the container shell), never an embed inside it. Wired only on the INSTANCE branch
+  of `ModuleEmbedNode`; artifacts, containers and textblocks keep unlink. Deleting a row from a BOARD (the
+  Schedule) already went through `removeOccurrence`, and the wheel's derived highlight clears on its own.
+
 ## Recent Changes (2026-09-19 (7) — deselecting every mood minted an empty textblock; a delete-driven removal is now SILENT)
 - **User (video): after un-picking all moods an empty textblock appeared and new picks stopped showing.**
   The DB said it too: a Check In (`f8fcf763`) created at 12:29:19 was listed by the column, and the

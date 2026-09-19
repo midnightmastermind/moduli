@@ -13,7 +13,8 @@ import ModuleTextblock from "../modules/ModuleTextblock.jsx";
 import FieldRenderer from "../ui/FieldRenderer.jsx";
 import { CellEmbedContext } from "./CellEmbedContext.js";
 import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Box, Combine, Ungroup, WrapText } from "lucide-react";
-import { embedDeleteRegistry } from "../helpers/embedRegistry.js";
+import { embedDeleteRegistry, embedRemoval, hostOccurrenceIdOf } from "../helpers/embedRegistry.js";
+import * as CommitHelpers from "../helpers/CommitHelpers.js";
 import { operationsBridge } from "../state/bindSocketToStore.js";
 import { findGroupMember, unwrapGroupAt, detachGroupMember } from "../helpers/wrapGroupOps.js";
 import { isTextmappedModule } from "./wrapAnchor.js";
@@ -100,6 +101,17 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
       if (embedDeleteRegistry.get(occurrenceId) === onRegistryDelete) embedDeleteRegistry.delete(occurrenceId);
     };
   }, [occurrenceId, deleteNode, editor, getPos, dispatch, socket]);
+
+  // "Remove" on an embedded ROW that this doc owns is a delete (helpers/
+  // embedRegistry.embedRemoval): unlinking only the node left a Check In alive
+  // and its mood lit on the Emotions Wheel. Deleting it runs dropEmbedsOf, which
+  // takes the node out; the server's delete-scrub persists that.
+  const removeRow = useCallback(() => {
+    const hostId = hostOccurrenceIdOf(editor);
+    if (embedRemoval(occurrence, hostId) !== "delete") { deleteNode?.(); return; }
+    const parentOccurrence = operationsBridge.getLocalOcc?.(hostId) || null;
+    CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId, occurrence, parentOccurrence, emit: true });
+  }, [editor, occurrence, occurrenceId, deleteNode, dispatch, socket]);
 
   // Resize drag state
   const resizeRef = useRef(null);
@@ -308,7 +320,8 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
             dispatch={dispatch}
             socket={socket}
             embedRadialItems={embedRadialItems}
-            embedOnDelete={deleteNode}
+            embedOnDelete={removeRow}
+            embedDeleteLabel={embedRemoval(occurrence, hostOccurrenceIdOf(editor)) === "delete" ? "Delete" : "Remove"}
             embedSourceType="doc-embed"
             embedHideLabel={cellHideLabel === true}
           />

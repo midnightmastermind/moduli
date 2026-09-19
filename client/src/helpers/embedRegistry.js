@@ -23,3 +23,27 @@ export function dropEmbedsOf(occurrenceId) {
   try { remove({ silent: true }); } catch { /* the node may already be gone */ }
   return true;
 }
+
+/**
+ * What "Remove" on an embedded row means. PURE.
+ *
+ * An occurrence OWNED by the doc it is shown in (its `parentId` is that doc)
+ * lives there: removing it is deleting it. Unlinking only the node left the
+ * row alive — still listed, still carrying its values — so a Check In "removed"
+ * from the day column kept its mood lit on the Emotions Wheel, and the next
+ * rebuild re-embedded it (user, 2026-09-19). An occurrence merely REFERENCED
+ * from elsewhere keeps today's behaviour: remove the embed, leave the row.
+ *
+ * @returns {"delete"|"unlink"}
+ */
+export function embedRemoval(occurrence, hostOccurrenceId) {
+  return occurrence?.parentId && hostOccurrenceId && occurrence.parentId === hostOccurrenceId
+    ? "delete" : "unlink";
+}
+
+/** The occurrence whose textmap an editor renders: the nearest `[data-occ-id]` above its root. */
+export function hostOccurrenceIdOf(editor) {
+  const root = editor?.view?.dom;
+  const host = root?.parentElement?.closest?.("[data-occ-id]");
+  return host?.getAttribute?.("data-occ-id") || null;
+}

@@ -132,6 +132,7 @@ function InstanceInner({
   socket,
   embedRadialItems = null,
   embedOnDelete = null,
+  embedDeleteLabel = null,
   renderBody = null,
   // Canvas-friendly handle layout: handle floats absolutely in the
   // top-left of the card instead of consuming a flex slot inline.
@@ -885,7 +886,7 @@ function InstanceInner({
                   onToggleDoc={toggleDoc || undefined}
                   // An embed's delete only unhooks the node from the prose; a
                   // row's deletes the occurrence. Same button, two verbs.
-                  deleteLabel={embedOnDelete ? "Remove" : "Delete"}
+                  deleteLabel={embedOnDelete ? (embedDeleteLabel || "Remove") : "Delete"}
                   onDelete={embedOnDelete ?? (() => {
                     if (!occurrence?.id) return;
                     CommitHelpers.removeOccurrence({ dispatch, socket, occurrenceId: occurrence.id, occurrence, parentOccurrence: containerOccurrence || null, emit: true });
@@ -1276,6 +1277,7 @@ function ModuleInstance({
   onInstanceFocus,
   embedRadialItems = null,
   embedOnDelete = null,
+  embedDeleteLabel = null,
   embedSourceType = null,
   embedHideLabel = false,
   renderBody = null,
@@ -1691,6 +1693,7 @@ function ModuleInstance({
         embedRadialItems={embedRadialItems}
         embedHideLabel={embedHideLabel}
         embedOnDelete={embedOnDelete}
+        embedDeleteLabel={embedDeleteLabel}
         renderBody={renderBody}
         floatHandle={floatHandle}
       />
