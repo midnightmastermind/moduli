@@ -222,7 +222,12 @@ const gridOptions = useMemo(
 
       <div className="flex items-center flex-1 min-w-0 gap-1.5">
         {/* ── Left: Logo + Add Panel + Grid Select ── */}
-        <div className="flex items-center gap-1 min-w-0" style={{ flexShrink: 1 }}>
+        {/* Basis = its FULL content width, so the logo and grid picker are whole
+            while there is room; they shrink only when the row is tight. With an
+            `auto` basis the browser sized this group from its children's MIN
+            widths (the picker is w-full, the logo clips), clipping the wordmark
+            even at 1600px. */}
+        <div className="flex items-center gap-1 min-w-0" style={{ flex: "0 1 max-content" }}>
           {/* Logo — mobile renders it further left, ahead of the pills. */}
           {!isMobileLayout && logoEl}
 
