@@ -2,6 +2,17 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-19 (6) — the op-write mark is NOT spent on the first apply: Check Ins were one behind)
+- **User (video): each Check In appeared only on the NEXT pick, and the page still jumped to the top.**
+  The op's write reaches the editor in TWO renders: `markOperationWrite`'s token re-renders at once, and
+  the store's textmap lands a render later. On the first, `content` is still the PREVIOUS textmap — which
+  differs from the editor only by TipTap's trailing empty line, so `planEmbedDiff` had no embed change,
+  the sync fell to a full `setContent` of the OLD content (the jump), and then SPENT the mark — so the
+  real content arrived under the focus guard and waited for the next pick.
+- Now: the mark lives out its 3s deadline (never cleared on apply), and an op-write render that changes
+  no embed and differs only by empty lines does nothing (`sameIgnoringEmptyLines`). The typed-recently
+  guard is untouched. The old "spends the mark" test is INVERTED with the reason kept.
+
 ## Recent Changes (2026-09-19 (5) — an op write applies ONLY the embeds that changed: `embedDiff`; and the registry cleanup that ate its successor)
 - **User (video): picking a mood threw the Day Page back to the top, the Check In "never showed", and
   un-picking left `embed: <id>`.** All three came from (3)'s full `setContent` on an op write: it

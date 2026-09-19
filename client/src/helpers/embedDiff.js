@@ -91,3 +91,9 @@ export function applyEmbedDiff(editor, plan) {
   editor.view.dispatch(tr);
   return true;
 }
+
+/** PURE — two docs equal once empty paragraphs (layout) are ignored. */
+export function sameIgnoringEmptyLines(a, b) {
+  const strip = (d) => (Array.isArray(d?.content) ? d.content : []).filter((n) => !isEmptyPara(n));
+  return JSON.stringify(strip(a)) === JSON.stringify(strip(b));
+}

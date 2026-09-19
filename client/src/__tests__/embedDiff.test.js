@@ -4,7 +4,7 @@
 import { describe, it, expect } from "vitest";
 import { Editor, Node } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
-import { planEmbedDiff, applyEmbedDiff } from "../helpers/embedDiff";
+import { planEmbedDiff, applyEmbedDiff, sameIgnoringEmptyLines } from "../helpers/embedDiff";
 
 const e = (id) => ({ type: "moduleEmbed", attrs: { occurrenceId: id } });
 const p = (t) => ({ type: "paragraph", content: t ? [{ type: "text", text: t }] : undefined });
@@ -65,5 +65,14 @@ describe("applyEmbedDiff on a live editor", () => {
     ed.commands.undo();
     expect(ed.getJSON().content.map((n) => n.attrs?.occurrenceId).filter(Boolean)).toEqual(["w", "ci"]);
     ed.destroy();
+  });
+});
+
+describe("sameIgnoringEmptyLines", () => {
+  it("treats a trailing empty paragraph as layout", () => {
+    expect(sameIgnoringEmptyLines({ content: [e("w"), p()] }, { content: [e("w")] })).toBe(true);
+  });
+  it("still sees a real difference", () => {
+    expect(sameIgnoringEmptyLines({ content: [e("w"), p("x")] }, { content: [e("w")] })).toBe(false);
   });
 });

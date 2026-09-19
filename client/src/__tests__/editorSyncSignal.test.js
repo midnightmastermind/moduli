@@ -138,8 +138,18 @@ describe("Editor and the store honour an operation's write", () => {
     expect(syncBody).not.toMatch(/locallyModifiedRef\.current\s*&&\s*!opWrote/);
   });
 
-  it("spends the mark once the content has landed", () => {
-    expect(syncBody).toContain("if (opWrote) clearOperationWrite(occurrence?.id);");
+  // INVERTED 2026-09-19 (the user's "one behind" video): spending the mark on
+  // the first apply let the render carrying the PREVIOUS content use it up, and
+  // the real content a render later hit the focus guard. The mark now lives out
+  // its deadline.
+  it("does NOT spend the mark on the first apply", () => {
+    expect(syncBody).not.toContain("clearOperationWrite(");
+  });
+
+  // The stale render differs only by empty lines: it must do nothing, not a
+  // full replace (which threw the page to the top).
+  it("skips an op write that changes no embed and differs only by empty lines", () => {
+    expect(syncBody).toContain("if (opWrote && !embedPlan && sameIgnoringEmptyLines(current, content)) return;");
   });
 
   it("the textmap effect marks the write AFTER dispatching it", () => {

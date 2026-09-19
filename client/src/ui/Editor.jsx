@@ -21,10 +21,10 @@ import {
   useCallback, useEffect, useMemo, useRef, useState,
   forwardRef, useImperativeHandle, useSyncExternalStore,
 } from "react";
-import { planEmbedDiff, applyEmbedDiff } from "../helpers/embedDiff";
+import { planEmbedDiff, applyEmbedDiff, sameIgnoringEmptyLines } from "../helpers/embedDiff";
 import {
   subscribeForceSync, getForceSyncToken,
-  subscribeOperationWrite, getOperationWriteToken, hasOperationWrite, clearOperationWrite,
+  subscribeOperationWrite, getOperationWriteToken, hasOperationWrite,
 } from "../helpers/editorSyncSignal";
 import { focusDocEnd } from "../helpers/caretLanding";
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -1644,15 +1644,22 @@ const Editor = forwardRef(function Editor({
         const embedPlan = opWrote
           ? planEmbedDiff(current?.content || [], content?.content || [])
           : null;
+        // An op write that changes NO embed and differs only by empty lines is
+        // the render that still carries the PREVIOUS content (the signal renders
+        // before the store's update lands). Replacing with it threw the page to
+        // the top and showed the Check Ins one behind — so nothing is done here;
+        // the next render brings the real content.
+        if (opWrote && !embedPlan && sameIgnoringEmptyLines(current, content)) return;
         if (!(embedPlan && applyEmbedDiff(editor, embedPlan))) {
           editor.chain()
             .setMeta("addToHistory", false)
             .setContent(content, { emitUpdate: false })
             .run();
         }
-        // The op's write has landed — spend the mark so a later ECHO under the
-        // same focus is guarded as usual.
-        if (opWrote) clearOperationWrite(occurrence?.id);
+        // The mark is NOT spent here: it lives out its short deadline
+        // (editorSyncSignal), because the op's real content can arrive a render
+        // AFTER this one. Spending it on the first apply is what left the newest
+        // Check In blocked by the focus guard until the next pick.
         // A just-typed textblock whose editor mounted BEFORE its content arrived
         // takes the caret now — content first, then focus, so the character that
         // created it is never dropped (see the onCreate claim above).
