@@ -287,6 +287,58 @@ describe("the create burst", () => {
       expect(mine[0][1]).toEqual({ occurrenceId: "col-duplicate" });
     });
 
+    // 2026-09-19: the Sep 20 Schedule column was refused on every pick, and each
+    // refused build left ~48 slots persisted under a parent that never existed.
+    // APPLY_TEMPLATE sends the column and its slots in SEPARATE batches.
+    it("refuses a refused column's children when they arrive in a LATER batch", async () => {
+      const create = fire("create_occurrence");
+      await create({ occurrence: signed("col-duplicate") });
+      await delayed(30);
+      const orphan = { ...slot(7), parentId: "col-duplicate" };
+      await create({ occurrence: orphan });
+      await delayed(30);
+      expect(db.occurrences.has("slot-07")).toBe(false);
+      const told = socket.emit.mock.calls.filter(([e, p]) => e === "occurrence_deleted" && p?.occurrenceId === "slot-07");
+      expect(told).toHaveLength(1);
+    });
+
+    it("control: a slot under a REAL parent in the same later batch still persists", async () => {
+      const create = fire("create_occurrence");
+      await create({ occurrence: signed("col-duplicate") });
+      await delayed(30);
+      await Promise.all([create({ occurrence: { ...slot(7), parentId: "col-duplicate" } }), create({ occurrence: slot(8) })]);
+      await delayed(30);
+      expect(db.occurrences.has("slot-08")).toBe(true);
+    });
+
+    // The holder that blocked Sep 20 had NO MODULE: invisible, unrecognisable,
+    // and still refusing every rebuild as its duplicate.
+    describe("a holder whose module is gone", () => {
+      const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      it("stops blocking once it is older than the age floor", async () => {
+        uc.occurrencesById["col-original"] = { ...signed("col-original"), createdAt: hourAgo };
+        const create = fire("create_occurrence");
+        await create({ occurrence: signed("col-new") });
+        await delayed(30);
+        expect(db.occurrences.has("col-new")).toBe(true);
+      });
+      it("control: with its module present it still blocks", async () => {
+        uc.occurrencesById["col-original"] = { ...signed("col-original"), createdAt: hourAgo };
+        uc.modulesById["m-col"] = { id: "m-col" };
+        const create = fire("create_occurrence");
+        await create({ occurrence: signed("col-new") });
+        await delayed(30);
+        expect(db.occurrences.has("col-new")).toBe(false);
+      });
+      it("control: a JUST-created holder still blocks (its module may be in flight)", async () => {
+        uc.occurrencesById["col-original"] = { ...signed("col-original"), createdAt: new Date().toISOString() };
+        const create = fire("create_occurrence");
+        await create({ occurrence: signed("col-new") });
+        await delayed(30);
+        expect(db.occurrences.has("col-new")).toBe(false);
+      });
+    });
+
     it("tells the other tabs too", async () => {
       const create = fire("create_occurrence");
       await Promise.all([create({ occurrence: signed("col-duplicate") })]);

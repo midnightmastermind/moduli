@@ -23,7 +23,9 @@ vi.stubGlobal("localStorage", {
 
 function mintViaEffect(template) {
   const emitted = [];
-  const socket = { on() {}, emit: (ev, payload) => emitted.push({ ev, payload }) };
+  // `connected`, as on a real socket.io client: the create_module goes through
+  // safeEmit (bindSocketToStore), which queues instead of emitting while offline.
+  const socket = { connected: true, on() {}, emit: (ev, payload) => emitted.push({ ev, payload }) };
   bindSocketToStore(socket, () => {}, {
     current: {
       gridId: "g1", userId: "u1",

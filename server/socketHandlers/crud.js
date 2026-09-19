@@ -1421,6 +1421,16 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
   //                   years of dangling-child-ref bugs; it is worth a trip)
   //
   // Measured on the 49-slot schedule build: 98 -> 4.
+  // Ids this socket's create_batch refused, so their children arriving in a
+  // LATER batch are refused too (see handleCreateBatch). Timestamped and pruned.
+  const refusedParents = new Map(); // id -> refusedAt
+  const REFUSED_PARENT_TTL_MS = 10 * 60 * 1000;
+  function rememberRefused(ids) {
+    const now = Date.now();
+    for (const id of ids) refusedParents.set(id, now);
+    for (const [id, at] of refusedParents) if (now - at > REFUSED_PARENT_TTL_MS) refusedParents.delete(id);
+  }
+
   async function handleCreateBatch(batch) {
     if (!batch.length) return;
     const ids = batch.map((b) => b.occurrence?.id).filter(Boolean);
@@ -1453,7 +1463,16 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
       // nothing cached, nothing upserted, no parent `$push` naming them — and
       // the originator is told so its optimistic copy does not linger as a
       // phantom the next parent-list write would launder into a dangling ref.
-      const refusedIds = refusedDuplicateCreates(batch, uc.occurrencesById);
+      const refusedIds = refusedDuplicateCreates(batch, uc.occurrencesById, { modulesById: uc.modulesById });
+      // A REFUSED ROOT'S CHILDREN ARRIVE IN LATER BATCHES. APPLY_TEMPLATE emits a
+      // column and its ~48 slots as separate bursts, so refusing the column here
+      // and not its slots persisted every slot under a parent that never
+      // existed: 771 orphans in one morning (2026-09-19). Remembered per socket,
+      // cascaded, and dropped after a while so a long-lived socket stays lean.
+      for (const b of batch) {
+        const o = b?.occurrence;
+        if (o?.id && o.parentId && refusedParents.has(o.parentId)) refusedIds.add(o.id);
+      }
       // AND ASK THE DATABASE for the few creates that opt in. The pass above
       // answers from the warm cache; on 2026-09-09 a second day column was
       // created 94s after the first with the signature, the flag and a
@@ -1463,11 +1482,12 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
       try {
         const stored = await refusedByStoredSiblings(batch,
           { gridId: socket.data.activeGridId ?? batch.find((b) => b?.occurrence?.gridId)?.occurrence?.gridId,
-            Occurrence, already: refusedIds });
+            Occurrence, Module, already: refusedIds });
         for (const sid of stored) refusedIds.add(sid);
         if (stored.size) console.log("🟣 create_batch REFUSED (stored sibling)", stored.size, [...stored].slice(0, 6));
       } catch (e) { console.warn("create_batch: stored-sibling check skipped —", e?.message); }
       if (refusedIds.size) {
+        rememberRefused(refusedIds);
         console.log("🟣 create_batch REFUSED (duplicate signature)", refusedIds.size, [...refusedIds].slice(0, 6));
         // BOTH emits, and the payload is an OBJECT — this line was wrong twice.
         //

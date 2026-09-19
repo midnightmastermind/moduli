@@ -1639,7 +1639,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
             ...(effect.template.meta && { meta: effect.template.meta }),
           };
           socketDispatch(createModuleAction(newModule));
-          socket?.emit("create_module", { module: newModule });
+          // safeEmit, like every other create_module site: it is the chokepoint
+          // that queues a write while offline. A raw emit here is how an op-built
+          // Schedule column reached Mongo WITHOUT its module (2026-09-19): the
+          // occurrence arrived, the module did not, and the module-less column
+          // then blocked every later build of that day as a duplicate.
+          safeEmit(socket, "create_module", { module: newModule });
         }
 
         // Mint instance

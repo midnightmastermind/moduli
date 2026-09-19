@@ -236,3 +236,31 @@ describe("refusedByStoredSiblings — the net behind the cache", () => {
     expect(Occurrence.calls[0].parentId.$in).toEqual(["board"]);
   });
 });
+
+// 2026-09-19: a Sep 20 Schedule column reached Mongo WITHOUT its module and then
+// refused every later build of that day. The database pass must apply the same
+// dead-holder rule as the cache pass.
+describe("refusedByStoredSiblings — a holder whose module is gone", () => {
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const holder = { id: "old", parentId: "board", identitySignature: "schedule:col:2026-09-20",
+    meta: { signatureUnique: true }, moduleId: "m-gone", createdAt: hourAgo };
+  const Occurrence = { find: () => ({ lean: async () => [holder] }) };
+  const batch = [{ occurrence: uniq("new", { parentId: "board", identitySignature: "schedule:col:2026-09-20" }) }];
+
+  it("does not refuse against a module-less holder past the age floor", async () => {
+    const Module = { find: () => ({ lean: async () => [] }) };
+    const out = await refusedByStoredSiblings(batch, { gridId: "g", Occurrence, Module });
+    expect([...out]).toEqual([]);
+  });
+
+  it("control: refuses when the holder's module exists", async () => {
+    const Module = { find: () => ({ lean: async () => [{ id: "m-gone" }] }) };
+    const out = await refusedByStoredSiblings(batch, { gridId: "g", Occurrence, Module });
+    expect([...out]).toEqual(["new"]);
+  });
+
+  it("control: refuses when no Module model is supplied (callers that cannot check)", async () => {
+    const out = await refusedByStoredSiblings(batch, { gridId: "g", Occurrence });
+    expect([...out]).toEqual(["new"]);
+  });
+});
