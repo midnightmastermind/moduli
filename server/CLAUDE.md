@@ -2,6 +2,52 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-18 (2) — a check-in belongs under the wheel, and `$placeParent` was already dead)
+- **User: *"just put the checkins underneath the emotions wheel and not tasks completed."*** Measured
+  across all 24 Check Ins before writing anything, and it reframed the task:
+  ```
+  parentId points at              the DAY COLUMN on all 24   (0 point at a board)
+  listed by the day column        24
+  ALSO listed by Tasks Completed   5   <- today's, from 0339 + 0341
+  ```
+  The decompressed column textmap renders `… Highlights, Emotions Wheel, Check In ×5`, so they were
+  ALREADY under the wheel. What `0339`/`0341` added was a SECOND listing, and today's five rendered
+  twice. **This is a listing to remove, not a re-parent** — `0342` touches no `parentId`.
+- **`0339`'s own premise was wrong, and only reading the stored pipeline says so.** It re-pointed a
+  `$doneBoard` lookup believing `$placeParent` decided where the Check In was PARENTED. It does not:
+  `COPY_LINK` hard-wires `parent: "$col.id"`, and `$placeParent` is **SET twice and READ NOWHERE**
+  — `0086` introduced it as the COPY_LINK's parent and something later replaced it inline. The only
+  thing filing a check-in into Tasks Completed was one `ADD_CHILD parentId: "$doneBoard.id"`.
+  So `0342` removes that step plus the now-dead scan, branch and two INIT_VARs — a walk over every
+  column child that ran on every wheel click — and **REFUSES unless neither name survives**, because
+  removing a variable something still reads throws at run time instead of failing in the migration.
+- **`0341`'s two edits go, and the container REPAIRS ITSELF.** Removing the mood-sparing IF restores
+  the sweep whose third clause is `_boundFieldIds ARRAY_NOT_INCLUDES <Habit>` — and a Check In binds
+  Habit (verified on all five) — so the next load unlists them. **That is deliberately the repair
+  path:** the alternative is writing `occurrences[]` on a live container, which is the warm-cache
+  clobber this project has paid for repeatedly. Each of the five is still listed by its day column,
+  so nothing is stranded.
+- **The spare-IF is UNWRAPPED, never deleted** — its ELSE arm holds the container's own sweep. A/B'd:
+  returning `[]` instead of `walk(step.else)` fails 5 tests, the load-bearing one being *"restores
+  the sweep the spare-IF was wrapped around"*. Dropping the `COPY_LINK` fails *"still parents the
+  check-in to the day column"*, which is the control that stops "not in Tasks Completed" being
+  satisfied by a check-in that is parented nowhere.
+- **A GUARD THAT WOULD HAVE THROWN ON THE REAL DATA, caught by the test and not by reading it:** the
+  surviving-sweep check counted `/"REMOVE_CHILD"/g` in the pipeline JSON. A REMOVE_CHILD step names
+  itself **twice** (`actionType` AND `config.type`), so one sweep reads as 2 and the migration
+  refused its own correct output. It walks steps now. *Counting a type by matching its name in JSON
+  counts the keys that spell it, not the things.*
+- **Anchored on SHAPE for the Mood op** (an ADD_CHILD into `$doneBoard`, a SET_VAR of `$doneBoard`, a
+  branch assigning `$placeParent`) rather than generated ids, and on `0341`'s OWN ids for the build
+  op. Every anchor must match exactly once or it throws.
+- **Dry run checked against a NAMED expectation first** — `{listing:1, scan:1, placeBranch:1,
+  initVars:2}` and `{relistLoop:1, spareIf:1}` — then applied and **read back out of Mongo**: no
+  `$doneBoard`/`$placeParent`/`ADD_CHILD`, `parent: "$col.id"` intact, the un-pick DELETE intact, no
+  `0341` marker, exactly 1 sweep surviving, and both planners re-running as no-ops. 14 tests;
+  2,378 server tests.
+- **`touches` is a COLLECTION name, not a model name** — `["Operation"]` passed every test of its own
+  and failed `partialBackup`'s cross-check against `BACKUP_COLLECTIONS`. It is `["operations"]`.
+
 ## Recent Changes (2026-09-18 — the rebuilt wheel lost four migrations, and Tasks Completed sweeps)
 - **`migrations/0338`** — the Emotions Wheel occurrence carried only `{type, encoding, literals}`.
   `0296` records it being REBUILT on 2026-09-09 by re-running `0046`, and that is all `0046` minted;
