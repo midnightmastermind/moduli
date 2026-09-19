@@ -2,6 +2,23 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-19 (9) — a Day Page date step went 9.4s -> 1.2s blocked: two per-sweep grid-wide costs)
+
+A date change fires ONE NavigationOp sweep PER inheriting descendant; the cascade dedup leaves most of them
+matching nothing. Two whole-grid costs were still paid per sweep:
+- `operationExecutor._runMatchingOperationsGen` spread `context.occurrencesById` (~22k keys) into `liveOccs`
+  BEFORE checking whether any op matched — now returns early on `matched.length === 0` (2.7s).
+- The sweep's `_parentByChildId` was `buildParentMap` per sweep — now `sweepParentMap(occs, context._occVersion)`,
+  one index per (overlay object, overlay version), each sweep getting an `Object.create` layer so CREATE's
+  mid-sweep patches stay local. Safe because in-sweep writes land on the sweep's `liveOccs` COPY, never the
+  overlay (pinned). `bindSocketToStore` passes `_occVersion: _occOverlay.version`. (5.3s)
+- `CommitHelpers.updateOccurrenceFilterOverride` builds the parent index ONCE and hands it to every
+  `_ancestorChain`. NOT `cachedParentMap`: the op-effect caller passes the live overlay map, which is mutated
+  in place under a stable identity, so an identity cache would go stale forever. (2.7s)
+
+Tests: `__tests__/sweepParentMapCache.test.js` (7, A/B'd). Prod `_perfaudit.mjs`: Day Page next-day visible
+9254 -> 966ms. Toolbar step has no single hotspot left (feed sync ~840ms, 52 ops ~640ms).
+
 ## Recent Changes (2026-09-19 (8) — "Remove" on a row the doc OWNS deletes it: `embedRemoval`)
 - **User: deleting a Check In on the day page left its mood selected on the wheel.** The embedded row's
   radial "Remove" was `deleteNode` — it took the NODE out and left the occurrence alive, still listed by

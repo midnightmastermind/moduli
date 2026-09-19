@@ -15,6 +15,30 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-19 (9) — THE DATE PICKER WAS 9.4s OF PER-SWEEP GRID COPIES; now ~1s
+
+Picked up the other account's perf audit (it hit its spend limit mid-edit, the fix uncommitted). User:
+*"lets do an audit on what takes so long with the filters date picker and why it takes so long to spin up or
+spin down daypages and schedules."* A date change fires one NavigationOp sweep per inheriting descendant, and
+each paid two whole-grid costs even when no op matched: a parent-index rebuild (5.3s, plus 2.7s more in
+`_ancestorChain`) and a ~22k-key spread into the sweep's live copy (2.7s). Details in `client/src/helpers/CLAUDE.md`.
+
+**THE DRAFT HAD A LATENT STALE-CACHE BUG, caught before shipping.** It moved `_ancestorChain` onto
+`cachedParentMap`, keyed on object identity — but `UPDATE_ITEM_FILTER_OVERRIDE` hands it the live overlay map,
+which is mutated in place under ONE identity forever. Built once per call instead. *An identity cache is only
+as safe as its least-immutable caller.*
+
+```
+prod, _perfaudit.mjs      before       after
+Day Page next day         9254ms       966ms visible · blocked 9409 -> 1163ms
+Day Page prev day        10903ms       734ms
+toolbar prev day   busy 13387ms      2216ms
+```
+Also fixed a stale `deleteVerb` source guard left failing by `9c43d5b2`. Client 4,631 pass. Prod `8d4842d5`,
+served index chunk sha-matched. **Not re-watched by a person.**
+
+---
+
 ### 2026-09-18 (8) — MY OWN HAND-WRITE UN-HID THREE FIELDS, and a field name is not unique ACROSS GRIDS
 
 Closing out (7). Its Last Seen half was fixed correctly by `0340` — which hides the **module
