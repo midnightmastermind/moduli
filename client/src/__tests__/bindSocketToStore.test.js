@@ -168,6 +168,24 @@ describe("occurrence_created / updated / deleted", () => {
     }
   });
 
+  test("a feed copy deleted by another tab does not fire OccurrenceDeleteOp", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const { socket } = setup();
+      const fired = () => log.mock.calls.filter((c) => /\[op-fire\] depth=1 OccurrenceDeleteOp/.test(String(c[0]))).length;
+      // Both rows arrive as remote creates first, so the local cache knows them.
+      socket._trigger("occurrence_created", { occurrence: { id: "plain2", moduleId: "m1", fields: {} } });
+      socket._trigger("occurrence_created", { occurrence: { id: "copy2", moduleId: "m1", fields: {}, meta: { feedSourceId: "src" } } });
+      // Control: an ordinary remote delete DOES fire.
+      socket._trigger("occurrence_deleted", { occurrenceId: "plain2" });
+      expect(fired()).toBe(1);
+      socket._trigger("occurrence_deleted", { occurrenceId: "copy2" });
+      expect(fired()).toBe(1);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   test("occurrence_created updates localOccsById (used by fireOperations)", () => {
     // Verify that after occurrence_created, a subsequent occurrence_updated
     // dispatches the updated data — this validates the local cache is live

@@ -981,7 +981,12 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // op-deleted occurrence re-fires OccurrenceDeleteOp at depth 0 (outside the
     // synchronous self-trigger guard) → rebuild op re-deletes → emits → echoes →
     // unbounded async loop (the OccurrenceDeleteOp depth-cap flood).
-    if (!optimisticFiredSet.has(occurrenceId) && !opEmittedOccIds.has(occurrenceId)) {
+    // A FEED COPY's delete is derived data, the twin of onOccurrenceCreated's
+    // rule: the syncing tab sweeps with `fireTrigger: false`, so the echo must
+    // not run the OccurrenceDeleteOp sweep in every other tab (~11 x 140ms per
+    // toolbar date step on prod, 2026-09-19).
+    const isFeedCopy = !!removedOcc?.meta?.feedSourceId;
+    if (!isFeedCopy && !optimisticFiredSet.has(occurrenceId) && !opEmittedOccIds.has(occurrenceId)) {
       // Compute the ancestor chain for the just-deleted occurrence using the
       // override (the occurrence is gone from localOccsById, so the live-overlay
       // walk inside getAncestorChain would miss it; we walk from the snapshot).
