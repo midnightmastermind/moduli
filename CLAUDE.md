@@ -15,6 +15,32 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-19 (11) — PICKER CHAINS, ALARM TIMES, UNDOABLE MOOD PICKS, AND A TOOLBAR THAT STAYS ONE LINE
+
+Five asks in one message, each measured before it was changed.
+- **Container picker ("send pomodoros to")**: the chain was already built (`helpers/containerCrumbs.js`);
+  the bare "9:00am"s were **325 of 2,107 options that nothing lists and whose parent is gone** — refused-
+  build leftovers among them. The picker now offers only containers you can get to (a folder-filed one
+  keeps the folder as its crumb). Driven over live data: every 9:00am reads with its full chain.
+- **Alarms**: a live `NowClock` in the panel. The test for it found **every alarm ROW's time rendering
+  blank** — `AlarmRow` destructured `{ t, ampm }` from `formatAlarmTime`, which returns a STRING.
+  `alarmTimeParts` is the one formatter now; `formatAlarmTime` joins it.
+- **Undo after a mood pick did nothing**: read out of `transactions` — the pick was 49 `meta.derived` rows
+  and the only undoable ones were the day column's text saves. A graph click fired its op with no action
+  open. `helpers/graphSelect.fireGraphSelect` wraps it in `withAction` (the CommitHelpers pattern).
+  **Unit-tested, not clicked in a browser.**
+- **Toolbar**: the date nav's `flexWrap: wrap` stacked it (30 -> 61 -> 79px tall at 700/640/601).
+  `nowrap` for the toolbar only, a 108px floor on the date, and the logo + grid picker give way first.
+  **Two layout bugs surfaced only by measuring**: the grid picker's `w-full` claimed the whole left group
+  and clipped the logo to its minimum at EVERY width; and the first toast fix (a 1200px cutoff) still
+  overlapped the filter + date nav at 1024-1200px because the arithmetic left them out. The pills now sit
+  IN the flow between the two sides and the stack collapses to its count pill only when its own width
+  exceeds the slot the toolbar measures. Probe at 12 widths: 30px, one line, no overlap, no h-scroll.
+- `disconnect_other_sessions` (server): closes a user's other tabs; a server-initiated disconnect is the
+  one reason socket.io does not reconnect, so they stay down until reloaded onto the current build.
+
+---
+
 ### 2026-09-19 (10) — A COLUMN WITHOUT ITS MODULE BLOCKED ITS DAY FOREVER; and my probe made it
 
 User: *"its not spinning up future date col ... it looked like it created it for a second and then
