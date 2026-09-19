@@ -19,6 +19,36 @@ matching nothing. Two whole-grid costs were still paid per sweep:
 Tests: `__tests__/sweepParentMapCache.test.js` (7, A/B'd). Prod `_perfaudit.mjs`: Day Page next-day visible
 9254 -> 966ms. Toolbar step has no single hotspot left (feed sync ~840ms, 52 ops ~640ms).
 
+## Recent Changes (2026-09-19 (9) — date changes: the whole-grid parent map was rebuilt once PER DESCENDANT (9.4s -> 2.3s)
+- **User: *"lets do an audit on what takes so long with the filters date picker and why it takes so long
+  to spin up or spin down daypages and schedules."*** Measured on PROD against poms grid with a Playwright
+  probe (`_perfaudit.mjs`, repo root, gitignored) + CDP profiles source-mapped with `_profsum.mjs`:
+  ```
+                                   before (visible / blocked)   after
+  open the Filters dropdown            0.5s / 0                   0.5s / 0
+  open the calendar                    instant                    instant
+  Day Page next day                    9.3s / 9.4s  (3.0s+6.2s)   1.5s / 2.3s   (a 3-day range)
+  Day Page back a day                 10.9s / 9.4s               1.2s / 1.5s
+  toolbar back a day                   1.0s / 11.4s              1.3s / 2.3s
+  ```
+  **The ops themselves were ~180ms.** The profile put 5.3s of SELF time in `buildParentMap`: a page's date
+  change fires one NavigationOp per inheriting descendant, and BOTH `CommitHelpers._ancestorChain` (per
+  descendant, 2.7s) and the executor's per-sweep `_parentByChildId` (per sweep, the rest) rebuilt the
+  whole-grid (22k) child->parent index each time.
+- **`_ancestorChain` -> `cachedParentMap`** (identity-keyed on the store snapshot; read-only use). It was a
+  second, uncached copy of the bridge's version-cached `getAncestorChain`.
+- **`operationExecutor.sweepParentMap`** — one build per overlay OBJECT + VERSION (`sweepCtx._occVersion`
+  from `_occOverlay.version`; the no-base overlay is identity-STABLE and mutated in place, so identity alone
+  would go stale). Each sweep gets `Object.create(shared)` so CREATE's in-place patches stay in that sweep
+  (every consumer does key lookups only; none iterates). No version -> the old per-sweep build.
+  A/B: handing out the shared map itself fails "a sweep's own patch stays in that sweep".
+- **Left, measured, not changed:** the remaining ~2s is spread — ops 0.5-0.8s, `syncAllFeeds` 0.35-0.6s,
+  React ~0.2s. **Next lever:** building a NEW day column fires `OccurrenceCreateOp` per created row
+  (13 ops, ~130ms each); `Project: Stamp Status From Column` is 65-80ms of every one with 0 effects — a
+  `FIND over $allOccurrences where id IS $x` is a LINEAR scan of 22k rows for one id. A FIND whose
+  predicate is a single `id IS` rule could use an id index instead, and it would speed up every op
+  written that way. Also seen: the Filters dropdown's ancestor row reads `Date = [object Object]`.
+
 ## Recent Changes (2026-09-19 (8) — "Remove" on a row the doc OWNS deletes it: `embedRemoval`)
 - **User: deleting a Check In on the day page left its mood selected on the wheel.** The embedded row's
   radial "Remove" was `deleteNode` — it took the NODE out and left the occurrence alive, still listed by
