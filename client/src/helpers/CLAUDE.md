@@ -2,6 +2,25 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-19 (4) — a deleted occurrence's embed leaves the editor ON THE DELETE: `dropEmbedsOf`)
+- **User: un-picking emotions on the wheel left `embed: 4edd87c8…` in the day column, one ghost at a
+  time.** A moduleEmbed never removed itself when its occurrence was deleted — it drew the placeholder —
+  and the host editor's next save (`{...occurrence, textmap: editorJSON}`) wrote the dead node back AFTER
+  the server had scrubbed it. Prod's log shows each un-pick followed by several column saves still
+  carrying the deleted ids.
+- **`embedRegistry.dropEmbedsOf(occId)`** runs the node's registered removal. Called from the three
+  places a delete reaches the client: `CommitHelpers.deleteOccurrence` (op DELETEs use it too),
+  `removeOccurrence`, and `bindSocketToStore.onOccurrenceDeleted`. **Keyed on the DELETE EVENT, never on
+  "absent from the store"** — artifact occurrences arrive in a deferred chunk, so absence is normal on
+  every load. **Skipped when `deleteOccurrence` has a `fromParentId`**: that may be a PLACEMENT removal
+  the server keeps alive (`classifyFileDelete`), and its embeds elsewhere must stay — the control test.
+- **`ModuleEmbedNode`'s removal checks the node at `getPos()` is still this occurrence** before deleting:
+  a registry entry can outlive its node by a render, and a stale position would delete a DIFFERENT node.
+- Server repair `0345` removed the two already-saved ghosts (today's and tomorrow's columns), scoped to
+  columns from 2026-09-19 on. **NOT repaired, on purpose:** 20 August/early-September columns embed
+  `289583d9`, almost certainly the wheel replaced on 2026-09-09 — dropping it would leave those days
+  with no wheel rather than restore one. The user's call.
+
 ## Recent Changes (2026-09-19 (3) — an OPERATION's textmap write reaches a focused editor: `markOperationWrite`)
 - **User: *"the checkins are still not showing up until after i reload"*, then *"it leaves an embed
   artifact"* on un-pick.** Mongo was right both times (`0343` embedded the pick; the delete-scrub stripped

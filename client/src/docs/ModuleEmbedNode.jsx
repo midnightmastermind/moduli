@@ -64,6 +64,13 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
   useEffect(() => {
     if (!occurrenceId) return;
     const onRegistryDelete = () => {
+      // A registry entry can outlive its node by a render (React unmounts node
+      // views asynchronously), and a stale getPos would then delete a DIFFERENT
+      // node. Only act while the node here is still this occurrence's.
+      if (editor?.isDestroyed) return;
+      let here = null;
+      try { const at = getPos?.(); here = typeof at === "number" ? editor?.state?.doc?.nodeAt(at) : null; } catch { here = null; }
+      if (!here || here.attrs?.occurrenceId !== occurrenceId) return;
       const member = editor?.state?.doc ? findGroupMember(editor.state.doc, occurrenceId) : null;
       if (member) {
         detachGroupMember(editor, member.groupPos, occurrenceId);
@@ -73,7 +80,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
     };
     embedDeleteRegistry.set(occurrenceId, onRegistryDelete);
     return () => { embedDeleteRegistry.delete(occurrenceId); };
-  }, [occurrenceId, deleteNode, editor, dispatch, socket]);
+  }, [occurrenceId, deleteNode, editor, getPos, dispatch, socket]);
 
   // Resize drag state
   const resizeRef = useRef(null);

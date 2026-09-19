@@ -1,6 +1,7 @@
 // helpers/CommitHelpers.js
 import { operationsBridge } from "../state/bindSocketToStore";
 import { safeEmit } from "./offlineQueue";
+import { dropEmbedsOf } from "./embedRegistry";
 import { recordActive } from "./panelHistory";
 import { beginAction, endAction, withAction } from "./actionScope";
 import { buildParentMap } from "./dragHitTesting";
@@ -618,6 +619,10 @@ function _deleteOccurrence({ dispatch, socket, occurrenceId, occurrence, emit = 
   // the conservative reading, and byte-identical to the old behaviour for any
   // occurrence not homed in Files.
   if (shouldEmit(emit)) safeEmit(socket, "delete_occurrence", { occurrenceId, fromParentId });
+  // Only a delete of the THING takes its embeds out of editors. With a
+  // `fromParentId` the server may keep it (a placement removal), and its embeds
+  // elsewhere must stay.
+  if (!fromParentId) dropEmbedsOf(occurrenceId);
   // CYCLE BREAKER (2026-05-25) — when `fireTrigger` is false the caller is an
   // operation effect deleting DERIVED data (a mirror op's row/card copy, via
   // applyOperationEffect → DELETE_ITEM / REMOVE_OCCURRENCE). Such deletions
@@ -679,6 +684,7 @@ function _removeOccurrence({ dispatch, socket, occurrenceId, occurrence, parentO
   // Delete the occurrence (server cascades children + cleans parent)
   dispatch?.(deleteOccurrenceAction(occurrenceId));
   if (shouldEmit(emit)) safeEmit(socket, "delete_occurrence", { occurrenceId });
+  dropEmbedsOf(occurrenceId);
   // CYCLE BREAKER — derived-data sweeps (feed copies) skip the trigger and
   // suppress the server echo (see deleteOccurrence's fireTrigger doc).
   if (!fireTrigger) {

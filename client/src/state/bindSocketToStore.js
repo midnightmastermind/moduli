@@ -6,6 +6,7 @@
 // =========================================
 
 import { ActionTypes } from "./actions";
+import { dropEmbedsOf } from "../helpers/embedRegistry";
 import { runMatchingOperations, runMatchingOperationsSliced, executeOperation, executePipeline, setOpApplyingEffects, snapshotOpsApplying, markOpsApplying } from "../helpers/operationExecutor";
 import { kindForNewModule } from "../helpers/operationActions";
 import { setComputedValuesAction, createModuleAction, updateModuleAction, deleteModuleAction, createOccurrenceAction, initFilterNavAction, setFilterNavAction, updateGridAction } from "./actions";
@@ -923,6 +924,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       type: ActionTypes.DELETE_OCCURRENCE,
       payload: { occurrenceId },
     });
+    // Deleted elsewhere (another tab, or the server refusing a duplicate): take
+    // its embed out of any editor here too, or that editor re-saves the dead
+    // node (helpers/embedRegistry.dropEmbedsOf).
+    dropEmbedsOf(occurrenceId);
 
     // Skip if THIS client already fired the delete trigger optimistically
     // (CommitHelpers.deleteOccurrence). Otherwise the server's own-echo of an
