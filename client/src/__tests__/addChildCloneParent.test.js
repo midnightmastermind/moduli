@@ -35,6 +35,50 @@ describe("ADD_CHILD onto a same-pipeline clone", () => {
     expect(updates).toEqual([{ _effect: "UPDATE_OCCURRENCE", occurrence: { id: "col", occurrences: ["a", "b"] } }]);
   });
 
+  // THE SECOND REPORT: the clone's CREATE_ITEM payload and its stub share one
+  // `childIds` array. If ADD_CHILD grows a NEW array, the create still carries
+  // only the template's children and — landing after the ADD_CHILD writes —
+  // resets the list. Both ADD_CHILDs must reach the create payload.
+  test("the clone's own CREATE payload carries every child added after it", () => {
+    const childIds = ["journal", "notes"];
+    const createPayload = { id: "col", occurrences: childIds };
+    const stub = { id: "col", occurrences: childIds };
+    const $vars = { $allOccurrences: [stub], $col: stub };
+    executeActionItem("ADD_CHILD", { parentId: "col", childId: "wheel" }, $vars, ctx(), null);
+    executeActionItem("ADD_CHILD", { parentId: "col", childId: "todo" }, $vars, ctx(), null);
+    expect(createPayload.occurrences).toEqual(["journal", "notes", "wheel", "todo"]);
+  });
+
+  // A second ADD_CHILD must build on the first, not on the pre-first list.
+  test("a second ADD_CHILD's write keeps the first child", () => {
+    const stub = { id: "col", occurrences: ["a"] };
+    const $vars = { $allOccurrences: [stub] };
+    executeActionItem("ADD_CHILD", { parentId: "col", childId: "wheel" }, $vars, ctx(), null);
+    const u = executeActionItem("ADD_CHILD", { parentId: "col", childId: "todo" }, $vars, ctx(), null);
+    expect(u[0].occurrence.occurrences).toEqual(["a", "wheel", "todo"]);
+  });
+
+  // An EXISTING column: the store holds it, and a FIND bound the read-model
+  // copy. The copy `$col` holds must see the child; the store object must not
+  // be touched, and neither must the array they share.
+  test("an existing parent's read-model copy sees the child; the store does not move", () => {
+    const shared = ["journal"];
+    const storeObj = { id: "P", occurrences: shared };
+    const readModel = { ...storeObj, label: "Friday" };
+    const $vars = { $allOccurrences: [readModel], $col: readModel };
+    executeActionItem("ADD_CHILD", { parentId: "P", childId: "wheel" }, $vars, ctx({ P: storeObj }), null);
+    expect($vars.$col.occurrences).toEqual(["journal", "wheel"]);
+    expect(storeObj.occurrences).toEqual(["journal"]);
+    expect(shared).toEqual(["journal"]);
+  });
+
+  test("a $vars entry that IS the store object is left alone", () => {
+    const storeObj = { id: "P", occurrences: ["a"] };
+    executeActionItem("ADD_CHILD", { parentId: "P", childId: "b" },
+      { $allOccurrences: [storeObj] }, ctx({ P: storeObj }), null);
+    expect(storeObj.occurrences).toEqual(["a"]);
+  });
+
   // THE CONTROL: a parent in the store overlay is the store's own object. It
   // must be REPLACED, never mutated — mutating it would change React state
   // behind the reducer's back.

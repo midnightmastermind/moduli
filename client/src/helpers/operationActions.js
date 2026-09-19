@@ -2670,7 +2670,16 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       const next = [...existing, childId];
       if (context.occurrencesById && context.occurrencesById[parentId]) {
         // The store's own object: REPLACE it, never mutate React state in place.
-        context.occurrencesById[parentId] = { ...context.occurrencesById[parentId], occurrences: next };
+        const storeObj = context.occurrencesById[parentId];
+        context.occurrencesById[parentId] = { ...storeObj, occurrences: next };
+        // …but a FIND bound the READ-MODEL copy (`enrichOne` spreads each
+        // occurrence into a new object), and that copy is what `$col` holds. Point
+        // its list at the new array too, or a later step in this run still reads
+        // the old one. Reassigned, never pushed: its array IS the store's.
+        // Skipped if the entry is the store object itself.
+        const readModel = Array.isArray($vars.$allOccurrences)
+          && $vars.$allOccurrences.find((o) => o?.id === parentId);
+        if (readModel && readModel !== storeObj) readModel.occurrences = next;
       } else if (parentOcc) {
         // A parent found only in $vars is a clone this pipeline minted (a day
         // column APPLY_TEMPLATE built a few steps earlier). It is pipeline-owned,
@@ -2679,7 +2688,15 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         // same stubs. Replacing it left `$col.occurrences` stale: `Day Page:
         // Build` listed the Emotions Wheel under a fresh column, then built the
         // textmap by looping `$col.occurrences` without it (2026-09-19).
-        parentOcc.occurrences = next;
+        //
+        // PUSH, never reassign: the clone's CREATE_ITEM payload holds the SAME
+        // `childIds` array as the stub. Reassigning left the create carrying
+        // only the template's children, and when the create landed after this
+        // step's UPDATE_OCCURRENCE it reset the list — tomorrow's column lost
+        // the wheel AND the Todo (2026-09-19, second report). Growing the shared
+        // array makes the create itself carry them, so write order stops mattering.
+        if (Array.isArray(parentOcc.occurrences)) parentOcc.occurrences.push(childId);
+        else parentOcc.occurrences = next;
       }
       updates.push({ _effect: "UPDATE_OCCURRENCE", occurrence: { id: parentId, occurrences: next } });
       break;

@@ -2,6 +2,19 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-19 (2) — the first fix REASSIGNED the array; tomorrow's column lost the wheel AND the Todo)
+- **User: *"tomorrows emotions wheel disappeared"* after a reload.** Tomorrow's column (built under the
+  first fix) ended up listing only the template's four children. The clone's `CREATE_ITEM` payload and
+  its `$vars` stub share ONE `childIds` array; `parentOcc.occurrences = next` gave the stub a new array
+  and left the create carrying four. Prod's log shows the column's `update_occurrence` landing inside its
+  own `create_batch` (`dropped 1 unknown child id(s)`), so the create's list won. **It PUSHES now**, so
+  the create itself carries the wheel and the Todo and write order stops mattering. A/B: the reassigning
+  version fails exactly *"the clone's own CREATE payload carries every child added after it"*.
+- **A store-backed parent had the same staleness one level up:** ADD_CHILD replaced the store entry, but
+  a FIND binds the READ-MODEL copy (`enrichOne` spreads into a new object), so `$col` kept the old list
+  for the rest of the run. That copy's list is now REASSIGNED to the new array — never pushed, since its
+  array is the store's — and skipped when the entry is the store object itself. Both halves pinned.
+
 ## Recent Changes (2026-09-19 — ADD_CHILD grows a same-pipeline clone IN PLACE: a new day's column lost the Emotions Wheel)
 - **User: *"the emotions wheel isnt showing up for today"*.** Today's column (built 06:31) LISTED the
   wheel and its textmap did not EMBED it; yesterday's had both. A doc container renders its textmap,

@@ -2,6 +2,20 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-19 — `0343`: a check-in shows the moment it is picked)
+- **User: *"i clicked on a few emotions for today and no checkins show up. i reload the page and the
+  checkins show up."*** A day column is a DOC container and draws its TEXTMAP; the Mood op's COPY_LINK
+  only LISTS the Check In, and the embed arrived when `Day Page: Build` rebuilt the textmap on the next
+  load. It was immediate before only by accident — `0342` removed the Tasks Completed listing, and that
+  board draws its list.
+- `0343` appends a `moduleEmbed` of the new Check In to `$col.textmap` right after the COPY_LINK — the
+  same node, in the same position, the rebuild writes, so the next rebuild is a no-op rather than a
+  reorder. **Guarded on the column already having a body**, or an empty textmap would be replaced by a
+  document holding only the check-in; A/B'd, removing the guard fails the control. Un-picking needs
+  nothing: the server's delete-scrub already removes embeds of deleted ids.
+- Behavioural test drives the migration's own steps through the real executor
+  (`client/src/__tests__/checkInEmbedsImmediately.test.js`). Applied to poms grid, read back.
+
 ## Recent Changes (2026-09-18 (2) — a check-in belongs under the wheel, and `$placeParent` was already dead)
 - **User: *"just put the checkins underneath the emotions wheel and not tasks completed."*** Measured
   across all 24 Check Ins before writing anything, and it reframed the task:
