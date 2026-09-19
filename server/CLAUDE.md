@@ -2,6 +2,22 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-19 (4) — `0347`/`0348`: a Check In is also listed in the Schedule's current timeslot, and is not a "completed task")
+- User: *"no checkin is being created in the schedule when i select a mood"*; asked where: *"Current timeslot"*.
+- **`0347`** (after `0343`'s embed step): finds the Schedule day column for `$day` (scope page + format
+  `day-col` + date, ids from `grid.meta.scheduleFieldIds`), walks THAT column's own `occurrences[]` (never
+  `_ancestors` — one-parent map), picks the latest slot whose label is not `TIME_AFTER $currentTime`, and
+  `ADD_CHILD`s the Check In there. One occurrence, two places: parented to the day page column, listed by
+  the slot — so deleting it anywhere deletes it (and deselects the mood) everywhere. Measured first: all
+  49 of today's slots are owned by today's column, none shared. No column or no slot yet → day page only.
+  Executor test at a frozen clock (07:40 -> 7:30am, 07:30 counts, 05:00 -> none, other day's column);
+  neutralising the time check fails 3.
+- **`0348`**: a Check In is Completed, and two trackers count ANY completed row under the Schedule —
+  Completion Rate and Current Streak — so every pick would have raised the rate and kept the streak alive.
+  In just those two, `fields.<Mood>.value IS_EMPTY` is appended to each group testing Completed (same
+  variable prefix). `Moods` is meant to see them and is untouched. Census of the other Schedule-scanning
+  ops: value trackers gated on their own field, which a Check In does not carry.
+
 ## Recent Changes (2026-09-19 (3) — `0346`: the day columns' Check Ins cleared, at the user's ask)
 - *"remove all the moods from the db so we can have a fresh test ... the ones i selected on daycol"*.
   23 deleted (Sep 18: 5; Aug 11-13: 18), with their listings and embeds. Module read off the Mood op's
