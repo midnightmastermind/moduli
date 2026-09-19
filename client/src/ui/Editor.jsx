@@ -119,8 +119,21 @@ function trackUserInput() {
   if (_userInputListenersOn || typeof document === "undefined") return;
   _userInputListenersOn = true;
   const stamp = () => stampUserInput();
-  document.addEventListener("pointerdown", stamp, true);
+  // A pointerdown inside a NON-EDITABLE island — a node view such as the
+  // Emotions Wheel, an embedded block's chrome — is not a gesture on the doc's
+  // text. Counting it let a click on a wheel slice mint a textblock on the empty
+  // line our own removal left the caret on (user video, 2026-09-19: deselecting
+  // every mood "adds that empty textblock", after which picks stopped showing).
+  const stampPointer = (e) => { if (!isInNonEditableIsland(e.target)) stampUserInput(); };
+  document.addEventListener("pointerdown", stampPointer, true);
   document.addEventListener("keydown", stamp, true);
+}
+
+/** True when `el` sits inside a `contenteditable="false"` region (a node view). */
+export function isInNonEditableIsland(el) {
+  const node = el && el.nodeType === 1 ? el : el?.parentElement;
+  const island = node?.closest?.('[contenteditable="false"]');
+  return !!island;
 }
 
 // The caret sits in an EMPTY top-level line → the {start, size} of the line to

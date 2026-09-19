@@ -2,6 +2,21 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-19 (7) — deselecting every mood minted an empty textblock; a delete-driven removal is now SILENT)
+- **User (video): after un-picking all moods an empty textblock appeared and new picks stopped showing.**
+  The DB said it too: a Check In (`f8fcf763`) created at 12:29:19 was listed by the column, and the
+  column's textmap saved 3s later held two empty lines and NO embed for it.
+- **Cause 1:** `dropEmbedsOf` removed the node with an ordinary `deleteNode` — a user-style edit. It
+  SAVED the column (a save that could land after the next pick and wipe its embed) and opened the
+  typed-recently guard that blocked the pick's write. The handler now takes `{ silent }`; the delete
+  path applies it as one transaction with no history and `preventUpdate` — the server's delete-scrub has
+  already persisted the removal. Drag-out still uses the non-silent path (its save IS the persistence).
+- **Cause 2:** removing the LAST Check In leaves the column ending in the wheel, TipTap appends an empty
+  line and the caret lands on it — and the mint's gesture gate stamped ANY pointerdown, so the next click
+  on a wheel slice minted a textblock there. `isInNonEditableIsland` (Editor.jsx): a pointerdown inside a
+  `contenteditable="false"` node view no longer stamps; clicks on text/empty lines and every keydown still
+  do. Control test keeps the ordinary-line case counting.
+
 ## Recent Changes (2026-09-19 (6) — the op-write mark is NOT spent on the first apply: Check Ins were one behind)
 - **User (video): each Check In appeared only on the NEXT pick, and the page still jumped to the top.**
   The op's write reaches the editor in TWO renders: `markOperationWrite`'s token re-renders at once, and

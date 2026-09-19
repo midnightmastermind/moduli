@@ -19,6 +19,7 @@ export const embedDeleteRegistry = new Map();
 export function dropEmbedsOf(occurrenceId) {
   const remove = occurrenceId ? embedDeleteRegistry.get(occurrenceId) : null;
   if (!remove) return false;
-  try { remove(); } catch { /* the node may already be gone */ }
+  // SILENT: a sync, not a user edit — see ModuleEmbedNode's handler.
+  try { remove({ silent: true }); } catch { /* the node may already be gone */ }
   return true;
 }

@@ -85,3 +85,31 @@ describe("wiring no test can mount", () => {
     expect(editor.indexOf("applyEmbedDiff(editor, embedPlan)", at)).toBeLessThan(editor.indexOf(".setContent(content, { emitUpdate: false })", at));
   });
 });
+
+// ── 2026-09-19 (video): deselecting every mood minted an empty textblock ──
+import { isInNonEditableIsland } from "../ui/Editor.jsx";
+
+describe("a delete-driven removal is a sync, not a user edit", () => {
+  it("dropEmbedsOf asks for a SILENT removal", () => {
+    const fn = vi.fn();
+    embedDeleteRegistry.set("ci", fn);
+    dropEmbedsOf("ci");
+    expect(fn).toHaveBeenCalledWith({ silent: true });
+  });
+  it("the silent branch is neither an undo step nor an onUpdate (no save)", () => {
+    const node = readFileSync(resolve(__dirname, "../docs/ModuleEmbedNode.jsx"), "utf-8");
+    const body = node.slice(node.indexOf("if (silent && !member) {"), node.indexOf("if (member) {"));
+    expect(body).toContain('tr.setMeta("addToHistory", false)');
+    expect(body).toContain('tr.setMeta("preventUpdate", true)');
+  });
+});
+
+describe("a click inside a node view is not a gesture on the doc's text", () => {
+  it("a pointerdown inside a contenteditable=false island does not count", () => {
+    document.body.innerHTML = `<div contenteditable="true"><p id="line"></p>
+      <div contenteditable="false"><canvas id="wheel"></canvas></div></div>`;
+    expect(isInNonEditableIsland(document.getElementById("wheel"))).toBe(true);
+    // THE CONTROL: a click on an ordinary line still counts.
+    expect(isInNonEditableIsland(document.getElementById("line"))).toBe(false);
+  });
+});

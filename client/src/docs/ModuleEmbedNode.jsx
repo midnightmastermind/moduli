@@ -63,7 +63,7 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
   // 1-child group — detach the member (keeps the group valid / un-morphs the host).
   useEffect(() => {
     if (!occurrenceId) return;
-    const onRegistryDelete = () => {
+    const onRegistryDelete = ({ silent = false } = {}) => {
       // A registry entry can outlive its node by a render (React unmounts node
       // views asynchronously), and a stale getPos would then delete a DIFFERENT
       // node. Only act while the node here is still this occurrence's.
@@ -72,6 +72,19 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
       try { const at = getPos?.(); here = typeof at === "number" ? editor?.state?.doc?.nodeAt(at) : null; } catch { here = null; }
       if (!here || here.attrs?.occurrenceId !== occurrenceId) return;
       const member = editor?.state?.doc ? findGroupMember(editor.state.doc, occurrenceId) : null;
+      // SILENT: the occurrence was DELETED and the server already persisted the
+      // removal (its delete-scrub). Applied like a sync — no undo step, no
+      // onUpdate — because an ordinary edit here SAVED the column, and that save
+      // could land after the next mood pick and wipe its embed; it also opened
+      // the typed-recently guard that then blocked the pick's write (2026-09-19).
+      if (silent && !member) {
+        const at = getPos();
+        const tr = editor.state.tr.delete(at, at + here.nodeSize);
+        tr.setMeta("addToHistory", false);
+        tr.setMeta("preventUpdate", true);
+        editor.view.dispatch(tr);
+        return;
+      }
       if (member) {
         detachGroupMember(editor, member.groupPos, occurrenceId);
         return;
