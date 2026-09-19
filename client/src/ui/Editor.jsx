@@ -21,7 +21,10 @@ import {
   useCallback, useEffect, useMemo, useRef, useState,
   forwardRef, useImperativeHandle, useSyncExternalStore,
 } from "react";
-import { subscribeForceSync, getForceSyncToken } from "../helpers/editorSyncSignal";
+import {
+  subscribeForceSync, getForceSyncToken,
+  subscribeOperationWrite, getOperationWriteToken, hasOperationWrite, clearOperationWrite,
+} from "../helpers/editorSyncSignal";
 import { focusDocEnd } from "../helpers/caretLanding";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { watchRegion, claimExclusiveGap, releaseExclusiveGap } from "../helpers/gapHover.js";
@@ -383,6 +386,10 @@ const Editor = forwardRef(function Editor({
   const forceSyncToken = useSyncExternalStore(
     subscribeForceSync, getForceSyncToken, getForceSyncToken);
   const appliedForceSyncRef = useRef(getForceSyncToken());
+  // Re-runs the content sync when an operation marks a write to an editor —
+  // the mark itself is read per-occurrence inside the effect.
+  const opWriteToken = useSyncExternalStore(
+    subscribeOperationWrite, getOperationWriteToken, getOperationWriteToken);
   const locallyModifiedRef = useRef(false);
   const locallyModifiedTimerRef = useRef(null);
 
@@ -1585,9 +1592,13 @@ const Editor = forwardRef(function Editor({
       // Skip if editor has focus (user is typing) OR mid-click (mousedown fired but focus not yet)
       const editorDom = editor.view?.dom;
       const hasFocus = editorDom && document.activeElement && editorDom.contains(document.activeElement);
+      // An OPERATION rewrote this editor's textmap (helpers/editorSyncSignal):
+      // it may land while focused or just-clicked — the click is often what
+      // fired the op — but never over unsaved typing.
+      const opWrote = hasOperationWrite(occurrence?.id);
       if (!forced) {
-        if (hasFocus) return;
-        if (recentMousedownRef.current) return;
+        if (hasFocus && !opWrote) return;
+        if (recentMousedownRef.current && !opWrote) return;
         // Skip if the editor was recently modified locally. Without this, a debounced
         // save from before auto-create fires echoes back after the sub-editor takes focus
         // (outer hasFocus=false) and resets the doc to the pre-textblock state.
@@ -1629,6 +1640,9 @@ const Editor = forwardRef(function Editor({
           .setMeta("addToHistory", false)
           .setContent(content, { emitUpdate: false })
           .run();
+        // The op's write has landed — spend the mark so a later ECHO under the
+        // same focus is guarded as usual.
+        if (opWrote) clearOperationWrite(occurrence?.id);
         // A just-typed textblock whose editor mounted BEFORE its content arrived
         // takes the caret now — content first, then focus, so the character that
         // created it is never dropped (see the onCreate claim above).
@@ -1653,7 +1667,7 @@ const Editor = forwardRef(function Editor({
     } catch (_) {
       // Editor view not ready yet (TipTap throws if view isn't mounted during rapid re-renders)
     }
-  }, [editor, content, forceSyncToken]);
+  }, [editor, content, forceSyncToken, opWriteToken]);
 
   // ── expr + embed selection handlers (declared AFTER editor to avoid TDZ) ─
   const handleSelectExpr = useCallback((fieldName) => {

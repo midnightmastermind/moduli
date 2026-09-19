@@ -2,6 +2,21 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-19 (3) — an OPERATION's textmap write reaches a focused editor: `markOperationWrite`)
+- **User: *"the checkins are still not showing up until after i reload"*, then *"it leaves an embed
+  artifact"* on un-pick.** Mongo was right both times (`0343` embedded the pick; the delete-scrub stripped
+  the un-pick). The screen was not: `Editor`'s content sync skips while the editor is focused or was just
+  clicked — right for a stale echo — and **the Emotions Wheel is a node view INSIDE the day column's
+  editor**, so the click on a slice sets both guards on exactly the editor the op then writes to.
+- **`editorSyncSignal.markOperationWrite(occId)`** — scoped to ONE occurrence (undo's force is grid-wide
+  and also lifts the typed-recently guard, which would discard unsaved typing anywhere). It lifts ONLY the
+  focus and just-clicked guards; `locallyModifiedRef` still blocks, so an op can never overwrite prose not
+  yet saved. **A mark with a 3s deadline, not a one-shot token** — the store update and the signal can
+  render in separate passes, and a one-shot consumed on the pass still holding the old content would drop
+  the bypass before the new content arrived. Cleared once the editor has applied a change.
+- Marked by `bindSocketToStore`'s `UPDATE_ITEM_TEXTMAP` handler AFTER its dispatch. Source guards pin
+  the three wiring points, the load-bearing one being that the typed-recently guard is never bypassed.
+
 ## Recent Changes (2026-09-19 (2) — the first fix REASSIGNED the array; tomorrow's column lost the wheel AND the Todo)
 - **User: *"tomorrows emotions wheel disappeared"* after a reload.** Tomorrow's column (built under the
   first fix) ended up listing only the template's four children. The clone's `CREATE_ITEM` payload and

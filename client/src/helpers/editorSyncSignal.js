@@ -48,9 +48,64 @@ export function getForceSyncToken() {
   return token;
 }
 
+// ── AN OPERATION'S WRITE TO ONE EDITOR ─────────────────────────────────────
+//
+// An op that rewrites a textmap is not an echo either — and it is usually
+// CAUSED by a click inside that very editor. The Emotions Wheel is a node view
+// inside the day column's editor, so clicking a slice focuses the column and
+// marks it just-clicked; the Mood op's embed of the new Check In then arrived
+// under both guards and was dropped until a reload (user, 2026-09-19: "the
+// checkins are still not showing up until after i reload").
+//
+// Scoped to ONE occurrence, unlike the undo force above, and it lifts only the
+// focus and just-clicked guards — never the typed-recently guard, so an op
+// cannot overwrite prose the user has not saved yet.
+//
+// A MARK WITH A DEADLINE, not a one-shot token: the store update and this
+// signal can render in separate passes, and a one-shot consumed on the pass
+// that still holds the OLD content would drop the bypass before the new
+// content arrives. The editor clears the mark only once it has applied a
+// change.
+const OP_WRITE_TTL_MS = 3000;
+const opWrites = new Map();          // occurrenceId -> expires-at (ms)
+let opToken = 0;
+const opListeners = new Set();
+
+export function markOperationWrite(occurrenceId, now = Date.now()) {
+  if (!occurrenceId) return;
+  opWrites.set(occurrenceId, now + OP_WRITE_TTL_MS);
+  opToken += 1;
+  for (const fn of opListeners) {
+    try { fn(); } catch { /* a bad subscriber must not block the rest */ }
+  }
+}
+
+export function hasOperationWrite(occurrenceId, now = Date.now()) {
+  const until = occurrenceId ? opWrites.get(occurrenceId) : undefined;
+  if (!until) return false;
+  if (now > until) { opWrites.delete(occurrenceId); return false; }
+  return true;
+}
+
+export function clearOperationWrite(occurrenceId) {
+  opWrites.delete(occurrenceId);
+}
+
+export function subscribeOperationWrite(fn) {
+  opListeners.add(fn);
+  return () => opListeners.delete(fn);
+}
+
+export function getOperationWriteToken() {
+  return opToken;
+}
+
 /** Test seam. */
 export function _resetForceSync() {
   token = 0;
   pending = false;
   listeners.clear();
+  opWrites.clear();
+  opToken = 0;
+  opListeners.clear();
 }

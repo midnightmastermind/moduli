@@ -33,7 +33,7 @@ import { beginAction, endAction, setActionCloseHook, captureAction, retainAction
 import { runSliced } from "../helpers/sliceWork";
 import { makeInteractionHold } from "../helpers/interactionHold";
 import { makeOccOverlay } from "../helpers/occOverlay";
-import { requestForceSync, commitForceSync } from "../helpers/editorSyncSignal";
+import { requestForceSync, commitForceSync, markOperationWrite } from "../helpers/editorSyncSignal";
 import { startLoadDiag, markLoad, timeLoad, loadDiagLine } from "../helpers/loadDiag";
 import { whenStagedFirstRelease } from "../helpers/stagedMount";
 import { buildReverseMap, findGridPanelOcc } from "../helpers/occurrenceHelpers";
@@ -1431,6 +1431,9 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       case "UPDATE_ITEM_TEXTMAP": {
         if (!effect.itemId) break;
         updateOccurrence({ dispatch: socketDispatch, socket, occurrence: { id: effect.itemId, textmap: effect.textmap } });
+        // AFTER the dispatch: an op's textmap write must reach an editor that is
+        // focused or was just clicked — often by the very click that fired the op.
+        markOperationWrite(effect.itemId);
         break;
       }
 

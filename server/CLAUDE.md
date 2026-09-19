@@ -2,6 +2,13 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-19 (2) — `0344`: un-picking leaves no embed)
+- User: *"it does get removed but it leaves an embed artifact"*. The server's delete-scrub strips the
+  embed, but reaches the column's editor as an echo the click-guard skips. The Mood op now rebuilds the
+  column's textmap without the un-picked Check In's embed right after the DELETE — an op write, which
+  the client marks so it lands (client/src/helpers/CLAUDE.md (3)). Top-level nodes only, guarded on the
+  column having a body. Executor-driven test `checkInUnembedsImmediately.test.js`; A/B'd.
+
 ## Recent Changes (2026-09-19 — `0343`: a check-in shows the moment it is picked)
 - **User: *"i clicked on a few emotions for today and no checkins show up. i reload the page and the
   checkins show up."*** A day column is a DOC container and draws its TEXTMAP; the Mood op's COPY_LINK
