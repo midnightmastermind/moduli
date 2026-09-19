@@ -139,6 +139,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // eager schedule is cheap and the mint→echo→schedule chain self-quiets.
   //
   // ── ONE TAB SYNCS (server services/feedLeader.js) ──────────────────────────
+  // The same leader also runs the NavigationOps for a date change that came
+  // from no tab (see onGridUpdated).
   // Every open tab used to materialise the same feeds: each minted its OWN
   // copies, the others received them as duplicates and swept them, back and
   // forth on every date step (prod, 2026-09-19). The server names one leader
@@ -147,23 +149,23 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // itself (its writes queue offline; the leader sweeps any duplicate on
   // reconnect). A tab embedded in an iframe never assumes the lead.
   const _inFrame = (() => { try { return typeof window !== "undefined" && window !== window.parent; } catch (_) { return true; } })();
-  let _isFeedLeader = !_inFrame;
+  let _isSyncLeader = !_inFrame;
   let _claimedOnJoin = false;
   const _claimFeedLead = () => {
     if (_inFrame || !socket?.connected) return;
     socket.emit("feed_claim");
   };
   const onFeedLeader = ({ leaderSocketId } = {}) => {
-    const was = _isFeedLeader;
-    _isFeedLeader = !leaderSocketId || leaderSocketId === socket.id;
+    const was = _isSyncLeader;
+    _isSyncLeader = !leaderSocketId || leaderSocketId === socket.id;
     // The first announcement after joining: a tab that was just opened is the
     // one in use, so it takes the lead. Only ONCE — claiming on every
     // announcement would ping-pong between two focused devices forever.
-    if (!_isFeedLeader && !_claimedOnJoin && typeof document !== "undefined" && document.visibilityState === "visible") {
+    if (!_isSyncLeader && !_claimedOnJoin && typeof document !== "undefined" && document.visibilityState === "visible") {
       _claimedOnJoin = true;
       _claimFeedLead();
     }
-    if (_isFeedLeader && !was) scheduleFeedSync();
+    if (_isSyncLeader && !was) scheduleFeedSync();
   };
   const onFeedClaimEvent = () => {
     if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
@@ -180,7 +182,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (_feedSyncTimer) clearTimeout(_feedSyncTimer);
     _feedSyncTimer = setTimeout(() => {
       _feedSyncTimer = null;
-      if (!_isFeedLeader && socket?.connected) return;
+      if (!_isSyncLeader && socket?.connected) return;
       try {
         const state = stateRef.current || {};
         const occs = {};
@@ -1122,7 +1124,8 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // GRIDS (CRUD)
   // ======================================================
   function onGridUpdated(payload = {}) {
-    const gridId = payload.gridId || payload.id;
+    // The REST route (routes/apiV1) sends `{ grid }` with the id INSIDE it.
+    const gridId = payload.gridId || payload.id || payload.grid?.id;
     const patch = payload.grid || payload;
 
     if (!gridId) return;
@@ -1140,7 +1143,17 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
         const d = new Date(v);
         return !isNaN(d);
       });
-      fireOperations("NavigationOp", { type: "NavigationOp", activeFilterValues: patch.activeFilterValues, date: filterDate || null });
+      // ONE tab runs the date-change ops. A change made in another tab was run
+      // THERE (its builds reach us as echoes); running them again here rebuilt
+      // the same columns in every open tab, the server refused the duplicates,
+      // and each tab then swept the other's rows — ~5.7s of echo handling per
+      // toolbar step with two tabs open (prod, 2026-09-19). A page's own date
+      // change already works this way (updateOccurrenceFilterOverride fires
+      // locally only). A change with no origin tab (the REST API) is run by
+      // the sync leader, so exactly one tab still builds for it.
+      if (!payload.originSocketId && (_isSyncLeader || !socket?.connected)) {
+        fireOperations("NavigationOp", { type: "NavigationOp", activeFilterValues: patch.activeFilterValues, date: filterDate || null });
+      }
       scheduleFeedSync();
     }
   }

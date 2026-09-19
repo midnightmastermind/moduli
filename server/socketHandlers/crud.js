@@ -130,7 +130,9 @@ export function registerCrudHandlers(socket, {
       // grid the reseed had just deleted).
       const updated = await writeGridPatch(gridId, updatePatch);
       if (!updated) return;
-      socket.to(userRoom(userId)).emit("grid_updated", { gridId, grid: updatePatch });
+      // `originSocketId`: the tab that made this change already ran its
+      // NavigationOps; receivers must not re-run them (client onGridUpdated).
+      socket.to(userRoom(userId)).emit("grid_updated", { gridId, grid: updatePatch, originSocketId: socket.id });
     } catch (err) {
       console.error("update_grid error:", err);
       socket.emit("server_error", "Failed to update grid");
@@ -974,7 +976,7 @@ export function registerCrudHandlers(socket, {
       if (activeFilterValues !== undefined) patch.activeFilterValues = activeFilterValues;
       if (!Object.keys(patch).length) return;
       await writeGridPatch(gridId, patch);
-      socket.to(userRoom(userId)).emit("grid_updated", { gridId, grid: patch });
+      socket.to(userRoom(userId)).emit("grid_updated", { gridId, grid: patch, originSocketId: socket.id });
     } catch (err) {
       console.error("update_grid_filter error:", err);
       socket.emit("server_error", "Failed to update grid filter");

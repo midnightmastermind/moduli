@@ -75,3 +75,47 @@ describe("one tab syncs feeds", () => {
     unbind();
   });
 });
+
+// A toolbar date change used to re-run every NavigationOp in EVERY open tab:
+// each rebuilt the same columns, the server refused the duplicates, and each
+// tab swept the other's rows (prod, 2026-09-19).
+describe("a grid date change runs its ops in ONE tab", () => {
+  let log;
+  beforeEach(() => { log = vi.spyOn(console, "log").mockImplementation(() => {}); });
+  afterEach(() => { log.mockRestore(); });
+  const navFires = () => log.mock.calls.filter((c) => /\[op-fire\] depth=1 NavigationOp/.test(String(c[0]))).length;
+  const change = (extra = {}) => ({ gridId: "g", grid: { activeFilterValues: { d: "2026-09-20" } }, ...extra });
+
+  test("a change another tab made is not re-run here", () => {
+    const { socket, unbind } = setup();
+    socket._trigger("feed_leader", { leaderSocketId: "me" });
+    socket._trigger("grid_updated", change({ originSocketId: "other-tab" }));
+    expect(navFires()).toBe(0);
+    unbind();
+  });
+
+  test("a change from no tab (the API) runs in the leader", () => {
+    const { socket, unbind } = setup();
+    socket._trigger("feed_leader", { leaderSocketId: "me" });
+    socket._trigger("grid_updated", change());
+    expect(navFires()).toBe(1);
+    unbind();
+  });
+
+  test("...and not in a follower", () => {
+    const { socket, unbind } = setup();
+    socket._trigger("feed_leader", { leaderSocketId: "other" });
+    socket._trigger("grid_updated", change());
+    expect(navFires()).toBe(0);
+    unbind();
+  });
+
+  test("the REST shape ({ grid } with the id inside) is applied", () => {
+    const { socket, unbind } = setup();
+    socket._trigger("feed_leader", { leaderSocketId: "me" });
+    socket._trigger("grid_updated", { grid: { id: "g", activeFilterValues: { d: "2026-09-20" } } });
+    expect(navFires()).toBe(1);
+    unbind();
+  });
+});
+
