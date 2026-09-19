@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { useMobileDetect } from "../hooks/useMobileDetect";
+import { useMobileDetect, MOBILE_BREAKPOINT } from "../hooks/useMobileDetect";
 
 // Configure matchMedia for a given viewport shape.
 function setMedia({ coarse, portrait, width }) {
@@ -8,7 +8,7 @@ function setMedia({ coarse, portrait, width }) {
     let matches = false;
     if (query.includes("pointer: coarse")) matches = coarse;
     else if (query.includes("orientation: portrait")) matches = portrait;
-    else if (query.includes("max-width")) matches = width <= 600;
+    else if (query.includes("max-width")) matches = width <= MOBILE_BREAKPOINT;
     return {
       matches,
       media: query,
@@ -52,10 +52,23 @@ describe("useMobileDetect", () => {
     expect(result.current.isMobileLayout).toBe(false);
   });
 
-  it("desktop narrow (<=600): mobile layout via legacy fallback", () => {
+  it("desktop narrow (<= MOBILE_BREAKPOINT): mobile layout via legacy fallback", () => {
     setMedia({ coarse: false, portrait: false, width: 500 });
     const { result } = renderHook(() => useMobileDetect());
     expect(result.current.isTouch).toBe(false);
     expect(result.current.isMobileLayout).toBe(true);
+  });
+});
+
+describe("the raised breakpoint (2026-09-19)", () => {
+  it("a 700px desktop window gets the mobile layout", () => {
+    setMedia({ coarse: false, portrait: false, width: 700 });
+    const { result } = renderHook(() => useMobileDetect());
+    expect(result.current.isMobileLayout).toBe(true);
+  });
+  it("control: a 900px desktop window keeps the desktop layout", () => {
+    setMedia({ coarse: false, portrait: false, width: 900 });
+    const { result } = renderHook(() => useMobileDetect());
+    expect(result.current.isMobileLayout).toBe(false);
   });
 });

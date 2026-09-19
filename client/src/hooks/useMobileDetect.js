@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 
-export const MOBILE_BREAKPOINT = 600;
+// Raised from 600 (user, 2026-09-19: "the threshold to switch to mobile view needs
+// to be higher"). The toolbar measurably crowds below ~700px. index.css carries the
+// SAME number in its RESPONSIVE block; __tests__/mobileBreakpointSync pins the two.
+export const MOBILE_BREAKPOINT = 768;
 
 const COARSE = "(pointer: coarse)";
 const PORTRAIT = "(orientation: portrait)";

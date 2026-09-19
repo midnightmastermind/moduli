@@ -16,14 +16,15 @@ import { render } from "@testing-library/react";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import MobileGridNav from "../mobile/MobileGridNav";
+import { MOBILE_BREAKPOINT } from "../hooks/useMobileDetect";
 
 // Load the actual CSS file so we can verify rules
 const CSS_PATH = resolve(__dirname, "../index.css");
 const cssContent = readFileSync(CSS_PATH, "utf-8");
 
-// Extract the @media (max-width: 600px) block content
+// Extract the mobile @media block content (width = MOBILE_BREAKPOINT)
 function getMobileMediaBlock(css) {
-  const start = css.indexOf("@media (max-width: 600px)");
+  const start = css.indexOf(`@media (max-width: ${MOBILE_BREAKPOINT}px)`);
   if (start === -1) return "";
   let depth = 0;
   let blockStart = -1;

@@ -12,7 +12,7 @@
 // becoming wrong.
 //
 // IT DELIBERATELY DOES NOT KEY ON `isMobileLayout`, and that is the whole fix.
-// That flag is `(isTouch && (isPortrait || width < 980)) || width <= 600`, so a
+// That flag is `(isTouch && (isPortrait || width < 980)) || width <= MOBILE_BREAKPOINT`, so a
 // TABLET IN PORTRAIT is "mobile layout" at 800-1180px wide — and the sidebar
 // full-screened (`width: 100%`) on a viewport with ample room for it. User,
 // 2026-08-26: *"on tablet, make the manifest tree sidebar open in the same way
