@@ -10,7 +10,7 @@
 // exported transforms, applied to it. Every assertion is A/B'd against the
 // unpatched pipeline, so each control reproduces the sweep before the fix is
 // asserted.
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { executePipeline } from "../helpers/operationExecutor";
 import { keepMoodCheckIns, relistMoodCheckIns }
   from "../../../server/migrations/0341-tasks-completed-keeps-the-days-check-ins.mjs";
@@ -20,6 +20,12 @@ const SIG = "daypage:Tasks Completed";
 const BOARD = "occ-day-board", SCHED = "occ-sched";
 const COL = "occ-col", TC = "occ-tc";
 const TODAY = "2026-09-18";
+
+// The pipeline reads the REAL `$today`, so without a frozen clock this suite
+// passed on 2026-09-18 and failed every day after — the fixture rows are dated
+// TODAY and stopped matching. Noon LOCAL, so no timezone can roll it a day.
+beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new Date(`${TODAY}T12:00:00`)); });
+afterEach(() => { vi.useRealTimers(); });
 const CHECKIN = "occ-checkin", TASK = "occ-task", HABITROW = "occ-habit", JOURNAL = "occ-journal";
 
 let occurrencesById, modulesById, fieldsById, grid;

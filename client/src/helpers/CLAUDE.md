@@ -2,6 +2,22 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-19 — ADD_CHILD grows a same-pipeline clone IN PLACE: a new day's column lost the Emotions Wheel)
+- **User: *"the emotions wheel isnt showing up for today"*.** Today's column (built 06:31) LISTED the
+  wheel and its textmap did not EMBED it; yesterday's had both. A doc container renders its textmap,
+  so the wheel was listed and invisible.
+- **Cause:** `Day Page: Build` clones the column, binds `$col` with a FIND, `ADD_CHILD`s the shared
+  wheel, then builds the textmap by looping `$col.occurrences`. On the pass that CREATES the column,
+  the parent exists only in `$vars` (a clone stub), and ADD_CHILD patched only `context.occurrencesById`
+  — so the write reached Mongo while `$col` never gained the wheel. Every later pass binds `$col` from
+  the store, which is why the column heals on the second load and why this bites once per new day.
+- **Fix:** a parent found only in `$vars` is grown in place (the `stampCloneAncestors` reasoning: a
+  pipeline-owned stub, and every variable bound to it holds that object). A store-backed parent is
+  still REPLACED, never mutated — that is the control test.
+- `__tests__/addChildCloneParent.test.js` (4): the two clone cases failed before the fix.
+- `tasksCompletedBuilder.test.js` was DATE-ROTTED — `TODAY` hardcoded to 2026-09-18 while the
+  pipeline reads the real `$today`, so it failed every day after. The clock is frozen to `TODAY` now.
+
 ## Recent Changes (2026-09-15 (4) — `jumpToOccurrence` expands render windows only after a retry misses)
 - A caller that swaps pages or polls (`onActivatePage` or `retries > 0`) now looks again BEFORE calling
   `requestRenderAll()`; the expansion happens once, after the first retry misses, with one extra look.

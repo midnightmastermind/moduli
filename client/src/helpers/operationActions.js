@@ -2669,7 +2669,17 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
       if (existing.includes(childId)) break;
       const next = [...existing, childId];
       if (context.occurrencesById && context.occurrencesById[parentId]) {
+        // The store's own object: REPLACE it, never mutate React state in place.
         context.occurrencesById[parentId] = { ...context.occurrencesById[parentId], occurrences: next };
+      } else if (parentOcc) {
+        // A parent found only in $vars is a clone this pipeline minted (a day
+        // column APPLY_TEMPLATE built a few steps earlier). It is pipeline-owned,
+        // and every variable a FIND bound to it holds THIS object — so it is
+        // grown IN PLACE, the reasoning `stampCloneAncestors` records for the
+        // same stubs. Replacing it left `$col.occurrences` stale: `Day Page:
+        // Build` listed the Emotions Wheel under a fresh column, then built the
+        // textmap by looping `$col.occurrences` without it (2026-09-19).
+        parentOcc.occurrences = next;
       }
       updates.push({ _effect: "UPDATE_OCCURRENCE", occurrence: { id: parentId, occurrences: next } });
       break;
