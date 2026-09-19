@@ -28,7 +28,7 @@ import { useGridActions } from "./GridActionsContext";
 import * as CommitHelpers from "./helpers/CommitHelpers";
 import { useMinWidth } from "./hooks/useMinWidth";
 
-export const TOAST_STACK_MIN_W = 1200;
+export const TOAST_STACK_MIN_W = 1024;
 import { useActiveCell, useZoomedOut, setZoomedOut } from "./state/activeCellStore";
 
 export default function Toolbar({
@@ -68,9 +68,10 @@ export default function Toolbar({
   // Subscribed here — App no longer holds navigation state, so a cell change
   // never re-renders the root (see state/activeCellStore).
   const activeCell = useActiveCell();
-  // The centred toast stack (up to ~400px, beside the status pills) overlaps the
-  // toolbar's side controls below this width. Measured on prod 2026-09-19: the
-  // right cluster is ~307px and the left ends at 218px.
+  // The centred status + toast group (~410px measured) overlaps the side
+  // controls below ~1020px (prod 2026-09-19: right cluster ~307px, left ends at
+  // 218px). Below the line the pills move into the RIGHT cluster, as on mobile,
+  // instead of staying centred over the filters.
   const roomForToasts = useMinWidth(TOAST_STACK_MIN_W);
   const zoomedOut = useZoomedOut();
   const [toolbarVisible, setToolbarVisible] = useState(true);
@@ -158,8 +159,11 @@ const gridOptions = useMemo(
   // of the left cluster; mobile puts it at the very left edge, ahead of the
   // status/notification pills (they used to sit left of it).
   const logoEl = (
-    <div className="header-logo flex items-center shrink-0" style={{ minWidth: isMobileLayout ? 28 : 80 }}>
-      <img src="/viafluere_sideways.png" alt="Via Fluere" style={{ height: 22, width: "auto", display: "block" }} />
+    // SHRINKS before the date does (user, 2026-09-19: the date nav was the only
+    // thing in the row allowed to give way, so it crushed to a bare icon). The
+    // wordmark clips from the right, keeping the mark at its left visible.
+    <div className="header-logo flex items-center" style={{ minWidth: isMobileLayout ? 28 : 80, flexShrink: 1, overflow: "hidden" }}>
+      <img src="/viafluere_sideways.png" alt="Via Fluere" style={{ height: 22, width: "auto", maxWidth: "none", display: "block" }} />
     </div>
   );
 
@@ -201,14 +205,13 @@ const gridOptions = useMemo(
           className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 flex items-center gap-2"
           style={{ zIndex: 5 }}
         >
-          <div className="pointer-events-auto flex items-center gap-1.5">
-            <SocketStatusBanner />
-            <OpActivityPill />
-            {/* Toasts need the room; below TOAST_STACK_MIN_W they collapse to
-                the count pill that opens the history, so they cannot overlap the
-                controls on either side. */}
-            <TransactionNotificationStack compact={!roomForToasts} />
-          </div>
+          {roomForToasts && (
+            <div className="pointer-events-auto flex items-center gap-1.5">
+              <SocketStatusBanner />
+              <OpActivityPill />
+              <TransactionNotificationStack />
+            </div>
+          )}
           <div className="pointer-events-auto">
             <SelectionStatusBanner />
           </div>
@@ -220,7 +223,7 @@ const gridOptions = useMemo(
 
       <div className="flex items-center flex-1 min-w-0 gap-1.5">
         {/* ── Left: Logo + Add Panel + Grid Select ── */}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 min-w-0" style={{ flexShrink: 1 }}>
           {/* Logo — mobile renders it further left, ahead of the pills. */}
           {!isMobileLayout && logoEl}
 
@@ -230,7 +233,7 @@ const gridOptions = useMemo(
               value={gridId || "__none__"}
               onValueChange={(val) => { if (val !== "__none__") onGridChange?.({ target: { value: val } }); }}
             >
-              <SelectTrigger style={{ minWidth: 110, maxWidth: 150, height: 24, fontSize: 11 }}>
+              <SelectTrigger style={{ minWidth: 64, maxWidth: 150, height: 24, fontSize: 11, flexShrink: 1 }}>
                 <SelectValue placeholder="Select grid…" />
               </SelectTrigger>
               <SelectContent>
@@ -410,8 +413,11 @@ const gridOptions = useMemo(
             </>
           )}
 
-          {/* Mobile-only: status + notification pills, then the drawer toggle. */}
-          {isMobileLayout && (
+          {/* Status + notification pills in the flow of the RIGHT cluster: always
+              on mobile, and on desktop once the centred group would cover the
+              controls either side (TOAST_STACK_MIN_W). Toasts collapse to the
+              count pill that opens the history. */}
+          {(isMobileLayout || !roomForToasts) && (
             <div className="flex items-center gap-1 shrink-0">
               <SocketStatusBanner />
             <OpActivityPill />

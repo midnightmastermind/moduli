@@ -331,7 +331,9 @@ export default function NavPickerPopover({ value, onCommit, constraints, trigger
           cursor: "pointer",
           // ONE LINE, shrinking to an ellipsis (the toolbar): a wrapped label
           // grew the toolbar's height on narrow screens (user, 2026-09-19).
-          ...(nowrap ? { whiteSpace: "nowrap", minWidth: 0, maxWidth: "100%" } : null),
+          // A floor that still reads "Sat, Sep 19"; only a longer range label
+          // ellipsizes, so the date never collapses to a bare icon.
+          ...(nowrap ? { whiteSpace: "nowrap", minWidth: 108, maxWidth: "100%" } : null),
         }}
       >
         <CalendarIcon size={11} style={nowrap ? { flexShrink: 0 } : undefined} />
