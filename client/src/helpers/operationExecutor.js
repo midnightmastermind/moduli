@@ -1027,6 +1027,29 @@ function _runMatchingOperations(operations, transactionType, transaction, contex
 // existing caller, byte-identical order) or with a time budget between ops.
 // Writing a second sliced implementation is how the two would drift, and this
 // is the shared execute path this file has been damaged on before.
+// ── ONE PARENT MAP PER OVERLAY VERSION, not per sweep ──────────────────────
+// A page's date change fires one NavigationOp sweep PER inheriting descendant,
+// and each sweep rebuilt this whole-grid child->parent index — 5.3s of a 9.4s
+// Day Page date step on the live grid (prod profile, 2026-09-19). The overlay
+// object is identity-STABLE and mutated in place, so the cache keys on the
+// object AND its write counter (`_occVersion`, from occOverlay). Each sweep gets
+// `Object.create(shared)`: lookups fall through, while CREATE's in-place patches
+// (operationActions) land on the sweep's own layer and never leak into the next
+// sweep. Every consumer does key lookups only — none iterates. Callers that pass
+// no version keep the old per-sweep build.
+// In-sweep writes (ADD_CHILD, CREATE, REMOVE_CHILD) land on the sweep's own
+// `liveOccs` COPY, never on the overlay object, so they cannot stale the shared
+// map; the overlay itself only changes through set/drop, which bump the version.
+let _sweepMapCache = { occs: null, version: null, map: null };
+function sweepParentMap(occurrencesById, version) {
+  if (version == null) return buildParentMap(occurrencesById);
+  if (_sweepMapCache.occs !== occurrencesById || _sweepMapCache.version !== version) {
+    _sweepMapCache = { occs: occurrencesById, version, map: buildParentMap(occurrencesById) };
+  }
+  return Object.create(_sweepMapCache.map);
+}
+export { sweepParentMap as _sweepParentMapForTests };
+
 function* _runMatchingOperationsGen(operations, transactionType, transaction, context, { onError, onSuccess } = {}) {
   const updates = [];
   // Priority is per-trigger (1–10, default 5). Pre-match every op so we can sort
@@ -1050,7 +1073,7 @@ function* _runMatchingOperationsGen(operations, transactionType, transaction, co
   // operationActions CREATE), and walkers null-guard entries whose occurrence
   // was deleted mid-sweep.
   if (context && !context._parentByChildId && context.occurrencesById) {
-    context._parentByChildId = buildParentMap(context.occurrencesById);
+    context._parentByChildId = sweepParentMap(context.occurrencesById, context._occVersion);
   }
 
   // Stamp the created/deleted occurrence's ROLE onto the transaction so an

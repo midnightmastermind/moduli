@@ -483,12 +483,10 @@ function _walkInheritingDescendants(rootId, changedKeys, occurrencesById) {
 // ancestor-scoped triggers (`ancestorLabel: "Daily Goals"` etc.) silently
 // failed to match. Mirrors the executor's `ancestorsFor` logic so triggers and
 // HAS_ANCESTOR predicates resolve from the same chain.
-function _ancestorChain(occId, occurrencesById, modulesById) {
+function _ancestorChain(occId, occurrencesById, modulesById, parentByChildId) {
   const ids = [];
   const labels = [];
   if (!occurrencesById) return { ids, labels };
-
-  const parentByChildId = buildParentMap(occurrencesById);
 
   let cur = occurrencesById[occId];
   const seen = new Set();
@@ -536,7 +534,14 @@ export function updateOccurrenceFilterOverride({ dispatch, socket, id, filterOve
   // page-rebuild op (Table: Build / Canvas: Build / Build Schedule) ~50× — the
   // 5-10s freeze. The rebuild ops resolve their date from targetOccurrenceId,
   // not the trigger, so a single run is correct.
-  const sourceChain = _ancestorChain(id, occurrencesById, modulesById);
+  // ONE parent index per call, shared by every chain below. It used to be
+  // rebuilt inside `_ancestorChain`, once per inheriting descendant — 2.7s of a
+  // 9.4s Day Page date step (prod profile, 2026-09-19). Built here rather than
+  // cached by identity: the op-effect caller passes the live overlay map, which
+  // is mutated in place, so an identity cache would go stale. Nothing between
+  // here and the loop writes to the map (the cascade is deferred to rAF).
+  const parentByChildId = buildParentMap(occurrencesById);
+  const sourceChain = _ancestorChain(id, occurrencesById, modulesById, parentByChildId);
   const transactions = [{
     type: "NavigationOp",
     sourceOccurrenceId: id,
@@ -551,7 +556,7 @@ export function updateOccurrenceFilterOverride({ dispatch, socket, id, filterOve
   if (changedKeys.length) {
     const affected = _walkInheritingDescendants(id, changedKeys, occurrencesById);
     for (const desc of affected) {
-      const chain = _ancestorChain(desc.id, occurrencesById, modulesById);
+      const chain = _ancestorChain(desc.id, occurrencesById, modulesById, parentByChildId);
       transactions.push({
         type: "NavigationOp",
         sourceOccurrenceId: desc.id,

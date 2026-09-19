@@ -95,7 +95,9 @@ describe("the row surfaces call it what it is", () => {
 
   it("the row's radial names the verb per context, not once for both", () => {
     const src = read("../modules/ModuleInstance.jsx");
-    expect(src).toMatch(/deleteLabel=\{embedOnDelete \? "Remove" : "Delete"\}/);
+    // An embed surface may name its own verb (a Check In row in its own day
+    // column really deletes, 9c43d5b2), and otherwise defaults to "Remove".
+    expect(src).toMatch(/deleteLabel=\{embedOnDelete \? \(embedDeleteLabel \|\| "Remove"\) : "Delete"\}/);
   });
 
   it("no surface that deletes an occurrence says 'Remove from container'", () => {

@@ -2085,7 +2085,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // MeasureOp/OccurrenceCreateOp) must NOT consult it or they'd be wrongly
     // skipped when an already-fired op legitimately re-runs under a new trigger.
     const cascadeFiredOps = _fireDepth === 1 ? _navCascadeFiredOps : null;
-    const sweepCtx = { state, fieldsById: _cachedFieldsById, operationsById: _cachedOperationsById, occurrencesById, modulesById: _cachedModulesById, cascadeFiredOps };
+    const sweepCtx = { state, fieldsById: _cachedFieldsById, operationsById: _cachedOperationsById, occurrencesById, modulesById: _cachedModulesById, cascadeFiredOps,
+      // Lets the executor reuse one parent map across the per-descendant sweeps
+      // of a date change (operationExecutor.sweepParentMap).
+      _occVersion: _occOverlay.version };
     const sweepCbs = makeOpNotificationCallbacks(pushTxNotification, () => ({ fieldsById: _cachedFieldsById, occurrencesById, modulesById: _cachedModulesById }));
 
     // ── THE SWEEP MAY YIELD, AND EVERYTHING AFTER IT IS SHARED ─────────────
