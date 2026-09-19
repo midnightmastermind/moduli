@@ -36,9 +36,12 @@ toolbar prev day   busy 13387ms      2216ms
 ```
 **TOOLBAR STEP, SAME SESSION: an echoed FEED COPY ran the whole OccurrenceCreateOp sweep in every OTHER
 tab** (11 x ~145ms per date step). The minting tab uses `fireTrigger: false`; the echo was unmarked
-elsewhere. `onOccurrenceCreated` now skips `meta.feedSourceId` (`826722f7`). **OPEN: two tabs each MATERIALISE
-the same feeds** — one mints 11, the other's copies arrive as duplicates, each sweeps the other's (`swept 10`,
-`swept 13`, `minted 6` in one step). Wants one feed-syncing tab (or server-side sync), not a patch.
+elsewhere. `onOccurrenceCreated` now skips `meta.feedSourceId` (`826722f7`). **THEN FIXED: two tabs each MATERIALISED
+the same feeds** — one minted 11, the other's copies arrived as duplicates, each swept the other's (`swept 10`,
+`swept 13`, `minted 6` in one step). `a8795323`: the server names ONE feed leader per user+grid
+(`server/services/feedLeader.js`, announced as `feed_leader`); the tab in use claims it on focus/visible and
+once on joining (ONCE — twice would ping-pong two focused devices); a disconnected tab syncs for itself.
+Verified on prod with two headless tabs: A synced alone, B opened and claimed, A went silent, B synced.
 **AND A PROBE THAT CLICKS THE TOOLBAR DATE MOVES THE USER'S GRID** — `grid.activeFilterValues` is shared.
 A next-day-only run left poms grid on Sep 20 for ~77s; stepped back through the app. Always pair the steps.
 Also fixed a stale `deleteVerb` source guard left failing by `9c43d5b2`. Client 4,631 pass. Prod `8d4842d5`,

@@ -2,6 +2,13 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-19 — feed leader: one tab per user+grid runs feed sync)
+- `services/feedLeader.js` — pure registry (join / claim / leave; most recently active member inherits).
+- `socketHandlers/feedLeader.js` — `joinFeedGroup` (called from `state.js` right after the grid-room join;
+  `registerStateHandlers` now destructures `io`), `feed_claim` + `disconnect` handlers. Emits
+  `feed_leader { leaderSocketId }` to the grid room. In-memory: a restart drops every socket and rejoins rebuild it.
+- Tests: `__tests__/feedLeader.test.js` (registry + real handlers over fake io/sockets).
+
 ## Recent Changes (2026-09-19 (4) — `0347`/`0348`: a Check In is also listed in the Schedule's current timeslot, and is not a "completed task")
 - User: *"no checkin is being created in the schedule when i select a mood"*; asked where: *"Current timeslot"*.
 - **`0347`** (after `0343`'s embed step): finds the Schedule day column for `$day` (scope page + format
