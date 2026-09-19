@@ -839,7 +839,13 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     // O(N) label resolution below runs ONLY inside the fire branch now, so echoes
     // AND bursts pay nothing — that's what un-freezes the import.
     _noteCreateBurst();
-    if (!optimisticFiredSet.has(occurrence.id) && !opEmittedOccIds.has(occurrence.id) && !_inCreateBurst()) {
+    // A FEED COPY is derived data: the tab that minted it creates it with
+    // `fireTrigger: false` (helpers/feedSync), and trackers exclude feed copies
+    // by rule. Another tab's mint reaches here as an echo this tab never marked,
+    // so without this check every OTHER open tab ran the whole OccurrenceCreateOp
+    // sweep per copy — 11 x ~145ms after one toolbar date step (prod, 2026-09-19).
+    const isFeedCopy = !!occurrence.meta?.feedSourceId;
+    if (!isFeedCopy && !optimisticFiredSet.has(occurrence.id) && !opEmittedOccIds.has(occurrence.id) && !_inCreateBurst()) {
       // Resolve container + panel labels so operations can use $trigger.containerLabel / panelLabel
       const _stateNow = stateRef.current || {};
       const _occById = { ...Object.fromEntries((_stateNow.occurrences||[]).map(o=>[o.id,o])), ...localOccsById };

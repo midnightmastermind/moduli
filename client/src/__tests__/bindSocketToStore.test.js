@@ -151,6 +151,23 @@ describe("occurrence_created / updated / deleted", () => {
     expect(action?.payload.occurrenceId).toBe("occ2");
   });
 
+  test("a feed copy echoed from another tab does not fire OccurrenceCreateOp", () => {
+    // The minting tab creates feed copies with fireTrigger:false; an echo of the
+    // same copy must behave the same in every other tab.
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const { socket } = setup();
+      const fired = () => log.mock.calls.filter((c) => /\[op-fire\] depth=1 OccurrenceCreateOp/.test(String(c[0]))).length;
+      // Control: an ordinary remote create DOES fire (the detector works).
+      socket._trigger("occurrence_created", { occurrence: { id: "plain1", moduleId: "m1", fields: {} } });
+      expect(fired()).toBe(1);
+      socket._trigger("occurrence_created", { occurrence: { id: "copy1", moduleId: "m1", fields: {}, meta: { feedSourceId: "src1" } } });
+      expect(fired()).toBe(1);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   test("occurrence_created updates localOccsById (used by fireOperations)", () => {
     // Verify that after occurrence_created, a subsequent occurrence_updated
     // dispatches the updated data — this validates the local cache is live
