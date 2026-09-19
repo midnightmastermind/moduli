@@ -165,7 +165,10 @@ const gridOptions = useMemo(
     // SHRINKS before the date does (user, 2026-09-19: the date nav was the only
     // thing in the row allowed to give way, so it crushed to a bare icon). The
     // wordmark clips from the right, keeping the mark at its left visible.
-    <div className="header-logo flex items-center" style={{ minWidth: isMobileLayout ? 28 : 80, flexShrink: 1, overflow: "hidden" }}>
+    // An explicit 96px basis (the image's width at 22px tall): with overflow
+    // hidden the browser sized the box from its MIN width, so the wordmark was
+    // clipped even at 1600px (measured 80 vs 96).
+    <div className="header-logo flex items-center" style={{ flex: "0 1 96px", minWidth: isMobileLayout ? 28 : 80, overflow: "hidden" }}>
       <img src="/viafluere_sideways.png" alt="Via Fluere" style={{ height: 22, width: "auto", maxWidth: "none", display: "block" }} />
     </div>
   );
