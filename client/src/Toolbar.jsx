@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PomodoroTimer from "./ui/PomodoroTimer";
 import AlarmDropdown from "./ui/AlarmDropdown";
 import MiniGridMap from "./mobile/MiniGridMap";
@@ -26,9 +26,6 @@ import SelectionStatusBanner from "./ui/SelectionStatusBanner";
 import FilterNavWidget from "./ui/FilterNavWidgets";
 import { useGridActions } from "./GridActionsContext";
 import * as CommitHelpers from "./helpers/CommitHelpers";
-import { useMinWidth } from "./hooks/useMinWidth";
-
-export const TOAST_STACK_MIN_W = 1024;
 import { useActiveCell, useZoomedOut, setZoomedOut } from "./state/activeCellStore";
 
 export default function Toolbar({
@@ -68,11 +65,17 @@ export default function Toolbar({
   // Subscribed here — App no longer holds navigation state, so a cell change
   // never re-renders the root (see state/activeCellStore).
   const activeCell = useActiveCell();
-  // The centred status + toast group (~410px measured) overlaps the side
-  // controls below ~1020px (prod 2026-09-19: right cluster ~307px, left ends at
-  // 218px). Below the line the pills move into the RIGHT cluster, as on mobile,
-  // instead of staying centred over the filters.
-  const roomForToasts = useMinWidth(TOAST_STACK_MIN_W);
+  // Width of the toast slot (see the Middle block below). Rounded, so a
+  // sub-pixel resize does not re-render the toolbar.
+  const toastSlotRef = useRef(null);
+  const [toastSlotW, setToastSlotW] = useState(undefined);
+  useEffect(() => {
+    const el = toastSlotRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(([e]) => setToastSlotW(Math.round(e.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isMobileLayout]);
   const zoomedOut = useZoomedOut();
   const [toolbarVisible, setToolbarVisible] = useState(true);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -205,13 +208,6 @@ const gridOptions = useMemo(
           className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 flex items-center gap-2"
           style={{ zIndex: 5 }}
         >
-          {roomForToasts && (
-            <div className="pointer-events-auto flex items-center gap-1.5">
-              <SocketStatusBanner />
-              <OpActivityPill />
-              <TransactionNotificationStack />
-            </div>
-          )}
           <div className="pointer-events-auto">
             <SelectionStatusBanner />
           </div>
@@ -260,8 +256,23 @@ const gridOptions = useMemo(
           )}
         </div>
 
-        {/* ── Spacer ── */}
-        <div className="flex-1" />
+        {/* ── Middle: status + toasts, IN THE FLOW ──
+            They used to be absolutely centred over the toolbar, so on narrow
+            screens they sat on top of the filters (user, 2026-09-19). Here they
+            only ever get the space between the two sides. The toast slot takes
+            whatever is left and the stack collapses to its count pill when its
+            full width does not fit, which is measured rather than guessed. */}
+        <div className="flex-1 min-w-0 flex items-center justify-center gap-1.5">
+          {!isMobileLayout && (
+            <>
+              <SocketStatusBanner />
+              <OpActivityPill />
+              <div ref={toastSlotRef} style={{ flex: "1 1 0", minWidth: 0, display: "flex", justifyContent: "center" }}>
+                <TransactionNotificationStack availableWidth={toastSlotW} />
+              </div>
+            </>
+          )}
+        </div>
 
         {/* ── Center: Filter dropdown + Global date nav ── */}
         {/* Toolbar date nav is the same FilterNavWidget the occurrence-header
@@ -413,11 +424,8 @@ const gridOptions = useMemo(
             </>
           )}
 
-          {/* Status + notification pills in the flow of the RIGHT cluster: always
-              on mobile, and on desktop once the centred group would cover the
-              controls either side (TOAST_STACK_MIN_W). Toasts collapse to the
-              count pill that opens the history. */}
-          {(isMobileLayout || !roomForToasts) && (
+          {/* Mobile-only: status + notification pills, then the drawer toggle. */}
+          {isMobileLayout && (
             <div className="flex items-center gap-1 shrink-0">
               <SocketStatusBanner />
             <OpActivityPill />

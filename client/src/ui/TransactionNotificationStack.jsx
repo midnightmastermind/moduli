@@ -496,7 +496,7 @@ function OverflowPill({ count, leftPx, allItems, now, compact = false }) {
   );
 }
 
-export default function TransactionNotificationStack({ compact = false }) {
+export default function TransactionNotificationStack({ compact = false, availableWidth }) {
   const [items, setItems] = useState([]);
   const [openIdState, setOpenIdState] = useState(null);
   const [now, setNow] = useState(Date.now());
@@ -533,20 +533,6 @@ export default function TransactionNotificationStack({ compact = false }) {
 
   if (!items.length) return null;
 
-  // Compact mode: just a small count pill that opens the full dropdown.
-  // Used on mobile where the inline chip stack is too wide.
-  if (compact) {
-    return (
-      <OverflowPill
-        count={items.length}
-        leftPx={0}
-        allItems={items}
-        now={now}
-        compact
-      />
-    );
-  }
-
   // Right-edge of the visible chip stack (last chip's right edge =
   // its left position + CHIP_WIDTH). The +N pill sits just past that
   // with a small visual gap so it reads as a trailing addendum
@@ -559,6 +545,22 @@ export default function TransactionNotificationStack({ compact = false }) {
   const stackWidth = hasHistory
     ? overflowLeft + OVERFLOW_PILL_WIDTH
     : chipsRightEdge;
+
+
+  // Compact mode: just a small count pill that opens the full dropdown. Used on
+  // mobile, and wherever the full stack does not fit the width it is given
+  // (the toolbar measures its slot and passes `availableWidth`).
+  if (compact || (availableWidth != null && stackWidth > availableWidth)) {
+    return (
+      <OverflowPill
+        count={items.length}
+        leftPx={0}
+        allItems={items}
+        now={now}
+        compact
+      />
+    );
+  }
 
   return (
     <div
