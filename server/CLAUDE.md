@@ -2,6 +2,13 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-19 (3) — `0346`: the day columns' Check Ins cleared, at the user's ask)
+- *"remove all the moods from the db so we can have a fresh test ... the ones i selected on daycol"*.
+  23 deleted (Sep 18: 5; Aug 11-13: 18), with their listings and embeds. Module read off the Mood op's
+  COPY_LINK source; only occurrences parented to a `daypage:col:*`; the source template kept (asserted
+  after the write). The one Check In under "Reflection" is not on a day column and was left. Snapshot:
+  `backups/poms-grid/2026-09-19T12-19-58-044Z_pre-migration-0346-...`.
+
 ## Recent Changes (2026-09-19 (2) — `0344`: un-picking leaves no embed)
 - User: *"it does get removed but it leaves an embed artifact"*. The server's delete-scrub strips the
   embed, but reaches the column's editor as an echo the click-guard skips. The Mood op now rebuilds the

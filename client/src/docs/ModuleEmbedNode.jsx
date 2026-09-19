@@ -79,7 +79,13 @@ export default function ModuleEmbedNode({ node, updateAttributes, editor, getPos
       deleteNode?.();
     };
     embedDeleteRegistry.set(occurrenceId, onRegistryDelete);
-    return () => { embedDeleteRegistry.delete(occurrenceId); };
+    // Remove only OUR registration. A re-created node view registers its own
+    // handler, and this cleanup can run after it — an unconditional delete left
+    // the registry empty, so the un-pick's delete found nothing and the embed
+    // stayed as `embed: <id>` (2026-09-19).
+    return () => {
+      if (embedDeleteRegistry.get(occurrenceId) === onRegistryDelete) embedDeleteRegistry.delete(occurrenceId);
+    };
   }, [occurrenceId, deleteNode, editor, getPos, dispatch, socket]);
 
   // Resize drag state

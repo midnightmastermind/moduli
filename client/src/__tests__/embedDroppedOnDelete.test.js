@@ -67,3 +67,21 @@ describe("the node's removal is safe against a stale registry entry", () => {
     expect(body.indexOf("here.attrs?.occurrenceId !== occurrenceId")).toBeLessThan(body.indexOf("deleteNode?.()"));
   });
 });
+
+describe("wiring no test can mount", () => {
+  const node = readFileSync(resolve(__dirname, "../docs/ModuleEmbedNode.jsx"), "utf-8");
+  const editor = readFileSync(resolve(__dirname, "../ui/Editor.jsx"), "utf-8");
+  // A re-created node view registers first and the old one's cleanup runs
+  // after — an unconditional delete emptied the registry and the un-pick's
+  // delete found nothing (the ghost embed).
+  it("a node's cleanup removes only its OWN registration", () => {
+    expect(node).toContain("if (embedDeleteRegistry.get(occurrenceId) === onRegistryDelete) embedDeleteRegistry.delete(occurrenceId);");
+    expect(node).not.toMatch(/return \(\) => \{ embedDeleteRegistry\.delete\(occurrenceId\); \};/);
+  });
+  // A full replace re-mounts every node view and threw the page to the top.
+  it("an op write tries the node-level diff before a full replace", () => {
+    const at = editor.indexOf("const embedPlan = opWrote");
+    expect(at).toBeGreaterThan(-1);
+    expect(editor.indexOf("applyEmbedDiff(editor, embedPlan)", at)).toBeLessThan(editor.indexOf(".setContent(content, { emitUpdate: false })", at));
+  });
+});

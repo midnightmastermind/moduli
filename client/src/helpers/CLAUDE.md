@@ -2,6 +2,21 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-19 (5) — an op write applies ONLY the embeds that changed: `embedDiff`; and the registry cleanup that ate its successor)
+- **User (video): picking a mood threw the Day Page back to the top, the Check In "never showed", and
+  un-picking left `embed: <id>`.** All three came from (3)'s full `setContent` on an op write: it
+  re-mounts EVERY node view in the column — the Emotions Wheel's canvas too — so the column's height
+  collapsed and the scroll clamped to the top (the new Check In was below the fold). And the re-created
+  Check In view registered its delete handler BEFORE the old view's cleanup ran `embedDeleteRegistry
+  .delete(id)` unconditionally, emptying the registry — so the un-pick's `dropEmbedsOf` found nothing.
+- **`helpers/embedDiff.js`** — `planEmbedDiff` returns a plan only when the target differs from the
+  editor by top-level moduleEmbed nodes added/removed (empty paragraphs are LAYOUT: TipTap appends one
+  after a trailing atom, and a planner that counted them never matched a real column). Each added embed
+  goes right after the embed preceding it in the target. `applyEmbedDiff` applies it as one transaction,
+  no history, `preventUpdate`. Anything else still takes the full replace. A test asserts an untouched
+  node is the SAME node object afterwards — i.e. its view is not re-created.
+- **`ModuleEmbedNode` cleanup removes only its own registration** (identity check).
+
 ## Recent Changes (2026-09-19 (4) — a deleted occurrence's embed leaves the editor ON THE DELETE: `dropEmbedsOf`)
 - **User: un-picking emotions on the wheel left `embed: 4edd87c8…` in the day column, one ghost at a
   time.** A moduleEmbed never removed itself when its occurrence was deleted — it drew the placeholder —

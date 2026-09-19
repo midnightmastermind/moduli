@@ -21,6 +21,7 @@ import {
   useCallback, useEffect, useMemo, useRef, useState,
   forwardRef, useImperativeHandle, useSyncExternalStore,
 } from "react";
+import { planEmbedDiff, applyEmbedDiff } from "../helpers/embedDiff";
 import {
   subscribeForceSync, getForceSyncToken,
   subscribeOperationWrite, getOperationWriteToken, hasOperationWrite, clearOperationWrite,
@@ -1636,10 +1637,19 @@ const Editor = forwardRef(function Editor({
         // The escape hatch was already in use for the migration transaction
         // above (`tr.setMeta("addToHistory", false)`); it just was never
         // applied to the sync path.
-        editor.chain()
-          .setMeta("addToHistory", false)
-          .setContent(content, { emitUpdate: false })
-          .run();
+        // An OPERATION's write that only adds/removes top-level embeds is applied
+        // node by node (helpers/embedDiff): a full replace re-mounts every node
+        // view — the Emotions Wheel's canvas included — and the collapsing height
+        // threw the page back to the top on every mood click.
+        const embedPlan = opWrote
+          ? planEmbedDiff(current?.content || [], content?.content || [])
+          : null;
+        if (!(embedPlan && applyEmbedDiff(editor, embedPlan))) {
+          editor.chain()
+            .setMeta("addToHistory", false)
+            .setContent(content, { emitUpdate: false })
+            .run();
+        }
         // The op's write has landed — spend the mark so a later ECHO under the
         // same focus is guarded as usual.
         if (opWrote) clearOperationWrite(occurrence?.id);
