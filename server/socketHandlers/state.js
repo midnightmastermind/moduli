@@ -2,6 +2,7 @@
 // Loads ALL data for the requested grid (grid-scoped cache).
 // No priority_state / lazy viewport traversal — everything ships in one emission.
 import Grid from "../models/Grid.js";
+import { joinFeedGroup } from "./feedLeader.js";
 import { filterFieldIdsOf, placementStampFieldIdsOf } from "../utils/filterFields.js";
 import { splitFullState } from "../utils/splitFullState.js";
 import { omitNullKeysAll } from "../utils/omitNullKeys.js";
@@ -38,7 +39,7 @@ import { ensureUserManifest } from "../utils/userManifest.js";
 
 export function registerStateHandlers(socket, {
   cacheByUser, gridCacheKey, ensureUserCache, userCacheReady, loadUserIntoCache,
-  getAllGridsForUser, userRoom, gridRoom,
+  getAllGridsForUser, userRoom, gridRoom, io,
 }) {
   socket.on("request_full_state", async (payload = {}) => {
     let { gridId } = payload || {};
@@ -85,6 +86,8 @@ export function registerStateHandlers(socket, {
       if (prev && prev !== gridId) socket.leave(gridRoom(userId, prev));
       socket.join(gridRoom(userId, gridId));
       socket.data.activeGridId = gridId;
+      // One tab per grid materialises feeds (services/feedLeader.js).
+      joinFeedGroup({ io, gridRoom }, socket, userId, gridId, prev);
 
       mark("gridDoc resolved");
 

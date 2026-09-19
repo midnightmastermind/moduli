@@ -137,11 +137,50 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   // bursts — the trigger surface the old Table:/Canvas: Build ops declared,
   // covered once here. Idempotent + zero-write when nothing changed, so an
   // eager schedule is cheap and the mint→echo→schedule chain self-quiets.
+  //
+  // ── ONE TAB SYNCS (server services/feedLeader.js) ──────────────────────────
+  // Every open tab used to materialise the same feeds: each minted its OWN
+  // copies, the others received them as duplicates and swept them, back and
+  // forth on every date step (prod, 2026-09-19). The server names one leader
+  // per user+grid over `feed_leader`; the others just receive its copies.
+  // A tab leads until told otherwise, and a DISCONNECTED tab always syncs for
+  // itself (its writes queue offline; the leader sweeps any duplicate on
+  // reconnect). A tab embedded in an iframe never assumes the lead.
+  const _inFrame = (() => { try { return typeof window !== "undefined" && window !== window.parent; } catch (_) { return true; } })();
+  let _isFeedLeader = !_inFrame;
+  let _claimedOnJoin = false;
+  const _claimFeedLead = () => {
+    if (_inFrame || !socket?.connected) return;
+    socket.emit("feed_claim");
+  };
+  const onFeedLeader = ({ leaderSocketId } = {}) => {
+    const was = _isFeedLeader;
+    _isFeedLeader = !leaderSocketId || leaderSocketId === socket.id;
+    // The first announcement after joining: a tab that was just opened is the
+    // one in use, so it takes the lead. Only ONCE — claiming on every
+    // announcement would ping-pong between two focused devices forever.
+    if (!_isFeedLeader && !_claimedOnJoin && typeof document !== "undefined" && document.visibilityState === "visible") {
+      _claimedOnJoin = true;
+      _claimFeedLead();
+    }
+    if (_isFeedLeader && !was) scheduleFeedSync();
+  };
+  const onFeedClaimEvent = () => {
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    _claimFeedLead();
+  };
+  if (typeof window !== "undefined") window.addEventListener("focus", onFeedClaimEvent);
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onFeedClaimEvent);
+  const onSocketConnectFeed = () => { _claimedOnJoin = false; };
+  socket.on("feed_leader", onFeedLeader);
+  socket.on("connect", onSocketConnectFeed);
+
   let _feedSyncTimer = null;
   const scheduleFeedSync = (delay = 300) => {
     if (_feedSyncTimer) clearTimeout(_feedSyncTimer);
     _feedSyncTimer = setTimeout(() => {
       _feedSyncTimer = null;
+      if (!_isFeedLeader && socket?.connected) return;
       try {
         const state = stateRef.current || {};
         const occs = {};
@@ -2998,6 +3037,10 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     operationsBridge.updateLocalOcc = null;
     operationsBridge.markDerivedOcc = null;
     if (_feedSyncTimer) { clearTimeout(_feedSyncTimer); _feedSyncTimer = null; }
+    socket.off("feed_leader", onFeedLeader);
+    socket.off("connect", onSocketConnectFeed);
+    if (typeof window !== "undefined") window.removeEventListener("focus", onFeedClaimEvent);
+    if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onFeedClaimEvent);
     operationsBridge.removeLocalOcc = null;
     operationsBridge.getLocalOcc = null;
     operationsBridge.getLocalMod = null;
