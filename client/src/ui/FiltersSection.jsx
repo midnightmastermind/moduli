@@ -11,7 +11,7 @@ import React, { useState, useMemo } from "react";
 import { Plus, Lock, Unlock, Settings, X } from "lucide-react";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import FilterNavWidget from "./FilterNavWidgets";
+import FilterNavWidget, { formatFilterValueLabel } from "./FilterNavWidgets";
 import FilterEditor from "./FilterEditor";
 import { getEffectiveFilterForOccurrence, getParentOccurrence } from "../state/selectors";
 import { buildParentMap } from "../helpers/dragHitTesting";
@@ -70,8 +70,12 @@ function formatValue(v) {
     return new Date(y, m - 1, d).toLocaleDateString();
   }
   if (Array.isArray(v)) return v.join(", ");
+  // A date filter's period object ({ value, unit, span, kind, dates }) — the
+  // shape the date picker writes for ranges, multi-day and week/month/year.
+  if (typeof v === "object") return formatFilterValueLabel(v);
   return String(v);
 }
+export { formatValue as _formatValueForTests };
 
 // Mirrors the nav-widget value-resolution chain so the ancestor-row Date
 // readout matches the visible widget. own (filterOverride) → inherited

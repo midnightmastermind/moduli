@@ -59,6 +59,25 @@ function formatPeriodLabel(date, unit) {
   return date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
 }
 
+/**
+ * The label for a filter value, in any of its shapes (bare ISO string or the
+ * `{ value, unit, span, kind, dates }` object above). ONE definition for the
+ * nav chip and the Filters dropdown's ancestor rows, which printed an object
+ * value as "[object Object]" while the chip above it read "Sep 19–21".
+ * `fallbackUnit` is the filter's own timeUnit when the value carries none.
+ */
+export function formatFilterValueLabel(value, fallbackUnit = "day") {
+  const shape = readValueShape(value);
+  const unit = (value && typeof value === "object" && value.unit) || fallbackUnit || "day";
+  const baseLabel = shape.value ? formatPeriodLabel(parseDateValue(shape.value), unit) : "—";
+  // Multi or multi-day span → list the actual days/ranges. Single + week/
+  // month/year keep the weekday/period label for at-a-glance reading.
+  const isListed = (shape.kind === "multi" && Array.isArray(shape.dates) && shape.dates.length)
+    || (unit === "day" && shape.span > 1);
+  if (isListed) return summarizeSelection(shape, { maxSegments: 3 }) || baseLabel;
+  return baseLabel;
+}
+
 // Resolve the write path: if `onNav` is provided, call that (used by the
 // HeaderDropdown to auto-unlock the filter for this module via filterOverride).
 // Otherwise dispatch the global setFilterNavAction (grid-wide active filter value).
@@ -167,16 +186,7 @@ function ArrowsWidget({ filter, navConfig, value, dispatch, onNav }) {
     writeNext(dateStr, u, u === "day" ? span : 1);
   };
 
-  // Label reads from the persisted shape's kind for richer display.
-  const baseLabel = shape.value ? formatPeriodLabel(parseDateValue(shape.value), unit) : "—";
-  const label = (() => {
-    // Multi or multi-day span → list the actual days/ranges. Single + week/
-    // month/year keep the weekday/period label for at-a-glance reading.
-    const isListed = (shape.kind === "multi" && Array.isArray(shape.dates) && shape.dates.length)
-      || (unit === "day" && span > 1);
-    if (isListed) return summarizeSelection(shape, { maxSegments: 3 }) || baseLabel;
-    return baseLabel;
-  })();
+  const label = formatFilterValueLabel(value, unit);
   const showToggle = !allowedUnits || allowedUnits.length > 1;
 
   // NavPicker emits { kind, value, span, dates, unit } — fold into our shape.
