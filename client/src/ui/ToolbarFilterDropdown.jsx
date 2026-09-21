@@ -83,6 +83,20 @@ export default function ToolbarFilterDropdown() {
   };
 
   const setActive = (filterId) => {
+    // Through CommitHelpers, like the "nav here" toggle right above — NOT
+    // through a context key. This called `onSelectFilter` off
+    // GridActionsContext, and App.jsx's actionsValue never provides one, so
+    // what ran was the context DEFAULT (`onSelectFilter: () => {}`) and the
+    // radio was a dead button: measured on prod 2026-09-21, picking the one
+    // filter a grid had left `grid.activeFilterId` null, so no date cascade
+    // ever started. Command Center → Grid does the same write; both now go
+    // through the one helper.
+    CommitHelpers.updateGridFilter({
+      dispatch, socket,
+      gridId: grid?._id || grid?.id,
+      patch: { activeFilterId: filterId },
+      emit: true,
+    });
     onSelectFilter?.(filterId);
   };
 

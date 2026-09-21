@@ -181,9 +181,13 @@ export function GridSettingsTab() {
     CommitHelpers.updateGrid({ dispatch, socket, gridId, grid: { namedFilters: filters } });
   }, [dispatch, socket, gridId]);
 
+  // Through the one helper, like every other write on this tab. A raw
+  // socket.emit here was a second spelling of the same write, and the toolbar's
+  // copy of it went missing entirely (it called a context stub nobody provides).
   const activateFilter = useCallback((filterId) => {
-    socket?.emit("update_grid_filter", { gridId, activeFilterId: filterId });
-    dispatch?.({ type: "UPDATE_GRID", payload: { gridId, grid: { activeFilterId: filterId } } });
+    CommitHelpers.updateGridFilter({
+      dispatch, socket, gridId, patch: { activeFilterId: filterId },
+    });
   }, [dispatch, socket, gridId]);
 
   const updateFilter = useCallback((filterId, patch) => {
