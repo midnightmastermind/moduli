@@ -185,9 +185,23 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
       if (!_isSyncLeader && socket?.connected) return;
       try {
         const state = stateRef.current || {};
+        const gridNow = state.gridId || state.grid?._id || null;
         const occs = {};
         for (const o of state.occurrences || []) if (o?.id) occs[o.id] = o;
-        Object.assign(occs, localOccsById);
+        // THE OVERLAY OUTLIVES A GRID SWITCH. `resetLocalOccs()` runs in the
+        // DEFERRED load sweep (rAF + staged release + 50ms), while the new
+        // full_state has already swapped `state.gridId`. A sync firing in that
+        // window paired THIS grid's id with the PREVIOUS grid's occurrences and
+        // minted feed copies into a grid they do not belong to — 87 of them on a
+        // brand-new grid, 2026-09-21, invisible because their parent lives in the
+        // grid we left. Entries that name no grid are local mints belonging to the
+        // current one, so only an explicit disagreement is dropped.
+        for (const id in localOccsById) {
+          const o = localOccsById[id];
+          if (!o) continue;
+          if (gridNow && o.gridId && o.gridId !== gridNow) continue;
+          occs[id] = o;
+        }
         const mods = {};
         for (const m of state.modules || []) if (m?.id) mods[m.id] = m;
         syncAllFeeds({ state, occurrencesById: occs, modulesById: mods, dispatch, socket });
