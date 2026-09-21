@@ -681,7 +681,13 @@ export function registerCrudHandlers(socket, {
       const id = operation?.id;
       const gridId = operation?.gridId;
       if (!id || !gridId) return;
+      // The WHOLE operation, then defaults over the gaps. A column list here
+      // silently dropped `pipeline`, `triggerObjects`, `triggerTypes`,
+      // `schedule` and `folderId` — an operation with no pipeline is an
+      // operation that does nothing. It only ever looked fine because a
+      // duplicate generic listener was writing the full record behind it.
       const opData = {
+        ...operation,
         id, userId, gridId,
         name: operation.name || "Untitled Operation",
         description: operation.description || "",
@@ -693,13 +699,22 @@ export function registerCrudHandlers(socket, {
         sortOrder: operation.sortOrder || 0,
         meta: operation.meta || {},
       };
+      const before = uc.operationsById[id] || null;
       uc.operationsById[id] = opData;
       // A pipeline that stamps a field from the destination container makes
       // that field per-placement, so the fan-out must stop sharing it. Refresh
       // here rather than on every grid write: this is the only place the
       // pipelines change. Never allowed to break the write it follows.
       try { uc.placementFieldIds = placementStampFieldIdsOf(Object.values(uc.operationsById || {})); } catch { /* keep the previous set */ }
-      await Operation.findOneAndUpdate({ id, userId }, opData, { upsert: true });
+      try {
+        await Operation.findOneAndUpdate({ id, userId }, opData, { upsert: true });
+      } catch (upsertErr) {
+        // E11000: a document with this id exists under a different userId (a
+        // re-import, or a migration). Same fallback the generic CRUD carries.
+        if (upsertErr.code === 11000) await Operation.findOneAndUpdate({ id }, { $set: opData });
+        else throw upsertErr;
+      }
+      recordChange({ model: "operation", id, before, after: opData, payload: operation });
       socket.to(userRoom(userId)).emit("operation_created", { operation: opData });
     } catch (err) {
       console.error("create_operation error:", err);
@@ -731,14 +746,21 @@ export function registerCrudHandlers(socket, {
         }
       }
 
-      const next = { ...(uc.operationsById[id] || {}), ...operation, id, userId };
+      const before = uc.operationsById[id] || null;
+      const next = { ...(before || {}), ...operation, id, userId };
       uc.operationsById[id] = next;
       // A pipeline that stamps a field from the destination container makes
       // that field per-placement, so the fan-out must stop sharing it. Refresh
       // here rather than on every grid write: this is the only place the
       // pipelines change. Never allowed to break the write it follows.
       try { uc.placementFieldIds = placementStampFieldIdsOf(Object.values(uc.operationsById || {})); } catch { /* keep the previous set */ }
-      await Operation.findOneAndUpdate({ id, userId }, next, { upsert: true });
+      try {
+        await Operation.findOneAndUpdate({ id, userId }, next, { upsert: true });
+      } catch (upsertErr) {
+        if (upsertErr.code === 11000) await Operation.findOneAndUpdate({ id }, { $set: next });
+        else throw upsertErr;
+      }
+      recordChange({ model: "operation", id, before, after: next, payload: operation });
       // Broadcast to other sockets in the user room. Originator already has
       // the update applied locally (optimistic write before socket emit).
       socket.to(userRoom(userId)).emit("operation_updated", { operation: next });
@@ -752,8 +774,14 @@ export function registerCrudHandlers(socket, {
     try {
       if (!userId || !operationId) return;
       const uc = await getUc();
+      // Snapshot before deleting — a delete's `before` is the ONLY thing undo
+      // can restore it from. Warm cache first, the DB read is the fallback.
+      const before = uc.operationsById?.[operationId]
+        || (await Operation.findOne({ id: operationId, userId }).lean())
+        || null;
       if (uc.operationsById?.[operationId]) delete uc.operationsById[operationId];
       await Operation.findOneAndDelete({ id: operationId, userId });
+      recordChange({ model: "operation", id: operationId, before, after: null });
       socket.to(userRoom(userId)).emit("operation_deleted", { operationId });
     } catch (err) {
       console.error("delete_operation error:", err);
@@ -865,8 +893,14 @@ export function registerCrudHandlers(socket, {
   });
 
   // ── GENERIC CRUD (Manifest, View, Folder, Operation, Iteration) ────────────
-  function setupGenericCRUD(modelName, Model, cacheKey) {
-    socket.on(`create_${modelName}`, async (payload = {}) => {
+  // `verbs` is what stops a generic listener landing on top of a bespoke one.
+  // socket.io calls EVERY listener for an event, so registering both meant one
+  // client emit ran two handlers that raced on the unique `id` index — the
+  // loser threw E11000 and the user saw `Failed to create operation` for a
+  // record that had in fact been written (measured on prod 2026-09-21). A verb
+  // that has a bespoke handler above must NOT be listed here.
+  function setupGenericCRUD(modelName, Model, cacheKey, { verbs = ["create", "update", "delete"] } = {}) {
+    if (verbs.includes("create")) socket.on(`create_${modelName}`, async (payload = {}) => {
       const entity = payload?.[modelName];
       try {
         if (!userId) return;
@@ -905,7 +939,7 @@ export function registerCrudHandlers(socket, {
       }
     });
 
-    socket.on(`update_${modelName}`, async (payload = {}) => {
+    if (verbs.includes("update")) socket.on(`update_${modelName}`, async (payload = {}) => {
       const entity = payload?.[modelName];
       try {
         if (!userId) return;
@@ -934,7 +968,7 @@ export function registerCrudHandlers(socket, {
       }
     });
 
-    socket.on(`delete_${modelName}`, async (payload = {}) => {
+    if (verbs.includes("delete")) socket.on(`delete_${modelName}`, async (payload = {}) => {
       const entityId = payload?.[`${modelName}Id`];
       try {
         if (!userId) return;
@@ -963,8 +997,11 @@ export function registerCrudHandlers(socket, {
 
   setupGenericCRUD("manifest", Manifest, "manifestsById");
   setupGenericCRUD("view", View, "viewsById");
-  setupGenericCRUD("folder", Folder, "foldersById");
-  setupGenericCRUD("operation", Operation, "operationsById");
+  // `create_folder` and all three operation verbs have bespoke handlers above
+  // (dedupe-by-name for folders; the placement-field refresh and the
+  // cross-device scheduler lock for operations). Those are the authoritative
+  // ones — a generic twin here would run a SECOND time on the same emit.
+  setupGenericCRUD("folder", Folder, "foldersById", { verbs: ["update", "delete"] });
 
   // ── FILTER SYSTEM ─────────────────────────────────────────
   // update_grid_filter: set the active filter + live values
