@@ -2733,10 +2733,41 @@ const Editor = forwardRef(function Editor({
   // Mint a standalone occurrence (NOT into any occurrences[] — doc embeds are
   // standalone) and insert a moduleEmbed for it at `pos`. existingModuleId →
   // a fresh placement of a picked module; else a new role:"instance" module.
-  const insertDocItemAt = useCallback((pos, { existingModuleId = null, fieldIds = [], fieldBindings = null, initialFields = null } = {}) => {
+  const insertDocItemAt = useCallback((pos, { existingModuleId = null, kind = null, fieldIds = [], fieldBindings = null, initialFields = null, folderId = null, url = null, file = null } = {}) => {
     if (!editor || !occurrence?.userId) return;
     const userId = occurrence.userId;
     const gridId = occurrence.gridId;
+
+    const embedAt = (id) => {
+      const at = Math.max(0, Math.min(pos, editor.state.doc.content.size));
+      editor.chain().focus().insertContentAt(at, { type: "moduleEmbed", attrs: { occurrenceId: id } }).run();
+      setDocGap(null);
+    };
+
+    // ── A TILE'S `kind` IS THE ENTIRE POINT OF THE TILE ──────────────────────
+    // QuickAddMenu passes it on every create (`onCreateNew({ fieldIds, kind })`)
+    // and this handler destructured everything EXCEPT it, so all sixteen tiles
+    // in the doc gap minted the SAME bare `role:"instance"` module. Measured on
+    // prod 2026-09-21: picking "Doc container" produced `role:"instance",
+    // kind:null` with an empty label, embedded in the page and un-typeable —
+    // and the same was true of Board/Table/Canvas container, Textblock,
+    // Artifact, Image, Browser and every page-* tile.
+    //
+    // `createChildInContainer` is the authoritative kind→create router the
+    // container "+" already uses. Routing here keeps ONE table instead of a
+    // second copy that drifts; a branch that mints nothing yet (an artifact with
+    // no file, the Wikipedia search sub-step) returns null and embeds nothing,
+    // which is the honest outcome rather than an empty instance.
+    if (kind && kind !== "instance" && !existingModuleId) {
+      const res = CommitHelpers.createChildInContainer({
+        dispatch, socket, gridId, userId,
+        containerOccurrence: occurrence, containerModule: null,
+        kind, fieldIds, fieldBindings, initialFields, folderId, url, file,
+      });
+      if (res?.occurrenceId) embedAt(res.occurrenceId);
+      return;
+    }
+
     const occId = crypto.randomUUID();
     let moduleId = existingModuleId;
     if (!moduleId) {
@@ -2756,9 +2787,7 @@ const Editor = forwardRef(function Editor({
       occurrence: { id: occId, userId, gridId, moduleId, parentId: occurrence?.id, iteration: { mode: "persistent" }, fields: { ...(initialFields || {}) } },
       emit: true,
     });
-    const at = Math.max(0, Math.min(pos, editor.state.doc.content.size));
-    editor.chain().focus().insertContentAt(at, { type: "moduleEmbed", attrs: { occurrenceId: occId } }).run();
-    setDocGap(null);
+    embedAt(occId);
   }, [editor, occurrence, dispatch, socket]);
 
   // ── render ────────────────────────────────────────────────────
@@ -2891,7 +2920,7 @@ const Editor = forwardRef(function Editor({
               targetRole="instance"
               hostOccurrence={occurrence}
               onSelect={(m) => insertDocItemAt(docGap.pos, { existingModuleId: m?.id ?? m })}
-              onCreateNew={({ fieldIds, fieldBindings, initialFields } = {}) => insertDocItemAt(docGap.pos, { fieldIds, fieldBindings, initialFields })}
+              onCreateNew={(args = {}) => insertDocItemAt(docGap.pos, args)}
               openTrigger={gapAddTrigger}
               // onOpenChange fires on real transitions only (never on mount),
               // so a close always means "the user is done with this gap".
