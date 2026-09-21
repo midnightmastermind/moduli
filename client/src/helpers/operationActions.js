@@ -853,6 +853,38 @@ export function evalGroup(group, $vars) {
 // on the current record (`label`, `fields.<fid>.value`, `_ancestors`). The
 // right side is still a regular expression resolved against $vars.
 
+// ── FIND BY ID IS A LOOKUP, NOT A SCAN ─────────────────────────────────────
+// Index per collection ARRAY IDENTITY. The optimistic publishes that add to a
+// collection mid-sweep REPLACE the array (`$vars.$allX = [...arr, stub]`), so a
+// stale index cannot survive an addition; the read-model patch mutates ENTRIES
+// in place, which keeps the same objects and so stays correct.
+const _idIndexCache = new WeakMap();
+export function idIndexFor(list) {
+  if (!Array.isArray(list)) return new Map();
+  const hit = _idIndexCache.get(list);
+  if (hit) return hit;
+  const m = new Map();
+  for (const it of list) if (it && it.id != null && !m.has(it.id)) m.set(it.id, it);
+  _idIndexCache.set(list, m);
+  return m;
+}
+
+/**
+ * The id a predicate asks for when it is EXACTLY `id IS <x>`, else null.
+ * One plain rule only: a second rule, a nested group, or any other comparator
+ * means the scan still has to run.
+ */
+export function singleIdEquals(predicate, $vars) {
+  const rules = predicate?.rules;
+  if (!Array.isArray(rules) || rules.length !== 1) return null;
+  const r = rules[0];
+  if (!r || Array.isArray(r.rules) || r.comparator !== "IS") return null;
+  const left = typeof r.left === "string" ? r.left.replace(/^\$(item|record)\./, "") : "";
+  if (left !== "id") return null;
+  const v = resolveExpr(r.right, $vars);
+  return typeof v === "string" && v ? v : null;
+}
+
 export function resolveRecordPath(record, path) {
   if (record == null || !path) return null;
   // Tolerate legacy `$item.X` / `$record.X` predicates from seed data — the
@@ -1545,9 +1577,21 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
         return evalGroupAgainstRecord(predicate, record, $vars);
       };
 
-      const candidates = itemList
-        .filter(it => it && !it.deleted && !it.meta?.isTemplate)
-        .filter(matchItem);
+      // A FIND whose WHOLE condition is `id IS <x>` is a lookup, not a scan.
+      // `Project: Stamp Status From Column` does exactly that and cost 65-80ms
+      // of EVERY instance create and move on the live grid — it walked all
+      // 22,000 records to reach one (prod profile, 2026-09-19). Same collection,
+      // same exclusions, same result shape: only the walk is skipped.
+      const wantedId = singleIdEquals(predicate, $vars);
+      let candidates;
+      if (wantedId != null) {
+        const hit = idIndexFor(itemList).get(wantedId);
+        candidates = (hit && !hit.deleted && !hit.meta?.isTemplate) ? [hit] : [];
+      } else {
+        candidates = itemList
+          .filter(it => it && !it.deleted && !it.meta?.isTemplate)
+          .filter(matchItem);
+      }
 
       // Task #30 follow-up — FIND auto-detects: returns the bare item when
       // there's exactly one match, the full array when there are multiple,
