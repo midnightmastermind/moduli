@@ -1,0 +1,523 @@
+{
+ "sources": [],
+ "steps": [
+  {
+   "id": "nCbORmljoIiv",
+   "type": "action",
+   "config": {
+    "type": "INIT_VAR",
+    "name": "$schedPage",
+    "expr": "$allItemsById.llpF10Bda5nu"
+   }
+  },
+  {
+   "id": "I5LLAI7KZYWg",
+   "type": "action",
+   "config": {
+    "type": "INIT_VAR",
+    "name": "$schedPageId",
+    "expr": "$schedPage.id"
+   }
+  },
+  {
+   "id": "7zW1ylFpUc0g",
+   "type": "loop",
+   "overExpr": "$allContainers",
+   "as": "$dayCol",
+   "body": [
+    {
+     "id": "0Ej_peL6oO4e",
+     "type": "if",
+     "condition": {
+      "operator": "AND",
+      "rules": [
+       {
+        "id": "u7-_53zJtdXO",
+        "left": "$dayCol._ancestors",
+        "comparator": "HAS_ANCESTOR",
+        "right": "$schedPageId"
+       },
+       {
+        "id": "Mnb8U2v0xLEH",
+        "left": "$dayCol.fields.vQ0ELZP_zxnx.value",
+        "comparator": "IS",
+        "right": "day-col"
+       }
+      ]
+     },
+     "then": [
+      {
+       "id": "K9e-L9uXliPD",
+       "type": "action",
+       "config": {
+        "type": "INIT_VAR",
+        "name": "$colDate",
+        "expr": "$dayCol.fields.Eh7oi4HKdbHB.value"
+       }
+      },
+      {
+       "id": "acUQ0LtGAImp",
+       "type": "action",
+       "config": {
+        "type": "INIT_VAR",
+        "name": "$dayPast",
+        "expr": "literal:0"
+       }
+      },
+      {
+       "id": "xsIA-B75Jnv2",
+       "type": "if",
+       "condition": {
+        "operator": "AND",
+        "rules": [
+         {
+          "id": "fphurN8iMZdV",
+          "left": "$colDate",
+          "comparator": "DATE_BEFORE",
+          "right": "$today"
+         }
+        ]
+       },
+       "then": [
+        {
+         "id": "OTZDqY3n6C1P",
+         "type": "action",
+         "config": {
+          "type": "SET_VAR",
+          "name": "$dayPast",
+          "expr": "literal:1"
+         }
+        }
+       ],
+       "else": []
+      },
+      {
+       "id": "OsYfy1YkYG55",
+       "type": "action",
+       "config": {
+        "type": "INIT_VAR",
+        "name": "$dayIsToday",
+        "expr": "literal:0"
+       }
+      },
+      {
+       "id": "WERo6ZZltPTD",
+       "type": "if",
+       "condition": {
+        "operator": "AND",
+        "rules": [
+         {
+          "id": "2gOuK4WV382I",
+          "left": "$colDate",
+          "comparator": "SAME_DAY",
+          "right": "$today"
+         }
+        ]
+       },
+       "then": [
+        {
+         "id": "A6RGBXxc_o-S",
+         "type": "action",
+         "config": {
+          "type": "SET_VAR",
+          "name": "$dayIsToday",
+          "expr": "literal:1"
+         }
+        }
+       ],
+       "else": []
+      },
+      {
+       "id": "boch8UU_qu9I",
+       "type": "action",
+       "config": {
+        "type": "INIT_VAR",
+        "name": "$currentSlotTime",
+        "expr": "literal:"
+       }
+      },
+      {
+       "id": "XUWRrI31FkR6",
+       "type": "loop",
+       "overExpr": "$dayCol.occurrences",
+       "as": "$slotId",
+       "body": [
+        {
+         "id": "Tb3UC8e80CHk",
+         "type": "action",
+         "config": {
+          "type": "SET_VAR",
+          "name": "$slot",
+          "expr": "$allItemsById.${$slotId}"
+         }
+        },
+        {
+         "id": "lMlwgY9j-6J8",
+         "type": "if",
+         "condition": {
+          "operator": "AND",
+          "rules": [
+           {
+            "id": "BPCpGW_LO5N_",
+            "left": "$dayIsToday",
+            "comparator": "IS",
+            "right": 1
+           },
+           {
+            "id": "UFvj-Yd3A9hQ",
+            "left": "$slot.fields.vQ0ELZP_zxnx.value",
+            "comparator": "IS",
+            "right": "slot"
+           },
+           {
+            "id": "V7K5c6un5mrM",
+            "left": "$slot.fields.nSccAtADyUGW.value",
+            "comparator": "TIME_BEFORE",
+            "right": "$currentTime"
+           }
+          ]
+         },
+         "then": [
+          {
+           "id": "yMzVL_G7K-8E",
+           "type": "if",
+           "condition": {
+            "operator": "OR",
+            "rules": [
+             {
+              "id": "Qow4Dvw3E0Wm",
+              "left": "$currentSlotTime",
+              "comparator": "IS_EMPTY",
+              "right": ""
+             },
+             {
+              "id": "IEdnKoiQKTCF",
+              "left": "$slot.fields.nSccAtADyUGW.value",
+              "comparator": "TIME_AFTER",
+              "right": "$currentSlotTime"
+             }
+            ]
+           },
+           "then": [
+            {
+             "id": "6QoUo-IhjbMs",
+             "type": "action",
+             "config": {
+              "type": "SET_VAR",
+              "name": "$currentSlotTime",
+              "expr": "$slot.fields.nSccAtADyUGW.value"
+             }
+            }
+           ],
+           "else": []
+          }
+         ],
+         "else": []
+        }
+       ]
+      },
+      {
+       "id": "d-Ucphhr7rj_",
+       "type": "loop",
+       "overExpr": "$dayCol.occurrences",
+       "as": "$slotId",
+       "body": [
+        {
+         "id": "srw6xAFihtd9",
+         "type": "action",
+         "config": {
+          "type": "SET_VAR",
+          "name": "$slot",
+          "expr": "$allItemsById.${$slotId}"
+         }
+        },
+        {
+         "id": "ei1SKtEc5HS5",
+         "type": "if",
+         "condition": {
+          "operator": "AND",
+          "rules": [
+           {
+            "id": "21OItUVWz5nt",
+            "left": "$slot.fields.vQ0ELZP_zxnx.value",
+            "comparator": "IS",
+            "right": "slot"
+           }
+          ]
+         },
+         "then": [
+          {
+           "id": "m3HPZQRY7L4I",
+           "type": "action",
+           "config": {
+            "type": "INIT_VAR",
+            "name": "$passed",
+            "expr": "literal:0"
+           }
+          },
+          {
+           "id": "SxTruFNWlPgt",
+           "type": "if",
+           "condition": {
+            "operator": "AND",
+            "rules": [
+             {
+              "id": "qLICCsfTrfPQ",
+              "left": "$dayPast",
+              "comparator": "IS",
+              "right": 1
+             }
+            ]
+           },
+           "then": [
+            {
+             "id": "QAdy90mZ502g",
+             "type": "action",
+             "config": {
+              "type": "SET_VAR",
+              "name": "$passed",
+              "expr": "literal:1"
+             }
+            }
+           ],
+           "else": []
+          },
+          {
+           "id": "ohEM5riWFZ5D",
+           "type": "if",
+           "condition": {
+            "operator": "AND",
+            "rules": [
+             {
+              "id": "Bd8QT4BawCfF",
+              "left": "$dayIsToday",
+              "comparator": "IS",
+              "right": 1
+             },
+             {
+              "id": "7OONxCxcTSXE",
+              "left": "$slot.fields.nSccAtADyUGW.value",
+              "comparator": "TIME_BEFORE",
+              "right": "$currentTime"
+             }
+            ]
+           },
+           "then": [
+            {
+             "id": "VpvTG6cD-1P7",
+             "type": "action",
+             "config": {
+              "type": "SET_VAR",
+              "name": "$passed",
+              "expr": "literal:1"
+             }
+            }
+           ],
+           "else": []
+          },
+          {
+           "id": "g08a4SWxcnYM",
+           "type": "action",
+           "config": {
+            "type": "INIT_VAR",
+            "name": "$isCurrent",
+            "expr": "literal:0"
+           }
+          },
+          {
+           "id": "kHceNd-vs5Fd",
+           "type": "if",
+           "condition": {
+            "operator": "AND",
+            "rules": [
+             {
+              "id": "3pZNIKIiIaXy",
+              "left": "$dayIsToday",
+              "comparator": "IS",
+              "right": 1
+             },
+             {
+              "id": "5gYqH7bGcXOZ",
+              "left": "$currentSlotTime",
+              "comparator": "IS_NOT_EMPTY",
+              "right": ""
+             },
+             {
+              "id": "XBeAWH-8qaB7",
+              "left": "$slot.fields.nSccAtADyUGW.value",
+              "comparator": "IS",
+              "right": "$currentSlotTime"
+             }
+            ]
+           },
+           "then": [
+            {
+             "id": "8QVMQNKvRKq4",
+             "type": "action",
+             "config": {
+              "type": "SET_VAR",
+              "name": "$isCurrent",
+              "expr": "literal:1"
+             }
+            }
+           ],
+           "else": []
+          },
+          {
+           "id": "dVxQxk58I5T4",
+           "type": "if",
+           "condition": {
+            "operator": "AND",
+            "rules": [
+             {
+              "id": "HHq7wjMUd-6y",
+              "left": "$isCurrent",
+              "comparator": "IS",
+              "right": 1
+             }
+            ]
+           },
+           "then": [
+            {
+             "id": "PnqyWcShr3an",
+             "type": "if",
+             "condition": {
+              "operator": "AND",
+              "rules": [
+               {
+                "id": "XGVx5FnyVURI",
+                "left": "$slot.ownStyle.bg",
+                "comparator": "IS_NOT",
+                "right": "rgba(74,222,128,0.16)"
+               }
+              ]
+             },
+             "then": [
+              {
+               "id": "vL5brJTMm0_l",
+               "type": "action",
+               "config": {
+                "type": "UPDATE",
+                "path": "$slot.ownStyle.bg",
+                "value": "rgba(74,222,128,0.16)"
+               }
+              }
+             ],
+             "else": []
+            },
+            {
+             "id": "_6yYvEmtLQx7",
+             "type": "if",
+             "condition": {
+              "operator": "AND",
+              "rules": [
+               {
+                "id": "TrfMu1d7nZlw",
+                "left": "$trigger.type",
+                "comparator": "IS",
+                "right": "onLoad"
+               }
+              ]
+             },
+             "then": [
+              {
+               "id": "ozhbzAYvqlhw",
+               "type": "action",
+               "config": {
+                "type": "SCROLL_TO",
+                "itemIdExpr": "$slot.id",
+                "block": "center"
+               }
+              }
+             ],
+             "else": []
+            }
+           ],
+           "else": [
+            {
+             "id": "LRLil7o4TS4L",
+             "type": "if",
+             "condition": {
+              "operator": "AND",
+              "rules": [
+               {
+                "id": "uYD6rnbY0cUZ",
+                "left": "$passed",
+                "comparator": "IS",
+                "right": 1
+               }
+              ]
+             },
+             "then": [
+              {
+               "id": "xX1mdGg-KkZo",
+               "type": "if",
+               "condition": {
+                "operator": "AND",
+                "rules": [
+                 {
+                  "id": "qeglGQ4n5cQA",
+                  "left": "$slot.ownStyle.bg",
+                  "comparator": "IS_NOT",
+                  "right": "rgba(248,113,113,0.10)"
+                 }
+                ]
+               },
+               "then": [
+                {
+                 "id": "JSOlx0W0doEZ",
+                 "type": "action",
+                 "config": {
+                  "type": "UPDATE",
+                  "path": "$slot.ownStyle.bg",
+                  "value": "rgba(248,113,113,0.10)"
+                 }
+                }
+               ],
+               "else": []
+              }
+             ],
+             "else": [
+              {
+               "id": "WZzjHHV8FCDQ",
+               "type": "if",
+               "condition": {
+                "operator": "AND",
+                "rules": [
+                 {
+                  "id": "49bSil0kGE6A",
+                  "left": "$slot.ownStyle.bg",
+                  "comparator": "IS_NOT_EMPTY",
+                  "right": ""
+                 }
+                ]
+               },
+               "then": [
+                {
+                 "id": "2qcylL8AuAdX",
+                 "type": "action",
+                 "config": {
+                  "type": "UPDATE",
+                  "path": "$slot.ownStyle.bg",
+                  "value": ""
+                 }
+                }
+               ],
+               "else": []
+              }
+             ]
+            }
+           ]
+          }
+         ],
+         "else": []
+        }
+       ]
+      }
+     ],
+     "else": []
+    }
+   ]
+  }
+ ]
+}

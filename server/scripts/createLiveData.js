@@ -29,6 +29,7 @@ const __dirname = dirname(__filename);
 dotenv.config({ path: resolve(__dirname, "../.env") });
 
 import { nanoid } from "nanoid";
+import { stripeSlotPaint } from "../migrations/0349-schedule-slots-alternate-shades.mjs";
 import Grid from "../models/Grid.js";
 import Occurrence from "../models/Occurrence.js";
 import Field from "../models/Field.js";
@@ -8852,7 +8853,9 @@ export async function createLiveData(userId, options = {}) {
     ],
     enabled: true,
     schedule: { kind: "interval", every: 5, unit: "minute", lastFiredAt: null },
-    pipeline: {
+    // Alternate slots take a second shade (0349) — the migration's transform,
+    // so the seed and poms grid cannot drift.
+    pipeline: stripeSlotPaint({
       sources: [],
       steps: [
         { id: uid(), type: "action", config: { type: "INIT_VAR", name: "$schedPage", expr: `$allItemsById.${schedPageOccId}` } },
@@ -9000,7 +9003,7 @@ export async function createLiveData(userId, options = {}) {
           ],
         },
       ],
-    },
+    }).pipeline,
   }).save();
 
 
