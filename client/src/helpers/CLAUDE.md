@@ -2,6 +2,24 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-21 — a FIND of one id is a LOOKUP, not a 22k-row scan)
+- The remaining lever from the date audit. `Project: Stamp Status From Column` runs on EVERY instance
+  create and move and spent 65-80ms of each walking all 22,000 records to reach one id
+  (`FIND over $allOccurrences where id IS $destId`); building a new day column pays it once per row.
+- `operationActions.singleIdEquals` recognises the shape — EXACTLY one plain rule, `id` (with or without a
+  `$item.`/`$record.` prefix), comparator `IS`, a resolvable value — and `idIndexFor` indexes the collection
+  per ARRAY IDENTITY. Safe because an optimistic publish REPLACES the array (`$vars.$allX = [...arr, stub]`),
+  so a stale index cannot survive an addition, while the read-model patch mutates entries in place and keeps
+  the same objects. Same collection, same deleted/template exclusions, same result shape — only the walk is
+  skipped. Two rules, a nested group, another comparator or another field all still scan (control tests).
+- **CONVERGED WITH THE PARALLEL SESSION, recorded because it cost duplicate work:** both accounts fixed the
+  per-descendant parent map the same afternoon (`467d229e`/`8d4842d5` vs `8a25b850`). Theirs superseded mine
+  in `CommitHelpers` and is the SAFER of the two — my `_ancestorChain` used `cachedParentMap`, which their
+  entry correctly rules out (the op-effect caller passes the LIVE overlay map, mutated in place under a
+  stable identity, so an identity-keyed cache would go stale forever). My duplicate
+  `sweepParentMap.test.js` is deleted; `sweepParentMapCache.test.js` covers it. **Check the other account's
+  commits before starting a named lever.**
+
 ## Recent Changes (2026-09-19 (9) — a Day Page date step went 9.4s -> 1.2s blocked: two per-sweep grid-wide costs)
 
 A date change fires ONE NavigationOp sweep PER inheriting descendant; the cascade dedup leaves most of them
