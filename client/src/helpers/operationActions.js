@@ -2385,17 +2385,40 @@ export function executeActionItem(type, cfg, $vars, context, transaction) {
     }
 
     case "SHOW_VALUE": {
-      // Stage a named value to return to the caller. Two consumers:
+      // Publish a computed result. It is ALWAYS staged for the caller —
       //   1. The /api/v1/operations/:id/run bridge surfaces every
       //      SHOW_VALUE effect under `vars` in the JSON response (see
       //      bindSocketToStore.js onRunOpForApi).
-      //   2. The OperationLogPanel can render them as "result" rows.
-      // cfg: { name, value } — name auto-prefixes "$" if missing,
-      // value is run through resolveExpr.
+      //   2. The OperationLogPanel renders them as "result" rows.
+      // — and, when the config names a target field, it is ALSO published as
+      // that field's display value.
+      //
+      // THE TARGET FIELD IS WHY THIS BRANCH EXISTS. `ui/actionTree.js` calls
+      // this action "Display → field / Write computed value to a display
+      // field", the builder's editor offers a field picker (`targetFieldId`)
+      // plus an expression (`sourceExpr`), and OperationLogPanel renders both
+      // — but this branch used to read only `{ name, value }`, so every
+      // operation authored through the UI staged `{ $result, undefined }` and
+      // wrote nothing. Measured on prod 2026-09-21: a tracker whose loop
+      // reached 3 left `computedValues` empty. A mis-keyed config does not
+      // fail closed.
+      //
+      // cfg: { targetFieldId?, targetItemId?, sourceExpr | value, name? }
       const rawName = cfg.name || "$result";
       const name = String(rawName).startsWith("$") ? String(rawName) : `$${rawName}`;
-      const value = resolveExpr(cfg.value, $vars);
+      const value = resolveExpr(cfg.sourceExpr !== undefined ? cfg.sourceExpr : cfg.value, $vars);
       updates.push({ _effect: "SHOW_VALUE", name, value });
+      if (cfg.targetFieldId) {
+        // itemId null is deliberate and is what the field-only editor can
+        // express: masterReducer keys computedValues by `fieldId` alone when
+        // no occurrence is named, so every binding of the field renders it.
+        updates.push({
+          _effect: "UPDATE_DISPLAY_VALUE",
+          fieldId: cfg.targetFieldId,
+          itemId: resolveExpr(cfg.targetItemId, $vars) || null,
+          value,
+        });
+      }
       break;
     }
 
