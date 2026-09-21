@@ -15,6 +15,23 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-21 — SCHEDULE SLOTS ALTERNATE SHADES, like table rows
+
+User: *"2 diff shades of red and 2 diff shades of whatever color it is when its not red. (green is fine as
+just one)"*. The colours are DATA written by `Schedule: Mark Passed Slots` to `ownStyle.bg` (its one
+writer), so the stripe went into the op, not a CSS `:nth-child` (the renderer may not know what a slot is).
+`0349` flips a per-column `$slotStripe` on every SLOT (a non-slot child does not shift it): passed red
+0.10 / 0.20, idle cleared / slate `rgba(148,163,184,0.12)`, current green unchanged. Both new shades sit
+under `WASH_ALPHA_MAX`, so no skin re-hues them. The seed calls the migration's own `stripeSlotPaint`.
+Test drives the real executor over the live pipeline (fixture), A/B'd against the unstriped one.
+**Verified in Mongo after the deploy restart**: today's 49 slots read A/B/A/B red, one green, then
+cleared/slate alternating. `ffafb5c4`.
+**My slip, repaired:** rehearsing on test grid 2 ran its BACKLOG of never-applied migrations (0001-0004)
+before 0005 threw. Restored from the runner's own pre-write snapshot and `--verify`'d exact. *The runner
+applies every pending migration, not the one you wrote — dry-run the rehearsal grid too.*
+
+---
+
 ### 2026-09-19 (11) — PICKER CHAINS, ALARM TIMES, UNDOABLE MOOD PICKS, AND A TOOLBAR THAT STAYS ONE LINE
 
 Five asks in one message, each measured before it was changed.
