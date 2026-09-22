@@ -353,6 +353,52 @@ server change on a live write path and wants its own reviewed pass.
 
 ---
 
+### 2026-09-22 (2) — 22 ROWS ON POMS GRID ARE INVISIBLE; and the failed drag was NOT the cause
+
+**A ROW WENT MISSING WHILE PROBING, AND CHASING IT FOUND SOMETHING BIGGER.** A drag of `Wake Up`
+(6:00am -> 9:00am) that reported *"could not settle"* left the occurrence with `parentId` still
+naming 6:00am and **listed by nothing** — every renderer reads the PARENT's `occurrences[]`, so the
+row was invisible. Restored through the app's own atomic `link_occurrence_to_parent` (with `index`,
+so it went back to its original position), NOT a raw Mongo write.
+
+**THE OBVIOUS CULPRIT IS INNOCENT, and two measurements say so rather than one.**
+```
+release OUTSIDE any drop zone (over the toolbar)   7:00am unchanged, row survives
+the SAME "could not settle" gesture, wire-logged   after: UNCHANGED   frames: []   errors: []
+```
+**Zero socket frames.** A drag that does not land writes nothing, which is correct. So the loss is
+**NOT REPRODUCIBLE and its cause is UNKNOWN** — said plainly instead of pinned on the drag because
+the drag was the last thing that happened. *The last event before a symptom is a suspect, not a
+cause.*
+
+**AND THE CENSUS FOR A DETECTOR FOUND LIVE USER DATA THAT IS UNREACHABLE.** Counting occurrences
+whose `parentId` names a parent that does not list them, across every grid:
+```
+parent kind    poms grid   test grid 1   test grid 2   verdict
+doc               240          232           232       NORMAL — a doc renders its TEXTMAP, so
+                                                       embedded-not-listed is the design
+board              27            3             1       REAL — a board renders occurrences[]
+table / canvas      0            6+6           0
+```
+**A naive "parentId but not listed" check would fire 240 times on poms grid and be deleted the
+first week.** Narrowed to list-rendering parents it is 27, of which **22 are listed by NOBODY**:
+```
+Chicken Breast · Rice · Spinach · Oats · Salmon · Olive Oil · Sweet Potatoes · Black Beans
+Milk · Bananas · Coffee Beans · Paper Towels          (8 fields each — the macro fields)
+Eggs · Greek Yogurt · Chicken Thighs · Frozen Berries (these 4 DO have a visible twin)
++ Last Opened, 2x Journal, a Schedule day, a Day Page, one Occupational task
+```
+**18 of the 22 have NO visible twin** — so "Chicken Breast" and "Rice" hold their nutrition data in
+Mongo and do not render on the Ingredients board. All 22 date to **2026-07-28**, the seed era.
+
+**NOT TOUCHED, and that is deliberate.** poms grid is protected live data, re-listing is a write,
+and a bespoke "is this safe to re-attach" predicate is exactly what damaged data in `0035` and
+nearly did in `0038`. The repair is one `link_occurrence_to_parent` per row and is the user's call.
+**No integrity check was added either** — an ERROR that fires 22 times on the user's live grid is
+not something to switch on without them.
+
+---
+
 ### 2026-09-19 (11) — PICKER CHAINS, ALARM TIMES, UNDOABLE MOOD PICKS, AND A TOOLBAR THAT STAYS ONE LINE
 
 Five asks in one message, each measured before it was changed.
