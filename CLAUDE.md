@@ -63,6 +63,29 @@ table above). The rows are gone and the grid is clean, but nothing about that wa
 *Ctrl+Z in a probe is not a no-op when your own gesture did not fire — it undoes someone else's
 work.*
 
+**THE REST OF THE CANVAS SURFACE IS SOUND, every part of it driven by clicking:** a card dragged by
+its handle persists a real world position (`meta.x/y` `null,null -> 1895,1884`, so the fallback hands
+over exactly as its comment claims); the **connect tool** links two cards and the edge persists
+(`meta.edges` `ed57ec1d->f8cc67fd`, 2 paths in the DOM); and **deleting a connected card takes its
+edge with it** (`edges: []`, read back out of Mongo) — no dangling ref. The pen stroke the other
+account drew is still there (1 stroke in `meta.drawData`).
+
+**AND THE "Add container" BUTTON LEAVING NO `meta.x/y` IS NOT A DEFECT — measured rather than
+assumed.** A position-less card falls back to a tidy stack near the world CENTRE (`PageCanvas`:
+`1760 + col*260 / 1850 + row*110`), and on screen both such containers render INSIDE the viewport,
+110px apart. The other two canvas renderers disagree with that fallback — `ModuleContainer`'s
+`renderCanvasCard` uses `?? 20` (the corner, off-screen in a 4000px world) and `ModulePanel`'s
+canvas-tree panel passes NO `renderCard` at all — but a census says **both paths are dead: 0 canvas
+CONTAINERS on any grid (only 3 canvas PAGES), and the one `viewType:"canvas" hasTree` view is an
+orphan no occurrence points at.** Reported, not "fixed": writing code for a surface nothing reaches
+is how a wrong fallback gets a second home.
+
+**MY CONNECT-TOOL PROBE REPORTED A DEFECT THAT WAS MY AIM.** The first run dragged card-to-card and
+produced nothing, which reads exactly like a broken tool. `onWorldPointerDown` bails on
+`[data-dnd-handle]` and hit-tests `[data-occurrence-id] / [data-occ-id]` — my points were 20px from
+the card's top, i.e. the handle. Aiming at a point the app's OWN hit test resolves makes it work
+first time. *Reproduce a UI failure through the handler's own predicate before believing it.*
+
 **A/B, both sides, each mutation asserted to land:** removing the server's `recordChange` block
 fails all 4 of `createInstanceUndoable.test.js`; unwrapping the client helper fails exactly the
 action-id case; restoring PageCanvas's hand-rolled triple fails exactly the wiring guard. One
