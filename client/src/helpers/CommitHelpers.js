@@ -1162,11 +1162,18 @@ export function createContainerInContainer({
 // indistinguishable from just adding a container. So the occurrence carries the
 // per-occurrence override that survives the cascade walk, pinning it to the
 // compact representation view; the header switcher still lets the user flip it.
-export function createPageInContainer({
+export function createPageInContainer(args) {
+  if (!args?.gridId || !args?.userId || !args?.containerOccurrence) return null;
+  // One undo step — see createLeafInstanceInParent. Its first writes went out
+  // through raw `safeEmit` with NO action open, so the server recorded them
+  // `derived` and undo could not remove the page it had just made.
+  return withAction("Created page", () => _createPageInContainer(args));
+}
+
+function _createPageInContainer({
   dispatch, socket, gridId, userId, containerOccurrence, containerModule = null,
   kind = "doc", label = "", index = null, folderId = null,
 }) {
-  if (!gridId || !userId || !containerOccurrence) return null;
   const moduleId = crypto?.randomUUID?.() || `pm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const occurrenceId = crypto?.randomUUID?.() || `po-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -1317,7 +1324,13 @@ export function addScratchBrowser(args) {
  * Browser" tile and one made by "Save bookmark" would quietly stop matching —
  * the drift class this repo keeps paying for.
  */
-export function addBookmarkOccurrence({
+export function addBookmarkOccurrence(args) {
+  if (!args?.gridId || !args?.userId || !args?.containerOccurrence) return null;
+  // One undo step — see createLeafInstanceInParent.
+  return withAction("Added bookmark", () => _addBookmarkOccurrence(args));
+}
+
+function _addBookmarkOccurrence({
   dispatch, socket, gridId, userId, containerOccurrence, url = "",
   label = null, scratch = false, index = null, list = true, meta = null,
   // Optional record fields — the intake sheet binds the grid's URL field when
@@ -1478,6 +1491,21 @@ export function createLeafInstanceInParent({
   hidden = false,
 }) {
   if (!gridId || !userId || !parentOccurrence) return null;
+  // ONE GESTURE, ONE UNDO STEP. The create and the parent's list write are two
+  // writes; each helper opens its own action, so undo took the newest (the
+  // list) and left the occurrence created, parented and listed by nobody — an
+  // invisible row (2026-09-22). `withAction` nests: the inner helpers reuse
+  // this id.
+  return withAction("Created item", () => _createLeafInstanceInParent({
+    dispatch, socket, gridId, userId, parentOccurrence, label, initialFields,
+    panelId, containerLabel, fieldBindings, occMeta, hidden,
+  }));
+}
+
+function _createLeafInstanceInParent({
+  dispatch, socket, gridId, userId, parentOccurrence, label = "", initialFields = {},
+  panelId = null, containerLabel = "", fieldBindings = null, occMeta = null, hidden = false,
+}) {
   const moduleId = crypto?.randomUUID?.() || `li-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const occurrenceId = crypto?.randomUUID?.() || `lo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -1531,12 +1559,17 @@ export function createLeafInstanceInParent({
 // template); when null a brand-new role:"instance" module is minted.
 // Synchronous — the new occurrence id is known up-front so the splice has no
 // race (unlike the App-level append path).
-export function createLeafInstanceAtIndex({
+export function createLeafInstanceAtIndex(args) {
+  if (!args?.gridId || !args?.userId || !args?.parentOccurrence) return null;
+  // One undo step — see createLeafInstanceInParent.
+  return withAction("Created item", () => _createLeafInstanceAtIndex(args));
+}
+
+function _createLeafInstanceAtIndex({
   dispatch, socket, gridId, userId, parentOccurrence, index = null,
   existingModuleId = null, role = "instance", kind = null, label = "", initialFields = {},
   fieldIds = [], fieldBindings = null, panelId = null, containerLabel = "",
 }) {
-  if (!gridId || !userId || !parentOccurrence) return null;
   const occurrenceId = crypto?.randomUUID?.() || `lo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   // Tolerate a full module object — QuickAddMenu.onSelect hands back the module
   // `m`, not its id. Normalize to the id string so the occurrence's moduleId is
