@@ -537,14 +537,36 @@ export function registerOccurrenceHandlers(socket, {
     }
   });
 
-  socket.on("break_link", async ({ occurrenceId } = {}) => {
+  socket.on("break_link", async (payload = {}) => {
+    const { occurrenceId } = payload;
     try {
       if (!userId || !occurrenceId) return;
       const uc = await getUc();
       const occ = await Occurrence.findOne({ id: occurrenceId, userId });
       if (!occ) return socket.emit("server_error", "Occurrence not found");
+      // Snapshot BEFORE the null — this handler recorded nothing at all, so
+      // Ctrl+Z after a Break Link skipped past it to the previous action.
+      // Measured on prod 2026-09-22: it undid the copy-link drag that created
+      // the row and DELETED it. Breaking a link is destructive and silent,
+      // which is exactly the gesture you want back.
+      const undoBefore = occ.toObject();
       occ.linkedGroupId = null;
       await occ.save();
+      const undoAfter = occ.toObject();
+      try {
+        recordDoc({
+          userId, gridId: undoAfter.gridId || socket.data.activeGridId,
+          actionId: payload?.__actionId || null,
+          model: "occurrence", id: occurrenceId,
+          before: undoBefore, after: undoAfter, label: "Broke link",
+          broadcast: (txJson) => {
+            socket.emit("transaction_created", { transaction: txJson });
+            socket.to(userRoom(userId)).emit("transaction_created", { transaction: txJson });
+          },
+        });
+      } catch (recErr) {
+        console.error("break_link undo-record failed (continuing):", recErr?.message || recErr);
+      }
       const occObj = occ.toObject();
       if (occObj.textmap) occObj.textmap = decompressTextmap(occObj.textmap);
       uc.occurrencesById[occurrenceId] = { ...uc.occurrencesById[occurrenceId], ...occObj, id: occurrenceId };

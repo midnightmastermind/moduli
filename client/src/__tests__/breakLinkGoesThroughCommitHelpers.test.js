@@ -26,7 +26,12 @@ describe("breakOccurrenceLink", () => {
   it("emits break_link with the occurrence id", () => {
     const socket = connected();
     breakOccurrenceLink({ socket, occurrenceId: "occ-1" });
-    expect(socket.emit).toHaveBeenCalledWith("break_link", { occurrenceId: "occ-1" });
+    const [event, payload] = socket.emit.mock.calls[0];
+    expect(event).toBe("break_link");
+    expect(payload).toMatchObject({ occurrenceId: "occ-1" });
+    // The emit is wrapped in an action scope (2026-09-22) so the break is
+    // UNDOABLE — unstamped it records `derived` and the undo stack skips it.
+    expect(payload.__actionId).toBeTruthy();
   });
 
   it("QUEUES instead of dropping when the socket is disconnected", () => {

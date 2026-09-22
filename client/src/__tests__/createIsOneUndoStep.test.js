@@ -79,6 +79,17 @@ describe("one gesture, one undo step", () => {
     expect(ids[0], "the write carries no action id — recorded derived, never undoable").toBeTruthy();
   });
 
+  it("breakOccurrenceLink carries an action id — or undo reaches PAST the break", () => {
+    const emitted = [];
+    const socket = { connected: true, emit: (event, data) => emitted.push({ event, actionId: data?.__actionId }), on: vi.fn(), off: vi.fn(), io: { opts: {} } };
+    CommitHelpers.breakOccurrenceLink({ socket, occurrenceId: "o1" });
+    const [write] = emitted.filter((e) => e.event === "break_link");
+    expect(write, "Break Link emitted nothing").toBeTruthy();
+    // Unstamped, the server records it `derived` and the undo stack skips it —
+    // measured on prod: Ctrl+Z then undid the copy-link drag and DELETED the row.
+    expect(write.actionId).toBeTruthy();
+  });
+
   // WIRING. The canvas double-click lives in a component whose mount needs the
   // whole grid store, so the gesture itself is pinned at the source: it must go
   // through the one-undo-step helper, not hand-roll create + list (which is how

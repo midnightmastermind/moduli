@@ -1660,5 +1660,11 @@ export async function uploadFile({ file, userId, gridId, parentFolderId = null, 
  */
 export function breakOccurrenceLink({ socket, occurrenceId, emit = true }) {
   if (!occurrenceId) return;
-  if (shouldEmit(emit)) safeEmit(socket, "break_link", { occurrenceId });
+  // UNDOABLE. Without an action open the write is stamped with no `__actionId`,
+  // the server records it `derived`, and the undo stack skips it — so Ctrl+Z
+  // after a Break Link reached PAST the break to the gesture before it. Measured
+  // on prod 2026-09-22: it undid the copy-link drag instead and DELETED the row.
+  return withAction("Broke link", () => {
+    if (shouldEmit(emit)) safeEmit(socket, "break_link", { occurrenceId });
+  });
 }
