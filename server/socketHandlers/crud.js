@@ -556,7 +556,8 @@ export function registerCrudHandlers(socket, {
   // ── CREATE_INSTANCE_IN_CONTAINER ─────────────────────────
   // Creates a new instance Module + Occurrence inside a container occurrence.
   // Also accepts optional occurrenceId + meta for pre-positioned canvas cards.
-  socket.on("create_instance_in_container", async ({ containerId, instance, occurrenceId: requestedOccId, meta: extraMeta } = {}) => {
+  socket.on("create_instance_in_container", async (payload = {}) => {
+    const { containerId, instance, occurrenceId: requestedOccId, meta: extraMeta } = payload;
     try {
       if (!userId || !containerId || !instance?.id) return;
       const uc = await getUc();
@@ -604,6 +605,21 @@ export function registerCrudHandlers(socket, {
 
       uc.occurrencesById[occId] = occurrenceData;
       await Occurrence.findOneAndUpdate({ id: occId, userId }, occurrenceData, { upsert: true });
+
+      // UNDO. This handler recorded NOTHING, so every gesture behind it — a
+      // canvas double-click, the pool's add box, the radial's "Duplicate (new
+      // instance)" — was invisible to Ctrl+Z no matter how many times it was
+      // pressed (measured 2026-09-22; the same hole `break_link` still has).
+      // Both docs go in under the client's one `__actionId`, exactly as
+      // `create_occurrence` + the parent's list write do at line ~1612, so one
+      // press takes the row AND its listing back and leaves no orphan.
+      recordChange({ model: "occurrence", id: occId, before: null, after: occurrenceData, payload, label: "Created item" });
+      if (containerOcc) {
+        recordChange({
+          model: "occurrence", id: containerOcc.id,
+          before: containerOcc, after: uc.occurrencesById[containerOcc.id], payload,
+        });
+      }
 
       // 4. Broadcast
       socket.to(userRoom(userId)).emit("module_created", modObj);

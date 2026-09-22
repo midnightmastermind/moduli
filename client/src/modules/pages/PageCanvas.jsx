@@ -138,28 +138,27 @@ export default function PageCanvas({ pageModule, occurrence, panelId, dispatch, 
       const userId = pageModule?.userId || ctxState?.userId;
       const gridId = pageModule?.gridId || ctxState?.grid?._id;
       if (!userId || !gridId || !occurrence?.id) return;
-      const moduleId = crypto.randomUUID();
-      const occId = crypto.randomUUID();
-      CommitHelpers.createModule({
+      // ONE GESTURE, ONE UNDO STEP — and one definition of "mint a leaf into
+      // this parent". This used to hand-roll createModule + createOccurrence +
+      // updateOccurrence, which is three writes under TWO action ids: undo took
+      // the newest (the page's list) and left the card created, parented to the
+      // page and listed by nobody — an invisible row, measured on the rebuild
+      // grid 2026-09-22. Same shape as the "+ Item" defect fixed the same day.
+      // The helper also fires OccurrenceCreateOp and stamps the page's filter
+      // fields, which the hand-rolled version skipped, and omits the junk
+      // `kind:"board"` (kind is inert on an instance leaf and wins the icon).
+      CommitHelpers.createLeafInstanceInParent({
         dispatch,
         socket,
-        module: { id: moduleId, userId, gridId, role: "instance", kind: "board", label: "New card", fieldBindings: [] },
-        emit: true,
-      });
-      CommitHelpers.createOccurrence({
-        dispatch,
-        socket,
-        occurrence: { id: occId, userId, gridId, moduleId, parentId: occurrence.id, meta: { x, y }, fields: {} },
-        emit: true,
-      });
-      CommitHelpers.updateOccurrence({
-        dispatch,
-        socket,
-        occurrence: { id: occurrence.id, occurrences: [...(occurrence.occurrences || []), occId] },
-        emit: true,
+        gridId,
+        userId,
+        parentOccurrence: occurrence,
+        label: "New card",
+        panelId,
+        occMeta: { x, y },
       });
     },
-    [pageModule, occurrence, ctxState, dispatch, socket]
+    [pageModule, occurrence, ctxState, dispatch, socket, panelId]
   );
 
   return (

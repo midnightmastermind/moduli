@@ -138,7 +138,19 @@ export function deleteModule({ dispatch, socket, moduleId, emit = true }) {
 }
 
 // ===== INSTANCE IN CONTAINER (create module + place in container atomically) =====
-export function createInstanceInContainer({
+export function createInstanceInContainer(args) {
+  if (!args?.containerId || !args?.instance?.id) return;
+  // UNDOABLE. This emitted through raw `safeEmit` with NO action open, so the
+  // write was recorded `derived` server-side — not undoable by any number of
+  // presses (2026-09-22, the same hole found in `createPageInContainer` and
+  // `addBookmarkOccurrence`). It is one atomic server event, so the grouping
+  // is a single scope rather than a nest, and every gesture behind it — a
+  // canvas double-click, the pool's add box, the radial's "Duplicate (new
+  // instance)" — gets its one step back.
+  return withAction("Created item", () => _createInstanceInContainer(args));
+}
+
+function _createInstanceInContainer({
   dispatch,
   socket,
   containerId,
@@ -147,8 +159,6 @@ export function createInstanceInContainer({
   initialMeta,
   emit = true,
 }) {
-  if (!containerId || !instance?.id) return;
-
   // atomic optimistic state: adds instance (if missing) AND pushes into container.occurrences
   dispatch?.(createInstanceInContainerAction({ containerId, instance }));
 

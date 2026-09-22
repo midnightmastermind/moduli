@@ -192,10 +192,15 @@ describe("createInstanceInContainer commit helper", () => {
       instance: { id: "i1", label: "Task" },
     });
     expect(dispatch).toHaveBeenCalledOnce();
-    expect(socket.emit).toHaveBeenCalledWith("create_instance_in_container", {
+    const [event, payload] = socket.emit.mock.calls[0];
+    expect(event).toBe("create_instance_in_container");
+    expect(payload).toMatchObject({
       containerId: "c1",
       instance: { id: "i1", label: "Task" },
     });
+    // The write is wrapped in an action scope (2026-09-22) so it is UNDOABLE —
+    // unstamped, the server records it `derived` and Ctrl+Z can never see it.
+    expect(payload.__actionId).toBeTruthy();
   });
 
   test("skips if instance has no id", () => {
