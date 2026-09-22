@@ -15,6 +15,28 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-21 (4) — A FILE DROPPED ONTO A BOARD MADE A NEW PANEL, and lost its place on reload
+
+Rebuild-via-UI, file upload. Three defects, each found by dropping a real PNG onto the Tasks board:
+- **The OS-drop fallback passed the bare store `state`** (no `modulesById`), so `dropView` could not see a
+  container under the pointer and `handleFileDrop` minted a new panel + container in the cell (`b8ef0f36`).
+  Every existing file-drop test supplied `modulesById` by hand.
+- **The placement never persisted.** It is written at drop time, before the server has the file's row, so
+  `update_occurrence` dropped it as an unknown child (`dropped 1 unknown child id(s)` on every UI upload);
+  the file stayed in Files and left the board on reload. On upload success the client re-links it via
+  `link_occurrence_to_parent` (now with `index` + `quiet`) into each parent listing it locally (`7023c042`).
+- **`duplicate-template-application` flagged a Merge of a two-row template** ("12:00pm › Stretch ×2") —
+  every clone carries the template ROOT id; the key now includes `identitySignature` (`1d8e47b9`).
+
+**Verified on prod through the UI:** drop -> "Image" -> the row appears in This Week, a fresh browser still
+shows it, Mongo lists it (home Files/Images). Debris from the probes (2 stray panels + containers, the
+hidden Copy stamp) removed through the app's `delete_occurrence`; rebuild grid integrity **clean**.
+**FOUND, NOT TOUCHED: poms grid's Schedule Table (`klpjurMStQG8`) lists 328 ids that do not exist** — the
+cross-grid feed copies swept this morning; inert (skipped on render, scrubbed on its next save), awaiting
+the user's go-ahead to unlink.
+
+---
+
 ### 2026-09-21 (3) — A BUTTON PRESS RAN EVERY BUTTON OPERATION; and a button field could not be set up
 
 Rebuild-via-UI, continued. Both ButtonOp fire sites stamp `operationId` and `matchesTrigger` never read it,
