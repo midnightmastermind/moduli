@@ -12,6 +12,7 @@
 // ============================================================
 
 import { splitSections, localProviderKeys } from "../helpers/mergedOptionSearch";
+import { applyManualOpUpdates } from "../helpers/manualOpRun";
 import { useProviderSearch } from "../hooks/useProviderSearch";
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Input } from "@/components/ui/input";
@@ -1588,10 +1589,8 @@ function Field({
         "ButtonOp", transaction,
         { state: resolveOpState(), fieldsById, operationsById, occurrencesById: getOccMap() },
       );
-      if (updates.length > 0) {
-        const displayUpdates = updates.filter(u => !u._effect);
-        if (displayUpdates.length > 0) dispatch?.(setComputedValuesAction(displayUpdates));
-      }
+      // Display updates AND real effects — see helpers/manualOpRun.js.
+      applyManualOpUpdates(updates, { dispatch });
     };
     return (
       <button

@@ -4,6 +4,7 @@
 // Merged from ModuleInstance.jsx + Instance.jsx.
 
 import React, { useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { applyManualOpUpdates } from "../helpers/manualOpRun";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
 
 // Stable empty array for selector fallbacks — a fresh [] per selector run
@@ -599,10 +600,10 @@ function InstanceInner({
       transaction,
       { state: getState(), fieldsById: fieldsLookup, operationsById: operationsLookup, occurrencesById: occLookup }
     );
-    if (updates.length > 0) {
-      const displayUpdates = updates.filter(u => !u._effect);
-      if (displayUpdates.length > 0) dispatch(setComputedValuesAction(displayUpdates));
-    }
+    // Display updates AND real effects. This used to keep only the display
+    // half, so a CREATE / UPDATE / DELETE behind a "Run" widget computed and
+    // then vanished (helpers/manualOpRun.js has the measurement).
+    applyManualOpUpdates(updates, { dispatch });
   }, [id, occurrence?.id, getState, fieldsById, operationsById, getOccMap, dispatch]);
 
   // Context for derived field calculations (includes filter unit for target
