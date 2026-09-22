@@ -15,6 +15,21 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-21 (2) — A GRID BUILT IN THE UI COULD NOT SAVE A TEMPLATE
+
+Picked up account3's UI rebuild of poms grid (`6ab15587…`, it hit its session limit mid-diagnosis).
+"Save as new template" emitted nothing: the protected Templates folder (and Files) were only ever minted
+by migrations `0035`/`0049`, which never run on a Toolbar-created grid, so `templatesFolderFor` was null
+and the handler returned. `11b3f159`: grid bootstrap find-or-mints both (`utils/protectedFoldersEnsure.js`,
+migrations' own rules, 5 tests). **Verified on prod through the UI**: 7:00am saved as "Morning Slot" (2
+rows, in the folder); **Merge** into 12:00pm -> `Lunch, Stretch, Breakfast`, persisted. Every grid reads
+exactly one protected Templates + Files folder after the restart.
+**Copy mode is by design and looks broken:** it stamps the template's WRAPPER as a child, and that wrapper
+carries no `Logged On`, so the slot's date filter hides it. One such hidden stamp (`d84ad893`, 2 rows) is
+left on the rebuild grid from the probe.
+
+---
+
 ### 2026-09-21 — SCHEDULE SLOTS ALTERNATE SHADES, like table rows
 
 User: *"2 diff shades of red and 2 diff shades of whatever color it is when its not red. (green is fine as
