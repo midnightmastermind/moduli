@@ -31,7 +31,7 @@ How This Grid Works   textmap      + moduleEmbed(9d92f9a2 = Wake Up's OWN id)
 The pointer missed 9:00am and released over the doc page. `Editor.jsx`'s block-embed drop branched on
 `dragMode === "copy"` only, so **copylink fell through to MOVE** and detached the source. The 09-17 (5)
 entry listed the handlers that honour only copy; this editor path was the one it did not name.
-`52ff999`→`352ff999`: `LayoutHelpers.mintLinkedCopy` is now the one definition of a linked copy
+`352ff999`: `LayoutHelpers.mintLinkedCopy` is now the one definition of a linked copy
 (`copylinkInstanceToContainer` calls it and lists the copy; the doc path calls it and embeds the copy).
 Test written first, failed only on the missing branch. **Verified on prod through the UI:**
 `block-embed path {dragMode: copylink}` → `COPYLINK done`; Mongo: new row, same module, same
