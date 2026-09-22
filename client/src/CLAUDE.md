@@ -16,6 +16,19 @@ _Updated: 2026-08-17. Check this file before re-reading source._
 - *A comment asserting an invariant is not the invariant* — this file's own line, paid again, and
   this time the stale comment was standing between a real hazard and whoever read it next.
 
+## Recent Changes (2026-09-22 — a cell always shows one panel; the all-hidden state is gone)
+`cyclePanelStack` cycled N+1 states (each panel, then "all hidden") and `GridCell` rendered a
+cell-level Layers button so you could cycle back out of the empty state — while `GridInner` ALSO
+carries a "Defensive: ensure at least one panel per cell is visible" effect that force-writes
+`display:"block"` the moment a cell goes all-hidden. Measured on prod: the hidden state was
+UNREACHABLE (the cycle read as a plain A/B toggle), the button was dead code, and each attempt cost
+a wasted `update_module` write. User's call: always keep one visible. The cycle is now N states via
+the pure `helpers/panelStack.nextStackIndex`; the defensive effect is the only authority on the
+invariant; the dead button, its `cellKey` branch in `cyclePanelStack`, and `hasHiddenStack` (computed
+and threaded through GridCell's props, read by nothing) are deleted, along with GridCell's now-unused
+`useDragContext`. `__tests__/panelStack.test.js` (8), A/B'd. **Known, pre-existing:** the invariant is
+"at least one visible", so two panels in a cell can both be visible and render overlapping.
+
 ## Recent Changes (2026-09-04 — mosaic snap: the two wirings)
 
 - **`Grid.jsx` — the Ctrl+Alt+Arrow effect no longer bails on a mosaic grid.** It opened
