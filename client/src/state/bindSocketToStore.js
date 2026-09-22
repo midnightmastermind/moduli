@@ -46,7 +46,7 @@ import { persistAuth, clearAuth } from "../helpers/authStorage.js";
  * Module-level bridge so CommitHelpers can fire operations immediately
  * after optimistic dispatch (no server round-trip needed).
  */
-export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getLocalMod: null, getFilterContext: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, beginDropBatch: null, endDropBatch: null, beginInteraction: null, endInteraction: null, markDerivedOcc: null, scheduleFeedSync: null };
+export const operationsBridge = { fireOperations: null, fireOperationsBatch: null, updateLocalOcc: null, removeLocalOcc: null, getLocalOcc: null, getParentsListing: null, getLocalMod: null, getFilterContext: null, getLinkedOccs: null, getAncestorChain: null, applyEffect: null, requestUserInput: null, importText: null, beginDropBatch: null, endDropBatch: null, beginInteraction: null, endInteraction: null, markDerivedOcc: null, scheduleFeedSync: null };
 
 // Pure decision half of the SET_FILTER effect, so it can be tested without a
 // socket. `filterNavState` drives the nav WIDGET; `grid.activeFilterValues`
@@ -2540,6 +2540,17 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
   operationsBridge.markDerivedOcc = _markOpEmitted;
   operationsBridge.removeLocalOcc = (occurrenceId) => { dropLocalOcc(occurrenceId); };
   operationsBridge.getLocalOcc = (occurrenceId) => localOccsById[occurrenceId] || null;
+  // Which occurrences LIST this child, and where. An upload's placement is
+  // written before the server has the file's row, so the server drops it as an
+  // unknown child; artifactUpload re-links it here once the upload lands.
+  operationsBridge.getParentsListing = (childId) => {
+    const out = [];
+    for (const o of stateRef.current?.occurrences || []) {
+      const i = Array.isArray(o?.occurrences) ? o.occurrences.indexOf(childId) : -1;
+      if (i !== -1) out.push({ parentId: o.id, index: i });
+    }
+    return out;
+  };
   // Read-only access to the current modules map. Used by
   // CommitHelpers.createOccurrence's auto-bind to look up the source module
   // without forcing every caller to thread state through. No mirror cache
@@ -3080,6 +3091,7 @@ export function bindSocketToStore(socket, dispatch, stateRef = { current: {} }) 
     if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onFeedClaimEvent);
     operationsBridge.removeLocalOcc = null;
     operationsBridge.getLocalOcc = null;
+    operationsBridge.getParentsListing = null;
     operationsBridge.getLocalMod = null;
     operationsBridge.getLinkedOccs = null;
     operationsBridge.getAncestorChain = null;

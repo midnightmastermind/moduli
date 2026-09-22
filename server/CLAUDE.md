@@ -2,6 +2,12 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-21 (2) — `link_occurrence_to_parent` takes `index` and `quiet`)
+`index` inserts with `$position` (append without it, unchanged for the pipeline re-link); `quiet` skips the
+echo to the calling socket. Both for the client's upload re-link (`client/src/helpers/artifactUpload.js
+relistUploaded`): an upload's placement arrives before its row exists and `update_occurrence` drops it as an
+unknown child. `__tests__/linkToParentIndex.test.js` (4).
+
 ## Recent Changes (2026-09-21 — a UI-created grid gets its Templates + Files folders at bootstrap)
 Only migrations `0035`/`0049` minted the protected Templates and Files folders, and migrations never run on a
 grid made from the Toolbar — so on the UI-rebuilt grid `6ab15587…` "Save as new template" returned before

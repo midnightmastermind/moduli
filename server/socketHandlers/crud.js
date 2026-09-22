@@ -1360,12 +1360,16 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
   // parentId points at a parent whose occurrences[] doesn't include them yet) —
   // the situation when a previous race lost some appends. Serialized through the
   // same per-socket queue so concurrent links from one pipeline don't reorder.
-  socket.on("link_occurrence_to_parent", ({ occurrenceId, parentOccurrenceId } = {}) => {
-    createQueue = createQueue.then(() => handleLinkToParent(occurrenceId, parentOccurrenceId)).catch(() => {});
+  // `index` (optional) inserts at that position instead of appending; `quiet`
+  // skips the echo to THIS socket — the upload re-link (client
+  // artifactUpload.relistUploaded) already holds the list locally, and an echo
+  // would overwrite it while sibling uploads of the same drop are pending.
+  socket.on("link_occurrence_to_parent", ({ occurrenceId, parentOccurrenceId, index, quiet } = {}) => {
+    createQueue = createQueue.then(() => handleLinkToParent(occurrenceId, parentOccurrenceId, { index, quiet })).catch(() => {});
     return createQueue;
   });
 
-  async function handleLinkToParent(occurrenceId, parentOccurrenceId) {
+  async function handleLinkToParent(occurrenceId, parentOccurrenceId, { index = null, quiet = false } = {}) {
     try {
       // Same reasoning as handleCreateOccurrence — cancel queued links on
       // disconnect so the next session's idempotency checks don't race against
@@ -1375,14 +1379,16 @@ export function setupOccurrencesCRUD(socket, userId, getUc, deps = {}) {
       const uc = await getUc();
       const updatedParent = await Occurrence.findOneAndUpdate(
         { id: parentOccurrenceId, userId, occurrences: { $ne: occurrenceId } },
-        { $push: { occurrences: occurrenceId } },
+        Number.isInteger(index) && index >= 0
+          ? { $push: { occurrences: { $each: [occurrenceId], $position: index } } }
+          : { $push: { occurrences: occurrenceId } },
         { returnDocument: "after", signal: abortController.signal }
       );
       if (!updatedParent) return; // already linked or parent missing — no-op
       const parentObj = typeof updatedParent.toObject === "function" ? updatedParent.toObject() : updatedParent;
       uc.occurrencesById[parentOccurrenceId] = parentObj;
       socket.to(userRoomFn(userId)).emit("occurrence_updated", { occurrence: parentObj });
-      socket.emit("occurrence_updated", { occurrence: parentObj });
+      if (!quiet) socket.emit("occurrence_updated", { occurrence: parentObj });
     } catch (err) {
       // Swallow MongoServerSelectionError/AbortError when disconnected —
       // the cancellation is expected.

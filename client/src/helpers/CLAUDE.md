@@ -2,6 +2,17 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-21 (4) — an uploaded file vanished from where it was dropped after a reload)
+- Every upload path lists the placeholder in its destination the moment it is dropped, but the server only
+  creates the file's occurrence when the upload finishes — so `update_occurrence` dropped it as an unknown
+  child (prod log: `dropped 1 unknown child id(s)` on every UI upload). The file stayed in Files; its
+  placement did not survive a reload. `artifactUpload.relistUploaded` runs on each successful upload:
+  for every parent that lists the occurrence LOCALLY (`operationsBridge.getParentsListing`) it emits the
+  atomic `link_occurrence_to_parent` with `index` (position) and `quiet` (no echo to this tab — the echo
+  would overwrite the list while sibling uploads of the same drop are still pending). One fix for all ten
+  `uploadArtifactPlaceholders` callers. Tests: `uploadRelist.test.js` (client, A/B'd) +
+  `server/__tests__/linkToParentIndex.test.js`.
+
 ## Recent Changes (2026-09-21 (3) — an OS file drop onto a board landed in a NEW PANEL)
 - `DragProvider`'s native drop fallback (the path real desktop file / text drops take) built its handler
   ctx with the bare store `state` — `modules` is an ARRAY there, there is no `modulesById` — while

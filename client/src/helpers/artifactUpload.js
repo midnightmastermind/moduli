@@ -20,6 +20,8 @@ import { createModuleAction, createOccurrenceAction } from "../state/actions";
 import * as CommitHelpers from "./CommitHelpers";
 import { uploadFileWithProgress, registerUpload, clearUpload } from "./uploadWithProgress";
 import { toast } from "../state/notificationStore";
+import { operationsBridge } from "../state/bindSocketToStore";
+import { safeEmit } from "./offlineQueue";
 
 function makeUUID() {
   return (typeof crypto !== "undefined" && crypto.randomUUID)
@@ -89,6 +91,28 @@ export function createArtifactPlaceholders(files, {
 //     occurrence is never emitted, and the server mints a BARE occurrence
 //     (no parentId / meta), so canvas x/y + parent ownership have to be
 //     re-persisted here once the row exists server-side.
+// THE PLACEMENT IS WRITTEN BEFORE THE ROW EXISTS. Every caller lists the
+// placeholder in its destination (a container's `occurrences[]`, a canvas page,
+// a new "One container") the moment it is dropped, but the server only creates
+// the file's occurrence when the upload finishes — so `update_occurrence`
+// drops the id as an unknown child, and after a reload the file is gone from
+// where it was dropped (it still sits in Files). Measured 2026-09-21: every
+// UI upload on the rebuild grid logged `dropped 1 unknown child id(s)`.
+//
+// Once the row exists, re-link it into each parent that lists it LOCALLY, at
+// the same position. Atomic and idempotent server-side, and `quiet` so the
+// reply does not overwrite this tab's list while sibling uploads of the same
+// drop are still pending (those would read as unknown and vanish locally).
+export function relistUploaded(occurrenceId, socket) {
+  const parents = operationsBridge.getParentsListing?.(occurrenceId) || [];
+  for (const { parentId, index } of parents) {
+    safeEmit(socket, "link_occurrence_to_parent", {
+      occurrenceId, parentOccurrenceId: parentId, index, quiet: true,
+    });
+  }
+  return parents.length;
+}
+
 export function uploadArtifactPlaceholders(placeholders, {
   gridId, userId, dispatch, socket, containerOccurrenceId = null, persist = null,
   // Fires once per SUCCESSFUL upload, after the artifact's own row is settled.
@@ -158,6 +182,7 @@ export function uploadArtifactPlaceholders(placeholders, {
             emit: true,
           });
         }
+        relistUploaded(p.occurrenceId, socket);
         uploaded++;
         onUploaded?.(p);
       })
