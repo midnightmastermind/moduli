@@ -64,6 +64,27 @@ describe("planSpreadBrowser", () => {
     expect(planSpreadBrowser(ctx({ owner: image, module: covered }))).toBeNull();
   });
 
+  // ── THE BROWSER TILE MUST NOT CARRY A COVER (2026-09-22) ─────────────
+  // A viewer tile renders the live page only when it has NO cover. The tile is
+  // minted through `addBookmarkOccurrence`, which from 2026-09-16 fetched every
+  // app-made bookmark a cover — so the browser turned into a picture moments
+  // after it opened. Measured on poms grid: 11 of 12 viewer browser tiles.
+  it("heals its own browser tile that has picked up a cover", () => {
+    const tile = { id: "b1", moduleId: "bm", meta: { url: "https://washingtonpost.com/opinions/house-of-cards" } };
+    const tileModule = { id: "bm", role: "artifact", kind: "bookmark", fileRef: tile.meta.url, meta: { cover: "https://x/og.png" } };
+    const plan = planSpreadBrowser(ctx({
+      spreadOcc: { id: "sp1", meta: { browserOccId: "b1" } },
+      occurrencesById: { b1: tile }, modulesById: { bm: tileModule },
+    }));
+    expect(plan?.uncoverId).toBe("b1");
+    // THE LOOP INVARIANT: once the cover is gone there is nothing left to do.
+    const healed = planSpreadBrowser(ctx({
+      spreadOcc: { id: "sp1", meta: { browserOccId: "b1" } },
+      occurrencesById: { b1: tile }, modulesById: { bm: { ...tileModule, meta: {} } },
+    }));
+    expect(healed).toBeNull();
+  });
+
   it("wants nothing for a row with no url at all", () => {
     expect(planSpreadBrowser(ctx({
       owner: { id: "x", moduleId: "m3", fields: {} },

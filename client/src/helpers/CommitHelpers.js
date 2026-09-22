@@ -1323,6 +1323,9 @@ export function addBookmarkOccurrence({
   // Optional record fields — the intake sheet binds the grid's URL field when
   // it has one, so a pasted bookmark stays filterable like the imported ones.
   fieldBindings = null, fields = null,
+  // `false` for the viewer's url tile: it IS a browser, and a fetched cover
+  // turns its tile into a picture of the page (2026-09-22).
+  enrich = true,
 }) {
   if (!gridId || !userId || !containerOccurrence) return null;
   const moduleId = crypto?.randomUUID?.() || `bm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -1382,7 +1385,7 @@ export function addBookmarkOccurrence({
   // FIRE-AND-FORGET, and that is deliberate: the row is already on screen and
   // already emitted, so a slow or dead site delays nothing and a failure leaves
   // exactly today's behaviour. Saving a bookmark must never wait on the network.
-  if (url && socket && !scratch) {
+  if (url && socket && !scratch && enrich) {
     // NOT for a scratch browser: it is a workspace whose address changes as you
     // navigate, so a cover fetched once goes stale and "Browser" is the name it
     // should keep.

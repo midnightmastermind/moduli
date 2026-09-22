@@ -302,6 +302,20 @@ export function ArtifactSpreadHost() {
           module: { ...bm, fileRef: browser.url, label: browser.label },
         });
       }
+    } else if (browser?.uncoverId) {
+      // A tile minted before 2026-09-22 was enriched with a cover, which turns
+      // the browser into a picture. Heal it on open; a DIFFERENT document, so
+      // its own write that touches no array.
+      const b = occurrencesById?.[browser.uncoverId];
+      const bm = b ? modulesById?.[b.moduleId] : null;
+      if (bm?.meta?.cover) {
+        const { cover: _c, ...meta } = bm.meta;
+        CommitHelpers.updateModule({ dispatch, socket, module: { ...bm, meta } });
+      }
+      if (b?.meta?.cover) {
+        const { cover: _c, ...meta } = b.meta;
+        CommitHelpers.updateOccurrence({ dispatch, socket, occurrence: { ...b, meta } });
+      }
     } else if (browser?.mint && browserMintRef.current !== `${spreadOcc.id}:${browser.url}`) {
       browserMintRef.current = `${spreadOcc.id}:${browser.url}`;
       // A recorded id whose occurrence is gone is dropped in the SAME write
@@ -314,6 +328,8 @@ export function ArtifactSpreadHost() {
         url: browser.url,
         label: browser.label,
         list: false,
+        // A tile renders the live page only while it has NO cover.
+        enrich: false,
       });
       browserId = made?.occurrenceId || null;
       if (browserId) metaPatch = { browserOccId: browserId };

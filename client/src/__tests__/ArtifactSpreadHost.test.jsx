@@ -254,6 +254,9 @@ describe("the viewer shows files AND urls", () => {
     // UNLISTED on purpose: one writer of the array, or the two writes in this
     // commit clobber each other off the same snapshot.
     expect(mint.list).toBe(false);
+    // NOT ENRICHED (2026-09-22): a tile renders the live page only while it has
+    // no cover, and enrichment fetched it one — the browser became a picture.
+    expect(mint.enrich).toBe(false);
 
     const wrote = pageWrite(spread.id);
     expect(wrote.occurrences).toContain("occ-br");

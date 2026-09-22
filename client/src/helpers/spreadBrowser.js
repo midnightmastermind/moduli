@@ -63,6 +63,7 @@ function urlOfBrowser(occ, modulesById) {
  *   mint?: true,            // no browser exists yet
  *   retargetId?: string,    // one exists and points somewhere else
  *   dropId?: string,        // a recorded id whose occurrence is gone
+ *   uncoverId?: string,     // our tile picked up a cover — strip it
  * }}
  *
  * PURE and exported because mounting the host needs the whole grid store, and
@@ -104,7 +105,11 @@ export function planSpreadBrowser({
 
   // The owner's url can be edited — a Place's Website, a bookmark's address.
   // A tile still pointing at the old one is wrong data, not merely stale.
-  return urlOfBrowser(existing, modulesById) === url
-    ? null
-    : { url, label, retargetId: recordedId };
+  if (urlOfBrowser(existing, modulesById) !== url) return { url, label, retargetId: recordedId };
+
+  // The tile renders the live page only while it has NO cover, and tiles minted
+  // before 2026-09-22 were enriched with one. Report it so the host heals it.
+  const tileModule = modulesById?.[existing.moduleId];
+  if (tileModule?.meta?.cover || existing?.meta?.cover) return { url, label, uncoverId: recordedId };
+  return null;
 }

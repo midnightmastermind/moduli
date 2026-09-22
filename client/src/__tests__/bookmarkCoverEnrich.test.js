@@ -76,6 +76,14 @@ describe("an app-made bookmark is enriched", () => {
     expect(socket.emitted.some((e) => e.event === "link_preview")).toBe(false);
   });
 
+  // The viewer's url tile opts out: it is a browser, and a cover would turn it
+  // into a picture of the page it is supposed to show (2026-09-22).
+  it("does not enrich when asked not to", () => {
+    const socket = socketStub({ reply: { ok: true, title: "T", cover: "https://x/c.jpg" } });
+    CommitHelpers.addBookmarkOccurrence({ ...base, socket, dispatch: vi.fn(), url: "https://a.test/p", enrich: false });
+    expect(socket.emitted.some((e) => e.event === "link_preview")).toBe(false);
+  });
+
   // FIRE-AND-FORGET. The row is already on screen and already emitted, so a
   // dead site must change nothing — this is the control that the enrichment
   // cannot break saving a bookmark.
