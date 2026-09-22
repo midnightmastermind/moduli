@@ -21,6 +21,9 @@ import { isFolderOpen, setFolderOpen, ROOT_SCOPE } from "../helpers/treeExpansio
 import { resolveFileRef, isExternalFileRef } from "../helpers/fileRef.js";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import NodePill from "./NodePill.jsx";
+
+// The window a second click has to arrive in before a childless folder opens.
+const DBLCLICK_MS = 260;
 import { edgeForPoint, sortOrderForDrop, sortOrderAtEnd, wouldNestInsideItself, isInnermostTarget } from "../helpers/treeOrder.js";
 import { createPageInFolder } from "../helpers/createPageInFolder.js";
 import { confirmDeleteOccurrence } from "../helpers/confirmDeleteOccurrence.js";
@@ -778,6 +781,19 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
   // on demand if one doesn't exist yet). Falls back to onSelect when
   // onOpenPage is missing (e.g. the artifact/FILES tree panel which doesn't
   // pin pages — it just swaps the active occurrence in its own view).
+  // AN EMPTY FOLDER CAN STILL BE RENAMED BY DOUBLE-CLICK (2026-09-22). A
+  // childless folder has nothing to expand, so its pill NAVIGATES — and that
+  // navigation swapped the panel out from under the second click, so the
+  // row's own `onDoubleClick` rename never fired and right-click was the only
+  // way. The open is deferred by one double-click window and cancelled when a
+  // second click arrives; a folder WITH children is untouched (its click only
+  // expands, and its rename already worked).
+  const openTimerRef = useRef(null);
+  const cancelDeferredOpen = useCallback(() => {
+    if (openTimerRef.current) { clearTimeout(openTimerRef.current); openTimerRef.current = null; }
+  }, []);
+  useEffect(() => () => cancelDeferredOpen(), [cancelDeferredOpen]);
+
   const handleFolderClick = useCallback(() => {
     if (isRenaming) return;
     const navigate = onOpenPage || onSelect;
@@ -811,7 +827,7 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
           NodePill's padding), so the pill itself starts further right with
           each level instead of just shifting its content. */}
       <div ref={rowRef} style={{ display: "flex", alignItems: "center" }} className="manifest-row"
-        onDoubleClick={(e) => { e.stopPropagation(); setRenameValue(folder.name); setIsRenaming(true); }}
+        onDoubleClick={(e) => { e.stopPropagation(); cancelDeferredOpen(); setRenameValue(folder.name); setIsRenaming(true); }}
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
       >
         <span
@@ -846,7 +862,10 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
             // A folder with NO children falls back to opening the page: there is
             // nothing to expand, its chevron is hidden, and a click that
             // visibly does nothing reads as broken.
-            onClick={hasChildren ? () => setOpen(v => !v) : handleFolderClick}
+            onClick={hasChildren ? () => setOpen(v => !v) : () => {
+              cancelDeferredOpen();
+              openTimerRef.current = setTimeout(() => { openTimerRef.current = null; handleFolderClick(); }, DBLCLICK_MS);
+            }}
             isActive={isDragOver}
             depth={depth}
             dragData={{
