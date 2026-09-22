@@ -264,8 +264,22 @@ export function searchOccurrences(index, query, { scopeRootId = null, limit = 50
     scored.push({ entry, score, tier: worstTier, why });
   }
 
+  // A ROW YOU CAN OPEN OUTRANKS ONE YOU CANNOT, and that is the FIRST tiebreak
+  // rather than a nicety. `openOccurrenceInPanel` bails when an occurrence has
+  // no page in its ancestry — it reports "That item isn't on a page yet" and
+  // goes nowhere — and the depth tiebreak below sorts the SHALLOWEST first, so
+  // an unreachable row (no ancestors at all) ranked ABOVE the one on a page.
+  // Measured on poms grid 2026-09-22: "Chicken Breast" returned six hits, the
+  // five unopenable ones first and the only usable one (`Ingredients ›
+  // Ingredients`) LAST — which is what "why doesn't search find it" felt like.
+  //
+  // `pageOccId` is the index's own walk, the same question the opener asks, so
+  // the ranking cannot disagree with what a click does. Unopenable rows are
+  // still LISTED: the row says so, and hiding them would be the original
+  // complaint in a new form — the row exists, and search is how you find it.
   scored.sort((a, b) =>
     a.score - b.score ||
+    (a.entry.pageOccId ? 0 : 1) - (b.entry.pageOccId ? 0 : 1) ||
     a.entry.ancestorIds.length - b.entry.ancestorIds.length ||
     a.entry.label.localeCompare(b.entry.label) ||
     a.entry.occId.localeCompare(b.entry.occId));

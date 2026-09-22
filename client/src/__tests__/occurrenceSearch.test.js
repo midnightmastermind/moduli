@@ -1,6 +1,6 @@
 // __tests__/occurrenceSearch.test.js
 import { describe, it, expect } from "vitest";
-import { dateAliases, fieldValueText, buildSearchIndex } from "../helpers/occurrenceSearch";
+import { dateAliases, fieldValueText, buildSearchIndex, searchOccurrences } from "../helpers/occurrenceSearch";
 
 describe("dateAliases", () => {
   it("expands an ISO day into every spelling a person might type", () => {
@@ -113,5 +113,71 @@ describe("buildSearchIndex", () => {
       modulesById, fieldsById, gridId: "g1",
     });
     expect(withOverride.byId.get("item1").label).toBe("Sip Water");
+  });
+});
+
+// A HIT YOU CAN OPEN OUTRANKS ONE YOU CANNOT.
+//
+// `openOccurrenceInPanel` bails when an occurrence has no page in its ancestry:
+// it says "That item isn't on a page yet" and goes nowhere. The depth tiebreak
+// sorts the SHALLOWEST first, and an unreachable row has no ancestors at all —
+// so those sorted to the TOP.
+//
+// Measured on poms grid 2026-09-22, searching "Chicken Breast":
+//
+//   1-5  Chicken Breast                          <- no path, none of them open
+//   6    Chicken Breast · Ingredients › Ingredients   <- the only usable one
+//
+// which is what "why doesn't search find it" actually felt like.
+describe("ranking: openable first", () => {
+  const modulesById = {
+    "m-page": { id: "m-page", role: "page", kind: "board", label: "Ingredients" },
+    "m-row": { id: "m-row", role: "instance", label: "Chicken Breast" },
+  };
+  // One row sits under a page; two are parented by nobody — the live shape.
+  const occurrencesById = {
+    page1: { id: "page1", moduleId: "m-page", occurrences: ["onPage"] },
+    onPage: { id: "onPage", moduleId: "m-row", occurrences: [] },
+    orphanA: { id: "orphanA", moduleId: "m-row", occurrences: [] },
+    orphanB: { id: "orphanB", moduleId: "m-row", occurrences: [] },
+  };
+  const index = buildSearchIndex({ occurrencesById, modulesById, fieldsById: {} });
+
+  it("puts the row that is ON A PAGE above the rows that are not", () => {
+    const { results } = searchOccurrences(index, "chicken");
+    const ids = results.map((r) => r.entry.occId);
+    expect(ids[0], `got ${ids.join(", ")}`).toBe("onPage");
+  });
+
+  it("still LISTS the unopenable rows — hiding them is the original complaint in a new form", () => {
+    const { results } = searchOccurrences(index, "chicken");
+    expect(results.map((r) => r.entry.occId).sort()).toEqual(["onPage", "orphanA", "orphanB"]);
+  });
+
+  it("marks them: the index says which hits have no page", () => {
+    // What the row renders "not on a page" from, and the same question the
+    // opener asks — so the list cannot disagree with what a click does.
+    const { results } = searchOccurrences(index, "chicken");
+    const byId = Object.fromEntries(results.map((r) => [r.entry.occId, r.entry]));
+    expect(byId.onPage.pageOccId).toBe("page1");
+    expect(byId.orphanA.pageOccId).toBeNull();
+  });
+
+  // CONTROL — the openability tiebreak must not outrank the MATCH QUALITY.
+  // A better match that happens to be unreachable still beats a weak match on
+  // a page, or the ranking would be answering the wrong question.
+  it("score still wins: a label match outranks a body match even when unreachable", () => {
+    const mods = { ...modulesById, "m-other": { id: "m-other", role: "instance", label: "Notes" } };
+    const occs = {
+      page1: { id: "page1", moduleId: "m-page", occurrences: ["weakOnPage"] },
+      // on a page, but only its BODY mentions the term
+      weakOnPage: { id: "weakOnPage", moduleId: "m-other", occurrences: [],
+        textmap: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "chicken" }] }] } },
+      // unreachable, but the LABEL matches
+      strongOrphan: { id: "strongOrphan", moduleId: "m-row", occurrences: [] },
+    };
+    const idx2 = buildSearchIndex({ occurrencesById: occs, modulesById: mods, fieldsById: {} });
+    const { results } = searchOccurrences(idx2, "chicken");
+    expect(results[0].entry.occId).toBe("strongOrphan");
   });
 });

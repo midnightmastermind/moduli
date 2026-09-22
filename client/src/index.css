@@ -6530,6 +6530,10 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .occ-search-row-why { color: var(--text-muted); font-style: italic; }
+/* A hit that cannot be OPENED — the index found no page in its ancestry, so
+   picking it only answers "That item isn't on a page yet". Said in the list
+   rather than after the click; italic so it reads as a state, not a path. */
+.occ-search-row-path--orphan { font-style: italic; opacity: 0.72; }
 .occ-search-empty,
 .occ-search-more { padding: 6px; font-size: 12px; color: var(--text-faint); text-align: center; }
 

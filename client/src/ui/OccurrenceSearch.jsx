@@ -46,9 +46,15 @@ function Row({ hit, term, active, onPick, onHover }) {
         <div className="occ-search-row-label">
           {before}{hitText && <mark>{hitText}</mark>}{after}
         </div>
-        {entry.pathLabels.length > 0 && (
+        {entry.pathLabels.length > 0 ? (
           <div className="occ-search-row-path">{entry.pathLabels.join(" › ")}</div>
-        )}
+        ) : !entry.pageOccId ? (
+          // SAY IT IN THE LIST, not only after the click. Picking one of these
+          // goes nowhere and answers "That item isn't on a page yet" — which is
+          // the right message in the wrong place: you had to spend a click to
+          // learn that this row is the one you cannot open.
+          <div className="occ-search-row-path occ-search-row-path--orphan">not on a page</div>
+        ) : null}
         {why && why.text && <div className="occ-search-row-why">{why.text}</div>}
       </div>
     </div>
