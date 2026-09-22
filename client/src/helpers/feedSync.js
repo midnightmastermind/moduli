@@ -220,8 +220,18 @@ function _syncAllFeeds({ state, occurrencesById, modulesById, dispatch, socket }
   const rows = [];
   // Built ONCE for the pass and handed to every feed — see buildCopiesByParent.
   const copyIdx = buildCopiesByParent(occurrencesById);
+  const gridNow = state?.gridId || state?.grid?._id || null;
   for (const occ of Object.values(occurrencesById || {})) {
     if (!occ?.feed?.enabled) continue;
+    // A TAB SYNCS ONLY ITS OWN GRID'S FEEDS. Every occurrence write is
+    // broadcast to the USER room, not the grid room, so this map holds the
+    // other grids' rows too — including their feed OWNERS. Syncing one of
+    // those pairs a foreign parent with THIS grid's id (the mint takes its
+    // gridId from `state`), so the copies are invisible in both grids and the
+    // sources get a `linkedGroupId` nobody asked for: 87 rows on 2026-09-21,
+    // 50 more on 2026-09-22. An owner naming NO grid is a local optimistic
+    // mint belonging to the current one, so only a disagreement is skipped.
+    if (gridNow && occ.gridId && occ.gridId !== gridNow) continue;
     feeds++;
     const r = syncFeed(occ, { state, occurrencesById, modulesById, dispatch, socket, diag, copyIdx });
     minted += r.minted; swept += r.swept;

@@ -635,6 +635,12 @@ export function resolveFeedItems(feedOcc, { occurrencesById, modulesById } = {})
   for (const occ of candidates) {
     if (!occ?.id || ownChain.has(occ.id)) continue;
     if (occ.meta?.feedSourceId) continue; // feed copies are never sources
+    // A FEED PULLS ONLY FROM ITS OWN GRID. A tab's store can hold another grid's
+    // rows (every tab of a user hears the others' writes), and a roles-only feed
+    // on one grid minted copies of another grid's rows — tagging each source's
+    // linkedGroupId on the way — parented where neither grid shows them
+    // (2026-09-22: 50 poms-grid rows). A row that names no grid is a local mint.
+    if (feedOcc.gridId && occ.gridId && occ.gridId !== feedOcc.gridId) continue;
     const mod = modulesById?.[occ.moduleId];
     if (needsRoleCheck && !roles.includes(occ.role ?? mod?.role ?? null)) continue;
     const ancestors = ancestorsOf(occ.id);

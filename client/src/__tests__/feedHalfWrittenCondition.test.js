@@ -63,3 +63,20 @@ describe("a half-written feed condition", () => {
     expect(buildFeedPredicate({ conditions: [{ id: "c", fieldId: CAT, comparator: "IS", value: 0 }] })).not.toBeNull();
   });
 });
+
+// A FEED PULLS ONLY FROM ITS OWN GRID (2026-09-22). A tab's store can hold
+// another grid's rows (another tab's writes are broadcast to every tab of the
+// user), and a roles-only feed on the rebuild grid minted 50 copies of POMS
+// GRID rows — tagging each poms source's linkedGroupId on the way — parented
+// under a rebuild container: invisible in both grids.
+describe("a feed and another grid's rows", () => {
+  it("never pulls a row from another grid", () => {
+    const w = world({ conditions: [] });
+    w.meals.gridId = "g-rebuild";
+    for (const id of ["oat", "rice", "email", "lib", "food", "tasks"]) w[id].gridId = "g-rebuild";
+    w.foreign = { id: "foreign", gridId: "g-poms", role: "instance", fields: {} };
+    const ids = resolveFeedItems(w.meals, { occurrencesById: w, modulesById: {} }).map((i) => i.occurrence.id);
+    expect(ids).not.toContain("foreign");
+    expect(ids).toEqual(["oat", "rice", "email"]); // CONTROL — its own grid still pulls
+  });
+});
