@@ -1218,7 +1218,7 @@ export function DragProvider({
         const pageOccId = pageNode?.getAttribute?.("data-page-occ-id");
         if (pageOccId && occurrencesById[pageOccId]) {
           const pageOcc = occurrencesById[pageOccId];
-          const pageMod = state?.modulesById?.[pageOcc.moduleId];
+          const pageMod = modulesById[pageOcc.moduleId];
           destination = { kind: "page", label: pageMod?.label || "page" };
         }
       }
@@ -1306,7 +1306,13 @@ export function DragProvider({
         pointer: { x, y },
         dataTransfer: dt,
       };
-      const ctx = { dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers, clearSession, sessionRef, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId };
+      // `state` carries `modules` (an array), not `modulesById`, and every
+      // drop handler reads `state.modulesById` — dropView uses it to decide
+      // that the thing under the pointer is a container. Without it an OS file
+      // dropped onto a board resolved to NO container and minted a new panel
+      // in the cell instead (2026-09-21). The Pragmatic path has always
+      // passed the map this way (handleDrop above).
+      const ctx = { dispatch, socket, state: { ...state, modulesById }, occurrencesById, baseAllPanels, baseContainers, clearSession, sessionRef, getCellFromPoint, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId };
       routeDrop(dropContext, ctx);
       clearPreview();
     };
@@ -1322,7 +1328,7 @@ export function DragProvider({
       gridFrame.removeEventListener("dragleave", onDragLeaveFrame);
       document.removeEventListener("dragend", clearPreview);
     };
-  }, [dispatch, socket, state, occurrencesById, baseAllPanels, baseContainers, clearSession, getCellFromPoint, getHoveredIds, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId]);
+  }, [dispatch, socket, state, occurrencesById, modulesById, baseAllPanels, baseContainers, clearSession, getCellFromPoint, getHoveredIds, getHoveredPanelId, getHoveredContainerId, getHoveredInstanceId]);
 
   // Clean up edge barriers on unmount
   useEffect(() => removeEdgeBarriers, [removeEdgeBarriers]);

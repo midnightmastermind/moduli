@@ -2,6 +2,16 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-21 (3) — an OS file drop onto a board landed in a NEW PANEL)
+- `DragProvider`'s native drop fallback (the path real desktop file / text drops take) built its handler
+  ctx with the bare store `state` — `modules` is an ARRAY there, there is no `modulesById` — while
+  `dropView` classifies the target by `state.modulesById[moduleId].role`. The container under the pointer
+  resolved to nothing and `handleFileDrop` fell to its empty-cell branch: a new panel + container named
+  after the file, stacked into the cell. It now passes `state: { ...state, modulesById }`, as the Pragmatic
+  path always has; the dragover preview read the same missing map. Every existing file-drop test handed
+  `modulesById` in by hand, which is why none caught it. `nativeFileDropResolvesContainer.test.js`
+  (A/B'd). Found dropping a file onto the rebuild grid's Tasks board through the UI.
+
 ## Recent Changes (2026-09-21 (2) — a button press runs the operation it NAMES)
 - Both ButtonOp fire sites (row trigger widget, `button` field) stamp `operationId`, and nothing read it:
   one press ran EVERY enabled onButton op whose subject filter passed, and an op whose onButton trigger
