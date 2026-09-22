@@ -15,6 +15,33 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (3) — A PASTED LINK COULD NOT BECOME A BOOKMARK; and the viewer's browser turned into a picture
+
+Rebuild-via-UI, link import. A **Bookmarks** board page + container made through the UI (poms keeps its
+1,464 bookmarks the same way); Ctrl+V of a Wikipedia link over it opened the intake sheet correctly.
+- **"Bookmark card" REFUSED on every UI-made grid** (*"this grid has no Title/URL fields — run migration
+  0061"*), and where it worked it minted a second SHAPE — an instance record with Title/URL/Notes/Poster
+  (2026-08-09) — while the Browser tile, Save bookmark, Jonah and all poms bookmarks mint
+  `role:"artifact" kind:"bookmark"` via `addBookmarkOccurrence`. **User chose the one shape.** The route
+  calls `addBookmarkOccurrence` and binds + fills the grid's URL field when it has one (`09cf6694`).
+- **User, mid-work: *"the browser disappears when i click on the cover photo of a bookmark. it just resolves
+  to an image instead"*.** Three defects stacked in the viewer, each measured on prod:
+  1. An APP-MADE bookmark's viewer held only its cover — `planSpreadBrowser` read every `from:"fileRef"`
+     url as "the url IS the file". Now a fileRef is the file only when the tile SHOWS it;
+     `coverAppliesTo` (moved to `helpers/artifactCover.js`) decides. No kind check.
+  2. **The browser tile itself was fetched a cover** — the 09-16 enrichment in `addBookmarkOccurrence`
+     applied to the 09-11 url tile, whose "open page" rule is *no cover*. **11 of 12 poms viewer tiles
+     carried one.** Minted with `enrich:false` now; the planner reports `uncoverId` and the host strips it
+     on open, so the 11 heal without a migration.
+  3. With the browser back, the row grew to the article's height (items 13,215px in a 947px shell, cover
+     centred ~6,600px down). The bounding rule targeted `.container-shell > .container-items--wrap`; the
+     row sits inside `.container-list`, so it matched nothing. CSSOM-verified on prod before writing it.
+- Also: `openCard` clicked a card scrolled out of its scroller (probe fault, fixed in `_ui.mjs`), and the
+  failed run left a `Board 2` container on the Root folder page — removed with the older `Board 1` of the
+  same shape (both empty) through `delete_occurrence`.
+
+---
+
 ### 2026-09-22 (2) — A COPY-LINK DROPPED ON A DOC WAS A MOVE; the "lost row" account3 hit its limit on
 
 Picked up account3's rebuild-via-UI session (session limit at 06:24 CDT, mid-probe). Its last finding: a

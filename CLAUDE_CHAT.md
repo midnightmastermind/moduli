@@ -3521,3 +3521,9 @@ article we made with Jonah). we need to make sure any functionality we added in,
 preview allows you to open it inline in web. why cant we."
 
 **2026-09-22 07:20 CDT** — "can you continue what my other claude account was working on. check the its logs please." (account3's rebuild-via-UI session, which hit its session limit at 06:24 mid-probe on the lost-row finding)
+
+**2026-09-22 07:33 CDT** — "continur" (continue the rebuild via UI — link import next)
+
+**2026-09-22 ~07:45** — AskUserQuestion: the sheet's "Bookmark card" should make → **"Same as Browser"** (the artifact bookmark, URL field filled when present).
+
+**2026-09-22 08:03 CDT** — "also look into why the browser, disappears when i click on the cover photo of a bookmark. it just resolves to an image instead"
