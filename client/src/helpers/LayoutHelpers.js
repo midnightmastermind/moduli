@@ -829,28 +829,30 @@ export function assignLinkedGroup(sourceOccurrence, tagFn) {
 }
 
 /**
- * Creates a linked (copylink) occurrence for an instance in a container.
- * Linked occurrences share field values — editing one propagates to all
- * occurrences in the same linkedGroupId.
+ * Builds + creates ONE linked (copylink) occurrence of `sourceOccurrence` and
+ * tags the source into the group if it had none. Places it NOWHERE: the caller
+ * decides where it lives (a container's list, or a doc's `moduleEmbed`). This
+ * is the single definition of what a linked copy is, so the container drop and
+ * the doc drop cannot drift apart on it.
  */
-export function copylinkInstanceToContainer({
+export function mintLinkedCopy({
   dispatch,
   socket,
   gridId,
   sourceInstanceId,
-  sourceOccurrenceId,
-  toContainer,
-  userId,
-  toIndex = null,
+  sourceOccurrenceId = null,
+  sourceOccurrence = null,
+  userId = null,
+  parentId = null,
   emit = true,
   iterationMode = "specific",
   iterationValue = null,
-  sourceOccurrence = null,
   initialMeta = null,
   dragMode = null,
   fireTrigger = true,
+  insertAtIndex = null,
 }) {
-  if (!gridId || !sourceInstanceId || !toContainer || !userId) return null;
+  if (!gridId || !sourceInstanceId) return null;
 
   const occurrenceId = uid();
   const dateValue = iterationValue || new Date();
@@ -879,7 +881,7 @@ export function copylinkInstanceToContainer({
 
   const occurrence = {
     id: occurrenceId,
-    userId,
+    ...(userId ? { userId } : {}),
     moduleId: sourceInstanceId,
     gridId,
     iteration: {
@@ -890,7 +892,7 @@ export function copylinkInstanceToContainer({
     timestamp: new Date(),
     fields: copiedFields,
     linkedGroupId,
-    parentId: toContainer._occurrence?.id || null,
+    parentId,
     // A row is named by `occurrence.label ?? module.label`, so a copy that drops
     // the occurrence label silently RENAMES itself to the module's generic name.
     // On this grid every appointment shares the module "Appointment" and carries
@@ -905,7 +907,41 @@ export function copylinkInstanceToContainer({
     ...(dragMode ? { dragMode } : {}),
   };
 
-  CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit, fireTrigger, insertAtIndex: toIndex });
+  CommitHelpers.createOccurrence({ dispatch, socket, occurrence, emit, fireTrigger, insertAtIndex });
+  return { occurrence, linkedGroupId };
+}
+
+/**
+ * Creates a linked (copylink) occurrence for an instance in a container.
+ * Linked occurrences share field values — editing one propagates to all
+ * occurrences in the same linkedGroupId.
+ */
+export function copylinkInstanceToContainer({
+  dispatch,
+  socket,
+  gridId,
+  sourceInstanceId,
+  sourceOccurrenceId,
+  toContainer,
+  userId,
+  toIndex = null,
+  emit = true,
+  iterationMode = "specific",
+  iterationValue = null,
+  sourceOccurrence = null,
+  initialMeta = null,
+  dragMode = null,
+  fireTrigger = true,
+}) {
+  if (!gridId || !sourceInstanceId || !toContainer || !userId) return null;
+
+  const { occurrence, linkedGroupId } = mintLinkedCopy({
+    dispatch, socket, gridId, sourceInstanceId, sourceOccurrenceId, sourceOccurrence, userId,
+    parentId: toContainer._occurrence?.id || null,
+    emit, iterationMode, iterationValue, initialMeta, dragMode, fireTrigger,
+    insertAtIndex: toIndex,
+  });
+  const occurrenceId = occurrence.id;
 
   // Add occurrence to container occurrence (ordering lives on the container occurrence)
   const toContainerOcc = toContainer._occurrence || null;

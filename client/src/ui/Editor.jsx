@@ -86,6 +86,7 @@ import DocToolbar from "../docs/DocToolbar";
 import ContextMenu from "./ContextMenu";
 import { useGridActionsSelector } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import { mintLinkedCopy } from "../helpers/LayoutHelpers";
 import {
   buildTextClipboardItems, readClipboardText, writeClipboardText,
   plainTextToProseContent,
@@ -2370,6 +2371,27 @@ const Editor = forwardRef(function Editor({
             const wrapped = sideHost && wrapHostWithNeighbor(copyId, sideHost);
             DLOG("COPY done", { copyId, wrappedBeside: !!wrapped });
             if (!wrapped) insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId: copyId } });
+            return;
+          }
+
+          // COPY-LINK — mint a linked copy (same module, shared linkedGroupId)
+          // and embed THAT. The source stays in its slot: falling through to
+          // MOVE here is what detached a copy-link row from its container when
+          // a drag released over a doc page (2026-09-22, rebuild grid).
+          if (dragMode === "copylink") {
+            const srcOcc = occsById[occurrenceId];
+            if (!srcOcc) { DLOG("BAIL copylink: source not in state"); return; }
+            const linked = mintLinkedCopy({
+              dispatch: dispatchRef.current, socket: socketRef.current,
+              gridId: srcOcc.gridId, userId: srcOcc.userId,
+              sourceInstanceId: srcOcc.moduleId, sourceOccurrenceId: srcOcc.id, sourceOccurrence: srcOcc,
+              dragMode: srcOcc.dragMode ?? null,
+            });
+            if (!linked) { DLOG("BAIL copylink: mint returned null"); return; }
+            const linkId = linked.occurrence.id;
+            const wrapped = sideHost && wrapHostWithNeighbor(linkId, sideHost);
+            DLOG("COPYLINK done", { linkId, linkedGroupId: linked.linkedGroupId, wrappedBeside: !!wrapped });
+            if (!wrapped) insertAtPos(insertPos, { type: "moduleEmbed", attrs: { occurrenceId: linkId } });
             return;
           }
 
