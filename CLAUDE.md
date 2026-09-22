@@ -15,6 +15,60 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (18) — A GRAPH DREW ONE BAR FOR TWO ROWS AND SAID NOTHING; the chart heard half its warnings
+
+Rebuild-via-UI, next area **graph containers** (the last one named untested). The rebuild grid
+carried a half-built one from account2: `By Category`, a pie encoded to `Board Category`, with
+**`feed: null` and 0 children** — so it correctly showed *"Nothing to chart yet — drop an occurrence
+in, or give this graph a feed."* A graph is PULL-ONLY (2026-08-10), so with no feed there is nothing
+to draw.
+
+**FINISHED IT BY CLICKING.** The feed editor (header chevron -> Data) offers role filters, a page
+scope, a limit and a sort, with a live match count: `36 matches` unscoped -> **3** scoped to the Food
+page. The chart painted immediately: a donut, `15.2%` of the canvas inked.
+
+**AND LOOKING AT IT IS WHAT FOUND THE DEFECT** — the pie drew **three slices, two of them labelled
+"meal"**. That is correct and honest: the encoding is labelled **"Label"** in the editor (*"which
+field NAMES each slice"*), not "group by", and `graphData` builds one node per row. But switching
+the same data to a **bar** chart drew **meal = 1** — the second meal row discarded by
+`alignedData`'s first-row-wins rule — **with nothing on screen to say so**:
+```
+drawn            meal = 1, ingredient = 1        <- a whole row gone
+warning emitted  'two rows share the name "meal" — only the first is drawn'
+chip on screen   .container-graph-warnings  count 0
+```
+**A CHART HAS TWO LAYERS THAT DISCARD, AND THE SURFACE HEARD ONE.** `buildGraphData` reports a row
+that contributed nothing; `buildEChartsOption` reports an ignored encoding, a flattened level, or a
+dropped duplicate. `GraphSection` (the editor) merges both and **says why in its own comment**:
+*"BOTH HALVES WARN, and the readout is worthless if it only hears one … those are precisely the
+failures that still LOOK like a chart."* `ContainerGraph` destructured `option` and dropped
+`warnings` on the floor. The merge now lives in `helpers/graphWarnings.js` and BOTH call it — two
+copies of "normalise the other layer's shape" is how one drifts back to silence. The chip counts the
+two kinds SEPARATELY (`2 rows contributed nothing · 1 chart issue`), because filing a discarded row
+under "N rows" is a lie the moment a non-row warning appears.
+**Verified on prod:** the bar chart now reads **"1 chart issue"**, tooltip *two rows share the name
+"meal" — only the first is drawn*. Restored to pie afterwards; the feed stays (it is real progress —
+the graph charts something now).
+
+**TWO THINGS I ALMOST FILED AS DEFECTS, both killed by reading before writing.** (1) The Data tab has
+no chart controls — because the chart editor was deliberately MOVED to **Settings -> Chart** on
+2026-08-28 at the user's ask (*"the graph config should go in the graph occurances settings, not the
+filter dropdown"*); it is there, with 9 chart types, a live `· 3 roots · 3 rows` readout, and each
+field annotated by how many rows carry it. (2) The duplicate-name pie looked like a missing group-by
+until the editor's own wording settled it.
+
+**MY WARNING PROBE MISSED THE WARNING TWICE, BY KEYWORD.** I grepped the panel for
+`/warn|drop|ignor|unused|same|duplicate/` — and the real strings are *"N rows contributed nothing"*
+and *"two rows share the name … only the first is drawn"*, which match none of them. *Grep for the
+element (`.container-graph-warnings`), not for words you imagine it uses.*
+
+**AND MY FIRST A/B WAS INVALID AND SAID SO LOUDLY:** half-reverting the fix left a dangling
+`drawWarnings` reference, so ALL 12 cases failed — "the component crashes" is not "the chip is
+missing". Reconstructed faithfully, exactly **2** fail (the behavioural chip case + the wiring
+guard) and the other 16 pass in both arms.
+
+---
+
 ### 2026-09-22 (17) — PANEL LAYOUT, BY CLICKING; and two rules that cancelled each other out
 
 Rebuild-via-UI, next area **panel layout** (named as untested in the handoff). Every gesture driven

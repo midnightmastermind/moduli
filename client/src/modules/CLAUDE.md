@@ -2,6 +2,19 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-09-22 (3) — ContainerGraph reports BOTH halves of a chart's warnings)
+It destructured `option` from `buildEChartsOption` and dropped that function's `warnings`, so the
+chip could report a row that contributed nothing (`buildGraphData`) but NOT that the chart layer had
+silently discarded one. Measured on prod: a bar chart over 3 rows (2 "meal", 1 "ingredient") with
+Label = Board Category drew meal = 1 — `alignedData`'s first-row-wins rule — and
+`.container-graph-warnings` was absent. Both halves are merged through the new shared
+`helpers/graphWarnings.mergeGraphWarnings` (GraphSection had the only copy, inline), and the chip
+counts rows and chart issues separately via `summariseGraphWarnings`. Tests:
+`__tests__/graphWarnings.test.js` (7) + a behavioural case in `ContainerGraph.test.jsx` that mounts
+the chart over two rows sharing a name; A/B'd against a faithful pre-fix reconstruction (2 fail, 16
+pass in both arms). **Chart config for a CONTAINER lives in Settings → Chart** (moved out of the
+header dropdown 2026-08-28 at the user's ask), not the Data tab — the Data tab carries the feed.
+
 ## Recent Changes (2026-09-22 (2) — PageCanvas: a double-click is ONE undo step)
 `handleDoubleClick` hand-rolled `createModule` + `createOccurrence` + `updateOccurrence` — three
 writes under TWO action ids, so one Ctrl+Z reverted the page's list and left the card created,
