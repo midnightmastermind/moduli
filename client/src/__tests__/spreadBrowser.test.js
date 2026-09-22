@@ -38,6 +38,32 @@ describe("planSpreadBrowser", () => {
     expect(planSpreadBrowser(ctx({ owner: image, module: imageModule }))).toBeNull();
   });
 
+  // ── AN APP-MADE BOOKMARK (2026-09-22) ─────────────────────────────────
+  // `addBookmarkOccurrence` stores the address in `fileRef` and binds no URL
+  // field, so it reports `from: "fileRef"` — and the viewer showed ONLY its
+  // cover, with no browser anywhere (user: "the browser disappears ... it just
+  // resolves to an image instead"). A fileRef is "the file itself" only when
+  // the tile SHOWS it; a cover standing in for it makes the url a second thing.
+  const made = { id: "bm2", moduleId: "m4", fields: {}, meta: {} };
+  const madeModule = { id: "m4", role: "artifact", kind: "bookmark",
+    fileRef: "https://en.wikipedia.org/wiki/Alan_Watts", meta: { cover: "https://up.wiki/w.png" } };
+
+  it("wants a browser for a url-stored artifact whose tile shows a COVER instead", () => {
+    const plan = planSpreadBrowser(ctx({ owner: made, module: madeModule }));
+    expect(plan?.mint).toBe(true);
+    expect(plan.url).toBe("https://en.wikipedia.org/wiki/Alan_Watts");
+  });
+
+  it("wants nothing for the same artifact with NO cover — its tile is already the page", () => {
+    const bare = { ...madeModule, meta: {} };
+    expect(planSpreadBrowser(ctx({ owner: made, module: bare }))).toBeNull();
+  });
+
+  it("wants nothing for an image even with a cover — an image is its own picture", () => {
+    const covered = { ...imageModule, meta: { cover: "https://x/c.png" } };
+    expect(planSpreadBrowser(ctx({ owner: image, module: covered }))).toBeNull();
+  });
+
   it("wants nothing for a row with no url at all", () => {
     expect(planSpreadBrowser(ctx({
       owner: { id: "x", moduleId: "m3", fields: {} },

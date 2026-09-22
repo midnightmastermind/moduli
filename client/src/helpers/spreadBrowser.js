@@ -39,6 +39,7 @@
 // NOTHING LEARNS WHAT A BOOKMARK IS. The rule is "this row points somewhere
 // that is not itself" — `noDomainKnowledge.test.js` fails the build otherwise.
 import { occurrenceUrl } from "./occurrenceUrl";
+import { coverAppliesTo } from "./artifactCover";
 
 /** The host part of a url, for naming the tile. Falls back to the whole url. */
 export function hostOf(url) {
@@ -78,8 +79,15 @@ export function planSpreadBrowser({
 } = {}) {
   const hit = owner ? occurrenceUrl(owner, { module, fieldsById }) : null;
 
-  // The url IS the file — see the header. Nothing to add.
-  if (!hit || hit.from === "fileRef") return null;
+  if (!hit) return null;
+  // The url IS the file — see the header — UNLESS a cover stands in for it.
+  // Then the tile shows the cover, not the file, and the url is a second thing:
+  // an app-made bookmark stores its address in `fileRef`, and without this its
+  // viewer held only the cover and no browser at all (2026-09-22).
+  if (hit.from === "fileRef") {
+    const cover = owner?.meta?.cover || module?.meta?.cover || null;
+    if (!coverAppliesTo(module?.kind, cover)) return null;
+  }
 
   const url = hit.url;
   const label = hostOf(url) || "Browser";

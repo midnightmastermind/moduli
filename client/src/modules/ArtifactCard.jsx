@@ -13,6 +13,7 @@ import * as CommitHelpers from "../helpers/CommitHelpers";
 import { useGridActionsSelector } from "../GridActionsContext.js";
 import { toast } from "sonner";
 import { openUrlInPanel, canOpenUrlAsPage } from "../helpers/openBookmark";
+import { coverAppliesTo } from "../helpers/artifactCover";
 import { collectPanelOccurrences, enclosingPanelId, panelOccIdForElement } from "../helpers/targetPanel";
 import { openArtifactSpread } from "../ui/ArtifactSpreadHost";
 import LoadingImage from "../ui/LoadingImage.jsx";
@@ -642,21 +643,6 @@ function formatBytes(bytes) {
 // The PREVIEW half of the card — picture, frame, or type glyph. It never prints
 // the file name: that is the info block's job and it always sits underneath, so
 // printing it here too showed it twice.
-/**
- * Does a COVER stand in for this kind's own thumbnail?
- *
- * Exported so the rule is tested rather than mirrored in a test file that can
- * drift from it. The rule is one sentence: **a kind that renders its own
- * content never gives that up for a cover** — an image is its own picture, and
- * a video/audio/pdf each have a real control or preview that a still would
- * replace with something less useful. Everything else (a bookmark, an unknown
- * upload) draws 📄 today and is strictly better off with the cover.
- */
-export function coverAppliesTo(kind, cover) {
-  if (!cover) return false;
-  return !["image", "video", "audio", "pdf"].includes(kind);
-}
-
 function renderThumbnail(kind, src, label, imgSrc = src, cover = null) {
   if (kind === "image") return <LoadingImage className="artifact-thumb" src={imgSrc} alt={label || "image"} />;
   // A DEAD COVER FALLS BACK TO THE KIND'S OWN THUMBNAIL, not to a broken-image

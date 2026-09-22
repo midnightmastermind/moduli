@@ -2,7 +2,7 @@
 // and all 1,467 of them drew the generic 📄 — including the 1,030 that had
 // carried a cover URL since the import. This is the rule that fixes that.
 import { describe, it, expect } from "vitest";
-import { coverAppliesTo } from "../modules/ArtifactCard";
+import { coverAppliesTo } from "../helpers/artifactCover";
 
 describe("coverAppliesTo", () => {
   it("fills in for a kind with no picture of its own", () => {
