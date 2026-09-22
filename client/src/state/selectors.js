@@ -607,9 +607,16 @@ export function resolveFeedItems(feedOcc, { occurrencesById, modulesById } = {})
   // against two different "todays". The second is that this lifts the tree
   // construction out of a loop over every occurrence on the grid.
   //
-  // `null` = nothing usable to match on, so every candidate passes — which is
-  // what the old inline loop did when it skipped every condition.
+  // `null` = nothing usable to match on: every candidate UNDER THE SCOPE passes.
   const predicate = buildFeedPredicate(feed, { now: new Date() });
+  // CONDITIONS BEING WRITTEN MATCH NOTHING. A feed that HAS conditions, none of
+  // them usable yet — a fresh "+ condition", a value not typed — used to fall
+  // through to "match everything" and mint a copy of every occurrence on the
+  // grid (measured 2026-09-22: 35 copies from one click). A feed with NO
+  // conditions keeps its designed meaning — everything its roles (and scope)
+  // allow — because that is a real shape: 4 live feeds mirror a page that way.
+  const hasConditions = Array.isArray(feed.conditions) && feed.conditions.length > 0;
+  if (!predicate && hasConditions && !feed.scope) return [];
 
   // ORDER IS LOAD-BEARING: with no `feed.sort` the result is `out.slice(0,
   // limit)`, so which rows survive depends on the walk order. Bucketing keeps

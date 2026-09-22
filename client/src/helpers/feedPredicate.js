@@ -38,6 +38,7 @@
 //
 // * A leaf with no `fieldId` — FeedSection's "+ condition" mints exactly that,
 //   so a half-configured row must stay inert. The old loop did `continue`.
+// * A leaf whose comparator needs a value and has none — same reason.
 // * A group that ends up with no usable children — an empty AND evaluates TRUE,
 //   so leaving one inside an OR would make the whole feed match EVERYTHING.
 // * Anything past the depth cap. That is a backstop against a hand-edited or
@@ -45,10 +46,12 @@
 //   "unconfigured", which is the same reading the resolver has always given a
 //   condition it cannot use.
 //
-// Returning `null` means "no usable predicate" — the caller matches everything,
-// which is what the old loop did when every condition was skipped.
+// Returning `null` means "no usable predicate". The caller matches everything
+// UNDER THE FEED'S SCOPE, and nothing when it has none (2026-09-22): an
+// unscoped feed with nothing to say used to pull the whole grid.
 
 import { resolveFeedConditionValue } from "./feedTokens.js";
+import { UNARY_COMPARATORS } from "./comparators.js";
 
 // 1 = the top-level list. Three nested groups is far past anything the editor
 // offers and still bounded for the sync path.
@@ -69,9 +72,16 @@ function buildNode(entry, now, depth) {
     return { operator: normaliseOperator(entry.operator), rules };
   }
   if (!entry?.fieldId) return null;
+  // A comparator that needs a value but has none is not a condition yet — the
+  // row is still being typed. `CONTAINS ""` matches every string, so treating it
+  // as live pulled the whole grid while the user was mid-edit (2026-09-22).
+  // `false` and `0` are values; "is empty" is its own unary comparator.
+  const comparator = entry.comparator || "IS";
+  const v = entry.value;
+  if (!UNARY_COMPARATORS.has(comparator) && (v == null || v === "" || (Array.isArray(v) && !v.length))) return null;
   return {
     left: `fields.${entry.fieldId}.value`,
-    comparator: entry.comparator || "IS",
+    comparator,
     right: resolveFeedConditionValue(entry.value, now),
   };
 }
