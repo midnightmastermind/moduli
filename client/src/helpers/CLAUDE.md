@@ -2,6 +2,12 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-22 — `LayoutHelpers.mintLinkedCopy`)
+- The mint half of `copylinkInstanceToContainer` (group assignment + source tag, fields/label copy,
+  `createOccurrence`), placing the copy NOWHERE unless given `parentId`. The container path calls it and
+  lists the copy; `ui/Editor.jsx`'s doc drop calls it and embeds the copy. Test:
+  `__tests__/copylinkDocDropKeepsSource.test.js`.
+
 ## Recent Changes (2026-09-22 (2) — Break Link was the last raw `socket.emit` in the component tree)
 - **`CommitHelpers.breakOccurrenceLink` (NEW)** — `ModuleInstance`'s radial called
   `socket.emit("break_link", …)` DIRECTLY. Measured across `modules/ ui/ docs/ mobile/ components/`:

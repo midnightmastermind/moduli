@@ -2,6 +2,12 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-22 — Editor: a copy-link drop into a doc embeds a LINKED COPY)
+- The block-embed drop branched on `dragMode === "copy"` only, so a `copylink` row dropped on a doc went
+  down the MOVE path and was detached from its container (found on prod: a missed drag released over a
+  doc page and the slot lost its row). New `copylink` branch before MOVE: `mintLinkedCopy` → embed the
+  copy (wrap-beside honoured, same as copy). Source guard scoped to the branch body, with a control.
+
 ## Recent Changes (2026-09-19 — RadialMenu holds its card's layout while open: Delete no longer jumps)
 - User video: clicking a Check In row's radial Delete took two clicks — reaching the button, the whole
   row slid ~21px (measured frame by frame) and the button left the pointer. The menu is PORTALLED out of

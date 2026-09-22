@@ -15,6 +15,45 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (2) — A COPY-LINK DROPPED ON A DOC WAS A MOVE; the "lost row" account3 hit its limit on
+
+Picked up account3's rebuild-via-UI session (session limit at 06:24 CDT, mid-probe). Its last finding: a
+failed copy-link drag of Wake Up (6:00am → 9:00am) left the row with `parentId` → 6:00am and **no parent
+listing it**. It re-linked the row and started testing "does a drop outside any zone lose the row?"
+(its toolbar-release probe: no).
+
+**THE DROP WAS NOT OUTSIDE ANY ZONE.** The `transactions` collection answered where the server log
+could not (it records no writes): at 11:21:44 one gesture wrote exactly two docs:
+```
+6:00am                occurrences  [Breakfast, Wake Up] -> [Breakfast]
+How This Grid Works   textmap      + moduleEmbed(9d92f9a2 = Wake Up's OWN id)
+```
+The pointer missed 9:00am and released over the doc page. `Editor.jsx`'s block-embed drop branched on
+`dragMode === "copy"` only, so **copylink fell through to MOVE** and detached the source. The 09-17 (5)
+entry listed the handlers that honour only copy; this editor path was the one it did not name.
+`52ff999`→`352ff999`: `LayoutHelpers.mintLinkedCopy` is now the one definition of a linked copy
+(`copylinkInstanceToContainer` calls it and lists the copy; the doc path calls it and embeds the copy).
+Test written first, failed only on the missing branch. **Verified on prod through the UI:**
+`block-embed path {dragMode: copylink}` → `COPYLINK done`; Mongo: new row, same module, same
+`linkedGroupId`, 6:00am still lists Wake Up.
+
+**ACCOUNT3'S "RESTORE" ONLY REACHED MONGO.** Its re-link script joined the socket on poms grid, and
+`link_occurrence_to_parent` writes into `getUc()` — **the socket's active grid's cache, not the
+parent's**. Mongo listed Wake Up; the rebuild grid's warm cache (what every browser loads) did not, so the
+row stayed invisible. Re-synced through `update_occurrence` on a socket joined to the right grid.
+**Reported, not fixed:** the app's own tabs are always on the grid they edit, so only scripts hit it —
+but any probe that re-links must join the target grid first.
+
+**Debris, all removed through the app:** the stray embed (doc restored from the transaction's `before`),
+and the two linked copies my own verify drags made (the first run's socket logger was attached after the
+socket opened and printed nothing, so I misread a successful drop as "no drop"; Mongo showed two).
+
+**ALSO FROM ACCOUNT3'S LOG, still open:** undo of a copy-link fan-out reverts only the SOURCE (probe:
+`src true→false`, the 7:00am copy stayed `true`) — the SnapshotOp holds one doc. Together with
+`break_link` recording no transaction (09-22 above), linked groups and undo do not compose yet.
+
+---
+
 ### 2026-09-21 (4) — A FILE DROPPED ONTO A BOARD MADE A NEW PANEL, and lost its place on reload
 
 Rebuild-via-UI, file upload. Three defects, each found by dropping a real PNG onto the Tasks board:
