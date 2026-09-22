@@ -2,6 +2,24 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-22 (3) — RadialMenu: submenus, and an arc that cannot stack items)
+- **`arcItemsFor(items, openLabel)` (NEW, exported)** — a submenu REPLACES the arc it opened from,
+  with a `Back` item first. User: *"make a convert submenu so we dont have 4 convert buttons on the
+  arc menu. one convert button"*. An `openLabel` naming a submenu that no longer exists falls back
+  to the top level — the items memo rebuilds when a container's kind changes, and an empty arc is a
+  menu with no way out. `ModuleContainer`'s four `Convert to X` items are now one `Convert` with a
+  submenu, which is what takes that menu from ELEVEN items to eight.
+- **`arcAngles(direction, count, baseRadius)` (NEW, exported)** — items were spaced a fixed 45°, so
+  eight filled a revolution and the ninth landed on the first. Measured on prod: Settings / Set to
+  Copy / Hide Header sat on the IDENTICAL boxes of Convert to Canvas / Table / Graph, with the
+  destructive ones on top — the gear was unreachable and clicking it converted the container. The
+  step is capped to fit the ring and the radius grows until neighbours keep a whole button of room.
+- **`ARC_ITEM_GAP = 4` IS DERIVED, NOT CHOSEN:** 45° at r=42 is a 32.1px chord for a 28px button, so
+  every menu that already fit measures identically — pinned by a control test, because "items never
+  overlap" is equally satisfied by pushing every ring outward.
+- 6 tests in `__tests__/RadialMenu.test.js`. A/B'd: the fixed-45° version fails the overlap case; a
+  submenu that never replaces the arc fails the submenu case.
+
 ## Recent Changes (2026-09-22 (2) — FiltersSection: the config gestures route through `helpers/filterConfig`)
 - `setMuted` / `removeLocal` / `relock` and the Active toggle's two branches were four copies of one
   `updateOccurrenceFilterOverride` call, none of them inside an action scope — so the write that

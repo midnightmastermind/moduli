@@ -15,6 +15,87 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (14) — ELEVEN ITEMS ON A RING THAT HOLDS EIGHT: "Settings" WAS A CONVERT BUTTON
+
+Rebuild-via-UI, next area **styles** — the gap the census named: poms carries **468 occurrences
+with `ownStyle` and 193 styled modules**; the rebuild grid carried **0**.
+
+**I NEVER GOT TO THE STYLE TAB, BECAUSE OPENING IT CONVERTED THE CONTAINER.** Twice. The radial's
+`getAnglesForDirection` spaces items a FIXED 45°, so eight fill a full revolution and the ninth
+lands on the first. The container menu had ELEVEN items, and the three that lost are the three you
+reach for:
+```
+Settings     [790,73,28,28]  -> elementFromPoint says "Convert to Canvas"
+Set to Copy  [820,61,28,28]  -> "Convert to Table"
+Hide Header  [850,73,28,28]  -> "Convert to Graph"
+```
+Identical boxes, destructive item on top. **A screenshot is what made it undeniable: 8 circles for
+11 items.** So Settings was not merely mis-aimed — it was unreachable, and the click where the gear
+sits changes what the container IS.
+
+**THE PROBE GUARD IS WHAT FOUND IT, AFTER THE PROBE CAUSED IT.** My first run clicked the rect of
+the element titled "Settings" without asking what was under the point — the plain
+`querySelectorAll('[title]')` click this repo's probes have used for months. Adding *"hit-test the
+point and REFUSE when the element under it is not the one you asked for"* turned a silent
+conversion into `REFUSED — "Settings" is covered by "Convert to Canvas"`. *A click that lands is
+not a click that hit what you named.*
+
+**THE USER'S CALL IS THE BETTER FIX, and it is also the sizing fix:** *"make a convert submenu so we
+dont have 4 convert buttons on the arc menu. one convert button"*. One `Convert` item whose submenu
+REPLACES the arc (with `Back`) takes the menu from 11 items to **8** — exactly the ring's capacity —
+and keeps one interaction model instead of a second ring.
+
+**AND THE ARC CAN NO LONGER STACK, which is the part that generalises.** `arcAngles` caps the step
+to fit the ring and grows the radius until neighbours keep a whole button of room. **Calibrated
+from the geometry that already worked** — 45° at r=42 is a 32.1px chord for a 28px button, so
+`ARC_ITEM_GAP = 4` leaves every menu that already fit measuring identically. That equality is a
+CONTROL TEST, because "items never overlap" is equally satisfied by pushing every ring outward.
+
+**VERIFIED ON PROD BY CLICKING, and the table is the whole claim:**
+```
+top level   8 items   Settings · Set to Copy · Hide Header · Filter Override ·
+                      Apply Template · History · Remove · Convert      each hits ITSELF
+Convert ->  Back · Doc · Canvas · Table · Graph                        each hits ITSELF
+Back    ->  back to the 8
+```
+
+**THEN THE AREA I CAME FOR, and the cascade is sound.** Every level driven through the Style tab
+(which opens now), with the two sibling containers as controls:
+```
+                         Physical            Mind / Social (controls)
+module own = orange      paints orange       unchanged
++ placement = blue       paints BLUE         unchanged          <- nearest wins
+revert                   back to inherited   unchanged
+```
+The placement level is the one that matters on poms: its 400 occurrence styles are written by
+`Schedule: Mark Passed Slots`, not by hand, so it was exercised through the same `update_occurrence`
+the op uses. **A stored `0.28` paints at `0.24`** — the documented `SURFACE_ALPHA` cap, checked
+against 2026-08-17 rather than filed as a defect.
+
+**REPORTED, NOT FIXED: the custom-colour field takes any string.** My probe typed into it twice
+without clearing and the module stored
+`"rgba(255,140,0,0.28)rgba(255,140,0,0.28)rgba(255,140,0,0.28)"` with no complaint. A text input
+appending where you put the caret is ordinary; a style value that cannot parse is not, and
+`withSurfaceAlpha` returns an unrecognised value UNCHANGED, so a typo can leave a surface unpainted
+with nothing said.
+
+**Three more probe faults, all mine:** `.radial-menu button` matches nothing (the arc is portalled
+with class `radial-menu-item`) and read "0 items" on a menu that was open; picking a Radix Select
+option DISMISSES the settings popover, so the next step must re-open rather than assume; and the
+first two "Settings" clicks are the conversions above — **checked, not assumed, to have left
+nothing**: Physical came back byte-identical to its untouched sibling on every key.
+
+**Debris, all removed:** both probe styles cleared through the app's own events (grid-wide
+`ownStyle` occurrences **0**, modules with `styleMode: own` **0**, Physical vs Mind differing keys
+**{}**), and the 3 orphan "New card" modules account3's sweep had held back as too young were swept
+with a backup. Integrity **clean**.
+
+Client **4,778 pass**, the 1 failure the documented `trackerValues` OOM family. A/B'd: the fixed-45°
+version fails the overlap test; a submenu that never replaces the arc fails the submenu test.
+Deployed client-only.
+
+---
+
 ### 2026-09-22 (13) — THE FILTER CASCADE: DEACTIVATING ONE WAS NOT UNDOABLE, AND REACTIVATING IT LEFT IT OFF
 
 Rebuild-via-UI, next area **filters** — picked because it was the one major surface with **zero**
