@@ -20,6 +20,7 @@ import { markLoadOnce } from "../helpers/loadDiag";
 
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../GridActionsContext";
 import { SelectionContext } from "../state/SelectionContext";
+import { containerClaimsShiftClick } from "../helpers/shiftSelect";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { convertContainerKind, CONVERTIBLE_CONTAINER_KINDS } from "../helpers/convertOccurrence";
 import {
@@ -1187,6 +1188,13 @@ function Container({
       onClickCapture={(e) => {
         // Shift+click anywhere on the container shell toggles selection.
         // Capture phase so inner contentEditable / inputs don't swallow it.
+        //
+        // BUT NOT A CLICK THAT LANDED ON ONE OF ITS ROWS. Capture runs
+        // top-down, so this fired BEFORE the row and its stopPropagation()
+        // halted the event — measured on prod, a shift+click on an instance
+        // produced NO click on the row at all and toggled the container
+        // instead, so rows could not be multi-selected (helpers/shiftSelect).
+        if (e.shiftKey && !containerClaimsShiftClick(e.target)) return;
         if (e.shiftKey && containerOccurrence?.id) {
           e.preventDefault();
           e.stopPropagation();

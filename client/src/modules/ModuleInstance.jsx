@@ -1365,6 +1365,10 @@ function ModuleInstance({
   const clipMode = selection.clipboard?.mode;
   const isClipboardStaged = !!(occId && clipMode && selection.clipboard.ids.includes(occId));
 
+  // CAPTURE phase (see the JSX): the container around this row also claims
+  // shift+click in capture and stops propagation, so a bubble-phase handler
+  // here never ran. It defers to rows now, and capture keeps an inner
+  // contentEditable label or field input from swallowing the gesture.
   const handleWrapperClick = useCallback((e) => {
     if (e.shiftKey && occId) {
       e.preventDefault();
@@ -1655,7 +1659,7 @@ function ModuleInstance({
         transition: "opacity 0.1s", marginBottom: 2, position: "relative",
       }}
       {...props}
-      onClick={handleWrapperClick}
+      onClickCapture={handleWrapperClick}
       onContextMenu={handleContextMenu}
       {...instanceLongPress}
     >
