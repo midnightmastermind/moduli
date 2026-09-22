@@ -15,6 +15,18 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-21 (3) — A BUTTON PRESS RAN EVERY BUTTON OPERATION; and a button field could not be set up
+
+Rebuild-via-UI, continued. Both ButtonOp fire sites stamp `operationId` and `matchesTrigger` never read it,
+so one press ran every enabled `onButton` op whose subject passed, and a field-scoped one never ran from a
+widget. A named press now matches exactly that op (`6cac35ce`, A/B'd). The Fields tab had no way to write
+`meta.operationId`, so a UI-made button field always read "No operation configured" — its editor now has an
+operation picker + label. **Verified on prod through the UI:** Fields tab -> `Log` -> "Log a Glass" -> Save;
+pressing `Log` on the Trackers row minted a `Glass` in Water, persisted. The rebuild grid has only one
+`onButton` op, so the run-only-the-named-op half is unit-tested, not watched.
+
+---
+
 ### 2026-09-21 (2) — A GRID BUILT IN THE UI COULD NOT SAVE A TEMPLATE
 
 Picked up account3's UI rebuild of poms grid (`6ab15587…`, it hit its session limit mid-diagnosis).
