@@ -2,6 +2,24 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-22 (5) — `filterConfig.js` NEW: configuring a filter is one undo step)
+- The three filter-CONFIGURATION gestures — `activateFilter` / `deactivateFilter` /
+  `clearFilterOverride` — each in one `withAction`. Deactivate's two writes (mute the field, hide its
+  now-meaningless nav widget) share that action: undoing half leaves a filter that is off with its
+  nav missing. Measured on prod first: one click wrote two transactions and the mute carried NO
+  action id, so undo skipped it and only un-hid the widget.
+- **NOT wrapped inside `CommitHelpers.updateOccurrenceFilterOverride`, deliberately.** That helper is
+  also the operation effect UPDATE_ITEM_FILTER_OVERRIDE and the nav widget's own date step; stamping
+  it would make every app-authored filter write an undo step — the 201-action-ids failure
+  `actionScope.js` records. **Navigating a filter is not an edit; configuring one is.** A/B'd: that
+  version fails exactly the control test.
+- **Dropping the LAST entry writes `null`, never `{}`.** `selectors.js:335` reads an empty override
+  object as "clear every filter at this level" (a real value the seeded Daily Toolkit / Todo / Notes
+  pages store on purpose), so deleting the only key used to leave a page-wide clear behind — turning
+  a filter back ON left it OFF and switched off every other filter there too. Watched on prod.
+- `ui/FiltersSection.jsx` calls these; its `setMuted` / `removeLocal` / `relock` bodies (three copies
+  of one write) are gone. 8 tests in `__tests__/filterConfigIsOneUndoStep.test.js`.
+
 ## Recent Changes (2026-09-22 (4) — `breakOccurrenceLink` opens an action)
 `withAction("Broke link")` around the emit. Without the stamp the server records the break `derived`
 and the undo stack skips it — measured on prod, Ctrl+Z then undid the copy-link drag underneath and

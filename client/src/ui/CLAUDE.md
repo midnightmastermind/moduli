@@ -2,6 +2,16 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-22 (2) — FiltersSection: the config gestures route through `helpers/filterConfig`)
+- `setMuted` / `removeLocal` / `relock` and the Active toggle's two branches were four copies of one
+  `updateOccurrenceFilterOverride` call, none of them inside an action scope — so the write that
+  actually deactivates a filter was recorded `derived` and undo skipped it. They call
+  `filterConfig.activateFilter` / `deactivateFilter` / `clearFilterOverride` now, one `withAction`
+  each, and the deactivate pair (mute + hide nav) lands under ONE action.
+- **`handleNav` is deliberately untouched** — the nav widget's arrows are navigation, not an edit,
+  and the toolbar's date step writes no transaction at all.
+- Net −22 lines; details and the A/B in helpers/CLAUDE.md.
+
 ## Recent Changes (2026-09-22 — Editor: a copy-link drop into a doc embeds a LINKED COPY)
 - The block-embed drop branched on `dragMode === "copy"` only, so a `copylink` row dropped on a doc went
   down the MOVE path and was detached from its container (found on prod: a missed drag released over a

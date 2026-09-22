@@ -15,6 +15,90 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (13) — THE FILTER CASCADE: DEACTIVATING ONE WAS NOT UNDOABLE, AND REACTIVATING IT LEFT IT OFF
+
+Rebuild-via-UI, next area **filters** — picked because it was the one major surface with **zero**
+coverage on the rebuild grid, measured rather than guessed:
+```
+                filters  filterOverride  filterNavConfig
+poms grid          3           13              65
+poms rebuild       0            0               0
+```
+That is the cascade poms' whole schedule and every day page resolve through.
+
+**THE CASCADE ITSELF IS SOUND, and the control is what makes that mean anything.** Stepping the
+toolbar date empties the Schedule and stepping back refills it; turning the inherited date filter
+OFF on **7:00am only** keeps its rows while its sibling empties:
+```
+              Sep 21 (before)                       Sep 22
+6:00am        [Breakfast, Wake Up]                  []          <- control, still filtered
+7:00am        [Wake Up, Stretch, Breakfast]         [Wake Up, Stretch, Breakfast]   <- overridden
+```
+
+**AND THE EMPTY SCHEDULE ON AN UNBUILT DAY IS NOT A DEFECT — checked against poms rather than
+assumed.** Every slot child on BOTH grids carries a specific date (`poms 7:00am -> Hygiene
+2026-08-10`); poms has **22** "7:00am" slots because its build ops mint one per day. The rebuild
+grid has no such op, so tomorrow is empty by construction.
+
+**DEFECT 1 — TURNING A FILTER OFF WAS TWO TRANSACTIONS, AND THE HALF THAT DID SOMETHING WAS NOT
+UNDOABLE.** Read out of the `transactions` collection after one click:
+```
+seq 2125  action 01b43867  filterNavConfig  {} -> {filter_...: {visible:false}}   <- the cosmetic half
+seq 2126  action null      filterOverride   null -> {date: null}                  <- the actual change
+```
+An unstamped write is recorded `derived` and the undo stack skips it, so **Ctrl+Z un-hid the nav
+widget and left the filter deactivated.** Same class as 09-22 (8)'s `createPageInContainer`.
+
+**THE STAMP GOES ON THE GESTURE, NOT ON THE COMMITHELPER, and that is the load-bearing decision.**
+`updateOccurrenceFilterOverride` is also how an operation moves a page's filter
+(`bindSocketToStore` UPDATE_ITEM_FILTER_OVERRIDE) and how a nav arrow steps a date; wrapping it
+would make every app-authored filter write an undo step — the failure `actionScope.js` already
+records (*one checkbox, 201 action ids, so Ctrl+Z undid the last derived write*). The line that
+falls out: **navigating a filter is not an edit — the toolbar's date step writes no transaction at
+all — while configuring one is.** `helpers/filterConfig.js` is the three configuration gestures,
+each in one `withAction`; deactivate's two writes share it, because undoing half leaves a filter
+that is off with its nav missing.
+
+**DEFECT 2, FOUND BY WATCHING THE FIRST FIX WORK: turning a filter back ON left it OFF.** The probe
+reported the Active switch still reading `false` after an activate. `selectors.js:335` is why —
+`if (Object.keys(override).length === 0) { effective = {} }`: an **empty override object means
+"clear every filter at this level"**, a real stored value the seeded Daily Toolkit / Todo / Notes
+pages carry on purpose. Deleting the only key left `{}` behind, so the gesture switched the filter
+off *and silently cleared every other filter there too*. `null` is the value that means "no opinion
+here". Pre-existing — the old `setMuted` deleted the key the same way — and the refactor one commit
+earlier preserved it faithfully, which is how it became visible.
+
+**VERIFIED ON PROD THROUGH THE UI, the whole gesture in one table:**
+```
+                 filterOverride              nav       switches
+Active ON        {date: 2026-09-22}          hidden    Active on
+Nav ON           {date: 2026-09-22}          visible   Active on · Nav on
+Active OFF       {date: null}                hidden    both off        <- ONE action, two docs
+ONE Ctrl+Z       {date: 2026-09-22}          visible   both back on    <- both halves
+relock           null  (inherit, not {})     -         Active on       <- defect 2 fixed
+```
+
+**MY OWN PROBE MISLABELLED ITS STEPS AND THE SWITCH STATE IS WHAT CAUGHT IT.** The first run read
+only the STORED value, so it recorded a second *activation* as a "deactivate" and would have
+reported the two-write case verified when that path never ran. Reading `aria-checked` beside the
+override is what exposed defect 2 at the same time. *A gesture probe that reads only the data has
+no way to know the control it clicked did something else.*
+
+**Debris, all removed:** the `filterNavConfig` key my probes left on the 7:00am slot (cleared through
+the app's own `update_occurrence`, on a socket joined to this grid), and the 3 orphan "New card"
+modules account3's sweep correctly held back as too young to judge — old enough now, swept with a
+backup. The grid ends where it started: **315 occurrences, 0 filter keys of any kind, integrity
+clean.**
+
+**A/B, both fixes, each mutation asserted to land:** stripping `withAction` fails 4 of 5; wrapping
+the CommitHelper instead — the tempting wrong fix — fails exactly the control that keeps an op's
+filter write derived; restoring the `{}` write fails both inherit cases while the control (an
+override still holding another field) passes in both arms. Client 4,769 pass; the 1 failure is the
+documented `trackerValues` OOM family. Deployed client-only, so `deploy.sh` correctly reported
+*"Server unchanged — NOT restarting"*.
+
+---
+
 ### 2026-09-22 (12) — UNDOING A COPY-LINKED CHANGE LEFT THE COPIES CARRYING THE NEW VALUE
 
 The last of the linked-group undo gaps, open since the account3 handoff (*"undo of a copy-link
