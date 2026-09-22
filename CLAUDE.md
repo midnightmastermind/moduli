@@ -81,6 +81,72 @@ applies every pending migration, not the one you wrote — dry-run the rehearsal
 
 ---
 
+### 2026-09-22 — COPY-LINK, VERIFIED BY CLICKING; and the last raw socket.emit in the component tree
+
+Continuing *"we are diagnosing and creating poms grid over using the ui, so we can test everything"* on
+the rebuild grid `6ab15587`. The user's own answers set the course: stay on this grid, next area
+**copy-link / linked groups**, handle defects **"Fix, test, deploy as I go"**.
+
+**THE IN-GRID-DROP FIX IS CONFIRMED ON PROD.** One copy-link drag, watched on the wire:
+```
+before (the defect)                      after (deployed e26737f0)
+WS 5758 create_occurrence                WS 2616 create_occurrence
+DT 5784 drop text="Wake Up"              DT 2639 drop text="Wake Up"
+WS 5788 create_module  Wake Up   <-      (nothing)
+WS 5816 create_occurrence        <-      (nothing)
+```
+The stray plain copy is gone. `DragProvider`'s grid-frame `onDrop` now carries the same two guards its
+sibling `onDragOver` always had.
+
+**THE DEBRIS WAS REPAIRED THROUGH THE UI, NOT MONGO** — so the warm cache and any open tab stayed
+coherent, and the delete path got exercised on the way. 3 strays + 1 duplicate my own verify drag left.
+Read back: **0 occurrences, 0 orphan modules, 0 refs in any parent list, 0 dangling child refs
+grid-wide, 0 occurrences whose module is missing.**
+
+**AND THE CENSUS SPARED TWO ROWS THE TASK LIST HAD CONDEMNED.** The handoff named *"duplicate
+Breakfast/Wake Up rows in 6:00am and 12:00pm"*. Two of the candidates carry
+**`meta.appliedFromTemplateId` + `meta.clonedFromModuleId`** — they are an APPLY_TEMPLATE from the
+earlier session, not defect debris. The real strays are discriminated by shape, not by label:
+```
+                         stray (defect)        legit clone            legit UI-created
+occurrence id            timestamp-<rand>      uuid                   uuid
+module created           same millisecond      01:57:46 (template)    at build time
+module fieldBindings     0                     0                      0
+occurrence meta          {}                    appliedFromTemplateId  userTouched
+linkedGroupId            none                  none                   none
+```
+*A label that duplicates a sibling is not evidence; the mint's own fingerprint is.*
+
+**COPY-LINK WORKS IN BOTH DIRECTIONS AND SURVIVES A DELETE, measured rather than assumed.** A
+3-member group (6:00am source + 7:00am + 12:00pm copies, one shared `linkedGroupId`):
+```
+                                   6:00am src   7:00am copy   12:00pm copy
+before                                true          true          true
+untick Done on the SOURCE             false         false         false    <- read back out of Mongo
+after deleting a FOURTH member        group intact, 3 members, lg unchanged
+```
+The earlier session had only proven copy -> source. **Source -> copies is the direction a
+one-way fan-out would have silently failed at**, and it is the one nobody had watched.
+
+**A DEFECT FOUND BY READING WHAT ELSE TOUCHES `linkedGroupId`: "Break Link" was the last raw
+`socket.emit` in the whole component tree.** It skipped `safeEmit`, which is both the offline queue
+and the `__actionId` undo stamp — so a Break Link pressed while the socket is down is dropped with no
+queue and no error, and the row silently keeps fanning every later edit out to its group. Routed
+through a new `CommitHelpers.breakOccurrenceLink`; a source guard keeps the count at zero.
+
+**THE GUARD'S FIRST VERSION WAS TOO STRICT AND THE DATA NARROWED IT.** It failed on two REQUEST emits
+in `BookmarkView` (`import_text`, `import_plan`), both passing an **ack callback** — and
+`safeEmit(socket, event, data)` takes no third parameter, so it cannot carry one. A request/response
+emit is not something it can replace, and BookmarkView already reports its own failure through that
+ack. Scoped to fire-and-forget, with the exemption's reasoning written where the next person will
+read it. **MY OWN GREP OVER THAT SAME TREE REPORTED ONE HIT AND MISSED BOTH** — the walker is the
+measurement, the hand grep was not.
+
+7 tests, A/B'd against the raw emit: **2 fail** (the walker + the wiring pin). The other 4 pass in
+BOTH arms and are **reported as contract pins, not coverage.**
+
+---
+
 ### 2026-09-19 (11) — PICKER CHAINS, ALARM TIMES, UNDOABLE MOOD PICKS, AND A TOOLBAR THAT STAYS ONE LINE
 
 Five asks in one message, each measured before it was changed.

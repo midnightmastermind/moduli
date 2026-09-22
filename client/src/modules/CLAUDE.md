@@ -2,6 +2,14 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-09-22 — ModuleInstance: Break Link goes through CommitHelpers)
+- **`ModuleInstance.jsx`** — the linked-row radial's "Break Link" called `socket.emit("break_link")`
+  directly. It is `CommitHelpers.breakOccurrenceLink({ socket, occurrenceId })` now, so it goes
+  through `safeEmit` (offline queue + the `__actionId` undo stamp) like every other write. It was
+  the ONLY fire-and-forget raw emit left in `modules/ ui/ docs/ mobile/ components/`, and a source
+  guard in `__tests__/breakLinkGoesThroughCommitHelpers.test.js` keeps it at zero. Rationale and the
+  ack-callback exemption: helpers/CLAUDE.md 2026-09-22 (2).
+
 ## Recent Changes (2026-09-15 (3) — bookmark freeze, link button, Web mode over https, header caret)
 - **`ArtifactCard.jsx`** — the `.artifact-thumb-page-hint` chip over the cover is gone; a bookmark
   opens as a page from the row's own bottom-right `.instance-url-btn` (ModuleInstance), which on a

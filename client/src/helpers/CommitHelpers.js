@@ -1593,3 +1593,21 @@ export async function uploadFile({ file, userId, gridId, parentFolderId = null, 
     return null;
   }
 }
+/**
+ * Break an occurrence out of its copy-link group.
+ *
+ * The server nulls `linkedGroupId` and broadcasts `occurrence_updated`, so the
+ * local store catches up from the echo — there is nothing to dispatch here.
+ *
+ * WHY IT LIVES HERE: `ModuleInstance`'s radial called `socket.emit("break_link")`
+ * DIRECTLY — the only raw emit left in the whole component tree (measured
+ * 2026-09-22: one hit across modules/ ui/ docs/ mobile/ components/). That
+ * bypasses `safeEmit`, so a Break Link pressed while the socket is down is
+ * dropped on the floor with no queue and no error — the row keeps propagating
+ * every later edit to its group and the user has no way to know the break never
+ * happened. Same class as the raw `create_module` emit fixed on 2026-09-19.
+ */
+export function breakOccurrenceLink({ socket, occurrenceId, emit = true }) {
+  if (!occurrenceId) return;
+  if (shouldEmit(emit)) safeEmit(socket, "break_link", { occurrenceId });
+}

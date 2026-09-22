@@ -2,6 +2,27 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-22 (2) — Break Link was the last raw `socket.emit` in the component tree)
+- **`CommitHelpers.breakOccurrenceLink` (NEW)** — `ModuleInstance`'s radial called
+  `socket.emit("break_link", …)` DIRECTLY. Measured across `modules/ ui/ docs/ mobile/ components/`:
+  **exactly one fire-and-forget emit outside CommitHelpers**, and this was it. A raw emit skips
+  `safeEmit`, which is both the offline queue AND the `__actionId` stamp, so a Break Link pressed
+  while the socket is down is dropped with no queue and no error — the row silently keeps fanning
+  every later field edit out to its group. Same class as the raw `create_module` emit fixed on
+  2026-09-19.
+- **The guard is scoped to FIRE-AND-FORGET, and the data forced that narrowing.** Its first version
+  failed on two REQUEST emits in `modules/BookmarkView.jsx` (`import_text`, `import_plan`), both of
+  which pass an **ack callback** as the third argument. `safeEmit(socket, event, data)` takes no
+  third parameter — it cannot carry an ack — so a request/response emit is not something it can
+  replace, and BookmarkView already reports its own failure through that ack. A guard that flags
+  what has no fix gets deleted the first time it is in the way.
+- **MY OWN `grep` OVER THE SAME TREE REPORTED ONE HIT AND MISSED BOTH.** The test's walker is the
+  measurement; the hand grep was not. *Third time this file records a probe under-reporting and the
+  written check catching it.*
+- `__tests__/breakLinkGoesThroughCommitHelpers.test.js` (7). A/B'd against the raw emit: 2 fail
+  (the walker + the wiring pin). **The 4 unit cases pass in BOTH arms and are NOT counted as
+  coverage** — they pin the helper's contract, not the fix.
+
 ## Recent Changes (2026-09-21 (4) — an uploaded file vanished from where it was dropped after a reload)
 - Every upload path lists the placeholder in its destination the moment it is dropped, but the server only
   creates the file's occurrence when the upload finishes — so `update_occurrence` dropped it as an unknown

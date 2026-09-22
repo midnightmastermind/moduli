@@ -688,7 +688,7 @@ function InstanceInner({
       {
         icon: Unlink,
         label: "Break Link",
-        onClick: () => socket?.emit("break_link", { occurrenceId: occurrence.id }),
+        onClick: () => CommitHelpers.breakOccurrenceLink({ socket, occurrenceId: occurrence.id }),
         color: "bg-orange-600 hover:bg-orange-500",
       },
       toggleLabelItem,
