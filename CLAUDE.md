@@ -15,6 +15,44 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (7) — THE 22 UNREACHABLE ROWS: 12 RESTORED, 4 WOULD HAVE BEEN DUPLICATES
+
+The user's call on (2)'s finding: *"Just the 16 food rows"*. Re-measured before writing rather than
+inherited — 27 rows whose parent does not list them, of which **5 render elsewhere** (multi-parented,
+fine) and **22 are listed by nobody**. The 16 food rows (10 Ingredients + 6 Grocery List, all
+2026-07-28) were re-attached with the app's own atomic `link_occurrence_to_parent`, on a socket
+**joined to poms grid** — the wrong-grid relink earlier today wrote Mongo and left the warm cache
+untouched, so the row stayed invisible. Backed up first (`poms-unlisted-food-backup.json`).
+```
+              listed in mongo   listed in cache   rows present in cache
+before              0/16              0/16                16/16
+after              16/16             16/16                16/16
+```
+**VERIFIED ON SCREEN, not just in the data:** the Ingredients board renders Rice · Spinach · Greek
+Yogurt · Oats · Salmon · Olive Oil · Sweet Potatoes · Black Beans with their Calories/Protein/Carbs/
+Fats chips; Grocery List renders Milk · Bananas · Coffee Beans · Paper Towels.
+
+**AND FOUR OF THE SIXTEEN CAME BACK AS A SECOND COPY — reverted.** The restored rows are the JULY
+SEED shape (8 fields); the user has since built richer rows for some of the same items:
+```
+Eggs · Greek Yogurt      twin has 30 fields              -> unlisted again
+Chicken Thighs · Frozen Berries   twin is a 23-field feed copy   -> unlisted again
+the other 12             no twin in that board           -> kept
+```
+Unlisted through `update_occurrence` on the parent (there is no unlink event; a drag-out writes the
+parent's list the same way). The 4 rows themselves are untouched and still exist — the board is
+exactly as it was this morning. *A row that is missing and a row that is superseded look identical
+until you compare FIELD COUNTS against what already renders.*
+
+**AND THE SEARCH FINDS THESE ROWS — my probe was the thing that could not.** `buildSearchIndex`
+walks every occurrence in the store, reachable or not, so an unlisted row was always findable;
+typing into the page instead of the search input, then reading the wrong markup, reported "no hits"
+twice. Picking the hit whose path reads `Ingredients › Ingredients` opens the page; **the first of
+six same-named hits opened nothing** — the results are not disambiguated by path in the picking
+order, which is a real UX edge, reported not fixed.
+
+---
+
 ### 2026-09-22 (6) — BUILDING AN OPERATION BY CLICKING FOUND TWO DEFECTS IN THE EDITOR ITSELF
 
 Rebuild-via-UI, next area **operations**. The rebuild grid already had three (2 onLoad, 1 onButton),

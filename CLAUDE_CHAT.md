@@ -3529,3 +3529,9 @@ preview allows you to open it inline in web. why cant we."
 **2026-09-22 08:03 CDT** — "also look into why the browser, disappears when i click on the cover photo of a bookmark. it just resolves to an image instead"
 
 **2026-09-22 08:38 CDT** — "keep going" (rebuild via UI: link import → "Import the page")
+
+**2026-09-22 12:10 CDT** — "keep going, i stopped the others" (the other two accounts were working the same rebuild; this session continues alone)
+
+**2026-09-22 ~12:12** — AskUserQuestion: the 22 unreachable poms rows → **"Just the 16 food rows"** (re-attach Ingredients + Grocery List; leave the other 6)
+
+**2026-09-22 12:19 CDT** — "why doesnt search find it" — it does; the probe was typing into the page, not the search box. Reported: several same-named hits, and only the one with the right path navigates.
