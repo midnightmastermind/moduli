@@ -1244,6 +1244,17 @@ export function DragProvider({
       const dt = e.dataTransfer;
       if (!dt) return;
 
+      // SAME TWO GUARDS AS onDragOver ABOVE — an in-grid drag is not an
+      // import. Pragmatic DnD puts the dragged item's LABEL in `text/plain`,
+      // so the `!hasFiles && !html && !text` bail below can NEVER fire for an
+      // internal drag: measured on prod 2026-09-22, one drag of "Wake Up"
+      // committed its real drop and then ran this handler with
+      // text/plain="Wake Up", minting a duplicate module + occurrence of the
+      // row that had just been dragged. The preview was correctly suppressed
+      // the whole time, because onDragOver has these guards and this did not.
+      if (sessionRef.current?.dragging) return;
+      if (Array.from(dt.types || []).includes(NATIVE_DND_MIME)) return;
+
       const hasFiles = dt.files?.length > 0;
       let html = "";
       let text = "";
