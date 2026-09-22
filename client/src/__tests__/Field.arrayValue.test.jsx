@@ -40,12 +40,16 @@ describe("Field — stored array values render (multi-select)", () => {
     expect(screen.queryByText("—")).toBeNull();
   });
 
-  it("joins multiple stored tags", () => {
+  // Each stored tag renders — as its own chip since 2026-09-22, when the
+  // compact multi-select moved onto the shared multi-pick control (it used to
+  // join them into one "journal, idea" string and could only WRITE one value).
+  it("shows every stored tag", () => {
     renderWithCtx(
       <Field field={tagsField} binding={{ fieldId: "f-tags", role: "input" }}
         value={["journal", "idea"]} compact onCommit={vi.fn()} />
     );
-    expect(screen.getByText("journal, idea")).toBeTruthy();
+    expect(screen.getByText("journal")).toBeTruthy();
+    expect(screen.getByText("idea")).toBeTruthy();
   });
 });
 

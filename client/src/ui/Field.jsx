@@ -55,7 +55,6 @@ import AutoMarquee from "./AutoMarquee";
 import { jumpToOccurrence } from "../helpers/jumpToOccurrence";
 import { useGridActionsSelector } from "../GridActionsContext";
 import { runMatchingOperations } from "../helpers/operationExecutor";
-import { setComputedValuesAction } from "../state/actions";
 import LoadingImage from "./LoadingImage.jsx";
 import { searchProviderConfig, mapProviderFields } from "../helpers/providerFieldMap.js";
 
@@ -1786,6 +1785,20 @@ function Field({
     if (compact && type === "select") {
       const allOpts = meta?._resolvedOptions || [];
       const displayOpts = meta?.removeOnComplete ? allOpts.filter(o => !usedCompletedValues.includes(o.value)) : allOpts;
+      // "SEVERAL PICKS" WRITES A LIST (2026-09-22). This pill ignored
+      // `multiSelect` and stored one bare value — a second pick replaced the
+      // first, and poms grid's 400 values for the same field are all arrays.
+      // The same control the compact occurrence pill and the full-size select
+      // already use for a multi-pick, not a second one.
+      if (meta?.multiSelect === true) {
+        const selectedValues = Array.isArray(localValue) ? localValue : localValue ? [localValue] : [];
+        return (
+          <MultiSelectWithAdd name={showLabel ? name : ""} options={displayOpts} selected={selectedValues}
+            onChange={vals => { handleChange(vals); onCommit?.(vals); }}
+            onAddOption={onAddOption || selectQuickAdd} disabled={disabled} compact={compact}
+            showLabel={showLabel} randomize={!!meta?.randomize} fieldName={name} />
+        );
+      }
       const currentLabel = Array.isArray(localValue)
         ? localValue.map(v => displayOpts.find(o => o.value === v)?.label ?? v).join(", ") || "—"
         : displayOpts.find(o => o.value === localValue)?.label ?? localValue ?? "—";
