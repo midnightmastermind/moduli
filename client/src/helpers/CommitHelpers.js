@@ -1320,6 +1320,9 @@ export function addScratchBrowser(args) {
 export function addBookmarkOccurrence({
   dispatch, socket, gridId, userId, containerOccurrence, url = "",
   label = null, scratch = false, index = null, list = true, meta = null,
+  // Optional record fields — the intake sheet binds the grid's URL field when
+  // it has one, so a pasted bookmark stays filterable like the imported ones.
+  fieldBindings = null, fields = null,
 }) {
   if (!gridId || !userId || !containerOccurrence) return null;
   const moduleId = crypto?.randomUUID?.() || `bm-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -1334,6 +1337,7 @@ export function addBookmarkOccurrence({
     label: label || (scratch ? "Browser" : hostLabel(url) || "Bookmark"),
     fileRef: url || "",
     meta: { external: true },
+    ...(fieldBindings?.length ? { fieldBindings } : null),
   };
   const occurrence = {
     id: occurrenceId, userId, gridId, moduleId,
@@ -1345,6 +1349,7 @@ export function addBookmarkOccurrence({
     // saved, so writing the flag only where it is true keeps a saved bookmark
     // byte-identical to every bookmark that predates the flag.
     meta: { ...(meta || null), ...(scratch ? { scratch: true } : null), ...(url ? { url } : null) },
+    ...(fields ? { fields } : null),
   };
 
   dispatch?.(createModuleAction(module));

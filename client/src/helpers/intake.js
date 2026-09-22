@@ -48,7 +48,7 @@ export const INTAKE_SHAPES = {
   // shape with a real route rather than an unnamed fallback.
   LINK_INSTANCE: { id: "link-instance", label: "Plain item", hint: "A card labelled with the link (today's behaviour)" },
   LINK_CHIP: { id: "link-chip", label: "Link chip", hint: "An inline chip you can click" },
-  LINK_BOOKMARK: { id: "link-bookmark", label: "Bookmark card", hint: "Title and favicon, with room for a note" },
+  LINK_BOOKMARK: { id: "link-bookmark", label: "Bookmark card", hint: "Title and cover — opens in the viewer" },
   LINK_PAGE: { id: "link-page", label: "Import the page", hint: "Fetch it and build the whole tree" },
   LINK_CONTAINER: { id: "link-container", label: "Container of links", hint: "One container holding every link" },
   LINK_BOARD_OPTION: { id: "link-board-option", label: "Board option", hint: "A real tagged option this board's dropdowns can see" },
