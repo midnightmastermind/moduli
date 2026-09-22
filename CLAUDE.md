@@ -15,6 +15,44 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (9) — FOLDERS: AN EMPTY ONE COULD NOT BE RENAMED, AND A RENAME STOPPED AT THE FOLDER
+
+Rebuild-via-UI, next area **folders** (poms files its pages in them: Boards · Library · Day Pages ·
+Imports). Built through the tree: **New folder -> rename -> "New page…" inside it -> rename the
+page**. The rebuild grid now carries `Boards/Body`, `Library` and `Media`.
+
+**DEFECT 1 — DOUBLE-CLICK, THE DOCUMENTED RENAME, DID NOTHING ON AN EMPTY FOLDER.** A childless
+folder has nothing to expand, so its pill NAVIGATES (2026-08-25, deliberate: *"a click that visibly
+does nothing reads as broken"*) — and that navigation swapped the panel out from under the second
+click, so the row's own `onDoubleClick` never fired. Right-click -> Rename was the only way in.
+**The control is what made this a defect rather than a guess:** the same double-click on `Files`
+(which HAS children, so its click only expands) opens the rename every time.
+```
+                        dblclick opens rename
+folder WITH children             YES        <- control
+EMPTY folder                     NO         -> panel navigated to its page instead
+```
+The open is deferred one double-click window (260ms) and cancelled when a second click arrives.
+**No unit test — it is a timer inside `FolderNode`, which needs the whole tree mounted** — so it was
+verified in a browser on prod, BOTH halves: dblclick renames the empty folder, a single click still
+opens it.
+
+**DEFECT 2 — RENAMING A FOLDER LEFT ITS OWN PAGE WEARING THE OLD NAME.** Measured: the `Library`
+folder's page still read `New Folder`, and that label is what the panel header, the folder card and
+the tree's page row all show — so the rename looked applied in the tree and nowhere else.
+`helpers/folderRename.planFolderPageRename` is the rule, pure and tested (4 cases): follow the
+rename only while the page still wears the folder's OLD name, **never a title the user chose** — the
+precedence `addBookmarkOccurrence` already uses for a fetched `<title>`. Verified on prod: rename the
+folder, its page follows (`New Folder` -> `Media`).
+
+**PROBE FAULTS, three, all mine:** the tree renders only what is EXPANDED (a collapsed Root shows
+none of its folders, which reads as "the new folder is invisible"); a panel-wide text search finds
+the PAGE HEADER before the tree row, and I renamed a folder page by accident that way; and opening a
+folder page CLOSES the tree, so the next lookup in the same probe throws. *Scope a tree lookup to
+the tree, not to the panel.*
+
+---
+
 ### 2026-09-22 (8) — A TABLE BUILT BY CLICKING; and ADDING A ROW WAS TWO UNDO STEPS, the second an orphan
 
 Rebuild-via-UI, next areas **table containers** and **undo/redo**.
