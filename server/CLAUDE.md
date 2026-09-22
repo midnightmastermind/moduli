@@ -2,6 +2,16 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-22 (3) — a fan-out is ONE undo step)
+`update_occurrence` propagates a field write to every member of a linked group and recorded ONE doc —
+the row edited — so undo reverted the source and left the copies on the new value. Each fanned member
+is now recorded under the SAME `__actionId`, AFTER its upsert lands (a snapshot for a write that then
+failed would claim a value the database never held), wrapped so recording cannot fail the write.
+Measured first across every grid: 671 groups / 1548 members, largest 16, and ZERO members carry a
+textmap — so this adds field-only snapshots; `planUndoSync` has no doc-count limit, so a 16-doc
+transaction still takes the incremental path. `__tests__/fanOutIsOneUndoStep.test.js` (4; 2 fail with
+the recording removed, the other 2 are contract pins that pass in both arms).
+
 ## Recent Changes (2026-09-22 (2) — `break_link` records a transaction, so undo stops deleting the row)
 It nulled `linkedGroupId`, saved and broadcast, and called `recordDoc` zero times — so the break left
 no transaction and the undo stack reached PAST it. Measured on prod: Ctrl+Z after a Break Link undid

@@ -15,6 +15,56 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (12) — UNDOING A COPY-LINKED CHANGE LEFT THE COPIES CARRYING THE NEW VALUE
+
+The last of the linked-group undo gaps, open since the account3 handoff (*"undo of a copy-link
+fan-out reverts only the SOURCE"*). `update_occurrence` propagates a field write to every member of
+the group and recorded **one doc — the row you edited**. So undo put the source back and left every
+copy on the new value. **A half-reverted group is worse than no undo:** the members disagree, and
+the next edit fans one of them back over the other.
+
+**MEASURED BEFORE WRITING IT, across every grid, because this is the hot write path:**
+```
+671 linked groups · 1548 members · largest group 16 · members carrying a textmap  0
+```
+The zero is what made it safe: the fan-out adds FIELD-ONLY snapshots, never a gzip per member. And
+`planUndoSync` has no doc-count limit, so even a 16-doc transaction keeps the incremental path.
+Each member is recorded under the SAME `__actionId` as the source write, **after** its upsert lands
+(recording a write that then failed would put a value in the trail the database never held).
+
+**VERIFIED ON PROD THROUGH THE UI, on a pair minted by a copy-link drag:**
+```
+before      src=false  copy=false
+tick src    src=true   copy=true     <- the fan-out
+ONE undo    src=false  copy=false    <- BOTH, read back out of Mongo
+transaction 74219f40 "2 changes" [undone]  docs: 9d92f9a2 17901028
+```
+The transaction label says it: one gesture, two docs, one press.
+
+**A "LOST ROW" THAT TURNED OUT TO BE THIS MORNING'S FIX WORKING.** The drag that minted the pair
+reported *"could not settle the pointer inside 9:00am"* and still created a copy with `parentId:
+null` **listed by nobody** — the exact signature of the row the 09-22 (2) entry chased. It is not a
+defect: scanning every textmap found it **embedded in "How This Grid Works"**, i.e. the pointer
+missed the slot and released over the doc page, and `352ff999` correctly minted a LINKED copy and
+embedded it. *"Listed by nobody" is only a defect on a surface that renders its list; a doc renders
+its textmap.* Checking that before filing it is the whole difference.
+
+**Probe debris, all removed:** the embedded copy (its doc radial says **Remove** — an unlink, because
+the doc does not own it — so it was then deleted through the app's own `delete_occurrence`), the lone
+group the drag left on the source (cleared with Break Link), and the drag mode cycled back to Move.
+`sweepOrphans --grid "poms rebuild" --apply` took one orphan module left by the OTHER account's undo
+probe (**undoing a row create deletes the occurrence and leaves the module** — the documented
+lifecycle the sweeper exists for) and **correctly KEPT three modules only 32-41 minutes old**,
+"placement may be in flight". Grid integrity **clean**.
+
+**Two probe faults, both mine, both silent:** `delete_occurrence` takes `occurrenceId`, not `id`, so
+my first delete returned early and reported "STILL PRESENT" as if the handler were broken; and
+`querySelector('[data-occurrence-id="<prefix>"]')` needs the FULL id — a prefix matches nothing,
+which reads exactly like "the embed is not rendered". The doc also has to be SCROLLED first, or its
+lazy editors have not mounted the embed at all.
+
+---
+
 ### 2026-09-22 (11) — UNDO AFTER "BREAK LINK" DELETED THE ROW, because the break recorded nothing
 
 The other half of what the user said yes to: the **linked-group undo gaps**. `break_link` nulled
