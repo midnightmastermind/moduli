@@ -3527,3 +3527,5 @@ preview allows you to open it inline in web. why cant we."
 **2026-09-22 ~07:45** — AskUserQuestion: the sheet's "Bookmark card" should make → **"Same as Browser"** (the artifact bookmark, URL field filled when present).
 
 **2026-09-22 08:03 CDT** — "also look into why the browser, disappears when i click on the cover photo of a bookmark. it just resolves to an image instead"
+
+**2026-09-22 08:38 CDT** — "keep going" (rebuild via UI: link import → "Import the page")

@@ -15,6 +15,37 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (4) — "IMPORT THE PAGE" WROTE A WHOLE ARTICLE THAT NO SCREEN COULD SHOW
+
+Rebuild-via-UI, link import continued: paste a Wikipedia link over the Bookmarks container → "Import the
+page". The tree was written; nothing appeared. **Two independent defects, both measured on prod:**
+- **SERVER — the warm cache never learned the listing.** `markdownToModuli` `$push`es its own root into
+  the parent in MONGO; every linker after it (`linkRootIntoParent`, REST `linkIntoParent`) found it
+  already listed, returned null, and the callers synced the cache and broadcast only `if (linked)`.
+  ```
+  mongo Bookmarks.occurrences   [bookmark, 64d6d068]
+  cache Bookmarks.occurrences   [bookmark]              <- every tab + full_state reads this
+  ```
+  Both linkers now return the parent whenever the child ENDS UP listed; `publishLinkedParent` is the one
+  cache-merge + broadcast step for `import_text`/`import_url`; four REST import routes that never listed
+  their import now call `linkIntoParent`. `markdownToModuli`'s push is KEPT (scripts, migrations,
+  `server.js` call it). Verified: a post-deploy import is in the cache immediately.
+- **CLIENT — a board container does not render a child CONTAINER** unless its module allows child
+  containers, and the import root is a doc container. The doc-page text shape already wrapped its import
+  in a page (`createPageInContainer` flips `allowChildContainers`, the page embeds the root);
+  `wrapImportInPage` is now that one step, used by "Import the page" when the destination is a container.
+  `import_url` replies with the page title so the wrapper is named for the article. **Verified in the
+  UI:** "Zazen - Wikipedia" appears in Bookmarks immediately.
+
+**FOUND, NOT FIXED: deleting an imported page orphans most of it.** The importer mints children with
+`parentId: null` ("set when added to container.occurrences" — never set), and `delete_occurrence`'s
+cascade follows only children whose `parentId` points back. Measured on the two probe imports: 3 of 4 and
+10 of 18 child nodes would have survived a root delete. They were removed node-by-node, leaf-first, through
+the app (24 occurrences, their modules gone too). **Also not fixed:** `server.js`
+`/api/research/wikipedia/import` persists nothing into the warm cache.
+
+---
+
 ### 2026-09-22 (3) — A PASTED LINK COULD NOT BECOME A BOOKMARK; and the viewer's browser turned into a picture
 
 Rebuild-via-UI, link import. A **Bookmarks** board page + container made through the UI (poms keeps its
