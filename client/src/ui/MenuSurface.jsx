@@ -21,6 +21,8 @@ import { createPortal } from "react-dom";
 // App stamps `document.body.dataset.layout` on every layout change, so a
 // portalled menu can read the layout without any of its hosts threading a prop
 // down to it (several of them are mounted from places that never see it).
+const stop = (e) => e.stopPropagation();
+
 export function isDrawerLayout() {
   if (typeof document === "undefined") return false;
   return document.body?.dataset?.layout === "mobile";
@@ -102,8 +104,24 @@ export default function MenuSurface({
     </div>
   );
 
+  // A MENU'S EVENTS STAY IN THE MENU. React bubbles synthetic events through
+  // the REACT tree, so a portalled menu still delivers its clicks to whatever
+  // rendered it: `PreviewNode` renders its ContextMenu inside the card whose
+  // onClick opens the page, so every item — "New board page", "Delete" — also
+  // opened the card (2026-09-22). `display: contents` adds no box; the menu's
+  // own handlers run first, and native document listeners (the outside-click
+  // closer) are unaffected.
   return createPortal(
-    <>
+    <div
+      style={{ display: "contents" }}
+      onClick={stop}
+      onDoubleClick={stop}
+      onContextMenu={stop}
+      onMouseDown={stop}
+      onMouseUp={stop}
+      onPointerDown={stop}
+      onPointerUp={stop}
+    >
       {drawer && (
         // Tapping off already dismisses every one of these menus (each has its
         // own outside-pointerdown handler, and the backdrop is outside their
@@ -116,7 +134,7 @@ export default function MenuSurface({
         />
       )}
       {surface}
-    </>,
+    </div>,
     document.body
   );
 }
