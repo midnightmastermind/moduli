@@ -57,6 +57,17 @@ probe (**undoing a row create deletes the occurrence and leaves the module** —
 lifecycle the sweeper exists for) and **correctly KEPT three modules only 32-41 minutes old**,
 "placement may be in flight". Grid integrity **clean**.
 
+**FOUND IN THE SAME TRAIL, REPORTED NOT FIXED: a copy-link drop onto a DOC is THREE undo steps.**
+```
+18:48:20  af3fe439  source[update]     <- three action ids
+18:48:20  033cc0a1  copy[create]
+18:48:20  1e08c0f3  doc[update]           the textmap that embeds it
+```
+Same class as (10), but it does NOT yield to the same fix: the doc's textmap write goes through the
+editor's DEBOUNCED save, so a synchronous `withAction` around the drop handler cannot contain it.
+Grouping it means keeping the action open across the debounce, which is the save path for every
+document on the grid — its own reviewed pass, not the tail of this one.
+
 **Two probe faults, both mine, both silent:** `delete_occurrence` takes `occurrenceId`, not `id`, so
 my first delete returned early and reported "STILL PRESENT" as if the handler were broken; and
 `querySelector('[data-occurrence-id="<prefix>"]')` needs the FULL id — a prefix matches nothing,
