@@ -21,6 +21,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { buildRawDropEvent } from "../helpers/dragHitTesting";
 import { handleOperationDrop } from "../helpers/dropHandlers";
+import { DragType, DropAccepts } from "../helpers/dragSystem";
 
 /** Exactly what OperationsTab's draggable puts on the wire. */
 const pillPayload = (over) => ({ type: "operation", id: "op-1", data: { name: "Log a Glass" }, ...over });
@@ -48,6 +49,35 @@ describe("an operation dragged from Command Center reaches the operation handler
     const block = src.slice(at, src.indexOf("}),", at) + 3);   // the whole getInitialData literal
     expect(block, "the op pill must advertise sourceType 'operation' — 'command-center' routes it to handleModuleDrop")
       .toMatch(/sourceType:\s*"operation"/);
+  });
+});
+
+describe("an instance's drop zone accepts an operation at all", () => {
+  // The SECOND half of why this never worked. `useDragDrop`'s canDrop is
+  // `accepts.includes(source.data.type)`, and `DragType` had no OPERATION
+  // member — so no drop zone listed it and Pragmatic declined every operation
+  // drop before the app saw it. The native drop event still fires on the DOM,
+  // which is why the drag LOOKED like it worked.
+  it("DragType has an OPERATION member", () => {
+    expect(DragType.OPERATION).toBe("operation");
+  });
+
+  it("DropAccepts.INSTANCE accepts it", () => {
+    expect(DropAccepts.INSTANCE).toContain("operation");
+  });
+
+  it("still accepts everything it accepted before", () => {
+    // The control: "accepts operation" must not be satisfied by a list that
+    // replaced the existing entries.
+    for (const t of [DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.FILE, DragType.TEXT, DragType.URL]) {
+      expect(DropAccepts.INSTANCE, `INSTANCE stopped accepting ${t}`).toContain(t);
+    }
+  });
+
+  it("an empty grid cell does NOT accept an operation", () => {
+    // Dropping an operation on empty space has no instance to bind to, so the
+    // zone should keep declining it rather than swallow the gesture.
+    expect(DropAccepts.GRID_CELL).not.toContain("operation");
   });
 });
 

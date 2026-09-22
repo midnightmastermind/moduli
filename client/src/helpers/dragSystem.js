@@ -93,6 +93,7 @@ export const DragType = {
   MODULE: "module",     // CC module drag (all roles: panel/container/instance/page)
   ARTIFACT: "artifact",
   FOLDER: "folder",     // Tree folder drag (adds child docs as pages)
+  OPERATION: "operation", // CC operation pill → instance (runnable widget)
   EXTERNAL: "external",
   FILE: "file",
   TEXT: "text",
@@ -105,7 +106,12 @@ export const DropAccepts = {
   PANEL_CONTENT: [DragType.PAGE, DragType.CONTAINER, DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.FOLDER, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
   PAGE_CONTENT: [DragType.CONTAINER, DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.FOLDER, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
   CONTAINER_LIST: [DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.EXTERNAL, DragType.FILE, DragType.TEXT, DragType.URL],
-  INSTANCE: [DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.FILE, DragType.TEXT, DragType.URL],
+  // OPERATION is instance-only on purpose: `handleOperationDrop` binds the op
+  // to an INSTANCE as a trigger widget, and there is nothing to bind it to on
+  // an empty grid cell or a page. Without this entry `canAccept` declined
+  // every operation drop before the app saw it — the native drop event still
+  // fires, so the drag looked like it worked and wrote nothing.
+  INSTANCE: [DragType.INSTANCE, DragType.MODULE, DragType.ARTIFACT, DragType.FILE, DragType.TEXT, DragType.URL, DragType.OPERATION],
 };
 
 // ============================================================
