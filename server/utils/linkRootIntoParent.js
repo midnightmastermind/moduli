@@ -20,14 +20,19 @@ import Occurrence from "../models/Occurrence.js";
 
 /**
  * List `childId` in `parentId`'s `occurrences[]`.
- * @returns the updated parent document, or null when nothing needed doing
- *          (already listed, or no such parent).
+ * @returns the parent document whenever the child ENDS UP listed — pushed here,
+ *          or already pushed by `markdownToModuli` — or null when there is no
+ *          such parent. Returning null for "already listed" made both import
+ *          handlers skip the cache sync and the broadcast, so a magic-shape
+ *          import was invisible until a restart (2026-09-22).
  */
 export async function linkRootIntoParent({ parentId, childId, userId }) {
   if (!parentId || !childId) return null;
-  return Occurrence.findOneAndUpdate(
+  const pushed = await Occurrence.findOneAndUpdate(
     { id: parentId, userId, occurrences: { $ne: childId } },
     { $push: { occurrences: childId } },
     { new: true },
   );
+  if (pushed) return pushed;
+  return Occurrence.findOne({ id: parentId, userId, occurrences: childId });
 }

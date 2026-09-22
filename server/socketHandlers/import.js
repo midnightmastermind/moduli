@@ -73,6 +73,18 @@ export function registerImportHandlers(socket, {
     }
     return ensureUserCache(userId, gridId);
   }
+  // The destination now lists the imported root — in Mongo. Every read comes
+  // from the WARM CACHE, so sync the parent's entry there (merge: keep its other
+  // keys) and tell the tabs, or the import is invisible until a restart.
+  function publishLinkedParent(uc, linkedParent) {
+    if (!linkedParent) return;
+    const parentObj = typeof linkedParent.toObject === "function" ? linkedParent.toObject() : linkedParent;
+    if (uc?.occurrencesById?.[parentObj.id]) {
+      uc.occurrencesById[parentObj.id] = { ...uc.occurrencesById[parentObj.id], occurrences: parentObj.occurrences };
+    }
+    io.to(userRoom(socket.userId)).emit("occurrence_updated", { occurrence: parentObj });
+  }
+
   socket.on("import_text", async (payload = {}, ack) => {
     const {
       content, format: rawFormat = "auto", gridId, parentId = null,
@@ -124,13 +136,7 @@ export function registerImportHandlers(socket, {
       const linkedParent = await linkRootIntoParent({
         parentId, childId: result.rootOccurrenceId, userId,
       });
-      if (linkedParent) {
-        // Or the destination keeps rendering its old child list until a reload,
-        // which reads as the button having done nothing.
-        io.to(userRoom(userId)).emit("occurrence_updated", {
-          occurrence: typeof linkedParent.toObject === "function" ? linkedParent.toObject() : linkedParent,
-        });
-      }
+      publishLinkedParent(uc, linkedParent);
 
       // Broadcast each created entity so all connected tabs (this one + others) sync.
       for (const m of result.modules) {
@@ -436,11 +442,7 @@ export function registerImportHandlers(socket, {
       // Listed, not just parented — the reader shape's planner does not push
       // its own root (see import_text above). A no-op for magic.
       const linkedParent = await linkRootIntoParent({ parentId, childId: result.rootOccurrenceId, userId });
-      if (linkedParent) {
-        const parentObj = typeof linkedParent.toObject === "function" ? linkedParent.toObject() : linkedParent;
-        if (uc?.occurrencesById?.[parentObj.id]) uc.occurrencesById[parentObj.id] = { ...uc.occurrencesById[parentObj.id], occurrences: parentObj.occurrences };
-        io.to(userRoom(userId)).emit("occurrence_updated", { occurrence: parentObj });
-      }
+      publishLinkedParent(uc, linkedParent);
 
       for (const m of result.modules) io.to(userRoom(userId)).emit("module_created", { module: m });
       for (const o of result.occurrences) io.to(userRoom(userId)).emit("occurrence_created", { occurrence: o });

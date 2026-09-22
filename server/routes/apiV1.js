@@ -146,11 +146,14 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
     const update = Number.isInteger(index)
       ? { $push: { occurrences: { $each: [childId], $position: index } } }
       : { $push: { occurrences: childId } };
+    // `markdownToModuli` $pushes its own root into Mongo, so the guarded push
+    // finds it already listed — the parent must STILL reach the warm cache and
+    // the tabs, or the import is invisible until a restart (2026-09-22).
     const parent = await Occurrence.findOneAndUpdate(
       { id: parentId, userId, occurrences: { $ne: childId } },
       update,
       { returnDocument: "after", lean: true },
-    );
+    ) || await Occurrence.findOne({ id: parentId, userId, occurrences: childId }).lean();
     if (parent) {
       mirrorToCache(userId, parent.gridId, "occurrence", parent);
       io.to(userRoom(userId)).emit("occurrence_updated", { occurrence: parent });
@@ -1296,6 +1299,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         await persistImportResult({ result, userId: req.userId, uc: await getUserCache(req.userId, gridId) });
         for (const m of result.modules) io.to(userRoom(req.userId)).emit("module_created", { module: m });
         for (const o of result.occurrences) io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: o });
+        await linkIntoParent({ userId: req.userId, parentId, childId: result.rootOccurrenceId });
       }
       res.json(result);
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -1370,6 +1374,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         await persistImportResult({ result, userId: req.userId, uc: await getUserCache(req.userId, gridId) });
         for (const m of result.modules) io.to(userRoom(req.userId)).emit("module_created", { module: m });
         for (const o of result.occurrences) io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: o });
+        await linkIntoParent({ userId: req.userId, parentId, childId: result.rootOccurrenceId });
       }
 
       res.json({ ...result, detectedFormat: format, markdown });
@@ -1407,6 +1412,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         await persistImportResult({ result, userId: req.userId, uc: await getUserCache(req.userId, gridId) });
         for (const m of result.modules) io.to(userRoom(req.userId)).emit("module_created", { module: m });
         for (const o of result.occurrences) io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: o });
+        await linkIntoParent({ userId: req.userId, parentId, childId: result.rootOccurrenceId });
       }
       res.json({ ...result, markdown });
     } catch (e) { err(res, 500, "internal_error", e.message); }
@@ -1503,6 +1509,7 @@ export function makeApiV1Router({ getUserCache, peekUserCache, io, userRoom, opR
         await persistImportResult({ result: importResult, userId: req.userId, uc });
         for (const m of importResult.modules) io.to(userRoom(req.userId)).emit("module_created", { module: m });
         for (const o of importResult.occurrences) io.to(userRoom(req.userId)).emit("occurrence_created", { occurrence: o });
+        await linkIntoParent({ userId: req.userId, parentId, childId: importResult.rootOccurrenceId });
       }
 
       res.json({
