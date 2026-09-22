@@ -616,12 +616,24 @@ function runLinkBookmark(ctx) {
 // validated here — the SERVER holds the guard (utils/safeFetchUrl.js), because
 // the server is the thing with network reach and a client-side check would be
 // advisory at best.
+//
+// INTO A CONTAINER the import is wrapped in a page (2026-09-22): its root is a
+// doc CONTAINER, and a board container renders only leaf children, so a root
+// listed straight in it was in the data and on no screen. Into a page (which
+// renders containers) the parent is passed through as before.
 function runImportUrl(ctx) {
-  const { payload = {}, destination = {}, gridId, socket, onImportResult = null } = ctx;
+  const {
+    payload = {}, destination = {}, destinationOccurrence = null, destinationModule = null,
+    gridId, userId, dispatch, socket, onImportResult = null,
+  } = ctx;
   const url = payload.urls?.[0];
   if (!socket || !url) return;
-  convertLinkToPage({ socket, gridId, url, parentId: destination.parentId ?? null })
-    .then((res) => onImportResult?.(res));
+  const wrap = destinationModule?.role === "container" && !!(destinationOccurrence && dispatch && gridId && userId);
+  convertLinkToPage({ socket, gridId, url, parentId: wrap ? null : (destination.parentId ?? null) })
+    .then((res) => {
+      if (!wrap || !res?.ok || !res.rootOccurrenceId) { onImportResult?.(res); return; }
+      wrapImportInPage(ctx, res, res.title || linkChipShape({ url, inline: false }).label);
+    });
 }
 
 // ── LINK → THE PAGES IT POINTS AT ───────────────────────────────────────────
@@ -1435,6 +1447,45 @@ function runTextContainerTree(ctx) {
  * root id that exists. Minting the page first would leave an empty page behind
  * whenever an import fails.
  */
+/**
+ * Wrap an imported root in a doc page minted in the destination container.
+ *
+ * `createPageInContainer` is the shipped mint (2026-07-29): it splices the page
+ * into the destination, stamps the `dragInView: "representation"` override, and
+ * flips the parent's `allowChildContainers` so a non-leaf child renders at all.
+ * `containerModule` is passed because that flip writes the module's whole
+ * `meta`, so omitting it would clobber every other key on it. Shared by the
+ * doc-page text shape and "Import the page" — one wrap, not two that drift.
+ */
+function wrapImportInPage(ctx, res, label) {
+  const {
+    destinationOccurrence, destinationModule = null, gridId, userId, dispatch, socket,
+    insertIndex = null, onImportResult = null,
+  } = ctx;
+  const made = createPageInContainer({
+    dispatch, socket, gridId, userId,
+    containerOccurrence: destinationOccurrence,
+    containerModule: destinationModule,
+    kind: "doc",
+    label,
+    index: insertIndex,
+  });
+  if (!made?.occurrenceId) { onImportResult?.({ ok: false, error: "could not create the page" }); return; }
+  // A doc page renders its TEXTMAP. Listing the root in `occurrences[]` and
+  // stopping there is the listed-but-not-embedded failure this repo has
+  // repaired twice — so both are written, in one patch.
+  updateOccurrence({
+    dispatch, socket,
+    occurrence: {
+      id: made.occurrenceId,
+      occurrences: [res.rootOccurrenceId],
+      textmap: { type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: res.rootOccurrenceId } }] },
+    },
+    emit: true,
+  });
+  onImportResult?.({ ...res, pageOccurrenceId: made.occurrenceId });
+}
+
 function runTextDocPage(ctx) {
   const {
     payload = {}, destination = {}, destinationOccurrence = null, destinationModule = null,
@@ -1459,34 +1510,7 @@ function runTextDocPage(ctx) {
   emitImportText(
     { ...ctx, onImportResult: (res) => {
       if (!res?.ok || !res.rootOccurrenceId) { onImportResult?.(res || { ok: false, error: "import failed" }); return; }
-      // `createPageInContainer` is the shipped mint (2026-07-29): it splices the
-      // page into the destination, stamps the `dragInView: "representation"`
-      // override, and flips the parent's `allowChildContainers` so a non-leaf
-      // child renders at all. Reused rather than re-implemented — and
-      // `containerModule` is passed because that flip writes the module's whole
-      // `meta`, so omitting it would clobber every other key on it.
-      const made = createPageInContainer({
-        dispatch, socket, gridId, userId,
-        containerOccurrence: destinationOccurrence,
-        containerModule: destinationModule,
-        kind: "doc",
-        label,
-        index: insertIndex,
-      });
-      if (!made?.occurrenceId) { onImportResult?.({ ok: false, error: "could not create the page" }); return; }
-      // A doc page renders its TEXTMAP. Listing the root in `occurrences[]` and
-      // stopping there is the listed-but-not-embedded failure this repo has
-      // repaired twice — so both are written, in one patch.
-      updateOccurrence({
-        dispatch, socket,
-        occurrence: {
-          id: made.occurrenceId,
-          occurrences: [res.rootOccurrenceId],
-          textmap: { type: "doc", content: [{ type: "moduleEmbed", attrs: { occurrenceId: res.rootOccurrenceId } }] },
-        },
-        emit: true,
-      });
-      onImportResult?.({ ...res, pageOccurrenceId: made.occurrenceId });
+      wrapImportInPage(ctx, res, label);
     } },
     { content, format: payload.html ? "html" : "text", parentId: null },
   );

@@ -450,6 +450,9 @@ export function registerImportHandlers(socket, {
       reply({
         ok: true,
         rootOccurrenceId: result.rootOccurrenceId,
+        // The page's own title — a caller that wraps the import in a page
+        // names it with this rather than a bare host.
+        title: read.title || null,
         sourceUrl: read.sourceUrl,
         stats: result.stats,
       });

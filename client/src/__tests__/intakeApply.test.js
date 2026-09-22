@@ -294,6 +294,53 @@ describe("applyIntakeShape — routes reach the EXISTING helpers unchanged", () 
     });
   });
 
+  // "Import the page" INTO A CONTAINER (found rebuilding poms grid through the
+  // UI, 2026-09-22). The import root is a doc CONTAINER, and a board container
+  // renders only leaf children — so a root listed straight in it was in the
+  // data, in the cache, and on no screen. It is wrapped in a page the same way
+  // the doc-page shape above is: `createPageInContainer` flips the parent's
+  // `allowChildContainers` and the page embeds the root.
+  describe("the link-page shape wraps the import when it lands in a container", () => {
+    function run(destinationModule) {
+      const emitted = [];
+      const socket = {
+        connected: true,
+        emit: vi.fn((event, data) => emitted.push({ event, data })),
+        on: vi.fn(), off: vi.fn(),
+      };
+      applyIntakeShape(INTAKE_SHAPES.LINK_PAGE.id, {
+        payload: { kind: "link", urls: ["https://en.wikipedia.org/wiki/Zazen"] },
+        destination: { parentId: "c1" },
+        destinationOccurrence: { id: "c1", moduleId: "cm", occurrences: [] },
+        destinationModule,
+        gridId: "g1", userId: "u1", dispatch: vi.fn(), socket,
+      });
+      const ack = socket.on.mock.calls.find(([ev]) => ev === "import_url_result")?.[1];
+      const req = emitted.find((e) => e.event === "import_url");
+      ack?.({ requestId: req?.data.requestId, ok: true, rootOccurrenceId: "root-1", title: "Zazen - Wikipedia" });
+      return { emitted };
+    }
+
+    it("imports DETACHED and embeds the root in a page named for the article", async () => {
+      const { emitted } = run({ id: "cm", role: "container", kind: "board", meta: { cover: "keep-me" } });
+      expect(emitted.find((e) => e.event === "import_url").data.parentId).toBeNull();
+      await new Promise((r) => setTimeout(r, 0));
+      const page = emitted.find((e) => e.event === "create_module" && e.data.module?.role === "page");
+      expect(page?.data.module).toMatchObject({ kind: "doc", label: "Zazen - Wikipedia" });
+      const patch = emitted.filter((e) => e.event === "update_occurrence" && e.data.occurrence?.textmap).pop();
+      expect(patch?.data.occurrence.textmap.content[0]).toMatchObject({ type: "moduleEmbed", attrs: { occurrenceId: "root-1" } });
+      const modPatch = emitted.find((e) => e.event === "update_module" && e.data.module?.meta?.allowChildContainers);
+      expect(modPatch?.data.module.meta.cover).toBe("keep-me");
+    });
+
+    it("CONTROL — into a PAGE it passes the parent through and wraps nothing", async () => {
+      const { emitted } = run({ id: "cm", role: "page", kind: "board", meta: {} });
+      expect(emitted.find((e) => e.event === "import_url").data.parentId).toBe("c1");
+      await new Promise((r) => setTimeout(r, 0));
+      expect(emitted.some((e) => e.event === "create_module")).toBe(false);
+    });
+  });
+
   // The picture is evidence — reading it must not consume it. And the text is
   // kept WHOLE here; splitting it per line is the other shape.
   describe("the file-OCR shape keeps the picture AND adds its text", () => {
