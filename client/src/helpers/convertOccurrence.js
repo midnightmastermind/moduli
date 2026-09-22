@@ -15,6 +15,7 @@
 // ============================================================================
 
 import { updateModule, updateOccurrence } from "./CommitHelpers";
+import { DEFAULT_GRAPH_SPEC } from "./graphOption";
 
 // Container kinds a container can convert between. "list" is NOT here — for
 // CONTAINERS list == board (the list/board split only exists for PAGES); the
@@ -80,6 +81,27 @@ export function planContainerKindConversion({ occurrence, module, targetKind }) 
   }
   // board ↔ list ↔ table (non-doc → non-doc): kind flip only — both render
   // occurrences[]. (table seeds default columns lazily in the renderer.)
+
+  // ── THE CHART SPEC IS PART OF THE KIND, because two halves read two fields ──
+  // The renderer draws a chart on `module.kind === "graph"`; `isPullOnlyFeed`
+  // decides whether the feed OWNS its matches on `occurrence.meta.graph`. Flip
+  // only the kind and a converted graph is a chart that still materialises
+  // copy-linked children into itself (2026-09-22, found converting a container
+  // through the UI). Clearing it on the way out matters more: a leftover
+  // meta.graph on a board keeps the feed pull-only, so it mints nothing AND
+  // sweeps what it minted before — a feature that stops working, which is
+  // easier to miss than one that writes too much.
+  //
+  // MERGED into the existing meta, never replacing it: a container's meta also
+  // carries canvas x/y and table state, and a whole-object write drops them.
+  if (targetKind === "graph" && !occurrence?.meta?.graph) {
+    const base = occurrencePatch || occurrence || {};
+    occurrencePatch = { ...base, meta: { ...(base.meta || {}), graph: { ...DEFAULT_GRAPH_SPEC } } };
+  } else if (fromKind === "graph" && targetKind !== "graph") {
+    const base = occurrencePatch || occurrence || {};
+    const { graph: _dropped, ...restMeta } = base.meta || {};
+    occurrencePatch = { ...base, meta: restMeta };
+  }
 
   return { modulePatch, occurrencePatch };
 }

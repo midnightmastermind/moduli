@@ -102,6 +102,17 @@ const BY_ID = new Map(CHART_TYPES.map((t) => [t.id, t]));
 const FALLBACK_TYPE = "bar";
 
 /** Which encodings this chart type actually reads. Unknown type → the fallback's. */
+// THE SPEC A CHART STARTS LIFE WITH. Shared because two places create one:
+// the Chart editor's Reset, and converting a container to `kind:"graph"` — and
+// a converted graph that carries NO spec is not pull-only (helpers/feedPull
+// reads `meta.graph`), so its feed materialises copies into a chart. One
+// definition, so the converter cannot mint a shape the editor disagrees with.
+export const DEFAULT_GRAPH_SPEC = {
+  type: "sunburst",
+  encoding: { category: null, value: null, series: null, children: null, parent: null, level: null },
+  literals: [],
+};
+
 export function encodingsForType(typeId) {
   return (BY_ID.get(typeId) || BY_ID.get(FALLBACK_TYPE)).encodings;
 }

@@ -19,14 +19,20 @@ describe("container kind conversion", () => {
     expect(CONVERTIBLE_CONTAINER_KINDS).toContain("graph");
   });
 
-  it("board → graph flips the kind and leaves the children alone", () => {
+  it("board → graph flips the kind, seeds a chart spec, and leaves the children alone", () => {
     const plan = planContainerKindConversion({
       occurrence: { id: "o1", occurrences: ["a", "b"], textmap: null },
       module: { id: "m1", kind: "board", role: "container" },
       targetKind: "graph",
     });
     expect(plan.modulePatch.kind).toBe("graph");
-    expect(plan.occurrencePatch).toBeNull();          // nothing to rewrite
+    // THIS ASSERTION WAS `toBeNull()` — "kind flip only, nothing to rewrite".
+    // Changed 2026-09-22: `isPullOnlyFeed` reads `occurrence.meta.graph`, so a
+    // converted graph with no spec still MATERIALISES its feed's matches as
+    // children of a chart (convertToGraphPullOnly.test.js). The spec is part of
+    // the kind, not decoration.
+    expect(plan.occurrencePatch.meta.graph).toBeTruthy();
+    expect(plan.occurrencePatch.occurrences).toEqual(["a", "b"]);   // children untouched
   });
 
   it("doc → graph drops the doc textmap, like every other doc → non-doc flip", () => {

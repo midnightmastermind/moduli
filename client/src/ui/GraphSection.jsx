@@ -22,7 +22,7 @@ import React, { useCallback, useMemo } from "react";
 import { BarChart3, Plus, X } from "lucide-react";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
-import { CHART_TYPES, encodingsForType, FLATTEN_MODES, buildEChartsOption } from "../helpers/graphOption";
+import { CHART_TYPES, encodingsForType, FLATTEN_MODES, buildEChartsOption, DEFAULT_GRAPH_SPEC } from "../helpers/graphOption";
 import { buildGraphData } from "../helpers/graphData";
 import { resolveGraphRows } from "../helpers/feedPull";
 import { resolveFeedItems } from "../state/selectors";
@@ -39,11 +39,7 @@ const labelStyle = {
   textTransform: "uppercase", letterSpacing: "0.05em",
 };
 
-const DEFAULT_SPEC = {
-  type: "sunburst",
-  encoding: { category: null, value: null, series: null, children: null, parent: null, level: null },
-  literals: [],
-};
+const DEFAULT_SPEC = DEFAULT_GRAPH_SPEC;
 
 /**
  * Split the field list into the ones THE PULLED ROWS ACTUALLY CARRY and the
