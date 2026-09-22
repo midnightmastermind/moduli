@@ -15,6 +15,78 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (15) — BOTH LINKED-GROUP UNDO FIXES RE-VERIFIED, and the field you would reach for measures nothing
+
+Entries (11) and (12) each shipped a fix and each claimed a prod check. This pass confirms both
+**independently** — different pairs, different evidence — and answers the question neither asked:
+*is the running process actually the fixed one?*
+
+**THE DEPLOYED PROCESS WAS PROVEN, not assumed.** `pm2` reports the app under the `deploy` user at
+`/var/www/moduli`, and prod HEAD is one commit behind local — a CLIENT-only commit, so no restart
+was owed. The decisive pair of facts:
+```
+server/socketHandlers/occurrences.js   written 18:44:03 UTC
+the node process                       started 18:45:09 UTC   <- 66s later
+grep, in the deployed file             fan-out recordDoc 1 · "Broke link" 1 · nonsense control 0
+```
+*A file containing the fix says nothing until you show the process started after it was written.*
+
+**THE FAN-OUT, ON A PAIR THIS SESSION DID NOT CREATE** (Library Oatmeal + its Meals copy, one
+`linkedGroupId`, both on the Food page so one screenshot holds both):
+```
+                     source            copy
+BEFORE            ["meal"]          ["meal"]
+change source     ["meal","ingredient"]  ["meal","ingredient"]   <- fan-out reached it
+ONE Ctrl+Z        ["meal"]          ["meal"]                     <- BOTH reverted
+```
+**AND THE OBVIOUS CONFOUND IS RULED OUT BY THE TRANSACTION, not by the values.** Both rows reading
+`["meal"]` is ALSO what you would see if undo's own write simply fanned out again — which would
+make the fix unnecessary and the test worthless. What settles it is the record:
+```
+1 transaction · 1 actionId 9ef5022c · docs: 2
+   SOURCE  before ["meal"] -> after ["meal","ingredient"]
+   COPY    before ["meal"] -> after ["meal","ingredient"]
+```
+The snapshot **names the copy**, so undo had something of the copy's to restore. Before `a8505849`
+that array held one entry. *Measure the mechanism, not the outcome, when a broken build produces
+the same outcome.*
+
+**BREAK LINK, watched end to end on the non-feed Breakfast pair** (6:00am copy, 7:00am source):
+```
+                 source.lg    copy.lg    both rows on screen
+BEFORE            87a5788a    87a5788a          yes
+Break Link        87a5788a    NULL              yes
+ONE Ctrl+Z        87a5788a    87a5788a          yes    <- and NOT deleted, which was the bug
+```
+Mongo agrees on both counts, and the trail carries `desc: "Broke link", state: undone`.
+
+**THE TRAP THAT WOULD HAVE SENT THE NEXT PERSON THE WRONG WAY: `Logged On` IS THIS GRID'S FILTER
+FIELD, so it is DELIBERATELY EXCLUDED from the fan-out** (`utils/filterFields.js` — a filter field
+describes the PLACEMENT, and two copies in two columns must be free to disagree). It is also the
+only field the Breakfast rows bind and the one visibly on every row, so it is exactly what you
+reach for — and a copy that correctly does not follow reads as "the fan-out is broken". The test
+needs a field the grid does NOT filter on; `Board Category` is one.
+
+**A/B'd, with each arm asserted to land** — the file restored from `git show <commit>^` and the
+suite re-run:
+```
+fan-out fix removed        2 fail   (exactly its own two; break_link's still pass)
+both fixes removed         6 fail
+shipped                    8 pass
+```
+**2 of the 8 pass in BOTH arms and are reported as contract pins, not coverage.**
+
+**Three probe faults, all mine.** An occurrence id **prefix is not an id** — `17900892` matched
+Oatmeal AND Chicken salad, two different rows, because these ids are timestamps. The row attribute
+is **`data-occurrence-id` on `.instance-wrap`**, not `data-occ-id`. And **the radial arc's items are
+icon-only**: scanning text AND `title` found nothing on an arc that a screenshot showed wide open —
+Break Link is findable by its colour class (`bg-orange-600`). *Looking at the screenshot is what
+ended three rounds of querying a DOM that was already correct.*
+
+Grid integrity **clean**; both changes undone, so net data change is zero.
+
+---
+
 ### 2026-09-22 (14) — ELEVEN ITEMS ON A RING THAT HOLDS EIGHT: "Settings" WAS A CONVERT BUTTON
 
 Rebuild-via-UI, next area **styles** — the gap the census named: poms carries **468 occurrences
