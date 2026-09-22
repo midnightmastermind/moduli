@@ -2002,6 +2002,32 @@ export function executePipeline(operation, context, transaction, extraVars, exte
       if (k === "_occurrenceSnapshot") continue; // consumed below, not a $trigger key
       enriched[k] = v;
     }
+    // ── WHAT CHANGED, AS $trigger.value / .fieldId / .flow ──────────────────
+    // Every MeasureOp emitter carries the change as `fields: { [id]: … }` —
+    // CommitHelpers' two sites and bindSocketToStore's echo path — and nothing
+    // lifted it out. So `$trigger.value` was undefined for every field-change
+    // trigger, while the editor's trigger hint advertises it AND the condition
+    // row pre-fills its left side with it (2026-09-22: an operation built
+    // through the UI took its `else` branch on both a tick and an untick).
+    //
+    // The two emitters disagree on shape and both are real: CommitHelpers
+    // sends the RAW value, the socket echo sends the stored `{value, flow}`
+    // cell. Read either.
+    //
+    // ONE field only. With several changed at once `$trigger.value` cannot
+    // mean anything, and picking the first key would make a guard depend on
+    // object key order. `previousValue` stays unset — no emitter carries a
+    // before-value, since fireOperations runs after the local occurrence is
+    // already updated.
+    const changed = Object.entries(transaction.fields || {});
+    if (changed.length === 1) {
+      const [fid, cell] = changed[0];
+      const isCell = cell && typeof cell === "object" && !Array.isArray(cell) && "value" in cell;
+      if (enriched.fieldId === undefined) enriched.fieldId = fid;
+      if (enriched.value === undefined) enriched.value = isCell ? cell.value : cell;
+      if (enriched.flow === undefined && isCell && cell.flow != null) enriched.flow = cell.flow;
+    }
+
     const occId = transaction.occurrenceId;
     // Live occurrence wins; a DELETED occurrence resolves from the snapshot the
     // delete transaction carries (transaction._occurrenceSnapshot). The snapshot
