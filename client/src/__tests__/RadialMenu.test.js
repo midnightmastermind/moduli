@@ -111,3 +111,76 @@ describe("arc item viewport clamping", () => {
     expect(spread).toBeCloseTo(180 / 7, 1);
   });
 });
+
+// ── ONE "Convert" BUTTON, NOT FOUR (user, 2026-09-22) ──────────────────────
+//
+// The container's arc carried eleven items — Settings / Set to Copy / Hide
+// Header / Filter Override / Apply Template / History / Remove plus FOUR
+// "Convert to X" buttons. `getAnglesForDirection` spaces items a fixed 45°
+// apart, so eight fill a full revolution and items 9-11 land on EXACTLY the
+// boxes of items 1-3. Measured on prod, on the Physical container:
+//
+//   Settings     [790,73,28,28]  -> elementFromPoint says "Convert to Canvas"
+//   Set to Copy  [820,61,28,28]  -> "Convert to Table"
+//   Hide Header  [850,73,28,28]  -> "Convert to Graph"
+//
+// So a container's Settings was UNREACHABLE and clicking where the gear sits
+// converted the container instead — which is how this was found (twice).
+import { arcItemsFor, arcAngles, ARC_ITEM_PX } from "../ui/RadialMenu";
+
+const item = (label, extra = {}) => ({ label, icon: () => null, onClick: () => {}, ...extra });
+
+describe("arcItemsFor — a submenu replaces the arc it opened from", () => {
+  const items = [item("Settings"), item("Convert", { submenu: [item("Doc"), item("Board")] })];
+
+  test("with nothing open it is the top level", () => {
+    expect(arcItemsFor(items, null).map(i => i.label)).toEqual(["Settings", "Convert"]);
+  });
+
+  test("an open submenu shows Back + its own items, and NOT the top level", () => {
+    const shown = arcItemsFor(items, "Convert");
+    expect(shown.map(i => i.label)).toEqual(["Back", "Doc", "Board"]);
+    expect(shown[0].__back).toBe(true);
+  });
+
+  test("falls back to the top level when the named submenu is gone", () => {
+    // The items memo rebuilds when the container's kind changes, so the open
+    // label can name something that no longer exists. Rendering nothing there
+    // would be a menu with no way out.
+    expect(arcItemsFor(items, "Vanished").map(i => i.label)).toEqual(["Settings", "Convert"]);
+  });
+});
+
+describe("arcAngles — items never stack on top of each other", () => {
+  const coincide = (angles) => {
+    const seen = new Set();
+    for (const a of angles) {
+      const key = Math.round(((a % 360) + 360) % 360);
+      if (seen.has(key)) return true;
+      seen.add(key);
+    }
+    return false;
+  };
+
+  test("ELEVEN items do not share a position (the defect)", () => {
+    const { angles } = arcAngles("down", 11, 42);
+    expect(coincide(angles), "two items resolve to the same point on the ring").toBe(false);
+  });
+
+  test("and neighbours keep a full button of room", () => {
+    const { angles, radius } = arcAngles("down", 11, 42);
+    const step = Math.abs(angles[1] - angles[0]);
+    const chord = 2 * radius * Math.sin((step * Math.PI) / 180 / 2);
+    expect(chord).toBeGreaterThanOrEqual(ARC_ITEM_PX);
+  });
+
+  // THE CONTROL: the menus that already fit must not move. Without it,
+  // "items never overlap" is equally satisfied by pushing every ring out.
+  test("eight or fewer items keep the 45° spacing and the base radius", () => {
+    for (const n of [2, 4, 6, 8]) {
+      const { angles, radius } = arcAngles("down", n, 42);
+      expect(radius).toBe(42);
+      if (n > 1) expect(Math.round(Math.abs(angles[1] - angles[0]))).toBe(45);
+    }
+  });
+});

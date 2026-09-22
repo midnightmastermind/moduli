@@ -26,8 +26,61 @@ export function calcOpenDirection(centerX, centerY, viewportW, viewportH, spread
 
 import React, { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Settings, ChevronUp, ChevronDown, ChevronRight, Eye, EyeOff, Filter, LayoutTemplate, Clock, Trash2 } from "lucide-react";
+import { Settings, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, Filter, LayoutTemplate, Clock, Trash2 } from "lucide-react";
+
 import { DEFAULT_DRAG_MODES, dragModeMeta, dragModeItem } from "../helpers/dragModes";
+
+// ── THE ARC HAS A CAPACITY, AND IT USED TO EXCEED IT SILENTLY ──────────────
+//
+// Items were spaced a fixed 45° apart, so EIGHT filled a full revolution and a
+// ninth landed on exactly the first one's box. Measured on prod: the container
+// menu carried eleven items, and Settings / Set to Copy / Hide Header were
+// covered by Convert to Canvas / Table / Graph — clicking the gear converted
+// the container. Nothing reported it; the covered buttons were simply gone.
+//
+// So the step is capped to fit the ring AND the radius grows until neighbours
+// keep a whole button of room. A menu that already fit is untouched: at 45°
+// the base radius 42 gives a 32.1px chord for a 28px button, which is why
+// ARC_ITEM_GAP is 4 — it is derived from the geometry that already worked, so
+// every existing menu measures identically.
+export const ARC_ITEM_PX = 28;     // the button box
+export const ARC_ITEM_GAP = 4;     // minimum air between neighbours
+export const ARC_MAX_STEP = 45;    // preferred degrees between items
+export const ARC_MAX_TOTAL = 330;  // never close the ring — first and last must not meet
+
+const ARC_BASE_ANGLE = { left: 180, right: 0, down: 90, up: 270 };
+
+export function arcAngles(direction, count, baseRadius) {
+  const base = ARC_BASE_ANGLE[direction] ?? 0;
+  if (count <= 1) return { angles: count === 1 ? [base] : [], radius: baseRadius, step: 0 };
+  const step = Math.min(ARC_MAX_STEP, ARC_MAX_TOTAL / (count - 1));
+  const chord = ARC_ITEM_PX + ARC_ITEM_GAP;
+  const needed = chord / (2 * Math.sin((step * Math.PI) / 180 / 2));
+  const radius = Math.max(baseRadius, needed);
+  const half = ((count - 1) * step) / 2;
+  const angles = [];
+  for (let i = 0; i < count; i++) angles.push(base - half + i * step);
+  return { angles, radius, step };
+}
+
+// ── A SUBMENU REPLACES THE ARC IT OPENED FROM ─────────────────────────────
+//
+// User, 2026-09-22: *"make a convert submenu so we dont have 4 convert buttons
+// on the arc menu. one convert button"*. Replacing rather than adding a second
+// ring keeps one interaction model — and it is what takes the container menu
+// from eleven items back to eight, i.e. inside the ring's capacity.
+//
+// `openLabel` naming a submenu that no longer exists falls back to the top
+// level: the items memo rebuilds when the container's kind changes, and
+// rendering an empty arc there would be a menu with no way out.
+export function arcItemsFor(items, openLabel) {
+  if (!openLabel) return items;
+  const parent = items.find((i) => i?.label === openLabel && Array.isArray(i.submenu));
+  if (!parent) return items;
+  return [{ label: "Back", icon: ChevronLeft, __back: true, color: "bg-slate-700 hover:bg-slate-600" },
+          ...parent.submenu];
+}
+
 
 export default function RadialMenu({
   // Standard drag handle props (used when items not provided)
@@ -287,25 +340,17 @@ export default function RadialMenu({
   const titleText = handleTitle || `${modeMeta.name} mode - Click for menu`;
 
   // Get angles based on direction and item count
-  const getAnglesForDirection = useCallback((direction, count) => {
-    const spread = 45; // degrees between items
-    const baseAngles = {
-      left: 180,    // center of left arc
-      right: 0,     // center of right arc
-      down: 90,     // center of bottom arc (90 = straight down)
-      up: 270,      // center of top arc
-    };
-    const base = baseAngles[direction] || 0;
-
-    const angles = [];
-    const halfSpread = ((count - 1) * spread) / 2;
-    for (let i = 0; i < count; i++) {
-      angles.push(base - halfSpread + i * spread);
-    }
-    return angles;
-  }, []);
+  const getAnglesForDirection = useCallback(
+    (direction, count) => arcAngles(direction, count, s.radius).angles,
+    [s.radius],
+  );
 
   // ✅ Support custom items or default drag handle menu
+  // Which submenu is open, if any. Reset whenever the menu closes so it always
+  // reopens at the top level.
+  const [openSubmenu, setOpenSubmenu] = useState(null);
+  useEffect(() => { if (!isOpen) setOpenSubmenu(null); }, [isOpen]);
+
   const menuItems = useMemo(
     () => {
       // If custom items provided, use those with calculated angles
@@ -406,6 +451,17 @@ export default function RadialMenu({
     [items, extraItems, dragMode, allowedDragModes, onSettings, onToggleDragMode, onToggleCollapse, isCollapsed, onToggleHeader, showHeader, onFilter, onTemplate, onHistory, onToggleDoc, onDelete, deleteLabel, openDirection, getAnglesForDirection]
   );
 
+  // What the ring DRAWS: the top level, or the open submenu in its place. The
+  // angles and radius are recomputed from THIS list's length — a submenu has a
+  // different count than the menu it replaced.
+  const shown = useMemo(() => {
+    const list = arcItemsFor(menuItems, openSubmenu);
+    const { angles, radius } = arcAngles(openDirection, list.length, s.radius);
+    return { items: list.map((it, i) => ({ ...it, angle: angles[i] })), radius };
+  }, [menuItems, openSubmenu, openDirection, s.radius]);
+  const shownItems = shown.items;
+  const arcRadius = shown.radius;
+
   // PORTALED arc menu
   const portaledArcMenu =
     isOpen &&
@@ -417,8 +473,8 @@ export default function RadialMenu({
           position: "fixed",
           left: anchor.x,
           top: anchor.y,
-          width: Math.max(menuItems.length * 30 + 60, s.radius * 2 + 60),
-          height: Math.max(menuItems.length * 30 + 60, s.radius * 2 + 60),
+          width: Math.max(shownItems.length * 30 + 60, arcRadius * 2 + 60),
+          height: Math.max(shownItems.length * 30 + 60, arcRadius * 2 + 60),
           transform: "translate(-50%, -50%)",
           pointerEvents: "none",
           zIndex: 2147483647,
@@ -443,11 +499,11 @@ export default function RadialMenu({
             // Pre-compute arc positions for all items
             const btnHalf = 14;
             const pad = 6;
-            const arcPositions = menuItems.map((item) => {
+            const arcPositions = shownItems.map((item) => {
               const rad = (item.angle * Math.PI) / 180;
               return {
-                x: Math.cos(rad) * s.radius,
-                y: Math.sin(rad) * s.radius,
+                x: Math.cos(rad) * arcRadius,
+                y: Math.sin(rad) * arcRadius,
               };
             });
 
@@ -467,7 +523,7 @@ export default function RadialMenu({
             let finalPositions;
             if (anyClipped) {
               const spacing = 28;
-              const count = menuItems.length;
+              const count = shownItems.length;
               const halfSpan = ((count - 1) * spacing) / 2;
               const sideOffset = s.radius * 0.75;
 
@@ -479,7 +535,7 @@ export default function RadialMenu({
                 const botEdge = anchor.y + halfSpan + btnHalf;
                 if (topEdge < pad) yShift = pad - topEdge;
                 else if (botEdge > window.innerHeight - pad) yShift = (window.innerHeight - pad) - botEdge;
-                finalPositions = menuItems.map((_, i) => ({
+                finalPositions = shownItems.map((_, i) => ({
                   x: lineX,
                   y: -halfSpan + i * spacing + yShift,
                 }));
@@ -491,7 +547,7 @@ export default function RadialMenu({
                 const rightEdge = anchor.x + halfSpan + btnHalf;
                 if (leftEdge < pad) xShift = pad - leftEdge;
                 else if (rightEdge > window.innerWidth - pad) xShift = (window.innerWidth - pad) - rightEdge;
-                finalPositions = menuItems.map((_, i) => ({
+                finalPositions = shownItems.map((_, i) => ({
                   x: -halfSpan + i * spacing + xShift,
                   y: lineY,
                 }));
@@ -500,7 +556,7 @@ export default function RadialMenu({
               finalPositions = arcPositions;
             }
 
-            return menuItems.map((item, index) => {
+            return shownItems.map((item, index) => {
             const Icon = item.icon;
             const { x, y } = finalPositions[index];
 
@@ -510,8 +566,12 @@ export default function RadialMenu({
               <button
                 key={`${item.label}-${index}`}
                 type="button"
-                onClick={(e) => handleAction(item.onClick, e)}
-                disabled={disabled || !item.onClick}
+                onClick={(e) => {
+                  if (item.__back) { e.stopPropagation(); setOpenSubmenu(null); return; }
+                  if (Array.isArray(item.submenu)) { e.stopPropagation(); setOpenSubmenu(item.label); return; }
+                  handleAction(item.onClick, e);
+                }}
+                disabled={disabled || (!item.onClick && !item.submenu && !item.__back)}
                 className={`
                   radial-menu-item
                   absolute
@@ -523,7 +583,7 @@ export default function RadialMenu({
                   shadow-lg
                   transition-all
                   ${entered ? "pointer-events-auto" : "pointer-events-none"}
-                  ${disabled || !item.onClick ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:scale-110"}
+                  ${disabled || (!item.onClick && !item.submenu && !item.__back) ? "opacity-40 cursor-not-allowed" : "cursor-pointer hover:scale-110"}
                 `}
                 style={{
                   left: "50%",

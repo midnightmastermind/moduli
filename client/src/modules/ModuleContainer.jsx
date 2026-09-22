@@ -1122,15 +1122,28 @@ function Container({
   // Convert-kind buttons for the RADIAL menu (touch-accessible; the right-click
   // menu is desktop-only now). One button per OTHER container kind, each with
   // the target kind's own icon so they're distinguishable (user 2026-07-17).
+  // ONE "Convert" button that opens a submenu, not one button per kind (user,
+  // 2026-09-22). Four of them put this arc at ELEVEN items, and the ring holds
+  // eight: Settings / Set to Copy / Hide Header ended up UNDERNEATH Convert to
+  // Canvas / Table / Graph, so the gear was unreachable and clicking it
+  // converted the container. Collapsing these to one takes the menu back to 8.
   const convertRadialItems = useMemo(() => {
     if (!module?.kind || !CONVERTIBLE_CONTAINER_KINDS.includes(module.kind)) return [];
     const ICONS = { doc: FileText, board: LayoutGrid, canvas: PenTool, table: Table, graph: BarChart3 };
-    return CONVERTIBLE_CONTAINER_KINDS.filter(k => k !== module.kind).map(k => ({
-      icon: ICONS[k] || Shuffle,
-      label: `Convert to ${k[0].toUpperCase()}${k.slice(1)}`,
-      onClick: () => convertContainerKind({ dispatch, socket, occurrence: containerOccurrence, module, targetKind: k }),
+    const targets = CONVERTIBLE_CONTAINER_KINDS.filter(k => k !== module.kind);
+    if (!targets.length) return [];
+    return [{
+      icon: Shuffle,
+      label: "Convert",
       color: "bg-teal-700 hover:bg-teal-600",
-    }));
+      submenu: targets.map(k => ({
+        icon: ICONS[k] || Shuffle,
+        // The submenu is already "Convert", so the rows name the KIND.
+        label: `${k[0].toUpperCase()}${k.slice(1)}`,
+        onClick: () => convertContainerKind({ dispatch, socket, occurrence: containerOccurrence, module, targetKind: k }),
+        color: "bg-teal-700 hover:bg-teal-600",
+      })),
+    }];
   }, [module, containerOccurrence, dispatch, socket]);
 
   // ── RESERVE THIS CONTAINER'S SPACE SO IT CAN BE SKIPPED WHEN OFF SCREEN ──
