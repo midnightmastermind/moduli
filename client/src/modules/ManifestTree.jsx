@@ -21,6 +21,7 @@ import { isFolderOpen, setFolderOpen, ROOT_SCOPE } from "../helpers/treeExpansio
 import { resolveFileRef, isExternalFileRef } from "../helpers/fileRef.js";
 import QuickAddMenu from "../ui/QuickAddMenu.jsx";
 import NodePill from "./NodePill.jsx";
+import { planFolderPageRename } from "../helpers/folderRename";
 
 // The window a second click has to arrive in before a childless folder opens.
 const DBLCLICK_MS = 260;
@@ -692,9 +693,23 @@ function FolderNode({ folder, depth, foldersById, occurrencesById, modulesById, 
     const trimmed = renameValue.trim();
     if (trimmed && trimmed !== folder.name) {
       CommitHelpers.updateFolder({ dispatch, socket, folder: { id: folder.id, name: trimmed }, emit: true });
+      // The folder's own PAGE carries its name — the panel header, the folder
+      // card and the tree's page row all read that label, so a rename that
+      // stopped at the folder looked half-applied (2026-09-22). A page the
+      // user titled themselves is left alone; the rule is in the helper.
+      const pageRename = planFolderPageRename({
+        folder, newName: trimmed, childOccurrences: allChildOccs, modulesById,
+      });
+      if (pageRename) {
+        CommitHelpers.updateModule({
+          dispatch, socket,
+          module: { ...(modulesById?.[pageRename.moduleId] || { id: pageRename.moduleId }), label: pageRename.label },
+          emit: true,
+        });
+      }
     }
     setIsRenaming(false);
-  }, [renameValue, folder.id, folder.name, dispatch, socket]);
+  }, [renameValue, folder, allChildOccs, modulesById, dispatch, socket]);
 
   const handleRenameKeyDown = useCallback((e) => {
     if (e.key === "Enter") { e.preventDefault(); commitRename(); }
