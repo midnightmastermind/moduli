@@ -552,6 +552,16 @@ function matchesTrigger(t, operation, transactionType, transaction) {
   const triggerObjects = Array.isArray(operation?.triggerObjects) ? operation.triggerObjects : [];
   const forThisEvent = triggerObjects.filter(to => to?.eventType === t);
 
+  // A BUTTON PRESS NAMES ITS OPERATION. Both fire sites (the row's trigger
+  // widget, the `button` field) stamp `operationId`, and until 2026-09-21
+  // nothing read it: pressing one widget ran EVERY onButton op whose subject
+  // filter passed, and an op scoped to a field never ran from a widget at all
+  // (the transaction carries no `fields` map). The press is the whole subject.
+  if (transactionType === "ButtonOp" && transaction?.operationId) {
+    if (transaction.operationId !== operation.id) return false;
+    return { matched: true, triggerObject: forThisEvent[0] || null };
+  }
+
   if (forThisEvent.length === 0) {
     return { matched: true, triggerObject: null };
   }

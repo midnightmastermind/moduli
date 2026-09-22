@@ -2,6 +2,17 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-21 (2) — a button press runs the operation it NAMES)
+- Both ButtonOp fire sites (row trigger widget, `button` field) stamp `operationId`, and nothing read it:
+  one press ran EVERY enabled onButton op whose subject filter passed, and an op whose onButton trigger
+  was scoped to a field could never run from a widget. `matchesTrigger` now: a ButtonOp carrying
+  `operationId` matches exactly that op (it still needs an onButton trigger; disabled stays off) and
+  skips the subject filter. An unnamed ButtonOp keeps the old behaviour. `buttonOpNamesOperation.test.js`,
+  A/B'd (2 of 6 fail on the old code).
+- `ui/commandCenter/FieldsTab.jsx` gained the missing half: a `button` field's editor has an "Operation
+  to run" select (`buttonOperations`: onButton ops, alarms excluded) + a button label, writing the
+  `meta.operationId` / `meta.buttonLabel` that `Field.jsx` reads. Found rebuilding a grid through the UI.
+
 ## Recent Changes (2026-09-21 — a FIND of one id is a LOOKUP, not a 22k-row scan)
 - The remaining lever from the date audit. `Project: Stamp Status From Column` runs on EVERY instance
   create and move and spent 65-80ms of each walking all 22,000 records to reach one id

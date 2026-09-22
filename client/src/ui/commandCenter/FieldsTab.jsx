@@ -292,8 +292,51 @@ function AffixEditor({ local, setLocal }) {
   );
 }
 
+// The operations a button field can run: those with an onButton trigger.
+export function buttonOperations(operations) {
+  return (operations || [])
+    .filter(op => op && !op.alarm && (op.triggerTypes || [op.triggerType]).includes("onButton"))
+    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+}
+
+function ButtonFieldConfig({ meta, operations, setMeta }) {
+  const options = buttonOperations(operations);
+  const current = meta?.operationId || "";
+  const missing = current && !options.some(o => o.id === current);
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+      <div style={{ flex: "1 1 160px" }}>
+        <span style={labelStyle}>Operation to run</span>
+        <select
+          value={current}
+          onChange={(e) => setMeta("operationId", e.target.value || null)}
+          style={inputStyle}
+        >
+          <option value="">— none —</option>
+          {missing && <option value={current}>(not an On Button operation)</option>}
+          {options.map(op => <option key={op.id} value={op.id}>{op.name || op.id}</option>)}
+        </select>
+        {options.length === 0 && (
+          <div style={{ marginTop: 3, fontSize: 10, color: "var(--text-faint)" }}>
+            No operations use the On Button trigger yet.
+          </div>
+        )}
+      </div>
+      <div style={{ flex: "1 1 120px" }}>
+        <span style={labelStyle}>Button label</span>
+        <input
+          value={meta?.buttonLabel || ""}
+          placeholder="Run"
+          onChange={(e) => setMeta("buttonLabel", e.target.value)}
+          style={inputStyle}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
-  const { modulesById, fieldsById } = useGridActions();
+  const { modulesById, fieldsById, operationsById } = useGridActions();
   const [local, setLocal] = useState(field);
   const [nameError, setNameError] = useState(null);
   useMemo(() => { setLocal(field); setNameError(null); }, [field.id]);
@@ -644,6 +687,20 @@ export function FieldDetail({ field, onSave, onDelete, categoryFolders = [] }) {
             onChange={(next) => setLocal(p => ({ ...p, meta: { ...(p.meta || {}), prefill: next } }))}
           />
         </div>
+      )}
+
+      {/* Button — which operation a press runs. Field.jsx reads
+          meta.operationId + meta.buttonLabel, and until 2026-09-21 nothing in
+          the UI wrote them: a button field made here always read "No operation
+          configured". Only onButton operations are listed — a press matches
+          the op it names (operationExecutor matchesTrigger) and still needs
+          that trigger. */}
+      {local.type === "button" && (
+        <ButtonFieldConfig
+          meta={local.meta}
+          operations={Object.values(operationsById || {})}
+          setMeta={setMeta}
+        />
       )}
 
       {/* Used In — reverse lookup of all instances binding this field */}
