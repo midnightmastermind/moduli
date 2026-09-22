@@ -76,3 +76,47 @@ export function isEventCompatible(eventType, transactionType, transaction) {
   if (def.extraGuard && !def.extraGuard(transaction)) return false;
   return true;
 }
+
+
+// ── WHAT $trigger CARRIES ───────────────────────────────────────────────────
+// Moved here from ui/commandCenter/OperationsTab.jsx so the editor's trigger
+// row and the path picker read one list. The picker used to describe $trigger
+// as an occurrence and offered none of these (2026-09-22).
+export function getTriggerVars(eventType, subjectType) {
+  const base = [];
+  if (subjectType === "module" || subjectType === "item") {
+    base.push("$trigger.itemId", "$trigger.templateId", "$trigger.role", "$trigger.kind", "$trigger.label");
+    if (eventType === "onChange")  base.push("$trigger.changedField", "$trigger.value", "$trigger.previousValue");
+    if (eventType === "onAdd" || eventType === "onRemove") base.push("$trigger.parentId");
+    if (eventType === "onMove")    base.push("$trigger.fromParentId", "$trigger.toParentId");
+    if (eventType === "onComplete") base.push("$trigger.fieldId", "$trigger.value");
+  } else if (subjectType === "field") {
+    base.push("$trigger.fieldId", "$trigger.itemId", "$trigger.templateId", "$trigger.value", "$trigger.previousValue", "$trigger.flow");
+  } else if (subjectType === "grid") {
+    base.push("$trigger.gridId");
+  } else if (subjectType === "filterNav") {
+    base.push("$trigger.activeFilterValues", "$trigger.date", "$trigger.previousValue");
+  } else if (subjectType === "transaction") {
+    base.push("$trigger.transactionId", "$trigger.transactionType", "$trigger.templateId");
+  }
+  base.push("$trigger.userId", "$trigger.timestamp");
+  return base;
+}
+
+/** Subject types the trigger editor offers (OperationsTab's subject dropdown). */
+export const TRIGGER_SUBJECT_TYPES = ["module", "field", "grid", "filterNav", "view", "style", "template", "transaction", "folder"];
+
+// Every prop `getTriggerVars` can name, across every event/subject pair, as
+// BARE keys — the union, because a path picker serves an operation that may
+// carry several triggers at once and cannot know which one fired. `type` is
+// always seeded by the executor; `occurrence` is attached whenever the
+// transaction names one (operationExecutor's `enriched.occurrence`).
+export const TRIGGER_PROP_KEYS = (() => {
+  const out = new Set(["type"]);
+  for (const ev of EVENT_TYPES) {
+    for (const subject of TRIGGER_SUBJECT_TYPES) {
+      for (const v of getTriggerVars(ev.value, subject)) out.add(v.replace(/^\$trigger\./, ""));
+    }
+  }
+  return [...out];
+})();

@@ -41,7 +41,7 @@ const inputStyle = {
 // Event types come from the shared triggerTypes module so the editor and
 // the runtime executor share one source of truth. VISIBLE_EVENT_TYPES
 // hides alias-only entries (onCreate / onNavigation / onDrop).
-import { VISIBLE_EVENT_TYPES as EVENT_TYPES } from "../../helpers/triggerTypes";
+import { VISIBLE_EVENT_TYPES as EVENT_TYPES, getTriggerVars } from "../../helpers/triggerTypes";
 
 // Subject types — WHAT KIND of entity the event is about
 const SUBJECT_TYPES = [
@@ -58,26 +58,11 @@ const SUBJECT_TYPES = [
 
 // $trigger.* variables inferred from (eventType, subjectType).
 // itemId = the placement (was occurrenceId); templateId = the template (was moduleId).
-export function getTriggerVars(eventType, subjectType) {
-  const base = [];
-  if (subjectType === "module" || subjectType === "item") {
-    base.push("$trigger.itemId", "$trigger.templateId", "$trigger.role", "$trigger.kind", "$trigger.label");
-    if (eventType === "onChange")  base.push("$trigger.changedField", "$trigger.value", "$trigger.previousValue");
-    if (eventType === "onAdd" || eventType === "onRemove") base.push("$trigger.parentId");
-    if (eventType === "onMove")    base.push("$trigger.fromParentId", "$trigger.toParentId");
-    if (eventType === "onComplete") base.push("$trigger.fieldId", "$trigger.value");
-  } else if (subjectType === "field") {
-    base.push("$trigger.fieldId", "$trigger.itemId", "$trigger.templateId", "$trigger.value", "$trigger.previousValue", "$trigger.flow");
-  } else if (subjectType === "grid") {
-    base.push("$trigger.gridId");
-  } else if (subjectType === "filterNav") {
-    base.push("$trigger.activeFilterValues", "$trigger.date", "$trigger.previousValue");
-  } else if (subjectType === "transaction") {
-    base.push("$trigger.transactionId", "$trigger.transactionType", "$trigger.templateId");
-  }
-  base.push("$trigger.userId", "$trigger.timestamp");
-  return base;
-}
+// getTriggerVars moved to helpers/triggerTypes.js — the path picker needs the
+// same list to describe $trigger, and two copies drifted apart once already
+// (2026-09-22: the picker described $trigger as an occurrence). Re-exported
+// here so existing importers keep working.
+export { getTriggerVars };
 
 
 // ============================================================

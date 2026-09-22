@@ -48,7 +48,7 @@ export const CATEGORIES = [
   {
     id: "sources",
     label: "Sources",
-    description: "Variables you bound from the trigger, filters, or other entities. Add a Source row to expose more.",
+    description: "Variables bound by Source rows on older pipelines. The editor no longer adds them — declare a variable with an INIT_VAR step instead.",
     icon: Database,
     color: "rgba(59,130,246,0.7)",   // blue
     resolveItems: (ctx) => (ctx.sources || []).map(s => ({

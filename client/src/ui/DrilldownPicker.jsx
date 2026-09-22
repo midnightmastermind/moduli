@@ -31,12 +31,65 @@ import { Z_PORTAL_MENU } from "../helpers/zLayers";
 import { ChevronRight } from "lucide-react";
 import { CATEGORIES } from "./categoryRegistry";
 import { clickedInsidePortalLayer } from "../helpers/outsideClick";
+import { TRIGGER_PROP_KEYS } from "../helpers/triggerTypes";
+
+// Copy for the props `$trigger` can carry. A key with no entry still lists —
+// the union is the source of truth for WHICH keys exist; this only describes
+// them, so a new prop is never silently dropped from the picker.
+const TRIGGER_PROP_SUBS = {
+  type: "string", itemId: "string", templateId: "string", fieldId: "string",
+  value: "any", previousValue: "any", flow: "in / out / replace",
+  userId: "string", timestamp: "ISO", gridId: "string", parentId: "string",
+  fromParentId: "string", toParentId: "string", role: "string", kind: "string",
+  label: "string", changedField: "string", date: "string",
+  activeFilterValues: "object", transactionId: "string", transactionType: "string",
+};
+const TRIGGER_PROP_DESCRIPTIONS = {
+  type: "The transaction type that fired this run",
+  itemId: "Occurrence id the event happened to",
+  templateId: "Module of that occurrence",
+  fieldId: "Field whose value changed (field-subject triggers)",
+  value: "The new value",
+  previousValue: "The value before the change",
+  flow: "Flow direction stored alongside the value",
+  parentId: "Parent it was added to or removed from (onAdd / onRemove)",
+  fromParentId: "Where it moved from (onMove)",
+  toParentId: "Where it moved to (onMove)",
+  date: "Date the filter moved to (filter-nav triggers)",
+  activeFilterValues: "Filter values after the change (filter-nav triggers)",
+  userId: "Who caused it",
+  timestamp: "When it happened",
+};
 
 // Shape descriptors used when drilling past level 2 in path mode.
 // Each entry is the set of keys exposed on that shape and what a follow-on
 // drill should produce. Keeping these explicit makes the picker fully
 // deterministic without poking at runtime data.
 const SHAPES = {
+  // $trigger is the EVENT payload, not an occurrence. It used to be mapped to
+  // the occurrence shape, so the picker offered `$trigger.fields.<id>.value`
+  // (undefined at runtime for every trigger type) and hid `$trigger.occurrence`,
+  // which is the key the executor sets and the one every operation on poms grid
+  // reaches through. Found building an op through the UI, 2026-09-22.
+  //
+  // The prop list is the union `getTriggerVars` can produce — the same function
+  // the editor's trigger row prints from — so a prop added there arrives here
+  // with no second edit. An operation may carry several triggers at once, so
+  // the picker cannot narrow to one event's props.
+  trigger: {
+    keys: () => [
+      {
+        value: "occurrence", title: "occurrence", sub: "occurrence",
+        description: "The row the event happened to — id, moduleId, parentId, fields, _ancestors",
+        hasChildren: true, childShape: "occurrence",
+      },
+      ...TRIGGER_PROP_KEYS.map((k) => ({
+        value: k, title: k, sub: TRIGGER_PROP_SUBS[k] || "value",
+        description: TRIGGER_PROP_DESCRIPTIONS[k] || "Set for the trigger types that carry it",
+        hasChildren: false,
+      })),
+    ],
+  },
   occurrence: {
     keys: (ctx) => [
       { value: "id",          title: "id",          sub: "string",   description: "Unique occurrence ID",                           hasChildren: false },
@@ -249,6 +302,7 @@ function occurrenceMapItems(ctx) {
 
 function descendShape(shape, ctx) {
   if (!shape) return [];
+  if (shape === "trigger") return SHAPES.trigger.keys(ctx);
   if (shape === "occurrence") return SHAPES.occurrence.keys(ctx);
   if (shape === "fieldValue") return SHAPES.fieldValue.keys(ctx);
   if (shape === "filter") return SHAPES.filter.keys(ctx);
@@ -281,7 +335,7 @@ const BUILTIN_VAR_SHAPES = {
   $allFields: "fieldArray",
   $allOperations: "operationArray",
   $parentFilter: "filter",
-  $trigger: "occurrence",
+  $trigger: "trigger",
   $grid: "grid",
   $this: "occurrence",  // the current instance — the row whose field is being resolved
 };
@@ -341,7 +395,7 @@ function segmentDisplay(seg, ctx) {
 // path (`label`, `fields.<fid>.value`) — no `$` prefix, no category id. Used by
 // Find's predicate left-side, which iterates a chosen collection and evaluates
 // each rule against the current record.
-function itemsForLevel(chain, ctx, categories, recordShape) {
+export function itemsForLevel(chain, ctx, categories, recordShape) {
   if (recordShape) {
     let currentItems = descendShape(recordShape, ctx);
     if (chain.length === 0) {

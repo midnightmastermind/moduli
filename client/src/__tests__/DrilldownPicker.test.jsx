@@ -26,7 +26,11 @@ describe("DrilldownPicker", () => {
     render(<DrilldownPicker value="" ctx={baseCtx} onChange={() => {}} />);
     fireEvent.click(screen.getByRole("button", { name: /pick path/i }));
     // Rich tile means the description text is visible alongside the label.
-    expect(screen.getByText(/variables you bound from the trigger/i)).toBeTruthy();
+    // The Sources copy changed 2026-09-22: it used to end "Add a Source row to
+    // expose more", and the editor stopped offering Source rows some time ago
+    // (PipelineEditor: "Sources are no longer surfaced"). What is pinned here
+    // is that a description RENDERS, so the wording is matched loosely.
+    expect(screen.getByText(/variables bound by source rows/i)).toBeTruthy();
     expect(screen.getByText(/collections of placements/i)).toBeTruthy();
   });
 
