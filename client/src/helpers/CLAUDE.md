@@ -2,6 +2,11 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-22 (4) — `breakOccurrenceLink` opens an action)
+`withAction("Broke link")` around the emit. Without the stamp the server records the break `derived`
+and the undo stack skips it — measured on prod, Ctrl+Z then undid the copy-link drag underneath and
+DELETED the row. The server half (which recorded nothing at all) shipped with it; neither works alone.
+
 ## Recent Changes (2026-09-22 (3) — `createInstanceInContainer` opens an action)
 It emitted through raw `safeEmit` with no action open, so the write was recorded `derived` — not
 undoable by any number of presses (the hole found in `createPageInContainer` / `addBookmarkOccurrence`

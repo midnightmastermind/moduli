@@ -15,6 +15,57 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (11) — UNDO AFTER "BREAK LINK" DELETED THE ROW, because the break recorded nothing
+
+The other half of what the user said yes to: the **linked-group undo gaps**. `break_link` nulled
+`linkedGroupId`, saved and broadcast, and called `recordDoc` **zero times** — the only `recordDoc`
+in `socketHandlers/occurrences.js` is inside `update_occurrence`. The 09-22 entry reported this as
+*"Break Link is not undoable"*. **It is worse than that, and only doing it on prod showed why.**
+
+**MEASURED ON A PAIR MINTED BY A COPY-LINK DRAG, read out of the `transactions` collection:**
+```
+fd0bb37f   source[update] + copy[create] + parent[update]   the DRAG, one action
+Break Link                                                  NO transaction at all
+Ctrl+Z     undid fd0bb37f                                   the ROW was deleted
+```
+So undo did not fail quietly — **it reached PAST the break to the gesture before it and destroyed
+the row the user had just broken out of the group** (the copy gone from Mongo, the source's
+`linkedGroupId` reverted with it). *"Not undoable" and "undo does something else" are different
+reports, and the transaction log is what tells them apart.*
+
+**BOTH HALVES, because either alone is inert** — the same shape as (10) an hour earlier.
+`CommitHelpers.breakOccurrenceLink` opens an action ("Broke link") so the emit carries
+`__actionId`; unstamped, the recorder marks the transaction `derived` and the undo stack SKIPS it.
+The handler snapshots before/after around the null, so undo's `$set` puts the group id back.
+Recording is wrapped so it can never fail the write — the posture `update_occurrence` already takes.
+
+**VERIFIED ON PROD THROUGH THE UI, and the trail names it:**
+```
+break       group 2 -> 1
+ONE undo    group 1 -> 2, the row intact
+mongo       both rows carry lg 9ede1fdc-b6e1 again
+18:39:13    action 30bfa289  "Broke link"  [undone]   <- its own transaction now
+18:39:06    action 175250c2  "Created item" [applied] <- the drag, no longer reached
+```
+
+**MY OWN A/B WAS VACUOUS AND THE ASSERT IS WHAT CAUGHT IT.** The "recording must never fail the
+write" case passed a `__throw` flag on the socket PAYLOAD — which never reaches `recordDoc`, so the
+recorder never threw and the test proved nothing. It drives a real throw through the mock now and
+asserts the recorder was actually reached. *Third time this file records a green test that was
+measuring nothing; the fix each time was to assert the mutation LANDED.*
+
+**Probe debris, all removed through the app:** the copy-link copy my probe minted (deleted via its
+radial), the source row's drag mode cycled back to Move, and the lone one-member group the drag left
+on the source — cleared with **Break Link itself**, which is now a recorded, undoable gesture. Five
+linked groups on the grid, all 2 members, exactly as before; integrity **clean**.
+
+**STILL OPEN, unchanged and stated again:** undo of a copy-link FAN-OUT reverts only the SOURCE —
+the server propagates a field write to every group member but records one doc, so the copies keep
+the new value. That is a second recording gap in the same handler, on the hot write path, and it
+wants its own pass.
+
+---
+
 ### 2026-09-22 (10) — A CARD ADDED ON A CANVAS LEFT AN INVISIBLE ROW BEHIND, and one gesture was not undoable at all
 
 Rebuild-via-UI, next area **canvas** (picked up mid-probe from the other account: it had made the

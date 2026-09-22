@@ -2,6 +2,15 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-22 (2) — `break_link` records a transaction, so undo stops deleting the row)
+It nulled `linkedGroupId`, saved and broadcast, and called `recordDoc` zero times — so the break left
+no transaction and the undo stack reached PAST it. Measured on prod: Ctrl+Z after a Break Link undid
+the copy-link DRAG instead and deleted the row (`fd0bb37f` source[update] + copy[create] +
+parent[update], the copy gone from Mongo). It now snapshots before/after around the null under the
+client's `__actionId` (the client half opens the action — unstamped, the recorder marks it `derived`
+and the stack skips it), wrapped so recording can never fail the write.
+`__tests__/breakLinkUndoable.test.js` (4) — all 4 fail with the recording removed.
+
 ## Recent Changes (2026-09-22 — `create_instance_in_container` is UNDOABLE)
 The handler wrote a Module, an Occurrence and the parent's `occurrences[]` and called `recordChange`
 **zero times**, so every gesture behind it — a canvas double-click, the pool's add box, the radial's
