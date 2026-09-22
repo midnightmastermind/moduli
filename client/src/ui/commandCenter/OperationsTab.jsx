@@ -129,7 +129,14 @@ export function OpItem({ op, selected, onClick, onPreview, isDuplicate = false }
         type: "operation",
         id: op.id,
         data: op,
-        sourceType: "command-center",
+        // `sourceType` — NOT "command-center". `buildRawDropEvent` derives
+        // `sourceKind` from this key (dragHitTesting.js) and `routeDrop`
+        // dispatches on it, so "command-center" sent this drop to
+        // handleModuleDrop, which looks the payload up in `modulesById`, finds
+        // no module for an operation id, and returns. The drop this pill's own
+        // tooltip advertises ("drag to instance to add as runnable widget")
+        // wrote nothing and said nothing — measured on prod 2026-09-21.
+        sourceType: "operation",
       }),
     });
   }, [op]);
