@@ -35,7 +35,7 @@ function run(fn) {
   const emitted = [];
   const socket = {
     connected: true,
-    emit: (event, data) => emitted.push({ event, actionId: data?.__actionId }),
+    emit: (event, data) => emitted.push({ event, actionId: data?.__actionId, occ: data?.occurrence }),
     on: vi.fn(), off: vi.fn(), io: { opts: {} },
   };
   fn({ dispatch: vi.fn(), socket });
@@ -86,6 +86,45 @@ describe("a filter CONFIGURATION change is one undo step", () => {
       }));
     expect(writes).toHaveLength(1);
     expect(ids[0]).toBeTruthy();
+  });
+
+  // DROPPING THE LAST ENTRY MEANS "INHERIT", NOT "CLEAR EVERYTHING".
+  //
+  // `selectors.js:335` — `if (Object.keys(override).length === 0) { effective = {} }`
+  // — reads an EMPTY override object as a page-wide clear (the seeded Daily
+  // Toolkit / Todo / Notes pages store exactly that on purpose). So deleting the
+  // only key left behind `{}`, and turning a filter back ON left it OFF while
+  // silently clearing every OTHER filter at that level. Watched on prod: the
+  // Active switch stayed off through an activate, and the next press wrote
+  // today's date instead. `null` is the value that means "no opinion here".
+  it("un-muting the last entry writes null (inherit), never {} (clear all)", () => {
+    const { writes } = run(({ dispatch, socket }) =>
+      filterConfig.activateFilter({
+        dispatch, socket, occurrence, fieldId: DATE,
+        overrides: { [DATE]: null }, value: undefined, ...maps,
+      }));
+    expect(writes[0].occ.filterOverride, "{} clears every filter at this level").toBeNull();
+  });
+
+  it("clearFilterOverride does too", () => {
+    const { writes } = run(({ dispatch, socket }) =>
+      filterConfig.clearFilterOverride({
+        dispatch, socket, occurrence, fieldId: DATE,
+        overrides: { [DATE]: "2026-09-21" }, ...maps,
+      }));
+    expect(writes[0].occ.filterOverride).toBeNull();
+  });
+
+  // The control: with another entry still set, this occurrence DOES still have
+  // an opinion, so the map is written — turning it into null there would drop a
+  // filter the user set on a different field.
+  it("but keeps the map when another field is still overridden", () => {
+    const { writes } = run(({ dispatch, socket }) =>
+      filterConfig.clearFilterOverride({
+        dispatch, socket, occurrence, fieldId: DATE,
+        overrides: { [DATE]: null, other: "x" }, ...maps,
+      }));
+    expect(writes[0].occ.filterOverride).toEqual({ other: "x" });
   });
 
   // THE CONTROL. Without it, "the gesture is stamped" is equally satisfied by

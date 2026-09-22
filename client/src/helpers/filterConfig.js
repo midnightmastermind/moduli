@@ -23,13 +23,23 @@
 import { withAction } from "./actionScope";
 import * as CommitHelpers from "./CommitHelpers";
 
-/** Drop one key from the override and commit the rest. Shared by every gesture
- *  here: muting writes `null`, everything else deletes. */
+/**
+ * The override this occurrence should carry after the gesture. Muting writes
+ * `null` for the field; everything else deletes its entry.
+ *
+ * DROPPING THE LAST ENTRY YIELDS `null`, NOT `{}`. The cascade reads an EMPTY
+ * override object as "clear every filter at this level" (`selectors.js`:
+ * `if (Object.keys(override).length === 0) { effective = {} }`) — a real stored
+ * value the seeded Daily Toolkit / Todo / Notes pages use on purpose. So
+ * deleting the only key used to leave behind a page-wide clear: turning a
+ * filter back ON left it OFF, and quietly switched off every other filter here
+ * too. `null` is the value that means "this occurrence has no opinion".
+ */
 function nextOverride(overrides, fieldId, value) {
   const next = { ...(overrides || {}) };
   if (value === undefined) delete next[fieldId];
   else next[fieldId] = value;
-  return next;
+  return Object.keys(next).length === 0 ? null : next;
 }
 
 function commitOverride({ dispatch, socket, occurrence, filterOverride, fieldId, date = null, occurrencesById, modulesById }) {
