@@ -20,6 +20,16 @@ _Updated: 2026-09-11. Check this file before re-reading source._
 - `ui/FiltersSection.jsx` calls these; its `setMuted` / `removeLocal` / `relock` bodies (three copies
   of one write) are gone. 8 tests in `__tests__/filterConfigIsOneUndoStep.test.js`.
 
+## Recent Changes (2026-09-22 (5) — `searchOccurrences`: an openable hit outranks an unopenable one)
+The sort's tiebreak was ancestor depth ASCENDING, so a row parented by nobody — which
+`openOccurrenceInPanel` cannot open, it just says "That item isn't on a page yet" — ranked above the
+row on a page. Measured on poms grid: "Chicken Breast" returned the five unopenable rows first and
+the only usable one last. Openability is now the FIRST tiebreak, using the index's own `pageOccId`
+(the same walk the opener does, so list and click cannot disagree). Unopenable rows stay listed and
+`ui/OccurrenceSearch` marks them "not on a page" — keyed on `pageOccId`, NOT on an empty path,
+because a PAGE has no path of its own and is openable. 4 tests, A/B'd; the control (a label match
+still beats a body match even when unreachable) passes in both arms.
+
 ## Recent Changes (2026-09-22 (4) — `breakOccurrenceLink` opens an action)
 `withAction("Broke link")` around the emit. Without the stamp the server records the break `derived`
 and the undo stack skips it — measured on prod, Ctrl+Z then undid the copy-link drag underneath and

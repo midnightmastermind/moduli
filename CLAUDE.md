@@ -15,6 +15,47 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (19) — SEARCH PUT THE FIVE ROWS YOU CANNOT OPEN ABOVE THE ONE YOU CAN
+
+Closing the item (7) left open this morning: *"the first of six same-named hits opened nothing …
+the results are not disambiguated by path in the picking order."* **Reproduced exactly, on poms
+grid, searching "Chicken Breast":**
+```
+1-5   Chicken Breast                                <- no path; none of them open
+6     Chicken Breast · Ingredients › Ingredients    <- the only usable one
+```
+`openOccurrenceInPanel` bails when an occurrence has no page in its ancestry, and the sort's
+tiebreak is **ancestor depth ASCENDING** — so a row parented by nobody, having no ancestors at all,
+ranked ABOVE the row that is on a page. That is what *"why doesn't search find it"* felt like.
+
+**THE FIRST TIEBREAK IS NOW OPENABILITY, and it uses the index's OWN `pageOccId`** — the same walk
+the opener does — so the ranking cannot disagree with what a click does. **The unopenable rows are
+still LISTED**: hiding them would be the original complaint in a new form, since the row exists and
+search is how you find it. They say **"not on a page"** in the list instead of making you spend a
+click to learn it.
+
+**THE APP WAS NEVER SILENT — MY PROBE WAS.** It already answered *"That item isn't on a page yet"*
+on the click; the first measurement reported no toast because the selector (`[data-sonner-toast]`,
+`[role=status]`) matches nothing here. Watching for ADDED NODES instead caught it at **+400ms**.
+*A zero from a selector nobody has seen match is a claim about the selector.* The message was right
+and in the wrong place: after the click, about the row you had already picked.
+
+**THE NOTE KEYS ON `pageOccId`, NOT ON AN EMPTY PATH, and a real case proves why:** a PAGE has no
+path of its own (the walk skips panels and a page has no non-panel ancestor) and is perfectly
+openable — searching "Grocery List" lists the page first with no path, and it opens. Keying the
+note on "path is empty" would have libelled every page on the grid.
+
+**Verified on prod, the same search:** `Ingredients › Ingredients` first, the other five reading
+*not on a page*, and picking the top hit navigates the panel. A/B: removing the tiebreak fails
+exactly the ranking case; the control — a LABEL match outranks a BODY match even when the label
+match is unreachable — passes in both arms, pinning that openability does not override match
+quality.
+
+**The panel I moved on the user's live grid was put back** through the app (its own search), since
+a fresh session has no Back history to the page it started on.
+
+---
+
 ### 2026-09-22 (18) — A GRAPH DREW ONE BAR FOR TWO ROWS AND SAID NOTHING; the chart heard half its warnings
 
 Rebuild-via-UI, next area **graph containers** (the last one named untested). The rebuild grid
