@@ -29,6 +29,7 @@ import { buildGraphData } from "../../helpers/graphData";
 import { resolveFeedItems } from "../../state/selectors";
 import { resolveGraphRows } from "../../helpers/feedPull";
 import { buildEChartsOption } from "../../helpers/graphOption";
+import { mergeGraphWarnings, summariseGraphWarnings } from "../../helpers/graphWarnings";
 import { selectedIdsForDay, derivesSelection } from "../../helpers/graphSelection";
 import { DEFAULT_VIEW, isDefaultView } from "../../helpers/graphView";
 import { useGridActionsSelector, useGridActionsSelectorShallow } from "../../GridActionsContext";
@@ -131,9 +132,18 @@ export default function ContainerGraph({ occurrence, renderParentOccurrenceId = 
     [spec, dayKey, derivedList]
   );
 
-  const { option } = useMemo(
+  const { option, warnings: drawWarnings } = useMemo(
     () => buildEChartsOption(spec, nodes, readChartTheme(hostRef.current), view, boxPx, dayKey, derivedIds),
     [spec, nodes, view, boxPx, dayKey, derivedIds]
+  );
+
+  // BOTH HALVES WARN. This surface used to hear only `buildGraphData` — so a
+  // bar chart that dropped a row because two rows shared a name said NOTHING
+  // (measured on prod 2026-09-22: 2 "meal" rows drew meal = 1). The editor has
+  // always merged the two; the chart is where the user is looking.
+  const allWarnings = useMemo(
+    () => mergeGraphWarnings(warnings, drawWarnings),
+    [warnings, drawWarnings]
   );
 
   // A selection fires the ordinary trigger path, so an operation decides what a
@@ -289,11 +299,11 @@ export default function ContainerGraph({ occurrence, renderParentOccurrenceId = 
             <span>{view.zoom.toFixed(1)}×</span>
           </button>
         )}
-        {warnings.length > 0 && (
-          // Surfaced rather than swallowed: "this row contributed nothing" is
-          // exactly the thing that is invisible in a chart.
-          <div className="container-graph-warnings" title={warnings.map(w => w.why).join("\n")}>
-            {warnings.length} row{warnings.length === 1 ? "" : "s"} contributed nothing
+        {allWarnings.length > 0 && (
+          // Surfaced rather than swallowed: a row that contributed nothing, and
+          // a chart that quietly discarded one, are both invisible in a chart.
+          <div className="container-graph-warnings" title={allWarnings.map(w => w.why).join("\n")}>
+            {summariseGraphWarnings(allWarnings)}
           </div>
         )}
       </div>

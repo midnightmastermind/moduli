@@ -43,8 +43,8 @@ const F_VALUE = "f-intensity";
 function setup({ graph = { type: "pie", encoding: { value: F_VALUE } }, childIds = ["a", "b"], feed = null } = {}) {
   const occurrencesById = {
     g1: { id: "g1", moduleId: "m-graph", occurrences: childIds, meta: graph ? { graph } : {}, ...(feed ? { feed } : {}) },
-    a: { id: "a", moduleId: "m-a", label: "Angry", fields: { [F_VALUE]: { value: 8 } }, occurrences: [] },
-    b: { id: "b", moduleId: "m-b", label: "Sad", fields: { [F_VALUE]: { value: 3 } }, occurrences: [] },
+    a: { id: "a", moduleId: "m-a", label: "Angry", fields: { [F_VALUE]: { value: 8 }, "f-cat": { value: "meal" } }, occurrences: [] },
+    b: { id: "b", moduleId: "m-b", label: "Sad", fields: { [F_VALUE]: { value: 3 }, "f-cat": { value: "meal" } }, occurrences: [] },
   };
   const ctx = {
     dispatch: vi.fn(), socket: null, gridId: "g", userId: "u",
@@ -138,6 +138,23 @@ describe("ContainerGraph", () => {
     );
     expect(screen.getByTestId("echart")).toBeTruthy();
     expect(document.querySelector(".container-graph-board-toggle")).toBe(null);
+  });
+});
+
+describe("the chart says what it could not draw", () => {
+  it("shows the chip when the CHART LAYER discards a row, not just the data layer", () => {
+    // Measured on prod 2026-09-22: a bar chart over rows whose Label field
+    // repeats ("meal", "meal", "ingredient") drew meal = 1 — a whole row
+    // discarded by `alignedData`'s first-row-wins rule, which warns. The chart
+    // destructured only `option` from `buildEChartsOption`, so the warning
+    // never reached the chip and the drop was invisible.
+    const { view } = setup({
+      graph: { type: "bar", encoding: { category: "f-cat", value: F_VALUE } },
+      childIds: ["a", "b"],
+    });
+    // Both rows carry the SAME category value, so one of them cannot be drawn.
+    expect(view.container.querySelector(".container-graph-warnings"), "the chart went silent about a dropped row").toBeTruthy();
+    expect(view.container.querySelector(".container-graph-warnings").textContent).toMatch(/chart issue/);
   });
 });
 

@@ -23,6 +23,7 @@ import { BarChart3, Plus, X } from "lucide-react";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
 import { CHART_TYPES, encodingsForType, FLATTEN_MODES, buildEChartsOption, DEFAULT_GRAPH_SPEC } from "../helpers/graphOption";
+import { mergeGraphWarnings } from "../helpers/graphWarnings";
 import { buildGraphData } from "../helpers/graphData";
 import { resolveGraphRows } from "../helpers/feedPull";
 import { resolveFeedItems } from "../state/selectors";
@@ -162,12 +163,10 @@ export default function GraphSection({ occurrence }) {
       // type is ignoring an encoding, or discarded a level of the hierarchy —
       // and those are precisely the failures that still LOOK like a chart.
       const { warnings: drawWarnings } = buildEChartsOption(spec, nodes);
-      const all = [
-        ...warnings,
-        // graphOption states its warnings as plain strings; normalise so one
-        // renderer handles both without either side learning the other's shape.
-        ...drawWarnings.map((w) => (typeof w === "string" ? { occurrenceId: null, why: w } : w)),
-      ];
+      // One definition of the merge, shared with the CHART surface — two copies
+      // of "normalise the other layer's shape" is how one of them drifts back
+      // to silence (helpers/graphWarnings.js).
+      const all = mergeGraphWarnings(warnings, drawWarnings);
       const count = (ns) => ns.reduce((n, x) => n + 1 + count(x.children || []), 0);
       const depth = (ns, d = 1) => (ns.length ? Math.max(...ns.map((x) => depth(x.children || [], d + 1))) : d - 1);
       return { roots: nodes.length, rows: count(nodes), depth: depth(nodes), warnings: all };
