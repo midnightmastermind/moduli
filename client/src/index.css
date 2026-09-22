@@ -7025,7 +7025,13 @@ body[data-layout="mobile"] .module-drag-handle .radial-handle svg {
   flex-direction: column;
   min-height: 0;
 }
-.artifact-spread-body:has(.artifact-card--bookmark-open) > .container-shell > .container-items--wrap {
+/* THE ITEMS ROW SITS INSIDE `.container-list`, not directly in the shell — the
+   selector used to skip that level and matched nothing (measured 2026-09-22:
+   shell 947px, items row 13,215px, the article's full height, with the cover
+   tile beside it centred ~6,600px down). `min-height: 0` is the declaration
+   that matters: the list is already bounded by the rules below, and a flex
+   item's default `min-height: auto` is its content, which is the article. */
+.artifact-spread-body:has(.artifact-card--bookmark-open) > .container-shell > .container-list > .container-items--wrap {
   flex: 1 1 auto;
   min-height: 0;
 }
