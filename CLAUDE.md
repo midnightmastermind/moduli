@@ -37,11 +37,15 @@ page". The tree was written; nothing appeared. **Two independent defects, both m
   `import_url` replies with the page title so the wrapper is named for the article. **Verified in the
   UI:** "Zazen - Wikipedia" appears in Bookmarks immediately.
 
-**FOUND, NOT FIXED: deleting an imported page orphans most of it.** The importer mints children with
+**AND DELETING AN IMPORTED PAGE ORPHANED MOST OF IT — fixed.** The importer minted children with
 `parentId: null` ("set when added to container.occurrences" — never set), and `delete_occurrence`'s
-cascade follows only children whose `parentId` points back. Measured on the two probe imports: 3 of 4 and
-10 of 18 child nodes would have survived a root delete. They were removed node-by-node, leaf-first, through
-the app (24 occurrences, their modules gone too). **Also not fixed:** `server.js`
+cascade follows only children whose `parentId` points back: 3 of 4 and 10 of 18 child nodes would have
+survived a root delete (the two probe imports were removed node-by-node instead, 24 occurrences).
+`mintEntities` now stamps every LISTED child from its lister, and `wrapImportInPage` parents the detached
+root to its page. **Verified through the UI:** import "Walking meditation", Delete from its radial menu →
+**0 of 11 occurrences, 0 of 11 modules** left. **Still open:** nodes embedded only in a textblock's TEXT
+(list chips, quotes, the source link) are listed by no node, so the cascade cannot reach them — that wants
+the delete path to follow textmap embeds, its own reviewed pass. **Also not fixed:** `server.js`
 `/api/research/wikipedia/import` persists nothing into the warm cache.
 
 ---
