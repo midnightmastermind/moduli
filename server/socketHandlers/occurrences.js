@@ -508,6 +508,29 @@ export function registerOccurrenceHandlers(socket, {
             }
           }
           if (disconnected) return;
+          // UNDO SEES THE WHOLE FAN-OUT, not just the row you edited. The
+          // snapshot for this write named ONE doc, so undoing a change to a
+          // copy-linked row put the SOURCE back and left every copy carrying
+          // the new value — measured 2026-09-22: `src true->false`, the 7:00am
+          // copy stayed `true`. Recorded under the SAME `__actionId` as the
+          // source write, so one press reverts the group together. Recorded
+          // AFTER the write lands, or a failed upsert would leave a snapshot
+          // claiming a value the database never held.
+          try {
+            recordDoc({
+              userId, gridId: txGridId || socket.data.activeGridId,
+              actionId: payload?.__actionId || null,
+              model: "occurrence", id: linked.id,
+              before: linked, after: updatedLinked,
+              compressedTextmap,
+              broadcast: (txJson) => {
+                socket.emit("transaction_created", { transaction: txJson });
+                socket.to(userRoom(userId)).emit("transaction_created", { transaction: txJson });
+              },
+            });
+          } catch (recErr) {
+            console.error("fan-out undo-record failed (continuing):", recErr?.message || recErr);
+          }
           socket.to(userRoom(userId)).emit("occurrence_updated", { occurrence: updatedLinked });
           socket.emit("occurrence_updated", { occurrence: updatedLinked });
         }
