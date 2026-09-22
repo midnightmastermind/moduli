@@ -2,6 +2,15 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-21 — a UI-created grid gets its Templates + Files folders at bootstrap)
+Only migrations `0035`/`0049` minted the protected Templates and Files folders, and migrations never run on a
+grid made from the Toolbar — so on the UI-rebuilt grid `6ab15587…` "Save as new template" returned before
+emitting (client `templatesFolderFor` → null) and uploads had no home. `utils/protectedFoldersEnsure.js`
+find-or-mints both (+ Files' 4 unprotected subfolders) right after `ensureUserManifest` in `state.js`, with the
+migrations' own rules: directly under the user root, `meta.protected`, an unprotected same-named root child is
+ADOPTED rather than duplicated, Templates id `tpl-folder-<gridId>` (0035's). Cache-first: zero writes once
+present. `__tests__/protectedFoldersEnsure.test.js` (5).
+
 ## Recent Changes (2026-09-19 — feed leader: one tab per user+grid runs feed sync)
 - `services/feedLeader.js` — pure registry (join / claim / leave; most recently active member inherits).
 - `socketHandlers/feedLeader.js` — `joinFeedGroup` (called from `state.js` right after the grid-room join;

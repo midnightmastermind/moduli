@@ -36,6 +36,7 @@ function emitDeferred({ socket, gridId, deferred, deferredModules }) {
 import User from "../models/User.js";
 import { getOccurrencesForGrid } from "../utils/occurrenceHelpers.js";
 import { ensureUserManifest } from "../utils/userManifest.js";
+import { ensureProtectedFolders } from "../utils/protectedFoldersEnsure.js";
 
 export function registerStateHandlers(socket, {
   cacheByUser, gridCacheKey, ensureUserCache, userCacheReady, loadUserIntoCache,
@@ -120,7 +121,11 @@ export function registerStateHandlers(socket, {
       // why deleting it never stuck.
       // …and a user manifest + root folder (grids minted outside the seed had
       // none, which killed the manifest tree + folder pages + panel defaults).
-      await ensureUserManifest({ gridId, userId, uc, gridDoc });
+      const userManifest = await ensureUserManifest({ gridId, userId, uc, gridDoc });
+      // …and the protected Templates + Files folders under it, which only
+      // migrations 0035/0049 used to mint — so a UI-created grid could not save
+      // a template or home an upload.
+      await ensureProtectedFolders({ gridId, userId, uc, manifest: userManifest });
       mark("manifests ensured");
 
       const grids = await getAllGridsForUser(userId);
