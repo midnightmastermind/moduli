@@ -11,6 +11,7 @@ import React, { useState, useMemo } from "react";
 import { Plus, Lock, Unlock, Settings, X } from "lucide-react";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "../helpers/CommitHelpers";
+import * as filterConfig from "../helpers/filterConfig";
 import FilterNavWidget, { formatFilterValueLabel } from "./FilterNavWidgets";
 import FilterEditor from "./FilterEditor";
 import { getEffectiveFilterForOccurrence, getParentOccurrence } from "../state/selectors";
@@ -247,17 +248,13 @@ export default function FiltersSection({ occurrence }) {
     return out;
   }, [occurrence?.filters, overrides, fieldsById, ancestorFieldIds]);
 
-  const setMuted = (fieldId, muted) => {
-    if (!fieldId) return;
-    const next = { ...overrides };
-    if (muted) next[fieldId] = null;
-    else delete next[fieldId];
-    CommitHelpers.updateOccurrenceFilterOverride({
-      dispatch, socket, id: occurrence.id, filterOverride: next,
-      occurrencesById, modulesById,
-      navFieldId: fieldId, date: null,
-    });
-  };
+  // The filter-CONFIGURATION gestures below route through helpers/filterConfig,
+  // which opens ONE action around each so it is a single undo step. The nav
+  // widget's own arrows deliberately do NOT (see handleNav): navigating a
+  // filter is not an edit.
+  const cfgArgs = { dispatch, socket, occurrence, overrides, occurrencesById, modulesById };
+
+  const unmute = (fieldId) => filterConfig.activateFilter({ ...cfgArgs, fieldId, value: undefined });
 
   const setNavVisible = (filterKey, visible) => {
     const next = { ...navConfig, [filterKey]: { ...(navConfig[filterKey] || {}), visible } };
@@ -268,15 +265,7 @@ export default function FiltersSection({ occurrence }) {
     });
   };
 
-  const removeLocal = (fieldId) => {
-    const next = { ...overrides };
-    delete next[fieldId];
-    CommitHelpers.updateOccurrenceFilterOverride({
-      dispatch, socket, id: occurrence.id, filterOverride: next,
-      occurrencesById, modulesById,
-      navFieldId: fieldId, date: null,
-    });
-  };
+  const removeLocal = (fieldId) => filterConfig.clearFilterOverride({ ...cfgArgs, fieldId });
 
   // Remove a declared filter entirely from occurrence.filters[] AND clear any
   // override that may have been set on it. Used by the X button on declared
@@ -505,15 +494,7 @@ export default function FiltersSection({ occurrence }) {
             const followsParent = ownValue === undefined; // not overridden = inheriting
             // Click the unlock icon to drop the local override and re-inherit
             // from the ancestor. Locked icon is inert (already inheriting).
-            const relock = () => {
-              const next = { ...overrides };
-              delete next[row.fieldId];
-              CommitHelpers.updateOccurrenceFilterOverride({
-                dispatch, socket, id: occurrence.id, filterOverride: next,
-                occurrencesById, modulesById,
-                navFieldId: row.fieldId, date: null,
-              });
-            };
+            const relock = () => filterConfig.clearFilterOverride({ ...cfgArgs, fieldId: row.fieldId });
             return (
               <div key={row.id} style={rowStyle}>
                 <button
@@ -549,17 +530,8 @@ export default function FiltersSection({ occurrence }) {
                       //      positive value to force-re-enable the filter
                       //      on THIS occurrence. localDayISO() matches the
                       //      format LocalFilterNav/handleFilterNav use.
-                      if (muted) {
-                        setMuted(row.fieldId, false);
-                      } else {
-                        const today = localDayISO();
-                        const next = { ...overrides, [row.fieldId]: today };
-                        CommitHelpers.updateOccurrenceFilterOverride({
-                          dispatch, socket, id: occurrence.id, filterOverride: next,
-                          occurrencesById, modulesById,
-                          navFieldId: row.fieldId, date: today,
-                        });
-                      }
+                      if (muted) unmute(row.fieldId);
+                      else filterConfig.activateFilter({ ...cfgArgs, fieldId: row.fieldId, value: localDayISO() });
                     } else {
                       // Toggle OFF: mute via null, AND auto-hide the nav
                       // widget for this filter (per user: "if its
@@ -567,10 +539,14 @@ export default function FiltersSection({ occurrence }) {
                       // two switches semantically linked — Nav can't be
                       // visible for a filter that isn't active. User can
                       // re-show Nav independently after re-activating.
-                      setMuted(row.fieldId, true);
-                      if (navFilterId && navOn) {
-                        setNavVisible(navFilterId, false);
-                      }
+                      // BOTH writes under one action: undoing half of this
+                      // leaves a filter that is off with its nav missing,
+                      // which is a state nobody chose (measured on prod
+                      // 2026-09-22 — the mute wasn't undoable at all).
+                      filterConfig.deactivateFilter({
+                        ...cfgArgs, fieldId: row.fieldId,
+                        navConfig, navFilterId, navWasOn: navOn,
+                      });
                     }
                   }}
                 />
