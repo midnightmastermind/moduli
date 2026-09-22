@@ -154,7 +154,24 @@ read it. **MY OWN GREP OVER THAT SAME TREE REPORTED ONE HIT AND MISSED BOTH** �
 measurement, the hand grep was not.
 
 7 tests, A/B'd against the raw emit: **2 fail** (the walker + the wiring pin). The other 4 pass in
-BOTH arms and are **reported as contract pins, not coverage.**
+BOTH arms and are **reported as contract pins, not coverage.** Deployed; served app chunk
+**sha256-identical** to the local build with `breakOccurrenceLink` present, `break_link` and
+`__actionId` non-zero as controls and a nonsense string at 0. **The entry chunk read 0 for the
+CONTROLS TOO** — the documented wrong-chunk tell; this code lives in `PagePreviewApp-*.js`.
+
+**AND I OVERSTATED THE DEFECT IN MY OWN COMMIT MESSAGE, which measuring afterwards is what caught.**
+It claims an offline Break Link is *"dropped with no queue and no error"*. Measured on prod, with the
+app's own status pill as the control (`Disconnected — trying now (attempt 4)`, so the disconnect was
+real): the offline click **LANDED** on reconnect. **socket.io buffers `emit` while disconnected by
+itself**, and the A/B against the old build was never run — so the raw emit would very likely have
+landed too. What the fix is actually worth is the CONTRACT plus `safeEmit` flushing after
+`full_state`; not a dropped write. *Verify the failure mode, not only the fix.*
+
+**FOUND WHILE CHECKING THAT CLAIM, REPORTED NOT FIXED: `break_link` records NO transaction.**
+`recordDoc` is called exactly once in `socketHandlers/occurrences.js` — inside `update_occurrence`.
+So **Break Link is not undoable**, and the `__actionId` stamp reaches a handler that ignores it.
+Breaking a link is destructive and silent, which is precisely the gesture you want back. That is a
+server change on a live write path and wants its own reviewed pass.
 
 ---
 

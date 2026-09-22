@@ -22,6 +22,23 @@ _Updated: 2026-09-11. Check this file before re-reading source._
 - `__tests__/breakLinkGoesThroughCommitHelpers.test.js` (7). A/B'd against the raw emit: 2 fail
   (the walker + the wiring pin). **The 4 unit cases pass in BOTH arms and are NOT counted as
   coverage** — they pin the helper's contract, not the fix.
+- **CORRECTION TO THIS ENTRY'S OWN COMMIT MESSAGE (`2ff2fe90`), measured after it was written.**
+  It says an offline Break Link is *"dropped with no queue and no error"*. **That is overstated.**
+  Measured on prod on the deployed build, with the app's own status pill as the control (it read
+  `Disconnected — trying now (attempt 4)`, so the disconnect was real): the offline click
+  **LANDED** on reconnect, group 2 -> 1. And **socket.io buffers `emit` while disconnected by
+  itself**, so the raw emit would very likely have landed too — the A/B against the old build was
+  not run. What the fix is actually worth is the CONTRACT (one chokepoint, enforced by a guard)
+  plus `safeEmit`'s ordering guarantee (it flushes after `full_state`, so a replayed write cannot
+  be clobbered by the state that follows it) — not a dropped write. *Verify the failure mode, not
+  only the fix.*
+- **FOUND WHILE CHECKING THAT CLAIM, REPORTED NOT FIXED: `break_link` RECORDS NO TRANSACTION.**
+  `recordDoc` is called exactly once in `socketHandlers/occurrences.js`, inside `update_occurrence`;
+  the `break_link` handler saves and broadcasts with no snapshot. So **Break Link is not undoable**,
+  and the `__actionId` stamp `safeEmit` adds reaches a handler that ignores it. Breaking a link is
+  destructive and silent — it is exactly the gesture you would want back. Fixing it means recording
+  a before/after snapshot in that handler, which is a server change on a live write path and wants
+  its own reviewed pass.
 
 ## Recent Changes (2026-09-21 (4) — an uploaded file vanished from where it was dropped after a reload)
 - Every upload path lists the placeholder in its destination the moment it is dropped, but the server only
