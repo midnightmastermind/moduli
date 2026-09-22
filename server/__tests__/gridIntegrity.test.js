@@ -623,6 +623,32 @@ describe("duplicate template application", () => {
     expect(codes(f)).not.toContain("duplicate-template-application");
   });
 
+  // A MERGE of a multi-row template lands its rows as siblings, all stamped
+  // with the template ROOT's id and the same date. They are different nodes.
+  it("is quiet for two different rows of ONE application (distinct signatures)", () => {
+    const row = (id, sig) => occ(id, "mCol", {
+      parentId: "board", identitySignature: sig,
+      meta: { appliedFromTemplateId: "tpl" }, fields: { fDate: { value: "2026-09-21" } },
+    });
+    const f = checkGridIntegrity({
+      modules: [mod("mBoard"), mod("mCol", { role: "container" })],
+      occurrences: [board, row("a", "auto:stretch"), row("b", "auto:breakfast")],
+    });
+    expect(codes(f)).not.toContain("duplicate-template-application");
+  });
+
+  it("still flags two copies of the SAME template node (shared signature)", () => {
+    const row = (id) => occ(id, "mCol", {
+      parentId: "board", identitySignature: "auto:stretch",
+      meta: { appliedFromTemplateId: "tpl" }, fields: { fDate: { value: "2026-09-21" } },
+    });
+    const f = checkGridIntegrity({
+      modules: [mod("mBoard"), mod("mCol", { role: "container" })],
+      occurrences: [board, row("a"), row("b")],
+    });
+    expect(codes(f)).toContain("duplicate-template-application");
+  });
+
   it("is quiet for two siblings applied from DIFFERENT templates", () => {
     const f = checkGridIntegrity({
       modules: [mod("mBoard"), mod("mCol", { role: "container" })],

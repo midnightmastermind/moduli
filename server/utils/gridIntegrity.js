@@ -409,7 +409,14 @@ export function checkGridIntegrity({ grid = null, occurrences = [], modules = []
       if (!tpl || !o.parentId || !occById.has(o.parentId)) continue;
       const f = o.fields || {};
       const shape = JSON.stringify(Object.keys(f).sort().map((k) => [k, f[k]?.value ?? null]));
-      const key = `${o.parentId}\u0000${tpl}\u0000${shape}`;
+      // …and the template NODE it was cloned from. `appliedFromTemplateId` names
+      // the template ROOT and is stamped on EVERY clone, so a MERGE of a
+      // multi-row template (Morning Slot -> Stretch + Breakfast into one slot)
+      // put two different rows in one group and read as "Stretch ×2"
+      // (2026-09-21, the UI-rebuilt grid). A clone's signature names its source
+      // node, so two copies of one node still share it and a real duplicate is
+      // still caught.
+      const key = `${o.parentId}\u0000${tpl}\u0000${o.identitySignature || ""}\u0000${shape}`;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(o);
     }
