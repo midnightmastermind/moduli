@@ -15,6 +15,60 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (17) — PANEL LAYOUT, BY CLICKING; and two rules that cancelled each other out
+
+Rebuild-via-UI, next area **panel layout** (named as untested in the handoff). Every gesture driven
+through the UI on the rebuild grid, and the grid put back exactly as it was found.
+
+**THE SURFACE IS SOUND — six gestures, each measured:** tap an empty cell -> a panel minted on the
+Root folder page (`0,0`, no empty cells left); drag a panel onto an OCCUPIED cell -> a stack with a
+`2` Layers button; drag onto an EMPTY cell -> it moves; **Ctrl+Alt+Arrow snaps** a panel between
+cells and back; the **column lane** resizes live (`797/797 -> 629/965`, persisted
+`colSizes [0.79, 1.21]`, dragged back to `[1,1]`); and **Remove from grid** takes the panel out —
+it is guarded by `window.confirm`, added 2026-09-17 after a stray click deleted a hub panel.
+
+**THE FINDING: `cyclePanelStack` AND `Grid` DISAGREED, AND THE DISAGREEMENT WAS INVISIBLE.** The
+cycler cycled **N+1** states — each panel, then "all hidden" — and Grid rendered a cell-level Layers
+button *specifically* so you could cycle back out of the empty state. But Grid ALSO carries a
+**"Defensive: ensure at least one panel per cell is visible"** effect that force-writes
+`display: "block"` the moment a cell goes all-hidden. Measured on prod with two panels stacked:
+```
+start   A none   B block
+press   A block  B none     <- the cycler's math says "all hidden" HERE
+press   A none   B block
+press   A block  B none
+```
+A pure A/B toggle. **Predicting that third state and not finding it is what identified the effect as
+the cause** rather than leaving "the cycler is a toggle" as a shrug: the hidden state was
+unreachable, the cell-level button was dead code, and every attempt cost a wasted `update_module`
+write as the two rules fought.
+
+**THE USER'S CALL: always keep one visible.** So the cycle is N states (`helpers/panelStack.js`
+`nextStackIndex`, pure and tested), the defensive effect is the ONE authority on the invariant, and
+the dead button goes — along with `hasHiddenStack`, which was computed, threaded through GridCell's
+props and **read by nothing**. Net **-37/+16** across the two components. A/B: restoring the +1 state
+in the helper fails 2 of 8; the source guards pin the wiring with a control that the cycler still
+exists and still writes `display`.
+
+**VERIFIED ON PROD BY CLICKING:** a fresh stack, cycled four times — **exactly one panel painted at
+every step**, never none, and `button[title="Cycle panels"]` count **0**.
+
+**TWO PROBE FAULTS, BOTH THE SAME SHAPE, AND THE SECOND NEARLY BECAME A BUG REPORT.** Dragging the
+column lane at its vertical CENTRE did nothing three runs running — `elementFromPoint` there returns
+the seam's **grip `<circle>`**, not the lane, so `onMouseDown` never fired. Aiming at a point the hit
+test resolves to the lane itself works first time. Earlier the same day the canvas connect tool
+"failed" for exactly this reason. *Before filing a gesture as broken, assert `elementFromPoint`
+returns the element whose handler you expect.* And **"Remove from grid" appeared to do nothing**
+because Playwright auto-dismisses `window.confirm` — the guard was working; the probe was declining
+it.
+
+**REPORTED, NOT FIXED — both pre-existing and neither touched by this change:** a cell can show TWO
+panels at once (the invariant is "at LEAST one visible", not "exactly one"), which renders them
+overlapping until something cycles; and a cycler press landing ~1s after the previous one is
+sometimes dropped (3 of 3 presses land at a 3s settle, 2 of 3 at 1s).
+
+---
+
 ### 2026-09-22 (16) — ALARMS RING ON A UI-MADE GRID; the half that files them into the Schedule cannot
 
 Rebuild-via-UI, next area **alarms and scheduled operations** — poms runs 2 alarms (`atTimes`
@@ -312,60 +366,6 @@ filter write derived; restoring the `{}` write fails both inherit cases while th
 override still holding another field) passes in both arms. Client 4,769 pass; the 1 failure is the
 documented `trackerValues` OOM family. Deployed client-only, so `deploy.sh` correctly reported
 *"Server unchanged — NOT restarting"*.
-
----
-
-### 2026-09-22 (13) — PANEL LAYOUT, BY CLICKING; and two rules that cancelled each other out
-
-Rebuild-via-UI, next area **panel layout** (named as untested in the handoff). Every gesture driven
-through the UI on the rebuild grid, and the grid put back exactly as it was found.
-
-**THE SURFACE IS SOUND — six gestures, each measured:** tap an empty cell -> a panel minted on the
-Root folder page (`0,0`, no empty cells left); drag a panel onto an OCCUPIED cell -> a stack with a
-`2` Layers button; drag onto an EMPTY cell -> it moves; **Ctrl+Alt+Arrow snaps** a panel between
-cells and back; the **column lane** resizes live (`797/797 -> 629/965`, persisted
-`colSizes [0.79, 1.21]`, dragged back to `[1,1]`); and **Remove from grid** takes the panel out —
-it is guarded by `window.confirm`, added 2026-09-17 after a stray click deleted a hub panel.
-
-**THE FINDING: `cyclePanelStack` AND `Grid` DISAGREED, AND THE DISAGREEMENT WAS INVISIBLE.** The
-cycler cycled **N+1** states — each panel, then "all hidden" — and Grid rendered a cell-level Layers
-button *specifically* so you could cycle back out of the empty state. But Grid ALSO carries a
-**"Defensive: ensure at least one panel per cell is visible"** effect that force-writes
-`display: "block"` the moment a cell goes all-hidden. Measured on prod with two panels stacked:
-```
-start   A none   B block
-press   A block  B none     <- the cycler's math says "all hidden" HERE
-press   A none   B block
-press   A block  B none
-```
-A pure A/B toggle. **Predicting that third state and not finding it is what identified the effect as
-the cause** rather than leaving "the cycler is a toggle" as a shrug: the hidden state was
-unreachable, the cell-level button was dead code, and every attempt cost a wasted `update_module`
-write as the two rules fought.
-
-**THE USER'S CALL: always keep one visible.** So the cycle is N states (`helpers/panelStack.js`
-`nextStackIndex`, pure and tested), the defensive effect is the ONE authority on the invariant, and
-the dead button goes — along with `hasHiddenStack`, which was computed, threaded through GridCell's
-props and **read by nothing**. Net **-37/+16** across the two components. A/B: restoring the +1 state
-in the helper fails 2 of 8; the source guards pin the wiring with a control that the cycler still
-exists and still writes `display`.
-
-**VERIFIED ON PROD BY CLICKING:** a fresh stack, cycled four times — **exactly one panel painted at
-every step**, never none, and `button[title="Cycle panels"]` count **0**.
-
-**TWO PROBE FAULTS, BOTH THE SAME SHAPE, AND THE SECOND NEARLY BECAME A BUG REPORT.** Dragging the
-column lane at its vertical CENTRE did nothing three runs running — `elementFromPoint` there returns
-the seam's **grip `<circle>`**, not the lane, so `onMouseDown` never fired. Aiming at a point the hit
-test resolves to the lane itself works first time. Earlier the same day the canvas connect tool
-"failed" for exactly this reason. *Before filing a gesture as broken, assert `elementFromPoint`
-returns the element whose handler you expect.* And **"Remove from grid" appeared to do nothing**
-because Playwright auto-dismisses `window.confirm` — the guard was working; the probe was declining
-it.
-
-**REPORTED, NOT FIXED — both pre-existing and neither touched by this change:** a cell can show TWO
-panels at once (the invariant is "at LEAST one visible", not "exactly one"), which renders them
-overlapping until something cycles; and a cycler press landing ~1s after the previous one is
-sometimes dropped (3 of 3 presses land at a 3s settle, 2 of 3 at 1s).
 
 ---
 
