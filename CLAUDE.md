@@ -15,6 +15,83 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (5) — A FEED ON ONE GRID COPIED ANOTHER GRID'S ROWS, and tagged the originals on the way
+
+Picked up the other account's session (limit at 09:36 CDT, mid-repair). Its last finding, continuing
+*"we are diagnosing and creating poms grid over using the ui"*: switching the rebuild grid's
+**Ingredients** container to Feed On minted **50 copies of POMS GRID rows** under it.
+
+```
+Ingredients (rebuild 6ab15587)   50 copies parented here
+  copies   gridId 6a690f6f (poms)      sources  gridId 6a690f6f (poms)
+  poms rows written 14:27-14:29   50   <- linkedGroupId stamped on rows nobody was editing
+```
+Invisible in BOTH grids — the parent lives in one and the rows name the other — so nothing on screen
+would ever have shown it. **THE LEAK: every occurrence write is broadcast to the USER room, not the
+grid room** (`socketHandlers/occurrences.js:443` and ~20 more sites), so every tab of a user holds every
+other grid's rows. `_syncAllFeeds` then walked the whole map for `feed.enabled` with no grid check.
+
+**TWO GUARDS, AND NEITHER SUBSUMES THE OTHER** — which the A/B is what established, because the pull
+guard alone makes the owner test pass vacuously:
+```
+pull side  (selectors.js)  a candidate from another grid is never a source    <- today's shape
+owner side (feedSync.js)   a feed owner from another grid is skipped whole    <- 2026-09-21's 87
+```
+The second covers a foreign owner pulling its OWN rows, which the pull guard ALLOWS (owner and sources
+agree), minting copies stamped with THIS tab's grid id. A row naming NO grid is a local optimistic mint,
+so only an explicit disagreement is dropped — the asymmetry the overlay guard already uses. 6 tests,
+**3 fail without the owner guard, 3 controls pass in both arms.** 126 feed + selector tests. Served
+chunk sha256-identical to the local build, the guard readable in the minified bytes.
+**Reported, not fixed:** the user-room broadcast itself. A tab holding three grids' rows is the root,
+and it is a live write path with ~20 call sites — its own reviewed pass.
+
+**THE FIRST SWEEP WAS UNDONE IN 30 SECONDS BY A TAB ON THE OLD BUNDLE.** 86 copies deleted through the
+app; by 14:46 all 50 were back, minted by socket `73IwUgNQ…` — the FIRST connection after the morning
+restart, i.e. a tab open since before the fix deployed. *A data repair is not finished while a writer
+on the old build is still connected.* `disconnect_other_sessions` (closed 1, at the user's go-ahead),
+then re-swept in the same script so nothing could race it.
+
+**AND THE SWEEP I ALMOST RAN WOULD HAVE DELETED THE USER'S SCHEDULE.** 32 rebuild-grid rows pointed at
+POMS modules — Exercise, Eat, Drink, Wake Up, Hygiene, Go to Bed — listed by **13 poms schedule slots**
+and by nothing on their own grid. They read as orphans. They are an APPLY_TEMPLATE
+(`meta.appliedFromTemplateId`, 13:45) that ran in a tab whose `state.gridId` was the rebuild grid, so
+every mint was stamped with the wrong grid while being placed into poms. **Each one has a correctly
+stamped twin in the same slot**, which is the only reason deleting them is a sweep and not data loss:
+```
+6:00am    4 -> 2   Drink, Wake Up          7:00am   16 -> 8
+7:30am    6 -> 3   Take Medication, …      9:00pm    8 -> 4
+```
+The guard refuses any row with no twin, **A/B'd by blanking one row's moduleId — it refuses, naming
+it.** Backed up first. Every slot halved to exactly its real content, all live, 0 dangling.
+
+**A DELETE ON ONE GRID'S SOCKET LEAVES THE ROW IN ANOTHER GRID'S WARM CACHE.** Two swept copies came
+BACK on the next load. Measured rather than guessed — a socket joined to the rebuild grid was served
+both ids in its `full_state` while Mongo held 0:
+```
+served by the rebuild grid's cache  [b5uoq623p, krm4xcrr8]     in Mongo  0
+```
+They were deleted on the POMS socket (the grid they named), but a REBUILD container lists them, so the
+rebuild cache had loaded them too and kept serving them. Re-deleted on a socket joined to that grid.
+*The rule is not "join the row's grid" — it is "join every grid whose cache can hold it."*
+
+**VERIFIED BY CLICKING, which is also the next step of the rebuild.** Ingredients' feed carried two
+conditions with NO field, so the 09-22 half-written-condition fix correctly left it empty. Through the
+UI: remove the spare row, set **Board Category / contains / ingredient**, and watch `listed` stay at 0
+while the value is still blank:
+```
+before                 conds [-/IS/, -/IS/ingredient]      listed 0
+field + comparator     conds [F/CONTAINS/]                 listed 0   <- still nothing, by design
+typed "ingredient"     conds [F/CONTAINS/ingredient]       listed 1
+screen                 Ingredients ["Rice"]  Meals ["Oatmeal","Chicken salad"]
+mongo                  Rice[RB]              Oatmeal[RB], Chicken salad[RB]
+```
+Both feeds now persist with the **rebuild** grid's id, and the screen matches Mongo row for row.
+Grid-wide afterwards: rebuild **302 occurrences, 0 dangling refs, 0 rows pointing at another grid's
+module**; **0 cross-grid feed copies anywhere in the database**, poms included; all **81** stray
+`linkedGroupId` tags cleared, **0 sources lost a module**.
+
+---
+
 ### 2026-09-22 (4) — "IMPORT THE PAGE" WROTE A WHOLE ARTICLE THAT NO SCREEN COULD SHOW
 
 Rebuild-via-UI, link import continued: paste a Wikipedia link over the Bookmarks container → "Import the
