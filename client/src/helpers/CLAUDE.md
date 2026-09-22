@@ -2,6 +2,14 @@
 
 _Updated: 2026-09-11. Check this file before re-reading source._
 
+## Recent Changes (2026-09-22 (3) — `createInstanceInContainer` opens an action)
+It emitted through raw `safeEmit` with no action open, so the write was recorded `derived` — not
+undoable by any number of presses (the hole found in `createPageInContainer` / `addBookmarkOccurrence`
+earlier the same day). Split into a `withAction("Created item")` wrapper + `_createInstanceInContainer`;
+one atomic server event, so the grouping is a single scope rather than a nest. **The client stamp alone
+was worthless** — the server handler recorded no transaction at all; both halves shipped together
+(server/CLAUDE.md 2026-09-22).
+
 ## Recent Changes (2026-09-22 — `LayoutHelpers.mintLinkedCopy`)
 - The mint half of `copylinkInstanceToContainer` (group assignment + source tag, fields/label copy,
   `createOccurrence`), placing the copy NOWHERE unless given `parentId`. The container path calls it and

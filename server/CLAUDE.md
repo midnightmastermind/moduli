@@ -2,6 +2,16 @@
 
 _Updated: 2026-08-16. Check this file before re-reading source._
 
+## Recent Changes (2026-09-22 — `create_instance_in_container` is UNDOABLE)
+The handler wrote a Module, an Occurrence and the parent's `occurrences[]` and called `recordChange`
+**zero times**, so every gesture behind it — a canvas double-click, the pool's add box, the radial's
+"Duplicate (new instance)" — was invisible to Ctrl+Z no matter how many times it was pressed (the
+hole `break_link` still has). It now records the new row (`before: null`, label "Created item") and
+the parent's list write under the client's one `__actionId`, exactly as `create_occurrence` does at
+~line 1612 — so one press takes the row AND its listing back and leaves no orphan. The handler takes
+the whole payload now (it destructured only four keys, so `__actionId` never reached it).
+`__tests__/createInstanceUndoable.test.js` (4) — all 4 fail with the recordChange block removed.
+
 ## Recent Changes (2026-09-21 (2) — `link_occurrence_to_parent` takes `index` and `quiet`)
 `index` inserts with `$position` (append without it, unchanged for the pipeline re-link); `quiet` skips the
 echo to the calling socket. Both for the client's upload re-link (`client/src/helpers/artifactUpload.js

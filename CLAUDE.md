@@ -15,6 +15,63 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (10) — A CARD ADDED ON A CANVAS LEFT AN INVISIBLE ROW BEHIND, and one gesture was not undoable at all
+
+Rebuild-via-UI, next area **canvas** (picked up mid-probe from the other account: it had made the
+Canvas page, drawn a pen stroke — persisted, `meta.drawData`, 1 stroke — and was reading how a card
+with no `meta.x/y` is placed). Reading that placement code found a bigger thing next door.
+
+**DEFECT 1 — DOUBLE-CLICKING A CANVAS MINTS A CARD, AND ONE Ctrl+Z LEFT THE OCCURRENCE BEHIND.**
+Measured on prod through the UI before anything was changed:
+```
+dblclick     page lists [Board 1, New card @2154,1946]   parented to the page: 1
+ONE undo     page lists [Board 1]                        the row is STILL in the store
+```
+`PageCanvas` hand-rolled `createModule` + `createOccurrence` + `updateOccurrence` — three writes
+under **TWO action ids**, so undo popped the newest (the page's list) and left the create applied.
+**That is the exact shape of (8) this morning and of the 22 unreachable rows repaired in (7)**, at a
+third site. It calls `createLeafInstanceInParent({ occMeta: {x, y} })` now — one action, and the
+helper also fires OccurrenceCreateOp and stamps the page's filter fields, which the hand-rolled
+version skipped, and omits the junk `kind:"board"` (inert on an instance leaf, and it wins the icon
+resolver).
+
+**DEFECT 2 — AND THE OTHER CANVAS GESTURE WAS NOT UNDOABLE BY ANY NUMBER OF PRESSES.**
+`createInstanceInContainer` — behind the canvas-CONTAINER double-click, the pool's add box and the
+radial's "Duplicate (new instance)" — emitted through raw `safeEmit` with no action open, **and the
+server handler called `recordChange` zero times**, so there was no transaction for undo to find.
+Stamping the client write alone would have been worthless; *that* is the half worth keeping —
+**`break_link` still has exactly this hole** (recorded 09-22). Both halves fixed: `withAction` on
+the client, and the handler records the new row (`before: null`) plus the parent's list write under
+that one actionId, the same contract `create_occurrence` has at crud.js ~1612.
+
+**THE TRANSACTION LOG IS THE PROOF, and it names the change in one table:**
+```
+before fix   18:15:36  action 568226c1  4a21b1ae[create]
+             18:15:36  action c9926101  page[update]                 <- the list, a SEPARATE action
+after fix    18:24:20  action 9adc4f9b  page[update] + 86fb54cc[create]   <- ONE transaction
+```
+Verified on prod after deploy by repeating the gesture: one undo, the card gone from the page AND
+`present: false` in the store; canvas page lists 1 child, **0 rows parented to it**, grid integrity
+**clean**.
+
+**MY OWN PROBE DELETED THE TWO PRE-EXISTING ORPHANS, and the log is how I know rather than guessed.**
+A "does Duplicate undo?" probe pressed Ctrl+Z **twice with nothing of its own to undo** — the radial
+on that row offers Settings · Set to Copy · Hide Header · Toggle doc · Delete · Convert to Textblock
+and NO "Duplicate (new instance)", so the gesture never ran. The two presses popped the newest
+transactions in the USER's stack, which were the two pre-fix orphan creates (`superseded` in the
+table above). The rows are gone and the grid is clean, but nothing about that was intentional.
+*Ctrl+Z in a probe is not a no-op when your own gesture did not fire — it undoes someone else's
+work.*
+
+**A/B, both sides, each mutation asserted to land:** removing the server's `recordChange` block
+fails all 4 of `createInstanceUndoable.test.js`; unwrapping the client helper fails exactly the
+action-id case; restoring PageCanvas's hand-rolled triple fails exactly the wiring guard. One
+existing `CommitHelpers` assertion pinned the literal emit payload and now asserts the stamp.
+**Not clicked, and said plainly:** "Duplicate (new instance)" is not reachable from that radial, so
+that caller of the fixed helper is unit-tested only.
+
+---
+
 ### 2026-09-22 (9) — FOLDERS: AN EMPTY ONE COULD NOT BE RENAMED, AND A RENAME STOPPED AT THE FOLDER
 
 Rebuild-via-UI, next area **folders** (poms files its pages in them: Boards · Library · Day Pages ·

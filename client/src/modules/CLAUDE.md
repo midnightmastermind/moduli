@@ -2,6 +2,17 @@
 
 _Updated: 2026-09-11. This folder implements occurrence-based view routing._
 
+## Recent Changes (2026-09-22 (2) — PageCanvas: a double-click is ONE undo step)
+`handleDoubleClick` hand-rolled `createModule` + `createOccurrence` + `updateOccurrence` — three
+writes under TWO action ids, so one Ctrl+Z reverted the page's list and left the card created,
+parented to the page and listed by nobody (measured on the rebuild grid). It calls
+`CommitHelpers.createLeafInstanceInParent({ occMeta: { x, y } })` now: one action, plus the
+OccurrenceCreateOp fire and the page's filter stamp the hand-rolled version skipped, and no junk
+`kind:"board"` (kind is inert on an instance leaf and wins the icon resolver). The gesture is pinned
+by a source guard in `client/src/__tests__/createIsOneUndoStep.test.js` — mounting PageCanvas needs
+the whole grid store, so the wiring is asserted at the source with a control that the handler still
+stamps where you clicked.
+
 ## Recent Changes (2026-09-22 — ModuleInstance: Break Link goes through CommitHelpers)
 - **`ModuleInstance.jsx`** — the linked-row radial's "Break Link" called `socket.emit("break_link")`
   directly. It is `CommitHelpers.breakOccurrenceLink({ socket, occurrenceId })` now, so it goes
