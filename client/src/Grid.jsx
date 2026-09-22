@@ -28,7 +28,7 @@ import { markCellSwitchCommit, markGridRenderStart } from "./helpers/scrollDiag"
 import { markLoadOnce } from "./helpers/loadDiag";
 
 import { DragProvider } from "./helpers/DragProvider";
-import { useDragContext, useDragStateContext, useDragHotContext, useDroppable, DropAccepts } from "./helpers/dragSystem";
+import { useDragStateContext, useDragHotContext, useDroppable, DropAccepts } from "./helpers/dragSystem";
 import * as CommitHelpers from "./helpers/CommitHelpers";
 import { getGridPanels } from "./state/selectors";
 import { applyLocalSort, createPanelInGrid } from "./helpers/LayoutHelpers";
@@ -42,8 +42,7 @@ import { Layers } from "lucide-react";
 // ============================================================
 // GRID CELL - Drop zone for panels
 // ============================================================
-const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenStack, stackCount, rows, cols, onEmptyCellClick, firstRun = false }) {
-  const { cyclePanelStack } = useDragContext();
+const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, rows, cols, onEmptyCellClick, firstRun = false }) {
   const { isPanelDrag } = useDragStateContext();
   const { panelOverCellId } = useDragHotContext();
 
@@ -87,19 +86,6 @@ const GridCell = React.memo(function GridCell({ r, c, dark, hasPanel, hasHiddenS
         overflow: "visible",
       }}
     >
-      {/* Panel switcher — only on empty cells; populated cells show the switcher inside the panel header */}
-      {stackCount > 0 && !hasPanel && (
-        <button
-          className="panel-stack-btn-inline"
-          style={{ border: "none", position: "absolute", top: 5, left: 28, minHeight: 21, zIndex: 90, pointerEvents: "auto" }}
-          onClick={(e) => { e.stopPropagation(); cyclePanelStack?.({ cellKey: cellId, dir: 1 }); }}
-          title="Cycle panels"
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <Layers size={9} />
-          <span style={{ fontSize: 9, fontWeight: 600 }}>{stackCount}</span>
-        </button>
-      )}
       {/* Show pocket effect when cell is empty. Click → new panel opened on
           the root folder page (see GridInner.handleEmptyCellClick). */}
       {!hasPanel && (
@@ -224,9 +210,7 @@ function GridRender({
 
         const hasPanel = !!visiblePanel;
 
-        const hasHiddenStack = !hasPanel && cellPanels.length > 1;
-        const stackCount = cellPanels.length;
-        arr.push({ r, c, dark: (r + c) % 2 === 0, hasPanel, hasHiddenStack, stackCount });
+        arr.push({ r, c, dark: (r + c) % 2 === 0, hasPanel });
       }
     }
     return arr;
@@ -269,8 +253,8 @@ function GridRender({
         margin: isMobileLayout ? "-2px" : "0",
       }}
     >
-      {cellsData.map(({ r, c, dark, hasPanel, hasHiddenStack, stackCount }) => (
-        <GridCell key={`cell-${r}-${c}`} r={r} c={c} dark={dark} hasPanel={hasPanel} hasHiddenStack={hasHiddenStack} stackCount={stackCount} rows={rows} cols={cols} onEmptyCellClick={onEmptyCellClick} firstRun={noPanelsAtAll} />
+      {cellsData.map(({ r, c, dark, hasPanel }) => (
+        <GridCell key={`cell-${r}-${c}`} r={r} c={c} dark={dark} hasPanel={hasPanel} rows={rows} cols={cols} onEmptyCellClick={onEmptyCellClick} firstRun={noPanelsAtAll} />
       ))}
 
       {/* Vertical resize handles (between columns) — hidden on mobile */}

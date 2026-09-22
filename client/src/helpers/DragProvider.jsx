@@ -24,6 +24,7 @@ import {
   setupAutoScroll,
 } from "./dragSystem";
 import * as LayoutHelpers from "./LayoutHelpers";
+import { nextStackIndex } from "./panelStack";
 import { batchUpdateModulesAction } from "../state/actions";
 import { routeDrop } from "./dropHandlers";
 import { operationsBridge } from "../state/bindSocketToStore";
@@ -1378,30 +1379,24 @@ export function DragProvider({
     });
   }, [dispatch, socket, getWorkingPanels]);
 
-  const cyclePanelStack = useCallback(({ panelId, cellKey, dir = 1 }) => {
+  const cyclePanelStack = useCallback(({ panelId, dir = 1 }) => {
     const panels = getWorkingPanels();
 
-    // Resolve stack — either by panelId anchor or by cellKey (for empty-pocket button)
-    let stack;
-    if (panelId) {
-      const anchor = panels.find((p) => p.id === panelId);
-      if (!anchor) return;
-      stack = getStackForPanel(anchor);
-    } else if (cellKey) {
-      stack = panels.filter((p) => cellKeyFromPanel(p) === cellKey);
-    }
+    const anchor = panels.find((p) => p.id === panelId);
+    if (!anchor) return;
+    const stack = getStackForPanel(anchor);
     if (!stack || stack.length === 0) return;
 
-    // Find currently visible panel index. -1 = all hidden (empty pocket showing).
+    // A cell always shows exactly one panel — see helpers/panelStack.js for why
+    // the "all hidden" state was removed (Grid's defensive effect undid it, so
+    // it was unreachable and cost a wasted write on every attempt).
     const visibleIdx = stack.findIndex((p) => (p?.layout?.style?.display ?? "block") !== "none");
-    // Total states = stack.length panels + 1 "all hidden" state (index = stack.length)
-    const effectiveCurrIdx = visibleIdx === -1 ? stack.length : visibleIdx;
-    const nextIdx = (effectiveCurrIdx + (dir >= 0 ? 1 : -1) + stack.length + 1) % (stack.length + 1);
+    const nextIdx = nextStackIndex(visibleIdx, stack.length, dir);
+    if (nextIdx == null) return;
 
-    // nextIdx === stack.length means "all hidden"; otherwise show panel at nextIdx
     const updatedModules = stack.map((p, idx) => ({
       ...p,
-      layout: { ...(p.layout || {}), style: { ...(p.layout?.style || {}), display: (nextIdx < stack.length && idx === nextIdx) ? "block" : "none" } },
+      layout: { ...(p.layout || {}), style: { ...(p.layout?.style || {}), display: idx === nextIdx ? "block" : "none" } },
     }));
 
     dispatch(batchUpdateModulesAction(updatedModules));
