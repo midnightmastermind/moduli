@@ -15,6 +15,76 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (6) — BUILDING AN OPERATION BY CLICKING FOUND TWO DEFECTS IN THE EDITOR ITSELF
+
+Rebuild-via-UI, next area **operations**. The rebuild grid already had three (2 onLoad, 1 onButton),
+so the untested surface was a TRIGGERED pipeline with branches. Built one by clicking, end to end:
+**"Stamp Logged On"** — tick `Done`, and the row's `Logged On` date fills in.
+
+**DEFECT 1 — THE PATH PICKER DESCRIBED `$trigger` AS AN OCCURRENCE.** The Steps header says *"use
+$trigger.* directly"* and the trigger row prints what it carries. But `BUILTIN_VAR_SHAPES` mapped
+`$trigger: "occurrence"`, so drilling into it offered:
+```
+id · moduleId · parentId · _ancestors · label · templateId · fields ·
+meta.x · meta.y · meta.date · filterOverride · _effectiveFilter
+```
+**Not one of those is a trigger prop, and `occurrence` — the key the executor really sets and the
+one 105 live operations reach through — was MISSING.** So the picker offered paths that resolve to
+undefined and hid the only one that works. A picked path is not a typo you can spot: it renders as
+a chip chain and reads as correct. New `trigger` shape, its prop list derived from `getTriggerVars`
+(the same function the trigger row prints from), which moves to `helpers/triggerTypes.js`.
+**A/B'd on the one-line mapping: 5 of 7 fail, 2 controls pass in both arms.** One assertion was
+CORRECTED BY THE DATA — `parentId` reads as occurrence-only and is a real trigger prop for
+onAdd/onRemove.
+
+**DEFECT 2 — `$trigger.value` WAS ALWAYS UNDEFINED, and the editor DEFAULTS its condition to it.**
+With the picker fixed, the op was built and watched:
+```
+untick Done   Logged On "2026-09-21" -> null    (the ELSE branch)
+tick Done     Logged On null         -> null    (the ELSE branch AGAIN)
+```
+Both took `else`, because `String(undefined) !== "true"`. **Every MeasureOp emitter carries the
+change as `fields: { [fieldId]: … }`** — CommitHelpers' two sites and bindSocketToStore's echo — and
+nothing lifted it into `$trigger`. Enriched in the EXECUTOR, one place, so all three emitters are
+covered; both emitter shapes (raw value / stored `{value, flow}` cell) are read. Scoped to a SINGLE
+changed field: with several at once `$trigger.value` cannot mean anything, and taking the first key
+would make a guard depend on object key order — that case is a test, not a guess.
+
+**MEASURED OVER ALL 235 LIVE OPERATIONS BEFORE CHANGING IT**, which is what says this is safe:
+```
+$trigger.occurrence   105 ops   <- the path that works
+$trigger.fieldId        2       <- guards that could never pass
+$trigger.value          2       (one of them mine)
+previousValue / flow / changedField / itemId   0
+```
+So the enrichment revives what was dead and cannot change an op that was working. **My first scan
+reused one `/g` regex across the loop — `lastIndex` carries between iterations — and its counts were
+wrong; the numbers above are the re-run.** *A `/g` regex is stateful; a fresh one per test, or the
+tally is fiction.*
+**NOT fixed, stated plainly:** `$trigger.previousValue` is still undefined. No emitter carries a
+before-value (fireOperations runs after the local occurrence is updated), so it needs the three call
+sites, not the executor.
+
+**THE OPERATION, BUILT ENTIRELY BY CLICKING AND WATCHED WORKING:**
+```
+trigger   On Change · Field · Done
+if        $trigger.value IS "true"
+  then    Set field  Logged On = $today
+  else    Set field  Logged On = (null)
+
+untick -> null          retick -> "2026-09-22"        read back out of Mongo
+```
+**Editor findings worth keeping:** the action-type control is a DRILL-DOWN, not a list — `Update` is
+a category and `Set field` is the leaf that commits (clicking `Update` drills in); its rows are
+DIVs, not buttons; `Set field` pre-fills its target with `$trigger › occurrenceId`; and **the
+editor's state is LOCAL until Save**, so reading the store mid-build shows the last SAVED pipeline —
+which misled me twice before I noticed.
+**Left in place deliberately:** a leading `INIT_VAR $occ = $trigger.occurrence` that nothing reads —
+Set field defaults its own target. Removing it means more blind clicking on a working operation, and
+the trigger survived one such click only by luck.
+
+---
+
 ### 2026-09-22 (5) — A FEED ON ONE GRID COPIED ANOTHER GRID'S ROWS, and tagged the originals on the way
 
 Picked up the other account's session (limit at 09:36 CDT, mid-repair). Its last finding, continuing
