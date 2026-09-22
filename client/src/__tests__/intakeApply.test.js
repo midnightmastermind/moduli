@@ -329,6 +329,11 @@ describe("applyIntakeShape — routes reach the EXISTING helpers unchanged", () 
       expect(page?.data.module).toMatchObject({ kind: "doc", label: "Zazen - Wikipedia" });
       const patch = emitted.filter((e) => e.event === "update_occurrence" && e.data.occurrence?.textmap).pop();
       expect(patch?.data.occurrence.textmap.content[0]).toMatchObject({ type: "moduleEmbed", attrs: { occurrenceId: "root-1" } });
+      // The root is imported DETACHED, so its parentId must be set to the page —
+      // the delete cascade follows parentId, and without it deleting the page
+      // would stop at the root and orphan the whole article.
+      const rootPatch = emitted.find((e) => e.event === "update_occurrence" && e.data.occurrence?.id === "root-1");
+      expect(rootPatch?.data.occurrence.parentId).toBe(patch.data.occurrence.id);
       const modPatch = emitted.find((e) => e.event === "update_module" && e.data.module?.meta?.allowChildContainers);
       expect(modPatch?.data.module.meta.cover).toBe("keep-me");
     });

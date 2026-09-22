@@ -1483,6 +1483,14 @@ function wrapImportInPage(ctx, res, label) {
     },
     emit: true,
   });
+  // The root was imported DETACHED, so it has no parent yet. `delete_occurrence`
+  // cascades through children whose `parentId` points back — without this,
+  // deleting the page stops at the root and orphans the whole article.
+  updateOccurrence({
+    dispatch, socket,
+    occurrence: { id: res.rootOccurrenceId, parentId: made.occurrenceId },
+    emit: true,
+  });
   onImportResult?.({ ...res, pageOccurrenceId: made.occurrenceId });
 }
 

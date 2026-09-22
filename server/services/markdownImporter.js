@@ -918,6 +918,19 @@ function mintEntities(tree, { gridId, userId, rootParentId, sourceUrl = null, so
     tree.children = [...(tree.children || []), { kind: "sourceLink", url: sourceUrl, label: sourceLabel }];
   }
   const rootOccurrenceId = buildContainer(tree, rootParentId, true);
+  // Every LISTED child gets the parent that lists it. Children are minted before
+  // their parent exists (parents push themselves after recursing), so they carry
+  // `parentId: null` — and `delete_occurrence` cascades only through children
+  // whose `parentId` points back, so deleting an imported page used to orphan
+  // most of it (measured 2026-09-22: 3 of 4, 10 of 18). First lister wins; an
+  // explicit parent (the root's, a section's) is never overwritten.
+  const byId = new Map(occurrences.map((o) => [o.id, o]));
+  for (const parent of occurrences) {
+    for (const childId of parent.occurrences || []) {
+      const child = byId.get(childId);
+      if (child && child.parentId == null) child.parentId = parent.id;
+    }
+  }
   return { modules, occurrences, rootOccurrenceId };
 }
 
