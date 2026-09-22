@@ -128,6 +128,17 @@ after deleting a FOURTH member        group intact, 3 members, lg unchanged
 The earlier session had only proven copy -> source. **Source -> copies is the direction a
 one-way fan-out would have silently failed at**, and it is the one nobody had watched.
 
+**BREAK LINK IS PROVEN END TO END, and the control is what makes it mean anything.** Breaking the
+12:00pm copy took the group 3 -> 2, left the row alive with its module intact (`linkedGroupId: null`),
+and then:
+```
+                        before   after ticking the SOURCE
+6:00am src (group)      false    true
+7:00am copy (group)     false    true    <- still follows
+12:00pm (BROKEN)        false    false   <- does NOT
+```
+*A row that stopped following proves nothing unless a row that still follows is measured beside it.*
+
 **A DEFECT FOUND BY READING WHAT ELSE TOUCHES `linkedGroupId`: "Break Link" was the last raw
 `socket.emit` in the whole component tree.** It skipped `safeEmit`, which is both the offline queue
 and the `__actionId` undo stamp — so a Break Link pressed while the socket is down is dropped with no
