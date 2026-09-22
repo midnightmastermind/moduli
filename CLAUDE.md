@@ -15,6 +15,45 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (8) — A TABLE BUILT BY CLICKING; and ADDING A ROW WAS TWO UNDO STEPS, the second an orphan
+
+Rebuild-via-UI, next areas **table containers** and **undo/redo**.
+
+**THE TABLE SURFACE IS SOUND — every part of it driven by clicking** on the Food page: create
+(`Table` tile) · rename the container · add a column · add rows · name the columns (`Item ·
+Calories · Protein`) · remove rows · type into cells. Read back out of Mongo:
+`meta.table.columns = Item | Calories | Protein`, `rowCount 3`, `cells { 0:0 "Chicken Breast",
+0:1 "165", 0:2 "31" }`. **Three probe faults, no app defects:** a table's rows are `.table-row` /
+`.table-td` (no `tbody`/`tr`, so a `tr` count reads 0); **a cell mounts its editor only while
+HOVERED or focused**, so a click without a hover first lands on static text and the keystrokes go
+nowhere; and `renameContainer`'s own verification failed while the rename itself worked.
+
+**UNDO: A FIELD CHANGE AND A DELETE ARE BOTH CORRECT.** Ticking `Done` then Ctrl+Z put it back
+(`false -> true -> false`, read from the store); deleting a row then Ctrl+Z restored it **in place
+and with its fields** (`Logged On`, `Task Ref` intact). **Redo is deliberately OFF**
+(`REDO_ENABLED = false`) and its absence in the toolbar is by design, not a new defect.
+
+**BUT ADDING A ROW WROTE TWO TRANSACTIONS, AND ONE UNDO LEFT AN INVISIBLE ROW BEHIND.**
+```
+seq 2062  action f2a85827  "Created item"        occurrence:9c9216c8 (create)
+seq 2063  action 21d2bb50  "Updated occurrence"  occurrence:fff9474f  (the parent's list)
+```
+`nextUndoable` takes the newest, so **Ctrl+Z popped the LIST write and left the create applied**: the
+row vanished from the board and the occurrence stayed in Mongo, parented to the container and listed
+by nobody. **That is exactly the shape of the 22 unreachable rows repaired in (7) hours earlier** —
+this session found the mechanism by accident while testing something else.
+`createLeafInstanceInParent` + `createLeafInstanceAtIndex` now wrap create-and-list in ONE
+`withAction` (it nests, so the inner helpers reuse the id).
+**And two more were worse, found by tightening the test rather than by looking:**
+`createPageInContainer` and `addBookmarkOccurrence` emitted their first writes through raw
+`safeEmit` with **no action open at all** — recorded `derived`, i.e. **not undoable by any number of
+presses**. Both wrapped. *An assertion that filters out the unstamped writes cannot see the write
+that carries no id.*
+**Verified on prod through the UI:** add a row -> ONE transaction carrying both docs -> one undo ->
+**0 rows left in Mongo**. The orphan the old behaviour had already made was removed through the app.
+
+---
+
 ### 2026-09-22 (7) — THE 22 UNREACHABLE ROWS: 12 RESTORED, 4 WOULD HAVE BEEN DUPLICATES
 
 The user's call on (2)'s finding: *"Just the 16 food rows"*. Re-measured before writing rather than
