@@ -87,6 +87,69 @@ Grid integrity **clean**; both changes undone, so net data change is zero.
 
 ---
 
+### 2026-09-22 (15) — ALARMS RING ON A UI-MADE GRID; the half that files them into the Schedule cannot
+
+Rebuild-via-UI, next area **alarms and scheduled operations** — poms runs 2 alarms (`atTimes`
+06:30 / 17:00) and a 5-minute interval op; the rebuild had **none, and no time-triggered op at
+all**.
+
+**THE ALARM SURFACE IS SOUND, driven entirely from the toolbar dropdown**, and it was watched
+firing twice by two different routes:
+```
+set 15:53 (3 min out)   fired 20:53:00.301Z          <- its own minute, to the second
+set to the CURRENT minute   fired within 4s          <- the scheduler ticks ~5s
+notification            toolbar pill "⏰ Alarm — 3:59 PM", title "… is ringing"
+retime                  op renamed, schedule.times rewritten, lastFiredAt reset
+delete                  gone, and STILL gone after a reload
+```
+
+**THE OTHER HALF IS UNREACHABLE ON ANY GRID BUT THE SEEDED ONE, and there are TWO independent
+reasons — which is the point, because fixing one would not deliver it.**
+1. `alarmScheduleSteps` (the 2026-07-20 feature: a fired alarm also drops an instance onto today's
+   Schedule) is built only when `alarm.sched` is set, and the dropdown resolves that from
+   `grid.meta.scheduleFieldIds`. **That key is written in EXACTLY ONE place —
+   `createLiveData.js:6026`, the seed.** Nothing in the client writes it, while
+   `pomodoroTargetContainerId` — the same shape, one field over — IS user-settable from the
+   toolbar. So on a UI-made grid `sched` is null and those steps never exist.
+2. **Even configured it would find nothing.** The steps FIND a container whose
+   `scheduleFormat` value IS `"day-col"` and whose date is `SAME_DAY $today`, under a NAMED
+   Schedule page occurrence. That is poms' day-column shape; the rebuild grid's Schedule page
+   holds its slots directly, has no day columns and **no Schedule Format field at all**.
+
+**So a settings picker alone would be a config for a pipeline that still cannot land anything** —
+the day-column structure has to exist first. Said in that order so the next session does not ship
+the picker and conclude the feature works. The same key also gates `PomodoroTimer`'s timeslot.
+
+**A PROPERTY WORTH KNOWING BEFORE SOMEONE CALLS IT A BUG: the scheduler is CLIENT-side and only
+runs in an OPEN TAB.** poms' `Schedule: Mark Passed Slots` (every 5 minutes) last fired **215
+minutes ago** — exactly consistent with nobody having poms open. "The alarm did not go off" can
+simply mean nothing was running.
+
+**THREE PROBE FAULTS, and the first one invented a defect I nearly filed.**
+```
+the panel OPENS ITSELF when an alarm rings (Stop / Snooze live inside it)
+  -> my "open the dropdown" click CLOSED the panel that had just opened
+  -> Delete was never found, two runs left an alarm behind,
+     and I read that as "the delete does not persist"
+```
+A clean run (no ring in flight) deletes and the op is **still gone after a reload**; the server's
+own `delete_operation` was exercised separately and removes it. *An action that did not happen is
+not an action that failed.* Also: the toolbar button's title becomes `"… is ringing"`, so a probe
+that finds it by "Alarms & reminders" finds nothing at exactly the moment an alarm is going off;
+and **my websocket frame logger attached AFTER the page opened**, so it captured zero frames for a
+create that demonstrably persisted — the documented trap, paid again.
+
+**Two things checked and NOT filed.** The row reading `3:56PM` against the clock's `3:58 PM` is an
+`innerText` artifact — the row carries `ml-1`, so the gap is there on screen. And
+`commandCenter/AlarmsTab.jsx` does not exist; alarms moved to the toolbar dropdown and the
+ui/CLAUDE.md line naming that tab is historical, not an orphan file.
+
+**Debris, all removed through the app:** 2 alarm operations and one empty "Board 2" canvas card my
+probing minted. The grid ends at **315 occurrences**, the 4 original operations, integrity
+**clean**. (A socket's `full_state` reports 307 — the deferred-chunk split, not a discrepancy.)
+
+---
+
 ### 2026-09-22 (14) — ELEVEN ITEMS ON A RING THAT HOLDS EIGHT: "Settings" WAS A CONVERT BUTTON
 
 Rebuild-via-UI, next area **styles** — the gap the census named: poms carries **468 occurrences
