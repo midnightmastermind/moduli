@@ -15,6 +15,79 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (22) — THE TRACKER WAS RIGHT AND MY PROBE WAS WRONG; and a tracker that went stale without saying so
+
+Rebuild-via-UI, next area **trackers**. The handoff carried a defect from this session's own earlier
+half: *"the write lands (5 -> 7 -> 5) but Total Water never moves — even though the op has an
+`onChange` trigger."* **That is RETRACTED. The op was correct and the probe was not.**
+
+**THE ROW I EDITED CARRIES NO DATE, and the op sums by date.** `Water Today` is
+`LOOP $allInstances -> IF Logged On SAME_DAY $activeDate -> $total += Glasses`, and reading the rows
+rather than the totals is what settled it:
+```
+aa5b92  Glasses 5   Logged On NULL        <- the row I was editing
+224e6c  Glasses 3   Logged On 2026-09-21  <- the only row the filter admits
+```
+So `Total Water = 3` was the right answer all along. Editing the DATED row instead moves it
+`3 -> 4 -> 3`, read back out of the store. *A total that does not move is a claim about the rows it
+sums, and I never looked at them.*
+
+**THE BUTTON OP WAS HALF-BUILT, AND FINISHING IT BY CLICKING IS THE ENTRY.** `Log a Glass` was a
+bare `CREATE instance "Glass" -> Water` with **no `fields` at all** — the 09-21 session verified the
+button fired and the row minted, which it did, and a row carrying no Glasses and no date can never
+count. Built the rest through the editor: `+ Attach a field` -> Glasses `= 1`, Logged On `= $today`,
+Save. Pressed `Log` on the Trackers row:
+```
+minted  f4dc0a   Glasses "1"   Logged On 2026-09-22      <- $today resolved
+```
+
+**AND THE NUMBER DID NOT MOVE, WHICH IS A SECOND DEFECT, NOT THE FIRST ONE AGAIN.** Stepping the
+toolbar to Sep 22 left `Total Water` reading **3** — Sep 21's total — beside a Sep 22 row worth 1.
+The op's triggers were `onLoad` + `onChange`; **a date change is neither**, so it never re-ran and
+the screen showed yesterday's number with nothing to say so. poms' own trackers all carry
+`onFilterChange` (`makeTrackerOp` adds it); this grid was built by hand and never got one. Added
+`onFilterChange · grid` through the trigger editor:
+```
+Sep 21   Total Water 3     <- the dated number row
+Sep 22   Total Water 1     <- the op-minted row
+back     Total Water 3
+```
+**No code changed this stream — the fixes are DATA (two operations on the rebuild grid), so nothing
+was deployed.**
+
+**REPORTED, NOT FIXED — A PIPELINE STORES THE STRING IT WAS HANDED.** The editor's value box is a
+text input, so a literal typed there is a string: my `1` reached a `number` field as `"1"`. `CREATE`
+coerces **`date` and nothing else** (its own comment explains why that one exists —
+*"a resolveExpr leak produces a literal string"*), and **`SET_FIELD_VALUE` coerces nothing at all**;
+it never consults `fieldsById`. **The scan is what decides it rather than taste:**
+```
+227 operations · 23 literal writes into a typed field
+  1  would coerce   number "Glasses" = "1"     <- the one I authored 20 minutes ago
+ 22  must NOT       select / text fields ("day-col", "5:00pm", "Todo")
+```
+So a write-side coercion would change **zero** existing operations — it is preventive, not
+corrective. **And the project already chose the other side, today:** `helpers/duration.js` landed
+this morning putting the coercion in the READER precisely because a field holds both types, and the
+pipeline language is string-tolerant on purpose (`IS` is `String(a) === String(b)`, the numeric
+comparators use `Number()`, and `ADD_TO_VAR` summed my `"1"` to a real `1` — the Sep 22 total above
+is that proof). A second defence in the executor is the two-implementations-of-one-question class
+this file keeps paying for. **If a renderer is found that breaks on a string, the fix belongs beside
+`toMinutes`.** Census across every grid: **9 mismatched cells in 62,030** — 7 of them the `Duration`
+strings that entry already documents, and *no operation writes them*, so that writer is still
+unidentified.
+
+**TWO PROBE FAULTS, AND THE FIRST IS THE REUSABLE ONE.** Clicking `+ Attach a field` by matching
+INNERTEXT hit the wrapping `<div>`, and `elementFromPoint` reported the same text back, so the
+refusal guard passed and the picker silently never opened — *hit-test on element IDENTITY, not on
+the text it renders; a wrapper and its button read identically.* Targeting
+`button[aria-label="Attach a field"]` opened it first try. And the value editor defaults to **path**
+mode (a picker, no text box), so "there is no input" reads as a broken row until you switch the mode
+select to `text`.
+
+Grid integrity **clean**; 315 occurrences, 4 operations.
+
+---
+
 ### 2026-09-22 (21) — SHIFT+CLICK SELECTED THE CONTAINER, NEVER THE ROW; and a paste of two was two undo steps
 
 Rebuild-via-UI, next area **multi-select and the clipboard** — shift-select rows, `Copy N selected`,
