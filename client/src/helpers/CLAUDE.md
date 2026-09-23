@@ -23,6 +23,23 @@ _Updated: 2026-09-11. Check this file before re-reading source._
   pre-fix files: 5 of 13 fail, exactly the wiring cases; the other 8 are pure-helper contract pins
   that pass in both arms and are NOT counted as coverage.
 
+## Recent Changes (2026-09-22 (6) — `shiftSelect.js` NEW; and a paste is ONE undo step)
+- **`shiftSelect.containerClaimsShiftClick(target)` (NEW)** — a container handles shift+click in the
+  CAPTURE phase and stops propagation, so the event never reached the row inside it: measured on
+  prod, a shift+click on an instance produced pointerdown/mousedown/mouseup on the row and NO click,
+  and the CONTAINER toggled instead. Rows could not be multi-selected at all, which made the whole
+  bulk clipboard (it hangs off a row's right-click menu, gated on the selection count) unreachable
+  for instances. The container defers clicks that landed on a row; `ModuleInstance` claims them in
+  capture for the same reason the container does. A/B'd both ways — claiming everything fails the
+  row cases, claiming nothing fails the container's own header/list/null controls.
+- **`pasteClipboard.runPasteClipboard` opens ONE action** (`withAction`, which nests). A two-row
+  paste wrote two transactions under two action ids, so one Ctrl+Z took back half of it. Verified on
+  prod: one action carrying both creates plus the parent's list write, `undone` in one press.
+- **Reported, not fixed:** `ui/ClipboardDropOverlay`'s document-level `onContextMenu` CLEARS the
+  clipboard (the cancel gesture), so the `Paste N here` items in `ModuleContainer`/`ModulePage` can
+  never be reached by right-click while a clipboard is staged. The shipped paste is a left-click on
+  the destination.
+
 ## Recent Changes (2026-09-22 (5) — `filterConfig.js` NEW: configuring a filter is one undo step)
 - The three filter-CONFIGURATION gestures — `activateFilter` / `deactivateFilter` /
   `clearFilterOverride` — each in one `withAction`. Deactivate's two writes (mute the field, hide its

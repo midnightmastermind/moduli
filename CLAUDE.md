@@ -15,6 +15,71 @@
 > every recurring-defect war story this project has paid for. The standing rules, the data
 > model and the roadmap are still at the BOTTOM of this file, not in the archive.
 
+### 2026-09-22 (21) — SHIFT+CLICK SELECTED THE CONTAINER, NEVER THE ROW; and a paste of two was two undo steps
+
+Rebuild-via-UI, next area **multi-select and the clipboard** — shift-select rows, `Copy N selected`,
+paste them somewhere else. Nothing on the rebuild grid had exercised it.
+
+**DEFECT 1 — A ROW COULD NOT BE SELECTED AT ALL.** Shift+click on an instance selected nothing and
+toggled the CONTAINER instead. Measured with listeners on both elements rather than guessed:
+```
+plain click   pointerdown · mousedown · mouseup · click     <- reaches the row
+shift+click   pointerdown · mousedown · mouseup · (no click) <- the row never sees one
+```
+`ModuleContainer` claims shift+click in the **CAPTURE** phase and calls `stopPropagation()`. Capture
+runs top-down, so the container fired FIRST and halted the event before it could descend to the
+row's own bubble-phase handler. **The capture phase is not the thing to remove** — its comment says
+why it exists (*"so inner contentEditable / inputs don't swallow it"*) — so the container now defers
+a click that landed on one of its rows, and the row claims it in capture for the same reason.
+
+**WHAT THAT COST IS BIGGER THAN THE GESTURE:** every bulk action lives on a ROW's right-click menu
+and is gated on the selection count, so with rows unselectable the entire clipboard was unreachable
+for instances. Verified on prod after the fix — two rows selected, container untouched, and the menu
+carries `Copy 2 selected · Move 2 selected · Copy-link 2 selected · Delete 2 selected · Clear
+selection`.
+
+**THE PASTE IS A LEFT-CLICK DROP, AND THAT IS WHY "Paste N here" NEVER APPEARED.** Three sessions of
+probing a container's menu for it would have been wasted: `ui/ClipboardDropOverlay` mounts
+document-level listeners while a clipboard is staged, and its `onContextMenu` **clears the
+clipboard** — *"right-click anywhere while clipboard is active → clear"*, by design, as the cancel
+gesture. So the `Paste N here` items in `ModuleContainer` and `ModulePage` cannot be reached by
+right-click while a clipboard exists; the shipped path is to click the destination. **Two
+implementations of paste, one of them unreachable — reported, not fixed.**
+
+**DEFECT 2 — PASTING TWO ROWS WAS TWO UNDO STEPS.** The trail, for ONE gesture:
+```
+seq 2256  action b52c615a  "Created item"  17901252[create] 3dd9f1d9[update]
+seq 2257  action 9ea65562  "Created item"  17901252[create] 3dd9f1d9[update]
+```
+So one Ctrl+Z took back HALF a paste. Each row's create was already grouped with the parent's list
+write (the (8) fix); the gesture around the PAIR was missing. `withAction` nests, so wrapping the
+loop is the whole fix — and it covers copy / move / copy-link and every caller.
+**Verified on prod after deploying:**
+```
+seq 2258  action 66bd5679  state: undone   17901254[create] 3dd9f1d9[update] 17901254[create]
+```
+One action, both creates and the parent's list, `undone` after a single press.
+
+**FOUR PROBE FAULTS, and two of them nearly became defect reports.**
+```
+menu detection    my "find the floating panel" heuristic kept returning the empty
+                  panel's "Tap to add a panel" placeholder — the stable hook is
+                  `.context-menu-item`, and until I used it every menu read as absent
+the container's   its onContextMenu is bound ONLY to the ~20px header row; right-clicking
+menu              the body opens the PAGE's menu instead
+back-to-back      a right-click issued straight after clicking a menu item is consumed
+menus             dismissing that menu, so the next menu never opens
+reading too soon  3.5s after a paste the DOM showed ONE of two rows — BOTH were in Mongo
+                  and both render on reload. I nearly filed "only one row pastes", twice
+```
+*A row that has not rendered yet and a row that was never created look identical in the DOM; the
+parent's child list is what tells them apart.*
+
+**Debris:** the two rows from the pre-fix paste removed through the app's own `delete_occurrence`.
+Grid back to **315 occurrences**, Mind restored to its two children, integrity **clean**.
+
+---
+
 ### 2026-09-22 (20) — FIVE FIELD TYPES THIS GRID HAD NEVER HAD; a duration meant four things, an address meant nothing
 
 Rebuild-via-UI, next area **field types** — picked from a census rather than guessed. Eleven types
