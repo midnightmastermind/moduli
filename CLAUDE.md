@@ -38,18 +38,50 @@ after    179013:Item 34   notes="auto"     <- the op fired and wrote the trigger
 `Set field` pre-fills its target with `$trigger › occurrenceId`, so the row it stamps is the row that
 was added. **The trigger surface is sound on a UI-made grid.**
 
-**AND THE INTERESTING HALF IS WHAT ELSE IT STAMPED.** The trigger was left at `targetId: ""` — the
-`Any container` option — so it fires for **every** container add on the grid, including ones the app
-makes for itself. Minutes later, integrity reported an error:
+**AND THE INTERESTING HALF IS WHAT ELSE IT STAMPED.** The trigger was left at `targetId: ""`, and
+it fired for adds the app makes for **itself**, not just the one I performed. Minutes later, integrity reported an error:
 ```
 dcc51d7a   folderPage for Files/Images   module *** MISSING ***   listedBy 0   created 02:22:56
   its only field:  Notes = "auto"        <- stamped by my op
 ```
-The app minted a folder-page occurrence, **my unscoped op wrote to it**, and its module never
-landed (the documented create/disconnect asymmetry, this time losing the module rather than the
-occurrence — my probes close the browser seconds after acting). *An `onAdd` op scoped to "any
-container" is not scoped to user actions; it is scoped to the data model.* The trigger editor offers
-the specific containers (`Water`, `6:00am`, …) in the very next select, and a real op should name one.
+The app minted a folder-page occurrence, **my op wrote to it**, and its module never landed (the
+documented create/disconnect asymmetry, this time losing the module rather than the occurrence — my
+probes close the browser seconds after acting).
+
+**WHICH SENT ME LOOKING, AND THE TRIGGER FILTER IS NOT WHAT I THOUGHT — NOR WHAT IT CLAIMS.**
+`subjectRole` on a lifecycle trigger is the role of the **created/deleted occurrence**, not the
+container it lands in. So an `onAdd · Container` op should NOT have matched an instance at all. Two
+ops with the IDENTICAL subject shape, opposite outcomes:
+```
+onDelete · module · container   delete an INSTANCE   -> did NOT fire   (correct: role filtered)
+onAdd    · module · container   add    an INSTANCE   -> FIRED          (wrong)
+```
+**Proved with a role it could not possibly be**: an `onAdd · module · PANEL` op fired when an
+`instance` was added (`Item 34`, role `instance`, one run recorded). Per `matchSubjectFilter` there
+is exactly one way that happens — `transaction._occRole == null`, the documented fail-open
+("no over-rejection").
+
+**THE MECHANISM IS A MISSING OVERLAY, and the codebase already solved it one entity over.**
+`_occRole` resolves as `modulesById[transaction.instanceId]?.role`, and `modulesById` is built from
+the store snapshot. The bridge keeps a SYNCHRONOUS local overlay for OCCURRENCES
+(`localOccsById` — added precisely because `stateRef.current` lags a fire) and **none for MODULES**.
+A create fires in the same tick the module was minted, so the module is not there yet, the role
+resolves to null, and every role-scoped `onAdd` matches everything. On the delete path the module
+has long been in the store, which is why filtering works there.
+
+**REPORTED, NOT FIXED — and the measurement is why.** The code's comment calls this role check the
+fix for the "Wikipedia-import flood". That case still filters: an import's modules arrive by socket
+broadcast and ARE in the map by the time occurrence creates fire. What fails is the synchronous
+same-tick mint (QuickAdd, `createLeafInstanceInParent`) — one occurrence at a time, so the cost is a
+few extra tracker aggregations per manual add, not a flood. Against that:
+```
+role-scoped, no targetId, ENABLED lifecycle triggers
+  poms grid 159   test grid 2 141   test grid 1 148
+  poms: onAdd instance 46 · onAdd container 34 · the delete halves 44/34
+```
+They come in PAIRS — each tracker declares both `instance` and `container` — so tightening the add
+path changes the firing behaviour of **159 live triggers on protected data**. That is a hot write
+path and wants its own reviewed pass with an A/B over the real trackers, not the tail of this one.
 
 **THEN THE ORPHAN COULD NOT BE SWEPT, BECAUSE MY OP HAD WRITTEN TO IT:**
 ```
