@@ -13,6 +13,7 @@ import { operationsBridge } from "../state/bindSocketToStore";
 import { useGridActions } from "../GridActionsContext";
 import * as CommitHelpers from "./../helpers/CommitHelpers";
 import { buildContainerCrumbOptions } from "../helpers/containerCrumbs";
+import { clickedInsidePortalLayer } from "../helpers/outsideClick";
 import DestinationPicker from "./DestinationPicker";
 
 // Module-level, not a fresh `[]`: a new array per collapsed render would give
@@ -216,10 +217,35 @@ export default function PomodoroTimer() {
     setRemaining(PHASES[nextIdx].duration);
   }, [phaseIndex, running, phase.label]);
 
-  // Close on outside click
+  // Close on outside click.
+  //
+  // ── THE DESTINATION PICKER COULD NOT BE USED AT ALL, and these two lines are
+  //    why (measured on prod 2026-09-22) ─────────────────────────────────────
+  //
+  // `DestinationPicker` is a Radix Popover, so its list portals to `document.body`
+  // — a SIBLING of this panel, not a descendant. Containment therefore called a
+  // click on a destination row "outside", this handler collapsed the panel on
+  // MOUSEDOWN, and `containerOptions` below is memoized on `expanded` — so the
+  // list emptied between mousedown and mouseup and the button being pressed was
+  // gone before the click landed:
+  //
+  //     picker open              popover open   rows 33
+  //     after MOUSEDOWN only     popover open   rows  0   <- panel collapsed
+  //     after mouseup            popover open   rows  0   <- onPick never fired
+  //
+  // Each decision is right on its own; together they cancel out. That is why
+  // `pomodoroTargetContainerId` is unset on poms grid too — nobody has ever
+  // been able to set it.
+  //
+  // `clickedInsidePortalLayer` is the rule this app already wrote for exactly
+  // this (2026-08-27, QuickAdd closing when you picked a dropdown option), and
+  // its own header says it is safe on every such handler because it can only
+  // ever PREVENT a close, never cause one. This panel is not itself inside a
+  // portal layer, so it still dismisses on any ordinary outside click.
   useEffect(() => {
     if (!expanded) return;
     const handler = (e) => {
+      if (clickedInsidePortalLayer(e.target)) return;
       if (!panelRef.current?.contains(e.target) && !triggerRef.current?.contains(e.target)) {
         setExpanded(false);
       }
