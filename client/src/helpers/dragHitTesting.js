@@ -383,10 +383,19 @@ export function collectMemberCards(containerEl) {
   // and the gap between two containers showed nothing (user, 2026-09-23:
   // *"i see no highlight lines for dropping containers"*).
   if (containerEl.hasAttribute?.("data-page-occ-id") && !containerEl.hasAttribute?.("data-container-id")) {
-    return Array.from(containerEl.querySelectorAll("[data-container-id]")).filter((el) =>
-      // top level only: not nested inside another container…
-      el.parentElement?.closest?.("[data-container-id]") == null
-      // …and belonging to THIS page, not a page rendered inside it.
+    // A page's members are its top-level CONTAINERS **and its own leaf rows** —
+    // a leaf can live directly on a page ("anything can land page level"), and
+    // collecting only containers computes the insertion index against a PARTIAL
+    // list. Measured on prod: a page listing [Email Sam, Today, This Week] with
+    // the line drawn between Today and This Week resolved "before This Week" to
+    // list index 2 and the row landed LAST.
+    return Array.from(containerEl.querySelectorAll(".instance-wrap, [data-container-id]")).filter((el) =>
+      // top level only: a row inside a container belongs to that container,
+      // and a container nested in another belongs to that one…
+      (el.classList.contains("instance-wrap")
+        ? el.closest("[data-container-id]") == null
+        : el.parentElement?.closest?.("[data-container-id]") == null)
+      // …and not a member of a page rendered INSIDE this one.
       && el.closest("[data-page-occ-id]") === containerEl);
   }
   return Array.from(containerEl.querySelectorAll(".instance-wrap, [data-container-id]")).filter((el) => {
@@ -425,9 +434,11 @@ export function collectMemberCards(containerEl) {
 // The pointer walk is the same one the LINE is drawn from, so they cannot
 // disagree by construction. The half rule stays as the fallback for when the
 // page's cards can't be resolved — an empty page has no cards at all.
-export function resolvePageInsertAt({ pageOcc, pageRect, y }) {
+export function resolvePageInsertAt({ pageOcc, pageRect, x = 0, y }) {
   const childCount = (pageOcc?.occurrences || []).length;
-  const fromPointer = computeInsertIndexFromPointer(pageOcc, { x: 0, y });
+  // x matters: a flex-row page lays its children out horizontally and the walk
+  // picks its axis from the cards themselves.
+  const fromPointer = computeInsertIndexFromPointer(pageOcc, { x, y });
   if (fromPointer != null) return fromPointer;
   if (!pageRect) return childCount;
   return y < pageRect.top + pageRect.height / 2 ? 0 : childCount;

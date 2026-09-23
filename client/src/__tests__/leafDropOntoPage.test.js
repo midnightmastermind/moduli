@@ -182,3 +182,47 @@ describe("controls — what must NOT change", () => {
     expect(creates).toEqual([]);
   });
 });
+
+// A SAME-PAGE REORDER COUNTS POSITIONS IN THE LIST THE USER SEES.
+//
+// `insertAt` is an index into the list that still CONTAINS the dragged row —
+// it is the position the insertion line was drawn at. The row is removed before
+// being re-inserted, so an index after its old position must come down by one.
+// Measured on prod: page [Email Sam, Today, This Week], line drawn between
+// Today and This Week (insertAt 2), row landed LAST.
+describe("reordering a row that is already on the page", () => {
+  function onPage(order, insertIndex) {
+    const c = ctx();
+    c.occurrencesById = {
+      ...occurrencesById,
+      page: { id: "page", moduleId: "m-page", occurrences: order },
+      row: { id: "row", moduleId: "m-row", parentId: "page", fields: {}, meta: {} },
+    };
+    handleOccurrenceMove(dropOnPage(insertIndex), c);
+    return updates.filter(u => u.id === "page").slice(-1)[0]?.occurrences;
+  }
+
+  it("moves DOWN to the middle — the prod case", () => {
+    // line between today and week; in [row,today,week] that is index 2
+    expect(onPage(["row", "today", "week"], 2)).toEqual(["today", "row", "week"]);
+  });
+
+  it("moves DOWN to the end", () => {
+    expect(onPage(["row", "today", "week"], 3)).toEqual(["today", "week", "row"]);
+  });
+
+  it("moves UP to the front (no shift — the control)", () => {
+    // the row starts AFTER the target, so nothing shifts
+    expect(onPage(["today", "week", "row"], 0)).toEqual(["row", "today", "week"]);
+  });
+
+  it("moves UP to the middle (control)", () => {
+    expect(onPage(["today", "week", "row"], 1)).toEqual(["today", "row", "week"]);
+  });
+
+  it("a CROSS-parent drop is not shifted (the row was not in the list)", () => {
+    // this is the ordinary case: the row comes from a container
+    handleOccurrenceMove(dropOnPage(1), ctx());
+    expect(pageList()).toEqual(["today", "row", "week"]);
+  });
+});

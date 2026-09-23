@@ -966,10 +966,18 @@ export function handleOccurrenceMove(dropContext, ctx) {
     // the list the user is actually looking at.
     const insertAt = dropTarget.context?.insertAt;
     const placeAt = (list, id) => {
+      const src = (list || []).indexOf(id);
       const without = (list || []).filter((v) => v !== id);
-      const at = Number.isInteger(insertAt)
-        ? Math.max(0, Math.min(insertAt, without.length))
-        : without.length;
+      let at = Number.isInteger(insertAt) ? insertAt : without.length;
+      // A SAME-PAGE REORDER IS OFF BY ONE WITHOUT THIS. `insertAt` counts
+      // positions in the list the user is LOOKING AT — the one that still
+      // contains the dragged row — but the row is removed before it is
+      // re-inserted, and removing an element BEFORE the target shifts
+      // everything after it left by one. Measured on prod: a page listing
+      // [Email Sam, Today, This Week] with the line drawn between Today and
+      // This Week (insertAt 2) put the row LAST instead of in the middle.
+      if (src !== -1 && src < at) at -= 1;
+      at = Math.max(0, Math.min(at, without.length));
       return [...without.slice(0, at), id, ...without.slice(at)];
     };
 

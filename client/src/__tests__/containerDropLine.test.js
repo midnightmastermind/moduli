@@ -259,3 +259,70 @@ describe("resolvePageInsertAt", () => {
     expect(resolvePageInsertAt({ pageOcc, pageRect, y: 390 })).toBe(3);
   });
 });
+
+// ── A PAGE'S MEMBERS INCLUDE ITS OWN ROWS ─────────────────────────────────
+//
+// Once a leaf can live directly on a page, collecting only the page's
+// CONTAINERS computes the insertion index against a PARTIAL list. Measured on
+// prod: the page listed [Email Sam, Today, This Week], the line was drawn
+// between Today and This Week, and the row landed LAST — because "before This
+// Week" was resolved against a two-card list and mapped to list index 2.
+describe("collectMemberCards includes a page's own leaf rows", () => {
+  it("returns rows AND containers, in document order", () => {
+    build(`
+      <div id="pg" data-page-occ-id="p1">
+        <div class="instance-wrap" data-occ-id="row"></div>
+        <div data-container-id="m-a" data-occ-id="a">
+          <div class="instance-wrap" data-occ-id="inside"></div>
+        </div>
+        <div data-container-id="m-b" data-occ-id="b"></div>
+      </div>`);
+    const ids = collectMemberCards(document.getElementById("pg"))
+      .map(el => el.getAttribute("data-occ-id"));
+    expect(ids).toEqual(["row", "a", "b"]);   // "inside" belongs to the container
+  });
+
+  // DISCRIMINATING CASE: a page whose children are ROWS ONLY. Collecting just
+  // containers finds NO cards at all, so the walk returns null and the caller
+  // falls back to the half rule — two positions for a list of three.
+  it("indexes between two page-level ROWS (no containers at all)", async () => {
+    const { resolvePageInsertAt } = await import("../helpers/dragHitTesting");
+    build(`
+      <div data-page-occ-id="p1">
+        <div class="instance-wrap" data-occ-id="r1"></div>
+        <div class="instance-wrap" data-occ-id="r2"></div>
+        <div class="instance-wrap" data-occ-id="r3"></div>
+      </div>`);
+    for (const [id, r] of Object.entries({ r1: [100, 200], r2: [200, 300], r3: [300, 400] })) {
+      const el = document.querySelector(`[data-occ-id="${id}"]`);
+      el.getBoundingClientRect = () => ({ top: r[0], bottom: r[1], left: 0, right: 700,
+        width: 700, height: r[1] - r[0], x: 0, y: r[0] });
+    }
+    const pageOcc = { id: "p1", moduleId: "m-page", occurrences: ["r1", "r2", "r3"] };
+    // between r2 and r3 — the page's bottom half, where the half rule says "append" (3)
+    expect(resolvePageInsertAt({ pageOcc, pageRect: { top: 100, height: 300 }, y: 305 })).toBe(2);
+  });
+
+  // CONTRACT PIN, not coverage: this one passes with containers-only too,
+  // because `indexOf` maps the found card back into the real list either way.
+  it("indexes correctly against a MIXED list (the prod case)", async () => {
+    const { resolvePageInsertAt } = await import("../helpers/dragHitTesting");
+    build(`
+      <div data-page-occ-id="p1">
+        <div class="instance-wrap" data-occ-id="row"></div>
+        <div data-container-id="m-a" data-occ-id="a"></div>
+        <div data-container-id="m-b" data-occ-id="b"></div>
+      </div>`);
+    const rects = { row: [100, 150], "m-a": [150, 250], "m-b": [250, 350] };
+    for (const [sel, r] of Object.entries(rects)) {
+      const el = document.querySelector(sel === "row" ? '[data-occ-id="row"]' : `[data-container-id="${sel}"]`);
+      el.getBoundingClientRect = () => ({ top: r[0], bottom: r[1], left: 0, right: 700,
+        width: 700, height: r[1] - r[0], x: 0, y: r[0] });
+    }
+    const pageOcc = { id: "p1", moduleId: "m-page", occurrences: ["row", "a", "b"] };
+    // between container a and container b
+    expect(resolvePageInsertAt({ pageOcc, pageRect: { top: 100, height: 250 }, y: 255 })).toBe(2);
+    // between the row and container a
+    expect(resolvePageInsertAt({ pageOcc, pageRect: { top: 100, height: 250 }, y: 155 })).toBe(1);
+  });
+});

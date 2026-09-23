@@ -1056,7 +1056,7 @@ export function DragProvider({
       // offers only 0 or "append": a drop aimed between the 2nd and 3rd
       // container landed first.) Falls back to the half rule when the cards
       // can't be resolved — an empty page has none.
-      const insertAt = resolvePageInsertAt({ pageOcc, pageRect, y });
+      const insertAt = resolvePageInsertAt({ pageOcc, pageRect, x, y });
       dt.context = { ...dt.context, occurrenceId: pageOccId, insertAt };
     }
     // Stash the actual drop target's rect on context so handlers don't have
