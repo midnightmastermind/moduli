@@ -38,10 +38,12 @@
 
 export const CRUMB_SEP = " › ";
 
-/** How many ancestors a crumb shows. A six-deep chain is as unreadable as the
- *  ambiguity it is meant to fix; the NEAREST ancestors are the discriminating
- *  ones, so the cap drops the root end. */
-export const MAX_CRUMBS = 2;
+/** A guard against a malformed chain, NOT a display choice. The whole chain is
+ *  shown (user, 2026-09-23: *"and yes full ancestory"*) — an earlier version
+ *  kept only the nearest two, which on poms drops a real level: a schedule row
+ *  sits under `Schedule Template › Schedule: Routine › 6:00am`, and showing two
+ *  of those three hides where the slot actually lives. */
+export const MAX_CRUMB_DEPTH = 12;
 
 /**
  * "Schedule › 12:00pm" for an occurrence, from an ancestor id list.
@@ -56,22 +58,31 @@ export const MAX_CRUMBS = 2;
  * @returns {string} "" when there is nothing to say.
  */
 export function crumbFromAncestors(ancestorIds, {
-  occurrencesById = {}, modulesById = {}, foldersById = null, maxCrumbs = MAX_CRUMBS,
+  occurrencesById = {}, modulesById = {}, foldersById = null, maxDepth = MAX_CRUMB_DEPTH,
 } = {}) {
   if (!Array.isArray(ancestorIds) || ancestorIds.length === 0) return "";
   const names = [];
   for (const id of ancestorIds) {              // closest first
-    if (names.length >= maxCrumbs) break;
+    if (names.length >= maxDepth) break;
     const occ = occurrencesById[id];
     if (occ) {
       const name = occ.label || modulesById[occ.moduleId]?.label || null;
       if (name) names.push(name);
+      // STOP AT THE PAGE. It is the surface a person navigates to, and what
+      // sits above it is layout chrome — a panel is called "Panel D". Going
+      // further would add a name that tells you nothing about where the row is.
+      if (modulesById[occ.moduleId]?.role === "page") break;
       continue;
     }
     const folder = foldersById?.[id];
-    if (folder?.name) names.push(folder.name);
+    if (folder?.name) {
+      // A page is FILED in a folder rather than listed by an occurrence, so a
+      // folder is a real home and the end of the walk.
+      names.push(folder.name);
+      break;
+    }
   }
-  return names.reverse().join(CRUMB_SEP);      // root-most of the kept ones first
+  return names.reverse().join(CRUMB_SEP);      // root-most first
 }
 
 /**

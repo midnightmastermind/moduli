@@ -11,7 +11,7 @@
 // than noisy is that only the options colliding INSIDE THE LIST get a crumb.
 import { describe, it, expect } from "vitest";
 import {
-  crumbFromAncestors, ancestorIdsOf, disambiguateOptions, CRUMB_SEP, MAX_CRUMBS,
+  crumbFromAncestors, ancestorIdsOf, disambiguateOptions, CRUMB_SEP,
 } from "../helpers/occurrenceCrumbs";
 
 const OCCS = {
@@ -34,16 +34,28 @@ describe("crumbFromAncestors", () => {
     expect(crumbFromAncestors(["slotA", "page"], MAPS)).toBe(`Schedule${CRUMB_SEP}9:00am`);
   });
 
-  it("keeps the NEAREST ancestors when the chain is deep", () => {
-    // The nearest ones discriminate; a six-deep chain is as unreadable as the
-    // ambiguity it is fixing.
-    const deep = { ...OCCS,
-      g1: { id: "g1", moduleId: "m-g1" }, g2: { id: "g2", moduleId: "m-g2" } };
-    const mods = { ...MODS, "m-g1": { label: "Grandparent" }, "m-g2": { label: "Great" } };
-    const out = crumbFromAncestors(["slotA", "page", "g1", "g2"],
-      { occurrencesById: deep, modulesById: mods });
-    expect(out).toBe(`Schedule${CRUMB_SEP}9:00am`);          // not "Great › Grandparent"
-    expect(out.split(CRUMB_SEP)).toHaveLength(MAX_CRUMBS);
+  it("shows the WHOLE chain, up to and including the page", () => {
+    // USER, 2026-09-23: "and yes full ancestory". An earlier version kept only
+    // the nearest two, which on poms hides a real level — a schedule row sits
+    // under `Schedule Template › Schedule: Routine › 6:00am`.
+    const occs = {
+      ...OCCS,
+      mid:  { id: "mid",  moduleId: "m-mid" },
+      page: { id: "page", moduleId: "m-page", occurrences: ["slotA", "slotB"] },
+    };
+    const mods = { ...MODS, "m-mid": { label: "Schedule: Routine", role: "container" } };
+    expect(crumbFromAncestors(["slotA", "mid", "page"], { occurrencesById: occs, modulesById: mods }))
+      .toBe(`Schedule${CRUMB_SEP}Schedule: Routine${CRUMB_SEP}9:00am`);
+  });
+
+  it("STOPS at the page — what sits above it is layout chrome", () => {
+    // A panel is called "Panel D"; adding it tells you nothing about where the
+    // row is. This is the control for "full chain" not meaning "walk forever".
+    const occs = { ...OCCS, panel: { id: "panel", moduleId: "m-panel" } };
+    const mods = { ...MODS, "m-panel": { label: "Panel D", role: "panel" } };
+    const out = crumbFromAncestors(["slotA", "page", "panel"], { occurrencesById: occs, modulesById: mods });
+    expect(out).toBe(`Schedule${CRUMB_SEP}9:00am`);
+    expect(out).not.toContain("Panel D");
   });
 
   it("resolves a FOLDER ancestor — a page is filed, not listed", () => {
