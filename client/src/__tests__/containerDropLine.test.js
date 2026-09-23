@@ -106,29 +106,7 @@ describe("DragProvider asks for the line on a container drag", () => {
 
   it("draws the LINE ONLY — never a box around the whole page", () => {
     const at = code.indexOf("else if (t === DragType.CONTAINER)");
-    expect(code.slice(at, at + 700)).toMatch(/showDropIndicators\(el, clientX, clientY, false\)/);
-  });
-
-  // ── AND ONLY WHEN NOTHING ELSE IS ALREADY DRAWING ONE ────────────────────
-  //
-  // Measured on prod after the first version shipped, with an INSTANCE drag as
-  // the control — which is the only reason it was visible as a defect rather
-  // than as "that is how it looks":
-  //
-  //     CONTAINER drag, pointer over a container   2 lines, 19px apart
-  //     INSTANCE  drag, same page, same gesture    1 line
-  //
-  // `useDragDrop` already draws closestEdge bars while the pointer is OVER a
-  // container. This branch drew the page-level line UNCONDITIONALLY, so the two
-  // stacked. The LEAF branch never had the bug because it draws its page line
-  // only in the `else` — when no container is under the pointer. This mirrors
-  // that, which is also what keeps the gesture the user asked for: the gap
-  // BETWEEN containers, and before the first / after the last, still gets a
-  // line, because there is no container there to draw one.
-  it("defers to the container's own edge bars when the pointer is OVER one", () => {
-    const at = code.indexOf("else if (t === DragType.CONTAINER)");
-    const branch = code.slice(at, at + 700);
-    expect(branch).toMatch(/rawContainerEl/);
+    expect(code.slice(at, at + 500)).toMatch(/showDropIndicators\(el, clientX, clientY, false\)/);
   });
 });
 

@@ -788,21 +788,11 @@ export function DragProvider({
         // LINE ONLY, never the box: outlining the page would flash a border
         // around the entire surface on every crossing, which is the flicker
         // the leaf path documents and deliberately avoids.
-        //
-        // ONLY WHEN NOTHING ELSE IS ALREADY DRAWING ONE. `useDragDrop` puts
-        // closestEdge bars on a container while the pointer is OVER it, so
-        // drawing the page line unconditionally stacked TWO lines 19px apart —
-        // measured on prod with an instance drag as the control (container 2,
-        // instance 1). The LEAF branch above never had this because it draws
-        // its page line only in the `else`; this mirrors it. The gap BETWEEN
-        // containers and the space before the first / after the last still get
-        // a line, because there is no container there to draw one — which is
-        // the case the user asked for.
-        const el = typeof document !== "undefined" && !rawContainerEl
+        const el = typeof document !== "undefined"
           ? document.elementFromPoint(clientX, clientY)?.closest?.("[data-page-occ-id]")
           : null;
         if (el) showDropIndicators(el, clientX, clientY, false);
-        else if (!rawContainerEl) hideDropIndicators();
+        else hideDropIndicators();
       } else {
         // panel drags — edge indicators come from useDragDrop's closestEdge;
         // no outline or line here.
