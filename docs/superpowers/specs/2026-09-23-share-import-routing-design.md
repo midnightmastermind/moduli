@@ -70,6 +70,10 @@ Each was settled with the user on 2026-09-23.
 | D11 | ics time **floors to the slot it falls inside** | 2:17pm → "2:00pm". Never moves an event earlier than it starts. |
 | D12 | **Recurring events import the first occurrence only**, with a notice | Better than silently creating one row when fifty were expected. |
 | D13 | Build order: **extension → endpoint → rule → row**, then ics, then phone, then Windows | The extension needs no new transport, so the spine is proved with the least new surface. |
+| D14 | **Raise the share upload cap to 500 MB** (from 50 MB) | Phone video is one of the named types and routinely exceeds 50 MB. |
+| D15 | **The extension re-routes through `/share`**, with a shipped `link` rule reproducing today's clip shape | One path for everything; day-one behaviour is unchanged but becomes configurable. |
+| D16 | **The Imports tab carries a recent-shares log** | With no inbox (D2), a log is the only way to notice a rule sending things to the wrong place. |
+| D17 | The ics `CREATE` **binds** Schedule Type / Date / Time Slot / Duration, Schedule Type left empty | `Schedule: Place Dated Work` gates on the *binding*, not the value — so binding is what puts the event on the Schedule. |
 
 ### A correction recorded, not quietly dropped
 
@@ -203,9 +207,13 @@ unchanged.
 `IF`, `SET_VAR`, `LOOP` — all present — plus:
 
 - **`CREATE`** — mint an occurrence (and module) under a named parent, with
-  `fields`. Wires to the same minting the `/api/v1/ingest` route and
-  `markdownImporter.mintEntities` already perform; it is not written from
-  scratch.
+  `fields` **and `fieldBindings`**. Wires to the same minting the
+  `/api/v1/ingest` route and `markdownImporter.mintEntities` already perform; it
+  is not written from scratch.
+  **Bindings are not optional polish** (D17): ops gate on
+  `_boundFieldIds`, and a value written to an unbound field renders nowhere. A
+  `CREATE` that can set values but not bindings would produce rows that look
+  right in Mongo and are invisible to both the Schedule and the UI.
 - **`FIND`** — resolve a destination container, or an existing option row, by
   predicate.
 
@@ -236,6 +244,19 @@ correctness before choosing.
 **`durationMin`** is `DTEND - DTSTART` in minutes; an all-day event sets
 `allDay: true` and leaves `timeSlot` null.
 
+**The created row must BIND the four fields, not merely carry values** (D17).
+`Schedule: Place Dated Work` gates on
+`_boundFieldIds ARRAY_INCLUDES <Schedule Type>` — the binding, not the value —
+so a row with values and no bindings is invisible to the Schedule. The shipped
+ics rule therefore binds Schedule Type (left empty, since `SUMMARY` goes to the
+label), Date, Time Slot and Duration. This is the same shape the `Work` row in
+`Routines › Occupational › Employment` carries.
+
+**Consequence for the `CREATE` action** (§5): it must be able to declare
+`fieldBindings`, not just `fields`. A value written to an unbound field renders
+nowhere — the defect `addNewOption.js` already records ("*an ingredient module
+did not BIND the macro fields at all*").
+
 **Timezones are a correctness trap, not a detail.** `DTSTART` may carry a
 `TZID`, be UTC (`Z`-suffixed), or be floating. The parser must resolve to the
 user's local date before deriving `date` and `timeSlot`, or an evening event
@@ -261,9 +282,15 @@ second. This is why `uid` appears in the ics catalogue.
 ## 8. Transport per entry point
 
 ### Browser extension (first slice)
-Already has transport and a Bearer token. Gains a "Share to Moduli" path that
-posts to `/api/v1/share` instead of minting a clip record directly, so the same
-rules apply to a clip as to a phone share.
+Already has transport and a Bearer token. It **re-routes** through
+`/api/v1/share` instead of minting a clip record directly (D15), so the same
+rules govern a clip and a phone share of the same link.
+
+**Day-one behaviour must be identical.** The shipped `link` rule reproduces
+`buildClipRecord`'s current output exactly — bookmark shape, `externalId`
+`<shape>:<url>`, the same `URL` / `Excerpt` / `Cover` field writes. The
+regression test is that clipping a page before and after the change produces the
+same row. From then on the rule is editable, which is the point.
 
 ### Android + Windows share sheet
 Web app manifest (`client/public/manifest.json` exists; no service worker does):
@@ -299,6 +326,36 @@ rather than asserted here.
 Same manifest, two more entries — `file_handlers` for `text/calendar`, and
 `protocol_handlers` for `webcal`. No new server surface: both route into the
 same `/share` handler.
+
+---
+
+## 8a. The Command Center Imports tab
+
+The one client surface. It authors rules and shows what happened — it is **not**
+in the execution path (§2 D7).
+
+**Rules editor.** Reuses the operations components rather than a bespoke editor
+(D6): the condition builder, `ActionPicker`, `ExprOrPath` and the drilldown path
+picker, laid out with `PrefillEditor`'s row grammar. A rule reads as trigger
+(type) → variable rows → condition/action rows. The user never leaves for the
+Operations tab.
+
+**Recent-shares log** (D16). With no inbox, this is how a bad rule is noticed:
+
+```
+13:58  ics    meeting.ics   rule: ics   → "Dentist"  → Appointments
+13:41  link   nytimes.com   rule: link  → bookmark   → Bookmarks
+12:02  file   notes.zip     rule: *     → file       → Files/Inbox
+```
+
+Each row names what arrived, which rule matched, what was created, and links to
+the created occurrence. It is a view over the **operation run log that already
+exists** (`OperationLogPanel`), not a second store — the rules are operations, so
+their runs are already recorded.
+
+Deliberately NOT built: a re-run button. It would require retaining payloads,
+which means keeping uploaded files alive for shares that already landed. If
+re-running turns out to matter, it is an additive change.
 
 ---
 
@@ -363,6 +420,10 @@ None blocks the first slice (D13), which uses the extension.
   not roll back the others, and the notice names how many of how many landed.
 - **Auth failure from the phone** — the share cannot silently vanish. The app
   page must say so rather than redirect to an empty grid.
+- **Too large** — refused before any write, naming the size and the limit
+  (D14 raises it to 500 MB; a 4K video can still exceed that).
+- **Every one of the above appears in the Imports log** (§8a), which is the
+  surface that makes a silent misroute visible.
 
 ---
 
@@ -388,7 +449,12 @@ None blocks the first slice (D13), which uses the extension.
 1. **`serverExecutor` gains `CREATE` + `FIND`** (+ update its subset comment).
 2. **`POST /api/v1/share`** — classification, ingress prep, `onShare` dispatch.
 3. **Imports tab** — author one rule, reusing the operations components.
-4. **Extension** posts to `/share`. *Tracer bullet complete: clip → row.*
-5. **`services/icsImport.js`** + the shipped ics rule.
-6. **Manifest + service worker** → Android share.
-7. **`file_handlers` / `protocol_handlers`** → Windows open-with and `webcal://`.
+4. **Extension** posts to `/share`, plus the compatibility `link` rule and its
+   before/after regression test (D15). *Tracer bullet complete: clip → row.*
+5. **Recent-shares log** in the Imports tab over the existing run log (D16).
+6. **`services/icsImport.js`** + the shipped ics rule, binding the four fields
+   (D17).
+7. **Raise the upload cap to 500 MB** for the share path (D14) — before phone
+   transport, since video is the case that needs it.
+8. **Manifest + service worker** → Android share.
+9. **`file_handlers` / `protocol_handlers`** → Windows open-with and `webcal://`.
