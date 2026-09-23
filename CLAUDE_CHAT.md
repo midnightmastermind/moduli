@@ -3541,3 +3541,7 @@ preview allows you to open it inline in web. why cant we."
 **2026-09-22 15:29 CDT** — "make a convert submenu so we dont have 4 convert buttons on the arc menu. one convert button" (the container radial: collapse Convert to Doc/Board/Canvas/Table/Graph into ONE Convert item that opens a submenu)
 
 **2026-09-23 07:22 CDT** — "in those places where its hard to tell occurances apart due to same name (diff selects and such), we need to show the occurances ancestor chain" (anywhere occurrences are listed BY LABEL and two can share one — selects/dropdowns/pickers — show the ancestor chain so they can be told apart. Prompted by the template picker offering two identical "Morning Slot" radios; the same class is already recorded for occurrence search (09-22 (7): "the first of six same-named hits opened nothing") and was already fixed once for the pomodoro container picker via `helpers/containerCrumbs.js` (09-19 (11)).)
+
+**2026-09-23 07:52 CDT** — "you are missing a part of the ancestory (the container in between schedule and the timeslot)" → then "oh nvm then" (the rebuild grid's chain really is only `6:00am › Schedule`; poms is the one with day-column containers between) → then **"and yes full ancestory"**: show the WHOLE chain, not the nearest-two cap I had shipped.
+
+**2026-09-23 07:52 CDT** — "i hope we plan on recreating all of poms with this rebuild" — the rebuild is not just a place to spot-test surfaces; the goal is to reproduce ALL of poms through the UI. Census the gap and work it down.
