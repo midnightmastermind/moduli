@@ -8,6 +8,7 @@ import { useMemo } from "react";
 import { useGridActions } from "../../GridActionsContext";
 import { useComputedValuesMap } from "../../state/computedValuesStore";
 import * as CalculationHelpers from "../../helpers/CalculationHelpers";
+import { formatDuration } from "../../helpers/duration.js";
 
 /**
  * Extract all field pill IDs from Tiptap JSON content
@@ -129,16 +130,12 @@ function formatValue(value, field) {
       }
       return String(value);
 
+    // Minutes, formatted by the one helper every other duration display uses.
+    // This copy printed "2h 0m" where a row pill printed "2h", and its
+    // `typeof value === "number"` guard fell through to a bare "60" for the
+    // string values the compact editor used to write (7 of 19 on poms grid).
     case "duration":
-      if (typeof value === "number") {
-        const hours = Math.floor(value / 60);
-        const mins = value % 60;
-        if (hours > 0) {
-          return `${hours}h ${mins}m`;
-        }
-        return `${mins}m`;
-      }
-      return String(value);
+      return formatDuration(value);
 
     case "select":
       if (Array.isArray(value)) {

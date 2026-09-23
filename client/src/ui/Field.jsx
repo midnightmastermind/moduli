@@ -57,6 +57,7 @@ import { useGridActionsSelector } from "../GridActionsContext";
 import { runMatchingOperations } from "../helpers/operationExecutor";
 import LoadingImage from "./LoadingImage.jsx";
 import { searchProviderConfig, mapProviderFields } from "../helpers/providerFieldMap.js";
+import { formatDuration, splitDuration } from "../helpers/duration.js";
 
 // The type size of a field on a row — its pill and its caption. ONE constant,
 // because these were scattered inline literals and an inline style is exactly
@@ -1468,15 +1469,7 @@ function Field({
         }
         return options.find(o => o.value === rawDisplayValue)?.label ?? rawDisplayValue;
       }
-      case "duration": {
-        const totalMin = Number(rawDisplayValue ?? 0);
-        if (isNaN(totalMin)) return rawDisplayValue;
-        const h = Math.floor(totalMin / 60);
-        const m = totalMin % 60;
-        if (h === 0) return `${m}m`;
-        if (m === 0) return `${h}h`;
-        return `${h}h ${m}m`;
-      }
+      case "duration": return formatDuration(rawDisplayValue);
       case "rating": return rawDisplayValue;
       case "text": {
         // Array-history values without a columns renderer in reach: empty →
@@ -1662,6 +1655,12 @@ function Field({
 
     // Compact click-to-edit mode for numeric/text/duration fields
     const useClickToEdit = compact && (type === "number" || type === "text" || type === "duration");
+    // A duration is entered as MINUTES, the unit the h/m editor stores and every
+    // display reads. It was typed into the wide free-text box instead, which
+    // stored a STRING — poms grid carries 12 numbers and 7 strings for ONE field
+    // because of it — and contradicted the comment below promising durations the
+    // narrow centred field.
+    const numericInput = type === "number" || type === "duration";
 
     if (useClickToEdit) {
       // Flow side-button (2026-07-11): value-bearing fields that opt in via
@@ -1702,9 +1701,16 @@ function Field({
       // The DISPLAY path already rounds to `precision`; this INPUT pill printed
       // the bare number, so a price of 2.50 read "$2.5" (user, 2026-08-14).
       // Integers stay integers — "6 oz", not "6.00 oz".
-      const displayNum = (type === "number" && typeof rawNum === "number" && !Number.isInteger(rawNum))
-        ? rawNum.toFixed(binding?.display?.precision ?? 2)
-        : rawNum;
+      // A duration is a NUMBER OF MINUTES and has to be formatted as one here
+      // too. This pill printed the bare value, so a 120-minute appointment read
+      // "120" while the same field read "2h" through the display path and
+      // "2h 0m" in a doc pill. Its own empty branch above already says "0m" is
+      // the empty state; without this it rendered "0".
+      const displayNum = type === "duration"
+        ? formatDuration(localValue)
+        : (type === "number" && typeof rawNum === "number" && !Number.isInteger(rawNum))
+          ? rawNum.toFixed(binding?.display?.precision ?? 2)
+          : rawNum;
       const formattedDisplay = `${inlinePrefix}${displayNum}${inlinePostfix}`;
       // Pill tint:
       //   - target present  → target-met (green) / not-met (red)
@@ -1722,19 +1728,19 @@ function Field({
         return withFlowToggle(
           <div className={`field-input editing inline-flex items-center gap-0.5 ${showFlowToggle ? "px-1" : ""}`}>
             {inlinePrefix && <span className="text-[12px] text-muted-foreground">{inlinePrefix}</span>}
-            <Input ref={inputRef} type={type === "number" ? "number" : "text"}
+            <Input ref={inputRef} type={numericInput ? "number" : "text"}
               value={localValue ?? ""}
-              onChange={(e) => handleChange(type === "number" ? (e.target.value === "" ? null : Number(e.target.value)) : e.target.value)}
+              onChange={(e) => handleChange(numericInput ? (e.target.value === "" ? null : Number(e.target.value)) : e.target.value)}
               onKeyDown={handleKeyDown} onBlur={handleCommit} disabled={disabled}
               // TEXT gets a wide, left-aligned box (2026-07-25, per user: editing
               // an email in a 56px centered box was unusable). Numbers/durations
               // keep the narrow centered field — they're a few glyphs wide.
               className={`${compact ? "h-5 text-[12px]" : "h-6 text-xs"} ${
-                type === "number" ? (compact ? "w-14" : "w-16") + " text-center" : "w-full text-left"
+                numericInput ? (compact ? "w-14" : "w-16") + " text-center" : "w-full text-left"
               } px-1 ${showFlowToggle ? "border-0 bg-transparent" : ""}`}
               style={{
-                minWidth: type === "number" ? 40 : 180,
-                ...(type === "number" ? {} : { maxWidth: "min(420px, 60vw)" }),
+                minWidth: numericInput ? 40 : 180,
+                ...(numericInput ? {} : { maxWidth: "min(420px, 60vw)" }),
                 ...(showFlowToggle ? { color: "inherit" } : {}),
               }} />
             {inlinePostfix && <span className="text-[12px] text-muted-foreground">{inlinePostfix}</span>}
@@ -2344,9 +2350,7 @@ function Field({
     }
 
     if (type === "duration") {
-      const totalMinutes = localValue ?? 0;
-      const hours = Math.floor(totalMinutes / 60);
-      const minutes = totalMinutes % 60;
+      const { hours, minutes } = splitDuration(localValue);
       const updateDuration = (h, m) => { const v = h * 60 + m; handleChange(v); };
       return (
         <div className="field-input field-input-duration" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -2671,9 +2675,7 @@ function Field({
 
   // Duration — two boxes for h + m
   if (type === "duration") {
-    const totalMin = Number(rawDisplayValue ?? 0);
-    const dh = isNaN(totalMin) ? 0 : Math.floor(totalMin / 60);
-    const dm = isNaN(totalMin) ? 0 : totalMin % 60;
+    const { hours: dh, minutes: dm } = splitDuration(rawDisplayValue);
     return (
       <div className="field-display" style={{ display: "flex", flexDirection: "column", gap: 3 }}>
         {showLabel && <span style={labelStyle}>{name}</span>}
